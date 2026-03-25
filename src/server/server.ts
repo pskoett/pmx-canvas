@@ -40,6 +40,9 @@ let nextWorkbenchSubscriberId = 1;
 const workbenchSubscribers = new Map<number, ReadableStreamDefaultController<Uint8Array>>();
 const textEncoder = new TextEncoder();
 let primaryWorkbenchAutoOpenEnabled = true;
+const canvasThemeSetting = (['dark', 'light', 'high-contrast'].includes(process.env.PMX_CANVAS_THEME ?? '')
+  ? process.env.PMX_CANVAS_THEME!
+  : 'dark');
 let lastWorkbenchContextCardsEnvelope: Record<string, unknown> | null = null;
 
 export interface PrimaryWorkbenchEventPayload {
@@ -739,7 +742,7 @@ function handleWorkbenchEvents(req: Request): Response {
           requestedSessionId: requestedSessionId || null,
           continuity,
           path: primaryWorkbenchPath,
-          theme: 'dark',
+          theme: canvasThemeSetting,
           timestamp: new Date().toISOString(),
         }),
       );
@@ -1776,6 +1779,14 @@ export interface CanvasServerOptions {
 export function startCanvasServer(options: CanvasServerOptions = {}): string | null {
   const workspaceRoot = options.workspaceRoot ?? process.cwd();
   activeWorkspaceRoot = normalizeWorkspaceRoot(workspaceRoot);
+
+  // ── Canvas persistence: set workspace root and load saved state ──
+  canvasState.setWorkspaceRoot(activeWorkspaceRoot);
+  const loaded = canvasState.loadFromDisk();
+  if (loaded) {
+    console.log('  Canvas state restored from .pmx-canvas.json');
+  }
+
   rotatePrimaryWorkbenchSessionIfNeeded();
 
   if (server) {
@@ -1854,10 +1865,6 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/edge' && req.method === 'DELETE') {
             return handleCanvasRemoveEdge(req);
-          }
-
-          if (url.pathname === '/api/canvas/prompt' && req.method === 'POST') {
-            return handleCanvasPrompt(req);
           }
 
           // Context pins API

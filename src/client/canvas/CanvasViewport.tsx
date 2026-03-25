@@ -1,10 +1,9 @@
 import { useCallback, useRef, useState } from 'preact/hooks';
 import { ContextNode } from '../nodes/ContextNode';
+import { FileNode } from '../nodes/FileNode';
 import { LedgerNode } from '../nodes/LedgerNode';
 import { MarkdownNode } from '../nodes/MarkdownNode';
 import { McpAppNode } from '../nodes/McpAppNode';
-import { PromptNode } from '../nodes/PromptNode';
-import { ResponseNode } from '../nodes/ResponseNode';
 import { StatusNode } from '../nodes/StatusNode';
 import { TraceNode } from '../nodes/TraceNode';
 import {
@@ -36,10 +35,8 @@ function renderNodeContent(node: CanvasNodeState) {
       return <LedgerNode node={node} />;
     case 'trace':
       return <TraceNode node={node} />;
-    case 'prompt':
-      return <PromptNode node={node} />;
-    case 'response':
-      return <ResponseNode node={node} />;
+    case 'file':
+      return <FileNode node={node} />;
     default:
       return <div>Unknown node type</div>;
   }

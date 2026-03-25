@@ -1,10 +1,9 @@
 import { useCallback, useState } from 'preact/hooks';
 import { ContextNode } from '../nodes/ContextNode';
+import { FileNode } from '../nodes/FileNode';
 import { LedgerNode } from '../nodes/LedgerNode';
 import { MarkdownNode } from '../nodes/MarkdownNode';
 import { McpAppNode } from '../nodes/McpAppNode';
-import { PromptNode } from '../nodes/PromptNode';
-import { ResponseNode } from '../nodes/ResponseNode';
 import { StatusNode } from '../nodes/StatusNode';
 import { TraceNode } from '../nodes/TraceNode';
 import {
@@ -31,10 +30,8 @@ function renderContent(node: CanvasNodeState, expanded: boolean) {
       return <LedgerNode node={node} />;
     case 'trace':
       return <TraceNode node={node} />;
-    case 'prompt':
-      return <PromptNode node={node} expanded={expanded} />;
-    case 'response':
-      return <ResponseNode node={node} expanded={expanded} />;
+    case 'file':
+      return <FileNode node={node} expanded={expanded} />;
     default:
       return <div>Unknown node type</div>;
   }
@@ -45,17 +42,8 @@ function getNodeTextContent(node: CanvasNodeState): string {
   switch (node.type) {
     case 'markdown':
       return (node.data.content as string) || '';
-    case 'response':
-      return (node.data.content as string) || '';
-    case 'prompt': {
-      // Thread-based: concatenate all turns
-      if (Array.isArray(node.data.turns)) {
-        return (node.data.turns as Array<{ role: string; text: string }>)
-          .map((t) => `${t.role === 'user' ? 'You' : 'Agent'}: ${t.text}`)
-          .join('\n\n');
-      }
-      return (node.data.text as string) || '';
-    }
+    case 'file':
+      return (node.data.fileContent as string) || '';
     default:
       return '';
   }

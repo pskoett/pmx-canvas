@@ -9,9 +9,8 @@ import { Minimap } from './canvas/Minimap';
 import { SelectionBar } from './canvas/SelectionBar';
 import {
   activeNodeId,
-  addNode,
   autoArrange,
-  bringToFront,
+  canvasTheme,
   clearSelection,
   collapseExpandedNode,
   connectionStatus,
@@ -30,6 +29,7 @@ import {
   viewport,
 } from './state/canvas-store';
 import { connectSSE } from './state/sse-bridge';
+import { invalidateTokenCache } from './theme/tokens';
 
 function sendIntent(type: string, payload: Record<string, unknown> = {}): void {
   fetch(`/api/workbench/intent?_ts=${Date.now()}`, {
@@ -126,6 +126,18 @@ function Toolbar({
       >
         ◫
       </button>
+      <button
+        type="button"
+        onClick={() => {
+          const next = canvasTheme.value === 'dark' ? 'light' : 'dark';
+          canvasTheme.value = next;
+          document.documentElement.setAttribute('data-theme', next);
+          invalidateTokenCache();
+        }}
+        title={`Switch to ${canvasTheme.value === 'dark' ? 'light' : 'dark'} theme`}
+      >
+        {canvasTheme.value === 'dark' ? '☀' : '☾'}
+      </button>
 
       <div class="separator" />
 
@@ -146,34 +158,6 @@ function Toolbar({
           ⌫
         </button>
       )}
-
-      <div class="separator" />
-
-      <button
-        type="button"
-        onClick={() => {
-          const v = viewport.value;
-          const cx = (window.innerWidth / 2 - v.x) / v.scale;
-          const cy = (window.innerHeight / 2 - v.y) / v.scale;
-          const id = `prompt-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-          addNode({
-            id,
-            type: 'prompt',
-            position: { x: cx - 260, y: cy - 90 },
-            size: { width: 520, height: 400 },
-            zIndex: 1,
-            collapsed: false,
-            pinned: false,
-            dockPosition: null,
-            data: { text: '', turns: [], threadStatus: 'draft', status: 'draft' },
-          });
-          bringToFront(id);
-        }}
-        title="Ask agent from canvas"
-        style={{ fontWeight: 600 }}
-      >
-        + Ask
-      </button>
 
       <span style={{ fontSize: '10px', color: 'var(--c-dim)' }}>{countsLabel}</span>
     </div>

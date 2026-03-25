@@ -14,7 +14,7 @@ import {
   undockNode,
   updateNode,
 } from '../state/canvas-store';
-import { createEdgeFromClient, sendIntent, submitCanvasPrompt } from '../state/intent-bridge';
+import { createEdgeFromClient, sendIntent } from '../state/intent-bridge';
 import { EXPANDABLE_TYPES } from '../types';
 import type { CanvasNodeState } from '../types';
 
@@ -217,15 +217,6 @@ function buildMenuItems(node: CanvasNodeState): MenuItem[] {
       // Chart ext-app node — chart-specific actions
       const chartTitle =
         ((node.data.chartConfig as Record<string, unknown>).title as string) || 'chart';
-      items.push({
-        label: 'Refresh chart data',
-        action: () => {
-          submitCanvasPrompt(
-            `Refresh chart: re-run the query for "${chartTitle}" and update the chart with fresh data.`,
-            node.position,
-          );
-        },
-      });
       items.push({
         label: 'Copy chart data',
         action: () => {

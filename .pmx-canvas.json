@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "scale": 1
+  },
+  "nodes": [
+    {
+      "id": "node-mn6lg3lk-kfn6",
+      "type": "file",
+      "position": {
+        "x": 40,
+        "y": 80
+      },
+      "size": {
+        "width": 720,
+        "height": 600
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "path": "/tmp/pmx-test-file.txt",
+        "title": "pmx-test-file.txt",
+        "fileContent": "updated content\nline 2\nline 3",
+        "lineCount": 3,
+        "updatedAt": "2026-03-25T22:07:04.496Z"
+      }
+    }
+  ],
+  "edges": [],
+  "contextPins": []
+}

@@ -1,6 +1,9 @@
 import { EventEmitter } from 'node:events';
+import { existsSync, readFileSync, statSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { canvasState } from './canvas-state.js';
 import type { CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
+import { watchFileForNode, unwatchFileForNode, onFileNodeChanged } from './file-watcher.js';
 import { findOpenCanvasPosition } from './placement.js';
 import {
   startCanvasServer,
@@ -39,6 +42,18 @@ export class PmxCanvas extends EventEmitter {
       this.emit('prompt', request);
     });
 
+    // Wire up file watcher: push SSE updates when watched files change
+    onFileNodeChanged(() => {
+      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    });
+
+    // Re-watch files for any file nodes restored from persistence
+    for (const node of canvasState.getLayout().nodes) {
+      if (node.type === 'file' && typeof node.data.path === 'string') {
+        watchFileForNode(node.id, node.data.path);
+      }
+    }
+
     if (options?.open !== false) {
       openUrlInExternalBrowser(`${base}/workbench`);
     }
@@ -65,6 +80,32 @@ export class PmxCanvas extends EventEmitter {
       : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
 
     const id = `node-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    // For file nodes, resolve path and load initial content
+    let data: Record<string, unknown> = {
+      ...(input.title ? { title: input.title } : {}),
+      ...(input.content ? { content: input.content } : {}),
+    };
+
+    if (input.type === 'file') {
+      const filePath = input.content ?? '';
+      const resolved = resolve(filePath);
+      const fileName = resolved.split('/').pop() ?? filePath;
+      data = {
+        path: resolved,
+        title: input.title ?? fileName,
+      };
+      // Load initial content if file exists
+      try {
+        if (existsSync(resolved)) {
+          const fileContent = readFileSync(resolved, 'utf-8');
+          const stat = statSync(resolved);
+          data.fileContent = fileContent;
+          data.lineCount = fileContent.split('\n').length;
+          data.updatedAt = new Date(stat.mtimeMs).toISOString();
+        }
+      } catch { /* non-fatal */ }
+    }
+
     const node: CanvasNodeState = {
       id,
       type: input.type,
@@ -74,13 +115,16 @@ export class PmxCanvas extends EventEmitter {
       collapsed: false,
       pinned: false,
       dockPosition: null,
-      data: {
-        ...(input.title ? { title: input.title } : {}),
-        ...(input.content ? { content: input.content } : {}),
-      },
+      data,
     };
 
     canvasState.addNode(node);
+
+    // Start watching file for live updates
+    if (input.type === 'file' && data.path) {
+      watchFileForNode(id, data.path as string);
+    }
+
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
     return id;
   }
@@ -91,6 +135,7 @@ export class PmxCanvas extends EventEmitter {
   }
 
   removeNode(id: string): void {
+    unwatchFileForNode(id);
     canvasState.removeNode(id);
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   }

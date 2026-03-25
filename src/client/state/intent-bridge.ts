@@ -133,55 +133,6 @@ export async function createEdgeFromClient(
   }
 }
 
-/** Submit a canvas prompt to the server. */
-export async function submitCanvasPrompt(
-  text: string,
-  position?: { x: number; y: number },
-  parentNodeId?: string,
-  contextNodeIds?: string[],
-  threadNodeId?: string,
-): Promise<{ ok: boolean; nodeId?: string }> {
-  try {
-    const res = await fetch('/api/canvas/prompt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, position, parentNodeId, contextNodeIds, threadNodeId }),
-    });
-    return (await res.json()) as { ok: boolean; nodeId?: string };
-  } catch {
-    return { ok: false };
-  }
-}
-
-/** Submit a reply within an existing thread node. */
-export async function submitThreadReply(
-  threadNodeId: string,
-  text: string,
-): Promise<{ ok: boolean }> {
-  try {
-    const res = await fetch('/api/canvas/prompt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, threadNodeId }),
-    });
-    return (await res.json()) as { ok: boolean };
-  } catch {
-    return { ok: false };
-  }
-}
-
-/** Fetch available slash commands from the sidecar. */
-export async function fetchSlashCommands(): Promise<
-  Array<{ name: string; description: string; usage?: string }>
-> {
-  try {
-    const res = await fetch('/api/app/commands');
-    return (await res.json()) as Array<{ name: string; description: string; usage?: string }>;
-  } catch {
-    return [];
-  }
-}
-
 /** Remove a canvas edge via the server. */
 export async function removeEdgeFromClient(edgeId: string): Promise<{ ok: boolean }> {
   try {

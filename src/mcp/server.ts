@@ -23,7 +23,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { createCanvas, type PmxCanvas } from '../server/index.js';
+import { createCanvas, canvasState, type PmxCanvas } from '../server/index.js';
 
 let canvas: PmxCanvas | null = null;
 
@@ -79,12 +79,12 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_add_node ────────────────────────────────────────────
   server.tool(
     'canvas_add_node',
-    'Add a node to the canvas. Returns the new node ID. Node types: markdown (rich content), status (compact indicator), context, ledger, trace, prompt, response, mcp-app.',
+    'Add a node to the canvas. Returns the new node ID. Node types: markdown (rich content), status (compact indicator), context, ledger, trace, file (live file viewer — set content to a file path), mcp-app.',
     {
-      type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'prompt', 'response', 'mcp-app'])
+      type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'mcp-app'])
         .describe('Node type'),
       title: z.string().optional().describe('Node title'),
-      content: z.string().optional().describe('Node content (markdown for markdown nodes)'),
+      content: z.string().optional().describe('Node content (markdown for markdown nodes, file path for file nodes)'),
       x: z.number().optional().describe('X position (auto-placed if omitted)'),
       y: z.number().optional().describe('Y position (auto-placed if omitted)'),
       width: z.number().optional().describe('Width in pixels (default: 720)'),
@@ -404,6 +404,21 @@ export async function startMcpServer(): Promise<void> {
       };
     },
   );
+
+  // ── Resource change notifications ──────────────────────────
+  // When canvas state changes (nodes, edges, pins), notify MCP clients
+  // so they can re-read resources like canvas://pinned-context.
+  canvasState.onChange((type) => {
+    try {
+      if (type === 'pins') {
+        server.server.sendResourceUpdated({ uri: 'canvas://pinned-context' });
+      }
+      server.server.sendResourceUpdated({ uri: 'canvas://layout' });
+      server.server.sendResourceUpdated({ uri: 'canvas://summary' });
+    } catch {
+      // Notification failures are non-fatal (e.g., client disconnected)
+    }
+  });
 
   // Connect via stdio
   const transport = new StdioServerTransport();

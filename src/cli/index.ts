@@ -12,6 +12,10 @@ if (args.includes('--mcp')) {
   const port = parseInt(args.find(a => a.startsWith('--port='))?.split('=')[1] ?? '4313');
   const demo = args.includes('--demo');
   const noOpen = args.includes('--no-open');
+  const themeArg = args.find(a => a.startsWith('--theme='))?.split('=')[1];
+  if (themeArg && ['dark', 'light', 'high-contrast'].includes(themeArg)) {
+    process.env.PMX_CANVAS_THEME = themeArg;
+  }
   const help = args.includes('--help') || args.includes('-h');
 
   if (help) {
@@ -25,6 +29,7 @@ Options:
   --port=PORT    Server port (default: 4313)
   --demo         Start with sample nodes
   --no-open      Don't open browser automatically
+  --theme=THEME  Theme: dark (default), light, high-contrast
   --mcp          Run as MCP server (stdio transport)
   --help, -h     Show this help
 
@@ -44,7 +49,6 @@ HTTP API:
   POST /api/canvas/update         Batch update node positions
   POST /api/canvas/edge           Add an edge
   DELETE /api/canvas/edge         Remove an edge
-  POST /api/canvas/prompt         Submit a canvas prompt
   GET  /api/workbench/events      SSE event stream
 
 Examples:
@@ -60,7 +64,7 @@ Examples:
   const canvas = createCanvas({ port });
   await canvas.start({ open: !noOpen });
 
-  if (demo) {
+  if (demo && canvas.getLayout().nodes.length === 0) {
     const n1 = canvas.addNode({
       type: 'markdown',
       title: 'Welcome to PMX Canvas',
