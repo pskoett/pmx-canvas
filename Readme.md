@@ -2,7 +2,7 @@
 
 A standalone spatial canvas workbench that any coding agent can use as a visual workspace. Extracted from [PMX](https://github.com/pskoett/pmx).
 
-PMX Canvas gives agents a 2D infinite canvas with nodes, edges, pan/zoom, minimap, and real-time updates — controlled through MCP, HTTP API, or Node.js SDK. The canvas is also the agent's **extended working memory**: humans pin nodes to curate context, and agents read that curation as structured input.
+PMX Canvas gives agents a 2D infinite canvas with nodes, edges, pan/zoom, minimap, and real-time updates — controlled through MCP, HTTP API, or Node.js SDK. The canvas is the agent's **extended working memory**: humans pin nodes to curate context, and agents are notified instantly via MCP resource change notifications.
 
 ## Why
 
@@ -21,16 +21,25 @@ The key insight: **spatial arrangement is communication**. When a human pins nod
 - **Context menu** — right-click nodes for actions
 - **Docked panels** — pin nodes to left/right HUD for persistent visibility
 - **Expanded view** — click to expand any node to full-screen overlay
+- **Themes** — dark (default), light, and high-contrast
+- **Persistence** — canvas state auto-saves to `.pmx-canvas.json` and restores on restart
 
-### Nodes (8 types)
+### Nodes (7 types)
 - **markdown** — rich markdown content with rendered preview
 - **status** — compact status indicator (phase, message, elapsed time)
 - **context** — context cards, token usage, workspace grounding
 - **ledger** — execution ledger summary
 - **trace** — agent trace pills showing tool calls and subagent activity
-- **prompt** — user questions with threaded conversation support
-- **response** — agent responses (standalone or threaded into prompt)
+- **file** — live file viewer with auto-update when the file changes on disk
 - **mcp-app** — hosted MCP app iframes and ext-app frames (Chart.js, Excalidraw, etc.)
+
+### File Nodes
+File nodes display project files with line numbers and language detection. When an agent edits a file through its normal tools, the canvas node updates automatically via `fs.watch()`. This gives humans a spatial, real-time view of what the agent is working on.
+
+```typescript
+// Add a file node via MCP
+canvas_add_node({ type: 'file', content: 'src/server/index.ts' })
+```
 
 ### Edges (4 types)
 - **flow** — sequential steps, data flow (with optional animation)
@@ -39,13 +48,28 @@ The key insight: **spatial arrangement is communication**. When a human pins nod
 - **references** — cross-references, evidence links
 - All edges support labels, styles (solid/dashed/dotted), and animation
 
+### Persistence
+Canvas state auto-saves to `.pmx-canvas.json` in the workspace root on every mutation (debounced). The file is git-committable — spatial knowledge persists across sessions and can be shared with a team.
+
+- Saves: viewport, nodes, edges, context pins
+- Auto-loads on server start (both HTTP and MCP modes)
+- `--demo` only seeds when canvas is empty (won't clobber restored state)
+- Override path: `PMX_CANVAS_STATE_FILE` env var
+
 ### Canvas as Context (MCP resources)
 - **`canvas://pinned-context`** — content of all pinned nodes + their connections. The human pins nodes to tell the agent "this matters right now."
 - **`canvas://layout`** — full canvas state (all nodes, edges, viewport)
 - **`canvas://summary`** — compact overview: node counts by type, edge count, pinned titles
 
+### Resource Change Notifications
+The MCP server emits `notifications/resources/updated` when canvas state changes:
+- **Pin changes** → `canvas://pinned-context`, `canvas://layout`, `canvas://summary`
+- **Node/edge mutations** → `canvas://layout`, `canvas://summary`
+
+This closes the human-to-agent loop: humans pin nodes in the browser, agents are notified immediately and can re-read the updated context.
+
 ### Integration (4 paths)
-- **MCP Server** — 10 tools + 3 resources, auto-starts canvas on first tool call. Zero-config for any MCP-capable agent.
+- **MCP Server** — 11 tools + 3 resources, auto-starts canvas on first tool call. Zero-config for any MCP-capable agent.
 - **HTTP API** — REST endpoints for all canvas operations + SSE event stream. Works from any language.
 - **Node.js SDK** — `createCanvas()` for programmatic control from Bun/Node.js.
 - **Agent Skill** — SKILL.md teaches agents the HTTP API. Works in Claude Code, Cowork, and any skill-aware agent.
@@ -70,6 +94,9 @@ bun run dev:demo
 
 # Start headless (for agents)
 bun run start
+
+# Start with light theme
+pmx-canvas --theme=light
 ```
 
 The canvas opens at `http://localhost:4313`.
@@ -95,7 +122,7 @@ Add to your agent's MCP config — the canvas auto-starts on first tool call:
 
 | Tool | Description |
 |------|------------|
-| `canvas_add_node` | Add a node (markdown, status, context, etc.) |
+| `canvas_add_node` | Add a node (markdown, status, context, file, etc.) |
 | `canvas_update_node` | Update content, position, size, collapsed state |
 | `canvas_remove_node` | Remove a node and its edges |
 | `canvas_get_layout` | Get full canvas state |
@@ -122,6 +149,7 @@ pmx-canvas                      # Start canvas, open browser
 pmx-canvas --demo               # Start with sample nodes
 pmx-canvas --port=8080          # Custom port
 pmx-canvas --no-open            # Start server only (for agents)
+pmx-canvas --theme=light        # Light theme (dark, light, high-contrast)
 pmx-canvas --mcp                # Run as MCP server (stdio)
 ```
 
@@ -131,28 +159,15 @@ pmx-canvas --mcp                # Run as MCP server (stdio)
 # Get canvas state
 curl http://localhost:4313/api/canvas/state
 
-# Add a markdown node
-curl -X POST http://localhost:4313/api/canvas/node \
-  -H "Content-Type: application/json" \
-  -d '{"type":"markdown","title":"Plan","content":"# Step 1\nDo the thing."}'
-
-# Add an edge
-curl -X POST http://localhost:4313/api/canvas/edge \
-  -H "Content-Type: application/json" \
-  -d '{"from":"node-1","to":"node-2","type":"flow","label":"next"}'
-
 # Batch update node positions
 curl -X POST http://localhost:4313/api/canvas/update \
   -H "Content-Type: application/json" \
   -d '{"nodes":[{"id":"node-1","position":{"x":100,"y":200}}]}'
 
-# Auto-arrange
-curl -X POST http://localhost:4313/api/canvas/arrange \
+# Add an edge
+curl -X POST http://localhost:4313/api/canvas/edge \
   -H "Content-Type: application/json" \
-  -d '{"layout":"grid"}'
-
-# SSE event stream (real-time updates)
-curl -N http://localhost:4313/api/workbench/events
+  -d '{"from":"node-1","to":"node-2","type":"flow","label":"next"}'
 
 # Update context pins
 curl -X POST http://localhost:4313/api/canvas/context-pins \
@@ -161,6 +176,9 @@ curl -X POST http://localhost:4313/api/canvas/context-pins \
 
 # Get pinned context
 curl http://localhost:4313/api/canvas/pinned-context
+
+# SSE event stream (real-time updates)
+curl -N http://localhost:4313/api/workbench/events
 ```
 
 ### Node.js SDK
@@ -171,8 +189,12 @@ import { createCanvas } from 'pmx-canvas';
 const canvas = createCanvas({ port: 4313 });
 await canvas.start({ open: true });
 
-const n1 = canvas.addNode({ type: 'markdown', title: 'Hello', content: '# World' });
+// Add nodes
+const n1 = canvas.addNode({ type: 'markdown', title: 'Plan', content: '# Step 1\nDo the thing.' });
 const n2 = canvas.addNode({ type: 'status', title: 'Build', content: 'passing' });
+const n3 = canvas.addNode({ type: 'file', content: 'src/index.ts' }); // Live file viewer
+
+// Connect them
 canvas.addEdge({ from: n1, to: n2, type: 'flow' });
 canvas.arrange('grid');
 
@@ -194,65 +216,23 @@ console.log(canvas.getLayout()); // { viewport, nodes, edges }
 ### Canvas as Context workflow
 
 1. Agent creates investigation/plan nodes on the canvas
-2. Human reviews, rearranges, and **pins** the important ones
-3. Agent reads `canvas://pinned-context` to get the human's curated focus
-4. Agent uses that context to inform its next actions
-5. Repeat — the canvas becomes a shared thinking surface
+2. Agent adds file nodes for the files it's working on — they update live as the agent edits
+3. Human reviews, rearranges, and **pins** the important nodes
+4. MCP server notifies the agent that pinned context changed
+5. Agent reads `canvas://pinned-context` to get the human's curated focus
+6. Agent uses that context to inform its next actions
+7. Repeat — the canvas becomes a shared thinking surface
 
 ### As a Claude Code skill
 
 Copy `skills/pmx-canvas/` into your project's `.claude/skills/` directory.
-
-## Recommended MCP integrations
-
-PMX Canvas is most powerful when paired with MCP servers that feed it real data. These are the integrations used by the PMX project:
-
-### Core (start here)
-
-| MCP Server | What it gives the canvas |
-|-----------|--------------------------|
-| **Atlassian** (Jira/Confluence) | Issue boards, sprint status, architecture docs as canvas nodes |
-| **GitHub** | PR review boards, issue investigation layouts, repo structure maps |
-| **Slack** | Discussion threads as context nodes, channel activity summaries |
-| **Notion** | Knowledge base pages as reference nodes |
-
-### Analytics & metrics
-
-| MCP Server | What it gives the canvas |
-|-----------|--------------------------|
-| **DX Data Cloud** | Engineering metrics dashboards, team health scorecards |
-| **Google Analytics 4** | Traffic and behavior data for product canvases |
-| **Mixpanel** | Funnel analysis, user journey maps |
-
-### Design & diagrams
-
-| MCP Server | What it gives the canvas |
-|-----------|--------------------------|
-| **Figma** | Design file references, component inventories |
-| **Excalidraw** | Diagram generation and embedding |
-
-### Data & infrastructure
-
-| MCP Server | What it gives the canvas |
-|-----------|--------------------------|
-| **PostgreSQL** | Query results as data nodes, schema diagrams |
-| **Google Drive** | Document references and links |
-| **Microsoft 365** (WorkIQ) | Email threads, calendar context, Teams discussions |
-
-### Specialized
-
-| MCP Server | What it gives the canvas |
-|-----------|--------------------------|
-| **Linear** | Issue tracking boards, project timelines |
-| **Intercom** | Customer conversation context for debugging |
-| **Obsidian** | Local knowledge vault integration |
 
 ## Architecture
 
 ```
 Agent (Claude Code / Codex / Cursor / pi / any)
   |
-  |-- MCP Server ---- 10 tools + 3 resources (canvas://pinned-context, etc.)
+  |-- MCP Server ---- 11 tools + 3 resources + change notifications
   |-- Node.js SDK --- createCanvas()
   |-- HTTP API ------ curl localhost:4313/api/...
   |-- Skill file ---- SKILL.md
@@ -260,7 +240,9 @@ Agent (Claude Code / Codex / Cursor / pi / any)
   v
 Bun.serve HTTP + SSE Server (localhost:4313)
   |  CanvasStateManager (authoritative state)
-  |  Context pins (human curates → agent reads)
+  |  Context pins (human curates → agent notified)
+  |  File watcher (fs.watch → live node updates)
+  |  Persistence (.pmx-canvas.json auto-save/load)
   |  SSE push → browser
   |  REST ← browser + agents
   |
@@ -269,13 +251,14 @@ Browser (Preact SPA)
   |  @preact/signals reactive state
   |  SSE bridge (real-time updates)
   |  Pan/zoom canvas with nodes + edges + minimap
+  |  Theme toggle (dark/light/high-contrast)
 ```
 
 ## Tech stack
 
 - **Runtime:** Bun
 - **UI:** Preact + @preact/signals
-- **Styling:** CSS custom properties (dark theme)
+- **Styling:** CSS custom properties (dark/light/high-contrast themes)
 - **Server:** Bun.serve (HTTP + SSE)
 - **MCP:** @modelcontextprotocol/sdk (stdio transport)
 - **Communication:** SSE (server→client) + REST (client→server, agent→server)

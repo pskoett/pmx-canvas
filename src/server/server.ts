@@ -1867,6 +1867,30 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleCanvasRemoveEdge(req);
           }
 
+          // Snapshot API
+          if (url.pathname === '/api/canvas/snapshots' && req.method === 'GET') {
+            return responseJson(canvasState.listSnapshots());
+          }
+
+          if (url.pathname === '/api/canvas/snapshots' && req.method === 'POST') {
+            return handleSnapshotSave(req);
+          }
+
+          if (url.pathname.startsWith('/api/canvas/snapshots/') && req.method === 'POST') {
+            const id = url.pathname.split('/').pop() ?? '';
+            const ok = canvasState.restoreSnapshot(id);
+            if (!ok) return responseText('Snapshot not found', 404);
+            broadcastWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+            return responseJson({ ok: true });
+          }
+
+          if (url.pathname.startsWith('/api/canvas/snapshots/') && req.method === 'DELETE') {
+            const id = url.pathname.split('/').pop() ?? '';
+            const ok = canvasState.deleteSnapshot(id);
+            if (!ok) return responseText('Snapshot not found', 404);
+            return responseJson({ ok: true });
+          }
+
           // Context pins API
           if (url.pathname === '/api/canvas/context-pins' && req.method === 'POST') {
             return handleContextPinsUpdate(req);

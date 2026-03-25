@@ -133,6 +133,56 @@ export async function createEdgeFromClient(
   }
 }
 
+// ── Snapshot API ──────────────────────────────────────────────
+
+export interface CanvasSnapshotInfo {
+  id: string;
+  name: string;
+  createdAt: string;
+  nodeCount: number;
+  edgeCount: number;
+}
+
+export async function listSnapshots(): Promise<CanvasSnapshotInfo[]> {
+  try {
+    const res = await fetch('/api/canvas/snapshots');
+    return (await res.json()) as CanvasSnapshotInfo[];
+  } catch {
+    return [];
+  }
+}
+
+export async function saveSnapshot(name: string): Promise<{ ok: boolean; snapshot?: CanvasSnapshotInfo }> {
+  try {
+    const res = await fetch('/api/canvas/snapshots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    });
+    return (await res.json()) as { ok: boolean; snapshot?: CanvasSnapshotInfo };
+  } catch {
+    return { ok: false };
+  }
+}
+
+export async function restoreSnapshot(id: string): Promise<{ ok: boolean }> {
+  try {
+    const res = await fetch(`/api/canvas/snapshots/${id}`, { method: 'POST' });
+    return (await res.json()) as { ok: boolean };
+  } catch {
+    return { ok: false };
+  }
+}
+
+export async function deleteSnapshot(id: string): Promise<{ ok: boolean }> {
+  try {
+    const res = await fetch(`/api/canvas/snapshots/${id}`, { method: 'DELETE' });
+    return (await res.json()) as { ok: boolean };
+  } catch {
+    return { ok: false };
+  }
+}
+
 /** Remove a canvas edge via the server. */
 export async function removeEdgeFromClient(edgeId: string): Promise<{ ok: boolean }> {
   try {

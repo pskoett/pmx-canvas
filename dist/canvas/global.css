@@ -1380,3 +1380,200 @@ body,
 .thread-reply-area {
   margin-top: 2px;
 }
+
+/* ── Snapshot Panel ───────────────────────────────────────── */
+
+.snapshot-panel {
+  position: fixed;
+  width: 320px;
+  max-height: 420px;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-panel-glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 40px var(--c-shadow-heavy), 0 0 0 1px rgba(255,255,255,0.04);
+  z-index: 10001;
+  overflow: hidden;
+  animation: snapshot-panel-in 0.15s ease-out;
+}
+
+@keyframes snapshot-panel-in {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.snapshot-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.snapshot-panel-title {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--c-muted);
+}
+
+.snapshot-panel-close {
+  background: none;
+  border: none;
+  color: var(--c-dim);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0 2px;
+  line-height: 1;
+}
+.snapshot-panel-close:hover {
+  color: var(--c-text);
+}
+
+.snapshot-save-form {
+  display: flex;
+  gap: 6px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--c-line);
+}
+
+.snapshot-name-input {
+  flex: 1;
+  background: var(--c-input-bg);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  color: var(--c-text);
+  font-family: var(--font);
+  font-size: 12px;
+  padding: 6px 10px;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.snapshot-name-input:focus {
+  border-color: var(--c-accent);
+}
+.snapshot-name-input::placeholder {
+  color: var(--c-dim);
+}
+
+.snapshot-save-btn {
+  background: var(--c-accent);
+  border: none;
+  color: var(--c-contrast-fg);
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 600;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+.snapshot-save-btn:hover:not(:disabled) {
+  background: var(--c-accent-hover);
+}
+.snapshot-save-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.snapshot-list {
+  overflow-y: auto;
+  flex: 1;
+  padding: 4px 0;
+}
+
+.snapshot-empty {
+  padding: 20px 14px;
+  color: var(--c-dim);
+  font-size: 12px;
+  text-align: center;
+  line-height: 1.5;
+}
+
+.snapshot-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 14px;
+  transition: background 0.1s;
+}
+.snapshot-item:hover {
+  background: var(--c-surface-hover);
+}
+
+.snapshot-item-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  flex: 1;
+}
+
+.snapshot-item-name {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--c-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.snapshot-item-meta {
+  font-size: 10px;
+  color: var(--c-dim);
+}
+
+.snapshot-item-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+.snapshot-item:hover .snapshot-item-actions {
+  opacity: 1;
+}
+
+.snapshot-action-btn {
+  background: none;
+  border: 1px solid var(--c-line);
+  color: var(--c-muted);
+  font-family: var(--font);
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.1s;
+}
+
+.snapshot-action-restore {
+  color: var(--c-accent);
+  border-color: var(--c-accent-25);
+}
+.snapshot-action-restore:hover {
+  background: var(--c-accent-12);
+  border-color: var(--c-accent);
+}
+
+.snapshot-action-delete {
+  color: var(--c-dim);
+  border-color: transparent;
+  padding: 3px 5px;
+}
+.snapshot-action-delete:hover {
+  color: var(--c-danger);
+  border-color: var(--c-danger-12);
+}
+
+.snapshot-action-confirm {
+  color: var(--c-danger);
+  border-color: var(--c-danger);
+}
+.snapshot-action-confirm:hover {
+  background: var(--c-danger-12);
+}

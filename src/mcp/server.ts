@@ -405,6 +405,44 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
+  // ── canvas_snapshot ──────────────────────────────────────────
+  server.tool(
+    'canvas_snapshot',
+    'Save the current canvas state as a named snapshot. Snapshots persist to disk and can be restored later.',
+    {
+      name: z.string().describe('Name for this snapshot (e.g., "before refactor", "investigation v2")'),
+    },
+    async (input) => {
+      await ensureCanvas();
+      const snapshot = canvasState.saveSnapshot(input.name);
+      if (!snapshot) {
+        return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'Failed to save snapshot' }) }] };
+      }
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, snapshot }) }] };
+    },
+  );
+
+  // ── canvas_restore ──────────────────────────────────────────
+  server.tool(
+    'canvas_restore',
+    'Restore the canvas to a previously saved snapshot. Use canvas_snapshot to save first. Pass the snapshot ID to restore.',
+    {
+      id: z.string().describe('Snapshot ID to restore (from canvas_snapshot or snapshot list)'),
+    },
+    async (input) => {
+      const c = await ensureCanvas();
+      const ok = canvasState.restoreSnapshot(input.id);
+      if (!ok) {
+        return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'Snapshot not found' }) }] };
+      }
+      const { emitPrimaryWorkbenchEvent } = await import('../server/server.js');
+      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, layout: canvasState.getLayout() }) }],
+      };
+    },
+  );
+
   // ── Resource change notifications ──────────────────────────
   // When canvas state changes (nodes, edges, pins), notify MCP clients
   // so they can re-read resources like canvas://pinned-context.

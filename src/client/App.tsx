@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'preact/hooks';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { CanvasViewport } from './canvas/CanvasViewport';
 import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
 import { ContextPinBar } from './canvas/ContextPinBar';
@@ -7,6 +7,7 @@ import { DockedNode } from './canvas/DockedNode';
 import { ExpandedNodeOverlay } from './canvas/ExpandedNodeOverlay';
 import { Minimap } from './canvas/Minimap';
 import { SelectionBar } from './canvas/SelectionBar';
+import { SnapshotPanel } from './canvas/SnapshotPanel';
 import {
   activeNodeId,
   autoArrange,
@@ -42,7 +43,16 @@ function sendIntent(type: string, payload: Record<string, unknown> = {}): void {
 function Toolbar({
   minimapVisible,
   onToggleMinimap,
-}: { minimapVisible: boolean; onToggleMinimap: () => void }) {
+  snapshotOpen,
+  onToggleSnapshot,
+  snapshotBtnRef,
+}: {
+  minimapVisible: boolean;
+  onToggleMinimap: () => void;
+  snapshotOpen: boolean;
+  onToggleSnapshot: () => void;
+  snapshotBtnRef: { current: HTMLButtonElement | null };
+}) {
   const status = connectionStatus.value;
   const hasSynced = hasInitialServerLayout.value;
   const v = viewport.value;
@@ -138,6 +148,15 @@ function Toolbar({
       >
         {canvasTheme.value === 'dark' ? '☀' : '☾'}
       </button>
+      <button
+        ref={snapshotBtnRef}
+        type="button"
+        onClick={onToggleSnapshot}
+        title="Snapshots"
+        style={{ color: snapshotOpen ? 'var(--c-accent)' : undefined }}
+      >
+        ◈
+      </button>
 
       <div class="separator" />
 
@@ -166,10 +185,14 @@ function Toolbar({
 
 export function App() {
   const [minimapVisible, setMinimapVisible] = useState(true);
+  const [snapshotOpen, setSnapshotOpen] = useState(false);
+  const snapshotBtnRef = useRef<HTMLButtonElement>(null);
   const { menu, openMenu, closeMenu } = useContextMenu();
   const hasInitialLayout = hasInitialServerLayout.value;
 
   const handleToggleMinimap = useCallback(() => setMinimapVisible((v) => !v), []);
+  const handleToggleSnapshot = useCallback(() => setSnapshotOpen((v) => !v), []);
+  const handleCloseSnapshot = useCallback(() => setSnapshotOpen(false), []);
 
   const handleMinimapNavigate = useCallback((x: number, y: number) => {
     setViewport({ x, y });
@@ -249,7 +272,13 @@ export function App() {
             <DockedNode key={n.id} node={n} />
           ))}
         </div>
-        <Toolbar minimapVisible={minimapVisible} onToggleMinimap={handleToggleMinimap} />
+        <Toolbar
+          minimapVisible={minimapVisible}
+          onToggleMinimap={handleToggleMinimap}
+          snapshotOpen={snapshotOpen}
+          onToggleSnapshot={handleToggleSnapshot}
+          snapshotBtnRef={snapshotBtnRef}
+        />
         <div class="hud-right">
           <ContextPinHud />
           {dockedRight.map((n) => (
@@ -261,6 +290,7 @@ export function App() {
       {selectedNodeIds.value.size > 0 && <SelectionBar />}
       {contextPinnedNodeIds.value.size > 0 && <ContextPinBar />}
       {expandedNodeId.value && <ExpandedNodeOverlay />}
+      <SnapshotPanel open={snapshotOpen} onClose={handleCloseSnapshot} anchorRef={snapshotBtnRef} />
       {minimapVisible && (
         <Minimap
           viewport={viewport}

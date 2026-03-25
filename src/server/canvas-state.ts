@@ -9,10 +9,11 @@
  * root on every mutation (debounced). Auto-loads on `loadFromDisk()`.
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
 const CANVAS_STATE_FILENAME = '.pmx-canvas.json';
+const SNAPSHOTS_DIR = '.pmx-canvas-snapshots';
 const SAVE_DEBOUNCE_MS = 500;
 
 interface PersistedCanvasState {
@@ -21,6 +22,14 @@ interface PersistedCanvasState {
   nodes: CanvasNodeState[];
   edges: CanvasEdge[];
   contextPins: string[];
+}
+
+export interface CanvasSnapshot {
+  id: string;
+  name: string;
+  createdAt: string;
+  nodeCount: number;
+  edgeCount: number;
 }
 
 export interface CanvasNodeState {
@@ -174,6 +183,131 @@ class CanvasStateManager {
       writeFileSync(this._stateFilePath, JSON.stringify(payload, null, 2), 'utf-8');
     } catch {
       // Persistence failures are non-fatal — runtime continues.
+    }
+  }
+
+  // ── Snapshots ───────────────────────────────────────────────
+
+  private get snapshotsDir(): string | null {
+    if (!this._stateFilePath) return null;
+    return join(dirname(this._stateFilePath), SNAPSHOTS_DIR);
+  }
+
+  /** Save current canvas state as a named snapshot. */
+  saveSnapshot(name: string): CanvasSnapshot | null {
+    const dir = this.snapshotsDir;
+    if (!dir) return null;
+
+    const id = `snap-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const snapshot: CanvasSnapshot = {
+      id,
+      name,
+      createdAt: new Date().toISOString(),
+      nodeCount: this.nodes.size,
+      edgeCount: this.edges.size,
+    };
+
+    try {
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+
+      const payload: PersistedCanvasState & { snapshot: CanvasSnapshot } = {
+        version: 1,
+        snapshot,
+        viewport: this._viewport,
+        nodes: Array.from(this.nodes.values()),
+        edges: Array.from(this.edges.values()),
+        contextPins: Array.from(this._contextPinnedNodeIds),
+      };
+      writeFileSync(join(dir, `${id}.json`), JSON.stringify(payload, null, 2), 'utf-8');
+      return snapshot;
+    } catch {
+      return null;
+    }
+  }
+
+  /** List all saved snapshots. */
+  listSnapshots(): CanvasSnapshot[] {
+    const dir = this.snapshotsDir;
+    if (!dir || !existsSync(dir)) return [];
+
+    try {
+      const files = readdirSync(dir).filter((f) => f.endsWith('.json')).sort();
+      const snapshots: CanvasSnapshot[] = [];
+      for (const file of files) {
+        try {
+          const raw = readFileSync(join(dir, file), 'utf-8');
+          const parsed = JSON.parse(raw) as { snapshot?: CanvasSnapshot };
+          if (parsed.snapshot) snapshots.push(parsed.snapshot);
+        } catch { /* skip corrupt files */ }
+      }
+      return snapshots.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    } catch {
+      return [];
+    }
+  }
+
+  /** Restore canvas state from a snapshot. */
+  restoreSnapshot(id: string): boolean {
+    const dir = this.snapshotsDir;
+    if (!dir) return false;
+
+    const filePath = join(dir, `${id}.json`);
+    if (!existsSync(filePath)) return false;
+
+    try {
+      const raw = readFileSync(filePath, 'utf-8');
+      const parsed = JSON.parse(raw) as PersistedCanvasState;
+      if (!parsed || parsed.version !== 1) return false;
+
+      // Clear current state
+      this.nodes.clear();
+      this.edges.clear();
+      this._contextPinnedNodeIds.clear();
+
+      // Restore from snapshot
+      if (parsed.viewport) {
+        this._viewport = {
+          x: parsed.viewport.x ?? 0,
+          y: parsed.viewport.y ?? 0,
+          scale: parsed.viewport.scale ?? 1,
+        };
+      }
+      if (Array.isArray(parsed.nodes)) {
+        for (const node of parsed.nodes) {
+          if (node?.id) this.nodes.set(node.id, node);
+        }
+      }
+      if (Array.isArray(parsed.edges)) {
+        for (const edge of parsed.edges) {
+          if (edge?.id) this.edges.set(edge.id, edge);
+        }
+      }
+      if (Array.isArray(parsed.contextPins)) {
+        for (const pinId of parsed.contextPins) {
+          if (this.nodes.has(pinId)) this._contextPinnedNodeIds.add(pinId);
+        }
+      }
+
+      this.scheduleSave();
+      this.notifyChange('nodes');
+      this.notifyChange('pins');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  /** Delete a snapshot. */
+  deleteSnapshot(id: string): boolean {
+    const dir = this.snapshotsDir;
+    if (!dir) return false;
+    const filePath = join(dir, `${id}.json`);
+    if (!existsSync(filePath)) return false;
+    try {
+      unlinkSync(filePath);
+      return true;
+    } catch {
+      return false;
     }
   }
 
