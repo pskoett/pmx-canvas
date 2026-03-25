@@ -245,5 +245,6 @@ export {
   openUrlInExternalBrowser,
 } from './server.js';
 export { canvasState } from './canvas-state.js';
+export type { CanvasSnapshot } from './canvas-state.js';
 export { findOpenCanvasPosition } from './placement.js';
 export { traceManager } from './trace-manager.js';

@@ -1,5 +1,12 @@
 {
   "version": 1,
+  "snapshot": {
+    "id": "snap-mn6m7gty-yka6",
+    "name": "test",
+    "createdAt": "2026-03-25T22:28:20.854Z",
+    "nodeCount": 3,
+    "edgeCount": 2
+  },
   "viewport": {
     "x": 0,
     "y": 0,

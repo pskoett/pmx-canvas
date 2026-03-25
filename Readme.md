@@ -56,6 +56,22 @@ Canvas state auto-saves to `.pmx-canvas.json` in the workspace root on every mut
 - `--demo` only seeds when canvas is empty (won't clobber restored state)
 - Override path: `PMX_CANVAS_STATE_FILE` env var
 
+### Snapshots
+Named checkpoints of the entire canvas state. Save before a refactor, restore if the approach fails, switch between workstreams.
+
+- Stored in `.pmx-canvas-snapshots/` — no git dependency, works in any project
+- Save/restore via MCP tools (`canvas_snapshot`, `canvas_restore`), HTTP API, or the toolbar UI
+- Each snapshot captures: viewport, all nodes, all edges, context pins
+- Toolbar button (◈) opens a dropdown panel to save, browse, restore, and delete snapshots
+
+```typescript
+// Save a snapshot via MCP
+canvas_snapshot({ name: 'before refactor' })
+
+// Restore later
+canvas_restore({ id: 'snap-abc123' })
+```
+
 ### Canvas as Context (MCP resources)
 - **`canvas://pinned-context`** — content of all pinned nodes + their connections. The human pins nodes to tell the agent "this matters right now."
 - **`canvas://layout`** — full canvas state (all nodes, edges, viewport)
@@ -69,7 +85,7 @@ The MCP server emits `notifications/resources/updated` when canvas state changes
 This closes the human-to-agent loop: humans pin nodes in the browser, agents are notified immediately and can re-read the updated context.
 
 ### Integration (4 paths)
-- **MCP Server** — 11 tools + 3 resources, auto-starts canvas on first tool call. Zero-config for any MCP-capable agent.
+- **MCP Server** — 13 tools + 3 resources, auto-starts canvas on first tool call. Zero-config for any MCP-capable agent.
 - **HTTP API** — REST endpoints for all canvas operations + SSE event stream. Works from any language.
 - **Node.js SDK** — `createCanvas()` for programmatic control from Bun/Node.js.
 - **Agent Skill** — SKILL.md teaches agents the HTTP API. Works in Claude Code, Cowork, and any skill-aware agent.
@@ -133,6 +149,8 @@ Add to your agent's MCP config — the canvas auto-starts on first tool call:
 | `canvas_focus_node` | Pan viewport to a node |
 | `canvas_pin_nodes` | Pin nodes to include in agent context |
 | `canvas_clear` | Clear all nodes and edges |
+| `canvas_snapshot` | Save current canvas as a named snapshot |
+| `canvas_restore` | Restore canvas from a saved snapshot |
 
 **MCP Resources:**
 
@@ -232,7 +250,7 @@ Copy `skills/pmx-canvas/` into your project's `.claude/skills/` directory.
 ```
 Agent (Claude Code / Codex / Cursor / pi / any)
   |
-  |-- MCP Server ---- 11 tools + 3 resources + change notifications
+  |-- MCP Server ---- 13 tools + 3 resources + change notifications
   |-- Node.js SDK --- createCanvas()
   |-- HTTP API ------ curl localhost:4313/api/...
   |-- Skill file ---- SKILL.md
@@ -243,6 +261,7 @@ Bun.serve HTTP + SSE Server (localhost:4313)
   |  Context pins (human curates → agent notified)
   |  File watcher (fs.watch → live node updates)
   |  Persistence (.pmx-canvas.json auto-save/load)
+  |  Snapshots (.pmx-canvas-snapshots/ named checkpoints)
   |  SSE push → browser
   |  REST ← browser + agents
   |

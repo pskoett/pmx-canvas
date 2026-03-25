@@ -1134,6 +1134,15 @@ async function handleCanvasPrompt(req: Request): Promise<Response> {
   return responseJson({ ok: true, nodeId });
 }
 
+async function handleSnapshotSave(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const name = typeof body.name === 'string' ? body.name.trim() : '';
+  if (!name) return responseText('Missing snapshot name', 400);
+  const snapshot = canvasState.saveSnapshot(name);
+  if (!snapshot) return responseText('Failed to save snapshot', 500);
+  return responseJson({ ok: true, snapshot });
+}
+
 async function handleContextPinsUpdate(req: Request): Promise<Response> {
   const body = await readJson(req);
   const MAX_PINS = 20;

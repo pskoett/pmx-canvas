@@ -1,19 +1,30 @@
 {
   "name": "pmx-canvas",
   "version": "0.1.0",
-  "description": "Standalone spatial canvas workbench for coding agents — full 2D canvas with nodes, edges, pan/zoom, minimap, and HTTP API",
+  "description": "Spatial canvas workbench for coding agents — infinite 2D canvas with nodes, edges, file watching, snapshots, and MCP integration",
   "type": "module",
   "main": "src/server/index.ts",
+  "exports": {
+    ".": "./src/server/index.ts"
+  },
   "bin": {
     "pmx-canvas": "src/cli/index.ts"
   },
+  "files": [
+    "src/",
+    "dist/canvas/",
+    "skills/",
+    "Readme.md",
+    "LICENSE"
+  ],
   "scripts": {
     "dev": "bun run src/cli/index.ts",
     "dev:demo": "bun run src/cli/index.ts --demo",
     "build:client": "bun build src/client/index.tsx --outdir dist/canvas --minify && cp src/client/theme/global.css dist/canvas/global.css",
     "build": "bun run build:client",
     "start": "bun run src/cli/index.ts --no-open",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "bun run build"
   },
   "dependencies": {
     "@modelcontextprotocol/ext-apps": "^1.3.1",
@@ -35,9 +46,19 @@
     "coding-agent",
     "claude-code",
     "codex",
-    "mcp"
+    "cursor",
+    "windsurf",
+    "mcp",
+    "model-context-protocol",
+    "ai-tools"
   ],
+  "author": "pskoett",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pskoett/pmx-canvas"
+  },
+  "homepage": "https://github.com/pskoett/pmx-canvas#readme",
   "engines": {
     "bun": ">=1.3.0"
   }

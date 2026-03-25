@@ -158,7 +158,7 @@ Three themes: `dark` (default), `light`, `high-contrast`. Set via:
 
 ## MCP Server
 
-10 tools: `canvas_add_node`, `canvas_update_node`, `canvas_remove_node`, `canvas_get_layout`, `canvas_get_node`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_pin_nodes`, `canvas_clear`
+13 tools: `canvas_add_node`, `canvas_update_node`, `canvas_remove_node`, `canvas_get_layout`, `canvas_get_node`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_pin_nodes`, `canvas_clear`, `canvas_snapshot`, `canvas_restore`
 
 3 resources: `canvas://pinned-context`, `canvas://layout`, `canvas://summary`
 
