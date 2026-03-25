@@ -1,0 +1,44 @@
+{
+  "name": "pmx-canvas",
+  "version": "0.1.0",
+  "description": "Standalone spatial canvas workbench for coding agents — full 2D canvas with nodes, edges, pan/zoom, minimap, and HTTP API",
+  "type": "module",
+  "main": "src/server/index.ts",
+  "bin": {
+    "pmx-canvas": "src/cli/index.ts"
+  },
+  "scripts": {
+    "dev": "bun run src/cli/index.ts",
+    "dev:demo": "bun run src/cli/index.ts --demo",
+    "build:client": "bun build src/client/index.tsx --outdir dist/canvas --minify && cp src/client/theme/global.css dist/canvas/global.css",
+    "build": "bun run build:client",
+    "start": "bun run src/cli/index.ts --no-open",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/ext-apps": "^1.3.1",
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@preact/signals": "^2.0.0",
+    "marked": "^15.0.0",
+    "preact": "^10.25.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.0",
+    "@types/bun": "latest"
+  },
+  "keywords": [
+    "canvas",
+    "agent",
+    "workbench",
+    "spatial",
+    "coding-agent",
+    "claude-code",
+    "codex",
+    "mcp"
+  ],
+  "license": "MIT",
+  "engines": {
+    "bun": ">=1.3.0"
+  }
+}

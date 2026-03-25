@@ -1,0 +1,419 @@
+/**
+ * PMX Canvas MCP Server
+ *
+ * Exposes the canvas as an MCP tool server so any MCP-capable agent
+ * (Claude Code, Codex, Cursor, Windsurf, pi, etc.) can control the
+ * canvas with zero configuration beyond adding the server to their config.
+ *
+ * Auto-starts the HTTP server and opens the browser on first tool call.
+ *
+ * Usage in agent MCP config:
+ * ```json
+ * {
+ *   "mcpServers": {
+ *     "canvas": {
+ *       "command": "bunx",
+ *       "args": ["pmx-canvas", "--mcp"]
+ *     }
+ *   }
+ * }
+ * ```
+ */
+
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { z } from 'zod';
+import { createCanvas, type PmxCanvas } from '../server/index.js';
+
+let canvas: PmxCanvas | null = null;
+
+async function ensureCanvas(): Promise<PmxCanvas> {
+  if (!canvas) {
+    const port = parseInt(process.env.PMX_CANVAS_PORT ?? '4313');
+    canvas = createCanvas({ port });
+    await canvas.start({ open: true });
+  }
+  return canvas;
+}
+
+export async function startMcpServer(): Promise<void> {
+  const server = new McpServer({
+    name: 'pmx-canvas',
+    version: '0.1.0',
+  });
+
+  // ── canvas_get_layout ──────────────────────────────────────────
+  server.tool(
+    'canvas_get_layout',
+    'Get the full canvas state: all nodes, edges, and viewport. Call this first to understand what is on the canvas.',
+    {},
+    async () => {
+      const c = await ensureCanvas();
+      const layout = c.getLayout();
+      return {
+        content: [{ type: 'text', text: JSON.stringify(layout, null, 2) }],
+      };
+    },
+  );
+
+  // ── canvas_get_node ────────────────────────────────────────────
+  server.tool(
+    'canvas_get_node',
+    'Get a single node by ID, including its full data.',
+    { id: z.string().describe('The node ID to retrieve') },
+    async ({ id }) => {
+      const c = await ensureCanvas();
+      const node = c.getNode(id);
+      if (!node) {
+        return {
+          content: [{ type: 'text', text: `Node "${id}" not found.` }],
+          isError: true,
+        };
+      }
+      return {
+        content: [{ type: 'text', text: JSON.stringify(node, null, 2) }],
+      };
+    },
+  );
+
+  // ── canvas_add_node ────────────────────────────────────────────
+  server.tool(
+    'canvas_add_node',
+    'Add a node to the canvas. Returns the new node ID. Node types: markdown (rich content), status (compact indicator), context, ledger, trace, prompt, response, mcp-app.',
+    {
+      type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'prompt', 'response', 'mcp-app'])
+        .describe('Node type'),
+      title: z.string().optional().describe('Node title'),
+      content: z.string().optional().describe('Node content (markdown for markdown nodes)'),
+      x: z.number().optional().describe('X position (auto-placed if omitted)'),
+      y: z.number().optional().describe('Y position (auto-placed if omitted)'),
+      width: z.number().optional().describe('Width in pixels (default: 720)'),
+      height: z.number().optional().describe('Height in pixels (default: 600)'),
+    },
+    async (input) => {
+      const c = await ensureCanvas();
+      const id = c.addNode(input);
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ id }) }],
+      };
+    },
+  );
+
+  // ── canvas_update_node ─────────────────────────────────────────
+  server.tool(
+    'canvas_update_node',
+    'Update an existing node. You can change its content, title, position, size, or data.',
+    {
+      id: z.string().describe('Node ID to update'),
+      title: z.string().optional().describe('New title'),
+      content: z.string().optional().describe('New content'),
+      x: z.number().optional().describe('New X position'),
+      y: z.number().optional().describe('New Y position'),
+      width: z.number().optional().describe('New width'),
+      height: z.number().optional().describe('New height'),
+      collapsed: z.boolean().optional().describe('Collapse or expand the node'),
+    },
+    async ({ id, title, content, x, y, width, height, collapsed }) => {
+      const c = await ensureCanvas();
+      const node = c.getNode(id);
+      if (!node) {
+        return {
+          content: [{ type: 'text', text: `Node "${id}" not found.` }],
+          isError: true,
+        };
+      }
+      const patch: Record<string, unknown> = {};
+      if (x !== undefined || y !== undefined) {
+        patch.position = { x: x ?? node.position.x, y: y ?? node.position.y };
+      }
+      if (width !== undefined || height !== undefined) {
+        patch.size = { width: width ?? node.size.width, height: height ?? node.size.height };
+      }
+      if (collapsed !== undefined) {
+        patch.collapsed = collapsed;
+      }
+      if (title !== undefined || content !== undefined) {
+        patch.data = {
+          ...node.data,
+          ...(title !== undefined ? { title } : {}),
+          ...(content !== undefined ? { content } : {}),
+        };
+      }
+      c.updateNode(id, patch);
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, id }) }],
+      };
+    },
+  );
+
+  // ── canvas_remove_node ─────────────────────────────────────────
+  server.tool(
+    'canvas_remove_node',
+    'Remove a node from the canvas. Also removes all edges connected to it.',
+    { id: z.string().describe('Node ID to remove') },
+    async ({ id }) => {
+      const c = await ensureCanvas();
+      c.removeNode(id);
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, removed: id }) }],
+      };
+    },
+  );
+
+  // ── canvas_add_edge ────────────────────────────────────────────
+  server.tool(
+    'canvas_add_edge',
+    'Add an edge (connection) between two nodes. Edge types: flow (sequential), depends-on (dependency), relation (general), references (cross-reference).',
+    {
+      from: z.string().describe('Source node ID'),
+      to: z.string().describe('Target node ID'),
+      type: z.enum(['flow', 'depends-on', 'relation', 'references']).describe('Edge type'),
+      label: z.string().optional().describe('Edge label text'),
+    },
+    async (input) => {
+      const c = await ensureCanvas();
+      const id = c.addEdge(input);
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ id }) }],
+      };
+    },
+  );
+
+  // ── canvas_remove_edge ─────────────────────────────────────────
+  server.tool(
+    'canvas_remove_edge',
+    'Remove an edge from the canvas.',
+    { id: z.string().describe('Edge ID to remove') },
+    async ({ id }) => {
+      const c = await ensureCanvas();
+      c.removeEdge(id);
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, removed: id }) }],
+      };
+    },
+  );
+
+  // ── canvas_arrange ─────────────────────────────────────────────
+  server.tool(
+    'canvas_arrange',
+    'Auto-arrange all nodes on the canvas. Layouts: grid (default), column (vertical stack), flow (horizontal row).',
+    {
+      layout: z.enum(['grid', 'column', 'flow']).optional().describe('Arrangement layout (default: grid)'),
+    },
+    async ({ layout }) => {
+      const c = await ensureCanvas();
+      c.arrange(layout ?? 'grid');
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, layout: layout ?? 'grid' }) }],
+      };
+    },
+  );
+
+  // ── canvas_focus_node ──────────────────────────────────────────
+  server.tool(
+    'canvas_focus_node',
+    'Pan the viewport to center on a specific node.',
+    { id: z.string().describe('Node ID to focus on') },
+    async ({ id }) => {
+      const c = await ensureCanvas();
+      c.focusNode(id);
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, focused: id }) }],
+      };
+    },
+  );
+
+  // ── canvas_clear ───────────────────────────────────────────────
+  server.tool(
+    'canvas_clear',
+    'Remove all nodes and edges from the canvas. Use with caution.',
+    {},
+    async () => {
+      const c = await ensureCanvas();
+      const { canvasState } = await import('../server/canvas-state.js');
+      canvasState.clear();
+      const { emitPrimaryWorkbenchEvent } = await import('../server/server.js');
+      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, cleared: true }) }],
+      };
+    },
+  );
+
+  // ── MCP Resources: Canvas as Context ──────────────────────────
+  //
+  // The human pins nodes on the canvas → those nodes become the agent's
+  // working context. Spatial arrangement IS semantic curation.
+
+  server.resource(
+    'pinned-context',
+    'canvas://pinned-context',
+    {
+      description:
+        'Content of all pinned nodes on the canvas. When the human pins nodes, ' +
+        'they are telling the agent "this is what matters right now." Read this ' +
+        'resource to get structured context from the canvas.',
+      mimeType: 'application/json',
+    },
+    async () => {
+      const c = await ensureCanvas();
+      const { canvasState } = await import('../server/canvas-state.js');
+      const pinnedIds = canvasState.contextPinnedNodeIds;
+      const layout = c.getLayout();
+
+      const pinnedNodes = layout.nodes.filter((n) => pinnedIds.has(n.id));
+      const pinnedEdges = layout.edges.filter(
+        (e) => pinnedIds.has(e.from) && pinnedIds.has(e.to),
+      );
+
+      const context = {
+        pinnedCount: pinnedNodes.length,
+        nodes: pinnedNodes.map((n) => ({
+          id: n.id,
+          type: n.type,
+          title: n.data.title ?? null,
+          content: n.data.content ?? null,
+          data: n.data,
+          position: n.position,
+        })),
+        edges: pinnedEdges.map((e) => ({
+          id: e.id,
+          from: e.from,
+          to: e.to,
+          type: e.type,
+          label: e.label ?? null,
+        })),
+      };
+
+      return {
+        contents: [
+          {
+            uri: 'canvas://pinned-context',
+            mimeType: 'application/json',
+            text: JSON.stringify(context, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.resource(
+    'canvas-layout',
+    'canvas://layout',
+    {
+      description:
+        'The full canvas layout — all nodes, edges, and viewport state. ' +
+        'Use this to understand the complete spatial workspace.',
+      mimeType: 'application/json',
+    },
+    async () => {
+      const c = await ensureCanvas();
+      const layout = c.getLayout();
+      return {
+        contents: [
+          {
+            uri: 'canvas://layout',
+            mimeType: 'application/json',
+            text: JSON.stringify(layout, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.resource(
+    'canvas-summary',
+    'canvas://summary',
+    {
+      description:
+        'A compact summary of the canvas: node count by type, edge count, ' +
+        'pinned node titles. Useful for quick orientation without reading all content.',
+      mimeType: 'application/json',
+    },
+    async () => {
+      const c = await ensureCanvas();
+      const { canvasState } = await import('../server/canvas-state.js');
+      const layout = c.getLayout();
+      const pinnedIds = canvasState.contextPinnedNodeIds;
+
+      const typeCounts: Record<string, number> = {};
+      for (const n of layout.nodes) {
+        typeCounts[n.type] = (typeCounts[n.type] ?? 0) + 1;
+      }
+
+      const pinnedTitles = layout.nodes
+        .filter((n) => pinnedIds.has(n.id))
+        .map((n) => (n.data.title as string) ?? n.id);
+
+      const summary = {
+        totalNodes: layout.nodes.length,
+        totalEdges: layout.edges.length,
+        nodesByType: typeCounts,
+        pinnedCount: pinnedIds.size,
+        pinnedTitles,
+        viewport: layout.viewport,
+      };
+
+      return {
+        contents: [
+          {
+            uri: 'canvas://summary',
+            mimeType: 'application/json',
+            text: JSON.stringify(summary, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  // ── canvas_pin_nodes ─────────────────────────────────────────
+  server.tool(
+    'canvas_pin_nodes',
+    'Pin nodes to include them in the agent context. Pinned nodes appear in the canvas://pinned-context resource. The human can also pin nodes by clicking in the browser.',
+    {
+      nodeIds: z.array(z.string()).describe('Array of node IDs to pin'),
+      mode: z.enum(['set', 'add', 'remove']).optional()
+        .describe('set: replace all pins, add: add to existing pins, remove: unpin these nodes (default: set)'),
+    },
+    async ({ nodeIds, mode }) => {
+      const c = await ensureCanvas();
+      const { canvasState } = await import('../server/canvas-state.js');
+      const op = mode ?? 'set';
+
+      if (op === 'set') {
+        canvasState.setContextPins(nodeIds);
+      } else if (op === 'add') {
+        const current = Array.from(canvasState.contextPinnedNodeIds);
+        canvasState.setContextPins([...current, ...nodeIds]);
+      } else {
+        const current = Array.from(canvasState.contextPinnedNodeIds);
+        canvasState.setContextPins(current.filter((id) => !nodeIds.includes(id)));
+      }
+
+      const { emitPrimaryWorkbenchEvent } = await import('../server/server.js');
+      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            ok: true,
+            pinnedNodeIds: Array.from(canvasState.contextPinnedNodeIds),
+          }),
+        }],
+      };
+    },
+  );
+
+  // Connect via stdio
+  const transport = new StdioServerTransport();
+  await server.connect(transport);
+}
+
+// Allow direct execution: bun run src/mcp/server.ts
+if (import.meta.main) {
+  startMcpServer().catch((err) => {
+    console.error('Failed to start MCP server:', err);
+    process.exit(1);
+  });
+}
