@@ -160,9 +160,9 @@ Three themes: `dark` (default), `light`, `high-contrast`. Set via:
 
 17 tools: `canvas_add_node`, `canvas_update_node`, `canvas_remove_node`, `canvas_get_layout`, `canvas_get_node`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_pin_nodes`, `canvas_clear`, `canvas_snapshot`, `canvas_restore`, `canvas_search`, `canvas_undo`, `canvas_redo`, `canvas_diff`
 
-5 resources: `canvas://pinned-context`, `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`
+6 resources: `canvas://pinned-context`, `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, `canvas://code-graph`
 
-Resource change notifications: the MCP server emits `notifications/resources/updated` when canvas state changes. Pin changes notify `canvas://pinned-context`; all mutations notify `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, and `canvas://history`. This enables real-time human→agent collaboration — humans pin nodes in the browser, agents are notified immediately.
+Resource change notifications: the MCP server emits `notifications/resources/updated` when canvas state changes. Pin changes notify `canvas://pinned-context`; all mutations notify `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, and `canvas://code-graph`. This enables real-time human→agent collaboration — humans pin nodes in the browser, agents are notified immediately.
 
 ### Spatial Semantics Layer
 
@@ -188,6 +188,16 @@ Design notes:
 - `arrange()` records as a single compound mutation (not N individual moves)
 - Undo/redo emit SSE events so the browser updates immediately
 - The `_suppressRecording` flag prevents undo/redo from creating new history entries
+
+### Code Graph (Auto-Dependency Detection)
+
+When file nodes are on the canvas, the system auto-detects import dependencies and creates `depends-on` edges between related files. The code graph updates live when files change.
+
+- **`canvas://code-graph`** MCP resource — dependency structure: central files, isolated files, import/imported-by lists
+- HTTP: `GET /api/canvas/code-graph`
+- Supported languages: JS/TS (`import`/`require`), Python (`import`/`from`), Go (`import`), Rust (`mod`/`use crate`)
+- Auto-edges use the `codegraph-` ID prefix and are suppressed from mutation history
+- Recomputation is debounced (300ms) and triggered on file node add/remove and file content change
 
 ## Integration Paths
 

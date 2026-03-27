@@ -26,6 +26,7 @@ import { z } from 'zod';
 import { createCanvas, canvasState, type PmxCanvas } from '../server/index.js';
 import { searchNodes, buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
 import { mutationHistory, diffLayouts, formatDiff } from '../server/mutation-history.js';
+import { buildCodeGraphSummary, formatCodeGraph } from '../server/code-graph.js';
 
 let canvas: PmxCanvas | null = null;
 
@@ -508,6 +509,32 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
+  server.resource(
+    'code-graph',
+    'canvas://code-graph',
+    {
+      description:
+        'Auto-detected dependency graph between file nodes on the canvas. Shows which files import ' +
+        'which other files, central files (most depended on), and isolated files. Dependencies are ' +
+        'parsed from import/require/from statements in JS/TS/Python/Go/Rust. Edges are created and ' +
+        'updated automatically as file nodes are added or files change.',
+      mimeType: 'application/json',
+    },
+    async () => {
+      await ensureCanvas();
+      const summary = buildCodeGraphSummary();
+      return {
+        contents: [
+          {
+            uri: 'canvas://code-graph',
+            mimeType: 'application/json',
+            text: JSON.stringify(summary, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
   // ── canvas_pin_nodes ─────────────────────────────────────────
   server.tool(
     'canvas_pin_nodes',
@@ -597,6 +624,7 @@ export async function startMcpServer(): Promise<void> {
       server.server.sendResourceUpdated({ uri: 'canvas://summary' });
       server.server.sendResourceUpdated({ uri: 'canvas://spatial-context' });
       server.server.sendResourceUpdated({ uri: 'canvas://history' });
+      server.server.sendResourceUpdated({ uri: 'canvas://code-graph' });
     } catch {
       // Notification failures are non-fatal (e.g., client disconnected)
     }

@@ -7,6 +7,7 @@ import { watchFileForNode, unwatchFileForNode, onFileNodeChanged } from './file-
 import { findOpenCanvasPosition } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
+import { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import {
   startCanvasServer,
   stopCanvasServer,
@@ -25,6 +26,7 @@ import type {
 export class PmxCanvas extends EventEmitter {
   private _port: number;
   private _server: string | null = null;
+  private _codeGraphTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options?: { port?: number }) {
     super();
@@ -57,6 +59,8 @@ export class PmxCanvas extends EventEmitter {
     // Wire up file watcher: push SSE updates when watched files change
     onFileNodeChanged(() => {
       emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+      // Recompute code graph when a watched file changes (debounced)
+      this._scheduleCodeGraphRecompute();
     });
 
     // Re-watch files for any file nodes restored from persistence
@@ -65,6 +69,9 @@ export class PmxCanvas extends EventEmitter {
         watchFileForNode(node.id, node.data.path);
       }
     }
+
+    // Initial code graph computation for restored file nodes
+    this._scheduleCodeGraphRecompute();
 
     if (options?.open !== false) {
       openUrlInExternalBrowser(`${base}/workbench`);
@@ -138,6 +145,10 @@ export class PmxCanvas extends EventEmitter {
     }
 
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+
+    // Recompute code graph when file nodes are added
+    if (input.type === 'file') this._scheduleCodeGraphRecompute();
+
     return id;
   }
 
@@ -147,9 +158,13 @@ export class PmxCanvas extends EventEmitter {
   }
 
   removeNode(id: string): void {
+    const wasFile = canvasState.getNode(id)?.type === 'file';
     unwatchFileForNode(id);
     canvasState.removeNode(id);
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+
+    // Recompute code graph when file nodes are removed
+    if (wasFile) this._scheduleCodeGraphRecompute();
   }
 
   addEdge(input: {
@@ -300,6 +315,21 @@ export class PmxCanvas extends EventEmitter {
     return { ok: true, text: formatDiff(diff), diff };
   }
 
+  getCodeGraph() {
+    const summary = buildCodeGraphSummary();
+    return { text: formatCodeGraph(summary), summary };
+  }
+
+  /** Debounced code graph recomputation (300ms). */
+  private _scheduleCodeGraphRecompute(): void {
+    if (this._codeGraphTimer) clearTimeout(this._codeGraphTimer);
+    this._codeGraphTimer = setTimeout(() => {
+      this._codeGraphTimer = null;
+      recomputeCodeGraph();
+      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    }, 300);
+  }
+
   get port(): number {
     return this._port;
   }
@@ -330,5 +360,7 @@ export { findOpenCanvasPosition } from './placement.js';
 export { searchNodes, buildSpatialContext, detectClusters, findNeighborhoods } from './spatial-analysis.js';
 export type { SpatialCluster, SpatialContext, SpatialNeighbor, NodeSpatialInfo } from './spatial-analysis.js';
 export { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
+export { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
+export type { CodeGraphSummary, CodeGraphEdge } from './code-graph.js';
 export type { MutationEntry, MutationSummary, SnapshotDiffResult } from './mutation-history.js';
 export { traceManager } from './trace-manager.js';

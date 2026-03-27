@@ -116,8 +116,20 @@ curl -X POST http://localhost:4313/api/canvas/undo
 curl http://localhost:4313/api/canvas/history
 ```
 
+### Code Graph
+
+File nodes automatically detect import dependencies between each other. Add file nodes and watch `depends-on` edges appear as the system parses `import`/`require`/`from` statements across JS/TS, Python, Go, and Rust.
+
+- **`canvas://code-graph`** — dependency structure with central files, isolated files, and import chains
+- Auto-edges update live when files change on disk
+
+```bash
+# View auto-detected dependencies
+curl http://localhost:4313/api/canvas/code-graph
+```
+
 ### Integration (4 paths)
-- **MCP Server** — 17 tools + 5 resources, auto-starts canvas on first tool call. Zero-config for any MCP-capable agent.
+- **MCP Server** — 17 tools + 6 resources, auto-starts canvas on first tool call. Zero-config for any MCP-capable agent.
 - **HTTP API** — REST endpoints for all canvas operations + SSE event stream. Works from any language.
 - **Node.js SDK** — `createCanvas()` for programmatic control from Bun/Node.js.
 - **Agent Skill** — SKILL.md teaches agents the HTTP API. Works in Claude Code, Cowork, and any skill-aware agent.
@@ -197,6 +209,7 @@ Add to your agent's MCP config — the canvas auto-starts on first tool call:
 | `canvas://summary` | Compact overview: counts, pinned titles, viewport |
 | `canvas://spatial-context` | Spatial intelligence: proximity clusters, reading order, pinned neighborhoods |
 | `canvas://history` | Mutation history timeline with undo/redo position |
+| `canvas://code-graph` | Auto-detected file dependency graph (imports between file nodes) |
 
 ### CLI
 
@@ -288,7 +301,7 @@ Copy `skills/pmx-canvas/` into your project's `.claude/skills/` directory.
 ```
 Agent (Claude Code / Codex / Cursor / pi / any)
   |
-  |-- MCP Server ---- 17 tools + 5 resources + change notifications
+  |-- MCP Server ---- 17 tools + 6 resources + change notifications
   |-- Node.js SDK --- createCanvas()
   |-- HTTP API ------ curl localhost:4313/api/...
   |-- Skill file ---- SKILL.md

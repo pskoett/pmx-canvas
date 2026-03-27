@@ -15,6 +15,7 @@
  * - GET  /api/canvas/pinned-context -> get pinned context preamble
  * - GET  /api/canvas/spatial-context -> spatial analysis (clusters, reading order, neighborhoods)
  * - GET  /api/canvas/search?q=...  -> full-text search across nodes
+ * - GET  /api/canvas/code-graph   -> auto-detected file dependency graph
  * - POST /api/canvas/undo         -> undo last mutation
  * - POST /api/canvas/redo         -> redo last undone mutation
  * - GET  /api/canvas/history      -> mutation history timeline
@@ -33,6 +34,7 @@ import { getMcpAppHostSnapshot } from './mcp-app-host.js';
 import { findOpenCanvasPosition } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import { mutationHistory } from './mutation-history.js';
+import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import { traceManager } from './trace-manager.js';
 
 const DEFAULT_HOST = '127.0.0.1';
@@ -1931,6 +1933,12 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             }
             const results = searchNodes(canvasState.getLayout().nodes, q);
             return responseJson({ results, query: q });
+          }
+
+          // Code graph API
+          if (url.pathname === '/api/canvas/code-graph' && req.method === 'GET') {
+            const summary = buildCodeGraphSummary();
+            return responseJson(summary);
           }
 
           // Undo/Redo/History API
