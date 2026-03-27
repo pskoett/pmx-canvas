@@ -18,7 +18,7 @@ import {
   setViewport,
   viewport,
 } from '../state/canvas-store';
-import { createEdgeFromClient } from '../state/intent-bridge';
+import { createEdgeFromClient, createNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
 import { CanvasNode } from './CanvasNode';
 import { EdgeLayer } from './EdgeLayer';
@@ -214,6 +214,30 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
     };
   }, [containerRef]);
 
+  // ── Double-click on background → create new markdown node ──
+  const handleDblClick = useCallback(
+    (e: MouseEvent) => {
+      const container = containerRef.current;
+      if (!container || e.target !== container) return;
+      const rect = container.getBoundingClientRect();
+      const v = viewport.value;
+      const wx = (e.clientX - rect.left - v.x) / v.scale;
+      const wy = (e.clientY - rect.top - v.y) / v.scale;
+      // Offset so node centers on click point
+      const nodeW = 360;
+      const nodeH = 200;
+      createNodeFromClient({
+        type: 'markdown',
+        title: 'New note',
+        x: wx - nodeW / 2,
+        y: wy - nodeH / 2,
+        width: nodeW,
+        height: nodeH,
+      });
+    },
+    [containerRef],
+  );
+
   // Only render world-space nodes (dockPosition === null); docked nodes are in the HUD layer.
   // Do NOT sort by zIndex here — CSS z-index handles visual stacking. Sorting would
   // reorder DOM children when bringToFront() changes zIndex, causing browsers to
@@ -243,6 +267,7 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onDblClick={handleDblClick}
       style={{
         width: '100%',
         height: '100%',

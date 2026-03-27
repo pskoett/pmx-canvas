@@ -6,6 +6,7 @@ import {
   focusNode,
   nodes,
 } from '../state/canvas-store';
+import { createNodeFromClient } from '../state/intent-bridge';
 import { TYPE_LABELS, type CanvasNodeState } from '../types';
 import { invalidateTokenCache } from '../theme/tokens';
 
@@ -131,6 +132,7 @@ export function CommandPalette({
 
     // Action items
     const actions: Array<{ label: string; badge: string; action: () => void }> = [
+      { label: 'New note (markdown node)', badge: 'CREATE', action: () => { createNodeFromClient({ type: 'markdown', title: 'New note' }); onClose(); } },
       { label: 'Fit all nodes', badge: 'VIEW', action: () => { fitAll(window.innerWidth, window.innerHeight); onClose(); } },
       { label: 'Auto-arrange', badge: 'LAYOUT', action: () => { autoArrange(); onClose(); } },
       { label: 'Toggle minimap', badge: 'VIEW', action: () => { onToggleMinimap(); onClose(); } },
