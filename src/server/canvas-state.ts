@@ -77,7 +77,7 @@ export interface CanvasNodeUpdate {
 export type CanvasChangeType = 'pins' | 'nodes';
 
 export interface MutationRecordInfo {
-  operationType: string;
+  operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'clear' | 'setPins' | 'arrange' | 'batch';
   description: string;
   forward: () => void;
   inverse: () => void;
@@ -105,12 +105,22 @@ class CanvasStateManager {
 
   // ── Mutation recorder (for undo/redo history) ─────────────
   private _mutationRecorder: ((info: MutationRecordInfo) => void) | null = null;
-  /** When true, mutating methods skip the recorder (used during undo/redo replay). */
-  _suppressRecording = false;
+  private _suppressRecording = false;
 
   /** Register a mutation recorder. Used by mutation-history to capture undo/redo closures. */
   onMutation(cb: (info: MutationRecordInfo) => void): void {
     this._mutationRecorder = cb;
+  }
+
+  /** Run a function with mutation recording suppressed (for undo/redo replay and computed edges). */
+  withSuppressedRecording(fn: () => void): void {
+    this._suppressRecording = true;
+    try { fn(); } finally { this._suppressRecording = false; }
+  }
+
+  /** Create a closure that runs with recording suppressed. */
+  private suppressed(fn: () => void): () => void {
+    return () => this.withSuppressedRecording(fn);
   }
 
   private recordMutation(info: MutationRecordInfo): void {
@@ -373,14 +383,14 @@ class CanvasStateManager {
 
   addNode(node: CanvasNodeState): void {
     const cloned = structuredClone(node);
-    this.nodes.set(node.id, node);
+    this.nodes.set(node.id, cloned);
     this.scheduleSave();
     this.notifyChange('nodes');
     this.recordMutation({
       operationType: 'addNode',
       description: `Added ${node.type} node "${(node.data.title as string) ?? node.id}"`,
-      forward: () => { this._suppressRecording = true; try { this.addNode(structuredClone(cloned)); } finally { this._suppressRecording = false; } },
-      inverse: () => { this._suppressRecording = true; try { this.removeNode(node.id); } finally { this._suppressRecording = false; } },
+      forward: this.suppressed(() => this.addNode(structuredClone(cloned))),
+      inverse: this.suppressed(() => this.removeNode(node.id)),
     });
   }
 
@@ -394,8 +404,8 @@ class CanvasStateManager {
     this.recordMutation({
       operationType: 'updateNode',
       description: `Updated node "${(existing.data.title as string) ?? id}"`,
-      forward: () => { this._suppressRecording = true; try { this.updateNode(id, structuredClone(patch)); } finally { this._suppressRecording = false; } },
-      inverse: () => { this._suppressRecording = true; try { this.nodes.set(id, structuredClone(oldSnapshot)); this.scheduleSave(); this.notifyChange('nodes'); } finally { this._suppressRecording = false; } },
+      forward: this.suppressed(() => this.updateNode(id, structuredClone(patch))),
+      inverse: this.suppressed(() => { this.nodes.set(id, structuredClone(oldSnapshot)); this.scheduleSave(); this.notifyChange('nodes'); }),
     });
   }
 
@@ -411,14 +421,11 @@ class CanvasStateManager {
       this.recordMutation({
         operationType: 'removeNode',
         description: `Removed ${cloned.type} node "${(cloned.data.title as string) ?? id}"`,
-        forward: () => { this._suppressRecording = true; try { this.removeNode(id); } finally { this._suppressRecording = false; } },
-        inverse: () => {
-          this._suppressRecording = true;
-          try {
-            this.addNode(structuredClone(cloned));
-            for (const edge of connectedEdges) this.addEdge(structuredClone(edge));
-          } finally { this._suppressRecording = false; }
-        },
+        forward: this.suppressed(() => this.removeNode(id)),
+        inverse: this.suppressed(() => {
+          this.addNode(structuredClone(cloned));
+          for (const edge of connectedEdges) this.addEdge(structuredClone(edge));
+        }),
       });
     }
   }
@@ -443,8 +450,8 @@ class CanvasStateManager {
     this.recordMutation({
       operationType: 'addEdge',
       description: `Added ${edge.type} edge ${edge.from} → ${edge.to}`,
-      forward: () => { this._suppressRecording = true; try { this.addEdge(structuredClone(cloned)); } finally { this._suppressRecording = false; } },
-      inverse: () => { this._suppressRecording = true; try { this.removeEdge(edge.id); } finally { this._suppressRecording = false; } },
+      forward: this.suppressed(() => this.addEdge(structuredClone(cloned))),
+      inverse: this.suppressed(() => this.removeEdge(edge.id)),
     });
     return true;
   }
@@ -459,8 +466,8 @@ class CanvasStateManager {
       this.recordMutation({
         operationType: 'removeEdge',
         description: `Removed ${cloned.type} edge ${cloned.from} → ${cloned.to}`,
-        forward: () => { this._suppressRecording = true; try { this.removeEdge(id); } finally { this._suppressRecording = false; } },
-        inverse: () => { this._suppressRecording = true; try { this.addEdge(structuredClone(cloned)); } finally { this._suppressRecording = false; } },
+        forward: this.suppressed(() => this.removeEdge(id)),
+        inverse: this.suppressed(() => this.addEdge(structuredClone(cloned))),
       });
     }
     return removed;
@@ -536,8 +543,8 @@ class CanvasStateManager {
     this.recordMutation({
       operationType: 'setPins',
       description: `Set context pins (${this._contextPinnedNodeIds.size} nodes)`,
-      forward: () => { this._suppressRecording = true; try { this.setContextPins([...nodeIds]); } finally { this._suppressRecording = false; } },
-      inverse: () => { this._suppressRecording = true; try { this.setContextPins(oldPins); } finally { this._suppressRecording = false; } },
+      forward: this.suppressed(() => this.setContextPins([...nodeIds])),
+      inverse: this.suppressed(() => this.setContextPins(oldPins)),
     });
   }
 
@@ -562,16 +569,13 @@ class CanvasStateManager {
     this.recordMutation({
       operationType: 'clear',
       description: `Cleared canvas (was ${oldNodes.length} nodes, ${oldEdges.length} edges)`,
-      forward: () => { this._suppressRecording = true; try { this.clear(); } finally { this._suppressRecording = false; } },
-      inverse: () => {
-        this._suppressRecording = true;
-        try {
-          for (const n of oldNodes) this.addNode(structuredClone(n));
-          for (const e of oldEdges) this.addEdge(structuredClone(e));
-          this.setContextPins(oldPins);
-          this.setViewport(oldViewport);
-        } finally { this._suppressRecording = false; }
-      },
+      forward: this.suppressed(() => this.clear()),
+      inverse: this.suppressed(() => {
+        for (const n of oldNodes) this.addNode(structuredClone(n));
+        for (const e of oldEdges) this.addEdge(structuredClone(e));
+        this.setContextPins(oldPins);
+        this.setViewport(oldViewport);
+      }),
     });
   }
 }
