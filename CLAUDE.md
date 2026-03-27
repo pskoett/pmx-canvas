@@ -158,11 +158,11 @@ Three themes: `dark` (default), `light`, `high-contrast`. Set via:
 
 ## MCP Server
 
-14 tools: `canvas_add_node`, `canvas_update_node`, `canvas_remove_node`, `canvas_get_layout`, `canvas_get_node`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_pin_nodes`, `canvas_clear`, `canvas_snapshot`, `canvas_restore`, `canvas_search`
+17 tools: `canvas_add_node`, `canvas_update_node`, `canvas_remove_node`, `canvas_get_layout`, `canvas_get_node`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_pin_nodes`, `canvas_clear`, `canvas_snapshot`, `canvas_restore`, `canvas_search`, `canvas_undo`, `canvas_redo`, `canvas_diff`
 
-4 resources: `canvas://pinned-context`, `canvas://layout`, `canvas://summary`, `canvas://spatial-context`
+5 resources: `canvas://pinned-context`, `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`
 
-Resource change notifications: the MCP server emits `notifications/resources/updated` when canvas state changes. Pin changes notify `canvas://pinned-context`; all mutations notify `canvas://layout`, `canvas://summary`, and `canvas://spatial-context`. This enables real-time human→agent collaboration — humans pin nodes in the browser, agents are notified immediately.
+Resource change notifications: the MCP server emits `notifications/resources/updated` when canvas state changes. Pin changes notify `canvas://pinned-context`; all mutations notify `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, and `canvas://history`. This enables real-time human→agent collaboration — humans pin nodes in the browser, agents are notified immediately.
 
 ### Spatial Semantics Layer
 
@@ -173,6 +173,21 @@ The canvas exposes spatial intelligence to agents via `canvas://spatial-context`
 - **`canvas://pinned-context`** now includes neighborhood data — nearby unpinned nodes for each pin
 
 Use `canvas_search` to find nodes by title/content keywords instead of parsing the full layout.
+
+### Time Travel (Undo/Redo + History)
+
+Every canvas mutation is recorded in an in-memory ring buffer (last 200 operations). Each entry captures forward/inverse closures for clean undo/redo.
+
+- **`canvas_undo`** / **`canvas_redo`** — step through history, reversing operations cleanly
+- **`canvas://history`** — human-readable mutation timeline with cursor position
+- **`canvas_diff`** — compare current canvas vs any saved snapshot (shows added/removed/modified nodes and edges)
+- HTTP: `POST /api/canvas/undo`, `POST /api/canvas/redo`, `GET /api/canvas/history`
+
+Design notes:
+- History is session-scoped (in-memory, not persisted to disk)
+- `arrange()` records as a single compound mutation (not N individual moves)
+- Undo/redo emit SSE events so the browser updates immediately
+- The `_suppressRecording` flag prevents undo/redo from creating new history entries
 
 ## Integration Paths
 

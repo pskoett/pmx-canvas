@@ -15,6 +15,9 @@
  * - GET  /api/canvas/pinned-context -> get pinned context preamble
  * - GET  /api/canvas/spatial-context -> spatial analysis (clusters, reading order, neighborhoods)
  * - GET  /api/canvas/search?q=...  -> full-text search across nodes
+ * - POST /api/canvas/undo         -> undo last mutation
+ * - POST /api/canvas/redo         -> redo last undone mutation
+ * - GET  /api/canvas/history      -> mutation history timeline
  * - GET  /api/workbench/events   -> SSE event stream
  * - GET  /api/workbench/state    -> workbench state snapshot
  * - POST /api/workbench/intent   -> workbench intents
@@ -29,6 +32,7 @@ import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
 import { findOpenCanvasPosition } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
+import { mutationHistory } from './mutation-history.js';
 import { traceManager } from './trace-manager.js';
 
 const DEFAULT_HOST = '127.0.0.1';
@@ -1927,6 +1931,30 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             }
             const results = searchNodes(canvasState.getLayout().nodes, q);
             return responseJson({ results, query: q });
+          }
+
+          // Undo/Redo/History API
+          if (url.pathname === '/api/canvas/undo' && req.method === 'POST') {
+            const entry = mutationHistory.undo();
+            if (!entry) return responseJson({ ok: false, description: 'Nothing to undo' });
+            emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+            return responseJson({ ok: true, description: `Undid: ${entry.description}` });
+          }
+
+          if (url.pathname === '/api/canvas/redo' && req.method === 'POST') {
+            const entry = mutationHistory.redo();
+            if (!entry) return responseJson({ ok: false, description: 'Nothing to redo' });
+            emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+            return responseJson({ ok: true, description: `Redid: ${entry.description}` });
+          }
+
+          if (url.pathname === '/api/canvas/history' && req.method === 'GET') {
+            return responseJson({
+              text: mutationHistory.toHumanReadable(),
+              entries: mutationHistory.getSummaries(),
+              canUndo: mutationHistory.canUndo(),
+              canRedo: mutationHistory.canRedo(),
+            });
           }
 
           // Static files for canvas SPA bundle

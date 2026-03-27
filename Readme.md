@@ -100,8 +100,24 @@ curl http://localhost:4313/api/canvas/spatial-context
 curl "http://localhost:4313/api/canvas/search?q=auth"
 ```
 
+### Time Travel
+
+Every canvas mutation is recorded with undo/redo support. Explore approaches, backtrack when wrong, and understand how the canvas evolved.
+
+- **`canvas_undo`** / **`canvas_redo`** — step through mutation history
+- **`canvas://history`** — readable timeline of all mutations this session
+- **`canvas_diff`** — compare current state vs any saved snapshot
+
+```bash
+# Undo the last change
+curl -X POST http://localhost:4313/api/canvas/undo
+
+# View mutation history
+curl http://localhost:4313/api/canvas/history
+```
+
 ### Integration (4 paths)
-- **MCP Server** — 14 tools + 4 resources, auto-starts canvas on first tool call. Zero-config for any MCP-capable agent.
+- **MCP Server** — 17 tools + 5 resources, auto-starts canvas on first tool call. Zero-config for any MCP-capable agent.
 - **HTTP API** — REST endpoints for all canvas operations + SSE event stream. Works from any language.
 - **Node.js SDK** — `createCanvas()` for programmatic control from Bun/Node.js.
 - **Agent Skill** — SKILL.md teaches agents the HTTP API. Works in Claude Code, Cowork, and any skill-aware agent.
@@ -168,6 +184,9 @@ Add to your agent's MCP config — the canvas auto-starts on first tool call:
 | `canvas_snapshot` | Save current canvas as a named snapshot |
 | `canvas_restore` | Restore canvas from a saved snapshot |
 | `canvas_search` | Find nodes by title/content keywords (ranked by relevance) |
+| `canvas_undo` | Undo the last canvas mutation |
+| `canvas_redo` | Redo the last undone mutation |
+| `canvas_diff` | Compare current canvas vs a saved snapshot |
 
 **MCP Resources:**
 
@@ -177,6 +196,7 @@ Add to your agent's MCP config — the canvas auto-starts on first tool call:
 | `canvas://layout` | Full canvas state (all nodes, edges, viewport) |
 | `canvas://summary` | Compact overview: counts, pinned titles, viewport |
 | `canvas://spatial-context` | Spatial intelligence: proximity clusters, reading order, pinned neighborhoods |
+| `canvas://history` | Mutation history timeline with undo/redo position |
 
 ### CLI
 
@@ -268,7 +288,7 @@ Copy `skills/pmx-canvas/` into your project's `.claude/skills/` directory.
 ```
 Agent (Claude Code / Codex / Cursor / pi / any)
   |
-  |-- MCP Server ---- 14 tools + 4 resources + change notifications
+  |-- MCP Server ---- 17 tools + 5 resources + change notifications
   |-- Node.js SDK --- createCanvas()
   |-- HTTP API ------ curl localhost:4313/api/...
   |-- Skill file ---- SKILL.md

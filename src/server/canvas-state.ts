@@ -76,6 +76,13 @@ export interface CanvasNodeUpdate {
 
 export type CanvasChangeType = 'pins' | 'nodes';
 
+export interface MutationRecordInfo {
+  operationType: string;
+  description: string;
+  forward: () => void;
+  inverse: () => void;
+}
+
 class CanvasStateManager {
   private nodes = new Map<string, CanvasNodeState>();
   private edges = new Map<string, CanvasEdge>();
@@ -94,6 +101,21 @@ class CanvasStateManager {
     for (const cb of this._changeListeners) {
       try { cb(type); } catch { /* listener errors are non-fatal */ }
     }
+  }
+
+  // ── Mutation recorder (for undo/redo history) ─────────────
+  private _mutationRecorder: ((info: MutationRecordInfo) => void) | null = null;
+  /** When true, mutating methods skip the recorder (used during undo/redo replay). */
+  _suppressRecording = false;
+
+  /** Register a mutation recorder. Used by mutation-history to capture undo/redo closures. */
+  onMutation(cb: (info: MutationRecordInfo) => void): void {
+    this._mutationRecorder = cb;
+  }
+
+  private recordMutation(info: MutationRecordInfo): void {
+    if (this._suppressRecording || !this._mutationRecorder) return;
+    try { this._mutationRecorder(info); } catch { /* non-fatal */ }
   }
 
   // ── Persistence ────────────────────────────────────────────
@@ -297,6 +319,38 @@ class CanvasStateManager {
     }
   }
 
+  /** Read a snapshot's data without restoring it (for diff). Resolves by ID or name. */
+  getSnapshotData(idOrName: string): { name: string; nodes: CanvasNodeState[]; edges: CanvasEdge[] } | null {
+    const dir = this.snapshotsDir;
+    if (!dir || !existsSync(dir)) return null;
+
+    // Try direct ID first
+    const directPath = join(dir, `${idOrName}.json`);
+    if (existsSync(directPath)) {
+      try {
+        const raw = readFileSync(directPath, 'utf-8');
+        const parsed = JSON.parse(raw) as PersistedCanvasState & { snapshot?: CanvasSnapshot };
+        return { name: parsed.snapshot?.name ?? idOrName, nodes: parsed.nodes ?? [], edges: parsed.edges ?? [] };
+      } catch { return null; }
+    }
+
+    // Search by name
+    try {
+      const files = readdirSync(dir).filter((f) => f.endsWith('.json'));
+      for (const file of files) {
+        try {
+          const raw = readFileSync(join(dir, file), 'utf-8');
+          const parsed = JSON.parse(raw) as PersistedCanvasState & { snapshot?: CanvasSnapshot };
+          if (parsed.snapshot?.name === idOrName || parsed.snapshot?.id === idOrName) {
+            return { name: parsed.snapshot.name, nodes: parsed.nodes ?? [], edges: parsed.edges ?? [] };
+          }
+        } catch { /* skip */ }
+      }
+    } catch { /* skip */ }
+
+    return null;
+  }
+
   /** Delete a snapshot. */
   deleteSnapshot(id: string): boolean {
     const dir = this.snapshotsDir;
@@ -318,24 +372,55 @@ class CanvasStateManager {
   }
 
   addNode(node: CanvasNodeState): void {
+    const cloned = structuredClone(node);
     this.nodes.set(node.id, node);
     this.scheduleSave();
     this.notifyChange('nodes');
+    this.recordMutation({
+      operationType: 'addNode',
+      description: `Added ${node.type} node "${(node.data.title as string) ?? node.id}"`,
+      forward: () => { this._suppressRecording = true; try { this.addNode(structuredClone(cloned)); } finally { this._suppressRecording = false; } },
+      inverse: () => { this._suppressRecording = true; try { this.removeNode(node.id); } finally { this._suppressRecording = false; } },
+    });
   }
 
   updateNode(id: string, patch: Partial<CanvasNodeState>): void {
     const existing = this.nodes.get(id);
     if (!existing) return;
+    const oldSnapshot = structuredClone(existing);
     this.nodes.set(id, { ...existing, ...patch });
     this.scheduleSave();
     this.notifyChange('nodes');
+    this.recordMutation({
+      operationType: 'updateNode',
+      description: `Updated node "${(existing.data.title as string) ?? id}"`,
+      forward: () => { this._suppressRecording = true; try { this.updateNode(id, structuredClone(patch)); } finally { this._suppressRecording = false; } },
+      inverse: () => { this._suppressRecording = true; try { this.nodes.set(id, structuredClone(oldSnapshot)); this.scheduleSave(); this.notifyChange('nodes'); } finally { this._suppressRecording = false; } },
+    });
   }
 
   removeNode(id: string): void {
+    const existing = this.nodes.get(id);
+    const connectedEdges = existing ? this.getEdgesForNode(id).map((e) => structuredClone(e)) : [];
+    const cloned = existing ? structuredClone(existing) : null;
     this.nodes.delete(id);
     this.removeEdgesForNode(id);
     this.scheduleSave();
     this.notifyChange('nodes');
+    if (cloned) {
+      this.recordMutation({
+        operationType: 'removeNode',
+        description: `Removed ${cloned.type} node "${(cloned.data.title as string) ?? id}"`,
+        forward: () => { this._suppressRecording = true; try { this.removeNode(id); } finally { this._suppressRecording = false; } },
+        inverse: () => {
+          this._suppressRecording = true;
+          try {
+            this.addNode(structuredClone(cloned));
+            for (const edge of connectedEdges) this.addEdge(structuredClone(edge));
+          } finally { this._suppressRecording = false; }
+        },
+      });
+    }
   }
 
   getNode(id: string): CanvasNodeState | undefined {
@@ -351,17 +436,32 @@ class CanvasStateManager {
         return false;
       }
     }
+    const cloned = structuredClone(edge);
     this.edges.set(edge.id, edge);
     this.scheduleSave();
     this.notifyChange('nodes');
+    this.recordMutation({
+      operationType: 'addEdge',
+      description: `Added ${edge.type} edge ${edge.from} → ${edge.to}`,
+      forward: () => { this._suppressRecording = true; try { this.addEdge(structuredClone(cloned)); } finally { this._suppressRecording = false; } },
+      inverse: () => { this._suppressRecording = true; try { this.removeEdge(edge.id); } finally { this._suppressRecording = false; } },
+    });
     return true;
   }
 
   removeEdge(id: string): boolean {
+    const existing = this.edges.get(id);
+    const cloned = existing ? structuredClone(existing) : null;
     const removed = this.edges.delete(id);
-    if (removed) {
+    if (removed && cloned) {
       this.scheduleSave();
       this.notifyChange('nodes');
+      this.recordMutation({
+        operationType: 'removeEdge',
+        description: `Removed ${cloned.type} edge ${cloned.from} → ${cloned.to}`,
+        forward: () => { this._suppressRecording = true; try { this.removeEdge(id); } finally { this._suppressRecording = false; } },
+        inverse: () => { this._suppressRecording = true; try { this.addEdge(structuredClone(cloned)); } finally { this._suppressRecording = false; } },
+      });
     }
     return removed;
   }
@@ -424,6 +524,7 @@ class CanvasStateManager {
   }
 
   setContextPins(nodeIds: string[]): void {
+    const oldPins = Array.from(this._contextPinnedNodeIds);
     this._contextPinnedNodeIds.clear();
     for (const id of nodeIds) {
       if (this.nodes.has(id)) {
@@ -432,6 +533,12 @@ class CanvasStateManager {
     }
     this.scheduleSave();
     this.notifyChange('pins');
+    this.recordMutation({
+      operationType: 'setPins',
+      description: `Set context pins (${this._contextPinnedNodeIds.size} nodes)`,
+      forward: () => { this._suppressRecording = true; try { this.setContextPins([...nodeIds]); } finally { this._suppressRecording = false; } },
+      inverse: () => { this._suppressRecording = true; try { this.setContextPins(oldPins); } finally { this._suppressRecording = false; } },
+    });
   }
 
   clearContextPins(): void {
@@ -441,6 +548,10 @@ class CanvasStateManager {
   }
 
   clear(): void {
+    const oldNodes = Array.from(this.nodes.values()).map((n) => structuredClone(n));
+    const oldEdges = Array.from(this.edges.values()).map((e) => structuredClone(e));
+    const oldPins = Array.from(this._contextPinnedNodeIds);
+    const oldViewport = { ...this._viewport };
     this.nodes.clear();
     this.edges.clear();
     this._contextPinnedNodeIds.clear();
@@ -448,6 +559,20 @@ class CanvasStateManager {
     this.scheduleSave();
     this.notifyChange('nodes');
     this.notifyChange('pins');
+    this.recordMutation({
+      operationType: 'clear',
+      description: `Cleared canvas (was ${oldNodes.length} nodes, ${oldEdges.length} edges)`,
+      forward: () => { this._suppressRecording = true; try { this.clear(); } finally { this._suppressRecording = false; } },
+      inverse: () => {
+        this._suppressRecording = true;
+        try {
+          for (const n of oldNodes) this.addNode(structuredClone(n));
+          for (const e of oldEdges) this.addEdge(structuredClone(e));
+          this.setContextPins(oldPins);
+          this.setViewport(oldViewport);
+        } finally { this._suppressRecording = false; }
+      },
+    });
   }
 }
 
