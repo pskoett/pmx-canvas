@@ -9,6 +9,7 @@ import {
   persistLayout,
   removeNode,
   resizeNode,
+  searchHighlightIds,
   selectedNodeIds,
   toggleCollapsed,
   toggleContextPin,
@@ -36,6 +37,9 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const isNeighbor = !isActive && focusId !== null && Array.from(edges.value.values()).some(
     (e) => (e.from === focusId && e.to === node.id) || (e.to === focusId && e.from === node.id),
   );
+  const searchSet = searchHighlightIds.value;
+  const isSearchMatch = searchSet !== null && searchSet.has(node.id);
+  const isSearchDimmed = searchSet !== null && !searchSet.has(node.id);
   const [renaming, setRenaming] = useState(false);
   const renameRef = useRef<HTMLInputElement>(null);
 
@@ -163,6 +167,8 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     'canvas-node',
     isActive ? 'active' : '',
     isNeighbor ? 'neighbor' : '',
+    isSearchMatch ? 'search-match' : '',
+    isSearchDimmed ? 'search-dimmed' : '',
     isSelected ? 'selected' : '',
     isContextPinned ? 'context-pinned' : '',
     isPinned ? 'pinned' : '',

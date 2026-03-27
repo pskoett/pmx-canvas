@@ -29,6 +29,9 @@ export const draggingEdge = signal<{
   cursorY: number;
 } | null>(null);
 
+// ── Spatial search highlight (command palette live results) ──
+export const searchHighlightIds = signal<Set<string> | null>(null);
+
 // ── Multi-node selection ──────────────────────────────────────
 export const selectedNodeIds = signal<Set<string>>(new Set());
 

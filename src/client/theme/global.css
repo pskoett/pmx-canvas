@@ -229,6 +229,21 @@ body,
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+/* Spatial search highlighting — canvas lights up as you type in Cmd+K */
+.canvas-node.search-match {
+  border-color: var(--c-accent);
+  box-shadow: 0 0 0 2px var(--c-accent), 0 0 20px var(--c-accent-30), 0 0 40px var(--c-accent-15);
+  animation: search-pulse 1.5s ease-in-out infinite;
+}
+@keyframes search-pulse {
+  0%, 100% { box-shadow: 0 0 0 2px var(--c-accent), 0 0 20px var(--c-accent-30), 0 0 40px var(--c-accent-15); }
+  50%      { box-shadow: 0 0 0 2px var(--c-accent), 0 0 30px var(--c-accent-40), 0 0 60px var(--c-accent-25); }
+}
+.canvas-node.search-dimmed {
+  opacity: 0.25;
+  transition: opacity 0.2s;
+}
+
 /* ── Connection port handles (drag-to-connect) ───────────── */
 .node-port {
   position: absolute;
@@ -1622,7 +1637,7 @@ body,
   position: fixed;
   inset: 0;
   z-index: 10002;
-  background: rgba(0, 0, 0, 0.4);
+  background: rgba(0, 0, 0, 0.25);
   display: flex;
   justify-content: center;
   padding-top: 18vh;

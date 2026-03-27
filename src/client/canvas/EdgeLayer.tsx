@@ -1,5 +1,5 @@
 import type { Signal } from '@preact/signals';
-import { activeNodeId, draggingEdge } from '../state/canvas-store';
+import { activeNodeId, draggingEdge, searchHighlightIds } from '../state/canvas-store';
 import type { CanvasEdge, CanvasNodeState } from '../types';
 
 // ── Edge type visual styles ──────────────────────────────────
@@ -197,6 +197,8 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
   const edgeList = Array.from(edges.value.values());
   const focusId = activeNodeId.value;
   const hasFocus = focusId !== null;
+  const searchSet = searchHighlightIds.value;
+  const hasSearch = searchSet !== null;
 
   if (edgeList.length === 0) return null;
 
@@ -233,6 +235,7 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
         const toNode = nodeMap.get(edge.to);
         if (!fromNode || !toNode) return null;
         const isConnected = hasFocus && (edge.from === focusId || edge.to === focusId);
+        const searchDimmed = hasSearch && !(searchSet.has(edge.from) || searchSet.has(edge.to));
         return (
           <EdgePath
             key={edge.id}
@@ -240,7 +243,7 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
             fromNode={fromNode}
             toNode={toNode}
             focused={isConnected}
-            dimmed={hasFocus && !isConnected}
+            dimmed={(hasFocus && !isConnected) || searchDimmed}
           />
         );
       })}

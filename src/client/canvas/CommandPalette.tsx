@@ -5,6 +5,7 @@ import {
   fitAll,
   focusNode,
   nodes,
+  searchHighlightIds,
 } from '../state/canvas-store';
 import { createNodeFromClient } from '../state/intent-bridge';
 import { TYPE_LABELS, type CanvasNodeState } from '../types';
@@ -191,6 +192,27 @@ export function CommandPalette({
     // Sort by score descending
     filtered.sort((a, b) => b.score - a.score);
   }
+
+  // ── Sync spatial search highlights to canvas ──────────────
+  useEffect(() => {
+    if (!query.trim()) {
+      searchHighlightIds.value = null;
+      return;
+    }
+    const nodeIds = new Set<string>();
+    for (const item of filtered) {
+      if (item.kind === 'node') {
+        // Extract node ID from "node:xxx" format
+        nodeIds.add(item.id.slice(5));
+      }
+    }
+    searchHighlightIds.value = nodeIds.size > 0 ? nodeIds : null;
+  }, [query, filtered]);
+
+  // Clear highlights on unmount (palette close)
+  useEffect(() => {
+    return () => { searchHighlightIds.value = null; };
+  }, []);
 
   // Clamp selected index
   const clampedIndex = Math.min(selectedIndex, Math.max(0, filtered.length - 1));
