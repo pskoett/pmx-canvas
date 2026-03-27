@@ -22,6 +22,7 @@ import {
   edges,
   expandedNodeId,
   fitAll,
+  forceDirectedArrange,
   hasInitialServerLayout,
   nodes,
   persistLayout,
@@ -119,7 +120,7 @@ function Toolbar({
 
       <div class="separator" />
 
-      <button type="button" onClick={autoArrange} title="Auto-arrange nodes (grid)">
+      <button type="button" onClick={() => edgeCount > 0 ? forceDirectedArrange() : autoArrange()} title={edgeCount > 0 ? 'Auto-arrange (force-directed)' : 'Auto-arrange (grid)'}>
         ⊞
       </button>
       <button

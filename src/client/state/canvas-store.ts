@@ -508,3 +508,145 @@ export function autoArrange(): void {
   });
   persistLayout();
 }
+
+// ── Force-directed layout ────────────────────────────────────
+let forceAnimId: number | null = null;
+
+export function forceDirectedArrange(): void {
+  const movable = Array.from(nodes.value.values()).filter((n) => !n.pinned && n.dockPosition === null);
+  if (movable.length === 0) return;
+  if (forceAnimId !== null) cancelAnimationFrame(forceAnimId);
+
+  const edgeList = Array.from(edges.value.values());
+
+  // Build adjacency for connected nodes
+  const adj = new Map<string, Set<string>>();
+  for (const e of edgeList) {
+    if (!adj.has(e.from)) adj.set(e.from, new Set());
+    if (!adj.has(e.to)) adj.set(e.to, new Set());
+    adj.get(e.from)!.add(e.to);
+    adj.get(e.to)!.add(e.from);
+  }
+
+  // Initialize positions from current layout
+  const pos = new Map<string, { x: number; y: number }>();
+  for (const n of movable) {
+    pos.set(n.id, { x: n.position.x + n.size.width / 2, y: n.position.y + n.size.height / 2 });
+  }
+
+  // Compute center of mass for gravity
+  let gcx = 0, gcy = 0;
+  for (const p of pos.values()) { gcx += p.x; gcy += p.y; }
+  gcx /= pos.size;
+  gcy /= pos.size;
+
+  // Force simulation parameters
+  const REPULSION = 80000;
+  const SPRING_K = 0.008;
+  const IDEAL_LEN = 300;
+  const GRAVITY = 0.002;
+  const DAMPING = 0.92;
+  const ITERATIONS = 150;
+
+  const vel = new Map<string, { vx: number; vy: number }>();
+  for (const id of pos.keys()) vel.set(id, { vx: 0, vy: 0 });
+
+  const ids = Array.from(pos.keys());
+
+  for (let iter = 0; iter < ITERATIONS; iter++) {
+    // Repulsion between all pairs
+    for (let i = 0; i < ids.length; i++) {
+      const a = pos.get(ids[i])!;
+      const va = vel.get(ids[i])!;
+      for (let j = i + 1; j < ids.length; j++) {
+        const b = pos.get(ids[j])!;
+        const vb = vel.get(ids[j])!;
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; dist = 1; }
+        const force = REPULSION / (dist * dist);
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
+        va.vx += fx; va.vy += fy;
+        vb.vx -= fx; vb.vy -= fy;
+      }
+    }
+
+    // Spring attraction along edges
+    for (const e of edgeList) {
+      const a = pos.get(e.from);
+      const b = pos.get(e.to);
+      if (!a || !b) continue;
+      const va = vel.get(e.from)!;
+      const vb = vel.get(e.to)!;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 1) continue;
+      const force = SPRING_K * (dist - IDEAL_LEN);
+      const fx = (dx / dist) * force;
+      const fy = (dy / dist) * force;
+      va.vx += fx; va.vy += fy;
+      vb.vx -= fx; vb.vy -= fy;
+    }
+
+    // Gravity toward center
+    for (const id of ids) {
+      const p = pos.get(id)!;
+      const v = vel.get(id)!;
+      v.vx += (gcx - p.x) * GRAVITY;
+      v.vy += (gcy - p.y) * GRAVITY;
+    }
+
+    // Apply velocities with damping
+    for (const id of ids) {
+      const p = pos.get(id)!;
+      const v = vel.get(id)!;
+      v.vx *= DAMPING;
+      v.vy *= DAMPING;
+      p.x += v.vx;
+      p.y += v.vy;
+    }
+  }
+
+  // Animate nodes from current positions to computed positions
+  const startPositions = new Map<string, { x: number; y: number }>();
+  const targetPositions = new Map<string, { x: number; y: number }>();
+  for (const n of movable) {
+    startPositions.set(n.id, { ...n.position });
+    const center = pos.get(n.id)!;
+    targetPositions.set(n.id, { x: center.x - n.size.width / 2, y: center.y - n.size.height / 2 });
+  }
+
+  const duration = 500;
+  const start = performance.now();
+
+  function tick(now: number) {
+    const elapsed = now - start;
+    const t = Math.min(1, elapsed / duration);
+    const e = 1 - (1 - t) ** 3; // ease-out cubic
+
+    batch(() => {
+      for (const n of movable) {
+        const from = startPositions.get(n.id)!;
+        const to = targetPositions.get(n.id)!;
+        updateNode(n.id, {
+          position: {
+            x: from.x + (to.x - from.x) * e,
+            y: from.y + (to.y - from.y) * e,
+          },
+        });
+      }
+    });
+
+    if (t < 1) {
+      forceAnimId = requestAnimationFrame(tick);
+    } else {
+      forceAnimId = null;
+      persistLayout();
+    }
+  }
+
+  forceAnimId = requestAnimationFrame(tick);
+}

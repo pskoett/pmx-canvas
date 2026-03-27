@@ -4,6 +4,7 @@ import {
   canvasTheme,
   fitAll,
   focusNode,
+  forceDirectedArrange,
   nodes,
   searchHighlightIds,
 } from '../state/canvas-store';
@@ -135,7 +136,8 @@ export function CommandPalette({
     const actions: Array<{ label: string; badge: string; action: () => void }> = [
       { label: 'New note (markdown node)', badge: 'CREATE', action: () => { createNodeFromClient({ type: 'markdown', title: 'New note' }); onClose(); } },
       { label: 'Fit all nodes', badge: 'VIEW', action: () => { fitAll(window.innerWidth, window.innerHeight); onClose(); } },
-      { label: 'Auto-arrange', badge: 'LAYOUT', action: () => { autoArrange(); onClose(); } },
+      { label: 'Auto-arrange (grid)', badge: 'LAYOUT', action: () => { autoArrange(); onClose(); } },
+      { label: 'Auto-arrange (force-directed)', badge: 'LAYOUT', action: () => { forceDirectedArrange(); onClose(); } },
       { label: 'Toggle minimap', badge: 'VIEW', action: () => { onToggleMinimap(); onClose(); } },
       {
         label: 'Toggle theme (dark/light)',
