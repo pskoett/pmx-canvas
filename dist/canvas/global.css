@@ -223,6 +223,12 @@ body,
   box-shadow: 0 0 0 1px var(--c-accent), 0 6px 32px var(--c-glow-accent);
 }
 
+.canvas-node.neighbor {
+  border-color: var(--c-accent-40);
+  box-shadow: 0 0 0 1px var(--c-accent-30), 0 4px 20px var(--c-accent-15);
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
 .canvas-node .node-titlebar {
   display: flex;
   align-items: center;

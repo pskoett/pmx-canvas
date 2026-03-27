@@ -3,6 +3,7 @@ import {
   activeNodeId,
   bringToFront,
   contextPinnedNodeIds,
+  edges,
   expandNode,
   persistLayout,
   removeNode,
@@ -30,6 +31,10 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const isActive = activeNodeId.value === node.id;
   const isSelected = selectedNodeIds.value.has(node.id);
   const isContextPinned = contextPinnedNodeIds.value.has(node.id);
+  const focusId = activeNodeId.value;
+  const isNeighbor = !isActive && focusId !== null && Array.from(edges.value.values()).some(
+    (e) => (e.from === focusId && e.to === node.id) || (e.to === focusId && e.from === node.id),
+  );
   const [renaming, setRenaming] = useState(false);
   const renameRef = useRef<HTMLInputElement>(null);
 
@@ -156,6 +161,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const nodeClass = [
     'canvas-node',
     isActive ? 'active' : '',
+    isNeighbor ? 'neighbor' : '',
     isSelected ? 'selected' : '',
     isContextPinned ? 'context-pinned' : '',
     isPinned ? 'pinned' : '',

@@ -30,6 +30,7 @@ import {
   setViewport,
   traceEnabled,
   viewport,
+  walkGraph,
 } from './state/canvas-store';
 import { connectSSE } from './state/sse-bridge';
 import { invalidateTokenCache } from './theme/tokens';
@@ -244,6 +245,10 @@ export function App() {
       } else if (e.key === 'Tab') {
         e.preventDefault();
         cycleActiveNode(e.shiftKey ? -1 : 1);
+      } else if (activeNodeId.value && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
+        e.preventDefault();
+        const dir = e.key.replace('Arrow', '').toLowerCase() as 'up' | 'down' | 'left' | 'right';
+        walkGraph(dir);
       }
     };
 

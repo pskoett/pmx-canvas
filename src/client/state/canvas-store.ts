@@ -397,6 +397,62 @@ export function cycleActiveNode(direction: 1 | -1 = 1): void {
   focusNode(nextId);
 }
 
+// ── Graph walking (arrow keys) ───────────────────────────────
+export function walkGraph(direction: 'up' | 'down' | 'left' | 'right'): void {
+  const current = activeNodeId.value;
+  if (!current) return;
+  const currentNode = nodes.value.get(current);
+  if (!currentNode) return;
+
+  // Find all connected node IDs
+  const neighborIds = new Set<string>();
+  for (const edge of edges.value.values()) {
+    if (edge.from === current) neighborIds.add(edge.to);
+    if (edge.to === current) neighborIds.add(edge.from);
+  }
+  if (neighborIds.size === 0) return;
+
+  // Center of current node
+  const cx = currentNode.position.x + currentNode.size.width / 2;
+  const cy = currentNode.position.y + currentNode.size.height / 2;
+
+  // Score each neighbor by directional alignment
+  let bestId: string | null = null;
+  let bestScore = -Infinity;
+
+  for (const nid of neighborIds) {
+    const n = nodes.value.get(nid);
+    if (!n) continue;
+    const nx = n.position.x + n.size.width / 2;
+    const ny = n.position.y + n.size.height / 2;
+    const dx = nx - cx;
+    const dy = ny - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 1) continue;
+
+    // Dot product with direction vector, normalized by distance
+    let dot: number;
+    switch (direction) {
+      case 'up':    dot = -dy; break;
+      case 'down':  dot =  dy; break;
+      case 'left':  dot = -dx; break;
+      case 'right': dot =  dx; break;
+    }
+
+    // Only consider nodes that are at least somewhat in the right direction
+    if (dot <= 0) continue;
+
+    // Score: favor alignment (dot/dist) with distance penalty
+    const score = dot / dist - dist * 0.001;
+    if (score > bestScore) {
+      bestScore = score;
+      bestId = nid;
+    }
+  }
+
+  if (bestId) focusNode(bestId);
+}
+
 // ── Expand / Collapse (focus mode) ────────────────────────────
 // Uses a fixed overlay (not world-space resize) so the original node
 // position/size is preserved when the user collapses back.
