@@ -155,6 +155,58 @@ export async function createNodeFromClient(opts: {
   }
 }
 
+// ── Group API ─────────────────────────────────────────────────
+
+/** Create a group containing the given child node IDs. */
+export async function createGroupFromClient(opts: {
+  title?: string;
+  childIds?: string[];
+  color?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+}): Promise<{ ok: boolean; id?: string }> {
+  try {
+    const res = await fetch('/api/canvas/group', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opts),
+    });
+    return (await res.json()) as { ok: boolean; id?: string };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/** Add nodes to an existing group. */
+export async function addToGroupFromClient(groupId: string, childIds: string[]): Promise<{ ok: boolean }> {
+  try {
+    const res = await fetch('/api/canvas/group/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId, childIds }),
+    });
+    return (await res.json()) as { ok: boolean };
+  } catch {
+    return { ok: false };
+  }
+}
+
+/** Ungroup all children from a group. */
+export async function ungroupFromClient(groupId: string): Promise<{ ok: boolean }> {
+  try {
+    const res = await fetch('/api/canvas/group/ungroup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId }),
+    });
+    return (await res.json()) as { ok: boolean };
+  } catch {
+    return { ok: false };
+  }
+}
+
 // ── Snapshot API ──────────────────────────────────────────────
 
 export interface CanvasSnapshotInfo {

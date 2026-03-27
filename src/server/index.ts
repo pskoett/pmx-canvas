@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { canvasState, IMAGE_MIME_MAP } from './canvas-state.js';
 import type { CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
 import { watchFileForNode, unwatchFileForNode, onFileNodeChanged } from './file-watcher.js';
-import { findOpenCanvasPosition } from './placement.js';
+import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
 import { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
@@ -213,6 +213,91 @@ export class PmxCanvas extends EventEmitter {
   removeEdge(id: string): void {
     canvasState.removeEdge(id);
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  }
+
+  /**
+   * Create a group node and optionally add child nodes to it.
+   * If childIds are provided, the group auto-sizes to contain them with padding.
+   */
+  createGroup(input: {
+    title?: string;
+    childIds?: string[];
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    color?: string;
+  }): string {
+    let x = input.x;
+    let y = input.y;
+    let width = input.width ?? 600;
+    let height = input.height ?? 400;
+
+    // Auto-size from children if position not explicit
+    const childIds = input.childIds ?? [];
+    if (childIds.length > 0 && x === undefined && y === undefined) {
+      const childRects = childIds
+        .map((cid) => canvasState.getNode(cid))
+        .filter((n): n is CanvasNodeState => n !== undefined);
+      const bounds = computeGroupBounds(childRects);
+      if (bounds) {
+        x = bounds.x;
+        y = bounds.y;
+        width = bounds.width;
+        height = bounds.height;
+      }
+    }
+
+    const pos = x !== undefined && y !== undefined
+      ? { x, y }
+      : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
+
+    const id = `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const data: Record<string, unknown> = {
+      title: input.title ?? 'Group',
+      children: [],
+    };
+    if (input.color) data.color = input.color;
+
+    const node: CanvasNodeState = {
+      id,
+      type: 'group',
+      position: pos,
+      size: { width, height },
+      zIndex: 0, // groups render behind other nodes
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data,
+    };
+
+    canvasState.addNode(node);
+
+    // Add children to group
+    if (childIds.length > 0) {
+      canvasState.groupNodes(id, childIds);
+    }
+
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return id;
+  }
+
+  /** Add nodes to an existing group. */
+  groupNodes(groupId: string, childIds: string[]): boolean {
+    const ok = canvasState.groupNodes(groupId, childIds);
+    if (ok) {
+      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    }
+    return ok;
+  }
+
+  /** Remove all children from a group (the group node remains). */
+  ungroupNodes(groupId: string): boolean {
+    const ok = canvasState.ungroupNodes(groupId);
+    if (ok) {
+      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    }
+    return ok;
   }
 
   clear(): void {

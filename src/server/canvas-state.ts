@@ -40,7 +40,7 @@ export interface CanvasSnapshot {
 
 export interface CanvasNodeState {
   id: string;
-  type: 'markdown' | 'mcp-app' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'image';
+  type: 'markdown' | 'mcp-app' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'image' | 'group';
   position: { x: number; y: number };
   size: { width: number; height: number };
   zIndex: number;
@@ -83,7 +83,7 @@ export interface CanvasNodeUpdate {
 export type CanvasChangeType = 'pins' | 'nodes';
 
 export interface MutationRecordInfo {
-  operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'clear' | 'setPins' | 'arrange' | 'batch';
+  operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'clear' | 'setPins' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes';
   description: string;
   forward: () => void;
   inverse: () => void;
@@ -419,6 +419,31 @@ class CanvasStateManager {
     const existing = this.nodes.get(id);
     const connectedEdges = existing ? this.getEdgesForNode(id).map((e) => structuredClone(e)) : [];
     const cloned = existing ? structuredClone(existing) : null;
+
+    // Prune from parent group's children list
+    if (existing) {
+      const parentGroupId = existing.data.parentGroup as string | undefined;
+      if (parentGroupId) {
+        const parent = this.nodes.get(parentGroupId);
+        if (parent && parent.type === 'group') {
+          const children = (parent.data.children as string[]) ?? [];
+          const pruned = children.filter((cid) => cid !== id);
+          this.nodes.set(parentGroupId, { ...parent, data: { ...parent.data, children: pruned } });
+        }
+      }
+      // If removing a group, clear parentGroup on all its children
+      if (existing.type === 'group') {
+        const childIds = (existing.data.children as string[]) ?? [];
+        for (const cid of childIds) {
+          const child = this.nodes.get(cid);
+          if (!child) continue;
+          const d = { ...child.data };
+          delete d.parentGroup;
+          this.nodes.set(cid, { ...child, data: d });
+        }
+      }
+    }
+
     this.nodes.delete(id);
     this.removeEdgesForNode(id);
     this.scheduleSave();
@@ -558,6 +583,90 @@ class CanvasStateManager {
     this._contextPinnedNodeIds.clear();
     this.scheduleSave();
     this.notifyChange('pins');
+  }
+
+  /** Move child nodes into a group. Sets data.parentGroup on children and data.children on the group. */
+  groupNodes(groupId: string, childIds: string[]): boolean {
+    const group = this.nodes.get(groupId);
+    if (!group || group.type !== 'group') return false;
+
+    const validIds: string[] = [];
+    for (const id of childIds) {
+      const child = this.nodes.get(id);
+      if (child && id !== groupId) validIds.push(id);
+    }
+    if (validIds.length === 0) return false;
+
+    const oldChildren = ((group.data.children as string[]) ?? []).slice();
+    const merged = [...new Set([...oldChildren, ...validIds])];
+
+    // Snapshot for undo
+    const oldParents = new Map<string, string | undefined>();
+    for (const id of validIds) {
+      const child = this.nodes.get(id)!;
+      oldParents.set(id, child.data.parentGroup as string | undefined);
+    }
+
+    // Apply
+    this.nodes.set(groupId, { ...group, data: { ...group.data, children: merged } });
+    for (const id of validIds) {
+      const child = this.nodes.get(id)!;
+      this.nodes.set(id, { ...child, data: { ...child.data, parentGroup: groupId } });
+    }
+
+    this.scheduleSave();
+    this.notifyChange('nodes');
+    this.recordMutation({
+      operationType: 'groupNodes',
+      description: `Grouped ${validIds.length} nodes into "${(group.data.title as string) ?? groupId}"`,
+      forward: this.suppressed(() => this.groupNodes(groupId, validIds)),
+      inverse: this.suppressed(() => {
+        const g = this.nodes.get(groupId);
+        if (g) this.nodes.set(groupId, { ...g, data: { ...g.data, children: oldChildren } });
+        for (const [id, oldParent] of oldParents) {
+          const c = this.nodes.get(id);
+          if (!c) continue;
+          const d = { ...c.data };
+          if (oldParent) d.parentGroup = oldParent; else delete d.parentGroup;
+          this.nodes.set(id, { ...c, data: d });
+        }
+        this.scheduleSave();
+        this.notifyChange('nodes');
+      }),
+    });
+    return true;
+  }
+
+  /** Remove all children from a group, clearing their parentGroup. */
+  ungroupNodes(groupId: string): boolean {
+    const group = this.nodes.get(groupId);
+    if (!group || group.type !== 'group') return false;
+
+    const childIds = (group.data.children as string[]) ?? [];
+    if (childIds.length === 0) return false;
+
+    const snapshot = childIds.slice();
+
+    // Clear children from group
+    this.nodes.set(groupId, { ...group, data: { ...group.data, children: [] } });
+    // Clear parentGroup from each child
+    for (const id of childIds) {
+      const child = this.nodes.get(id);
+      if (!child) continue;
+      const d = { ...child.data };
+      delete d.parentGroup;
+      this.nodes.set(id, { ...child, data: d });
+    }
+
+    this.scheduleSave();
+    this.notifyChange('nodes');
+    this.recordMutation({
+      operationType: 'ungroupNodes',
+      description: `Ungrouped ${childIds.length} nodes from "${(group.data.title as string) ?? groupId}"`,
+      forward: this.suppressed(() => this.ungroupNodes(groupId)),
+      inverse: this.suppressed(() => this.groupNodes(groupId, snapshot)),
+    });
+    return true;
   }
 
   clear(): void {

@@ -1309,6 +1309,78 @@ body,
   color: var(--c-warn);
 }
 
+/* ── Group node — spatial container/frame ─────────────────────── */
+.canvas-node.group-node {
+  background: transparent;
+  border: 2px dashed var(--group-color, var(--c-accent));
+  border-radius: 12px;
+  box-shadow: none;
+  overflow: visible;
+  min-width: 200px;
+  min-height: 120px;
+}
+
+.canvas-node.group-node .node-titlebar {
+  background: color-mix(in srgb, var(--group-color, var(--c-accent)) 12%, transparent);
+  border-bottom: 1px solid color-mix(in srgb, var(--group-color, var(--c-accent)) 25%, transparent);
+  border-radius: 10px 10px 0 0;
+}
+
+.canvas-node.group-node .node-type-badge {
+  background: color-mix(in srgb, var(--group-color, var(--c-accent)) 20%, transparent);
+  color: var(--group-color, var(--c-accent));
+}
+
+.canvas-node.group-node .node-body {
+  background: color-mix(in srgb, var(--group-color, var(--c-accent)) 4%, transparent);
+  padding: 12px;
+}
+
+.canvas-node.group-node:hover {
+  border-style: solid;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--group-color, var(--c-accent)) 30%, transparent);
+}
+
+.canvas-node.group-node.active {
+  border-style: solid;
+  border-color: var(--group-color, var(--c-accent));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--group-color, var(--c-accent)) 40%, transparent);
+}
+
+.group-node-body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  height: 100%;
+}
+
+.group-summary {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.group-child-count {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--group-color, var(--c-accent));
+}
+
+.group-type-summary {
+  font-size: 12px;
+  color: var(--c-text-muted);
+}
+
+.group-empty-hint {
+  font-size: 12px;
+  color: var(--c-text-muted);
+  font-style: italic;
+  padding: 12px 0;
+  text-align: center;
+  opacity: 0.7;
+}
+
 /* ── Context pin bar — persistent floating indicator ─────────── */
 .context-pin-bar {
   position: fixed;
