@@ -313,7 +313,7 @@ export function searchNodes(
  */
 export function buildSpatialContext(
   nodes: CanvasNodeState[],
-  edges: CanvasEdge[],
+  _edges: CanvasEdge[],
   pinnedIds: Set<string>,
 ): SpatialContext {
   const clusters = detectClusters(nodes);
