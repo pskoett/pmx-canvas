@@ -73,6 +73,14 @@ human can open the browser URL themselves.
 
 Edges support `style` (solid/dashed/dotted) and `animated` flag. Always use descriptive labels.
 
+**Edge direction convention:** `from` is the source/dependent, `to` is the target/dependency.
+So `from: A, to: B, type: "depends-on"` means "A depends on B." For `flow` edges, the arrow
+points from `from` to `to`, indicating sequence or data flow direction.
+
+**Style conventions:** Use `solid` for active/satisfied relationships, `dashed` for blocked or
+pending dependencies, and `dotted` for weak/optional relationships. Use `animated: true` to
+draw visual attention to critical paths.
+
 ### Colors (Semantic)
 
 Use color consistently to convey meaning:
@@ -80,6 +88,7 @@ Use color consistently to convey meaning:
 - **Yellow** (`#eab308`) — in progress, warning, attention needed
 - **Red** (`#ef4444`) — error, blocked, failing
 - **Blue** (`#3b82f6`) — informational, neutral highlight
+- **Gray** (`#6b7280`) — queued, pending, inactive, not yet started
 - **Purple** (`#a855f7`) — special, notable, review needed
 
 ## MCP Tools Reference
@@ -89,12 +98,14 @@ Use color consistently to convey meaning:
 **`canvas_add_node`** — Add a node to the canvas
 - `type` (required): node type (see table above)
 - `title`: short, scannable title
-- `content`: markdown content or file path (for `file` type)
+- `content`: for most types, this is markdown text. For `file` type, pass the **file path**
+  (e.g., `"src/auth/login.ts"`) — the server auto-loads the file content and watches for changes.
+  For `image` type, pass a file path, URL, or data URI.
 - `x`, `y`: position (auto-placed if omitted — prefer omitting for auto-layout)
 - `width`, `height`: dimensions (sensible defaults provided)
 - `color`: semantic color
 - `metadata`: arbitrary JSON
-- Returns: `{ id: "<node-id>" }`
+- Returns: `{ id: "<node-id>" }` — capture this ID for edges and groups
 
 **`canvas_update_node`** — Update an existing node
 - `id` (required): node to update
@@ -127,8 +138,11 @@ Use color consistently to convey meaning:
 
 **`canvas_arrange`** — Auto-arrange all nodes
 - `layout`: `grid` (default), `column`, or `flow`
-- Use `grid` for dashboards, `column` for vertical lists, `flow` for horizontal sequences
+- Use `grid` for dashboards and architecture overviews, `column` for vertical lists, `flow`
+  for horizontal sequences and dependency chains
 - Call after adding multiple nodes
+- For tiered/layered layouts (e.g., gateway → services → data stores), use `canvas_update_node`
+  with explicit `x`/`y` coordinates after auto-arrange to fine-tune the topology
 
 **`canvas_focus_node`** — Pan viewport to center on a specific node
 - `id` (required): node to focus
@@ -177,7 +191,9 @@ Use color consistently to convey meaning:
 
 ### Canvas Management
 
-**`canvas_clear`** — Remove all nodes and edges (use with care)
+**`canvas_clear`** — Remove all nodes and edges
+- **Always call `canvas_snapshot` first** to save a backup before clearing
+- This is irreversible without a prior snapshot
 
 ## MCP Resources
 
@@ -232,17 +248,39 @@ All POST/PATCH endpoints accept `Content-Type: application/json`. Default base U
 
 ## Workflow Patterns
 
+### Responding to Pinned Context
+
+When the human pins nodes, they're telling you what matters. This is the most important
+collaboration pattern:
+
+1. Read `canvas://pinned-context` — get the content of pinned nodes and their neighborhoods
+2. Read `canvas://spatial-context` — understand how the whole canvas is organized
+3. Optionally read `canvas://summary` — see pinned nodes in the context of the full canvas
+4. Interpret what you find:
+   - What types are the pinned nodes? (files = code focus, status = progress, markdown = concepts)
+   - Are they clustered together (single focus) or spread across the canvas (multi-topic)?
+   - What unpinned nodes are nearby? These are the human's implicit context
+   - What's the reading order? Top-left to bottom-right suggests sequence or priority
+5. Respond by summarizing what you see, what you think the human is focusing on, and ask
+   if they'd like you to act on it (add related nodes, investigate further, etc.)
+
+**When to use `pinned-context` vs `spatial-context`:**
+- `canvas://pinned-context` — "what did the human explicitly pin, and what's near those pins?"
+- `canvas://spatial-context` — "how is the entire canvas organized spatially?"
+- Read both when you need the full picture; read just `pinned-context` for quick pin checks.
+
 ### Investigation Board
 
 When debugging, lay out evidence spatially to see connections:
 
 1. Create a root node describing the bug/issue
-2. Add evidence nodes: logs, stack traces, relevant code files
+2. Add evidence nodes: logs, stack traces, relevant code files (use `file` nodes for source)
 3. Connect evidence to root with `references` edges
 4. Add a hypothesis node, connect with `flow` edge
 5. As you investigate, add findings and update connections
 6. Use `status` nodes to track what you've checked
-7. Arrange with `tree` layout to show the investigation flow
+7. Group evidence nodes together, and investigation tasks together
+8. Arrange with `flow` layout, then fine-tune positions if needed
 
 ```
 Bug Report ──references──> Error Logs
@@ -260,41 +298,51 @@ Bug Report ──references──> Error Logs
 
 Show system components and how they interact:
 
-1. Create `markdown` nodes for each service/component
-2. Use `flow` edges for data flow, `depends-on` for dependencies
-3. Group related services with `canvas_create_group`
+1. Create `markdown` nodes for each service/component (include port, tech stack in content)
+2. Use `flow` edges for data flow, `depends-on` for dependencies — always label edges
+3. Group related services with `canvas_create_group` (e.g., "Application Services", "Data Layer")
 4. Use colors: green for healthy, yellow for degraded, red for down
-5. Arrange with `grid` layout
+5. Arrange with `grid` layout initially
+6. For tiered architectures, fine-tune with explicit `x`/`y` via `canvas_update_node` to show
+   layers (e.g., gateway at top, services in middle, data stores at bottom)
+7. Connect pipeline stages with `flow` edges where applicable
 
 ### Task Plan with Dependencies
 
 Track work items and their relationships:
 
 1. Create `status` nodes for each task
-2. Color-code: green=done, yellow=in-progress, red=blocked
-3. Connect with `depends-on` edges
+2. Color-code: green=done, yellow=in-progress, red=blocked, gray=queued, blue=ready/available
+3. Connect with `depends-on` edges — use `dashed` style for blocked dependencies, `solid` for
+   satisfied ones
 4. Update status nodes as work progresses using `canvas_update_node`
-5. Arrange with `tree` layout to show dependency chain
+5. Arrange with `flow` layout to show the dependency chain left-to-right
+6. Group related tasks if the plan has distinct phases
 
 ### Code Exploration
 
 Understand a codebase by visualizing file relationships:
 
 1. Add `file` nodes for key source files (content auto-loads and live-updates)
-2. The code graph auto-detects imports and creates `depends-on` edges
+2. The code graph auto-detects imports and creates `depends-on` edges automatically — you
+   don't need to manually add import-based edges. You can still add manual edges for
+   conceptual relationships beyond imports (e.g., "middleware validates using jwt")
 3. Read `canvas://code-graph` for dependency analysis: central files, isolated files
-4. Group related files with `canvas_create_group`
+4. Group related files with `canvas_create_group` (e.g., "Auth Module", "API Routes")
 5. Pin important files so the human sees them highlighted
+6. Arrange with `grid` layout after adding files
 
 ### Status Dashboard
 
 Monitor ongoing processes:
 
 1. Create `status` nodes for each metric/process
-2. Use semantic colors for state
-3. Update nodes in-place as state changes (PATCH, not delete+recreate)
-4. Arrange with `grid` layout
-5. The human sees real-time updates via SSE
+2. Use semantic colors: green=passing, yellow=running, red=failing, gray=queued
+3. Connect sequential pipeline stages with `flow` edges (label: "then", "triggers")
+4. Update nodes in-place as state changes using `canvas_update_node` — never delete and recreate,
+   as that loses position and edges
+5. Arrange with `grid` layout
+6. The human sees real-time updates via SSE
 
 ### Before/After Comparison
 
@@ -304,6 +352,15 @@ Show two states side by side for the human to compare:
 2. Make changes to the canvas
 3. Use `canvas_diff` to show what changed
 4. Or: create two groups ("Before" and "After") with corresponding nodes
+
+### Save and Start Fresh
+
+When the human wants to explore a different approach without losing current work:
+
+1. **First**, save the current state: `canvas_snapshot` with a descriptive name
+2. **Then** clear: `canvas_clear` (never clear without snapshotting first)
+3. Set up the new workspace with initial nodes
+4. Tell the human the snapshot name and that `canvas_restore` can bring everything back
 
 ## Best Practices
 
