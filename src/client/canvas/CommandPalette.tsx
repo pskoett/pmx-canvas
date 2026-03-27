@@ -12,9 +12,7 @@ import { createNodeFromClient } from '../state/intent-bridge';
 import { TYPE_LABELS, type CanvasNodeState } from '../types';
 import { invalidateTokenCache } from '../theme/tokens';
 
-// ── Platform-aware modifier key label ───────────────────────
-const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-const MOD_LABEL = isMac ? '\u2318' : 'Ctrl';
+import { MOD_KEY } from '../utils/platform';
 
 // ── Types ───────────────────────────────────────────────────
 interface PaletteItem {
@@ -263,7 +261,7 @@ export function CommandPalette({
           value={query}
           onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
           onKeyDown={handleKeyDown}
-          placeholder={`Search nodes and actions... (${MOD_LABEL}+K)`}
+          placeholder={`Search nodes and actions... (${MOD_KEY}+K)`}
         />
         <div class="command-palette-hint">
           <span><kbd>{'\u2191'}</kbd><kbd>{'\u2193'}</kbd> navigate</span>

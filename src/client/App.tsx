@@ -200,8 +200,7 @@ function Toolbar({
   );
 }
 
-const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-const MOD = isMac ? '\u2318' : 'Ctrl';
+import { MOD_KEY } from './utils/platform';
 
 function WelcomeCard({ onOpenPalette }: { onOpenPalette: () => void }) {
   return (
@@ -211,7 +210,7 @@ function WelcomeCard({ onOpenPalette }: { onOpenPalette: () => void }) {
       <div class="welcome-subtitle">Your agent's spatial working memory</div>
       <div class="welcome-hints">
         <button type="button" class="welcome-hint" onClick={onOpenPalette}>
-          <kbd>{MOD}+K</kbd>
+          <kbd>{MOD_KEY}+K</kbd>
           <span>Search & create</span>
         </button>
         <div class="welcome-hint">

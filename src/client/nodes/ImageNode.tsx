@@ -13,7 +13,6 @@ export function ImageNode({
   const src = (node.data.src as string) || '';
   const alt = (node.data.alt as string) || (node.data.title as string) || 'Image';
   const caption = (node.data.caption as string) || '';
-  const mimeType = (node.data.mimeType as string) || '';
 
   // Determine the image source URL
   const imageSrc = src.startsWith('data:') || src.startsWith('http://') || src.startsWith('https://')
@@ -41,7 +40,6 @@ export function ImageNode({
     setLoaded(false);
   }, []);
 
-  // Reset zoom/pan when node changes
   useEffect(() => {
     setZoom(1);
     setPan({ x: 0, y: 0 });

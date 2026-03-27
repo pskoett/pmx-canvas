@@ -1,5 +1,4 @@
-const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
-const MOD = isMac ? '\u2318' : 'Ctrl';
+import { MOD_KEY as MOD } from '../utils/platform';
 
 interface ShortcutGroup {
   title: string;

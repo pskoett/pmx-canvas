@@ -1,14 +1,11 @@
 import { signal } from '@preact/signals';
 import type { CanvasNodeState } from '../types';
 
-/** Snap threshold in world-space pixels. */
 const SNAP_PX = 8;
 
 export interface GuideLine {
   axis: 'x' | 'y';
-  /** World-space coordinate of the guide line. */
   pos: number;
-  /** Extent of the guide line for rendering (min/max along the other axis). */
   from: number;
   to: number;
 }
@@ -22,41 +19,19 @@ export interface SnapResult {
 /** Active guide lines to render. Null when not dragging. */
 export const activeGuides = signal<GuideLine[] | null>(null);
 
-/**
- * Given a dragging node's proposed position and size, snap it to nearby
- * nodes' edges and centers. Returns the snapped position and active guides.
- */
-export function snapToGuides(
-  proposedX: number,
-  proposedY: number,
-  nodeW: number,
-  nodeH: number,
-  dragId: string,
-  allNodes: Iterable<CanvasNodeState>,
-): SnapResult {
-  // Edges of the dragged node
-  const dragLeft = proposedX;
-  const dragRight = proposedX + nodeW;
-  const dragCenterX = proposedX + nodeW / 2;
-  const dragTop = proposedY;
-  const dragBottom = proposedY + nodeH;
-  const dragCenterY = proposedY + nodeH / 2;
+interface RefEdgeX { val: number; minY: number; maxY: number }
+interface RefEdgeY { val: number; minX: number; maxX: number }
 
-  const dragXEdges = [
-    { val: dragLeft, type: 'left' as const },
-    { val: dragCenterX, type: 'center' as const },
-    { val: dragRight, type: 'right' as const },
-  ];
-  const dragYEdges = [
-    { val: dragTop, type: 'top' as const },
-    { val: dragCenterY, type: 'center' as const },
-    { val: dragBottom, type: 'bottom' as const },
-  ];
+/** Cached reference edges — built once at drag-start, reused on every pointermove. */
+let cachedRefX: RefEdgeX[] = [];
+let cachedRefY: RefEdgeY[] = [];
+let cachedDragId: string | null = null;
 
-  // Collect reference edges from all other visible nodes
-  const refX: { val: number; minY: number; maxY: number }[] = [];
-  const refY: { val: number; minX: number; maxX: number }[] = [];
-
+/** Call at drag-start to pre-compute reference edges from stationary nodes. */
+export function buildSnapCache(dragId: string, allNodes: Iterable<CanvasNodeState>): void {
+  cachedRefX = [];
+  cachedRefY = [];
+  cachedDragId = dragId;
   for (const n of allNodes) {
     if (n.id === dragId || n.dockPosition !== null) continue;
     const l = n.position.x;
@@ -66,27 +41,49 @@ export function snapToGuides(
     const b = n.position.y + n.size.height;
     const cy = n.position.y + n.size.height / 2;
 
-    refX.push({ val: l, minY: t, maxY: b });
-    refX.push({ val: r, minY: t, maxY: b });
-    refX.push({ val: cx, minY: t, maxY: b });
+    cachedRefX.push({ val: l, minY: t, maxY: b });
+    cachedRefX.push({ val: r, minY: t, maxY: b });
+    cachedRefX.push({ val: cx, minY: t, maxY: b });
 
-    refY.push({ val: t, minX: l, maxX: r });
-    refY.push({ val: b, minX: l, maxX: r });
-    refY.push({ val: cy, minX: l, maxX: r });
+    cachedRefY.push({ val: t, minX: l, maxX: r });
+    cachedRefY.push({ val: b, minX: l, maxX: r });
+    cachedRefY.push({ val: cy, minX: l, maxX: r });
   }
+}
+
+/** Call at drag-end to clear the cache. */
+export function clearSnapCache(): void {
+  cachedRefX = [];
+  cachedRefY = [];
+  cachedDragId = null;
+}
+
+/**
+ * Snap a dragging node's proposed position to cached reference edges.
+ * Must call buildSnapCache() before the first call in a drag session.
+ */
+export function snapToGuides(
+  proposedX: number,
+  proposedY: number,
+  nodeW: number,
+  nodeH: number,
+): SnapResult {
+  const dragEdgesX = [proposedX, proposedX + nodeW / 2, proposedX + nodeW];
+  const dragEdgesY = [proposedY, proposedY + nodeH / 2, proposedY + nodeH];
+  const offX = [0, nodeW / 2, nodeW];
+  const offY = [0, nodeH / 2, nodeH];
 
   let snapX: number | null = null;
   let bestDx = SNAP_PX + 1;
   let snapXGuide: GuideLine | null = null;
 
-  for (const drag of dragXEdges) {
-    for (const ref of refX) {
-      const d = Math.abs(drag.val - ref.val);
+  for (let i = 0; i < 3; i++) {
+    const dv = dragEdgesX[i];
+    for (const ref of cachedRefX) {
+      const d = Math.abs(dv - ref.val);
       if (d < bestDx) {
         bestDx = d;
-        // Snap: adjust proposedX so that drag edge aligns with ref
-        const offset = drag.type === 'left' ? 0 : drag.type === 'center' ? nodeW / 2 : nodeW;
-        snapX = ref.val - offset;
+        snapX = ref.val - offX[i];
         snapXGuide = {
           axis: 'x',
           pos: ref.val,
@@ -101,13 +98,13 @@ export function snapToGuides(
   let bestDy = SNAP_PX + 1;
   let snapYGuide: GuideLine | null = null;
 
-  for (const drag of dragYEdges) {
-    for (const ref of refY) {
-      const d = Math.abs(drag.val - ref.val);
+  for (let i = 0; i < 3; i++) {
+    const dv = dragEdgesY[i];
+    for (const ref of cachedRefY) {
+      const d = Math.abs(dv - ref.val);
       if (d < bestDy) {
         bestDy = d;
-        const offset = drag.type === 'top' ? 0 : drag.type === 'center' ? nodeH / 2 : nodeH;
-        snapY = ref.val - offset;
+        snapY = ref.val - offY[i];
         snapYGuide = {
           axis: 'y',
           pos: ref.val,

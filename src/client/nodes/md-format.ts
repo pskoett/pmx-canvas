@@ -194,12 +194,13 @@ export function getSelectionRect(ta: HTMLTextAreaElement): { top: number; left: 
 
   document.body.appendChild(mirror);
   const spanRect = span.getBoundingClientRect();
+  const mirrorRect = mirror.getBoundingClientRect();
   const taRect = ta.getBoundingClientRect();
   document.body.removeChild(mirror);
 
   return {
-    top: taRect.top + (spanRect.top - mirror.getBoundingClientRect().top) - ta.scrollTop,
-    left: taRect.left + (spanRect.left - mirror.getBoundingClientRect().left) - ta.scrollLeft,
+    top: taRect.top + (spanRect.top - mirrorRect.top) - ta.scrollTop,
+    left: taRect.left + (spanRect.left - mirrorRect.left) - ta.scrollLeft,
     width: spanRect.width,
   };
 }

@@ -28,7 +28,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
 import { basename, extname, join, relative, resolve } from 'node:path';
 import { marked } from 'marked';
-import { type CanvasEdge, type CanvasNodeState, canvasState } from './canvas-state.js';
+import { type CanvasEdge, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
 import { findOpenCanvasPosition } from './placement.js';
@@ -570,12 +570,7 @@ function handleCanvasImage(pathname: string): Response {
     return responseText('Image file not found', 404);
   }
   const ext = safePath.split('.').pop()?.toLowerCase() ?? '';
-  const mimeMap: Record<string, string> = {
-    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-    gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
-    bmp: 'image/bmp', ico: 'image/x-icon', avif: 'image/avif',
-  };
-  const contentType = mimeMap[ext] || 'application/octet-stream';
+  const contentType = IMAGE_MIME_MAP[ext] || 'application/octet-stream';
   const data = readFileSync(safePath);
   return new Response(data, {
     headers: {

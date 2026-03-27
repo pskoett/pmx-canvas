@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
-import { FORMAT_ACTIONS, getSelectionRect } from './md-format';
+import { isMac } from '../utils/platform';
+import { type FormatAction, FORMAT_ACTIONS, getSelectionRect } from './md-format';
+
+const PRIMARY_ACTIONS = FORMAT_ACTIONS.filter((a) => a.shortcut);
+const SECONDARY_ACTIONS = FORMAT_ACTIONS.filter((a) => !a.shortcut);
 
 /**
  * Floating format toolbar that appears above text selections in markdown textareas.
- * Shows formatting buttons (bold, italic, code, link, headings, etc.)
  */
 export function MdFormatBar({ textareaRef }: { textareaRef: { current: HTMLTextAreaElement | null } }) {
   const [visible, setVisible] = useState(false);
@@ -13,8 +16,7 @@ export function MdFormatBar({ textareaRef }: { textareaRef: { current: HTMLTextA
 
   const updatePosition = useCallback(() => {
     const ta = textareaRef.current;
-    if (!ta) return;
-    if (ta.selectionStart === ta.selectionEnd) {
+    if (!ta || ta.selectionStart === ta.selectionEnd) {
       setVisible(false);
       return;
     }
@@ -35,20 +37,15 @@ export function MdFormatBar({ textareaRef }: { textareaRef: { current: HTMLTextA
 
     const handleSelect = () => {
       if (hideTimeout.current) clearTimeout(hideTimeout.current);
-      // Small delay to let selection stabilize
       hideTimeout.current = setTimeout(updatePosition, 50);
     };
 
     const handleBlur = () => {
-      // Delay hide so clicking toolbar buttons works
       hideTimeout.current = setTimeout(() => setVisible(false), 200);
     };
 
     const handleKeyUp = (e: KeyboardEvent) => {
-      // Update on arrow keys or shift+arrow (selection change)
-      if (e.shiftKey || e.key.startsWith('Arrow')) {
-        handleSelect();
-      }
+      if (e.shiftKey || e.key.startsWith('Arrow')) handleSelect();
     };
 
     ta.addEventListener('select', handleSelect);
@@ -65,50 +62,44 @@ export function MdFormatBar({ textareaRef }: { textareaRef: { current: HTMLTextA
     };
   }, [textareaRef, updatePosition]);
 
+  const runAction = useCallback((action: FormatAction) => {
+    const ta = textareaRef.current;
+    if (ta) {
+      action.action(ta);
+      ta.focus();
+    }
+  }, [textareaRef]);
+
   if (!visible) return null;
 
-  // Split actions into primary (with shortcuts) and secondary groups
-  const primary = FORMAT_ACTIONS.filter((a) => a.shortcut);
-  const secondary = FORMAT_ACTIONS.filter((a) => !a.shortcut);
+  const modLabel = isMac ? '⌘' : 'Ctrl';
 
   return (
     <div
       ref={barRef}
       class="md-format-bar"
       style={{ top: `${pos.top}px`, left: `${pos.left}px` }}
-      onMouseDown={(e) => e.preventDefault()} // prevent textarea blur
+      onMouseDown={(e) => e.preventDefault()}
     >
-      {primary.map((a) => (
+      {PRIMARY_ACTIONS.map((a) => (
         <button
           key={a.key}
           type="button"
           class={`md-format-btn md-format-btn-${a.key}`}
-          title={`${a.label} (${isMac ? '⌘' : 'Ctrl'}+${a.shortcut!.toUpperCase()})`}
-          onClick={() => {
-            const ta = textareaRef.current;
-            if (ta) {
-              a.action(ta);
-              ta.focus();
-            }
-          }}
+          title={`${a.label} (${modLabel}+${a.shortcut!.toUpperCase()})`}
+          onClick={() => runAction(a)}
         >
           {a.icon}
         </button>
       ))}
       <div class="md-format-divider" />
-      {secondary.map((a) => (
+      {SECONDARY_ACTIONS.map((a) => (
         <button
           key={a.key}
           type="button"
           class={`md-format-btn md-format-btn-${a.key}`}
           title={a.label}
-          onClick={() => {
-            const ta = textareaRef.current;
-            if (ta) {
-              a.action(ta);
-              ta.focus();
-            }
-          }}
+          onClick={() => runAction(a)}
         >
           {a.icon}
         </button>
@@ -116,5 +107,3 @@ export function MdFormatBar({ textareaRef }: { textareaRef: { current: HTMLTextA
     </div>
   );
 }
-
-const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);

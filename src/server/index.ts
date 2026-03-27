@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { canvasState } from './canvas-state.js';
+import { canvasState, IMAGE_MIME_MAP } from './canvas-state.js';
 import type { CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
 import { watchFileForNode, unwatchFileForNode, onFileNodeChanged } from './file-watcher.js';
 import { findOpenCanvasPosition } from './placement.js';
@@ -140,12 +140,7 @@ export class PmxCanvas extends EventEmitter {
         };
         // Detect MIME type from extension
         const ext = resolved.split('.').pop()?.toLowerCase() ?? '';
-        const mimeMap: Record<string, string> = {
-          png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-          gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
-          bmp: 'image/bmp', ico: 'image/x-icon', avif: 'image/avif',
-        };
-        if (mimeMap[ext]) data.mimeType = mimeMap[ext];
+        if (IMAGE_MIME_MAP[ext]) data.mimeType = IMAGE_MIME_MAP[ext];
       } else {
         data = {
           src,

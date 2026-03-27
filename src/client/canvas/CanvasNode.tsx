@@ -21,7 +21,7 @@ import {
 } from '../state/canvas-store';
 import { EXPANDABLE_TYPES, TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
-import { activeGuides, snapToGuides } from './snap-guides';
+import { activeGuides, buildSnapCache, clearSnapCache, snapToGuides } from './snap-guides';
 import { useNodeDrag } from './use-node-drag';
 import { useNodeResize } from './use-node-resize';
 
@@ -47,12 +47,13 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
 
   // ── Drag (with snap alignment) ──────────────────────
   const handleMove = useCallback((id: string, x: number, y: number) => {
-    const snap = snapToGuides(x, y, node.size.width, node.size.height, id, nodes.value.values());
+    const snap = snapToGuides(x, y, node.size.width, node.size.height);
     updateNode(id, { position: { x: snap.x, y: snap.y } });
     activeGuides.value = snap.guides.length > 0 ? snap.guides : null;
   }, [node.size.width, node.size.height]);
 
   const handleDragEnd = useCallback(() => {
+    clearSnapCache();
     activeGuides.value = null;
     persistLayout();
   }, []);
@@ -83,6 +84,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     (e: PointerEvent) => {
       if (renaming) return;
       bringToFront(node.id);
+      buildSnapCache(node.id, nodes.value.values());
       startDrag(e, node.position.x, node.position.y);
     },
     [node.id, node.position.x, node.position.y, startDrag, renaming],
