@@ -1154,6 +1154,59 @@ body,
   z-index: 9998;
 }
 
+/* ── Drop Zone (file drag-and-drop) ─────────────────────────── */
+.drop-zone-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 9997;
+  pointer-events: none;
+  border: 2px dashed var(--c-accent);
+  border-radius: 8px;
+  background: var(--c-accent-8);
+  animation: drop-zone-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes drop-zone-pulse {
+  0%, 100% { background: var(--c-accent-8); }
+  50% { background: var(--c-accent-12); }
+}
+
+.drop-zone-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 20px 32px;
+  background: var(--c-panel-glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--c-accent-30);
+  border-radius: 12px;
+  box-shadow: 0 4px 24px var(--c-shadow), 0 0 24px var(--c-glow-accent);
+}
+
+.drop-zone-icon {
+  font-size: 28px;
+  font-weight: 300;
+  color: var(--c-accent);
+  width: 44px;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px dashed var(--c-accent-40);
+  border-radius: 50%;
+}
+
+.drop-zone-label {
+  font-size: 13px;
+  color: var(--c-text-soft);
+  white-space: nowrap;
+}
+
 /* Selection action bar — fixed bottom-center */
 .selection-bar {
   position: fixed;

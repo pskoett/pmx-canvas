@@ -608,6 +608,17 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
   if (body.title) data.title = String(body.title);
   if (body.content) data.content = String(body.content);
 
+  // Image nodes: set src from content for the renderer
+  if (type === 'image' && body.content) {
+    data.src = String(body.content);
+  }
+
+  // File nodes dropped from browser: store content for display
+  if (type === 'file' && body.content && body.title) {
+    data.fileContent = String(body.content);
+    data.lineCount = String(body.content).split('\n').length;
+  }
+
   canvasState.addNode({
     id,
     type: type as CanvasNodeState['type'],

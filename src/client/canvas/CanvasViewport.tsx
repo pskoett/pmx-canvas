@@ -59,10 +59,23 @@ interface CanvasViewportProps {
   onNodeContextMenu?: (e: MouseEvent, nodeId: string) => void;
 }
 
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico', 'avif']);
+const MD_EXTS = new Set(['md', 'mdx', 'markdown']);
+
+function nodeTypeFromFilename(name: string): 'image' | 'markdown' | 'file' {
+  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  if (IMAGE_EXTS.has(ext)) return 'image';
+  if (MD_EXTS.has(ext)) return 'markdown';
+  return 'file';
+}
+
 export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
   const v = viewport.value;
   const isLassoing = useRef(false);
   const [lasso, setLasso] = useState<LassoRect | null>(null);
+  const [dropActive, setDropActive] = useState(false);
+  const [dropPos, setDropPos] = useState<{ x: number; y: number } | null>(null);
+  const dropCounter = useRef(0);
   // Ref mirrors lasso state so pointer handlers always read the latest value
   // without stale-closure issues from useCallback dependency capture.
   const lassoRef = useRef<LassoRect | null>(null);
@@ -241,6 +254,125 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
     [containerRef],
   );
 
+  // ── Drag-and-drop files from filesystem ──
+  const handleDragEnter = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    dropCounter.current++;
+    if (e.dataTransfer?.types.includes('Files')) {
+      setDropActive(true);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+    const container = containerRef.current;
+    if (container) {
+      const rect = container.getBoundingClientRect();
+      setDropPos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+    }
+  }, [containerRef]);
+
+  const handleDragLeave = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    dropCounter.current--;
+    if (dropCounter.current <= 0) {
+      dropCounter.current = 0;
+      setDropActive(false);
+      setDropPos(null);
+    }
+  }, []);
+
+  const handleDrop = useCallback(async (e: DragEvent) => {
+    e.preventDefault();
+    setDropActive(false);
+    setDropPos(null);
+    dropCounter.current = 0;
+
+    const container = containerRef.current;
+    if (!container || !e.dataTransfer) return;
+
+    const rect = container.getBoundingClientRect();
+    const vp = viewport.value;
+    const baseWx = (e.clientX - rect.left - vp.x) / vp.scale;
+    const baseWy = (e.clientY - rect.top - vp.y) / vp.scale;
+
+    const files = Array.from(e.dataTransfer.files);
+    const items = e.dataTransfer.items;
+
+    // Try to get file paths from items (works in Electron/Tauri, not standard browser)
+    const paths: string[] = [];
+    if (items) {
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        // webkitGetAsEntry gives us the path in some contexts
+        const entry = (item as any).webkitGetAsEntry?.() as FileSystemEntry | null;
+        if (entry) {
+          paths.push(entry.fullPath.replace(/^\//, ''));
+        }
+      }
+    }
+
+    // For each file: determine type, create node
+    const nodeW = 400;
+    const nodeH = 300;
+    const spacing = 20;
+    const cols = Math.ceil(Math.sqrt(files.length));
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const wx = baseWx - (cols * (nodeW + spacing)) / 2 + col * (nodeW + spacing);
+      const wy = baseWy - nodeH / 2 + row * (nodeH + spacing);
+
+      const type = nodeTypeFromFilename(file.name);
+      const fileName = file.name;
+
+      if (type === 'image') {
+        // Read image as data URI for immediate display
+        const reader = new FileReader();
+        const dataUri: string = await new Promise((resolve) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+        await createNodeFromClient({
+          type: 'image',
+          title: fileName,
+          content: dataUri,
+          x: wx,
+          y: wy,
+          width: nodeW,
+          height: nodeH,
+        });
+      } else if (type === 'markdown') {
+        // Read markdown content as text
+        const text = await file.text();
+        await createNodeFromClient({
+          type: 'markdown',
+          title: fileName,
+          content: text,
+          x: wx,
+          y: wy,
+          width: 720,
+          height: 500,
+        });
+      } else {
+        // File node — read content as text for display
+        const text = await file.text();
+        await createNodeFromClient({
+          type: 'file',
+          title: fileName,
+          content: text,
+          x: wx,
+          y: wy,
+          width: 720,
+          height: 500,
+        });
+      }
+    }
+  }, [containerRef]);
+
   // Only render world-space nodes (dockPosition === null); docked nodes are in the HUD layer.
   // Do NOT sort by zIndex here — CSS z-index handles visual stacking. Sorting would
   // reorder DOM children when bringToFront() changes zIndex, causing browsers to
@@ -271,6 +403,10 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
       onDblClick={handleDblClick}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       style={{
         width: '100%',
         height: '100%',
@@ -300,6 +436,14 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
         ))}
       </div>
       {lassoStyle && <div class="lasso-rect" style={lassoStyle} />}
+      {dropActive && (
+        <div class="drop-zone-overlay">
+          <div class="drop-zone-indicator" style={dropPos ? { left: `${dropPos.x}px`, top: `${dropPos.y}px` } : undefined}>
+            <div class="drop-zone-icon">+</div>
+            <div class="drop-zone-label">Drop files to add to canvas</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
