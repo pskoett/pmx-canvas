@@ -133,6 +133,28 @@ export async function createEdgeFromClient(
   }
 }
 
+/** Create a canvas node via the server. Returns the new node ID. */
+export async function createNodeFromClient(opts: {
+  type?: string;
+  title?: string;
+  content?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+}): Promise<{ ok: boolean; id?: string }> {
+  try {
+    const res = await fetch('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opts),
+    });
+    return (await res.json()) as { ok: boolean; id?: string };
+  } catch {
+    return { ok: false };
+  }
+}
+
 // ── Snapshot API ──────────────────────────────────────────────
 
 export interface CanvasSnapshotInfo {

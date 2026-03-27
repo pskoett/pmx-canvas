@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { canvasState } from './canvas-state.js';
+import { canvasState, IMAGE_MIME_MAP } from './canvas-state.js';
 import type { CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
 import { watchFileForNode, unwatchFileForNode, onFileNodeChanged } from './file-watcher.js';
 import { findOpenCanvasPosition } from './placement.js';
@@ -123,6 +123,30 @@ export class PmxCanvas extends EventEmitter {
           data.updatedAt = new Date(stat.mtimeMs).toISOString();
         }
       } catch { /* non-fatal */ }
+    }
+
+    if (input.type === 'image') {
+      const src = input.content ?? '';
+      const isDataUri = src.startsWith('data:');
+      const isUrl = src.startsWith('http://') || src.startsWith('https://');
+      if (!isDataUri && !isUrl && src) {
+        // Treat as file path
+        const resolved = resolve(src);
+        const fileName = resolved.split('/').pop() ?? src;
+        data = {
+          src: resolved,
+          title: input.title ?? fileName,
+          path: resolved,
+        };
+        // Detect MIME type from extension
+        const ext = resolved.split('.').pop()?.toLowerCase() ?? '';
+        if (IMAGE_MIME_MAP[ext]) data.mimeType = IMAGE_MIME_MAP[ext];
+      } else {
+        data = {
+          src,
+          title: input.title ?? (isUrl ? src.split('/').pop() ?? 'Image' : 'Image'),
+        };
+      }
     }
 
     const node: CanvasNodeState = {

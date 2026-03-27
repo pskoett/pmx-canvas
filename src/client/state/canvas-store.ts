@@ -20,6 +20,18 @@ export const expandedNodeId = signal<string | null>(null);
 // ── Pending edge connection (for context menu "Connect from") ─
 export const pendingConnection = signal<{ from: string } | null>(null);
 
+// ── Drag-to-connect (live edge preview) ─────────────────────
+export const draggingEdge = signal<{
+  fromId: string;
+  fromX: number;
+  fromY: number;
+  cursorX: number;
+  cursorY: number;
+} | null>(null);
+
+// ── Spatial search highlight (command palette live results) ──
+export const searchHighlightIds = signal<Set<string> | null>(null);
+
 // ── Multi-node selection ──────────────────────────────────────
 export const selectedNodeIds = signal<Set<string>>(new Set());
 
@@ -214,6 +226,57 @@ export function setViewport(v: Partial<ViewportState>): void {
   viewport.value = { ...viewport.value, ...v };
 }
 
+// ── Animated viewport transitions ────────────────────────────
+let animationId: number | null = null;
+
+function easeOutCubic(t: number): number {
+  return 1 - (1 - t) ** 3;
+}
+
+/**
+ * Smoothly animate the viewport to a target state.
+ * Cancels any in-flight animation. Direct manipulation (pan/zoom gestures)
+ * should use setViewport() instead for instant response.
+ */
+export function animateViewport(
+  target: ViewportState,
+  duration = 300,
+): void {
+  if (animationId !== null) cancelAnimationFrame(animationId);
+
+  const from = { ...viewport.value };
+  const start = performance.now();
+
+  function tick(now: number) {
+    const elapsed = now - start;
+    const t = Math.min(1, elapsed / duration);
+    const e = easeOutCubic(t);
+
+    viewport.value = {
+      x: from.x + (target.x - from.x) * e,
+      y: from.y + (target.y - from.y) * e,
+      scale: from.scale + (target.scale - from.scale) * e,
+    };
+
+    if (t < 1) {
+      animationId = requestAnimationFrame(tick);
+    } else {
+      animationId = null;
+      persistLayout();
+    }
+  }
+
+  animationId = requestAnimationFrame(tick);
+}
+
+/** Cancel any in-flight viewport animation (e.g. when user starts dragging). */
+export function cancelViewportAnimation(): void {
+  if (animationId !== null) {
+    cancelAnimationFrame(animationId);
+    animationId = null;
+  }
+}
+
 // ── Persistence ───────────────────────────────────────────────
 const STORAGE_KEY = 'pmx-canvas-layout';
 
@@ -313,12 +376,11 @@ export function fitAll(containerW: number, containerH: number): void {
   const cx = (minX + maxX) / 2;
   const cy = (minY + maxY) / 2;
 
-  viewport.value = {
+  animateViewport({
     x: containerW / 2 - cx * scale,
     y: containerH / 2 - cy * scale,
     scale,
-  };
-  persistLayout();
+  });
 }
 
 // ── Focus node ────────────────────────────────────────────────
@@ -328,13 +390,12 @@ export function focusNode(id: string): void {
   const v = viewport.value;
   const cx = node.position.x + node.size.width / 2;
   const cy = node.position.y + node.size.height / 2;
-  viewport.value = {
-    ...v,
+  animateViewport({
     x: window.innerWidth / 2 - cx * v.scale,
     y: window.innerHeight / 2 - cy * v.scale,
-  };
+    scale: v.scale,
+  });
   bringToFront(id);
-  persistLayout();
 }
 
 // ── Cycle focus ───────────────────────────────────────────────
@@ -346,6 +407,62 @@ export function cycleActiveNode(direction: 1 | -1 = 1): void {
   const nextId = all[nextIdx];
   bringToFront(nextId);
   focusNode(nextId);
+}
+
+// ── Graph walking (arrow keys) ───────────────────────────────
+export function walkGraph(direction: 'up' | 'down' | 'left' | 'right'): void {
+  const current = activeNodeId.value;
+  if (!current) return;
+  const currentNode = nodes.value.get(current);
+  if (!currentNode) return;
+
+  // Find all connected node IDs
+  const neighborIds = new Set<string>();
+  for (const edge of edges.value.values()) {
+    if (edge.from === current) neighborIds.add(edge.to);
+    if (edge.to === current) neighborIds.add(edge.from);
+  }
+  if (neighborIds.size === 0) return;
+
+  // Center of current node
+  const cx = currentNode.position.x + currentNode.size.width / 2;
+  const cy = currentNode.position.y + currentNode.size.height / 2;
+
+  // Score each neighbor by directional alignment
+  let bestId: string | null = null;
+  let bestScore = -Infinity;
+
+  for (const nid of neighborIds) {
+    const n = nodes.value.get(nid);
+    if (!n) continue;
+    const nx = n.position.x + n.size.width / 2;
+    const ny = n.position.y + n.size.height / 2;
+    const dx = nx - cx;
+    const dy = ny - cy;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist < 1) continue;
+
+    // Dot product with direction vector, normalized by distance
+    let dot: number;
+    switch (direction) {
+      case 'up':    dot = -dy; break;
+      case 'down':  dot =  dy; break;
+      case 'left':  dot = -dx; break;
+      case 'right': dot =  dx; break;
+    }
+
+    // Only consider nodes that are at least somewhat in the right direction
+    if (dot <= 0) continue;
+
+    // Score: favor alignment (dot/dist) with distance penalty
+    const score = dot / dist - dist * 0.001;
+    if (score > bestScore) {
+      bestScore = score;
+      bestId = nid;
+    }
+  }
+
+  if (bestId) focusNode(bestId);
 }
 
 // ── Expand / Collapse (focus mode) ────────────────────────────
@@ -390,4 +507,146 @@ export function autoArrange(): void {
     }
   });
   persistLayout();
+}
+
+// ── Force-directed layout ────────────────────────────────────
+let forceAnimId: number | null = null;
+
+export function forceDirectedArrange(): void {
+  const movable = Array.from(nodes.value.values()).filter((n) => !n.pinned && n.dockPosition === null);
+  if (movable.length === 0) return;
+  if (forceAnimId !== null) cancelAnimationFrame(forceAnimId);
+
+  const edgeList = Array.from(edges.value.values());
+
+  // Build adjacency for connected nodes
+  const adj = new Map<string, Set<string>>();
+  for (const e of edgeList) {
+    if (!adj.has(e.from)) adj.set(e.from, new Set());
+    if (!adj.has(e.to)) adj.set(e.to, new Set());
+    adj.get(e.from)!.add(e.to);
+    adj.get(e.to)!.add(e.from);
+  }
+
+  // Initialize positions from current layout
+  const pos = new Map<string, { x: number; y: number }>();
+  for (const n of movable) {
+    pos.set(n.id, { x: n.position.x + n.size.width / 2, y: n.position.y + n.size.height / 2 });
+  }
+
+  // Compute center of mass for gravity
+  let gcx = 0, gcy = 0;
+  for (const p of pos.values()) { gcx += p.x; gcy += p.y; }
+  gcx /= pos.size;
+  gcy /= pos.size;
+
+  // Force simulation parameters
+  const REPULSION = 80000;
+  const SPRING_K = 0.008;
+  const IDEAL_LEN = 300;
+  const GRAVITY = 0.002;
+  const DAMPING = 0.92;
+  const ITERATIONS = 150;
+
+  const vel = new Map<string, { vx: number; vy: number }>();
+  for (const id of pos.keys()) vel.set(id, { vx: 0, vy: 0 });
+
+  const ids = Array.from(pos.keys());
+
+  for (let iter = 0; iter < ITERATIONS; iter++) {
+    // Repulsion between all pairs
+    for (let i = 0; i < ids.length; i++) {
+      const a = pos.get(ids[i])!;
+      const va = vel.get(ids[i])!;
+      for (let j = i + 1; j < ids.length; j++) {
+        const b = pos.get(ids[j])!;
+        const vb = vel.get(ids[j])!;
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let dist = Math.sqrt(dx * dx + dy * dy);
+        if (dist < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; dist = 1; }
+        const force = REPULSION / (dist * dist);
+        const fx = (dx / dist) * force;
+        const fy = (dy / dist) * force;
+        va.vx += fx; va.vy += fy;
+        vb.vx -= fx; vb.vy -= fy;
+      }
+    }
+
+    // Spring attraction along edges
+    for (const e of edgeList) {
+      const a = pos.get(e.from);
+      const b = pos.get(e.to);
+      if (!a || !b) continue;
+      const va = vel.get(e.from)!;
+      const vb = vel.get(e.to)!;
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 1) continue;
+      const force = SPRING_K * (dist - IDEAL_LEN);
+      const fx = (dx / dist) * force;
+      const fy = (dy / dist) * force;
+      va.vx += fx; va.vy += fy;
+      vb.vx -= fx; vb.vy -= fy;
+    }
+
+    // Gravity toward center
+    for (const id of ids) {
+      const p = pos.get(id)!;
+      const v = vel.get(id)!;
+      v.vx += (gcx - p.x) * GRAVITY;
+      v.vy += (gcy - p.y) * GRAVITY;
+    }
+
+    // Apply velocities with damping
+    for (const id of ids) {
+      const p = pos.get(id)!;
+      const v = vel.get(id)!;
+      v.vx *= DAMPING;
+      v.vy *= DAMPING;
+      p.x += v.vx;
+      p.y += v.vy;
+    }
+  }
+
+  // Animate nodes from current positions to computed positions
+  const startPositions = new Map<string, { x: number; y: number }>();
+  const targetPositions = new Map<string, { x: number; y: number }>();
+  for (const n of movable) {
+    startPositions.set(n.id, { ...n.position });
+    const center = pos.get(n.id)!;
+    targetPositions.set(n.id, { x: center.x - n.size.width / 2, y: center.y - n.size.height / 2 });
+  }
+
+  const duration = 500;
+  const start = performance.now();
+
+  function tick(now: number) {
+    const elapsed = now - start;
+    const t = Math.min(1, elapsed / duration);
+    const e = 1 - (1 - t) ** 3; // ease-out cubic
+
+    batch(() => {
+      for (const n of movable) {
+        const from = startPositions.get(n.id)!;
+        const to = targetPositions.get(n.id)!;
+        updateNode(n.id, {
+          position: {
+            x: from.x + (to.x - from.x) * e,
+            y: from.y + (to.y - from.y) * e,
+          },
+        });
+      }
+    });
+
+    if (t < 1) {
+      forceAnimId = requestAnimationFrame(tick);
+    } else {
+      forceAnimId = null;
+      persistLayout();
+    }
+  }
+
+  forceAnimId = requestAnimationFrame(tick);
 }

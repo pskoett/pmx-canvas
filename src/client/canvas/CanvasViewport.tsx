@@ -1,14 +1,17 @@
-import { useCallback, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { ContextNode } from '../nodes/ContextNode';
 import { FileNode } from '../nodes/FileNode';
 import { LedgerNode } from '../nodes/LedgerNode';
 import { MarkdownNode } from '../nodes/MarkdownNode';
 import { McpAppNode } from '../nodes/McpAppNode';
 import { StatusNode } from '../nodes/StatusNode';
+import { ImageNode } from '../nodes/ImageNode';
 import { TraceNode } from '../nodes/TraceNode';
 import {
   activeNodeId,
+  cancelViewportAnimation,
   clearSelection,
+  draggingEdge,
   edges,
   nodes,
   persistLayout,
@@ -16,9 +19,11 @@ import {
   setViewport,
   viewport,
 } from '../state/canvas-store';
+import { createEdgeFromClient, createNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
 import { CanvasNode } from './CanvasNode';
 import { EdgeLayer } from './EdgeLayer';
+import { activeGuides } from './snap-guides';
 import { usePanZoom } from './use-pan-zoom';
 
 function renderNodeContent(node: CanvasNodeState) {
@@ -37,6 +42,8 @@ function renderNodeContent(node: CanvasNodeState) {
       return <TraceNode node={node} />;
     case 'file':
       return <FileNode node={node} />;
+    case 'image':
+      return <ImageNode node={node} />;
     default:
       return <div>Unknown node type</div>;
   }
@@ -53,10 +60,22 @@ interface CanvasViewportProps {
   onNodeContextMenu?: (e: MouseEvent, nodeId: string) => void;
 }
 
+const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico', 'avif']);
+const MD_EXTS = new Set(['md', 'mdx', 'markdown']);
+
+function nodeTypeFromFilename(name: string): 'image' | 'markdown' | 'file' {
+  const ext = name.split('.').pop()?.toLowerCase() ?? '';
+  if (IMAGE_EXTS.has(ext)) return 'image';
+  if (MD_EXTS.has(ext)) return 'markdown';
+  return 'file';
+}
+
 export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
   const v = viewport.value;
   const isLassoing = useRef(false);
   const [lasso, setLasso] = useState<LassoRect | null>(null);
+  const [dropActive, setDropActive] = useState(false);
+  const dropCounter = useRef(0);
   // Ref mirrors lasso state so pointer handlers always read the latest value
   // without stale-closure issues from useCallback dependency capture.
   const lassoRef = useRef<LassoRect | null>(null);
@@ -67,6 +86,7 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
       // Don't pan while lassoing — usePanZoom's pointerdown still fires
       // (native listener) before our Preact handler can stopPropagation.
       if (isLassoing.current) return;
+      cancelViewportAnimation();
       setViewport(next);
       persistLayout();
     },
@@ -160,6 +180,147 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
     setLasso(null);
   }, []);
 
+  // ── Drag-to-connect: track cursor in world space, hit-test on drop ──
+  useEffect(() => {
+    function handleMove(e: PointerEvent) {
+      if (!draggingEdge.value) return;
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const v = viewport.value;
+      draggingEdge.value = {
+        ...draggingEdge.value,
+        cursorX: (e.clientX - rect.left - v.x) / v.scale,
+        cursorY: (e.clientY - rect.top - v.y) / v.scale,
+      };
+    }
+
+    function handleUp(e: PointerEvent) {
+      const drag = draggingEdge.value;
+      if (!drag) return;
+      draggingEdge.value = null;
+
+      // Hit-test: find node under cursor
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const v = viewport.value;
+      const wx = (e.clientX - rect.left - v.x) / v.scale;
+      const wy = (e.clientY - rect.top - v.y) / v.scale;
+
+      for (const node of nodes.value.values()) {
+        if (node.id === drag.fromId || node.dockPosition !== null) continue;
+        if (
+          wx >= node.position.x &&
+          wx <= node.position.x + node.size.width &&
+          wy >= node.position.y &&
+          wy <= node.position.y + node.size.height
+        ) {
+          createEdgeFromClient(drag.fromId, node.id, 'relation');
+          return;
+        }
+      }
+    }
+
+    document.addEventListener('pointermove', handleMove);
+    document.addEventListener('pointerup', handleUp);
+    return () => {
+      document.removeEventListener('pointermove', handleMove);
+      document.removeEventListener('pointerup', handleUp);
+    };
+  }, [containerRef]);
+
+  // ── Double-click on background → create new markdown node ──
+  const handleDblClick = useCallback(
+    (e: MouseEvent) => {
+      const container = containerRef.current;
+      if (!container || e.target !== container) return;
+      const rect = container.getBoundingClientRect();
+      const v = viewport.value;
+      const wx = (e.clientX - rect.left - v.x) / v.scale;
+      const wy = (e.clientY - rect.top - v.y) / v.scale;
+      // Offset so node centers on click point
+      const nodeW = 360;
+      const nodeH = 200;
+      createNodeFromClient({
+        type: 'markdown',
+        title: 'New note',
+        x: wx - nodeW / 2,
+        y: wy - nodeH / 2,
+        width: nodeW,
+        height: nodeH,
+      });
+    },
+    [containerRef],
+  );
+
+  // ── Drag-and-drop files from filesystem ──
+  const handleDragEnter = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    dropCounter.current++;
+    if (e.dataTransfer?.types.includes('Files')) {
+      setDropActive(true);
+    }
+  }, []);
+
+  const handleDragOver = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy';
+  }, []);
+
+  const handleDragLeave = useCallback((e: DragEvent) => {
+    e.preventDefault();
+    dropCounter.current--;
+    if (dropCounter.current <= 0) {
+      dropCounter.current = 0;
+      setDropActive(false);
+          }
+  }, []);
+
+  const handleDrop = useCallback(async (e: DragEvent) => {
+    e.preventDefault();
+    setDropActive(false);
+        dropCounter.current = 0;
+
+    const container = containerRef.current;
+    if (!container || !e.dataTransfer) return;
+
+    const rect = container.getBoundingClientRect();
+    const vp = viewport.value;
+    const baseWx = (e.clientX - rect.left - vp.x) / vp.scale;
+    const baseWy = (e.clientY - rect.top - vp.y) / vp.scale;
+
+    const files = Array.from(e.dataTransfer.files);
+    const nodeW = 400;
+    const nodeH = 300;
+    const spacing = 20;
+    const cols = Math.ceil(Math.sqrt(files.length));
+
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const wx = baseWx - (cols * (nodeW + spacing)) / 2 + col * (nodeW + spacing);
+      const wy = baseWy - nodeH / 2 + row * (nodeH + spacing);
+
+      const type = nodeTypeFromFilename(file.name);
+      const fileName = file.name;
+
+      if (type === 'image') {
+        const reader = new FileReader();
+        const dataUri: string = await new Promise((resolve) => {
+          reader.onload = () => resolve(reader.result as string);
+          reader.readAsDataURL(file);
+        });
+        await createNodeFromClient({ type: 'image', title: fileName, content: dataUri, x: wx, y: wy, width: nodeW, height: nodeH });
+      } else {
+        const text = await file.text();
+        const isWide = type === 'markdown' || type === 'file';
+        await createNodeFromClient({ type, title: fileName, content: text, x: wx, y: wy, width: isWide ? 720 : nodeW, height: isWide ? 500 : nodeH });
+      }
+    }
+  }, [containerRef]);
+
   // Only render world-space nodes (dockPosition === null); docked nodes are in the HUD layer.
   // Do NOT sort by zIndex here — CSS z-index handles visual stacking. Sorting would
   // reorder DOM children when bringToFront() changes zIndex, causing browsers to
@@ -189,12 +350,17 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onDblClick={handleDblClick}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       style={{
         width: '100%',
         height: '100%',
         position: 'relative',
         overflow: 'hidden',
-        cursor: isLassoing.current ? 'crosshair' : 'grab',
+        cursor: draggingEdge.value ? 'crosshair' : isLassoing.current ? 'crosshair' : 'grab',
       }}
     >
       {/* D4: CSS matrix(a,b,c,d,tx,ty) — scale uniformly (a=d=scale, b=c=0)
@@ -216,8 +382,28 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
             {renderNodeContent(node)}
           </CanvasNode>
         ))}
+        {/* Snap alignment guide lines */}
+        {activeGuides.value && (
+          <svg class="snap-guides-svg" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}>
+            {activeGuides.value.map((g, i) =>
+              g.axis === 'x' ? (
+                <line key={i} x1={g.pos} y1={g.from - 20} x2={g.pos} y2={g.to + 20} class="snap-guide-line" />
+              ) : (
+                <line key={i} x1={g.from - 20} y1={g.pos} x2={g.to + 20} y2={g.pos} class="snap-guide-line" />
+              ),
+            )}
+          </svg>
+        )}
       </div>
       {lassoStyle && <div class="lasso-rect" style={lassoStyle} />}
+      {dropActive && (
+        <div class="drop-zone-overlay">
+          <div class="drop-zone-indicator">
+            <div class="drop-zone-icon">+</div>
+            <div class="drop-zone-label">Drop files to add to canvas</div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

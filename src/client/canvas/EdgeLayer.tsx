@@ -1,4 +1,5 @@
 import type { Signal } from '@preact/signals';
+import { activeNodeId, draggingEdge, searchHighlightIds } from '../state/canvas-store';
 import type { CanvasEdge, CanvasNodeState } from '../types';
 
 // ── Edge type visual styles ──────────────────────────────────
@@ -81,9 +82,11 @@ interface EdgePathProps {
   edge: CanvasEdge;
   fromNode: CanvasNodeState;
   toNode: CanvasNodeState;
+  focused: boolean;   // connected to the active node
+  dimmed: boolean;    // active node exists but this edge is NOT connected
 }
 
-function EdgePath({ edge, fromNode, toNode }: EdgePathProps) {
+function EdgePath({ edge, fromNode, toNode, focused, dimmed }: EdgePathProps) {
   const start = computeAnchor(fromNode, toNode);
   const end = computeAnchor(toNode, fromNode);
 
@@ -122,16 +125,30 @@ function EdgePath({ edge, fromNode, toNode }: EdgePathProps) {
         style={{ cursor: 'pointer' }}
       />
 
+      {/* Glow layer for focused edges */}
+      {focused && (
+        <path
+          d={d}
+          fill="none"
+          stroke={color}
+          stroke-width="6"
+          stroke-dasharray={dash}
+          opacity="0.15"
+          style={{ filter: 'blur(3px)' }}
+        />
+      )}
+
       {/* Visible edge */}
       <path
         id={pathId}
         d={d}
         fill="none"
         stroke={color}
-        stroke-width="1.5"
+        stroke-width={focused ? 2.5 : 1.5}
         stroke-dasharray={dash}
         marker-end={directed ? 'url(#edge-arrow)' : undefined}
-        opacity="0.75"
+        opacity={dimmed ? 0.2 : focused ? 1 : 0.75}
+        style={{ transition: 'opacity 0.2s, stroke-width 0.2s' }}
       />
 
       {/* Animated pulse dot */}
@@ -178,6 +195,10 @@ interface EdgeLayerProps {
 export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
   const nodeMap = nodes.value;
   const edgeList = Array.from(edges.value.values());
+  const focusId = activeNodeId.value;
+  const hasFocus = focusId !== null;
+  const searchSet = searchHighlightIds.value;
+  const hasSearch = searchSet !== null;
 
   if (edgeList.length === 0) return null;
 
@@ -213,8 +234,37 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
         const fromNode = nodeMap.get(edge.from);
         const toNode = nodeMap.get(edge.to);
         if (!fromNode || !toNode) return null;
-        return <EdgePath key={edge.id} edge={edge} fromNode={fromNode} toNode={toNode} />;
+        const isConnected = hasFocus && (edge.from === focusId || edge.to === focusId);
+        const searchDimmed = hasSearch && !(searchSet.has(edge.from) || searchSet.has(edge.to));
+        return (
+          <EdgePath
+            key={edge.id}
+            edge={edge}
+            fromNode={fromNode}
+            toNode={toNode}
+            focused={isConnected}
+            dimmed={(hasFocus && !isConnected) || searchDimmed}
+          />
+        );
       })}
+      {/* Live preview edge while drag-connecting */}
+      {draggingEdge.value && (() => {
+        const de = draggingEdge.value;
+        const dx = de.cursorX - de.fromX;
+        const dy = de.cursorY - de.fromY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const curve = Math.min(dist * 0.25, 80);
+        const nx = dx / (dist || 1);
+        const ny = dy / (dist || 1);
+        const previewD = `M ${de.fromX} ${de.fromY} C ${de.fromX + nx * curve} ${de.fromY + ny * curve}, ${de.cursorX - nx * curve} ${de.cursorY - ny * curve}, ${de.cursorX} ${de.cursorY}`;
+        return (
+          <g>
+            <path d={previewD} fill="none" stroke="var(--c-accent)" stroke-width="6" opacity="0.1" style={{ filter: 'blur(3px)' }} />
+            <path d={previewD} fill="none" stroke="var(--c-accent)" stroke-width="2" stroke-dasharray="6 4" opacity="0.8" />
+            <circle cx={de.cursorX} cy={de.cursorY} r="5" fill="var(--c-accent)" opacity="0.5" />
+          </g>
+        );
+      })()}
     </svg>
   );
 }

@@ -3,10 +3,14 @@ import {
   activeNodeId,
   bringToFront,
   contextPinnedNodeIds,
+  draggingEdge,
+  edges,
   expandNode,
+  nodes,
   persistLayout,
   removeNode,
   resizeNode,
+  searchHighlightIds,
   selectedNodeIds,
   toggleCollapsed,
   toggleContextPin,
@@ -17,6 +21,7 @@ import {
 } from '../state/canvas-store';
 import { EXPANDABLE_TYPES, TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
+import { activeGuides, buildSnapCache, clearSnapCache, snapToGuides } from './snap-guides';
 import { useNodeDrag } from './use-node-drag';
 import { useNodeResize } from './use-node-resize';
 
@@ -30,15 +35,28 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const isActive = activeNodeId.value === node.id;
   const isSelected = selectedNodeIds.value.has(node.id);
   const isContextPinned = contextPinnedNodeIds.value.has(node.id);
+  const focusId = activeNodeId.value;
+  const isNeighbor = !isActive && focusId !== null && Array.from(edges.value.values()).some(
+    (e) => (e.from === focusId && e.to === node.id) || (e.to === focusId && e.from === node.id),
+  );
+  const searchSet = searchHighlightIds.value;
+  const isSearchMatch = searchSet !== null && searchSet.has(node.id);
+  const isSearchDimmed = searchSet !== null && !searchSet.has(node.id);
   const [renaming, setRenaming] = useState(false);
   const renameRef = useRef<HTMLInputElement>(null);
 
-  // ── Drag ──────────────────────────────────────────────
+  // ── Drag (with snap alignment) ──────────────────────
   const handleMove = useCallback((id: string, x: number, y: number) => {
-    updateNode(id, { position: { x, y } });
-  }, []);
+    const snap = snapToGuides(x, y, node.size.width, node.size.height);
+    updateNode(id, { position: { x: snap.x, y: snap.y } });
+    activeGuides.value = snap.guides.length > 0 ? snap.guides : null;
+  }, [node.size.width, node.size.height]);
 
-  const handleDragEnd = useCallback(() => persistLayout(), []);
+  const handleDragEnd = useCallback(() => {
+    clearSnapCache();
+    activeGuides.value = null;
+    persistLayout();
+  }, []);
 
   const startDrag = useNodeDrag({
     nodeId: node.id,
@@ -66,6 +84,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     (e: PointerEvent) => {
       if (renaming) return;
       bringToFront(node.id);
+      buildSnapCache(node.id, nodes.value.values());
       startDrag(e, node.position.x, node.position.y);
     },
     [node.id, node.position.x, node.position.y, startDrag, renaming],
@@ -156,6 +175,9 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const nodeClass = [
     'canvas-node',
     isActive ? 'active' : '',
+    isNeighbor ? 'neighbor' : '',
+    isSearchMatch ? 'search-match' : '',
+    isSearchDimmed ? 'search-dimmed' : '',
     isSelected ? 'selected' : '',
     isContextPinned ? 'context-pinned' : '',
     isPinned ? 'pinned' : '',
@@ -270,6 +292,35 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
           onPointerDown={(e) => startResize(e, node.size.width, node.size.height)}
         />
       )}
+      {/* Connection port handles — visible on hover, drag to connect */}
+      {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
+        <div
+          key={side}
+          class={`node-port node-port-${side}`}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const cx = node.position.x + node.size.width / 2;
+            const cy = node.position.y + node.size.height / 2;
+            const hw = node.size.width / 2;
+            const hh = node.size.height / 2;
+            let px: number, py: number;
+            switch (side) {
+              case 'top':    px = cx; py = cy - hh; break;
+              case 'bottom': px = cx; py = cy + hh; break;
+              case 'left':   px = cx - hw; py = cy; break;
+              case 'right':  px = cx + hw; py = cy; break;
+            }
+            draggingEdge.value = {
+              fromId: node.id,
+              fromX: px,
+              fromY: py,
+              cursorX: px,
+              cursorY: py,
+            };
+          }}
+        />
+      ))}
     </div>
   );
 }

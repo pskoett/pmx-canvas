@@ -5,6 +5,7 @@ import { LedgerNode } from '../nodes/LedgerNode';
 import { MarkdownNode } from '../nodes/MarkdownNode';
 import { McpAppNode } from '../nodes/McpAppNode';
 import { StatusNode } from '../nodes/StatusNode';
+import { ImageNode } from '../nodes/ImageNode';
 import { TraceNode } from '../nodes/TraceNode';
 import {
   collapseExpandedNode,
@@ -32,6 +33,8 @@ function renderContent(node: CanvasNodeState, expanded: boolean) {
       return <TraceNode node={node} />;
     case 'file':
       return <FileNode node={node} expanded={expanded} />;
+    case 'image':
+      return <ImageNode node={node} expanded={expanded} />;
     default:
       return <div>Unknown node type</div>;
   }

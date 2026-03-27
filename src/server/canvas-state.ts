@@ -24,6 +24,12 @@ interface PersistedCanvasState {
   contextPins: string[];
 }
 
+export const IMAGE_MIME_MAP: Record<string, string> = {
+  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+  gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
+  bmp: 'image/bmp', ico: 'image/x-icon', avif: 'image/avif',
+};
+
 export interface CanvasSnapshot {
   id: string;
   name: string;
@@ -34,7 +40,7 @@ export interface CanvasSnapshot {
 
 export interface CanvasNodeState {
   id: string;
-  type: 'markdown' | 'mcp-app' | 'status' | 'context' | 'ledger' | 'trace' | 'file';
+  type: 'markdown' | 'mcp-app' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'image';
   position: { x: number; y: number };
   size: { width: number; height: number };
   zIndex: number;

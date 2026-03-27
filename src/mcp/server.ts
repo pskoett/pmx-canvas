@@ -82,12 +82,12 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_add_node ────────────────────────────────────────────
   server.tool(
     'canvas_add_node',
-    'Add a node to the canvas. Returns the new node ID. Node types: markdown (rich content), status (compact indicator), context, ledger, trace, file (live file viewer — set content to a file path), mcp-app.',
+    'Add a node to the canvas. Returns the new node ID. Node types: markdown (rich content), status (compact indicator), context, ledger, trace, file (live file viewer — set content to a file path), image (set content to an image file path, data URI, or URL), mcp-app.',
     {
-      type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'mcp-app'])
+      type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'mcp-app'])
         .describe('Node type'),
       title: z.string().optional().describe('Node title'),
-      content: z.string().optional().describe('Node content (markdown for markdown nodes, file path for file nodes)'),
+      content: z.string().optional().describe('Node content (markdown for markdown nodes, file path for file nodes, image path/URL/data-URI for image nodes)'),
       x: z.number().optional().describe('X position (auto-placed if omitted)'),
       y: z.number().optional().describe('Y position (auto-placed if omitted)'),
       width: z.number().optional().describe('Width in pixels (default: 720)'),
