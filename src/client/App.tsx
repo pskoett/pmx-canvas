@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { CanvasViewport } from './canvas/CanvasViewport';
+import { CommandPalette } from './canvas/CommandPalette';
 import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
 import { ContextPinBar } from './canvas/ContextPinBar';
 import { ContextPinHud } from './canvas/ContextPinHud';
@@ -186,6 +187,7 @@ function Toolbar({
 export function App() {
   const [minimapVisible, setMinimapVisible] = useState(true);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const snapshotBtnRef = useRef<HTMLButtonElement>(null);
   const { menu, openMenu, closeMenu } = useContextMenu();
   const hasInitialLayout = hasInitialServerLayout.value;
@@ -205,10 +207,24 @@ export function App() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
 
+      // Cmd/Ctrl+K toggles command palette (works from anywhere, including inputs)
+      if (mod && e.key === 'k') {
+        e.preventDefault();
+        setPaletteOpen((v) => !v);
+        return;
+      }
+
       // Esc always collapses expanded node first (even from inside inputs)
       if (e.key === 'Escape' && expandedNodeId.value) {
         e.preventDefault();
         collapseExpandedNode();
+        return;
+      }
+
+      // Esc closes command palette
+      if (e.key === 'Escape' && paletteOpen) {
+        e.preventDefault();
+        setPaletteOpen(false);
         return;
       }
 
@@ -246,7 +262,7 @@ export function App() {
       disconnect();
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [closeMenu]);
+  }, [closeMenu, paletteOpen]);
 
   useEffect(() => {
     if (!hasInitialLayout) return;
@@ -302,6 +318,12 @@ export function App() {
         />
       )}
       {menu && <ContextMenu x={menu.x} y={menu.y} nodeId={menu.nodeId} onClose={closeMenu} />}
+      {paletteOpen && (
+        <CommandPalette
+          onClose={() => setPaletteOpen(false)}
+          onToggleMinimap={handleToggleMinimap}
+        />
+      )}
     </div>
   );
 }
