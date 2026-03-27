@@ -4,7 +4,7 @@ import {
   clearSelection,
   selectedNodeIds,
 } from '../state/canvas-store';
-import { createEdgeFromClient } from '../state/intent-bridge';
+import { createEdgeFromClient, createGroupFromClient } from '../state/intent-bridge';
 
 export function SelectionBar() {
   const count = selectedNodeIds.value.size;
@@ -14,6 +14,13 @@ export function SelectionBar() {
     const ids = Array.from(selectedNodeIds.value);
     if (ids.length === 0) return;
     addContextPins(ids);
+    clearSelection();
+  }, []);
+
+  const handleGroup = useCallback(() => {
+    const ids = Array.from(selectedNodeIds.value);
+    if (ids.length === 0) return;
+    createGroupFromClient({ title: 'Group', childIds: ids });
     clearSelection();
   }, []);
 
@@ -39,6 +46,11 @@ export function SelectionBar() {
       >
         Pin as context
       </button>
+      {count >= 2 && (
+        <button type="button" class="selection-bar-btn" onClick={handleGroup}>
+          Group
+        </button>
+      )}
       {count >= 2 && (
         <button type="button" class="selection-bar-btn" onClick={handleConnect}>
           Connect

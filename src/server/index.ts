@@ -215,6 +215,97 @@ export class PmxCanvas extends EventEmitter {
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   }
 
+  /**
+   * Create a group node and optionally add child nodes to it.
+   * If childIds are provided, the group auto-sizes to contain them with padding.
+   */
+  createGroup(input: {
+    title?: string;
+    childIds?: string[];
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    color?: string;
+  }): string {
+    const PAD = 40;
+    let x = input.x;
+    let y = input.y;
+    let width = input.width ?? 600;
+    let height = input.height ?? 400;
+
+    // If child IDs provided, compute bounding box
+    const childIds = input.childIds ?? [];
+    if (childIds.length > 0 && x === undefined && y === undefined) {
+      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+      for (const cid of childIds) {
+        const child = canvasState.getNode(cid);
+        if (!child) continue;
+        minX = Math.min(minX, child.position.x);
+        minY = Math.min(minY, child.position.y);
+        maxX = Math.max(maxX, child.position.x + child.size.width);
+        maxY = Math.max(maxY, child.position.y + child.size.height);
+      }
+      if (minX !== Infinity) {
+        x = minX - PAD;
+        y = minY - PAD - 32; // extra space for group title bar
+        width = maxX - minX + PAD * 2;
+        height = maxY - minY + PAD * 2 + 32;
+      }
+    }
+
+    const pos = x !== undefined && y !== undefined
+      ? { x, y }
+      : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
+
+    const id = `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const data: Record<string, unknown> = {
+      title: input.title ?? 'Group',
+      children: [],
+    };
+    if (input.color) data.color = input.color;
+
+    const node: CanvasNodeState = {
+      id,
+      type: 'group',
+      position: pos,
+      size: { width, height },
+      zIndex: 0, // groups render behind other nodes
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data,
+    };
+
+    canvasState.addNode(node);
+
+    // Add children to group
+    if (childIds.length > 0) {
+      canvasState.groupNodes(id, childIds);
+    }
+
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return id;
+  }
+
+  /** Add nodes to an existing group. */
+  groupNodes(groupId: string, childIds: string[]): boolean {
+    const ok = canvasState.groupNodes(groupId, childIds);
+    if (ok) {
+      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    }
+    return ok;
+  }
+
+  /** Remove all children from a group (the group node remains). */
+  ungroupNodes(groupId: string): boolean {
+    const ok = canvasState.ungroupNodes(groupId);
+    if (ok) {
+      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    }
+    return ok;
+  }
+
   arrange(layout?: 'grid' | 'column' | 'flow'): void {
     const nodes = canvasState.getLayout().nodes;
     const mode = layout ?? 'grid';

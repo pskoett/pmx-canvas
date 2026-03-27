@@ -581,7 +581,7 @@ function handleCanvasImage(pathname: string): Response {
 }
 
 // ── Add node from client ─────────────────────────────────────
-const VALID_NODE_TYPES = new Set(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'mcp-app']);
+const VALID_NODE_TYPES = new Set(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'mcp-app', 'group']);
 
 async function handleCanvasAddNode(req: Request): Promise<Response> {
   const body = await readJson(req);
@@ -628,6 +628,93 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
 
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   return responseJson({ ok: true, id });
+}
+
+// ── Group operations ─────────────────────────────────────────
+async function handleCanvasCreateGroup(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const title = typeof body.title === 'string' ? body.title : 'Group';
+  const childIds = Array.isArray(body.childIds) ? body.childIds.filter((id: unknown) => typeof id === 'string') : [];
+  const color = typeof body.color === 'string' ? body.color : undefined;
+  const x = typeof body.x === 'number' ? body.x : undefined;
+  const y = typeof body.y === 'number' ? body.y : undefined;
+  const width = typeof body.width === 'number' ? body.width : undefined;
+  const height = typeof body.height === 'number' ? body.height : undefined;
+
+  const PAD = 40;
+  let gx = x;
+  let gy = y;
+  let gw = width ?? 600;
+  let gh = height ?? 400;
+
+  // Auto-size from children
+  if (childIds.length > 0 && gx === undefined && gy === undefined) {
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (const cid of childIds) {
+      const child = canvasState.getNode(cid);
+      if (!child) continue;
+      minX = Math.min(minX, child.position.x);
+      minY = Math.min(minY, child.position.y);
+      maxX = Math.max(maxX, child.position.x + child.size.width);
+      maxY = Math.max(maxY, child.position.y + child.size.height);
+    }
+    if (minX !== Infinity) {
+      gx = minX - PAD;
+      gy = minY - PAD - 32;
+      gw = maxX - minX + PAD * 2;
+      gh = maxY - minY + PAD * 2 + 32;
+    }
+  }
+
+  const position = gx !== undefined && gy !== undefined
+    ? { x: gx, y: gy }
+    : findOpenCanvasPosition(canvasState.getLayout().nodes, gw, gh);
+
+  const id = `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const data: Record<string, unknown> = { title, children: [] };
+  if (color) data.color = color;
+
+  canvasState.addNode({
+    id,
+    type: 'group',
+    position,
+    size: { width: gw, height: gh },
+    zIndex: 0,
+    collapsed: false,
+    pinned: false,
+    dockPosition: null,
+    data,
+  });
+
+  if (childIds.length > 0) {
+    canvasState.groupNodes(id, childIds);
+  }
+
+  broadcastWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  return responseJson({ ok: true, id });
+}
+
+async function handleCanvasGroupNodes(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const groupId = body.groupId as string;
+  const childIds = Array.isArray(body.childIds) ? body.childIds.filter((id: unknown) => typeof id === 'string') : [];
+  if (!groupId || childIds.length === 0) {
+    return responseJson({ ok: false, error: 'Missing groupId or childIds.' }, 400);
+  }
+  const ok = canvasState.groupNodes(groupId, childIds);
+  if (!ok) return responseJson({ ok: false, error: 'Group not found or no valid children.' }, 400);
+  broadcastWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  return responseJson({ ok: true, groupId });
+}
+
+async function handleCanvasUngroupNodes(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const groupId = body.groupId as string;
+  if (!groupId) return responseJson({ ok: false, error: 'Missing groupId.' }, 400);
+  const ok = canvasState.ungroupNodes(groupId);
+  if (!ok) return responseJson({ ok: false, error: 'Group not found or empty.' }, 400);
+  broadcastWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  return responseJson({ ok: true, groupId });
 }
 
 const VALID_EDGE_TYPES = new Set(['relation', 'depends-on', 'flow', 'references']);
@@ -2017,6 +2104,19 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             }
             const results = searchNodes(canvasState.getLayout().nodes, q);
             return responseJson({ results, query: q });
+          }
+
+          // Group API
+          if (url.pathname === '/api/canvas/group' && req.method === 'POST') {
+            return handleCanvasCreateGroup(req);
+          }
+
+          if (url.pathname === '/api/canvas/group/add' && req.method === 'POST') {
+            return handleCanvasGroupNodes(req);
+          }
+
+          if (url.pathname === '/api/canvas/group/ungroup' && req.method === 'POST') {
+            return handleCanvasUngroupNodes(req);
           }
 
           // Code graph API

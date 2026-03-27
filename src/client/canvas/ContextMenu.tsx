@@ -14,7 +14,7 @@ import {
   undockNode,
   updateNode,
 } from '../state/canvas-store';
-import { createEdgeFromClient, sendIntent } from '../state/intent-bridge';
+import { createEdgeFromClient, sendIntent, ungroupFromClient } from '../state/intent-bridge';
 import { EXPANDABLE_TYPES } from '../types';
 import type { CanvasNodeState } from '../types';
 
@@ -235,6 +235,18 @@ function buildMenuItems(node: CanvasNodeState): MenuItem[] {
       items.push({
         label: 'Focus in TUI',
         action: () => sendIntent('mcp-app-focus', { url }),
+      });
+    }
+  }
+
+  // Group-specific actions
+  if (node.type === 'group') {
+    const childIds = (node.data.children as string[]) ?? [];
+    items.push({ separator: true });
+    if (childIds.length > 0) {
+      items.push({
+        label: `Ungroup (${childIds.length} node${childIds.length !== 1 ? 's' : ''})`,
+        action: () => ungroupFromClient(node.id),
       });
     }
   }

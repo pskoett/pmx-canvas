@@ -84,8 +84,8 @@ export async function startMcpServer(): Promise<void> {
     'canvas_add_node',
     'Add a node to the canvas. Returns the new node ID. Node types: markdown (rich content), status (compact indicator), context, ledger, trace, file (live file viewer — set content to a file path), image (set content to an image file path, data URI, or URL), mcp-app.',
     {
-      type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'mcp-app'])
-        .describe('Node type'),
+      type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'mcp-app', 'group'])
+        .describe('Node type (prefer canvas_create_group for groups)'),
       title: z.string().optional().describe('Node title'),
       content: z.string().optional().describe('Node content (markdown for markdown nodes, file path for file nodes, image path/URL/data-URI for image nodes)'),
       x: z.number().optional().describe('X position (auto-placed if omitted)'),
@@ -532,6 +532,63 @@ export async function startMcpServer(): Promise<void> {
           },
         ],
       };
+    },
+  );
+
+  // ── canvas_create_group ──────────────────────────────────────
+  server.tool(
+    'canvas_create_group',
+    'Create a group (frame) on the canvas that visually contains other nodes. Groups are spatial containers — they communicate "these nodes belong together." If childIds are provided, the group auto-sizes to fit them. Collapsing a group hides its children and shows a summary.',
+    {
+      title: z.string().optional().describe('Group title (default: "Group")'),
+      childIds: z.array(z.string()).optional().describe('Node IDs to include in the group. Group auto-sizes to fit them.'),
+      color: z.string().optional().describe('Group accent color (CSS color string, e.g. "#4a9eff")'),
+      x: z.number().optional().describe('X position (auto-computed from children if omitted)'),
+      y: z.number().optional().describe('Y position (auto-computed from children if omitted)'),
+      width: z.number().optional().describe('Width (auto-computed from children if omitted)'),
+      height: z.number().optional().describe('Height (auto-computed from children if omitted)'),
+    },
+    async (input) => {
+      const c = await ensureCanvas();
+      const id = c.createGroup(input);
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ id }) }],
+      };
+    },
+  );
+
+  // ── canvas_group_nodes ──────────────────────────────────────
+  server.tool(
+    'canvas_group_nodes',
+    'Add nodes to an existing group. The nodes will be visually contained within the group frame.',
+    {
+      groupId: z.string().describe('The group node ID'),
+      childIds: z.array(z.string()).describe('Node IDs to add to the group'),
+    },
+    async ({ groupId, childIds }) => {
+      const c = await ensureCanvas();
+      const ok = c.groupNodes(groupId, childIds);
+      if (!ok) {
+        return { content: [{ type: 'text', text: 'Group not found or no valid children.' }], isError: true };
+      }
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, groupId }) }] };
+    },
+  );
+
+  // ── canvas_ungroup ──────────────────────────────────────────
+  server.tool(
+    'canvas_ungroup',
+    'Remove all children from a group, releasing them as independent nodes. The group node itself remains (delete it separately with canvas_remove_node if desired).',
+    {
+      groupId: z.string().describe('The group node ID to ungroup'),
+    },
+    async ({ groupId }) => {
+      const c = await ensureCanvas();
+      const ok = c.ungroupNodes(groupId);
+      if (!ok) {
+        return { content: [{ type: 'text', text: 'Group not found or already empty.' }], isError: true };
+      }
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, groupId }) }] };
     },
   );
 

@@ -40,7 +40,7 @@ export interface CanvasSnapshot {
 
 export interface CanvasNodeState {
   id: string;
-  type: 'markdown' | 'mcp-app' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'image';
+  type: 'markdown' | 'mcp-app' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'image' | 'group';
   position: { x: number; y: number };
   size: { width: number; height: number };
   zIndex: number;
@@ -551,6 +551,96 @@ class CanvasStateManager {
     this._contextPinnedNodeIds.clear();
     this.scheduleSave();
     this.notifyChange('pins');
+  }
+
+  /** Move child nodes into a group. Sets data.parentGroup on children and data.children on the group. */
+  groupNodes(groupId: string, childIds: string[]): boolean {
+    const group = this.nodes.get(groupId);
+    if (!group || group.type !== 'group') return false;
+
+    const validIds: string[] = [];
+    for (const id of childIds) {
+      const child = this.nodes.get(id);
+      if (child && id !== groupId) validIds.push(id);
+    }
+    if (validIds.length === 0) return false;
+
+    const oldChildren = ((group.data.children as string[]) ?? []).slice();
+    const merged = [...new Set([...oldChildren, ...validIds])];
+
+    // Snapshot for undo
+    const oldParents = new Map<string, string | undefined>();
+    for (const id of validIds) {
+      const child = this.nodes.get(id)!;
+      oldParents.set(id, child.data.parentGroup as string | undefined);
+    }
+
+    // Apply
+    this.nodes.set(groupId, { ...group, data: { ...group.data, children: merged } });
+    for (const id of validIds) {
+      const child = this.nodes.get(id)!;
+      this.nodes.set(id, { ...child, data: { ...child.data, parentGroup: groupId } });
+    }
+
+    this.scheduleSave();
+    this.notifyChange('nodes');
+    this.recordMutation({
+      operationType: 'groupNodes',
+      description: `Grouped ${validIds.length} nodes into "${(group.data.title as string) ?? groupId}"`,
+      forward: () => { this._suppressRecording = true; try { this.groupNodes(groupId, validIds); } finally { this._suppressRecording = false; } },
+      inverse: () => {
+        this._suppressRecording = true;
+        try {
+          // Restore old children list on group
+          const g = this.nodes.get(groupId);
+          if (g) this.nodes.set(groupId, { ...g, data: { ...g.data, children: oldChildren } });
+          // Restore old parentGroup on each child
+          for (const [id, oldParent] of oldParents) {
+            const c = this.nodes.get(id);
+            if (!c) continue;
+            const d = { ...c.data };
+            if (oldParent) d.parentGroup = oldParent; else delete d.parentGroup;
+            this.nodes.set(id, { ...c, data: d });
+          }
+          this.scheduleSave();
+          this.notifyChange('nodes');
+        } finally { this._suppressRecording = false; }
+      },
+    });
+    return true;
+  }
+
+  /** Remove all children from a group, clearing their parentGroup. */
+  ungroupNodes(groupId: string): boolean {
+    const group = this.nodes.get(groupId);
+    if (!group || group.type !== 'group') return false;
+
+    const childIds = (group.data.children as string[]) ?? [];
+    if (childIds.length === 0) return false;
+
+    // Snapshot for undo
+    const snapshot = childIds.slice();
+
+    // Clear children from group
+    this.nodes.set(groupId, { ...group, data: { ...group.data, children: [] } });
+    // Clear parentGroup from each child
+    for (const id of childIds) {
+      const child = this.nodes.get(id);
+      if (!child) continue;
+      const d = { ...child.data };
+      delete d.parentGroup;
+      this.nodes.set(id, { ...child, data: d });
+    }
+
+    this.scheduleSave();
+    this.notifyChange('nodes');
+    this.recordMutation({
+      operationType: 'ungroupNodes',
+      description: `Ungrouped ${childIds.length} nodes from "${(group.data.title as string) ?? groupId}"`,
+      forward: () => { this._suppressRecording = true; try { this.ungroupNodes(groupId); } finally { this._suppressRecording = false; } },
+      inverse: () => { this._suppressRecording = true; try { this.groupNodes(groupId, snapshot); } finally { this._suppressRecording = false; } },
+    });
+    return true;
   }
 
   clear(): void {

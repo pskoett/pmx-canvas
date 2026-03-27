@@ -6,7 +6,7 @@ export interface ViewportState {
 
 export interface CanvasNodeState {
   id: string;
-  type: 'markdown' | 'mcp-app' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'image';
+  type: 'markdown' | 'mcp-app' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'image' | 'group';
   position: { x: number; y: number };
   size: { width: number; height: number };
   zIndex: number;
@@ -39,6 +39,7 @@ export const TYPE_LABELS: Record<CanvasNodeState['type'], string> = {
   trace: 'TRACE',
   file: 'FILE',
   image: 'IMG',
+  group: 'GROUP',
 };
 
 /** Node types that support the full-viewport expand/focus overlay. */

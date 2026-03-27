@@ -6,6 +6,7 @@ import { MarkdownNode } from '../nodes/MarkdownNode';
 import { McpAppNode } from '../nodes/McpAppNode';
 import { StatusNode } from '../nodes/StatusNode';
 import { ImageNode } from '../nodes/ImageNode';
+import { GroupNode } from '../nodes/GroupNode';
 import { TraceNode } from '../nodes/TraceNode';
 import {
   activeNodeId,
@@ -44,6 +45,8 @@ function renderNodeContent(node: CanvasNodeState) {
       return <FileNode node={node} />;
     case 'image':
       return <ImageNode node={node} />;
+    case 'group':
+      return <GroupNode node={node} />;
     default:
       return <div>Unknown node type</div>;
   }
@@ -325,7 +328,11 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
   // Do NOT sort by zIndex here — CSS z-index handles visual stacking. Sorting would
   // reorder DOM children when bringToFront() changes zIndex, causing browsers to
   // detach/reattach iframe elements (which forces them to reload/reconnect).
-  const worldNodes = Array.from(nodes.value.values()).filter((n) => n.dockPosition === null);
+  // Group nodes render first (behind) so they serve as visual containers.
+  const allWorldNodes = Array.from(nodes.value.values()).filter((n) => n.dockPosition === null);
+  const groupNodes = allWorldNodes.filter((n) => n.type === 'group');
+  const regularNodes = allWorldNodes.filter((n) => n.type !== 'group');
+  const worldNodes = [...groupNodes, ...regularNodes];
 
   // Compute lasso overlay rect in screen space
   let lassoStyle: Record<string, string> | null = null;

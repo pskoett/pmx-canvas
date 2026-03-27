@@ -163,15 +163,17 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const isPinned = node.pinned;
   const isTrace = node.type === 'trace';
   const isTraceRunning = isTrace && node.data.status === 'running';
+  const isGroup = node.type === 'group';
 
-  const nodeStyle = {
+  const groupColor = isGroup && node.data.color ? (node.data.color as string) : undefined;
+  const nodeStyle: Record<string, string | number> = {
     left: `${node.position.x}px`,
     top: `${node.position.y}px`,
     width: `${node.size.width}px`,
     height: node.collapsed ? 'auto' : `${node.size.height}px`,
     zIndex: node.zIndex,
+    ...(groupColor ? { '--group-color': groupColor } : {}),
   };
-
   const nodeClass = [
     'canvas-node',
     isActive ? 'active' : '',
@@ -183,6 +185,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     isPinned ? 'pinned' : '',
     isTrace ? 'trace-node' : '',
     isTraceRunning ? 'trace-running' : '',
+    isGroup ? 'group-node' : '',
   ]
     .filter(Boolean)
     .join(' ');
