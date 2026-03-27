@@ -409,6 +409,31 @@ class CanvasStateManager {
     const existing = this.nodes.get(id);
     const connectedEdges = existing ? this.getEdgesForNode(id).map((e) => structuredClone(e)) : [];
     const cloned = existing ? structuredClone(existing) : null;
+
+    // Prune from parent group's children list
+    if (existing) {
+      const parentGroupId = existing.data.parentGroup as string | undefined;
+      if (parentGroupId) {
+        const parent = this.nodes.get(parentGroupId);
+        if (parent && parent.type === 'group') {
+          const children = (parent.data.children as string[]) ?? [];
+          const pruned = children.filter((cid) => cid !== id);
+          this.nodes.set(parentGroupId, { ...parent, data: { ...parent.data, children: pruned } });
+        }
+      }
+      // If removing a group, clear parentGroup on all its children
+      if (existing.type === 'group') {
+        const childIds = (existing.data.children as string[]) ?? [];
+        for (const cid of childIds) {
+          const child = this.nodes.get(cid);
+          if (!child) continue;
+          const d = { ...child.data };
+          delete d.parentGroup;
+          this.nodes.set(cid, { ...child, data: d });
+        }
+      }
+    }
+
     this.nodes.delete(id);
     this.removeEdgesForNode(id);
     this.scheduleSave();

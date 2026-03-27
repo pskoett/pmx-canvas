@@ -7,7 +7,6 @@ interface GroupNodeProps {
 
 export function GroupNode({ node }: GroupNodeProps) {
   const childIds = (node.data.children as string[]) ?? [];
-  const color = (node.data.color as string) || 'var(--c-accent)';
   const allNodes = nodes.value;
 
   // Count how many children actually exist
@@ -25,7 +24,7 @@ export function GroupNode({ node }: GroupNodeProps) {
     .join(', ');
 
   return (
-    <div class="group-node-body" style={{ '--group-color': color } as Record<string, string>}>
+    <div class="group-node-body">
       <div class="group-summary">
         <span class="group-child-count">{childCount} node{childCount !== 1 ? 's' : ''}</span>
         {typeSummary && <span class="group-type-summary">{typeSummary}</span>}

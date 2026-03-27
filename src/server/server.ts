@@ -31,7 +31,7 @@ import { marked } from 'marked';
 import { type CanvasEdge, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
-import { findOpenCanvasPosition } from './placement.js';
+import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import { mutationHistory } from './mutation-history.js';
 import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
@@ -641,28 +641,22 @@ async function handleCanvasCreateGroup(req: Request): Promise<Response> {
   const width = typeof body.width === 'number' ? body.width : undefined;
   const height = typeof body.height === 'number' ? body.height : undefined;
 
-  const PAD = 40;
   let gx = x;
   let gy = y;
   let gw = width ?? 600;
   let gh = height ?? 400;
 
-  // Auto-size from children
+  // Auto-size from children using shared helper
   if (childIds.length > 0 && gx === undefined && gy === undefined) {
-    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-    for (const cid of childIds) {
-      const child = canvasState.getNode(cid);
-      if (!child) continue;
-      minX = Math.min(minX, child.position.x);
-      minY = Math.min(minY, child.position.y);
-      maxX = Math.max(maxX, child.position.x + child.size.width);
-      maxY = Math.max(maxY, child.position.y + child.size.height);
-    }
-    if (minX !== Infinity) {
-      gx = minX - PAD;
-      gy = minY - PAD - 32;
-      gw = maxX - minX + PAD * 2;
-      gh = maxY - minY + PAD * 2 + 32;
+    const childRects = childIds
+      .map((cid: string) => canvasState.getNode(cid))
+      .filter((n): n is CanvasNodeState => n !== undefined);
+    const bounds = computeGroupBounds(childRects);
+    if (bounds) {
+      gx = bounds.x;
+      gy = bounds.y;
+      gw = bounds.width;
+      gh = bounds.height;
     }
   }
 

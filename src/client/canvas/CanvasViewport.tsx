@@ -329,10 +329,16 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
   // reorder DOM children when bringToFront() changes zIndex, causing browsers to
   // detach/reattach iframe elements (which forces them to reload/reconnect).
   // Group nodes render first (behind) so they serve as visual containers.
-  const allWorldNodes = Array.from(nodes.value.values()).filter((n) => n.dockPosition === null);
-  const groupNodes = allWorldNodes.filter((n) => n.type === 'group');
-  const regularNodes = allWorldNodes.filter((n) => n.type !== 'group');
-  const worldNodes = [...groupNodes, ...regularNodes];
+  const worldNodes: CanvasNodeState[] = [];
+  let insertIdx = 0; // groups fill from the front
+  for (const n of nodes.value.values()) {
+    if (n.dockPosition !== null) continue;
+    if (n.type === 'group') {
+      worldNodes.splice(insertIdx++, 0, n);
+    } else {
+      worldNodes.push(n);
+    }
+  }
 
   // Compute lasso overlay rect in screen space
   let lassoStyle: Record<string, string> | null = null;

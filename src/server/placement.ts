@@ -38,6 +38,37 @@ function findBlocker(
   return existing.find((rect) => rectsOverlap(pos, width, height, rect, gap));
 }
 
+const GROUP_PAD = 40;
+const GROUP_TITLEBAR_HEIGHT = 32;
+
+/**
+ * Compute bounding box for a group that should contain the given child rects.
+ * Returns position and size with padding, or null if no valid children.
+ */
+export function computeGroupBounds(
+  children: CanvasPlacementRect[],
+  defaultWidth = 600,
+  defaultHeight = 400,
+): { x: number; y: number; width: number; height: number } | null {
+  if (children.length === 0) return null;
+
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const child of children) {
+    minX = Math.min(minX, child.position.x);
+    minY = Math.min(minY, child.position.y);
+    maxX = Math.max(maxX, child.position.x + child.size.width);
+    maxY = Math.max(maxY, child.position.y + child.size.height);
+  }
+  if (minX === Infinity) return null;
+
+  return {
+    x: minX - GROUP_PAD,
+    y: minY - GROUP_PAD - GROUP_TITLEBAR_HEIGHT,
+    width: maxX - minX + GROUP_PAD * 2,
+    height: maxY - minY + GROUP_PAD * 2 + GROUP_TITLEBAR_HEIGHT,
+  };
+}
+
 export function findOpenCanvasPosition(
   existing: CanvasPlacementRect[],
   width: number,

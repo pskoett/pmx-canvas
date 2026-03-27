@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { canvasState, IMAGE_MIME_MAP } from './canvas-state.js';
 import type { CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
 import { watchFileForNode, unwatchFileForNode, onFileNodeChanged } from './file-watcher.js';
-import { findOpenCanvasPosition } from './placement.js';
+import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
 import { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
@@ -228,29 +228,23 @@ export class PmxCanvas extends EventEmitter {
     height?: number;
     color?: string;
   }): string {
-    const PAD = 40;
     let x = input.x;
     let y = input.y;
     let width = input.width ?? 600;
     let height = input.height ?? 400;
 
-    // If child IDs provided, compute bounding box
+    // Auto-size from children if position not explicit
     const childIds = input.childIds ?? [];
     if (childIds.length > 0 && x === undefined && y === undefined) {
-      let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
-      for (const cid of childIds) {
-        const child = canvasState.getNode(cid);
-        if (!child) continue;
-        minX = Math.min(minX, child.position.x);
-        minY = Math.min(minY, child.position.y);
-        maxX = Math.max(maxX, child.position.x + child.size.width);
-        maxY = Math.max(maxY, child.position.y + child.size.height);
-      }
-      if (minX !== Infinity) {
-        x = minX - PAD;
-        y = minY - PAD - 32; // extra space for group title bar
-        width = maxX - minX + PAD * 2;
-        height = maxY - minY + PAD * 2 + 32;
+      const childRects = childIds
+        .map((cid) => canvasState.getNode(cid))
+        .filter((n): n is CanvasNodeState => n !== undefined);
+      const bounds = computeGroupBounds(childRects);
+      if (bounds) {
+        x = bounds.x;
+        y = bounds.y;
+        width = bounds.width;
+        height = bounds.height;
       }
     }
 
