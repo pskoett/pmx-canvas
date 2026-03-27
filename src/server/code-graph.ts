@@ -164,6 +164,9 @@ function tryResolveWithExtensions(basePath: string): string | null {
 /** Prefix for auto-generated code graph edge IDs */
 const AUTO_EDGE_PREFIX = 'codegraph-';
 
+/** Cache of last recomputed edges for buildCodeGraphSummary() to reuse. */
+let _lastDiscoveredEdges: CodeGraphEdge[] = [];
+
 /**
  * Get all file nodes currently on the canvas.
  */
@@ -172,11 +175,11 @@ function getFileNodes(): CanvasNodeState[] {
 }
 
 /**
- * Build a map of absolute file path → node ID for all file nodes.
+ * Build a map of absolute file path → node ID for the given file nodes.
  */
-function buildPathIndex(): Map<string, string> {
+function buildPathIndex(fileNodes?: CanvasNodeState[]): Map<string, string> {
   const index = new Map<string, string>();
-  for (const node of getFileNodes()) {
+  for (const node of (fileNodes ?? getFileNodes())) {
     index.set(node.data.path as string, node.id);
   }
   return index;
@@ -190,7 +193,7 @@ function buildPathIndex(): Map<string, string> {
  */
 export function recomputeCodeGraph(): CodeGraphEdge[] {
   const fileNodes = getFileNodes();
-  const pathIndex = buildPathIndex();
+  const pathIndex = buildPathIndex(fileNodes);
   const discoveredEdges: CodeGraphEdge[] = [];
 
   // Parse imports for each file node and resolve to other file nodes
@@ -223,8 +226,7 @@ export function recomputeCodeGraph(): CodeGraphEdge[] {
   const discoveredKeys = new Set(discoveredEdges.map((e) => `${e.fromNodeId}->${e.toNodeId}`));
 
   // Suppress mutation recording for auto-edge management (these are computed, not user actions)
-  canvasState._suppressRecording = true;
-  try {
+  canvasState.withSuppressedRecording(() => {
     for (const edge of existingAutoEdges) {
       const key = `${edge.from}->${edge.to}`;
       if (!discoveredKeys.has(key)) {
@@ -248,10 +250,9 @@ export function recomputeCodeGraph(): CodeGraphEdge[] {
         style: 'dashed',
       });
     }
-  } finally {
-    canvasState._suppressRecording = false;
-  }
+  });
 
+  _lastDiscoveredEdges = discoveredEdges;
   return discoveredEdges;
 }
 
@@ -278,20 +279,15 @@ export function buildCodeGraphSummary(): CodeGraphSummary {
     incoming.get(edge.to)?.add(edge.from);
   }
 
-  // Parse import specifiers for the summary
-  const pathIndex = buildPathIndex();
+  // Use cached discovered edges from last recomputeCodeGraph() to avoid re-parsing
   const idToPath = new Map<string, string>();
-  for (const [path, id] of pathIndex) idToPath.set(id, path);
+  for (const node of fileNodes) idToPath.set(node.id, node.data.path as string);
 
-  for (const node of fileNodes) {
-    const content = (node.data.fileContent as string) ?? '';
-    const filePath = node.data.path as string;
-    if (content) {
-      const specs = parseImports(content, filePath).filter((spec) => {
-        const resolved = resolveImportPath(spec, filePath);
-        return resolved && pathIndex.has(resolved);
-      });
-      importSpecs.set(node.id, specs);
+  // Group import specifiers by source node from cached edges
+  for (const edge of _lastDiscoveredEdges) {
+    const specs = importSpecs.get(edge.fromNodeId);
+    if (specs && !specs.includes(edge.importSpecifier)) {
+      specs.push(edge.importSpecifier);
     }
   }
 

@@ -45,7 +45,7 @@ export class PmxCanvas extends EventEmitter {
     canvasState.onMutation((info) => {
       mutationHistory.record({
         description: info.description,
-        operationType: info.operationType as any,
+        operationType: info.operationType,
         forward: info.forward,
         inverse: info.inverse,
       });
@@ -215,6 +215,11 @@ export class PmxCanvas extends EventEmitter {
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   }
 
+  clear(): void {
+    canvasState.clear();
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  }
+
   arrange(layout?: 'grid' | 'column' | 'flow'): void {
     const nodes = canvasState.getLayout().nodes;
     const mode = layout ?? 'grid';
@@ -224,8 +229,7 @@ export class PmxCanvas extends EventEmitter {
     const oldPositions = nodes.map((n) => ({ id: n.id, position: { ...n.position } }));
 
     // Suppress individual updateNode recordings — we'll record one batch entry
-    canvasState._suppressRecording = true;
-    try {
+    canvasState.withSuppressedRecording(() => {
       if (mode === 'column') {
         let y = 80;
         for (const node of nodes) {
@@ -239,7 +243,6 @@ export class PmxCanvas extends EventEmitter {
           x += node.size.width + gap;
         }
       } else {
-        // grid
         const cols = Math.max(1, Math.floor(1440 / (360 + gap)));
         let col = 0;
         let rowY = 80;
@@ -256,25 +259,22 @@ export class PmxCanvas extends EventEmitter {
           }
         }
       }
-    } finally {
-      canvasState._suppressRecording = false;
-    }
+    });
 
-    // Record as one compound mutation
-    const newPositions = canvasState.getLayout().nodes.map((n) => ({ id: n.id, position: { ...n.position } }));
+    // Record as one compound mutation — capture new positions directly to avoid extra getLayout()
+    const newPositions = nodes.map((n) => {
+      const updated = canvasState.getNode(n.id);
+      return { id: n.id, position: updated ? { ...updated.position } : { ...n.position } };
+    });
     mutationHistory.record({
       description: `Auto-arranged ${nodes.length} nodes (${mode})`,
       operationType: 'arrange',
-      forward: () => {
-        canvasState._suppressRecording = true;
-        try { for (const p of newPositions) canvasState.updateNode(p.id, { position: p.position }); }
-        finally { canvasState._suppressRecording = false; }
-      },
-      inverse: () => {
-        canvasState._suppressRecording = true;
-        try { for (const p of oldPositions) canvasState.updateNode(p.id, { position: p.position }); }
-        finally { canvasState._suppressRecording = false; }
-      },
+      forward: () => canvasState.withSuppressedRecording(() => {
+        for (const p of newPositions) canvasState.updateNode(p.id, { position: p.position });
+      }),
+      inverse: () => canvasState.withSuppressedRecording(() => {
+        for (const p of oldPositions) canvasState.updateNode(p.id, { position: p.position });
+      }),
     });
 
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
