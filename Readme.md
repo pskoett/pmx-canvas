@@ -84,8 +84,52 @@ The MCP server emits `notifications/resources/updated` when canvas state changes
 
 This closes the human-to-agent loop: humans pin nodes in the browser, agents are notified immediately and can re-read the updated context.
 
+### Spatial Semantics
+
+The canvas understands spatial arrangement and exposes it to agents. When a human drags three file nodes next to a bug report, the agent knows they're grouped — not just pinned.
+
+- **`canvas://spatial-context`** — proximity clusters, reading order, and pinned neighborhoods
+- **`canvas://pinned-context`** — now includes nearby unpinned nodes for each pin (the human's implicit context)
+- **`canvas_search`** — find nodes by title/content keywords instead of parsing the full layout
+
+```bash
+# Get spatial analysis via HTTP
+curl http://localhost:4313/api/canvas/spatial-context
+
+# Search nodes
+curl "http://localhost:4313/api/canvas/search?q=auth"
+```
+
+### Time Travel
+
+Every canvas mutation is recorded with undo/redo support. Explore approaches, backtrack when wrong, and understand how the canvas evolved.
+
+- **`canvas_undo`** / **`canvas_redo`** — step through mutation history
+- **`canvas://history`** — readable timeline of all mutations this session
+- **`canvas_diff`** — compare current state vs any saved snapshot
+
+```bash
+# Undo the last change
+curl -X POST http://localhost:4313/api/canvas/undo
+
+# View mutation history
+curl http://localhost:4313/api/canvas/history
+```
+
+### Code Graph
+
+File nodes automatically detect import dependencies between each other. Add file nodes and watch `depends-on` edges appear as the system parses `import`/`require`/`from` statements across JS/TS, Python, Go, and Rust.
+
+- **`canvas://code-graph`** — dependency structure with central files, isolated files, and import chains
+- Auto-edges update live when files change on disk
+
+```bash
+# View auto-detected dependencies
+curl http://localhost:4313/api/canvas/code-graph
+```
+
 ### Integration (4 paths)
-- **MCP Server** — 13 tools + 3 resources, auto-starts canvas on first tool call. Zero-config for any MCP-capable agent.
+- **MCP Server** — 17 tools + 6 resources, auto-starts canvas on first tool call. Zero-config for any MCP-capable agent.
 - **HTTP API** — REST endpoints for all canvas operations + SSE event stream. Works from any language.
 - **Node.js SDK** — `createCanvas()` for programmatic control from Bun/Node.js.
 - **Agent Skill** — SKILL.md teaches agents the HTTP API. Works in Claude Code, Cowork, and any skill-aware agent.
@@ -151,14 +195,21 @@ Add to your agent's MCP config — the canvas auto-starts on first tool call:
 | `canvas_clear` | Clear all nodes and edges |
 | `canvas_snapshot` | Save current canvas as a named snapshot |
 | `canvas_restore` | Restore canvas from a saved snapshot |
+| `canvas_search` | Find nodes by title/content keywords (ranked by relevance) |
+| `canvas_undo` | Undo the last canvas mutation |
+| `canvas_redo` | Redo the last undone mutation |
+| `canvas_diff` | Compare current canvas vs a saved snapshot |
 
 **MCP Resources:**
 
 | Resource | Description |
 |----------|------------|
-| `canvas://pinned-context` | Content of pinned nodes — the human's curated context for the agent |
+| `canvas://pinned-context` | Content of pinned nodes + nearby unpinned neighbors |
 | `canvas://layout` | Full canvas state (all nodes, edges, viewport) |
 | `canvas://summary` | Compact overview: counts, pinned titles, viewport |
+| `canvas://spatial-context` | Spatial intelligence: proximity clusters, reading order, pinned neighborhoods |
+| `canvas://history` | Mutation history timeline with undo/redo position |
+| `canvas://code-graph` | Auto-detected file dependency graph (imports between file nodes) |
 
 ### CLI
 
@@ -250,7 +301,7 @@ Copy `skills/pmx-canvas/` into your project's `.claude/skills/` directory.
 ```
 Agent (Claude Code / Codex / Cursor / pi / any)
   |
-  |-- MCP Server ---- 13 tools + 3 resources + change notifications
+  |-- MCP Server ---- 17 tools + 6 resources + change notifications
   |-- Node.js SDK --- createCanvas()
   |-- HTTP API ------ curl localhost:4313/api/...
   |-- Skill file ---- SKILL.md

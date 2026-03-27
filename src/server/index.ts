@@ -5,6 +5,9 @@ import { canvasState } from './canvas-state.js';
 import type { CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
 import { watchFileForNode, unwatchFileForNode, onFileNodeChanged } from './file-watcher.js';
 import { findOpenCanvasPosition } from './placement.js';
+import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
+import { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
+import { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import {
   startCanvasServer,
   stopCanvasServer,
@@ -23,6 +26,7 @@ import type {
 export class PmxCanvas extends EventEmitter {
   private _port: number;
   private _server: string | null = null;
+  private _codeGraphTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options?: { port?: number }) {
     super();
@@ -37,6 +41,16 @@ export class PmxCanvas extends EventEmitter {
     this._server = base;
     this._port = getCanvasServerPort() ?? this._port;
 
+    // Wire up mutation history recorder
+    canvasState.onMutation((info) => {
+      mutationHistory.record({
+        description: info.description,
+        operationType: info.operationType as any,
+        forward: info.forward,
+        inverse: info.inverse,
+      });
+    });
+
     // Wire up prompt handler to emit events
     setPrimaryWorkbenchCanvasPromptHandler(async (request) => {
       this.emit('prompt', request);
@@ -45,6 +59,8 @@ export class PmxCanvas extends EventEmitter {
     // Wire up file watcher: push SSE updates when watched files change
     onFileNodeChanged(() => {
       emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+      // Recompute code graph when a watched file changes (debounced)
+      this._scheduleCodeGraphRecompute();
     });
 
     // Re-watch files for any file nodes restored from persistence
@@ -53,6 +69,9 @@ export class PmxCanvas extends EventEmitter {
         watchFileForNode(node.id, node.data.path);
       }
     }
+
+    // Initial code graph computation for restored file nodes
+    this._scheduleCodeGraphRecompute();
 
     if (options?.open !== false) {
       openUrlInExternalBrowser(`${base}/workbench`);
@@ -126,6 +145,10 @@ export class PmxCanvas extends EventEmitter {
     }
 
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+
+    // Recompute code graph when file nodes are added
+    if (input.type === 'file') this._scheduleCodeGraphRecompute();
+
     return id;
   }
 
@@ -135,9 +158,13 @@ export class PmxCanvas extends EventEmitter {
   }
 
   removeNode(id: string): void {
+    const wasFile = canvasState.getNode(id)?.type === 'file';
     unwatchFileForNode(id);
     canvasState.removeNode(id);
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+
+    // Recompute code graph when file nodes are removed
+    if (wasFile) this._scheduleCodeGraphRecompute();
   }
 
   addEdge(input: {
@@ -169,36 +196,63 @@ export class PmxCanvas extends EventEmitter {
     const mode = layout ?? 'grid';
     const gap = 24;
 
-    if (mode === 'column') {
-      let y = 80;
-      for (const node of nodes) {
-        canvasState.updateNode(node.id, { position: { x: 40, y } });
-        y += node.size.height + gap;
-      }
-    } else if (mode === 'flow') {
-      let x = 40;
-      for (const node of nodes) {
-        canvasState.updateNode(node.id, { position: { x, y: 80 } });
-        x += node.size.width + gap;
-      }
-    } else {
-      // grid
-      const cols = Math.max(1, Math.floor(1440 / (360 + gap)));
-      let col = 0;
-      let rowY = 80;
-      let rowMaxHeight = 0;
-      for (const node of nodes) {
-        const x = 40 + col * (360 + gap);
-        canvasState.updateNode(node.id, { position: { x, y: rowY } });
-        rowMaxHeight = Math.max(rowMaxHeight, node.size.height);
-        col++;
-        if (col >= cols) {
-          col = 0;
-          rowY += rowMaxHeight + gap;
-          rowMaxHeight = 0;
+    // Capture old positions for a single compound undo entry
+    const oldPositions = nodes.map((n) => ({ id: n.id, position: { ...n.position } }));
+
+    // Suppress individual updateNode recordings — we'll record one batch entry
+    canvasState._suppressRecording = true;
+    try {
+      if (mode === 'column') {
+        let y = 80;
+        for (const node of nodes) {
+          canvasState.updateNode(node.id, { position: { x: 40, y } });
+          y += node.size.height + gap;
+        }
+      } else if (mode === 'flow') {
+        let x = 40;
+        for (const node of nodes) {
+          canvasState.updateNode(node.id, { position: { x, y: 80 } });
+          x += node.size.width + gap;
+        }
+      } else {
+        // grid
+        const cols = Math.max(1, Math.floor(1440 / (360 + gap)));
+        let col = 0;
+        let rowY = 80;
+        let rowMaxHeight = 0;
+        for (const node of nodes) {
+          const x = 40 + col * (360 + gap);
+          canvasState.updateNode(node.id, { position: { x, y: rowY } });
+          rowMaxHeight = Math.max(rowMaxHeight, node.size.height);
+          col++;
+          if (col >= cols) {
+            col = 0;
+            rowY += rowMaxHeight + gap;
+            rowMaxHeight = 0;
+          }
         }
       }
+    } finally {
+      canvasState._suppressRecording = false;
     }
+
+    // Record as one compound mutation
+    const newPositions = canvasState.getLayout().nodes.map((n) => ({ id: n.id, position: { ...n.position } }));
+    mutationHistory.record({
+      description: `Auto-arranged ${nodes.length} nodes (${mode})`,
+      operationType: 'arrange',
+      forward: () => {
+        canvasState._suppressRecording = true;
+        try { for (const p of newPositions) canvasState.updateNode(p.id, { position: p.position }); }
+        finally { canvasState._suppressRecording = false; }
+      },
+      inverse: () => {
+        canvasState._suppressRecording = true;
+        try { for (const p of oldPositions) canvasState.updateNode(p.id, { position: p.position }); }
+        finally { canvasState._suppressRecording = false; }
+      },
+    });
+
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   }
 
@@ -218,6 +272,62 @@ export class PmxCanvas extends EventEmitter {
 
   getNode(id: string): CanvasNodeState | undefined {
     return canvasState.getNode(id);
+  }
+
+  search(query: string): ReturnType<typeof searchNodes> {
+    return searchNodes(canvasState.getLayout().nodes, query);
+  }
+
+  getSpatialContext() {
+    const layout = canvasState.getLayout();
+    return buildSpatialContext(layout.nodes, layout.edges, canvasState.contextPinnedNodeIds);
+  }
+
+  undo(): { ok: boolean; description?: string } {
+    const entry = mutationHistory.undo();
+    if (!entry) return { ok: false, description: 'Nothing to undo' };
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return { ok: true, description: `Undid: ${entry.description}` };
+  }
+
+  redo(): { ok: boolean; description?: string } {
+    const entry = mutationHistory.redo();
+    if (!entry) return { ok: false, description: 'Nothing to redo' };
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return { ok: true, description: `Redid: ${entry.description}` };
+  }
+
+  getHistory() {
+    return {
+      text: mutationHistory.toHumanReadable(),
+      entries: mutationHistory.getSummaries(),
+      canUndo: mutationHistory.canUndo(),
+      canRedo: mutationHistory.canRedo(),
+    };
+  }
+
+  diffSnapshot(idOrName: string): { ok: boolean; text?: string; diff?: ReturnType<typeof diffLayouts>; error?: string } {
+    const snapData = canvasState.getSnapshotData(idOrName);
+    if (!snapData) return { ok: false, error: `Snapshot "${idOrName}" not found` };
+
+    const current = canvasState.getLayout();
+    const diff = diffLayouts(snapData.name, snapData, current);
+    return { ok: true, text: formatDiff(diff), diff };
+  }
+
+  getCodeGraph() {
+    const summary = buildCodeGraphSummary();
+    return { text: formatCodeGraph(summary), summary };
+  }
+
+  /** Debounced code graph recomputation (300ms). */
+  private _scheduleCodeGraphRecompute(): void {
+    if (this._codeGraphTimer) clearTimeout(this._codeGraphTimer);
+    this._codeGraphTimer = setTimeout(() => {
+      this._codeGraphTimer = null;
+      recomputeCodeGraph();
+      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    }, 300);
   }
 
   get port(): number {
@@ -247,4 +357,10 @@ export {
 export { canvasState } from './canvas-state.js';
 export type { CanvasSnapshot } from './canvas-state.js';
 export { findOpenCanvasPosition } from './placement.js';
+export { searchNodes, buildSpatialContext, detectClusters, findNeighborhoods } from './spatial-analysis.js';
+export type { SpatialCluster, SpatialContext, SpatialNeighbor, NodeSpatialInfo } from './spatial-analysis.js';
+export { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
+export { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
+export type { CodeGraphSummary, CodeGraphEdge } from './code-graph.js';
+export type { MutationEntry, MutationSummary, SnapshotDiffResult } from './mutation-history.js';
 export { traceManager } from './trace-manager.js';

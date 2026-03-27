@@ -24,6 +24,9 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { createCanvas, canvasState, type PmxCanvas } from '../server/index.js';
+import { searchNodes, buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
+import { mutationHistory, diffLayouts, formatDiff } from '../server/mutation-history.js';
+import { buildCodeGraphSummary, formatCodeGraph } from '../server/code-graph.js';
 
 let canvas: PmxCanvas | null = null;
 
@@ -240,6 +243,86 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
+  // ── canvas_search ───────────────────────────────────────────
+  server.tool(
+    'canvas_search',
+    'Search for nodes by title or content keywords. Returns matching nodes ranked by relevance with snippets. Much faster than reading the full layout when you need to find specific nodes.',
+    {
+      query: z.string().describe('Search query — matches against node titles, content, and file paths'),
+      limit: z.number().optional().describe('Max results to return (default: 10)'),
+    },
+    async ({ query, limit }) => {
+      await ensureCanvas();
+      const results = searchNodes(canvasState.getLayout().nodes, query);
+      const capped = results.slice(0, limit ?? 10);
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ query, resultCount: results.length, results: capped }, null, 2),
+        }],
+      };
+    },
+  );
+
+  // ── canvas_undo ────────────────────────────────────────────────
+  server.tool(
+    'canvas_undo',
+    'Undo the last canvas mutation. Returns a description of what was undone. Use this to backtrack when an approach is wrong — explore without fear.',
+    {},
+    async () => {
+      const c = await ensureCanvas();
+      const entry = mutationHistory.undo();
+      if (!entry) {
+        return { content: [{ type: 'text', text: JSON.stringify({ ok: false, description: 'Nothing to undo' }) }] };
+      }
+      const { emitPrimaryWorkbenchEvent } = await import('../server/server.js');
+      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, undid: entry.description, canUndo: mutationHistory.canUndo(), canRedo: mutationHistory.canRedo() }) }],
+      };
+    },
+  );
+
+  // ── canvas_redo ────────────────────────────────────────────────
+  server.tool(
+    'canvas_redo',
+    'Redo the last undone canvas mutation. Use after undo to re-apply a change.',
+    {},
+    async () => {
+      const c = await ensureCanvas();
+      const entry = mutationHistory.redo();
+      if (!entry) {
+        return { content: [{ type: 'text', text: JSON.stringify({ ok: false, description: 'Nothing to redo' }) }] };
+      }
+      const { emitPrimaryWorkbenchEvent } = await import('../server/server.js');
+      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, redid: entry.description, canUndo: mutationHistory.canUndo(), canRedo: mutationHistory.canRedo() }) }],
+      };
+    },
+  );
+
+  // ── canvas_diff ────────────────────────────────────────────────
+  server.tool(
+    'canvas_diff',
+    'Compare the current canvas state against a saved snapshot. Shows added/removed/modified nodes and edges. Pass either a snapshot name or ID.',
+    {
+      snapshot: z.string().describe('Snapshot name or ID to compare against'),
+    },
+    async ({ snapshot }) => {
+      await ensureCanvas();
+      const snapData = canvasState.getSnapshotData(snapshot);
+      if (!snapData) {
+        return { content: [{ type: 'text', text: `Snapshot "${snapshot}" not found. Use canvas_snapshot to save one first.` }], isError: true };
+      }
+      const current = canvasState.getLayout();
+      const diff = diffLayouts(snapData.name, snapData, current);
+      return {
+        content: [{ type: 'text', text: formatDiff(diff) }],
+      };
+    },
+  );
+
   // ── MCP Resources: Canvas as Context ──────────────────────────
   //
   // The human pins nodes on the canvas → those nodes become the agent's
@@ -266,6 +349,9 @@ export async function startMcpServer(): Promise<void> {
         (e) => pinnedIds.has(e.from) && pinnedIds.has(e.to),
       );
 
+      // Compute neighborhoods: for each pinned node, find nearby unpinned nodes
+      const neighborhoods = findNeighborhoods(layout.nodes, pinnedIds);
+
       const context = {
         pinnedCount: pinnedNodes.length,
         nodes: pinnedNodes.map((n) => ({
@@ -282,6 +368,11 @@ export async function startMcpServer(): Promise<void> {
           to: e.to,
           type: e.type,
           label: e.label ?? null,
+        })),
+        neighborhoods: neighborhoods.map((nh) => ({
+          pinnedNodeId: nh.pinnedNodeId,
+          pinnedNodeTitle: nh.pinnedNodeTitle,
+          nearbyNodes: nh.neighbors,
         })),
       };
 
@@ -358,6 +449,84 @@ export async function startMcpServer(): Promise<void> {
         contents: [
           {
             uri: 'canvas://summary',
+            mimeType: 'application/json',
+            text: JSON.stringify(summary, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.resource(
+    'spatial-context',
+    'canvas://spatial-context',
+    {
+      description:
+        'Spatial intelligence for the canvas. Detects proximity clusters (nodes the human ' +
+        'grouped together), provides reading order (top-left to bottom-right), and shows ' +
+        'neighborhoods around pinned nodes (nearby unpinned nodes the human implicitly associated). ' +
+        'This makes "spatial arrangement is communication" real — read this to understand the ' +
+        'human\'s spatial intent, not just which nodes are pinned.',
+      mimeType: 'application/json',
+    },
+    async () => {
+      await ensureCanvas();
+      const layout = canvasState.getLayout();
+      const spatial = buildSpatialContext(layout.nodes, layout.edges, canvasState.contextPinnedNodeIds);
+      return {
+        contents: [
+          {
+            uri: 'canvas://spatial-context',
+            mimeType: 'application/json',
+            text: JSON.stringify(spatial, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.resource(
+    'history',
+    'canvas://history',
+    {
+      description:
+        'Mutation history timeline for the canvas. Shows what changed and when, ' +
+        'with undo/redo position. Read this to understand how the canvas evolved ' +
+        'during this session — useful for metacognition and tracking your own actions.',
+      mimeType: 'text/plain',
+    },
+    async () => {
+      await ensureCanvas();
+      return {
+        contents: [
+          {
+            uri: 'canvas://history',
+            mimeType: 'text/plain',
+            text: mutationHistory.toHumanReadable(),
+          },
+        ],
+      };
+    },
+  );
+
+  server.resource(
+    'code-graph',
+    'canvas://code-graph',
+    {
+      description:
+        'Auto-detected dependency graph between file nodes on the canvas. Shows which files import ' +
+        'which other files, central files (most depended on), and isolated files. Dependencies are ' +
+        'parsed from import/require/from statements in JS/TS/Python/Go/Rust. Edges are created and ' +
+        'updated automatically as file nodes are added or files change.',
+      mimeType: 'application/json',
+    },
+    async () => {
+      await ensureCanvas();
+      const summary = buildCodeGraphSummary();
+      return {
+        contents: [
+          {
+            uri: 'canvas://code-graph',
             mimeType: 'application/json',
             text: JSON.stringify(summary, null, 2),
           },
@@ -453,6 +622,9 @@ export async function startMcpServer(): Promise<void> {
       }
       server.server.sendResourceUpdated({ uri: 'canvas://layout' });
       server.server.sendResourceUpdated({ uri: 'canvas://summary' });
+      server.server.sendResourceUpdated({ uri: 'canvas://spatial-context' });
+      server.server.sendResourceUpdated({ uri: 'canvas://history' });
+      server.server.sendResourceUpdated({ uri: 'canvas://code-graph' });
     } catch {
       // Notification failures are non-fatal (e.g., client disconnected)
     }
