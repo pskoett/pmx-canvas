@@ -158,11 +158,21 @@ Three themes: `dark` (default), `light`, `high-contrast`. Set via:
 
 ## MCP Server
 
-13 tools: `canvas_add_node`, `canvas_update_node`, `canvas_remove_node`, `canvas_get_layout`, `canvas_get_node`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_pin_nodes`, `canvas_clear`, `canvas_snapshot`, `canvas_restore`
+14 tools: `canvas_add_node`, `canvas_update_node`, `canvas_remove_node`, `canvas_get_layout`, `canvas_get_node`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_pin_nodes`, `canvas_clear`, `canvas_snapshot`, `canvas_restore`, `canvas_search`
 
-3 resources: `canvas://pinned-context`, `canvas://layout`, `canvas://summary`
+4 resources: `canvas://pinned-context`, `canvas://layout`, `canvas://summary`, `canvas://spatial-context`
 
-Resource change notifications: the MCP server emits `notifications/resources/updated` when canvas state changes. Pin changes notify `canvas://pinned-context`; all mutations notify `canvas://layout` and `canvas://summary`. This enables real-time human→agent collaboration — humans pin nodes in the browser, agents are notified immediately.
+Resource change notifications: the MCP server emits `notifications/resources/updated` when canvas state changes. Pin changes notify `canvas://pinned-context`; all mutations notify `canvas://layout`, `canvas://summary`, and `canvas://spatial-context`. This enables real-time human→agent collaboration — humans pin nodes in the browser, agents are notified immediately.
+
+### Spatial Semantics Layer
+
+The canvas exposes spatial intelligence to agents via `canvas://spatial-context`:
+- **Proximity clusters**: Automatically detects nodes grouped together on the canvas
+- **Reading order**: Nodes sorted top-left to bottom-right (how humans read)
+- **Pinned neighborhoods**: For each pinned node, lists nearby unpinned nodes (the human's implicit context)
+- **`canvas://pinned-context`** now includes neighborhood data — nearby unpinned nodes for each pin
+
+Use `canvas_search` to find nodes by title/content keywords instead of parsing the full layout.
 
 ## Integration Paths
 

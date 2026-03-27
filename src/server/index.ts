@@ -5,6 +5,7 @@ import { canvasState } from './canvas-state.js';
 import type { CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
 import { watchFileForNode, unwatchFileForNode, onFileNodeChanged } from './file-watcher.js';
 import { findOpenCanvasPosition } from './placement.js';
+import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import {
   startCanvasServer,
   stopCanvasServer,
@@ -220,6 +221,15 @@ export class PmxCanvas extends EventEmitter {
     return canvasState.getNode(id);
   }
 
+  search(query: string): ReturnType<typeof searchNodes> {
+    return searchNodes(canvasState.getLayout().nodes, query);
+  }
+
+  getSpatialContext() {
+    const layout = canvasState.getLayout();
+    return buildSpatialContext(layout.nodes, layout.edges, canvasState.contextPinnedNodeIds);
+  }
+
   get port(): number {
     return this._port;
   }
@@ -247,4 +257,6 @@ export {
 export { canvasState } from './canvas-state.js';
 export type { CanvasSnapshot } from './canvas-state.js';
 export { findOpenCanvasPosition } from './placement.js';
+export { searchNodes, buildSpatialContext, detectClusters, findNeighborhoods } from './spatial-analysis.js';
+export type { SpatialCluster, SpatialContext, SpatialNeighbor, NodeSpatialInfo } from './spatial-analysis.js';
 export { traceManager } from './trace-manager.js';

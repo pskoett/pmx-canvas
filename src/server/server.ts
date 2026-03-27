@@ -13,6 +13,8 @@
  * - POST /api/canvas/prompt      -> canvas prompt
  * - POST /api/canvas/context-pins -> update context pins
  * - GET  /api/canvas/pinned-context -> get pinned context preamble
+ * - GET  /api/canvas/spatial-context -> spatial analysis (clusters, reading order, neighborhoods)
+ * - GET  /api/canvas/search?q=...  -> full-text search across nodes
  * - GET  /api/workbench/events   -> SSE event stream
  * - GET  /api/workbench/state    -> workbench state snapshot
  * - POST /api/workbench/intent   -> workbench intents
@@ -26,6 +28,7 @@ import { type CanvasEdge, canvasState } from './canvas-state.js';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
 import { findOpenCanvasPosition } from './placement.js';
+import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import { traceManager } from './trace-manager.js';
 
 const DEFAULT_HOST = '127.0.0.1';
@@ -1907,6 +1910,23 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/pinned-context' && req.method === 'GET') {
             return handleGetPinnedContext();
+          }
+
+          // Spatial context API
+          if (url.pathname === '/api/canvas/spatial-context' && req.method === 'GET') {
+            const layout = canvasState.getLayout();
+            const spatial = buildSpatialContext(layout.nodes, layout.edges, canvasState.contextPinnedNodeIds);
+            return responseJson(spatial);
+          }
+
+          // Search API
+          if (url.pathname === '/api/canvas/search' && req.method === 'GET') {
+            const q = url.searchParams.get('q') ?? '';
+            if (!q.trim()) {
+              return responseJson({ results: [], query: q });
+            }
+            const results = searchNodes(canvasState.getLayout().nodes, q);
+            return responseJson({ results, query: q });
           }
 
           // Static files for canvas SPA bundle

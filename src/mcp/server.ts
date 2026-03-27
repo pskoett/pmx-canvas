@@ -24,6 +24,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { createCanvas, canvasState, type PmxCanvas } from '../server/index.js';
+import { searchNodes, buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
 
 let canvas: PmxCanvas | null = null;
 
@@ -240,6 +241,27 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
+  // ── canvas_search ───────────────────────────────────────────
+  server.tool(
+    'canvas_search',
+    'Search for nodes by title or content keywords. Returns matching nodes ranked by relevance with snippets. Much faster than reading the full layout when you need to find specific nodes.',
+    {
+      query: z.string().describe('Search query — matches against node titles, content, and file paths'),
+      limit: z.number().optional().describe('Max results to return (default: 10)'),
+    },
+    async ({ query, limit }) => {
+      await ensureCanvas();
+      const results = searchNodes(canvasState.getLayout().nodes, query);
+      const capped = results.slice(0, limit ?? 10);
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({ query, resultCount: results.length, results: capped }, null, 2),
+        }],
+      };
+    },
+  );
+
   // ── MCP Resources: Canvas as Context ──────────────────────────
   //
   // The human pins nodes on the canvas → those nodes become the agent's
@@ -266,6 +288,9 @@ export async function startMcpServer(): Promise<void> {
         (e) => pinnedIds.has(e.from) && pinnedIds.has(e.to),
       );
 
+      // Compute neighborhoods: for each pinned node, find nearby unpinned nodes
+      const neighborhoods = findNeighborhoods(layout.nodes, pinnedIds);
+
       const context = {
         pinnedCount: pinnedNodes.length,
         nodes: pinnedNodes.map((n) => ({
@@ -282,6 +307,11 @@ export async function startMcpServer(): Promise<void> {
           to: e.to,
           type: e.type,
           label: e.label ?? null,
+        })),
+        neighborhoods: neighborhoods.map((nh) => ({
+          pinnedNodeId: nh.pinnedNodeId,
+          pinnedNodeTitle: nh.pinnedNodeTitle,
+          nearbyNodes: nh.neighbors,
         })),
       };
 
@@ -360,6 +390,34 @@ export async function startMcpServer(): Promise<void> {
             uri: 'canvas://summary',
             mimeType: 'application/json',
             text: JSON.stringify(summary, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.resource(
+    'spatial-context',
+    'canvas://spatial-context',
+    {
+      description:
+        'Spatial intelligence for the canvas. Detects proximity clusters (nodes the human ' +
+        'grouped together), provides reading order (top-left to bottom-right), and shows ' +
+        'neighborhoods around pinned nodes (nearby unpinned nodes the human implicitly associated). ' +
+        'This makes "spatial arrangement is communication" real — read this to understand the ' +
+        'human\'s spatial intent, not just which nodes are pinned.',
+      mimeType: 'application/json',
+    },
+    async () => {
+      await ensureCanvas();
+      const layout = canvasState.getLayout();
+      const spatial = buildSpatialContext(layout.nodes, layout.edges, canvasState.contextPinnedNodeIds);
+      return {
+        contents: [
+          {
+            uri: 'canvas://spatial-context',
+            mimeType: 'application/json',
+            text: JSON.stringify(spatial, null, 2),
           },
         ],
       };
@@ -453,6 +511,7 @@ export async function startMcpServer(): Promise<void> {
       }
       server.server.sendResourceUpdated({ uri: 'canvas://layout' });
       server.server.sendResourceUpdated({ uri: 'canvas://summary' });
+      server.server.sendResourceUpdated({ uri: 'canvas://spatial-context' });
     } catch {
       // Notification failures are non-fatal (e.g., client disconnected)
     }
