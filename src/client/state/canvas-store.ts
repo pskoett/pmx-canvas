@@ -214,6 +214,57 @@ export function setViewport(v: Partial<ViewportState>): void {
   viewport.value = { ...viewport.value, ...v };
 }
 
+// ── Animated viewport transitions ────────────────────────────
+let animationId: number | null = null;
+
+function easeOutCubic(t: number): number {
+  return 1 - (1 - t) ** 3;
+}
+
+/**
+ * Smoothly animate the viewport to a target state.
+ * Cancels any in-flight animation. Direct manipulation (pan/zoom gestures)
+ * should use setViewport() instead for instant response.
+ */
+export function animateViewport(
+  target: ViewportState,
+  duration = 300,
+): void {
+  if (animationId !== null) cancelAnimationFrame(animationId);
+
+  const from = { ...viewport.value };
+  const start = performance.now();
+
+  function tick(now: number) {
+    const elapsed = now - start;
+    const t = Math.min(1, elapsed / duration);
+    const e = easeOutCubic(t);
+
+    viewport.value = {
+      x: from.x + (target.x - from.x) * e,
+      y: from.y + (target.y - from.y) * e,
+      scale: from.scale + (target.scale - from.scale) * e,
+    };
+
+    if (t < 1) {
+      animationId = requestAnimationFrame(tick);
+    } else {
+      animationId = null;
+      persistLayout();
+    }
+  }
+
+  animationId = requestAnimationFrame(tick);
+}
+
+/** Cancel any in-flight viewport animation (e.g. when user starts dragging). */
+export function cancelViewportAnimation(): void {
+  if (animationId !== null) {
+    cancelAnimationFrame(animationId);
+    animationId = null;
+  }
+}
+
 // ── Persistence ───────────────────────────────────────────────
 const STORAGE_KEY = 'pmx-canvas-layout';
 
@@ -313,12 +364,11 @@ export function fitAll(containerW: number, containerH: number): void {
   const cx = (minX + maxX) / 2;
   const cy = (minY + maxY) / 2;
 
-  viewport.value = {
+  animateViewport({
     x: containerW / 2 - cx * scale,
     y: containerH / 2 - cy * scale,
     scale,
-  };
-  persistLayout();
+  });
 }
 
 // ── Focus node ────────────────────────────────────────────────
@@ -328,13 +378,12 @@ export function focusNode(id: string): void {
   const v = viewport.value;
   const cx = node.position.x + node.size.width / 2;
   const cy = node.position.y + node.size.height / 2;
-  viewport.value = {
-    ...v,
+  animateViewport({
     x: window.innerWidth / 2 - cx * v.scale,
     y: window.innerHeight / 2 - cy * v.scale,
-  };
+    scale: v.scale,
+  });
   bringToFront(id);
-  persistLayout();
 }
 
 // ── Cycle focus ───────────────────────────────────────────────

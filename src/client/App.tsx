@@ -11,6 +11,7 @@ import { SelectionBar } from './canvas/SelectionBar';
 import { SnapshotPanel } from './canvas/SnapshotPanel';
 import {
   activeNodeId,
+  animateViewport,
   autoArrange,
   canvasTheme,
   clearSelection,
@@ -92,30 +93,21 @@ function Toolbar({
       </button>
       <button
         type="button"
-        onClick={() => {
-          setViewport({ x: 0, y: 0, scale: 1 });
-          persistLayout();
-        }}
+        onClick={() => animateViewport({ x: 0, y: 0, scale: 1 }, 250)}
         title="Reset view (Cmd+0)"
       >
         1:1
       </button>
       <button
         type="button"
-        onClick={() => {
-          setViewport({ scale: Math.min(4, v.scale * 1.25) });
-          persistLayout();
-        }}
+        onClick={() => animateViewport({ ...v, scale: Math.min(4, v.scale * 1.25) }, 150)}
         title="Zoom in (Cmd++)"
       >
         +
       </button>
       <button
         type="button"
-        onClick={() => {
-          setViewport({ scale: Math.max(0.1, v.scale / 1.25) });
-          persistLayout();
-        }}
+        onClick={() => animateViewport({ ...v, scale: Math.max(0.1, v.scale / 1.25) }, 150)}
         title="Zoom out (Cmd+-)"
       >
         −
@@ -197,8 +189,7 @@ export function App() {
   const handleCloseSnapshot = useCallback(() => setSnapshotOpen(false), []);
 
   const handleMinimapNavigate = useCallback((x: number, y: number) => {
-    setViewport({ x, y });
-    persistLayout();
+    animateViewport({ x, y, scale: viewport.value.scale }, 200);
   }, []);
 
   useEffect(() => {
@@ -234,16 +225,15 @@ export function App() {
 
       if (mod && e.key === '0') {
         e.preventDefault();
-        setViewport({ x: 0, y: 0, scale: 1 });
-        persistLayout();
+        animateViewport({ x: 0, y: 0, scale: 1 }, 250);
       } else if (mod && (e.key === '=' || e.key === '+')) {
         e.preventDefault();
-        setViewport({ scale: Math.min(4, viewport.value.scale * 1.25) });
-        persistLayout();
+        const cur = viewport.value;
+        animateViewport({ ...cur, scale: Math.min(4, cur.scale * 1.25) }, 150);
       } else if (mod && e.key === '-') {
         e.preventDefault();
-        setViewport({ scale: Math.max(0.1, viewport.value.scale / 1.25) });
-        persistLayout();
+        const cur = viewport.value;
+        animateViewport({ ...cur, scale: Math.max(0.1, cur.scale / 1.25) }, 150);
       } else if (e.key === 'Escape') {
         if (selectedNodeIds.value.size > 0) {
           clearSelection();

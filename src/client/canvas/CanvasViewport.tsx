@@ -8,6 +8,7 @@ import { StatusNode } from '../nodes/StatusNode';
 import { TraceNode } from '../nodes/TraceNode';
 import {
   activeNodeId,
+  cancelViewportAnimation,
   clearSelection,
   edges,
   nodes,
@@ -67,6 +68,7 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
       // Don't pan while lassoing — usePanZoom's pointerdown still fires
       // (native listener) before our Preact handler can stopPropagation.
       if (isLassoing.current) return;
+      cancelViewportAnimation();
       setViewport(next);
       persistLayout();
     },
