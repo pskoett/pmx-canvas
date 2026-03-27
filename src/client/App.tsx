@@ -51,12 +51,16 @@ function Toolbar({
   snapshotOpen,
   onToggleSnapshot,
   snapshotBtnRef,
+  onOpenPalette,
+  onOpenShortcuts,
 }: {
   minimapVisible: boolean;
   onToggleMinimap: () => void;
   snapshotOpen: boolean;
   onToggleSnapshot: () => void;
   snapshotBtnRef: { current: HTMLButtonElement | null };
+  onOpenPalette: () => void;
+  onOpenShortcuts: () => void;
 }) {
   const status = connectionStatus.value;
   const hasSynced = hasInitialServerLayout.value;
@@ -174,7 +178,58 @@ function Toolbar({
         </button>
       )}
 
+      <div class="separator" />
+
+      <button
+        type="button"
+        onClick={onOpenPalette}
+        title="Search nodes & actions (Cmd+K)"
+      >
+        ⌕
+      </button>
+      <button
+        type="button"
+        onClick={onOpenShortcuts}
+        title="Keyboard shortcuts (?)"
+      >
+        ?
+      </button>
+
       <span style={{ fontSize: '10px', color: 'var(--c-dim)' }}>{countsLabel}</span>
+    </div>
+  );
+}
+
+const isMac = typeof navigator !== 'undefined' && /Mac|iPod|iPhone|iPad/.test(navigator.platform);
+const MOD = isMac ? '\u2318' : 'Ctrl';
+
+function WelcomeCard({ onOpenPalette }: { onOpenPalette: () => void }) {
+  return (
+    <div class="welcome-card">
+      <div class="welcome-icon">◇</div>
+      <div class="welcome-title">PMX Canvas</div>
+      <div class="welcome-subtitle">Your agent's spatial working memory</div>
+      <div class="welcome-hints">
+        <button type="button" class="welcome-hint" onClick={onOpenPalette}>
+          <kbd>{MOD}+K</kbd>
+          <span>Search & create</span>
+        </button>
+        <div class="welcome-hint">
+          <kbd>Double-click</kbd>
+          <span>New note on canvas</span>
+        </div>
+        <div class="welcome-hint">
+          <kbd>?</kbd>
+          <span>All keyboard shortcuts</span>
+        </div>
+        <div class="welcome-hint">
+          <kbd>Scroll / pinch</kbd>
+          <span>Pan & zoom</span>
+        </div>
+      </div>
+      <div class="welcome-footer">
+        Nodes appear here as agents work — or create your own.
+      </div>
     </div>
   );
 }
@@ -306,6 +361,8 @@ export function App() {
           snapshotOpen={snapshotOpen}
           onToggleSnapshot={handleToggleSnapshot}
           snapshotBtnRef={snapshotBtnRef}
+          onOpenPalette={() => setPaletteOpen(true)}
+          onOpenShortcuts={() => setShortcutsOpen((v) => !v)}
         />
         <div class="hud-right">
           <ContextPinHud />
@@ -315,6 +372,9 @@ export function App() {
         </div>
       </div>
       <CanvasViewport onNodeContextMenu={openMenu} />
+      {hasInitialLayout && allNodes.filter((n) => !n.dockPosition).length === 0 && (
+        <WelcomeCard onOpenPalette={() => setPaletteOpen(true)} />
+      )}
       {selectedNodeIds.value.size > 0 && <SelectionBar />}
       {contextPinnedNodeIds.value.size > 0 && <ContextPinBar />}
       {expandedNodeId.value && <ExpandedNodeOverlay />}
