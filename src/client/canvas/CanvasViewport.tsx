@@ -23,6 +23,7 @@ import { createEdgeFromClient, createNodeFromClient } from '../state/intent-brid
 import type { CanvasNodeState } from '../types';
 import { CanvasNode } from './CanvasNode';
 import { EdgeLayer } from './EdgeLayer';
+import { activeGuides } from './snap-guides';
 import { usePanZoom } from './use-pan-zoom';
 
 function renderNodeContent(node: CanvasNodeState) {
@@ -434,6 +435,18 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
             {renderNodeContent(node)}
           </CanvasNode>
         ))}
+        {/* Snap alignment guide lines */}
+        {activeGuides.value && (
+          <svg class="snap-guides-svg" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}>
+            {activeGuides.value.map((g, i) =>
+              g.axis === 'x' ? (
+                <line key={i} x1={g.pos} y1={g.from - 20} x2={g.pos} y2={g.to + 20} class="snap-guide-line" />
+              ) : (
+                <line key={i} x1={g.from - 20} y1={g.pos} x2={g.to + 20} y2={g.pos} class="snap-guide-line" />
+              ),
+            )}
+          </svg>
+        )}
       </div>
       {lassoStyle && <div class="lasso-rect" style={lassoStyle} />}
       {dropActive && (

@@ -6,6 +6,7 @@ import {
   draggingEdge,
   edges,
   expandNode,
+  nodes,
   persistLayout,
   removeNode,
   resizeNode,
@@ -20,6 +21,7 @@ import {
 } from '../state/canvas-store';
 import { EXPANDABLE_TYPES, TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
+import { activeGuides, snapToGuides } from './snap-guides';
 import { useNodeDrag } from './use-node-drag';
 import { useNodeResize } from './use-node-resize';
 
@@ -43,12 +45,17 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const [renaming, setRenaming] = useState(false);
   const renameRef = useRef<HTMLInputElement>(null);
 
-  // ── Drag ──────────────────────────────────────────────
+  // ── Drag (with snap alignment) ──────────────────────
   const handleMove = useCallback((id: string, x: number, y: number) => {
-    updateNode(id, { position: { x, y } });
-  }, []);
+    const snap = snapToGuides(x, y, node.size.width, node.size.height, id, nodes.value.values());
+    updateNode(id, { position: { x: snap.x, y: snap.y } });
+    activeGuides.value = snap.guides.length > 0 ? snap.guides : null;
+  }, [node.size.width, node.size.height]);
 
-  const handleDragEnd = useCallback(() => persistLayout(), []);
+  const handleDragEnd = useCallback(() => {
+    activeGuides.value = null;
+    persistLayout();
+  }, []);
 
   const startDrag = useNodeDrag({
     nodeId: node.id,

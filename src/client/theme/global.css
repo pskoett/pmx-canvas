@@ -1207,6 +1207,18 @@ body,
   white-space: nowrap;
 }
 
+/* ── Snap Alignment Guides ──────────────────────────────────── */
+.snap-guide-line {
+  stroke: var(--c-accent);
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+  opacity: 0.7;
+}
+
+.snap-guides-svg {
+  z-index: 9999;
+}
+
 /* Selection action bar — fixed bottom-center */
 .selection-bar {
   position: fixed;
