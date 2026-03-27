@@ -125,6 +125,35 @@ export class PmxCanvas extends EventEmitter {
       } catch { /* non-fatal */ }
     }
 
+    if (input.type === 'image') {
+      const src = input.content ?? '';
+      const isDataUri = src.startsWith('data:');
+      const isUrl = src.startsWith('http://') || src.startsWith('https://');
+      if (!isDataUri && !isUrl && src) {
+        // Treat as file path
+        const resolved = resolve(src);
+        const fileName = resolved.split('/').pop() ?? src;
+        data = {
+          src: resolved,
+          title: input.title ?? fileName,
+          path: resolved,
+        };
+        // Detect MIME type from extension
+        const ext = resolved.split('.').pop()?.toLowerCase() ?? '';
+        const mimeMap: Record<string, string> = {
+          png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+          gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
+          bmp: 'image/bmp', ico: 'image/x-icon', avif: 'image/avif',
+        };
+        if (mimeMap[ext]) data.mimeType = mimeMap[ext];
+      } else {
+        data = {
+          src,
+          title: input.title ?? (isUrl ? src.split('/').pop() ?? 'Image' : 'Image'),
+        };
+      }
+    }
+
     const node: CanvasNodeState = {
       id,
       type: input.type,

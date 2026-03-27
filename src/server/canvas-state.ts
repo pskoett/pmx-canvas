@@ -34,7 +34,7 @@ export interface CanvasSnapshot {
 
 export interface CanvasNodeState {
   id: string;
-  type: 'markdown' | 'mcp-app' | 'status' | 'context' | 'ledger' | 'trace' | 'file';
+  type: 'markdown' | 'mcp-app' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'image';
   position: { x: number; y: number };
   size: { width: number; height: number };
   zIndex: number;

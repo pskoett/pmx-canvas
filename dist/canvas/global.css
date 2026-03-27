@@ -1994,3 +1994,133 @@ button.welcome-hint:hover {
   margin-top: 4px;
   line-height: 1.4;
 }
+
+/* ── Image Node ─────────────────────────────────────────────── */
+.image-node {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.image-node-viewport {
+  flex: 1;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: repeating-conic-gradient(
+    var(--c-surface-subtle) 0% 25%,
+    transparent 0% 50%
+  ) 50% / 16px 16px;
+  position: relative;
+  min-height: 80px;
+  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+}
+
+.image-node-viewport img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  transition: opacity 0.2s ease;
+  transform-origin: center center;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+
+.image-node-expanded .image-node-viewport img {
+  max-width: none;
+  max-height: none;
+  width: auto;
+  height: auto;
+}
+
+.image-node-loading,
+.image-node-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 24px;
+  color: var(--c-dim);
+  font-size: 12px;
+  position: absolute;
+  inset: 0;
+}
+
+.image-node-error-icon {
+  font-size: 24px;
+  opacity: 0.5;
+}
+
+.image-node-error-path {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--c-muted);
+  word-break: break-all;
+  max-width: 250px;
+  text-align: center;
+}
+
+.image-node-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 100%;
+  color: var(--c-dim);
+}
+
+.image-node-empty-icon {
+  font-size: 32px;
+  opacity: 0.4;
+}
+
+.image-node-empty-text {
+  font-size: 12px;
+}
+
+.image-node-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 10px;
+  border-top: 1px solid var(--c-line);
+  background: var(--c-panel-soft);
+  font-size: 10px;
+  color: var(--c-dim);
+  gap: 8px;
+  min-height: 24px;
+}
+
+.image-node-caption {
+  color: var(--c-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.image-node-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.image-node-zoom-reset {
+  background: none;
+  border: 1px solid var(--c-line);
+  border-radius: 3px;
+  padding: 1px 6px;
+  font: inherit;
+  font-size: 10px;
+  color: var(--c-accent);
+  cursor: pointer;
+}
+
+.image-node-zoom-reset:hover {
+  background: var(--c-surface-hover);
+}

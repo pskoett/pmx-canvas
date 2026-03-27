@@ -554,8 +554,39 @@ async function handleCanvasUpdate(req: Request): Promise<Response> {
   return responseJson({ ok: true, ...result });
 }
 
+// ── Serve image file for image nodes ─────────────────────────
+function handleCanvasImage(pathname: string): Response {
+  const nodeId = pathname.replace('/api/canvas/image/', '');
+  const node = canvasState.getNode(nodeId);
+  if (!node || node.type !== 'image') {
+    return responseText('Image node not found', 404);
+  }
+  const src = (node.data.path as string) || (node.data.src as string) || '';
+  if (!src || src.startsWith('data:') || src.startsWith('http')) {
+    return responseText('Not a file-based image', 400);
+  }
+  const safePath = resolve(src);
+  if (!existsSync(safePath)) {
+    return responseText('Image file not found', 404);
+  }
+  const ext = safePath.split('.').pop()?.toLowerCase() ?? '';
+  const mimeMap: Record<string, string> = {
+    png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
+    gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
+    bmp: 'image/bmp', ico: 'image/x-icon', avif: 'image/avif',
+  };
+  const contentType = mimeMap[ext] || 'application/octet-stream';
+  const data = readFileSync(safePath);
+  return new Response(data, {
+    headers: {
+      'Content-Type': contentType,
+      'Cache-Control': 'no-cache',
+    },
+  });
+}
+
 // ── Add node from client ─────────────────────────────────────
-const VALID_NODE_TYPES = new Set(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'mcp-app']);
+const VALID_NODE_TYPES = new Set(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'mcp-app']);
 
 async function handleCanvasAddNode(req: Request): Promise<Response> {
   const body = await readJson(req);
@@ -1918,6 +1949,10 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/node' && req.method === 'POST') {
             return handleCanvasAddNode(req);
+          }
+
+          if (url.pathname.startsWith('/api/canvas/image/') && req.method === 'GET') {
+            return handleCanvasImage(url.pathname);
           }
 
           if (url.pathname === '/api/canvas/edge' && req.method === 'POST') {

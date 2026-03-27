@@ -5,6 +5,7 @@ import { LedgerNode } from '../nodes/LedgerNode';
 import { MarkdownNode } from '../nodes/MarkdownNode';
 import { McpAppNode } from '../nodes/McpAppNode';
 import { StatusNode } from '../nodes/StatusNode';
+import { ImageNode } from '../nodes/ImageNode';
 import { TraceNode } from '../nodes/TraceNode';
 import {
   activeNodeId,
@@ -40,6 +41,8 @@ function renderNodeContent(node: CanvasNodeState) {
       return <TraceNode node={node} />;
     case 'file':
       return <FileNode node={node} />;
+    case 'image':
+      return <ImageNode node={node} />;
     default:
       return <div>Unknown node type</div>;
   }
