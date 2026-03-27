@@ -1,5 +1,5 @@
 import type { Signal } from '@preact/signals';
-import { activeNodeId } from '../state/canvas-store';
+import { activeNodeId, draggingEdge } from '../state/canvas-store';
 import type { CanvasEdge, CanvasNodeState } from '../types';
 
 // ── Edge type visual styles ──────────────────────────────────
@@ -244,6 +244,24 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
           />
         );
       })}
+      {/* Live preview edge while drag-connecting */}
+      {draggingEdge.value && (() => {
+        const de = draggingEdge.value;
+        const dx = de.cursorX - de.fromX;
+        const dy = de.cursorY - de.fromY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        const curve = Math.min(dist * 0.25, 80);
+        const nx = dx / (dist || 1);
+        const ny = dy / (dist || 1);
+        const previewD = `M ${de.fromX} ${de.fromY} C ${de.fromX + nx * curve} ${de.fromY + ny * curve}, ${de.cursorX - nx * curve} ${de.cursorY - ny * curve}, ${de.cursorX} ${de.cursorY}`;
+        return (
+          <g>
+            <path d={previewD} fill="none" stroke="var(--c-accent)" stroke-width="6" opacity="0.1" style={{ filter: 'blur(3px)' }} />
+            <path d={previewD} fill="none" stroke="var(--c-accent)" stroke-width="2" stroke-dasharray="6 4" opacity="0.8" />
+            <circle cx={de.cursorX} cy={de.cursorY} r="5" fill="var(--c-accent)" opacity="0.5" />
+          </g>
+        );
+      })()}
     </svg>
   );
 }

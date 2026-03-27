@@ -3,6 +3,7 @@ import {
   activeNodeId,
   bringToFront,
   contextPinnedNodeIds,
+  draggingEdge,
   edges,
   expandNode,
   persistLayout,
@@ -276,6 +277,35 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
           onPointerDown={(e) => startResize(e, node.size.width, node.size.height)}
         />
       )}
+      {/* Connection port handles — visible on hover, drag to connect */}
+      {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
+        <div
+          key={side}
+          class={`node-port node-port-${side}`}
+          onPointerDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+            const cx = node.position.x + node.size.width / 2;
+            const cy = node.position.y + node.size.height / 2;
+            const hw = node.size.width / 2;
+            const hh = node.size.height / 2;
+            let px: number, py: number;
+            switch (side) {
+              case 'top':    px = cx; py = cy - hh; break;
+              case 'bottom': px = cx; py = cy + hh; break;
+              case 'left':   px = cx - hw; py = cy; break;
+              case 'right':  px = cx + hw; py = cy; break;
+            }
+            draggingEdge.value = {
+              fromId: node.id,
+              fromX: px,
+              fromY: py,
+              cursorX: px,
+              cursorY: py,
+            };
+          }}
+        />
+      ))}
     </div>
   );
 }

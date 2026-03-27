@@ -229,6 +229,38 @@ body,
   transition: border-color 0.2s, box-shadow 0.2s;
 }
 
+/* ── Connection port handles (drag-to-connect) ───────────── */
+.node-port {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--c-accent);
+  border: 2px solid var(--c-panel);
+  opacity: 0;
+  cursor: crosshair;
+  z-index: 10;
+  transition: opacity 0.15s, transform 0.15s;
+  transform: translate(-50%, -50%) scale(0.6);
+  pointer-events: auto;
+}
+.canvas-node:hover .node-port {
+  opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
+}
+.node-port:hover {
+  background: var(--c-accent-hover);
+  transform: translate(-50%, -50%) scale(1.3);
+}
+.node-port-top    { top: 0;   left: 50%; }
+.node-port-bottom { bottom: 0; left: 50%; transform: translate(-50%, 50%) scale(0.6); }
+.node-port-left   { left: 0;  top: 50%; }
+.node-port-right  { right: 0; top: 50%; transform: translate(50%, -50%) scale(0.6); }
+.canvas-node:hover .node-port-bottom { transform: translate(-50%, 50%) scale(1); }
+.canvas-node:hover .node-port-right  { transform: translate(50%, -50%) scale(1); }
+.node-port-bottom:hover { transform: translate(-50%, 50%) scale(1.3); }
+.node-port-right:hover  { transform: translate(50%, -50%) scale(1.3); }
+
 .canvas-node .node-titlebar {
   display: flex;
   align-items: center;

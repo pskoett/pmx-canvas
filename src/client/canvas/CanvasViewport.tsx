@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { ContextNode } from '../nodes/ContextNode';
 import { FileNode } from '../nodes/FileNode';
 import { LedgerNode } from '../nodes/LedgerNode';
@@ -10,6 +10,7 @@ import {
   activeNodeId,
   cancelViewportAnimation,
   clearSelection,
+  draggingEdge,
   edges,
   nodes,
   persistLayout,
@@ -17,6 +18,7 @@ import {
   setViewport,
   viewport,
 } from '../state/canvas-store';
+import { createEdgeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
 import { CanvasNode } from './CanvasNode';
 import { EdgeLayer } from './EdgeLayer';
@@ -162,6 +164,56 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
     setLasso(null);
   }, []);
 
+  // ── Drag-to-connect: track cursor in world space, hit-test on drop ──
+  useEffect(() => {
+    function handleMove(e: PointerEvent) {
+      if (!draggingEdge.value) return;
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const v = viewport.value;
+      draggingEdge.value = {
+        ...draggingEdge.value,
+        cursorX: (e.clientX - rect.left - v.x) / v.scale,
+        cursorY: (e.clientY - rect.top - v.y) / v.scale,
+      };
+    }
+
+    function handleUp(e: PointerEvent) {
+      const drag = draggingEdge.value;
+      if (!drag) return;
+      draggingEdge.value = null;
+
+      // Hit-test: find node under cursor
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const v = viewport.value;
+      const wx = (e.clientX - rect.left - v.x) / v.scale;
+      const wy = (e.clientY - rect.top - v.y) / v.scale;
+
+      for (const node of nodes.value.values()) {
+        if (node.id === drag.fromId || node.dockPosition !== null) continue;
+        if (
+          wx >= node.position.x &&
+          wx <= node.position.x + node.size.width &&
+          wy >= node.position.y &&
+          wy <= node.position.y + node.size.height
+        ) {
+          createEdgeFromClient(drag.fromId, node.id, 'relation');
+          return;
+        }
+      }
+    }
+
+    document.addEventListener('pointermove', handleMove);
+    document.addEventListener('pointerup', handleUp);
+    return () => {
+      document.removeEventListener('pointermove', handleMove);
+      document.removeEventListener('pointerup', handleUp);
+    };
+  }, [containerRef]);
+
   // Only render world-space nodes (dockPosition === null); docked nodes are in the HUD layer.
   // Do NOT sort by zIndex here — CSS z-index handles visual stacking. Sorting would
   // reorder DOM children when bringToFront() changes zIndex, causing browsers to
@@ -196,7 +248,7 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
         height: '100%',
         position: 'relative',
         overflow: 'hidden',
-        cursor: isLassoing.current ? 'crosshair' : 'grab',
+        cursor: draggingEdge.value ? 'crosshair' : isLassoing.current ? 'crosshair' : 'grab',
       }}
     >
       {/* D4: CSS matrix(a,b,c,d,tx,ty) — scale uniformly (a=d=scale, b=c=0)

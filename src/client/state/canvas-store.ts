@@ -20,6 +20,15 @@ export const expandedNodeId = signal<string | null>(null);
 // ── Pending edge connection (for context menu "Connect from") ─
 export const pendingConnection = signal<{ from: string } | null>(null);
 
+// ── Drag-to-connect (live edge preview) ─────────────────────
+export const draggingEdge = signal<{
+  fromId: string;
+  fromX: number;
+  fromY: number;
+  cursorX: number;
+  cursorY: number;
+} | null>(null);
+
 // ── Multi-node selection ──────────────────────────────────────
 export const selectedNodeIds = signal<Set<string>>(new Set());
 
