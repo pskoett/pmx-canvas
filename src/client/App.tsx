@@ -8,6 +8,7 @@ import { DockedNode } from './canvas/DockedNode';
 import { ExpandedNodeOverlay } from './canvas/ExpandedNodeOverlay';
 import { Minimap } from './canvas/Minimap';
 import { SelectionBar } from './canvas/SelectionBar';
+import { ShortcutOverlay } from './canvas/ShortcutOverlay';
 import { SnapshotPanel } from './canvas/SnapshotPanel';
 import {
   activeNodeId,
@@ -182,6 +183,7 @@ export function App() {
   const [minimapVisible, setMinimapVisible] = useState(true);
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const snapshotBtnRef = useRef<HTMLButtonElement>(null);
   const { menu, openMenu, closeMenu } = useContextMenu();
   const hasInitialLayout = hasInitialServerLayout.value;
@@ -221,9 +223,23 @@ export function App() {
         return;
       }
 
+      // Esc closes shortcut overlay
+      if (e.key === 'Escape' && shortcutsOpen) {
+        e.preventDefault();
+        setShortcutsOpen(false);
+        return;
+      }
+
       // Ignore other shortcuts when inside inputs
       const tag = (e.target as HTMLElement)?.tagName;
       if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+      // ? toggles shortcut overlay
+      if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
+        e.preventDefault();
+        setShortcutsOpen((v) => !v);
+        return;
+      }
 
       if (mod && e.key === '0') {
         e.preventDefault();
@@ -258,7 +274,7 @@ export function App() {
       disconnect();
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [closeMenu, paletteOpen]);
+  }, [closeMenu, paletteOpen, shortcutsOpen]);
 
   useEffect(() => {
     if (!hasInitialLayout) return;
@@ -320,6 +336,7 @@ export function App() {
           onToggleMinimap={handleToggleMinimap}
         />
       )}
+      {shortcutsOpen && <ShortcutOverlay onClose={() => setShortcutsOpen(false)} />}
     </div>
   );
 }
