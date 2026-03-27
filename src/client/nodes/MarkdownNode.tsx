@@ -3,6 +3,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks'
 import { updateNodeData } from '../state/canvas-store';
 import { fetchFile, renderMarkdown, saveFile } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
+import { MdFormatBar } from './MdFormatBar';
+import { handleFormatShortcut, handleTab } from './md-format';
 
 /** Split markdown into blocks, respecting fenced code blocks and tables. */
 function splitMarkdownBlocks(md: string): string[] {
@@ -177,6 +179,13 @@ export function MarkdownNode({
       if ((e.metaKey || e.ctrlKey) && e.key === 's') {
         e.preventDefault();
         handleSave();
+        return;
+      }
+      const ta = textareaRef.current;
+      if (ta && handleFormatShortcut(e, ta)) return;
+      if (ta && e.key === 'Tab') {
+        e.preventDefault();
+        handleTab(ta, e.shiftKey);
       }
     },
     [handleSave],
@@ -226,10 +235,18 @@ export function MarkdownNode({
       if (e.key === 'Escape') {
         e.preventDefault();
         handleBlockCancel();
+        return;
       }
       if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
         e.preventDefault();
         handleBlockSave();
+        return;
+      }
+      const ta = blockTextareaRef.current;
+      if (ta && handleFormatShortcut(e, ta)) return;
+      if (ta && e.key === 'Tab') {
+        e.preventDefault();
+        handleTab(ta, e.shiftKey);
       }
     },
     [handleBlockCancel, handleBlockSave],
@@ -283,7 +300,10 @@ export function MarkdownNode({
           </div>
         </div>
         <div class="md-editor-split">
-          <textarea ref={textareaRef} value={content} onInput={handleInput} spellcheck={false} />
+          <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+            <textarea ref={textareaRef} value={content} onInput={handleInput} spellcheck={false} />
+            <MdFormatBar textareaRef={textareaRef} />
+          </div>
           {/* D5/H4: Trust boundary — rendered HTML comes from server-side marked()
               on the user's own markdown files, served only on 127.0.0.1. No DOMPurify
               needed for this localhost-only rendering of user-owned content. */}
@@ -296,7 +316,10 @@ export function MarkdownNode({
   if (editing) {
     return (
       <div class="md-editor-split" style={{ height: '100%' }} onKeyDown={handleKeyDown}>
-        <textarea ref={textareaRef} value={content} onInput={handleInput} spellcheck={false} />
+        <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column' }}>
+          <textarea ref={textareaRef} value={content} onInput={handleInput} spellcheck={false} />
+          <MdFormatBar textareaRef={textareaRef} />
+        </div>
         {/* D5/H4: Trust boundary — same as above */}
         <RenderedMarkdown html={rendered} className="md-preview" />
         <div
@@ -368,6 +391,7 @@ export function MarkdownNode({
                         onKeyDown={handleBlockKeyDown}
                         spellcheck={false}
                       />
+                      <MdFormatBar textareaRef={blockTextareaRef} />
                       <div class="md-block-edit-actions">
                         <span style={{ fontSize: '10px', color: 'var(--c-muted)' }}>
                           Esc cancel · ⌘Enter save

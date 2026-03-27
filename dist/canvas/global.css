@@ -813,6 +813,69 @@ body,
   padding: 6px 0;
 }
 
+/* ── Markdown Format Bar (floating) ─────────────────────────── */
+.md-format-bar {
+  position: fixed;
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  background: var(--c-panel-glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--c-line);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px var(--c-shadow), 0 0 0 1px var(--c-line-30);
+  animation: md-format-bar-in 0.12s ease-out;
+}
+
+@keyframes md-format-bar-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.md-format-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 5px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-muted);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.md-format-btn:hover {
+  background: var(--c-surface-hover);
+  color: var(--c-text);
+  border-color: var(--c-line);
+}
+
+.md-format-btn:active {
+  background: var(--c-accent-12);
+  color: var(--c-accent);
+}
+
+.md-format-btn-bold { font-weight: 800; }
+.md-format-btn-italic { font-style: italic; }
+.md-format-btn-strike { text-decoration: line-through; }
+
+.md-format-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--c-line);
+  margin: 0 3px;
+  flex-shrink: 0;
+}
+
 .md-block-edit-preview {
   transition: opacity 0.15s ease;
 }
