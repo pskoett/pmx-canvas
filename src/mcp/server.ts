@@ -233,10 +233,7 @@ export async function startMcpServer(): Promise<void> {
     {},
     async () => {
       const c = await ensureCanvas();
-      const { canvasState } = await import('../server/canvas-state.js');
-      canvasState.clear();
-      const { emitPrimaryWorkbenchEvent } = await import('../server/server.js');
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+      c.clear();
       return {
         content: [{ type: 'text', text: JSON.stringify({ ok: true, cleared: true }) }],
       };
@@ -271,14 +268,9 @@ export async function startMcpServer(): Promise<void> {
     {},
     async () => {
       const c = await ensureCanvas();
-      const entry = mutationHistory.undo();
-      if (!entry) {
-        return { content: [{ type: 'text', text: JSON.stringify({ ok: false, description: 'Nothing to undo' }) }] };
-      }
-      const { emitPrimaryWorkbenchEvent } = await import('../server/server.js');
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+      const result = c.undo();
       return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, undid: entry.description, canUndo: mutationHistory.canUndo(), canRedo: mutationHistory.canRedo() }) }],
+        content: [{ type: 'text', text: JSON.stringify({ ...result, canUndo: mutationHistory.canUndo(), canRedo: mutationHistory.canRedo() }) }],
       };
     },
   );
@@ -290,14 +282,9 @@ export async function startMcpServer(): Promise<void> {
     {},
     async () => {
       const c = await ensureCanvas();
-      const entry = mutationHistory.redo();
-      if (!entry) {
-        return { content: [{ type: 'text', text: JSON.stringify({ ok: false, description: 'Nothing to redo' }) }] };
-      }
-      const { emitPrimaryWorkbenchEvent } = await import('../server/server.js');
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+      const result = c.redo();
       return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, redid: entry.description, canUndo: mutationHistory.canUndo(), canRedo: mutationHistory.canRedo() }) }],
+        content: [{ type: 'text', text: JSON.stringify({ ...result, canUndo: mutationHistory.canUndo(), canRedo: mutationHistory.canRedo() }) }],
       };
     },
   );

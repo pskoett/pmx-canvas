@@ -24,14 +24,16 @@ The key insight: **spatial arrangement is communication**. When a human pins nod
 - **Themes** — dark (default), light, and high-contrast
 - **Persistence** — canvas state auto-saves to `.pmx-canvas.json` and restores on restart
 
-### Nodes (7 types)
+### Nodes (8 types)
 - **markdown** — rich markdown content with rendered preview
 - **status** — compact status indicator (phase, message, elapsed time)
 - **context** — context cards, token usage, workspace grounding
 - **ledger** — execution ledger summary
 - **trace** — agent trace pills showing tool calls and subagent activity
 - **file** — live file viewer with auto-update when the file changes on disk
+- **image** — image viewer with zoom/pan, supports file paths, data URIs, and URLs
 - **mcp-app** — hosted MCP app iframes and ext-app frames (Chart.js, Excalidraw, etc.)
+- **group** — spatial container/frame that visually contains other nodes (see Groups below)
 
 ### File Nodes
 File nodes display project files with line numbers and language detection. When an agent edits a file through its normal tools, the canvas node updates automatically via `fs.watch()`. This gives humans a spatial, real-time view of what the agent is working on.
@@ -39,6 +41,46 @@ File nodes display project files with line numbers and language detection. When 
 ```typescript
 // Add a file node via MCP
 canvas_add_node({ type: 'file', content: 'src/server/index.ts' })
+```
+
+### Groups (Frames)
+
+Groups are spatial containers that visually contain other nodes, enabling hierarchical organization on the canvas. They render as dashed-border frames behind their children, with a title bar and optional accent color.
+
+- **Select 2+ nodes → click "Group"** in the selection bar to create a group around them
+- **Right-click a group → "Ungroup"** to release children
+- **Collapsing** a group hides its children and shows a summary (e.g., "5 nodes — 3 markdown, 2 file")
+- **Custom colors** — each group can have an accent color for visual distinction
+- Groups auto-size to fit their children when created via the API
+- Removing a child node automatically prunes it from the parent group
+- Removing a group clears `parentGroup` on all its children
+
+```typescript
+// Create a group containing existing nodes via MCP
+canvas_create_group({ title: 'Authentication', childIds: ['node-1', 'node-2'], color: '#4a9eff' })
+
+// Add more nodes to an existing group
+canvas_group_nodes({ groupId: 'group-abc', childIds: ['node-3'] })
+
+// Release all children
+canvas_ungroup({ groupId: 'group-abc' })
+```
+
+```bash
+# Create a group via HTTP
+curl -X POST http://localhost:4313/api/canvas/group \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Auth Module","childIds":["node-1","node-2"],"color":"#4a9eff"}'
+
+# Add nodes to a group
+curl -X POST http://localhost:4313/api/canvas/group/add \
+  -H "Content-Type: application/json" \
+  -d '{"groupId":"group-abc","childIds":["node-3"]}'
+
+# Ungroup
+curl -X POST http://localhost:4313/api/canvas/group/ungroup \
+  -H "Content-Type: application/json" \
+  -d '{"groupId":"group-abc"}'
 ```
 
 ### Edges (4 types)
@@ -129,7 +171,7 @@ curl http://localhost:4313/api/canvas/code-graph
 ```
 
 ### Integration (4 paths)
-- **MCP Server** — 17 tools + 6 resources, auto-starts canvas on first tool call. Zero-config for any MCP-capable agent.
+- **MCP Server** — 20 tools + 6 resources, auto-starts canvas on first tool call. Zero-config for any MCP-capable agent.
 - **HTTP API** — REST endpoints for all canvas operations + SSE event stream. Works from any language.
 - **Node.js SDK** — `createCanvas()` for programmatic control from Bun/Node.js.
 - **Agent Skill** — SKILL.md teaches agents the HTTP API. Works in Claude Code, Cowork, and any skill-aware agent.
@@ -199,6 +241,9 @@ Add to your agent's MCP config — the canvas auto-starts on first tool call:
 | `canvas_undo` | Undo the last canvas mutation |
 | `canvas_redo` | Redo the last undone mutation |
 | `canvas_diff` | Compare current canvas vs a saved snapshot |
+| `canvas_create_group` | Create a group (frame) containing specified nodes |
+| `canvas_group_nodes` | Add nodes to an existing group |
+| `canvas_ungroup` | Release all children from a group |
 
 **MCP Resources:**
 
@@ -265,8 +310,11 @@ const n3 = canvas.addNode({ type: 'file', content: 'src/index.ts' }); // Live fi
 
 // Connect them
 canvas.addEdge({ from: n1, to: n2, type: 'flow' });
-canvas.arrange('grid');
 
+// Group related nodes
+canvas.createGroup({ title: 'Build Pipeline', childIds: [n1, n2] });
+
+canvas.arrange('grid');
 console.log(canvas.getLayout()); // { viewport, nodes, edges }
 ```
 
@@ -301,7 +349,7 @@ Copy `skills/pmx-canvas/` into your project's `.claude/skills/` directory.
 ```
 Agent (Claude Code / Codex / Cursor / pi / any)
   |
-  |-- MCP Server ---- 17 tools + 6 resources + change notifications
+  |-- MCP Server ---- 20 tools + 6 resources + change notifications
   |-- Node.js SDK --- createCanvas()
   |-- HTTP API ------ curl localhost:4313/api/...
   |-- Skill file ---- SKILL.md

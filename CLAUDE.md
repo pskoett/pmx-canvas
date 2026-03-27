@@ -152,13 +152,13 @@ Three themes: `dark` (default), `light`, `high-contrast`. Set via:
 
 ## Canvas Types
 
-**Node types:** `markdown`, `status`, `context`, `ledger`, `trace`, `file`, `mcp-app`
+**Node types:** `markdown`, `status`, `context`, `ledger`, `trace`, `file`, `image`, `mcp-app`, `group`
 
 **Edge types:** `flow`, `depends-on`, `relation`, `references` — all support labels, styles (solid/dashed/dotted), and animation.
 
 ## MCP Server
 
-17 tools: `canvas_add_node`, `canvas_update_node`, `canvas_remove_node`, `canvas_get_layout`, `canvas_get_node`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_pin_nodes`, `canvas_clear`, `canvas_snapshot`, `canvas_restore`, `canvas_search`, `canvas_undo`, `canvas_redo`, `canvas_diff`
+20 tools: `canvas_add_node`, `canvas_update_node`, `canvas_remove_node`, `canvas_get_layout`, `canvas_get_node`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_pin_nodes`, `canvas_clear`, `canvas_snapshot`, `canvas_restore`, `canvas_search`, `canvas_undo`, `canvas_redo`, `canvas_diff`, `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup`
 
 6 resources: `canvas://pinned-context`, `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, `canvas://code-graph`
 

@@ -62,7 +62,7 @@ curl -X POST http://localhost:4313/api/canvas/node \
 
 Returns `{ "id": "<node-id>" }`.
 
-**Node types:** `markdown`, `code`, `status`, `image`, `embed`, `group`
+**Node types:** `markdown`, `status`, `context`, `ledger`, `trace`, `file`, `image`, `mcp-app`, `group`
 
 **Optional fields:**
 - `x`, `y` — position (default: auto-placed)
@@ -100,13 +100,47 @@ curl -X POST http://localhost:4313/api/canvas/edge \
   }'
 ```
 
-**Edge types:** `flow`, `dependency`, `reference`, `data`
+**Edge types:** `flow`, `depends-on`, `relation`, `references`
 
 ### Delete an Edge
 
 ```bash
 curl -X DELETE http://localhost:4313/api/canvas/edge/<id>
 ```
+
+### Create a Group
+
+Groups are spatial containers that visually frame other nodes together.
+
+```bash
+curl -X POST http://localhost:4313/api/canvas/group \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "Auth Module",
+    "childIds": ["<node-id-1>", "<node-id-2>"],
+    "color": "#4a9eff"
+  }'
+```
+
+Returns `{ "ok": true, "id": "<group-id>" }`. The group auto-sizes to fit its children.
+
+### Add Nodes to a Group
+
+```bash
+curl -X POST http://localhost:4313/api/canvas/group/add \
+  -H "Content-Type: application/json" \
+  -d '{ "groupId": "<group-id>", "childIds": ["<node-id>"] }'
+```
+
+### Ungroup
+
+```bash
+curl -X POST http://localhost:4313/api/canvas/group/ungroup \
+  -H "Content-Type: application/json" \
+  -d '{ "groupId": "<group-id>" }'
+```
+
+Releases all children. The group node itself remains (delete it separately if needed).
 
 ### Batch Update Positions
 
