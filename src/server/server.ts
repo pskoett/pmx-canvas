@@ -764,6 +764,70 @@ async function handleCanvasRemoveEdge(req: Request): Promise<Response> {
   return responseJson({ ok: true, removed: edgeId });
 }
 
+// ── Individual node update (PATCH) ──────────────────────────
+async function handleCanvasUpdateNode(nodeId: string, req: Request): Promise<Response> {
+  const existing = canvasState.getNode(nodeId);
+  if (!existing) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
+  const body = await readJson(req);
+  const patch: Record<string, unknown> = {};
+  if (body.position) patch.position = body.position;
+  if (body.size) patch.size = body.size;
+  if (body.collapsed !== undefined) patch.collapsed = body.collapsed;
+  if (body.title !== undefined || body.content !== undefined) {
+    const data = { ...existing.data };
+    if (body.title !== undefined) data.title = String(body.title);
+    if (body.content !== undefined) data.content = String(body.content);
+    patch.data = data;
+  }
+  canvasState.updateNode(nodeId, patch as Partial<CanvasNodeState>);
+  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  return responseJson({ ok: true, id: nodeId });
+}
+
+// ── Arrange nodes ───────────────────────────────────────────
+async function handleCanvasArrange(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const layout = typeof body.layout === 'string' ? body.layout : 'grid';
+  if (!['grid', 'column', 'flow'].includes(layout)) {
+    return responseJson({ ok: false, error: `Invalid layout: "${layout}". Use: grid, column, flow` }, 400);
+  }
+  const nodes = canvasState.getLayout().nodes;
+  const gap = 24;
+  const oldPositions = nodes.map((n) => ({ id: n.id, position: { ...n.position } }));
+  canvasState.withSuppressedRecording(() => {
+    if (layout === 'column') {
+      let y = 0;
+      for (const n of nodes) { canvasState.updateNode(n.id, { position: { x: 0, y } }); y += n.size.height + gap; }
+    } else if (layout === 'flow') {
+      let x = 0;
+      for (const n of nodes) { canvasState.updateNode(n.id, { position: { x, y: 0 } }); x += n.size.width + gap; }
+    } else {
+      const cols = Math.max(1, Math.ceil(Math.sqrt(nodes.length)));
+      nodes.forEach((n, i) => { const col = i % cols; const row = Math.floor(i / cols); canvasState.updateNode(n.id, { position: { x: col * (n.size.width + gap), y: row * (n.size.height + gap) } }); });
+    }
+  });
+  const newPositions = nodes.map((n) => ({ id: n.id, position: { ...canvasState.getNode(n.id)!.position } }));
+  mutationHistory.record({
+    operationType: 'arrange', description: `Arranged ${nodes.length} nodes (${layout})`,
+    forward: () => canvasState.withSuppressedRecording(() => { for (const p of newPositions) canvasState.updateNode(p.id, { position: p.position }); }),
+    inverse: () => canvasState.withSuppressedRecording(() => { for (const p of oldPositions) canvasState.updateNode(p.id, { position: p.position }); }),
+  });
+  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  return responseJson({ ok: true, arranged: nodes.length, layout });
+}
+
+// ── Focus on node ───────────────────────────────────────────
+async function handleCanvasFocus(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const nodeId = body.id as string;
+  if (!nodeId) return responseJson({ ok: false, error: 'Missing id.' }, 400);
+  const node = canvasState.getNode(nodeId);
+  if (!node) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
+  canvasState.setViewport({ x: node.position.x - 100, y: node.position.y - 100 });
+  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  return responseJson({ ok: true, focused: nodeId });
+}
+
 function responseJson(data: unknown, status = 200): Response {
   return Response.json(data, {
     status,
@@ -2038,6 +2102,28 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleCanvasAddNode(req);
           }
 
+          // Individual node GET/PATCH/DELETE
+          if (url.pathname.startsWith('/api/canvas/node/') && req.method === 'GET') {
+            const nodeId = url.pathname.slice('/api/canvas/node/'.length);
+            const node = canvasState.getNode(nodeId);
+            if (!node) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
+            return responseJson(node);
+          }
+
+          if (url.pathname.startsWith('/api/canvas/node/') && req.method === 'PATCH') {
+            const nodeId = url.pathname.slice('/api/canvas/node/'.length);
+            return handleCanvasUpdateNode(nodeId, req);
+          }
+
+          if (url.pathname.startsWith('/api/canvas/node/') && req.method === 'DELETE') {
+            const nodeId = url.pathname.slice('/api/canvas/node/'.length);
+            const existing = canvasState.getNode(nodeId);
+            if (!existing) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
+            canvasState.removeNode(nodeId);
+            emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+            return responseJson({ ok: true, removed: nodeId });
+          }
+
           if (url.pathname.startsWith('/api/canvas/image/') && req.method === 'GET') {
             return handleCanvasImage(url.pathname);
           }
@@ -2111,6 +2197,21 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/group/ungroup' && req.method === 'POST') {
             return handleCanvasUngroupNodes(req);
+          }
+
+          // Arrange / Focus / Clear API (for agent CLI)
+          if (url.pathname === '/api/canvas/arrange' && req.method === 'POST') {
+            return handleCanvasArrange(req);
+          }
+
+          if (url.pathname === '/api/canvas/focus' && req.method === 'POST') {
+            return handleCanvasFocus(req);
+          }
+
+          if (url.pathname === '/api/canvas/clear' && req.method === 'POST') {
+            canvasState.clear();
+            emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+            return responseJson({ ok: true });
           }
 
           // Code graph API
