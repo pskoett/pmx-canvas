@@ -19,6 +19,10 @@
  * - POST /api/canvas/undo         -> undo last mutation
  * - POST /api/canvas/redo         -> redo last undone mutation
  * - GET  /api/canvas/history      -> mutation history timeline
+ * - POST /api/canvas/json-render  -> create a native json-render node
+ * - POST /api/canvas/graph        -> create a native graph node
+ * - GET  /api/canvas/json-render/view?nodeId=... -> local json-render viewer
+ * - POST /api/canvas/web-artifact -> build bundled HTML artifact + optional canvas node
  * - GET  /api/workbench/events   -> SSE event stream
  * - GET  /api/workbench/state    -> workbench state snapshot
  * - POST /api/workbench/intent   -> workbench intents
@@ -36,6 +40,15 @@ import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import { mutationHistory } from './mutation-history.js';
 import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import { traceManager } from './trace-manager.js';
+import { buildWebArtifactOnCanvas, resolveWorkspacePath } from './web-artifacts.js';
+import {
+  buildGraphSpec,
+  buildJsonRenderViewerHtml,
+  createJsonRenderNodeData,
+  GRAPH_NODE_SIZE,
+  JSON_RENDER_NODE_SIZE,
+  normalizeAndValidateJsonRenderSpec,
+} from '../json-render/server.js';
 
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 4313;
@@ -142,6 +155,23 @@ function resolveWorkspaceMarkdownPath(pathLike: string): string | null {
   if (!insideWorkspace) return null;
   if (!isMarkdownFile(resolved)) return null;
   return resolved;
+}
+
+function resolveWorkspaceArtifactPath(pathLike: string): string | null {
+  if (!pathLike || typeof pathLike !== 'string') return null;
+  const resolved = resolve(pathLike);
+  const workspaceRel = relative(activeWorkspaceRoot, resolved);
+  const insideWorkspace = !(workspaceRel.startsWith('..') || workspaceRel === '..');
+  return insideWorkspace ? resolved : null;
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;');
 }
 
 function hashPath(path: string): string {
@@ -828,6 +858,205 @@ async function handleCanvasFocus(req: Request): Promise<Response> {
   return responseJson({ ok: true, focused: nodeId });
 }
 
+async function handleCanvasBuildWebArtifact(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const appTsx = typeof body.appTsx === 'string' ? body.appTsx : '';
+  if (!title || !appTsx) {
+    return responseJson({ ok: false, error: 'Missing required fields: title, appTsx.' }, 400);
+  }
+
+  const files: Record<string, string> = {};
+  if (body.files && typeof body.files === 'object' && !Array.isArray(body.files)) {
+    for (const [pathKey, value] of Object.entries(body.files as Record<string, unknown>)) {
+      if (typeof value === 'string') files[pathKey] = value;
+    }
+  }
+
+  try {
+    const result = await buildWebArtifactOnCanvas({
+      title,
+      appTsx,
+      ...(typeof body.indexCss === 'string' ? { indexCss: body.indexCss } : {}),
+      ...(typeof body.mainTsx === 'string' ? { mainTsx: body.mainTsx } : {}),
+      ...(typeof body.indexHtml === 'string' ? { indexHtml: body.indexHtml } : {}),
+      ...(Object.keys(files).length > 0 ? { files } : {}),
+      ...(typeof body.projectPath === 'string'
+        ? { projectPath: resolveWorkspacePath(body.projectPath, activeWorkspaceRoot) }
+        : {}),
+      ...(typeof body.outputPath === 'string'
+        ? { outputPath: resolveWorkspacePath(body.outputPath, activeWorkspaceRoot) }
+        : {}),
+      ...(typeof body.initScriptPath === 'string'
+        ? { initScriptPath: body.initScriptPath }
+        : {}),
+      ...(typeof body.bundleScriptPath === 'string'
+        ? { bundleScriptPath: body.bundleScriptPath }
+        : {}),
+      ...(typeof body.timeoutMs === 'number' ? { timeoutMs: body.timeoutMs } : {}),
+      ...(typeof body.openInCanvas === 'boolean' ? { openInCanvas: body.openInCanvas } : {}),
+    });
+
+    return responseJson({
+      ok: true,
+      path: result.filePath,
+      bytes: result.fileSize,
+      projectPath: result.projectPath,
+      openedInCanvas: result.openedInCanvas,
+      nodeId: result.nodeId,
+      url: result.url,
+      metadata: result.metadata,
+      stdout: result.stdout,
+      stderr: result.stderr,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return responseJson({ ok: false, error: message }, 400);
+  }
+}
+
+async function handleCanvasAddJsonRender(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const title = typeof body.title === 'string' ? body.title.trim() : '';
+  const rawSpec =
+    body.spec && typeof body.spec === 'object' && !Array.isArray(body.spec) ? body.spec : body;
+  if (!title) {
+    return responseJson({ ok: false, error: 'Missing required field: title.' }, 400);
+  }
+
+  try {
+    const spec = normalizeAndValidateJsonRenderSpec(rawSpec);
+    const width = typeof body.width === 'number' ? body.width : JSON_RENDER_NODE_SIZE.width;
+    const height = typeof body.height === 'number' ? body.height : JSON_RENDER_NODE_SIZE.height;
+    const position =
+      typeof body.x === 'number' && typeof body.y === 'number'
+        ? { x: body.x, y: body.y }
+        : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
+    const id = `ui-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const node: CanvasNodeState = {
+      id,
+      type: 'json-render',
+      position,
+      size: { width, height },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: createJsonRenderNodeData(id, title, spec, {
+        viewerType: 'json-render',
+      }),
+    };
+    canvasState.addJsonRenderNode(node);
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return responseJson({ ok: true, id, url: node.data.url, spec });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return responseJson({ ok: false, error: message }, 400);
+  }
+}
+
+async function handleCanvasAddGraph(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : 'Graph';
+  const graphType = typeof body.graphType === 'string' ? body.graphType : typeof body.type === 'string' ? body.type : 'line';
+  const data = Array.isArray(body.data)
+    ? body.data.filter((item: unknown) => item && typeof item === 'object') as Array<Record<string, unknown>>
+    : null;
+  if (!data) {
+    return responseJson({ ok: false, error: 'Missing required field: data.' }, 400);
+  }
+
+  try {
+    const aggregate =
+      body.aggregate === 'sum' || body.aggregate === 'count' || body.aggregate === 'avg'
+        ? body.aggregate
+        : undefined;
+    const spec = buildGraphSpec({
+      title,
+      graphType,
+      data,
+      ...(typeof body.xKey === 'string' ? { xKey: body.xKey } : {}),
+      ...(typeof body.yKey === 'string' ? { yKey: body.yKey } : {}),
+      ...(typeof body.nameKey === 'string' ? { nameKey: body.nameKey } : {}),
+      ...(typeof body.valueKey === 'string' ? { valueKey: body.valueKey } : {}),
+      ...(aggregate ? { aggregate } : {}),
+      ...(typeof body.color === 'string' ? { color: body.color } : {}),
+      ...(typeof body.height === 'number' ? { height: body.height } : {}),
+    });
+
+    const width = typeof body.width === 'number' ? body.width : GRAPH_NODE_SIZE.width;
+    const height = typeof body.nodeHeight === 'number' ? body.nodeHeight : GRAPH_NODE_SIZE.height;
+    const position =
+      typeof body.x === 'number' && typeof body.y === 'number'
+        ? { x: body.x, y: body.y }
+        : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
+    const id = `graph-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const node: CanvasNodeState = {
+      id,
+      type: 'graph',
+      position,
+      size: { width, height },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: createJsonRenderNodeData(id, title, spec, {
+        viewerType: 'graph',
+        graphConfig: {
+          title,
+          graphType,
+          data,
+          ...(typeof body.xKey === 'string' ? { xKey: body.xKey } : {}),
+          ...(typeof body.yKey === 'string' ? { yKey: body.yKey } : {}),
+          ...(typeof body.nameKey === 'string' ? { nameKey: body.nameKey } : {}),
+          ...(typeof body.valueKey === 'string' ? { valueKey: body.valueKey } : {}),
+          ...(typeof body.aggregate === 'string' ? { aggregate: body.aggregate } : {}),
+          ...(typeof body.color === 'string' ? { color: body.color } : {}),
+          ...(typeof body.height === 'number' ? { height: body.height } : {}),
+        },
+      }),
+    };
+    canvasState.addGraphNode(node);
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return responseJson({ ok: true, id, url: node.data.url, spec });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return responseJson({ ok: false, error: message }, 400);
+  }
+}
+
+async function handleJsonRenderView(url: URL): Promise<Response> {
+  const nodeId = url.searchParams.get('nodeId') ?? '';
+  if (!nodeId) return responseText('Missing nodeId', 400);
+  const node = canvasState.getNode(nodeId);
+  if (!node || (node.type !== 'json-render' && node.type !== 'graph')) {
+    return responseText('json-render node not found', 404);
+  }
+
+  const spec = node.data.spec;
+  if (!spec || typeof spec !== 'object') {
+    return responseText('json-render spec missing', 404);
+  }
+
+  const themeValue = url.searchParams.get('theme');
+  const theme =
+    themeValue === 'dark' || themeValue === 'light' || themeValue === 'high-contrast'
+      ? themeValue
+      : undefined;
+  const title = (node.data.title as string) || node.id;
+  const html = await buildJsonRenderViewerHtml({
+    title,
+    spec: spec as { root: string; elements: Record<string, unknown>; state?: Record<string, unknown> },
+    ...(theme ? { theme } : {}),
+  });
+  return new Response(html, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
 function responseJson(data: unknown, status = 200): Response {
   return Response.json(data, {
     status,
@@ -842,6 +1071,151 @@ function responseText(text: string, status = 400): Response {
     status,
     headers: {
       'Content-Type': 'text/plain; charset=utf-8',
+      'Cache-Control': 'no-store',
+    },
+  });
+}
+
+function handleArtifactView(url: URL): Response {
+  const pathLike = url.searchParams.get('path') ?? '';
+  const safePath = resolveWorkspaceArtifactPath(pathLike);
+  if (!safePath) return responseText('Invalid artifact path', 400);
+  if (!existsSync(safePath)) return responseText('Artifact not found', 404);
+
+  const stat = statSync(safePath);
+  if (!stat.isFile()) return responseText('Not a file', 400);
+
+  const ext = extname(safePath).toLowerCase();
+  const imageExt = ext.replace(/^\./, '');
+  if (IMAGE_MIME_MAP[imageExt]) {
+    const data = readFileSync(safePath);
+    return new Response(data, {
+      headers: {
+        'Content-Type': IMAGE_MIME_MAP[imageExt],
+        'Cache-Control': 'no-store',
+      },
+    });
+  }
+
+  if (ext === '.html' || ext === '.htm') {
+    const content = readFileSync(safePath, 'utf-8');
+    return new Response(content, {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+      },
+    });
+  }
+
+  const content = readFileSync(safePath, 'utf-8');
+  const title = basename(safePath);
+  const relPath = relative(activeWorkspaceRoot, safePath) || title;
+  const body =
+    ext === '.md'
+      ? `<article class="markdown-body">${marked.parse(content) as string}</article>`
+      : `<pre class="artifact-code"><code>${escapeHtml(content)}</code></pre>`;
+
+  return new Response(`<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>${escapeHtml(title)} · PMX Artifact</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #081019;
+      --panel: #111a2d;
+      --line: rgba(110, 140, 190, 0.22);
+      --text: #d9e2f2;
+      --muted: #9da8bd;
+      --accent: #46b6ff;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background:
+        radial-gradient(circle at top left, rgba(62, 134, 255, 0.12), transparent 26%),
+        radial-gradient(circle at bottom right, rgba(0, 214, 201, 0.08), transparent 24%),
+        var(--bg);
+      color: var(--text);
+      font: 15px/1.6 ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    .shell {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+    .header {
+      margin-bottom: 20px;
+      padding: 16px 18px;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      background: rgba(17, 26, 45, 0.92);
+      backdrop-filter: blur(8px);
+    }
+    .title {
+      margin: 0;
+      font-size: 18px;
+      font-weight: 700;
+    }
+    .path {
+      margin-top: 4px;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 12px;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 18px;
+      background: rgba(17, 26, 45, 0.94);
+      box-shadow: 0 24px 64px rgba(0, 0, 0, 0.28);
+      overflow: hidden;
+    }
+    .artifact-code, .markdown-body {
+      margin: 0;
+      padding: 24px;
+    }
+    .artifact-code {
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font: 13px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+    .markdown-body :first-child { margin-top: 0; }
+    .markdown-body :last-child { margin-bottom: 0; }
+    .markdown-body pre {
+      overflow: auto;
+      padding: 14px;
+      border-radius: 12px;
+      background: rgba(4, 10, 20, 0.88);
+      border: 1px solid var(--line);
+    }
+    .markdown-body code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.95em;
+    }
+    .markdown-body a { color: var(--accent); }
+    .markdown-body blockquote {
+      margin: 0;
+      padding-left: 16px;
+      border-left: 3px solid rgba(70, 182, 255, 0.45);
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="header">
+      <h1 class="title">${escapeHtml(title)}</h1>
+      <div class="path">${escapeHtml(relPath)}</div>
+    </header>
+    <section class="panel">${body}</section>
+  </main>
+</body>
+</html>`, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
       'Cache-Control': 'no-store',
     },
   });
@@ -1099,6 +1473,16 @@ function buildSelectionContextPreamble(contextNodeIds: string[]): string {
         } else {
           const url = (node.data.url as string) || '';
           summary = url ? `MCP App: ${url}` : 'MCP App node';
+        }
+        break;
+      }
+      case 'json-render':
+      case 'graph': {
+        const graphCfg = node.data.graphConfig as Record<string, unknown> | undefined;
+        if (graphCfg) {
+          summary = `Graph: ${JSON.stringify(graphCfg).slice(0, 400)}`;
+        } else {
+          summary = JSON.stringify(node.data.spec ?? {}).slice(0, 500);
         }
         break;
       }
@@ -1560,7 +1944,7 @@ export function openUrlInExternalBrowser(url: string): boolean {
     if (process.platform === 'win32') {
       const browser = resolveWindowsBrowserForCanvas();
       const result = browser
-        ? spawnSync(browser.exe, [url], { stdio: 'ignore', detached: true })
+        ? spawnSync(browser.exe, [url], { stdio: 'ignore' })
         : spawnSync('cmd', ['/c', 'start', '', url], { stdio: 'ignore' });
       return !result.error && result.status === 0;
     }
@@ -2052,7 +2436,15 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return serveCanvasFavicon();
           }
 
-          if (url.pathname === '/workbench' || url.pathname === '/artifact') {
+          if (url.pathname === '/artifact' && url.searchParams.has('path')) {
+            return handleArtifactView(url);
+          }
+
+          if (url.pathname === '/api/canvas/json-render/view' && req.method === 'GET') {
+            return handleJsonRenderView(url);
+          }
+
+          if (url.pathname === '/' || url.pathname === '/workbench' || url.pathname === '/artifact') {
             return new Response(canvasSpaHtml(), {
               headers: {
                 'Content-Type': 'text/html; charset=utf-8',
@@ -2100,6 +2492,10 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/node' && req.method === 'POST') {
             return handleCanvasAddNode(req);
+          }
+
+          if (url.pathname === '/api/canvas/web-artifact' && req.method === 'POST') {
+            return handleCanvasBuildWebArtifact(req);
           }
 
           // Individual node GET/PATCH/DELETE
@@ -2218,6 +2614,18 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           if (url.pathname === '/api/canvas/code-graph' && req.method === 'GET') {
             const summary = buildCodeGraphSummary();
             return responseJson(summary);
+          }
+
+          if (url.pathname === '/api/canvas/json-render' && req.method === 'POST') {
+            return handleCanvasAddJsonRender(req);
+          }
+
+          if (url.pathname === '/api/canvas/graph' && req.method === 'POST') {
+            return handleCanvasAddGraph(req);
+          }
+
+          if (url.pathname === '/api/canvas/prompt' && req.method === 'POST') {
+            return handleCanvasPrompt(req);
           }
 
           // Undo/Redo/History API

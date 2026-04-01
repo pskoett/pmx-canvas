@@ -45,8 +45,336 @@
         "title": "Updated Title",
         "content": "# Hello from CLI"
       }
+    },
+    {
+      "id": "node-mner2boc-vm0m",
+      "type": "markdown",
+      "position": {
+        "x": 1168,
+        "y": 80
+      },
+      "size": {
+        "width": 360,
+        "height": 200
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "New note"
+      }
+    },
+    {
+      "id": "ui-mnethgaw-5dcf",
+      "type": "json-render",
+      "position": {
+        "x": 1552,
+        "y": 80
+      },
+      "size": {
+        "width": 840,
+        "height": 620
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "Smoke JSON Render",
+        "spec": {
+          "root": "card",
+          "elements": {
+            "card": {
+              "type": "Card",
+              "props": {
+                "title": "Smoke JSON Render",
+                "maxWidth": "full",
+                "centered": false
+              },
+              "children": [
+                "copy"
+              ]
+            },
+            "copy": {
+              "type": "Text",
+              "props": {
+                "text": "Rendered from live server",
+                "variant": "lead"
+              },
+              "children": []
+            }
+          }
+        },
+        "url": "/api/canvas/json-render/view?nodeId=ui-mnethgaw-5dcf",
+        "trustedDomain": true,
+        "sourceServer": "pmx-canvas",
+        "hostMode": "hosted",
+        "viewerType": "json-render"
+      }
+    },
+    {
+      "id": "graph-mnethgb3-mr5l",
+      "type": "graph",
+      "position": {
+        "x": 2416,
+        "y": 80
+      },
+      "size": {
+        "width": 760,
+        "height": 520
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "Smoke Graph",
+        "spec": {
+          "root": "card",
+          "elements": {
+            "card": {
+              "type": "Card",
+              "props": {
+                "title": "Smoke Graph",
+                "maxWidth": "full",
+                "centered": false
+              },
+              "children": [
+                "chart"
+              ]
+            },
+            "chart": {
+              "type": "LineChart",
+              "props": {
+                "data": [
+                  {
+                    "day": "Mon",
+                    "value": 2
+                  },
+                  {
+                    "day": "Tue",
+                    "value": 5
+                  },
+                  {
+                    "day": "Wed",
+                    "value": 3
+                  }
+                ],
+                "height": 320,
+                "xKey": "day",
+                "yKey": "value"
+              },
+              "children": []
+            }
+          }
+        },
+        "url": "/api/canvas/json-render/view?nodeId=graph-mnethgb3-mr5l",
+        "trustedDomain": true,
+        "sourceServer": "pmx-canvas",
+        "hostMode": "hosted",
+        "viewerType": "graph",
+        "graphConfig": {
+          "title": "Smoke Graph",
+          "graphType": "line",
+          "data": [
+            {
+              "day": "Mon",
+              "value": 2
+            },
+            {
+              "day": "Tue",
+              "value": 5
+            },
+            {
+              "day": "Wed",
+              "value": 3
+            }
+          ],
+          "xKey": "day",
+          "yKey": "value"
+        }
+      }
+    },
+    {
+      "id": "ui-mnetpwmy-1e8z",
+      "type": "json-render",
+      "position": {
+        "x": 3200,
+        "y": 80
+      },
+      "size": {
+        "width": 840,
+        "height": 620
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "Smoke JSON Render",
+        "spec": {
+          "root": "card",
+          "elements": {
+            "card": {
+              "type": "Card",
+              "props": {
+                "title": "Smoke JSON Render",
+                "maxWidth": "full",
+                "centered": false
+              },
+              "children": [
+                "copy"
+              ]
+            },
+            "copy": {
+              "type": "Text",
+              "props": {
+                "text": "Rendered from live server",
+                "variant": "lead"
+              },
+              "children": []
+            }
+          }
+        },
+        "url": "/api/canvas/json-render/view?nodeId=ui-mnetpwmy-1e8z",
+        "trustedDomain": true,
+        "sourceServer": "pmx-canvas",
+        "hostMode": "hosted",
+        "viewerType": "json-render"
+      }
+    },
+    {
+      "id": "graph-mnetpwn4-eovp",
+      "type": "graph",
+      "position": {
+        "x": 4064,
+        "y": 80
+      },
+      "size": {
+        "width": 760,
+        "height": 520
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "Smoke Graph",
+        "spec": {
+          "root": "card",
+          "elements": {
+            "card": {
+              "type": "Card",
+              "props": {
+                "title": "Smoke Graph",
+                "maxWidth": "full",
+                "centered": false
+              },
+              "children": [
+                "chart"
+              ]
+            },
+            "chart": {
+              "type": "LineChart",
+              "props": {
+                "data": [
+                  {
+                    "day": "Mon",
+                    "value": 2
+                  },
+                  {
+                    "day": "Tue",
+                    "value": 5
+                  },
+                  {
+                    "day": "Wed",
+                    "value": 3
+                  }
+                ],
+                "height": 320,
+                "xKey": "day",
+                "yKey": "value"
+              },
+              "children": []
+            }
+          }
+        },
+        "url": "/api/canvas/json-render/view?nodeId=graph-mnetpwn4-eovp",
+        "trustedDomain": true,
+        "sourceServer": "pmx-canvas",
+        "hostMode": "hosted",
+        "viewerType": "graph",
+        "graphConfig": {
+          "title": "Smoke Graph",
+          "graphType": "line",
+          "data": [
+            {
+              "day": "Mon",
+              "value": 2
+            },
+            {
+              "day": "Tue",
+              "value": 5
+            },
+            {
+              "day": "Wed",
+              "value": 3
+            }
+          ],
+          "xKey": "day",
+          "yKey": "value"
+        }
+      }
+    },
+    {
+      "id": "prompt-1774974064963-76531o",
+      "type": "prompt",
+      "position": {
+        "x": 380,
+        "y": 1260
+      },
+      "size": {
+        "width": 520,
+        "height": 400
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "text": "smoke prompt",
+        "turns": [
+          {
+            "role": "user",
+            "text": "smoke prompt",
+            "status": "pending"
+          }
+        ],
+        "threadStatus": "pending",
+        "status": "pending"
+      }
     }
   ],
-  "edges": [],
+  "edges": [
+    {
+      "id": "edge-mner5mcr",
+      "from": "node-mnamawqz-c3en",
+      "to": "node-mn99w633-a075",
+      "type": "relation"
+    },
+    {
+      "id": "edge-mner5u2z",
+      "from": "node-mn99w633-a075",
+      "to": "node-mnamawqz-c3en",
+      "type": "relation"
+    },
+    {
+      "id": "edge-mner8o1r",
+      "from": "node-mnamawqz-c3en",
+      "to": "node-mner2boc-vm0m",
+      "type": "relation"
+    }
+  ],
   "contextPins": []
 }

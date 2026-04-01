@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'preact/hooks';
 import { bringToFront, canvasTheme, persistLayout, updateNode, viewport } from '../state/canvas-store';
 import type { CanvasNodeState } from '../types';
 
+type McpUiTheme = 'light' | 'dark';
+
 type IframeLoadTarget = Pick<
   HTMLIFrameElement,
   'addEventListener' | 'removeEventListener' | 'contentDocument'
@@ -66,6 +68,7 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
   const nodeId = node.id;
   const frameKey = `${node.id}:${retryKey}`;
   const bridgeInitKey = getExtAppBridgeInitKey(node, retryKey);
+  const toMcpTheme = (theme: string): McpUiTheme => (theme === 'light' ? 'light' : 'dark');
 
   latestToolInputRef.current = toolInput;
   latestToolResultRef.current = toolResult;
@@ -125,7 +128,7 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
         { openLinks: {} },
         {
           hostContext: {
-            theme: canvasTheme.value,
+            theme: toMcpTheme(canvasTheme.value),
             platform: 'web',
             containerDimensions: { maxHeight },
             displayMode: 'inline',
@@ -230,7 +233,7 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
         if (firstFire) { firstFire = false; return; }
         if (disposed) return;
         bridge.setHostContext?.({
-          theme: newTheme,
+          theme: toMcpTheme(newTheme),
           platform: 'web',
           containerDimensions: { maxHeight },
           displayMode: 'inline',

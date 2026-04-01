@@ -171,10 +171,10 @@ curl http://localhost:4313/api/canvas/code-graph
 ```
 
 ### Integration (4 paths)
-- **MCP Server** — 20 tools + 6 resources, auto-starts canvas on first tool call. Zero-config for any MCP-capable agent.
+- **MCP Server** — 23 tools + 6 resources, auto-starts canvas on first tool call. Zero-config for any MCP-capable agent.
 - **HTTP API** — REST endpoints for all canvas operations + SSE event stream. Works from any language.
 - **Node.js SDK** — `createCanvas()` for programmatic control from Bun/Node.js.
-- **Agent Skill** — SKILL.md teaches agents the HTTP API. Works in Claude Code, Cowork, and any skill-aware agent.
+- **Agent Skills** — `skills/pmx-canvas/` teaches the canvas API, `skills/web-artifacts-builder/` covers richer bundled HTML artifact builds, `skills/playwright-cli/` covers browser validation, `skills/pmx-canvas-testing/` defines the repo verification ladder, and repo-local agnostic PMX skills now include `doc-coauthoring`, `data-analysis`, `frontend-design`, `web-design-guidelines`, and `json-render-*`.
 
 ### Real-time sync
 - **SSE push** — server broadcasts all changes to connected browsers instantly
@@ -204,6 +204,18 @@ pmx-canvas --theme=light
 The canvas opens at `http://localhost:4313`.
 
 ## Usage
+
+## Verification
+
+Common local verification commands:
+
+```bash
+bun run test
+bun run test:coverage
+bun run test:web-canvas
+bun run test:all
+bun run build
+```
 
 ### MCP Server (recommended)
 
@@ -244,6 +256,9 @@ Add to your agent's MCP config — the canvas auto-starts on first tool call:
 | `canvas_create_group` | Create a group (frame) containing specified nodes |
 | `canvas_group_nodes` | Add nodes to an existing group |
 | `canvas_ungroup` | Release all children from a group |
+| `canvas_build_web_artifact` | Build a bundled HTML artifact and open it on the canvas |
+| `canvas_add_json_render_node` | Create a native json-render canvas node from a validated spec |
+| `canvas_add_graph_node` | Create a native graph node for line, bar, and pie charts |
 
 **MCP Resources:**
 
@@ -343,16 +358,20 @@ console.log(canvas.getLayout()); // { viewport, nodes, edges }
 ### As a Claude Code skill
 
 Copy `skills/pmx-canvas/` into your project's `.claude/skills/` directory.
+For richer browser-app outputs, also copy `skills/web-artifacts-builder/`.
+For browser-side validation of canvas integrations and embedded artifacts, also copy `skills/playwright-cli/`.
+For repo-standard verification guidance, also copy `skills/pmx-canvas-testing/`.
+For native structured UI and general-purpose PMX workflows, also copy the repo-local `json-render-*`, `doc-coauthoring`, `data-analysis`, `frontend-design`, and `web-design-guidelines` skills you need.
 
 ## Architecture
 
 ```
 Agent (Claude Code / Codex / Cursor / pi / any)
   |
-  |-- MCP Server ---- 20 tools + 6 resources + change notifications
+  |-- MCP Server ---- 23 tools + 6 resources + change notifications
   |-- Node.js SDK --- createCanvas()
   |-- HTTP API ------ curl localhost:4313/api/...
-  |-- Skill file ---- SKILL.md
+  |-- Skill files --- pmx-canvas + web-artifacts-builder + playwright-cli + pmx-canvas-testing + agnostic PMX skills
   |
   v
 Bun.serve HTTP + SSE Server (localhost:4313)

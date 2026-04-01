@@ -22,6 +22,7 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { isAbsolute, relative, resolve } from 'node:path';
 import { z } from 'zod';
 import { createCanvas, canvasState, type PmxCanvas } from '../server/index.js';
 import { searchNodes, buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
@@ -29,6 +30,25 @@ import { mutationHistory, diffLayouts, formatDiff } from '../server/mutation-his
 import { buildCodeGraphSummary, formatCodeGraph } from '../server/code-graph.js';
 
 let canvas: PmxCanvas | null = null;
+
+function workspaceRoot(): string {
+  return resolve(process.cwd());
+}
+
+function isPathInside(base: string, candidate: string): boolean {
+  const rel = relative(base, candidate);
+  if (rel === '') return true;
+  return !rel.startsWith('..') && rel !== '..' && !isAbsolute(rel);
+}
+
+function safeWorkspacePath(pathLike: string): string {
+  const workspace = workspaceRoot();
+  const resolved = resolve(workspace, pathLike);
+  if (!isPathInside(workspace, resolved)) {
+    throw new Error(`Path "${pathLike}" resolves outside workspace.`);
+  }
+  return resolved;
+}
 
 async function ensureCanvas(): Promise<PmxCanvas> {
   if (!canvas) {
@@ -99,6 +119,166 @@ export async function startMcpServer(): Promise<void> {
       return {
         content: [{ type: 'text', text: JSON.stringify({ id }) }],
       };
+    },
+  );
+
+  // ── canvas_build_web_artifact ───────────────────────────────
+  server.tool(
+    'canvas_build_web_artifact',
+    'Build a bundled single-file HTML web artifact from React/Tailwind source files using the bundled web-artifacts-builder skill scripts. Optionally opens the generated artifact as an embedded node on the canvas.',
+    {
+      title: z.string().describe('Artifact title used for default project and output paths'),
+      appTsx: z.string().describe('Contents for src/App.tsx'),
+      indexCss: z.string().optional().describe('Optional contents for src/index.css'),
+      mainTsx: z.string().optional().describe('Optional contents for src/main.tsx'),
+      indexHtml: z.string().optional().describe('Optional contents for index.html'),
+      files: z.record(z.string(), z.string()).optional().describe('Optional map of additional project-relative file paths to file contents'),
+      projectPath: z.string().optional().describe('Optional workspace-relative reusable project path. Defaults to artifacts/.web-artifacts/<slug>'),
+      outputPath: z.string().optional().describe('Optional workspace-relative HTML output path. Defaults to artifacts/<slug>.html'),
+      openInCanvas: z.boolean().optional().describe('Open the generated artifact in canvas after build (default true)'),
+      initScriptPath: z.string().optional().describe('Optional absolute script path override for tests/debugging'),
+      bundleScriptPath: z.string().optional().describe('Optional absolute script path override for tests/debugging'),
+      timeoutMs: z.number().optional().describe('Optional timeout in milliseconds for init and bundle commands'),
+    },
+    async (input) => {
+      const c = await ensureCanvas();
+      try {
+        const result = await c.buildWebArtifact({
+          title: input.title,
+          appTsx: input.appTsx,
+          ...(typeof input.indexCss === 'string' ? { indexCss: input.indexCss } : {}),
+          ...(typeof input.mainTsx === 'string' ? { mainTsx: input.mainTsx } : {}),
+          ...(typeof input.indexHtml === 'string' ? { indexHtml: input.indexHtml } : {}),
+          ...(input.files ? { files: input.files } : {}),
+          ...(typeof input.projectPath === 'string'
+            ? { projectPath: safeWorkspacePath(input.projectPath) }
+            : {}),
+          ...(typeof input.outputPath === 'string'
+            ? { outputPath: safeWorkspacePath(input.outputPath) }
+            : {}),
+          ...(typeof input.initScriptPath === 'string'
+            ? { initScriptPath: input.initScriptPath }
+            : {}),
+          ...(typeof input.bundleScriptPath === 'string'
+            ? { bundleScriptPath: input.bundleScriptPath }
+            : {}),
+          ...(typeof input.timeoutMs === 'number' ? { timeoutMs: input.timeoutMs } : {}),
+          ...(typeof input.openInCanvas === 'boolean' ? { openInCanvas: input.openInCanvas } : {}),
+        });
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              path: result.filePath,
+              bytes: result.fileSize,
+              projectPath: result.projectPath,
+              openedInCanvas: result.openedInCanvas,
+              nodeId: result.nodeId,
+              url: result.url,
+              metadata: result.metadata,
+              stdout: result.stdout,
+              stderr: result.stderr,
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ── canvas_add_json_render_node ───────────────────────────
+  server.tool(
+    'canvas_add_json_render_node',
+    'Create a native json-render canvas node from a complete spec. Use this for structured dashboards, forms, tables, and other interactive UI panels that should render directly inside PMX Canvas.',
+    {
+      title: z.string().describe('Node title'),
+      spec: z.any().describe('Complete json-render spec with root, elements, and optional state'),
+      x: z.number().optional().describe('Optional X position'),
+      y: z.number().optional().describe('Optional Y position'),
+      width: z.number().optional().describe('Optional node width'),
+      height: z.number().optional().describe('Optional node height'),
+    },
+    async (input) => {
+      const c = await ensureCanvas();
+      try {
+        const result = c.addJsonRenderNode({
+          title: input.title,
+          spec: input.spec,
+          ...(typeof input.x === 'number' ? { x: input.x } : {}),
+          ...(typeof input.y === 'number' ? { y: input.y } : {}),
+          ...(typeof input.width === 'number' ? { width: input.width } : {}),
+          ...(typeof input.height === 'number' ? { height: input.height } : {}),
+        });
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ── canvas_add_graph_node ─────────────────────────────────
+  server.tool(
+    'canvas_add_graph_node',
+    'Create a native graph node backed by the json-render chart catalog. Supports line, bar, and pie graphs rendered directly inside PMX Canvas.',
+    {
+      title: z.string().optional().describe('Optional node title'),
+      graphType: z.string().describe('Graph type: line, bar, pie, or their chart aliases'),
+      data: z.array(z.record(z.string(), z.unknown())).describe('Array of chart data objects'),
+      xKey: z.string().optional().describe('X-axis key for line/bar graphs'),
+      yKey: z.string().optional().describe('Y-axis key for line/bar graphs'),
+      nameKey: z.string().optional().describe('Name key for pie graphs'),
+      valueKey: z.string().optional().describe('Value key for pie graphs'),
+      aggregate: z.enum(['sum', 'count', 'avg']).optional().describe('Optional aggregation for repeated x-axis values'),
+      color: z.string().optional().describe('Optional series color'),
+      height: z.number().optional().describe('Optional chart content height'),
+      x: z.number().optional().describe('Optional X position'),
+      y: z.number().optional().describe('Optional Y position'),
+      width: z.number().optional().describe('Optional node width'),
+      nodeHeight: z.number().optional().describe('Optional node height'),
+    },
+    async (input) => {
+      const c = await ensureCanvas();
+      try {
+        const result = c.addGraphNode({
+          graphType: input.graphType,
+          data: input.data,
+          ...(typeof input.title === 'string' ? { title: input.title } : {}),
+          ...(typeof input.xKey === 'string' ? { xKey: input.xKey } : {}),
+          ...(typeof input.yKey === 'string' ? { yKey: input.yKey } : {}),
+          ...(typeof input.nameKey === 'string' ? { nameKey: input.nameKey } : {}),
+          ...(typeof input.valueKey === 'string' ? { valueKey: input.valueKey } : {}),
+          ...(typeof input.aggregate === 'string' ? { aggregate: input.aggregate } : {}),
+          ...(typeof input.color === 'string' ? { color: input.color } : {}),
+          ...(typeof input.height === 'number' ? { height: input.height } : {}),
+          ...(typeof input.x === 'number' ? { x: input.x } : {}),
+          ...(typeof input.y === 'number' ? { y: input.y } : {}),
+          ...(typeof input.width === 'number' ? { width: input.width } : {}),
+          ...(typeof input.nodeHeight === 'number' ? { heightPx: input.nodeHeight } : {}),
+        });
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify(result, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+          isError: true,
+        };
+      }
     },
   );
 

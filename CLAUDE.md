@@ -158,7 +158,7 @@ Three themes: `dark` (default), `light`, `high-contrast`. Set via:
 
 ## MCP Server
 
-20 tools: `canvas_add_node`, `canvas_update_node`, `canvas_remove_node`, `canvas_get_layout`, `canvas_get_node`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_pin_nodes`, `canvas_clear`, `canvas_snapshot`, `canvas_restore`, `canvas_search`, `canvas_undo`, `canvas_redo`, `canvas_diff`, `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup`
+23 tools: `canvas_add_node`, `canvas_add_json_render_node`, `canvas_add_graph_node`, `canvas_build_web_artifact`, `canvas_update_node`, `canvas_remove_node`, `canvas_get_layout`, `canvas_get_node`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_pin_nodes`, `canvas_clear`, `canvas_snapshot`, `canvas_restore`, `canvas_search`, `canvas_undo`, `canvas_redo`, `canvas_diff`, `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup`
 
 6 resources: `canvas://pinned-context`, `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, `canvas://code-graph`
 
@@ -204,7 +204,7 @@ When file nodes are on the canvas, the system auto-detects import dependencies a
 1. **MCP Server** (recommended) — `pmx-canvas --mcp`, auto-starts on first tool call
 2. **HTTP API** — REST + SSE at `localhost:4313`
 3. **Node.js SDK** — `import { createCanvas } from 'pmx-canvas'`
-4. **Agent Skill** — `skills/pmx-canvas/SKILL.md`
+4. **Agent Skills** — `skills/pmx-canvas/SKILL.md`, `skills/web-artifacts-builder/SKILL.md`, `skills/playwright-cli/SKILL.md`, `skills/pmx-canvas-testing/SKILL.md`, plus repo-local agnostic PMX skills such as `doc-coauthoring`, `data-analysis`, `frontend-design`, `web-design-guidelines`, and `json-render-*`
 
 ## Conventions
 

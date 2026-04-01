@@ -6,7 +6,20 @@ export interface ViewportState {
 
 export interface CanvasNodeState {
   id: string;
-  type: 'markdown' | 'mcp-app' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'image' | 'group';
+  type:
+    | 'markdown'
+    | 'mcp-app'
+    | 'json-render'
+    | 'graph'
+    | 'prompt'
+    | 'response'
+    | 'status'
+    | 'context'
+    | 'ledger'
+    | 'trace'
+    | 'file'
+    | 'image'
+    | 'group';
   position: { x: number; y: number };
   size: { width: number; height: number };
   zIndex: number;
@@ -33,6 +46,10 @@ export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 export const TYPE_LABELS: Record<CanvasNodeState['type'], string> = {
   markdown: 'MD',
   'mcp-app': 'APP',
+  'json-render': 'UI',
+  graph: 'GRAPH',
+  prompt: 'ASK',
+  response: 'ANS',
   status: 'STATUS',
   context: 'CONTEXT',
   ledger: 'LOG',
@@ -46,6 +63,8 @@ export const TYPE_LABELS: Record<CanvasNodeState['type'], string> = {
 export const EXPANDABLE_TYPES = new Set<CanvasNodeState['type']>([
   'markdown',
   'mcp-app',
+  'json-render',
+  'graph',
   'context',
   'ledger',
   'file',

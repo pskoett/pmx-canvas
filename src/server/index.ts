@@ -9,6 +9,22 @@ import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
 import { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import {
+  buildWebArtifactOnCanvas,
+  type WebArtifactBuildInput,
+  type WebArtifactCanvasBuildResult,
+} from './web-artifacts.js';
+import {
+  buildGraphSpec,
+  buildJsonRenderViewerHtml,
+  createJsonRenderNodeData,
+  GRAPH_NODE_SIZE,
+  JSON_RENDER_NODE_SIZE,
+  normalizeAndValidateJsonRenderSpec,
+  type GraphNodeInput,
+  type JsonRenderNodeInput,
+  type JsonRenderSpec,
+} from '../json-render/server.js';
+import {
   startCanvasServer,
   stopCanvasServer,
   getCanvasServerPort,
@@ -92,6 +108,10 @@ export class PmxCanvas extends EventEmitter {
     width?: number;
     height?: number;
   }): string {
+    if (input.type === 'json-render' || input.type === 'graph') {
+      throw new Error(`Use the dedicated ${input.type} node APIs for structured viewer nodes.`);
+    }
+
     const width = input.width ?? 720;
     const height = input.height ?? 600;
     const pos = input.x !== undefined && input.y !== undefined
@@ -429,6 +449,83 @@ export class PmxCanvas extends EventEmitter {
     return { text: formatCodeGraph(summary), summary };
   }
 
+  async buildWebArtifact(
+    input: WebArtifactBuildInput & { openInCanvas?: boolean },
+  ): Promise<WebArtifactCanvasBuildResult> {
+    return buildWebArtifactOnCanvas(input);
+  }
+
+  addJsonRenderNode(
+    input: JsonRenderNodeInput,
+  ): { id: string; url: string; spec: JsonRenderSpec } {
+    const spec = normalizeAndValidateJsonRenderSpec(input.spec);
+    const width = input.width ?? JSON_RENDER_NODE_SIZE.width;
+    const height = input.height ?? JSON_RENDER_NODE_SIZE.height;
+    const pos =
+      input.x !== undefined && input.y !== undefined
+        ? { x: input.x, y: input.y }
+        : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
+    const id = `ui-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const node: CanvasNodeState = {
+      id,
+      type: 'json-render',
+      position: pos,
+      size: { width, height },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: createJsonRenderNodeData(id, input.title, spec, {
+        viewerType: 'json-render',
+      }),
+    };
+
+    canvasState.addJsonRenderNode(node);
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return { id, url: node.data.url as string, spec };
+  }
+
+  addGraphNode(input: GraphNodeInput): { id: string; url: string; spec: JsonRenderSpec } {
+    const title = input.title?.trim() || 'Graph';
+    const spec = buildGraphSpec(input);
+    const width = input.width ?? GRAPH_NODE_SIZE.width;
+    const height = input.heightPx ?? GRAPH_NODE_SIZE.height;
+    const pos =
+      input.x !== undefined && input.y !== undefined
+        ? { x: input.x, y: input.y }
+        : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
+    const id = `graph-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+    const node: CanvasNodeState = {
+      id,
+      type: 'graph',
+      position: pos,
+      size: { width, height },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: createJsonRenderNodeData(id, title, spec, {
+        viewerType: 'graph',
+        graphConfig: {
+          title,
+          graphType: input.graphType,
+          data: input.data,
+          ...(input.xKey ? { xKey: input.xKey } : {}),
+          ...(input.yKey ? { yKey: input.yKey } : {}),
+          ...(input.nameKey ? { nameKey: input.nameKey } : {}),
+          ...(input.valueKey ? { valueKey: input.valueKey } : {}),
+          ...(input.aggregate ? { aggregate: input.aggregate } : {}),
+          ...(input.color ? { color: input.color } : {}),
+          ...(typeof input.height === 'number' ? { height: input.height } : {}),
+        },
+      }),
+    };
+
+    canvasState.addGraphNode(node);
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return { id, url: node.data.url as string, spec };
+  }
+
   /** Debounced code graph recomputation (300ms). */
   private _scheduleCodeGraphRecompute(): void {
     if (this._codeGraphTimer) clearTimeout(this._codeGraphTimer);
@@ -470,6 +567,28 @@ export { searchNodes, buildSpatialContext, detectClusters, findNeighborhoods } f
 export type { SpatialCluster, SpatialContext, SpatialNeighbor, NodeSpatialInfo } from './spatial-analysis.js';
 export { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
 export { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
+export {
+  buildWebArtifactOnCanvas,
+  executeWebArtifactBuild,
+  openWebArtifactInCanvas,
+  resolveWebArtifactScriptPath,
+  resolveWorkspacePath,
+} from './web-artifacts.js';
+export {
+  buildGraphSpec,
+  buildJsonRenderViewerHtml,
+  createJsonRenderNodeData,
+  GRAPH_NODE_SIZE,
+  JSON_RENDER_NODE_SIZE,
+  normalizeAndValidateJsonRenderSpec,
+} from '../json-render/server.js';
 export type { CodeGraphSummary, CodeGraphEdge } from './code-graph.js';
 export type { MutationEntry, MutationSummary, SnapshotDiffResult } from './mutation-history.js';
+export type {
+  WebArtifactBuildInput,
+  WebArtifactBuildOutput,
+  WebArtifactCanvasBuildResult,
+  WebArtifactCanvasOpenResult,
+} from './web-artifacts.js';
+export type { GraphNodeInput, JsonRenderNodeInput, JsonRenderSpec } from '../json-render/server.js';
 export { traceManager } from './trace-manager.js';

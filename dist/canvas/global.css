@@ -499,7 +499,7 @@ body,
   }
 }
 
-/* Markdown editor inside node */
+/* Raw markdown source editor */
 .md-editor-split {
   display: flex;
   height: 100%;
@@ -743,7 +743,7 @@ body,
   background: var(--c-surface-subtle);
 }
 
-/* Edit FAB — floating button in expanded reader mode */
+/* Source-mode FAB in expanded document view */
 .md-edit-fab {
   position: absolute;
   bottom: 16px;

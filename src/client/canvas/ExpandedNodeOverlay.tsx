@@ -23,6 +23,10 @@ function renderContent(node: CanvasNodeState, expanded: boolean) {
       return <MarkdownNode node={node} expanded={expanded} />;
     case 'mcp-app':
       return <McpAppNode node={node} />;
+    case 'json-render':
+      return <McpAppNode node={node} />;
+    case 'graph':
+      return <McpAppNode node={node} />;
     case 'status':
       return <StatusNode node={node} />;
     case 'context':
@@ -47,6 +51,9 @@ function getNodeTextContent(node: CanvasNodeState): string {
       return (node.data.content as string) || '';
     case 'file':
       return (node.data.fileContent as string) || '';
+    case 'json-render':
+    case 'graph':
+      return JSON.stringify(node.data.spec ?? node.data.graphConfig ?? {}, null, 2);
     default:
       return '';
   }

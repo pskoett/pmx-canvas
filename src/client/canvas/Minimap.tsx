@@ -14,12 +14,17 @@ function getNodeColors(): Record<CanvasNodeState['type'], string> {
   return {
     markdown: t.accent,
     'mcp-app': t.ok,
+    'json-render': t.ok,
+    graph: t.purple,
+    prompt: t.accent,
+    response: t.ok,
     status: t.warn,
     context: t.muted,
     ledger: t.dim,
     trace: t.purple,
-    prompt: t.accent,
-    response: t.ok,
+    file: t.accent,
+    image: t.ok,
+    group: t.dim,
   };
 }
 

@@ -202,16 +202,26 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
 
   if (edgeList.length === 0) return null;
 
+  const PAD = 96;
+  const worldNodes = Array.from(nodeMap.values());
+  const minX = Math.min(...worldNodes.map((node) => node.position.x)) - PAD;
+  const minY = Math.min(...worldNodes.map((node) => node.position.y)) - PAD;
+  const maxX = Math.max(...worldNodes.map((node) => node.position.x + node.size.width)) + PAD;
+  const maxY = Math.max(...worldNodes.map((node) => node.position.y + node.size.height)) + PAD;
+  const width = Math.max(1, maxX - minX);
+  const height = Math.max(1, maxY - minY);
+
   return (
     <svg
       aria-label="Canvas connections"
       role="img"
+      viewBox={`${minX} ${minY} ${width} ${height}`}
+      width={width}
+      height={height}
       style={{
         position: 'absolute',
-        top: 0,
-        left: 0,
-        width: '100%',
-        height: '100%',
+        top: `${minY}px`,
+        left: `${minX}px`,
         pointerEvents: 'none',
         overflow: 'visible',
       }}

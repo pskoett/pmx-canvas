@@ -33,6 +33,10 @@ function renderNodeContent(node: CanvasNodeState) {
       return <MarkdownNode node={node} />;
     case 'mcp-app':
       return <McpAppNode node={node} />;
+    case 'json-render':
+      return <McpAppNode node={node} />;
+    case 'graph':
+      return <McpAppNode node={node} />;
     case 'status':
       return <StatusNode node={node} />;
     case 'context':

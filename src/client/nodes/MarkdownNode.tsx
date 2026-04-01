@@ -1,6 +1,6 @@
 import type { JSX } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
-import { updateNodeData } from '../state/canvas-store';
+import { expandNode, updateNodeData } from '../state/canvas-store';
 import { fetchFile, renderMarkdown, saveFile } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
 import { MdFormatBar } from './MdFormatBar';
@@ -108,7 +108,7 @@ export function MarkdownNode({
   const [content, setContent] = useState('');
   const [rendered, setRendered] = useState('');
   const [loaded, setLoaded] = useState(false);
-  const [editing, setEditing] = useState(false);
+  const [sourceMode, setSourceMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
   const [editingBlock, setEditingBlock] = useState<number | null>(null);
@@ -193,23 +193,39 @@ export function MarkdownNode({
 
   // ── Inline block editing ──────────────────────────────────────
 
+  const focusBlockEditor = useCallback(() => {
+    requestAnimationFrame(() => {
+      const ta = blockTextareaRef.current;
+      if (ta) {
+        ta.focus();
+        ta.style.height = 'auto';
+        ta.style.height = `${ta.scrollHeight}px`;
+      }
+    });
+  }, []);
+
+  const startInlineEdit = useCallback(
+    (blockIndex: number) => {
+      if (editingBlock !== null) return;
+      const nextDraft = blocks[blockIndex] ?? '';
+      setEditingBlock(blockIndex);
+      setBlockDraft(nextDraft);
+      focusBlockEditor();
+    },
+    [editingBlock, blocks, focusBlockEditor],
+  );
+
   const handleBlockClick = useCallback(
     (blockIndex: number) => {
-      if (editingBlock !== null) return; // already editing
       if (blockIndex >= blocks.length) return;
-      setEditingBlock(blockIndex);
-      setBlockDraft(blocks[blockIndex]);
-      requestAnimationFrame(() => {
-        const ta = blockTextareaRef.current;
-        if (ta) {
-          ta.focus();
-          ta.style.height = 'auto';
-          ta.style.height = `${ta.scrollHeight}px`;
-        }
-      });
+      startInlineEdit(blockIndex);
     },
-    [editingBlock, blocks],
+    [blocks.length, startInlineEdit],
   );
+
+  const handleStartWriting = useCallback(() => {
+    startInlineEdit(0);
+  }, [startInlineEdit]);
 
   const handleBlockSave = useCallback(async () => {
     if (editingBlock === null) return;
@@ -278,14 +294,14 @@ export function MarkdownNode({
     </div>
   ) : null;
 
-  // ── Editing mode (full editor) ────────────────────────────────
+  // ── Raw source editor (secondary mode) ────────────────────────
 
-  if (editing && expanded) {
+  if (sourceMode && expanded) {
     return (
       <div class="md-editor-expanded" onKeyDown={handleKeyDown}>
         <div class="md-editor-toolbar">
-          <button type="button" class="md-toolbar-btn" onClick={() => setEditing(false)}>
-            ← Preview
+          <button type="button" class="md-toolbar-btn" onClick={() => setSourceMode(false)}>
+            ← Back to document
           </button>
           <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
             {path && <span class="md-toolbar-path">{path.split('/').pop()}</span>}
@@ -313,7 +329,7 @@ export function MarkdownNode({
     );
   }
 
-  if (editing) {
+  if (sourceMode) {
     return (
       <div class="md-editor-split" style={{ height: '100%' }} onKeyDown={handleKeyDown}>
         <div style={{ flex: 1, position: 'relative', display: 'flex', flexDirection: 'column' }}>
@@ -333,7 +349,7 @@ export function MarkdownNode({
         >
           <button
             type="button"
-            onClick={() => setEditing(false)}
+            onClick={() => setSourceMode(false)}
             style={{
               padding: '4px 10px',
               fontSize: '11px',
@@ -344,7 +360,7 @@ export function MarkdownNode({
               cursor: 'pointer',
             }}
           >
-            Preview
+            Document
           </button>
           <button
             type="button"
@@ -367,9 +383,11 @@ export function MarkdownNode({
     );
   }
 
-  // ── Expanded reader mode (with inline block editing) ──────────
+  // ── Expanded document mode (default editing experience) ───────
 
   if (expanded) {
+    const editableBlocks = blocks.length > 0 ? blocks : [''];
+
     // Render per-block: each block gets its own rendered HTML for inline editing
     // When a block is being edited, show textarea instead of rendered content
     return (
@@ -380,7 +398,7 @@ export function MarkdownNode({
             {editingBlock !== null ? (
               // Render blocks individually: show textarea for the editing block
               <>
-                {blocks.map((_, i) =>
+                {editableBlocks.map((_, i) =>
                   i === editingBlock ? (
                     <div key={`block-${i}`} class="md-block-edit-wrap">
                       <textarea
@@ -411,7 +429,7 @@ export function MarkdownNode({
                       </div>
                     </div>
                   ) : (
-                    <BlockPreview key={`block-${i}`} block={blocks[i]} index={i} />
+                    <BlockPreview key={`block-${i}`} block={editableBlocks[i]} index={i} />
                   ),
                 )}
               </>
@@ -426,17 +444,35 @@ export function MarkdownNode({
                   </div>
                 )}
                 {loaded && !rendered && (
-                  <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '24px' }}>
-                    Empty node
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '12px',
+                      color: 'var(--c-dim)',
+                      padding: '48px 24px',
+                    }}
+                  >
+                    <div style={{ fontStyle: 'italic' }}>Nothing here yet.</div>
+                    <button
+                      type="button"
+                      class="md-toolbar-btn md-toolbar-btn-primary"
+                      onClick={handleStartWriting}
+                    >
+                      Start writing
+                    </button>
                   </div>
                 )}
               </>
             )}
           </div>
         </div>
-        <button type="button" class="md-edit-fab" onClick={() => setEditing(true)}>
-          ✎ Full Editor
-        </button>
+        {editingBlock === null && (
+          <button type="button" class="md-edit-fab" onClick={() => setSourceMode(true)}>
+            {'</> Source'}
+          </button>
+        )}
       </div>
     );
   }
@@ -459,7 +495,7 @@ export function MarkdownNode({
       )}
       <button
         type="button"
-        onClick={() => setEditing(true)}
+        onClick={() => expandNode(node.id)}
         style={{
           position: 'absolute',
           top: '4px',

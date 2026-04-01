@@ -26,7 +26,9 @@ export type MutationOp =
   | 'arrange'
   | 'restoreSnapshot'
   | 'setPins'
-  | 'batch';
+  | 'batch'
+  | 'groupNodes'
+  | 'ungroupNodes';
 
 export interface MutationEntry {
   id: string;
@@ -179,6 +181,13 @@ class MutationHistory {
   /** Number of recorded entries. */
   get length(): number {
     return this.entries.length;
+  }
+
+  /** Clear all recorded mutations. Useful for isolated test runs. */
+  reset(): void {
+    this.entries = [];
+    this.cursor = -1;
+    this._replaying = false;
   }
 }
 

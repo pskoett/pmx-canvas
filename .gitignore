@@ -1,2 +1,7 @@
 .pmx-canvas-snapshots/
 node_modules/
+playwright-report/
+test-results/
+coverage/
+blob-report/
+.playwright/

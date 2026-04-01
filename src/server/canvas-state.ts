@@ -40,7 +40,20 @@ export interface CanvasSnapshot {
 
 export interface CanvasNodeState {
   id: string;
-  type: 'markdown' | 'mcp-app' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'image' | 'group';
+  type:
+    | 'markdown'
+    | 'mcp-app'
+    | 'json-render'
+    | 'graph'
+    | 'prompt'
+    | 'response'
+    | 'status'
+    | 'context'
+    | 'ledger'
+    | 'trace'
+    | 'file'
+    | 'image'
+    | 'group';
   position: { x: number; y: number };
   size: { width: number; height: number };
   zIndex: number;
@@ -94,6 +107,7 @@ class CanvasStateManager {
   private edges = new Map<string, CanvasEdge>();
   private _viewport: ViewportState = { x: 0, y: 0, scale: 1 };
   private _contextPinnedNodeIds = new Set<string>();
+  private _workspaceRoot = process.cwd();
 
   // ── Change listeners (for MCP resource notifications) ──────
   private _changeListeners: ((type: CanvasChangeType) => void)[] = [];
@@ -140,8 +154,13 @@ class CanvasStateManager {
 
   /** Set the workspace root to enable auto-persistence. */
   setWorkspaceRoot(workspaceRoot: string): void {
+    this._workspaceRoot = workspaceRoot;
     const override = (process.env.PMX_CANVAS_STATE_FILE ?? '').trim();
     this._stateFilePath = override || join(workspaceRoot, CANVAS_STATE_FILENAME);
+  }
+
+  getWorkspaceRoot(): string {
+    return this._workspaceRoot;
   }
 
   /** Load canvas state from disk. Call once on server startup. */
@@ -398,6 +417,14 @@ class CanvasStateManager {
       forward: this.suppressed(() => this.addNode(structuredClone(cloned))),
       inverse: this.suppressed(() => this.removeNode(node.id)),
     });
+  }
+
+  addJsonRenderNode(node: CanvasNodeState): void {
+    this.addNode(node);
+  }
+
+  addGraphNode(node: CanvasNodeState): void {
+    this.addNode(node);
   }
 
   updateNode(id: string, patch: Partial<CanvasNodeState>): void {

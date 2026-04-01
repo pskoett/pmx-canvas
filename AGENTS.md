@@ -92,6 +92,9 @@ Agent-specific workflows, tool usage patterns, and automation rules for the pmx-
 
 ## Testing Conventions
 
+Use the `pmx-canvas-testing` skill for the repo-standard verification ladder, test command
+selection, and handoff expectations whenever you change code in this project.
+
 1. **Never dismiss failing tests.** Investigate every failure before declaring success. A "pre-existing" failure still needs resolution or explicit acknowledgment.
 
 2. **Verify the full stack.** Don't just check that code compiles — start the server, hit the endpoints, confirm the SPA loads:

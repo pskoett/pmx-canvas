@@ -65,13 +65,18 @@ function applyLayoutOverrides(node: CanvasNodeState): CanvasNodeState {
 const DEFAULT_POSITIONS: Record<
   CanvasNodeState['type'],
   { x: number; y: number; w: number; h: number }
-> = {
+> & Record<'prompt' | 'response', { x: number; y: number; w: number; h: number }> = {
   status: { x: 40, y: 80, w: 300, h: 120 },
   markdown: { x: 380, y: 80, w: 720, h: 600 },
   context: { x: 1130, y: 80, w: 320, h: 400 },
   'mcp-app': { x: 380, y: 720, w: 720, h: 500 },
+  'json-render': { x: 380, y: 720, w: 840, h: 620 },
+  graph: { x: 380, y: 720, w: 760, h: 520 },
   ledger: { x: 1130, y: 520, w: 320, h: 280 },
   trace: { x: 40, y: 900, w: 200, h: 56 },
+  file: { x: 380, y: 80, w: 720, h: 600 },
+  image: { x: 380, y: 80, w: 720, h: 520 },
+  group: { x: 220, y: 60, w: 840, h: 560 },
   prompt: { x: 380, y: 1260, w: 520, h: 400 },
   response: { x: 380, y: 1480, w: 720, h: 400 },
 };

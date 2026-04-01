@@ -94,6 +94,46 @@ export async function fetchCanvasState(): Promise<Record<string, unknown>> {
   }
 }
 
+/** Fetch available slash commands for prompt completion. */
+export async function fetchSlashCommands(): Promise<Array<{ name: string; description: string }>> {
+  return [];
+}
+
+/** Submit a new canvas prompt. */
+export async function submitCanvasPrompt(
+  text: string,
+  position?: { x: number; y: number },
+  parentNodeId?: string,
+  contextNodeIds?: string[],
+  threadNodeId?: string,
+): Promise<{ ok: boolean; nodeId?: string; error?: string }> {
+  if (!text.trim()) return { ok: false, error: 'Prompt text is required' };
+  try {
+    const res = await fetch('/api/canvas/prompt', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text,
+        ...(position ? { position } : {}),
+        ...(parentNodeId ? { parentNodeId } : {}),
+        ...(contextNodeIds && contextNodeIds.length > 0 ? { contextNodeIds } : {}),
+        ...(threadNodeId ? { threadNodeId } : {}),
+      }),
+    });
+    return (await res.json()) as { ok: boolean; nodeId?: string; error?: string };
+  } catch {
+    return { ok: false, error: 'Network error' };
+  }
+}
+
+/** Submit a reply into an existing prompt thread. */
+export async function submitThreadReply(
+  threadNodeId: string,
+  text: string,
+): Promise<{ ok: boolean; nodeId?: string; error?: string }> {
+  return submitCanvasPrompt(text, undefined, undefined, undefined, threadNodeId);
+}
+
 /** Push canvas node updates to server. */
 export async function pushCanvasUpdate(
   updates: Array<{

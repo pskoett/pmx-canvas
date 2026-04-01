@@ -67,6 +67,8 @@ function highlightMatch(text: string, indices: number[]) {
 const TYPE_ALIASES: Record<string, CanvasNodeState['type']> = {
   md: 'markdown',
   app: 'mcp-app',
+  ui: 'json-render',
+  chart: 'graph',
   ctx: 'context',
   log: 'ledger',
 };

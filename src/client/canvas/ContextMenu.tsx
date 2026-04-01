@@ -119,8 +119,14 @@ interface MenuItem {
   separator?: boolean;
 }
 
+function getNodeLocalPath(node: CanvasNodeState): string | null {
+  const path = typeof node.data.path === 'string' ? node.data.path.trim() : '';
+  return path || null;
+}
+
 function buildMenuItems(node: CanvasNodeState): MenuItem[] {
   const items: MenuItem[] = [];
+  const localPath = getNodeLocalPath(node);
 
   // S2: Delegate to focusNode() which centers, brings to front, and persists
   items.push({
@@ -195,24 +201,22 @@ function buildMenuItems(node: CanvasNodeState): MenuItem[] {
   items.push({ separator: true });
 
   // Type-specific
-  if (node.type === 'markdown') {
+  if ((node.type === 'markdown' || node.type === 'file' || node.type === 'image') && localPath) {
     items.push({
       label: 'Open in browser',
       action: () => {
-        const path = node.data.path as string;
-        if (path) window.open(`/artifact?path=${encodeURIComponent(path)}&legacy=1`, '_blank');
+        window.open(`/artifact?path=${encodeURIComponent(localPath)}`, '_blank', 'noopener');
       },
     });
     items.push({
       label: 'Copy path',
       action: () => {
-        const path = node.data.path as string;
-        if (path) navigator.clipboard.writeText(path);
+        navigator.clipboard.writeText(localPath);
       },
     });
   }
 
-  if (node.type === 'mcp-app') {
+  if (node.type === 'mcp-app' || node.type === 'json-render' || node.type === 'graph') {
     if (node.data.chartConfig) {
       // Chart ext-app node — chart-specific actions
       const chartTitle =
@@ -236,6 +240,16 @@ function buildMenuItems(node: CanvasNodeState): MenuItem[] {
         label: 'Focus in TUI',
         action: () => sendIntent('mcp-app-focus', { url }),
       });
+      if (node.type === 'json-render' || node.type === 'graph') {
+        items.push({
+          label: 'Copy spec',
+          action: () => {
+            navigator.clipboard.writeText(
+              JSON.stringify(node.data.spec ?? node.data.graphConfig ?? {}, null, 2),
+            );
+          },
+        });
+      }
     }
   }
 
