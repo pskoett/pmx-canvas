@@ -599,9 +599,10 @@ cmd('serve', 'Start the canvas server', [
   'pmx-canvas serve',
   'pmx-canvas serve --port=8080 --no-open',
   'pmx-canvas serve --demo --theme=light',
+  'pmx-canvas --no-open --webview-automation',
 ], async (_args) => {
   // This is handled by the main CLI entry point — just show help
-  console.log('Use: pmx-canvas [--port=PORT] [--demo] [--no-open] [--theme=THEME]');
+  console.log('Use: pmx-canvas [--port=PORT] [--demo] [--no-open] [--theme=THEME] [--webview-automation]');
   console.log('Or:  pmx-canvas serve --port=8080 --demo');
 });
 
@@ -629,6 +630,7 @@ Usage:
 Server:
   pmx-canvas                          Start server + open browser
   pmx-canvas --no-open --demo         Start server headless with sample data
+  pmx-canvas --no-open --webview-automation  Start server + headless Bun.WebView automation
   pmx-canvas --mcp                    Run as MCP server (stdio)
 
 Node commands:

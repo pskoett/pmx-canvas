@@ -26,6 +26,9 @@
  * - GET  /api/workbench/events   -> SSE event stream
  * - GET  /api/workbench/state    -> workbench state snapshot
  * - POST /api/workbench/intent   -> workbench intents
+ * - GET  /api/workbench/webview  -> Bun.WebView automation status
+ * - POST /api/workbench/webview/start -> start Bun.WebView automation session
+ * - DELETE /api/workbench/webview -> stop Bun.WebView automation session
  */
 
 import { spawnSync } from 'node:child_process';
@@ -71,6 +74,87 @@ export interface PrimaryWorkbenchEventPayload {
   [key: string]: unknown;
 }
 
+type CanvasWebViewBackend =
+  | 'webkit'
+  | 'chrome'
+  | {
+      type: 'chrome';
+      url?: false;
+      path?: string;
+      argv?: string[];
+      stdout?: 'inherit' | 'ignore';
+      stderr?: 'inherit' | 'ignore';
+    }
+  | {
+      type: 'chrome';
+      url: string;
+    }
+  | {
+      type: 'webkit';
+      stdout?: 'inherit' | 'ignore';
+      stderr?: 'inherit' | 'ignore';
+    };
+
+interface CanvasWebViewLike extends EventTarget {
+  readonly url?: string;
+  readonly title?: string;
+  readonly loading?: boolean;
+  navigate(url: string): Promise<void>;
+  evaluate(expression: string): Promise<unknown>;
+  screenshot(options?: Record<string, unknown>): Promise<Uint8Array | ArrayBuffer | Blob>;
+  resize(width: number, height: number): Promise<void>;
+  close(): void | Promise<void>;
+}
+
+interface CanvasWebViewConstructor {
+  new (options?: {
+    width?: number;
+    height?: number;
+    headless?: boolean;
+    backend?: CanvasWebViewBackend;
+    url?: string;
+    dataStore?: 'ephemeral' | { directory: string };
+  }): CanvasWebViewLike;
+}
+
+interface BunWithOptionalWebView {
+  WebView?: CanvasWebViewConstructor;
+}
+
+export interface CanvasAutomationWebViewOptions {
+  backend?: 'webkit' | 'chrome';
+  width?: number;
+  height?: number;
+  chromePath?: string;
+  chromeArgv?: string[];
+  dataStoreDir?: string;
+}
+
+export interface CanvasAutomationWebViewStatus {
+  supported: boolean;
+  active: boolean;
+  headlessOnly: true;
+  url: string | null;
+  backend: 'webkit' | 'chrome' | null;
+  width: number | null;
+  height: number | null;
+  dataStoreDir: string | null;
+  startedAt: string | null;
+  lastError: string | null;
+}
+
+let canvasAutomationWebView: CanvasWebViewLike | null = null;
+let canvasAutomationWebViewStatus: Omit<CanvasAutomationWebViewStatus, 'supported' | 'active' | 'headlessOnly'> =
+  {
+    url: null,
+    backend: null,
+    width: null,
+    height: null,
+    dataStoreDir: null,
+    startedAt: null,
+    lastError: null,
+  };
+
 function sessionDiagLog(tag: string, payload: Record<string, unknown>): void {
   const logPath = String(process.env.PMX_SESSION_LOG || process.env.PMX_TEST_LOG || '').trim();
   if (!logPath) return;
@@ -101,6 +185,204 @@ function tryParseUrl(raw: string): URL | null {
     console.debug('[workbench] invalid URL', { raw, error });
     return null;
   }
+}
+
+function getCanvasWebViewConstructor(): CanvasWebViewConstructor | null {
+  return (Bun as typeof Bun & BunWithOptionalWebView).WebView ?? null;
+}
+
+function hasCanvasAutomationWebViewSupport(): boolean {
+  return getCanvasWebViewConstructor() !== null;
+}
+
+function getDefaultCanvasAutomationWebViewBackend(): 'webkit' | 'chrome' {
+  return process.platform === 'darwin' ? 'webkit' : 'chrome';
+}
+
+function normalizeCanvasAutomationWebViewOptions(
+  input: CanvasAutomationWebViewOptions = {},
+): Required<Pick<CanvasAutomationWebViewOptions, 'width' | 'height'>> &
+  Pick<CanvasAutomationWebViewOptions, 'backend' | 'chromePath' | 'chromeArgv' | 'dataStoreDir'> {
+  return {
+    backend: input.backend,
+    width:
+      typeof input.width === 'number' && Number.isFinite(input.width) && input.width > 0
+        ? Math.floor(input.width)
+        : 1280,
+    height:
+      typeof input.height === 'number' && Number.isFinite(input.height) && input.height > 0
+        ? Math.floor(input.height)
+        : 800,
+    chromePath: input.chromePath?.trim() || undefined,
+    chromeArgv:
+      Array.isArray(input.chromeArgv) && input.chromeArgv.length > 0
+        ? input.chromeArgv.map((value) => value.trim()).filter((value) => value.length > 0)
+        : undefined,
+    dataStoreDir: input.dataStoreDir?.trim() || undefined,
+  };
+}
+
+function resolveCanvasAutomationWebViewBackend(
+  options: ReturnType<typeof normalizeCanvasAutomationWebViewOptions>,
+): CanvasWebViewBackend {
+  if (options.backend === 'webkit' && (options.chromePath || options.chromeArgv)) {
+    throw new Error('Chrome-specific WebView options cannot be combined with the WebKit backend.');
+  }
+
+  if (options.backend === 'webkit' && process.platform !== 'darwin') {
+    throw new Error('The WebKit Bun.WebView backend is only available on macOS. Use backend "chrome" instead.');
+  }
+
+  if (options.chromePath || options.chromeArgv) {
+    return {
+      type: 'chrome',
+      ...(options.chromePath ? { path: options.chromePath } : {}),
+      ...(options.chromeArgv ? { argv: options.chromeArgv } : {}),
+    };
+  }
+
+  const backend = options.backend ?? getDefaultCanvasAutomationWebViewBackend();
+  if (backend === 'webkit' && process.platform !== 'darwin') {
+    throw new Error('The WebKit Bun.WebView backend is only available on macOS. Use backend "chrome" instead.');
+  }
+
+  return backend;
+}
+
+function detectCanvasAutomationWebViewBackendKind(backend: CanvasWebViewBackend): 'webkit' | 'chrome' {
+  if (backend === 'webkit' || backend === 'chrome') return backend;
+  return backend.type;
+}
+
+async function closeCanvasAutomationWebViewInternal(): Promise<boolean> {
+  if (!canvasAutomationWebView) return false;
+
+  const view = canvasAutomationWebView;
+  canvasAutomationWebView = null;
+  canvasAutomationWebViewStatus = {
+    ...canvasAutomationWebViewStatus,
+    url: null,
+    backend: null,
+    width: null,
+    height: null,
+    dataStoreDir: null,
+    startedAt: null,
+  };
+
+  await Promise.resolve(view.close());
+  return true;
+}
+
+export function getCanvasAutomationWebViewStatus(): CanvasAutomationWebViewStatus {
+  return {
+    supported: hasCanvasAutomationWebViewSupport(),
+    active: canvasAutomationWebView !== null,
+    headlessOnly: true,
+    ...canvasAutomationWebViewStatus,
+  };
+}
+
+export async function stopCanvasAutomationWebView(): Promise<boolean> {
+  try {
+    return await closeCanvasAutomationWebViewInternal();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    canvasAutomationWebViewStatus = {
+      ...canvasAutomationWebViewStatus,
+      lastError: message,
+    };
+    throw error;
+  }
+}
+
+export async function startCanvasAutomationWebView(
+  url: string,
+  options: CanvasAutomationWebViewOptions = {},
+): Promise<CanvasAutomationWebViewStatus> {
+  const WebView = getCanvasWebViewConstructor();
+  if (!WebView) {
+    const message = 'Bun.WebView is not available in this Bun runtime. Bun >=1.3.12 is required.';
+    canvasAutomationWebViewStatus = {
+      ...canvasAutomationWebViewStatus,
+      lastError: message,
+    };
+    throw new Error(message);
+  }
+
+  const normalized = normalizeCanvasAutomationWebViewOptions(options);
+  const backend = resolveCanvasAutomationWebViewBackend(normalized);
+
+  if (canvasAutomationWebView) {
+    await closeCanvasAutomationWebViewInternal();
+  }
+
+  const view = new WebView({
+    width: normalized.width,
+    height: normalized.height,
+    headless: true,
+    backend,
+    dataStore: normalized.dataStoreDir ? { directory: normalized.dataStoreDir } : 'ephemeral',
+  });
+
+  try {
+    await view.navigate(url);
+  } catch (error) {
+    canvasAutomationWebViewStatus = {
+      ...canvasAutomationWebViewStatus,
+      lastError: error instanceof Error ? error.message : String(error),
+    };
+    await Promise.resolve(view.close()).catch(() => undefined);
+    throw error;
+  }
+
+  canvasAutomationWebView = view;
+  canvasAutomationWebViewStatus = {
+    url,
+    backend: detectCanvasAutomationWebViewBackendKind(backend),
+    width: normalized.width,
+    height: normalized.height,
+    dataStoreDir: normalized.dataStoreDir ?? null,
+    startedAt: new Date().toISOString(),
+    lastError: null,
+  };
+
+  return getCanvasAutomationWebViewStatus();
+}
+
+function requireActiveCanvasAutomationWebView(): CanvasWebViewLike {
+  if (!canvasAutomationWebView) {
+    throw new Error('Canvas automation WebView is not active. Start it before issuing automation commands.');
+  }
+  return canvasAutomationWebView;
+}
+
+export async function evaluateCanvasAutomationWebView(expression: string): Promise<unknown> {
+  return requireActiveCanvasAutomationWebView().evaluate(expression);
+}
+
+export async function resizeCanvasAutomationWebView(
+  width: number,
+  height: number,
+): Promise<CanvasAutomationWebViewStatus> {
+  const normalizedWidth = Number.isFinite(width) && width > 0 ? Math.floor(width) : 1280;
+  const normalizedHeight = Number.isFinite(height) && height > 0 ? Math.floor(height) : 800;
+  await requireActiveCanvasAutomationWebView().resize(normalizedWidth, normalizedHeight);
+  canvasAutomationWebViewStatus = {
+    ...canvasAutomationWebViewStatus,
+    width: normalizedWidth,
+    height: normalizedHeight,
+  };
+  return getCanvasAutomationWebViewStatus();
+}
+
+export async function screenshotCanvasAutomationWebView(
+  options: Record<string, unknown> = {},
+): Promise<Uint8Array> {
+  const result = await requireActiveCanvasAutomationWebView().screenshot(options);
+  if (result instanceof Uint8Array) return result;
+  if (result instanceof ArrayBuffer) return new Uint8Array(result);
+  if (result instanceof Blob) return new Uint8Array(await result.arrayBuffer());
+  throw new Error('Unexpected screenshot payload type from Bun.WebView.');
 }
 
 export interface PrimaryWorkbenchIntent {
@@ -1285,6 +1567,82 @@ function handleWorkbenchState(): Response {
     mcpAppHost,
     updatedAt: new Date(stat.mtimeMs).toISOString(),
   });
+}
+
+function parseCanvasAutomationWebViewRequestBody(
+  body: Record<string, unknown>,
+): CanvasAutomationWebViewOptions {
+  const backendValue = typeof body.backend === 'string' ? body.backend.trim() : '';
+  const backend =
+    backendValue === 'chrome' || backendValue === 'webkit'
+      ? backendValue
+      : undefined;
+
+  const width = typeof body.width === 'number' ? body.width : undefined;
+  const height = typeof body.height === 'number' ? body.height : undefined;
+  const chromePath = typeof body.chromePath === 'string' ? body.chromePath : undefined;
+  const dataStoreDir = typeof body.dataStoreDir === 'string' ? body.dataStoreDir : undefined;
+  const chromeArgv = Array.isArray(body.chromeArgv)
+    ? body.chromeArgv.filter((value): value is string => typeof value === 'string')
+    : undefined;
+
+  return {
+    ...(backend ? { backend } : {}),
+    ...(width !== undefined ? { width } : {}),
+    ...(height !== undefined ? { height } : {}),
+    ...(chromePath ? { chromePath } : {}),
+    ...(chromeArgv ? { chromeArgv } : {}),
+    ...(dataStoreDir ? { dataStoreDir } : {}),
+  };
+}
+
+function currentWorkbenchUrl(): string | null {
+  return server && typeof server.port === 'number' ? `${loopbackBaseUrl(server.port)}/workbench` : null;
+}
+
+function handleWorkbenchWebViewStatus(): Response {
+  return responseJson(getCanvasAutomationWebViewStatus());
+}
+
+async function handleWorkbenchWebViewStart(req: Request): Promise<Response> {
+  const url = currentWorkbenchUrl();
+  if (!url) {
+    return responseJson({ ok: false, error: 'Canvas server is not running.' }, 503);
+  }
+
+  const body = await readJson(req);
+  const options = parseCanvasAutomationWebViewRequestBody(body);
+
+  try {
+    const webview = await startCanvasAutomationWebView(url, options);
+    return responseJson({ ok: true, webview });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    const status = hasCanvasAutomationWebViewSupport() ? 500 : 501;
+    return responseJson({
+      ok: false,
+      error: message,
+      webview: getCanvasAutomationWebViewStatus(),
+    }, status);
+  }
+}
+
+async function handleWorkbenchWebViewStop(): Promise<Response> {
+  try {
+    const stopped = await stopCanvasAutomationWebView();
+    return responseJson({
+      ok: true,
+      stopped,
+      webview: getCanvasAutomationWebViewStatus(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return responseJson({
+      ok: false,
+      error: message,
+      webview: getCanvasAutomationWebViewStatus(),
+    }, 500);
+  }
 }
 
 async function handleWorkbenchOpen(req: Request): Promise<Response> {
@@ -2495,6 +2853,18 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleWorkbenchIntent(req);
           }
 
+          if (url.pathname === '/api/workbench/webview' && req.method === 'GET') {
+            return handleWorkbenchWebViewStatus();
+          }
+
+          if (url.pathname === '/api/workbench/webview/start' && req.method === 'POST') {
+            return handleWorkbenchWebViewStart(req);
+          }
+
+          if (url.pathname === '/api/workbench/webview' && req.method === 'DELETE') {
+            return handleWorkbenchWebViewStop();
+          }
+
           if (url.pathname === '/api/file/save' && req.method === 'POST') {
             return handleSave(req);
           }
@@ -2693,6 +3063,9 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 }
 
 export function stopCanvasServer(): void {
+  void closeCanvasAutomationWebViewInternal().catch((error) => {
+    logWorkbenchWarning('stopCanvasServer closeCanvasAutomationWebViewInternal', error);
+  });
   if (server) {
     server.stop(true);
     server = null;

@@ -14,6 +14,19 @@ interface CanvasStateResponse {
   edges: Array<{ id: string; from: string; to: string; type: string }>;
 }
 
+interface WorkbenchWebViewStatusResponse {
+  supported: boolean;
+  active: boolean;
+  headlessOnly: true;
+  url: string | null;
+  backend: 'webkit' | 'chrome' | null;
+  width: number | null;
+  height: number | null;
+  dataStoreDir: string | null;
+  startedAt: string | null;
+  lastError: string | null;
+}
+
 describe('canvas server HTTP API', () => {
   let workspaceRoot = '';
   let baseUrl = '';
@@ -152,6 +165,56 @@ describe('canvas server HTTP API', () => {
     expect(restoredState.nodes).toHaveLength(2);
     expect(restoredState.edges).toHaveLength(1);
     expect(restoredState.nodes.find((node) => node.id === firstNode.id)?.data.title).toBe('First');
+  });
+
+  test('reports Bun.WebView automation status and fails cleanly when unsupported', async () => {
+    const initialStatus = await jsonRequest<WorkbenchWebViewStatusResponse>('/api/workbench/webview');
+    expect(initialStatus.active).toBe(false);
+    expect(initialStatus.headlessOnly).toBe(true);
+
+    const startResponse = await fetch(`${baseUrl}/api/workbench/webview/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ backend: 'chrome', width: 1440, height: 900 }),
+    });
+
+    if (!initialStatus.supported) {
+      expect(startResponse.status).toBe(501);
+      const unsupported = await startResponse.json() as {
+        ok: boolean;
+        error: string;
+        webview: WorkbenchWebViewStatusResponse;
+      };
+      expect(unsupported.ok).toBe(false);
+      expect(unsupported.error).toContain('Bun.WebView');
+      expect(unsupported.webview.active).toBe(false);
+      expect(unsupported.webview.lastError).toContain('Bun.WebView');
+      return;
+    }
+
+    expect(startResponse.ok).toBe(true);
+    const started = await startResponse.json() as {
+      ok: boolean;
+      webview: WorkbenchWebViewStatusResponse;
+    };
+    expect(started.ok).toBe(true);
+    expect(started.webview.active).toBe(true);
+    expect(started.webview.width).toBe(1440);
+    expect(started.webview.height).toBe(900);
+    expect(started.webview.url).toContain('/workbench');
+
+    const stopResponse = await fetch(`${baseUrl}/api/workbench/webview`, {
+      method: 'DELETE',
+    });
+    expect(stopResponse.ok).toBe(true);
+    const stopped = await stopResponse.json() as {
+      ok: boolean;
+      stopped: boolean;
+      webview: WorkbenchWebViewStatusResponse;
+    };
+    expect(stopped.ok).toBe(true);
+    expect(stopped.stopped).toBe(true);
+    expect(stopped.webview.active).toBe(false);
   });
 
   test('builds web artifacts over HTTP and serves the generated html route', async () => {

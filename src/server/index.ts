@@ -29,12 +29,20 @@ import {
   stopCanvasServer,
   getCanvasServerPort,
   openUrlInExternalBrowser,
+  getCanvasAutomationWebViewStatus,
+  startCanvasAutomationWebView,
+  stopCanvasAutomationWebView,
+  evaluateCanvasAutomationWebView,
+  resizeCanvasAutomationWebView,
+  screenshotCanvasAutomationWebView,
   emitPrimaryWorkbenchEvent,
   setPrimaryWorkbenchCanvasPromptHandler,
   setPrimaryWorkbenchAutoOpenEnabled,
   consumePrimaryWorkbenchIntents,
 } from './server.js';
 import type {
+  CanvasAutomationWebViewOptions,
+  CanvasAutomationWebViewStatus,
   PrimaryWorkbenchCanvasPromptRequest,
   PrimaryWorkbenchIntent,
 } from './server.js';
@@ -49,7 +57,10 @@ export class PmxCanvas extends EventEmitter {
     this._port = options?.port ?? 4313;
   }
 
-  async start(options?: { open?: boolean }): Promise<void> {
+  async start(options?: {
+    open?: boolean;
+    automationWebView?: boolean | CanvasAutomationWebViewOptions;
+  }): Promise<void> {
     const base = startCanvasServer({ port: this._port });
     if (!base) {
       throw new Error(`Failed to start canvas server on port ${this._port}`);
@@ -88,6 +99,18 @@ export class PmxCanvas extends EventEmitter {
 
     // Initial code graph computation for restored file nodes
     this._scheduleCodeGraphRecompute();
+
+    if (options?.automationWebView) {
+      try {
+        await startCanvasAutomationWebView(
+          `${base}/workbench`,
+          options.automationWebView === true ? {} : options.automationWebView,
+        );
+      } catch (error) {
+        stopCanvasServer();
+        throw error;
+      }
+    }
 
     if (options?.open !== false) {
       openUrlInExternalBrowser(`${base}/workbench`);
@@ -539,6 +562,41 @@ export class PmxCanvas extends EventEmitter {
   get port(): number {
     return this._port;
   }
+
+  async startAutomationWebView(
+    options: CanvasAutomationWebViewOptions = {},
+  ): Promise<CanvasAutomationWebViewStatus> {
+    const base = this._server ?? startCanvasServer({ port: this._port });
+    if (!base) {
+      throw new Error(`Failed to start canvas server on port ${this._port}`);
+    }
+    this._server = base;
+    this._port = getCanvasServerPort() ?? this._port;
+    return startCanvasAutomationWebView(`${base}/workbench`, options);
+  }
+
+  async stopAutomationWebView(): Promise<boolean> {
+    return stopCanvasAutomationWebView();
+  }
+
+  getAutomationWebViewStatus(): CanvasAutomationWebViewStatus {
+    return getCanvasAutomationWebViewStatus();
+  }
+
+  async evaluateAutomationWebView(expression: string): Promise<unknown> {
+    return evaluateCanvasAutomationWebView(expression);
+  }
+
+  async resizeAutomationWebView(
+    width: number,
+    height: number,
+  ): Promise<CanvasAutomationWebViewStatus> {
+    return resizeCanvasAutomationWebView(width, height);
+  }
+
+  async screenshotAutomationWebView(options: Record<string, unknown> = {}): Promise<Uint8Array> {
+    return screenshotCanvasAutomationWebView(options);
+  }
 }
 
 export function createCanvas(options?: { port?: number }): PmxCanvas {
@@ -547,6 +605,8 @@ export function createCanvas(options?: { port?: number }): PmxCanvas {
 
 export type { CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
 export type {
+  CanvasAutomationWebViewOptions,
+  CanvasAutomationWebViewStatus,
   PrimaryWorkbenchCanvasPromptRequest,
   PrimaryWorkbenchIntent,
 } from './server.js';
@@ -559,6 +619,12 @@ export {
   stopCanvasServer,
   getCanvasServerPort,
   openUrlInExternalBrowser,
+  getCanvasAutomationWebViewStatus,
+  startCanvasAutomationWebView,
+  stopCanvasAutomationWebView,
+  evaluateCanvasAutomationWebView,
+  resizeCanvasAutomationWebView,
+  screenshotCanvasAutomationWebView,
 } from './server.js';
 export { canvasState } from './canvas-state.js';
 export type { CanvasSnapshot } from './canvas-state.js';

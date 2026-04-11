@@ -19,6 +19,36 @@ const firstArg = args[0] ?? '';
 const cliDir = dirname(fileURLToPath(import.meta.url));
 const mcpServerEntry = resolve(cliDir, '..', 'mcp', 'server.ts');
 
+function hasFlag(name: string): boolean {
+  return args.includes(`--${name}`);
+}
+
+function readOption(name: string): string | undefined {
+  const inlinePrefix = `--${name}=`;
+  const inline = args.find((arg) => arg.startsWith(inlinePrefix));
+  if (inline) return inline.slice(inlinePrefix.length);
+
+  const index = args.indexOf(`--${name}`);
+  if (index !== -1 && index + 1 < args.length && !args[index + 1].startsWith('-')) {
+    return args[index + 1];
+  }
+  return undefined;
+}
+
+function readNumberOption(name: string): number | undefined {
+  const raw = readOption(name);
+  if (!raw) return undefined;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : undefined;
+}
+
+function readCsvOption(name: string): string[] | undefined {
+  const raw = readOption(name);
+  if (!raw) return undefined;
+  const values = raw.split(',').map((value) => value.trim()).filter((value) => value.length > 0);
+  return values.length > 0 ? values : undefined;
+}
+
 function runMcpServerProcess(): Promise<void> {
   return new Promise((resolvePromise, rejectPromise) => {
     const child = spawn(process.execPath, ['run', mcpServerEntry], {
@@ -47,14 +77,21 @@ if (AGENT_COMMANDS.has(firstArg)) {
   await runMcpServerProcess();
 } else {
   // "serve" is also accessible via flags (backward compat)
-  const port = parseInt(args.find(a => a.startsWith('--port='))?.split('=')[1] ?? '4313');
-  const demo = args.includes('--demo');
-  const noOpen = args.includes('--no-open');
-  const themeArg = args.find(a => a.startsWith('--theme='))?.split('=')[1];
+  const port = parseInt(readOption('port') ?? '4313');
+  const demo = hasFlag('demo');
+  const noOpen = hasFlag('no-open');
+  const themeArg = readOption('theme');
+  const webviewAutomation = hasFlag('webview-automation');
+  const webviewBackend = readOption('webview-backend');
+  const webviewChromePath = readOption('webview-chrome-path');
+  const webviewChromeArgv = readCsvOption('webview-chrome-argv');
+  const webviewDataDir = readOption('webview-data-dir');
+  const webviewWidth = readNumberOption('webview-width');
+  const webviewHeight = readNumberOption('webview-height');
   if (themeArg && ['dark', 'light', 'high-contrast'].includes(themeArg)) {
     process.env.PMX_CANVAS_THEME = themeArg;
   }
-  const help = args.includes('--help') || args.includes('-h');
+  const help = hasFlag('help') || args.includes('-h');
 
   if (help) {
     console.log(`
@@ -69,6 +106,13 @@ Server options:
   --demo         Start with sample nodes
   --no-open      Don't open browser automatically
   --theme=THEME  Theme: dark (default), light, high-contrast
+  --webview-automation        Start a headless Bun.WebView automation session for /workbench
+  --webview-backend=BACKEND   Bun.WebView backend: chrome or webkit
+  --webview-width=PX          Automation WebView width (default: 1280)
+  --webview-height=PX         Automation WebView height (default: 800)
+  --webview-chrome-path=PATH  Chrome/Chromium executable for Bun.WebView
+  --webview-chrome-argv=CSV   Extra Chrome args for Bun.WebView, comma-separated
+  --webview-data-dir=PATH     Persist automation browser storage in PATH
   --mcp          Run as MCP server (stdio transport)
   --help, -h     Show this help
 
@@ -106,6 +150,8 @@ MCP Integration:
 Examples:
   pmx-canvas                                                  Start server + browser
   pmx-canvas --no-open --demo                                 Headless with sample data
+  pmx-canvas --no-open --webview-automation                   Start server + headless Bun.WebView automation
+  pmx-canvas --webview-automation --webview-backend=chrome    Start browser + Chrome-backed automation
   pmx-canvas node add --type markdown --title "Hello World"   Add a node
   pmx-canvas node list                                        List all nodes
   pmx-canvas search "auth"                                    Find nodes
@@ -116,7 +162,20 @@ Examples:
   }
 
   const canvas = createCanvas({ port });
-  await canvas.start({ open: !noOpen });
+  const automationWebView =
+    webviewAutomation
+      ? {
+          ...(webviewBackend === 'chrome' || webviewBackend === 'webkit'
+            ? { backend: webviewBackend }
+            : {}),
+          ...(webviewChromePath ? { chromePath: webviewChromePath } : {}),
+          ...(webviewChromeArgv ? { chromeArgv: webviewChromeArgv } : {}),
+          ...(webviewDataDir ? { dataStoreDir: webviewDataDir } : {}),
+          ...(webviewWidth !== undefined ? { width: webviewWidth } : {}),
+          ...(webviewHeight !== undefined ? { height: webviewHeight } : {}),
+        }
+      : false;
+  await canvas.start({ open: !noOpen, automationWebView });
 
   if (demo && canvas.getLayout().nodes.length === 0) {
     const n1 = canvas.addNode({
@@ -143,6 +202,13 @@ Examples:
   }
 
   console.log(`\n  PMX Canvas running at http://localhost:${canvas.port}\n`);
+  if (webviewAutomation) {
+    const webviewStatus = canvas.getAutomationWebViewStatus();
+    console.log(`  Bun.WebView automation: ${webviewStatus.active ? 'active' : 'inactive'}`);
+    if (webviewStatus.lastError) {
+      console.log(`    Last WebView error: ${webviewStatus.lastError}`);
+    }
+  }
   console.log('  Agent CLI:');
   console.log('    pmx-canvas node add --type markdown --title "Hello"');
   console.log('    pmx-canvas node list');

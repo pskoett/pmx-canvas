@@ -1,147 +1,261 @@
-# Feature: Bun.WebView Canvas Browser
+# Bun.WebView Integration
 
-Replace platform-specific browser launching with Bun's built-in `Bun.WebView` API for a unified, programmatically controlled canvas window.
+PMX Canvas now uses Bun's built-in `Bun.WebView` API for **headless canvas automation**, while keeping the current external browser launcher for the normal interactive canvas window.
 
-## Status
+This document tracks:
 
-**Planned** — Waiting for `Bun.WebView` to ship in a stable Bun release. Currently available in Bun canary (1.3.11+). The Bun team has indicated breaking changes are expected before stable.
+- what is implemented today
+- what was validated on stable Bun `v1.3.12`
+- what still remains future work
 
-## Motivation
+## Current Status
 
-Today, `openUrlInExternalBrowser()` in `server.ts` uses three platform-specific code paths to open the canvas:
+**Implemented** for Phase 1.
 
-- **macOS**: `osascript` with AppleScript to launch a browser
-- **Windows**: `cmd /c start` or a resolved browser `.exe`
-- **Linux**: `xdg-open`
+The repo now targets Bun `>=1.3.12`, and PMX Canvas ships an opt-in, server-owned WebView automation session that can:
 
-This approach has several limitations:
+- start a headless browser session for `/workbench`
+- report WebView runtime status
+- evaluate JavaScript in the page
+- resize the automation viewport
+- capture screenshots
+- stop and clean up the automation session explicitly
 
-1. **No programmatic control** — once the browser opens, the server can't resize, screenshot, or interact with it
-2. **Platform fragmentation** — three separate branches to maintain, each with different failure modes
-3. **External dependency** — requires the user to have a browser installed and correctly configured
-4. **No window management** — can't set canvas-specific window dimensions, title, or position
+What is **not** implemented:
 
-## Proposed Solution
+- replacing `openUrlInExternalBrowser()` for the visible user-facing canvas window
+- headed Bun.WebView window support
+- MCP tools for screenshot/evaluate/resize/CDP
 
-Use `Bun.WebView` as the default canvas browser backend when available, with fallback to the current `openUrlInExternalBrowser()` for older Bun versions.
+## Why This Exists
 
-### API Surface (confirmed working in canary)
+The existing browser-launch path in [`src/server/server.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/src/server/server.ts) still opens the interactive canvas with platform-specific shell behavior:
 
-```typescript
-const view = new Bun.WebView({
-  width: 1280,
-  height: 800,
-  headless: true,              // optional, for CI/server environments
-  backend: {
-    type: "chrome",
-    path: "/path/to/chrome",   // optional, auto-detected
-  },
-});
+- macOS: AppleScript / `osascript`
+- Windows: `cmd /c start` or a resolved browser executable
+- Linux: `xdg-open`
 
-await view.navigate(url);
-await view.evaluate("document.title");
-await view.screenshot();       // returns PNG as Uint8Array
-await view.click(x, y);
-await view.scroll(dx, dy);
-await view.type("text");
-view.close();
+That path is still appropriate for humans, but it provides no programmatic control once the browser is open.
+
+`Bun.WebView` gives PMX Canvas a controlled browser session that the server can own directly. That unlocks:
+
+- agent-visible screenshots
+- browser-backed evaluation of rendered canvas state
+- controlled viewport sizing
+- future browser automation tools without depending on Playwright for the basic runtime
+
+## Implemented Surface
+
+### Server layer
+
+Implemented in [`src/server/server.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/src/server/server.ts):
+
+- `getCanvasAutomationWebViewStatus()`
+- `startCanvasAutomationWebView(url, options)`
+- `stopCanvasAutomationWebView()`
+- `evaluateCanvasAutomationWebView(expression)`
+- `resizeCanvasAutomationWebView(width, height)`
+- `screenshotCanvasAutomationWebView(options)`
+
+Important behavior:
+
+- runtime-gated: if `Bun.WebView` is unavailable, PMX Canvas returns a clear error
+- headless-only: PMX Canvas does not rely on `headless: false`
+- explicit lifecycle: start and stop are owned by the server
+- screenshot normalization handles Bun return types correctly, including `Blob`
+
+### HTTP API
+
+Implemented in [`src/server/server.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/src/server/server.ts):
+
+- `GET /api/workbench/webview`
+- `POST /api/workbench/webview/start`
+- `DELETE /api/workbench/webview`
+
+Current HTTP behavior:
+
+- `GET` returns runtime support plus active-session status
+- `POST` starts a new headless automation session for the current `/workbench`
+- `DELETE` stops the current automation session
+
+Current options accepted by `POST /api/workbench/webview/start`:
+
+- `backend`: `"chrome"` or `"webkit"`
+- `width`
+- `height`
+- `chromePath`
+- `chromeArgv`
+- `dataStoreDir`
+
+### SDK
+
+Implemented in [`src/server/index.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/src/server/index.ts):
+
+- `canvas.start({ automationWebView: ... })`
+- `canvas.startAutomationWebView(options)`
+- `canvas.stopAutomationWebView()`
+- `canvas.getAutomationWebViewStatus()`
+- `canvas.evaluateAutomationWebView(expression)`
+- `canvas.resizeAutomationWebView(width, height)`
+- `canvas.screenshotAutomationWebView(options)`
+
+### CLI
+
+Implemented in [`src/cli/index.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/src/cli/index.ts):
+
+- `--webview-automation`
+- `--webview-backend`
+- `--webview-width`
+- `--webview-height`
+- `--webview-chrome-path`
+- `--webview-chrome-argv`
+- `--webview-data-dir`
+
+Example:
+
+```bash
+pmx-canvas --no-open --webview-automation
+pmx-canvas --webview-automation --webview-backend=chrome
 ```
 
-Full prototype methods: `navigate`, `evaluate`, `screenshot`, `cdp`, `click`, `type`, `press`, `scroll`, `scrollTo`, `resize`, `goBack`, `goForward`, `reload`, `close`, `url`, `title`, `loading`, `onNavigated`, `onNavigationFailed`.
+These flags are intentionally automation-only. They do **not** imply a visible Bun-managed window.
 
-### Implementation Plan
+## Backend Strategy
 
-#### 1. Add `--webview` CLI flag
+PMX Canvas follows Bun's current stable backend reality.
 
-```
-pmx-canvas --webview          # Use Bun.WebView instead of external browser
-pmx-canvas --webview=headless # Headless mode (no visible window)
-```
+### WebKit backend
 
-#### 2. Replace `openUrlInExternalBrowser()` with a unified launcher
+- macOS only
+- good default on macOS when CDP is not required
+- zero external Chrome dependency
 
-```typescript
-// src/server/server.ts
+### Chrome backend
 
-async function openCanvasInWebView(url: string, opts?: { headless?: boolean }): Promise<boolean> {
-  if (typeof Bun.WebView !== "function") return false;
+- required on Linux and Windows
+- also supported on macOS
+- preferred when backend consistency or future CDP-based tooling matters
 
-  const view = new Bun.WebView({
-    width: 1280,
-    height: 800,
-    headless: opts?.headless ?? false,
-  });
+### Current default behavior
 
-  await view.navigate(url);
-  return true;
-}
+PMX Canvas defaults to:
 
-export async function openCanvasBrowser(url: string): Promise<boolean> {
-  if (useWebView) {
-    const ok = await openCanvasInWebView(url);
-    if (ok) return true;
-  }
-  return openUrlInExternalBrowser(url);
-}
-```
+- `webkit` on macOS
+- `chrome` elsewhere
 
-#### 3. Expose WebView handle for programmatic control
+If `chromePath` or `chromeArgv` is provided, PMX Canvas forces a Chrome-backed session.
 
-Store the `Bun.WebView` instance so the server and MCP tools can:
+## Bun Runtime Requirements
 
-- **Screenshot the canvas** — useful for agents that need visual feedback
-- **Resize the viewport** — adapt to different workflows
-- **Evaluate JS** — bridge between server state and client rendering
-- **CDP access** — full Chrome DevTools Protocol for advanced automation
+The repo now requires:
 
-#### 4. Add canvas MCP tools (future)
+- Bun `>=1.3.12`
 
-```
-canvas_screenshot    — capture current canvas as PNG
-canvas_resize        — resize the canvas window
-canvas_evaluate      — run JS in the canvas browser context
-```
+That change is reflected in:
 
-## Browser Detection
+- [`package.json`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/package.json)
+- [`.github/workflows/test.yml`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/.github/workflows/test.yml)
 
-`Bun.WebView` uses Chrome/Chromium under the hood (CDP protocol). Detection order:
-
-1. `BUN_CHROME_PATH` environment variable
-2. `backend.path` option
-3. System Chrome/Chromium installation
-4. Playwright browser installs (`~/.cache/ms-playwright/`)
-
-On Windows, it will use WebView2 (same API, different backend).
+PMX Canvas still keeps a runtime guard because older local Bun versions can exist in user environments. If `Bun.WebView` is missing, startup fails cleanly for the automation path instead of partially starting.
 
 ## Validation Results
 
-Tested on Bun 1.3.11 canary with Playwright Chromium:
+Validated on Bun `v1.3.12`.
 
-| Test | Result |
-|------|--------|
-| WebView creation | Pass |
-| Navigate to canvas URL | Pass |
-| Canvas renders (nodes, toolbar, edges) | Pass — 7 nodes detected |
-| `evaluate()` JS execution | Pass |
-| `click()` interaction | Pass |
-| `scroll()` interaction | Pass |
-| `screenshot()` capture | Pass |
-| CDP access | Pass |
-| `close()` cleanup | Pass |
+### Unit coverage
 
-## Risks and Mitigations
+Verified by tests in:
 
-| Risk | Mitigation |
-|------|------------|
-| API breaking changes before stable | Wrap in try/catch with fallback to `openUrlInExternalBrowser()` |
-| Chrome not installed on user's machine | Same as current — falls back to Playwright installs or errors gracefully |
-| Container/CI environments need `--no-sandbox` | Detect containerized environment and add flag automatically |
-| WebView2 on Windows may behave differently | Test once Windows support stabilizes |
+- [`tests/unit/server-api.test.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/tests/unit/server-api.test.ts)
+- [`tests/unit/webview-automation.test.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/tests/unit/webview-automation.test.ts)
 
-## When to Implement
+Covered behavior:
 
-Implement when **all** of these are true:
+- WebView status over HTTP
+- start/stop lifecycle over HTTP
+- graceful unsupported-runtime handling
+- SDK start/evaluate/resize/screenshot flow
 
-1. `Bun.WebView` ships in a stable Bun release (not canary)
-2. The API is marked stable (no more "breaking changes expected" warnings)
-3. Windows WebView2 support is confirmed working
+### Live runtime smoke
+
+Validated manually after upgrading the local runtime to Bun `1.3.12`:
+
+- `pmx-canvas --port=4529 --no-open --webview-automation --webview-backend=chrome`
+- `GET /api/workbench/webview`
+- `DELETE /api/workbench/webview`
+- SDK smoke with:
+  - `startAutomationWebView`
+  - `evaluateAutomationWebView('document.title')`
+  - `resizeAutomationWebView(...)`
+  - `screenshotAutomationWebView(...)`
+
+Observed results:
+
+- automation session started successfully
+- status endpoint reported `active: true`
+- JS evaluation returned `"PMX Canvas"`
+- viewport resize updated status correctly
+- screenshots returned non-zero image bytes on both WebKit and Chrome backends during smoke testing
+
+## Implementation Notes
+
+### Screenshot normalization bug
+
+During real runtime validation, a bug was found in the first implementation:
+
+- PMX Canvas assumed `view.screenshot()` returned only `Uint8Array` or `ArrayBuffer`
+- on this machine, Bun could also return a `Blob`
+- that caused zero-byte screenshots in the wrapper even though Bun was returning valid image data
+
+This was fixed in [`src/server/server.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/src/server/server.ts) by normalizing:
+
+- `Uint8Array`
+- `ArrayBuffer`
+- `Blob`
+
+The regression is now covered by [`tests/unit/webview-automation.test.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/tests/unit/webview-automation.test.ts).
+
+### Why the interactive browser path still exists
+
+Even with Bun `v1.3.12`, PMX Canvas should still keep `openUrlInExternalBrowser()` for the normal canvas window because Bun's current documented WebView surface is still effectively headless automation. There is no reason yet to promise a headed replacement window to users.
+
+## Known Limits
+
+These are current, accepted constraints:
+
+- no visible Bun-managed canvas window
+- no MCP tools yet for screenshots/evaluation/resize/CDP
+- no persistent automation-session orchestration beyond the single owned server session
+- no dedicated HTTP endpoints yet for screenshot/evaluate/resize; only lifecycle and status are exposed over HTTP right now
+
+## Future Work
+
+### Near-term
+
+The most obvious next steps are:
+
+1. Add MCP tools that target the existing automation session:
+   - `canvas_screenshot`
+   - `canvas_resize`
+   - `canvas_evaluate`
+   - optional `canvas_cdp` for Chrome-backed sessions only
+2. Add HTTP endpoints for screenshot/evaluate/resize if direct HTTP consumers need them
+3. Decide whether the default macOS backend should stay `webkit` or move to `chrome` for stricter cross-platform parity
+4. Add more backend-specific test coverage if Bun behavior diverges between WebKit and Chrome
+
+### Later
+
+Defer these until Bun's API justifies them:
+
+1. Replace `openUrlInExternalBrowser()` with Bun.WebView for the normal interactive canvas window
+2. Add headed window management semantics
+3. Build user-facing browser controls around Bun.WebView if Bun documents those behaviors as stable
+
+## Decision Summary
+
+The project should continue with this split:
+
+- **Interactive canvas for humans**: external browser
+- **Programmatic canvas automation for agents/server workflows**: Bun.WebView
+
+That keeps the current user-facing behavior stable while giving PMX Canvas a real browser automation surface that is built into the runtime.
