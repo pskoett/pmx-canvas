@@ -57,10 +57,10 @@
 }
 
 :root[data-theme="light"] {
-  --c-bg: #f5f6fa;
-  --c-panel: #ffffff;
-  --c-panel-soft: #f0f2f7;
-  --c-line: #d0d5e0;
+  --c-bg: #e8eaef;
+  --c-panel: #f0f1f5;
+  --c-panel-soft: #e4e6ec;
+  --c-line: #c8cdd8;
   --c-text: #1a1f2e;
   --c-text-soft: #4a5568;
   --c-muted: #6b7a90;
@@ -73,10 +73,10 @@
   --c-purple: #7c4dff;
   --c-thinking: #7C4DFF;
   --c-subagent: #00838F;
-  --c-input-bg: #ffffff;
-  --c-dot-grid: rgba(100, 120, 160, 0.15);
-  --c-panel-overlay: rgba(240, 242, 247, 0.9);
-  --c-panel-glass: rgba(255, 255, 255, 0.95);
+  --c-input-bg: #f5f6f9;
+  --c-dot-grid: rgba(100, 120, 160, 0.12);
+  --c-panel-overlay: rgba(232, 234, 239, 0.9);
+  --c-panel-glass: rgba(240, 241, 245, 0.92);
   --c-shadow: rgba(0, 0, 0, 0.08);
   --c-shadow-heavy: rgba(0, 0, 0, 0.15);
   --c-glow-accent: rgba(26, 140, 216, 0.1);
@@ -452,10 +452,10 @@ body,
   background: none;
   border: 1px solid transparent;
   color: var(--c-muted);
-  padding: 5px 8px;
+  padding: 6px 10px;
   border-radius: var(--radius-sm);
   font: inherit;
-  font-size: 12px;
+  font-size: 14px;
   cursor: pointer;
 }
 
@@ -497,6 +497,17 @@ body,
   50% {
     opacity: 0.4;
   }
+}
+
+.toolbar-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.canvas-toolbar button svg {
+  display: block;
 }
 
 /* Raw markdown source editor */

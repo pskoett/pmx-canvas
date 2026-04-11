@@ -37,7 +37,8 @@ function serializeExtAppResultValue(value: unknown): string | undefined {
   if (value === undefined) return undefined;
   try {
     return JSON.stringify(value);
-  } catch {
+  } catch (error) {
+    console.debug('[ext-app-tool-result] stringify failed', error);
     return String(value);
   }
 }

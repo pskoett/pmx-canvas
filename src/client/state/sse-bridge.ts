@@ -128,6 +128,9 @@ function ensureMarkdownNode(path: string, title: string): void {
     const node = makeNode(id, 'markdown', { path, title, content: '', rendered: '' });
     node.position = placement;
     addNode(node);
+    if (!node.dockPosition) {
+      focusNode(id);
+    }
   }
 }
 
@@ -151,6 +154,7 @@ function ensureMcpAppNode(data: Record<string, unknown>): void {
     updateNodeData(id, data);
   } else {
     addNode(makeNode(id, 'mcp-app', data));
+    focusNode(id);
   }
 }
 
@@ -216,6 +220,9 @@ function ensureExtAppNode(data: Record<string, unknown>): void {
     },
   });
   addNode(node);
+  if (!node.dockPosition) {
+    focusNode(id);
+  }
 }
 
 function findExtAppNodeId(toolCallId: string): string | null {
@@ -531,6 +538,7 @@ function handleCanvasPromptCreated(data: Record<string, unknown>): void {
         },
       }),
     );
+    focusNode(nodeId);
   }
 
   // Add flow edge from parent → prompt if parent exists

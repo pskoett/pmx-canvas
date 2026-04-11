@@ -7,13 +7,14 @@ import {
   statSync,
   writeFileSync,
 } from 'node:fs';
-import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { ensureArtifactsDir, getWorkspaceRoot } from './artifact-paths.js';
 import { canvasState, type CanvasNodeState } from './canvas-state.js';
 import { findOpenCanvasPosition } from './placement.js';
 import { emitPrimaryWorkbenchEvent } from './server.js';
 
-const SOURCE_WEB_ARTIFACT_SCRIPTS_DIR = join(
+const BUNDLED_WEB_ARTIFACT_SCRIPTS_DIR = join(import.meta.dir, 'web-artifacts', 'scripts');
+const LEGACY_SKILL_WEB_ARTIFACT_SCRIPTS_DIR = join(
   import.meta.dir,
   '..',
   '..',
@@ -24,6 +25,7 @@ const SOURCE_WEB_ARTIFACT_SCRIPTS_DIR = join(
 const DEFAULT_TIMEOUT_MS = 10 * 60_000;
 const DEFAULT_PACKAGE_MANAGER = 'pnpm@10.33.0';
 const DEFAULT_WEB_ARTIFACT_NODE_SIZE = { width: 960, height: 720 };
+const FALLBACK_PATH_DIRS = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'];
 
 export interface WebArtifactBuildInput {
   title: string;
@@ -117,6 +119,14 @@ async function runProcess(
   args: string[],
   options: { cwd: string; timeoutMs: number },
 ): Promise<{ stdout: string; stderr: string }> {
+  const pathEntries = new Set(
+    String(process.env.PATH ?? '')
+      .split(delimiter)
+      .filter(Boolean),
+  );
+  for (const entry of FALLBACK_PATH_DIRS) {
+    pathEntries.add(entry);
+  }
   const env = Object.fromEntries(
     Object.entries(process.env).filter(([key, value]) => {
       if (typeof value !== 'string' || value.length === 0) return false;
@@ -146,6 +156,7 @@ async function runProcess(
     cwd: options.cwd,
     env: {
       ...env,
+      PATH: [...pathEntries].join(delimiter),
       CI: '1',
       npm_config_yes: 'true',
       pnpm_config_yes: 'true',
@@ -200,7 +211,8 @@ export function resolveWebArtifactScriptPath(kind: 'init' | 'bundle'): string {
   const scriptFile = kind === 'init' ? 'init-artifact.sh' : 'bundle-artifact.sh';
   const candidates = [
     join(currentWorkspaceRoot(), 'skills', 'web-artifacts-builder', 'scripts', scriptFile),
-    join(SOURCE_WEB_ARTIFACT_SCRIPTS_DIR, scriptFile),
+    join(BUNDLED_WEB_ARTIFACT_SCRIPTS_DIR, scriptFile),
+    join(LEGACY_SKILL_WEB_ARTIFACT_SCRIPTS_DIR, scriptFile),
   ];
 
   for (const candidate of candidates) {
@@ -248,7 +260,11 @@ function ensurePackageManagerBoundary(dirPath: string): void {
       if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
         nextPackageJson = parsed as Record<string, unknown>;
       }
-    } catch {
+    } catch (error) {
+      console.warn('[web-artifacts] failed to parse existing package.json boundary', {
+        error,
+        packageJsonPath,
+      });
       nextPackageJson = {};
     }
   }

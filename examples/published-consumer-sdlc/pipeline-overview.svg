@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 680" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1200" y2="680" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#101820"/>
+      <stop offset="1" stop-color="#142B3B"/>
+    </linearGradient>
+    <linearGradient id="rail" x1="120" y1="0" x2="1080" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E9C46A"/>
+      <stop offset="0.45" stop-color="#2A9D8F"/>
+      <stop offset="1" stop-color="#E76F51"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="680" rx="40" fill="url(#bg)"/>
+  <g opacity=".16">
+    <path d="M0 132H1200" stroke="#F4F1DE" stroke-width="2"/>
+    <path d="M0 340H1200" stroke="#F4F1DE" stroke-width="2"/>
+    <path d="M0 548H1200" stroke="#F4F1DE" stroke-width="2"/>
+  </g>
+  <text x="80" y="88" fill="#F4F1DE" font-family="IBM Plex Sans, sans-serif" font-size="34" font-weight="700">
+    Synthetic SDLC Pipeline Atlas
+  </text>
+  <text x="80" y="126" fill="#C7D4DE" font-family="IBM Plex Sans, sans-serif" font-size="18">
+    Published-consumer demo of artifact, json-render, graph, and narrative nodes
+  </text>
+  <path d="M120 320H1080" stroke="url(#rail)" stroke-width="12" stroke-linecap="round"/>
+  <g font-family="IBM Plex Sans, sans-serif">
+    <g transform="translate(120 220)">
+      <circle cx="0" cy="100" r="52" fill="#E9C46A"/>
+      <text x="-31" y="108" fill="#101820" font-size="19" font-weight="700">Plan</text>
+    </g>
+    <g transform="translate(280 220)">
+      <circle cx="0" cy="100" r="52" fill="#E9C46A"/>
+      <text x="-32" y="108" fill="#101820" font-size="19" font-weight="700">Code</text>
+    </g>
+    <g transform="translate(440 220)">
+      <circle cx="0" cy="100" r="52" fill="#2A9D8F"/>
+      <text x="-35" y="108" fill="#F4F1DE" font-size="19" font-weight="700">Build</text>
+    </g>
+    <g transform="translate(600 220)">
+      <circle cx="0" cy="100" r="52" fill="#2A9D8F"/>
+      <text x="-24" y="108" fill="#F4F1DE" font-size="19" font-weight="700">Test</text>
+    </g>
+    <g transform="translate(760 220)">
+      <circle cx="0" cy="100" r="52" fill="#E76F51"/>
+      <text x="-47" y="108" fill="#F4F1DE" font-size="19" font-weight="700">Canary</text>
+    </g>
+    <g transform="translate(920 220)">
+      <circle cx="0" cy="100" r="52" fill="#E76F51"/>
+      <text x="-34" y="108" fill="#F4F1DE" font-size="19" font-weight="700">Deploy</text>
+    </g>
+    <g transform="translate(1080 220)">
+      <circle cx="0" cy="100" r="52" fill="#F4A261"/>
+      <text x="-39" y="108" fill="#101820" font-size="19" font-weight="700">Observe</text>
+    </g>
+  </g>
+  <g font-family="IBM Plex Mono, monospace" font-size="18">
+    <text x="96" y="468" fill="#F4F1DE">Lead time ↓ 14%</text>
+    <text x="392" y="468" fill="#F4F1DE">Integration queue = bottleneck</text>
+    <text x="828" y="468" fill="#F4F1DE">Rollback drill clean</text>
+  </g>
+  <g opacity=".8">
+    <rect x="84" y="520" width="250" height="96" rx="20" fill="#1E3441" stroke="#E9C46A"/>
+    <rect x="366" y="520" width="250" height="96" rx="20" fill="#1E3441" stroke="#2A9D8F"/>
+    <rect x="648" y="520" width="250" height="96" rx="20" fill="#1E3441" stroke="#E76F51"/>
+    <rect x="930" y="520" width="186" height="96" rx="20" fill="#1E3441" stroke="#F4A261"/>
+  </g>
+  <g fill="#F4F1DE" font-family="IBM Plex Sans, sans-serif">
+    <text x="112" y="560" font-size="16" font-weight="700">Gate posture</text>
+    <text x="112" y="592" font-size="15">78% first-pass success</text>
+    <text x="394" y="560" font-size="16" font-weight="700">Artifact coverage</text>
+    <text x="394" y="592" font-size="15">Web artifact + json-render + graphs</text>
+    <text x="676" y="560" font-size="16" font-weight="700">Risk focus</text>
+    <text x="676" y="592" font-size="15">Checkout and identity queue spikes</text>
+    <text x="958" y="560" font-size="16" font-weight="700">Recovery</text>
+    <text x="958" y="592" font-size="15">36 min MTTR</text>
+  </g>
+</svg>

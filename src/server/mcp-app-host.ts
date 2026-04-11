@@ -90,8 +90,21 @@ function sessionDiagLog(tag: string, payload: Record<string, unknown>): void {
       })}\n`,
       'utf-8',
     );
-  } catch {
-    // Ignore optional diagnostics logging failures.
+  } catch (error) {
+    console.debug('[mcp-app-host] diagnostics logging failed', error);
+  }
+}
+
+function logMcpAppHostWarning(action: string, error: unknown, details?: Record<string, unknown>): void {
+  console.warn(`[mcp-app-host] ${action}`, { error, ...(details ?? {}) });
+}
+
+function tryParseUrl(url: string): URL | null {
+  try {
+    return new URL(url);
+  } catch (error) {
+    console.debug('[mcp-app-host] invalid URL', { url, error });
+    return null;
   }
 }
 
@@ -275,8 +288,10 @@ function ensureStateLoaded(): void {
     trimSessionHistory();
     pruneNonEmbeddableHostedSessions();
     clearPersistedRuntimeSessionsOnLoad();
-  } catch {
-    // Best-effort state load; ignore malformed files.
+  } catch (error) {
+    logMcpAppHostWarning('load persisted state failed', error, {
+      stateFile: mcpAppHostStateFilePath(),
+    });
   }
 }
 
@@ -303,8 +318,10 @@ function persistState(): void {
       },
     };
     writeFileSync(mcpAppHostStateFilePath(), JSON.stringify(payload, null, 2), 'utf-8');
-  } catch {
-    // Ignore persistence failures; runtime behavior should continue.
+  } catch (error) {
+    logMcpAppHostWarning('persist state failed', error, {
+      stateFile: mcpAppHostStateFilePath(),
+    });
   }
 }
 
@@ -318,28 +335,25 @@ function hostAllowlistHosts(): string[] {
 }
 
 export function isTrustedMcpAppDomain(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.toLowerCase();
+  const parsed = tryParseUrl(url);
+  if (!parsed) return false;
+  const host = parsed.hostname.toLowerCase();
 
-    if (host === 'modelcontextprotocol.io' || host.endsWith('.modelcontextprotocol.io')) {
-      return true;
-    }
-    if (host === 'excalidraw.com' || host.endsWith('.excalidraw.com')) {
-      return true;
-    }
-    if (host.includes('mcp-app') && host.endsWith('.vercel.app')) {
-      return true;
-    }
-    if (host.includes('mcp') && host.endsWith('.vercel.app')) {
-      return true;
-    }
-
-    const allowlist = hostAllowlistHosts();
-    return allowlist.some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
-  } catch {
-    return false;
+  if (host === 'modelcontextprotocol.io' || host.endsWith('.modelcontextprotocol.io')) {
+    return true;
   }
+  if (host === 'excalidraw.com' || host.endsWith('.excalidraw.com')) {
+    return true;
+  }
+  if (host.includes('mcp-app') && host.endsWith('.vercel.app')) {
+    return true;
+  }
+  if (host.includes('mcp') && host.endsWith('.vercel.app')) {
+    return true;
+  }
+
+  const allowlist = hostAllowlistHosts();
+  return allowlist.some((allowed) => host === allowed || host.endsWith(`.${allowed}`));
 }
 
 function isHostRuntimeEnabled(): boolean {
@@ -379,33 +393,30 @@ function supportsHostSessionByHint(input: McpAppCandidateInput): boolean {
 }
 
 function isLikelyEmbeddableMcpAppSurface(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.toLowerCase();
-    const path = parsed.pathname.toLowerCase();
-    const href = parsed.toString().toLowerCase();
+  const parsed = tryParseUrl(url);
+  if (!parsed) return false;
+  const host = parsed.hostname.toLowerCase();
+  const path = parsed.pathname.toLowerCase();
+  const href = parsed.toString().toLowerCase();
 
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
 
-    if (host === 'modelcontextprotocol.io' || host.endsWith('.modelcontextprotocol.io')) {
-      return false;
-    }
-
-    if (/\.(?:md|txt|json|pdf|csv|yaml|yml)(?:$|[?#])/.test(href)) return false;
-    if (path.includes('/docs/') || path.startsWith('/docs')) return false;
-    if (path.includes('/blog/') || path.startsWith('/blog')) return false;
-
-    if (host === 'excalidraw.com' || host.endsWith('.excalidraw.com')) return true;
-    if (host.includes('mcp-app') && host.endsWith('.vercel.app')) return true;
-    if (host.includes('mcp') && host.endsWith('.vercel.app')) return true;
-
-    const allowlist = hostAllowlistHosts();
-    if (allowlist.some((allowed) => host === allowed || host.endsWith(`.${allowed}`))) return true;
-
-    return false;
-  } catch {
+  if (host === 'modelcontextprotocol.io' || host.endsWith('.modelcontextprotocol.io')) {
     return false;
   }
+
+  if (/\.(?:md|txt|json|pdf|csv|yaml|yml)(?:$|[?#])/.test(href)) return false;
+  if (path.includes('/docs/') || path.startsWith('/docs')) return false;
+  if (path.includes('/blog/') || path.startsWith('/blog')) return false;
+
+  if (host === 'excalidraw.com' || host.endsWith('.excalidraw.com')) return true;
+  if (host.includes('mcp-app') && host.endsWith('.vercel.app')) return true;
+  if (host.includes('mcp') && host.endsWith('.vercel.app')) return true;
+
+  const allowlist = hostAllowlistHosts();
+  if (allowlist.some((allowed) => host === allowed || host.endsWith(`.${allowed}`))) return true;
+
+  return false;
 }
 
 function nextHostSessionId(): string {

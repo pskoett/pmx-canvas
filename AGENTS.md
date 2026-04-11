@@ -56,6 +56,12 @@ Agent-specific workflows, tool usage patterns, and automation rules for the pmx-
 - **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
 - **Learn and Improve**: Every mistake is a learning opportunity. Log it, learn from it, prevent it.
 
+## Coding Rules
+
+- Never use dynamic imports such as `await import(...)` unless the user explicitly asks for them.
+- Never cast to `any`.
+- Do not add extra defensive checks or `try/catch` blocks unless there is a concrete, demonstrated failure mode that requires them.
+
 ## Canvas Architecture Rules
 
 1. **State lives in the server.** `CanvasStateManager` is the singleton source of truth. All mutations go through it. The browser is a renderer.
@@ -94,6 +100,9 @@ Agent-specific workflows, tool usage patterns, and automation rules for the pmx-
 
 Use the `pmx-canvas-testing` skill for the repo-standard verification ladder, test command
 selection, and handoff expectations whenever you change code in this project.
+
+Use the `published-consumer-e2e` skill when you need to validate PMX Canvas as an installed
+package in a clean temp consumer instead of the repo dev path.
 
 1. **Never dismiss failing tests.** Investigate every failure before declaring success. A "pre-existing" failure still needs resolution or explicit acknowledgment.
 

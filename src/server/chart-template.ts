@@ -369,6 +369,14 @@ export function generateChartHtml(config: ChartConfig): string {
       renderWhenReady(newCfg, 0);
     }
 
+    window.__PMX_CHART_BRIDGE__ = {
+      updateChartMeta: function(nextMeta) {
+        if (!nextMeta || typeof nextMeta !== 'object') return;
+        CHART_META = nextMeta;
+        switchType(CHART_META.chartType || 'bar');
+      }
+    };
+
     // Toolbar click handler
     document.querySelector('.toolbar').addEventListener('click', function(e) {
       var btn = e.target.closest('.type-btn');
@@ -385,29 +393,26 @@ export function generateChartHtml(config: ChartConfig): string {
       }
       renderWhenReady(CHART_CONFIG, 0);
     });
+  </script>
+  <script type="module">
+    import { App, PostMessageTransport } from 'https://esm.sh/@modelcontextprotocol/ext-apps@1?bundle';
 
-    // Try connecting to host AppBridge via ext-app SDK (non-blocking)
-    (async function() {
-      try {
-        var mod = await import('https://esm.sh/@modelcontextprotocol/ext-apps@1?bundle');
-        var App = mod.App;
-        var PostMessageTransport = mod.PostMessageTransport;
-        if (!App) return;
-
-        var app = new App({ name: 'PMX Chart', version: '1.0.0' }, {});
-        app.ontoolinput = function(params) {
-          if (params && params.arguments) {
-            CHART_META = params.arguments;
-            // Rebuild and render
-            switchType(CHART_META.chartType || 'bar');
-          }
-        };
-        await app.connect(new PostMessageTransport(window.parent, window.parent));
-      } catch (e) {
-        // Bridge connection optional — chart already rendered from inline data
-        console.debug('[pmx-chart] AppBridge not available:', e.message);
+    try {
+      if (!App) {
+        throw new Error('AppBridge SDK unavailable');
       }
-    })();
+
+      const bridge = window.__PMX_CHART_BRIDGE__;
+      const app = new App({ name: 'PMX Chart', version: '1.0.0' }, {});
+      app.ontoolinput = function(params) {
+        bridge?.updateChartMeta?.(params?.arguments);
+      };
+      await app.connect(new PostMessageTransport(window.parent, window.parent));
+    } catch (error) {
+      // Bridge connection optional — chart already rendered from inline data
+      const message = error instanceof Error ? error.message : String(error);
+      console.debug('[pmx-chart] AppBridge not available:', message);
+    }
   </script>
 </body>
 </html>`;

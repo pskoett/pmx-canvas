@@ -137,7 +137,7 @@ export function CommandPalette({
       { label: 'New note (markdown node)', badge: 'CREATE', action: () => { createNodeFromClient({ type: 'markdown', title: 'New note' }); onClose(); } },
       { label: 'Fit all nodes', badge: 'VIEW', action: () => { fitAll(window.innerWidth, window.innerHeight); onClose(); } },
       { label: 'Auto-arrange (grid)', badge: 'LAYOUT', action: () => { autoArrange(); onClose(); } },
-      { label: 'Auto-arrange (force-directed)', badge: 'LAYOUT', action: () => { forceDirectedArrange(); onClose(); } },
+      { label: 'Auto-arrange (graph-aware)', badge: 'LAYOUT', action: () => { forceDirectedArrange(); onClose(); } },
       { label: 'Toggle minimap', badge: 'VIEW', action: () => { onToggleMinimap(); onClose(); } },
       {
         label: 'Toggle theme (dark/light)',

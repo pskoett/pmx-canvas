@@ -44,6 +44,21 @@ describe('web artifact builders', () => {
     }
   });
 
+  test('falls back to bundled runtime scripts when no workspace skill scripts exist', () => {
+    const originalCwd = process.cwd();
+    process.chdir(workspaceRoot);
+    try {
+      expect(realpathSync(resolveWebArtifactScriptPath('init'))).toBe(
+        realpathSync(join(import.meta.dir, '..', '..', 'src', 'server', 'web-artifacts', 'scripts', 'init-artifact.sh')),
+      );
+      expect(realpathSync(resolveWebArtifactScriptPath('bundle'))).toBe(
+        realpathSync(join(import.meta.dir, '..', '..', 'src', 'server', 'web-artifacts', 'scripts', 'bundle-artifact.sh')),
+      );
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
   test('scaffolds project files and emits bundled html', async () => {
     const { initScriptPath, bundleScriptPath } = createFakeWebArtifactScripts(workspaceRoot);
 

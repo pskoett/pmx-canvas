@@ -31,7 +31,7 @@
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
 import { basename, extname, join, relative, resolve } from 'node:path';
-import { marked } from 'marked';
+import * as marked from 'marked';
 import { type CanvasEdge, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
@@ -85,8 +85,21 @@ function sessionDiagLog(tag: string, payload: Record<string, unknown>): void {
       })}\n`,
       'utf-8',
     );
-  } catch {
-    // Optional diagnostics logging only.
+  } catch (error) {
+    console.debug('[workbench] diagnostics logging failed', error);
+  }
+}
+
+function logWorkbenchWarning(action: string, error: unknown, details?: Record<string, unknown>): void {
+  console.warn(`[workbench] ${action}`, { error, ...(details ?? {}) });
+}
+
+function tryParseUrl(raw: string): URL | null {
+  try {
+    return new URL(raw);
+  } catch (error) {
+    console.debug('[workbench] invalid URL', { raw, error });
+    return null;
   }
 }
 
@@ -244,7 +257,12 @@ function broadcastWorkbenchEvent(event: string, payload: PrimaryWorkbenchEventPa
   for (const [subscriberId, controller] of workbenchSubscribers.entries()) {
     try {
       controller.enqueue(frame);
-    } catch {
+    } catch (error) {
+      sessionDiagLog('drop-subscriber-after-enqueue-failure', {
+        subscriberId,
+        event,
+        error: error instanceof Error ? error.message : String(error),
+      });
       workbenchSubscribers.delete(subscriberId);
       syncCanvasBrowserOpenedFromSubscribers();
     }
@@ -309,13 +327,15 @@ function rotatePrimaryWorkbenchSessionIfNeeded(): void {
 }
 
 function readJson(req: Request): Promise<Record<string, unknown>> {
-  return req
-    .json()
+  return req.json()
     .then((value) => {
       if (!value || typeof value !== 'object') return {};
       return value as Record<string, unknown>;
     })
-    .catch(() => ({}));
+    .catch((error) => {
+      logWorkbenchWarning('readJson', error);
+      return {};
+    });
 }
 
 function htmlEscape(value: string): string {
@@ -328,35 +348,29 @@ function htmlEscape(value: string): string {
 }
 
 function toPreferredExcalidrawUrl(raw: string): string {
-  try {
-    const parsed = new URL(raw);
-    const host = parsed.hostname.toLowerCase();
-    if (!host.includes('excalidraw-mcp-app')) return parsed.toString();
-    const lowerHash = parsed.hash.toLowerCase();
-    const hasPortableState =
-      lowerHash.includes('json=') ||
-      lowerHash.includes('room=') ||
-      parsed.searchParams.has('json') ||
-      parsed.searchParams.has('room');
-    if (hasPortableState) {
-      parsed.protocol = 'https:';
-      parsed.hostname = 'excalidraw.com';
-    }
-    parsed.hash = parsed.hash.replace(/\s+/g, '');
-    return parsed.toString();
-  } catch {
-    return raw;
+  const parsed = tryParseUrl(raw);
+  if (!parsed) return raw;
+  const host = parsed.hostname.toLowerCase();
+  if (!host.includes('excalidraw-mcp-app')) return parsed.toString();
+  const lowerHash = parsed.hash.toLowerCase();
+  const hasPortableState =
+    lowerHash.includes('json=') ||
+    lowerHash.includes('room=') ||
+    parsed.searchParams.has('json') ||
+    parsed.searchParams.has('room');
+  if (hasPortableState) {
+    parsed.protocol = 'https:';
+    parsed.hostname = 'excalidraw.com';
   }
+  parsed.hash = parsed.hash.replace(/\s+/g, '');
+  return parsed.toString();
 }
 
 function isExcalidrawUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.toLowerCase();
-    return host.includes('excalidraw.com') || host.includes('excalidraw-mcp-app');
-  } catch {
-    return false;
-  }
+  const parsed = tryParseUrl(url);
+  if (!parsed) return false;
+  const host = parsed.hostname.toLowerCase();
+  return host.includes('excalidraw.com') || host.includes('excalidraw-mcp-app');
 }
 
 function normalizeMarkdownExternalUrls(markdown: string): string {
@@ -518,6 +532,9 @@ function resolveCanvasBundleDir(): string {
 
   // Adjacent to built module: dist/canvas/ when running dist/index.js
   candidates.push(resolve(import.meta.dir, 'canvas'));
+
+  // Installed package layout: node_modules/pmx-canvas/dist/canvas/
+  candidates.push(resolve(import.meta.dir, '..', '..', 'dist', 'canvas'));
 
   // cwd-based: works when cwd is the repo root
   candidates.push(resolve(process.cwd(), 'dist', 'canvas'));
@@ -1393,7 +1410,11 @@ function handleWorkbenchEvents(req: Request): Response {
               sessionId: primaryWorkbenchSessionId,
             }),
           );
-        } catch {
+        } catch (error) {
+          sessionDiagLog('drop-subscriber-after-ping-failure', {
+            subscriberId,
+            error: error instanceof Error ? error.message : String(error),
+          });
           if (pingTimer) clearInterval(pingTimer);
           pingTimer = null;
           workbenchSubscribers.delete(subscriberId);
@@ -1950,7 +1971,8 @@ export function openUrlInExternalBrowser(url: string): boolean {
     }
     const result = spawnSync('xdg-open', [url], { stdio: 'ignore' });
     return !result.error && result.status === 0;
-  } catch {
+  } catch (error) {
+    logWorkbenchWarning('openUrlInExternalBrowser', error, { url });
     return false;
   }
 }
@@ -2662,7 +2684,8 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
         },
       });
       return typeof server.port === 'number' ? loopbackBaseUrl(server.port) : null;
-    } catch {
+    } catch (error) {
+      logWorkbenchWarning('startCanvasServer candidate failed', error, { portCandidate });
       server = null;
     }
   }

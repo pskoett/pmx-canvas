@@ -1,33 +1,68 @@
+function logRequestError(action: string, error: unknown): void {
+  console.error(`[intent-bridge] ${action} failed`, error);
+}
+
+async function requestJson<T>(
+  action: string,
+  url: string,
+  fallback: T,
+  init?: RequestInit,
+): Promise<T> {
+  try {
+    const res = await fetch(url, init);
+    return (await res.json()) as T;
+  } catch (error) {
+    logRequestError(action, error);
+    return fallback;
+  }
+}
+
+async function requestOk(
+  action: string,
+  url: string,
+  init?: RequestInit,
+): Promise<{ ok: boolean }> {
+  try {
+    const res = await fetch(url, init);
+    return { ok: res.ok };
+  } catch (error) {
+    logRequestError(action, error);
+    return { ok: false };
+  }
+}
+
+async function requestBestEffort(
+  action: string,
+  url: string,
+  init?: RequestInit,
+): Promise<void> {
+  try {
+    await fetch(url, init);
+  } catch (error) {
+    logRequestError(action, error);
+  }
+}
+
 /** Dispatch user intents from the canvas to the server (for TUI consumption). */
 export async function sendIntent(
   type: string,
   payload: Record<string, unknown> = {},
 ): Promise<{ ok: boolean }> {
-  try {
-    const res = await fetch('/api/workbench/intent', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type, payload }),
-    });
-    return (await res.json()) as { ok: boolean };
-  } catch {
-    return { ok: false };
-  }
+  return requestJson('sendIntent', '/api/workbench/intent', { ok: false }, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type, payload }),
+  });
 }
 
 /** Fetch rendered markdown HTML from the server. */
 export async function renderMarkdown(markdown: string): Promise<string> {
-  try {
-    const res = await fetch('/api/render', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ markdown }),
-    });
-    const data = (await res.json()) as { html: string };
-    return data.html || '';
-  } catch {
-    return '';
-  }
+  const data = await requestJson<{ html?: string }>('renderMarkdown', '/api/render', {}, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ markdown }),
+  });
+  return data.html ?? '';
 }
 
 /** Fetch file content from the server. */
@@ -35,12 +70,7 @@ export async function fetchFile(path: string): Promise<{
   content: string;
   provenance?: unknown;
 }> {
-  try {
-    const res = await fetch(`/api/file?path=${encodeURIComponent(path)}`);
-    return (await res.json()) as { content: string; provenance?: unknown };
-  } catch {
-    return { content: '' };
-  }
+  return requestJson('fetchFile', `/api/file?path=${encodeURIComponent(path)}`, { content: '' });
 }
 
 /** Save file content to the server. */
@@ -48,50 +78,30 @@ export async function saveFile(
   path: string,
   content: string,
 ): Promise<{ ok: boolean; updatedAt?: string }> {
-  try {
-    const res = await fetch('/api/file/save', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path, content }),
-    });
-    return (await res.json()) as { ok: boolean; updatedAt?: string };
-  } catch {
-    return { ok: false };
-  }
+  return requestJson('saveFile', '/api/file/save', { ok: false }, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path, content }),
+  });
 }
 
 /** Fetch current workbench state. */
 export async function fetchWorkbenchState(): Promise<Record<string, unknown>> {
-  try {
-    const res = await fetch('/api/workbench/state');
-    return (await res.json()) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
+  return requestJson('fetchWorkbenchState', '/api/workbench/state', {});
 }
 
 /** Open a markdown file in the workbench/canvas. */
 export async function openWorkbenchFile(path: string): Promise<{ ok: boolean }> {
-  try {
-    const res = await fetch('/api/workbench/open', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ path }),
-    });
-    return { ok: res.ok };
-  } catch {
-    return { ok: false };
-  }
+  return requestOk('openWorkbenchFile', '/api/workbench/open', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  });
 }
 
 /** Fetch canvas state from server. */
 export async function fetchCanvasState(): Promise<Record<string, unknown>> {
-  try {
-    const res = await fetch('/api/canvas/state');
-    return (await res.json()) as Record<string, unknown>;
-  } catch {
-    return {};
-  }
+  return requestJson('fetchCanvasState', '/api/canvas/state', {});
 }
 
 /** Fetch available slash commands for prompt completion. */
@@ -108,22 +118,17 @@ export async function submitCanvasPrompt(
   threadNodeId?: string,
 ): Promise<{ ok: boolean; nodeId?: string; error?: string }> {
   if (!text.trim()) return { ok: false, error: 'Prompt text is required' };
-  try {
-    const res = await fetch('/api/canvas/prompt', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        text,
-        ...(position ? { position } : {}),
-        ...(parentNodeId ? { parentNodeId } : {}),
-        ...(contextNodeIds && contextNodeIds.length > 0 ? { contextNodeIds } : {}),
-        ...(threadNodeId ? { threadNodeId } : {}),
-      }),
-    });
-    return (await res.json()) as { ok: boolean; nodeId?: string; error?: string };
-  } catch {
-    return { ok: false, error: 'Network error' };
-  }
+  return requestJson('submitCanvasPrompt', '/api/canvas/prompt', { ok: false, error: 'Network error' }, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      text,
+      ...(position ? { position } : {}),
+      ...(parentNodeId ? { parentNodeId } : {}),
+      ...(contextNodeIds && contextNodeIds.length > 0 ? { contextNodeIds } : {}),
+      ...(threadNodeId ? { threadNodeId } : {}),
+    }),
+  });
 }
 
 /** Submit a reply into an existing prompt thread. */
@@ -143,15 +148,11 @@ export async function pushCanvasUpdate(
     collapsed?: boolean;
   }>,
 ): Promise<void> {
-  try {
-    await fetch('/api/canvas/update', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ updates }),
-    });
-  } catch {
-    /* best-effort sync */
-  }
+  await requestBestEffort('pushCanvasUpdate', '/api/canvas/update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ updates }),
+  });
 }
 
 /** Create a canvas edge via the server. */
@@ -161,16 +162,11 @@ export async function createEdgeFromClient(
   type: string,
   label?: string,
 ): Promise<{ ok: boolean; id?: string }> {
-  try {
-    const res = await fetch('/api/canvas/edge', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ from, to, type, label }),
-    });
-    return (await res.json()) as { ok: boolean; id?: string };
-  } catch {
-    return { ok: false };
-  }
+  return requestJson('createEdgeFromClient', '/api/canvas/edge', { ok: false }, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from, to, type, label }),
+  });
 }
 
 /** Create a canvas node via the server. Returns the new node ID. */
@@ -183,16 +179,11 @@ export async function createNodeFromClient(opts: {
   width?: number;
   height?: number;
 }): Promise<{ ok: boolean; id?: string }> {
-  try {
-    const res = await fetch('/api/canvas/node', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(opts),
-    });
-    return (await res.json()) as { ok: boolean; id?: string };
-  } catch {
-    return { ok: false };
-  }
+  return requestJson('createNodeFromClient', '/api/canvas/node', { ok: false }, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(opts),
+  });
 }
 
 // ── Group API ─────────────────────────────────────────────────
@@ -207,44 +198,29 @@ export async function createGroupFromClient(opts: {
   width?: number;
   height?: number;
 }): Promise<{ ok: boolean; id?: string }> {
-  try {
-    const res = await fetch('/api/canvas/group', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(opts),
-    });
-    return (await res.json()) as { ok: boolean; id?: string };
-  } catch {
-    return { ok: false };
-  }
+  return requestJson('createGroupFromClient', '/api/canvas/group', { ok: false }, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(opts),
+  });
 }
 
 /** Add nodes to an existing group. */
 export async function addToGroupFromClient(groupId: string, childIds: string[]): Promise<{ ok: boolean }> {
-  try {
-    const res = await fetch('/api/canvas/group/add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ groupId, childIds }),
-    });
-    return (await res.json()) as { ok: boolean };
-  } catch {
-    return { ok: false };
-  }
+  return requestJson('addToGroupFromClient', '/api/canvas/group/add', { ok: false }, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ groupId, childIds }),
+  });
 }
 
 /** Ungroup all children from a group. */
 export async function ungroupFromClient(groupId: string): Promise<{ ok: boolean }> {
-  try {
-    const res = await fetch('/api/canvas/group/ungroup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ groupId }),
-    });
-    return (await res.json()) as { ok: boolean };
-  } catch {
-    return { ok: false };
-  }
+  return requestJson('ungroupFromClient', '/api/canvas/group/ungroup', { ok: false }, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ groupId }),
+  });
 }
 
 // ── Snapshot API ──────────────────────────────────────────────
@@ -258,55 +234,30 @@ export interface CanvasSnapshotInfo {
 }
 
 export async function listSnapshots(): Promise<CanvasSnapshotInfo[]> {
-  try {
-    const res = await fetch('/api/canvas/snapshots');
-    return (await res.json()) as CanvasSnapshotInfo[];
-  } catch {
-    return [];
-  }
+  return requestJson<CanvasSnapshotInfo[]>('listSnapshots', '/api/canvas/snapshots', []);
 }
 
 export async function saveSnapshot(name: string): Promise<{ ok: boolean; snapshot?: CanvasSnapshotInfo }> {
-  try {
-    const res = await fetch('/api/canvas/snapshots', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name }),
-    });
-    return (await res.json()) as { ok: boolean; snapshot?: CanvasSnapshotInfo };
-  } catch {
-    return { ok: false };
-  }
+  return requestJson('saveSnapshot', '/api/canvas/snapshots', { ok: false }, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name }),
+  });
 }
 
 export async function restoreSnapshot(id: string): Promise<{ ok: boolean }> {
-  try {
-    const res = await fetch(`/api/canvas/snapshots/${id}`, { method: 'POST' });
-    return (await res.json()) as { ok: boolean };
-  } catch {
-    return { ok: false };
-  }
+  return requestJson('restoreSnapshot', `/api/canvas/snapshots/${id}`, { ok: false }, { method: 'POST' });
 }
 
 export async function deleteSnapshot(id: string): Promise<{ ok: boolean }> {
-  try {
-    const res = await fetch(`/api/canvas/snapshots/${id}`, { method: 'DELETE' });
-    return (await res.json()) as { ok: boolean };
-  } catch {
-    return { ok: false };
-  }
+  return requestJson('deleteSnapshot', `/api/canvas/snapshots/${id}`, { ok: false }, { method: 'DELETE' });
 }
 
 /** Remove a canvas edge via the server. */
 export async function removeEdgeFromClient(edgeId: string): Promise<{ ok: boolean }> {
-  try {
-    const res = await fetch('/api/canvas/edge', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ edge_id: edgeId }),
-    });
-    return (await res.json()) as { ok: boolean };
-  } catch {
-    return { ok: false };
-  }
+  return requestJson('removeEdgeFromClient', '/api/canvas/edge', { ok: false }, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ edge_id: edgeId }),
+  });
 }

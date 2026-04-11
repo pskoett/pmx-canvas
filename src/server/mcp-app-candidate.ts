@@ -22,45 +22,45 @@ export interface McpAppToolCandidate {
   sourceTool: string;
 }
 
-export function inferMcpAppType(url: string): string {
+function tryParseUrl(url: string): URL | null {
   try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.toLowerCase();
-    const href = parsed.toString().toLowerCase();
-    if (host.includes('excalidraw')) return 'diagram';
-    if (href.includes('figma')) return 'design';
-    if (href.endsWith('.pdf')) return 'pdf-viewer';
-    if (href.includes('/apps/')) return 'mcp-app';
-    return 'app-surface';
-  } catch {
-    return 'app-surface';
+    return new URL(url);
+  } catch (error) {
+    console.debug('[mcp-app-candidate] invalid URL', { url, error });
+    return null;
   }
+}
+
+export function inferMcpAppType(url: string): string {
+  const parsed = tryParseUrl(url);
+  if (!parsed) return 'app-surface';
+  const host = parsed.hostname.toLowerCase();
+  const href = parsed.toString().toLowerCase();
+  if (host.includes('excalidraw')) return 'diagram';
+  if (href.includes('figma')) return 'design';
+  if (href.endsWith('.pdf')) return 'pdf-viewer';
+  if (href.includes('/apps/')) return 'mcp-app';
+  return 'app-surface';
 }
 
 function isExcalidrawWebUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.toLowerCase();
-    return host.includes('excalidraw.com') || host.includes('excalidraw-mcp-app');
-  } catch {
-    return false;
-  }
+  const parsed = tryParseUrl(url);
+  if (!parsed) return false;
+  const host = parsed.hostname.toLowerCase();
+  return host.includes('excalidraw.com') || host.includes('excalidraw-mcp-app');
 }
 
 export function isLikelyMcpAppWebUrl(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    const host = parsed.hostname.toLowerCase();
-    const href = parsed.toString().toLowerCase();
-    if (host.includes('modelcontextprotocol')) return true;
-    if (host.includes('mcp-app')) return true;
-    if (host.includes('mcp') && host.includes('vercel.app')) return true;
-    if (href.includes('/mcp/') || href.includes('/apps/')) return true;
-    if (isExcalidrawWebUrl(url)) return true;
-    return false;
-  } catch {
-    return false;
-  }
+  const parsed = tryParseUrl(url);
+  if (!parsed) return false;
+  const host = parsed.hostname.toLowerCase();
+  const href = parsed.toString().toLowerCase();
+  if (host.includes('modelcontextprotocol')) return true;
+  if (host.includes('mcp-app')) return true;
+  if (host.includes('mcp') && host.includes('vercel.app')) return true;
+  if (href.includes('/mcp/') || href.includes('/apps/')) return true;
+  if (isExcalidrawWebUrl(url)) return true;
+  return false;
 }
 
 function inferServerNameFromToolName(name: string): string | null {
@@ -128,13 +128,10 @@ function collectToolResultUrlCandidates(result: unknown): Array<{ url: string; k
 }
 
 function toSafeExternalUrl(url: string): string | null {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
-    return parsed.toString();
-  } catch {
-    return null;
-  }
+  const parsed = tryParseUrl(url);
+  if (!parsed) return null;
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+  return parsed.toString();
 }
 
 export function getMcpAppCandidateFromToolCompletion(

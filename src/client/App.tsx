@@ -35,14 +35,35 @@ import {
   walkGraph,
 } from './state/canvas-store';
 import { connectSSE } from './state/sse-bridge';
+import {
+  IconArrange,
+  IconClearTrace,
+  IconFitAll,
+  IconMinimap,
+  IconMoon,
+  IconResetView,
+  IconSearch,
+  IconShortcuts,
+  IconSnapshot,
+  IconSun,
+  IconTrace,
+  IconZoomIn,
+  IconZoomOut,
+} from './icons';
 import { invalidateTokenCache } from './theme/tokens';
+
+function logAppError(action: string, error: unknown): void {
+  console.error(`[app] ${action} failed`, error);
+}
 
 function sendIntent(type: string, payload: Record<string, unknown> = {}): void {
   fetch(`/api/workbench/intent?_ts=${Date.now()}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ type, payload }),
-  }).catch(() => {});
+  }).catch((error) => {
+    logAppError('sendIntent', error);
+  });
 }
 
 function Toolbar({
@@ -83,119 +104,123 @@ function Toolbar({
     : 'Syncing canvas…';
 
   return (
-    <div class="canvas-toolbar">
-      <span class={`connection-dot ${status}`} title={statusTitle} />
-      <span style={{ fontSize: '11px', color: 'var(--c-muted)' }}>
-        {sessionId.value ? sessionId.value.slice(0, 12) : '…'}
-      </span>
+    <div class="toolbar-group">
+      {/* ── Navigation Bar ──────────────────────────────────── */}
+      <div class="canvas-toolbar">
+        <span class={`connection-dot ${status}`} title={statusTitle} />
+        <span style={{ fontSize: '11px', color: 'var(--c-muted)' }}>
+          {sessionId.value ? sessionId.value.slice(0, 12) : '…'}
+        </span>
 
-      <div class="separator" />
+        <div class="separator" />
 
-      <button
-        type="button"
-        onClick={() => fitAll(window.innerWidth, window.innerHeight)}
-        title="Fit all nodes"
-      >
-        ◻
-      </button>
-      <button
-        type="button"
-        onClick={() => animateViewport({ x: 0, y: 0, scale: 1 }, 250)}
-        title="Reset view (Cmd+0)"
-      >
-        1:1
-      </button>
-      <button
-        type="button"
-        onClick={() => animateViewport({ ...v, scale: Math.min(4, v.scale * 1.25) }, 150)}
-        title="Zoom in (Cmd++)"
-      >
-        +
-      </button>
-      <button
-        type="button"
-        onClick={() => animateViewport({ ...v, scale: Math.max(0.1, v.scale / 1.25) }, 150)}
-        title="Zoom out (Cmd+-)"
-      >
-        −
-      </button>
-      <span style={{ fontSize: '10px', color: 'var(--c-dim)', minWidth: '36px', textAlign: 'center' }}>
-        {Math.round(v.scale * 100)}%
-      </span>
-
-      <div class="separator" />
-
-      <button type="button" onClick={() => edgeCount > 0 ? forceDirectedArrange() : autoArrange()} title={edgeCount > 0 ? 'Auto-arrange (force-directed)' : 'Auto-arrange (grid)'}>
-        ⊞
-      </button>
-      <button
-        type="button"
-        onClick={onToggleMinimap}
-        title="Toggle minimap"
-        style={{ color: minimapVisible ? 'var(--c-accent)' : undefined }}
-      >
-        ◫
-      </button>
-      <button
-        type="button"
-        onClick={() => {
-          const next = canvasTheme.value === 'dark' ? 'light' : 'dark';
-          canvasTheme.value = next;
-          document.documentElement.setAttribute('data-theme', next);
-          invalidateTokenCache();
-        }}
-        title={`Switch to ${canvasTheme.value === 'dark' ? 'light' : 'dark'} theme`}
-      >
-        {canvasTheme.value === 'dark' ? '☀' : '☾'}
-      </button>
-      <button
-        ref={snapshotBtnRef}
-        type="button"
-        onClick={onToggleSnapshot}
-        title="Snapshots"
-        style={{ color: snapshotOpen ? 'var(--c-accent)' : undefined }}
-      >
-        ◈
-      </button>
-
-      <div class="separator" />
-
-      <button
-        type="button"
-        onClick={() => sendIntent('trace-toggle', { enabled: !isTraceOn })}
-        title={isTraceOn ? 'Disable trace' : 'Enable trace'}
-        style={{ color: isTraceOn ? 'var(--c-purple)' : undefined }}
-      >
-        ◉
-      </button>
-      {(isTraceOn || traceNodeCount > 0) && (
         <button
           type="button"
-          onClick={() => sendIntent('trace-clear')}
-          title={traceNodeCount > 0 ? 'Clear trace' : 'Trace is enabled but still empty'}
+          onClick={() => fitAll(window.innerWidth, window.innerHeight)}
+          title="Fit all nodes"
         >
-          ⌫
+          <IconFitAll />
         </button>
-      )}
+        <button
+          type="button"
+          onClick={() => animateViewport({ x: 0, y: 0, scale: 1 }, 250)}
+          title="Reset view (Cmd+0)"
+        >
+          <IconResetView />
+        </button>
+        <button
+          type="button"
+          onClick={() => animateViewport({ ...v, scale: Math.min(4, v.scale * 1.25) }, 150)}
+          title="Zoom in (Cmd++)"
+        >
+          <IconZoomIn />
+        </button>
+        <button
+          type="button"
+          onClick={() => animateViewport({ ...v, scale: Math.max(0.1, v.scale / 1.25) }, 150)}
+          title="Zoom out (Cmd+-)"
+        >
+          <IconZoomOut />
+        </button>
+        <span style={{ fontSize: '10px', color: 'var(--c-dim)', minWidth: '36px', textAlign: 'center' }}>
+          {Math.round(v.scale * 100)}%
+        </span>
 
-      <div class="separator" />
+        <div class="separator" />
 
-      <button
-        type="button"
-        onClick={onOpenPalette}
-        title="Search nodes & actions (Cmd+K)"
-      >
-        ⌕
-      </button>
-      <button
-        type="button"
-        onClick={onOpenShortcuts}
-        title="Keyboard shortcuts (?)"
-      >
-        ?
-      </button>
+        <button type="button" onClick={() => edgeCount > 0 ? forceDirectedArrange() : autoArrange()} title={edgeCount > 0 ? 'Auto-arrange (graph-aware)' : 'Auto-arrange (grid)'}>
+          <IconArrange />
+        </button>
+        <button
+          type="button"
+          onClick={onToggleMinimap}
+          title="Toggle minimap"
+          style={{ color: minimapVisible ? 'var(--c-accent)' : undefined }}
+        >
+          <IconMinimap />
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            const next = canvasTheme.value === 'dark' ? 'light' : 'dark';
+            canvasTheme.value = next;
+            document.documentElement.setAttribute('data-theme', next);
+            invalidateTokenCache();
+          }}
+          title={`Switch to ${canvasTheme.value === 'dark' ? 'light' : 'dark'} theme`}
+        >
+          {canvasTheme.value === 'dark' ? <IconSun /> : <IconMoon />}
+        </button>
+        <button
+          ref={snapshotBtnRef}
+          type="button"
+          onClick={onToggleSnapshot}
+          title="Snapshots"
+          style={{ color: snapshotOpen ? 'var(--c-accent)' : undefined }}
+        >
+          <IconSnapshot />
+        </button>
+      </div>
 
-      <span style={{ fontSize: '10px', color: 'var(--c-dim)' }}>{countsLabel}</span>
+      {/* ── Action Bar ──────────────────────────────────────── */}
+      <div class="canvas-toolbar">
+        <button
+          type="button"
+          onClick={() => sendIntent('trace-toggle', { enabled: !isTraceOn })}
+          title={isTraceOn ? 'Disable trace' : 'Enable trace'}
+          style={{ color: isTraceOn ? 'var(--c-purple)' : undefined }}
+        >
+          <IconTrace />
+        </button>
+        {(isTraceOn || traceNodeCount > 0) && (
+          <button
+            type="button"
+            onClick={() => sendIntent('trace-clear')}
+            title={traceNodeCount > 0 ? 'Clear trace' : 'Trace is enabled but still empty'}
+          >
+            <IconClearTrace />
+          </button>
+        )}
+
+        <div class="separator" />
+
+        <button
+          type="button"
+          onClick={onOpenPalette}
+          title="Search nodes & actions (Cmd+K)"
+        >
+          <IconSearch />
+        </button>
+        <button
+          type="button"
+          onClick={onOpenShortcuts}
+          title="Keyboard shortcuts (?)"
+        >
+          <IconShortcuts />
+        </button>
+
+        <span style={{ fontSize: '10px', color: 'var(--c-dim)' }}>{countsLabel}</span>
+      </div>
     </div>
   );
 }

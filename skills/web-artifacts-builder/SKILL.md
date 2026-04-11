@@ -1,12 +1,12 @@
 ---
 name: web-artifacts-builder
-description: Suite of tools for creating elaborate, multi-component claude.ai HTML artifacts using modern frontend web technologies (React, Tailwind CSS, shadcn/ui). Use for complex artifacts requiring state management, routing, or shadcn/ui components - not for simple single-file HTML/JSX artifacts.
+description: Suite of tools for creating elaborate, multi-component single-file HTML web artifacts using modern frontend web technologies (React, Tailwind CSS, shadcn/ui). Use for complex artifacts requiring state management, routing, or shadcn/ui components - not for simple single-file HTML/JSX artifacts.
 license: Complete terms in LICENSE.txt
 ---
 
 # Web Artifacts Builder
 
-To build powerful frontend claude.ai artifacts, follow these steps:
+To build powerful single-file frontend web artifacts, follow these steps:
 1. Initialize the frontend repo using `scripts/init-artifact.sh`
 2. Develop your artifact by editing the generated code
 3. Bundle all code into a single HTML file using `scripts/bundle-artifact.sh`
@@ -21,8 +21,8 @@ VERY IMPORTANT: To avoid what is often referred to as "AI slop", avoid using exc
 
 ## Quick Start
 
-In `pmx-canvas`, prefer the `canvas_build_web_artifact` MCP tool when available. It uses these
-same bundled scripts, writes reusable source under `artifacts/.web-artifacts/`, emits a bundled
+In `pmx-canvas`, prefer the `canvas_build_web_artifact` MCP tool when available. It uses the same
+bundled runtime scripts, writes reusable source under `artifacts/.web-artifacts/`, emits a bundled
 HTML file under `artifacts/`, and can open the result directly on the canvas as an embedded node.
 For browser verification after the build, pair this skill with the local `playwright-cli` skill.
 
@@ -54,7 +54,7 @@ To bundle the React app into a single HTML artifact:
 bash scripts/bundle-artifact.sh
 ```
 
-This creates `bundle.html` - a self-contained artifact with all JavaScript, CSS, and dependencies inlined. This file can be directly shared in Claude conversations as an artifact.
+This creates `bundle.html` - a self-contained artifact with all JavaScript, CSS, and dependencies inlined. This file can be opened directly in a browser or shared in artifact-capable clients.
 
 **Requirements**: Your project must have an `index.html` in the root directory.
 
@@ -66,7 +66,7 @@ This creates `bundle.html` - a self-contained artifact with all JavaScript, CSS,
 
 ### Step 4: Share Artifact with User
 
-Finally, share the bundled HTML file in conversation with the user so they can view it as an artifact.
+Finally, share the bundled HTML file with the user or open it in the browser so they can view it.
 
 ### Step 5: Testing/Visualizing the Artifact (Optional)
 

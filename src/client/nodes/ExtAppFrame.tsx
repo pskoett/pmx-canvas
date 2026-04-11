@@ -1,4 +1,4 @@
-import { AppBridge, PostMessageTransport } from '@modelcontextprotocol/ext-apps/app-bridge';
+import { AppBridge, PostMessageTransport } from '../ext-app/bridge';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { bringToFront, canvasTheme, persistLayout, updateNode, viewport } from '../state/canvas-store';
@@ -258,7 +258,9 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
       themeUnsubRef.current = null;
       bridgeRef.current = null;
       if (transportRef.current) {
-        transportRef.current.close().catch(() => {});
+        transportRef.current.close().catch((closeError) => {
+          console.error('[ext-app] transport close failed:', closeError);
+        });
         transportRef.current = null;
       }
     };

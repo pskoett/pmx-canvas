@@ -174,7 +174,7 @@ curl http://localhost:4313/api/canvas/code-graph
 - **MCP Server** — 23 tools + 6 resources, auto-starts canvas on first tool call. Zero-config for any MCP-capable agent.
 - **HTTP API** — REST endpoints for all canvas operations + SSE event stream. Works from any language.
 - **Node.js SDK** — `createCanvas()` for programmatic control from Bun/Node.js.
-- **Agent Skills** — `skills/pmx-canvas/` teaches the canvas API, `skills/web-artifacts-builder/` covers richer bundled HTML artifact builds, `skills/playwright-cli/` covers browser validation, `skills/pmx-canvas-testing/` defines the repo verification ladder, and repo-local agnostic PMX skills now include `doc-coauthoring`, `data-analysis`, `frontend-design`, `web-design-guidelines`, and `json-render-*`.
+- **Optional Skills** — `skills/pmx-canvas/` teaches the canvas API, `skills/web-artifacts-builder/` covers richer bundled HTML app builds, `skills/playwright-cli/` covers browser validation, `skills/pmx-canvas-testing/` defines the repo verification ladder, `skills/published-consumer-e2e/` covers installed-package outside-in validation, and repo-local agnostic PMX skills now include `doc-coauthoring`, `data-analysis`, `frontend-design`, `web-design-guidelines`, and `json-render-*`.
 
 ### Real-time sync
 - **SSE push** — server broadcasts all changes to connected browsers instantly
@@ -355,13 +355,19 @@ console.log(canvas.getLayout()); // { viewport, nodes, edges }
 6. Agent uses that context to inform its next actions
 7. Repeat — the canvas becomes a shared thinking surface
 
-### As a Claude Code skill
+### Optional skill installs
 
-Copy `skills/pmx-canvas/` into your project's `.claude/skills/` directory.
-For richer browser-app outputs, also copy `skills/web-artifacts-builder/`.
-For browser-side validation of canvas integrations and embedded artifacts, also copy `skills/playwright-cli/`.
-For repo-standard verification guidance, also copy `skills/pmx-canvas-testing/`.
-For native structured UI and general-purpose PMX workflows, also copy the repo-local `json-render-*`, `doc-coauthoring`, `data-analysis`, `frontend-design`, and `web-design-guidelines` skills you need.
+The core product remains agent-agnostic through MCP, HTTP, and the Node.js SDK.
+
+If you're using a skill-aware agent, you can also vendor the optional skill folders:
+- `skills/pmx-canvas/` for the canvas API
+- `skills/web-artifacts-builder/` for richer bundled HTML app builds
+- `skills/playwright-cli/` for browser-side validation of canvas integrations and embedded apps
+- `skills/pmx-canvas-testing/` for the repo verification ladder
+- `skills/published-consumer-e2e/` for published-package install + browser verification from a clean temp consumer
+- `skills/json-render-*`, `skills/doc-coauthoring/`, `skills/data-analysis/`, `skills/frontend-design/`, and `skills/web-design-guidelines/` for structured UI and general PMX workflows
+
+For Claude Code specifically, copy the skill folders you want into your project's `.claude/skills/` directory.
 
 ## Architecture
 
@@ -371,7 +377,7 @@ Agent (Claude Code / Codex / Cursor / pi / any)
   |-- MCP Server ---- 23 tools + 6 resources + change notifications
   |-- Node.js SDK --- createCanvas()
   |-- HTTP API ------ curl localhost:4313/api/...
-  |-- Skill files --- pmx-canvas + web-artifacts-builder + playwright-cli + pmx-canvas-testing + agnostic PMX skills
+  |-- Optional skills - pmx-canvas + web-artifacts-builder + playwright-cli + pmx-canvas-testing + published-consumer-e2e + agnostic PMX skills
   |
   v
 Bun.serve HTTP + SSE Server (localhost:4313)

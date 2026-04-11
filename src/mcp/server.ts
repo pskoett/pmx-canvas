@@ -25,6 +25,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { isAbsolute, relative, resolve } from 'node:path';
 import { z } from 'zod';
 import { createCanvas, canvasState, type PmxCanvas } from '../server/index.js';
+import { emitPrimaryWorkbenchEvent } from '../server/server.js';
 import { searchNodes, buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
 import { mutationHistory, diffLayouts, formatDiff } from '../server/mutation-history.js';
 import { buildCodeGraphSummary, formatCodeGraph } from '../server/code-graph.js';
@@ -507,7 +508,6 @@ export async function startMcpServer(): Promise<void> {
     },
     async () => {
       const c = await ensureCanvas();
-      const { canvasState } = await import('../server/canvas-state.js');
       const pinnedIds = canvasState.contextPinnedNodeIds;
       const layout = c.getLayout();
 
@@ -590,7 +590,6 @@ export async function startMcpServer(): Promise<void> {
     },
     async () => {
       const c = await ensureCanvas();
-      const { canvasState } = await import('../server/canvas-state.js');
       const layout = c.getLayout();
       const pinnedIds = canvasState.contextPinnedNodeIds;
 
@@ -770,7 +769,6 @@ export async function startMcpServer(): Promise<void> {
     },
     async ({ nodeIds, mode }) => {
       const c = await ensureCanvas();
-      const { canvasState } = await import('../server/canvas-state.js');
       const op = mode ?? 'set';
 
       if (op === 'set') {
@@ -783,7 +781,6 @@ export async function startMcpServer(): Promise<void> {
         canvasState.setContextPins(current.filter((id) => !nodeIds.includes(id)));
       }
 
-      const { emitPrimaryWorkbenchEvent } = await import('../server/server.js');
       emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
 
       return {
@@ -828,7 +825,6 @@ export async function startMcpServer(): Promise<void> {
       if (!ok) {
         return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'Snapshot not found' }) }] };
       }
-      const { emitPrimaryWorkbenchEvent } = await import('../server/server.js');
       emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
       return {
         content: [{ type: 'text', text: JSON.stringify({ ok: true, layout: canvasState.getLayout() }) }],
@@ -849,8 +845,8 @@ export async function startMcpServer(): Promise<void> {
       server.server.sendResourceUpdated({ uri: 'canvas://spatial-context' });
       server.server.sendResourceUpdated({ uri: 'canvas://history' });
       server.server.sendResourceUpdated({ uri: 'canvas://code-graph' });
-    } catch {
-      // Notification failures are non-fatal (e.g., client disconnected)
+    } catch (error) {
+      console.debug('[mcp] resource notification failed', error);
     }
   });
 

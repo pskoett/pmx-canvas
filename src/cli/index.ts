@@ -1,5 +1,9 @@
 #!/usr/bin/env bun
-export {};
+import { spawn } from 'node:child_process';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { runAgentCli } from './agent.js';
+import { createCanvas } from '../server/index.js';
 
 const args = process.argv.slice(2);
 
@@ -12,17 +16,36 @@ const AGENT_COMMANDS = new Set([
 ]);
 
 const firstArg = args[0] ?? '';
+const cliDir = dirname(fileURLToPath(import.meta.url));
+const mcpServerEntry = resolve(cliDir, '..', 'mcp', 'server.ts');
+
+function runMcpServerProcess(): Promise<void> {
+  return new Promise((resolvePromise, rejectPromise) => {
+    const child = spawn(process.execPath, ['run', mcpServerEntry], {
+      stdio: 'inherit',
+      env: process.env,
+    });
+    child.on('error', rejectPromise);
+    child.on('exit', (code, signal) => {
+      if (code === 0) {
+        resolvePromise();
+        return;
+      }
+      rejectPromise(new Error(
+        signal
+          ? `MCP server exited via signal ${signal}`
+          : `MCP server exited with code ${code ?? 'unknown'}`,
+      ));
+    });
+  });
+}
 
 if (AGENT_COMMANDS.has(firstArg)) {
-  const { runAgentCli } = await import('./agent.js');
   await runAgentCli(args);
 } else if (args.includes('--mcp')) {
   // MCP server mode: stdio transport, auto-starts canvas on first tool call
-  const { startMcpServer } = await import('../mcp/server.js');
-  await startMcpServer();
+  await runMcpServerProcess();
 } else {
-  const { createCanvas } = await import('../server/index.js');
-
   // "serve" is also accessible via flags (backward compat)
   const port = parseInt(args.find(a => a.startsWith('--port='))?.split('=')[1] ?? '4313');
   const demo = args.includes('--demo');

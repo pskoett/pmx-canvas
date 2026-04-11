@@ -11,6 +11,12 @@ The canvas is the agent's extended working memory: humans pin nodes to curate co
 - **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
 - **Learn and Improve**: Every mistake is a learning opportunity. Log it, learn from it, prevent it.
 
+## Coding Rules
+
+- Never use dynamic imports such as `await import(...)` unless the user explicitly asks for them.
+- Never cast to `any`.
+- Do not add extra defensive checks or `try/catch` blocks unless there is a concrete, demonstrated failure mode that requires them.
+
 ## Workflow Orchestration
 
 ### 1. Plan Mode Default

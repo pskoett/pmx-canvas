@@ -12,6 +12,10 @@
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 
+function logCanvasStateWarning(action: string, error: unknown, details?: Record<string, unknown>): void {
+  console.warn(`[canvas-state] ${action}`, { error, ...(details ?? {}) });
+}
+
 const CANVAS_STATE_FILENAME = '.pmx-canvas.json';
 const SNAPSHOTS_DIR = '.pmx-canvas-snapshots';
 const SAVE_DEBOUNCE_MS = 500;
@@ -119,7 +123,11 @@ class CanvasStateManager {
 
   private notifyChange(type: CanvasChangeType): void {
     for (const cb of this._changeListeners) {
-      try { cb(type); } catch { /* listener errors are non-fatal */ }
+      try {
+        cb(type);
+      } catch (error) {
+        logCanvasStateWarning('change-listener failed', error, { type });
+      }
     }
   }
 
@@ -145,7 +153,11 @@ class CanvasStateManager {
 
   private recordMutation(info: MutationRecordInfo): void {
     if (this._suppressRecording || !this._mutationRecorder) return;
-    try { this._mutationRecorder(info); } catch { /* non-fatal */ }
+    try {
+      this._mutationRecorder(info);
+    } catch (error) {
+      logCanvasStateWarning('mutation-recorder failed', error, { description: info.description });
+    }
   }
 
   // ── Persistence ────────────────────────────────────────────
@@ -208,7 +220,10 @@ class CanvasStateManager {
       }
 
       return true;
-    } catch {
+    } catch (error) {
+      logCanvasStateWarning('load state from disk failed', error, {
+        path: this._stateFilePath ?? undefined,
+      });
       return false;
     }
   }
@@ -238,8 +253,10 @@ class CanvasStateManager {
         contextPins: Array.from(this._contextPinnedNodeIds),
       };
       writeFileSync(this._stateFilePath, JSON.stringify(payload, null, 2), 'utf-8');
-    } catch {
-      // Persistence failures are non-fatal — runtime continues.
+    } catch (error) {
+      logCanvasStateWarning('save state to disk failed', error, {
+        path: this._stateFilePath ?? undefined,
+      });
     }
   }
 
@@ -277,7 +294,8 @@ class CanvasStateManager {
       };
       writeFileSync(join(dir, `${id}.json`), JSON.stringify(payload, null, 2), 'utf-8');
       return snapshot;
-    } catch {
+    } catch (error) {
+      logCanvasStateWarning('save snapshot failed', error, { id, name });
       return null;
     }
   }
@@ -295,10 +313,13 @@ class CanvasStateManager {
           const raw = readFileSync(join(dir, file), 'utf-8');
           const parsed = JSON.parse(raw) as { snapshot?: CanvasSnapshot };
           if (parsed.snapshot) snapshots.push(parsed.snapshot);
-        } catch { /* skip corrupt files */ }
+        } catch (error) {
+          logCanvasStateWarning('skip corrupt snapshot file', error, { file });
+        }
       }
       return snapshots.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-    } catch {
+    } catch (error) {
+      logCanvasStateWarning('list snapshots failed', error, { dir });
       return [];
     }
   }
@@ -349,7 +370,8 @@ class CanvasStateManager {
       this.notifyChange('nodes');
       this.notifyChange('pins');
       return true;
-    } catch {
+    } catch (error) {
+      logCanvasStateWarning('restore snapshot failed', error, { id, filePath });
       return false;
     }
   }
@@ -366,7 +388,10 @@ class CanvasStateManager {
         const raw = readFileSync(directPath, 'utf-8');
         const parsed = JSON.parse(raw) as PersistedCanvasState & { snapshot?: CanvasSnapshot };
         return { name: parsed.snapshot?.name ?? idOrName, nodes: parsed.nodes ?? [], edges: parsed.edges ?? [] };
-      } catch { return null; }
+      } catch (error) {
+        logCanvasStateWarning('read snapshot by id failed', error, { idOrName, directPath });
+        return null;
+      }
     }
 
     // Search by name
@@ -379,9 +404,16 @@ class CanvasStateManager {
           if (parsed.snapshot?.name === idOrName || parsed.snapshot?.id === idOrName) {
             return { name: parsed.snapshot.name, nodes: parsed.nodes ?? [], edges: parsed.edges ?? [] };
           }
-        } catch { /* skip */ }
+        } catch (error) {
+          logCanvasStateWarning('skip unreadable snapshot while searching by name', error, {
+            idOrName,
+            file,
+          });
+        }
       }
-    } catch { /* skip */ }
+    } catch (error) {
+      logCanvasStateWarning('search snapshots by name failed', error, { idOrName, dir });
+    }
 
     return null;
   }
@@ -395,7 +427,8 @@ class CanvasStateManager {
     try {
       unlinkSync(filePath);
       return true;
-    } catch {
+    } catch (error) {
+      logCanvasStateWarning('delete snapshot failed', error, { id, filePath });
       return false;
     }
   }

@@ -10,6 +10,10 @@ import { watch, existsSync, readFileSync, statSync } from 'node:fs';
 import type { FSWatcher } from 'node:fs';
 import { canvasState } from './canvas-state.js';
 
+function logFileWatcherWarning(action: string, error: unknown, details?: Record<string, unknown>): void {
+  console.warn(`[file-watcher] ${action}`, { error, ...(details ?? {}) });
+}
+
 interface WatchedFile {
   path: string;
   nodeIds: Set<string>;
@@ -48,8 +52,8 @@ export function watchFileForNode(nodeId: string, filePath: string): void {
       watcher,
       lastMtime: stat.mtimeMs,
     });
-  } catch {
-    // Watch failures are non-fatal
+  } catch (error) {
+    logFileWatcherWarning('watch setup failed', error, { nodeId, filePath });
   }
 }
 
@@ -102,7 +106,7 @@ function handleFileChange(filePath: string): void {
       });
       onFileChanged?.(nodeId);
     }
-  } catch {
-    // Read failures are non-fatal
+  } catch (error) {
+    logFileWatcherWarning('handle file change failed', error, { filePath });
   }
 }

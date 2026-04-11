@@ -1,5 +1,10 @@
 import { batch, signal } from '@preact/signals';
 import type { CanvasEdge, CanvasNodeState, ConnectionStatus, ViewportState } from '../types';
+import { computeAutoArrange } from '../../shared/auto-arrange';
+
+function logCanvasStoreError(action: string, error: unknown): void {
+  console.error(`[canvas-store] ${action} failed`, error);
+}
 
 // ── Core signals ──────────────────────────────────────────────
 export const viewport = signal<ViewportState>({ x: 0, y: 0, scale: 1 });
@@ -106,7 +111,9 @@ function syncContextPinsToServer(ids: Set<string>): void {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nodeIds: Array.from(ids) }),
-  }).catch(() => {});
+  }).catch((error) => {
+    logCanvasStoreError('syncContextPinsToServer', error);
+  });
 }
 
 let maxZ = 1;
@@ -305,8 +312,8 @@ export function persistLayout(): void {
       contextPinnedNodeIds: Array.from(contextPinnedNodeIds.value),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
-  } catch {
-    /* storage full or unavailable */
+  } catch (error) {
+    logCanvasStoreError('persistLayout', error);
   }
 }
 
@@ -348,7 +355,8 @@ export function restoreLayout(): Map<string, Partial<CanvasNodeState>> | null {
       syncContextPinsToServer(pins);
     }
     return map;
-  } catch {
+  } catch (error) {
+    logCanvasStoreError('restoreLayout', error);
     return null;
   }
 }
@@ -481,172 +489,37 @@ export function collapseExpandedNode(): void {
 
 // ── Auto-arrange ──────────────────────────────────────────────
 export function autoArrange(): void {
-  const all = Array.from(nodes.value.values()).filter((n) => !n.pinned && n.dockPosition === null);
-  if (all.length === 0) return;
-
-  const GAP = 24;
-  const COLS = Math.ceil(Math.sqrt(all.length));
-  let x = 40;
-  let y = 80;
-  let col = 0;
-  let rowHeight = 0;
+  const result = computeAutoArrange(Array.from(nodes.value.values()), Array.from(edges.value.values()), 'grid');
+  if (result.nodePositions.size === 0 && result.groupBounds.size === 0) return;
 
   batch(() => {
-    for (const node of all) {
-      updateNode(node.id, { position: { x, y } });
-      rowHeight = Math.max(rowHeight, node.size.height);
-      col++;
-      if (col >= COLS) {
-        col = 0;
-        x = 40;
-        y += rowHeight + GAP;
-        rowHeight = 0;
-      } else {
-        x += node.size.width + GAP;
-      }
+    for (const [id, position] of result.nodePositions.entries()) {
+      updateNode(id, { position });
+    }
+    for (const [groupId, bounds] of result.groupBounds.entries()) {
+      updateNode(groupId, {
+        position: { x: bounds.x, y: bounds.y },
+        size: { width: bounds.width, height: bounds.height },
+      });
     }
   });
   persistLayout();
 }
 
-// ── Force-directed layout ────────────────────────────────────
-let forceAnimId: number | null = null;
-
 export function forceDirectedArrange(): void {
-  const movable = Array.from(nodes.value.values()).filter((n) => !n.pinned && n.dockPosition === null);
-  if (movable.length === 0) return;
-  if (forceAnimId !== null) cancelAnimationFrame(forceAnimId);
+  const result = computeAutoArrange(Array.from(nodes.value.values()), Array.from(edges.value.values()), 'graph');
+  if (result.nodePositions.size === 0 && result.groupBounds.size === 0) return;
 
-  const edgeList = Array.from(edges.value.values());
-
-  // Build adjacency for connected nodes
-  const adj = new Map<string, Set<string>>();
-  for (const e of edgeList) {
-    if (!adj.has(e.from)) adj.set(e.from, new Set());
-    if (!adj.has(e.to)) adj.set(e.to, new Set());
-    adj.get(e.from)!.add(e.to);
-    adj.get(e.to)!.add(e.from);
-  }
-
-  // Initialize positions from current layout
-  const pos = new Map<string, { x: number; y: number }>();
-  for (const n of movable) {
-    pos.set(n.id, { x: n.position.x + n.size.width / 2, y: n.position.y + n.size.height / 2 });
-  }
-
-  // Compute center of mass for gravity
-  let gcx = 0, gcy = 0;
-  for (const p of pos.values()) { gcx += p.x; gcy += p.y; }
-  gcx /= pos.size;
-  gcy /= pos.size;
-
-  // Force simulation parameters
-  const REPULSION = 80000;
-  const SPRING_K = 0.008;
-  const IDEAL_LEN = 300;
-  const GRAVITY = 0.002;
-  const DAMPING = 0.92;
-  const ITERATIONS = 150;
-
-  const vel = new Map<string, { vx: number; vy: number }>();
-  for (const id of pos.keys()) vel.set(id, { vx: 0, vy: 0 });
-
-  const ids = Array.from(pos.keys());
-
-  for (let iter = 0; iter < ITERATIONS; iter++) {
-    // Repulsion between all pairs
-    for (let i = 0; i < ids.length; i++) {
-      const a = pos.get(ids[i])!;
-      const va = vel.get(ids[i])!;
-      for (let j = i + 1; j < ids.length; j++) {
-        const b = pos.get(ids[j])!;
-        const vb = vel.get(ids[j])!;
-        let dx = a.x - b.x;
-        let dy = a.y - b.y;
-        let dist = Math.sqrt(dx * dx + dy * dy);
-        if (dist < 1) { dx = Math.random() - 0.5; dy = Math.random() - 0.5; dist = 1; }
-        const force = REPULSION / (dist * dist);
-        const fx = (dx / dist) * force;
-        const fy = (dy / dist) * force;
-        va.vx += fx; va.vy += fy;
-        vb.vx -= fx; vb.vy -= fy;
-      }
+  batch(() => {
+    for (const [id, position] of result.nodePositions.entries()) {
+      updateNode(id, { position });
     }
-
-    // Spring attraction along edges
-    for (const e of edgeList) {
-      const a = pos.get(e.from);
-      const b = pos.get(e.to);
-      if (!a || !b) continue;
-      const va = vel.get(e.from)!;
-      const vb = vel.get(e.to)!;
-      const dx = b.x - a.x;
-      const dy = b.y - a.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 1) continue;
-      const force = SPRING_K * (dist - IDEAL_LEN);
-      const fx = (dx / dist) * force;
-      const fy = (dy / dist) * force;
-      va.vx += fx; va.vy += fy;
-      vb.vx -= fx; vb.vy -= fy;
+    for (const [groupId, bounds] of result.groupBounds.entries()) {
+      updateNode(groupId, {
+        position: { x: bounds.x, y: bounds.y },
+        size: { width: bounds.width, height: bounds.height },
+      });
     }
-
-    // Gravity toward center
-    for (const id of ids) {
-      const p = pos.get(id)!;
-      const v = vel.get(id)!;
-      v.vx += (gcx - p.x) * GRAVITY;
-      v.vy += (gcy - p.y) * GRAVITY;
-    }
-
-    // Apply velocities with damping
-    for (const id of ids) {
-      const p = pos.get(id)!;
-      const v = vel.get(id)!;
-      v.vx *= DAMPING;
-      v.vy *= DAMPING;
-      p.x += v.vx;
-      p.y += v.vy;
-    }
-  }
-
-  // Animate nodes from current positions to computed positions
-  const startPositions = new Map<string, { x: number; y: number }>();
-  const targetPositions = new Map<string, { x: number; y: number }>();
-  for (const n of movable) {
-    startPositions.set(n.id, { ...n.position });
-    const center = pos.get(n.id)!;
-    targetPositions.set(n.id, { x: center.x - n.size.width / 2, y: center.y - n.size.height / 2 });
-  }
-
-  const duration = 500;
-  const start = performance.now();
-
-  function tick(now: number) {
-    const elapsed = now - start;
-    const t = Math.min(1, elapsed / duration);
-    const e = 1 - (1 - t) ** 3; // ease-out cubic
-
-    batch(() => {
-      for (const n of movable) {
-        const from = startPositions.get(n.id)!;
-        const to = targetPositions.get(n.id)!;
-        updateNode(n.id, {
-          position: {
-            x: from.x + (to.x - from.x) * e,
-            y: from.y + (to.y - from.y) * e,
-          },
-        });
-      }
-    });
-
-    if (t < 1) {
-      forceAnimId = requestAnimationFrame(tick);
-    } else {
-      forceAnimId = null;
-      persistLayout();
-    }
-  }
-
-  forceAnimId = requestAnimationFrame(tick);
+  });
+  persistLayout();
 }

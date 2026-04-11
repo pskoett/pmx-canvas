@@ -175,7 +175,7 @@ export function getSelectionRect(ta: HTMLTextAreaElement): { top: number; left: 
     'boxSizing', 'width',
   ] as const;
   for (const p of props) {
-    (mirror.style as any)[p] = style[p as any];
+    mirror.style[p] = style[p];
   }
   mirror.style.position = 'absolute';
   mirror.style.visibility = 'hidden';

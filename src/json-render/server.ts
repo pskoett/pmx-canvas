@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildAppHtml } from '@json-render/mcp/build-app-html';
 import { allComponentDefinitions, catalog, validateShadcnElementProps, type JsonRenderIssue } from './catalog.js';
@@ -82,10 +82,6 @@ function bundleDir(): string {
   return candidates[candidates.length - 1];
 }
 
-function sourceDir(): string {
-  return join(process.cwd(), 'src', 'json-render');
-}
-
 function escapeInlineScriptSource(source: string): string {
   return source.replace(/<\/script/gi, '<\\/script');
 }
@@ -145,22 +141,13 @@ async function ensureJsonRenderBundle(): Promise<void> {
   const dir = bundleDir();
   const jsPath = join(dir, 'index.js');
   const cssPath = join(dir, 'index.css');
-  const srcDir = sourceDir();
-
-  let needsBuild = !existsSync(jsPath) || !existsSync(cssPath);
-  if (!needsBuild && existsSync(srcDir)) {
-    const bundleMtime = Math.min(statSync(jsPath).mtimeMs, statSync(cssPath).mtimeMs);
-    let newestSource = 0;
-    const glob = new Bun.Glob('**/*.{ts,tsx,css}');
-    for (const filePath of glob.scanSync({ cwd: srcDir, absolute: true })) {
-      try {
-        newestSource = Math.max(newestSource, statSync(filePath).mtimeMs);
-      } catch {
-        // Ignore files that disappear during the scan.
-      }
-    }
-    needsBuild = newestSource > bundleMtime;
-  }
+  // The renderer bundle is shipped in dist/ and built explicitly via bun run build.
+  // Avoid live source-vs-dist rebuild checks here because Bun's bundler can stall on
+  // the @json-render/shadcn dependency graph during request-time viewer generation.
+  const needsBuild =
+    !existsSync(jsPath) ||
+    !existsSync(cssPath) ||
+    process.env.PMX_CANVAS_FORCE_JSON_RENDER_REBUILD === '1';
 
   if (needsBuild) {
     await rebuildJsonRenderBundle();

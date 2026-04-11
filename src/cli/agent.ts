@@ -49,9 +49,9 @@ async function api(
   let res: Response;
   try {
     res = await fetch(url, opts);
-  } catch {
+  } catch (error) {
     die(
-      `Cannot connect to pmx-canvas at ${base}`,
+      `Cannot connect to pmx-canvas at ${base}: ${error instanceof Error ? error.message : String(error)}`,
       `Start the server first: pmx-canvas serve --no-open`,
     );
   }
@@ -60,8 +60,9 @@ async function api(
   let json: unknown;
   try {
     json = JSON.parse(text);
-  } catch {
+  } catch (error) {
     if (!res.ok) die(`HTTP ${res.status}: ${text}`);
+    console.debug('[cli] response was not JSON', error);
     return text;
   }
 
