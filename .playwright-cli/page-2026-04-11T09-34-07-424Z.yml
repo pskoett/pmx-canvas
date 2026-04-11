@@ -1,0 +1,2186 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]:
+        - 'generic "Canvas status: connected" [ref=e7]'
+        - tooltip "Canvas status Connected":
+          - generic: Canvas status
+          - generic:
+            - generic: Connected
+      - generic [ref=e8]: pmx-mnu505y5
+      - generic [ref=e10]:
+        - button "Fit canvas" [ref=e11] [cursor=pointer]:
+          - img [ref=e12]
+        - tooltip "Fit canvas Frame every node on screen":
+          - generic: Fit canvas
+          - generic:
+            - generic: Frame every node on screen
+      - generic [ref=e18]:
+        - button "Reset view" [ref=e19] [cursor=pointer]:
+          - img [ref=e20]
+        - tooltip "Reset view ⌘+0":
+          - generic: Reset view
+          - generic:
+            - generic: ⌘+0
+      - generic [ref=e22]:
+        - button "Zoom in" [ref=e23] [cursor=pointer]:
+          - img [ref=e24]
+        - tooltip "Zoom in ⌘++":
+          - generic: Zoom in
+          - generic:
+            - generic: ⌘++
+      - generic [ref=e27]:
+        - button "Zoom out" [ref=e28] [cursor=pointer]:
+          - img [ref=e29]
+        - tooltip "Zoom out ⌘+-":
+          - generic: Zoom out
+          - generic:
+            - generic: ⌘+-
+      - generic [ref=e32]: 100%
+      - generic [ref=e34]:
+        - button "Arrange layout" [ref=e35] [cursor=pointer]:
+          - img [ref=e36]
+        - tooltip "Arrange layout Graph-aware layout for connected nodes":
+          - generic: Arrange layout
+          - generic:
+            - generic: Graph-aware layout for connected nodes
+      - generic [ref=e41]:
+        - button "Hide minimap" [ref=e42] [cursor=pointer]:
+          - img [ref=e43]
+        - tooltip "Hide minimap Quickly navigate large canvases":
+          - generic: Hide minimap
+          - generic:
+            - generic: Quickly navigate large canvases
+      - generic [ref=e46]:
+        - button "Switch to light theme" [ref=e47] [cursor=pointer]:
+          - img [ref=e48]
+        - 'tooltip "Switch to light theme Current theme: dark"':
+          - generic: Switch to light theme
+          - generic:
+            - generic: "Current theme: dark"
+      - generic [ref=e54]:
+        - button "Snapshots" [ref=e55] [cursor=pointer]:
+          - img [ref=e56]
+        - tooltip "Snapshots Capture and restore canvas states":
+          - generic: Snapshots
+          - generic:
+            - generic: Capture and restore canvas states
+    - generic [ref=e59]:
+      - generic [ref=e60]:
+        - button "Enable trace" [ref=e61] [cursor=pointer]:
+          - img [ref=e62]
+        - tooltip "Enable trace Capture agent execution on the canvas":
+          - generic: Enable trace
+          - generic:
+            - generic: Capture agent execution on the canvas
+      - generic [ref=e66]:
+        - button "Clear trace" [ref=e67] [cursor=pointer]:
+          - img [ref=e68]
+        - tooltip "Clear trace Remove 3 trace nodes":
+          - generic: Clear trace
+          - generic:
+            - generic: Remove 3 trace nodes
+      - generic [ref=e73]:
+        - button "Search nodes and actions" [ref=e74] [cursor=pointer]:
+          - img [ref=e75]
+        - tooltip "Search nodes and actions ⌘+K":
+          - generic: Search nodes and actions
+          - generic:
+            - generic: ⌘+K
+      - generic [ref=e78]:
+        - button "Keyboard shortcuts" [ref=e79] [cursor=pointer]:
+          - img [ref=e80]
+        - tooltip "Keyboard shortcuts ?":
+          - generic: Keyboard shortcuts
+          - generic:
+            - generic: "?"
+      - generic [ref=e82]: 25 nodes · 15 edges · 3 traces
+  - generic [ref=e83]:
+    - generic:
+      - img "Canvas connections":
+        - generic:
+          - generic:
+            - generic: narrates
+        - generic:
+          - generic:
+            - generic: summarized as
+        - generic:
+          - generic:
+            - generic: operator inputs
+        - generic:
+          - generic:
+            - generic: updates readiness
+        - generic:
+          - generic:
+            - generic: persona reference
+        - generic:
+          - generic:
+            - generic: preference editing
+        - generic:
+          - generic:
+            - generic: plan selection
+        - generic:
+          - generic:
+            - generic: usage analytics
+        - generic:
+          - generic:
+            - generic: tracked by
+        - generic:
+          - generic:
+            - generic: pressure
+        - generic:
+          - generic:
+            - generic: allocation
+        - generic:
+          - generic:
+            - generic: pinned context
+        - generic:
+          - generic:
+            - generic: example source
+        - generic:
+          - generic:
+            - generic: then
+        - generic:
+          - generic:
+            - generic: then
+      - generic [ref=e84]:
+        - generic [ref=e85]:
+          - generic [ref=e86]: GROUP
+          - generic "Double-click to rename" [ref=e87]: Narrative & Evidence
+          - generic [ref=e88]:
+            - button "✦" [ref=e89] [cursor=pointer]
+            - button "▾" [ref=e90] [cursor=pointer]
+            - button "×" [ref=e91] [cursor=pointer]
+        - generic [ref=e94]:
+          - generic [ref=e95]: 5 nodes
+          - generic [ref=e96]: 1 markdown, 1 image, 3 file
+      - generic [ref=e102]:
+        - generic [ref=e103]:
+          - generic [ref=e104]: GROUP
+          - generic "Double-click to rename" [ref=e105]: Operational Telemetry
+          - generic [ref=e106]:
+            - button "✦" [ref=e107] [cursor=pointer]
+            - button "▾" [ref=e108] [cursor=pointer]
+            - button "×" [ref=e109] [cursor=pointer]
+        - generic [ref=e112]:
+          - generic [ref=e113]: 6 nodes
+          - generic [ref=e114]: 1 status, 1 context, 1 ledger, 3 trace
+      - generic [ref=e120]:
+        - generic [ref=e121]:
+          - generic [ref=e122]: GROUP
+          - generic "Double-click to rename" [ref=e123]: Structured UI Surfaces
+          - generic [ref=e124]:
+            - button "✦" [ref=e125] [cursor=pointer]
+            - button "▾" [ref=e126] [cursor=pointer]
+            - button "×" [ref=e127] [cursor=pointer]
+        - generic [ref=e130]:
+          - generic [ref=e131]: 11 nodes
+          - generic [ref=e132]: 1 mcp-app, 7 json-render, 3 graph
+      - generic [ref=e138]:
+        - generic [ref=e139]:
+          - generic [ref=e140]: MD
+          - generic "Double-click to rename" [ref=e141]: Synthetic SDLC Report
+          - generic [ref=e142]:
+            - button "✦" [ref=e143] [cursor=pointer]
+            - button "⤢" [ref=e144] [cursor=pointer]
+            - button "▾" [ref=e145] [cursor=pointer]
+            - button "×" [ref=e146] [cursor=pointer]
+        - generic [ref=e148]:
+          - generic [ref=e150]: Loading…
+          - button "Edit" [ref=e151] [cursor=pointer]
+      - generic [ref=e157]:
+        - generic [ref=e158]:
+          - generic [ref=e159]: IMG
+          - generic "Double-click to rename" [ref=e160]: Pipeline Atlas
+          - generic [ref=e161]:
+            - button "✦" [ref=e162] [cursor=pointer]
+            - button "⤢" [ref=e163] [cursor=pointer]
+            - button "▾" [ref=e164] [cursor=pointer]
+            - button "×" [ref=e165] [cursor=pointer]
+        - generic [ref=e167]:
+          - img "Pipeline Atlas" [ref=e169]
+          - generic [ref=e172]: 265×150
+      - generic [ref=e178]:
+        - generic [ref=e179]:
+          - generic [ref=e180]: FILE
+          - generic "Double-click to rename" [ref=e181]: Article Markdown
+          - generic [ref=e182]:
+            - button "✦" [ref=e183] [cursor=pointer]
+            - button "⤢" [ref=e184] [cursor=pointer]
+            - button "▾" [ref=e185] [cursor=pointer]
+            - button "×" [ref=e186] [cursor=pointer]
+        - generic [ref=e188]:
+          - generic [ref=e189]:
+            - generic [ref=e190]: Markdown
+            - generic "/private/tmp/pmx-canvas-published-consumer-e2e/consumer/demo/article.md" [ref=e191]
+            - generic [ref=e192]: 46 lines
+            - generic [ref=e193]: 11:33:13 AM
+            - button "↻" [ref=e194] [cursor=pointer]
+          - generic [ref=e196]:
+            - generic [ref=e197]:
+              - generic [ref=e198]: "1"
+              - code [ref=e199]: "# SDLC Control Room"
+            - generic [ref=e200]:
+              - generic [ref=e201]: "2"
+              - code [ref=e202]
+            - generic [ref=e203]:
+              - generic [ref=e204]: "3"
+              - code [ref=e205]: "This published-consumer scenario exercises PMX Canvas the way an external user would: install the package, start the server through the public SDK, generate a bundled web artifact, add native `json-render` panels, and connect the whole story with standard canvas nodes."
+            - generic [ref=e206]:
+              - generic [ref=e207]: "4"
+              - code [ref=e208]
+            - generic [ref=e209]:
+              - generic [ref=e210]: "5"
+              - code [ref=e211]: "## What This Demo Covers"
+            - generic [ref=e212]:
+              - generic [ref=e213]: "6"
+              - code [ref=e214]
+            - generic [ref=e215]:
+              - generic [ref=e216]: "7"
+              - code [ref=e217]: "- A markdown article node for narrative context"
+            - generic [ref=e218]:
+              - generic [ref=e219]: "8"
+              - code [ref=e220]: "- A hosted web artifact node built from local React source"
+            - generic [ref=e221]:
+              - generic [ref=e222]: "9"
+              - code [ref=e223]: "- Native `json-render` dashboard and form nodes"
+            - generic [ref=e224]:
+              - generic [ref=e225]: "10"
+              - code [ref=e226]: "- Native graph nodes for line, bar, and pie views"
+            - generic [ref=e227]:
+              - generic [ref=e228]: "11"
+              - code [ref=e229]: "- Status, context, ledger, trace, file, image, and group nodes"
+            - generic [ref=e230]:
+              - generic [ref=e231]: "12"
+              - code [ref=e232]: "- Flow, dependency, relation, and reference edges"
+            - generic [ref=e233]:
+              - generic [ref=e234]: "13"
+              - code [ref=e235]: "- Snapshot creation and context pin updates over the HTTP API"
+            - generic [ref=e236]:
+              - generic [ref=e237]: "14"
+              - code [ref=e238]
+            - generic [ref=e239]:
+              - generic [ref=e240]: "15"
+              - code [ref=e241]: "## Fake SDLC Dataset"
+            - generic [ref=e242]:
+              - generic [ref=e243]: "16"
+              - code [ref=e244]
+            - generic [ref=e245]:
+              - generic [ref=e246]: "17"
+              - code [ref=e247]: "The data is intentionally synthetic but shaped like a real weekly release train:"
+            - generic [ref=e248]:
+              - generic [ref=e249]: "18"
+              - code [ref=e250]
+            - generic [ref=e251]:
+              - generic [ref=e252]: "19"
+              - code [ref=e253]: "| Signal | Value | Interpretation |"
+            - generic [ref=e254]:
+              - generic [ref=e255]: "20"
+              - code [ref=e256]: "| --- | --- | --- |"
+            - generic [ref=e257]:
+              - generic [ref=e258]: "21"
+              - code [ref=e259]: "| Median lead time | 19 hours | Healthy overall, but queueing dominates the tail |"
+            - generic [ref=e260]:
+              - generic [ref=e261]: "22"
+              - code [ref=e262]: "| Change failure rate | 7.6% | Stable, with most regressions caught before production |"
+            - generic [ref=e263]:
+              - generic [ref=e264]: "23"
+              - code [ref=e265]: "| Mean time to recover | 36 minutes | Rollback readiness is strong |"
+            - generic [ref=e266]:
+              - generic [ref=e267]: "24"
+              - code [ref=e268]: "| First-pass gate rate | 78% | Integration tests remain the biggest drag |"
+            - generic [ref=e269]:
+              - generic [ref=e270]: "25"
+              - code [ref=e271]
+            - generic [ref=e272]:
+              - generic [ref=e273]: "26"
+              - code [ref=e274]: "### Current Story"
+            - generic [ref=e275]:
+              - generic [ref=e276]: "27"
+              - code [ref=e277]
+            - generic [ref=e278]:
+              - generic [ref=e279]: "28"
+              - code [ref=e280]: 1. Planning is predictable.
+            - generic [ref=e281]:
+              - generic [ref=e282]: "29"
+              - code [ref=e283]: 2. Code review throughput is strong.
+            - generic [ref=e284]:
+              - generic [ref=e285]: "30"
+              - code [ref=e286]: 3. Build stability is mostly green.
+            - generic [ref=e287]:
+              - generic [ref=e288]: "31"
+              - code [ref=e289]: 4. Integration test volatility is the current bottleneck.
+            - generic [ref=e290]:
+              - generic [ref=e291]: "32"
+              - code [ref=e292]: 5. Canary and rollback posture are healthy enough to keep the train moving.
+            - generic [ref=e293]:
+              - generic [ref=e294]: "33"
+              - code [ref=e295]
+            - generic [ref=e296]:
+              - generic [ref=e297]: "34"
+              - code [ref=e298]: "## Why This Is Useful"
+            - generic [ref=e299]:
+              - generic [ref=e300]: "35"
+              - code [ref=e301]
+            - generic [ref=e302]:
+              - generic [ref=e303]: "36"
+              - code [ref=e304]: "A realistic evaluation needs more than a single markdown note. If someone installs PMX Canvas after it is published, they should be able to:"
+            - generic [ref=e305]:
+              - generic [ref=e306]: "37"
+              - code [ref=e307]
+            - generic [ref=e308]:
+              - generic [ref=e309]: "38"
+              - code [ref=e310]: "- programmatically seed a workspace,"
+            - generic [ref=e311]:
+              - generic [ref=e312]: "39"
+              - code [ref=e313]: "- mix narrative and structured panels,"
+            - generic [ref=e314]:
+              - generic [ref=e315]: "40"
+              - code [ref=e316]: "- ship a custom artifact into the canvas,"
+            - generic [ref=e317]:
+              - generic [ref=e318]: "41"
+              - code [ref=e319]: "- inspect local files directly from the board,"
+            - generic [ref=e320]:
+              - generic [ref=e321]: "42"
+              - code [ref=e322]: "- pin the key context for an agent,"
+            - generic [ref=e323]:
+              - generic [ref=e324]: "43"
+              - code [ref=e325]: "- and keep the whole layout understandable in the browser."
+            - generic [ref=e326]:
+              - generic [ref=e327]: "44"
+              - code [ref=e328]
+            - generic [ref=e329]:
+              - generic [ref=e330]: "45"
+              - code [ref=e331]: This fixture is designed to prove exactly that.
+            - generic [ref=e332]:
+              - generic [ref=e333]: "46"
+              - code [ref=e334]
+      - generic [ref=e340]:
+        - generic [ref=e341]:
+          - generic [ref=e342]: FILE
+          - generic "Double-click to rename" [ref=e343]: Artifact App
+          - generic [ref=e344]:
+            - button "✦" [ref=e345] [cursor=pointer]
+            - button "⤢" [ref=e346] [cursor=pointer]
+            - button "▾" [ref=e347] [cursor=pointer]
+            - button "×" [ref=e348] [cursor=pointer]
+        - generic [ref=e350]:
+          - generic [ref=e351]:
+            - generic [ref=e352]: TSX
+            - generic "/private/tmp/pmx-canvas-published-consumer-e2e/consumer/demo/web/App.tsx" [ref=e353]
+            - generic [ref=e354]: 203 lines
+            - generic [ref=e355]: 11:33:13 AM
+            - button "↻" [ref=e356] [cursor=pointer]
+          - generic [ref=e358]:
+            - generic [ref=e359]:
+              - generic [ref=e360]: "1"
+              - code [ref=e361]: "import {"
+            - generic [ref=e362]:
+              - generic [ref=e363]: "2"
+              - code [ref=e364]: artifactKpis,
+            - generic [ref=e365]:
+              - generic [ref=e366]: "3"
+              - code [ref=e367]: componentRisks,
+            - generic [ref=e368]:
+              - generic [ref=e369]: "4"
+              - code [ref=e370]: ownershipLoad,
+            - generic [ref=e371]:
+              - generic [ref=e372]: "5"
+              - code [ref=e373]: pipelineStages,
+            - generic [ref=e374]:
+              - generic [ref=e375]: "6"
+              - code [ref=e376]: releaseChecklist,
+            - generic [ref=e377]:
+              - generic [ref=e378]: "7"
+              - code [ref=e379]: stageDefectCounts,
+            - generic [ref=e380]:
+              - generic [ref=e381]: "8"
+              - code [ref=e382]: weeklyMetrics,
+            - generic [ref=e383]:
+              - generic [ref=e384]: "9"
+              - code [ref=e385]: "} from './data';"
+            - generic [ref=e386]:
+              - generic [ref=e387]: "10"
+              - code [ref=e388]: import './index.css';
+            - generic [ref=e389]:
+              - generic [ref=e390]: "11"
+              - code [ref=e391]
+            - generic [ref=e392]:
+              - generic [ref=e393]: "12"
+              - code [ref=e394]: "function pct(value: number): string {"
+            - generic [ref=e395]:
+              - generic [ref=e396]: "13"
+              - code [ref=e397]: "return `${Math.round(value)}%`;"
+            - generic [ref=e398]:
+              - generic [ref=e399]: "14"
+              - code [ref=e400]: "}"
+            - generic [ref=e401]:
+              - generic [ref=e402]: "15"
+              - code [ref=e403]
+            - generic [ref=e404]:
+              - generic [ref=e405]: "16"
+              - code [ref=e406]: "function linePath(values: number[], width: number, height: number): string {"
+            - generic [ref=e407]:
+              - generic [ref=e408]: "17"
+              - code [ref=e409]: const min = Math.min(...values);
+            - generic [ref=e410]:
+              - generic [ref=e411]: "18"
+              - code [ref=e412]: const max = Math.max(...values);
+            - generic [ref=e413]:
+              - generic [ref=e414]: "19"
+              - code [ref=e415]: const span = Math.max(1, max - min);
+            - generic [ref=e416]:
+              - generic [ref=e417]: "20"
+              - code [ref=e418]: const xOffset = 20;
+            - generic [ref=e419]:
+              - generic [ref=e420]: "21"
+              - code [ref=e421]: const yOffset = 20;
+            - generic [ref=e422]:
+              - generic [ref=e423]: "22"
+              - code [ref=e424]
+            - generic [ref=e425]:
+              - generic [ref=e426]: "23"
+              - code [ref=e427]: return values
+            - generic [ref=e428]:
+              - generic [ref=e429]: "24"
+              - code [ref=e430]: ".map((value, index) => {"
+            - generic [ref=e431]:
+              - generic [ref=e432]: "25"
+              - code [ref=e433]: const x = xOffset + (index / Math.max(1, values.length - 1)) * width;
+            - generic [ref=e434]:
+              - generic [ref=e435]: "26"
+              - code [ref=e436]: const y = yOffset + height - ((value - min) / span) * height;
+            - generic [ref=e437]:
+              - generic [ref=e438]: "27"
+              - code [ref=e439]: "return `${index === 0 ? 'M' : 'L'} ${x.toFixed(2)} ${y.toFixed(2)}`;"
+            - generic [ref=e440]:
+              - generic [ref=e441]: "28"
+              - code [ref=e442]: "})"
+            - generic [ref=e443]:
+              - generic [ref=e444]: "29"
+              - code [ref=e445]: .join(' ');
+            - generic [ref=e446]:
+              - generic [ref=e447]: "30"
+              - code [ref=e448]: "}"
+            - generic [ref=e449]:
+              - generic [ref=e450]: "31"
+              - code [ref=e451]
+            - generic [ref=e452]:
+              - generic [ref=e453]: "32"
+              - code [ref=e454]: "export default function App() {"
+            - generic [ref=e455]:
+              - generic [ref=e456]: "33"
+              - code [ref=e457]: const leadTimeValues = weeklyMetrics.map((entry) => entry.leadTimeHours);
+            - generic [ref=e458]:
+              - generic [ref=e459]: "34"
+              - code [ref=e460]: const leadTimePath = linePath(leadTimeValues, 520, 180);
+            - generic [ref=e461]:
+              - generic [ref=e462]: "35"
+              - code [ref=e463]: "const leadTimeFillPath = `${leadTimePath} L 540 200 L 20 200 Z`;"
+            - generic [ref=e464]:
+              - generic [ref=e465]: "36"
+              - code [ref=e466]: const leadTimeMin = Math.min(...leadTimeValues);
+            - generic [ref=e467]:
+              - generic [ref=e468]: "37"
+              - code [ref=e469]: const leadTimeMax = Math.max(...leadTimeValues);
+            - generic [ref=e470]:
+              - generic [ref=e471]: "38"
+              - code [ref=e472]: const leadTimeSpan = Math.max(1, leadTimeMax - leadTimeMin);
+            - generic [ref=e473]:
+              - generic [ref=e474]: "39"
+              - code [ref=e475]
+            - generic [ref=e476]:
+              - generic [ref=e477]: "40"
+              - code [ref=e478]: return (
+            - generic [ref=e479]:
+              - generic [ref=e480]: "41"
+              - code [ref=e481]: <main className="control-room">
+            - generic [ref=e482]:
+              - generic [ref=e483]: "42"
+              - code [ref=e484]: <section className="hero">
+            - generic [ref=e485]:
+              - generic [ref=e486]: "43"
+              - code [ref=e487]: <div>
+            - generic [ref=e488]:
+              - generic [ref=e489]: "44"
+              - code [ref=e490]: <p className="eyebrow">Published Consumer Fixture</p>
+            - generic [ref=e491]:
+              - generic [ref=e492]: "45"
+              - code [ref=e493]: <h1>Delivery Control Room</h1>
+            - generic [ref=e494]:
+              - generic [ref=e495]: "46"
+              - code [ref=e496]: <p className="hero-copy">
+            - generic [ref=e497]:
+              - generic [ref=e498]: "47"
+              - code [ref=e499]: A deliberately dense SDLC cockpit built through the packaged PMX Canvas API,
+            - generic [ref=e500]:
+              - generic [ref=e501]: "48"
+              - code [ref=e502]: rendered as a bundled artifact, and backed by synthetic release telemetry.
+            - generic [ref=e503]:
+              - generic [ref=e504]: "49"
+              - code [ref=e505]: </p>
+            - generic [ref=e506]:
+              - generic [ref=e507]: "50"
+              - code [ref=e508]: </div>
+            - generic [ref=e509]:
+              - generic [ref=e510]: "51"
+              - code [ref=e511]: <div className="hero-chip">
+            - generic [ref=e512]:
+              - generic [ref=e513]: "52"
+              - code [ref=e514]: <span>Release posture</span>
+            - generic [ref=e515]:
+              - generic [ref=e516]: "53"
+              - code [ref=e517]: <strong>Steady with queue pressure</strong>
+            - generic [ref=e518]:
+              - generic [ref=e519]: "54"
+              - code [ref=e520]: </div>
+            - generic [ref=e521]:
+              - generic [ref=e522]: "55"
+              - code [ref=e523]: </section>
+            - generic [ref=e524]:
+              - generic [ref=e525]: "56"
+              - code [ref=e526]
+            - generic [ref=e527]:
+              - generic [ref=e528]: "57"
+              - code [ref=e529]: <section className="kpi-grid">
+            - generic [ref=e530]:
+              - generic [ref=e531]: "58"
+              - code [ref=e532]: "{artifactKpis.map((kpi) => ("
+            - generic [ref=e533]:
+              - generic [ref=e534]: "59"
+              - code [ref=e535]: "<article key={kpi.label} className=\"kpi-card\">"
+            - generic [ref=e536]:
+              - generic [ref=e537]: "60"
+              - code [ref=e538]: "<span>{kpi.label}</span>"
+            - generic [ref=e539]:
+              - generic [ref=e540]: "61"
+              - code [ref=e541]: "<strong>{kpi.value}</strong>"
+            - generic [ref=e542]:
+              - generic [ref=e543]: "62"
+              - code [ref=e544]: "<p>{kpi.note}</p>"
+            - generic [ref=e545]:
+              - generic [ref=e546]: "63"
+              - code [ref=e547]: </article>
+            - generic [ref=e548]:
+              - generic [ref=e549]: "64"
+              - code [ref=e550]: "))}"
+            - generic [ref=e551]:
+              - generic [ref=e552]: "65"
+              - code [ref=e553]: </section>
+            - generic [ref=e554]:
+              - generic [ref=e555]: "66"
+              - code [ref=e556]
+            - generic [ref=e557]:
+              - generic [ref=e558]: "67"
+              - code [ref=e559]: <section className="pipeline-strip">
+            - generic [ref=e560]:
+              - generic [ref=e561]: "68"
+              - code [ref=e562]: "{pipelineStages.map((stage, index) => ("
+            - generic [ref=e563]:
+              - generic [ref=e564]: "69"
+              - code [ref=e565]: "<div key={stage} className=\"pipeline-stage\">"
+            - generic [ref=e566]:
+              - generic [ref=e567]: "70"
+              - code [ref=e568]: "<div className=\"pipeline-index\">{index + 1}</div>"
+            - generic [ref=e569]:
+              - generic [ref=e570]: "71"
+              - code [ref=e571]: <div>
+            - generic [ref=e572]:
+              - generic [ref=e573]: "72"
+              - code [ref=e574]: "<h2>{stage}</h2>"
+            - generic [ref=e575]:
+              - generic [ref=e576]: "73"
+              - code [ref=e577]: "<p>{index < 3 ? 'Flowing' : index < 5 ? 'Under watch' : 'Controlled'}</p>"
+            - generic [ref=e578]:
+              - generic [ref=e579]: "74"
+              - code [ref=e580]: </div>
+            - generic [ref=e581]:
+              - generic [ref=e582]: "75"
+              - code [ref=e583]: </div>
+            - generic [ref=e584]:
+              - generic [ref=e585]: "76"
+              - code [ref=e586]: "))}"
+            - generic [ref=e587]:
+              - generic [ref=e588]: "77"
+              - code [ref=e589]: </section>
+            - generic [ref=e590]:
+              - generic [ref=e591]: "78"
+              - code [ref=e592]
+            - generic [ref=e593]:
+              - generic [ref=e594]: "79"
+              - code [ref=e595]: <section className="dashboard-grid">
+            - generic [ref=e596]:
+              - generic [ref=e597]: "80"
+              - code [ref=e598]: <article className="panel panel-wide">
+            - generic [ref=e599]:
+              - generic [ref=e600]: "81"
+              - code [ref=e601]: <div className="panel-header">
+            - generic [ref=e602]:
+              - generic [ref=e603]: "82"
+              - code [ref=e604]: <div>
+            - generic [ref=e605]:
+              - generic [ref=e606]: "83"
+              - code [ref=e607]: <p className="eyebrow">Trend</p>
+            - generic [ref=e608]:
+              - generic [ref=e609]: "84"
+              - code [ref=e610]: <h2>Lead Time by Week</h2>
+            - generic [ref=e611]:
+              - generic [ref=e612]: "85"
+              - code [ref=e613]: </div>
+            - generic [ref=e614]:
+              - generic [ref=e615]: "86"
+              - code [ref=e616]: <span className="pill">-14% over 5 weeks</span>
+            - generic [ref=e617]:
+              - generic [ref=e618]: "87"
+              - code [ref=e619]: </div>
+            - generic [ref=e620]:
+              - generic [ref=e621]: "88"
+              - code [ref=e622]: <svg viewBox="0 0 560 220" className="trend-chart" role="img" aria-label="Lead time trend">
+            - generic [ref=e623]:
+              - generic [ref=e624]: "89"
+              - code [ref=e625]: <defs>
+            - generic [ref=e626]:
+              - generic [ref=e627]: "90"
+              - code [ref=e628]: <linearGradient id="lineFill" x1="0" y1="0" x2="0" y2="1">
+            - generic [ref=e629]:
+              - generic [ref=e630]: "91"
+              - code [ref=e631]: <stop offset="0%" stopColor="rgba(233,196,106,0.45)" />
+            - generic [ref=e632]:
+              - generic [ref=e633]: "92"
+              - code [ref=e634]: <stop offset="100%" stopColor="rgba(233,196,106,0)" />
+            - generic [ref=e635]:
+              - generic [ref=e636]: "93"
+              - code [ref=e637]: </linearGradient>
+            - generic [ref=e638]:
+              - generic [ref=e639]: "94"
+              - code [ref=e640]: </defs>
+            - generic [ref=e641]:
+              - generic [ref=e642]: "95"
+              - code [ref=e643]: <path d="M 20 200 H 540" className="chart-axis" />
+            - generic [ref=e644]:
+              - generic [ref=e645]: "96"
+              - code [ref=e646]: <path d="M 20 24 V 200" className="chart-axis" />
+            - generic [ref=e647]:
+              - generic [ref=e648]: "97"
+              - code [ref=e649]: "<path d={leadTimePath} />"
+            - generic [ref=e650]:
+              - generic [ref=e651]: "98"
+              - code [ref=e652]: "<path d={leadTimeFillPath} fill=\"url(#lineFill)\" opacity=\".9\" />"
+            - generic [ref=e653]:
+              - generic [ref=e654]: "99"
+              - code [ref=e655]: "{weeklyMetrics.map((entry, index) => {"
+            - generic [ref=e656]:
+              - generic [ref=e657]: "100"
+              - code [ref=e658]: const x = 20 + (index / Math.max(1, weeklyMetrics.length - 1)) * 520;
+            - generic [ref=e659]:
+              - generic [ref=e660]: "101"
+              - code [ref=e661]: const y = 20 + 180 - ((entry.leadTimeHours - leadTimeMin) / leadTimeSpan) * 180;
+            - generic [ref=e662]:
+              - generic [ref=e663]: "102"
+              - code [ref=e664]: return (
+            - generic [ref=e665]:
+              - generic [ref=e666]: "103"
+              - code [ref=e667]: "<g key={entry.week}>"
+            - generic [ref=e668]:
+              - generic [ref=e669]: "104"
+              - code [ref=e670]: "<circle cx={x} cy={y} r=\"5.5\" className=\"chart-dot\" />"
+            - generic [ref=e671]:
+              - generic [ref=e672]: "105"
+              - code [ref=e673]: "<text x={x} y=\"214\" textAnchor=\"middle\" className=\"chart-label\">"
+            - generic [ref=e674]:
+              - generic [ref=e675]: "106"
+              - code [ref=e676]: "{entry.week}"
+            - generic [ref=e677]:
+              - generic [ref=e678]: "107"
+              - code [ref=e679]: </text>
+            - generic [ref=e680]:
+              - generic [ref=e681]: "108"
+              - code [ref=e682]: </g>
+            - generic [ref=e683]:
+              - generic [ref=e684]: "109"
+              - code [ref=e685]: );
+            - generic [ref=e686]:
+              - generic [ref=e687]: "110"
+              - code [ref=e688]: "})}"
+            - generic [ref=e689]:
+              - generic [ref=e690]: "111"
+              - code [ref=e691]: </svg>
+            - generic [ref=e692]:
+              - generic [ref=e693]: "112"
+              - code [ref=e694]: </article>
+            - generic [ref=e695]:
+              - generic [ref=e696]: "113"
+              - code [ref=e697]
+            - generic [ref=e698]:
+              - generic [ref=e699]: "114"
+              - code [ref=e700]: <article className="panel">
+            - generic [ref=e701]:
+              - generic [ref=e702]: "115"
+              - code [ref=e703]: <div className="panel-header">
+            - generic [ref=e704]:
+              - generic [ref=e705]: "116"
+              - code [ref=e706]: <div>
+            - generic [ref=e707]:
+              - generic [ref=e708]: "117"
+              - code [ref=e709]: <p className="eyebrow">Pressure</p>
+            - generic [ref=e710]:
+              - generic [ref=e711]: "118"
+              - code [ref=e712]: <h2>Defects by Stage</h2>
+            - generic [ref=e713]:
+              - generic [ref=e714]: "119"
+              - code [ref=e715]: </div>
+            - generic [ref=e716]:
+              - generic [ref=e717]: "120"
+              - code [ref=e718]: <span className="pill warn">Integration leads</span>
+            - generic [ref=e719]:
+              - generic [ref=e720]: "121"
+              - code [ref=e721]: </div>
+            - generic [ref=e722]:
+              - generic [ref=e723]: "122"
+              - code [ref=e724]: <div className="bar-list">
+            - generic [ref=e725]:
+              - generic [ref=e726]: "123"
+              - code [ref=e727]: "{stageDefectCounts.map((entry) => ("
+            - generic [ref=e728]:
+              - generic [ref=e729]: "124"
+              - code [ref=e730]: "<div key={entry.stage} className=\"bar-row\">"
+            - generic [ref=e731]:
+              - generic [ref=e732]: "125"
+              - code [ref=e733]: "<span>{entry.stage}</span>"
+            - generic [ref=e734]:
+              - generic [ref=e735]: "126"
+              - code [ref=e736]: <div className="bar-track">
+            - generic [ref=e737]:
+              - generic [ref=e738]: "127"
+              - code [ref=e739]: "<div className=\"bar-fill\" style={{ width: pct((entry.defects / 20) * 100) }} />"
+            - generic [ref=e740]:
+              - generic [ref=e741]: "128"
+              - code [ref=e742]: </div>
+            - generic [ref=e743]:
+              - generic [ref=e744]: "129"
+              - code [ref=e745]: "<strong>{entry.defects}</strong>"
+            - generic [ref=e746]:
+              - generic [ref=e747]: "130"
+              - code [ref=e748]: </div>
+            - generic [ref=e749]:
+              - generic [ref=e750]: "131"
+              - code [ref=e751]: "))}"
+            - generic [ref=e752]:
+              - generic [ref=e753]: "132"
+              - code [ref=e754]: </div>
+            - generic [ref=e755]:
+              - generic [ref=e756]: "133"
+              - code [ref=e757]: </article>
+            - generic [ref=e758]:
+              - generic [ref=e759]: "134"
+              - code [ref=e760]
+            - generic [ref=e761]:
+              - generic [ref=e762]: "135"
+              - code [ref=e763]: <article className="panel">
+            - generic [ref=e764]:
+              - generic [ref=e765]: "136"
+              - code [ref=e766]: <div className="panel-header">
+            - generic [ref=e767]:
+              - generic [ref=e768]: "137"
+              - code [ref=e769]: <div>
+            - generic [ref=e770]:
+              - generic [ref=e771]: "138"
+              - code [ref=e772]: <p className="eyebrow">Ownership</p>
+            - generic [ref=e773]:
+              - generic [ref=e774]: "139"
+              - code [ref=e775]: <h2>Operational Load</h2>
+            - generic [ref=e776]:
+              - generic [ref=e777]: "140"
+              - code [ref=e778]: </div>
+            - generic [ref=e779]:
+              - generic [ref=e780]: "141"
+              - code [ref=e781]: <span className="pill ok">Balanced enough</span>
+            - generic [ref=e782]:
+              - generic [ref=e783]: "142"
+              - code [ref=e784]: </div>
+            - generic [ref=e785]:
+              - generic [ref=e786]: "143"
+              - code [ref=e787]: <div className="donut-wrap">
+            - generic [ref=e788]:
+              - generic [ref=e789]: "144"
+              - code [ref=e790]: <div
+            - generic [ref=e791]:
+              - generic [ref=e792]: "145"
+              - code [ref=e793]: className="donut"
+            - generic [ref=e794]:
+              - generic [ref=e795]: "146"
+              - code [ref=e796]: "style={{"
+            - generic [ref=e797]:
+              - generic [ref=e798]: "147"
+              - code [ref=e799]: "background: `conic-gradient(#e9c46a 0 34%, #2a9d8f 34% 56%, #e76f51 56% 74%, #264653 74% 90%, #f4a261 90% 100%)`,"
+            - generic [ref=e800]:
+              - generic [ref=e801]: "148"
+              - code [ref=e802]: "}}"
+            - generic [ref=e803]:
+              - generic [ref=e804]: "149"
+              - code [ref=e805]: />
+            - generic [ref=e806]:
+              - generic [ref=e807]: "150"
+              - code [ref=e808]: <ul className="legend">
+            - generic [ref=e809]:
+              - generic [ref=e810]: "151"
+              - code [ref=e811]: "{ownershipLoad.map((entry) => ("
+            - generic [ref=e812]:
+              - generic [ref=e813]: "152"
+              - code [ref=e814]: "<li key={entry.name}>"
+            - generic [ref=e815]:
+              - generic [ref=e816]: "153"
+              - code [ref=e817]: "<span>{entry.name}</span>"
+            - generic [ref=e818]:
+              - generic [ref=e819]: "154"
+              - code [ref=e820]: "<strong>{entry.value}%</strong>"
+            - generic [ref=e821]:
+              - generic [ref=e822]: "155"
+              - code [ref=e823]: </li>
+            - generic [ref=e824]:
+              - generic [ref=e825]: "156"
+              - code [ref=e826]: "))}"
+            - generic [ref=e827]:
+              - generic [ref=e828]: "157"
+              - code [ref=e829]: </ul>
+            - generic [ref=e830]:
+              - generic [ref=e831]: "158"
+              - code [ref=e832]: </div>
+            - generic [ref=e833]:
+              - generic [ref=e834]: "159"
+              - code [ref=e835]: </article>
+            - generic [ref=e836]:
+              - generic [ref=e837]: "160"
+              - code [ref=e838]: </section>
+            - generic [ref=e839]:
+              - generic [ref=e840]: "161"
+              - code [ref=e841]
+            - generic [ref=e842]:
+              - generic [ref=e843]: "162"
+              - code [ref=e844]: <section className="details-grid">
+            - generic [ref=e845]:
+              - generic [ref=e846]: "163"
+              - code [ref=e847]: <article className="panel">
+            - generic [ref=e848]:
+              - generic [ref=e849]: "164"
+              - code [ref=e850]: <div className="panel-header">
+            - generic [ref=e851]:
+              - generic [ref=e852]: "165"
+              - code [ref=e853]: <div>
+            - generic [ref=e854]:
+              - generic [ref=e855]: "166"
+              - code [ref=e856]: <p className="eyebrow">Readiness</p>
+            - generic [ref=e857]:
+              - generic [ref=e858]: "167"
+              - code [ref=e859]: <h2>Service Watchlist</h2>
+            - generic [ref=e860]:
+              - generic [ref=e861]: "168"
+              - code [ref=e862]: </div>
+            - generic [ref=e863]:
+              - generic [ref=e864]: "169"
+              - code [ref=e865]: </div>
+            - generic [ref=e866]:
+              - generic [ref=e867]: "170"
+              - code [ref=e868]: <div className="risk-list">
+            - generic [ref=e869]:
+              - generic [ref=e870]: "171"
+              - code [ref=e871]: "{componentRisks.map((risk) => ("
+            - generic [ref=e872]:
+              - generic [ref=e873]: "172"
+              - code [ref=e874]: "<div key={risk.service} className=\"risk-card\">"
+            - generic [ref=e875]:
+              - generic [ref=e876]: "173"
+              - code [ref=e877]: <div className="risk-head">
+            - generic [ref=e878]:
+              - generic [ref=e879]: "174"
+              - code [ref=e880]: "<h3>{risk.service}</h3>"
+            - generic [ref=e881]:
+              - generic [ref=e882]: "175"
+              - code [ref=e883]: "<strong>{risk.readiness}%</strong>"
+            - generic [ref=e884]:
+              - generic [ref=e885]: "176"
+              - code [ref=e886]: </div>
+            - generic [ref=e887]:
+              - generic [ref=e888]: "177"
+              - code [ref=e889]: <div className="risk-track">
+            - generic [ref=e890]:
+              - generic [ref=e891]: "178"
+              - code [ref=e892]: "<div className=\"risk-fill\" style={{ width: pct(risk.readiness) }} />"
+            - generic [ref=e893]:
+              - generic [ref=e894]: "179"
+              - code [ref=e895]: </div>
+            - generic [ref=e896]:
+              - generic [ref=e897]: "180"
+              - code [ref=e898]: "<p>{risk.note}</p>"
+            - generic [ref=e899]:
+              - generic [ref=e900]: "181"
+              - code [ref=e901]: </div>
+            - generic [ref=e902]:
+              - generic [ref=e903]: "182"
+              - code [ref=e904]: "))}"
+            - generic [ref=e905]:
+              - generic [ref=e906]: "183"
+              - code [ref=e907]: </div>
+            - generic [ref=e908]:
+              - generic [ref=e909]: "184"
+              - code [ref=e910]: </article>
+            - generic [ref=e911]:
+              - generic [ref=e912]: "185"
+              - code [ref=e913]
+            - generic [ref=e914]:
+              - generic [ref=e915]: "186"
+              - code [ref=e916]: <article className="panel">
+            - generic [ref=e917]:
+              - generic [ref=e918]: "187"
+              - code [ref=e919]: <div className="panel-header">
+            - generic [ref=e920]:
+              - generic [ref=e921]: "188"
+              - code [ref=e922]: <div>
+            - generic [ref=e923]:
+              - generic [ref=e924]: "189"
+              - code [ref=e925]: <p className="eyebrow">Checklist</p>
+            - generic [ref=e926]:
+              - generic [ref=e927]: "190"
+              - code [ref=e928]: <h2>Fixture Expectations</h2>
+            - generic [ref=e929]:
+              - generic [ref=e930]: "191"
+              - code [ref=e931]: </div>
+            - generic [ref=e932]:
+              - generic [ref=e933]: "192"
+              - code [ref=e934]: </div>
+            - generic [ref=e935]:
+              - generic [ref=e936]: "193"
+              - code [ref=e937]: <ol className="checklist">
+            - generic [ref=e938]:
+              - generic [ref=e939]: "194"
+              - code [ref=e940]: "{releaseChecklist.map((item) => ("
+            - generic [ref=e941]:
+              - generic [ref=e942]: "195"
+              - code [ref=e943]: "<li key={item}>{item}</li>"
+            - generic [ref=e944]:
+              - generic [ref=e945]: "196"
+              - code [ref=e946]: "))}"
+            - generic [ref=e947]:
+              - generic [ref=e948]: "197"
+              - code [ref=e949]: </ol>
+            - generic [ref=e950]:
+              - generic [ref=e951]: "198"
+              - code [ref=e952]: </article>
+            - generic [ref=e953]:
+              - generic [ref=e954]: "199"
+              - code [ref=e955]: </section>
+            - generic [ref=e956]:
+              - generic [ref=e957]: "200"
+              - code [ref=e958]: </main>
+            - generic [ref=e959]:
+              - generic [ref=e960]: "201"
+              - code [ref=e961]: );
+            - generic [ref=e962]:
+              - generic [ref=e963]: "202"
+              - code [ref=e964]: "}"
+            - generic [ref=e965]:
+              - generic [ref=e966]: "203"
+              - code [ref=e967]
+      - generic [ref=e973]:
+        - generic [ref=e974]:
+          - generic [ref=e975]: FILE
+          - generic "Double-click to rename" [ref=e976]: Synthetic Data Model
+          - generic [ref=e977]:
+            - button "✦" [ref=e978] [cursor=pointer]
+            - button "⤢" [ref=e979] [cursor=pointer]
+            - button "▾" [ref=e980] [cursor=pointer]
+            - button "×" [ref=e981] [cursor=pointer]
+        - generic [ref=e983]:
+          - generic [ref=e984]:
+            - generic [ref=e985]: TypeScript
+            - generic "/private/tmp/pmx-canvas-published-consumer-e2e/consumer/demo/data.ts" [ref=e986]
+            - generic [ref=e987]: 176 lines
+            - generic [ref=e988]: 11:33:13 AM
+            - button "↻" [ref=e989] [cursor=pointer]
+          - generic [ref=e991]:
+            - generic [ref=e992]:
+              - generic [ref=e993]: "1"
+              - code [ref=e994]: "export interface WeeklyMetric {"
+            - generic [ref=e995]:
+              - generic [ref=e996]: "2"
+              - code [ref=e997]: "week: string;"
+            - generic [ref=e998]:
+              - generic [ref=e999]: "3"
+              - code [ref=e1000]: "leadTimeHours: number;"
+            - generic [ref=e1001]:
+              - generic [ref=e1002]: "4"
+              - code [ref=e1003]: "deployments: number;"
+            - generic [ref=e1004]:
+              - generic [ref=e1005]: "5"
+              - code [ref=e1006]: "changeFailureRate: number;"
+            - generic [ref=e1007]:
+              - generic [ref=e1008]: "6"
+              - code [ref=e1009]: "mttrMinutes: number;"
+            - generic [ref=e1010]:
+              - generic [ref=e1011]: "7"
+              - code [ref=e1012]: "}"
+            - generic [ref=e1013]:
+              - generic [ref=e1014]: "8"
+              - code [ref=e1015]
+            - generic [ref=e1016]:
+              - generic [ref=e1017]: "9"
+              - code [ref=e1018]: "export interface StageCount {"
+            - generic [ref=e1019]:
+              - generic [ref=e1020]: "10"
+              - code [ref=e1021]: "stage: string;"
+            - generic [ref=e1022]:
+              - generic [ref=e1023]: "11"
+              - code [ref=e1024]: "defects: number;"
+            - generic [ref=e1025]:
+              - generic [ref=e1026]: "12"
+              - code [ref=e1027]: "}"
+            - generic [ref=e1028]:
+              - generic [ref=e1029]: "13"
+              - code [ref=e1030]
+            - generic [ref=e1031]:
+              - generic [ref=e1032]: "14"
+              - code [ref=e1033]: "export interface OwnershipSlice {"
+            - generic [ref=e1034]:
+              - generic [ref=e1035]: "15"
+              - code [ref=e1036]: "name: string;"
+            - generic [ref=e1037]:
+              - generic [ref=e1038]: "16"
+              - code [ref=e1039]: "value: number;"
+            - generic [ref=e1040]:
+              - generic [ref=e1041]: "17"
+              - code [ref=e1042]: "}"
+            - generic [ref=e1043]:
+              - generic [ref=e1044]: "18"
+              - code [ref=e1045]
+            - generic [ref=e1046]:
+              - generic [ref=e1047]: "19"
+              - code [ref=e1048]: "export interface GateRow {"
+            - generic [ref=e1049]:
+              - generic [ref=e1050]: "20"
+              - code [ref=e1051]: "gate: string;"
+            - generic [ref=e1052]:
+              - generic [ref=e1053]: "21"
+              - code [ref=e1054]: "owner: string;"
+            - generic [ref=e1055]:
+              - generic [ref=e1056]: "22"
+              - code [ref=e1057]: "status: string;"
+            - generic [ref=e1058]:
+              - generic [ref=e1059]: "23"
+              - code [ref=e1060]: "delta: string;"
+            - generic [ref=e1061]:
+              - generic [ref=e1062]: "24"
+              - code [ref=e1063]: "}"
+            - generic [ref=e1064]:
+              - generic [ref=e1065]: "25"
+              - code [ref=e1066]
+            - generic [ref=e1067]:
+              - generic [ref=e1068]: "26"
+              - code [ref=e1069]: "export interface ComponentRisk {"
+            - generic [ref=e1070]:
+              - generic [ref=e1071]: "27"
+              - code [ref=e1072]: "service: string;"
+            - generic [ref=e1073]:
+              - generic [ref=e1074]: "28"
+              - code [ref=e1075]: "readiness: number;"
+            - generic [ref=e1076]:
+              - generic [ref=e1077]: "29"
+              - code [ref=e1078]: "note: string;"
+            - generic [ref=e1079]:
+              - generic [ref=e1080]: "30"
+              - code [ref=e1081]: "}"
+            - generic [ref=e1082]:
+              - generic [ref=e1083]: "31"
+              - code [ref=e1084]
+            - generic [ref=e1085]:
+              - generic [ref=e1086]: "32"
+              - code [ref=e1087]: "export interface TraceEvent {"
+            - generic [ref=e1088]:
+              - generic [ref=e1089]: "33"
+              - code [ref=e1090]: "title: string;"
+            - generic [ref=e1091]:
+              - generic [ref=e1092]: "34"
+              - code [ref=e1093]: "toolName: string;"
+            - generic [ref=e1094]:
+              - generic [ref=e1095]: "35"
+              - code [ref=e1096]: "category: 'mcp' | 'file' | 'subagent' | 'other';"
+            - generic [ref=e1097]:
+              - generic [ref=e1098]: "36"
+              - code [ref=e1099]: "status: 'running' | 'success' | 'failed';"
+            - generic [ref=e1100]:
+              - generic [ref=e1101]: "37"
+              - code [ref=e1102]: "duration: string;"
+            - generic [ref=e1103]:
+              - generic [ref=e1104]: "38"
+              - code [ref=e1105]: "resultSummary: string;"
+            - generic [ref=e1106]:
+              - generic [ref=e1107]: "39"
+              - code [ref=e1108]: "}"
+            - generic [ref=e1109]:
+              - generic [ref=e1110]: "40"
+              - code [ref=e1111]
+            - generic [ref=e1112]:
+              - generic [ref=e1113]: "41"
+              - code [ref=e1114]: export const pipelineStages = [
+            - generic [ref=e1115]:
+              - generic [ref=e1116]: "42"
+              - code [ref=e1117]: "'Plan',"
+            - generic [ref=e1118]:
+              - generic [ref=e1119]: "43"
+              - code [ref=e1120]: "'Code',"
+            - generic [ref=e1121]:
+              - generic [ref=e1122]: "44"
+              - code [ref=e1123]: "'Build',"
+            - generic [ref=e1124]:
+              - generic [ref=e1125]: "45"
+              - code [ref=e1126]: "'Test',"
+            - generic [ref=e1127]:
+              - generic [ref=e1128]: "46"
+              - code [ref=e1129]: "'Canary',"
+            - generic [ref=e1130]:
+              - generic [ref=e1131]: "47"
+              - code [ref=e1132]: "'Deploy',"
+            - generic [ref=e1133]:
+              - generic [ref=e1134]: "48"
+              - code [ref=e1135]: "'Observe',"
+            - generic [ref=e1136]:
+              - generic [ref=e1137]: "49"
+              - code [ref=e1138]: "] as const;"
+            - generic [ref=e1139]:
+              - generic [ref=e1140]: "50"
+              - code [ref=e1141]
+            - generic [ref=e1142]:
+              - generic [ref=e1143]: "51"
+              - code [ref=e1144]: "export const weeklyMetrics: WeeklyMetric[] = ["
+            - generic [ref=e1145]:
+              - generic [ref=e1146]: "52"
+              - code [ref=e1147]: "{ week: 'W14', leadTimeHours: 27, deployments: 14, changeFailureRate: 9.8, mttrMinutes: 52 },"
+            - generic [ref=e1148]:
+              - generic [ref=e1149]: "53"
+              - code [ref=e1150]: "{ week: 'W15', leadTimeHours: 24, deployments: 16, changeFailureRate: 8.9, mttrMinutes: 46 },"
+            - generic [ref=e1151]:
+              - generic [ref=e1152]: "54"
+              - code [ref=e1153]: "{ week: 'W16', leadTimeHours: 22, deployments: 18, changeFailureRate: 8.2, mttrMinutes: 41 },"
+            - generic [ref=e1154]:
+              - generic [ref=e1155]: "55"
+              - code [ref=e1156]: "{ week: 'W17', leadTimeHours: 20, deployments: 19, changeFailureRate: 7.9, mttrMinutes: 39 },"
+            - generic [ref=e1157]:
+              - generic [ref=e1158]: "56"
+              - code [ref=e1159]: "{ week: 'W18', leadTimeHours: 19, deployments: 22, changeFailureRate: 7.6, mttrMinutes: 36 },"
+            - generic [ref=e1160]:
+              - generic [ref=e1161]: "57"
+              - code [ref=e1162]: "];"
+            - generic [ref=e1163]:
+              - generic [ref=e1164]: "58"
+              - code [ref=e1165]
+            - generic [ref=e1166]:
+              - generic [ref=e1167]: "59"
+              - code [ref=e1168]: "export const stageDefectCounts: StageCount[] = ["
+            - generic [ref=e1169]:
+              - generic [ref=e1170]: "60"
+              - code [ref=e1171]: "{ stage: 'Lint', defects: 12 },"
+            - generic [ref=e1172]:
+              - generic [ref=e1173]: "61"
+              - code [ref=e1174]: "{ stage: 'Unit', defects: 9 },"
+            - generic [ref=e1175]:
+              - generic [ref=e1176]: "62"
+              - code [ref=e1177]: "{ stage: 'Integration', defects: 17 },"
+            - generic [ref=e1178]:
+              - generic [ref=e1179]: "63"
+              - code [ref=e1180]: "{ stage: 'UI Smoke', defects: 11 },"
+            - generic [ref=e1181]:
+              - generic [ref=e1182]: "64"
+              - code [ref=e1183]: "{ stage: 'Canary', defects: 4 },"
+            - generic [ref=e1184]:
+              - generic [ref=e1185]: "65"
+              - code [ref=e1186]: "];"
+            - generic [ref=e1187]:
+              - generic [ref=e1188]: "66"
+              - code [ref=e1189]
+            - generic [ref=e1190]:
+              - generic [ref=e1191]: "67"
+              - code [ref=e1192]: "export const ownershipLoad: OwnershipSlice[] = ["
+            - generic [ref=e1193]:
+              - generic [ref=e1194]: "68"
+              - code [ref=e1195]: "{ name: 'Platform', value: 34 },"
+            - generic [ref=e1196]:
+              - generic [ref=e1197]: "69"
+              - code [ref=e1198]: "{ name: 'Checkout', value: 22 },"
+            - generic [ref=e1199]:
+              - generic [ref=e1200]: "70"
+              - code [ref=e1201]: "{ name: 'Identity', value: 18 },"
+            - generic [ref=e1202]:
+              - generic [ref=e1203]: "71"
+              - code [ref=e1204]: "{ name: 'Catalog', value: 16 },"
+            - generic [ref=e1205]:
+              - generic [ref=e1206]: "72"
+              - code [ref=e1207]: "{ name: 'Observability', value: 10 },"
+            - generic [ref=e1208]:
+              - generic [ref=e1209]: "73"
+              - code [ref=e1210]: "];"
+            - generic [ref=e1211]:
+              - generic [ref=e1212]: "74"
+              - code [ref=e1213]
+            - generic [ref=e1214]:
+              - generic [ref=e1215]: "75"
+              - code [ref=e1216]: "export const gateRows: GateRow[] = ["
+            - generic [ref=e1217]:
+              - generic [ref=e1218]: "76"
+              - code [ref=e1219]: "{ gate: 'Compile', owner: 'Platform', status: 'Pass', delta: '+1m' },"
+            - generic [ref=e1220]:
+              - generic [ref=e1221]: "77"
+              - code [ref=e1222]: "{ gate: 'Unit tests', owner: 'Checkout', status: 'Pass', delta: '-12%' },"
+            - generic [ref=e1223]:
+              - generic [ref=e1224]: "78"
+              - code [ref=e1225]: "{ gate: 'Contract tests', owner: 'Identity', status: 'Watch', delta: '+3 flaky' },"
+            - generic [ref=e1226]:
+              - generic [ref=e1227]: "79"
+              - code [ref=e1228]: "{ gate: 'UI smoke', owner: 'Storefront', status: 'Watch', delta: '+6m' },"
+            - generic [ref=e1229]:
+              - generic [ref=e1230]: "80"
+              - code [ref=e1231]: "{ gate: 'Security scan', owner: 'Platform', status: 'Pass', delta: '0 critical' },"
+            - generic [ref=e1232]:
+              - generic [ref=e1233]: "81"
+              - code [ref=e1234]: "{ gate: 'Canary score', owner: 'SRE', status: 'Pass', delta: '97/100' },"
+            - generic [ref=e1235]:
+              - generic [ref=e1236]: "82"
+              - code [ref=e1237]: "];"
+            - generic [ref=e1238]:
+              - generic [ref=e1239]: "83"
+              - code [ref=e1240]
+            - generic [ref=e1241]:
+              - generic [ref=e1242]: "84"
+              - code [ref=e1243]: "export const componentRisks: ComponentRisk[] = ["
+            - generic [ref=e1244]:
+              - generic [ref=e1245]: "85"
+              - code [ref=e1246]: "{ service: 'Checkout', readiness: 68, note: 'Integration retries elevated on coupon paths.' },"
+            - generic [ref=e1247]:
+              - generic [ref=e1248]: "86"
+              - code [ref=e1249]: "{ service: 'Identity', readiness: 74, note: 'Contract drift from token refresh branch.' },"
+            - generic [ref=e1250]:
+              - generic [ref=e1251]: "87"
+              - code [ref=e1252]: "{ service: 'Catalog', readiness: 88, note: 'Healthy after index rebuild.' },"
+            - generic [ref=e1253]:
+              - generic [ref=e1254]: "88"
+              - code [ref=e1255]: "{ service: 'Observability', readiness: 93, note: 'Rollback and alerting posture both green.' },"
+            - generic [ref=e1256]:
+              - generic [ref=e1257]: "89"
+              - code [ref=e1258]: "];"
+            - generic [ref=e1259]:
+              - generic [ref=e1260]: "90"
+              - code [ref=e1261]
+            - generic [ref=e1262]:
+              - generic [ref=e1263]: "91"
+              - code [ref=e1264]: export const contextCards = [
+            - generic [ref=e1265]:
+              - generic [ref=e1266]: "92"
+              - code [ref=e1267]: "{"
+            - generic [ref=e1268]:
+              - generic [ref=e1269]: "93"
+              - code [ref=e1270]: "key: 'article',"
+            - generic [ref=e1271]:
+              - generic [ref=e1272]: "94"
+              - code [ref=e1273]: "title: 'Scenario article',"
+            - generic [ref=e1274]:
+              - generic [ref=e1275]: "95"
+              - code [ref=e1276]: "summary: 'Markdown narrative that explains why each node exists in the external-consumer test.',"
+            - generic [ref=e1277]:
+              - generic [ref=e1278]: "96"
+              - code [ref=e1279]: "path: 'demo/article.md',"
+            - generic [ref=e1280]:
+              - generic [ref=e1281]: "97"
+              - code [ref=e1282]: "pathDisplay: 'demo/article.md',"
+            - generic [ref=e1283]:
+              - generic [ref=e1284]: "98"
+              - code [ref=e1285]: "category: 'planning',"
+            - generic [ref=e1286]:
+              - generic [ref=e1287]: "99"
+              - code [ref=e1288]: "sourceKind: 'workspace',"
+            - generic [ref=e1289]:
+              - generic [ref=e1290]: "100"
+              - code [ref=e1291]: "state: 'loaded',"
+            - generic [ref=e1292]:
+              - generic [ref=e1293]: "101"
+              - code [ref=e1294]: "required: true,"
+            - generic [ref=e1295]:
+              - generic [ref=e1296]: "102"
+              - code [ref=e1297]: "},"
+            - generic [ref=e1298]:
+              - generic [ref=e1299]: "103"
+              - code [ref=e1300]: "{"
+            - generic [ref=e1301]:
+              - generic [ref=e1302]: "104"
+              - code [ref=e1303]: "key: 'artifact',"
+            - generic [ref=e1304]:
+              - generic [ref=e1305]: "105"
+              - code [ref=e1306]: "title: 'Artifact source',"
+            - generic [ref=e1307]:
+              - generic [ref=e1308]: "106"
+              - code [ref=e1309]: "summary: 'React-based SDLC control room bundled through the published package.',"
+            - generic [ref=e1310]:
+              - generic [ref=e1311]: "107"
+              - code [ref=e1312]: "path: 'demo/web/App.tsx',"
+            - generic [ref=e1313]:
+              - generic [ref=e1314]: "108"
+              - code [ref=e1315]: "pathDisplay: 'demo/web/App.tsx',"
+            - generic [ref=e1316]:
+              - generic [ref=e1317]: "109"
+              - code [ref=e1318]: "category: 'workspace',"
+            - generic [ref=e1319]:
+              - generic [ref=e1320]: "110"
+              - code [ref=e1321]: "sourceKind: 'workspace',"
+            - generic [ref=e1322]:
+              - generic [ref=e1323]: "111"
+              - code [ref=e1324]: "state: 'loaded',"
+            - generic [ref=e1325]:
+              - generic [ref=e1326]: "112"
+              - code [ref=e1327]: "required: true,"
+            - generic [ref=e1328]:
+              - generic [ref=e1329]: "113"
+              - code [ref=e1330]: "},"
+            - generic [ref=e1331]:
+              - generic [ref=e1332]: "114"
+              - code [ref=e1333]: "{"
+            - generic [ref=e1334]:
+              - generic [ref=e1335]: "115"
+              - code [ref=e1336]: "key: 'data',"
+            - generic [ref=e1337]:
+              - generic [ref=e1338]: "116"
+              - code [ref=e1339]: "title: 'Synthetic telemetry',"
+            - generic [ref=e1340]:
+              - generic [ref=e1341]: "117"
+              - code [ref=e1342]: "summary: 'Fake but realistic release metrics used by graphs, forms, and the article.',"
+            - generic [ref=e1343]:
+              - generic [ref=e1344]: "118"
+              - code [ref=e1345]: "path: 'demo/data.ts',"
+            - generic [ref=e1346]:
+              - generic [ref=e1347]: "119"
+              - code [ref=e1348]: "pathDisplay: 'demo/data.ts',"
+            - generic [ref=e1349]:
+              - generic [ref=e1350]: "120"
+              - code [ref=e1351]: "category: 'memory',"
+            - generic [ref=e1352]:
+              - generic [ref=e1353]: "121"
+              - code [ref=e1354]: "sourceKind: 'workspace',"
+            - generic [ref=e1355]:
+              - generic [ref=e1356]: "122"
+              - code [ref=e1357]: "state: 'loaded',"
+            - generic [ref=e1358]:
+              - generic [ref=e1359]: "123"
+              - code [ref=e1360]: "required: false,"
+            - generic [ref=e1361]:
+              - generic [ref=e1362]: "124"
+              - code [ref=e1363]: "},"
+            - generic [ref=e1364]:
+              - generic [ref=e1365]: "125"
+              - code [ref=e1366]: "];"
+            - generic [ref=e1367]:
+              - generic [ref=e1368]: "126"
+              - code [ref=e1369]
+            - generic [ref=e1370]:
+              - generic [ref=e1371]: "127"
+              - code [ref=e1372]: "export const ledgerSummary = {"
+            - generic [ref=e1373]:
+              - generic [ref=e1374]: "128"
+              - code [ref=e1375]: "deploymentsThisWeek: 22,"
+            - generic [ref=e1376]:
+              - generic [ref=e1377]: "129"
+              - code [ref=e1378]: "firstPassGateRate: '78%',"
+            - generic [ref=e1379]:
+              - generic [ref=e1380]: "130"
+              - code [ref=e1381]: "leadTimeMedian: '19h',"
+            - generic [ref=e1382]:
+              - generic [ref=e1383]: "131"
+              - code [ref=e1384]: "mttrMedian: '36m',"
+            - generic [ref=e1385]:
+              - generic [ref=e1386]: "132"
+              - code [ref=e1387]: "artifactNodes: 6,"
+            - generic [ref=e1388]:
+              - generic [ref=e1389]: "133"
+              - code [ref=e1390]: "operatorFocus: 'integration-queue',"
+            - generic [ref=e1391]:
+              - generic [ref=e1392]: "134"
+              - code [ref=e1393]: "};"
+            - generic [ref=e1394]:
+              - generic [ref=e1395]: "135"
+              - code [ref=e1396]
+            - generic [ref=e1397]:
+              - generic [ref=e1398]: "136"
+              - code [ref=e1399]: "export const traceEvents: TraceEvent[] = ["
+            - generic [ref=e1400]:
+              - generic [ref=e1401]: "137"
+              - code [ref=e1402]: "{"
+            - generic [ref=e1403]:
+              - generic [ref=e1404]: "138"
+              - code [ref=e1405]: "title: 'Trace: pack',"
+            - generic [ref=e1406]:
+              - generic [ref=e1407]: "139"
+              - code [ref=e1408]: "toolName: 'npm pack',"
+            - generic [ref=e1409]:
+              - generic [ref=e1410]: "140"
+              - code [ref=e1411]: "category: 'other',"
+            - generic [ref=e1412]:
+              - generic [ref=e1413]: "141"
+              - code [ref=e1414]: "status: 'success',"
+            - generic [ref=e1415]:
+              - generic [ref=e1416]: "142"
+              - code [ref=e1417]: "duration: '4.2s',"
+            - generic [ref=e1418]:
+              - generic [ref=e1419]: "143"
+              - code [ref=e1420]: "resultSummary: 'Packed tarball and copied it into a clean temp consumer.',"
+            - generic [ref=e1421]:
+              - generic [ref=e1422]: "144"
+              - code [ref=e1423]: "},"
+            - generic [ref=e1424]:
+              - generic [ref=e1425]: "145"
+              - code [ref=e1426]: "{"
+            - generic [ref=e1427]:
+              - generic [ref=e1428]: "146"
+              - code [ref=e1429]: "title: 'Trace: seed',"
+            - generic [ref=e1430]:
+              - generic [ref=e1431]: "147"
+              - code [ref=e1432]: "toolName: 'canvas.buildWebArtifact',"
+            - generic [ref=e1433]:
+              - generic [ref=e1434]: "148"
+              - code [ref=e1435]: "category: 'mcp',"
+            - generic [ref=e1436]:
+              - generic [ref=e1437]: "149"
+              - code [ref=e1438]: "status: 'success',"
+            - generic [ref=e1439]:
+              - generic [ref=e1440]: "150"
+              - code [ref=e1441]: "duration: '11.8s',"
+            - generic [ref=e1442]:
+              - generic [ref=e1443]: "151"
+              - code [ref=e1444]: "resultSummary: 'Built the control-room artifact and opened it on the canvas.',"
+            - generic [ref=e1445]:
+              - generic [ref=e1446]: "152"
+              - code [ref=e1447]: "},"
+            - generic [ref=e1448]:
+              - generic [ref=e1449]: "153"
+              - code [ref=e1450]: "{"
+            - generic [ref=e1451]:
+              - generic [ref=e1452]: "154"
+              - code [ref=e1453]: "title: 'Trace: verify',"
+            - generic [ref=e1454]:
+              - generic [ref=e1455]: "155"
+              - code [ref=e1456]: "toolName: 'playwright',"
+            - generic [ref=e1457]:
+              - generic [ref=e1458]: "156"
+              - code [ref=e1459]: "category: 'subagent',"
+            - generic [ref=e1460]:
+              - generic [ref=e1461]: "157"
+              - code [ref=e1462]: "status: 'running',"
+            - generic [ref=e1463]:
+              - generic [ref=e1464]: "158"
+              - code [ref=e1465]: "duration: 'live',"
+            - generic [ref=e1466]:
+              - generic [ref=e1467]: "159"
+              - code [ref=e1468]: "resultSummary: 'Headed browser check against the published-consumer workspace.',"
+            - generic [ref=e1469]:
+              - generic [ref=e1470]: "160"
+              - code [ref=e1471]: "},"
+            - generic [ref=e1472]:
+              - generic [ref=e1473]: "161"
+              - code [ref=e1474]: "];"
+            - generic [ref=e1475]:
+              - generic [ref=e1476]: "162"
+              - code [ref=e1477]
+            - generic [ref=e1478]:
+              - generic [ref=e1479]: "163"
+              - code [ref=e1480]: export const artifactKpis = [
+            - generic [ref=e1481]:
+              - generic [ref=e1482]: "164"
+              - code [ref=e1483]: "{ label: 'Median lead time', value: '19h', note: 'Queueing still dominates the tail.' },"
+            - generic [ref=e1484]:
+              - generic [ref=e1485]: "165"
+              - code [ref=e1486]: "{ label: 'Deploy frequency', value: '22/wk', note: 'Release train cadence is steady.' },"
+            - generic [ref=e1487]:
+              - generic [ref=e1488]: "166"
+              - code [ref=e1489]: "{ label: 'Change failure', value: '7.6%', note: 'Most issues are stopped before prod.' },"
+            - generic [ref=e1490]:
+              - generic [ref=e1491]: "167"
+              - code [ref=e1492]: "{ label: 'Recovery time', value: '36m', note: 'Rollback drills remain reliable.' },"
+            - generic [ref=e1493]:
+              - generic [ref=e1494]: "168"
+              - code [ref=e1495]: "];"
+            - generic [ref=e1496]:
+              - generic [ref=e1497]: "169"
+              - code [ref=e1498]
+            - generic [ref=e1499]:
+              - generic [ref=e1500]: "170"
+              - code [ref=e1501]: export const releaseChecklist = [
+            - generic [ref=e1502]:
+              - generic [ref=e1503]: "171"
+              - code [ref=e1504]: "'Artifact build succeeds from packaged install',"
+            - generic [ref=e1505]:
+              - generic [ref=e1506]: "172"
+              - code [ref=e1507]: "'json-render dashboard renders in hosted viewer',"
+            - generic [ref=e1508]:
+              - generic [ref=e1509]: "173"
+              - code [ref=e1510]: "'Line, bar, and pie graphs render from synthetic data',"
+            - generic [ref=e1511]:
+              - generic [ref=e1512]: "174"
+              - code [ref=e1513]: "'Markdown, image, file, status, context, ledger, and trace nodes coexist cleanly',"
+            - generic [ref=e1514]:
+              - generic [ref=e1515]: "175"
+              - code [ref=e1516]: "];"
+            - generic [ref=e1517]:
+              - generic [ref=e1518]: "176"
+              - code [ref=e1519]
+      - generic [ref=e1525]:
+        - generic [ref=e1526]:
+          - generic [ref=e1527]: STATUS
+          - generic "Double-click to rename" [ref=e1528]: Release Train Status
+          - generic [ref=e1529]:
+            - button "✦" [ref=e1530] [cursor=pointer]
+            - button "▾" [ref=e1531] [cursor=pointer]
+        - generic [ref=e1533]:
+          - generic [ref=e1534]:
+            - generic [ref=e1536]: active
+            - generic [ref=e1537]: weekly train / synthetic telemetry
+          - generic [ref=e1538]:
+            - generic [ref=e1539]: ⚙
+            - generic [ref=e1540]: pipeline.evaluate
+          - generic [ref=e1541]:
+            - generic [ref=e1542]: ⠉
+            - generic [ref=e1543]: published-consumer-check
+            - generic [ref=e1544]: (running)
+          - generic [ref=e1545]: Integration tests are the current bottleneck. Build and rollback posture remain healthy.
+      - generic [ref=e1551]:
+        - generic [ref=e1552]:
+          - generic [ref=e1553]: CONTEXT
+          - generic "Double-click to rename" [ref=e1554]: Pinned Briefing
+          - generic [ref=e1555]:
+            - button "✦" [ref=e1556] [cursor=pointer]
+            - button "⤢" [ref=e1557] [cursor=pointer]
+            - button "▾" [ref=e1558] [cursor=pointer]
+            - button "×" [ref=e1559] [cursor=pointer]
+        - generic [ref=e1561]:
+          - generic [ref=e1562]:
+            - generic [ref=e1563]: Token Usage
+            - generic [ref=e1566]: 57% — 18.3k / 32.0k tokens · 14 messages
+          - generic [ref=e1567]:
+            - generic [ref=e1568]: Context (3)
+            - generic [ref=e1569]:
+              - generic [ref=e1570]: Scenario article
+              - generic [ref=e1571]: Markdown narrative that explains why each node exists in the external-consumer test.
+              - generic [ref=e1572]: demo/article.md
+              - generic [ref=e1573]:
+                - generic [ref=e1574]: Loaded
+                - generic [ref=e1575]: Product
+                - generic [ref=e1576]: Workspace
+                - generic [ref=e1577]: Required
+              - button "Open in canvas" [ref=e1579] [cursor=pointer]
+            - generic [ref=e1580]:
+              - generic [ref=e1581]: Artifact source
+              - generic [ref=e1582]: React-based SDLC control room bundled through the published package.
+              - generic [ref=e1583]: demo/web/App.tsx
+              - generic [ref=e1584]:
+                - generic [ref=e1585]: Loaded
+                - generic [ref=e1586]: Workspace
+                - generic [ref=e1587]: Workspace
+                - generic [ref=e1588]: Required
+              - button "Open in canvas" [ref=e1590] [cursor=pointer]
+            - generic [ref=e1591]:
+              - generic [ref=e1592]: Synthetic telemetry
+              - generic [ref=e1593]: Fake but realistic release metrics used by graphs, forms, and the article.
+              - generic [ref=e1594]: demo/data.ts
+              - generic [ref=e1595]:
+                - generic [ref=e1596]: Loaded
+                - generic [ref=e1597]: Product
+                - generic [ref=e1598]: Workspace
+              - button "Open in canvas" [ref=e1600] [cursor=pointer]
+          - generic [ref=e1601]:
+            - generic [ref=e1602]: References (1)
+            - link "http://127.0.0.1:4513/artifact?path=artifacts/sdlc-control-room.html(Artifact route generated by the packaged install)" [ref=e1603] [cursor=pointer]:
+              - /url: http://127.0.0.1:4513/artifact?path=artifacts/sdlc-control-room.html
+              - text: http://127.0.0.1:4513/artifact?path=artifacts/sdlc-control-room.html
+              - generic [ref=e1604]: (Artifact route generated by the packaged install)
+      - generic [ref=e1610]:
+        - generic [ref=e1611]:
+          - generic [ref=e1612]: LOG
+          - generic "Double-click to rename" [ref=e1613]: Synthetic Execution Ledger
+          - generic [ref=e1614]:
+            - button "✦" [ref=e1615] [cursor=pointer]
+            - button "⤢" [ref=e1616] [cursor=pointer]
+            - button "▾" [ref=e1617] [cursor=pointer]
+            - button "×" [ref=e1618] [cursor=pointer]
+        - generic [ref=e1620]:
+          - generic [ref=e1621]:
+            - generic [ref=e1622]: Deployments This Week
+            - generic [ref=e1623]: "22"
+          - generic [ref=e1624]:
+            - generic [ref=e1625]: First Pass Gate Rate
+            - generic [ref=e1626]: 78%
+          - generic [ref=e1627]:
+            - generic [ref=e1628]: Lead Time Median
+            - generic [ref=e1629]: 19h
+          - generic [ref=e1630]:
+            - generic [ref=e1631]: Mttr Median
+            - generic [ref=e1632]: 36m
+          - generic [ref=e1633]:
+            - generic [ref=e1634]: Artifact Nodes
+            - generic [ref=e1635]: "6"
+          - generic [ref=e1636]:
+            - generic [ref=e1637]: Operator Focus
+            - generic [ref=e1638]: integration-queue
+          - generic [ref=e1639]:
+            - generic [ref=e1640]: Parent Group
+            - generic [ref=e1641]: group-mnu511je-egq2
+      - generic [ref=e1649]:
+        - generic [ref=e1650]: ✓
+        - generic [ref=e1651]:
+          - generic [ref=e1652]: npm pack
+          - generic [ref=e1653]: Packed tarball and copied it…
+        - generic [ref=e1654]: 4.2s
+      - generic [ref=e1661]:
+        - generic [ref=e1662]: ✓
+        - generic [ref=e1663]:
+          - generic [ref=e1664]: canvas.buildWebArtifact
+          - generic [ref=e1665]: Built the control-room artif…
+        - generic [ref=e1666]: 11.8s
+      - generic [ref=e1673]:
+        - generic [ref=e1674]: ⠋
+        - generic [ref=e1675]:
+          - generic [ref=e1676]: playwright
+          - generic [ref=e1677]: Headed browser check against…
+        - generic [ref=e1678]: live
+      - generic [ref=e1683]:
+        - generic [ref=e1684]:
+          - generic [ref=e1685]: APP
+          - generic "Double-click to rename" [ref=e1686]: SDLC Control Room Artifact
+          - generic [ref=e1687]:
+            - button "✦" [ref=e1688] [cursor=pointer]
+            - button "↗" [ref=e1689] [cursor=pointer]
+            - button "⤢" [ref=e1690] [cursor=pointer]
+            - button "▾" [ref=e1691] [cursor=pointer]
+            - button "×" [ref=e1692] [cursor=pointer]
+        - iframe [ref=e1695]:
+          - main [ref=f1e3]:
+            - generic [ref=f1e4]:
+              - generic [ref=f1e5]:
+                - paragraph [ref=f1e6]: Published Consumer Fixture
+                - heading "Delivery Control Room" [level=1] [ref=f1e7]
+                - paragraph [ref=f1e8]: A deliberately dense SDLC cockpit built through the packaged PMX Canvas API, rendered as a bundled artifact, and backed by synthetic release telemetry.
+              - generic [ref=f1e9]:
+                - generic [ref=f1e10]: Release posture
+                - strong [ref=f1e11]: Steady with queue pressure
+            - generic [ref=f1e12]:
+              - article [ref=f1e13]:
+                - generic [ref=f1e14]: Median lead time
+                - strong [ref=f1e15]: 19h
+                - paragraph [ref=f1e16]: Queueing still dominates the tail.
+              - article [ref=f1e17]:
+                - generic [ref=f1e18]: Deploy frequency
+                - strong [ref=f1e19]: 22/wk
+                - paragraph [ref=f1e20]: Release train cadence is steady.
+              - article [ref=f1e21]:
+                - generic [ref=f1e22]: Change failure
+                - strong [ref=f1e23]: 7.6%
+                - paragraph [ref=f1e24]: Most issues are stopped before prod.
+              - article [ref=f1e25]:
+                - generic [ref=f1e26]: Recovery time
+                - strong [ref=f1e27]: 36m
+                - paragraph [ref=f1e28]: Rollback drills remain reliable.
+            - generic [ref=f1e29]:
+              - generic [ref=f1e30]:
+                - generic [ref=f1e31]: "1"
+                - generic [ref=f1e32]:
+                  - heading "Plan" [level=2] [ref=f1e33]
+                  - paragraph [ref=f1e34]: Flowing
+              - generic [ref=f1e35]:
+                - generic [ref=f1e36]: "2"
+                - generic [ref=f1e37]:
+                  - heading "Code" [level=2] [ref=f1e38]
+                  - paragraph [ref=f1e39]: Flowing
+              - generic [ref=f1e40]:
+                - generic [ref=f1e41]: "3"
+                - generic [ref=f1e42]:
+                  - heading "Build" [level=2] [ref=f1e43]
+                  - paragraph [ref=f1e44]: Flowing
+              - generic [ref=f1e45]:
+                - generic [ref=f1e46]: "4"
+                - generic [ref=f1e47]:
+                  - heading "Test" [level=2] [ref=f1e48]
+                  - paragraph [ref=f1e49]: Under watch
+              - generic [ref=f1e50]:
+                - generic [ref=f1e51]: "5"
+                - generic [ref=f1e52]:
+                  - heading "Canary" [level=2] [ref=f1e53]
+                  - paragraph [ref=f1e54]: Under watch
+              - generic [ref=f1e55]:
+                - generic [ref=f1e56]: "6"
+                - generic [ref=f1e57]:
+                  - heading "Deploy" [level=2] [ref=f1e58]
+                  - paragraph [ref=f1e59]: Controlled
+              - generic [ref=f1e60]:
+                - generic [ref=f1e61]: "7"
+                - generic [ref=f1e62]:
+                  - heading "Observe" [level=2] [ref=f1e63]
+                  - paragraph [ref=f1e64]: Controlled
+            - generic [ref=f1e65]:
+              - article [ref=f1e66]:
+                - generic [ref=f1e67]:
+                  - generic [ref=f1e68]:
+                    - paragraph [ref=f1e69]: Trend
+                    - heading "Lead Time by Week" [level=2] [ref=f1e70]
+                  - generic [ref=f1e71]: "-14% over 5 weeks"
+                - img "Lead time trend" [ref=f1e72]:
+                  - generic [ref=f1e77]: W14
+                  - generic [ref=f1e80]: W15
+                  - generic [ref=f1e83]: W16
+                  - generic [ref=f1e86]: W17
+                  - generic [ref=f1e89]: W18
+              - article [ref=f1e90]:
+                - generic [ref=f1e91]:
+                  - generic [ref=f1e92]:
+                    - paragraph [ref=f1e93]: Pressure
+                    - heading "Defects by Stage" [level=2] [ref=f1e94]
+                  - generic [ref=f1e95]: Integration leads
+                - generic [ref=f1e96]:
+                  - generic [ref=f1e97]:
+                    - generic [ref=f1e98]: Lint
+                    - strong [ref=f1e101]: "12"
+                  - generic [ref=f1e102]:
+                    - generic [ref=f1e103]: Unit
+                    - strong [ref=f1e106]: "9"
+                  - generic [ref=f1e107]:
+                    - generic [ref=f1e108]: Integration
+                    - strong [ref=f1e111]: "17"
+                  - generic [ref=f1e112]:
+                    - generic [ref=f1e113]: UI Smoke
+                    - strong [ref=f1e116]: "11"
+                  - generic [ref=f1e117]:
+                    - generic [ref=f1e118]: Canary
+                    - strong [ref=f1e121]: "4"
+              - article [ref=f1e122]:
+                - generic [ref=f1e123]:
+                  - generic [ref=f1e124]:
+                    - paragraph [ref=f1e125]: Ownership
+                    - heading "Operational Load" [level=2] [ref=f1e126]
+                  - generic [ref=f1e127]: Balanced enough
+                - list [ref=f1e130]:
+                  - listitem [ref=f1e131]:
+                    - generic [ref=f1e132]: Platform
+                    - strong [ref=f1e133]: 34%
+                  - listitem [ref=f1e134]:
+                    - generic [ref=f1e135]: Checkout
+                    - strong [ref=f1e136]: 22%
+                  - listitem [ref=f1e137]:
+                    - generic [ref=f1e138]: Identity
+                    - strong [ref=f1e139]: 18%
+                  - listitem [ref=f1e140]:
+                    - generic [ref=f1e141]: Catalog
+                    - strong [ref=f1e142]: 16%
+                  - listitem [ref=f1e143]:
+                    - generic [ref=f1e144]: Observability
+                    - strong [ref=f1e145]: 10%
+            - generic [ref=f1e146]:
+              - article [ref=f1e147]:
+                - generic [ref=f1e149]:
+                  - paragraph [ref=f1e150]: Readiness
+                  - heading "Service Watchlist" [level=2] [ref=f1e151]
+                - generic [ref=f1e152]:
+                  - generic [ref=f1e153]:
+                    - generic [ref=f1e154]:
+                      - heading "Checkout" [level=3] [ref=f1e155]
+                      - strong [ref=f1e156]: 68%
+                    - paragraph [ref=f1e159]: Integration retries elevated on coupon paths.
+                  - generic [ref=f1e160]:
+                    - generic [ref=f1e161]:
+                      - heading "Identity" [level=3] [ref=f1e162]
+                      - strong [ref=f1e163]: 74%
+                    - paragraph [ref=f1e166]: Contract drift from token refresh branch.
+                  - generic [ref=f1e167]:
+                    - generic [ref=f1e168]:
+                      - heading "Catalog" [level=3] [ref=f1e169]
+                      - strong [ref=f1e170]: 88%
+                    - paragraph [ref=f1e173]: Healthy after index rebuild.
+                  - generic [ref=f1e174]:
+                    - generic [ref=f1e175]:
+                      - heading "Observability" [level=3] [ref=f1e176]
+                      - strong [ref=f1e177]: 93%
+                    - paragraph [ref=f1e180]: Rollback and alerting posture both green.
+              - article [ref=f1e181]:
+                - generic [ref=f1e183]:
+                  - paragraph [ref=f1e184]: Checklist
+                  - heading "Fixture Expectations" [level=2] [ref=f1e185]
+                - list [ref=f1e186]:
+                  - listitem [ref=f1e187]: Artifact build succeeds from packaged install
+                  - listitem [ref=f1e188]: json-render dashboard renders in hosted viewer
+                  - listitem [ref=f1e189]: Line, bar, and pie graphs render from synthetic data
+                  - listitem [ref=f1e190]: Markdown, image, file, status, context, ledger, and trace nodes coexist cleanly
+      - generic [ref=e1701]:
+        - generic [ref=e1702]:
+          - generic [ref=e1703]: UI
+          - generic "Double-click to rename" [ref=e1704]: Control Tower Widgets
+          - generic [ref=e1705]:
+            - button "✦" [ref=e1706] [cursor=pointer]
+            - button "⤢" [ref=e1707] [cursor=pointer]
+            - button "▾" [ref=e1708] [cursor=pointer]
+            - button "×" [ref=e1709] [cursor=pointer]
+        - iframe [ref=e1712]:
+          - generic [ref=f2e4]:
+            - generic [ref=f2e5]:
+              - generic [ref=f2e6]: Control Tower Widgets
+              - generic [ref=f2e7]: Synthetic SDLC telemetry rendered with native json-render components.
+            - generic [ref=f2e9]:
+              - paragraph [ref=f2e10]: Lead time is improving, but integration queue volatility is still the gating constraint.
+              - generic [ref=f2e11]:
+                - generic [ref=f2e12]: Release train green
+                - generic [ref=f2e13]: Queue variance high
+                - generic [ref=f2e14]: Rollback rehearsed
+              - alert [ref=f2e15]:
+                - generic [ref=f2e16]: Integration queue saturation
+                - generic [ref=f2e17]: Checkout and identity both exceeded the synthetic retry budget during the last rehearsal.
+              - generic [ref=f2e18]:
+                - generic [ref=f2e19]: 78% of release gates are passing on the first attempt
+                - progressbar [ref=f2e20]
+              - table "Current synthetic gate review for the active release window." [ref=f2e24]:
+                - caption [ref=f2e25]: Current synthetic gate review for the active release window.
+                - rowgroup [ref=f2e26]:
+                  - row "Gate Owner Status Delta" [ref=f2e27]:
+                    - columnheader "Gate" [ref=f2e28]
+                    - columnheader "Owner" [ref=f2e29]
+                    - columnheader "Status" [ref=f2e30]
+                    - columnheader "Delta" [ref=f2e31]
+                - rowgroup [ref=f2e32]:
+                  - row "Compile Platform Pass +1m" [ref=f2e33]:
+                    - cell "Compile" [ref=f2e34]
+                    - cell "Platform" [ref=f2e35]
+                    - cell "Pass" [ref=f2e36]
+                    - cell "+1m" [ref=f2e37]
+                  - row "Unit tests Checkout Pass -12%" [ref=f2e38]:
+                    - cell "Unit tests" [ref=f2e39]
+                    - cell "Checkout" [ref=f2e40]
+                    - cell "Pass" [ref=f2e41]
+                    - cell "-12%" [ref=f2e42]
+                  - row "Contract tests Identity Watch +3 flaky" [ref=f2e43]:
+                    - cell "Contract tests" [ref=f2e44]
+                    - cell "Identity" [ref=f2e45]
+                    - cell "Watch" [ref=f2e46]
+                    - cell "+3 flaky" [ref=f2e47]
+                  - row "UI smoke Storefront Watch +6m" [ref=f2e48]:
+                    - cell "UI smoke" [ref=f2e49]
+                    - cell "Storefront" [ref=f2e50]
+                    - cell "Watch" [ref=f2e51]
+                    - cell "+6m" [ref=f2e52]
+                  - row "Security scan Platform Pass 0 critical" [ref=f2e53]:
+                    - cell "Security scan" [ref=f2e54]
+                    - cell "Platform" [ref=f2e55]
+                    - cell "Pass" [ref=f2e56]
+                    - cell "0 critical" [ref=f2e57]
+                  - row "Canary score SRE Pass 97/100" [ref=f2e58]:
+                    - cell "Canary score" [ref=f2e59]
+                    - cell "SRE" [ref=f2e60]
+                    - cell "Pass" [ref=f2e61]
+                    - cell "97/100" [ref=f2e62]
+              - generic [ref=f2e63]:
+                - heading "What is slowing the train?" [level=3] [ref=f2e65]:
+                  - button "What is slowing the train?" [ref=f2e66] [cursor=pointer]:
+                    - text: What is slowing the train?
+                    - img
+                - heading "Why is deploy still allowed?" [level=3] [ref=f2e68]:
+                  - button "Why is deploy still allowed?" [ref=f2e69] [cursor=pointer]:
+                    - text: Why is deploy still allowed?
+                    - img
+                - heading "What should an agent inspect first?" [level=3] [ref=f2e71]:
+                  - button "What should an agent inspect first?" [ref=f2e72] [cursor=pointer]:
+                    - text: What should an agent inspect first?
+                    - img
+      - generic [ref=e1718]:
+        - generic [ref=e1719]:
+          - generic [ref=e1720]: UI
+          - generic "Double-click to rename" [ref=e1721]: Release Gate Intake
+          - generic [ref=e1722]:
+            - button "✦" [ref=e1723] [cursor=pointer]
+            - button "⤢" [ref=e1724] [cursor=pointer]
+            - button "▾" [ref=e1725] [cursor=pointer]
+            - button "×" [ref=e1726] [cursor=pointer]
+        - iframe [ref=e1729]:
+          - generic [ref=f3e4]:
+            - generic [ref=f3e5]:
+              - generic [ref=f3e6]: Release Gate Intake
+              - generic [ref=f3e7]: Interactive control inputs for the published-consumer test surface.
+            - generic [ref=f3e9]:
+              - paragraph [ref=f3e10]: This node intentionally covers a broad set of json-render form controls.
+              - generic [ref=f3e11]:
+                - generic [ref=f3e12]: Change ticket
+                - textbox "Change ticket" [ref=f3e13]:
+                  - /placeholder: REL-421
+              - generic [ref=f3e14]:
+                - generic [ref=f3e15]: Operator notes
+                - textbox "Operator notes" [ref=f3e16]:
+                  - /placeholder: Describe the current release posture
+              - generic [ref=f3e17]:
+                - generic [ref=f3e18]: Target environment
+                - combobox [ref=f3e19] [cursor=pointer]:
+                  - generic: Choose environment
+                  - img
+              - generic [ref=f3e20]:
+                - generic [ref=f3e21]: Risk band
+                - radiogroup [ref=f3e22]:
+                  - generic [ref=f3e23]:
+                    - radio "low" [checked] [ref=f3e24] [cursor=pointer]:
+                      - img [ref=f3e25]
+                    - generic [ref=f3e27] [cursor=pointer]: low
+                  - generic [ref=f3e28]:
+                    - radio "medium" [ref=f3e29] [cursor=pointer]
+                    - generic [ref=f3e30] [cursor=pointer]: medium
+                  - generic [ref=f3e31]:
+                    - radio "high" [ref=f3e32] [cursor=pointer]
+                    - generic [ref=f3e33] [cursor=pointer]: high
+              - generic [ref=f3e35]:
+                - generic [ref=f3e36] [cursor=pointer]: Release freeze override
+                - switch "Release freeze override" [ref=f3e37] [cursor=pointer]
+              - generic [ref=f3e39]:
+                - checkbox "Rollback rehearsal completed" [checked] [ref=f3e40] [cursor=pointer]:
+                  - generic:
+                    - img
+                - generic [ref=f3e41] [cursor=pointer]: Rollback rehearsal completed
+              - group [ref=f3e42]:
+                - radio "Canary" [checked] [ref=f3e43] [cursor=pointer]
+                - radio "Linear" [ref=f3e44] [cursor=pointer]
+                - radio "Blue/Green" [ref=f3e45] [cursor=pointer]
+              - generic [ref=f3e46]:
+                - button "Fast lane" [ref=f3e47] [cursor=pointer]
+                - button "Steady lane" [ref=f3e48] [cursor=pointer]
+                - button "Freeze lane" [ref=f3e49] [cursor=pointer]
+              - button "Operator shortcuts" [ref=f3e50] [cursor=pointer]
+      - generic [ref=e1735]:
+        - generic [ref=e1736]:
+          - generic [ref=e1737]: UI
+          - generic "Double-click to rename" [ref=e1738]: Service Readiness Matrix
+          - generic [ref=e1739]:
+            - button "✦" [ref=e1740] [cursor=pointer]
+            - button "⤢" [ref=e1741] [cursor=pointer]
+            - button "▾" [ref=e1742] [cursor=pointer]
+            - button "×" [ref=e1743] [cursor=pointer]
+        - iframe [ref=e1746]:
+          - generic [ref=f4e4]:
+            - generic [ref=f4e5]:
+              - generic [ref=f4e6]: Service Readiness Matrix
+              - generic [ref=f4e7]: Compact structured panel that turns fake service posture into a quick scan table.
+            - table "Synthetic readiness table rendered through json-render." [ref=f4e11]:
+              - caption [ref=f4e12]: Synthetic readiness table rendered through json-render.
+              - rowgroup [ref=f4e13]:
+                - row "Service Readiness Note" [ref=f4e14]:
+                  - columnheader "Service" [ref=f4e15]
+                  - columnheader "Readiness" [ref=f4e16]
+                  - columnheader "Note" [ref=f4e17]
+              - rowgroup [ref=f4e18]:
+                - row "Checkout 68% Integration retries elevated on coupon paths." [ref=f4e19]:
+                  - cell "Checkout" [ref=f4e20]
+                  - cell "68%" [ref=f4e21]
+                  - cell "Integration retries elevated on coupon paths." [ref=f4e22]
+                - row "Identity 74% Contract drift from token refresh branch." [ref=f4e23]:
+                  - cell "Identity" [ref=f4e24]
+                  - cell "74%" [ref=f4e25]
+                  - cell "Contract drift from token refresh branch." [ref=f4e26]
+                - row "Catalog 88% Healthy after index rebuild." [ref=f4e27]:
+                  - cell "Catalog" [ref=f4e28]
+                  - cell "88%" [ref=f4e29]
+                  - cell "Healthy after index rebuild." [ref=f4e30]
+                - row "Observability 93% Rollback and alerting posture both green." [ref=f4e31]:
+                  - cell "Observability" [ref=f4e32]
+                  - cell "93%" [ref=f4e33]
+                  - cell "Rollback and alerting posture both green." [ref=f4e34]
+      - generic [ref=e1752]:
+        - generic [ref=e1753]:
+          - generic [ref=e1754]: UI
+          - generic "Double-click to rename" [ref=e1755]: User Profile Card
+          - generic [ref=e1756]:
+            - button "✦" [ref=e1757] [cursor=pointer]
+            - button "⤢" [ref=e1758] [cursor=pointer]
+            - button "▾" [ref=e1759] [cursor=pointer]
+            - button "×" [ref=e1760] [cursor=pointer]
+        - iframe [ref=e1763]:
+          - generic [ref=f5e4]:
+            - generic [ref=f5e6]: User Profile
+            - generic [ref=f5e8]:
+              - heading "Jane Cooper" [level=2] [ref=f5e9]
+              - paragraph [ref=f5e10]: Senior software engineer based in San Francisco. Passionate about building accessible, high-performance web applications.
+              - generic [ref=f5e11]:
+                - generic [ref=f5e12]: TypeScript
+                - generic [ref=f5e13]: React
+                - generic [ref=f5e14]: Node.js
+              - generic [ref=f5e15]:
+                - generic [ref=f5e16]: Profile completion
+                - progressbar [ref=f5e17]
+      - generic [ref=e1769]:
+        - generic [ref=e1770]:
+          - generic [ref=e1771]: UI
+          - generic "Double-click to rename" [ref=e1772]: Account Settings
+          - generic [ref=e1773]:
+            - button "✦" [ref=e1774] [cursor=pointer]
+            - button "⤢" [ref=e1775] [cursor=pointer]
+            - button "▾" [ref=e1776] [cursor=pointer]
+            - button "×" [ref=e1777] [cursor=pointer]
+        - iframe [ref=e1780]:
+          - generic [ref=f6e4]:
+            - generic [ref=f6e5]:
+              - generic [ref=f6e6]: Account Settings
+              - generic [ref=f6e7]: Manage your preferences
+            - generic [ref=f6e9]:
+              - generic [ref=f6e10]:
+                - generic [ref=f6e11]: Full Name
+                - textbox "Full Name" [ref=f6e12]:
+                  - /placeholder: Your name
+              - generic [ref=f6e13]:
+                - generic [ref=f6e14]: Email
+                - textbox "Email" [ref=f6e15]:
+                  - /placeholder: you@example.com
+              - generic [ref=f6e16]:
+                - generic [ref=f6e17]: Role
+                - combobox [ref=f6e18] [cursor=pointer]:
+                  - generic: Choose a role
+                  - img
+              - generic [ref=f6e20]:
+                - generic [ref=f6e21] [cursor=pointer]: Email notifications
+                - switch "Email notifications" [checked] [ref=f6e22] [cursor=pointer]
+              - generic [ref=f6e24]:
+                - generic [ref=f6e25] [cursor=pointer]: Dark mode
+                - switch "Dark mode" [checked] [ref=f6e26] [cursor=pointer]
+              - generic [ref=f6e27]:
+                - button "Cancel" [ref=f6e28] [cursor=pointer]
+                - button "Save Changes" [ref=f6e29] [cursor=pointer]
+      - generic [ref=e1786]:
+        - generic [ref=e1787]:
+          - generic [ref=e1788]: UI
+          - generic "Double-click to rename" [ref=e1789]: Pricing Table
+          - generic [ref=e1790]:
+            - button "✦" [ref=e1791] [cursor=pointer]
+            - button "⤢" [ref=e1792] [cursor=pointer]
+            - button "▾" [ref=e1793] [cursor=pointer]
+            - button "×" [ref=e1794] [cursor=pointer]
+        - iframe [ref=e1797]:
+          - generic [ref=f7e4]:
+            - generic [ref=f7e5]:
+              - heading "Simple, transparent pricing" [level=1] [ref=f7e6]
+              - paragraph [ref=f7e7]: Choose the plan that fits your needs. Upgrade or downgrade at any time.
+            - generic [ref=f7e8]:
+              - generic [ref=f7e9]:
+                - generic [ref=f7e10]:
+                  - generic [ref=f7e11]: Free
+                  - generic [ref=f7e12]: $0/month
+                - generic [ref=f7e14]:
+                  - paragraph [ref=f7e15]: Up to 3 projects
+                  - paragraph [ref=f7e16]: 1 GB storage
+                  - paragraph [ref=f7e17]: Community support
+                  - button "Get Started" [ref=f7e18] [cursor=pointer]
+              - generic [ref=f7e19]:
+                - generic [ref=f7e20]:
+                  - generic [ref=f7e21]: Pro
+                  - generic [ref=f7e22]: $19/month
+                - generic [ref=f7e24]:
+                  - paragraph [ref=f7e25]: Unlimited projects
+                  - paragraph [ref=f7e26]: 50 GB storage
+                  - paragraph [ref=f7e27]: Priority support
+                  - paragraph [ref=f7e28]: Custom domains
+                  - button "Upgrade to Pro" [ref=f7e29] [cursor=pointer]
+              - generic [ref=f7e30]:
+                - generic [ref=f7e31]:
+                  - generic [ref=f7e32]: Enterprise
+                  - generic [ref=f7e33]: Custom pricing
+                - generic [ref=f7e35]:
+                  - paragraph [ref=f7e36]: Everything in Pro
+                  - paragraph [ref=f7e37]: Unlimited storage
+                  - paragraph [ref=f7e38]: Dedicated support
+                  - paragraph [ref=f7e39]: SLA guarantees
+                  - button "Contact Sales" [ref=f7e40] [cursor=pointer]
+      - generic [ref=e1803]:
+        - generic [ref=e1804]:
+          - generic [ref=e1805]: UI
+          - generic "Double-click to rename" [ref=e1806]: Embedded Charts Dashboard
+          - generic [ref=e1807]:
+            - button "✦" [ref=e1808] [cursor=pointer]
+            - button "⤢" [ref=e1809] [cursor=pointer]
+            - button "▾" [ref=e1810] [cursor=pointer]
+            - button "×" [ref=e1811] [cursor=pointer]
+        - iframe [ref=e1814]:
+          
+      - generic [ref=e1820]:
+        - generic [ref=e1821]:
+          - generic [ref=e1822]: GRAPH
+          - generic "Double-click to rename" [ref=e1823]: Lead Time Trend
+          - generic [ref=e1824]:
+            - button "✦" [ref=e1825] [cursor=pointer]
+            - button "⤢" [ref=e1826] [cursor=pointer]
+            - button "▾" [ref=e1827] [cursor=pointer]
+            - button "×" [ref=e1828] [cursor=pointer]
+        - iframe [ref=e1831]:
+          - generic [active] [ref=f9e1]:
+            - generic [ref=f9e4]:
+              - generic [ref=f9e6]: Lead Time Trend
+              - application [ref=f9e11]:
+                - generic [ref=f9e34]:
+                  - generic [ref=f9e35]:
+                    - generic [ref=f9e37]: W14
+                    - generic [ref=f9e39]: W15
+                    - generic [ref=f9e41]: W16
+                    - generic [ref=f9e43]: W17
+                    - generic [ref=f9e45]: W18
+                  - generic [ref=f9e46]:
+                    - generic [ref=f9e48]: "0"
+                    - generic [ref=f9e50]: "7"
+                    - generic [ref=f9e52]: "14"
+                    - generic [ref=f9e54]: "21"
+                    - generic [ref=f9e56]: "28"
+            - generic [ref=f9e57]: "0"
+      - generic [ref=e1837]:
+        - generic [ref=e1838]:
+          - generic [ref=e1839]: GRAPH
+          - generic "Double-click to rename" [ref=e1840]: Defects by Stage
+          - generic [ref=e1841]:
+            - button "✦" [ref=e1842] [cursor=pointer]
+            - button "⤢" [ref=e1843] [cursor=pointer]
+            - button "▾" [ref=e1844] [cursor=pointer]
+            - button "×" [ref=e1845] [cursor=pointer]
+        - iframe [ref=e1848]:
+          - generic [active] [ref=f10e1]:
+            - generic [ref=f10e4]:
+              - generic [ref=f10e6]: Defects by Stage
+              - application [ref=f10e11]:
+                - generic [ref=f10e23]:
+                  - generic [ref=f10e24]:
+                    - generic [ref=f10e26]: Lint
+                    - generic [ref=f10e28]: Unit
+                    - generic [ref=f10e30]: Integration
+                    - generic [ref=f10e32]: UI Smoke
+                    - generic [ref=f10e34]: Canary
+                  - generic [ref=f10e35]:
+                    - generic [ref=f10e37]: "0"
+                    - generic [ref=f10e39]: "5"
+                    - generic [ref=f10e41]: "10"
+                    - generic [ref=f10e43]: "15"
+                    - generic [ref=f10e45]: "20"
+            - generic [ref=f10e46]: "0"
+      - generic [ref=e1854]:
+        - generic [ref=e1855]:
+          - generic [ref=e1856]: GRAPH
+          - generic "Double-click to rename" [ref=e1857]: Operational Load
+          - generic [ref=e1858]:
+            - button "✦" [ref=e1859] [cursor=pointer]
+            - button "⤢" [ref=e1860] [cursor=pointer]
+            - button "▾" [ref=e1861] [cursor=pointer]
+            - button "×" [ref=e1862] [cursor=pointer]
+        - iframe [ref=e1865]:
+          - generic [ref=f11e4]:
+            - generic [ref=f11e6]: Operational Load
+            - generic [ref=f11e10]:
+              - list [ref=f11e12]:
+                - listitem [ref=f11e13]:
+                  - img "Catalog legend icon" [ref=f11e14]
+                  - text: Catalog
+                - listitem [ref=f11e16]:
+                  - img "Checkout legend icon" [ref=f11e17]
+                  - text: Checkout
+                - listitem [ref=f11e19]:
+                  - img "Identity legend icon" [ref=f11e20]
+                  - text: Identity
+                - listitem [ref=f11e22]:
+                  - img "Observability legend icon" [ref=f11e23]
+                  - text: Observability
+                - listitem [ref=f11e25]:
+                  - img "Platform legend icon" [ref=f11e26]
+                  - text: Platform
+              - application [ref=f11e28]

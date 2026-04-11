@@ -119,7 +119,7 @@ test('saves snapshots from the toolbar', async ({ page, request }) => {
   await page.goto('/workbench');
   await expect(page.locator('.canvas-node').filter({ hasText: 'Snapshot target' })).toHaveCount(1);
 
-  await page.locator('button[title="Snapshots"]').click();
+  await page.getByRole('button', { name: 'Snapshots' }).click();
   await expect(page.locator('.snapshot-panel')).toBeVisible();
   await page.locator('.snapshot-name-input').fill('Toolbar snapshot');
   await page.locator('.snapshot-save-btn').click();

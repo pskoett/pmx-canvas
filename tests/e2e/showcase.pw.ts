@@ -105,7 +105,7 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
   });
 
   // ── Image: pipeline diagram (SVG data URI) ─────────────────
-  const svgContent = `data:image/svg+xml;base64,${btoa(`
+  const svgContent = `data:image/svg+xml;base64,${Buffer.from(`
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120">
       <rect width="400" height="120" fill="#1a1a2e" rx="8"/>
       <text x="200" y="25" fill="#8888aa" text-anchor="middle" font-size="11" font-family="monospace">Pipeline Flow</text>
@@ -130,7 +130,7 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
       </g>
       <text x="200" y="105" fill="#555" text-anchor="middle" font-size="9" font-family="monospace">Build → Test → Gate → Deploy</text>
     </svg>
-  `)}`;
+  `, 'utf-8').toString('base64')}`;
 
   const image = await addNode(request, {
     type: 'image',
@@ -527,6 +527,270 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
     x: 1040, y: 1190, width: 380, height: 520,
   });
 
+  const profileCard = await addJsonRender(request, {
+    title: 'User Profile Card',
+    spec: {
+      root: 'card',
+      elements: {
+        card: {
+          type: 'Card',
+          props: { title: 'User Profile', description: null, maxWidth: 'full', centered: false },
+          children: ['stack'],
+        },
+        stack: {
+          type: 'Stack',
+          props: { direction: 'vertical', gap: 'md', align: 'stretch', justify: 'start' },
+          children: ['heading', 'copy', 'badges', 'sep', 'progress'],
+        },
+        heading: {
+          type: 'Heading',
+          props: { text: 'Jane Cooper', level: 'h2' },
+          children: [],
+        },
+        copy: {
+          type: 'Text',
+          props: {
+            text: 'Senior software engineer based in San Francisco. Passionate about building accessible, high-performance web applications.',
+            variant: 'muted',
+          },
+          children: [],
+        },
+        badges: {
+          type: 'Stack',
+          props: { direction: 'horizontal', gap: 'sm', align: 'center', justify: 'start' },
+          children: ['badge1', 'badge2', 'badge3'],
+        },
+        badge1: { type: 'Badge', props: { text: 'TypeScript', variant: 'default' }, children: [] },
+        badge2: { type: 'Badge', props: { text: 'React', variant: 'secondary' }, children: [] },
+        badge3: { type: 'Badge', props: { text: 'Node.js', variant: 'outline' }, children: [] },
+        sep: { type: 'Separator', props: {}, children: [] },
+        progress: {
+          type: 'Progress',
+          props: { value: 72, max: 100, label: 'Profile completion' },
+          children: [],
+        },
+      },
+    },
+    x: 40, y: 1730, width: 420, height: 400,
+  });
+
+  const settingsSurface = await addJsonRender(request, {
+    title: 'Account Settings',
+    spec: {
+      root: 'card',
+      elements: {
+        card: {
+          type: 'Card',
+          props: { title: 'Account Settings', description: 'Manage your preferences' },
+          children: ['form'],
+        },
+        form: {
+          type: 'Stack',
+          props: { direction: 'vertical', gap: 'md' },
+          children: ['name', 'email', 'role', 'sep1', 'notifications', 'darkMode', 'sep2', 'actions'],
+        },
+        name: {
+          type: 'Input',
+          props: { label: 'Full Name', name: 'name', type: 'text', placeholder: 'Your name', value: 'Ada Lovelace' },
+          children: [],
+        },
+        email: {
+          type: 'Input',
+          props: { label: 'Email', name: 'email', type: 'email', placeholder: 'you@example.com', value: 'ada@example.com' },
+          children: [],
+        },
+        role: {
+          type: 'Select',
+          props: {
+            label: 'Role',
+            name: 'role',
+            options: ['Engineer', 'Designer', 'Product Manager', 'Data Scientist'],
+            placeholder: 'Choose a role',
+            value: 'Engineer',
+          },
+          children: [],
+        },
+        sep1: { type: 'Separator', props: {}, children: [] },
+        notifications: {
+          type: 'Switch',
+          props: { label: 'Email notifications', name: 'notifications', checked: true },
+          children: [],
+        },
+        darkMode: {
+          type: 'Switch',
+          props: { label: 'Dark mode', name: 'dark-mode', checked: true },
+          children: [],
+        },
+        sep2: { type: 'Separator', props: {}, children: [] },
+        actions: {
+          type: 'Stack',
+          props: { direction: 'horizontal', gap: 'sm', justify: 'end' },
+          children: ['cancel', 'save'],
+        },
+        cancel: { type: 'Button', props: { label: 'Cancel', variant: 'secondary' }, children: [] },
+        save: { type: 'Button', props: { label: 'Save Changes', variant: 'primary' }, children: [] },
+      },
+    },
+    x: 500, y: 1730, width: 420, height: 460,
+  });
+
+  const pricingTable = await addJsonRender(request, {
+    title: 'Pricing Table',
+    spec: {
+      root: 'outer',
+      elements: {
+        outer: {
+          type: 'Stack',
+          props: { direction: 'vertical', gap: 'lg', align: 'stretch', justify: 'start' },
+          children: ['header', 'grid'],
+        },
+        header: {
+          type: 'Stack',
+          props: { direction: 'vertical', gap: 'sm', align: 'center', justify: 'start' },
+          children: ['title', 'subtitle'],
+        },
+        title: { type: 'Heading', props: { text: 'Simple, transparent pricing', level: 'h1' }, children: [] },
+        subtitle: {
+          type: 'Text',
+          props: { text: 'Choose the plan that fits your needs. Upgrade or downgrade at any time.', variant: 'muted' },
+          children: [],
+        },
+        grid: {
+          type: 'Grid',
+          props: { columns: 3, gap: 'md' },
+          children: ['free', 'pro', 'enterprise'],
+        },
+        free: {
+          type: 'Card',
+          props: { title: 'Free', description: '$0/month' },
+          children: ['freeContent'],
+        },
+        freeContent: {
+          type: 'Stack',
+          props: { direction: 'vertical', gap: 'sm' },
+          children: ['free1', 'free2', 'free3', 'freeButton'],
+        },
+        free1: { type: 'Text', props: { text: 'Up to 3 projects', variant: 'body' }, children: [] },
+        free2: { type: 'Text', props: { text: '1 GB storage', variant: 'body' }, children: [] },
+        free3: { type: 'Text', props: { text: 'Community support', variant: 'body' }, children: [] },
+        freeButton: { type: 'Button', props: { label: 'Get Started', variant: 'secondary' }, children: [] },
+        pro: {
+          type: 'Card',
+          props: { title: 'Pro', description: '$19/month' },
+          children: ['proContent'],
+        },
+        proContent: {
+          type: 'Stack',
+          props: { direction: 'vertical', gap: 'sm' },
+          children: ['pro1', 'pro2', 'pro3', 'pro4', 'proButton'],
+        },
+        pro1: { type: 'Text', props: { text: 'Unlimited projects', variant: 'body' }, children: [] },
+        pro2: { type: 'Text', props: { text: '50 GB storage', variant: 'body' }, children: [] },
+        pro3: { type: 'Text', props: { text: 'Priority support', variant: 'body' }, children: [] },
+        pro4: { type: 'Text', props: { text: 'Custom domains', variant: 'body' }, children: [] },
+        proButton: { type: 'Button', props: { label: 'Upgrade to Pro', variant: 'primary' }, children: [] },
+        enterprise: {
+          type: 'Card',
+          props: { title: 'Enterprise', description: 'Custom pricing' },
+          children: ['enterpriseContent'],
+        },
+        enterpriseContent: {
+          type: 'Stack',
+          props: { direction: 'vertical', gap: 'sm' },
+          children: ['enterprise1', 'enterprise2', 'enterprise3', 'enterprise4', 'enterpriseButton'],
+        },
+        enterprise1: { type: 'Text', props: { text: 'Everything in Pro', variant: 'body' }, children: [] },
+        enterprise2: { type: 'Text', props: { text: 'Unlimited storage', variant: 'body' }, children: [] },
+        enterprise3: { type: 'Text', props: { text: 'Dedicated support', variant: 'body' }, children: [] },
+        enterprise4: { type: 'Text', props: { text: 'SLA guarantees', variant: 'body' }, children: [] },
+        enterpriseButton: { type: 'Button', props: { label: 'Contact Sales', variant: 'secondary' }, children: [] },
+      },
+    },
+    x: 960, y: 1730, width: 840, height: 500,
+  });
+
+  const embeddedCharts = await addJsonRender(request, {
+    title: 'Embedded Charts Dashboard',
+    spec: {
+      root: 'card',
+      elements: {
+        card: {
+          type: 'Card',
+          props: {
+            title: 'Embedded Charts Dashboard',
+            description: 'Upstream-style analytics panels rendered directly inside a json-render node',
+          },
+          children: ['stack'],
+        },
+        stack: {
+          type: 'Stack',
+          props: { direction: 'vertical', gap: 'md' },
+          children: ['summary', 'sep', 'line', 'bar', 'pie'],
+        },
+        summary: {
+          type: 'Text',
+          props: { text: 'The same chart coverage can render inline inside one spec, not only as dedicated graph nodes.', variant: 'muted' },
+          children: [],
+        },
+        sep: { type: 'Separator', props: {}, children: [] },
+        line: {
+          type: 'LineChart',
+          props: {
+            title: 'Lead Time Trend',
+            data: [
+              { week: 'W14', leadTimeHours: 27 },
+              { week: 'W15', leadTimeHours: 24 },
+              { week: 'W16', leadTimeHours: 22 },
+              { week: 'W17', leadTimeHours: 20 },
+              { week: 'W18', leadTimeHours: 19 },
+            ],
+            xKey: 'week',
+            yKey: 'leadTimeHours',
+            color: '#e9c46a',
+            height: 220,
+          },
+          children: [],
+        },
+        bar: {
+          type: 'BarChart',
+          props: {
+            title: 'Defects by Stage',
+            data: [
+              { stage: 'Lint', defects: 12 },
+              { stage: 'Unit', defects: 9 },
+              { stage: 'Integration', defects: 17 },
+              { stage: 'UI Smoke', defects: 11 },
+              { stage: 'Canary', defects: 4 },
+            ],
+            xKey: 'stage',
+            yKey: 'defects',
+            color: '#e76f51',
+            height: 220,
+          },
+          children: [],
+        },
+        pie: {
+          type: 'PieChart',
+          props: {
+            title: 'Operational Load by Team',
+            data: [
+              { name: 'Platform', value: 34 },
+              { name: 'Checkout', value: 22 },
+              { name: 'Identity', value: 18 },
+              { name: 'Catalog', value: 15 },
+              { name: 'Observability', value: 11 },
+            ],
+            nameKey: 'name',
+            valueKey: 'value',
+            height: 240,
+          },
+          children: [],
+        },
+      },
+    },
+    x: 40, y: 2260, width: 940, height: 900,
+  });
+
   // ═══════════════════════════════════════════════════════════
   // Web artifact: SDLC control room
   // ═══════════════════════════════════════════════════════════
@@ -641,7 +905,7 @@ body { margin: 0; background: #0f0f1a; }
 
   await createGroup(request, {
     title: 'Structured UI Surfaces',
-    childIds: [gateBoard, serviceMatrix, operatorForm],
+    childIds: [gateBoard, serviceMatrix, operatorForm, profileCard, settingsSurface, pricingTable, embeddedCharts],
     color: '#a7c957',
   });
 
@@ -662,6 +926,10 @@ body { margin: 0; background: #0f0f1a; }
   await addEdge(request, { from: codeFile, to: gateBoard, type: 'depends-on', label: 'evaluated by' });
   await addEdge(request, { from: gateBoard, to: serviceMatrix, type: 'flow', label: 'feeds' });
   await addEdge(request, { from: serviceMatrix, to: operatorForm, type: 'depends-on', label: 'override via' });
+  await addEdge(request, { from: serviceMatrix, to: profileCard, type: 'flow', label: 'persona' });
+  await addEdge(request, { from: profileCard, to: settingsSurface, type: 'depends-on', label: 'preferences' });
+  await addEdge(request, { from: settingsSurface, to: pricingTable, type: 'flow', label: 'plan choice' });
+  await addEdge(request, { from: pricingTable, to: embeddedCharts, type: 'references', label: 'usage analytics' });
   if (artifactId) {
     await addEdge(request, { from: context, to: artifactId, type: 'flow', label: 'control room' });
   }
@@ -681,8 +949,8 @@ body { margin: 0; background: #0f0f1a; }
   await page.goto('/workbench');
   await page.waitForSelector('.canvas-node', { timeout: 15000 });
 
-  // Wait for all nodes to render (we created ~20 nodes)
-  const expectedNodes = artifactId ? 20 : 19;
+  // Wait for all nodes to render
+  const expectedNodes = artifactId ? 25 : 24;
   await expect(page.locator('.canvas-node')).toHaveCount(expectedNodes, { timeout: 15000 });
 
   // Wait for edges and iframe content to settle
@@ -695,9 +963,10 @@ body { margin: 0; background: #0f0f1a; }
   await expect(page.locator('.canvas-node').filter({ hasText: 'Lead Time Trend' })).toHaveCount(1);
   await expect(page.locator('.canvas-node').filter({ hasText: 'Release Gate Dashboard' })).toHaveCount(1);
   await expect(page.locator('.canvas-node').filter({ hasText: 'Service Readiness Matrix' })).toHaveCount(1);
-
-  // Verify context pins are set
-  await expect(page.locator('.context-pin-bar')).toContainText('3 nodes in context');
+  await expect(page.locator('.canvas-node').filter({ hasText: 'User Profile Card' })).toHaveCount(1);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Account Settings' })).toHaveCount(1);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Pricing Table' })).toHaveCount(1);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Embedded Charts Dashboard' })).toHaveCount(1);
 
   // Verify via API
   const stateResponse = await request.get('/api/canvas/state');
@@ -718,8 +987,12 @@ body { margin: 0; background: #0f0f1a; }
   expect(types.has('graph')).toBe(true);
   expect(types.has('group')).toBe(true);
 
+  const pinsResponse = await request.get('/api/canvas/pinned-context');
+  const pins = (await pinsResponse.json()) as { count: number };
+  expect(pins.count).toBe(3);
+
   // Check edges
-  expect(state.edges.length).toBeGreaterThanOrEqual(13);
+  expect(state.edges.length).toBeGreaterThanOrEqual(17);
 
   // Take the hero screenshot
   await page.screenshot({

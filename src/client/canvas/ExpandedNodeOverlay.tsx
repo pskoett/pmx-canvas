@@ -6,6 +6,8 @@ import { MarkdownNode } from '../nodes/MarkdownNode';
 import { McpAppNode } from '../nodes/McpAppNode';
 import { StatusNode } from '../nodes/StatusNode';
 import { ImageNode } from '../nodes/ImageNode';
+import { PromptNode } from '../nodes/PromptNode';
+import { ResponseNode } from '../nodes/ResponseNode';
 import { TraceNode } from '../nodes/TraceNode';
 import {
   collapseExpandedNode,
@@ -27,6 +29,10 @@ function renderContent(node: CanvasNodeState, expanded: boolean) {
       return <McpAppNode node={node} />;
     case 'graph':
       return <McpAppNode node={node} />;
+    case 'prompt':
+      return <PromptNode node={node} />;
+    case 'response':
+      return <ResponseNode node={node} expanded={expanded} />;
     case 'status':
       return <StatusNode node={node} />;
     case 'context':

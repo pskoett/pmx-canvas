@@ -1,5 +1,5 @@
 import type { JsonRenderSpec } from 'pmx-canvas';
-import { componentRisks, gateRows } from './data';
+import { componentRisks, gateRows, ownershipLoad, stageDefectCounts, weeklyMetrics } from './data';
 
 export function buildControlTowerSpec(): JsonRenderSpec {
   return {
@@ -298,6 +298,407 @@ export function buildServiceMatrixSpec(): JsonRenderSpec {
             risk.note,
           ]),
           caption: 'Synthetic readiness table rendered through json-render.',
+        },
+        children: [],
+      },
+    },
+  };
+}
+
+export function buildUserProfileCardSpec(): JsonRenderSpec {
+  return {
+    root: 'card',
+    elements: {
+      card: {
+        type: 'Card',
+        props: {
+          title: 'User Profile',
+          description: null,
+          maxWidth: 'full',
+          centered: false,
+        },
+        children: ['stack'],
+      },
+      stack: {
+        type: 'Stack',
+        props: {
+          direction: 'vertical',
+          gap: 'md',
+          align: 'stretch',
+          justify: 'start',
+        },
+        children: ['heading', 'text', 'badges', 'separator', 'progress'],
+      },
+      heading: {
+        type: 'Heading',
+        props: { text: 'Jane Cooper', level: 'h2' },
+        children: [],
+      },
+      text: {
+        type: 'Text',
+        props: {
+          text: 'Senior software engineer based in San Francisco. Passionate about building accessible, high-performance web applications.',
+          variant: 'muted',
+        },
+        children: [],
+      },
+      badges: {
+        type: 'Stack',
+        props: {
+          direction: 'horizontal',
+          gap: 'sm',
+          align: 'center',
+          justify: 'start',
+        },
+        children: ['badgeTs', 'badgeReact', 'badgeNode'],
+      },
+      badgeTs: {
+        type: 'Badge',
+        props: { text: 'TypeScript', variant: 'default' },
+        children: [],
+      },
+      badgeReact: {
+        type: 'Badge',
+        props: { text: 'React', variant: 'secondary' },
+        children: [],
+      },
+      badgeNode: {
+        type: 'Badge',
+        props: { text: 'Node.js', variant: 'outline' },
+        children: [],
+      },
+      separator: {
+        type: 'Separator',
+        props: { orientation: 'horizontal' },
+        children: [],
+      },
+      progress: {
+        type: 'Progress',
+        props: { value: 72, max: 100, label: 'Profile completion' },
+        children: [],
+      },
+    },
+  };
+}
+
+export function buildSettingsFormSpec(): JsonRenderSpec {
+  return {
+    root: 'card',
+    elements: {
+      card: {
+        type: 'Card',
+        props: {
+          title: 'Account Settings',
+          description: 'Manage your preferences',
+          maxWidth: 'full',
+          centered: false,
+        },
+        children: ['form'],
+      },
+      form: {
+        type: 'Stack',
+        props: {
+          direction: 'vertical',
+          gap: 'md',
+          align: 'stretch',
+          justify: 'start',
+        },
+        children: [
+          'nameInput',
+          'emailInput',
+          'roleSelect',
+          'separator1',
+          'notificationSwitch',
+          'darkModeSwitch',
+          'separator2',
+          'actions',
+        ],
+      },
+      nameInput: {
+        type: 'Input',
+        props: {
+          label: 'Full Name',
+          name: 'name',
+          type: 'text',
+          placeholder: 'Your name',
+          value: 'Ada Lovelace',
+        },
+        children: [],
+      },
+      emailInput: {
+        type: 'Input',
+        props: {
+          label: 'Email',
+          name: 'email',
+          type: 'email',
+          placeholder: 'you@example.com',
+          value: 'ada@example.com',
+        },
+        children: [],
+      },
+      roleSelect: {
+        type: 'Select',
+        props: {
+          label: 'Role',
+          name: 'role',
+          options: ['Engineer', 'Designer', 'Product Manager', 'Data Scientist'],
+          placeholder: 'Choose a role',
+          value: 'Engineer',
+        },
+        children: [],
+      },
+      separator1: {
+        type: 'Separator',
+        props: { orientation: 'horizontal' },
+        children: [],
+      },
+      notificationSwitch: {
+        type: 'Switch',
+        props: {
+          label: 'Email notifications',
+          name: 'notifications',
+          checked: true,
+        },
+        children: [],
+      },
+      darkModeSwitch: {
+        type: 'Switch',
+        props: {
+          label: 'Dark mode',
+          name: 'dark-mode',
+          checked: true,
+        },
+        children: [],
+      },
+      separator2: {
+        type: 'Separator',
+        props: { orientation: 'horizontal' },
+        children: [],
+      },
+      actions: {
+        type: 'Stack',
+        props: {
+          direction: 'horizontal',
+          gap: 'sm',
+          align: 'center',
+          justify: 'end',
+        },
+        children: ['cancelButton', 'saveButton'],
+      },
+      cancelButton: {
+        type: 'Button',
+        props: { label: 'Cancel', variant: 'secondary', disabled: false },
+        children: [],
+      },
+      saveButton: {
+        type: 'Button',
+        props: { label: 'Save Changes', variant: 'primary', disabled: false },
+        children: [],
+      },
+    },
+  };
+}
+
+export function buildPricingTableSpec(): JsonRenderSpec {
+  return {
+    root: 'outer',
+    elements: {
+      outer: {
+        type: 'Stack',
+        props: {
+          direction: 'vertical',
+          gap: 'lg',
+          align: 'stretch',
+          justify: 'start',
+        },
+        children: ['header', 'grid'],
+      },
+      header: {
+        type: 'Stack',
+        props: {
+          direction: 'vertical',
+          gap: 'sm',
+          align: 'center',
+          justify: 'start',
+        },
+        children: ['title', 'subtitle'],
+      },
+      title: {
+        type: 'Heading',
+        props: { text: 'Simple, transparent pricing', level: 'h1' },
+        children: [],
+      },
+      subtitle: {
+        type: 'Text',
+        props: {
+          text: 'Choose the plan that fits your needs. Upgrade or downgrade at any time.',
+          variant: 'muted',
+        },
+        children: [],
+      },
+      grid: {
+        type: 'Grid',
+        props: { columns: 3, gap: 'md' },
+        children: ['freePlan', 'proPlan', 'enterprisePlan'],
+      },
+      freePlan: {
+        type: 'Card',
+        props: { title: 'Free', description: '$0/month', maxWidth: 'full', centered: false },
+        children: ['freeContent'],
+      },
+      freeContent: {
+        type: 'Stack',
+        props: { direction: 'vertical', gap: 'sm', align: 'stretch', justify: 'start' },
+        children: ['free1', 'free2', 'free3', 'freeButton'],
+      },
+      free1: { type: 'Text', props: { text: 'Up to 3 projects', variant: 'body' }, children: [] },
+      free2: { type: 'Text', props: { text: '1 GB storage', variant: 'body' }, children: [] },
+      free3: { type: 'Text', props: { text: 'Community support', variant: 'body' }, children: [] },
+      freeButton: {
+        type: 'Button',
+        props: { label: 'Get Started', variant: 'secondary', disabled: false },
+        children: [],
+      },
+      proPlan: {
+        type: 'Card',
+        props: { title: 'Pro', description: '$19/month', maxWidth: 'full', centered: false },
+        children: ['proContent'],
+      },
+      proContent: {
+        type: 'Stack',
+        props: { direction: 'vertical', gap: 'sm', align: 'stretch', justify: 'start' },
+        children: ['pro1', 'pro2', 'pro3', 'pro4', 'proButton'],
+      },
+      pro1: { type: 'Text', props: { text: 'Unlimited projects', variant: 'body' }, children: [] },
+      pro2: { type: 'Text', props: { text: '50 GB storage', variant: 'body' }, children: [] },
+      pro3: { type: 'Text', props: { text: 'Priority support', variant: 'body' }, children: [] },
+      pro4: { type: 'Text', props: { text: 'Custom domains', variant: 'body' }, children: [] },
+      proButton: {
+        type: 'Button',
+        props: { label: 'Upgrade to Pro', variant: 'primary', disabled: false },
+        children: [],
+      },
+      enterprisePlan: {
+        type: 'Card',
+        props: { title: 'Enterprise', description: 'Custom pricing', maxWidth: 'full', centered: false },
+        children: ['enterpriseContent'],
+      },
+      enterpriseContent: {
+        type: 'Stack',
+        props: { direction: 'vertical', gap: 'sm', align: 'stretch', justify: 'start' },
+        children: ['enterprise1', 'enterprise2', 'enterprise3', 'enterprise4', 'enterpriseButton'],
+      },
+      enterprise1: { type: 'Text', props: { text: 'Everything in Pro', variant: 'body' }, children: [] },
+      enterprise2: { type: 'Text', props: { text: 'Unlimited storage', variant: 'body' }, children: [] },
+      enterprise3: { type: 'Text', props: { text: 'Dedicated support', variant: 'body' }, children: [] },
+      enterprise4: { type: 'Text', props: { text: 'SLA guarantees', variant: 'body' }, children: [] },
+      enterpriseButton: {
+        type: 'Button',
+        props: { label: 'Contact Sales', variant: 'secondary', disabled: false },
+        children: [],
+      },
+    },
+  };
+}
+
+export function buildEmbeddedChartsSpec(): JsonRenderSpec {
+  return {
+    root: 'card',
+    elements: {
+      card: {
+        type: 'Card',
+        props: {
+          title: 'Embedded Charts Dashboard',
+          description: 'Upstream-style analytics panels rendered directly inside a json-render node.',
+          maxWidth: 'full',
+          centered: false,
+        },
+        children: ['content'],
+      },
+      content: {
+        type: 'Stack',
+        props: { direction: 'vertical', gap: 'md', align: 'stretch', justify: 'start' },
+        children: ['summaryGrid', 'separator', 'chartsGrid'],
+      },
+      summaryGrid: {
+        type: 'Grid',
+        props: { columns: 3, gap: 'md' },
+        children: ['summaryLeadTime', 'summaryDefects', 'summaryLoad'],
+      },
+      summaryLeadTime: {
+        type: 'Card',
+        props: { title: 'Lead time', description: 'Median fell to 19h', maxWidth: 'full', centered: false },
+        children: ['summaryLeadTimeBody'],
+      },
+      summaryLeadTimeBody: {
+        type: 'Text',
+        props: { text: 'Trend is improving for five straight weeks.', variant: 'muted' },
+        children: [],
+      },
+      summaryDefects: {
+        type: 'Card',
+        props: { title: 'Defect pressure', description: 'Integration remains the main spike', maxWidth: 'full', centered: false },
+        children: ['summaryDefectsBody'],
+      },
+      summaryDefectsBody: {
+        type: 'Text',
+        props: { text: 'UI smoke and canary remain comparatively stable.', variant: 'muted' },
+        children: [],
+      },
+      summaryLoad: {
+        type: 'Card',
+        props: { title: 'Operational load', description: 'Platform still absorbs the largest share', maxWidth: 'full', centered: false },
+        children: ['summaryLoadBody'],
+      },
+      summaryLoadBody: {
+        type: 'Text',
+        props: { text: 'Use this panel to compare chart rendering inside a single spec.', variant: 'muted' },
+        children: [],
+      },
+      separator: {
+        type: 'Separator',
+        props: { orientation: 'horizontal' },
+        children: [],
+      },
+      chartsGrid: {
+        type: 'Grid',
+        props: { columns: 1, gap: 'md' },
+        children: ['leadChart', 'defectChart', 'loadChart'],
+      },
+      leadChart: {
+        type: 'LineChart',
+        props: {
+          title: 'Lead Time Trend',
+          data: weeklyMetrics.map((entry) => ({ week: entry.week, leadTimeHours: entry.leadTimeHours })),
+          xKey: 'week',
+          yKey: 'leadTimeHours',
+          aggregate: null,
+          color: '#e9c46a',
+          height: 220,
+        },
+        children: [],
+      },
+      defectChart: {
+        type: 'BarChart',
+        props: {
+          title: 'Defects by Stage',
+          data: stageDefectCounts.map((entry) => ({ stage: entry.stage, defects: entry.defects })),
+          xKey: 'stage',
+          yKey: 'defects',
+          aggregate: null,
+          color: '#e76f51',
+          height: 220,
+        },
+        children: [],
+      },
+      loadChart: {
+        type: 'PieChart',
+        props: {
+          title: 'Operational Load by Team',
+          data: ownershipLoad,
+          nameKey: 'name',
+          valueKey: 'value',
+          height: 240,
         },
         children: [],
       },

@@ -1,3 +1,4 @@
+import type { ComponentChildren } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { CanvasViewport } from './canvas/CanvasViewport';
 import { CommandPalette } from './canvas/CommandPalette';
@@ -51,6 +52,7 @@ import {
   IconZoomOut,
 } from './icons';
 import { invalidateTokenCache } from './theme/tokens';
+import { MOD_KEY } from './utils/platform';
 
 function logAppError(action: string, error: unknown): void {
   console.error(`[app] ${action} failed`, error);
@@ -64,6 +66,35 @@ function sendIntent(type: string, payload: Record<string, unknown> = {}): void {
   }).catch((error) => {
     logAppError('sendIntent', error);
   });
+}
+
+function ToolbarHint({
+  label,
+  detail,
+  shortcut,
+  align = 'center',
+  children,
+}: {
+  label: string;
+  detail?: string;
+  shortcut?: string;
+  align?: 'start' | 'center' | 'end';
+  children: ComponentChildren;
+}) {
+  return (
+    <span class={`toolbar-tooltip-anchor toolbar-tooltip-anchor-${align}`}>
+      {children}
+      <span class="toolbar-tooltip" role="tooltip">
+        <span class="toolbar-tooltip-label">{label}</span>
+        {(detail || shortcut) && (
+          <span class="toolbar-tooltip-meta">
+            {detail && <span>{detail}</span>}
+            {shortcut && <kbd class="toolbar-tooltip-shortcut">{shortcut}</kbd>}
+          </span>
+        )}
+      </span>
+    </span>
+  );
 }
 
 function Toolbar({
@@ -91,6 +122,7 @@ function Toolbar({
   const isTraceOn = traceEnabled.value;
   const traceNodeCount = Array.from(nodes.value.values()).filter((n) => n.type === 'trace').length;
   const statusTitle = status === 'connected' && !hasSynced ? 'syncing' : status;
+  const statusLabel = statusTitle.charAt(0).toUpperCase() + statusTitle.slice(1);
   const countsLabel = hasSynced
     ? [
         `${nodeCount} node${nodeCount !== 1 ? 's' : ''}`,
@@ -107,125 +139,158 @@ function Toolbar({
     <div class="toolbar-group">
       {/* ── Navigation Bar ──────────────────────────────────── */}
       <div class="canvas-toolbar">
-        <span class={`connection-dot ${status}`} title={statusTitle} />
+        <ToolbarHint label="Canvas status" detail={hasSynced ? statusLabel : 'Syncing canvas from server'} align="start">
+          <span class={`connection-dot ${status}`} aria-label={`Canvas status: ${statusTitle}`} />
+        </ToolbarHint>
         <span style={{ fontSize: '11px', color: 'var(--c-muted)' }}>
           {sessionId.value ? sessionId.value.slice(0, 12) : '…'}
         </span>
 
         <div class="separator" />
 
-        <button
-          type="button"
-          onClick={() => fitAll(window.innerWidth, window.innerHeight)}
-          title="Fit all nodes"
-        >
-          <IconFitAll />
-        </button>
-        <button
-          type="button"
-          onClick={() => animateViewport({ x: 0, y: 0, scale: 1 }, 250)}
-          title="Reset view (Cmd+0)"
-        >
-          <IconResetView />
-        </button>
-        <button
-          type="button"
-          onClick={() => animateViewport({ ...v, scale: Math.min(4, v.scale * 1.25) }, 150)}
-          title="Zoom in (Cmd++)"
-        >
-          <IconZoomIn />
-        </button>
-        <button
-          type="button"
-          onClick={() => animateViewport({ ...v, scale: Math.max(0.1, v.scale / 1.25) }, 150)}
-          title="Zoom out (Cmd+-)"
-        >
-          <IconZoomOut />
-        </button>
+        <ToolbarHint label="Fit canvas" detail="Frame every node on screen">
+          <button
+            type="button"
+            onClick={() => fitAll(window.innerWidth, window.innerHeight)}
+            aria-label="Fit canvas"
+          >
+            <IconFitAll />
+          </button>
+        </ToolbarHint>
+        <ToolbarHint label="Reset view" shortcut={`${MOD_KEY}+0`}>
+          <button
+            type="button"
+            onClick={() => animateViewport({ x: 0, y: 0, scale: 1 }, 250)}
+            aria-label="Reset view"
+          >
+            <IconResetView />
+          </button>
+        </ToolbarHint>
+        <ToolbarHint label="Zoom in" shortcut={`${MOD_KEY}++`}>
+          <button
+            type="button"
+            onClick={() => animateViewport({ ...v, scale: Math.min(4, v.scale * 1.25) }, 150)}
+            aria-label="Zoom in"
+          >
+            <IconZoomIn />
+          </button>
+        </ToolbarHint>
+        <ToolbarHint label="Zoom out" shortcut={`${MOD_KEY}+-`}>
+          <button
+            type="button"
+            onClick={() => animateViewport({ ...v, scale: Math.max(0.1, v.scale / 1.25) }, 150)}
+            aria-label="Zoom out"
+          >
+            <IconZoomOut />
+          </button>
+        </ToolbarHint>
         <span style={{ fontSize: '10px', color: 'var(--c-dim)', minWidth: '36px', textAlign: 'center' }}>
           {Math.round(v.scale * 100)}%
         </span>
 
         <div class="separator" />
 
-        <button type="button" onClick={() => edgeCount > 0 ? forceDirectedArrange() : autoArrange()} title={edgeCount > 0 ? 'Auto-arrange (graph-aware)' : 'Auto-arrange (grid)'}>
-          <IconArrange />
-        </button>
-        <button
-          type="button"
-          onClick={onToggleMinimap}
-          title="Toggle minimap"
-          style={{ color: minimapVisible ? 'var(--c-accent)' : undefined }}
+        <ToolbarHint
+          label="Arrange layout"
+          detail={edgeCount > 0 ? 'Graph-aware layout for connected nodes' : 'Grid layout for loose nodes'}
         >
-          <IconMinimap />
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            const next = canvasTheme.value === 'dark' ? 'light' : 'dark';
-            canvasTheme.value = next;
-            document.documentElement.setAttribute('data-theme', next);
-            invalidateTokenCache();
-          }}
-          title={`Switch to ${canvasTheme.value === 'dark' ? 'light' : 'dark'} theme`}
-        >
-          {canvasTheme.value === 'dark' ? <IconSun /> : <IconMoon />}
-        </button>
-        <button
-          ref={snapshotBtnRef}
-          type="button"
-          onClick={onToggleSnapshot}
-          title="Snapshots"
-          style={{ color: snapshotOpen ? 'var(--c-accent)' : undefined }}
-        >
-          <IconSnapshot />
-        </button>
+          <button type="button" onClick={() => edgeCount > 0 ? forceDirectedArrange() : autoArrange()} aria-label="Arrange layout">
+            <IconArrange />
+          </button>
+        </ToolbarHint>
+        <ToolbarHint label={minimapVisible ? 'Hide minimap' : 'Show minimap'} detail="Quickly navigate large canvases">
+          <button
+            type="button"
+            onClick={onToggleMinimap}
+            aria-label={minimapVisible ? 'Hide minimap' : 'Show minimap'}
+            style={{ color: minimapVisible ? 'var(--c-accent)' : undefined }}
+          >
+            <IconMinimap />
+          </button>
+        </ToolbarHint>
+        <ToolbarHint label={`Switch to ${canvasTheme.value === 'dark' ? 'light' : 'dark'} theme`} detail={`Current theme: ${canvasTheme.value}`}>
+          <button
+            type="button"
+            onClick={() => {
+              const next = canvasTheme.value === 'dark' ? 'light' : 'dark';
+              canvasTheme.value = next;
+              document.documentElement.setAttribute('data-theme', next);
+              invalidateTokenCache();
+            }}
+            aria-label={`Switch to ${canvasTheme.value === 'dark' ? 'light' : 'dark'} theme`}
+          >
+            {canvasTheme.value === 'dark' ? <IconSun /> : <IconMoon />}
+          </button>
+        </ToolbarHint>
+        <ToolbarHint label="Snapshots" detail="Capture and restore canvas states" align="end">
+          <button
+            ref={snapshotBtnRef}
+            type="button"
+            onClick={onToggleSnapshot}
+            aria-label="Snapshots"
+            style={{ color: snapshotOpen ? 'var(--c-accent)' : undefined }}
+          >
+            <IconSnapshot />
+          </button>
+        </ToolbarHint>
       </div>
 
       {/* ── Action Bar ──────────────────────────────────────── */}
       <div class="canvas-toolbar">
-        <button
-          type="button"
-          onClick={() => sendIntent('trace-toggle', { enabled: !isTraceOn })}
-          title={isTraceOn ? 'Disable trace' : 'Enable trace'}
-          style={{ color: isTraceOn ? 'var(--c-purple)' : undefined }}
+        <ToolbarHint
+          label={isTraceOn ? 'Disable trace' : 'Enable trace'}
+          detail={isTraceOn ? 'Stop collecting new trace nodes' : 'Capture agent execution on the canvas'}
         >
-          <IconTrace />
-        </button>
-        {(isTraceOn || traceNodeCount > 0) && (
           <button
             type="button"
-            onClick={() => sendIntent('trace-clear')}
-            title={traceNodeCount > 0 ? 'Clear trace' : 'Trace is enabled but still empty'}
+            onClick={() => sendIntent('trace-toggle', { enabled: !isTraceOn })}
+            aria-label={isTraceOn ? 'Disable trace' : 'Enable trace'}
+            style={{ color: isTraceOn ? 'var(--c-purple)' : undefined }}
           >
-            <IconClearTrace />
+            <IconTrace />
           </button>
+        </ToolbarHint>
+        {(isTraceOn || traceNodeCount > 0) && (
+          <ToolbarHint
+            label="Clear trace"
+            detail={traceNodeCount > 0 ? `Remove ${traceNodeCount} trace node${traceNodeCount === 1 ? '' : 's'}` : 'Trace is enabled but still empty'}
+          >
+            <button
+              type="button"
+              onClick={() => sendIntent('trace-clear')}
+              aria-label="Clear trace"
+            >
+              <IconClearTrace />
+            </button>
+          </ToolbarHint>
         )}
 
         <div class="separator" />
 
-        <button
-          type="button"
-          onClick={onOpenPalette}
-          title="Search nodes & actions (Cmd+K)"
-        >
-          <IconSearch />
-        </button>
-        <button
-          type="button"
-          onClick={onOpenShortcuts}
-          title="Keyboard shortcuts (?)"
-        >
-          <IconShortcuts />
-        </button>
+        <ToolbarHint label="Search nodes and actions" shortcut={`${MOD_KEY}+K`}>
+          <button
+            type="button"
+            onClick={onOpenPalette}
+            aria-label="Search nodes and actions"
+          >
+            <IconSearch />
+          </button>
+        </ToolbarHint>
+        <ToolbarHint label="Keyboard shortcuts" shortcut="?" align="end">
+          <button
+            type="button"
+            onClick={onOpenShortcuts}
+            aria-label="Keyboard shortcuts"
+          >
+            <IconShortcuts />
+          </button>
+        </ToolbarHint>
 
         <span style={{ fontSize: '10px', color: 'var(--c-dim)' }}>{countsLabel}</span>
       </div>
     </div>
   );
 }
-
-import { MOD_KEY } from './utils/platform';
 
 function WelcomeCard({ onOpenPalette }: { onOpenPalette: () => void }) {
   return (

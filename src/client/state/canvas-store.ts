@@ -1,6 +1,7 @@
 import { batch, signal } from '@preact/signals';
 import type { CanvasEdge, CanvasNodeState, ConnectionStatus, ViewportState } from '../types';
 import { computeAutoArrange } from '../../shared/auto-arrange';
+import { pushCanvasUpdate } from './intent-bridge';
 
 function logCanvasStoreError(action: string, error: unknown): void {
   console.error(`[canvas-store] ${action} failed`, error);
@@ -289,9 +290,19 @@ const STORAGE_KEY = 'pmx-canvas-layout';
 
 export function persistLayout(): void {
   try {
+    const allNodes = Array.from(nodes.value.values());
+    const nodeUpdates = allNodes
+      .filter((n) => n.type !== 'group')
+      .map((n) => ({
+      id: n.id,
+      position: n.position,
+      size: n.size,
+      collapsed: n.collapsed,
+      dockPosition: n.dockPosition,
+    }));
     const layout = {
       viewport: viewport.value,
-      nodes: Array.from(nodes.value.values()).map((n) => ({
+      nodes: allNodes.map((n) => ({
         id: n.id,
         type: n.type,
         position: n.position,
@@ -312,6 +323,7 @@ export function persistLayout(): void {
       contextPinnedNodeIds: Array.from(contextPinnedNodeIds.value),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
+    void pushCanvasUpdate(nodeUpdates);
   } catch (error) {
     logCanvasStoreError('persistLayout', error);
   }
@@ -321,40 +333,37 @@ export function restoreLayout(): Map<string, Partial<CanvasNodeState>> | null {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
-    const layout = JSON.parse(raw);
-    if (!layout?.nodes?.length) return null;
-    const map = new Map<string, Partial<CanvasNodeState>>();
-    for (const n of layout.nodes) {
-      map.set(n.id, {
-        position: n.position,
-        size: n.size,
-        collapsed: n.collapsed ?? false,
-        pinned: n.pinned ?? false,
-        dockPosition: n.dockPosition ?? null,
-      });
-    }
+    const layout = JSON.parse(raw) as {
+      viewport?: ViewportState;
+      nodes?: Array<{
+        id?: string;
+        position?: CanvasNodeState['position'];
+        size?: CanvasNodeState['size'];
+        collapsed?: boolean;
+        pinned?: boolean;
+        dockPosition?: CanvasNodeState['dockPosition'];
+      }>;
+    };
     if (layout.viewport) {
       viewport.value = layout.viewport;
     }
-    // Restore edges
-    if (Array.isArray(layout.edges)) {
-      const restoredEdges = new Map<string, CanvasEdge>();
-      for (const e of layout.edges) {
-        if (e.id && e.from && e.to && e.type) {
-          restoredEdges.set(e.id, e as CanvasEdge);
-        }
-      }
-      edges.value = restoredEdges;
+
+    const savedNodes = Array.isArray(layout.nodes) ? layout.nodes : [];
+    if (savedNodes.length === 0) return null;
+
+    const overrides = new Map<string, Partial<CanvasNodeState>>();
+    for (const node of savedNodes) {
+      if (typeof node.id !== 'string' || node.id.length === 0) continue;
+      overrides.set(node.id, {
+        ...(node.position ? { position: node.position } : {}),
+        ...(node.size ? { size: node.size } : {}),
+        ...(node.collapsed !== undefined ? { collapsed: node.collapsed } : {}),
+        ...(node.pinned !== undefined ? { pinned: node.pinned } : {}),
+        ...(node.dockPosition !== undefined ? { dockPosition: node.dockPosition } : {}),
+      });
     }
-    // Restore context pins
-    if (Array.isArray(layout.contextPinnedNodeIds)) {
-      const pins = new Set<string>(
-        layout.contextPinnedNodeIds.filter((id: unknown) => typeof id === 'string'),
-      );
-      contextPinnedNodeIds.value = pins;
-      syncContextPinsToServer(pins);
-    }
-    return map;
+
+    return overrides.size > 0 ? overrides : null;
   } catch (error) {
     logCanvasStoreError('restoreLayout', error);
     return null;

@@ -10,6 +10,15 @@ import {
   waitForPersistence,
 } from './helpers.ts';
 
+function overlap(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }): boolean {
+  return (
+    a.x < b.x + b.width &&
+    a.x + a.width > b.x &&
+    a.y < b.y + b.height &&
+    a.y + a.height > b.y
+  );
+}
+
 describe('canvas state manager', () => {
   let workspaceRoot = '';
 
@@ -143,5 +152,249 @@ describe('canvas state manager', () => {
       width: 800,
       height: 412,
     });
+  });
+
+  test('recomputes parent group bounds when a grouped child moves or resizes', () => {
+    const child = makeNode({
+      id: 'node-child',
+      type: 'markdown',
+      position: { x: 120, y: 160 },
+      size: { width: 360, height: 200 },
+      data: { title: 'Child' },
+    });
+
+    canvasState.addNode(child);
+
+    const groupId = 'group-dynamic';
+    canvasState.addNode(makeNode({
+      id: groupId,
+      type: 'group',
+      position: { x: 0, y: 0 },
+      size: { width: 100, height: 100 },
+      data: { title: 'Dynamic group', children: [] },
+    }));
+
+    expect(canvasState.groupNodes(groupId, [child.id])).toBe(true);
+    expect(canvasState.getNode(groupId)?.position).toEqual({ x: 80, y: 88 });
+    expect(canvasState.getNode(groupId)?.size).toEqual({ width: 440, height: 312 });
+
+    canvasState.updateNode(child.id, {
+      position: { x: 220, y: 260 },
+      size: { width: 500, height: 320 },
+    });
+
+    expect(canvasState.getNode(groupId)?.position).toEqual({ x: 180, y: 188 });
+    expect(canvasState.getNode(groupId)?.size).toEqual({ width: 580, height: 432 });
+  });
+
+  test('grouping compacts scattered children into the group bounds', () => {
+    const first = makeNode({
+      id: 'node-1',
+      type: 'markdown',
+      position: { x: 40, y: 40 },
+      size: { width: 400, height: 220 },
+      data: { title: 'One' },
+    });
+    const second = makeNode({
+      id: 'node-2',
+      type: 'file',
+      position: { x: 1400, y: 900 },
+      size: { width: 500, height: 320 },
+      data: { title: 'Two' },
+    });
+    const third = makeNode({
+      id: 'node-3',
+      type: 'image',
+      position: { x: 2400, y: 1600 },
+      size: { width: 360, height: 240 },
+      data: { title: 'Three' },
+    });
+
+    canvasState.addNode(first);
+    canvasState.addNode(second);
+    canvasState.addNode(third);
+    canvasState.addNode(makeNode({
+      id: 'group-packed',
+      type: 'group',
+      position: { x: 0, y: 0 },
+      size: { width: 100, height: 100 },
+      data: { title: 'Packed', children: [] },
+    }));
+
+    expect(canvasState.groupNodes('group-packed', [first.id, second.id, third.id])).toBe(true);
+
+    const packedFirst = canvasState.getNode(first.id)!;
+    const packedSecond = canvasState.getNode(second.id)!;
+    const packedThird = canvasState.getNode(third.id)!;
+    const group = canvasState.getNode('group-packed')!;
+
+    expect(packedFirst.position).toEqual({ x: 40, y: 40 });
+    expect(packedSecond.position).toEqual({ x: 472, y: 40 });
+    expect(packedThird.position).toEqual({ x: 40, y: 392 });
+    expect(group.position).toEqual({ x: 0, y: -32 });
+    expect(group.size).toEqual({ width: 1012, height: 704 });
+  });
+
+  test('grouping shifts a packed group clear of existing groups', () => {
+    canvasState.addNode(makeNode({
+      id: 'group-a',
+      type: 'group',
+      position: { x: 0, y: -32 },
+      size: { width: 840, height: 700 },
+      data: { title: 'Existing', children: [] },
+    }));
+
+    const first = makeNode({
+      id: 'node-a',
+      type: 'markdown',
+      position: { x: 40, y: 40 },
+      size: { width: 760, height: 600 },
+    });
+    const second = makeNode({
+      id: 'node-b',
+      type: 'image',
+      position: { x: 40, y: 840 },
+      size: { width: 760, height: 320 },
+    });
+
+    canvasState.addNode(first);
+    canvasState.addNode(second);
+    canvasState.addNode(makeNode({
+      id: 'group-b',
+      type: 'group',
+      position: { x: 0, y: 0 },
+      size: { width: 100, height: 100 },
+      data: { title: 'Shifted', children: [] },
+    }));
+
+    expect(canvasState.groupNodes('group-b', [first.id, second.id])).toBe(true);
+
+    const groupA = canvasState.getNode('group-a')!;
+    const groupB = canvasState.getNode('group-b')!;
+    expect(overlap(
+      { ...groupA.position, ...groupA.size },
+      { ...groupB.position, ...groupB.size },
+    )).toBe(false);
+  });
+
+  test('grouping keeps side-by-side groups from overlapping horizontally', () => {
+    canvasState.addNode(makeNode({
+      id: 'group-left',
+      type: 'group',
+      position: { x: 0, y: -32 },
+      size: { width: 840, height: 2402 },
+      data: { title: 'Left', children: [] },
+    }));
+
+    const first = makeNode({
+      id: 'right-1',
+      type: 'status',
+      position: { x: 840, y: 40 },
+      size: { width: 340, height: 170 },
+    });
+    const second = makeNode({
+      id: 'right-2',
+      type: 'context',
+      position: { x: 1220, y: 40 },
+      size: { width: 360, height: 320 },
+    });
+
+    canvasState.addNode(first);
+    canvasState.addNode(second);
+    canvasState.addNode(makeNode({
+      id: 'group-right',
+      type: 'group',
+      position: { x: 0, y: 0 },
+      size: { width: 100, height: 100 },
+      data: { title: 'Right', children: [] },
+    }));
+
+    expect(canvasState.groupNodes('group-right', [first.id, second.id])).toBe(true);
+
+    const groupRight = canvasState.getNode('group-right')!;
+    expect(groupRight.position).toEqual({ x: 888, y: -32 });
+  });
+
+  test('growing grouped children repacks siblings to avoid node overlap', () => {
+    const groupId = 'group-live';
+    canvasState.addNode(makeNode({
+      id: groupId,
+      type: 'group',
+      position: { x: 800, y: -32 },
+      size: { width: 820, height: 712 },
+      data: {
+        title: 'Live group',
+        children: ['status', 'context', 'ledger', 'trace-1', 'trace-2', 'trace-3'],
+      },
+    }));
+
+    const childIds = ['status', 'context', 'ledger', 'trace-1', 'trace-2', 'trace-3'];
+    for (const node of [
+      makeNode({
+        id: 'status',
+        type: 'status',
+        position: { x: 840, y: 40 },
+        size: { width: 340, height: 170 },
+        data: { parentGroup: groupId },
+      }),
+      makeNode({
+        id: 'context',
+        type: 'context',
+        position: { x: 1220, y: 40 },
+        size: { width: 360, height: 320 },
+        data: { parentGroup: groupId },
+      }),
+      makeNode({
+        id: 'ledger',
+        type: 'ledger',
+        position: { x: 1220, y: 390 },
+        size: { width: 360, height: 240 },
+        data: { parentGroup: groupId },
+      }),
+      makeNode({
+        id: 'trace-1',
+        type: 'trace',
+        position: { x: 840, y: 240 },
+        size: { width: 340, height: 60 },
+        data: { parentGroup: groupId },
+      }),
+      makeNode({
+        id: 'trace-2',
+        type: 'trace',
+        position: { x: 840, y: 316 },
+        size: { width: 340, height: 60 },
+        data: { parentGroup: groupId },
+      }),
+      makeNode({
+        id: 'trace-3',
+        type: 'trace',
+        position: { x: 840, y: 392 },
+        size: { width: 340, height: 60 },
+        data: { parentGroup: groupId },
+      }),
+    ]) {
+      canvasState.addNode(node);
+    }
+
+    canvasState.updateNode('context', { size: { width: 360, height: 600 } });
+    canvasState.updateNode('trace-1', { size: { width: 340, height: 165 } });
+    canvasState.updateNode('trace-2', { size: { width: 340, height: 165 } });
+    canvasState.updateNode('trace-3', { size: { width: 340, height: 165 } });
+
+    const children = childIds
+      .map((id) => canvasState.getNode(id)!)
+      .map((node) => ({
+        id: node.id,
+        x: node.position.x,
+        y: node.position.y,
+        width: node.size.width,
+        height: node.size.height,
+      }));
+
+    for (let index = 0; index < children.length; index += 1) {
+      for (let otherIndex = index + 1; otherIndex < children.length; otherIndex += 1) {
+        expect(overlap(children[index], children[otherIndex])).toBe(false);
+      }
+    }
   });
 });

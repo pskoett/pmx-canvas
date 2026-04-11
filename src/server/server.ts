@@ -45,6 +45,12 @@ import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import { mutationHistory } from './mutation-history.js';
 import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
+import {
+  addCanvasNode,
+  arrangeCanvasNodes,
+  removeCanvasNode,
+  scheduleCodeGraphRecompute,
+} from './canvas-operations.js';
 import { traceManager } from './trace-manager.js';
 import { buildWebArtifactOnCanvas, resolveWorkspacePath } from './web-artifacts.js';
 import {
@@ -157,6 +163,7 @@ let canvasAutomationWebViewStatus: Omit<CanvasAutomationWebViewStatus, 'supporte
     startedAt: null,
     lastError: null,
   };
+let canvasAutomationWebViewQueue: Promise<void> = Promise.resolve();
 
 function sessionDiagLog(tag: string, payload: Record<string, unknown>): void {
   const logPath = String(process.env.PMX_SESSION_LOG || process.env.PMX_TEST_LOG || '').trim();
@@ -276,6 +283,12 @@ async function closeCanvasAutomationWebViewInternal(): Promise<boolean> {
   return true;
 }
 
+function runCanvasAutomationWebViewTask<T>(task: () => Promise<T>): Promise<T> {
+  const result = canvasAutomationWebViewQueue.then(task);
+  canvasAutomationWebViewQueue = result.then(() => undefined, () => undefined);
+  return result;
+}
+
 export function getCanvasAutomationWebViewStatus(): CanvasAutomationWebViewStatus {
   return {
     supported: hasCanvasAutomationWebViewSupport(),
@@ -286,70 +299,74 @@ export function getCanvasAutomationWebViewStatus(): CanvasAutomationWebViewStatu
 }
 
 export async function stopCanvasAutomationWebView(): Promise<boolean> {
-  try {
-    return await closeCanvasAutomationWebViewInternal();
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    canvasAutomationWebViewStatus = {
-      ...canvasAutomationWebViewStatus,
-      lastError: message,
-    };
-    throw error;
-  }
+  return runCanvasAutomationWebViewTask(async () => {
+    try {
+      return await closeCanvasAutomationWebViewInternal();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      canvasAutomationWebViewStatus = {
+        ...canvasAutomationWebViewStatus,
+        lastError: message,
+      };
+      throw error;
+    }
+  });
 }
 
 export async function startCanvasAutomationWebView(
   url: string,
   options: CanvasAutomationWebViewOptions = {},
 ): Promise<CanvasAutomationWebViewStatus> {
-  const WebView = getCanvasWebViewConstructor();
-  if (!WebView) {
-    const message = 'Bun.WebView is not available in this Bun runtime. Bun >=1.3.12 is required.';
+  return runCanvasAutomationWebViewTask(async () => {
+    const WebView = getCanvasWebViewConstructor();
+    if (!WebView) {
+      const message = 'Bun.WebView is not available in this Bun runtime. Bun >=1.3.12 is required.';
+      canvasAutomationWebViewStatus = {
+        ...canvasAutomationWebViewStatus,
+        lastError: message,
+      };
+      throw new Error(message);
+    }
+
+    const normalized = normalizeCanvasAutomationWebViewOptions(options);
+    const backend = resolveCanvasAutomationWebViewBackend(normalized);
+
+    if (canvasAutomationWebView) {
+      await closeCanvasAutomationWebViewInternal();
+    }
+
+    const view = new WebView({
+      width: normalized.width,
+      height: normalized.height,
+      headless: true,
+      backend,
+      dataStore: normalized.dataStoreDir ? { directory: normalized.dataStoreDir } : 'ephemeral',
+    });
+
+    try {
+      await view.navigate(url);
+    } catch (error) {
+      canvasAutomationWebViewStatus = {
+        ...canvasAutomationWebViewStatus,
+        lastError: error instanceof Error ? error.message : String(error),
+      };
+      await Promise.resolve(view.close()).catch(() => undefined);
+      throw error;
+    }
+
+    canvasAutomationWebView = view;
     canvasAutomationWebViewStatus = {
-      ...canvasAutomationWebViewStatus,
-      lastError: message,
+      url,
+      backend: detectCanvasAutomationWebViewBackendKind(backend),
+      width: normalized.width,
+      height: normalized.height,
+      dataStoreDir: normalized.dataStoreDir ?? null,
+      startedAt: new Date().toISOString(),
+      lastError: null,
     };
-    throw new Error(message);
-  }
 
-  const normalized = normalizeCanvasAutomationWebViewOptions(options);
-  const backend = resolveCanvasAutomationWebViewBackend(normalized);
-
-  if (canvasAutomationWebView) {
-    await closeCanvasAutomationWebViewInternal();
-  }
-
-  const view = new WebView({
-    width: normalized.width,
-    height: normalized.height,
-    headless: true,
-    backend,
-    dataStore: normalized.dataStoreDir ? { directory: normalized.dataStoreDir } : 'ephemeral',
+    return getCanvasAutomationWebViewStatus();
   });
-
-  try {
-    await view.navigate(url);
-  } catch (error) {
-    canvasAutomationWebViewStatus = {
-      ...canvasAutomationWebViewStatus,
-      lastError: error instanceof Error ? error.message : String(error),
-    };
-    await Promise.resolve(view.close()).catch(() => undefined);
-    throw error;
-  }
-
-  canvasAutomationWebView = view;
-  canvasAutomationWebViewStatus = {
-    url,
-    backend: detectCanvasAutomationWebViewBackendKind(backend),
-    width: normalized.width,
-    height: normalized.height,
-    dataStoreDir: normalized.dataStoreDir ?? null,
-    startedAt: new Date().toISOString(),
-    lastError: null,
-  };
-
-  return getCanvasAutomationWebViewStatus();
 }
 
 function requireActiveCanvasAutomationWebView(): CanvasWebViewLike {
@@ -360,32 +377,36 @@ function requireActiveCanvasAutomationWebView(): CanvasWebViewLike {
 }
 
 export async function evaluateCanvasAutomationWebView(expression: string): Promise<unknown> {
-  return requireActiveCanvasAutomationWebView().evaluate(expression);
+  return runCanvasAutomationWebViewTask(async () => requireActiveCanvasAutomationWebView().evaluate(expression));
 }
 
 export async function resizeCanvasAutomationWebView(
   width: number,
   height: number,
 ): Promise<CanvasAutomationWebViewStatus> {
-  const normalizedWidth = Number.isFinite(width) && width > 0 ? Math.floor(width) : 1280;
-  const normalizedHeight = Number.isFinite(height) && height > 0 ? Math.floor(height) : 800;
-  await requireActiveCanvasAutomationWebView().resize(normalizedWidth, normalizedHeight);
-  canvasAutomationWebViewStatus = {
-    ...canvasAutomationWebViewStatus,
-    width: normalizedWidth,
-    height: normalizedHeight,
-  };
-  return getCanvasAutomationWebViewStatus();
+  return runCanvasAutomationWebViewTask(async () => {
+    const normalizedWidth = Number.isFinite(width) && width > 0 ? Math.floor(width) : 1280;
+    const normalizedHeight = Number.isFinite(height) && height > 0 ? Math.floor(height) : 800;
+    await requireActiveCanvasAutomationWebView().resize(normalizedWidth, normalizedHeight);
+    canvasAutomationWebViewStatus = {
+      ...canvasAutomationWebViewStatus,
+      width: normalizedWidth,
+      height: normalizedHeight,
+    };
+    return getCanvasAutomationWebViewStatus();
+  });
 }
 
 export async function screenshotCanvasAutomationWebView(
   options: Record<string, unknown> = {},
 ): Promise<Uint8Array> {
-  const result = await requireActiveCanvasAutomationWebView().screenshot(options);
-  if (result instanceof Uint8Array) return result;
-  if (result instanceof ArrayBuffer) return new Uint8Array(result);
-  if (result instanceof Blob) return new Uint8Array(await result.arrayBuffer());
-  throw new Error('Unexpected screenshot payload type from Bun.WebView.');
+  return runCanvasAutomationWebViewTask(async () => {
+    const result = await requireActiveCanvasAutomationWebView().screenshot(options);
+    if (result instanceof Uint8Array) return result;
+    if (result instanceof ArrayBuffer) return new Uint8Array(result);
+    if (result instanceof Blob) return new Uint8Array(await result.arrayBuffer());
+    throw new Error('Unexpected screenshot payload type from Bun.WebView.');
+  });
 }
 
 export interface PrimaryWorkbenchIntent {
@@ -923,47 +944,29 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
     return responseJson({ ok: false, error: `Invalid node type: "${type}".` }, 400);
   }
 
-  const width = typeof body.width === 'number' ? body.width : 360;
-  const height = typeof body.height === 'number' ? body.height : 200;
-  const position =
-    typeof body.x === 'number' && typeof body.y === 'number'
-      ? { x: body.x, y: body.y }
-      : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
-
-  const id = `node-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-  const data: Record<string, unknown> = {};
-  if (body.title) data.title = String(body.title);
-  if (body.content) data.content = String(body.content);
-
-  // Merge extra data fields (for status, context, ledger, trace nodes)
-  if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) {
-    Object.assign(data, body.data as Record<string, unknown>);
-  }
-
-  // Image nodes: set src from content for the renderer
-  if (type === 'image' && body.content) {
-    data.src = String(body.content);
-  }
-
-  // File nodes dropped from browser: store content for display
-  if (type === 'file' && body.content && body.title) {
-    data.fileContent = String(body.content);
-    data.lineCount = String(body.content).split('\n').length;
-  }
-
-  canvasState.addNode({
-    id,
+  const extraData = body.data && typeof body.data === 'object' && !Array.isArray(body.data)
+    ? body.data as Record<string, unknown>
+    : undefined;
+  const { id, needsCodeGraphRecompute } = addCanvasNode({
     type: type as CanvasNodeState['type'],
-    position,
-    size: { width, height },
-    zIndex: 1,
-    collapsed: false,
-    pinned: false,
-    dockPosition: null,
-    data,
+    ...(typeof body.title === 'string' ? { title: body.title } : {}),
+    ...(typeof body.content === 'string' ? { content: body.content } : {}),
+    ...(extraData ? { data: extraData } : {}),
+    ...(typeof body.x === 'number' ? { x: body.x } : {}),
+    ...(typeof body.y === 'number' ? { y: body.y } : {}),
+    ...(typeof body.width === 'number' ? { width: body.width } : {}),
+    ...(typeof body.height === 'number' ? { height: body.height } : {}),
+    defaultWidth: 360,
+    defaultHeight: 200,
+    fileMode: 'auto',
   });
 
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  if (needsCodeGraphRecompute) {
+    scheduleCodeGraphRecompute(() => {
+      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    });
+  }
   return responseJson({ ok: true, id });
 }
 
@@ -1132,29 +1135,9 @@ async function handleCanvasArrange(req: Request): Promise<Response> {
   if (!['grid', 'column', 'flow'].includes(layout)) {
     return responseJson({ ok: false, error: `Invalid layout: "${layout}". Use: grid, column, flow` }, 400);
   }
-  const nodes = canvasState.getLayout().nodes;
-  const gap = 24;
-  const oldPositions = nodes.map((n) => ({ id: n.id, position: { ...n.position } }));
-  canvasState.withSuppressedRecording(() => {
-    if (layout === 'column') {
-      let y = 0;
-      for (const n of nodes) { canvasState.updateNode(n.id, { position: { x: 0, y } }); y += n.size.height + gap; }
-    } else if (layout === 'flow') {
-      let x = 0;
-      for (const n of nodes) { canvasState.updateNode(n.id, { position: { x, y: 0 } }); x += n.size.width + gap; }
-    } else {
-      const cols = Math.max(1, Math.ceil(Math.sqrt(nodes.length)));
-      nodes.forEach((n, i) => { const col = i % cols; const row = Math.floor(i / cols); canvasState.updateNode(n.id, { position: { x: col * (n.size.width + gap), y: row * (n.size.height + gap) } }); });
-    }
-  });
-  const newPositions = nodes.map((n) => ({ id: n.id, position: { ...canvasState.getNode(n.id)!.position } }));
-  mutationHistory.record({
-    operationType: 'arrange', description: `Arranged ${nodes.length} nodes (${layout})`,
-    forward: () => canvasState.withSuppressedRecording(() => { for (const p of newPositions) canvasState.updateNode(p.id, { position: p.position }); }),
-    inverse: () => canvasState.withSuppressedRecording(() => { for (const p of oldPositions) canvasState.updateNode(p.id, { position: p.position }); }),
-  });
+  const result = arrangeCanvasNodes(layout as 'grid' | 'column' | 'flow');
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson({ ok: true, arranged: nodes.length, layout });
+  return responseJson({ ok: true, arranged: result.arranged, layout: result.layout });
 }
 
 // ── Focus on node ───────────────────────────────────────────
@@ -2991,10 +2974,14 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname.startsWith('/api/canvas/node/') && req.method === 'DELETE') {
             const nodeId = url.pathname.slice('/api/canvas/node/'.length);
-            const existing = canvasState.getNode(nodeId);
-            if (!existing) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
-            canvasState.removeNode(nodeId);
+            const result = removeCanvasNode(nodeId);
+            if (!result.removed) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
             emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+            if (result.needsCodeGraphRecompute) {
+              scheduleCodeGraphRecompute(() => {
+                emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+              });
+            }
             return responseJson({ ok: true, removed: nodeId });
           }
 

@@ -1,6 +1,6 @@
 # PMX Canvas — Project Instructions
 
-Standalone spatial canvas workbench for coding agents. Infinite 2D canvas with nodes, edges, pan/zoom, minimap, and real-time updates — controlled through MCP, HTTP API, or Node.js SDK. Extracted from [PMX](https://github.com/pskoett/pmx).
+Standalone spatial canvas workbench for coding agents. Infinite 2D canvas with nodes, edges, pan/zoom, minimap, and real-time updates — controlled through MCP, HTTP API, or a Bun-based JavaScript/TypeScript SDK. Extracted from [PMX](https://github.com/pskoett/pmx).
 
 The canvas is the agent's extended working memory: humans pin nodes to curate context, agents read that curation via MCP resources.
 
@@ -11,11 +11,11 @@ The canvas is the agent's extended working memory: humans pin nodes to curate co
 - **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
 - **Learn and Improve**: Every mistake is a learning opportunity. Log it, learn from it, prevent it.
 
-## Coding Rules
+## TypeScript Guardrails
 
-- Never use dynamic imports such as `await import(...)` unless the user explicitly asks for them.
-- Never cast to `any`.
-- Do not add extra defensive checks or `try/catch` blocks unless there is a concrete, demonstrated failure mode that requires them.
+1. **Do not introduce dynamic imports by default**: Do not add `await import(...)` or similar dynamic-loading patterns unless the user explicitly asks for them or the existing architecture requires them.
+2. **Do not use `any` casts or annotations**: Avoid `as any`, `: any`, `Promise<any>`, or equivalent escape hatches. Model the real type instead.
+3. **Do not add defensive noise by default**: Do not add extra defensive checks or broad `try/catch` blocks unless they are necessary for a specific runtime boundary, recovery path, or user-requested behavior.
 
 ## Workflow Orchestration
 
@@ -100,14 +100,14 @@ src/
     index.tsx        # Entry point
     types.ts         # Shared TypeScript types
     canvas/          # Canvas interaction components (viewport, nodes, edges, minimap)
-    nodes/           # Node type renderers (7 types)
+    nodes/           # Node type renderers
     state/           # State management (canvas-store, sse-bridge, intent-bridge)
     theme/           # global.css, tokens.ts
     utils/           # Shared pure functions (placement, ext-app-tool-result)
   cli/
     index.ts         # CLI entry point (--port, --demo, --no-open, --theme, --mcp)
   mcp/
-    server.ts        # MCP server (10 tools + 3 resources)
+    server.ts        # MCP server (tools + resources)
 skills/
   pmx-canvas/
     SKILL.md         # Agent skill file
@@ -158,7 +158,7 @@ Three themes: `dark` (default), `light`, `high-contrast`. Set via:
 
 ## Canvas Types
 
-**Node types:** `markdown`, `status`, `context`, `ledger`, `trace`, `file`, `image`, `mcp-app`, `group`
+**Node types:** `markdown`, `status`, `context`, `ledger`, `trace`, `file`, `image`, `mcp-app`, `json-render`, `graph`, `group`, plus internal thread node types `prompt` and `response`
 
 **Edge types:** `flow`, `depends-on`, `relation`, `references` — all support labels, styles (solid/dashed/dotted), and animation.
 
@@ -209,7 +209,7 @@ When file nodes are on the canvas, the system auto-detects import dependencies a
 
 1. **MCP Server** (recommended) — `pmx-canvas --mcp`, auto-starts on first tool call
 2. **HTTP API** — REST + SSE at `localhost:4313`
-3. **Node.js SDK** — `import { createCanvas } from 'pmx-canvas'`
+3. **JavaScript/TypeScript SDK (Bun runtime)** — `import { createCanvas } from 'pmx-canvas'`
 4. **Agent Skills** — `skills/pmx-canvas/SKILL.md`, `skills/web-artifacts-builder/SKILL.md`, `skills/playwright-cli/SKILL.md`, `skills/pmx-canvas-testing/SKILL.md`, plus repo-local agnostic PMX skills such as `doc-coauthoring`, `data-analysis`, `frontend-design`, `web-design-guidelines`, and `json-render-*`
 
 ## Conventions

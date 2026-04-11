@@ -56,11 +56,11 @@ Agent-specific workflows, tool usage patterns, and automation rules for the pmx-
 - **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
 - **Learn and Improve**: Every mistake is a learning opportunity. Log it, learn from it, prevent it.
 
-## Coding Rules
+## TypeScript Guardrails
 
-- Never use dynamic imports such as `await import(...)` unless the user explicitly asks for them.
-- Never cast to `any`.
-- Do not add extra defensive checks or `try/catch` blocks unless there is a concrete, demonstrated failure mode that requires them.
+1. **Do not introduce dynamic imports by default**: Do not add `await import(...)` or similar dynamic-loading patterns unless the user explicitly asks for them or the existing architecture requires them.
+2. **Do not use `any` casts or annotations**: Avoid `as any`, `: any`, `Promise<any>`, or equivalent escape hatches. Model the real type instead.
+3. **Do not add defensive noise by default**: Do not add extra defensive checks or broad `try/catch` blocks unless they are necessary for a specific runtime boundary, recovery path, or user-requested behavior.
 
 ## Canvas Architecture Rules
 

@@ -1,12 +1,24 @@
 import type { CanvasNodeState } from '../types';
+import { canvasTheme } from '../state/canvas-store';
 import { ExtAppFrame } from './ExtAppFrame';
+
+function withTheme(url: string): string {
+  if (!url) return url;
+  try {
+    const resolved = new URL(url, window.location.origin);
+    resolved.searchParams.set('theme', canvasTheme.value === 'light' ? 'light' : 'dark');
+    return resolved.toString();
+  } catch {
+    return url;
+  }
+}
 
 export function McpAppNode({ node }: { node: CanvasNodeState }) {
   if (node.data.mode === 'ext-app') {
     return <ExtAppFrame node={node} />;
   }
 
-  const url = node.data.url as string;
+  const url = withTheme((node.data.url as string) || '');
   const sourceServer = (node.data.sourceServer as string) || '';
   const hostMode = (node.data.hostMode as string) || 'hosted';
   const fallbackReason = node.data.fallbackReason as string | undefined;

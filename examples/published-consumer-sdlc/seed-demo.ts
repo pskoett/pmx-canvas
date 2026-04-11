@@ -12,8 +12,12 @@ import {
 } from './data';
 import {
   buildControlTowerSpec,
+  buildEmbeddedChartsSpec,
+  buildPricingTableSpec,
   buildReleaseIntakeSpec,
   buildServiceMatrixSpec,
+  buildSettingsFormSpec,
+  buildUserProfileCardSpec,
 } from './json-render-specs';
 
 function getNumberFlag(args: string[], name: string, fallback: number): number {
@@ -115,7 +119,7 @@ const articleFileId = canvas.addNode({
   content: articlePath,
   x: 40,
   y: 1190,
-  width: 520,
+  width: 760,
   height: 360,
 });
 
@@ -123,9 +127,9 @@ const appFileId = canvas.addNode({
   type: 'file',
   title: 'Artifact App',
   content: webAppPath,
-  x: 590,
-  y: 1190,
-  width: 620,
+  x: 40,
+  y: 1580,
+  width: 760,
   height: 360,
 });
 
@@ -133,9 +137,9 @@ const dataFileId = canvas.addNode({
   type: 'file',
   title: 'Synthetic Data Model',
   content: dataPath,
-  x: 1240,
-  y: 1190,
-  width: 520,
+  x: 40,
+  y: 1970,
+  width: 760,
   height: 360,
 });
 
@@ -254,7 +258,7 @@ if (!artifactBuild.nodeId || !artifactBuild.url) {
 
 const artifactNode = canvas.getNode(artifactBuild.nodeId);
 canvas.updateNode(artifactBuild.nodeId, {
-  position: { x: 840, y: 650 },
+  position: { x: 840, y: 780 },
   size: { width: 980, height: 690 },
   data: {
     ...(artifactNode?.data ?? {}),
@@ -266,7 +270,7 @@ const dashboard = canvas.addJsonRenderNode({
   title: 'Control Tower Widgets',
   spec: buildControlTowerSpec(),
   x: 840,
-  y: 1370,
+  y: 1500,
   width: 520,
   height: 640,
 });
@@ -275,7 +279,7 @@ const intake = canvas.addJsonRenderNode({
   title: 'Release Gate Intake',
   spec: buildReleaseIntakeSpec(),
   x: 1390,
-  y: 1370,
+  y: 1500,
   width: 520,
   height: 720,
 });
@@ -284,9 +288,45 @@ const matrix = canvas.addJsonRenderNode({
   title: 'Service Readiness Matrix',
   spec: buildServiceMatrixSpec(),
   x: 840,
-  y: 2040,
+  y: 2250,
   width: 1070,
   height: 360,
+});
+
+const profileCard = canvas.addJsonRenderNode({
+  title: 'User Profile Card',
+  spec: buildUserProfileCardSpec(),
+  x: 840,
+  y: 2650,
+  width: 500,
+  height: 420,
+});
+
+const settingsForm = canvas.addJsonRenderNode({
+  title: 'Account Settings',
+  spec: buildSettingsFormSpec(),
+  x: 1370,
+  y: 2650,
+  width: 540,
+  height: 500,
+});
+
+const pricingTable = canvas.addJsonRenderNode({
+  title: 'Pricing Table',
+  spec: buildPricingTableSpec(),
+  x: 840,
+  y: 3180,
+  width: 1070,
+  height: 560,
+});
+
+const embeddedCharts = canvas.addJsonRenderNode({
+  title: 'Embedded Charts Dashboard',
+  spec: buildEmbeddedChartsSpec(),
+  x: 840,
+  y: 3770,
+  width: 1070,
+  height: 980,
 });
 
 const leadTimeGraph = canvas.addGraphNode({
@@ -300,7 +340,7 @@ const leadTimeGraph = canvas.addGraphNode({
   yKey: 'value',
   color: '#e9c46a',
   x: 1830,
-  y: 650,
+  y: 780,
   width: 540,
   heightPx: 420,
 });
@@ -316,7 +356,7 @@ const defectGraph = canvas.addGraphNode({
   yKey: 'value',
   color: '#e76f51',
   x: 1830,
-  y: 1090,
+  y: 1220,
   width: 540,
   heightPx: 420,
 });
@@ -328,7 +368,7 @@ const ownershipGraph = canvas.addGraphNode({
   nameKey: 'name',
   valueKey: 'value',
   x: 1830,
-  y: 1530,
+  y: 1660,
   width: 540,
   heightPx: 420,
 });
@@ -359,6 +399,34 @@ canvas.addEdge({
   to: matrix.id,
   type: 'relation',
   label: 'updates readiness',
+});
+
+canvas.addEdge({
+  from: matrix.id,
+  to: profileCard.id,
+  type: 'flow',
+  label: 'persona reference',
+});
+
+canvas.addEdge({
+  from: profileCard.id,
+  to: settingsForm.id,
+  type: 'depends-on',
+  label: 'preference editing',
+});
+
+canvas.addEdge({
+  from: settingsForm.id,
+  to: pricingTable.id,
+  type: 'flow',
+  label: 'plan selection',
+});
+
+canvas.addEdge({
+  from: pricingTable.id,
+  to: embeddedCharts.id,
+  type: 'references',
+  label: 'usage analytics',
 });
 
 canvas.addEdge({
@@ -429,6 +497,10 @@ canvas.createGroup({
     dashboard.id,
     intake.id,
     matrix.id,
+    profileCard.id,
+    settingsForm.id,
+    pricingTable.id,
+    embeddedCharts.id,
     leadTimeGraph.id,
     defectGraph.id,
     ownershipGraph.id,
@@ -448,6 +520,13 @@ await sleep(500);
 
 await assertHtmlContains(`${baseUrl}${artifactBuild.url}`, 'Delivery Control Room');
 await assertHtmlContains(`${baseUrl}${dashboard.url}`, 'Control Tower Widgets');
+await assertHtmlContains(`${baseUrl}${profileCard.url}`, 'User Profile');
+await assertHtmlContains(`${baseUrl}${settingsForm.url}`, 'Account Settings');
+await assertHtmlContains(`${baseUrl}${pricingTable.url}`, 'Simple, transparent pricing');
+await assertHtmlContains(`${baseUrl}${embeddedCharts.url}`, 'Embedded Charts Dashboard');
+await assertHtmlContains(`${baseUrl}${embeddedCharts.url}`, 'LineChart');
+await assertHtmlContains(`${baseUrl}${embeddedCharts.url}`, 'BarChart');
+await assertHtmlContains(`${baseUrl}${embeddedCharts.url}`, 'PieChart');
 await assertHtmlContains(`${baseUrl}${leadTimeGraph.url}`, 'LineChart');
 await assertHtmlContains(`${baseUrl}${defectGraph.url}`, 'BarChart');
 await assertHtmlContains(`${baseUrl}${ownershipGraph.url}`, 'PieChart');
@@ -461,8 +540,8 @@ const state = (await stateResponse.json()) as {
   edges: Array<{ id: string }>;
 };
 
-if (state.nodes.length < 18) {
-  throw new Error(`Expected at least 18 nodes, found ${state.nodes.length}`);
+if (state.nodes.length < 22) {
+  throw new Error(`Expected at least 22 nodes, found ${state.nodes.length}`);
 }
 
 const pinsResponse = await fetch(`${baseUrl}/api/canvas/pinned-context`);

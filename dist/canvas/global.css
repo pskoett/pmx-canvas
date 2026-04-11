@@ -448,6 +448,115 @@ body,
   flex-shrink: 0;
 }
 
+.toolbar-tooltip-anchor {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.toolbar-tooltip-anchor-start .toolbar-tooltip {
+  left: 0;
+  transform: translateX(0) translateY(6px);
+}
+
+.toolbar-tooltip-anchor-end .toolbar-tooltip {
+  left: auto;
+  right: 0;
+  transform: translateX(0) translateY(6px);
+}
+
+.toolbar-tooltip {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 10px);
+  transform: translateX(-50%) translateY(6px);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 168px;
+  max-width: 240px;
+  padding: 10px 12px;
+  background: color-mix(in srgb, var(--c-panel) 92%, black 8%);
+  border: 1px solid color-mix(in srgb, var(--c-line) 78%, var(--c-accent) 22%);
+  border-radius: 10px;
+  box-shadow: 0 14px 36px var(--c-shadow-heavy), 0 0 0 1px var(--c-accent-8);
+  backdrop-filter: blur(14px);
+  color: var(--c-text);
+  font-size: 12px;
+  line-height: 1.35;
+  white-space: normal;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 10010;
+  transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+.toolbar-tooltip::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: -5px;
+  width: 10px;
+  height: 10px;
+  background: inherit;
+  border-top: 1px solid color-mix(in srgb, var(--c-line) 78%, var(--c-accent) 22%);
+  border-left: 1px solid color-mix(in srgb, var(--c-line) 78%, var(--c-accent) 22%);
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.toolbar-tooltip-anchor-start .toolbar-tooltip::after {
+  left: 18px;
+  transform: rotate(45deg);
+}
+
+.toolbar-tooltip-anchor-end .toolbar-tooltip::after {
+  left: auto;
+  right: 18px;
+  transform: rotate(45deg);
+}
+
+.toolbar-tooltip-anchor:hover .toolbar-tooltip,
+.toolbar-tooltip-anchor:focus-within .toolbar-tooltip {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.toolbar-tooltip-anchor-start:hover .toolbar-tooltip,
+.toolbar-tooltip-anchor-start:focus-within .toolbar-tooltip,
+.toolbar-tooltip-anchor-end:hover .toolbar-tooltip,
+.toolbar-tooltip-anchor-end:focus-within .toolbar-tooltip {
+  transform: translateX(0) translateY(0);
+}
+
+.toolbar-tooltip-label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--c-text);
+}
+
+.toolbar-tooltip-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--c-text-soft);
+}
+
+.toolbar-tooltip-shortcut {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 20px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  border: 1px solid var(--c-accent-25);
+  background: var(--c-accent-10);
+  color: var(--c-accent);
+  font: 11px/1 var(--mono);
+  white-space: nowrap;
+}
+
 .canvas-toolbar button {
   background: none;
   border: 1px solid transparent;
@@ -508,6 +617,23 @@ body,
 
 .canvas-toolbar button svg {
   display: block;
+}
+
+@media (max-width: 900px) {
+  .toolbar-tooltip {
+    min-width: 150px;
+    max-width: 200px;
+    padding: 9px 10px;
+    font-size: 11px;
+  }
+
+  .toolbar-tooltip-label {
+    font-size: 12px;
+  }
+
+  .toolbar-tooltip-meta {
+    gap: 8px;
+  }
 }
 
 /* Raw markdown source editor */

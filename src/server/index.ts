@@ -1,13 +1,17 @@
 import { EventEmitter } from 'node:events';
-import { existsSync, readFileSync, statSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { canvasState, IMAGE_MIME_MAP } from './canvas-state.js';
 import type { CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
-import { watchFileForNode, unwatchFileForNode, onFileNodeChanged } from './file-watcher.js';
+import { watchFileForNode, onFileNodeChanged } from './file-watcher.js';
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
 import { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
+import {
+  addCanvasNode,
+  arrangeCanvasNodes,
+  removeCanvasNode,
+  scheduleCodeGraphRecompute,
+} from './canvas-operations.js';
 import {
   buildWebArtifactOnCanvas,
   type WebArtifactBuildInput,
@@ -50,7 +54,6 @@ import type {
 export class PmxCanvas extends EventEmitter {
   private _port: number;
   private _server: string | null = null;
-  private _codeGraphTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor(options?: { port?: number }) {
     super();
@@ -86,8 +89,9 @@ export class PmxCanvas extends EventEmitter {
     // Wire up file watcher: push SSE updates when watched files change
     onFileNodeChanged(() => {
       emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-      // Recompute code graph when a watched file changes (debounced)
-      this._scheduleCodeGraphRecompute();
+      scheduleCodeGraphRecompute(() => {
+        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+      });
     });
 
     // Re-watch files for any file nodes restored from persistence
@@ -98,7 +102,9 @@ export class PmxCanvas extends EventEmitter {
     }
 
     // Initial code graph computation for restored file nodes
-    this._scheduleCodeGraphRecompute();
+    scheduleCodeGraphRecompute(() => {
+      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    });
 
     if (options?.automationWebView) {
       try {
@@ -131,90 +137,20 @@ export class PmxCanvas extends EventEmitter {
     width?: number;
     height?: number;
   }): string {
-    if (input.type === 'json-render' || input.type === 'graph') {
-      throw new Error(`Use the dedicated ${input.type} node APIs for structured viewer nodes.`);
-    }
-
-    const width = input.width ?? 720;
-    const height = input.height ?? 600;
-    const pos = input.x !== undefined && input.y !== undefined
-      ? { x: input.x, y: input.y }
-      : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
-
-    const id = `node-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-    // For file nodes, resolve path and load initial content
-    let data: Record<string, unknown> = {
-      ...(input.title ? { title: input.title } : {}),
-      ...(input.content ? { content: input.content } : {}),
-    };
-
-    if (input.type === 'file') {
-      const filePath = input.content ?? '';
-      const resolved = resolve(filePath);
-      const fileName = resolved.split('/').pop() ?? filePath;
-      data = {
-        path: resolved,
-        title: input.title ?? fileName,
-      };
-      // Load initial content if file exists
-      try {
-        if (existsSync(resolved)) {
-          const fileContent = readFileSync(resolved, 'utf-8');
-          const stat = statSync(resolved);
-          data.fileContent = fileContent;
-          data.lineCount = fileContent.split('\n').length;
-          data.updatedAt = new Date(stat.mtimeMs).toISOString();
-        }
-      } catch { /* non-fatal */ }
-    }
-
-    if (input.type === 'image') {
-      const src = input.content ?? '';
-      const isDataUri = src.startsWith('data:');
-      const isUrl = src.startsWith('http://') || src.startsWith('https://');
-      if (!isDataUri && !isUrl && src) {
-        // Treat as file path
-        const resolved = resolve(src);
-        const fileName = resolved.split('/').pop() ?? src;
-        data = {
-          src: resolved,
-          title: input.title ?? fileName,
-          path: resolved,
-        };
-        // Detect MIME type from extension
-        const ext = resolved.split('.').pop()?.toLowerCase() ?? '';
-        if (IMAGE_MIME_MAP[ext]) data.mimeType = IMAGE_MIME_MAP[ext];
-      } else {
-        data = {
-          src,
-          title: input.title ?? (isUrl ? src.split('/').pop() ?? 'Image' : 'Image'),
-        };
-      }
-    }
-
-    const node: CanvasNodeState = {
-      id,
-      type: input.type,
-      position: pos,
-      size: { width, height },
-      zIndex: 1,
-      collapsed: false,
-      pinned: false,
-      dockPosition: null,
-      data,
-    };
-
-    canvasState.addNode(node);
-
-    // Start watching file for live updates
-    if (input.type === 'file' && data.path) {
-      watchFileForNode(id, data.path as string);
-    }
+    const { id, needsCodeGraphRecompute } = addCanvasNode({
+      ...input,
+      defaultWidth: 720,
+      defaultHeight: 600,
+      fileMode: 'path',
+    });
 
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
 
-    // Recompute code graph when file nodes are added
-    if (input.type === 'file') this._scheduleCodeGraphRecompute();
+    if (needsCodeGraphRecompute) {
+      scheduleCodeGraphRecompute(() => {
+        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+      });
+    }
 
     return id;
   }
@@ -225,13 +161,15 @@ export class PmxCanvas extends EventEmitter {
   }
 
   removeNode(id: string): void {
-    const wasFile = canvasState.getNode(id)?.type === 'file';
-    unwatchFileForNode(id);
-    canvasState.removeNode(id);
+    const { removed, needsCodeGraphRecompute } = removeCanvasNode(id);
+    if (!removed) return;
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
 
-    // Recompute code graph when file nodes are removed
-    if (wasFile) this._scheduleCodeGraphRecompute();
+    if (needsCodeGraphRecompute) {
+      scheduleCodeGraphRecompute(() => {
+        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+      });
+    }
   }
 
   addEdge(input: {
@@ -248,7 +186,10 @@ export class PmxCanvas extends EventEmitter {
       type: input.type,
       ...(input.label ? { label: input.label } : {}),
     };
-    canvasState.addEdge(edge);
+    const added = canvasState.addEdge(edge);
+    if (!added) {
+      throw new Error('Duplicate or self-edge.');
+    }
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
     return id;
   }
@@ -349,62 +290,7 @@ export class PmxCanvas extends EventEmitter {
   }
 
   arrange(layout?: 'grid' | 'column' | 'flow'): void {
-    const nodes = canvasState.getLayout().nodes;
-    const mode = layout ?? 'grid';
-    const gap = 24;
-
-    // Capture old positions for a single compound undo entry
-    const oldPositions = nodes.map((n) => ({ id: n.id, position: { ...n.position } }));
-
-    // Suppress individual updateNode recordings — we'll record one batch entry
-    canvasState.withSuppressedRecording(() => {
-      if (mode === 'column') {
-        let y = 80;
-        for (const node of nodes) {
-          canvasState.updateNode(node.id, { position: { x: 40, y } });
-          y += node.size.height + gap;
-        }
-      } else if (mode === 'flow') {
-        let x = 40;
-        for (const node of nodes) {
-          canvasState.updateNode(node.id, { position: { x, y: 80 } });
-          x += node.size.width + gap;
-        }
-      } else {
-        const cols = Math.max(1, Math.floor(1440 / (360 + gap)));
-        let col = 0;
-        let rowY = 80;
-        let rowMaxHeight = 0;
-        for (const node of nodes) {
-          const x = 40 + col * (360 + gap);
-          canvasState.updateNode(node.id, { position: { x, y: rowY } });
-          rowMaxHeight = Math.max(rowMaxHeight, node.size.height);
-          col++;
-          if (col >= cols) {
-            col = 0;
-            rowY += rowMaxHeight + gap;
-            rowMaxHeight = 0;
-          }
-        }
-      }
-    });
-
-    // Record as one compound mutation — capture new positions directly to avoid extra getLayout()
-    const newPositions = nodes.map((n) => {
-      const updated = canvasState.getNode(n.id);
-      return { id: n.id, position: updated ? { ...updated.position } : { ...n.position } };
-    });
-    mutationHistory.record({
-      description: `Auto-arranged ${nodes.length} nodes (${mode})`,
-      operationType: 'arrange',
-      forward: () => canvasState.withSuppressedRecording(() => {
-        for (const p of newPositions) canvasState.updateNode(p.id, { position: p.position });
-      }),
-      inverse: () => canvasState.withSuppressedRecording(() => {
-        for (const p of oldPositions) canvasState.updateNode(p.id, { position: p.position });
-      }),
-    });
-
+    arrangeCanvasNodes(layout ?? 'grid');
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   }
 
@@ -547,16 +433,6 @@ export class PmxCanvas extends EventEmitter {
     canvasState.addGraphNode(node);
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
     return { id, url: node.data.url as string, spec };
-  }
-
-  /** Debounced code graph recomputation (300ms). */
-  private _scheduleCodeGraphRecompute(): void {
-    if (this._codeGraphTimer) clearTimeout(this._codeGraphTimer);
-    this._codeGraphTimer = setTimeout(() => {
-      this._codeGraphTimer = null;
-      recomputeCodeGraph();
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    }, 300);
   }
 
   get port(): number {

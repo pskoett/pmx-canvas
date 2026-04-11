@@ -1,6 +1,6 @@
 # pmx-canvas
 
-A spatial canvas workbench for coding agents. Infinite 2D canvas with nodes, edges, pan/zoom, minimap, and real-time sync -- controlled through MCP, HTTP API, or Node.js SDK.
+A spatial canvas workbench for coding agents. Infinite 2D canvas with nodes, edges, pan/zoom, minimap, and real-time sync -- controlled through the CLI, MCP, HTTP API, or a Bun-based JavaScript/TypeScript SDK.
 
 ![PMX Canvas screenshot](docs/screenshot.png)
 
@@ -34,6 +34,11 @@ bun run dev:demo              # Start with sample nodes
 ```
 
 The canvas opens at `http://localhost:4313`.
+
+### Recommended ways to drive the canvas
+
+- **CLI** for local use, scripting, automation, and terminal-native agents
+- **MCP** for agents that already speak the Model Context Protocol
 
 ### Connect your agent (MCP)
 
@@ -174,7 +179,16 @@ File nodes automatically detect import dependencies between each other. Add file
 
 ## Integration
 
-### MCP server (recommended)
+### CLI and MCP (recommended)
+
+Use either of the two primary control surfaces depending on how your agent runs:
+
+- **CLI** if your workflow is shell-native, scriptable, or driven by terminal commands
+- **MCP** if your agent already uses tool/resource calls over stdio
+
+Both paths are first-class and cover the same core canvas workflow.
+
+### MCP server
 
 29 tools + 6 resources. Zero config for any MCP-capable agent.
 
@@ -289,7 +303,7 @@ curl -X POST http://localhost:4313/api/canvas/undo
 curl -X POST http://localhost:4313/api/canvas/redo
 ```
 
-### Node.js SDK
+### JavaScript/TypeScript SDK (Bun runtime)
 
 ```typescript
 import { createCanvas } from 'pmx-canvas';
@@ -324,6 +338,8 @@ await canvas.stopAutomationWebView();
 
 ### CLI
 
+The CLI is the equally recommended shell-native way to run and control PMX Canvas.
+
 ```bash
 pmx-canvas                        # Start canvas, open browser
 pmx-canvas --demo                 # Start with sample nodes
@@ -340,6 +356,13 @@ pmx-canvas webview screenshot --output ./canvas.png
 pmx-canvas webview stop
 ```
 
+Use the CLI when you want:
+
+- direct terminal control without MCP wiring
+- shell scripts and CI-friendly automation
+- local debugging of canvas, webview, and screenshot flows
+- a control surface that is as capable for normal canvas work as the MCP path
+
 ## Agent compatibility
 
 | Agent | Integration | Config |
@@ -355,8 +378,8 @@ pmx-canvas webview stop
 ```
 Agent (Claude Code / Codex / Cursor / any MCP client)
   |
-  |-- MCP Server ---- 23 tools + 6 resources + change notifications
-  |-- Node.js SDK --- createCanvas()
+  |-- MCP Server ---- 29 tools + 6 resources + change notifications
+  |-- Bun SDK ------- createCanvas()
   |-- HTTP API ------ REST + SSE at localhost:4313
   |
   v

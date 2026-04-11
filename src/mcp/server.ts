@@ -360,10 +360,17 @@ export async function startMcpServer(): Promise<void> {
     },
     async (input) => {
       const c = await ensureCanvas();
-      const id = c.addEdge(input);
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ id }) }],
-      };
+      try {
+        const id = c.addEdge(input);
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ id }) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+          isError: true,
+        };
+      }
     },
   );
 

@@ -1,4 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
@@ -104,6 +106,41 @@ describe('canvas server HTTP API', () => {
     const layout = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
     expect(layout.nodes).toEqual([]);
     expect(layout.edges).toEqual([]);
+  });
+
+  test('creates path-backed file nodes over HTTP and uses shared arrange behavior', async () => {
+    const filePath = join(workspaceRoot, 'server-api-file.ts');
+    writeFileSync(filePath, 'export const value = 1;\n', 'utf-8');
+
+    const fileNode = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'file', content: filePath }),
+    });
+
+    const markdownNode = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Arrange me', width: 360, height: 200 }),
+    });
+
+    const createdFile = await jsonRequest<{ id: string; position: { x: number; y: number }; data: Record<string, unknown> }>(`/api/canvas/node/${fileNode.id}`);
+    expect(createdFile.data.path).toBe(filePath);
+    expect(createdFile.data.fileContent).toBe('export const value = 1;\n');
+
+    const arrange = await jsonRequest<{ ok: boolean; arranged: number; layout: string }>('/api/canvas/arrange', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ layout: 'column' }),
+    });
+    expect(arrange.ok).toBe(true);
+    expect(arrange.arranged).toBe(2);
+    expect(arrange.layout).toBe('column');
+
+    const arrangedFile = await jsonRequest<{ id: string; position: { x: number; y: number } }>(`/api/canvas/node/${fileNode.id}`);
+    const arrangedMarkdown = await jsonRequest<{ id: string; position: { x: number; y: number } }>(`/api/canvas/node/${markdownNode.id}`);
+    expect(arrangedFile.position).toEqual({ x: 40, y: 80 });
+    expect(arrangedMarkdown.position).toEqual({ x: 40, y: 304 });
   });
 
   test('supports edges, snapshots, clear, and pinned context over HTTP', async () => {
@@ -355,6 +392,11 @@ describe('canvas server HTTP API', () => {
     expect(jsonViewer.ok).toBe(true);
     expect(jsonViewer.headers.get('content-type')).toContain('text/html');
     expect(await jsonViewer.text()).toContain('Ops Dashboard');
+
+    const darkJsonViewer = await fetch(`${baseUrl}${jsonRender.url}&theme=dark`);
+    expect(darkJsonViewer.ok).toBe(true);
+    const darkJsonHtml = await darkJsonViewer.text();
+    expect(darkJsonHtml).toContain('"dark"');
 
     const graph = await jsonRequest<{
       ok: boolean;

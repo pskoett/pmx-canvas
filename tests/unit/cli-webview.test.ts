@@ -13,7 +13,9 @@ import {
 
 describe('agent CLI webview commands', () => {
   let workspaceRoot = '';
+  let baseUrl = '';
   let previousPort = '';
+  let previousUrl = '';
 
   beforeAll(() => {
     workspaceRoot = createTestWorkspace('pmx-canvas-cli-webview-');
@@ -22,12 +24,20 @@ describe('agent CLI webview commands', () => {
     if (!base) {
       throw new Error('Failed to start canvas server for CLI tests.');
     }
+    baseUrl = base;
 
     previousPort = process.env.PMX_CANVAS_PORT ?? '';
-    process.env.PMX_CANVAS_PORT = '4541';
+    previousUrl = process.env.PMX_CANVAS_URL ?? '';
+    process.env.PMX_CANVAS_URL = baseUrl;
+    delete process.env.PMX_CANVAS_PORT;
   });
 
   afterAll(() => {
+    if (previousUrl) {
+      process.env.PMX_CANVAS_URL = previousUrl;
+    } else {
+      delete process.env.PMX_CANVAS_URL;
+    }
     if (previousPort) {
       process.env.PMX_CANVAS_PORT = previousPort;
     } else {
@@ -43,7 +53,7 @@ describe('agent CLI webview commands', () => {
     });
     mutationHistory.reset();
 
-    const response = await fetch('http://localhost:4541/api/workbench/webview', { method: 'DELETE' });
+    const response = await fetch(`${baseUrl}/api/workbench/webview`, { method: 'DELETE' });
     expect(response.ok).toBe(true);
   });
 

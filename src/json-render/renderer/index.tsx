@@ -41,6 +41,7 @@ function syncPreferredTheme(): void {
 function applyTheme(theme: unknown): void {
   if (theme !== 'dark' && theme !== 'light' && theme !== 'high-contrast') return;
   document.documentElement.setAttribute('data-theme', theme);
+  document.documentElement.classList.toggle('dark', theme === 'dark' || theme === 'high-contrast');
   document.documentElement.style.colorScheme = theme === 'light' ? 'light' : 'dark';
 }
 

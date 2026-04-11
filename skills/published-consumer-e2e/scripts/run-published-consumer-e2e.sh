@@ -56,6 +56,7 @@ PACK_DIR="${WORKDIR}/pack"
 PACKAGE_STAGING="${WORKDIR}/package"
 CONSUMER_DIR="${WORKDIR}/consumer"
 LOG_FILE="${WORKDIR}/server.log"
+rm -rf "${PACK_DIR}" "${PACKAGE_STAGING}"
 mkdir -p "${PACK_DIR}" "${PACKAGE_STAGING}/package" "${CONSUMER_DIR}/demo"
 
 cleanup() {
@@ -83,6 +84,8 @@ TARBALL="pmx-canvas-published-consumer.tgz"
 tar -czf "${PACK_DIR}/${TARBALL}" -C "${PACKAGE_STAGING}" package
 
 echo "[published-consumer] staging temp consumer at ${CONSUMER_DIR}"
+rm -rf "${CONSUMER_DIR}"
+mkdir -p "${CONSUMER_DIR}/demo"
 cp -R "${REPO_ROOT}/examples/published-consumer-sdlc/." "${CONSUMER_DIR}/demo/"
 cat > "${CONSUMER_DIR}/package.json" <<'JSON'
 {

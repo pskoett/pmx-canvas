@@ -131,11 +131,12 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   // ── Auto-fit: measure content and resize once ───────
   const bodyRef = useRef<HTMLDivElement>(null);
   const hasAutoFit = useRef(false);
+  const autoFitPersistTimer = useRef<number | null>(null);
   const AUTO_FIT_MAX = 600;
   const TITLEBAR_HEIGHT = 37;
 
   useEffect(() => {
-    if (hasAutoFit.current || node.collapsed || node.dockPosition) return;
+    if (hasAutoFit.current || node.collapsed || node.dockPosition || node.type === 'group') return;
     const body = bodyRef.current;
     if (!body) return;
 
@@ -151,13 +152,26 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
       // Only resize if the fit height differs meaningfully from current
       if (Math.abs(fitHeight - node.size.height) > 8) {
         resizeNode(node.id, { width: node.size.width, height: fitHeight });
+        if (autoFitPersistTimer.current !== null) {
+          window.clearTimeout(autoFitPersistTimer.current);
+        }
+        autoFitPersistTimer.current = window.setTimeout(() => {
+          persistLayout();
+          autoFitPersistTimer.current = null;
+        }, 0);
       }
       hasAutoFit.current = true;
       observer.disconnect();
     });
     observer.observe(body);
-    return () => observer.disconnect();
-  }, [node.id, node.collapsed, node.dockPosition, node.size.width, node.size.height]);
+    return () => {
+      observer.disconnect();
+      if (autoFitPersistTimer.current !== null) {
+        window.clearTimeout(autoFitPersistTimer.current);
+        autoFitPersistTimer.current = null;
+      }
+    };
+  }, [node.id, node.type, node.collapsed, node.dockPosition, node.size.width, node.size.height]);
 
   const title = (node.data.title as string) || TYPE_LABELS[node.type];
   const isPinned = node.pinned;
