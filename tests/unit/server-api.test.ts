@@ -172,10 +172,15 @@ describe('canvas server HTTP API', () => {
     expect(initialStatus.active).toBe(false);
     expect(initialStatus.headlessOnly).toBe(true);
 
+    const requestedBackend =
+      process.platform === 'darwin'
+        ? 'webkit'
+        : 'chrome';
+
     const startResponse = await fetch(`${baseUrl}/api/workbench/webview/start`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ backend: 'chrome', width: 1440, height: 900 }),
+      body: JSON.stringify({ backend: requestedBackend, width: 1440, height: 900 }),
     });
 
     if (!initialStatus.supported) {
@@ -215,7 +220,66 @@ describe('canvas server HTTP API', () => {
     expect(stopped.ok).toBe(true);
     expect(stopped.stopped).toBe(true);
     expect(stopped.webview.active).toBe(false);
-  });
+  }, 15000);
+
+  test('supports WebView evaluate, resize, and screenshot endpoints', async () => {
+    const requestedBackend =
+      process.platform === 'darwin'
+        ? 'webkit'
+        : 'chrome';
+
+    const startResponse = await fetch(`${baseUrl}/api/workbench/webview/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ backend: requestedBackend, width: 900, height: 700 }),
+    });
+
+    if (typeof Bun.WebView !== 'function') {
+      expect(startResponse.status).toBe(501);
+      return;
+    }
+
+    expect(startResponse.ok).toBe(true);
+
+    const evaluateResponse = await fetch(`${baseUrl}/api/workbench/webview/evaluate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ expression: 'document.title' }),
+    });
+    expect(evaluateResponse.ok).toBe(true);
+    const evaluated = await evaluateResponse.json() as { ok: boolean; value: unknown };
+    expect(evaluated.ok).toBe(true);
+    expect(evaluated.value).toBe('PMX Canvas');
+
+    const resizeResponse = await fetch(`${baseUrl}/api/workbench/webview/resize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ width: 1024, height: 768 }),
+    });
+    expect(resizeResponse.ok).toBe(true);
+    const resized = await resizeResponse.json() as {
+      ok: boolean;
+      webview: WorkbenchWebViewStatusResponse;
+    };
+    expect(resized.ok).toBe(true);
+    expect(resized.webview.width).toBe(1024);
+    expect(resized.webview.height).toBe(768);
+
+    const screenshotResponse = await fetch(`${baseUrl}/api/workbench/webview/screenshot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ format: 'png' }),
+    });
+    expect(screenshotResponse.ok).toBe(true);
+    expect(screenshotResponse.headers.get('Content-Type')).toBe('image/png');
+    const screenshot = new Uint8Array(await screenshotResponse.arrayBuffer());
+    expect(screenshot.byteLength).toBeGreaterThan(0);
+
+    const stopResponse = await fetch(`${baseUrl}/api/workbench/webview`, {
+      method: 'DELETE',
+    });
+    expect(stopResponse.ok).toBe(true);
+  }, 15000);
 
   test('builds web artifacts over HTTP and serves the generated html route', async () => {
     const { initScriptPath, bundleScriptPath } = createFakeWebArtifactScripts(workspaceRoot);

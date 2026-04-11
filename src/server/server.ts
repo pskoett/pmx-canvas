@@ -28,6 +28,9 @@
  * - POST /api/workbench/intent   -> workbench intents
  * - GET  /api/workbench/webview  -> Bun.WebView automation status
  * - POST /api/workbench/webview/start -> start Bun.WebView automation session
+ * - POST /api/workbench/webview/evaluate -> evaluate JS in Bun.WebView automation session
+ * - POST /api/workbench/webview/resize -> resize Bun.WebView automation viewport
+ * - POST /api/workbench/webview/screenshot -> capture Bun.WebView automation screenshot
  * - DELETE /api/workbench/webview -> stop Bun.WebView automation session
  */
 
@@ -932,6 +935,11 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
   if (body.title) data.title = String(body.title);
   if (body.content) data.content = String(body.content);
 
+  // Merge extra data fields (for status, context, ledger, trace nodes)
+  if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) {
+    Object.assign(data, body.data as Record<string, unknown>);
+  }
+
   // Image nodes: set src from content for the renderer
   if (type === 'image' && body.content) {
     data.src = String(body.content);
@@ -1102,10 +1110,14 @@ async function handleCanvasUpdateNode(nodeId: string, req: Request): Promise<Res
   if (body.position) patch.position = body.position;
   if (body.size) patch.size = body.size;
   if (body.collapsed !== undefined) patch.collapsed = body.collapsed;
-  if (body.title !== undefined || body.content !== undefined) {
+  if (body.title !== undefined || body.content !== undefined || body.data) {
     const data = { ...existing.data };
     if (body.title !== undefined) data.title = String(body.title);
     if (body.content !== undefined) data.content = String(body.content);
+    // Merge extra data fields (for status, context, ledger, trace nodes)
+    if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) {
+      Object.assign(data, body.data as Record<string, unknown>);
+    }
     patch.data = data;
   }
   canvasState.updateNode(nodeId, patch as Partial<CanvasNodeState>);
@@ -1642,6 +1654,68 @@ async function handleWorkbenchWebViewStop(): Promise<Response> {
       error: message,
       webview: getCanvasAutomationWebViewStatus(),
     }, 500);
+  }
+}
+
+async function handleWorkbenchWebViewEvaluate(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const expression = typeof body.expression === 'string' ? body.expression : '';
+  if (!expression.trim()) {
+    return responseJson({ ok: false, error: 'Missing required field: expression.' }, 400);
+  }
+
+  try {
+    const value = await evaluateCanvasAutomationWebView(expression);
+    return responseJson({ ok: true, value });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return responseJson({ ok: false, error: message, webview: getCanvasAutomationWebViewStatus() }, 400);
+  }
+}
+
+async function handleWorkbenchWebViewResize(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const width = typeof body.width === 'number' ? body.width : NaN;
+  const height = typeof body.height === 'number' ? body.height : NaN;
+  if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
+    return responseJson({ ok: false, error: 'Missing required positive numeric fields: width, height.' }, 400);
+  }
+
+  try {
+    const webview = await resizeCanvasAutomationWebView(width, height);
+    return responseJson({ ok: true, webview });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return responseJson({ ok: false, error: message, webview: getCanvasAutomationWebViewStatus() }, 400);
+  }
+}
+
+async function handleWorkbenchWebViewScreenshot(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const format = body.format === 'jpeg' || body.format === 'webp' || body.format === 'png'
+    ? body.format
+    : 'png';
+  const quality = typeof body.quality === 'number' ? body.quality : undefined;
+
+  try {
+    const bytes = await screenshotCanvasAutomationWebView({
+      format,
+      ...(quality !== undefined ? { quality } : {}),
+    });
+    const mimeType = format === 'jpeg'
+      ? 'image/jpeg'
+      : format === 'webp'
+        ? 'image/webp'
+        : 'image/png';
+    return new Response(bytes, {
+      headers: {
+        'Content-Type': mimeType,
+        'Cache-Control': 'no-store',
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return responseJson({ ok: false, error: message, webview: getCanvasAutomationWebViewStatus() }, 400);
   }
 }
 
@@ -2859,6 +2933,18 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/workbench/webview/start' && req.method === 'POST') {
             return handleWorkbenchWebViewStart(req);
+          }
+
+          if (url.pathname === '/api/workbench/webview/evaluate' && req.method === 'POST') {
+            return handleWorkbenchWebViewEvaluate(req);
+          }
+
+          if (url.pathname === '/api/workbench/webview/resize' && req.method === 'POST') {
+            return handleWorkbenchWebViewResize(req);
+          }
+
+          if (url.pathname === '/api/workbench/webview/screenshot' && req.method === 'POST') {
+            return handleWorkbenchWebViewScreenshot(req);
           }
 
           if (url.pathname === '/api/workbench/webview' && req.method === 'DELETE') {

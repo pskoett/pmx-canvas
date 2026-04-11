@@ -25,7 +25,7 @@ What is **not** implemented:
 
 - replacing `openUrlInExternalBrowser()` for the visible user-facing canvas window
 - headed Bun.WebView window support
-- MCP tools for screenshot/evaluate/resize/CDP
+- Chrome-only CDP tooling
 
 ## Why This Exists
 
@@ -70,12 +70,18 @@ Implemented in [`src/server/server.ts`](/Users/pepe/Library/CloudStorage/OneDriv
 
 - `GET /api/workbench/webview`
 - `POST /api/workbench/webview/start`
+- `POST /api/workbench/webview/evaluate`
+- `POST /api/workbench/webview/resize`
+- `POST /api/workbench/webview/screenshot`
 - `DELETE /api/workbench/webview`
 
 Current HTTP behavior:
 
 - `GET` returns runtime support plus active-session status
 - `POST` starts a new headless automation session for the current `/workbench`
+- `POST /evaluate` runs JavaScript in the active automation session and returns JSON
+- `POST /resize` updates the active automation viewport and returns JSON status
+- `POST /screenshot` returns image bytes for the active automation session
 - `DELETE` stops the current automation session
 
 Current options accepted by `POST /api/workbench/webview/start`:
@@ -111,14 +117,46 @@ Implemented in [`src/cli/index.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV
 - `--webview-chrome-argv`
 - `--webview-data-dir`
 
+Implemented in [`src/cli/agent.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/src/cli/agent.ts):
+
+- `pmx-canvas webview status`
+- `pmx-canvas webview start`
+- `pmx-canvas webview evaluate`
+- `pmx-canvas webview resize`
+- `pmx-canvas webview screenshot`
+- `pmx-canvas webview stop`
+
 Example:
 
 ```bash
 pmx-canvas --no-open --webview-automation
 pmx-canvas --webview-automation --webview-backend=chrome
+pmx-canvas webview start --backend chrome --width 1440 --height 900
+pmx-canvas webview evaluate --expression "document.title"
+pmx-canvas webview resize --width 1280 --height 800
+pmx-canvas webview screenshot --output ./canvas.png
+pmx-canvas webview stop
 ```
 
 These flags are intentionally automation-only. They do **not** imply a visible Bun-managed window.
+
+### MCP
+
+Implemented in [`src/mcp/server.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/src/mcp/server.ts):
+
+- `canvas_webview_status`
+- `canvas_webview_start`
+- `canvas_webview_stop`
+- `canvas_evaluate`
+- `canvas_resize`
+- `canvas_screenshot`
+
+Current MCP behavior:
+
+- automation lifecycle is explicit rather than implicit
+- screenshot returns an MCP image payload plus JSON metadata
+- evaluate/resize/screenshot require an active automation session
+- start accepts the same backend/viewport/data-store options as the server layer
 
 ## Backend Strategy
 
@@ -167,12 +205,15 @@ Validated on Bun `v1.3.12`.
 Verified by tests in:
 
 - [`tests/unit/server-api.test.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/tests/unit/server-api.test.ts)
+- [`tests/unit/cli-webview.test.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/tests/unit/cli-webview.test.ts)
 - [`tests/unit/webview-automation.test.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/tests/unit/webview-automation.test.ts)
 
 Covered behavior:
 
 - WebView status over HTTP
 - start/stop lifecycle over HTTP
+- evaluate/resize/screenshot over HTTP
+- CLI status/start/evaluate/resize/screenshot/stop commands
 - graceful unsupported-runtime handling
 - SDK start/evaluate/resize/screenshot flow
 
@@ -224,9 +265,8 @@ Even with Bun `v1.3.12`, PMX Canvas should still keep `openUrlInExternalBrowser(
 These are current, accepted constraints:
 
 - no visible Bun-managed canvas window
-- no MCP tools yet for screenshots/evaluation/resize/CDP
 - no persistent automation-session orchestration beyond the single owned server session
-- no dedicated HTTP endpoints yet for screenshot/evaluate/resize; only lifecycle and status are exposed over HTTP right now
+- no Chrome-only CDP tool surface yet
 
 ## Future Work
 
@@ -234,14 +274,9 @@ These are current, accepted constraints:
 
 The most obvious next steps are:
 
-1. Add MCP tools that target the existing automation session:
-   - `canvas_screenshot`
-   - `canvas_resize`
-   - `canvas_evaluate`
-   - optional `canvas_cdp` for Chrome-backed sessions only
-2. Add HTTP endpoints for screenshot/evaluate/resize if direct HTTP consumers need them
-3. Decide whether the default macOS backend should stay `webkit` or move to `chrome` for stricter cross-platform parity
-4. Add more backend-specific test coverage if Bun behavior diverges between WebKit and Chrome
+1. Add an optional `canvas_cdp` MCP tool for Chrome-backed sessions only
+2. Decide whether the default macOS backend should stay `webkit` or move to `chrome` for stricter cross-platform parity
+3. Add more backend-specific test coverage if Bun behavior diverges between WebKit and Chrome
 
 ### Later
 

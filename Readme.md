@@ -176,7 +176,7 @@ File nodes automatically detect import dependencies between each other. Add file
 
 ### MCP server (recommended)
 
-23 tools + 6 resources. Zero config for any MCP-capable agent.
+29 tools + 6 resources. Zero config for any MCP-capable agent.
 
 <details>
 <summary>MCP tools</summary>
@@ -206,6 +206,12 @@ File nodes automatically detect import dependencies between each other. Add file
 | `canvas_create_group` | Create a group containing specified nodes |
 | `canvas_group_nodes` | Add nodes to an existing group |
 | `canvas_ungroup` | Release all children from a group |
+| `canvas_webview_status` | Get Bun.WebView automation status for the workbench |
+| `canvas_webview_start` | Start or replace the Bun.WebView automation session |
+| `canvas_webview_stop` | Stop the active Bun.WebView automation session |
+| `canvas_evaluate` | Evaluate JavaScript in the active workbench automation session |
+| `canvas_resize` | Resize the active workbench automation viewport |
+| `canvas_screenshot` | Capture a screenshot from the active workbench automation session |
 
 </details>
 
@@ -254,6 +260,27 @@ curl http://localhost:4313/api/canvas/pinned-context
 # SSE event stream
 curl -N http://localhost:4313/api/workbench/events
 
+# Start WebView automation
+curl -X POST http://localhost:4313/api/workbench/webview/start \
+  -H "Content-Type: application/json" \
+  -d '{"backend":"chrome","width":1280,"height":800}'
+
+# Evaluate JS in the active WebView session
+curl -X POST http://localhost:4313/api/workbench/webview/evaluate \
+  -H "Content-Type: application/json" \
+  -d '{"expression":"document.title"}'
+
+# Resize the active WebView session
+curl -X POST http://localhost:4313/api/workbench/webview/resize \
+  -H "Content-Type: application/json" \
+  -d '{"width":1440,"height":900}'
+
+# Capture a screenshot
+curl -X POST http://localhost:4313/api/workbench/webview/screenshot \
+  -H "Content-Type: application/json" \
+  -d '{"format":"png"}' \
+  --output canvas.png
+
 # Search nodes
 curl "http://localhost:4313/api/canvas/search?q=auth"
 
@@ -284,6 +311,15 @@ canvas.createGroup({ title: 'Build Pipeline', childIds: [n1, n2] });
 // Arrange and inspect
 canvas.arrange('grid');
 console.log(canvas.getLayout());
+
+// Optional WebView automation
+const webview = await canvas.startAutomationWebView({ backend: 'chrome', width: 1280, height: 800 });
+console.log(webview.active);
+console.log(await canvas.evaluateAutomationWebView('document.title'));
+await canvas.resizeAutomationWebView(1440, 900);
+const screenshot = await canvas.screenshotAutomationWebView({ format: 'png' });
+console.log(screenshot.byteLength);
+await canvas.stopAutomationWebView();
 ```
 
 ### CLI
@@ -296,6 +332,12 @@ pmx-canvas --no-open              # Headless (for agents)
 pmx-canvas --theme=light          # Light theme (dark, light, high-contrast)
 pmx-canvas --mcp                  # Run as MCP server (stdio)
 pmx-canvas --webview-automation   # Start headless Bun.WebView session
+pmx-canvas webview status         # Show WebView automation status
+pmx-canvas webview start --backend chrome --width 1440 --height 900
+pmx-canvas webview evaluate --expression "document.title"
+pmx-canvas webview resize --width 1280 --height 800
+pmx-canvas webview screenshot --output ./canvas.png
+pmx-canvas webview stop
 ```
 
 ## Agent compatibility

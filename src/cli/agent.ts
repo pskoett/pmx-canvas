@@ -11,6 +11,8 @@
  * - --yes for destructive actions, --dry-run for preview
  */
 
+import { writeFileSync } from 'node:fs';
+
 // ── Helpers ──────────────────────────────────────────────────
 
 const DEFAULT_PORT = 4313;
@@ -113,6 +115,16 @@ function requireFlag(flags: Record<string, string | true>, name: string, hint: s
     die(`Missing required flag: --${name}`, hint);
   }
   return val;
+}
+
+function optionalNumberFlag(flags: Record<string, string | true>, name: string, hint: string): number | undefined {
+  const val = flags[name];
+  if (!val || val === true) return undefined;
+  const parsed = Number(val);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    die(`Invalid value for --${name}: ${String(val)}`, hint);
+  }
+  return Math.floor(parsed);
 }
 
 // ── Commands ─────────────────────────────────────────────────
@@ -572,6 +584,165 @@ cmd('clear', 'Remove all nodes and edges from the canvas', [
   output(result);
 });
 
+// ── webview status ────────────────────────────────────────────
+cmd('webview status', 'Show Bun.WebView automation status', [
+  'pmx-canvas webview status',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('webview status');
+
+  const result = await api('GET', '/api/workbench/webview');
+  output(result);
+});
+
+// ── webview start ─────────────────────────────────────────────
+cmd('webview start', 'Start or replace the Bun.WebView automation session', [
+  'pmx-canvas webview start',
+  'pmx-canvas webview start --backend chrome --width 1440 --height 900',
+  'pmx-canvas webview start --chrome-path /Applications/Google\\ Chrome.app/.../Google\\ Chrome',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('webview start');
+
+  const backend = flags.backend;
+  if (backend && backend !== true && backend !== 'chrome' && backend !== 'webkit') {
+    die('Invalid value for --backend', 'Use: --backend chrome or --backend webkit');
+  }
+
+  const body: Record<string, unknown> = {};
+  if (backend && backend !== true) body.backend = backend;
+
+  const width = optionalNumberFlag(flags, 'width', 'Use a positive integer width, e.g. --width 1440');
+  const height = optionalNumberFlag(flags, 'height', 'Use a positive integer height, e.g. --height 900');
+  if (width !== undefined) body.width = width;
+  if (height !== undefined) body.height = height;
+
+  if (flags['chrome-path'] && flags['chrome-path'] !== true) {
+    body.chromePath = flags['chrome-path'];
+  }
+
+  if (flags['data-dir'] && flags['data-dir'] !== true) {
+    body.dataStoreDir = flags['data-dir'];
+  }
+
+  if (flags['chrome-argv'] && flags['chrome-argv'] !== true) {
+    const chromeArgv = String(flags['chrome-argv'])
+      .split(',')
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+    if (chromeArgv.length > 0) body.chromeArgv = chromeArgv;
+  }
+
+  const result = await api('POST', '/api/workbench/webview/start', body);
+  output(result);
+});
+
+// ── webview stop ──────────────────────────────────────────────
+cmd('webview stop', 'Stop the active Bun.WebView automation session', [
+  'pmx-canvas webview stop',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('webview stop');
+
+  const result = await api('DELETE', '/api/workbench/webview');
+  output(result);
+});
+
+// ── webview evaluate ──────────────────────────────────────────
+cmd('webview evaluate', 'Evaluate JavaScript in the active Bun.WebView automation session', [
+  'pmx-canvas webview evaluate --expression "document.title"',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('webview evaluate');
+
+  const expression = requireFlag(
+    flags,
+    'expression',
+    'pmx-canvas webview evaluate --expression "document.title"',
+  );
+
+  const result = await api('POST', '/api/workbench/webview/evaluate', { expression });
+  output(result);
+});
+
+// ── webview resize ────────────────────────────────────────────
+cmd('webview resize', 'Resize the active Bun.WebView automation session viewport', [
+  'pmx-canvas webview resize --width 1280 --height 800',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('webview resize');
+
+  const width = optionalNumberFlag(flags, 'width', 'Use: pmx-canvas webview resize --width 1280 --height 800');
+  const height = optionalNumberFlag(flags, 'height', 'Use: pmx-canvas webview resize --width 1280 --height 800');
+  if (width === undefined || height === undefined) {
+    die('Missing required flags: --width, --height', 'Use: pmx-canvas webview resize --width 1280 --height 800');
+  }
+
+  const result = await api('POST', '/api/workbench/webview/resize', { width, height });
+  output(result);
+});
+
+// ── webview screenshot ────────────────────────────────────────
+cmd('webview screenshot', 'Capture a screenshot from the active Bun.WebView automation session', [
+  'pmx-canvas webview screenshot --output ./canvas.png',
+  'pmx-canvas webview screenshot --output ./canvas.webp --format webp --quality 80',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('webview screenshot');
+
+  const outputPath = requireFlag(
+    flags,
+    'output',
+    'pmx-canvas webview screenshot --output ./canvas.png',
+  );
+
+  const body: Record<string, unknown> = {};
+  if (flags.format && flags.format !== true) {
+    const format = String(flags.format);
+    if (format !== 'png' && format !== 'jpeg' && format !== 'webp') {
+      die('Invalid value for --format', 'Use: --format png, jpeg, or webp');
+    }
+    body.format = format;
+  }
+
+  if (flags.quality && flags.quality !== true) {
+    const quality = Number(flags.quality);
+    if (!Number.isFinite(quality)) {
+      die(`Invalid value for --quality: ${String(flags.quality)}`, 'Use a numeric quality, e.g. --quality 80');
+    }
+    body.quality = quality;
+  }
+
+  const base = getBaseUrl();
+  const response = await fetch(`${base}/api/workbench/webview/screenshot`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    try {
+      const json = JSON.parse(text) as Record<string, unknown>;
+      die(
+        json.error ? String(json.error) : `HTTP ${response.status}`,
+        typeof json.hint === 'string' ? json.hint : undefined,
+      );
+    } catch {
+      die(`HTTP ${response.status}: ${text}`);
+    }
+  }
+
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  writeFileSync(outputPath, bytes);
+  output({
+    ok: true,
+    output: outputPath,
+    bytes: bytes.byteLength,
+    mimeType: response.headers.get('Content-Type') ?? 'application/octet-stream',
+  });
+});
+
 // ── code-graph ───────────────────────────────────────────────
 cmd('code-graph', 'Show auto-detected file dependency graph', [
   'pmx-canvas code-graph',
@@ -651,6 +822,12 @@ Canvas commands:
   pmx-canvas search <query>           Search nodes by content
   pmx-canvas arrange [--layout MODE]  Auto-arrange (grid|column|flow)
   pmx-canvas focus <id>               Pan viewport to node
+  pmx-canvas webview status           Show WebView automation status
+  pmx-canvas webview start [options]  Start or replace automation session
+  pmx-canvas webview evaluate         Evaluate JS in automation session
+  pmx-canvas webview resize           Resize automation viewport
+  pmx-canvas webview screenshot       Save automation screenshot to disk
+  pmx-canvas webview stop             Stop automation session
   pmx-canvas clear --yes              Clear all nodes and edges
 
 Context pins:

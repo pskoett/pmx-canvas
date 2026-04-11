@@ -60,6 +60,10 @@ async function ensureCanvas(): Promise<PmxCanvas> {
   return canvas;
 }
 
+function encodeBase64(bytes: Uint8Array): string {
+  return Buffer.from(bytes).toString('base64');
+}
+
 export async function startMcpServer(): Promise<void> {
   const server = new McpServer({
     name: 'pmx-canvas',
@@ -488,6 +492,184 @@ export async function startMcpServer(): Promise<void> {
       return {
         content: [{ type: 'text', text: formatDiff(diff) }],
       };
+    },
+  );
+
+  // ── canvas_webview_status ─────────────────────────────────────
+  server.tool(
+    'canvas_webview_status',
+    'Get the current Bun.WebView automation status for the PMX Canvas workbench. Returns whether Bun.WebView is supported, whether an automation session is active, backend, viewport size, and the current workbench URL if active.',
+    {},
+    async () => {
+      const c = await ensureCanvas();
+      return {
+        content: [{ type: 'text', text: JSON.stringify(c.getAutomationWebViewStatus(), null, 2) }],
+      };
+    },
+  );
+
+  // ── canvas_webview_start ──────────────────────────────────────
+  server.tool(
+    'canvas_webview_start',
+    'Start or replace the headless Bun.WebView automation session for the current PMX Canvas workbench. Use this before screenshot, evaluate, or resize when no automation session is active.',
+    {
+      backend: z.enum(['chrome', 'webkit']).optional()
+        .describe('Automation backend. Default: webkit on macOS, chrome elsewhere.'),
+      width: z.number().optional().describe('Viewport width in pixels (default: 1280)'),
+      height: z.number().optional().describe('Viewport height in pixels (default: 800)'),
+      chromePath: z.string().optional().describe('Optional Chrome/Chromium executable path'),
+      chromeArgv: z.array(z.string()).optional().describe('Optional extra Chrome launch args'),
+      dataStoreDir: z.string().optional().describe('Optional persistent data store directory'),
+    },
+    async ({ backend, width, height, chromePath, chromeArgv, dataStoreDir }) => {
+      const c = await ensureCanvas();
+      try {
+        const status = await c.startAutomationWebView({
+          ...(backend ? { backend } : {}),
+          ...(typeof width === 'number' ? { width } : {}),
+          ...(typeof height === 'number' ? { height } : {}),
+          ...(typeof chromePath === 'string' ? { chromePath } : {}),
+          ...(Array.isArray(chromeArgv) ? { chromeArgv } : {}),
+          ...(typeof dataStoreDir === 'string' ? { dataStoreDir: safeWorkspacePath(dataStoreDir) } : {}),
+        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(status, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ── canvas_webview_stop ───────────────────────────────────────
+  server.tool(
+    'canvas_webview_stop',
+    'Stop the current Bun.WebView automation session if one is active.',
+    {},
+    async () => {
+      const c = await ensureCanvas();
+      try {
+        const stopped = await c.stopAutomationWebView();
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              ok: true,
+              stopped,
+              webview: c.getAutomationWebViewStatus(),
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ── canvas_evaluate ───────────────────────────────────────────
+  server.tool(
+    'canvas_evaluate',
+    'Evaluate JavaScript in the active Bun.WebView automation session for the workbench page. Use this to inspect rendered browser state. Requires an active automation session started via canvas_webview_start.',
+    {
+      expression: z.string().describe('JavaScript expression to evaluate in the page context'),
+    },
+    async ({ expression }) => {
+      const c = await ensureCanvas();
+      try {
+        const value = await c.evaluateAutomationWebView(expression);
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ value }, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ── canvas_resize ─────────────────────────────────────────────
+  server.tool(
+    'canvas_resize',
+    'Resize the active Bun.WebView automation viewport. Requires an active automation session started via canvas_webview_start.',
+    {
+      width: z.number().describe('Viewport width in pixels'),
+      height: z.number().describe('Viewport height in pixels'),
+    },
+    async ({ width, height }) => {
+      const c = await ensureCanvas();
+      try {
+        const status = await c.resizeAutomationWebView(width, height);
+        return {
+          content: [{ type: 'text', text: JSON.stringify(status, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  // ── canvas_screenshot ─────────────────────────────────────────
+  server.tool(
+    'canvas_screenshot',
+    'Capture a screenshot from the active Bun.WebView automation session. Returns both an MCP image payload and JSON metadata. Requires an active automation session started via canvas_webview_start.',
+    {
+      format: z.enum(['png', 'jpeg', 'webp']).optional().describe('Screenshot format (default depends on Bun; png recommended)'),
+      quality: z.number().optional().describe('Optional quality for lossy formats'),
+    },
+    async ({ format, quality }) => {
+      const c = await ensureCanvas();
+      try {
+        const bytes = await c.screenshotAutomationWebView({
+          ...(format ? { format } : {}),
+          ...(typeof quality === 'number' ? { quality } : {}),
+        });
+        const status = c.getAutomationWebViewStatus();
+        return {
+          content: [
+            {
+              type: 'image',
+              data: encodeBase64(bytes),
+              mimeType:
+                format === 'jpeg'
+                  ? 'image/jpeg'
+                  : format === 'webp'
+                    ? 'image/webp'
+                    : 'image/png',
+            },
+            {
+              type: 'text',
+              text: JSON.stringify({
+                bytes: bytes.byteLength,
+                backend: status.backend,
+                width: status.width,
+                height: status.height,
+                mimeType:
+                  format === 'jpeg'
+                    ? 'image/jpeg'
+                    : format === 'webp'
+                      ? 'image/webp'
+                      : 'image/png',
+              }, null, 2),
+            },
+          ],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+          isError: true,
+        };
+      }
     },
   );
 

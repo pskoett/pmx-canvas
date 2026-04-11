@@ -11,7 +11,7 @@ const args = process.argv.slice(2);
 // If first arg is a known subcommand (not a --flag), route to the agent CLI.
 const AGENT_COMMANDS = new Set([
   'node', 'edge', 'search', 'layout', 'status', 'arrange', 'focus',
-  'pin', 'undo', 'redo', 'history', 'snapshot', 'diff', 'group',
+  'pin', 'undo', 'redo', 'history', 'snapshot', 'diff', 'group', 'webview',
   'clear', 'code-graph', 'spatial', 'serve',
 ]);
 
@@ -119,6 +119,8 @@ Server options:
 Agent CLI (works against running server):
   node add|list|get|update|remove     Manage nodes
   edge add|list|remove                Manage edges
+  webview status|start|evaluate|resize|screenshot|stop
+                                      Manage Bun.WebView automation session
   search <query>                      Search nodes
   layout                              Full canvas state
   status                              Quick summary
@@ -154,6 +156,8 @@ Examples:
   pmx-canvas --webview-automation --webview-backend=chrome    Start browser + Chrome-backed automation
   pmx-canvas node add --type markdown --title "Hello World"   Add a node
   pmx-canvas node list                                        List all nodes
+  pmx-canvas webview status                                   Show WebView automation status
+  pmx-canvas webview screenshot --output ./canvas.png         Save a WebView screenshot
   pmx-canvas search "auth"                                    Find nodes
   pmx-canvas arrange --layout column                          Auto-arrange
   pmx-canvas clear --dry-run                                  Preview destructive op
