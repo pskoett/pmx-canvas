@@ -57,6 +57,7 @@ import {
   deleteCanvasSnapshot,
   groupCanvasNodes,
   listCanvasSnapshots,
+  refreshCanvasWebpageNode,
   removeCanvasNode,
   removeCanvasEdge,
   restoreCanvasSnapshot,
@@ -76,6 +77,11 @@ import {
   JSON_RENDER_NODE_SIZE,
   normalizeAndValidateJsonRenderSpec,
 } from '../json-render/server.js';
+import {
+  WEBPAGE_NODE_DEFAULT_SIZE,
+  normalizeWebpageUrl,
+  summarizeWebpageContent,
+} from './webpage-node.js';
 
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 4313;
@@ -907,6 +913,9 @@ async function handleCanvasUpdate(req: Request): Promise<Response> {
   const body = await readJson(req);
   const updates = Array.isArray(body.updates) ? body.updates : [];
   const result = applyCanvasNodeUpdates(updates);
+  if (result.applied > 0) {
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  }
   return responseJson({ ok: true, ...result });
 }
 
@@ -937,7 +946,41 @@ function handleCanvasImage(pathname: string): Response {
 }
 
 // ── Add node from client ─────────────────────────────────────
-const VALID_NODE_TYPES = new Set(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'mcp-app', 'group']);
+const VALID_NODE_TYPES = new Set(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'mcp-app', 'webpage', 'group']);
+
+async function createCanvasWebpageNode(body: Record<string, unknown>): Promise<Response> {
+  const rawUrl = typeof body.url === 'string' && body.url.trim().length > 0
+    ? body.url
+    : typeof body.content === 'string'
+      ? body.content
+      : '';
+
+  let normalizedUrl: string;
+  try {
+    normalizedUrl = normalizeWebpageUrl(rawUrl);
+  } catch (error) {
+    return responseJson({ ok: false, error: error instanceof Error ? error.message : 'Invalid webpage URL.' }, 400);
+  }
+
+  const extraData = body.data && typeof body.data === 'object' && !Array.isArray(body.data)
+    ? body.data as Record<string, unknown>
+    : undefined;
+  const { id } = addCanvasNode({
+    type: 'webpage',
+    ...(typeof body.title === 'string' ? { title: body.title } : {}),
+    content: normalizedUrl,
+    ...(extraData ? { data: extraData } : {}),
+    ...(typeof body.x === 'number' ? { x: body.x } : {}),
+    ...(typeof body.y === 'number' ? { y: body.y } : {}),
+    ...(typeof body.width === 'number' ? { width: body.width } : { width: WEBPAGE_NODE_DEFAULT_SIZE.width }),
+    ...(typeof body.height === 'number' ? { height: body.height } : { height: WEBPAGE_NODE_DEFAULT_SIZE.height }),
+  });
+
+  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  const refreshed = await refreshCanvasWebpageNode(id);
+  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  return responseJson({ ok: true, id, ...(refreshed.ok ? {} : { error: refreshed.error }) });
+}
 
 async function handleCanvasAddNode(req: Request): Promise<Response> {
   const body = await readJson(req);
@@ -945,6 +988,10 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
 
   if (!VALID_NODE_TYPES.has(type)) {
     return responseJson({ ok: false, error: `Invalid node type: "${type}".` }, 400);
+  }
+
+  if (type === 'webpage') {
+    return createCanvasWebpageNode(body);
   }
 
   const extraData = body.data && typeof body.data === 'object' && !Array.isArray(body.data)
@@ -1063,22 +1110,70 @@ async function handleCanvasRemoveEdge(req: Request): Promise<Response> {
   return responseJson({ ok: true, removed: edgeId });
 }
 
+async function handleCanvasRefreshWebpageNode(nodeId: string, req: Request): Promise<Response> {
+  const existing = canvasState.getNode(nodeId);
+  if (!existing || existing.type !== 'webpage') {
+    return responseJson({ ok: false, error: `Webpage node "${nodeId}" not found.` }, 404);
+  }
+
+  const body = await readJson(req);
+  const rawUrl = typeof body.url === 'string' ? body.url : undefined;
+  let url: string | undefined;
+  if (rawUrl && rawUrl.trim().length > 0) {
+    try {
+      url = normalizeWebpageUrl(rawUrl);
+    } catch (error) {
+      return responseJson({ ok: false, error: error instanceof Error ? error.message : 'Invalid webpage URL.' }, 400);
+    }
+  }
+
+  const result = await refreshCanvasWebpageNode(nodeId, { ...(url ? { url } : {}) });
+  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  return responseJson(result, result.ok ? 200 : 400);
+}
+
 // ── Individual node update (PATCH) ──────────────────────────
 async function handleCanvasUpdateNode(nodeId: string, req: Request): Promise<Response> {
   const existing = canvasState.getNode(nodeId);
   if (!existing) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
   const body = await readJson(req);
+  if (existing.type === 'webpage' && body.refresh === true) {
+    return handleCanvasRefreshWebpageNode(nodeId, req);
+  }
   const patch: Record<string, unknown> = {};
   if (body.position) patch.position = body.position;
   if (body.size) patch.size = body.size;
   if (body.collapsed !== undefined) patch.collapsed = body.collapsed;
+  if (body.pinned !== undefined) patch.pinned = Boolean(body.pinned);
+  if (body.dockPosition === null || body.dockPosition === 'left' || body.dockPosition === 'right') {
+    patch.dockPosition = body.dockPosition;
+  }
   if (body.title !== undefined || body.content !== undefined || body.data) {
     const data = { ...existing.data };
-    if (body.title !== undefined) data.title = String(body.title);
+    if (body.title !== undefined) {
+      data.title = String(body.title);
+      if (existing.type === 'webpage') {
+        data.titleSource = 'user';
+      }
+    }
     if (body.content !== undefined) data.content = String(body.content);
     // Merge extra data fields (for status, context, ledger, trace nodes)
     if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) {
       Object.assign(data, body.data as Record<string, unknown>);
+    }
+    if (existing.type === 'webpage') {
+      const nextUrl = typeof body.url === 'string'
+        ? body.url
+        : typeof (body.data as Record<string, unknown> | undefined)?.url === 'string'
+          ? (body.data as Record<string, unknown>).url as string
+          : undefined;
+      if (typeof nextUrl === 'string' && nextUrl.trim().length > 0) {
+        try {
+          data.url = normalizeWebpageUrl(nextUrl);
+        } catch (error) {
+          return responseJson({ ok: false, error: error instanceof Error ? error.message : 'Invalid webpage URL.' }, 400);
+        }
+      }
     }
     patch.data = data;
   }
@@ -1112,6 +1207,8 @@ async function handleCanvasFocus(req: Request): Promise<Response> {
   const node = canvasState.getNode(nodeId);
   if (!node) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
   canvasState.setViewport({ x: node.position.x - 100, y: node.position.y - 100 });
+  emitPrimaryWorkbenchEvent('canvas-focus-node', { nodeId });
+  emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   return responseJson({ ok: true, focused: nodeId });
 }
@@ -1832,6 +1929,10 @@ function buildSelectionContextPreamble(contextNodeIds: string[]): string {
         }
         break;
       }
+      case 'webpage': {
+        summary = summarizeWebpageContent(node.data, 500);
+        break;
+      }
       case 'json-render':
       case 'graph': {
         const graphCfg = node.data.graphConfig as Record<string, unknown> | undefined;
@@ -2289,6 +2390,9 @@ function resolveWindowsBrowserForCanvas(): { name: string; exe: string } | null 
 
 export function openUrlInExternalBrowser(url: string): boolean {
   try {
+    if (process.env.PMX_CANVAS_DISABLE_BROWSER_OPEN === '1') {
+      return false;
+    }
     if (process.platform === 'darwin') {
       const browser = resolveMacBrowserForCanvas();
       const script = browser
@@ -2754,11 +2858,15 @@ export function openPrimaryWorkbenchPath(
 export interface CanvasServerOptions {
   port?: number;
   workspaceRoot?: string;
+  autoOpenBrowser?: boolean;
 }
 
 export function startCanvasServer(options: CanvasServerOptions = {}): string | null {
   const workspaceRoot = options.workspaceRoot ?? process.cwd();
   activeWorkspaceRoot = normalizeWorkspaceRoot(workspaceRoot);
+  if (options.autoOpenBrowser !== undefined) {
+    primaryWorkbenchAutoOpenEnabled = options.autoOpenBrowser;
+  }
 
   // ── Canvas persistence: set workspace root and load saved state ──
   canvasState.setWorkspaceRoot(activeWorkspaceRoot);
@@ -2880,6 +2988,11 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           }
 
           // Individual node GET/PATCH/DELETE
+          if (url.pathname.startsWith('/api/canvas/node/') && url.pathname.endsWith('/refresh') && req.method === 'POST') {
+            const nodeId = url.pathname.slice('/api/canvas/node/'.length, -'/refresh'.length);
+            return handleCanvasRefreshWebpageNode(nodeId, req);
+          }
+
           if (url.pathname.startsWith('/api/canvas/node/') && req.method === 'GET') {
             const nodeId = url.pathname.slice('/api/canvas/node/'.length);
             const node = canvasState.getNode(nodeId);
@@ -3017,6 +3130,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           if (url.pathname === '/api/canvas/undo' && req.method === 'POST') {
             const entry = mutationHistory.undo();
             if (!entry) return responseJson({ ok: false, description: 'Nothing to undo' });
+            emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
             emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
             return responseJson({ ok: true, description: `Undid: ${entry.description}` });
           }
@@ -3024,6 +3138,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           if (url.pathname === '/api/canvas/redo' && req.method === 'POST') {
             const entry = mutationHistory.redo();
             if (!entry) return responseJson({ ok: false, description: 'Nothing to redo' });
+            emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
             emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
             return responseJson({ ok: true, description: `Redid: ${entry.description}` });
           }

@@ -5,12 +5,14 @@ import {
   activeNodeId,
   addEdge,
   addNode,
+  cancelViewportAnimation,
   canvasTheme,
   connectionStatus,
   edges,
   focusNode,
   hasInitialServerLayout,
   nodes,
+  replaceViewport,
   removeEdge,
   removeNode,
   restoreLayout,
@@ -70,6 +72,7 @@ const DEFAULT_POSITIONS: Record<
   markdown: { x: 380, y: 80, w: 720, h: 600 },
   context: { x: 1130, y: 80, w: 320, h: 400 },
   'mcp-app': { x: 380, y: 720, w: 720, h: 500 },
+  webpage: { x: 380, y: 80, w: 520, h: 420 },
   'json-render': { x: 380, y: 720, w: 840, h: 620 },
   graph: { x: 380, y: 720, w: 760, h: 520 },
   ledger: { x: 1130, y: 520, w: 320, h: 280 },
@@ -760,6 +763,16 @@ function handleCanvasFocusNode(data: Record<string, unknown>): void {
   }
 }
 
+function handleCanvasViewportUpdate(data: Record<string, unknown>): void {
+  const viewport = data.viewport as Record<string, unknown> | undefined;
+  if (!viewport) return;
+  const x = typeof viewport.x === 'number' ? viewport.x : 0;
+  const y = typeof viewport.y === 'number' ? viewport.y : 0;
+  const scale = typeof viewport.scale === 'number' ? viewport.scale : 1;
+  cancelViewportAnimation();
+  replaceViewport({ x, y, scale });
+}
+
 function handleContextUsage(data: Record<string, unknown>): void {
   const id = 'context-main';
   const existing = nodes.value.get(id);
@@ -807,6 +820,7 @@ export const EVENT_HANDLERS: Record<string, (data: Record<string, unknown>) => v
   'ext-app-result': handleExtAppResult,
   'canvas-layout-update': handleCanvasLayoutUpdate,
   'canvas-focus-node': handleCanvasFocusNode,
+  'canvas-viewport-update': handleCanvasViewportUpdate,
   'context-usage': handleContextUsage,
   'trace-state': handleTraceState,
   'theme-changed': handleThemeChanged,

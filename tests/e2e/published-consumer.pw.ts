@@ -40,8 +40,8 @@ test('renders the published-consumer SDLC workspace', async ({ page, request }) 
     const typeSet = new Set(state.nodes.map((node) => node.type));
     return [
       state.nodes.length >= 18,
-      ['markdown', 'image', 'file', 'status', 'context', 'ledger', 'trace', 'mcp-app', 'json-render', 'graph', 'group']
-        .every((type) => typeSet.has(type)),
+        ['markdown', 'image', 'file', 'status', 'context', 'ledger', 'trace', 'mcp-app', 'webpage', 'json-render', 'graph', 'group']
+          .every((type) => typeSet.has(type)),
     ].every(Boolean);
   }).toBe(true);
 

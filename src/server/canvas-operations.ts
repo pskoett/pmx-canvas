@@ -22,6 +22,11 @@ import {
   type JsonRenderNodeInput,
   type JsonRenderSpec,
 } from '../json-render/server.js';
+import {
+  fetchWebpageSnapshot,
+  getWebpageFetchErrorDetails,
+  normalizeWebpageUrl,
+} from './webpage-node.js';
 
 export type CanvasArrangeMode = 'grid' | 'column' | 'flow';
 export type CanvasPinMode = 'set' | 'add' | 'remove';
@@ -152,9 +157,32 @@ function buildImageNodeData(input: CanvasAddNodeInput): Record<string, unknown> 
   };
 }
 
+function buildWebpageNodeData(input: CanvasAddNodeInput): Record<string, unknown> {
+  const rawUrl = typeof input.data?.url === 'string' && input.data.url.length > 0
+    ? input.data.url
+    : (input.content ?? '');
+  const url = normalizeWebpageUrl(rawUrl);
+  const explicitTitle = typeof input.title === 'string' && input.title.trim().length > 0
+    ? input.title.trim()
+    : typeof input.data?.title === 'string' && input.data.title.trim().length > 0
+      ? input.data.title.trim()
+      : '';
+
+  return {
+    ...(input.data ?? {}),
+    url,
+    title: explicitTitle || url,
+    titleSource: explicitTitle ? 'user' : 'page',
+    status: 'idle',
+    content: typeof input.data?.content === 'string' ? input.data.content : '',
+    excerpt: typeof input.data?.excerpt === 'string' ? input.data.excerpt : '',
+  };
+}
+
 function buildNodeData(input: CanvasAddNodeInput): Record<string, unknown> {
   if (input.type === 'file') return buildFileNodeData(input);
   if (input.type === 'image') return buildImageNodeData(input);
+  if (input.type === 'webpage') return buildWebpageNodeData(input);
   return {
     ...(input.data ?? {}),
     ...(input.title ? { title: input.title } : {}),
@@ -206,6 +234,101 @@ export function addCanvasNode(input: CanvasAddNodeInput): {
   }
 
   return { id, needsCodeGraphRecompute: input.type === 'file' };
+}
+
+export async function refreshCanvasWebpageNode(
+  id: string,
+  options: { url?: string } = {},
+): Promise<{ ok: boolean; id: string; error?: string }> {
+  const existing = canvasState.getNode(id);
+  if (!existing || existing.type !== 'webpage') {
+    return { ok: false, id, error: `Webpage node "${id}" not found.` };
+  }
+
+  const currentData = existing.data;
+  const configuredUrl = typeof options.url === 'string' && options.url.trim().length > 0
+    ? options.url
+    : typeof currentData.url === 'string'
+      ? currentData.url
+      : '';
+
+  let normalizedUrl: string;
+  try {
+    normalizedUrl = normalizeWebpageUrl(configuredUrl);
+  } catch (error) {
+    canvasState.updateNode(id, {
+      data: {
+        ...currentData,
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Invalid webpage URL.',
+      },
+    });
+    return {
+      ok: false,
+      id,
+      error: error instanceof Error ? error.message : 'Invalid webpage URL.',
+    };
+  }
+
+  const fetchingData: Record<string, unknown> = {
+    ...currentData,
+    url: normalizedUrl,
+    status: 'fetching',
+  };
+  delete fetchingData.error;
+  canvasState.updateNode(id, { data: fetchingData });
+
+  try {
+    const snapshot = await fetchWebpageSnapshot(normalizedUrl);
+    const latest = canvasState.getNode(id);
+    if (!latest || latest.type !== 'webpage') {
+      return { ok: false, id, error: `Webpage node "${id}" disappeared during refresh.` };
+    }
+
+    const latestData = latest.data;
+    const titleSource = latestData.titleSource === 'user' ? 'user' : 'page';
+    const currentTitle = typeof latestData.title === 'string' ? latestData.title.trim() : '';
+    const nextTitle = titleSource === 'user' && currentTitle.length > 0
+      ? currentTitle
+      : snapshot.pageTitle ?? snapshot.url;
+
+    const nextData: Record<string, unknown> = {
+      ...latestData,
+      url: snapshot.url,
+      title: nextTitle,
+      titleSource,
+      pageTitle: snapshot.pageTitle,
+      description: snapshot.description,
+      imageUrl: snapshot.imageUrl,
+      content: snapshot.content,
+      excerpt: snapshot.excerpt,
+      fetchedAt: snapshot.fetchedAt,
+      status: 'ready',
+      statusCode: snapshot.statusCode,
+      contentType: snapshot.contentType,
+    };
+    delete nextData.error;
+
+    canvasState.updateNode(id, { data: nextData });
+    return { ok: true, id };
+  } catch (error) {
+    const details = getWebpageFetchErrorDetails(error);
+    const latest = canvasState.getNode(id);
+    if (latest?.type === 'webpage') {
+      canvasState.updateNode(id, {
+        data: {
+          ...latest.data,
+          url: normalizedUrl,
+          fetchedAt: new Date().toISOString(),
+          status: 'error',
+          error: details.message,
+          ...(details.statusCode !== null ? { statusCode: details.statusCode } : {}),
+          ...(details.contentType !== null ? { contentType: details.contentType } : {}),
+        },
+      });
+    }
+    return { ok: false, id, error: details.message };
+  }
 }
 
 export function removeCanvasNode(id: string): {

@@ -7,14 +7,20 @@ import {
   focusNode,
   nodes,
   pendingConnection,
-  persistLayout,
   removeNode,
   toggleCollapsed,
   toggleContextPin,
   undockNode,
   updateNode,
 } from '../state/canvas-store';
-import { createEdgeFromClient, sendIntent, ungroupFromClient } from '../state/intent-bridge';
+import {
+  createEdgeFromClient,
+  refreshWebpageNodeFromClient,
+  removeNodeFromClient,
+  sendIntent,
+  ungroupFromClient,
+  updateNodeFromClient,
+} from '../state/intent-bridge';
 import { EXPANDABLE_TYPES } from '../types';
 import type { CanvasNodeState } from '../types';
 
@@ -153,8 +159,9 @@ function buildMenuItems(node: CanvasNodeState): MenuItem[] {
   items.push({
     label: node.pinned ? 'Unpin' : 'Pin (exclude from auto-arrange)',
     action: () => {
-      updateNode(node.id, { pinned: !node.pinned });
-      persistLayout();
+      const pinned = !node.pinned;
+      updateNode(node.id, { pinned });
+      void updateNodeFromClient(node.id, { pinned });
     },
   });
 
@@ -253,6 +260,28 @@ function buildMenuItems(node: CanvasNodeState): MenuItem[] {
     }
   }
 
+  if (node.type === 'webpage') {
+    const url = typeof node.data.url === 'string' ? node.data.url : '';
+    items.push({
+      label: 'Refresh webpage',
+      action: () => {
+        void refreshWebpageNodeFromClient(node.id);
+      },
+    });
+    items.push({
+      label: 'Open in browser',
+      action: () => {
+        if (url) window.open(url, '_blank', 'noopener');
+      },
+    });
+    items.push({
+      label: 'Copy URL',
+      action: () => {
+        if (url) navigator.clipboard.writeText(url);
+      },
+    });
+  }
+
   // Group-specific actions
   if (node.type === 'group') {
     const childIds = (node.data.children as string[]) ?? [];
@@ -291,7 +320,7 @@ function buildMenuItems(node: CanvasNodeState): MenuItem[] {
       label: 'Close',
       action: () => {
         removeNode(node.id);
-        persistLayout();
+        void removeNodeFromClient(node.id);
       },
     });
   }

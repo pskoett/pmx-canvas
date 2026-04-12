@@ -18,6 +18,7 @@ import {
   deleteCanvasSnapshot,
   groupCanvasNodes,
   listCanvasSnapshots,
+  refreshCanvasWebpageNode,
   removeCanvasNode,
   removeCanvasEdge,
   restoreCanvasSnapshot,
@@ -152,6 +153,9 @@ export class PmxCanvas extends EventEmitter {
     width?: number;
     height?: number;
   }): string {
+    if (input.type === 'webpage') {
+      throw new Error('Use addWebpageNode for webpage nodes so page content is fetched and cached on the server.');
+    }
     const { id, needsCodeGraphRecompute } = addCanvasNode({
       ...input,
       defaultWidth: 720,
@@ -168,6 +172,37 @@ export class PmxCanvas extends EventEmitter {
     }
 
     return id;
+  }
+
+  async addWebpageNode(input: {
+    title?: string;
+    url: string;
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+  }): Promise<{ ok: boolean; id: string; error?: string }> {
+    const { id } = addCanvasNode({
+      type: 'webpage',
+      ...(typeof input.title === 'string' ? { title: input.title } : {}),
+      content: input.url,
+      ...(typeof input.x === 'number' ? { x: input.x } : {}),
+      ...(typeof input.y === 'number' ? { y: input.y } : {}),
+      ...(typeof input.width === 'number' ? { width: input.width } : {}),
+      ...(typeof input.height === 'number' ? { height: input.height } : {}),
+      defaultWidth: 520,
+      defaultHeight: 420,
+    });
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    const result = await refreshCanvasWebpageNode(id);
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return result;
+  }
+
+  async refreshWebpageNode(id: string, url?: string): Promise<{ ok: boolean; id: string; error?: string }> {
+    const result = await refreshCanvasWebpageNode(id, { ...(url ? { url } : {}) });
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return result;
   }
 
   updateNode(id: string, patch: Partial<CanvasNodeState>): void {
@@ -265,6 +300,8 @@ export class PmxCanvas extends EventEmitter {
       x: node.position.x - 100,
       y: node.position.y - 100,
     });
+    emitPrimaryWorkbenchEvent('canvas-focus-node', { nodeId: id });
+    emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   }
 

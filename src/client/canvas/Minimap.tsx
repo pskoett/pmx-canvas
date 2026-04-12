@@ -14,6 +14,7 @@ function getNodeColors(): Record<CanvasNodeState['type'], string> {
   return {
     markdown: t.accent,
     'mcp-app': t.ok,
+    webpage: t.warn,
     'json-render': t.ok,
     graph: t.purple,
     prompt: t.accent,

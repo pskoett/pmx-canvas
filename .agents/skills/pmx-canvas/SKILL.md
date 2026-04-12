@@ -92,6 +92,7 @@ The CLI targets `http://localhost:4313` by default. Override with `PMX_CANVAS_UR
 | `status` | Compact color-coded indicator | Progress tracking, build/test results, task state |
 | `file` | Live file viewer (auto-watches) | Show source code with live updates on file change |
 | `image` | Image display | Screenshots, diagrams, charts |
+| `webpage` | Persisted webpage snapshot | Ground agents with a stored URL plus cached page text they can refresh later |
 | `context` | Context card | Key context the human should see |
 | `ledger` | Log/ledger viewer | Structured log data, audit trails |
 | `trace` | Trace/timeline viewer | Execution traces, timelines |
@@ -138,7 +139,7 @@ Use color consistently to convey meaning:
 - `title`: short, scannable title
 - `content`: for most types, this is markdown text. For `file` type, pass the **file path**
   (e.g., `"src/auth/login.ts"`) — the server auto-loads the file content and watches for changes.
-  For `image` type, pass a file path, URL, or data URI.
+  For `image` type, pass a file path, URL, or data URI. For `webpage` type, pass the page URL.
 - `x`, `y`: position (auto-placed if omitted — prefer omitting for auto-layout)
 - `width`, `height`: dimensions (sensible defaults provided)
 - `color`: semantic color
@@ -167,6 +168,11 @@ Use color consistently to convey meaning:
 - Supports `line`, `bar`, and `pie` graph types (aliases accepted)
 - Use `xKey`/`yKey` for line or bar graphs and `nameKey`/`valueKey` for pie graphs
 - Uses the native json-render chart catalog under the hood
+
+**`canvas_refresh_webpage_node`** — Refresh a webpage node from its persisted URL
+- `id` (required): webpage node to refresh
+- Optional `url`: replace the stored URL before refreshing
+- Use this when the human saved a canvas and you need fresh page text later without losing the node
 
 ### Edge Operations
 

@@ -7,6 +7,7 @@ import { McpAppNode } from '../nodes/McpAppNode';
 import { StatusNode } from '../nodes/StatusNode';
 import { ImageNode } from '../nodes/ImageNode';
 import { GroupNode } from '../nodes/GroupNode';
+import { WebpageNode } from '../nodes/WebpageNode';
 import { PromptNode } from '../nodes/PromptNode';
 import { ResponseNode } from '../nodes/ResponseNode';
 import { TraceNode } from '../nodes/TraceNode';
@@ -35,6 +36,8 @@ function renderNodeContent(node: CanvasNodeState) {
       return <MarkdownNode node={node} />;
     case 'mcp-app':
       return <McpAppNode node={node} />;
+    case 'webpage':
+      return <WebpageNode node={node} />;
     case 'json-render':
       return <McpAppNode node={node} />;
     case 'graph':
@@ -75,6 +78,59 @@ interface CanvasViewportProps {
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico', 'avif']);
 const MD_EXTS = new Set(['md', 'mdx', 'markdown']);
+const WEBPAGE_NODE_SIZE = { width: 520, height: 420 };
+
+function normalizeUrlCandidate(raw: string): string | null {
+  const trimmed = raw.trim();
+  if (!trimmed || /\s/.test(trimmed)) return null;
+
+  const withScheme = /^[a-z][a-z0-9+.-]*:/i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  try {
+    const url = new URL(withScheme);
+    if (url.protocol !== 'http:' && url.protocol !== 'https:') return null;
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
+function extractUrlsFromText(text: string): string[] {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+
+  const rawCandidates = trimmed.includes('\n')
+    ? trimmed.split(/\r?\n/)
+    : trimmed.split(/\s+/);
+  const seen = new Set<string>();
+  const urls: string[] = [];
+
+  for (const candidate of rawCandidates) {
+    const value = candidate.trim();
+    if (!value || value.startsWith('#')) continue;
+    const normalized = normalizeUrlCandidate(value);
+    if (!normalized || seen.has(normalized)) continue;
+    seen.add(normalized);
+    urls.push(normalized);
+  }
+
+  return urls;
+}
+
+function getTransferUrls(dataTransfer: DataTransfer): string[] {
+  const uriList = extractUrlsFromText(dataTransfer.getData('text/uri-list'));
+  if (uriList.length > 0) return uriList;
+  return extractUrlsFromText(dataTransfer.getData('text/plain'));
+}
+
+function hasUrlPayload(dataTransfer: DataTransfer | null): boolean {
+  if (!dataTransfer) return false;
+  return dataTransfer.types.includes('text/uri-list') || dataTransfer.types.includes('text/plain');
+}
+
+function isEditableElement(element: Element | null): boolean {
+  if (!(element instanceof HTMLElement)) return false;
+  return Boolean(element.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""], .md-block-edit, .md-editor-split'));
+}
 
 function nodeTypeFromFilename(name: string): 'image' | 'markdown' | 'file' {
   const ext = name.split('.').pop()?.toLowerCase() ?? '';
@@ -104,6 +160,33 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
       persistLayout();
     },
   });
+
+  const createWebpageNodes = useCallback(async (urls: string[], centerX: number, centerY: number) => {
+    if (urls.length === 0) return;
+
+    const nodeW = WEBPAGE_NODE_SIZE.width;
+    const nodeH = WEBPAGE_NODE_SIZE.height;
+    const spacing = 24;
+    const cols = Math.ceil(Math.sqrt(urls.length));
+    const rows = Math.ceil(urls.length / cols);
+    const totalW = cols * nodeW + Math.max(0, cols - 1) * spacing;
+    const totalH = rows * nodeH + Math.max(0, rows - 1) * spacing;
+
+    for (let index = 0; index < urls.length; index++) {
+      const col = index % cols;
+      const row = Math.floor(index / cols);
+      const x = centerX - totalW / 2 + col * (nodeW + spacing);
+      const y = centerY - totalH / 2 + row * (nodeH + spacing);
+      await createNodeFromClient({
+        type: 'webpage',
+        content: urls[index],
+        x,
+        y,
+        width: nodeW,
+        height: nodeH,
+      });
+    }
+  }, []);
 
   // Lasso: Shift+pointerdown on background starts lasso selection
   const handlePointerDown = useCallback(
@@ -271,7 +354,7 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
   const handleDragEnter = useCallback((e: DragEvent) => {
     e.preventDefault();
     dropCounter.current++;
-    if (e.dataTransfer?.types.includes('Files')) {
+    if (e.dataTransfer?.types.includes('Files') || hasUrlPayload(e.dataTransfer)) {
       setDropActive(true);
     }
   }, []);
@@ -304,6 +387,12 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
     const baseWy = (e.clientY - rect.top - vp.y) / vp.scale;
 
     const files = Array.from(e.dataTransfer.files);
+    if (files.length === 0) {
+      const urls = getTransferUrls(e.dataTransfer);
+      await createWebpageNodes(urls, baseWx, baseWy);
+      return;
+    }
+
     const nodeW = 400;
     const nodeH = 300;
     const spacing = 20;
@@ -332,7 +421,35 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
         await createNodeFromClient({ type, title: fileName, content: text, x: wx, y: wy, width: isWide ? 720 : nodeW, height: isWide ? 500 : nodeH });
       }
     }
-  }, [containerRef]);
+  }, [containerRef, createWebpageNodes]);
+
+  useEffect(() => {
+    const handlePaste = async (e: ClipboardEvent) => {
+      if (e.defaultPrevented) return;
+      if (isEditableElement(e.target instanceof Element ? e.target : null)) return;
+      if (isEditableElement(document.activeElement)) return;
+
+      const text = e.clipboardData?.getData('text/plain') ?? '';
+      const urls = extractUrlsFromText(text);
+      if (urls.length === 0) return;
+
+      const container = containerRef.current;
+      if (!container) return;
+
+      e.preventDefault();
+
+      const rect = container.getBoundingClientRect();
+      const vp = viewport.value;
+      const centerX = (rect.width / 2 - vp.x) / vp.scale;
+      const centerY = (rect.height / 2 - vp.y) / vp.scale;
+      await createWebpageNodes(urls, centerX, centerY);
+    };
+
+    document.addEventListener('paste', handlePaste);
+    return () => {
+      document.removeEventListener('paste', handlePaste);
+    };
+  }, [containerRef, createWebpageNodes]);
 
   // Only render world-space nodes (dockPosition === null); docked nodes are in the HUD layer.
   // Do NOT sort by zIndex here — CSS z-index handles visual stacking. Sorting would
@@ -369,7 +486,9 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
 
   return (
     <div
+      class="canvas-viewport"
       ref={containerRef}
+      tabIndex={0}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
@@ -423,7 +542,7 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
         <div class="drop-zone-overlay">
           <div class="drop-zone-indicator">
             <div class="drop-zone-icon">+</div>
-            <div class="drop-zone-label">Drop files to add to canvas</div>
+            <div class="drop-zone-label">Drop files or URLs to add to canvas</div>
           </div>
         </div>
       )}

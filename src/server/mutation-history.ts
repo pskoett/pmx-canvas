@@ -27,6 +27,7 @@ export type MutationOp =
   | 'restoreSnapshot'
   | 'setPins'
   | 'batch'
+  | 'viewport'
   | 'groupNodes'
   | 'ungroupNodes';
 

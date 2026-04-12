@@ -53,6 +53,7 @@ export interface CanvasNodeState {
   type:
     | 'markdown'
     | 'mcp-app'
+    | 'webpage'
     | 'json-render'
     | 'graph'
     | 'prompt'
@@ -106,10 +107,33 @@ export interface CanvasNodeUpdate {
 export type CanvasChangeType = 'pins' | 'nodes';
 
 export interface MutationRecordInfo {
-  operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'clear' | 'setPins' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes';
+  operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'clear' | 'setPins' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
   description: string;
   forward: () => void;
   inverse: () => void;
+}
+
+function formatBatchUpdateDescription(updates: CanvasNodeUpdate[]): string {
+  let moved = 0;
+  let resized = 0;
+  let collapsed = 0;
+  let docked = 0;
+
+  for (const update of updates) {
+    if (update.position) moved++;
+    if (update.size) resized++;
+    if (update.collapsed !== undefined) collapsed++;
+    if (update.dockPosition !== undefined) docked++;
+  }
+
+  const parts: string[] = [];
+  if (moved > 0) parts.push(`${moved} moved`);
+  if (resized > 0) parts.push(`${resized} resized`);
+  if (collapsed > 0) parts.push(`${collapsed} collapsed`);
+  if (docked > 0) parts.push(`${docked} docked`);
+
+  const prefix = `Updated ${updates.length} node${updates.length === 1 ? '' : 's'}`;
+  return parts.length > 0 ? `${prefix} (${parts.join(', ')})` : prefix;
 }
 
 class CanvasStateManager {
@@ -721,6 +745,8 @@ class CanvasStateManager {
     let applied = 0;
     let skipped = 0;
     const touchedParentGroups = new Map<string, { compact: boolean }>();
+    const oldSnapshots = new Map<string, CanvasNodeState>();
+    const appliedUpdates: CanvasNodeUpdate[] = [];
 
     for (const update of updates) {
       const existing = this.nodes.get(update.id);
@@ -728,6 +754,8 @@ class CanvasStateManager {
         skipped++;
         continue;
       }
+      oldSnapshots.set(update.id, structuredClone(existing));
+      appliedUpdates.push(structuredClone(update));
       this.nodes.set(update.id, {
         ...existing,
         ...(update.position && { position: update.position }),
@@ -756,13 +784,41 @@ class CanvasStateManager {
     if (applied > 0) {
       this.scheduleSave();
       this.notifyChange('nodes');
+      const inverseSnapshots = Array.from(oldSnapshots.entries()).map(([id, node]) => ({ id, node }));
+      this.recordMutation({
+        operationType: 'batch',
+        description: formatBatchUpdateDescription(appliedUpdates),
+        forward: this.suppressed(() => {
+          this.applyUpdates(appliedUpdates.map((update) => structuredClone(update)));
+        }),
+        inverse: this.suppressed(() => {
+          for (const snapshot of inverseSnapshots) {
+            this.nodes.set(snapshot.id, structuredClone(snapshot.node));
+          }
+          this.reflowAllGroups();
+          this.scheduleSave();
+          this.notifyChange('nodes');
+        }),
+      });
     }
     return { applied, skipped };
   }
 
   setViewport(v: Partial<ViewportState>): void {
+    const oldViewport = { ...this._viewport };
     this._viewport = { ...this._viewport, ...v };
     this.scheduleSave();
+    this.notifyChange('nodes');
+    this.recordMutation({
+      operationType: 'viewport',
+      description: 'Updated viewport',
+      forward: this.suppressed(() => this.setViewport({ ...v })),
+      inverse: this.suppressed(() => {
+        this._viewport = oldViewport;
+        this.scheduleSave();
+        this.notifyChange('nodes');
+      }),
+    });
   }
 
   // ── Context pins ─────────────────────────────────────────────

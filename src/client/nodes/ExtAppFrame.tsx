@@ -2,6 +2,7 @@ import { AppBridge, PostMessageTransport } from '../ext-app/bridge';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { bringToFront, canvasTheme, persistLayout, updateNode, viewport } from '../state/canvas-store';
+import { updateNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
 
 type McpUiTheme = 'light' | 'dark';
@@ -152,18 +153,18 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
         if (mode === 'fullscreen') {
           const v = viewport.value;
           const padding = 40;
-          updateNode(nodeId, {
-            position: {
-              x: (padding - v.x) / v.scale,
-              y: (padding - v.y) / v.scale,
-            },
-            size: {
-              width: (window.innerWidth - padding * 2) / v.scale,
-              height: (window.innerHeight - padding * 2) / v.scale,
-            },
-          });
+          const position = {
+            x: (padding - v.x) / v.scale,
+            y: (padding - v.y) / v.scale,
+          };
+          const size = {
+            width: (window.innerWidth - padding * 2) / v.scale,
+            height: (window.innerHeight - padding * 2) / v.scale,
+          };
+          updateNode(nodeId, { position, size });
           bringToFront(nodeId);
           persistLayout();
+          void updateNodeFromClient(nodeId, { position, size });
         }
         return { mode };
       };

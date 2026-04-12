@@ -234,6 +234,10 @@ export function setViewport(v: Partial<ViewportState>): void {
   viewport.value = { ...viewport.value, ...v };
 }
 
+export function replaceViewport(next: ViewportState): void {
+  viewport.value = next;
+}
+
 // ── Animated viewport transitions ────────────────────────────
 let animationId: number | null = null;
 

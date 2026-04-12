@@ -113,12 +113,12 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_add_node ────────────────────────────────────────────
   server.tool(
     'canvas_add_node',
-    'Add a node to the canvas. Returns the new node ID. Node types: markdown (rich content), status (compact indicator), context, ledger, trace, file (live file viewer — set content to a file path), image (set content to an image file path, data URI, or URL), mcp-app.',
+    'Add a node to the canvas. Returns the new node ID. Node types: markdown (rich content), status (compact indicator), context, ledger, trace, file (live file viewer — set content to a file path), image (set content to an image file path, data URI, or URL), webpage (set content to an http(s) URL so the server can fetch and cache page text), mcp-app.',
     {
-      type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'mcp-app', 'group'])
+      type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'webpage', 'mcp-app', 'group'])
         .describe('Node type (prefer canvas_create_group for groups)'),
       title: z.string().optional().describe('Node title'),
-      content: z.string().optional().describe('Node content (markdown for markdown nodes, file path for file nodes, image path/URL/data-URI for image nodes)'),
+      content: z.string().optional().describe('Node content (markdown for markdown nodes, file path for file nodes, image path/URL/data-URI for image nodes, URL for webpage nodes)'),
       x: z.number().optional().describe('X position (auto-placed if omitted)'),
       y: z.number().optional().describe('Y position (auto-placed if omitted)'),
       width: z.number().optional().describe('Width in pixels (default: 720)'),
@@ -126,9 +126,46 @@ export async function startMcpServer(): Promise<void> {
     },
     async (input) => {
       const c = await ensureCanvas();
+      if (input.type === 'webpage') {
+        if (!input.content) {
+          return {
+            content: [{ type: 'text', text: 'Webpage nodes require content to be the page URL.' }],
+            isError: true,
+          };
+        }
+        const result = await c.addWebpageNode({
+          ...(typeof input.title === 'string' ? { title: input.title } : {}),
+          url: input.content,
+          ...(typeof input.x === 'number' ? { x: input.x } : {}),
+          ...(typeof input.y === 'number' ? { y: input.y } : {}),
+          ...(typeof input.width === 'number' ? { width: input.width } : {}),
+          ...(typeof input.height === 'number' ? { height: input.height } : {}),
+        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result) }],
+          ...(result.ok ? {} : { isError: true }),
+        };
+      }
       const id = c.addNode(input);
       return {
         content: [{ type: 'text', text: JSON.stringify({ id }) }],
+      };
+    },
+  );
+
+  server.tool(
+    'canvas_refresh_webpage_node',
+    'Refresh a webpage node from its persisted URL so the server re-fetches and caches the latest page text and metadata.',
+    {
+      id: z.string().describe('Webpage node ID to refresh'),
+      url: z.string().optional().describe('Optional replacement URL before refresh'),
+    },
+    async ({ id, url }) => {
+      const c = await ensureCanvas();
+      const result = await c.refreshWebpageNode(id, url);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result) }],
+        ...(result.ok ? {} : { isError: true }),
       };
     },
   );

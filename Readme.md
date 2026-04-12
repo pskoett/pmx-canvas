@@ -93,6 +93,7 @@ The canvas auto-starts on first tool call. Works with Claude Code, Cursor, Winds
 | `trace` | Agent trace pills (tool calls, subagent activity) |
 | `file` | Live file viewer with auto-update on disk changes |
 | `image` | Image viewer (file paths, data URIs, URLs) |
+| `webpage` | Persisted webpage snapshot with stored URL, extracted text, and refresh support |
 | `mcp-app` | Hosted MCP app iframes (Chart.js, Excalidraw, etc.) |
 | `json-render` | Structured UI from JSON specs |
 | `graph` | Line, bar, and pie charts |
@@ -115,6 +116,15 @@ File nodes display project files with line numbers and language detection. When 
 
 ```typescript
 canvas_add_node({ type: 'file', content: 'src/server/index.ts' })
+```
+
+### Webpage nodes
+
+Webpage nodes store the source URL on the node, fetch the page server-side, and cache extracted text for search, pins, and agent context. Saved canvases keep enough information for an agent to come back later and refresh the node from the original URL.
+
+```typescript
+canvas_add_node({ type: 'webpage', content: 'https://example.com/docs' })
+canvas_refresh_webpage_node({ id: 'node-abc123' })
 ```
 
 ### Groups
@@ -197,7 +207,8 @@ Both paths are first-class for core canvas work. A few advanced capabilities, su
 
 | Tool | Description |
 |------|-------------|
-| `canvas_add_node` | Add a node (markdown, status, context, file, etc.) |
+| `canvas_add_node` | Add a node (markdown, status, context, file, webpage, etc.) |
+| `canvas_refresh_webpage_node` | Re-fetch and update a webpage node from its stored URL |
 | `canvas_add_json_render_node` | Create a native json-render node from a validated spec |
 | `canvas_add_graph_node` | Create a native graph node (line, bar, pie) |
 | `canvas_build_web_artifact` | Build a bundled HTML artifact and open it on the canvas |

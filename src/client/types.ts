@@ -9,6 +9,7 @@ export interface CanvasNodeState {
   type:
     | 'markdown'
     | 'mcp-app'
+    | 'webpage'
     | 'json-render'
     | 'graph'
     | 'prompt'
@@ -46,6 +47,7 @@ export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 export const TYPE_LABELS: Record<CanvasNodeState['type'], string> = {
   markdown: 'MD',
   'mcp-app': 'APP',
+  webpage: 'WEB',
   'json-render': 'UI',
   graph: 'GRAPH',
   prompt: 'ASK',
@@ -63,6 +65,7 @@ export const TYPE_LABELS: Record<CanvasNodeState['type'], string> = {
 export const EXPANDABLE_TYPES = new Set<CanvasNodeState['type']>([
   'markdown',
   'mcp-app',
+  'webpage',
   'json-render',
   'graph',
   'context',

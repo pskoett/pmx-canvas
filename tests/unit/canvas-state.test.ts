@@ -116,6 +116,30 @@ describe('canvas state manager', () => {
     expect(canvasState.listSnapshots()).toEqual([]);
   });
 
+  test('persists webpage node URLs and cached text snapshots', async () => {
+    const webpageNode = makeNode({
+      id: 'webpage-1',
+      type: 'webpage',
+      data: {
+        title: 'Saved webpage',
+        url: 'https://example.com/article',
+        pageTitle: 'Example article',
+        content: 'Cached webpage text for later agent refresh.',
+        excerpt: 'Cached webpage text for later agent refresh.',
+        status: 'ready',
+      },
+    });
+
+    canvasState.addNode(webpageNode);
+
+    await waitForPersistence();
+    const persisted = readPersistedCanvasState(workspaceRoot);
+    const restored = persisted.nodes.find((node) => node.id === webpageNode.id);
+    expect(restored?.type).toBe('webpage');
+    expect(restored?.data.url).toBe('https://example.com/article');
+    expect(restored?.data.content).toBe('Cached webpage text for later agent refresh.');
+  });
+
   test('returns cloned snapshots from getters instead of live mutable internals', () => {
     const node = makeNode({
       id: 'node-clone',

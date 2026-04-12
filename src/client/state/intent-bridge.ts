@@ -146,6 +146,7 @@ export async function pushCanvasUpdate(
     position?: { x: number; y: number };
     size?: { width: number; height: number };
     collapsed?: boolean;
+    dockPosition?: 'left' | 'right' | null;
   }>,
 ): Promise<void> {
   await requestBestEffort('pushCanvasUpdate', '/api/canvas/update', {
@@ -183,6 +184,46 @@ export async function createNodeFromClient(opts: {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(opts),
+  });
+}
+
+/** Update a canvas node via the server. */
+export async function updateNodeFromClient(
+  id: string,
+  patch: {
+    position?: { x: number; y: number };
+    size?: { width: number; height: number };
+    collapsed?: boolean;
+    pinned?: boolean;
+    dockPosition?: 'left' | 'right' | null;
+    title?: string;
+    content?: string;
+    data?: Record<string, unknown>;
+  },
+): Promise<{ ok: boolean; id?: string }> {
+  return requestJson('updateNodeFromClient', `/api/canvas/node/${encodeURIComponent(id)}`, { ok: false }, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+}
+
+/** Refresh a webpage node from its persisted URL on the server. */
+export async function refreshWebpageNodeFromClient(
+  id: string,
+  url?: string,
+): Promise<{ ok: boolean; id?: string; error?: string }> {
+  return requestJson('refreshWebpageNodeFromClient', `/api/canvas/node/${encodeURIComponent(id)}/refresh`, { ok: false }, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(url ? { url } : {}),
+  });
+}
+
+/** Remove a canvas node via the server. */
+export async function removeNodeFromClient(id: string): Promise<{ ok: boolean; removed?: string }> {
+  return requestJson('removeNodeFromClient', `/api/canvas/node/${encodeURIComponent(id)}`, { ok: false }, {
+    method: 'DELETE',
   });
 }
 

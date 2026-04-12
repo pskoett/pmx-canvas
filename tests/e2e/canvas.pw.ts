@@ -76,6 +76,87 @@ test('renders server-created nodes and syncs context pins from the UI', async ({
   }).toBe(`1:${created.id}`);
 });
 
+test('renders webpage node preview content from cached server fetch data', async ({ page, request }) => {
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'webpage',
+      title: 'Previewed page',
+      content: 'https://example.com/preview',
+      data: {
+        description: 'Visible webpage preview',
+        pageTitle: 'Previewed page',
+        excerpt: 'This cached webpage preview text is visible on the canvas.',
+        content: 'This cached webpage preview text is visible on the canvas.',
+        status: 'ready',
+      },
+      x: 640,
+      y: 260,
+      width: 520,
+      height: 420,
+    },
+  });
+
+  await page.goto('/workbench');
+
+  const webpageNode = page.locator('.canvas-node').filter({ hasText: 'Previewed page' });
+  await expect(webpageNode).toHaveCount(1);
+  await expect(webpageNode).toContainText('Visible webpage preview');
+  await expect(webpageNode).toContainText('This cached webpage preview text is visible on the canvas.');
+  await expect(webpageNode.getByRole('button', { name: 'Refresh' })).toBeVisible();
+});
+
+test('pasting a URL onto the canvas creates a webpage node', async ({ page, request }) => {
+  await page.goto('/workbench');
+  await page.evaluate(() => {
+    const viewport = document.querySelector('.canvas-viewport');
+    if (!(viewport instanceof HTMLElement)) throw new Error('Canvas viewport not found');
+    viewport.focus();
+    const event = new ClipboardEvent('paste', {
+      clipboardData: new DataTransfer(),
+      bubbles: true,
+      cancelable: true,
+    });
+    event.clipboardData?.setData('text/plain', 'https://example.com/pasted-url');
+    document.dispatchEvent(event);
+  });
+
+  await expect.poll(async () => {
+    const state = await currentCanvasState(request);
+    return state.nodes.some((node) => node.type === 'webpage' && node.data.url === 'https://example.com/pasted-url');
+  }).toBe(true);
+});
+
+test('dropping a URL onto the canvas creates a webpage node', async ({ page, request }) => {
+  await page.goto('/workbench');
+
+  await page.evaluate(() => {
+    const viewport = document.querySelector('.canvas-viewport');
+    if (!(viewport instanceof HTMLElement)) throw new Error('Canvas viewport not found');
+    const dataTransfer = new DataTransfer();
+    dataTransfer.setData('text/plain', 'https://example.com/dropped-url');
+    const rect = viewport.getBoundingClientRect();
+    viewport.dispatchEvent(new DragEvent('dragenter', {
+      bubbles: true,
+      cancelable: true,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2,
+      dataTransfer,
+    }));
+    viewport.dispatchEvent(new DragEvent('drop', {
+      bubbles: true,
+      cancelable: true,
+      clientX: rect.left + rect.width / 2,
+      clientY: rect.top + rect.height / 2,
+      dataTransfer,
+    }));
+  });
+
+  await expect.poll(async () => {
+    const state = await currentCanvasState(request);
+    return state.nodes.some((node) => node.type === 'webpage' && node.data.url === 'https://example.com/dropped-url');
+  }).toBe(true);
+});
+
 test('markdown edit opens focused inline editing before raw source mode', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
     data: {
@@ -130,4 +211,59 @@ test('saves snapshots from the toolbar', async ({ page, request }) => {
     const snapshots = await response.json() as Array<{ name: string }>;
     return snapshots.map((snapshot) => snapshot.name).join(',');
   }).toContain('Toolbar snapshot');
+});
+
+test('ordinary node pin updates the authoritative canvas state', async ({ page, request }) => {
+  const createResponse = await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Pin me',
+      content: 'Pinned for arrange exclusion',
+      x: 640,
+      y: 260,
+    },
+  });
+  const created = await createResponse.json() as { id: string };
+
+  await page.goto('/workbench');
+
+  const note = page.locator('.canvas-node').filter({ hasText: 'Pin me' });
+  await expect(note).toHaveCount(1);
+
+  await note.click({ button: 'right' });
+  await page.locator('.context-menu-item').filter({ hasText: 'Pin (exclude from auto-arrange)' }).click();
+
+  await expect(note).toHaveClass(/pinned/);
+  await expect.poll(async () => {
+    const response = await request.get(`/api/canvas/node/${created.id}`);
+    const node = await response.json() as { pinned: boolean };
+    return node.pinned;
+  }).toBe(true);
+});
+
+test('server-side focus updates the browser viewport', async ({ page, request }) => {
+  const createResponse = await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Focus me',
+      content: 'Focus target',
+      x: 900,
+      y: 700,
+    },
+  });
+  const created = await createResponse.json() as { id: string };
+
+  await page.goto('/workbench');
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Focus me' })).toHaveCount(1);
+
+  await request.post('/api/canvas/focus', {
+    data: { id: created.id },
+  });
+
+  await expect.poll(async () => {
+    return await page.evaluate(() => {
+      const viewport = document.querySelector('.canvas-viewport > div[style*="position: absolute"]') as HTMLElement | null;
+      return viewport?.style.transform ?? null;
+    });
+  }).toContain('matrix(1, 0, 0, 1, 800, 600)');
 });

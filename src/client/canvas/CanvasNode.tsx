@@ -19,6 +19,7 @@ import {
   updateNodeData,
   viewport,
 } from '../state/canvas-store';
+import { removeNodeFromClient, updateNodeFromClient } from '../state/intent-bridge';
 import { EXPANDABLE_TYPES, TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
 import { activeGuides, buildSnapCache, clearSnapCache, snapToGuides } from './snap-guides';
@@ -116,16 +117,18 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     requestAnimationFrame(() => renameRef.current?.focus());
   }, []);
 
+  const title = (node.data.title as string) || TYPE_LABELS[node.type];
+
   const commitRename = useCallback(
     (value: string) => {
       const trimmed = value.trim();
-      if (trimmed) {
+      if (trimmed && trimmed !== title) {
         updateNodeData(node.id, { title: trimmed });
+        void updateNodeFromClient(node.id, { title: trimmed });
       }
       setRenaming(false);
-      persistLayout();
     },
-    [node.id],
+    [node.id, title],
   );
 
   // ── Auto-fit: measure content and resize once ───────
@@ -173,7 +176,6 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     };
   }, [node.id, node.type, node.collapsed, node.dockPosition, node.size.width, node.size.height]);
 
-  const title = (node.data.title as string) || TYPE_LABELS[node.type];
   const isPinned = node.pinned;
   const isTrace = node.type === 'trace';
   const isTraceRunning = isTrace && node.data.status === 'running';
@@ -248,7 +250,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
             {'\u2726'}
           </button>
           {/* Open externally — only for URL-based MCP app nodes (not ext-apps which need a host bridge) */}
-          {node.type === 'mcp-app' && node.data.url && !node.data.mode && (
+          {(node.type === 'mcp-app' || node.type === 'webpage') && node.data.url && !node.data.mode && (
             <button
               type="button"
               onClick={(e) => {
@@ -289,7 +291,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
               onClick={(e) => {
                 e.stopPropagation();
                 removeNode(node.id);
-                persistLayout();
+                void removeNodeFromClient(node.id);
               }}
               title="Close"
             >

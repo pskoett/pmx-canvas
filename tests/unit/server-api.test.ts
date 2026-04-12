@@ -12,7 +12,14 @@ import {
 } from './helpers.ts';
 
 interface CanvasStateResponse {
-  nodes: Array<{ id: string; type: string; data: Record<string, unknown> }>;
+  viewport?: { x: number; y: number; scale: number };
+  nodes: Array<{
+    id: string;
+    type: string;
+    pinned?: boolean;
+    dockPosition?: 'left' | 'right' | null;
+    data: Record<string, unknown>;
+  }>;
   edges: Array<{ id: string; from: string; to: string; type: string }>;
 }
 
@@ -32,6 +39,8 @@ interface WorkbenchWebViewStatusResponse {
 describe('canvas server HTTP API', () => {
   let workspaceRoot = '';
   let baseUrl = '';
+  let webpageServer: ReturnType<typeof Bun.serve> | null = null;
+  let webpageOrigin = '';
 
   async function jsonRequest<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetch(`${baseUrl}${path}`, init);
@@ -47,10 +56,45 @@ describe('canvas server HTTP API', () => {
       throw new Error('Failed to start canvas server for tests.');
     }
     baseUrl = base;
+
+    webpageServer = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch(req) {
+        const url = new URL(req.url);
+        if (url.pathname === '/article') {
+          const version = url.searchParams.get('v') ?? '1';
+          const title = version === '2' ? 'Canvas Webpage v2' : 'Canvas Webpage v1';
+          const body = version === '2'
+            ? 'Updated webpage content for saved canvas refresh.'
+            : 'Initial webpage content for canvas grounding.';
+          return new Response(`<!doctype html>
+<html>
+  <head>
+    <title>${title}</title>
+    <meta name="description" content="Webpage node fixture ${version}" />
+    <meta property="og:image" content="/image-${version}.png" />
+  </head>
+  <body>
+    <main>
+      <h1>${title}</h1>
+      <p>${body}</p>
+      <p>Supplemental text block ${version}.</p>
+    </main>
+  </body>
+</html>`, {
+            headers: { 'Content-Type': 'text/html; charset=utf-8' },
+          });
+        }
+        return new Response('missing', { status: 404 });
+      },
+    });
+    webpageOrigin = `http://127.0.0.1:${webpageServer.port}`;
   });
 
   afterAll(() => {
     stopCanvasServer();
+    webpageServer?.stop(true);
     removeTestWorkspace(workspaceRoot);
   });
 
@@ -143,6 +187,39 @@ describe('canvas server HTTP API', () => {
     expect(arrangedMarkdown.position).toEqual({ x: 40, y: 304 });
   });
 
+  test('creates and refreshes webpage nodes over HTTP with cached text context', async () => {
+    const created = await jsonRequest<{ ok: boolean; id: string; error?: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'webpage',
+        content: `${webpageOrigin}/article?v=1`,
+      }),
+    });
+
+    const node = await jsonRequest<{ id: string; type: string; data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`);
+    expect(node.type).toBe('webpage');
+    expect(node.data.url).toBe(`${webpageOrigin}/article?v=1`);
+    expect(node.data.pageTitle).toBe('Canvas Webpage v1');
+    expect(node.data.status).toBe('ready');
+    expect(String(node.data.content)).toContain('Initial webpage content for canvas grounding.');
+
+    const search = await jsonRequest<{ results: Array<{ id: string }> }>(`/api/canvas/search?q=${encodeURIComponent('grounding')}`);
+    expect(search.results.map((result) => result.id)).toContain(created.id);
+
+    const refreshed = await jsonRequest<{ ok: boolean; id: string }>(`/api/canvas/node/${created.id}/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: `${webpageOrigin}/article?v=2` }),
+    });
+    expect(refreshed.ok).toBe(true);
+
+    const updated = await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`);
+    expect(updated.data.url).toBe(`${webpageOrigin}/article?v=2`);
+    expect(updated.data.pageTitle).toBe('Canvas Webpage v2');
+    expect(String(updated.data.content)).toContain('Updated webpage content for saved canvas refresh.');
+  });
+
   test('rejects invalid single-node patch geometry and skips invalid batch updates', async () => {
     const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
       method: 'POST',
@@ -178,6 +255,146 @@ describe('canvas server HTTP API', () => {
     const updated = await jsonRequest<{ id: string; position: { x: number; y: number }; size: { width: number; height: number } }>(`/api/canvas/node/${created.id}`);
     expect(updated.position).toEqual({ x: 200, y: 240 });
     expect(updated.size).toEqual({ width: 360, height: 200 });
+  });
+
+  test('persists node pinned and dock state through single-node patch and batch updates', async () => {
+    const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Patch target', x: 80, y: 80 }),
+    });
+
+    await jsonRequest<{ ok: boolean; id: string }>(`/api/canvas/node/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pinned: true, dockPosition: 'left' }),
+    });
+
+    const patched = await jsonRequest<{
+      id: string;
+      pinned: boolean;
+      dockPosition: 'left' | 'right' | null;
+    }>(`/api/canvas/node/${created.id}`);
+    expect(patched.pinned).toBe(true);
+    expect(patched.dockPosition).toBe('left');
+
+    const batchResult = await jsonRequest<{ ok: boolean; applied: number; skipped: number }>('/api/canvas/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        updates: [{ id: created.id, position: { x: 240, y: 320 }, collapsed: true, dockPosition: null }],
+      }),
+    });
+    expect(batchResult.applied).toBe(1);
+
+    const updated = await jsonRequest<{
+      id: string;
+      position: { x: number; y: number };
+      collapsed: boolean;
+      dockPosition: 'left' | 'right' | null;
+    }>(`/api/canvas/node/${created.id}`);
+    expect(updated.position).toEqual({ x: 240, y: 320 });
+    expect(updated.collapsed).toBe(true);
+    expect(updated.dockPosition).toBeNull();
+  });
+
+  test('records batch updates in history and supports undo/redo over HTTP', async () => {
+    const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'History target', x: 120, y: 120 }),
+    });
+
+    const batchResult = await jsonRequest<{ ok: boolean; applied: number; skipped: number }>('/api/canvas/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        updates: [{ id: created.id, position: { x: 520, y: 420 }, collapsed: true }],
+      }),
+    });
+    expect(batchResult.applied).toBe(1);
+
+    const history = await jsonRequest<{
+      text: string;
+      entries: Array<{ operationType: string; description: string }>;
+      canUndo: boolean;
+      canRedo: boolean;
+    }>('/api/canvas/history');
+    expect(history.canUndo).toBe(true);
+    expect(history.canRedo).toBe(false);
+    expect(history.text).toContain('Updated 1 node (1 moved, 1 collapsed)');
+    expect(history.entries.some((entry) => entry.operationType === 'batch' && entry.description === 'Updated 1 node (1 moved, 1 collapsed)')).toBe(true);
+
+    const undone = await jsonRequest<{ ok: boolean; description: string }>('/api/canvas/undo', {
+      method: 'POST',
+    });
+    expect(undone.ok).toBe(true);
+    expect(undone.description).toContain('Updated 1 node (1 moved, 1 collapsed)');
+
+    const reverted = await jsonRequest<{
+      id: string;
+      position: { x: number; y: number };
+      collapsed: boolean;
+    }>(`/api/canvas/node/${created.id}`);
+    expect(reverted.position).toEqual({ x: 120, y: 120 });
+    expect(reverted.collapsed).toBe(false);
+
+    const redone = await jsonRequest<{ ok: boolean; description: string }>('/api/canvas/redo', {
+      method: 'POST',
+    });
+    expect(redone.ok).toBe(true);
+    expect(redone.description).toContain('Updated 1 node (1 moved, 1 collapsed)');
+
+    const replayed = await jsonRequest<{
+      id: string;
+      position: { x: number; y: number };
+      collapsed: boolean;
+    }>(`/api/canvas/node/${created.id}`);
+    expect(replayed.position).toEqual({ x: 520, y: 420 });
+    expect(replayed.collapsed).toBe(true);
+  });
+
+  test('records viewport changes in history and supports undo/redo over HTTP', async () => {
+    const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Viewport target', x: 640, y: 480 }),
+    });
+
+    const focused = await jsonRequest<{ ok: boolean; focused: string }>('/api/canvas/focus', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: created.id }),
+    });
+    expect(focused.focused).toBe(created.id);
+
+    const afterFocus = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(afterFocus.viewport).toEqual({ x: 540, y: 380, scale: 1 });
+
+    const history = await jsonRequest<{
+      text: string;
+      entries: Array<{ operationType: string; description: string }>;
+      canUndo: boolean;
+      canRedo: boolean;
+    }>('/api/canvas/history');
+    expect(history.text).toContain('Updated viewport');
+    expect(history.entries.some((entry) => entry.operationType === 'viewport')).toBe(true);
+
+    const undone = await jsonRequest<{ ok: boolean; description: string }>('/api/canvas/undo', {
+      method: 'POST',
+    });
+    expect(undone.description).toContain('Updated viewport');
+
+    const afterUndo = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(afterUndo.viewport).toEqual({ x: 0, y: 0, scale: 1 });
+
+    const redone = await jsonRequest<{ ok: boolean; description: string }>('/api/canvas/redo', {
+      method: 'POST',
+    });
+    expect(redone.description).toContain('Updated viewport');
+
+    const afterRedo = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(afterRedo.viewport).toEqual({ x: 540, y: 380, scale: 1 });
   });
 
   test('supports edges, snapshots, clear, and pinned context over HTTP', async () => {

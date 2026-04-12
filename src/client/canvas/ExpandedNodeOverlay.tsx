@@ -6,6 +6,7 @@ import { MarkdownNode } from '../nodes/MarkdownNode';
 import { McpAppNode } from '../nodes/McpAppNode';
 import { StatusNode } from '../nodes/StatusNode';
 import { ImageNode } from '../nodes/ImageNode';
+import { WebpageNode } from '../nodes/WebpageNode';
 import { PromptNode } from '../nodes/PromptNode';
 import { ResponseNode } from '../nodes/ResponseNode';
 import { TraceNode } from '../nodes/TraceNode';
@@ -25,6 +26,8 @@ function renderContent(node: CanvasNodeState, expanded: boolean) {
       return <MarkdownNode node={node} expanded={expanded} />;
     case 'mcp-app':
       return <McpAppNode node={node} />;
+    case 'webpage':
+      return <WebpageNode node={node} expanded={expanded} />;
     case 'json-render':
       return <McpAppNode node={node} />;
     case 'graph':
@@ -57,6 +60,8 @@ function getNodeTextContent(node: CanvasNodeState): string {
       return (node.data.content as string) || '';
     case 'file':
       return (node.data.fileContent as string) || '';
+    case 'webpage':
+      return (node.data.content as string) || '';
     case 'json-render':
     case 'graph':
       return JSON.stringify(node.data.spec ?? node.data.graphConfig ?? {}, null, 2);

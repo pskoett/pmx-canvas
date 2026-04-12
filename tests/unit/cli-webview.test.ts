@@ -20,7 +20,7 @@ describe('agent CLI webview commands', () => {
   beforeAll(() => {
     workspaceRoot = createTestWorkspace('pmx-canvas-cli-webview-');
     resetCanvasForTests(workspaceRoot);
-    const base = startCanvasServer({ workspaceRoot, port: 4541 });
+    const base = startCanvasServer({ workspaceRoot, port: 4541, autoOpenBrowser: false });
     if (!base) {
       throw new Error('Failed to start canvas server for CLI tests.');
     }
