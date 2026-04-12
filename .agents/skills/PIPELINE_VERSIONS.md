@@ -8,7 +8,6 @@
 
 - `agent-teams-simplify-and-harden`
 - `context-surfing`
-- `dx-data-navigator`
 - `eval-creator`
 - `eval-creator-ci`
 - `intent-framed-agent`

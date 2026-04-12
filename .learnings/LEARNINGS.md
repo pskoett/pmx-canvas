@@ -42,3 +42,16 @@ Docker build fails on Apple Silicon due to platform mismatch
 ```
 
 ---
+
+## [LRN-20260412-001] correction
+
+**Logged**: 2026-04-12T00:00:00Z
+**Priority**: medium
+**Status**: resolved
+**Area**: config
+
+### Summary
+Do not import upstream shared skills into this repo just because they exist upstream; keep only repo-relevant skills in the mirrored agent skill set.
+
+### Details
+An upstream refresh from `pskoett/pskoett-ai-skills` pulled in `dx-data-navigator`, but that skill is not relevant to `pmx-canvas`. For future syncs, compare upstream additions against repo scope before adding them to `.agents/skills`, `.claude/skills`, `.opencode/skills`, or the local mirror validator.
