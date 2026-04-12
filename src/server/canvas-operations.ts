@@ -1,12 +1,30 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { recomputeCodeGraph } from './code-graph.js';
-import { canvasState, IMAGE_MIME_MAP, type CanvasNodeState } from './canvas-state.js';
+import {
+  canvasState,
+  type CanvasEdge,
+  IMAGE_MIME_MAP,
+  type CanvasNodeState,
+  type CanvasNodeUpdate,
+  type CanvasSnapshot,
+} from './canvas-state.js';
 import { unwatchFileForNode, watchFileForNode } from './file-watcher.js';
 import { mutationHistory } from './mutation-history.js';
-import { findOpenCanvasPosition } from './placement.js';
+import { computeGroupBounds, findOpenCanvasPosition } from './placement.js';
+import {
+  buildGraphSpec,
+  createJsonRenderNodeData,
+  GRAPH_NODE_SIZE,
+  JSON_RENDER_NODE_SIZE,
+  normalizeAndValidateJsonRenderSpec,
+  type GraphNodeInput,
+  type JsonRenderNodeInput,
+  type JsonRenderSpec,
+} from '../json-render/server.js';
 
 export type CanvasArrangeMode = 'grid' | 'column' | 'flow';
+export type CanvasPinMode = 'set' | 'add' | 'remove';
 
 interface CanvasAddNodeInput {
   type: CanvasNodeState['type'];
@@ -20,6 +38,38 @@ interface CanvasAddNodeInput {
   defaultWidth?: number;
   defaultHeight?: number;
   fileMode?: 'path' | 'inline' | 'auto';
+}
+
+interface CanvasCreateGroupInput {
+  title?: string;
+  childIds?: string[];
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  color?: string;
+}
+
+const MAX_CONTEXT_PINS = 20;
+
+export function validateCanvasNodePatch(patch: {
+  position?: { x: number; y: number };
+  size?: { width: number; height: number };
+}): string | null {
+  if (patch.position) {
+    if (!Number.isFinite(patch.position.x) || !Number.isFinite(patch.position.y)) {
+      return 'Position must contain finite x and y values.';
+    }
+  }
+  if (patch.size) {
+    if (!Number.isFinite(patch.size.width) || !Number.isFinite(patch.size.height)) {
+      return 'Size must contain finite width and height values.';
+    }
+    if (patch.size.width <= 0 || patch.size.height <= 0) {
+      return 'Size width and height must be greater than zero.';
+    }
+  }
+  return null;
 }
 
 let codeGraphTimer: ReturnType<typeof setTimeout> | null = null;
@@ -232,4 +282,207 @@ export function arrangeCanvasNodes(layout: CanvasArrangeMode): { arranged: numbe
   });
 
   return { arranged: nodes.length, layout };
+}
+
+export function applyCanvasNodeUpdates(updates: CanvasNodeUpdate[]): { applied: number; skipped: number } {
+  const safe = updates.filter((update) => validateCanvasNodePatch(update) === null);
+  return canvasState.applyUpdates(safe);
+}
+
+export function setCanvasContextPins(
+  nodeIds: string[],
+  mode: CanvasPinMode = 'set',
+): { count: number; nodeIds: string[] } {
+  const normalizedNodeIds = nodeIds.filter((id, index) => nodeIds.indexOf(id) === index).slice(0, MAX_CONTEXT_PINS);
+  if (mode === 'set') {
+    canvasState.setContextPins(normalizedNodeIds);
+  } else if (mode === 'add') {
+    const current = Array.from(canvasState.contextPinnedNodeIds);
+    canvasState.setContextPins([...current, ...normalizedNodeIds]);
+  } else {
+    const current = Array.from(canvasState.contextPinnedNodeIds);
+    canvasState.setContextPins(current.filter((id) => !normalizedNodeIds.includes(id)));
+  }
+
+  return {
+    count: canvasState.contextPinnedNodeIds.size,
+    nodeIds: Array.from(canvasState.contextPinnedNodeIds),
+  };
+}
+
+export function listCanvasSnapshots(): CanvasSnapshot[] {
+  return canvasState.listSnapshots();
+}
+
+export function saveCanvasSnapshot(name: string): CanvasSnapshot | null {
+  return canvasState.saveSnapshot(name);
+}
+
+export function restoreCanvasSnapshot(id: string): { ok: boolean } {
+  return { ok: canvasState.restoreSnapshot(id) };
+}
+
+export function deleteCanvasSnapshot(id: string): { ok: boolean } {
+  return { ok: canvasState.deleteSnapshot(id) };
+}
+
+export function addCanvasEdge(input: {
+  from: string;
+  to: string;
+  type: CanvasEdge['type'];
+  label?: string;
+  animated?: boolean;
+}): { id: string } {
+  const id = `edge-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const edge: CanvasEdge = {
+    id,
+    from: input.from,
+    to: input.to,
+    type: input.type,
+    ...(input.label ? { label: input.label } : {}),
+    ...(input.animated !== undefined ? { animated: input.animated } : {}),
+  };
+  const added = canvasState.addEdge(edge);
+  if (!added) {
+    throw new Error('Duplicate or self-edge.');
+  }
+  return { id };
+}
+
+export function removeCanvasEdge(id: string): { removed: boolean } {
+  return { removed: canvasState.removeEdge(id) };
+}
+
+export function createCanvasGroup(input: CanvasCreateGroupInput): { id: string } {
+  let x = input.x;
+  let y = input.y;
+  let width = input.width ?? 600;
+  let height = input.height ?? 400;
+
+  const childIds = input.childIds ?? [];
+  if (childIds.length > 0 && x === undefined && y === undefined) {
+    const childRects = childIds
+      .map((cid) => canvasState.getNode(cid))
+      .filter((node): node is CanvasNodeState => node !== undefined);
+    const bounds = computeGroupBounds(childRects);
+    if (bounds) {
+      x = bounds.x;
+      y = bounds.y;
+      width = bounds.width;
+      height = bounds.height;
+    }
+  }
+
+  const position = x !== undefined && y !== undefined
+    ? { x, y }
+    : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
+
+  const id = `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const data: Record<string, unknown> = {
+    title: input.title ?? 'Group',
+    children: [],
+    ...(input.color ? { color: input.color } : {}),
+  };
+
+  canvasState.addNode({
+    id,
+    type: 'group',
+    position,
+    size: { width, height },
+    zIndex: 0,
+    collapsed: false,
+    pinned: false,
+    dockPosition: null,
+    data,
+  });
+
+  if (childIds.length > 0) {
+    canvasState.groupNodes(id, childIds);
+  }
+
+  return { id };
+}
+
+export function groupCanvasNodes(groupId: string, childIds: string[]): { ok: boolean } {
+  return { ok: canvasState.groupNodes(groupId, childIds) };
+}
+
+export function ungroupCanvasNodes(groupId: string): { ok: boolean } {
+  return { ok: canvasState.ungroupNodes(groupId) };
+}
+
+export function clearCanvas(): { ok: boolean } {
+  canvasState.clear();
+  return { ok: true };
+}
+
+export function createCanvasJsonRenderNode(
+  input: JsonRenderNodeInput,
+): { id: string; url: string; spec: JsonRenderSpec } {
+  const spec = normalizeAndValidateJsonRenderSpec(input.spec);
+  const width = input.width ?? JSON_RENDER_NODE_SIZE.width;
+  const height = input.height ?? JSON_RENDER_NODE_SIZE.height;
+  const position =
+    input.x !== undefined && input.y !== undefined
+      ? { x: input.x, y: input.y }
+      : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
+  const id = `ui-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const node: CanvasNodeState = {
+    id,
+    type: 'json-render',
+    position,
+    size: { width, height },
+    zIndex: 1,
+    collapsed: false,
+    pinned: false,
+    dockPosition: null,
+    data: createJsonRenderNodeData(id, input.title, spec, {
+      viewerType: 'json-render',
+    }),
+  };
+
+  canvasState.addJsonRenderNode(node);
+  return { id, url: String(node.data.url), spec };
+}
+
+export function createCanvasGraphNode(
+  input: GraphNodeInput,
+): { id: string; url: string; spec: JsonRenderSpec } {
+  const title = input.title?.trim() || 'Graph';
+  const spec = buildGraphSpec(input);
+  const width = input.width ?? GRAPH_NODE_SIZE.width;
+  const height = input.heightPx ?? GRAPH_NODE_SIZE.height;
+  const position =
+    input.x !== undefined && input.y !== undefined
+      ? { x: input.x, y: input.y }
+      : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
+  const id = `graph-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const node: CanvasNodeState = {
+    id,
+    type: 'graph',
+    position,
+    size: { width, height },
+    zIndex: 1,
+    collapsed: false,
+    pinned: false,
+    dockPosition: null,
+    data: createJsonRenderNodeData(id, title, spec, {
+      viewerType: 'graph',
+      graphConfig: {
+        title,
+        graphType: input.graphType,
+        data: input.data,
+        ...(input.xKey ? { xKey: input.xKey } : {}),
+        ...(input.yKey ? { yKey: input.yKey } : {}),
+        ...(input.nameKey ? { nameKey: input.nameKey } : {}),
+        ...(input.valueKey ? { valueKey: input.valueKey } : {}),
+        ...(input.aggregate ? { aggregate: input.aggregate } : {}),
+        ...(input.color ? { color: input.color } : {}),
+        ...(typeof input.height === 'number' ? { height: input.height } : {}),
+      },
+    }),
+  };
+
+  canvasState.addGraphNode(node);
+  return { id, url: String(node.data.url), spec };
 }

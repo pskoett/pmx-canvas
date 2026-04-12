@@ -115,6 +115,38 @@ describe('canvas state manager', () => {
     expect(canvasState.listSnapshots()).toEqual([]);
   });
 
+  test('returns cloned snapshots from getters instead of live mutable internals', () => {
+    const node = makeNode({
+      id: 'node-clone',
+      type: 'markdown',
+      data: { title: 'Original title', content: 'Original content' },
+    });
+    const edge = { id: 'edge-clone', from: 'node-clone', to: 'node-other', type: 'references' as const };
+    const other = makeNode({ id: 'node-other', type: 'markdown' });
+
+    canvasState.addNode(node);
+    canvasState.addNode(other);
+    canvasState.addEdge(edge);
+    canvasState.setContextPins([node.id]);
+
+    const fetchedNode = canvasState.getNode(node.id)!;
+    fetchedNode.data.title = 'Mutated outside';
+
+    const layout = canvasState.getLayout();
+    layout.viewport.x = 999;
+    layout.nodes[0]!.position.x = 999;
+    layout.edges[0]!.label = 'outside';
+
+    const pins = canvasState.contextPinnedNodeIds;
+    pins.clear();
+
+    expect(canvasState.getNode(node.id)?.data.title).toBe('Original title');
+    expect(canvasState.getLayout().viewport.x).toBe(0);
+    expect(canvasState.getNode(node.id)?.position.x).toBe(40);
+    expect(canvasState.getEdges()[0]?.label).toBeUndefined();
+    expect(Array.from(canvasState.contextPinnedNodeIds)).toEqual([node.id]);
+  });
+
   test('computes reusable placement bounds for new nodes and groups', () => {
     const placed = findOpenCanvasPosition(
       [

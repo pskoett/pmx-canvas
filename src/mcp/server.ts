@@ -32,6 +32,12 @@ import { buildCodeGraphSummary, formatCodeGraph } from '../server/code-graph.js'
 
 let canvas: PmxCanvas | null = null;
 
+const jsonRenderSpecSchema = z.object({
+  root: z.string(),
+  elements: z.record(z.string(), z.unknown()),
+  state: z.record(z.string(), z.unknown()).optional(),
+}).passthrough();
+
 function workspaceRoot(): string {
   return resolve(process.cwd());
 }
@@ -201,7 +207,7 @@ export async function startMcpServer(): Promise<void> {
     'Create a native json-render canvas node from a complete spec. Use this for structured dashboards, forms, tables, and other interactive UI panels that should render directly inside PMX Canvas.',
     {
       title: z.string().describe('Node title'),
-      spec: z.any().describe('Complete json-render spec with root, elements, and optional state'),
+      spec: jsonRenderSpecSchema.describe('Complete json-render spec with root, elements, and optional state'),
       x: z.number().optional().describe('Optional X position'),
       y: z.number().optional().describe('Optional Y position'),
       width: z.number().optional().describe('Optional node width'),
@@ -958,17 +964,7 @@ export async function startMcpServer(): Promise<void> {
     },
     async ({ nodeIds, mode }) => {
       const c = await ensureCanvas();
-      const op = mode ?? 'set';
-
-      if (op === 'set') {
-        canvasState.setContextPins(nodeIds);
-      } else if (op === 'add') {
-        const current = Array.from(canvasState.contextPinnedNodeIds);
-        canvasState.setContextPins([...current, ...nodeIds]);
-      } else {
-        const current = Array.from(canvasState.contextPinnedNodeIds);
-        canvasState.setContextPins(current.filter((id) => !nodeIds.includes(id)));
-      }
+      const result = c.setContextPins(nodeIds, mode ?? 'set');
 
       emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
 
@@ -977,7 +973,7 @@ export async function startMcpServer(): Promise<void> {
           type: 'text',
           text: JSON.stringify({
             ok: true,
-            pinnedNodeIds: Array.from(canvasState.contextPinnedNodeIds),
+            pinnedNodeIds: result.nodeIds,
           }),
         }],
       };
@@ -992,8 +988,8 @@ export async function startMcpServer(): Promise<void> {
       name: z.string().describe('Name for this snapshot (e.g., "before refactor", "investigation v2")'),
     },
     async (input) => {
-      await ensureCanvas();
-      const snapshot = canvasState.saveSnapshot(input.name);
+      const c = await ensureCanvas();
+      const snapshot = c.saveSnapshot(input.name);
       if (!snapshot) {
         return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'Failed to save snapshot' }) }] };
       }
@@ -1010,8 +1006,8 @@ export async function startMcpServer(): Promise<void> {
     },
     async (input) => {
       const c = await ensureCanvas();
-      const ok = canvasState.restoreSnapshot(input.id);
-      if (!ok) {
+      const result = c.restoreSnapshot(input.id);
+      if (!result.ok) {
         return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'Snapshot not found' }) }] };
       }
       emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });

@@ -11,6 +11,9 @@
     "pmx-canvas": "src/cli/index.ts"
   },
   "files": [
+    ".agents/",
+    ".claude/",
+    ".opencode/",
     "src/",
     "dist/canvas/",
     "dist/json-render/",
@@ -35,6 +38,7 @@
     "test:e2e:headed": "bun run test:web-canvas:headed",
     "test:all": "bun run test && bun run test:web-canvas",
     "test:install-browsers": "bun x playwright install chromium",
+    "validate:agent-skills": "bash scripts/validate-agent-skill-mirrors.sh",
     "prepublishOnly": "bun run build"
   },
   "dependencies": {

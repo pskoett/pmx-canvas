@@ -253,6 +253,13 @@ When maintaining `.learnings/`:
 2. Remove one-off resolved noise after extracting reusable guidance
 3. Keep active learnings concise and scannable
 
+## Agent Skill Pipeline
+
+- Agent-facing pipeline skills are stored in `.agents/skills/` and mirrored in `.claude/skills/` and `.opencode/skills/`
+- Use `skill-pipeline` as the top-level router for non-trivial coding tasks
+- Claude Code hooks are configured in `.claude/settings.json` and point at the mirrored `.claude/skills/` scripts
+- Keep the three skill trees byte-for-byte identical; verify with `bun run validate:agent-skills`
+
 ## Browser Automation Visibility Rule
 
 When using browser automation for UI investigation:

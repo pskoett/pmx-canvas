@@ -549,7 +549,7 @@ class CanvasStateManager {
   // ── Node CRUD ──────────────────────────────────────────────
 
   get viewport(): ViewportState {
-    return this._viewport;
+    return structuredClone(this._viewport);
   }
 
   addNode(node: CanvasNodeState): void {
@@ -644,7 +644,8 @@ class CanvasStateManager {
   }
 
   getNode(id: string): CanvasNodeState | undefined {
-    return this.nodes.get(id);
+    const node = this.nodes.get(id);
+    return node ? structuredClone(node) : undefined;
   }
 
   // ── Edge CRUD ──────────────────────────────────────────────
@@ -687,11 +688,15 @@ class CanvasStateManager {
   }
 
   getEdges(): CanvasEdge[] {
-    return Array.from(this.edges.values());
+    return Array.from(this.edges.values(), (edge) => structuredClone(edge));
   }
 
   getEdgesForNode(nodeId: string): CanvasEdge[] {
-    return Array.from(this.edges.values()).filter((e) => e.from === nodeId || e.to === nodeId);
+    return Array.from(
+      this.edges.values()
+        .filter((edge) => edge.from === nodeId || edge.to === nodeId),
+      (edge) => structuredClone(edge),
+    );
   }
 
   private removeEdgesForNode(nodeId: string): void {
@@ -704,9 +709,9 @@ class CanvasStateManager {
 
   getLayout(): CanvasLayout {
     return {
-      viewport: this._viewport,
-      nodes: Array.from(this.nodes.values()),
-      edges: Array.from(this.edges.values()),
+      viewport: structuredClone(this._viewport),
+      nodes: Array.from(this.nodes.values(), (node) => structuredClone(node)),
+      edges: Array.from(this.edges.values(), (edge) => structuredClone(edge)),
     };
   }
 
@@ -761,7 +766,7 @@ class CanvasStateManager {
   // ── Context pins ─────────────────────────────────────────────
 
   get contextPinnedNodeIds(): Set<string> {
-    return this._contextPinnedNodeIds;
+    return new Set(this._contextPinnedNodeIds);
   }
 
   setContextPins(nodeIds: string[]): void {

@@ -143,6 +143,43 @@ describe('canvas server HTTP API', () => {
     expect(arrangedMarkdown.position).toEqual({ x: 40, y: 304 });
   });
 
+  test('rejects invalid single-node patch geometry and skips invalid batch updates', async () => {
+    const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Validation node', x: 80, y: 80 }),
+    });
+
+    const invalidPatch = await fetch(`${baseUrl}/api/canvas/node/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ size: { width: -10, height: 100 } }),
+    });
+    expect(invalidPatch.status).toBe(400);
+    const invalidPatchBody = await invalidPatch.json() as { ok: boolean; error: string };
+    expect(invalidPatchBody.ok).toBe(false);
+    expect(invalidPatchBody.error).toContain('greater than zero');
+
+    const batchResult = await jsonRequest<{ ok: boolean; applied: number; skipped: number }>('/api/canvas/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        updates: [
+          { id: created.id, position: { x: 200, y: 240 } },
+          { id: created.id, size: { width: 0, height: 50 } },
+          { id: created.id, position: { x: Number.NaN, y: 10 } },
+          { id: 'missing-node', position: { x: 10, y: 10 } },
+        ],
+      }),
+    });
+    expect(batchResult.applied).toBe(1);
+    expect(batchResult.skipped).toBe(1);
+
+    const updated = await jsonRequest<{ id: string; position: { x: number; y: number }; size: { width: number; height: number } }>(`/api/canvas/node/${created.id}`);
+    expect(updated.position).toEqual({ x: 200, y: 240 });
+    expect(updated.size).toEqual({ width: 360, height: 200 });
+  });
+
   test('supports edges, snapshots, clear, and pinned context over HTTP', async () => {
     const firstNode = await jsonRequest<{ id: string }>('/api/canvas/node', {
       method: 'POST',

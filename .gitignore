@@ -7,3 +7,4 @@ blob-report/
 .playwright/
 artifacts/.web-artifacts/
 artifacts/*.html
+.context-surfing/*.md

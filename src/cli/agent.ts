@@ -54,7 +54,7 @@ async function api(
   } catch (error) {
     die(
       `Cannot connect to pmx-canvas at ${base}: ${error instanceof Error ? error.message : String(error)}`,
-      `Start the server first: pmx-canvas serve --no-open`,
+      `Start the server first: pmx-canvas --no-open`,
     );
   }
 
@@ -144,7 +144,7 @@ function cmd(
 cmd('node add', 'Add a node to the canvas', [
   'pmx-canvas node add --type markdown --title "Design Doc" --content "# Overview"',
   'pmx-canvas node add --type status --title "Build" --content "passing"',
-  'pmx-canvas node add --type file --title "src/index.ts" --content "$(cat src/index.ts)"',
+  'pmx-canvas node add --type file --content "src/index.ts"',
   'pmx-canvas node add --type markdown --title "Note" --x 100 --y 200',
 ], async (args) => {
   const { flags } = parseFlags(args);
@@ -515,7 +515,7 @@ cmd('diff', 'Compare current canvas against a snapshot', [
 
 // ── group create ─────────────────────────────────────────────
 cmd('group create', 'Create a group node', [
-  'pmx-canvas group create --title "API Layer" --children node1 node2',
+  'pmx-canvas group create --title "API Layer" node1 node2',
   'pmx-canvas group create --title "Frontend" --color "#ff6b6b"',
 ], async (args) => {
   const { positional, flags } = parseFlags(args);
@@ -772,9 +772,7 @@ cmd('serve', 'Start the canvas server', [
   'pmx-canvas serve --demo --theme=light',
   'pmx-canvas --no-open --webview-automation',
 ], async (_args) => {
-  // This is handled by the main CLI entry point — just show help
   console.log('Use: pmx-canvas [--port=PORT] [--demo] [--no-open] [--theme=THEME] [--webview-automation]');
-  console.log('Or:  pmx-canvas serve --port=8080 --demo');
 });
 
 // ── Help ─────────────────────────────────────────────────────

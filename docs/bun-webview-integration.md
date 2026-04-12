@@ -29,7 +29,7 @@ What is **not** implemented:
 
 ## Why This Exists
 
-The existing browser-launch path in [`src/server/server.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/src/server/server.ts) still opens the interactive canvas with platform-specific shell behavior:
+The existing browser-launch path in [`src/server/server.ts`](../src/server/server.ts) still opens the interactive canvas with platform-specific shell behavior:
 
 - macOS: AppleScript / `osascript`
 - Windows: `cmd /c start` or a resolved browser executable
@@ -48,7 +48,7 @@ That path is still appropriate for humans, but it provides no programmatic contr
 
 ### Server layer
 
-Implemented in [`src/server/server.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/src/server/server.ts):
+Implemented in [`src/server/server.ts`](../src/server/server.ts):
 
 - `getCanvasAutomationWebViewStatus()`
 - `startCanvasAutomationWebView(url, options)`
@@ -66,7 +66,7 @@ Important behavior:
 
 ### HTTP API
 
-Implemented in [`src/server/server.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/src/server/server.ts):
+Implemented in [`src/server/server.ts`](../src/server/server.ts):
 
 - `GET /api/workbench/webview`
 - `POST /api/workbench/webview/start`
@@ -95,7 +95,7 @@ Current options accepted by `POST /api/workbench/webview/start`:
 
 ### SDK
 
-Implemented in [`src/server/index.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/src/server/index.ts):
+Implemented in [`src/server/index.ts`](../src/server/index.ts):
 
 - `canvas.start({ automationWebView: ... })`
 - `canvas.startAutomationWebView(options)`
@@ -107,7 +107,7 @@ Implemented in [`src/server/index.ts`](/Users/pepe/Library/CloudStorage/OneDrive
 
 ### CLI
 
-Implemented in [`src/cli/index.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/src/cli/index.ts):
+Implemented in [`src/cli/index.ts`](../src/cli/index.ts):
 
 - `--webview-automation`
 - `--webview-backend`
@@ -117,7 +117,7 @@ Implemented in [`src/cli/index.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV
 - `--webview-chrome-argv`
 - `--webview-data-dir`
 
-Implemented in [`src/cli/agent.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/src/cli/agent.ts):
+Implemented in [`src/cli/agent.ts`](../src/cli/agent.ts):
 
 - `pmx-canvas webview status`
 - `pmx-canvas webview start`
@@ -142,7 +142,7 @@ These flags are intentionally automation-only. They do **not** imply a visible B
 
 ### MCP
 
-Implemented in [`src/mcp/server.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/src/mcp/server.ts):
+Implemented in [`src/mcp/server.ts`](../src/mcp/server.ts):
 
 - `canvas_webview_status`
 - `canvas_webview_start`
@@ -191,8 +191,8 @@ The repo now requires:
 
 That change is reflected in:
 
-- [`package.json`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/package.json)
-- [`.github/workflows/test.yml`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/.github/workflows/test.yml)
+- [`package.json`](../package.json)
+- [`.github/workflows/test.yml`](../.github/workflows/test.yml)
 
 PMX Canvas still keeps a runtime guard because older local Bun versions can exist in user environments. If `Bun.WebView` is missing, startup fails cleanly for the automation path instead of partially starting.
 
@@ -204,9 +204,9 @@ Validated on Bun `v1.3.12`.
 
 Verified by tests in:
 
-- [`tests/unit/server-api.test.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/tests/unit/server-api.test.ts)
-- [`tests/unit/cli-webview.test.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/tests/unit/cli-webview.test.ts)
-- [`tests/unit/webview-automation.test.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/tests/unit/webview-automation.test.ts)
+- [`tests/unit/server-api.test.ts`](../tests/unit/server-api.test.ts)
+- [`tests/unit/cli-webview.test.ts`](../tests/unit/cli-webview.test.ts)
+- [`tests/unit/webview-automation.test.ts`](../tests/unit/webview-automation.test.ts)
 
 Covered behavior:
 
@@ -248,13 +248,13 @@ During real runtime validation, a bug was found in the first implementation:
 - on this machine, Bun could also return a `Blob`
 - that caused zero-byte screenshots in the wrapper even though Bun was returning valid image data
 
-This was fixed in [`src/server/server.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/src/server/server.ts) by normalizing:
+This was fixed in [`src/server/server.ts`](../src/server/server.ts) by normalizing:
 
 - `Uint8Array`
 - `ArrayBuffer`
 - `Blob`
 
-The regression is now covered by [`tests/unit/webview-automation.test.ts`](/Users/pepe/Library/CloudStorage/OneDrive-TV2DANMARK/Dokumenter/GitHub/pmx-canvas/tests/unit/webview-automation.test.ts).
+The regression is now covered by [`tests/unit/webview-automation.test.ts`](../tests/unit/webview-automation.test.ts).
 
 ### Why the interactive browser path still exists
 

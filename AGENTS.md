@@ -95,6 +95,8 @@ Agent-specific workflows, tool usage patterns, and automation rules for the pmx-
 - `name` is lowercase, hyphens only, matches folder
 - `description` explains what AND when to use
 - No README.md or other auxiliary files in skill folder
+- Agent-facing pipeline skills live in `.agents/skills/` and must be mirrored identically in `.claude/skills/` and `.opencode/skills/`
+- Run `bun run validate:agent-skills` after changing any mirrored skill files
 
 ## Testing Conventions
 
