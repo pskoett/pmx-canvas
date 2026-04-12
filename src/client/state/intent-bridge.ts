@@ -227,6 +227,17 @@ export async function removeNodeFromClient(id: string): Promise<{ ok: boolean; r
   });
 }
 
+/** Commit the current viewport to the authoritative server state. */
+export async function updateViewportFromClient(
+  viewport: { x: number; y: number; scale: number },
+): Promise<{ ok: boolean }> {
+  return requestJson('updateViewportFromClient', '/api/canvas/viewport', { ok: false }, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(viewport),
+  });
+}
+
 // ── Group API ─────────────────────────────────────────────────
 
 /** Create a group containing the given child node IDs. */

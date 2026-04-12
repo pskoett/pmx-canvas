@@ -13,6 +13,7 @@ function clampScale(scale: number): number {
 interface PanZoomOptions {
   viewport: Signal<ViewportState>;
   onViewportChange: (v: ViewportState) => void;
+  onViewportCommit: (v: ViewportState) => void;
 }
 
 /**
@@ -22,11 +23,22 @@ interface PanZoomOptions {
  * - Pointer drag on background: pan
  * - Pinch (touch): zoom
  */
-export function usePanZoom({ viewport, onViewportChange }: PanZoomOptions) {
+export function usePanZoom({ viewport, onViewportChange, onViewportCommit }: PanZoomOptions) {
   const containerRef = useRef<HTMLDivElement>(null);
   const isPanning = useRef(false);
   const lastPointer = useRef({ x: 0, y: 0 });
   const lastPinchDist = useRef(0);
+  const wheelCommitTimer = useRef<number | null>(null);
+
+  const scheduleViewportCommit = useCallback((next: ViewportState) => {
+    if (wheelCommitTimer.current !== null) {
+      window.clearTimeout(wheelCommitTimer.current);
+    }
+    wheelCommitTimer.current = window.setTimeout(() => {
+      wheelCommitTimer.current = null;
+      onViewportCommit(next);
+    }, 140);
+  }, [onViewportCommit]);
 
   const handleWheel = useCallback(
     (e: WheelEvent) => {
@@ -44,21 +56,25 @@ export function usePanZoom({ viewport, onViewportChange }: PanZoomOptions) {
         const newScale = clampScale(v.scale * (1 + delta));
         const ratio = newScale / v.scale;
 
-        onViewportChange({
+        const next = {
           x: px - ratio * (px - v.x),
           y: py - ratio * (py - v.y),
           scale: newScale,
-        });
+        };
+        onViewportChange(next);
+        scheduleViewportCommit(next);
       } else {
         // Pan
-        onViewportChange({
+        const next = {
           x: v.x - e.deltaX * PAN_SPEED,
           y: v.y - e.deltaY * PAN_SPEED,
           scale: v.scale,
-        });
+        };
+        onViewportChange(next);
+        scheduleViewportCommit(next);
       }
     },
-    [viewport, onViewportChange],
+    [viewport, onViewportChange, scheduleViewportCommit],
   );
 
   const handlePointerDown = useCallback((e: PointerEvent) => {
@@ -84,8 +100,11 @@ export function usePanZoom({ viewport, onViewportChange }: PanZoomOptions) {
   );
 
   const handlePointerUp = useCallback(() => {
+    if (isPanning.current) {
+      onViewportCommit(viewport.value);
+    }
     isPanning.current = false;
-  }, []);
+  }, [onViewportCommit, viewport]);
 
   // Touch pinch
   const handleTouchMove = useCallback(
@@ -113,20 +132,27 @@ export function usePanZoom({ viewport, onViewportChange }: PanZoomOptions) {
         const newScale = clampScale(v.scale * ratio);
         const scaleRatio = newScale / v.scale;
 
-        onViewportChange({
+        const next = {
           x: px - scaleRatio * (px - v.x),
           y: py - scaleRatio * (py - v.y),
           scale: newScale,
-        });
+        };
+        onViewportChange(next);
+        scheduleViewportCommit(next);
       }
       lastPinchDist.current = dist;
     },
-    [viewport, onViewportChange],
+    [viewport, onViewportChange, scheduleViewportCommit],
   );
 
   const handleTouchEnd = useCallback(() => {
+    if (wheelCommitTimer.current !== null) {
+      window.clearTimeout(wheelCommitTimer.current);
+      wheelCommitTimer.current = null;
+    }
+    onViewportCommit(viewport.value);
     lastPinchDist.current = 0;
-  }, []);
+  }, [onViewportCommit, viewport]);
 
   useEffect(() => {
     const el = containerRef.current;
@@ -141,6 +167,9 @@ export function usePanZoom({ viewport, onViewportChange }: PanZoomOptions) {
     el.addEventListener('touchend', handleTouchEnd);
 
     return () => {
+      if (wheelCommitTimer.current !== null) {
+        window.clearTimeout(wheelCommitTimer.current);
+      }
       el.removeEventListener('wheel', handleWheel);
       el.removeEventListener('pointerdown', handlePointerDown);
       el.removeEventListener('pointermove', handlePointerMove);

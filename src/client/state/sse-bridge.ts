@@ -705,6 +705,14 @@ function handleCanvasLayoutUpdate(data: Record<string, unknown>): void {
   if (!layout?.nodes) return;
   hasInitialServerLayout.value = true;
 
+  if (layout.viewport) {
+    const x = typeof layout.viewport.x === 'number' ? layout.viewport.x : 0;
+    const y = typeof layout.viewport.y === 'number' ? layout.viewport.y : 0;
+    const scale = typeof layout.viewport.scale === 'number' ? layout.viewport.scale : 1;
+    cancelViewportAnimation();
+    replaceViewport({ x, y, scale });
+  }
+
   // Reconcile server-side node state with client
   const serverNodeIds = new Set<string>();
   for (const raw of layout.nodes) {

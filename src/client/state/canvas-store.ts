@@ -1,7 +1,7 @@
 import { batch, signal } from '@preact/signals';
 import type { CanvasEdge, CanvasNodeState, ConnectionStatus, ViewportState } from '../types';
 import { computeAutoArrange } from '../../shared/auto-arrange';
-import { pushCanvasUpdate } from './intent-bridge';
+import { pushCanvasUpdate, updateViewportFromClient } from './intent-bridge';
 
 function logCanvasStoreError(action: string, error: unknown): void {
   console.error(`[canvas-store] ${action} failed`, error);
@@ -238,6 +238,12 @@ export function replaceViewport(next: ViewportState): void {
   viewport.value = next;
 }
 
+export function commitViewport(next: ViewportState): void {
+  viewport.value = next;
+  persistLayout();
+  void updateViewportFromClient(next);
+}
+
 // ── Animated viewport transitions ────────────────────────────
 let animationId: number | null = null;
 
@@ -274,7 +280,7 @@ export function animateViewport(
       animationId = requestAnimationFrame(tick);
     } else {
       animationId = null;
-      persistLayout();
+      commitViewport(target);
     }
   }
 
@@ -348,10 +354,6 @@ export function restoreLayout(): Map<string, Partial<CanvasNodeState>> | null {
         dockPosition?: CanvasNodeState['dockPosition'];
       }>;
     };
-    if (layout.viewport) {
-      viewport.value = layout.viewport;
-    }
-
     const savedNodes = Array.isArray(layout.nodes) ? layout.nodes : [];
     if (savedNodes.length === 0) return null;
 

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import { updateNodeData } from '../state/canvas-store';
-import { fetchFile } from '../state/intent-bridge';
+import { fetchFile, updateNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
 
 /** Guess a language label from a file extension for display. */
@@ -55,6 +55,7 @@ export function FileNode({
       // Cache content in node data so it survives re-renders
       const lines = fileText.split('\n').length;
       updateNodeData(node.id, { fileContent: fileText, lineCount: lines });
+      void updateNodeFromClient(node.id, { data: { fileContent: fileText, lineCount: lines } });
     }).catch(() => {
       if (!cancelled) {
         setError('Failed to load file');
@@ -77,14 +78,23 @@ export function FileNode({
     setError(null);
     // Clear cached content to force a fresh fetch
     updateNodeData(node.id, { fileContent: undefined });
+    void updateNodeFromClient(node.id, { data: { fileContent: undefined } });
     fetchFile(filePath).then(({ content: fileText }) => {
       setContent(fileText);
       setLoading(false);
       const lines = fileText.split('\n').length;
+      const updatedAt = new Date().toISOString();
       updateNodeData(node.id, {
         fileContent: fileText,
         lineCount: lines,
-        updatedAt: new Date().toISOString(),
+        updatedAt,
+      });
+      void updateNodeFromClient(node.id, {
+        data: {
+          fileContent: fileText,
+          lineCount: lines,
+          updatedAt,
+        },
       });
     }).catch(() => {
       setError('Failed to reload');

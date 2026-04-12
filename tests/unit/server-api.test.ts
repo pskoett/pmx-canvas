@@ -397,6 +397,46 @@ describe('canvas server HTTP API', () => {
     expect(afterRedo.viewport).toEqual({ x: 540, y: 380, scale: 1 });
   });
 
+  test('updates viewport directly over HTTP', async () => {
+    const updated = await jsonRequest<{ ok: boolean }>('/api/canvas/viewport', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ x: 120, y: -80, scale: 1.5 }),
+    });
+    expect(updated.ok).toBe(true);
+
+    const state = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(state.viewport).toEqual({ x: 120, y: -80, scale: 1.5 });
+  });
+
+  test('keeps file node cache metadata authoritative after file reload-style patching', async () => {
+    const filePath = join(workspaceRoot, 'reload-target.ts');
+    writeFileSync(filePath, 'export const before = 1;\n', 'utf-8');
+
+    const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'file', content: filePath }),
+    });
+
+    await jsonRequest<{ ok: boolean; id: string }>(`/api/canvas/node/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: {
+          fileContent: 'export const after = 2;\n',
+          lineCount: 1,
+          updatedAt: '2026-04-12T12:00:00.000Z',
+        },
+      }),
+    });
+
+    const fetched = await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`);
+    expect(fetched.data.fileContent).toBe('export const after = 2;\n');
+    expect(fetched.data.lineCount).toBe(1);
+    expect(fetched.data.updatedAt).toBe('2026-04-12T12:00:00.000Z');
+  });
+
   test('supports edges, snapshots, clear, and pinned context over HTTP', async () => {
     const firstNode = await jsonRequest<{ id: string }>('/api/canvas/node', {
       method: 'POST',

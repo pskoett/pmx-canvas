@@ -1,7 +1,7 @@
 import type { JSX } from 'preact';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { expandNode, updateNodeData } from '../state/canvas-store';
-import { fetchFile, renderMarkdown, saveFile } from '../state/intent-bridge';
+import { fetchFile, renderMarkdown, saveFile, updateNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
 import { MdFormatBar } from './MdFormatBar';
 import { handleFormatShortcut, handleTab } from './md-format';
@@ -157,13 +157,26 @@ export function MarkdownNode({
 
   const persistContent = useCallback(
     async (newContent: string) => {
-      if (!path) return;
+      if (!path) {
+        const html = await renderMarkdown(newContent);
+        setRendered(html);
+        setDirty(false);
+        updateNodeData(node.id, { content: newContent, rendered: html });
+        void updateNodeFromClient(node.id, { content: newContent, data: { rendered: html } });
+        return;
+      }
       setSaving(true);
       const result = await saveFile(path, newContent);
       setSaving(false);
       if (result.ok) {
+        const html = await renderMarkdown(newContent);
+        setRendered(html);
         setDirty(false);
-        updateNodeData(node.id, { content: newContent, savedAt: result.updatedAt });
+        updateNodeData(node.id, { content: newContent, rendered: html, savedAt: result.updatedAt });
+        void updateNodeFromClient(node.id, {
+          content: newContent,
+          data: { rendered: html, savedAt: result.updatedAt },
+        });
       }
     },
     [path, node.id],
@@ -237,10 +250,8 @@ export function MarkdownNode({
     setDirty(true);
     const html = await renderMarkdown(newContent);
     setRendered(html);
-    if (path) {
-      await persistContent(newContent);
-    }
-  }, [editingBlock, blockDraft, blocks, path, persistContent]);
+    await persistContent(newContent);
+  }, [editingBlock, blockDraft, blocks, persistContent]);
 
   const handleBlockCancel = useCallback(() => {
     setEditingBlock(null);

@@ -919,6 +919,18 @@ async function handleCanvasUpdate(req: Request): Promise<Response> {
   return responseJson({ ok: true, ...result });
 }
 
+async function handleCanvasViewport(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const next = {
+    x: typeof body.x === 'number' ? body.x : canvasState.viewport.x,
+    y: typeof body.y === 'number' ? body.y : canvasState.viewport.y,
+    scale: typeof body.scale === 'number' ? body.scale : canvasState.viewport.scale,
+  };
+  canvasState.setViewport(next);
+  emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
+  return responseJson({ ok: true });
+}
+
 // ── Serve image file for image nodes ─────────────────────────
 function handleCanvasImage(pathname: string): Response {
   const nodeId = pathname.replace('/api/canvas/image/', '');
@@ -2977,6 +2989,10 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/update' && req.method === 'POST') {
             return handleCanvasUpdate(req);
+          }
+
+          if (url.pathname === '/api/canvas/viewport' && req.method === 'POST') {
+            return handleCanvasViewport(req);
           }
 
           if (url.pathname === '/api/canvas/node' && req.method === 'POST') {

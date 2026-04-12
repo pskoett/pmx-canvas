@@ -186,6 +186,40 @@ test('markdown edit opens focused inline editing before raw source mode', async 
   await expect(page.locator('.md-editor-split')).toHaveCount(0);
 });
 
+test('inline markdown save updates authoritative canvas node content', async ({ page, request }) => {
+  const createResponse = await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Inline editable note',
+      content: 'Original paragraph',
+      x: 640,
+      y: 260,
+    },
+  });
+  const created = await createResponse.json() as { id: string };
+
+  await page.goto('/workbench');
+
+  const note = page.locator('.canvas-node').filter({ hasText: 'Inline editable note' });
+  await expect(note).toHaveCount(1);
+  await note.getByRole('button', { name: 'Edit' }).click();
+
+  const overlay = page.locator('.expanded-overlay-panel');
+  await expect(overlay).toBeVisible();
+  await overlay.getByText('Original paragraph').click();
+
+  const editor = overlay.locator('.md-block-edit');
+  await expect(editor).toBeVisible();
+  await editor.fill('Updated paragraph');
+  await overlay.getByRole('button', { name: 'Save' }).click();
+
+  await expect.poll(async () => {
+    const response = await request.get(`/api/canvas/node/${created.id}`);
+    const node = await response.json() as { data: Record<string, unknown> };
+    return node.data.content;
+  }).toBe('Updated paragraph');
+});
+
 test('saves snapshots from the toolbar', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
     data: {
@@ -266,4 +300,19 @@ test('server-side focus updates the browser viewport', async ({ page, request })
       return viewport?.style.transform ?? null;
     });
   }).toContain('matrix(1, 0, 0, 1, 800, 600)');
+});
+
+test('authoritative viewport updates from the server override browser startup state', async ({ page, request }) => {
+  await request.post('/api/canvas/viewport', {
+    data: { x: 120, y: -80, scale: 1.5 },
+  });
+
+  await page.goto('/workbench');
+
+  await expect.poll(async () => {
+    return await page.evaluate(() => {
+      const viewport = document.querySelector('.canvas-viewport > div[style*="position: absolute"]') as HTMLElement | null;
+      return viewport?.style.transform ?? null;
+    });
+  }).toContain('matrix(1.5, 0, 0, 1.5, 120, -80)');
 });

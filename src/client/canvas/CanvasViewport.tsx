@@ -14,11 +14,11 @@ import { TraceNode } from '../nodes/TraceNode';
 import {
   activeNodeId,
   cancelViewportAnimation,
+  commitViewport,
   clearSelection,
   draggingEdge,
   edges,
   nodes,
-  persistLayout,
   selectNodes,
   setViewport,
   viewport,
@@ -157,7 +157,11 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
       if (isLassoing.current) return;
       cancelViewportAnimation();
       setViewport(next);
-      persistLayout();
+    },
+    onViewportCommit: (next) => {
+      if (isLassoing.current) return;
+      cancelViewportAnimation();
+      commitViewport(next);
     },
   });
 
