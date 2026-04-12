@@ -132,13 +132,32 @@ entire status 2>/dev/null
 ```
 
 - If it succeeds, mention that intent records will be captured in the session
-  transcript on the checkpoint branch.
+  transcript on the checkpoint branch. This enables `learning-aggregator --deep`
+  to later mine intent frames and drift events for cross-session scope-drift
+  patterns.
 - If unavailable/failing, continue silently. Do not block execution and do not
   nag about installation.
 
 Copilot/chat fallback:
 - If command execution is unavailable, skip detection and continue with the
   same intent workflow in chat output.
+
+### How intent frames become learning signals
+
+Each Intent Frame and Intent Check you emit is captured verbatim in Entire's
+session transcript. At cadence, `learning-aggregator --deep` reads those
+transcripts and extracts:
+
+- Frames that were resolved as `Abandoned` or `Pivoted` → potential planning
+  gaps
+- Drift signals that repeatedly fire in similar contexts → potential scope
+  definition issues
+- Constraint violations detected by drift checks → patterns for promotion to
+  project instruction files
+
+You do not need to do anything special for this — the intent blocks are
+structured (`## Intent Frame #N`, `## Intent Check`, `## Intent Resolution`),
+which makes them parseable from the transcript.
 
 ## Guardrails
 

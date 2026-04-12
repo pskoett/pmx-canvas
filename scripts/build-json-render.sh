@@ -7,12 +7,19 @@ DIST_DIR="${ROOT_DIR}/dist/json-render"
 JS_OUT="${DIST_DIR}/index.js"
 CSS_OUT="${DIST_DIR}/index.css"
 BUILD_TIMEOUT_SECONDS="${PMX_JSON_RENDER_BUILD_TIMEOUT_SECONDS:-45}"
+export BUILD_TIMEOUT_SECONDS
 
 cd "${ROOT_DIR}"
 
 mkdir -p "${DIST_DIR}"
 
-bun x @tailwindcss/cli \
+if [[ -f "${ROOT_DIR}/node_modules/@tailwindcss/cli/dist/index.mjs" ]]; then
+  TAILWIND_CMD=(bun "${ROOT_DIR}/node_modules/@tailwindcss/cli/dist/index.mjs")
+else
+  TAILWIND_CMD=(bun x @tailwindcss/cli)
+fi
+
+"${TAILWIND_CMD[@]}" \
   -i src/json-render/renderer/index.css \
   -o "${CSS_OUT}" \
   --minify

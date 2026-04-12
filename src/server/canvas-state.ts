@@ -628,8 +628,10 @@ class CanvasStateManager {
 
     this.nodes.delete(id);
     this.removeEdgesForNode(id);
+    this._contextPinnedNodeIds.delete(id);
     this.scheduleSave();
     this.notifyChange('nodes');
+    this.notifyChange('pins');
     if (cloned) {
       this.recordMutation({
         operationType: 'removeNode',

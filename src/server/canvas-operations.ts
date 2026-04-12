@@ -9,7 +9,7 @@ import {
   type CanvasNodeUpdate,
   type CanvasSnapshot,
 } from './canvas-state.js';
-import { unwatchFileForNode, watchFileForNode } from './file-watcher.js';
+import { rewatchAllFileNodes, unwatchAll, unwatchFileForNode, watchFileForNode } from './file-watcher.js';
 import { mutationHistory } from './mutation-history.js';
 import { computeGroupBounds, findOpenCanvasPosition } from './placement.js';
 import {
@@ -293,12 +293,13 @@ export function setCanvasContextPins(
   nodeIds: string[],
   mode: CanvasPinMode = 'set',
 ): { count: number; nodeIds: string[] } {
-  const normalizedNodeIds = nodeIds.filter((id, index) => nodeIds.indexOf(id) === index).slice(0, MAX_CONTEXT_PINS);
+  const normalizePins = (ids: string[]): string[] => ids.filter((id, index) => ids.indexOf(id) === index).slice(0, MAX_CONTEXT_PINS);
+  const normalizedNodeIds = normalizePins(nodeIds);
   if (mode === 'set') {
     canvasState.setContextPins(normalizedNodeIds);
   } else if (mode === 'add') {
     const current = Array.from(canvasState.contextPinnedNodeIds);
-    canvasState.setContextPins([...current, ...normalizedNodeIds]);
+    canvasState.setContextPins(normalizePins([...current, ...normalizedNodeIds]));
   } else {
     const current = Array.from(canvasState.contextPinnedNodeIds);
     canvasState.setContextPins(current.filter((id) => !normalizedNodeIds.includes(id)));
@@ -319,7 +320,11 @@ export function saveCanvasSnapshot(name: string): CanvasSnapshot | null {
 }
 
 export function restoreCanvasSnapshot(id: string): { ok: boolean } {
-  return { ok: canvasState.restoreSnapshot(id) };
+  const ok = canvasState.restoreSnapshot(id);
+  if (ok) {
+    rewatchAllFileNodes();
+  }
+  return { ok };
 }
 
 export function deleteCanvasSnapshot(id: string): { ok: boolean } {
@@ -412,6 +417,7 @@ export function ungroupCanvasNodes(groupId: string): { ok: boolean } {
 }
 
 export function clearCanvas(): { ok: boolean } {
+  unwatchAll();
   canvasState.clear();
   return { ok: true };
 }

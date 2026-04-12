@@ -77,6 +77,15 @@ export function unwatchAll(): void {
   watched.clear();
 }
 
+export function rewatchAllFileNodes(): void {
+  unwatchAll();
+  for (const node of canvasState.getLayout().nodes) {
+    if (node.type === 'file' && typeof node.data.path === 'string') {
+      watchFileForNode(node.id, node.data.path);
+    }
+  }
+}
+
 function handleFileChange(filePath: string): void {
   const entry = watched.get(filePath);
   if (!entry) return;

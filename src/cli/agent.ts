@@ -510,7 +510,7 @@ cmd('diff', 'Compare current canvas against a snapshot', [
 
   // Diff is only available via MCP — use snapshot list + layout comparison
   // For now, show snapshots and current state side by side
-  die('diff requires the MCP server', 'Use: pmx-canvas --mcp with canvas_diff tool, or compare snapshots manually');
+  die('diff is MCP-only in the current CLI', 'Use: pmx-canvas --mcp with canvas_diff, or compare snapshots manually');
 });
 
 // ── group create ─────────────────────────────────────────────
@@ -858,7 +858,7 @@ Global flags:
 
 Environment:
   PMX_CANVAS_URL    Server URL (default: http://localhost:4313)
-  PMX_CANVAS_PORT   Server port (default: 4313)
+  PMX_CANVAS_PORT   Client target port when PMX_CANVAS_URL is unset (default: 4313)
 
 Examples:
   pmx-canvas node add --type markdown --title "API Design" --content "# REST API"

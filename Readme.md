@@ -186,7 +186,7 @@ Use either of the two primary control surfaces depending on how your agent runs:
 - **CLI** if your workflow is shell-native, scriptable, or driven by terminal commands
 - **MCP** if your agent already uses tool/resource calls over stdio
 
-Both paths are first-class and cover the same core canvas workflow.
+Both paths are first-class for core canvas work. A few advanced capabilities, such as `canvas_diff` and MCP resource subscriptions, remain MCP-only.
 
 ### MCP server
 
@@ -361,7 +361,7 @@ Use the CLI when you want:
 - direct terminal control without MCP wiring
 - shell scripts and CI-friendly automation
 - local debugging of canvas, webview, and screenshot flows
-- a control surface that is as capable for normal canvas work as the MCP path
+- a control surface that covers normal canvas work without MCP wiring
 
 ## Agent compatibility
 
@@ -403,7 +403,7 @@ Browser (Preact SPA at /workbench)
 
 - **Runtime:** [Bun](https://bun.sh)
 - **UI:** [Preact](https://preactjs.com) + [@preact/signals](https://github.com/preactjs/signals)
-- **Styling:** CSS custom properties (no build-step CSS framework)
+- **Styling:** CSS custom properties for the main canvas UI, plus a Tailwind-based build for the json-render viewer bundle
 - **Server:** Bun.serve (HTTP + SSE)
 - **MCP:** [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) (stdio transport)
 

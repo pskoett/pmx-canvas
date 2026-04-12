@@ -68,12 +68,13 @@ describe('canvas state manager', () => {
     expect(canvasState.getNode(firstNode.id)).toBeUndefined();
     expect(canvasState.getEdges()).toEqual([]);
     expect(canvasState.getNode(groupNode.id)?.data.children as string[]).toEqual([secondNode.id]);
+    expect(Array.from(canvasState.contextPinnedNodeIds)).toEqual([secondNode.id]);
 
     await waitForPersistence();
     const persisted = readPersistedCanvasState(workspaceRoot);
     expect(persisted.nodes.map((node) => node.id).sort()).toEqual([groupNode.id, secondNode.id]);
     expect(persisted.edges).toEqual([]);
-    expect(persisted.contextPins).toEqual([firstNode.id, secondNode.id]);
+    expect(persisted.contextPins).toEqual([secondNode.id]);
   });
 
   test('saves, restores, lists, and deletes snapshots', () => {

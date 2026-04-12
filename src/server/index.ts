@@ -319,7 +319,9 @@ export class PmxCanvas extends EventEmitter {
   }
 
   setContextPins(nodeIds: string[], mode: 'set' | 'add' | 'remove' = 'set'): { count: number; nodeIds: string[] } {
-    return setCanvasContextPins(nodeIds, mode);
+    const result = setCanvasContextPins(nodeIds, mode);
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return result;
   }
 
   listSnapshots() {
@@ -331,7 +333,11 @@ export class PmxCanvas extends EventEmitter {
   }
 
   restoreSnapshot(id: string): { ok: boolean } {
-    return restoreCanvasSnapshot(id);
+    const result = restoreCanvasSnapshot(id);
+    if (result.ok) {
+      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    }
+    return result;
   }
 
   deleteSnapshot(id: string): { ok: boolean } {

@@ -223,6 +223,12 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ title: 'Changed title' }),
     });
 
+    await jsonRequest<{ ok: boolean; id: string }>(`/api/canvas/node/${secondNode.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ position: { x: 900, y: 640 } }),
+    });
+
     await jsonRequest<{ ok: boolean }>('/api/canvas/clear', {
       method: 'POST',
     });
@@ -230,6 +236,11 @@ describe('canvas server HTTP API', () => {
     const clearedState = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
     expect(clearedState.nodes).toEqual([]);
     expect(clearedState.edges).toEqual([]);
+    expect(clearedState.viewport).toEqual({ x: 0, y: 0, scale: 1 });
+
+    const clearedPins = await jsonRequest<{ count: number; nodeIds: string[] }>('/api/canvas/pinned-context');
+    expect(clearedPins.count).toBe(0);
+    expect(clearedPins.nodeIds).toEqual([]);
 
     await jsonRequest<{ ok: boolean }>(`/api/canvas/snapshots/${snapshotSave.snapshot.id}`, {
       method: 'POST',
@@ -239,6 +250,96 @@ describe('canvas server HTTP API', () => {
     expect(restoredState.nodes).toHaveLength(2);
     expect(restoredState.edges).toHaveLength(1);
     expect(restoredState.nodes.find((node) => node.id === firstNode.id)?.data.title).toBe('First');
+    expect(restoredState.nodes.find((node) => node.id === secondNode.id)?.position).toEqual({ x: 620, y: 120 });
+  });
+
+  test('covers group and ungroup HTTP routes', async () => {
+    const firstNode = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Grouped A', x: 100, y: 100 }),
+    });
+    const secondNode = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Grouped B', x: 520, y: 160 }),
+    });
+
+    const createdGroup = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/group', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'API Group', childIds: [firstNode.id, secondNode.id] }),
+    });
+
+    const groupNode = await jsonRequest<{ id: string; data: Record<string, unknown> }>(`/api/canvas/node/${createdGroup.id}`);
+    expect(groupNode.data.children).toEqual([firstNode.id, secondNode.id]);
+    expect((await jsonRequest<{ id: string; data: Record<string, unknown> }>(`/api/canvas/node/${firstNode.id}`)).data.parentGroup).toBe(createdGroup.id);
+
+    const ungrouped = await jsonRequest<{ ok: boolean; groupId: string }>('/api/canvas/group/ungroup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId: createdGroup.id }),
+    });
+    expect(ungrouped.groupId).toBe(createdGroup.id);
+
+    const ungroupedGroup = await jsonRequest<{ id: string; data: Record<string, unknown> }>(`/api/canvas/node/${createdGroup.id}`);
+    expect(ungroupedGroup.data.children).toEqual([]);
+    expect((await jsonRequest<{ id: string; data: Record<string, unknown> }>(`/api/canvas/node/${firstNode.id}`)).data.parentGroup).toBeUndefined();
+
+    const missingGroup = await fetch(`${baseUrl}/api/canvas/group/add`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId: '', childIds: [] }),
+    });
+    expect(missingGroup.status).toBe(400);
+  });
+
+  test('covers duplicate, self-edge, and delete edge HTTP behavior', async () => {
+    const firstNode = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Edge A', x: 140, y: 140 }),
+    });
+    const secondNode = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Edge B', x: 520, y: 140 }),
+    });
+
+    const edge = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/edge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: firstNode.id, to: secondNode.id, type: 'relation' }),
+    });
+    expect(edge.id).toContain('edge-');
+
+    const duplicateEdge = await fetch(`${baseUrl}/api/canvas/edge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: firstNode.id, to: secondNode.id, type: 'relation' }),
+    });
+    expect(duplicateEdge.status).toBe(400);
+
+    const selfEdge = await fetch(`${baseUrl}/api/canvas/edge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: firstNode.id, to: firstNode.id, type: 'relation' }),
+    });
+    expect(selfEdge.status).toBe(400);
+
+    const removed = await jsonRequest<{ ok: boolean; removed: string }>('/api/canvas/edge', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ edge_id: edge.id }),
+    });
+    expect(removed.removed).toBe(edge.id);
+
+    const missingDelete = await fetch(`${baseUrl}/api/canvas/edge`, {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ edge_id: edge.id }),
+    });
+    expect(missingDelete.status).toBe(404);
   });
 
   test('reports Bun.WebView automation status and fails cleanly when unsupported', async () => {
@@ -467,4 +568,44 @@ describe('canvas server HTTP API', () => {
     expect(layout.nodes.find((node) => node.id === jsonRender.id)?.type).toBe('json-render');
     expect(layout.nodes.find((node) => node.id === graph.id)?.type).toBe('graph');
   }, 15_000);
+
+  test('rejects invalid json-render payloads and invalid viewer requests', async () => {
+    const missingTitle = await fetch(`${baseUrl}/api/canvas/json-render`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        spec: {
+          root: 'card',
+          elements: {
+            card: {
+              type: 'Card',
+              props: { title: 'Missing title wrapper' },
+              children: [],
+            },
+          },
+        },
+      }),
+    });
+    expect(missingTitle.status).toBe(400);
+    expect((await missingTitle.json() as { ok: boolean; error: string }).error).toContain('Missing required field: title');
+
+    const invalidSpec = await fetch(`${baseUrl}/api/canvas/json-render`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Broken spec',
+        spec: {},
+      }),
+    });
+    expect(invalidSpec.status).toBe(400);
+    expect((await invalidSpec.json() as { ok: boolean; error: string }).error).toContain('Missing root and elements');
+
+    const missingNodeId = await fetch(`${baseUrl}/api/canvas/json-render/view`);
+    expect(missingNodeId.status).toBe(400);
+    expect(await missingNodeId.text()).toContain('Missing nodeId');
+
+    const missingNode = await fetch(`${baseUrl}/api/canvas/json-render/view?nodeId=missing-node`);
+    expect(missingNode.status).toBe(404);
+    expect(await missingNode.text()).toContain('json-render node not found');
+  });
 });

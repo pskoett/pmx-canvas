@@ -70,14 +70,18 @@ function runMcpServerProcess(): Promise<void> {
   });
 }
 
-if (AGENT_COMMANDS.has(firstArg)) {
+if (firstArg === 'serve') {
+  args.shift();
+}
+
+if (AGENT_COMMANDS.has(firstArg) && firstArg !== 'serve') {
   await runAgentCli(args);
 } else if (args.includes('--mcp')) {
   // MCP server mode: stdio transport, auto-starts canvas on first tool call
   await runMcpServerProcess();
 } else {
   // "serve" is also accessible via flags (backward compat)
-  const port = parseInt(readOption('port') ?? '4313');
+  const port = parseInt(readOption('port') ?? process.env.PMX_WEB_CANVAS_PORT ?? '4313');
   const demo = hasFlag('demo');
   const noOpen = hasFlag('no-open');
   const themeArg = readOption('theme');
@@ -151,7 +155,7 @@ MCP Integration:
 
 Examples:
   pmx-canvas                                                  Start server + browser
-  pmx-canvas --no-open --demo                                 Headless with sample data
+  pmx-canvas --no-open --demo                                 Start server headless with sample data
   pmx-canvas --no-open --webview-automation                   Start server + headless Bun.WebView automation
   pmx-canvas --webview-automation --webview-backend=chrome    Start browser + Chrome-backed automation
   pmx-canvas node add --type markdown --title "Hello World"   Add a node

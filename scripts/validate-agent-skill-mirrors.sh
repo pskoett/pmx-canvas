@@ -5,6 +5,7 @@ ROOTS=(".agents/skills" ".claude/skills" ".opencode/skills")
 SKILLS=(
   "agent-teams-simplify-and-harden"
   "context-surfing"
+  "dx-data-navigator"
   "eval-creator"
   "eval-creator-ci"
   "intent-framed-agent"
@@ -14,6 +15,8 @@ SKILLS=(
   "pre-flight-check"
   "self-improvement"
   "self-improvement-ci"
+  "skill-tester"
+  "skill-tester-ci"
   "simplify-and-harden"
   "simplify-and-harden-ci"
   "skill-pipeline"

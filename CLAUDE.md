@@ -69,13 +69,13 @@ The canvas is the agent's extended working memory: humans pin nodes to curate co
 
 6. **Context pins are the bridge between human and agent.** The human pins nodes in the browser, the agent reads `canvas://pinned-context`. This is the primary communication channel from human spatial curation to agent context. Preserve this flow.
 
-7. **No HTTP server port assumptions.** Default port is 4313 but can be changed via `--port` or `PMX_CANVAS_PORT` env var. The server tries fallback ports if the preferred one is taken.
+7. **No HTTP server port assumptions.** Default port is 4313 but can be changed via `--port` or `PMX_WEB_CANVAS_PORT` for server startup. `PMX_CANVAS_PORT` is only the agent CLI's client-side default target port. The server tries fallback ports if the preferred one is taken.
 
 ## Tech Stack
 
 - **Runtime:** Bun (build + serve)
 - **UI:** Preact + @preact/signals
-- **Styling:** CSS custom properties (dark theme, no Tailwind build step)
+- **Styling:** CSS custom properties for the main canvas UI, plus a Tailwind CLI build for the json-render viewer bundle
 - **Server:** Bun.serve (HTTP + SSE)
 - **MCP:** @modelcontextprotocol/sdk (stdio transport)
 - **Bundler:** Bun bundler for client SPA
@@ -164,7 +164,7 @@ Three themes: `dark` (default), `light`, `high-contrast`. Set via:
 
 ## MCP Server
 
-23 tools: `canvas_add_node`, `canvas_add_json_render_node`, `canvas_add_graph_node`, `canvas_build_web_artifact`, `canvas_update_node`, `canvas_remove_node`, `canvas_get_layout`, `canvas_get_node`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_pin_nodes`, `canvas_clear`, `canvas_snapshot`, `canvas_restore`, `canvas_search`, `canvas_undo`, `canvas_redo`, `canvas_diff`, `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup`
+29 tools: `canvas_add_node`, `canvas_add_json_render_node`, `canvas_add_graph_node`, `canvas_build_web_artifact`, `canvas_update_node`, `canvas_remove_node`, `canvas_get_layout`, `canvas_get_node`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_pin_nodes`, `canvas_clear`, `canvas_snapshot`, `canvas_restore`, `canvas_search`, `canvas_undo`, `canvas_redo`, `canvas_diff`, `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup`, `canvas_webview_status`, `canvas_webview_start`, `canvas_webview_stop`, `canvas_evaluate`, `canvas_resize`, `canvas_screenshot`
 
 6 resources: `canvas://pinned-context`, `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, `canvas://code-graph`
 
@@ -259,6 +259,20 @@ When maintaining `.learnings/`:
 - Use `skill-pipeline` as the top-level router for non-trivial coding tasks
 - Claude Code hooks are configured in `.claude/settings.json` and point at the mirrored `.claude/skills/` scripts
 - Keep the three skill trees byte-for-byte identical; verify with `bun run validate:agent-skills`
+
+### How To Run It
+
+- Small tasks: run `verify-gate` then `simplify-and-harden`
+- Medium tasks: run `intent-framed-agent`, then `verify-gate`, then `simplify-and-harden`
+- Large or long-running tasks: run `plan-interview`, then `intent-framed-agent` with `context-surfing`, then `verify-gate`, then `simplify-and-harden`, then `self-improvement`
+- Batch tasks: run `agent-teams-simplify-and-harden`, then `self-improvement`
+- CI/headless review: use `simplify-and-harden-ci` and `self-improvement-ci`; use `learning-aggregator-ci` and `eval-creator-ci` for the outer loop
+- Session-start hooks should surface `pre-flight-check`; Claude hooks also wire `context-surfing` handoff detection and `self-improvement` reminders
+
+### Version
+
+- Imported pipeline version manifest: `.agents/skills/PIPELINE_VERSIONS.md`
+- Canonical imported revision: `01ae6f8b3c9a0ab96e8ec87b27fdd88677696cde`
 
 ## Browser Automation Visibility Rule
 

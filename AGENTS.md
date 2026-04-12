@@ -98,6 +98,25 @@ Agent-specific workflows, tool usage patterns, and automation rules for the pmx-
 - Agent-facing pipeline skills live in `.agents/skills/` and must be mirrored identically in `.claude/skills/` and `.opencode/skills/`
 - Run `bun run validate:agent-skills` after changing any mirrored skill files
 
+## Running The Pipeline
+
+- Use `skill-pipeline` as the entrypoint for non-trivial coding tasks
+- Treat pipeline depth as task-sized:
+  - Trivial: no pipeline
+  - Small: `verify-gate` -> `simplify-and-harden`
+  - Medium: `intent-framed-agent` -> `verify-gate` -> `simplify-and-harden`
+  - Large/long-running: `plan-interview` -> `intent-framed-agent` + `context-surfing` -> `verify-gate` -> `simplify-and-harden` -> `self-improvement`
+  - Batch work: `agent-teams-simplify-and-harden` -> `self-improvement`
+  - CI/headless: `simplify-and-harden-ci` -> `self-improvement-ci`, with `learning-aggregator-ci` and `eval-creator-ci` for the outer loop
+- Run `pre-flight-check` at session start when hooks are available
+- Use `learning-aggregator` and `eval-creator` for cross-session outer-loop improvement work
+- Use the skill definitions under `.agents/skills/` as the canonical instructions
+
+## Pipeline Version
+
+- Current imported pipeline manifest: `.agents/skills/PIPELINE_VERSIONS.md`
+- Canonical imported revision: `01ae6f8b3c9a0ab96e8ec87b27fdd88677696cde` from `https://github.com/pskoett/pskoett-ai-skills`
+
 ## Testing Conventions
 
 Use the `pmx-canvas-testing` skill for the repo-standard verification ladder, test command

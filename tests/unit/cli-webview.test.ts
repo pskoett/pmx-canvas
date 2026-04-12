@@ -189,4 +189,29 @@ describe('agent CLI webview commands', () => {
     expect(existsSync(screenshotPath)).toBe(true);
     expect(readFileSync(screenshotPath).byteLength).toBeGreaterThan(0);
   }, 15000);
+
+  test('serve subcommand routes to server startup instead of agent CLI help', async () => {
+    const originalArgv = process.argv;
+    const originalExit = process.exit;
+    const originalLog = console.log;
+    const log = mock(() => {});
+    const exitMock = mock(() => undefined as never);
+
+    console.log = log;
+    process.exit = exitMock as typeof process.exit;
+    process.argv = ['bun', 'src/cli/index.ts', 'serve', '--help'];
+
+    try {
+      await import(`../../src/cli/index.ts?serve-test=${Date.now()}`);
+    } finally {
+      process.argv = originalArgv;
+      process.exit = originalExit;
+      console.log = originalLog;
+    }
+
+    expect(exitMock).toHaveBeenCalled();
+    const output = log.mock.calls.map((call) => String(call[0] ?? '')).join('\n');
+    expect(output).toContain('Server options:');
+    expect(output).not.toContain('pmx-canvas serve — Start the canvas server');
+  });
 });

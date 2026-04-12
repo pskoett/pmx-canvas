@@ -95,10 +95,20 @@ At activation, detect Entire:
 entire status 2>/dev/null
 ```
 
-- If it succeeds, use Entire as the session state backend. Log completions, in-progress items, and scope notes to it as work progresses.
+- If it succeeds, Entire captures the session passively via hooks — every prompt, tool call, file modification, and checkpoint is recorded to the shadow branch. You don't need to call Entire directly; the harness handles it. Use `entire status` and `entire explain --session <id>` to read back session state when needed.
 - If unavailable or failing, continue without it. Use the intent frame and plan file as the wave anchor instead. Track progress via structured comments in your output rather than Entire CLI commands. Do not block execution and do not nag about installation.
 
 The **wave anchor** is not held mentally. It is built from whatever external, persistent artifacts are available — every drift check reads from them directly, never from reconstructed memory.
+
+### Handoffs become learning signals
+
+When context-surfing writes a handoff file on drift exit, that handoff is also captured in the Entire session transcript (via the `Stop` / `SessionEnd` hooks). At cadence, `learning-aggregator --deep` reads those transcripts and extracts:
+
+- Which drift signals most commonly trigger handoffs → potential session design issues
+- How many sessions hit drift exit vs completed cleanly → session health baseline
+- What context artifacts were missing when drift occurred → promotion candidates for project instruction files
+
+Structured handoff files (`.context-surfing/handoff-<slug>-<timestamp>.md`) with predictable section headers make this parseable. You don't need to do anything special — just keep the handoff format consistent.
 
 - **Full pipeline:** intent frame + plan file + Entire CLI session state
 - **Partial pipeline:** whichever of intent frame or plan exists, plus project context files

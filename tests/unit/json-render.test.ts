@@ -23,4 +23,33 @@ describe('json-render validation', () => {
     expect(spec.root).toBe('card');
     expect(Object.keys(spec.elements)).toEqual(['card']);
   });
+
+  test('normalizes common element aliases and cleans non-string children', () => {
+    const spec = normalizeAndValidateJsonRenderSpec({
+      root: 'panel',
+      elements: {
+        panel: {
+          type: 'Panel',
+          props: {
+            title: 'Alias card',
+            description: null,
+            maxWidth: 'full',
+            centered: false,
+          },
+          children: ['copy', 123, null],
+        },
+        copy: {
+          type: 'Text',
+          props: {
+            text: 'Hello',
+          },
+          children: [],
+        },
+      },
+    });
+
+    expect(spec.elements.panel?.type).toBe('Card');
+    expect(spec.elements.panel?.children).toEqual(['copy']);
+    expect((spec.elements.panel?.props as Record<string, unknown>).description).toBeUndefined();
+  });
 });
