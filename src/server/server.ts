@@ -991,7 +991,14 @@ async function createCanvasWebpageNode(body: Record<string, unknown>): Promise<R
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   const refreshed = await refreshCanvasWebpageNode(id);
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson({ ok: true, id, ...(refreshed.ok ? {} : { error: refreshed.error }) });
+  return responseJson({
+    ok: true,
+    id,
+    fetch: refreshed.ok
+      ? { ok: true }
+      : { ok: false, error: refreshed.error ?? 'Failed to fetch webpage content.' },
+    ...(refreshed.ok ? {} : { error: refreshed.error }),
+  });
 }
 
 async function handleCanvasAddNode(req: Request): Promise<Response> {
@@ -1160,7 +1167,7 @@ async function handleCanvasUpdateNode(nodeId: string, req: Request): Promise<Res
   if (body.dockPosition === null || body.dockPosition === 'left' || body.dockPosition === 'right') {
     patch.dockPosition = body.dockPosition;
   }
-  if (body.title !== undefined || body.content !== undefined || body.data) {
+  if (body.title !== undefined || body.content !== undefined || body.data || typeof body.arrangeLocked === 'boolean') {
     const data = { ...existing.data };
     if (body.title !== undefined) {
       data.title = String(body.title);
@@ -1169,6 +1176,7 @@ async function handleCanvasUpdateNode(nodeId: string, req: Request): Promise<Res
       }
     }
     if (body.content !== undefined) data.content = String(body.content);
+    if (typeof body.arrangeLocked === 'boolean') data.arrangeLocked = body.arrangeLocked;
     // Merge extra data fields (for status, context, ledger, trace nodes)
     if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) {
       Object.assign(data, body.data as Record<string, unknown>);
@@ -2879,6 +2887,16 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
   if (options.autoOpenBrowser !== undefined) {
     primaryWorkbenchAutoOpenEnabled = options.autoOpenBrowser;
   }
+
+  // Ensure direct HTTP server usage records undo/redo history, not just PmxCanvas.start().
+  canvasState.onMutation((info) => {
+    mutationHistory.record({
+      description: info.description,
+      operationType: info.operationType,
+      forward: info.forward,
+      inverse: info.inverse,
+    });
+  });
 
   // ── Canvas persistence: set workspace root and load saved state ──
   canvasState.setWorkspaceRoot(activeWorkspaceRoot);

@@ -12,7 +12,7 @@ const args = process.argv.slice(2);
 const AGENT_COMMANDS = new Set([
   'node', 'edge', 'search', 'layout', 'status', 'arrange', 'focus',
   'pin', 'undo', 'redo', 'history', 'snapshot', 'diff', 'group', 'webview',
-  'clear', 'code-graph', 'spatial', 'serve',
+  'clear', 'code-graph', 'spatial', 'web-artifact', 'serve',
 ]);
 
 const firstArg = args[0] ?? '';
@@ -134,6 +134,7 @@ Agent CLI (works against running server):
   undo / redo / history               Time travel
   snapshot save|list|restore|delete   Manage snapshots
   group create|add|remove             Manage groups
+  web-artifact build                  Build bundled web artifacts
   clear --yes                         Clear canvas
   code-graph                          File dependencies
   spatial                             Spatial analysis
@@ -159,7 +160,9 @@ Examples:
   pmx-canvas --no-open --webview-automation                   Start server + headless Bun.WebView automation
   pmx-canvas --webview-automation --webview-backend=chrome    Start browser + Chrome-backed automation
   pmx-canvas node add --type markdown --title "Hello World"   Add a node
+  pmx-canvas node add --type json-render --title "Dashboard" --spec-file ./dashboard.json
   pmx-canvas node list                                        List all nodes
+  pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx
   pmx-canvas webview status                                   Show WebView automation status
   pmx-canvas webview screenshot --output ./canvas.png         Save a WebView screenshot
   pmx-canvas search "auth"                                    Find nodes

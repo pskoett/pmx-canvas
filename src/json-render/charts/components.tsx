@@ -151,7 +151,7 @@ function ChartBarChart({ props }: BaseComponentProps<CartesianChartProps>) {
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
           <XAxis dataKey={props.xKey} tick={axisStyle} />
           <YAxis tick={axisStyle} />
-          <Tooltip contentStyle={tooltipStyle} />
+          <Tooltip contentStyle={tooltipStyle} cursor={false} />
           <Bar dataKey={props.yKey} fill={fill} radius={[4, 4, 0, 0]} />
         </RechartsBarChart>
       )}

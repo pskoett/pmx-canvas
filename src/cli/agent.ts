@@ -11,7 +11,7 @@
  * - --yes for destructive actions, --dry-run for preview
  */
 
-import { writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -84,7 +84,10 @@ function parseFlags(args: string[]): { positional: string[]; flags: Record<strin
   const positional: string[] = [];
   const flags: Record<string, string | true> = {};
   // Boolean-only flags (never take a value argument)
-  const BOOL_FLAGS = new Set(['help', 'h', 'ids', 'stdin', 'yes', 'list', 'clear', 'set', 'animated', 'dry-run']);
+  const BOOL_FLAGS = new Set([
+    'help', 'h', 'ids', 'stdin', 'yes', 'list', 'clear', 'set', 'animated', 'dry-run',
+    'no-open-in-canvas', 'lock-arrange', 'unlock-arrange',
+  ]);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
     if (arg.startsWith('--')) {
@@ -127,6 +130,47 @@ function optionalNumberFlag(flags: Record<string, string | true>, name: string, 
   return Math.floor(parsed);
 }
 
+function optionalFiniteFlag(flags: Record<string, string | true>, name: string, hint: string): number | undefined {
+  const val = flags[name];
+  if (!val || val === true) return undefined;
+  const parsed = Number(val);
+  if (!Number.isFinite(parsed)) {
+    die(`Invalid value for --${name}: ${String(val)}`, hint);
+  }
+  return parsed;
+}
+
+function optionalPositiveFiniteFlag(flags: Record<string, string | true>, name: string, hint: string): number | undefined {
+  const parsed = optionalFiniteFlag(flags, name, hint);
+  if (parsed === undefined) return undefined;
+  if (parsed <= 0) {
+    die(`Invalid value for --${name}: ${String(flags[name])}`, hint);
+  }
+  return parsed;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function parseRecordArrayJson(raw: string, hint: string): Array<Record<string, unknown>> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    die(
+      `Invalid JSON dataset: ${error instanceof Error ? error.message : String(error)}`,
+      hint,
+    );
+  }
+
+  if (!Array.isArray(parsed) || parsed.some((item) => !isRecord(item))) {
+    die('Graph data must be a JSON array of objects.', hint);
+  }
+
+  return parsed;
+}
+
 // ── Commands ─────────────────────────────────────────────────
 
 const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: string; examples: string[] }> = {};
@@ -146,11 +190,123 @@ cmd('node add', 'Add a node to the canvas', [
   'pmx-canvas node add --type status --title "Build" --content "passing"',
   'pmx-canvas node add --type file --content "src/index.ts"',
   'pmx-canvas node add --type markdown --title "Note" --x 100 --y 200',
+  'pmx-canvas node add --type json-render --title "Ops Dashboard" --spec-file ./dashboard.json',
+  'pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
 ], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('node add');
 
   const type = (flags.type as string) || 'markdown';
+
+  if (type === 'json-render') {
+    const jsonRenderHint =
+      'Use: pmx-canvas node add --type json-render --title "Ops Dashboard" --spec-file ./dashboard.json';
+    const title = typeof flags.title === 'string' ? flags.title.trim() : '';
+    if (!title) {
+      die('json-render nodes require --title.', jsonRenderHint);
+    }
+
+    let rawSpec = '';
+    if (typeof flags['spec-file'] === 'string') {
+      try {
+        rawSpec = readFileSync(flags['spec-file'], 'utf-8');
+      } catch (error) {
+        die(
+          `Unable to read --spec-file: ${error instanceof Error ? error.message : String(error)}`,
+          jsonRenderHint,
+        );
+      }
+    } else if (typeof flags['spec-json'] === 'string') {
+      rawSpec = flags['spec-json'];
+    } else if (flags.stdin) {
+      rawSpec = await readStdin();
+    } else {
+      die('json-render nodes require --spec-file, --spec-json, or --stdin.', jsonRenderHint);
+    }
+
+    let spec: unknown;
+    try {
+      spec = JSON.parse(rawSpec);
+    } catch (error) {
+      die(
+        `Invalid JSON spec: ${error instanceof Error ? error.message : String(error)}`,
+        jsonRenderHint,
+      );
+    }
+
+    const x = optionalFiniteFlag(flags, 'x', 'Use a finite number, e.g. --x 500');
+    const y = optionalFiniteFlag(flags, 'y', 'Use a finite number, e.g. --y 300');
+    const width = optionalPositiveFiniteFlag(flags, 'width', 'Use a positive number, e.g. --width 840');
+    const height = optionalPositiveFiniteFlag(flags, 'height', 'Use a positive number, e.g. --height 620');
+
+    const result = await api('POST', '/api/canvas/json-render', {
+      title,
+      spec,
+      ...(x !== undefined ? { x } : {}),
+      ...(y !== undefined ? { y } : {}),
+      ...(width !== undefined ? { width } : {}),
+      ...(height !== undefined ? { height } : {}),
+    });
+    output(result);
+    return;
+  }
+
+  if (type === 'graph') {
+    const graphHint =
+      'Use: pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value';
+    let data: Array<Record<string, unknown>> | null = null;
+
+    if (typeof flags['data-file'] === 'string') {
+      let raw = '';
+      try {
+        raw = readFileSync(flags['data-file'], 'utf-8');
+      } catch (error) {
+        die(
+          `Unable to read --data-file: ${error instanceof Error ? error.message : String(error)}`,
+          graphHint,
+        );
+      }
+      data = parseRecordArrayJson(raw, graphHint);
+    } else if (typeof flags['data-json'] === 'string') {
+      data = parseRecordArrayJson(flags['data-json'], graphHint);
+    } else if (flags.stdin) {
+      data = parseRecordArrayJson(await readStdin(), graphHint);
+    }
+
+    if (!data) {
+      die('Graph nodes require --data-file, --data-json, or --stdin JSON data.', graphHint);
+    }
+
+    const x = optionalFiniteFlag(flags, 'x', 'Use a finite number, e.g. --x 500');
+    const y = optionalFiniteFlag(flags, 'y', 'Use a finite number, e.g. --y 300');
+    const width = optionalPositiveFiniteFlag(flags, 'width', 'Use a positive number, e.g. --width 760');
+    const nodeHeight = optionalPositiveFiniteFlag(flags, 'height', 'Use a positive number, e.g. --height 520');
+    const chartHeight = optionalPositiveFiniteFlag(flags, 'chart-height', 'Use a positive number, e.g. --chart-height 300');
+
+    const graphBody: Record<string, unknown> = {
+      graphType: typeof flags['graph-type'] === 'string' ? flags['graph-type'] : 'line',
+      data,
+      ...(typeof flags.title === 'string' ? { title: flags.title } : {}),
+      ...(typeof flags['x-key'] === 'string' ? { xKey: flags['x-key'] } : {}),
+      ...(typeof flags['y-key'] === 'string' ? { yKey: flags['y-key'] } : {}),
+      ...(typeof flags['name-key'] === 'string' ? { nameKey: flags['name-key'] } : {}),
+      ...(typeof flags['value-key'] === 'string' ? { valueKey: flags['value-key'] } : {}),
+      ...(flags.aggregate === 'sum' || flags.aggregate === 'count' || flags.aggregate === 'avg'
+        ? { aggregate: flags.aggregate }
+        : {}),
+      ...(typeof flags.color === 'string' ? { color: flags.color } : {}),
+      ...(chartHeight !== undefined ? { height: chartHeight } : {}),
+      ...(x !== undefined ? { x } : {}),
+      ...(y !== undefined ? { y } : {}),
+      ...(width !== undefined ? { width } : {}),
+      ...(nodeHeight !== undefined ? { nodeHeight } : {}),
+    };
+
+    const result = await api('POST', '/api/canvas/graph', graphBody);
+    output(result);
+    return;
+  }
+
   const body: Record<string, unknown> = { type };
   if (flags.title) body.title = flags.title;
   if (flags.content) body.content = flags.content;
@@ -216,6 +372,8 @@ cmd('node update', 'Update a node by ID', [
   'pmx-canvas node update <node-id> --title "New Title"',
   'pmx-canvas node update <node-id> --content "Updated content"',
   'pmx-canvas node update <node-id> --title "Moved" --x 500 --y 300',
+  'pmx-canvas node update <node-id> --width 840 --height 620',
+  'pmx-canvas node update <node-id> --lock-arrange',
 ], async (args) => {
   const { positional, flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('node update');
@@ -227,11 +385,54 @@ cmd('node update', 'Update a node by ID', [
   if (flags.title && flags.title !== true) body.title = flags.title;
   if (flags.content && flags.content !== true) body.content = flags.content;
   if (flags.stdin) body.content = await readStdin();
-  if (flags.x || flags.y) {
-    body.position = {
-      ...(flags.x ? { x: Number(flags.x) } : {}),
-      ...(flags.y ? { y: Number(flags.y) } : {}),
+
+  const x = optionalFiniteFlag(flags, 'x', 'Use a finite number, e.g. --x 500');
+  const y = optionalFiniteFlag(flags, 'y', 'Use a finite number, e.g. --y 300');
+  const width = optionalPositiveFiniteFlag(flags, 'width', 'Use a positive number, e.g. --width 840');
+  const height = optionalPositiveFiniteFlag(flags, 'height', 'Use a positive number, e.g. --height 620');
+  if (flags['lock-arrange'] && flags['unlock-arrange']) {
+    die('Use either --lock-arrange or --unlock-arrange, not both.');
+  }
+  const arrangeLocked = flags['lock-arrange']
+    ? true
+    : flags['unlock-arrange']
+      ? false
+      : undefined;
+
+  if (x !== undefined || y !== undefined || width !== undefined || height !== undefined || arrangeLocked !== undefined) {
+    const existing = await api('GET', `/api/canvas/node/${encodeURIComponent(id)}`) as {
+      position: { x: number; y: number };
+      size: { width: number; height: number };
+      data: Record<string, unknown>;
     };
+
+    if (x !== undefined || y !== undefined) {
+      body.position = {
+        x: x ?? existing.position.x,
+        y: y ?? existing.position.y,
+      };
+    }
+
+    if (width !== undefined || height !== undefined) {
+      body.size = {
+        width: width ?? existing.size.width,
+        height: height ?? existing.size.height,
+      };
+    }
+
+    if (arrangeLocked !== undefined) {
+      body.data = {
+        ...existing.data,
+        arrangeLocked,
+      };
+    }
+  }
+
+  if (Object.keys(body).length === 0) {
+    die(
+      'No updates specified',
+      'Use --title, --content, --x, --y, --width, --height, --lock-arrange, --unlock-arrange, or --stdin',
+    );
   }
 
   const result = await api('PATCH', `/api/canvas/node/${encodeURIComponent(id)}`, body);
@@ -385,6 +586,7 @@ cmd('focus', 'Pan viewport to center on a node', [
 
 // ── pin ──────────────────────────────────────────────────────
 cmd('pin', 'Manage context pins', [
+  'pmx-canvas pin node1 node2 node3',
   'pmx-canvas pin --set node1 node2 node3',
   'pmx-canvas pin --list',
   'pmx-canvas pin --clear',
@@ -558,6 +760,68 @@ cmd('group remove', 'Ungroup all children from a group', [
   output(result);
 });
 
+// ── web-artifact build ───────────────────────────────────────
+cmd('web-artifact build', 'Build a bundled HTML web artifact and optionally open it on the canvas', [
+  'pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx',
+  'pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --index-css-file ./index.css',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('web-artifact build');
+
+  const hint = 'Use: pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx';
+  const title = requireFlag(flags, 'title', hint);
+
+  let appTsx = '';
+  if (typeof flags['app-file'] === 'string') {
+    try {
+      appTsx = readFileSync(flags['app-file'], 'utf-8');
+    } catch (error) {
+      die(
+        `Unable to read --app-file: ${error instanceof Error ? error.message : String(error)}`,
+        hint,
+      );
+    }
+  } else if (typeof flags['app-tsx'] === 'string') {
+    appTsx = flags['app-tsx'];
+  } else if (flags.stdin) {
+    appTsx = await readStdin();
+  } else {
+    die('web-artifact build requires --app-file, --app-tsx, or --stdin.', hint);
+  }
+
+  const body: Record<string, unknown> = { title, appTsx };
+
+  if (typeof flags['index-css-file'] === 'string') {
+    body.indexCss = readFileSync(flags['index-css-file'], 'utf-8');
+  } else if (typeof flags['index-css'] === 'string') {
+    body.indexCss = flags['index-css'];
+  }
+
+  if (typeof flags['main-file'] === 'string') {
+    body.mainTsx = readFileSync(flags['main-file'], 'utf-8');
+  } else if (typeof flags['main-tsx'] === 'string') {
+    body.mainTsx = flags['main-tsx'];
+  }
+
+  if (typeof flags['index-html-file'] === 'string') {
+    body.indexHtml = readFileSync(flags['index-html-file'], 'utf-8');
+  } else if (typeof flags['index-html'] === 'string') {
+    body.indexHtml = flags['index-html'];
+  }
+
+  if (typeof flags['project-path'] === 'string') body.projectPath = flags['project-path'];
+  if (typeof flags['output-path'] === 'string') body.outputPath = flags['output-path'];
+  if (typeof flags['init-script-path'] === 'string') body.initScriptPath = flags['init-script-path'];
+  if (typeof flags['bundle-script-path'] === 'string') body.bundleScriptPath = flags['bundle-script-path'];
+  if (flags['no-open-in-canvas']) body.openInCanvas = false;
+
+  const timeoutMs = optionalPositiveFiniteFlag(flags, 'timeout-ms', 'Use a positive number, e.g. --timeout-ms 600000');
+  if (timeoutMs !== undefined) body.timeoutMs = timeoutMs;
+
+  const result = await api('POST', '/api/canvas/web-artifact', body);
+  output(result);
+});
+
 // ── clear ────────────────────────────────────────────────────
 cmd('clear', 'Remove all nodes and edges from the canvas', [
   'pmx-canvas clear --yes',
@@ -651,15 +915,38 @@ cmd('webview stop', 'Stop the active Bun.WebView automation session', [
 // ── webview evaluate ──────────────────────────────────────────
 cmd('webview evaluate', 'Evaluate JavaScript in the active Bun.WebView automation session', [
   'pmx-canvas webview evaluate --expression "document.title"',
+  'pmx-canvas webview evaluate --script "const title = document.title; return title.toUpperCase()"',
+  'pmx-canvas webview evaluate --file ./probe.js',
 ], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('webview evaluate');
 
-  const expression = requireFlag(
-    flags,
-    'expression',
-    'pmx-canvas webview evaluate --expression "document.title"',
-  );
+  const sourceCount = [flags.expression, flags.script, flags.file].filter(Boolean).length;
+  if (sourceCount > 1) {
+    die('Use only one of --expression, --script, or --file.', 'pmx-canvas webview evaluate --expression "document.title"');
+  }
+
+  let expression = '';
+  if (typeof flags.file === 'string') {
+    let script = '';
+    try {
+      script = readFileSync(flags.file, 'utf-8');
+    } catch (error) {
+      die(
+        `Unable to read --file: ${error instanceof Error ? error.message : String(error)}`,
+        'pmx-canvas webview evaluate --file ./probe.js',
+      );
+    }
+    expression = `(() => {\n${script}\n})()`;
+  } else if (typeof flags.script === 'string') {
+    expression = `(() => {\n${flags.script}\n})()`;
+  } else {
+    expression = requireFlag(
+      flags,
+      'expression',
+      'pmx-canvas webview evaluate --expression "document.title"',
+    );
+  }
 
   const result = await api('POST', '/api/workbench/webview/evaluate', { expression });
   output(result);
@@ -826,10 +1113,11 @@ Canvas commands:
   pmx-canvas webview resize           Resize automation viewport
   pmx-canvas webview screenshot       Save automation screenshot to disk
   pmx-canvas webview stop             Stop automation session
+  pmx-canvas web-artifact build       Build bundled web artifact HTML
   pmx-canvas clear --yes              Clear all nodes and edges
 
 Context pins:
-  pmx-canvas pin <id1> <id2> ...      Set pinned nodes
+  pmx-canvas pin <id1> <id2> ...      Set pinned nodes (same as --set)
   pmx-canvas pin --list               List pinned context
   pmx-canvas pin --clear              Clear all pins
 
@@ -862,10 +1150,14 @@ Environment:
 
 Examples:
   pmx-canvas node add --type markdown --title "API Design" --content "# REST API"
+  pmx-canvas node add --type json-render --title "Dashboard" --spec-file ./dashboard.json
+  pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value
   pmx-canvas node list --type file --ids
   pmx-canvas edge add --from node-abc --to node-def --type depends-on
   pmx-canvas search "authentication"
   pmx-canvas arrange --layout column
+  pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx
+  pmx-canvas webview evaluate --script "const title = document.title; return title"
   pmx-canvas snapshot save --name "pre-refactor"
   pmx-canvas clear --dry-run
   cat design.md | pmx-canvas node add --type markdown --title "Design" --stdin

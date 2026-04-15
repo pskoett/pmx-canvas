@@ -1,4 +1,13 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Locator } from '@playwright/test';
+
+function toolbarTooltip(button: Locator): Locator {
+  return button.locator('xpath=following-sibling::*[contains(@class,"toolbar-tooltip")]');
+}
+
+async function tooltipOpacity(button: Locator): Promise<number> {
+  const tooltip = toolbarTooltip(button);
+  return await tooltip.evaluate((element) => Number.parseFloat(getComputedStyle(element).opacity));
+}
 
 async function clearSnapshots(request: { get: Function; delete: Function }): Promise<void> {
   const response = await request.get('/api/canvas/snapshots');
@@ -245,6 +254,52 @@ test('saves snapshots from the toolbar', async ({ page, request }) => {
     const snapshots = await response.json() as Array<{ name: string }>;
     return snapshots.map((snapshot) => snapshot.name).join(',');
   }).toContain('Toolbar snapshot');
+});
+
+test('toolbar tooltips dismiss after pointer-triggered actions', async ({ page }) => {
+  await page.goto('/workbench');
+
+  const buttons = [
+    page.getByRole('button', { name: 'Arrange layout' }),
+    page.getByRole('button', { name: /minimap/i }),
+  ];
+
+  for (const button of buttons) {
+    await button.hover();
+    await expect.poll(async () => tooltipOpacity(button)).toBeGreaterThan(0.9);
+
+    await button.click();
+    await page.mouse.move(80, 860);
+
+    await expect.poll(async () => tooltipOpacity(button)).toBeLessThan(0.1);
+  }
+});
+
+test('dark bar-chart viewer keeps tooltip without the bright hover cursor overlay', async ({ page, request }) => {
+  const createResponse = await request.post('/api/canvas/graph', {
+    data: {
+      title: 'Hover cursor check',
+      graphType: 'bar',
+      data: [
+        { label: 'Documentation', value: 50 },
+        { label: 'Testing', value: 33 },
+        { label: 'Release', value: 25 },
+      ],
+      xKey: 'label',
+      yKey: 'value',
+      color: '#3ec668',
+    },
+  });
+  const created = await createResponse.json() as { url: string };
+
+  await page.goto(`${created.url}&theme=dark`);
+
+  const firstBar = page.locator('.recharts-bar-rectangle').first();
+  await expect(firstBar).toBeVisible();
+  await firstBar.hover();
+
+  await expect(page.locator('.recharts-tooltip-wrapper')).toContainText('Documentation');
+  await expect(page.locator('.recharts-tooltip-cursor')).toHaveCount(0);
 });
 
 test('ordinary node pin updates the authoritative canvas state', async ({ page, request }) => {

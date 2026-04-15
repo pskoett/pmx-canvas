@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { runAgentCli } from '../../src/cli/agent.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
@@ -188,6 +188,81 @@ describe('agent CLI webview commands', () => {
     expect(screenshotOutput.mimeType).toBe('image/png');
     expect(existsSync(screenshotPath)).toBe(true);
     expect(readFileSync(screenshotPath).byteLength).toBeGreaterThan(0);
+  }, 15000);
+
+  test('evaluate supports --script for multi-statement JavaScript', async () => {
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'webview',
+        'start',
+        '--backend',
+        process.platform === 'darwin' ? 'webkit' : 'chrome',
+      ]);
+
+      if (JSON.parse(log.mock.calls[0]?.[0] as string).ok === false) {
+        return;
+      }
+
+      await runAgentCli([
+        'webview',
+        'evaluate',
+        '--script',
+        'const title = document.title; return title.toUpperCase();',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    expect(log).toHaveBeenCalledTimes(2);
+    const evaluateOutput = JSON.parse(log.mock.calls[1]?.[0] as string) as {
+      ok: boolean;
+      value: unknown;
+    };
+    expect(evaluateOutput.ok).toBe(true);
+    expect(evaluateOutput.value).toBe('PMX CANVAS');
+  }, 15000);
+
+  test('evaluate supports --file for multi-statement JavaScript', async () => {
+    const scriptPath = join(workspaceRoot, 'probe.js');
+    writeFileSync(scriptPath, 'const title = document.title; return `${title} from file`;');
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'webview',
+        'start',
+        '--backend',
+        process.platform === 'darwin' ? 'webkit' : 'chrome',
+      ]);
+
+      if (JSON.parse(log.mock.calls[0]?.[0] as string).ok === false) {
+        return;
+      }
+
+      await runAgentCli([
+        'webview',
+        'evaluate',
+        '--file',
+        scriptPath,
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    expect(log).toHaveBeenCalledTimes(2);
+    const evaluateOutput = JSON.parse(log.mock.calls[1]?.[0] as string) as {
+      ok: boolean;
+      value: unknown;
+    };
+    expect(evaluateOutput.ok).toBe(true);
+    expect(evaluateOutput.value).toBe('PMX Canvas from file');
   }, 15000);
 
   test('serve subcommand routes to server startup instead of agent CLI help', async () => {

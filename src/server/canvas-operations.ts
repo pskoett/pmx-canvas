@@ -348,15 +348,59 @@ export function removeCanvasNode(id: string): {
   return { removed: true, needsCodeGraphRecompute: existing.type === 'file' };
 }
 
+function isArrangeLocked(node: CanvasNodeState): boolean {
+  return node.pinned || node.data.arrangeLocked === true;
+}
+
+function collectArrangeExcludedNodeIds(nodes: CanvasNodeState[]): Set<string> {
+  const nodesById = new Map(nodes.map((node) => [node.id, node]));
+  const excludedGroupIds = new Set<string>();
+
+  for (const node of nodes) {
+    if (node.type !== 'group') continue;
+    const childIds = Array.isArray(node.data.children)
+      ? node.data.children.filter((id): id is string => typeof id === 'string')
+      : [];
+    const hasLockedChild = childIds.some((childId) => {
+      const child = nodesById.get(childId);
+      return child ? isArrangeLocked(child) : false;
+    });
+    if (isArrangeLocked(node) || hasLockedChild) {
+      excludedGroupIds.add(node.id);
+    }
+  }
+
+  const excluded = new Set<string>();
+  for (const node of nodes) {
+    const parentGroup = typeof node.data.parentGroup === 'string' ? node.data.parentGroup : null;
+    if (isArrangeLocked(node) || (parentGroup && excludedGroupIds.has(parentGroup))) {
+      excluded.add(node.id);
+    }
+  }
+
+  for (const groupId of excludedGroupIds) {
+    excluded.add(groupId);
+    const group = nodesById.get(groupId);
+    const childIds = Array.isArray(group?.data.children)
+      ? group.data.children.filter((id): id is string => typeof id === 'string')
+      : [];
+    for (const childId of childIds) excluded.add(childId);
+  }
+
+  return excluded;
+}
+
 export function arrangeCanvasNodes(layout: CanvasArrangeMode): { arranged: number; layout: CanvasArrangeMode } {
   const nodes = canvasState.getLayout().nodes;
+  const excludedIds = collectArrangeExcludedNodeIds(nodes);
+  const movableNodes = nodes.filter((node) => !excludedIds.has(node.id));
   const gap = 24;
   const oldPositions = nodes.map((node) => ({ id: node.id, position: { ...node.position } }));
 
   canvasState.withSuppressedRecording(() => {
     if (layout === 'column') {
       let y = 80;
-      for (const node of nodes) {
+      for (const node of movableNodes) {
         canvasState.updateNode(node.id, { position: { x: 40, y } });
         y += node.size.height + gap;
       }
@@ -365,7 +409,7 @@ export function arrangeCanvasNodes(layout: CanvasArrangeMode): { arranged: numbe
 
     if (layout === 'flow') {
       let x = 40;
-      for (const node of nodes) {
+      for (const node of movableNodes) {
         canvasState.updateNode(node.id, { position: { x, y: 80 } });
         x += node.size.width + gap;
       }
@@ -376,7 +420,7 @@ export function arrangeCanvasNodes(layout: CanvasArrangeMode): { arranged: numbe
     let col = 0;
     let rowY = 80;
     let rowMaxHeight = 0;
-    for (const node of nodes) {
+    for (const node of movableNodes) {
       const x = 40 + col * (360 + gap);
       canvasState.updateNode(node.id, { position: { x, y: rowY } });
       rowMaxHeight = Math.max(rowMaxHeight, node.size.height);
@@ -394,7 +438,7 @@ export function arrangeCanvasNodes(layout: CanvasArrangeMode): { arranged: numbe
     return { id: node.id, position: updated ? { ...updated.position } : { ...node.position } };
   });
   mutationHistory.record({
-    description: `Auto-arranged ${nodes.length} nodes (${layout})`,
+    description: `Auto-arranged ${movableNodes.length} nodes (${layout})`,
     operationType: 'arrange',
     forward: () => canvasState.withSuppressedRecording(() => {
       for (const position of newPositions) canvasState.updateNode(position.id, { position: position.position });
@@ -404,7 +448,7 @@ export function arrangeCanvasNodes(layout: CanvasArrangeMode): { arranged: numbe
     }),
   });
 
-  return { arranged: nodes.length, layout };
+  return { arranged: movableNodes.length, layout };
 }
 
 export function applyCanvasNodeUpdates(updates: CanvasNodeUpdate[]): { applied: number; skipped: number } {

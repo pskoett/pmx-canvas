@@ -188,7 +188,7 @@ describe('canvas server HTTP API', () => {
   });
 
   test('creates and refreshes webpage nodes over HTTP with cached text context', async () => {
-    const created = await jsonRequest<{ ok: boolean; id: string; error?: string }>('/api/canvas/node', {
+    const created = await jsonRequest<{ ok: boolean; id: string; error?: string; fetch: { ok: boolean; error?: string } }>('/api/canvas/node', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -196,6 +196,7 @@ describe('canvas server HTTP API', () => {
         content: `${webpageOrigin}/article?v=1`,
       }),
     });
+    expect(created.fetch.ok).toBe(true);
 
     const node = await jsonRequest<{ id: string; type: string; data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`);
     expect(node.type).toBe('webpage');
@@ -218,6 +219,32 @@ describe('canvas server HTTP API', () => {
     expect(updated.data.url).toBe(`${webpageOrigin}/article?v=2`);
     expect(updated.data.pageTitle).toBe('Canvas Webpage v2');
     expect(String(updated.data.content)).toContain('Updated webpage content for saved canvas refresh.');
+  });
+
+  test('surfaces webpage fetch failures in the create response while preserving the error node', async () => {
+    const created = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      error?: string;
+      fetch: { ok: boolean; error?: string };
+    }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'webpage',
+        content: 'http://127.0.0.1:9/unreachable',
+      }),
+    });
+
+    expect(created.ok).toBe(true);
+    expect(created.fetch.ok).toBe(false);
+    expect(created.fetch.error).toBeDefined();
+    expect(created.error).toBe(created.fetch.error);
+
+    const node = await jsonRequest<{ type: string; data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`);
+    expect(node.type).toBe('webpage');
+    expect(node.data.status).toBe('error');
+    expect(node.data.error).toBe(created.fetch.error);
   });
 
   test('rejects invalid single-node patch geometry and skips invalid batch updates', async () => {

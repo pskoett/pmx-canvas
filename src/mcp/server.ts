@@ -113,7 +113,7 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_add_node ────────────────────────────────────────────
   server.tool(
     'canvas_add_node',
-    'Add a node to the canvas. Returns the new node ID. Node types: markdown (rich content), status (compact indicator), context, ledger, trace, file (live file viewer — set content to a file path), image (set content to an image file path, data URI, or URL), webpage (set content to an http(s) URL so the server can fetch and cache page text), mcp-app.',
+    'Add a node to the canvas. Returns the new node ID. Node types: markdown (rich content), status (compact indicator), context, ledger, trace, file (live file viewer — set content to a file path), image (set content to an image file path, data URI, or URL), webpage (set content to an http(s) URL so the server can fetch and cache page text), mcp-app. Use canvas_add_json_render_node, canvas_add_graph_node, and canvas_build_web_artifact for structured UI, graph, and artifact nodes.',
     {
       type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'webpage', 'mcp-app', 'group'])
         .describe('Node type (prefer canvas_create_group for groups)'),
@@ -343,8 +343,9 @@ export async function startMcpServer(): Promise<void> {
       width: z.number().optional().describe('New width'),
       height: z.number().optional().describe('New height'),
       collapsed: z.boolean().optional().describe('Collapse or expand the node'),
+      arrangeLocked: z.boolean().optional().describe('Prevent auto-arrange from moving this node. Pinned nodes are also skipped.'),
     },
-    async ({ id, title, content, x, y, width, height, collapsed }) => {
+    async ({ id, title, content, x, y, width, height, collapsed, arrangeLocked }) => {
       const c = await ensureCanvas();
       const node = c.getNode(id);
       if (!node) {
@@ -368,6 +369,12 @@ export async function startMcpServer(): Promise<void> {
           ...node.data,
           ...(title !== undefined ? { title } : {}),
           ...(content !== undefined ? { content } : {}),
+        };
+      }
+      if (arrangeLocked !== undefined) {
+        patch.data = {
+          ...(patch.data && typeof patch.data === 'object' ? patch.data as Record<string, unknown> : node.data),
+          arrangeLocked,
         };
       }
       c.updateNode(id, patch);
@@ -627,12 +634,21 @@ export async function startMcpServer(): Promise<void> {
     'canvas_evaluate',
     'Evaluate JavaScript in the active Bun.WebView automation session for the workbench page. Use this to inspect rendered browser state. Requires an active automation session started via canvas_webview_start.',
     {
-      expression: z.string().describe('JavaScript expression to evaluate in the page context'),
+      expression: z.string().optional().describe('JavaScript expression to evaluate in the page context'),
+      script: z.string().optional().describe('Multi-statement JavaScript body. The MCP server wraps it in an IIFE and evaluates the return value.'),
     },
-    async ({ expression }) => {
+    async ({ expression, script }) => {
       const c = await ensureCanvas();
+      if ((expression ? 1 : 0) + (script ? 1 : 0) !== 1) {
+        return {
+          content: [{ type: 'text', text: 'Pass exactly one of "expression" or "script".' }],
+          isError: true,
+        };
+      }
+
+      const source = script ? `(() => {\n${script}\n})()` : expression!;
       try {
-        const value = await c.evaluateAutomationWebView(expression);
+        const value = await c.evaluateAutomationWebView(source);
         return {
           content: [{ type: 'text', text: JSON.stringify({ value }, null, 2) }],
         };

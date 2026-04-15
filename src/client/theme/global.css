@@ -516,15 +516,15 @@ body,
 }
 
 .toolbar-tooltip-anchor:hover .toolbar-tooltip,
-.toolbar-tooltip-anchor:focus-within .toolbar-tooltip {
+.toolbar-tooltip-anchor > :focus-visible + .toolbar-tooltip {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
 
 .toolbar-tooltip-anchor-start:hover .toolbar-tooltip,
-.toolbar-tooltip-anchor-start:focus-within .toolbar-tooltip,
+.toolbar-tooltip-anchor-start > :focus-visible + .toolbar-tooltip,
 .toolbar-tooltip-anchor-end:hover .toolbar-tooltip,
-.toolbar-tooltip-anchor-end:focus-within .toolbar-tooltip {
+.toolbar-tooltip-anchor-end > :focus-visible + .toolbar-tooltip {
   transform: translateX(0) translateY(0);
 }
 

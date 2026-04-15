@@ -354,6 +354,53 @@
         "threadStatus": "pending",
         "status": "pending"
       }
+    },
+    {
+      "id": "node-mnzervln-z7dz",
+      "type": "markdown",
+      "position": {
+        "x": 924,
+        "y": 1260
+      },
+      "size": {
+        "width": 720,
+        "height": 600
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "Parity test",
+        "content": "body",
+        "arrangeLocked": true
+      }
+    },
+    {
+      "id": "node-mnzervly-u2cp",
+      "type": "webpage",
+      "position": {
+        "x": 1668,
+        "y": 1260
+      },
+      "size": {
+        "width": 520,
+        "height": 420
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "url": "https://example.invalid/",
+        "title": "https://example.invalid/",
+        "titleSource": "page",
+        "status": "error",
+        "content": "",
+        "excerpt": "",
+        "fetchedAt": "2026-04-15T02:05:35.362Z",
+        "error": "Unable to connect. Is the computer able to access the url?"
+      }
     }
   ],
   "edges": [

@@ -181,7 +181,7 @@ export class PmxCanvas extends EventEmitter {
     y?: number;
     width?: number;
     height?: number;
-  }): Promise<{ ok: boolean; id: string; error?: string }> {
+  }): Promise<{ ok: boolean; id: string; error?: string; fetch: { ok: boolean; error?: string } }> {
     const { id } = addCanvasNode({
       type: 'webpage',
       ...(typeof input.title === 'string' ? { title: input.title } : {}),
@@ -196,7 +196,14 @@ export class PmxCanvas extends EventEmitter {
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
     const result = await refreshCanvasWebpageNode(id);
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    return result;
+    return {
+      ok: true,
+      id,
+      fetch: result.ok
+        ? { ok: true }
+        : { ok: false, error: result.error ?? 'Failed to fetch webpage content.' },
+      ...(result.ok ? {} : { error: result.error }),
+    };
   }
 
   async refreshWebpageNode(id: string, url?: string): Promise<{ ok: boolean; id: string; error?: string }> {
