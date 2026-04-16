@@ -170,4 +170,70 @@ describe('MCP parity with CLI', () => {
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain('automation WebView');
   });
+
+  test('canvas_get_node exposes normalized title/content and canvas_add_edge supports style/animated', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const tools = await session.client.listTools();
+    const edgeTool = tools.tools.find((tool) => tool.name === 'canvas_add_edge');
+    expect(edgeTool?.inputSchema.properties).toHaveProperty('style');
+    expect(edgeTool?.inputSchema.properties).toHaveProperty('animated');
+
+    const first = parseJsonText<{ id: string }>(await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'markdown',
+        title: 'Edge start',
+        content: 'alpha',
+      },
+    }) as ToolResultShape);
+    const second = parseJsonText<{ id: string }>(await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'markdown',
+        title: 'Edge end',
+        content: 'beta',
+      },
+    }) as ToolResultShape);
+
+    const edge = parseJsonText<{ id: string }>(await session.client.callTool({
+      name: 'canvas_add_edge',
+      arguments: {
+        from: first.id,
+        to: second.id,
+        type: 'references',
+        style: 'dashed',
+        animated: true,
+      },
+    }) as ToolResultShape);
+    expect(edge.id).toBeTruthy();
+
+    const node = parseJsonText<{
+      title: string | null;
+      content: string | null;
+    }>(await session.client.callTool({
+      name: 'canvas_get_node',
+      arguments: { id: first.id },
+    }) as ToolResultShape);
+    expect(node.title).toBe('Edge start');
+    expect(node.content).toBe('alpha');
+
+    const layout = parseJsonText<{
+      edges: Array<{ id: string; style?: string; animated?: boolean }>;
+    }>(await session.client.callTool({
+      name: 'canvas_get_layout',
+      arguments: {},
+    }) as ToolResultShape);
+    expect(layout.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: edge.id,
+        style: 'dashed',
+        animated: true,
+      }),
+    ]));
+  });
 });

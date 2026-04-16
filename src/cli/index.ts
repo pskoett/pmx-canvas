@@ -132,7 +132,8 @@ Agent CLI (works against running server):
   focus <node-id>                     Pan to node
   pin <ids...> | --list | --clear     Manage context pins
   undo / redo / history               Time travel
-  snapshot save|list|restore|delete   Manage snapshots
+  snapshot save|list|restore|diff|delete
+                                      Manage snapshots
   group create|add|remove             Manage groups
   web-artifact build                  Build bundled web artifacts
   clear --yes                         Clear canvas

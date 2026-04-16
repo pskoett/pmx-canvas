@@ -291,4 +291,138 @@ describe('agent CLI node commands', () => {
     expect(node?.type).toBe('mcp-app');
     expect(node?.data.title).toBe('CLI Artifact');
   });
+
+  test('node list and node get expose the same normalized title/content fields', async () => {
+    const filePath = join(workspaceRoot, 'normalized-node.ts');
+    writeFileSync(filePath, 'export const normalized = true;\n', 'utf-8');
+
+    const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'file', content: filePath }),
+    });
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['node', 'list', '--type', 'file']);
+      await runAgentCli(['node', 'get', created.id]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const listed = JSON.parse(log.mock.calls[0]?.[0] as string) as Array<{
+      id: string;
+      title: string | null;
+      content: string | null;
+      path: string | null;
+    }>;
+    const fetched = JSON.parse(log.mock.calls[1]?.[0] as string) as {
+      id: string;
+      title: string | null;
+      content: string | null;
+      path: string | null;
+    };
+
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toEqual(expect.objectContaining({
+      id: created.id,
+      title: 'normalized-node.ts',
+      content: 'export const normalized = true;\n',
+      path: filePath,
+    }));
+    expect(fetched).toEqual(expect.objectContaining({
+      id: created.id,
+      title: listed[0]?.title,
+      content: listed[0]?.content,
+      path: listed[0]?.path,
+    }));
+  });
+
+  test('snapshot diff works from the CLI', async () => {
+    const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Snapshot target', content: 'before' }),
+    });
+    const snapshot = await jsonRequest<{ ok: boolean; snapshot: { id: string } }>('/api/canvas/snapshots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'cli-snapshot' }),
+    });
+    await jsonRequest<{ ok: boolean; id: string }>(`/api/canvas/node/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content: 'after' }),
+    });
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['snapshot', 'diff', snapshot.snapshot.id]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      text: string;
+    };
+    expect(output.ok).toBe(true);
+    expect(output.text).toContain('Modified nodes (1):');
+    expect(output.text).toContain('content changed');
+  });
+
+  test('edge add supports style and animated flags', async () => {
+    const first = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Edge start' }),
+    });
+    const second = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Edge end' }),
+    });
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'edge',
+        'add',
+        '--from',
+        first.id,
+        '--to',
+        second.id,
+        '--type',
+        'references',
+        '--style',
+        'dashed',
+        '--animated',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as { ok: boolean; id: string };
+    expect(output.ok).toBe(true);
+
+    const state = await jsonRequest<{
+      edges: Array<{ id: string; style?: string; animated?: boolean }>;
+    }>('/api/canvas/state');
+    expect(state.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: output.id,
+        style: 'dashed',
+        animated: true,
+      }),
+    ]));
+  });
 });

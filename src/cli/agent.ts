@@ -343,12 +343,7 @@ cmd('node list', 'List all nodes on the canvas', [
   if (flags.ids) {
     output(nodes.map((n) => n.id));
   } else {
-    output(nodes.map((n) => ({
-      id: n.id,
-      type: n.type,
-      title: (n.data as Record<string, unknown>)?.title ?? null,
-      position: n.position,
-    })));
+    output(nodes);
   }
 });
 
@@ -458,6 +453,7 @@ cmd('node remove', 'Remove a node from the canvas', [
 cmd('edge add', 'Add an edge between two nodes', [
   'pmx-canvas edge add --from <node-id> --to <node-id> --type flow',
   'pmx-canvas edge add --from n1 --to n2 --type depends-on --label "imports"',
+  'pmx-canvas edge add --from n1 --to n2 --type references --style dashed --animated',
 ], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('edge add');
@@ -468,6 +464,7 @@ cmd('edge add', 'Add an edge between two nodes', [
 
   const body: Record<string, unknown> = { from, to, type };
   if (flags.label && flags.label !== true) body.label = flags.label;
+  if (typeof flags.style === 'string') body.style = flags.style;
   if (flags.animated) body.animated = true;
 
   const result = await api('POST', '/api/canvas/edge', body);
@@ -703,16 +700,31 @@ cmd('snapshot delete', 'Delete a saved snapshot', [
   output(result);
 });
 
+async function runSnapshotDiff(args: string[]): Promise<void> {
+  const { positional, flags } = parseFlags(args);
+  const snapshot = positional[0];
+  if (!snapshot) die('Missing snapshot ID or name', 'pmx-canvas snapshot diff <snapshot-id-or-name>');
+  const result = await api('GET', `/api/canvas/snapshots/${encodeURIComponent(snapshot)}/diff`);
+  output(result);
+}
+
+// ── snapshot diff ────────────────────────────────────────────
+cmd('snapshot diff', 'Compare current canvas against a saved snapshot', [
+  'pmx-canvas snapshot diff <snapshot-id>',
+  'pmx-canvas snapshot diff "before-refactor"',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('snapshot diff');
+  await runSnapshotDiff(args);
+});
+
 // ── diff ─────────────────────────────────────────────────────
 cmd('diff', 'Compare current canvas against a snapshot', [
   'pmx-canvas diff <snapshot-id>',
 ], async (args) => {
-  const { positional, flags } = parseFlags(args);
+  const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('diff');
-
-  // Diff is only available via MCP — use snapshot list + layout comparison
-  // For now, show snapshots and current state side by side
-  die('diff is MCP-only in the current CLI', 'Use: pmx-canvas --mcp with canvas_diff, or compare snapshots manually');
+  await runSnapshotDiff(args);
 });
 
 // ── group create ─────────────────────────────────────────────
@@ -1130,6 +1142,7 @@ Snapshots:
   pmx-canvas snapshot save --name X   Save a named snapshot
   pmx-canvas snapshot list            List snapshots
   pmx-canvas snapshot restore <id>    Restore from snapshot
+  pmx-canvas snapshot diff <id>       Compare current canvas to snapshot
   pmx-canvas snapshot delete <id>     Delete a snapshot
 
 Groups:

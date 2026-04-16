@@ -503,6 +503,7 @@ export function addCanvasEdge(input: {
   to: string;
   type: CanvasEdge['type'];
   label?: string;
+  style?: CanvasEdge['style'];
   animated?: boolean;
 }): { id: string } {
   const id = `edge-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -512,6 +513,7 @@ export function addCanvasEdge(input: {
     to: input.to,
     type: input.type,
     ...(input.label ? { label: input.label } : {}),
+    ...(input.style ? { style: input.style } : {}),
     ...(input.animated !== undefined ? { animated: input.animated } : {}),
   };
   const added = canvasState.addEdge(edge);

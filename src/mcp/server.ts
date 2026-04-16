@@ -29,6 +29,7 @@ import { emitPrimaryWorkbenchEvent } from '../server/server.js';
 import { searchNodes, buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
 import { mutationHistory, diffLayouts, formatDiff } from '../server/mutation-history.js';
 import { buildCodeGraphSummary, formatCodeGraph } from '../server/code-graph.js';
+import { serializeCanvasLayout, serializeCanvasNode } from '../server/canvas-serialization.js';
 
 let canvas: PmxCanvas | null = null;
 
@@ -83,7 +84,7 @@ export async function startMcpServer(): Promise<void> {
     {},
     async () => {
       const c = await ensureCanvas();
-      const layout = c.getLayout();
+      const layout = serializeCanvasLayout(c.getLayout());
       return {
         content: [{ type: 'text', text: JSON.stringify(layout, null, 2) }],
       };
@@ -105,7 +106,7 @@ export async function startMcpServer(): Promise<void> {
         };
       }
       return {
-        content: [{ type: 'text', text: JSON.stringify(node, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(serializeCanvasNode(node), null, 2) }],
       };
     },
   );
@@ -407,6 +408,8 @@ export async function startMcpServer(): Promise<void> {
       to: z.string().describe('Target node ID'),
       type: z.enum(['flow', 'depends-on', 'relation', 'references']).describe('Edge type'),
       label: z.string().optional().describe('Edge label text'),
+      style: z.enum(['solid', 'dashed', 'dotted']).optional().describe('Optional edge stroke style'),
+      animated: z.boolean().optional().describe('Animate the edge stroke'),
     },
     async (input) => {
       const c = await ensureCanvas();

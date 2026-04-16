@@ -241,6 +241,7 @@ export class PmxCanvas extends EventEmitter {
     to: string;
     type: CanvasEdge['type'];
     label?: string;
+    style?: CanvasEdge['style'];
     animated?: boolean;
   }): string {
     const { id } = addCanvasEdge(input);

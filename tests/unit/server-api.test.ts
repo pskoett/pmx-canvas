@@ -125,8 +125,10 @@ describe('canvas server HTTP API', () => {
       }),
     });
 
-    const fetchedNode = await jsonRequest<{ id: string; data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`);
+    const fetchedNode = await jsonRequest<{ id: string; title: string | null; content: string | null; data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`);
     expect(fetchedNode.id).toBe(created.id);
+    expect(fetchedNode.title).toBe('API note');
+    expect(fetchedNode.content).toBe('# Hello');
     expect(fetchedNode.data.title).toBe('API note');
 
     await jsonRequest<{ ok: boolean; id: string }>(`/api/canvas/node/${created.id}`, {
@@ -168,7 +170,9 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ type: 'markdown', title: 'Arrange me', width: 360, height: 200 }),
     });
 
-    const createdFile = await jsonRequest<{ id: string; position: { x: number; y: number }; data: Record<string, unknown> }>(`/api/canvas/node/${fileNode.id}`);
+    const createdFile = await jsonRequest<{ id: string; position: { x: number; y: number }; path: string | null; content: string | null; data: Record<string, unknown> }>(`/api/canvas/node/${fileNode.id}`);
+    expect(createdFile.path).toBe(filePath);
+    expect(createdFile.content).toBe('export const value = 1;\n');
     expect(createdFile.data.path).toBe(filePath);
     expect(createdFile.data.fileContent).toBe('export const value = 1;\n');
 
@@ -198,8 +202,10 @@ describe('canvas server HTTP API', () => {
     });
     expect(created.fetch.ok).toBe(true);
 
-    const node = await jsonRequest<{ id: string; type: string; data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`);
+    const node = await jsonRequest<{ id: string; type: string; url: string | null; content: string | null; data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`);
     expect(node.type).toBe('webpage');
+    expect(node.url).toBe(`${webpageOrigin}/article?v=1`);
+    expect(node.content).toContain('Initial webpage content for canvas grounding.');
     expect(node.data.url).toBe(`${webpageOrigin}/article?v=1`);
     expect(node.data.pageTitle).toBe('Canvas Webpage v1');
     expect(node.data.status).toBe('ready');
@@ -513,6 +519,17 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ position: { x: 900, y: 640 } }),
     });
 
+    const diff = await jsonRequest<{
+      ok: boolean;
+      text: string;
+      diff: {
+        modifiedNodes: Array<{ id: string; changes: string[] }>;
+      };
+    }>(`/api/canvas/snapshots/${snapshotSave.snapshot.id}/diff`);
+    expect(diff.ok).toBe(true);
+    expect(diff.text).toContain('Modified nodes (2):');
+    expect(diff.diff.modifiedNodes.map((node) => node.id)).toEqual(expect.arrayContaining([firstNode.id, secondNode.id]));
+
     await jsonRequest<{ ok: boolean }>('/api/canvas/clear', {
       method: 'POST',
     });
@@ -535,6 +552,44 @@ describe('canvas server HTTP API', () => {
     expect(restoredState.edges).toHaveLength(1);
     expect(restoredState.nodes.find((node) => node.id === firstNode.id)?.data.title).toBe('First');
     expect(restoredState.nodes.find((node) => node.id === secondNode.id)?.position).toEqual({ x: 620, y: 120 });
+  });
+
+  test('accepts edge style and animation flags over HTTP', async () => {
+    const firstNode = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Styled edge A' }),
+    });
+    const secondNode = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Styled edge B' }),
+    });
+
+    const edge = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/edge', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from: firstNode.id,
+        to: secondNode.id,
+        type: 'references',
+        style: 'dotted',
+        animated: true,
+      }),
+    });
+    expect(edge.ok).toBe(true);
+
+    const state = await jsonRequest<CanvasStateResponse & {
+      edges: Array<{ id: string; type: string; style?: string; animated?: boolean }>;
+    }>('/api/canvas/state');
+    expect(state.edges).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: edge.id,
+        type: 'references',
+        style: 'dotted',
+        animated: true,
+      }),
+    ]));
   });
 
   test('covers group and ungroup HTTP routes', async () => {

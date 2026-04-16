@@ -43,7 +43,8 @@ import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
-import { mutationHistory } from './mutation-history.js';
+import { diffLayouts, formatDiff, mutationHistory } from './mutation-history.js';
+import { serializeCanvasLayout, serializeCanvasNode } from './canvas-serialization.js';
 import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import {
   addCanvasNode,
@@ -1080,18 +1081,23 @@ async function handleCanvasUngroupNodes(req: Request): Promise<Response> {
 }
 
 const VALID_EDGE_TYPES = new Set(['relation', 'depends-on', 'flow', 'references']);
+const VALID_EDGE_STYLES = new Set(['solid', 'dashed', 'dotted']);
 
 async function handleCanvasAddEdge(req: Request): Promise<Response> {
   const body = await readJson(req);
   const from = body.from as string;
   const to = body.to as string;
   const type = body.type as string;
+  const style = typeof body.style === 'string' ? body.style : undefined;
 
   if (!from || !to || !type) {
     return responseJson({ ok: false, error: 'Missing required fields: from, to, type.' }, 400);
   }
   if (!VALID_EDGE_TYPES.has(type)) {
     return responseJson({ ok: false, error: `Invalid edge type: "${type}".` }, 400);
+  }
+  if (style && !VALID_EDGE_STYLES.has(style)) {
+    return responseJson({ ok: false, error: `Invalid edge style: "${style}". Use solid, dashed, or dotted.` }, 400);
   }
   if (!canvasState.getNode(from)) {
     return responseJson({ ok: false, error: `Source node "${from}" not found.` }, 400);
@@ -1106,6 +1112,7 @@ async function handleCanvasAddEdge(req: Request): Promise<Response> {
       to,
       type: type as CanvasEdge['type'],
       ...(body.label ? { label: String(body.label) } : {}),
+      ...(style ? { style: style as CanvasEdge['style'] } : {}),
       ...(body.animated !== undefined ? { animated: Boolean(body.animated) } : {}),
     });
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
@@ -3002,7 +3009,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           // Canvas state API
           if (url.pathname === '/api/canvas/state' && req.method === 'GET') {
-            return responseJson(canvasState.getLayout());
+            return responseJson(serializeCanvasLayout(canvasState.getLayout()));
           }
 
           if (url.pathname === '/api/canvas/update' && req.method === 'POST') {
@@ -3031,7 +3038,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             const nodeId = url.pathname.slice('/api/canvas/node/'.length);
             const node = canvasState.getNode(nodeId);
             if (!node) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
-            return responseJson(node);
+            return responseJson(serializeCanvasNode(node));
           }
 
           if (url.pathname.startsWith('/api/canvas/node/') && req.method === 'PATCH') {
@@ -3071,6 +3078,14 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/snapshots' && req.method === 'POST') {
             return handleSnapshotSave(req);
+          }
+
+          if (url.pathname.startsWith('/api/canvas/snapshots/') && url.pathname.endsWith('/diff') && req.method === 'GET') {
+            const id = decodeURIComponent(url.pathname.slice('/api/canvas/snapshots/'.length, -'/diff'.length));
+            const snapshot = canvasState.getSnapshotData(id);
+            if (!snapshot) return responseJson({ ok: false, error: `Snapshot "${id}" not found.` }, 404);
+            const diff = diffLayouts(snapshot.name, snapshot, canvasState.getLayout());
+            return responseJson({ ok: true, text: formatDiff(diff), diff });
           }
 
           if (url.pathname.startsWith('/api/canvas/snapshots/') && req.method === 'POST') {
