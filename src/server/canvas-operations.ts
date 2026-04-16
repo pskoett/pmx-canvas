@@ -12,6 +12,8 @@ import {
 import { rewatchAllFileNodes, unwatchAll, unwatchFileForNode, watchFileForNode } from './file-watcher.js';
 import { mutationHistory } from './mutation-history.js';
 import { computeGroupBounds, findOpenCanvasPosition } from './placement.js';
+import { searchNodes } from './spatial-analysis.js';
+import { getCanvasNodeTitle, serializeCanvasNode, type SerializedCanvasNode } from './canvas-serialization.js';
 import {
   buildGraphSpec,
   createJsonRenderNodeData,
@@ -53,6 +55,18 @@ interface CanvasCreateGroupInput {
   width?: number;
   height?: number;
   color?: string;
+  childLayout?: CanvasArrangeMode;
+}
+
+export interface CanvasBatchOperation {
+  op: string;
+  assign?: string;
+  args?: Record<string, unknown>;
+}
+
+interface CanvasNodeLookupInput {
+  id?: string;
+  search?: string;
 }
 
 const MAX_CONTEXT_PINS = 20;
@@ -201,6 +215,7 @@ export function scheduleCodeGraphRecompute(onComplete?: () => void): void {
 
 export function addCanvasNode(input: CanvasAddNodeInput): {
   id: string;
+  node: CanvasNodeState;
   needsCodeGraphRecompute: boolean;
 } {
   if (input.type === 'json-render' || input.type === 'graph') {
@@ -233,7 +248,59 @@ export function addCanvasNode(input: CanvasAddNodeInput): {
     watchFileForNode(id, filePath);
   }
 
-  return { id, needsCodeGraphRecompute: input.type === 'file' };
+  return { id, node, needsCodeGraphRecompute: input.type === 'file' };
+}
+
+export function resolveCanvasNode(nodeRef: CanvasNodeLookupInput): {
+  ok: true;
+  node: CanvasNodeState;
+} | {
+  ok: false;
+  error: string;
+} {
+  if (typeof nodeRef.id === 'string' && nodeRef.id.trim().length > 0) {
+    const node = canvasState.getNode(nodeRef.id.trim());
+    if (!node) {
+      return { ok: false, error: `Node "${nodeRef.id}" not found.` };
+    }
+    return { ok: true, node };
+  }
+
+  if (typeof nodeRef.search === 'string' && nodeRef.search.trim().length > 0) {
+    const query = nodeRef.search.trim();
+    const layout = canvasState.getLayout();
+    const exactTitleMatches = layout.nodes.filter((node) => {
+      const title = getCanvasNodeTitle(node);
+      return title !== null && title.toLowerCase() === query.toLowerCase();
+    });
+    if (exactTitleMatches.length === 1) {
+      return { ok: true, node: exactTitleMatches[0]! };
+    }
+    if (exactTitleMatches.length > 1) {
+      return {
+        ok: false,
+        error: `Search "${query}" is ambiguous. Exact title matches: ${exactTitleMatches.map((node) => `${getCanvasNodeTitle(node) ?? node.id} (${node.id})`).join(', ')}`,
+      };
+    }
+
+    const matches = searchNodes(layout.nodes, query);
+    if (matches.length === 0) {
+      return { ok: false, error: `No node matches search "${query}".` };
+    }
+    if (matches.length > 1) {
+      return {
+        ok: false,
+        error: `Search "${query}" is ambiguous. Matches: ${matches.slice(0, 5).map((match) => `${match.title ?? match.id} (${match.id})`).join(', ')}`,
+      };
+    }
+    const node = canvasState.getNode(matches[0]!.id);
+    if (!node) {
+      return { ok: false, error: `Resolved node "${matches[0]!.id}" disappeared.` };
+    }
+    return { ok: true, node };
+  }
+
+  return { ok: false, error: 'Missing node reference. Provide either an id or a search query.' };
 }
 
 export async function refreshCanvasWebpageNode(
@@ -499,18 +566,35 @@ export function deleteCanvasSnapshot(id: string): { ok: boolean } {
 }
 
 export function addCanvasEdge(input: {
-  from: string;
-  to: string;
+  from?: string;
+  to?: string;
+  fromSearch?: string;
+  toSearch?: string;
   type: CanvasEdge['type'];
   label?: string;
   style?: CanvasEdge['style'];
   animated?: boolean;
-}): { id: string } {
+}): { id: string; from: string; to: string } {
+  const fromResult = resolveCanvasNode({
+    ...(typeof input.from === 'string' ? { id: input.from } : {}),
+    ...(typeof input.fromSearch === 'string' ? { search: input.fromSearch } : {}),
+  });
+  if (!fromResult.ok) {
+    throw new Error(fromResult.error);
+  }
+  const toResult = resolveCanvasNode({
+    ...(typeof input.to === 'string' ? { id: input.to } : {}),
+    ...(typeof input.toSearch === 'string' ? { search: input.toSearch } : {}),
+  });
+  if (!toResult.ok) {
+    throw new Error(toResult.error);
+  }
+
   const id = `edge-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const edge: CanvasEdge = {
     id,
-    from: input.from,
-    to: input.to,
+    from: fromResult.node.id,
+    to: toResult.node.id,
     type: input.type,
     ...(input.label ? { label: input.label } : {}),
     ...(input.style ? { style: input.style } : {}),
@@ -520,18 +604,19 @@ export function addCanvasEdge(input: {
   if (!added) {
     throw new Error('Duplicate or self-edge.');
   }
-  return { id };
+  return { id, from: fromResult.node.id, to: toResult.node.id };
 }
 
 export function removeCanvasEdge(id: string): { removed: boolean } {
   return { removed: canvasState.removeEdge(id) };
 }
 
-export function createCanvasGroup(input: CanvasCreateGroupInput): { id: string } {
+export function createCanvasGroup(input: CanvasCreateGroupInput): { id: string; node: CanvasNodeState } {
   let x = input.x;
   let y = input.y;
   let width = input.width ?? 600;
   let height = input.height ?? 400;
+  const explicitFrame = input.x !== undefined || input.y !== undefined || input.width !== undefined || input.height !== undefined;
 
   const childIds = input.childIds ?? [];
   if (childIds.length > 0 && x === undefined && y === undefined) {
@@ -555,6 +640,7 @@ export function createCanvasGroup(input: CanvasCreateGroupInput): { id: string }
   const data: Record<string, unknown> = {
     title: input.title ?? 'Group',
     children: [],
+    frameMode: explicitFrame ? 'manual' : 'fit',
     ...(input.color ? { color: input.color } : {}),
   };
 
@@ -571,14 +657,30 @@ export function createCanvasGroup(input: CanvasCreateGroupInput): { id: string }
   });
 
   if (childIds.length > 0) {
-    canvasState.groupNodes(id, childIds);
+    canvasState.groupNodes(id, childIds, {
+      preservePositions: input.childLayout === undefined,
+      ...(input.childLayout ? { layout: input.childLayout } : {}),
+      keepGroupFrame: explicitFrame,
+    });
   }
 
-  return { id };
+  const node = canvasState.getNode(id);
+  if (!node) {
+    throw new Error(`Group "${id}" was not created.`);
+  }
+  return { id, node };
 }
 
-export function groupCanvasNodes(groupId: string, childIds: string[]): { ok: boolean } {
-  return { ok: canvasState.groupNodes(groupId, childIds) };
+export function groupCanvasNodes(
+  groupId: string,
+  childIds: string[],
+  options: { childLayout?: CanvasArrangeMode } = {},
+): { ok: boolean } {
+  return {
+    ok: canvasState.groupNodes(groupId, childIds, {
+      ...(options.childLayout ? { layout: options.childLayout } : {}),
+    }),
+  };
 }
 
 export function ungroupCanvasNodes(groupId: string): { ok: boolean } {
@@ -593,7 +695,7 @@ export function clearCanvas(): { ok: boolean } {
 
 export function createCanvasJsonRenderNode(
   input: JsonRenderNodeInput,
-): { id: string; url: string; spec: JsonRenderSpec } {
+): { id: string; url: string; spec: JsonRenderSpec; node: CanvasNodeState } {
   const spec = normalizeAndValidateJsonRenderSpec(input.spec);
   const width = input.width ?? JSON_RENDER_NODE_SIZE.width;
   const height = input.height ?? JSON_RENDER_NODE_SIZE.height;
@@ -617,12 +719,12 @@ export function createCanvasJsonRenderNode(
   };
 
   canvasState.addJsonRenderNode(node);
-  return { id, url: String(node.data.url), spec };
+  return { id, url: String(node.data.url), spec, node };
 }
 
 export function createCanvasGraphNode(
   input: GraphNodeInput,
-): { id: string; url: string; spec: JsonRenderSpec } {
+): { id: string; url: string; spec: JsonRenderSpec; node: CanvasNodeState } {
   const title = input.title?.trim() || 'Graph';
   const spec = buildGraphSpec(input);
   const width = input.width ?? GRAPH_NODE_SIZE.width;
@@ -659,5 +761,238 @@ export function createCanvasGraphNode(
   };
 
   canvasState.addGraphNode(node);
-  return { id, url: String(node.data.url), spec };
+  return { id, url: String(node.data.url), spec, node };
+}
+
+function isPlainRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function resolveBatchRefs(value: unknown, refs: Record<string, unknown>): unknown {
+  if (typeof value === 'string' && value.startsWith('$')) {
+    const path = value.slice(1).split('.');
+    let current: unknown = refs[path[0] ?? ''];
+    for (const segment of path.slice(1)) {
+      if (!isPlainRecord(current) && !Array.isArray(current)) return undefined;
+      current = (current as Record<string, unknown>)[segment];
+    }
+    return current;
+  }
+  if (Array.isArray(value)) return value.map((item) => resolveBatchRefs(item, refs));
+  if (isPlainRecord(value)) {
+    const resolved: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value)) {
+      resolved[key] = resolveBatchRefs(child, refs);
+    }
+    return resolved;
+  }
+  return value;
+}
+
+function serializeCreatedNode(node: CanvasNodeState): SerializedCanvasNode {
+  return serializeCanvasNode(node);
+}
+
+export async function executeCanvasBatch(
+  operations: CanvasBatchOperation[],
+): Promise<{
+  ok: boolean;
+  results: Array<Record<string, unknown>>;
+  refs: Record<string, unknown>;
+  failedIndex?: number;
+  error?: string;
+}> {
+  const refs: Record<string, unknown> = {};
+  const results: Array<Record<string, unknown>> = [];
+
+  for (let index = 0; index < operations.length; index++) {
+    const operation = operations[index];
+    const args = isPlainRecord(operation.args) ? resolveBatchRefs(operation.args, refs) : {};
+    if (!isPlainRecord(args)) {
+      return {
+        ok: false,
+        failedIndex: index,
+        error: `Operation ${index} has invalid args.`,
+        results,
+        refs,
+      };
+    }
+
+    try {
+      let result: Record<string, unknown>;
+      switch (operation.op) {
+        case 'node.add': {
+          const type = typeof args.type === 'string' ? args.type : 'markdown';
+          if (type === 'webpage') {
+            const created = addCanvasNode({
+              type: 'webpage',
+              ...(typeof args.title === 'string' ? { title: args.title } : {}),
+              ...(typeof args.content === 'string' ? { content: args.content } : {}),
+              ...(isPlainRecord(args.data) ? { data: args.data } : {}),
+              ...(typeof args.x === 'number' ? { x: args.x } : {}),
+              ...(typeof args.y === 'number' ? { y: args.y } : {}),
+              ...(typeof args.width === 'number' ? { width: args.width } : {}),
+              ...(typeof args.height === 'number' ? { height: args.height } : {}),
+              defaultWidth: 520,
+              defaultHeight: 420,
+            });
+            const fetch = await refreshCanvasWebpageNode(created.id);
+            const refreshed = canvasState.getNode(created.id) ?? created.node;
+            result = {
+              ok: true,
+              ...serializeCreatedNode(refreshed),
+              fetch: fetch.ok
+                ? { ok: true }
+                : { ok: false, error: fetch.error ?? 'Failed to fetch webpage content.' },
+              ...(fetch.ok ? {} : { error: fetch.error }),
+            };
+          } else {
+            const created = addCanvasNode({
+              type: type as CanvasNodeState['type'],
+              ...(typeof args.title === 'string' ? { title: args.title } : {}),
+              ...(typeof args.content === 'string' ? { content: args.content } : {}),
+              ...(isPlainRecord(args.data) ? { data: args.data } : {}),
+              ...(typeof args.x === 'number' ? { x: args.x } : {}),
+              ...(typeof args.y === 'number' ? { y: args.y } : {}),
+              ...(typeof args.width === 'number' ? { width: args.width } : {}),
+              ...(typeof args.height === 'number' ? { height: args.height } : {}),
+              defaultWidth: 360,
+              defaultHeight: 200,
+              fileMode: 'auto',
+            });
+            result = { ok: true, ...serializeCreatedNode(created.node) };
+          }
+          break;
+        }
+        case 'node.update': {
+          const id = typeof args.id === 'string' ? args.id : '';
+          const node = canvasState.getNode(id);
+          if (!node) throw new Error(`Node "${id}" not found.`);
+          const patch: Partial<CanvasNodeState> = {};
+          if (typeof args.x === 'number' || typeof args.y === 'number') {
+            patch.position = {
+              x: typeof args.x === 'number' ? args.x : node.position.x,
+              y: typeof args.y === 'number' ? args.y : node.position.y,
+            };
+          }
+          if (typeof args.width === 'number' || typeof args.height === 'number') {
+            patch.size = {
+              width: typeof args.width === 'number' ? args.width : node.size.width,
+              height: typeof args.height === 'number' ? args.height : node.size.height,
+            };
+          }
+          if (typeof args.collapsed === 'boolean') patch.collapsed = args.collapsed;
+          if (typeof args.pinned === 'boolean') patch.pinned = args.pinned;
+          if (args.dockPosition === null || args.dockPosition === 'left' || args.dockPosition === 'right') {
+            patch.dockPosition = args.dockPosition;
+          }
+          if (typeof args.title === 'string' || typeof args.content === 'string' || typeof args.arrangeLocked === 'boolean' || isPlainRecord(args.data)) {
+            patch.data = {
+              ...node.data,
+              ...(typeof args.title === 'string' ? { title: args.title } : {}),
+              ...(typeof args.content === 'string' ? { content: args.content } : {}),
+              ...(typeof args.arrangeLocked === 'boolean' ? { arrangeLocked: args.arrangeLocked } : {}),
+              ...(isPlainRecord(args.data) ? args.data : {}),
+            };
+          }
+          canvasState.updateNode(id, patch);
+          const updated = canvasState.getNode(id);
+          result = { ok: true, ...(updated ? serializeCreatedNode(updated) : { id }) };
+          break;
+        }
+        case 'edge.add': {
+          const added = addCanvasEdge({
+            ...(typeof args.from === 'string' ? { from: args.from } : {}),
+            ...(typeof args.to === 'string' ? { to: args.to } : {}),
+            ...(typeof args.fromSearch === 'string' ? { fromSearch: args.fromSearch } : {}),
+            ...(typeof args.toSearch === 'string' ? { toSearch: args.toSearch } : {}),
+            type: String(args.type) as CanvasEdge['type'],
+            ...(typeof args.label === 'string' ? { label: args.label } : {}),
+            ...(typeof args.style === 'string' ? { style: args.style as CanvasEdge['style'] } : {}),
+            ...(typeof args.animated === 'boolean' ? { animated: args.animated } : {}),
+          });
+          result = { ok: true, ...added };
+          break;
+        }
+        case 'group.create': {
+          const created = createCanvasGroup({
+            ...(typeof args.title === 'string' ? { title: args.title } : {}),
+            ...(Array.isArray(args.childIds) ? { childIds: args.childIds.filter((id): id is string => typeof id === 'string') } : {}),
+            ...(typeof args.x === 'number' ? { x: args.x } : {}),
+            ...(typeof args.y === 'number' ? { y: args.y } : {}),
+            ...(typeof args.width === 'number' ? { width: args.width } : {}),
+            ...(typeof args.height === 'number' ? { height: args.height } : {}),
+            ...(typeof args.color === 'string' ? { color: args.color } : {}),
+            ...(args.childLayout === 'grid' || args.childLayout === 'column' || args.childLayout === 'flow'
+              ? { childLayout: args.childLayout }
+              : {}),
+          });
+          result = { ok: true, ...serializeCreatedNode(created.node) };
+          break;
+        }
+        case 'group.add': {
+          const groupId = typeof args.groupId === 'string' ? args.groupId : '';
+          const childIds = Array.isArray(args.childIds) ? args.childIds.filter((id): id is string => typeof id === 'string') : [];
+          const ok = canvasState.groupNodes(groupId, childIds, {
+            preservePositions: args.childLayout === undefined,
+            ...(args.childLayout === 'grid' || args.childLayout === 'column' || args.childLayout === 'flow'
+              ? { layout: args.childLayout }
+              : {}),
+          });
+          if (!ok) throw new Error('Group not found or no valid children.');
+          const group = canvasState.getNode(groupId);
+          result = { ok: true, ...(group ? serializeCreatedNode(group) : { id: groupId }) };
+          break;
+        }
+        case 'group.remove': {
+          const groupId = typeof args.groupId === 'string' ? args.groupId : '';
+          const ok = canvasState.ungroupNodes(groupId);
+          if (!ok) throw new Error('Group not found or empty.');
+          result = { ok: true, groupId };
+          break;
+        }
+        case 'pin.set':
+        case 'pin.add':
+        case 'pin.remove': {
+          const ids = Array.isArray(args.nodeIds) ? args.nodeIds.filter((id): id is string => typeof id === 'string') : [];
+          result = {
+            ok: true,
+            ...setCanvasContextPins(ids, operation.op === 'pin.set' ? 'set' : operation.op === 'pin.add' ? 'add' : 'remove'),
+          };
+          break;
+        }
+        case 'snapshot.save': {
+          const snapshot = saveCanvasSnapshot(typeof args.name === 'string' ? args.name : '');
+          if (!snapshot) throw new Error('Failed to save snapshot.');
+          result = { ok: true, snapshot };
+          break;
+        }
+        case 'arrange': {
+          const layout =
+            args.layout === 'column' || args.layout === 'flow' || args.layout === 'grid'
+              ? args.layout
+              : 'grid';
+          result = { ok: true, ...arrangeCanvasNodes(layout) };
+          break;
+        }
+        default:
+          throw new Error(`Unsupported batch operation "${operation.op}".`);
+      }
+
+      results.push(result);
+      if (typeof operation.assign === 'string' && operation.assign.trim().length > 0) {
+        refs[operation.assign] = result;
+      }
+    } catch (error) {
+      return {
+        ok: false,
+        failedIndex: index,
+        error: error instanceof Error ? error.message : String(error),
+        results,
+        refs,
+      };
+    }
+  }
+
+  return { ok: true, results, refs };
 }

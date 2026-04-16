@@ -7,8 +7,8 @@ import {
 
 export { findOpenCanvasPosition, type CanvasPlacementRect } from '../shared/placement.js';
 
-const GROUP_PAD = 40;
-const GROUP_TITLEBAR_HEIGHT = 32;
+export const GROUP_PAD = 40;
+export const GROUP_TITLEBAR_HEIGHT = 32;
 const GROUP_LAYOUT_GAP_X = 32;
 const GROUP_LAYOUT_GAP_Y = 32;
 const GROUP_LAYOUT_MIN_ROW_WIDTH = 1200;

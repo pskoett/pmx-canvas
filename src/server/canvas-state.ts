@@ -15,6 +15,8 @@ import {
   type CanvasPlacementRect,
   computeGroupBounds,
   computePackedGroupLayout,
+  GROUP_PAD,
+  GROUP_TITLEBAR_HEIGHT,
   resolveGroupCollision,
 } from './placement.ts';
 
@@ -111,6 +113,12 @@ export interface MutationRecordInfo {
   description: string;
   forward: () => void;
   inverse: () => void;
+}
+
+interface GroupNodesOptions {
+  preservePositions?: boolean;
+  layout?: 'grid' | 'column' | 'flow';
+  keepGroupFrame?: boolean;
 }
 
 function formatBatchUpdateDescription(updates: CanvasNodeUpdate[]): string {
@@ -245,20 +253,20 @@ class CanvasStateManager {
     const groups = Array.from(this.nodes.values())
       .filter((node): node is CanvasNodeState => node.type === 'group')
       .sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x);
-    const placed: CanvasPlacementRect[] = [];
 
     for (const group of groups) {
       const snapshot = this.getGroupSnapshot(group.id);
       if (!snapshot) continue;
-      const bounds = computeGroupBounds(snapshot.children);
-      if (!bounds) {
-        placed.push(group);
+      if (snapshot.group.data.frameMode === 'manual') {
         continue;
       }
-
-      this.applyResolvedGroupBounds(snapshot.group, group.id, snapshot.childIds, bounds, placed);
-      const updated = this.nodes.get(group.id);
-      if (updated) placed.push(updated);
+      const bounds = computeGroupBounds(snapshot.children);
+      if (!bounds) continue;
+      this.nodes.set(group.id, {
+        ...snapshot.group,
+        position: { x: bounds.x, y: bounds.y },
+        size: { width: bounds.width, height: bounds.height },
+      });
     }
   }
 
@@ -266,16 +274,58 @@ class CanvasStateManager {
     if (!groupId) return;
     const snapshot = this.getGroupSnapshot(groupId);
     if (!snapshot) return;
+    if (snapshot.group.data.frameMode === 'manual') return;
 
     const bounds = computeGroupBounds(snapshot.children);
     if (!bounds) return;
 
-    this.applyResolvedGroupBounds(snapshot.group, groupId, snapshot.childIds, bounds);
+    this.nodes.set(groupId, {
+      ...snapshot.group,
+      position: { x: bounds.x, y: bounds.y },
+      size: { width: bounds.width, height: bounds.height },
+    });
   }
 
-  private compactGroupChildren(groupId: string): void {
+  private compactGroupChildren(groupId: string, layout: 'grid' | 'column' | 'flow' = 'grid'): void {
     const snapshot = this.getGroupSnapshot(groupId);
     if (!snapshot || snapshot.children.length === 0) return;
+    if (snapshot.group.data.frameMode === 'manual') {
+      const sorted = [...snapshot.children].sort(
+        (a, b) => a.position.y - b.position.y || a.position.x - b.position.x,
+      );
+      const left = snapshot.group.position.x + GROUP_PAD;
+      const top = snapshot.group.position.y + GROUP_TITLEBAR_HEIGHT + GROUP_PAD;
+      const right = snapshot.group.position.x + snapshot.group.size.width - GROUP_PAD;
+      const gap = 24;
+      let cursorX = left;
+      let cursorY = top;
+      let rowHeight = 0;
+
+      for (const child of sorted) {
+        if (layout === 'column') {
+          this.nodes.set(child.id, { ...child, position: { x: left, y: cursorY } });
+          cursorY += child.size.height + gap;
+          continue;
+        }
+
+        if (layout === 'flow') {
+          this.nodes.set(child.id, { ...child, position: { x: cursorX, y: top } });
+          cursorX += child.size.width + gap;
+          continue;
+        }
+
+        if (cursorX > left && cursorX + child.size.width > right) {
+          cursorX = left;
+          cursorY += rowHeight + gap;
+          rowHeight = 0;
+        }
+
+        this.nodes.set(child.id, { ...child, position: { x: cursorX, y: cursorY } });
+        cursorX += child.size.width + gap;
+        rowHeight = Math.max(rowHeight, child.size.height);
+      }
+      return;
+    }
 
     const { positions, bounds } = computePackedGroupLayout(
       snapshot.children.map((child) => ({
@@ -852,7 +902,7 @@ class CanvasStateManager {
   }
 
   /** Move child nodes into a group. Sets data.parentGroup on children and data.children on the group. */
-  groupNodes(groupId: string, childIds: string[]): boolean {
+  groupNodes(groupId: string, childIds: string[], options: GroupNodesOptions = {}): boolean {
     const group = this.nodes.get(groupId);
     if (!group || group.type !== 'group') return false;
 
@@ -879,15 +929,25 @@ class CanvasStateManager {
       const child = this.nodes.get(id)!;
       this.nodes.set(id, { ...child, data: { ...child.data, parentGroup: groupId } });
     }
-    this.compactGroupChildren(groupId);
-    this.reflowAllGroups();
+    if (options.preservePositions === true) {
+      if (options.keepGroupFrame !== true && group.data.frameMode !== 'manual') {
+        this.recomputeParentGroupBounds(groupId);
+      }
+    } else {
+      this.compactGroupChildren(groupId, options.layout ?? 'grid');
+    }
+    if (options.preservePositions !== true && options.keepGroupFrame !== true) {
+      this.reflowAllGroups();
+    } else if (options.keepGroupFrame !== true && group.data.frameMode !== 'manual') {
+      this.recomputeParentGroupBounds(groupId);
+    }
 
     this.scheduleSave();
     this.notifyChange('nodes');
     this.recordMutation({
       operationType: 'groupNodes',
       description: `Grouped ${validIds.length} nodes into "${(group.data.title as string) ?? groupId}"`,
-      forward: this.suppressed(() => this.groupNodes(groupId, validIds)),
+      forward: this.suppressed(() => this.groupNodes(groupId, validIds, options)),
       inverse: this.suppressed(() => {
         const g = this.nodes.get(groupId);
         if (g) this.nodes.set(groupId, { ...g, data: { ...g.data, children: oldChildren } });

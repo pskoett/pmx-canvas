@@ -113,7 +113,12 @@ describe('canvas server HTTP API', () => {
     });
     expect(render.html).toContain('<h1>Canvas heading</h1>');
 
-    const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+    const created = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      position: { x: number; y: number };
+      size: { width: number; height: number };
+    }>('/api/canvas/node', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -124,6 +129,8 @@ describe('canvas server HTTP API', () => {
         y: 180,
       }),
     });
+    expect(created.position).toEqual({ x: 320, y: 180 });
+    expect(created.size).toEqual({ width: 360, height: 200 });
 
     const fetchedNode = await jsonRequest<{ id: string; title: string | null; content: string | null; data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`);
     expect(fetchedNode.id).toBe(created.id);
@@ -189,6 +196,280 @@ describe('canvas server HTTP API', () => {
     const arrangedMarkdown = await jsonRequest<{ id: string; position: { x: number; y: number } }>(`/api/canvas/node/${markdownNode.id}`);
     expect(arrangedFile.position).toEqual({ x: 40, y: 80 });
     expect(arrangedMarkdown.position).toEqual({ x: 40, y: 304 });
+  });
+
+  test('group create preserves child positions by default and supports explicit manual frames with child layout', async () => {
+    const first = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'DCP O1',
+        x: 680,
+        y: 160,
+        width: 360,
+        height: 200,
+      }),
+    });
+    const second = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'DCP O2',
+        x: 680,
+        y: 420,
+        width: 360,
+        height: 200,
+      }),
+    });
+
+    const grouped = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      position: { x: number; y: number };
+      size: { width: number; height: number };
+      data: Record<string, unknown>;
+    }>('/api/canvas/group', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'DCP Group',
+        childIds: [first.id, second.id],
+      }),
+    });
+
+    const groupedFirst = await jsonRequest<{ position: { x: number; y: number }; data: Record<string, unknown> }>(`/api/canvas/node/${first.id}`);
+    const groupedSecond = await jsonRequest<{ position: { x: number; y: number }; data: Record<string, unknown> }>(`/api/canvas/node/${second.id}`);
+    expect(groupedFirst.position).toEqual({ x: 680, y: 160 });
+    expect(groupedSecond.position).toEqual({ x: 680, y: 420 });
+    expect(groupedFirst.data.parentGroup).toBe(grouped.id);
+    expect(groupedSecond.data.parentGroup).toBe(grouped.id);
+    expect(grouped.data.children).toEqual([first.id, second.id]);
+    expect(grouped.position.x).toBeLessThanOrEqual(680);
+    expect(grouped.position.y).toBeLessThanOrEqual(160);
+
+    const looseA = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'Loose A',
+        x: 1200,
+        y: 200,
+        width: 260,
+        height: 180,
+      }),
+    });
+    const looseB = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'Loose B',
+        x: 1500,
+        y: 560,
+        width: 260,
+        height: 180,
+      }),
+    });
+
+    const manualGroup = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      position: { x: number; y: number };
+      size: { width: number; height: number };
+    }>('/api/canvas/group', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Manual Frame',
+        x: 40,
+        y: 60,
+        width: 900,
+        height: 700,
+        childIds: [looseA.id, looseB.id],
+        childLayout: 'column',
+      }),
+    });
+
+    expect(manualGroup.position).toEqual({ x: 40, y: 60 });
+    expect(manualGroup.size).toEqual({ width: 900, height: 700 });
+
+    const manualChildA = await jsonRequest<{ position: { x: number; y: number } }>(`/api/canvas/node/${looseA.id}`);
+    const manualChildB = await jsonRequest<{ position: { x: number; y: number } }>(`/api/canvas/node/${looseB.id}`);
+    expect(manualChildA.position.x).toBeGreaterThanOrEqual(80);
+    expect(manualChildA.position.y).toBeGreaterThanOrEqual(132);
+    expect(manualChildB.position.y).toBeGreaterThan(manualChildA.position.y);
+  });
+
+  test('batch operations support assigned refs and validate distinguishes containment from collisions', async () => {
+    const batch = await jsonRequest<{
+      ok: boolean;
+      results: Array<Record<string, unknown>>;
+      refs: Record<string, Record<string, unknown>>;
+    }>('/api/canvas/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operations: [
+          {
+            op: 'node.add',
+            assign: 'child',
+            args: {
+              type: 'markdown',
+              title: 'Batch child',
+              x: 240,
+              y: 200,
+              width: 280,
+              height: 180,
+            },
+          },
+          {
+            op: 'group.create',
+            assign: 'frame',
+            args: {
+              title: 'Batch frame',
+              childIds: ['$child.id'],
+            },
+          },
+          {
+            op: 'node.add',
+            assign: 'peer',
+            args: {
+              type: 'markdown',
+              title: 'Batch peer',
+              x: 680,
+              y: 200,
+            },
+          },
+          {
+            op: 'edge.add',
+            args: {
+              from: '$child.id',
+              to: '$peer.id',
+              type: 'relation',
+            },
+          },
+        ],
+      }),
+    });
+
+    expect(batch.ok).toBe(true);
+    expect(batch.results).toHaveLength(4);
+    expect(typeof batch.refs.child?.id).toBe('string');
+    expect(typeof batch.refs.frame?.id).toBe('string');
+
+    const validation = await jsonRequest<{
+      ok: boolean;
+      collisions: unknown[];
+      containments: Array<{ groupId: string; childId: string }>;
+      containmentViolations: unknown[];
+      summary: { collisions: number; containments: number };
+    }>('/api/canvas/validate');
+    expect(validation.ok).toBe(true);
+    expect(validation.collisions).toEqual([]);
+    expect(validation.containmentViolations).toEqual([]);
+    expect(validation.summary.containments).toBeGreaterThanOrEqual(1);
+    expect(validation.containments).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        groupId: String(batch.refs.frame?.id),
+        childId: String(batch.refs.child?.id),
+      }),
+    ]));
+
+    await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'Collision node',
+        x: 240,
+        y: 200,
+        width: 280,
+        height: 180,
+      }),
+    });
+
+    const invalid = await jsonRequest<{
+      ok: boolean;
+      collisions: Array<{ a: string; b: string }>;
+      summary: { collisions: number };
+    }>('/api/canvas/validate');
+    expect(invalid.ok).toBe(false);
+    expect(invalid.summary.collisions).toBeGreaterThanOrEqual(1);
+    expect(invalid.collisions.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('batch operations support webpage nodes and surface fetch status without failing the batch', async () => {
+    const successBatch = await jsonRequest<{
+      ok: boolean;
+      refs: Record<string, { id: string }>;
+      results: Array<{
+        ok: boolean;
+        id: string;
+        type: string;
+        url: string | null;
+        content: string | null;
+        fetch: { ok: boolean; error?: string };
+        error?: string;
+      }>;
+    }>('/api/canvas/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operations: [
+          {
+            op: 'node.add',
+            assign: 'page',
+            args: {
+              type: 'webpage',
+              content: `${webpageOrigin}/article?v=1`,
+            },
+          },
+        ],
+      }),
+    });
+
+    expect(successBatch.ok).toBe(true);
+    expect(successBatch.results).toHaveLength(1);
+    expect(successBatch.results[0]?.type).toBe('webpage');
+    expect(successBatch.results[0]?.url).toBe(`${webpageOrigin}/article?v=1`);
+    expect(successBatch.results[0]?.content).toContain('Initial webpage content for canvas grounding.');
+    expect(successBatch.results[0]?.fetch.ok).toBe(true);
+    expect(successBatch.results[0]?.error).toBeUndefined();
+    expect(typeof successBatch.refs.page?.id).toBe('string');
+
+    const failedBatch = await jsonRequest<{
+      ok: boolean;
+      results: Array<{
+        ok: boolean;
+        id: string;
+        type: string;
+        fetch: { ok: boolean; error?: string };
+        error?: string;
+      }>;
+    }>('/api/canvas/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operations: [
+          {
+            op: 'node.add',
+            args: {
+              type: 'webpage',
+              content: 'http://127.0.0.1:9/unreachable',
+            },
+          },
+        ],
+      }),
+    });
+
+    expect(failedBatch.ok).toBe(true);
+    expect(failedBatch.results[0]?.type).toBe('webpage');
+    expect(failedBatch.results[0]?.fetch.ok).toBe(false);
+    expect(failedBatch.results[0]?.fetch.error).toBeTruthy();
+    expect(failedBatch.results[0]?.error).toBe(failedBatch.results[0]?.fetch.error);
   });
 
   test('creates and refreshes webpage nodes over HTTP with cached text context', async () => {

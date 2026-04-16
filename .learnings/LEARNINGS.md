@@ -55,3 +55,31 @@ Do not import upstream shared skills into this repo just because they exist upst
 
 ### Details
 An upstream refresh from `pskoett/pskoett-ai-skills` pulled in `dx-data-navigator`, but that skill is not relevant to `pmx-canvas`. For future syncs, compare upstream additions against repo scope before adding them to `.agents/skills`, `.claude/skills`, `.opencode/skills`, or the local mirror validator.
+
+---
+
+## [LRN-20260415-001] correction
+
+**Logged**: 2026-04-15T00:00:00Z
+**Priority**: medium
+**Status**: pending
+**Area**: docs
+
+### Summary
+Do not equate CLI/MCP parity with smooth end-to-end canvas authoring; full rebuild testing still surfaces workflow friction that API parity checks miss.
+
+### Details
+An audit concluded that CLI and MCP had parity for the overlapping canvas operations, which was true at the API surface level. A subsequent full board rebuild still exposed authoring friction around grouping behavior, batch creation, geometry visibility on create, search-based edge creation, group-frame control, and containment-aware validation. Future “parity complete” claims should be scoped explicitly to shared operations, not broader authoring ergonomics.
+
+### Suggested Action
+When closing parity work, separate:
+1. shared-surface parity,
+2. end-to-end workflow ergonomics,
+3. known wishlist items from real rebuilds.
+
+### Metadata
+- Source: user_feedback
+- Related Files: .learnings/FEATURE_REQUESTS.md
+- Tags: parity, workflow, canvas, authoring
+
+---

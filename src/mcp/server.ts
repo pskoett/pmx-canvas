@@ -71,6 +71,11 @@ function encodeBase64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString('base64');
 }
 
+function createdNodePayload(c: PmxCanvas, id: string): Record<string, unknown> {
+  const node = c.getNode(id);
+  return node ? { ok: true, ...serializeCanvasNode(node) } : { ok: true, id };
+}
+
 export async function startMcpServer(): Promise<void> {
   const server = new McpServer({
     name: 'pmx-canvas',
@@ -114,7 +119,7 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_add_node ────────────────────────────────────────────
   server.tool(
     'canvas_add_node',
-    'Add a node to the canvas. Returns the new node ID. Node types: markdown (rich content), status (compact indicator), context, ledger, trace, file (live file viewer — set content to a file path), image (set content to an image file path, data URI, or URL), webpage (set content to an http(s) URL so the server can fetch and cache page text), mcp-app. Use canvas_add_json_render_node, canvas_add_graph_node, and canvas_build_web_artifact for structured UI, graph, and artifact nodes.',
+    'Add a node to the canvas. Returns the created node with normalized title/content and rendered geometry. Node types: markdown (rich content), status (compact indicator), context, ledger, trace, file (live file viewer — set content to a file path), image (set content to an image file path, data URI, or URL), webpage (set content to an http(s) URL so the server can fetch and cache page text), mcp-app. Use canvas_add_json_render_node, canvas_add_graph_node, and canvas_build_web_artifact for structured UI, graph, and artifact nodes.',
     {
       type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'webpage', 'mcp-app', 'group'])
         .describe('Node type (prefer canvas_create_group for groups)'),
@@ -149,7 +154,7 @@ export async function startMcpServer(): Promise<void> {
       }
       const id = c.addNode(input);
       return {
-        content: [{ type: 'text', text: JSON.stringify({ id }) }],
+        content: [{ type: 'text', text: JSON.stringify(createdNodePayload(c, id), null, 2) }],
       };
     },
   );
@@ -265,7 +270,11 @@ export async function startMcpServer(): Promise<void> {
         return {
           content: [{
             type: 'text',
-            text: JSON.stringify(result, null, 2),
+            text: JSON.stringify({
+              ...createdNodePayload(c, result.id),
+              url: result.url,
+              spec: result.spec,
+            }, null, 2),
           }],
         };
       } catch (error) {
@@ -319,7 +328,11 @@ export async function startMcpServer(): Promise<void> {
         return {
           content: [{
             type: 'text',
-            text: JSON.stringify(result, null, 2),
+            text: JSON.stringify({
+              ...createdNodePayload(c, result.id),
+              url: result.url,
+              spec: result.spec,
+            }, null, 2),
           }],
         };
       } catch (error) {
@@ -404,8 +417,10 @@ export async function startMcpServer(): Promise<void> {
     'canvas_add_edge',
     'Add an edge (connection) between two nodes. Edge types: flow (sequential), depends-on (dependency), relation (general), references (cross-reference).',
     {
-      from: z.string().describe('Source node ID'),
-      to: z.string().describe('Target node ID'),
+      from: z.string().optional().describe('Source node ID'),
+      to: z.string().optional().describe('Target node ID'),
+      fromSearch: z.string().optional().describe('Resolve the source node by exact or fuzzy title/content search'),
+      toSearch: z.string().optional().describe('Resolve the target node by exact or fuzzy title/content search'),
       type: z.enum(['flow', 'depends-on', 'relation', 'references']).describe('Edge type'),
       label: z.string().optional().describe('Edge label text'),
       style: z.enum(['solid', 'dashed', 'dotted']).optional().describe('Optional edge stroke style'),
@@ -413,10 +428,26 @@ export async function startMcpServer(): Promise<void> {
     },
     async (input) => {
       const c = await ensureCanvas();
+      if (!input.from && !input.fromSearch) {
+        return {
+          content: [{ type: 'text', text: 'Provide either "from" or "fromSearch".' }],
+          isError: true,
+        };
+      }
+      if (!input.to && !input.toSearch) {
+        return {
+          content: [{ type: 'text', text: 'Provide either "to" or "toSearch".' }],
+          isError: true,
+        };
+      }
       try {
         const id = c.addEdge(input);
+        const edge = c.getLayout().edges.find((entry) => entry.id === id);
         return {
-          content: [{ type: 'text', text: JSON.stringify({ id }) }],
+          content: [{
+            type: 'text',
+            text: JSON.stringify(edge ? { id, from: edge.from, to: edge.to, type: edge.type, label: edge.label, style: edge.style, animated: edge.animated } : { id }, null, 2),
+          }],
         };
       } catch (error) {
         return {
@@ -955,7 +986,7 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_create_group ──────────────────────────────────────
   server.tool(
     'canvas_create_group',
-    'Create a group (frame) on the canvas that visually contains other nodes. Groups are spatial containers — they communicate "these nodes belong together." If childIds are provided, the group auto-sizes to fit them. Collapsing a group hides its children and shows a summary.',
+    'Create a group (frame) on the canvas that visually contains other nodes. Groups are spatial containers — they communicate "these nodes belong together." If childIds are provided, grouping preserves child positions by default; pass childLayout to auto-pack them. You can also provide an explicit frame (x/y/width/height) and auto-arrange children inside it.',
     {
       title: z.string().optional().describe('Group title (default: "Group")'),
       childIds: z.array(z.string()).optional().describe('Node IDs to include in the group. Group auto-sizes to fit them.'),
@@ -964,12 +995,13 @@ export async function startMcpServer(): Promise<void> {
       y: z.number().optional().describe('Y position (auto-computed from children if omitted)'),
       width: z.number().optional().describe('Width (auto-computed from children if omitted)'),
       height: z.number().optional().describe('Height (auto-computed from children if omitted)'),
+      childLayout: z.enum(['grid', 'column', 'flow']).optional().describe('Optional child auto-layout. Omit to preserve current child positions.'),
     },
     async (input) => {
       const c = await ensureCanvas();
       const id = c.createGroup(input);
       return {
-        content: [{ type: 'text', text: JSON.stringify({ id }) }],
+        content: [{ type: 'text', text: JSON.stringify(createdNodePayload(c, id), null, 2) }],
       };
     },
   );
@@ -981,14 +1013,47 @@ export async function startMcpServer(): Promise<void> {
     {
       groupId: z.string().describe('The group node ID'),
       childIds: z.array(z.string()).describe('Node IDs to add to the group'),
+      childLayout: z.enum(['grid', 'column', 'flow']).optional().describe('Optional child layout to apply while grouping'),
     },
-    async ({ groupId, childIds }) => {
+    async ({ groupId, childIds, childLayout }) => {
       const c = await ensureCanvas();
-      const ok = c.groupNodes(groupId, childIds);
+      const ok = c.groupNodes(groupId, childIds, childLayout ? { childLayout } : undefined);
       if (!ok) {
         return { content: [{ type: 'text', text: 'Group not found or no valid children.' }], isError: true };
       }
       return { content: [{ type: 'text', text: JSON.stringify({ ok: true, groupId }) }] };
+    },
+  );
+
+  server.tool(
+    'canvas_batch',
+    'Run a batch of canvas operations with optional assigned references. Supports node.add, node.update, edge.add, group.create, group.add, group.remove, pin.set/add/remove, snapshot.save, and arrange.',
+    {
+      operations: z.array(z.object({
+        op: z.string().describe('Operation name, e.g. "node.add" or "edge.add"'),
+        assign: z.string().optional().describe('Optional reference name for later operations'),
+        args: z.record(z.string(), z.unknown()).optional().describe('Operation arguments'),
+      })).describe('Ordered array of batch operations'),
+    },
+    async ({ operations }) => {
+      const c = await ensureCanvas();
+      const result = await c.runBatch(operations);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        ...(result.ok ? {} : { isError: true }),
+      };
+    },
+  );
+
+  server.tool(
+    'canvas_validate',
+    'Validate the current canvas layout. Distinguishes true node collisions from expected group-child containment and reports missing edge endpoints.',
+    {},
+    async () => {
+      const c = await ensureCanvas();
+      return {
+        content: [{ type: 'text', text: JSON.stringify(c.validate(), null, 2) }],
+      };
     },
   );
 

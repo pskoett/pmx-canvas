@@ -452,17 +452,39 @@ cmd('node remove', 'Remove a node from the canvas', [
 // ── edge add ─────────────────────────────────────────────────
 cmd('edge add', 'Add an edge between two nodes', [
   'pmx-canvas edge add --from <node-id> --to <node-id> --type flow',
+  'pmx-canvas edge add --from-search "DVT O2" --to-search "deep work" --type relation',
   'pmx-canvas edge add --from n1 --to n2 --type depends-on --label "imports"',
   'pmx-canvas edge add --from n1 --to n2 --type references --style dashed --animated',
 ], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('edge add');
 
-  const from = requireFlag(flags, 'from', 'pmx-canvas edge add --from <id> --to <id> --type flow');
-  const to = requireFlag(flags, 'to', 'pmx-canvas edge add --from <id> --to <id> --type flow');
   const type = (flags.type as string) || 'flow';
+  const from = typeof flags.from === 'string' ? flags.from : undefined;
+  const to = typeof flags.to === 'string' ? flags.to : undefined;
+  const fromSearch = typeof flags['from-search'] === 'string' ? flags['from-search'] : undefined;
+  const toSearch = typeof flags['to-search'] === 'string' ? flags['to-search'] : undefined;
 
-  const body: Record<string, unknown> = { from, to, type };
+  if (!from && !fromSearch) {
+    die(
+      'Missing source selector',
+      'Use --from <id> or --from-search "query". Example: pmx-canvas edge add --from-search "DVT O2" --to-search "deep work" --type relation',
+    );
+  }
+  if (!to && !toSearch) {
+    die(
+      'Missing target selector',
+      'Use --to <id> or --to-search "query". Example: pmx-canvas edge add --from-search "DVT O2" --to-search "deep work" --type relation',
+    );
+  }
+
+  const body: Record<string, unknown> = {
+    type,
+    ...(from ? { from } : {}),
+    ...(to ? { to } : {}),
+    ...(fromSearch ? { fromSearch } : {}),
+    ...(toSearch ? { toSearch } : {}),
+  };
   if (flags.label && flags.label !== true) body.label = flags.label;
   if (typeof flags.style === 'string') body.style = flags.style;
   if (flags.animated) body.animated = true;
@@ -730,6 +752,7 @@ cmd('diff', 'Compare current canvas against a snapshot', [
 // ── group create ─────────────────────────────────────────────
 cmd('group create', 'Create a group node', [
   'pmx-canvas group create --title "API Layer" node1 node2',
+  'pmx-canvas group create --title "Quarterly board" --x 40 --y 60 --width 1600 --height 900 --child-layout column node1 node2',
   'pmx-canvas group create --title "Frontend" --color "#ff6b6b"',
 ], async (args) => {
   const { positional, flags } = parseFlags(args);
@@ -738,6 +761,15 @@ cmd('group create', 'Create a group node', [
   const body: Record<string, unknown> = {};
   if (flags.title && flags.title !== true) body.title = flags.title;
   if (flags.color && flags.color !== true) body.color = flags.color;
+  const x = optionalFiniteFlag(flags, 'x', 'Use a finite number, e.g. --x 40');
+  const y = optionalFiniteFlag(flags, 'y', 'Use a finite number, e.g. --y 60');
+  const width = optionalPositiveFiniteFlag(flags, 'width', 'Use a positive number, e.g. --width 1600');
+  const height = optionalPositiveFiniteFlag(flags, 'height', 'Use a positive number, e.g. --height 900');
+  if (x !== undefined) body.x = x;
+  if (y !== undefined) body.y = y;
+  if (width !== undefined) body.width = width;
+  if (height !== undefined) body.height = height;
+  if (typeof flags['child-layout'] === 'string') body.childLayout = flags['child-layout'];
   if (positional.length > 0) body.childIds = positional;
 
   const result = await api('POST', '/api/canvas/group', body);
@@ -747,6 +779,7 @@ cmd('group create', 'Create a group node', [
 // ── group add ────────────────────────────────────────────────
 cmd('group add', 'Add nodes to an existing group', [
   'pmx-canvas group add --group <group-id> node1 node2',
+  'pmx-canvas group add --group <group-id> --child-layout flow node1 node2',
 ], async (args) => {
   const { positional, flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('group add');
@@ -754,7 +787,66 @@ cmd('group add', 'Add nodes to an existing group', [
   const groupId = requireFlag(flags, 'group', 'pmx-canvas group add --group <group-id> node1 node2');
   if (positional.length === 0) die('No node IDs provided', 'pmx-canvas group add --group <group-id> node1 node2');
 
-  const result = await api('POST', '/api/canvas/group/add', { groupId, childIds: positional });
+  const result = await api('POST', '/api/canvas/group/add', {
+    groupId,
+    childIds: positional,
+    ...(typeof flags['child-layout'] === 'string' ? { childLayout: flags['child-layout'] } : {}),
+  });
+  output(result);
+});
+
+// ── batch ────────────────────────────────────────────────────
+cmd('batch', 'Run a batch of canvas operations from JSON', [
+  'pmx-canvas batch --file ./canvas-ops.json',
+  'pmx-canvas batch --json \'[{\"op\":\"node.add\",\"assign\":\"a\",\"args\":{\"type\":\"markdown\",\"title\":\"A\"}}]\'',
+  'cat ops.json | pmx-canvas batch --stdin',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('batch');
+
+  let raw = '';
+  if (typeof flags.file === 'string') {
+    try {
+      raw = readFileSync(flags.file, 'utf-8');
+    } catch (error) {
+      die(
+        `Unable to read --file: ${error instanceof Error ? error.message : String(error)}`,
+        'Use: pmx-canvas batch --file ./canvas-ops.json',
+      );
+    }
+  } else if (typeof flags.json === 'string') {
+    raw = flags.json;
+  } else if (flags.stdin) {
+    raw = await readStdin();
+  } else {
+    die(
+      'Batch operations require --file, --json, or --stdin.',
+      'Use: pmx-canvas batch --file ./canvas-ops.json',
+    );
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (error) {
+    die(
+      `Invalid batch JSON: ${error instanceof Error ? error.message : String(error)}`,
+      'Use a JSON array of operations or an object with an "operations" array.',
+    );
+  }
+
+  const result = await api('POST', '/api/canvas/batch', Array.isArray(parsed) ? { operations: parsed } : parsed as Record<string, unknown>);
+  output(result);
+});
+
+// ── validate ─────────────────────────────────────────────────
+cmd('validate', 'Validate the current layout for collisions and missing edge endpoints', [
+  'pmx-canvas validate',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('validate');
+
+  const result = await api('GET', '/api/canvas/validate');
   output(result);
 });
 
@@ -1118,6 +1210,8 @@ Canvas commands:
   pmx-canvas status                   Quick summary
   pmx-canvas search <query>           Search nodes by content
   pmx-canvas arrange [--layout MODE]  Auto-arrange (grid|column|flow)
+  pmx-canvas batch [--file FILE]      Run many canvas operations at once
+  pmx-canvas validate                 Check collisions and containment issues
   pmx-canvas focus <id>               Pan viewport to node
   pmx-canvas webview status           Show WebView automation status
   pmx-canvas webview start [options]  Start or replace automation session
@@ -1167,8 +1261,11 @@ Examples:
   pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value
   pmx-canvas node list --type file --ids
   pmx-canvas edge add --from node-abc --to node-def --type depends-on
+  pmx-canvas edge add --from-search "DVT O2" --to-search "deep work" --type relation
   pmx-canvas search "authentication"
   pmx-canvas arrange --layout column
+  pmx-canvas batch --file ./canvas-ops.json
+  pmx-canvas validate
   pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx
   pmx-canvas webview evaluate --script "const title = document.title; return title"
   pmx-canvas snapshot save --name "pre-refactor"

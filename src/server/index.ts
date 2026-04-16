@@ -16,6 +16,7 @@ import {
   createCanvasGroup,
   createCanvasJsonRenderNode,
   deleteCanvasSnapshot,
+  executeCanvasBatch,
   groupCanvasNodes,
   listCanvasSnapshots,
   refreshCanvasWebpageNode,
@@ -28,6 +29,7 @@ import {
   ungroupCanvasNodes,
   validateCanvasNodePatch,
 } from './canvas-operations.js';
+import { validateCanvasLayout } from './canvas-validation.js';
 import {
   buildWebArtifactOnCanvas,
   type WebArtifactBuildInput,
@@ -158,8 +160,8 @@ export class PmxCanvas extends EventEmitter {
     }
     const { id, needsCodeGraphRecompute } = addCanvasNode({
       ...input,
-      defaultWidth: 720,
-      defaultHeight: 600,
+      defaultWidth: 360,
+      defaultHeight: 200,
       fileMode: 'path',
     });
 
@@ -237,8 +239,10 @@ export class PmxCanvas extends EventEmitter {
   }
 
   addEdge(input: {
-    from: string;
-    to: string;
+    from?: string;
+    to?: string;
+    fromSearch?: string;
+    toSearch?: string;
     type: CanvasEdge['type'];
     label?: string;
     style?: CanvasEdge['style'];
@@ -266,6 +270,7 @@ export class PmxCanvas extends EventEmitter {
     width?: number;
     height?: number;
     color?: string;
+    childLayout?: 'grid' | 'column' | 'flow';
   }): string {
     const { id } = createCanvasGroup(input);
 
@@ -274,8 +279,8 @@ export class PmxCanvas extends EventEmitter {
   }
 
   /** Add nodes to an existing group. */
-  groupNodes(groupId: string, childIds: string[]): boolean {
-    const { ok } = groupCanvasNodes(groupId, childIds);
+  groupNodes(groupId: string, childIds: string[], options?: { childLayout?: 'grid' | 'column' | 'flow' }): boolean {
+    const { ok } = groupCanvasNodes(groupId, childIds, options);
     if (ok) {
       emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
     }
@@ -401,6 +406,16 @@ export class PmxCanvas extends EventEmitter {
   getCodeGraph() {
     const summary = buildCodeGraphSummary();
     return { text: formatCodeGraph(summary), summary };
+  }
+
+  validate() {
+    return validateCanvasLayout(canvasState.getLayout());
+  }
+
+  async runBatch(operations: Array<{ op: string; assign?: string; args?: Record<string, unknown> }>) {
+    const result = await executeCanvasBatch(operations);
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return result;
   }
 
   async buildWebArtifact(

@@ -12,7 +12,7 @@ const args = process.argv.slice(2);
 const AGENT_COMMANDS = new Set([
   'node', 'edge', 'search', 'layout', 'status', 'arrange', 'focus',
   'pin', 'undo', 'redo', 'history', 'snapshot', 'diff', 'group', 'webview',
-  'clear', 'code-graph', 'spatial', 'web-artifact', 'serve',
+  'clear', 'code-graph', 'spatial', 'web-artifact', 'batch', 'validate', 'serve',
 ]);
 
 const firstArg = args[0] ?? '';
@@ -129,6 +129,8 @@ Agent CLI (works against running server):
   layout                              Full canvas state
   status                              Quick summary
   arrange [--layout grid|column|flow] Auto-arrange nodes
+  batch --file ./ops.json             Run a JSON batch of operations
+  validate                            Check layout collisions and containment
   focus <node-id>                     Pan to node
   pin <ids...> | --list | --clear     Manage context pins
   undo / redo / history               Time travel
@@ -168,6 +170,8 @@ Examples:
   pmx-canvas webview screenshot --output ./canvas.png         Save a WebView screenshot
   pmx-canvas search "auth"                                    Find nodes
   pmx-canvas arrange --layout column                          Auto-arrange
+  pmx-canvas batch --file ./canvas-ops.json                   Run batch canvas ops
+  pmx-canvas validate                                         Check layout collisions
   pmx-canvas clear --dry-run                                  Preview destructive op
 `);
     process.exit(0);

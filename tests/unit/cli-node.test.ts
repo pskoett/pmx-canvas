@@ -105,6 +105,43 @@ describe('agent CLI node commands', () => {
     expect(updated.size).toEqual({ width: 640, height: 200 });
   });
 
+  test('node add returns rendered geometry for immediate layout scripting', async () => {
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'node',
+        'add',
+        '--type',
+        'markdown',
+        '--title',
+        'Immediate geometry',
+        '--x',
+        '420',
+        '--y',
+        '260',
+        '--width',
+        '500',
+        '--height',
+        '280',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      id: string;
+      position: { x: number; y: number };
+      size: { width: number; height: number };
+    };
+    expect(output.ok).toBe(true);
+    expect(output.position).toEqual({ x: 420, y: 260 });
+    expect(output.size).toEqual({ width: 500, height: 280 });
+  });
+
   test('node update supports explicit arrange locking', async () => {
     const created = await jsonRequest<{
       ok: boolean;
@@ -245,6 +282,153 @@ describe('agent CLI node commands', () => {
     }>(`/api/canvas/node/${output.id}`);
     expect(node.type).toBe('json-render');
     expect((node.data.spec as Record<string, unknown>).root).toBe('card');
+  });
+
+  test('edge add supports search-based node resolution', async () => {
+    const from = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'DVT O2', content: 'source' }),
+    });
+    const to = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'deep work', content: 'target' }),
+    });
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'edge',
+        'add',
+        '--from-search',
+        'DVT O2',
+        '--to-search',
+        'deep work',
+        '--type',
+        'relation',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      id: string;
+      from: string;
+      to: string;
+    };
+    expect(output.ok).toBe(true);
+    expect(output.from).toBe(from.id);
+    expect(output.to).toBe(to.id);
+  });
+
+  test('group create accepts explicit frames and batch/validate commands work from the CLI', async () => {
+    const first = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Frame A', x: 900, y: 180, width: 240, height: 160 }),
+    });
+    const second = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Frame B', x: 1240, y: 420, width: 240, height: 160 }),
+    });
+
+    const groupLog = mock(() => {});
+    const originalLog = console.log;
+    console.log = groupLog;
+
+    try {
+      await runAgentCli([
+        'group',
+        'create',
+        '--title',
+        'CLI Frame',
+        '--x',
+        '40',
+        '--y',
+        '60',
+        '--width',
+        '960',
+        '--height',
+        '720',
+        '--child-layout',
+        'column',
+        first.id,
+        second.id,
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const grouped = JSON.parse(groupLog.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      id: string;
+      position: { x: number; y: number };
+      size: { width: number; height: number };
+    };
+    expect(grouped.ok).toBe(true);
+    expect(grouped.position).toEqual({ x: 40, y: 60 });
+    expect(grouped.size).toEqual({ width: 960, height: 720 });
+
+    canvasState.withSuppressedRecording(() => {
+      canvasState.clear();
+    });
+    mutationHistory.reset();
+
+    const batchPath = join(workspaceRoot, 'cli-batch.json');
+    writeFileSync(batchPath, JSON.stringify([
+      {
+        op: 'node.add',
+        assign: 'child',
+        args: { type: 'markdown', title: 'CLI batch child', x: 200, y: 200, width: 220, height: 140 },
+      },
+      {
+        op: 'group.create',
+        assign: 'frame',
+        args: { title: 'CLI batch frame', childIds: ['$child.id'] },
+      },
+    ]), 'utf-8');
+
+    const batchLog = mock(() => {});
+    console.log = batchLog;
+    try {
+      await runAgentCli(['batch', '--file', batchPath]);
+    } finally {
+      console.log = originalLog;
+    }
+    const batchOutput = JSON.parse(batchLog.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      refs: Record<string, { id: string }>;
+    };
+    expect(batchOutput.ok).toBe(true);
+    expect(typeof batchOutput.refs.child?.id).toBe('string');
+    expect(typeof batchOutput.refs.frame?.id).toBe('string');
+
+    const validateLog = mock(() => {});
+    console.log = validateLog;
+    try {
+      await runAgentCli(['validate']);
+    } finally {
+      console.log = originalLog;
+    }
+    const validation = JSON.parse(validateLog.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      containments: Array<{ groupId: string; childId: string }>;
+      collisions: unknown[];
+    };
+    expect(validation.ok).toBe(true);
+    expect(validation.collisions).toEqual([]);
+    expect(validation.containments).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        groupId: batchOutput.refs.frame.id,
+        childId: batchOutput.refs.child.id,
+      }),
+    ]));
   });
 
   test('web-artifact build creates a bundled artifact and opens it on the canvas', async () => {

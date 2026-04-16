@@ -56,6 +56,7 @@ import {
   createCanvasGroup,
   createCanvasJsonRenderNode,
   deleteCanvasSnapshot,
+  executeCanvasBatch,
   groupCanvasNodes,
   listCanvasSnapshots,
   refreshCanvasWebpageNode,
@@ -68,6 +69,7 @@ import {
   ungroupCanvasNodes,
   validateCanvasNodePatch,
 } from './canvas-operations.js';
+import { validateCanvasLayout } from './canvas-validation.js';
 import { traceManager } from './trace-manager.js';
 import { buildWebArtifactOnCanvas, resolveWorkspacePath } from './web-artifacts.js';
 import {
@@ -961,6 +963,13 @@ function handleCanvasImage(pathname: string): Response {
 // ── Add node from client ─────────────────────────────────────
 const VALID_NODE_TYPES = new Set(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'mcp-app', 'webpage', 'group']);
 
+function buildNodeResponse(node: CanvasNodeState): Record<string, unknown> {
+  return {
+    ok: true,
+    ...serializeCanvasNode(node),
+  };
+}
+
 async function createCanvasWebpageNode(body: Record<string, unknown>): Promise<Response> {
   const rawUrl = typeof body.url === 'string' && body.url.trim().length > 0
     ? body.url
@@ -978,7 +987,7 @@ async function createCanvasWebpageNode(body: Record<string, unknown>): Promise<R
   const extraData = body.data && typeof body.data === 'object' && !Array.isArray(body.data)
     ? body.data as Record<string, unknown>
     : undefined;
-  const { id } = addCanvasNode({
+  const { id, node } = addCanvasNode({
     type: 'webpage',
     ...(typeof body.title === 'string' ? { title: body.title } : {}),
     content: normalizedUrl,
@@ -992,9 +1001,9 @@ async function createCanvasWebpageNode(body: Record<string, unknown>): Promise<R
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   const refreshed = await refreshCanvasWebpageNode(id);
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  const created = canvasState.getNode(id) ?? node;
   return responseJson({
-    ok: true,
-    id,
+    ...buildNodeResponse(created),
     fetch: refreshed.ok
       ? { ok: true }
       : { ok: false, error: refreshed.error ?? 'Failed to fetch webpage content.' },
@@ -1017,7 +1026,7 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
   const extraData = body.data && typeof body.data === 'object' && !Array.isArray(body.data)
     ? body.data as Record<string, unknown>
     : undefined;
-  const { id, needsCodeGraphRecompute } = addCanvasNode({
+  const { id, node, needsCodeGraphRecompute } = addCanvasNode({
     type: type as CanvasNodeState['type'],
     ...(typeof body.title === 'string' ? { title: body.title } : {}),
     ...(typeof body.content === 'string' ? { content: body.content } : {}),
@@ -1037,7 +1046,7 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
       emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
     });
   }
-  return responseJson({ ok: true, id });
+  return responseJson(buildNodeResponse(node));
 }
 
 // ── Group operations ─────────────────────────────────────────
@@ -1050,21 +1059,29 @@ async function handleCanvasCreateGroup(req: Request): Promise<Response> {
   const y = typeof body.y === 'number' ? body.y : undefined;
   const width = typeof body.width === 'number' ? body.width : undefined;
   const height = typeof body.height === 'number' ? body.height : undefined;
+  const childLayout =
+    body.childLayout === 'grid' || body.childLayout === 'column' || body.childLayout === 'flow'
+      ? body.childLayout
+      : undefined;
 
-  const { id } = createCanvasGroup({ title, childIds, color, x, y, width, height });
+  const { node } = createCanvasGroup({ title, childIds, color, x, y, width, height, ...(childLayout ? { childLayout } : {}) });
 
   broadcastWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson({ ok: true, id });
+  return responseJson(buildNodeResponse(node));
 }
 
 async function handleCanvasGroupNodes(req: Request): Promise<Response> {
   const body = await readJson(req);
   const groupId = body.groupId as string;
   const childIds = Array.isArray(body.childIds) ? body.childIds.filter((id: unknown) => typeof id === 'string') : [];
+  const childLayout =
+    body.childLayout === 'grid' || body.childLayout === 'column' || body.childLayout === 'flow'
+      ? body.childLayout
+      : undefined;
   if (!groupId || childIds.length === 0) {
     return responseJson({ ok: false, error: 'Missing groupId or childIds.' }, 400);
   }
-  const { ok } = groupCanvasNodes(groupId, childIds);
+  const { ok } = groupCanvasNodes(groupId, childIds, ...(childLayout ? { childLayout } : {}));
   if (!ok) return responseJson({ ok: false, error: 'Group not found or no valid children.' }, 400);
   broadcastWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   return responseJson({ ok: true, groupId });
@@ -1085,13 +1102,15 @@ const VALID_EDGE_STYLES = new Set(['solid', 'dashed', 'dotted']);
 
 async function handleCanvasAddEdge(req: Request): Promise<Response> {
   const body = await readJson(req);
-  const from = body.from as string;
-  const to = body.to as string;
   const type = body.type as string;
   const style = typeof body.style === 'string' ? body.style : undefined;
 
-  if (!from || !to || !type) {
-    return responseJson({ ok: false, error: 'Missing required fields: from, to, type.' }, 400);
+  if (
+    !type ||
+    (!body.from && !body.fromSearch) ||
+    (!body.to && !body.toSearch)
+  ) {
+    return responseJson({ ok: false, error: 'Missing required fields: type plus from/fromSearch and to/toSearch.' }, 400);
   }
   if (!VALID_EDGE_TYPES.has(type)) {
     return responseJson({ ok: false, error: `Invalid edge type: "${type}".` }, 400);
@@ -1099,26 +1118,21 @@ async function handleCanvasAddEdge(req: Request): Promise<Response> {
   if (style && !VALID_EDGE_STYLES.has(style)) {
     return responseJson({ ok: false, error: `Invalid edge style: "${style}". Use solid, dashed, or dotted.` }, 400);
   }
-  if (!canvasState.getNode(from)) {
-    return responseJson({ ok: false, error: `Source node "${from}" not found.` }, 400);
-  }
-  if (!canvasState.getNode(to)) {
-    return responseJson({ ok: false, error: `Target node "${to}" not found.` }, 400);
-  }
-
   try {
     const result = addCanvasEdge({
-      from,
-      to,
+      ...(typeof body.from === 'string' ? { from: body.from } : {}),
+      ...(typeof body.to === 'string' ? { to: body.to } : {}),
+      ...(typeof body.fromSearch === 'string' ? { fromSearch: body.fromSearch } : {}),
+      ...(typeof body.toSearch === 'string' ? { toSearch: body.toSearch } : {}),
       type: type as CanvasEdge['type'],
       ...(body.label ? { label: String(body.label) } : {}),
       ...(style ? { style: style as CanvasEdge['style'] } : {}),
       ...(body.animated !== undefined ? { animated: Boolean(body.animated) } : {}),
     });
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    return responseJson({ ok: true, id: result.id });
-  } catch {
-    return responseJson({ ok: false, error: 'Duplicate or self-edge.' }, 400);
+    return responseJson({ ok: true, ...result });
+  } catch (error) {
+    return responseJson({ ok: false, error: error instanceof Error ? error.message : 'Duplicate or self-edge.' }, 400);
   }
 }
 
@@ -1316,7 +1330,7 @@ async function handleCanvasAddJsonRender(req: Request): Promise<Response> {
       ...(typeof body.height === 'number' ? { height: body.height } : {}),
     });
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    return responseJson({ ok: true, ...result });
+    return responseJson({ ok: true, ...result, ...serializeCanvasNode(result.node) });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return responseJson({ ok: false, error: message }, 400);
@@ -1356,11 +1370,32 @@ async function handleCanvasAddGraph(req: Request): Promise<Response> {
       ...(typeof body.nodeHeight === 'number' ? { heightPx: body.nodeHeight } : {}),
     });
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    return responseJson({ ok: true, ...result });
+    return responseJson({ ok: true, ...result, ...serializeCanvasNode(result.node) });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return responseJson({ ok: false, error: message }, 400);
   }
+}
+
+async function handleCanvasBatch(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const operations = Array.isArray(body.operations) ? body.operations : Array.isArray(body) ? body : [];
+  const normalized = operations
+    .filter((operation): operation is Record<string, unknown> => operation && typeof operation === 'object' && !Array.isArray(operation))
+    .map((operation) => ({
+      op: String(operation.op ?? ''),
+      ...(typeof operation.assign === 'string' ? { assign: operation.assign } : {}),
+      args: operation.args && typeof operation.args === 'object' && !Array.isArray(operation.args)
+        ? operation.args as Record<string, unknown>
+        : {},
+    }));
+  const result = await executeCanvasBatch(normalized);
+  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  return responseJson(result, result.ok ? 200 : 400);
+}
+
+function handleCanvasValidate(): Response {
+  return responseJson(validateCanvasLayout(canvasState.getLayout()));
 }
 
 async function handleJsonRenderView(url: URL): Promise<Response> {
@@ -3016,6 +3051,10 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleCanvasUpdate(req);
           }
 
+          if (url.pathname === '/api/canvas/batch' && req.method === 'POST') {
+            return handleCanvasBatch(req);
+          }
+
           if (url.pathname === '/api/canvas/viewport' && req.method === 'POST') {
             return handleCanvasViewport(req);
           }
@@ -3199,6 +3238,10 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
               canUndo: mutationHistory.canUndo(),
               canRedo: mutationHistory.canRedo(),
             });
+          }
+
+          if (url.pathname === '/api/canvas/validate' && req.method === 'GET') {
+            return handleCanvasValidate();
           }
 
           // Static files for canvas SPA bundle

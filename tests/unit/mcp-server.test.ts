@@ -116,6 +116,8 @@ describe('MCP parity with CLI', () => {
       'canvas_list_snapshots',
       'canvas_restore',
       'canvas_delete_snapshot',
+      'canvas_batch',
+      'canvas_validate',
       'canvas_webview_status',
       'canvas_webview_start',
       'canvas_webview_stop',
@@ -161,7 +163,14 @@ describe('MCP parity with CLI', () => {
         content: 'body',
       },
     }) as ToolResultShape;
-    const { id } = parseJsonText<{ id: string }>(added);
+    const created = parseJsonText<{
+      id: string;
+      position: { x: number; y: number };
+      size: { width: number; height: number };
+    }>(added);
+    expect(created.position).toEqual({ x: 40, y: 80 });
+    expect(created.size).toEqual({ width: 360, height: 200 });
+    const { id } = created;
 
     const updated = await session.client.callTool({
       name: 'canvas_update_node',
@@ -243,6 +252,8 @@ describe('MCP parity with CLI', () => {
     const edgeTool = tools.tools.find((tool) => tool.name === 'canvas_add_edge');
     expect(edgeTool?.inputSchema.properties).toHaveProperty('style');
     expect(edgeTool?.inputSchema.properties).toHaveProperty('animated');
+    expect(edgeTool?.inputSchema.properties).toHaveProperty('fromSearch');
+    expect(edgeTool?.inputSchema.properties).toHaveProperty('toSearch');
 
     const first = parseJsonText<{ id: string }>(await session.client.callTool({
       name: 'canvas_add_node',
@@ -261,11 +272,11 @@ describe('MCP parity with CLI', () => {
       },
     }) as ToolResultShape);
 
-    const edge = parseJsonText<{ id: string }>(await session.client.callTool({
+    const edge = parseJsonText<{ id: string; from: string; to: string }>(await session.client.callTool({
       name: 'canvas_add_edge',
       arguments: {
-        from: first.id,
-        to: second.id,
+        fromSearch: 'Edge start',
+        toSearch: 'Edge end',
         type: 'references',
         style: 'dashed',
         animated: true,
@@ -292,11 +303,141 @@ describe('MCP parity with CLI', () => {
     expect(layout.edges).toEqual(expect.arrayContaining([
       expect.objectContaining({
         id: edge.id,
+        from: first.id,
+        to: second.id,
         style: 'dashed',
         animated: true,
       }),
     ]));
   });
+
+  test('canvas_create_group exposes manual frame + childLayout, and canvas_batch/canvas_validate provide parity', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const tools = await session.client.listTools();
+    const groupTool = tools.tools.find((tool) => tool.name === 'canvas_create_group');
+    expect(groupTool?.inputSchema.properties).toHaveProperty('childLayout');
+
+    const child = parseJsonText<{ id: string }>(await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'markdown',
+        title: 'Grouped child',
+        x: 760,
+        y: 240,
+        width: 220,
+        height: 140,
+      },
+    }) as ToolResultShape);
+
+    const group = parseJsonText<{
+      id: string;
+      position: { x: number; y: number };
+      size: { width: number; height: number };
+    }>(await session.client.callTool({
+      name: 'canvas_create_group',
+      arguments: {
+        title: 'Manual group',
+        x: 40,
+        y: 60,
+        width: 960,
+        height: 720,
+        childIds: [child.id],
+        childLayout: 'column',
+      },
+    }) as ToolResultShape);
+    expect(group.position).toEqual({ x: 40, y: 60 });
+    expect(group.size).toEqual({ width: 960, height: 720 });
+
+    await session.client.callTool({
+      name: 'canvas_clear',
+      arguments: {},
+    });
+
+    const batch = parseJsonText<{
+      ok: boolean;
+      refs: Record<string, { id: string }>;
+    }>(await session.client.callTool({
+      name: 'canvas_batch',
+      arguments: {
+        operations: [
+          {
+            op: 'node.add',
+            assign: 'child',
+            args: { type: 'markdown', title: 'Batch child', x: 240, y: 200, width: 240, height: 160 },
+          },
+          {
+            op: 'group.create',
+            assign: 'frame',
+            args: { title: 'Batch frame', childIds: ['$child.id'] },
+          },
+        ],
+      },
+    }) as ToolResultShape);
+    expect(batch.ok).toBe(true);
+
+    const validation = parseJsonText<{
+      ok: boolean;
+      collisions: unknown[];
+      containments: Array<{ groupId: string; childId: string }>;
+    }>(await session.client.callTool({
+      name: 'canvas_validate',
+      arguments: {},
+    }) as ToolResultShape);
+    expect(validation.ok).toBe(true);
+    expect(validation.collisions).toEqual([]);
+    expect(validation.containments).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        groupId: batch.refs.frame.id,
+        childId: batch.refs.child.id,
+      }),
+    ]));
+  });
+
+  test('canvas_batch supports webpage nodes and surfaces fetch status', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const result = parseJsonText<{
+      ok: boolean;
+      refs: Record<string, { id: string }>;
+      results: Array<{
+        ok: boolean;
+        id: string;
+        type: string;
+        fetch: { ok: boolean; error?: string };
+        error?: string;
+      }>;
+    }>(await session.client.callTool({
+      name: 'canvas_batch',
+      arguments: {
+        operations: [
+          {
+            op: 'node.add',
+            assign: 'page',
+            args: {
+              type: 'webpage',
+              content: 'https://example.invalid',
+            },
+          },
+        ],
+      },
+    }) as ToolResultShape);
+
+    expect(result.ok).toBe(true);
+    expect(typeof result.refs.page?.id).toBe('string');
+    expect(result.results[0]?.type).toBe('webpage');
+    expect(result.results[0]?.fetch.ok).toBe(false);
+    expect(result.results[0]?.fetch.error).toBeTruthy();
+    expect(result.results[0]?.error).toBe(result.results[0]?.fetch.error);
+  }, 15000);
 
   test('canvas_list_snapshots and canvas_delete_snapshot match CLI snapshot management', async () => {
     const session = await createMcpSession();
