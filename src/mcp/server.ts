@@ -1027,7 +1027,7 @@ export async function startMcpServer(): Promise<void> {
 
   server.tool(
     'canvas_batch',
-    'Run a batch of canvas operations with optional assigned references. Supports node.add, node.update, edge.add, group.create, group.add, group.remove, pin.set/add/remove, snapshot.save, and arrange.',
+    'Run a batch of canvas operations with optional assigned references. Supports node.add, node.update, graph.add, edge.add, group.create, group.add, group.remove, pin.set/add/remove, snapshot.save, and arrange.',
     {
       operations: z.array(z.object({
         op: z.string().describe('Operation name, e.g. "node.add" or "edge.add"'),

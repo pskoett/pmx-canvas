@@ -71,6 +71,8 @@ pmx-canvas spatial
 
 - `node add|list|get|update|remove` — manage nodes
 - `edge add|list|remove` — manage edges
+- Search-based edge selectors must be specific enough to resolve exactly one node. Queries like
+  `"DVT O3"` can be ambiguous; prefer the full visible title such as `"DVT O3 — GitOps"`.
 - `search`, `layout`, `status`, `arrange`, `focus` — inspect and navigate the canvas
 - `pin --list|--clear|<ids...>` — manage context pins
 - `undo`, `redo`, `history` — time travel
@@ -169,6 +171,13 @@ Use color consistently to convey meaning:
 - Use `xKey`/`yKey` for line or bar graphs and `nameKey`/`valueKey` for pie graphs
 - Uses the native json-render chart catalog under the hood
 
+**Batch graph creation**
+- Use `graph.add` inside `canvas_batch` / `pmx-canvas batch` when you need a graph node as part of
+  a larger one-shot build.
+- It accepts the same shape as `canvas_add_graph_node`: `graphType`, `data`, optional `title`,
+  `xKey`, `yKey`, `nameKey`, `valueKey`, `aggregate`, `color`, `height`, `x`, `y`, `width`,
+  and `nodeHeight`.
+
 **`canvas_refresh_webpage_node`** — Refresh a webpage node from its persisted URL
 - `id` (required): webpage node to refresh
 - Optional `url`: replace the stored URL before refreshing
@@ -178,6 +187,8 @@ Use color consistently to convey meaning:
 
 **`canvas_add_edge`** — Connect two nodes
 - `from`, `to` (required): source and target node IDs
+- `fromSearch`, `toSearch`: optional search-based selectors when you do not have IDs. Each search
+  query must resolve to exactly one node or the edge creation fails with an ambiguity error.
 - `type`: edge type (default: `relation`)
 - `label`: descriptive relationship label
 - `style`: `solid`, `dashed`, or `dotted`

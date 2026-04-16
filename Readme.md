@@ -35,6 +35,24 @@ bun run dev:demo              # Start with sample nodes
 
 The canvas opens at `http://localhost:4313`.
 
+### Test the unpublished CLI from a repo checkout
+
+If you want to exercise the real package before publishing, link the repo locally:
+
+```bash
+git clone https://github.com/pskoett/pmx-canvas.git
+cd pmx-canvas
+bun install
+bun run build
+bun link
+
+# Then from any shell:
+pmx-canvas --help
+pmx-canvas --no-open
+```
+
+For one-off local runs without linking, `bun run src/cli/index.ts ...` works too.
+
 ### Recommended ways to drive the canvas
 
 - **CLI** for local use, scripting, automation, and terminal-native agents
@@ -134,10 +152,69 @@ Groups are spatial containers that visually contain other nodes. They render as 
 - Select 2+ nodes and click "Group" in the selection bar
 - Right-click a group to ungroup
 - Collapsing a group hides children and shows a summary
-- Groups auto-size to fit children when created via the API
+- By default, group creation preserves the children's current positions and expands the frame around them
+- Pass `childLayout` to auto-pack children (`grid`, `column`, `flow`)
+- Pass explicit `x`, `y`, `width`, and `height` to create a manual frame and lay children out inside it
 
 ```typescript
 canvas_create_group({ title: 'Auth Module', childIds: ['node-1', 'node-2'], color: '#4a9eff' })
+```
+
+### Batch operations
+
+Batch mode lets you build a canvas in one shot and reference earlier results from later operations.
+
+- HTTP: `POST /api/canvas/batch`
+- CLI: `pmx-canvas batch --file ./canvas-ops.json`
+- MCP: `canvas_batch`
+- SDK: `await canvas.runBatch([...])`
+
+Supported operations:
+
+- `node.add`
+- `node.update`
+- `graph.add`
+- `edge.add`
+- `group.create`
+- `group.add`
+- `group.remove`
+- `pin.set`, `pin.add`, `pin.remove`
+- `snapshot.save`
+- `arrange`
+
+`node.add` also supports `type: "webpage"` inside batch. The batch itself still succeeds when the
+webpage node is created but the fetch fails; the per-operation result includes `fetch: { ok, error? }`
+plus a top-level `error` field for the fetch problem.
+
+Example:
+
+```json
+{
+  "operations": [
+    {
+      "op": "graph.add",
+      "assign": "wins",
+      "args": {
+        "title": "Major wins",
+        "graphType": "bar",
+        "data": [
+          { "label": "Docs", "value": 5 },
+          { "label": "Tests", "value": 8 }
+        ],
+        "xKey": "label",
+        "yKey": "value"
+      }
+    },
+    {
+      "op": "group.create",
+      "assign": "frame",
+      "args": {
+        "title": "Quarterly graphs",
+        "childIds": ["$wins.id"]
+      }
+    }
+  ]
+}
 ```
 
 ### Persistence
@@ -198,9 +275,12 @@ Use either of the two primary control surfaces depending on how your agent runs:
 
 Both paths are first-class for core canvas work. A few advanced capabilities, such as `canvas_diff` and MCP resource subscriptions, remain MCP-only.
 
+CLI and MCP are intentionally kept aligned for the main canvas operations, including batch builds,
+layout validation, graph/json-render nodes, group control, snapshots, and search-based edge creation.
+
 ### MCP server
 
-29 tools + 6 resources. Zero config for any MCP-capable agent.
+32 tools + 6 resources. Zero config for any MCP-capable agent.
 
 <details>
 <summary>MCP tools</summary>
@@ -219,11 +299,14 @@ Both paths are first-class for core canvas work. A few advanced capabilities, su
 | `canvas_add_edge` | Connect two nodes |
 | `canvas_remove_edge` | Remove a connection |
 | `canvas_arrange` | Auto-arrange (grid/column/flow) |
+| `canvas_validate` | Validate collisions, containment, and missing edge endpoints |
 | `canvas_focus_node` | Pan viewport to a node |
 | `canvas_pin_nodes` | Pin nodes to include in agent context |
 | `canvas_clear` | Clear all nodes and edges |
 | `canvas_snapshot` | Save current canvas as a named snapshot |
+| `canvas_list_snapshots` | List saved snapshots |
 | `canvas_restore` | Restore canvas from a saved snapshot |
+| `canvas_delete_snapshot` | Delete a saved snapshot |
 | `canvas_search` | Find nodes by title/content keywords |
 | `canvas_undo` | Undo the last canvas mutation |
 | `canvas_redo` | Redo the last undone mutation |
@@ -231,6 +314,7 @@ Both paths are first-class for core canvas work. A few advanced capabilities, su
 | `canvas_create_group` | Create a group containing specified nodes |
 | `canvas_group_nodes` | Add nodes to an existing group |
 | `canvas_ungroup` | Release all children from a group |
+| `canvas_batch` | Run a batch of canvas operations with `$ref` support |
 | `canvas_webview_status` | Get Bun.WebView automation status for the workbench |
 | `canvas_webview_start` | Start or replace the Bun.WebView automation session |
 | `canvas_webview_stop` | Stop the active Bun.WebView automation session |
@@ -274,6 +358,11 @@ curl -X POST http://localhost:4313/api/canvas/edge \
   -H "Content-Type: application/json" \
   -d '{"from":"node-1","to":"node-2","type":"flow","label":"next"}'
 
+# Add an edge by unique search match instead of explicit IDs
+curl -X POST http://localhost:4313/api/canvas/edge \
+  -H "Content-Type: application/json" \
+  -d '{"fromSearch":"DVT O3 — GitOps","toSearch":"deep work trend","type":"relation"}'
+
 # Pin nodes for agent context
 curl -X POST http://localhost:4313/api/canvas/context-pins \
   -H "Content-Type: application/json" \
@@ -309,10 +398,22 @@ curl -X POST http://localhost:4313/api/workbench/webview/screenshot \
 # Search nodes
 curl "http://localhost:4313/api/canvas/search?q=auth"
 
+# Run a batch build
+curl -X POST http://localhost:4313/api/canvas/batch \
+  -H "Content-Type: application/json" \
+  -d '{"operations":[{"op":"node.add","assign":"a","args":{"type":"markdown","title":"A"}},{"op":"group.create","args":{"title":"Frame","childIds":["$a.id"]}}]}'
+
+# Validate the current layout
+curl http://localhost:4313/api/canvas/validate
+
 # Undo / redo
 curl -X POST http://localhost:4313/api/canvas/undo
 curl -X POST http://localhost:4313/api/canvas/redo
 ```
+
+Search-based edge creation is intentionally strict: `fromSearch` and `toSearch` must each resolve
+to exactly one node. Broad queries such as `"DVT O3"` may fail if multiple nodes match; use the
+full visible title instead.
 
 ### JavaScript/TypeScript SDK (Bun runtime)
 
@@ -333,8 +434,34 @@ canvas.addEdge({ from: n1, to: n2, type: 'flow' });
 // Group related nodes
 canvas.createGroup({ title: 'Build Pipeline', childIds: [n1, n2] });
 
+// Batch-build a graph and group around it
+await canvas.runBatch([
+  {
+    op: 'graph.add',
+    assign: 'graph',
+    args: {
+      title: 'Major wins',
+      graphType: 'bar',
+      data: [
+        { label: 'Docs', value: 5 },
+        { label: 'Tests', value: 8 },
+      ],
+      xKey: 'label',
+      yKey: 'value',
+    },
+  },
+  {
+    op: 'group.create',
+    args: {
+      title: 'Quarterly graphs',
+      childIds: ['$graph.id'],
+    },
+  },
+]);
+
 // Arrange and inspect
 canvas.arrange('grid');
+console.log(canvas.validate());
 console.log(canvas.getLayout());
 
 // Optional WebView automation
@@ -359,6 +486,10 @@ pmx-canvas --no-open              # Headless (for agents)
 pmx-canvas --theme=light          # Light theme (dark, light, high-contrast)
 pmx-canvas --mcp                  # Run as MCP server (stdio)
 pmx-canvas --webview-automation   # Start headless Bun.WebView session
+pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value
+pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation
+pmx-canvas batch --file ./canvas-ops.json
+pmx-canvas validate
 pmx-canvas webview status         # Show WebView automation status
 pmx-canvas webview start --backend chrome --width 1440 --height 900
 pmx-canvas webview evaluate --expression "document.title"
@@ -373,6 +504,9 @@ Use the CLI when you want:
 - shell scripts and CI-friendly automation
 - local debugging of canvas, webview, and screenshot flows
 - a control surface that covers normal canvas work without MCP wiring
+
+The CLI create commands return the created node shape with normalized title/content and geometry,
+which makes scripting stacked layouts and batch follow-up operations easier.
 
 ## Agent compatibility
 
@@ -389,7 +523,7 @@ Use the CLI when you want:
 ```
 Agent (Claude Code / Codex / Cursor / any MCP client)
   |
-  |-- MCP Server ---- 29 tools + 6 resources + change notifications
+  |-- MCP Server ---- 32 tools + 6 resources + change notifications
   |-- Bun SDK ------- createCanvas()
   |-- HTTP API ------ REST + SSE at localhost:4313
   |

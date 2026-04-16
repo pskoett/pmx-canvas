@@ -900,6 +900,33 @@ export async function executeCanvasBatch(
           result = { ok: true, ...(updated ? serializeCreatedNode(updated) : { id }) };
           break;
         }
+        case 'graph.add': {
+          const created = createCanvasGraphNode({
+            graphType: String(args.graphType ?? 'line'),
+            data: Array.isArray(args.data) ? args.data.filter((item): item is Record<string, unknown> => isPlainRecord(item)) : [],
+            ...(typeof args.title === 'string' ? { title: args.title } : {}),
+            ...(typeof args.xKey === 'string' ? { xKey: args.xKey } : {}),
+            ...(typeof args.yKey === 'string' ? { yKey: args.yKey } : {}),
+            ...(typeof args.nameKey === 'string' ? { nameKey: args.nameKey } : {}),
+            ...(typeof args.valueKey === 'string' ? { valueKey: args.valueKey } : {}),
+            ...(args.aggregate === 'sum' || args.aggregate === 'count' || args.aggregate === 'avg'
+              ? { aggregate: args.aggregate }
+              : {}),
+            ...(typeof args.color === 'string' ? { color: args.color } : {}),
+            ...(typeof args.height === 'number' ? { height: args.height } : {}),
+            ...(typeof args.x === 'number' ? { x: args.x } : {}),
+            ...(typeof args.y === 'number' ? { y: args.y } : {}),
+            ...(typeof args.width === 'number' ? { width: args.width } : {}),
+            ...(typeof args.nodeHeight === 'number' ? { heightPx: args.nodeHeight } : {}),
+          });
+          result = {
+            ok: true,
+            ...serializeCreatedNode(created.node),
+            url: created.url,
+            spec: created.spec,
+          };
+          break;
+        }
         case 'edge.add': {
           const added = addCanvasEdge({
             ...(typeof args.from === 'string' ? { from: args.from } : {}),

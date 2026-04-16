@@ -431,6 +431,53 @@ describe('agent CLI node commands', () => {
     ]));
   });
 
+  test('batch supports graph.add from the CLI surface', async () => {
+    const batchPath = join(workspaceRoot, 'cli-graph-batch.json');
+    writeFileSync(batchPath, JSON.stringify([
+      {
+        op: 'graph.add',
+        assign: 'graph',
+        args: {
+          title: 'CLI batch graph',
+          graphType: 'bar',
+          data: [
+            { label: 'Docs', value: 5 },
+            { label: 'Tests', value: 8 },
+          ],
+          xKey: 'label',
+          yKey: 'value',
+          width: 840,
+          nodeHeight: 600,
+        },
+      },
+    ]), 'utf-8');
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['batch', '--file', batchPath]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      refs: Record<string, { id: string }>;
+      results: Array<{
+        type: string;
+        size: { width: number; height: number };
+        data: Record<string, unknown>;
+      }>;
+    };
+    expect(output.ok).toBe(true);
+    expect(typeof output.refs.graph?.id).toBe('string');
+    expect(output.results[0]?.type).toBe('graph');
+    expect(output.results[0]?.size).toEqual({ width: 840, height: 600 });
+    expect((output.results[0]?.data.graphConfig as Record<string, unknown>)?.graphType).toBe('bar');
+  });
+
   test('web-artifact build creates a bundled artifact and opens it on the canvas', async () => {
     const appPath = join(workspaceRoot, 'App.tsx');
     const cssPath = join(workspaceRoot, 'index.css');

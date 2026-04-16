@@ -439,6 +439,54 @@ describe('MCP parity with CLI', () => {
     expect(result.results[0]?.error).toBe(result.results[0]?.fetch.error);
   }, 15000);
 
+  test('canvas_batch supports graph.add operations', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const result = parseJsonText<{
+      ok: boolean;
+      refs: Record<string, { id: string }>;
+      results: Array<{
+        ok: boolean;
+        id: string;
+        type: string;
+        size: { width: number; height: number };
+        data: Record<string, unknown>;
+      }>;
+    }>(await session.client.callTool({
+      name: 'canvas_batch',
+      arguments: {
+        operations: [
+          {
+            op: 'graph.add',
+            assign: 'graph',
+            args: {
+              title: 'Batch graph',
+              graphType: 'bar',
+              data: [
+                { label: 'Docs', value: 5 },
+                { label: 'Tests', value: 8 },
+              ],
+              xKey: 'label',
+              yKey: 'value',
+              width: 880,
+              nodeHeight: 640,
+            },
+          },
+        ],
+      },
+    }) as ToolResultShape);
+
+    expect(result.ok).toBe(true);
+    expect(typeof result.refs.graph?.id).toBe('string');
+    expect(result.results[0]?.type).toBe('graph');
+    expect(result.results[0]?.size).toEqual({ width: 880, height: 640 });
+    expect((result.results[0]?.data.graphConfig as Record<string, unknown>)?.graphType).toBe('bar');
+  });
+
   test('canvas_list_snapshots and canvas_delete_snapshot match CLI snapshot management', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {

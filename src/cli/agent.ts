@@ -452,7 +452,7 @@ cmd('node remove', 'Remove a node from the canvas', [
 // ── edge add ─────────────────────────────────────────────────
 cmd('edge add', 'Add an edge between two nodes', [
   'pmx-canvas edge add --from <node-id> --to <node-id> --type flow',
-  'pmx-canvas edge add --from-search "DVT O2" --to-search "deep work" --type relation',
+  'pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation',
   'pmx-canvas edge add --from n1 --to n2 --type depends-on --label "imports"',
   'pmx-canvas edge add --from n1 --to n2 --type references --style dashed --animated',
 ], async (args) => {
@@ -468,13 +468,13 @@ cmd('edge add', 'Add an edge between two nodes', [
   if (!from && !fromSearch) {
     die(
       'Missing source selector',
-      'Use --from <id> or --from-search "query". Example: pmx-canvas edge add --from-search "DVT O2" --to-search "deep work" --type relation',
+      'Use --from <id> or --from-search "query". Search queries must resolve to exactly one node. Example: pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation',
     );
   }
   if (!to && !toSearch) {
     die(
       'Missing target selector',
-      'Use --to <id> or --to-search "query". Example: pmx-canvas edge add --from-search "DVT O2" --to-search "deep work" --type relation',
+      'Use --to <id> or --to-search "query". Search queries must resolve to exactly one node. Example: pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation',
     );
   }
 
@@ -799,6 +799,7 @@ cmd('group add', 'Add nodes to an existing group', [
 cmd('batch', 'Run a batch of canvas operations from JSON', [
   'pmx-canvas batch --file ./canvas-ops.json',
   'pmx-canvas batch --json \'[{\"op\":\"node.add\",\"assign\":\"a\",\"args\":{\"type\":\"markdown\",\"title\":\"A\"}}]\'',
+  'pmx-canvas batch --json \'[{\"op\":\"graph.add\",\"assign\":\"g\",\"args\":{\"graphType\":\"bar\",\"data\":[{\"label\":\"Docs\",\"value\":5}],\"xKey\":\"label\",\"yKey\":\"value\"}}]\'',
   'cat ops.json | pmx-canvas batch --stdin',
 ], async (args) => {
   const { flags } = parseFlags(args);
@@ -1261,7 +1262,7 @@ Examples:
   pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value
   pmx-canvas node list --type file --ids
   pmx-canvas edge add --from node-abc --to node-def --type depends-on
-  pmx-canvas edge add --from-search "DVT O2" --to-search "deep work" --type relation
+  pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation
   pmx-canvas search "authentication"
   pmx-canvas arrange --layout column
   pmx-canvas batch --file ./canvas-ops.json

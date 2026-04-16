@@ -401,6 +401,63 @@ describe('canvas server HTTP API', () => {
     expect(invalid.collisions.length).toBeGreaterThanOrEqual(1);
   });
 
+  test('batch operations support graph.add nodes for downstream refs', async () => {
+    const batch = await jsonRequest<{
+      ok: boolean;
+      refs: Record<string, { id: string }>;
+      results: Array<{
+        ok: boolean;
+        id: string;
+        type: string;
+        url: string;
+        size: { width: number; height: number };
+        data: Record<string, unknown>;
+      }>;
+    }>('/api/canvas/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operations: [
+          {
+            op: 'graph.add',
+            assign: 'graph',
+            args: {
+              title: 'Batch graph',
+              graphType: 'bar',
+              data: [
+                { label: 'Docs', value: 5 },
+                { label: 'Tests', value: 8 },
+              ],
+              xKey: 'label',
+              yKey: 'value',
+              width: 880,
+              nodeHeight: 640,
+            },
+          },
+          {
+            op: 'group.create',
+            assign: 'frame',
+            args: {
+              title: 'Graph frame',
+              childIds: ['$graph.id'],
+            },
+          },
+        ],
+      }),
+    });
+
+    expect(batch.ok).toBe(true);
+    expect(typeof batch.refs.graph?.id).toBe('string');
+    expect(typeof batch.refs.frame?.id).toBe('string');
+    expect(batch.results[0]?.type).toBe('graph');
+    expect(batch.results[0]?.url).toContain('/api/canvas/json-render/view?nodeId=');
+    expect(batch.results[0]?.size).toEqual({ width: 880, height: 640 });
+    expect((batch.results[0]?.data.graphConfig as Record<string, unknown>)?.graphType).toBe('bar');
+
+    const group = await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${batch.refs.frame.id}`);
+    expect(group.data.children).toEqual([batch.refs.graph.id]);
+  });
+
   test('batch operations support webpage nodes and surface fetch status without failing the batch', async () => {
     const successBatch = await jsonRequest<{
       ok: boolean;
