@@ -81,6 +81,67 @@ afterEach(async () => {
 });
 
 describe('MCP parity with CLI', () => {
+  test('exposes the expected CLI parity surface via MCP tools and resources', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const tools = await session.client.listTools();
+    const toolNames = new Set(tools.tools.map((tool) => tool.name));
+    const expectedTools = [
+      'canvas_get_layout',
+      'canvas_get_node',
+      'canvas_add_node',
+      'canvas_add_graph_node',
+      'canvas_add_json_render_node',
+      'canvas_build_web_artifact',
+      'canvas_update_node',
+      'canvas_remove_node',
+      'canvas_add_edge',
+      'canvas_remove_edge',
+      'canvas_arrange',
+      'canvas_focus_node',
+      'canvas_clear',
+      'canvas_search',
+      'canvas_undo',
+      'canvas_redo',
+      'canvas_diff',
+      'canvas_create_group',
+      'canvas_group_nodes',
+      'canvas_ungroup',
+      'canvas_pin_nodes',
+      'canvas_snapshot',
+      'canvas_list_snapshots',
+      'canvas_restore',
+      'canvas_delete_snapshot',
+      'canvas_webview_status',
+      'canvas_webview_start',
+      'canvas_webview_stop',
+      'canvas_evaluate',
+      'canvas_resize',
+      'canvas_screenshot',
+    ];
+    for (const tool of expectedTools) {
+      expect(toolNames.has(tool)).toBe(true);
+    }
+
+    const resources = await session.client.listResources();
+    const resourceUris = new Set(resources.resources.map((resource) => resource.uri));
+    const expectedResources = [
+      'canvas://pinned-context',
+      'canvas://layout',
+      'canvas://summary',
+      'canvas://spatial-context',
+      'canvas://history',
+      'canvas://code-graph',
+    ];
+    for (const uri of expectedResources) {
+      expect(resourceUris.has(uri)).toBe(true);
+    }
+  });
+
   test('canvas_update_node exposes arrangeLocked and persists it', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
@@ -235,5 +296,46 @@ describe('MCP parity with CLI', () => {
         animated: true,
       }),
     ]));
+  });
+
+  test('canvas_list_snapshots and canvas_delete_snapshot match CLI snapshot management', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const saved = parseJsonText<{ ok: boolean; snapshot: { id: string; name: string } }>(await session.client.callTool({
+      name: 'canvas_snapshot',
+      arguments: {
+        name: 'mcp-parity-snapshot',
+      },
+    }) as ToolResultShape);
+    expect(saved.ok).toBe(true);
+
+    const listed = parseJsonText<{ snapshots: Array<{ id: string; name: string }> }>(await session.client.callTool({
+      name: 'canvas_list_snapshots',
+      arguments: {},
+    }) as ToolResultShape);
+    expect(listed.snapshots).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        id: saved.snapshot.id,
+        name: 'mcp-parity-snapshot',
+      }),
+    ]));
+
+    const deleted = parseJsonText<{ ok: boolean; deleted: string }>(await session.client.callTool({
+      name: 'canvas_delete_snapshot',
+      arguments: {
+        id: saved.snapshot.id,
+      },
+    }) as ToolResultShape);
+    expect(deleted).toEqual({ ok: true, deleted: saved.snapshot.id });
+
+    const afterDelete = parseJsonText<{ snapshots: Array<{ id: string; name: string }> }>(await session.client.callTool({
+      name: 'canvas_list_snapshots',
+      arguments: {},
+    }) as ToolResultShape);
+    expect(afterDelete.snapshots.some((snapshot) => snapshot.id === saved.snapshot.id)).toBe(false);
   });
 });

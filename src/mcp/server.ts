@@ -817,7 +817,7 @@ export async function startMcpServer(): Promise<void> {
     },
     async () => {
       const c = await ensureCanvas();
-      const layout = c.getLayout();
+      const layout = serializeCanvasLayout(c.getLayout());
       return {
         contents: [
           {
@@ -1053,6 +1053,19 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
+  // ── canvas_list_snapshots ───────────────────────────────────
+  server.tool(
+    'canvas_list_snapshots',
+    'List all saved canvas snapshots with IDs, names, timestamps, and node/edge counts.',
+    {},
+    async () => {
+      const c = await ensureCanvas();
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ snapshots: c.listSnapshots() }, null, 2) }],
+      };
+    },
+  );
+
   // ── canvas_restore ──────────────────────────────────────────
   server.tool(
     'canvas_restore',
@@ -1068,7 +1081,26 @@ export async function startMcpServer(): Promise<void> {
       }
       emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
       return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, layout: canvasState.getLayout() }) }],
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, layout: serializeCanvasLayout(canvasState.getLayout()) }) }],
+      };
+    },
+  );
+
+  // ── canvas_delete_snapshot ──────────────────────────────────
+  server.tool(
+    'canvas_delete_snapshot',
+    'Delete a saved snapshot by ID.',
+    {
+      id: z.string().describe('Snapshot ID to delete'),
+    },
+    async ({ id }) => {
+      const c = await ensureCanvas();
+      const result = c.deleteSnapshot(id);
+      if (!result.ok) {
+        return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'Snapshot not found' }) }], isError: true };
+      }
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, deleted: id }) }],
       };
     },
   );
