@@ -49,6 +49,7 @@
   --c-contrast-fg: #0a0e1e;
   --c-accent-hover: #5cc4ff;
   --c-warn-hover: #f5d06b;
+  --c-canvas-wash: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0));
   /* ── Non-color tokens ────────────────────────────────────── */
   --font: "IBM Plex Sans", "SF Pro Text", "Avenir Next", system-ui, sans-serif;
   --mono: "IBM Plex Mono", "SF Mono", "Fira Code", monospace;
@@ -57,14 +58,14 @@
 }
 
 :root[data-theme="light"] {
-  --c-bg: #e8eaef;
-  --c-panel: #f0f1f5;
-  --c-panel-soft: #e4e6ec;
-  --c-line: #c8cdd8;
-  --c-text: #1a1f2e;
-  --c-text-soft: #4a5568;
-  --c-muted: #6b7a90;
-  --c-dim: #8896aa;
+  --c-bg: #dde3e7;
+  --c-panel: #eceff2;
+  --c-panel-soft: #e5e9ed;
+  --c-line: #bcc5cf;
+  --c-text: #18202b;
+  --c-text-soft: #4a5868;
+  --c-muted: #68778a;
+  --c-dim: #8794a6;
   --c-accent: #1a8cd8;
   --c-ok: #1a9f55;
   --c-warn: #c89b2a;
@@ -73,12 +74,12 @@
   --c-purple: #7c4dff;
   --c-thinking: #7C4DFF;
   --c-subagent: #00838F;
-  --c-input-bg: #f5f6f9;
-  --c-dot-grid: rgba(100, 120, 160, 0.12);
-  --c-panel-overlay: rgba(232, 234, 239, 0.9);
-  --c-panel-glass: rgba(240, 241, 245, 0.92);
-  --c-shadow: rgba(0, 0, 0, 0.08);
-  --c-shadow-heavy: rgba(0, 0, 0, 0.15);
+  --c-input-bg: #f2f4f6;
+  --c-dot-grid: rgba(92, 108, 136, 0.1);
+  --c-panel-overlay: rgba(221, 227, 231, 0.88);
+  --c-panel-glass: rgba(236, 239, 242, 0.88);
+  --c-shadow: rgba(20, 28, 40, 0.07);
+  --c-shadow-heavy: rgba(20, 28, 40, 0.14);
   --c-glow-accent: rgba(26, 140, 216, 0.1);
   --c-surface-hover: rgba(0, 0, 0, 0.04);
   --c-surface-subtle: rgba(0, 0, 0, 0.02);
@@ -106,6 +107,7 @@
   --c-contrast-fg: #ffffff;
   --c-accent-hover: #1578b8;
   --c-warn-hover: #dab040;
+  --c-canvas-wash: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.015));
 }
 
 :root[data-theme="high-contrast"] {
@@ -158,6 +160,7 @@
   --c-contrast-fg: #000000;
   --c-accent-hover: #33ffff;
   --c-warn-hover: #ffff33;
+  --c-canvas-wash: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0));
 }
 
 * {
@@ -180,8 +183,10 @@ body,
 
 /* Dot-grid canvas background */
 #app {
-  background-image: radial-gradient(circle, var(--c-dot-grid) 1px, transparent 1px);
-  background-size: 24px 24px;
+  background-image:
+    var(--c-canvas-wash),
+    radial-gradient(circle, var(--c-dot-grid) 1px, transparent 1px);
+  background-size: auto, 24px 24px;
 }
 
 /* Scrollbar styling */
@@ -1240,7 +1245,7 @@ body,
   width: 100%;
   height: 100%;
   border: none;
-  background: white;
+  background: var(--c-panel-soft);
   border-radius: 0 0 calc(var(--radius) - 1px) calc(var(--radius) - 1px);
 }
 
