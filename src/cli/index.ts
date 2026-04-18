@@ -12,7 +12,7 @@ const args = process.argv.slice(2);
 const AGENT_COMMANDS = new Set([
   'node', 'edge', 'search', 'layout', 'status', 'arrange', 'focus',
   'pin', 'undo', 'redo', 'history', 'snapshot', 'diff', 'group', 'webview',
-  'clear', 'code-graph', 'spatial', 'web-artifact', 'batch', 'validate', 'serve',
+  'clear', 'code-graph', 'spatial', 'watch', 'web-artifact', 'batch', 'validate', 'serve',
 ]);
 
 const firstArg = args[0] ?? '';
@@ -92,6 +92,10 @@ if (AGENT_COMMANDS.has(firstArg) && firstArg !== 'serve') {
   const webviewDataDir = readOption('webview-data-dir');
   const webviewWidth = readNumberOption('webview-width');
   const webviewHeight = readNumberOption('webview-height');
+  const webviewBackendOption: 'chrome' | 'webkit' | undefined =
+    webviewBackend === 'chrome' || webviewBackend === 'webkit'
+      ? webviewBackend
+      : undefined;
   if (themeArg && ['dark', 'light', 'high-contrast'].includes(themeArg)) {
     process.env.PMX_CANVAS_THEME = themeArg;
   }
@@ -131,6 +135,7 @@ Agent CLI (works against running server):
   arrange [--layout grid|column|flow] Auto-arrange nodes
   batch --file ./ops.json             Run a JSON batch of operations
   validate                            Check layout collisions and containment
+  watch [--json] [--events ...]       Watch low-token semantic canvas changes
   focus <node-id>                     Pan to node
   pin <ids...> | --list | --clear     Manage context pins
   undo / redo / history               Time travel
@@ -141,6 +146,7 @@ Agent CLI (works against running server):
   clear --yes                         Clear canvas
   code-graph                          File dependencies
   spatial                             Spatial analysis
+  watch                               Semantic watch stream
 
 Run any command with --help for details and examples:
   pmx-canvas node add --help
@@ -172,6 +178,7 @@ Examples:
   pmx-canvas arrange --layout column                          Auto-arrange
   pmx-canvas batch --file ./canvas-ops.json                   Run batch canvas ops
   pmx-canvas validate                                         Check layout collisions
+  pmx-canvas watch --events context-pin,move-end              Watch semantic deltas
   pmx-canvas clear --dry-run                                  Preview destructive op
 `);
     process.exit(0);
@@ -181,9 +188,7 @@ Examples:
   const automationWebView =
     webviewAutomation
       ? {
-          ...(webviewBackend === 'chrome' || webviewBackend === 'webkit'
-            ? { backend: webviewBackend }
-            : {}),
+          ...(webviewBackendOption ? { backend: webviewBackendOption } : {}),
           ...(webviewChromePath ? { chromePath: webviewChromePath } : {}),
           ...(webviewChromeArgv ? { chromeArgv: webviewChromeArgv } : {}),
           ...(webviewDataDir ? { dataStoreDir: webviewDataDir } : {}),

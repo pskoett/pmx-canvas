@@ -31,9 +31,24 @@ bun install
 bun run build
 bun run dev                   # Start + open browser
 bun run dev:demo              # Start with sample nodes
+bun run dev:portless          # Start at https://pmx.localhost/workbench (requires global portless)
 ```
 
 The canvas opens at `http://localhost:4313`.
+
+For local development only, you can give the canvas a stable hostname with
+[Portless](https://github.com/vercel-labs/portless):
+
+```bash
+npm install -g portless
+bun run dev:portless
+```
+
+Then open `https://pmx.localhost/workbench`.
+
+This is intentionally a repo-local developer workflow. The published
+`bunx pmx-canvas` path still defaults to plain loopback and does not depend on
+Portless being installed.
 
 ### Test the unpublished CLI from a repo checkout
 
@@ -559,6 +574,8 @@ bun install                   # Install dependencies
 bun run build                 # Build client SPA -> dist/canvas/
 bun run dev                   # Start server + open browser
 bun run dev:demo              # Start with sample nodes
+bun run dev:portless          # Start at https://pmx.localhost/workbench
+bun run dev:portless:demo     # Same, with demo nodes
 ```
 
 ### Testing

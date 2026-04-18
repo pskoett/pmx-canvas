@@ -12,6 +12,13 @@
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
+import {
+  ALL_SEMANTIC_WATCH_EVENT_TYPES,
+  formatCompactWatchEvent,
+  parseSemanticEventFilter,
+  parseSseStream,
+  SemanticWatchReducer,
+} from './watch.js';
 
 // ── Helpers ──────────────────────────────────────────────────
 
@@ -86,7 +93,7 @@ function parseFlags(args: string[]): { positional: string[]; flags: Record<strin
   // Boolean-only flags (never take a value argument)
   const BOOL_FLAGS = new Set([
     'help', 'h', 'ids', 'stdin', 'yes', 'list', 'clear', 'set', 'animated', 'dry-run',
-    'no-open-in-canvas', 'lock-arrange', 'unlock-arrange',
+    'no-open-in-canvas', 'lock-arrange', 'unlock-arrange', 'json', 'compact',
   ]);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -1157,6 +1164,94 @@ cmd('spatial', 'Spatial analysis: clusters, reading order, neighborhoods', [
   output(result);
 });
 
+// ── watch ────────────────────────────────────────────────────
+cmd('watch', 'Watch low-token semantic canvas changes over the existing SSE stream', [
+  'pmx-canvas watch',
+  'pmx-canvas watch --json',
+  'pmx-canvas watch --events context-pin,move-end',
+  'pmx-canvas watch --json --events connect --max-events 1',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('watch');
+
+  if (flags.json && flags.compact) {
+    die('Use either --json or --compact, not both.');
+  }
+
+  const filtersRaw = typeof flags.events === 'string' ? flags.events : undefined;
+  const requestedFilters = filtersRaw
+    ? Array.from(new Set(filtersRaw.split(',').map((value) => value.trim()).filter((value) => value.length > 0)))
+    : [];
+  const invalidFilter = requestedFilters.find((value) => !ALL_SEMANTIC_WATCH_EVENT_TYPES.includes(value as typeof ALL_SEMANTIC_WATCH_EVENT_TYPES[number]));
+  if (invalidFilter) {
+    die(
+      `Invalid value in --events: ${invalidFilter}`,
+      'Use a comma-separated subset of: context-pin,move-end,group,connect,remove',
+    );
+  }
+  const filters = parseSemanticEventFilter(filtersRaw);
+  if (filtersRaw && filters.size === 0) {
+    die(
+      `Invalid value for --events: ${filtersRaw}`,
+      'Use a comma-separated subset of: context-pin,move-end,group,connect,remove',
+    );
+  }
+
+  const maxEvents = optionalNumberFlag(flags, 'max-events', 'Use a positive integer, e.g. --max-events 1');
+  const jsonMode = Boolean(flags.json);
+  const reducer = new SemanticWatchReducer();
+  const pinned = await api('GET', '/api/canvas/pinned-context') as { nodeIds?: string[] };
+  reducer.setInitialPins(Array.isArray(pinned.nodeIds) ? pinned.nodeIds : []);
+
+  const base = getBaseUrl();
+  const controller = new AbortController();
+  let response: Response;
+  try {
+    response = await fetch(`${base}/api/workbench/events`, {
+      method: 'GET',
+      headers: { Accept: 'text/event-stream' },
+      signal: controller.signal,
+    });
+  } catch (error) {
+    die(
+      `Cannot connect to pmx-canvas event stream at ${base}: ${error instanceof Error ? error.message : String(error)}`,
+      'Start the server first: pmx-canvas --no-open',
+    );
+  }
+
+  if (!response.ok) {
+    const text = await response.text();
+    die(`Failed to open event stream: HTTP ${response.status}`, text);
+  }
+  if (!response.body) {
+    die('Workbench event stream did not return a readable body.');
+  }
+
+  let emitted = 0;
+  try {
+    for await (const message of parseSseStream(response.body)) {
+      const semanticEvents = reducer
+        .handleMessage(message)
+        .filter((event) => filters.has(event.type));
+
+      for (const event of semanticEvents) {
+        console.log(jsonMode ? JSON.stringify(event) : formatCompactWatchEvent(event));
+        emitted++;
+        if (maxEvents !== undefined && emitted >= maxEvents) {
+          controller.abort();
+          return;
+        }
+      }
+    }
+  } catch (error) {
+    if (controller.signal.aborted) return;
+    die(
+      `Watch stream failed: ${error instanceof Error ? error.message : String(error)}`,
+      'Ensure the server is still running and reachable.',
+    );
+  }
+});
+
 // ── serve (delegates back to original CLI) ───────────────────
 cmd('serve', 'Start the canvas server', [
   'pmx-canvas serve',
@@ -1213,6 +1308,7 @@ Canvas commands:
   pmx-canvas arrange [--layout MODE]  Auto-arrange (grid|column|flow)
   pmx-canvas batch [--file FILE]      Run many canvas operations at once
   pmx-canvas validate                 Check collisions and containment issues
+  pmx-canvas watch [options]          Watch semantic canvas changes over SSE
   pmx-canvas focus <id>               Pan viewport to node
   pmx-canvas webview status           Show WebView automation status
   pmx-canvas webview start [options]  Start or replace automation session
