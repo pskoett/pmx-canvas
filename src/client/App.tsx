@@ -1,5 +1,7 @@
 import type { ComponentChildren } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { AttentionHistory } from './canvas/AttentionHistory';
+import { AttentionToast } from './canvas/AttentionToast';
 import { CanvasViewport } from './canvas/CanvasViewport';
 import { CommandPalette } from './canvas/CommandPalette';
 import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
@@ -296,28 +298,30 @@ function WelcomeCard({ onOpenPalette }: { onOpenPalette: () => void }) {
   return (
     <div class="welcome-card">
       <div class="welcome-icon">◇</div>
-      <div class="welcome-title">PMX Canvas</div>
-      <div class="welcome-subtitle">Your agent's spatial working memory</div>
+      <div class="welcome-title">Shape What The Agent Sees</div>
+      <div class="welcome-subtitle">
+        Lay out notes, files, and evidence. Bring related nodes together. Pin what matters. The board will reflect the active focus.
+      </div>
       <div class="welcome-hints">
         <button type="button" class="welcome-hint" onClick={onOpenPalette}>
           <kbd>{MOD_KEY}+K</kbd>
-          <span>Search & create</span>
+          <span>Create a note</span>
         </button>
         <div class="welcome-hint">
-          <kbd>Double-click</kbd>
-          <span>New note on canvas</span>
+          <kbd>Drop files</kbd>
+          <span>Add evidence to the board</span>
         </div>
         <div class="welcome-hint">
-          <kbd>?</kbd>
-          <span>All keyboard shortcuts</span>
+          <kbd>{'\u2726'}</kbd>
+          <span>Pin important nodes</span>
         </div>
         <div class="welcome-hint">
-          <kbd>Scroll / pinch</kbd>
-          <span>Pan & zoom</span>
+          <kbd>Move nearby</kbd>
+          <span>Shape the focus field</span>
         </div>
       </div>
       <div class="welcome-footer">
-        Nodes appear here as agents work — or create your own.
+        The canvas is a shared attention surface, not just an editor.
       </div>
     </div>
   );
@@ -460,6 +464,8 @@ export function App() {
           ))}
         </div>
       </div>
+      <AttentionToast />
+      <AttentionHistory />
       <CanvasViewport onNodeContextMenu={openMenu} />
       {hasInitialLayout && allNodes.filter((n) => !n.dockPosition).length === 0 && (
         <WelcomeCard onOpenPalette={() => setPaletteOpen(true)} />

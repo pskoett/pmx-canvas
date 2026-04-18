@@ -99,6 +99,10 @@ export function clearContextPins(): void {
   syncContextPinsToServer(new Set());
 }
 
+export function replaceContextPinsFromServer(ids: string[]): void {
+  contextPinnedNodeIds.value = new Set(ids);
+}
+
 export function getContextPinnedNodes(): CanvasNodeState[] {
   const pins = contextPinnedNodeIds.value;
   if (pins.size === 0) return [];

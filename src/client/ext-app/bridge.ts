@@ -252,64 +252,75 @@ export class AppBridge {
     return this.appInfo;
   }
 
+  private setNotificationHandler<TParams>(method: string, callback: NotificationHandler<TParams>): void {
+    this.notificationHandlers.set(method, (params) => callback(params as TParams));
+  }
+
+  private setRequestHandler<TParams, TResult>(
+    method: string,
+    callback: RequestHandler<TParams, TResult>,
+  ): void {
+    this.requestHandlers.set(method, (params, extra) => callback(params as TParams, extra));
+  }
+
   set onsizechange(callback: (params: SizeChangedParams) => void) {
-    this.notificationHandlers.set('ui/notifications/size-changed', callback);
+    this.setNotificationHandler('ui/notifications/size-changed', callback);
   }
 
   set onsandboxready(callback: (params: Record<string, never>) => void) {
-    this.notificationHandlers.set('ui/notifications/sandbox-proxy-ready', callback);
+    this.setNotificationHandler('ui/notifications/sandbox-proxy-ready', callback);
   }
 
   set oninitialized(callback: (params: Record<string, never>) => void) {
-    this.notificationHandlers.set('ui/notifications/initialized', callback);
+    this.setNotificationHandler('ui/notifications/initialized', callback);
   }
 
   set onmessage(callback: RequestHandler<Record<string, unknown>, Record<string, unknown>>) {
-    this.requestHandlers.set('ui/message', callback);
+    this.setRequestHandler('ui/message', callback);
   }
 
   set onopenlink(callback: RequestHandler<OpenLinkParams, Record<string, unknown>>) {
-    this.requestHandlers.set('ui/open-link', callback);
+    this.setRequestHandler('ui/open-link', callback);
   }
 
   set ondownloadfile(callback: RequestHandler<DownloadFileParams, Record<string, unknown>>) {
-    this.requestHandlers.set('ui/download-file', callback);
+    this.setRequestHandler('ui/download-file', callback);
   }
 
   set onrequestteardown(callback: (params: Record<string, never>) => void) {
-    this.notificationHandlers.set('ui/notifications/request-teardown', callback);
+    this.setNotificationHandler('ui/notifications/request-teardown', callback);
   }
 
   set onrequestdisplaymode(callback: RequestHandler<RequestDisplayModeParams, RequestDisplayModeResult>) {
-    this.requestHandlers.set('ui/request-display-mode', callback);
+    this.setRequestHandler('ui/request-display-mode', callback);
   }
 
   set onloggingmessage(callback: (params: LoggingMessageParams) => void) {
-    this.notificationHandlers.set('notifications/message', callback);
+    this.setNotificationHandler('notifications/message', callback);
   }
 
   set onupdatemodelcontext(callback: RequestHandler<Record<string, unknown>, Record<string, unknown>>) {
-    this.requestHandlers.set('ui/update-model-context', callback);
+    this.setRequestHandler('ui/update-model-context', callback);
   }
 
   set oncalltool(callback: RequestHandler<ToolCallParams, unknown>) {
-    this.requestHandlers.set('tools/call', callback);
+    this.setRequestHandler('tools/call', callback);
   }
 
   set onlistresources(callback: RequestHandler<Record<string, unknown>, unknown>) {
-    this.requestHandlers.set('resources/list', callback);
+    this.setRequestHandler('resources/list', callback);
   }
 
   set onlistresourcetemplates(callback: RequestHandler<Record<string, unknown>, unknown>) {
-    this.requestHandlers.set('resources/templates/list', callback);
+    this.setRequestHandler('resources/templates/list', callback);
   }
 
   set onreadresource(callback: RequestHandler<Record<string, unknown>, unknown>) {
-    this.requestHandlers.set('resources/read', callback);
+    this.setRequestHandler('resources/read', callback);
   }
 
   set onlistprompts(callback: RequestHandler<Record<string, unknown>, unknown>) {
-    this.requestHandlers.set('prompts/list', callback);
+    this.setRequestHandler('prompts/list', callback);
   }
 
   getCapabilities(): HostCapabilities {
@@ -412,17 +423,23 @@ export class AppBridge {
       return;
     }
 
+    if (!isJsonRpcRequestMessage(message)) {
+      return;
+    }
+
+    const requestMessage: JsonRpcRequestMessage = message;
+
     const extra: RequestExtra = {
       signal: new AbortController().signal,
       sessionId,
     };
 
     try {
-      const result = await this.handleRequest(message, extra);
-      await this.sendSuccess(message.id, result);
+      const result = await this.handleRequest(requestMessage, extra);
+      await this.sendSuccess(requestMessage.id, result);
     } catch (error) {
       const messageText = error instanceof Error ? error.message : String(error);
-      await this.sendError(message.id, -32000, messageText);
+      await this.sendError(requestMessage.id, -32000, messageText);
     }
   }
 

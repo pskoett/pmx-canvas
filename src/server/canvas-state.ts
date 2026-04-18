@@ -18,7 +18,7 @@ import {
   GROUP_PAD,
   GROUP_TITLEBAR_HEIGHT,
   resolveGroupCollision,
-} from './placement.ts';
+} from './placement.js';
 
 function logCanvasStateWarning(action: string, error: unknown, details?: Record<string, unknown>): void {
   console.warn(`[canvas-state] ${action}`, { error, ...(details ?? {}) });
@@ -768,11 +768,9 @@ class CanvasStateManager {
   }
 
   getEdgesForNode(nodeId: string): CanvasEdge[] {
-    return Array.from(
-      this.edges.values()
-        .filter((edge) => edge.from === nodeId || edge.to === nodeId),
-      (edge) => structuredClone(edge),
-    );
+    return Array.from(this.edges.values())
+      .filter((edge) => edge.from === nodeId || edge.to === nodeId)
+      .map((edge) => structuredClone(edge));
   }
 
   private removeEdgesForNode(nodeId: string): void {

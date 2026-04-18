@@ -3,21 +3,23 @@
   "version": "0.1.0",
   "description": "Spatial canvas workbench for coding agents — infinite 2D canvas with agent-native CLI, MCP integration, nodes, edges, file watching, and snapshots",
   "type": "module",
-  "main": "src/server/index.ts",
+  "main": "./src/server/index.ts",
+  "module": "./src/server/index.ts",
+  "types": "./dist/types/server/index.d.ts",
   "exports": {
-    ".": "./src/server/index.ts"
+    ".": {
+      "types": "./dist/types/server/index.d.ts",
+      "default": "./src/server/index.ts"
+    }
   },
   "bin": {
     "pmx-canvas": "src/cli/index.ts"
   },
   "files": [
-    ".agents/",
-    ".claude/",
-    ".opencode/",
     "src/",
     "dist/canvas/",
     "dist/json-render/",
-    "skills/",
+    "dist/types/",
     "Readme.md",
     "LICENSE"
   ],
@@ -28,8 +30,12 @@
     "dev:portless:demo": "portless run --name pmx --app-port 4313 bun run src/cli/index.ts --no-open --port=4313 --demo",
     "build:client": "bun build src/client/index.tsx --outdir dist/canvas --minify && cp src/client/theme/global.css dist/canvas/global.css",
     "build:json-render": "bash scripts/build-json-render.sh",
-    "build": "bun run build:client && bun run build:json-render",
+    "build:types": "tsc -p tsconfig.types.json",
+    "build": "bun run build:client && bun run build:json-render && bun run build:types",
     "start": "bun run src/cli/index.ts --no-open",
+    "pack:dry-run": "bun pm pack --dry-run",
+    "release:check": "bun run build && bun run typecheck && bun run test:all",
+    "release:smoke": "bash scripts/release-smoke.sh",
     "typecheck": "tsc --noEmit",
     "test": "PMX_CANVAS_DISABLE_BROWSER_OPEN=1 bun test tests/unit",
     "test:unit": "PMX_CANVAS_DISABLE_BROWSER_OPEN=1 bun test tests/unit",
@@ -41,7 +47,7 @@
     "test:all": "bun run test && bun run test:web-canvas",
     "test:install-browsers": "bun x playwright install chromium",
     "validate:agent-skills": "bash scripts/validate-agent-skill-mirrors.sh",
-    "prepublishOnly": "bun run build"
+    "prepublishOnly": "bun run build && bun run typecheck"
   },
   "dependencies": {
     "@json-render/core": "^0.14.1",
@@ -87,6 +93,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/pskoett/pmx-canvas"
+  },
+  "bugs": {
+    "url": "https://github.com/pskoett/pmx-canvas/issues"
   },
   "homepage": "https://github.com/pskoett/pmx-canvas#readme",
   "engines": {

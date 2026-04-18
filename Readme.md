@@ -2,7 +2,7 @@
 
 A spatial canvas workbench for coding agents. Infinite 2D canvas with nodes, edges, pan/zoom, minimap, and real-time sync -- controlled through the CLI, MCP, HTTP API, or a Bun-based JavaScript/TypeScript SDK.
 
-![PMX Canvas screenshot](docs/screenshot.png)
+![PMX Canvas screenshot](https://raw.githubusercontent.com/pskoett/pmx-canvas/main/docs/screenshot.png)
 
 PMX Canvas gives any agent a visual workspace where it can lay out information as connected nodes on an infinite canvas. Both the agent and the human see and interact with it in real time. The canvas is the agent's **extended working memory**: humans pin nodes to curate context, agents read that curation via MCP resource change notifications.
 
@@ -586,6 +586,25 @@ bun run test:coverage         # Unit tests with coverage
 bun run test:e2e              # Playwright end-to-end tests
 bun run test:all              # All tests
 ```
+
+## Release
+
+Use this sequence before publishing a new version:
+
+```bash
+bun install --frozen-lockfile
+bun run release:check
+bun run release:smoke
+bun run pack:dry-run
+```
+
+Then publish the version currently in `package.json`:
+
+```bash
+bun publish
+```
+
+If this is the first release from your machine, run `bunx npm login` once so Bun can reuse your npm credentials.
 
 ### Project structure
 

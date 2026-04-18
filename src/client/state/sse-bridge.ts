@@ -8,6 +8,7 @@ import {
   cancelViewportAnimation,
   canvasTheme,
   connectionStatus,
+  replaceContextPinsFromServer,
   edges,
   focusNode,
   hasInitialServerLayout,
@@ -22,6 +23,7 @@ import {
   updateNodeData,
 } from './canvas-store';
 import { invalidateTokenCache } from '../theme/tokens';
+import { resetAttentionBridge, syncAttentionFromSse } from './attention-bridge';
 
 let eventSource: EventSource | null = null;
 let savedLayout: Map<string, Partial<CanvasNodeState>> | null = null;
@@ -756,6 +758,8 @@ function handleCanvasLayoutUpdate(data: Record<string, unknown>): void {
       }
     }
   }
+
+  syncAttentionFromSse({ event: 'canvas-layout-update', data });
 }
 
 function reconnectDelayMs(attempt: number): number {
@@ -805,6 +809,14 @@ function handleThemeChanged(data: Record<string, unknown>): void {
   }
 }
 
+function handleContextPinsChanged(data: Record<string, unknown>): void {
+  const nodeIds = Array.isArray(data.nodeIds)
+    ? data.nodeIds.filter((id): id is string => typeof id === 'string')
+    : [];
+  replaceContextPinsFromServer(nodeIds);
+  syncAttentionFromSse({ event: 'context-pins-changed', data });
+}
+
 // ── SSE connection ────────────────────────────────────────────
 /** @internal — exported for testing */
 export const EVENT_HANDLERS: Record<string, (data: Record<string, unknown>) => void> = {
@@ -826,6 +838,7 @@ export const EVENT_HANDLERS: Record<string, (data: Record<string, unknown>) => v
   'ext-app-open': handleExtAppOpen,
   'ext-app-update': handleExtAppUpdate,
   'ext-app-result': handleExtAppResult,
+  'context-pins-changed': handleContextPinsChanged,
   'canvas-layout-update': handleCanvasLayoutUpdate,
   'canvas-focus-node': handleCanvasFocusNode,
   'canvas-viewport-update': handleCanvasViewportUpdate,
@@ -843,6 +856,7 @@ export function connectSSE(): () => void {
   savedLayout = restoreLayout();
   ensureStatusNode();
   hasInitialServerLayout.value = false;
+  resetAttentionBridge();
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;

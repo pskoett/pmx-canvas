@@ -1451,6 +1451,266 @@ body,
   color: var(--c-warn);
 }
 
+/* ── Attention layer — human-facing semantic feedback ───────── */
+.canvas-node.attention-focus-primary {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--c-warn) 72%, transparent),
+    0 12px 34px color-mix(in srgb, var(--c-warn) 18%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--c-warn) 28%, transparent);
+}
+
+.canvas-node.attention-focus-primary .node-titlebar {
+  background:
+    linear-gradient(90deg, color-mix(in srgb, var(--c-warn) 12%, transparent), transparent 68%),
+    var(--c-panel-soft);
+}
+
+.canvas-node.attention-focus-secondary {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--c-warn) 30%, transparent),
+    0 8px 24px color-mix(in srgb, var(--c-warn) 10%, transparent);
+}
+
+.canvas-node.attention-focus-secondary .node-type-badge {
+  background: color-mix(in srgb, var(--c-warn) 10%, transparent);
+  color: color-mix(in srgb, var(--c-warn) 88%, var(--c-text) 12%);
+}
+
+.canvas-node.attention-pulse {
+  animation: attention-node-pulse 0.9s ease;
+}
+
+@keyframes attention-node-pulse {
+  0% {
+    transform: translateZ(0) scale(1);
+    box-shadow:
+      0 0 0 0 color-mix(in srgb, var(--c-warn) 0%, transparent),
+      0 4px 24px var(--c-shadow);
+  }
+  38% {
+    transform: translateZ(0) scale(1.012);
+    box-shadow:
+      0 0 0 3px color-mix(in srgb, var(--c-warn) 35%, transparent),
+      0 16px 34px color-mix(in srgb, var(--c-warn) 16%, transparent);
+  }
+  100% {
+    transform: translateZ(0) scale(1);
+  }
+}
+
+.attention-field-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.attention-field-region,
+.attention-field-node {
+  position: absolute;
+  pointer-events: none;
+}
+
+.attention-field-region {
+  background:
+    radial-gradient(circle at 25% 30%, color-mix(in srgb, var(--c-warn) 16%, transparent), transparent 62%),
+    linear-gradient(135deg, color-mix(in srgb, var(--c-warn) 10%, transparent), color-mix(in srgb, var(--c-accent) 5%, transparent));
+  border: 1px solid color-mix(in srgb, var(--c-warn) 22%, transparent);
+  opacity: 0.8;
+  filter: blur(18px);
+}
+
+.attention-field-node.attention-field-primary {
+  border: 1px solid color-mix(in srgb, var(--c-warn) 38%, transparent);
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--c-warn) 16%, transparent), transparent 72%);
+  box-shadow: 0 0 38px color-mix(in srgb, var(--c-warn) 18%, transparent);
+}
+
+.attention-field-node.attention-field-secondary {
+  border: 1px solid color-mix(in srgb, var(--c-warn) 18%, transparent);
+  background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--c-warn) 9%, transparent), transparent 74%);
+  box-shadow: 0 0 24px color-mix(in srgb, var(--c-warn) 10%, transparent);
+}
+
+.attention-toast {
+  position: fixed;
+  top: 76px;
+  right: 18px;
+  width: min(340px, calc(100vw - 24px));
+  padding: 14px 16px 15px;
+  background:
+    linear-gradient(140deg, color-mix(in srgb, var(--c-panel) 94%, black 6%), color-mix(in srgb, var(--c-panel-soft) 92%, black 8%));
+  backdrop-filter: blur(18px);
+  border: 1px solid color-mix(in srgb, var(--c-line) 76%, var(--c-warn) 24%);
+  border-radius: 16px;
+  box-shadow:
+    0 18px 44px var(--c-shadow-heavy),
+    0 0 0 1px color-mix(in srgb, var(--c-warn) 14%, transparent);
+  z-index: 10003;
+  animation: attention-toast-in 180ms ease-out;
+}
+
+@keyframes attention-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.attention-toast-kicker {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+  margin-bottom: 7px;
+}
+
+.attention-toast-title {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.15;
+  color: var(--c-text);
+  letter-spacing: -0.02em;
+}
+
+.attention-toast-detail {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--c-text-soft);
+}
+
+.attention-history {
+  position: fixed;
+  top: 146px;
+  right: 18px;
+  width: min(320px, calc(100vw - 24px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: color-mix(in srgb, var(--c-panel-glass) 96%, transparent);
+  backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in srgb, var(--c-line) 82%, var(--c-warn) 18%);
+  border-radius: 18px;
+  box-shadow: 0 14px 36px var(--c-shadow), 0 0 0 1px color-mix(in srgb, var(--c-warn) 8%, transparent);
+  z-index: 10002;
+}
+
+.attention-history-header {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 2px 4px;
+}
+
+.attention-history-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-text);
+}
+
+.attention-history-subtitle {
+  font-size: 11px;
+  color: var(--c-dim);
+}
+
+.attention-history-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.attention-history-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 11px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--c-panel-soft) 78%, transparent);
+  border: 1px solid transparent;
+}
+
+.attention-history-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.attention-history-kind {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.attention-history-time {
+  font-size: 10px;
+  color: var(--c-dim);
+  white-space: nowrap;
+}
+
+.attention-history-detail {
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--c-text-soft);
+}
+
+.attention-tone-context {
+  border-color: color-mix(in srgb, var(--c-warn) 26%, transparent);
+}
+
+.attention-tone-context .attention-history-kind,
+.attention-tone-context .attention-toast-title {
+  color: color-mix(in srgb, var(--c-warn) 82%, var(--c-text) 18%);
+}
+
+.attention-tone-relationship {
+  border-color: color-mix(in srgb, var(--c-accent) 24%, transparent);
+}
+
+.attention-tone-relationship .attention-history-kind,
+.attention-tone-relationship .attention-toast-title {
+  color: color-mix(in srgb, var(--c-accent) 78%, var(--c-text) 22%);
+}
+
+.attention-tone-group {
+  border-color: color-mix(in srgb, var(--c-purple) 24%, transparent);
+}
+
+.attention-tone-group .attention-history-kind,
+.attention-tone-group .attention-toast-title {
+  color: color-mix(in srgb, var(--c-purple) 78%, var(--c-text) 22%);
+}
+
+.attention-tone-cluster,
+.attention-tone-neighborhood {
+  border-color: color-mix(in srgb, var(--c-warn-alt) 22%, transparent);
+}
+
+.attention-tone-cluster .attention-history-kind,
+.attention-tone-cluster .attention-toast-title,
+.attention-tone-neighborhood .attention-history-kind,
+.attention-tone-neighborhood .attention-toast-title {
+  color: color-mix(in srgb, var(--c-warn-alt) 78%, var(--c-text) 22%);
+}
+
+.attention-tone-remove {
+  border-color: color-mix(in srgb, var(--c-danger) 24%, transparent);
+}
+
+.attention-tone-remove .attention-history-kind,
+.attention-tone-remove .attention-toast-title {
+  color: color-mix(in srgb, var(--c-danger) 78%, var(--c-text) 22%);
+}
+
 /* ── Group node — spatial container/frame ─────────────────────── */
 .canvas-node.group-node {
   background: transparent;
@@ -2278,6 +2538,7 @@ body,
   font-size: 12px;
   color: var(--c-dim);
   margin-bottom: 8px;
+  line-height: 1.55;
 }
 
 .welcome-hints {
@@ -2308,6 +2569,43 @@ button.welcome-hint {
 button.welcome-hint:hover {
   background: var(--c-surface-hover);
   border-color: var(--c-line);
+}
+
+@media (max-width: 980px) {
+  .attention-toast {
+    top: 70px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+  }
+
+  .attention-history {
+    top: auto;
+    left: 12px;
+    right: 12px;
+    bottom: 84px;
+    width: auto;
+  }
+
+  .welcome-card {
+    width: calc(100vw - 24px);
+    max-width: 420px;
+    padding: 28px 24px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .attention-toast,
+  .welcome-card,
+  .canvas-node.attention-pulse {
+    animation: none !important;
+  }
+
+  .attention-field-region,
+  .attention-field-node,
+  .canvas-node {
+    transition: none !important;
+  }
 }
 
 .welcome-hint kbd {

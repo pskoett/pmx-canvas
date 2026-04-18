@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import {
+  attentionPrimaryNodeIds,
+  attentionPulseNodeIds,
+  attentionSecondaryNodeIds,
+} from '../state/attention-store';
+import {
   activeNodeId,
   bringToFront,
   contextPinnedNodeIds,
@@ -36,6 +41,9 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const isActive = activeNodeId.value === node.id;
   const isSelected = selectedNodeIds.value.has(node.id);
   const isContextPinned = contextPinnedNodeIds.value.has(node.id);
+  const isAttentionPrimary = attentionPrimaryNodeIds.value.has(node.id);
+  const isAttentionSecondary = !isAttentionPrimary && attentionSecondaryNodeIds.value.has(node.id);
+  const isAttentionPulse = attentionPulseNodeIds.value.has(node.id);
   const focusId = activeNodeId.value;
   const isNeighbor = !isActive && focusId !== null && Array.from(edges.value.values()).some(
     (e) => (e.from === focusId && e.to === node.id) || (e.to === focusId && e.from === node.id),
@@ -198,6 +206,9 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     isSearchDimmed ? 'search-dimmed' : '',
     isSelected ? 'selected' : '',
     isContextPinned ? 'context-pinned' : '',
+    isAttentionPrimary ? 'attention-focus-primary' : '',
+    isAttentionSecondary ? 'attention-focus-secondary' : '',
+    isAttentionPulse ? 'attention-pulse' : '',
     isPinned ? 'pinned' : '',
     isTrace ? 'trace-node' : '',
     isTraceRunning ? 'trace-running' : '',

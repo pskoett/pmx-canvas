@@ -25,6 +25,7 @@ import {
 } from '../state/canvas-store';
 import { createEdgeFromClient, createNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
+import { FocusFieldLayer } from './FocusFieldLayer';
 import { CanvasNode } from './CanvasNode';
 import { EdgeLayer } from './EdgeLayer';
 import { activeGuides } from './snap-guides';
@@ -522,6 +523,7 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
           left: 0,
         }}
       >
+        <FocusFieldLayer />
         <EdgeLayer nodes={nodes} edges={edges} />
         {worldNodes.map((node) => (
           <CanvasNode key={node.id} node={node} onContextMenu={onNodeContextMenu}>

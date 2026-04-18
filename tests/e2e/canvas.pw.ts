@@ -85,6 +85,50 @@ test('renders server-created nodes and syncs context pins from the UI', async ({
   }).toBe(`1:${created.id}`);
 });
 
+test('semantic attention layer shows focus and interpretation history', async ({ page, request }) => {
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Bug report',
+      content: 'Anchor node',
+      x: 460,
+      y: 220,
+    },
+  });
+  const authResponse = await request.post('/api/canvas/node', {
+    data: {
+      type: 'file',
+      title: 'auth.ts',
+      content: 'export const auth = true;',
+      x: 1240,
+      y: 220,
+    },
+  });
+  const authNode = await authResponse.json() as { id: string };
+
+  await page.goto('/workbench');
+
+  const bugReport = page.locator('.canvas-node').filter({ hasText: 'Bug report' });
+  const authTs = page.locator('.canvas-node').filter({ hasText: 'auth.ts' });
+  await expect(bugReport).toHaveCount(1);
+  await expect(authTs).toHaveCount(1);
+
+  await bugReport.locator('.ctx-pin-btn').click();
+
+  await expect(page.locator('.attention-toast')).toContainText('Context updated');
+  await expect(page.locator('.attention-history')).toContainText('Context updated');
+  await expect(bugReport).toHaveClass(/attention-focus-primary/);
+
+  await request.patch(`/api/canvas/node/${authNode.id}`, {
+    data: {
+      position: { x: 700, y: 240 },
+    },
+  });
+
+  await expect(authTs).toHaveClass(/attention-focus-secondary/);
+  await expect(page.locator('.attention-history')).toContainText('Neighborhood changed');
+});
+
 test('renders webpage node preview content from cached server fetch data', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
     data: {

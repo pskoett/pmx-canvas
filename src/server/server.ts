@@ -1081,7 +1081,7 @@ async function handleCanvasGroupNodes(req: Request): Promise<Response> {
   if (!groupId || childIds.length === 0) {
     return responseJson({ ok: false, error: 'Missing groupId or childIds.' }, 400);
   }
-  const { ok } = groupCanvasNodes(groupId, childIds, ...(childLayout ? { childLayout } : {}));
+  const { ok } = groupCanvasNodes(groupId, childIds, childLayout ? { childLayout } : {});
   if (!ok) return responseJson({ ok: false, error: 'Group not found or no valid children.' }, 400);
   broadcastWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   return responseJson({ ok: true, groupId });
@@ -1764,12 +1764,13 @@ async function handleWorkbenchWebViewScreenshot(req: Request): Promise<Response>
       format,
       ...(quality !== undefined ? { quality } : {}),
     });
+    const responseBytes = Uint8Array.from(bytes);
     const mimeType = format === 'jpeg'
       ? 'image/jpeg'
       : format === 'webp'
         ? 'image/webp'
         : 'image/png';
-    return new Response(bytes, {
+    return new Response(responseBytes.buffer, {
       headers: {
         'Content-Type': mimeType,
         'Cache-Control': 'no-store',
@@ -1892,6 +1893,14 @@ function handleWorkbenchEvents(req: Request): Response {
       controller.enqueue(
         toSseFrame('canvas-layout-update', {
           layout,
+          sessionId: primaryWorkbenchSessionId,
+          timestamp: new Date().toISOString(),
+        }),
+      );
+      controller.enqueue(
+        toSseFrame('context-pins-changed', {
+          count: canvasState.contextPinnedNodeIds.size,
+          nodeIds: Array.from(canvasState.contextPinnedNodeIds),
           sessionId: primaryWorkbenchSessionId,
           timestamp: new Date().toISOString(),
         }),
@@ -2286,6 +2295,8 @@ async function handleContextPinsUpdate(req: Request): Promise<Response> {
   broadcastWorkbenchEvent('context-pins-changed', {
     count: result.count,
     nodeIds: result.nodeIds,
+    sessionId: primaryWorkbenchSessionId,
+    timestamp: new Date().toISOString(),
   });
   return responseJson({ ok: true, count: result.count });
 }
