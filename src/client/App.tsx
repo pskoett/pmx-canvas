@@ -42,6 +42,7 @@ import {
   IconArrange,
   IconClearTrace,
   IconFitAll,
+  IconLogo,
   IconMinimap,
   IconMoon,
   IconResetView,
@@ -141,6 +142,14 @@ function Toolbar({
     <div class="toolbar-group">
       {/* ── Navigation Bar ──────────────────────────────────── */}
       <div class="canvas-toolbar">
+        <ToolbarHint label="PMX Canvas" detail="Focus Field · spatial workbench for coding agents" align="start">
+          <span class="canvas-brand" aria-label="PMX Canvas">
+            <IconLogo size={22} />
+          </span>
+        </ToolbarHint>
+
+        <div class="separator" />
+
         <ToolbarHint label="Canvas status" detail={hasSynced ? statusLabel : 'Syncing canvas from server'} align="start">
           <span class={`connection-dot ${status}`} aria-label={`Canvas status: ${statusTitle}`} />
         </ToolbarHint>

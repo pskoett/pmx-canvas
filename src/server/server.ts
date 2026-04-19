@@ -733,7 +733,7 @@ function canvasSpaHtml(): string {
       margin: 0;
       width: 100%;
       height: 100%;
-      background: #081019;
+      background: #081524;
       color: #d9e2f2;
       font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
@@ -748,7 +748,7 @@ function canvasSpaHtml(): string {
       background:
         radial-gradient(circle at top left, rgba(62, 134, 255, 0.18), transparent 32%),
         radial-gradient(circle at bottom right, rgba(0, 214, 201, 0.12), transparent 28%),
-        #081019;
+        #081524;
       z-index: 9999;
     }
     #canvasBootstrap.ready { display: none; }
@@ -839,12 +839,10 @@ const CANVAS_STATIC_MIME: Record<string, string> = {
 
 const CANVAS_FAVICON_SVG = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="14" fill="#081524"/>
-  <g fill="#4bbcff" fill-rule="evenodd">
-    <path d="M6,18 H18 V31 H9 V46 H6Z M9,21 H15 V28 H9Z"/>
-    <path d="M21,46 V18 H24 L32,29 L40,18 H43 V46 H40 V23 L32,34 L24,23 V46Z"/>
-    <path d="M46,18 H50 L59,46 H55Z"/>
-    <path d="M55,18 H59 L50,46 H46Z"/>
-  </g>
+  <rect x="8"  y="8"  width="48" height="48" rx="7" fill="none" stroke="#4BBCFF" stroke-width="2.2" opacity="0.35"/>
+  <rect x="16" y="16" width="32" height="32" rx="5" fill="none" stroke="#4BBCFF" stroke-width="2.2" opacity="0.6"/>
+  <rect x="24" y="24" width="16" height="16" rx="3" fill="none" stroke="#4BBCFF" stroke-width="2.2"/>
+  <rect x="29" y="29" width="6"  height="6"  rx="1" fill="#4BBCFF"/>
 </svg>`;
 
 // Resolve canvas bundle directory — uses PMX_CANVAS_DIST env or fallback chain.
@@ -1497,7 +1495,7 @@ function handleArtifactView(url: URL): Response {
   <style>
     :root {
       color-scheme: dark;
-      --bg: #081019;
+      --bg: #081524;
       --panel: #111a2d;
       --line: rgba(110, 140, 190, 0.22);
       --text: #d9e2f2;
