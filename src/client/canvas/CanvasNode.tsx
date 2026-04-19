@@ -25,6 +25,7 @@ import {
   viewport,
 } from '../state/canvas-store';
 import { removeNodeFromClient, updateNodeFromClient } from '../state/intent-bridge';
+import { getNodeIcon } from '../icons';
 import { EXPANDABLE_TYPES, TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
 import { activeGuides, buildSnapCache, clearSnapCache, snapToGuides } from './snap-guides';
@@ -225,6 +226,12 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
       onContextMenu={handleContextMenuEvent}
     >
       <div class="node-titlebar" onPointerDown={handleTitlePointerDown}>
+        <span class="node-type-icon" aria-hidden="true">
+          {(() => {
+            const NodeIcon = getNodeIcon(node.type);
+            return <NodeIcon size={14} />;
+          })()}
+        </span>
         <span class="node-type-badge">{TYPE_LABELS[node.type]}</span>
         {renaming ? (
           <input

@@ -1,14 +1,14 @@
 :root {
-  /* ── Core palette (dark) ─────────────────────────────────── */
-  --c-bg: #0f1221;
-  --c-panel: #131a30;
-  --c-panel-soft: #10162a;
-  --c-line: #2d375a;
-  --c-text: #e8ecf1;
+  /* ── Core palette (dark · ink + cyan) ────────────────────── */
+  --c-bg: #081524;
+  --c-panel: #0f1d31;
+  --c-panel-soft: #0a1729;
+  --c-line: #1b2c44;
+  --c-text: #e6eef7;
   --c-text-soft: #c7d3ea;
-  --c-muted: #a7b2c8;
-  --c-dim: #6b7a9a;
-  --c-accent: #46b6ff;
+  --c-muted: #8ea3bd;
+  --c-dim: #5c6b80;
+  --c-accent: #4BBCFF;
   --c-ok: #2fd07f;
   --c-warn: #f4c542;
   --c-warn-alt: #FFB300;
@@ -16,23 +16,23 @@
   --c-purple: #b07aff;
   --c-thinking: #B388FF;
   --c-subagent: #00E5FF;
-  --c-input-bg: #0a0e1e;
-  --c-dot-grid: rgba(45, 55, 90, 0.4);
-  --c-panel-overlay: rgba(10, 14, 30, 0.6);
-  --c-panel-glass: rgba(19, 26, 48, 0.92);
+  --c-input-bg: #0a1729;
+  --c-dot-grid: rgba(75, 188, 255, 0.08);
+  --c-panel-overlay: rgba(8, 21, 36, 0.6);
+  --c-panel-glass: rgba(15, 29, 49, 0.92);
   --c-shadow: rgba(0, 0, 0, 0.3);
   --c-shadow-heavy: rgba(0, 0, 0, 0.5);
-  --c-glow-accent: rgba(70, 182, 255, 0.15);
+  --c-glow-accent: rgba(75, 188, 255, 0.15);
   --c-surface-hover: rgba(255, 255, 255, 0.06);
   --c-surface-subtle: rgba(255, 255, 255, 0.03);
   --c-surface-th: rgba(255, 255, 255, 0.04);
-  --c-accent-8: rgba(70, 182, 255, 0.08);
-  --c-accent-10: rgba(70, 182, 255, 0.1);
-  --c-accent-12: rgba(70, 182, 255, 0.12);
-  --c-accent-15: rgba(70, 182, 255, 0.15);
-  --c-accent-25: rgba(70, 182, 255, 0.25);
-  --c-accent-30: rgba(70, 182, 255, 0.3);
-  --c-accent-40: rgba(70, 182, 255, 0.4);
+  --c-accent-8: rgba(75, 188, 255, 0.08);
+  --c-accent-10: rgba(75, 188, 255, 0.1);
+  --c-accent-12: rgba(75, 188, 255, 0.12);
+  --c-accent-15: rgba(75, 188, 255, 0.15);
+  --c-accent-25: rgba(75, 188, 255, 0.25);
+  --c-accent-30: rgba(75, 188, 255, 0.3);
+  --c-accent-40: rgba(75, 188, 255, 0.4);
   --c-ok-10: rgba(47, 208, 127, 0.1);
   --c-ok-12: rgba(47, 208, 127, 0.12);
   --c-ok-20: rgba(47, 208, 127, 0.2);
@@ -45,9 +45,9 @@
   --c-warn-30: rgba(244, 197, 66, 0.3);
   --c-warn-60: rgba(244, 197, 66, 0.6);
   --c-danger-12: rgba(255, 106, 127, 0.12);
-  --c-line-30: rgba(45, 55, 90, 0.3);
-  --c-contrast-fg: #0a0e1e;
-  --c-accent-hover: #5cc4ff;
+  --c-line-30: rgba(27, 44, 68, 0.3);
+  --c-contrast-fg: #081524;
+  --c-accent-hover: #6ECAFF;
   --c-warn-hover: #f5d06b;
   --c-canvas-wash: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0));
   /* ── Non-color tokens ────────────────────────────────────── */
@@ -58,15 +58,16 @@
 }
 
 :root[data-theme="light"] {
-  --c-bg: #dde3e7;
-  --c-panel: #eceff2;
-  --c-panel-soft: #e5e9ed;
-  --c-line: #bcc5cf;
-  --c-text: #18202b;
-  --c-text-soft: #4a5868;
-  --c-muted: #68778a;
+  /* ── Core palette (light · paper + ink) ──────────────────── */
+  --c-bg: #F4EFE6;
+  --c-panel: #EFE7D4;
+  --c-panel-soft: #ECE4D0;
+  --c-line: #D6CBB4;
+  --c-text: #081524;
+  --c-text-soft: #3d4d63;
+  --c-muted: #5c6b80;
   --c-dim: #8794a6;
-  --c-accent: #1a8cd8;
+  --c-accent: #1A7ABF;
   --c-ok: #1a9f55;
   --c-warn: #c89b2a;
   --c-warn-alt: #b8860b;
@@ -74,23 +75,23 @@
   --c-purple: #7c4dff;
   --c-thinking: #7C4DFF;
   --c-subagent: #00838F;
-  --c-input-bg: #f2f4f6;
-  --c-dot-grid: rgba(92, 108, 136, 0.1);
-  --c-panel-overlay: rgba(221, 227, 231, 0.88);
-  --c-panel-glass: rgba(236, 239, 242, 0.88);
-  --c-shadow: rgba(20, 28, 40, 0.07);
-  --c-shadow-heavy: rgba(20, 28, 40, 0.14);
-  --c-glow-accent: rgba(26, 140, 216, 0.1);
-  --c-surface-hover: rgba(0, 0, 0, 0.04);
-  --c-surface-subtle: rgba(0, 0, 0, 0.02);
-  --c-surface-th: rgba(0, 0, 0, 0.03);
-  --c-accent-8: rgba(26, 140, 216, 0.08);
-  --c-accent-10: rgba(26, 140, 216, 0.1);
-  --c-accent-12: rgba(26, 140, 216, 0.12);
-  --c-accent-15: rgba(26, 140, 216, 0.15);
-  --c-accent-25: rgba(26, 140, 216, 0.25);
-  --c-accent-30: rgba(26, 140, 216, 0.3);
-  --c-accent-40: rgba(26, 140, 216, 0.4);
+  --c-input-bg: #FAF6EE;
+  --c-dot-grid: rgba(8, 21, 36, 0.08);
+  --c-panel-overlay: rgba(244, 239, 230, 0.88);
+  --c-panel-glass: rgba(239, 231, 212, 0.88);
+  --c-shadow: rgba(8, 21, 36, 0.08);
+  --c-shadow-heavy: rgba(8, 21, 36, 0.16);
+  --c-glow-accent: rgba(26, 122, 191, 0.12);
+  --c-surface-hover: rgba(8, 21, 36, 0.06);
+  --c-surface-subtle: rgba(8, 21, 36, 0.03);
+  --c-surface-th: rgba(8, 21, 36, 0.04);
+  --c-accent-8: rgba(26, 122, 191, 0.08);
+  --c-accent-10: rgba(26, 122, 191, 0.1);
+  --c-accent-12: rgba(26, 122, 191, 0.12);
+  --c-accent-15: rgba(26, 122, 191, 0.15);
+  --c-accent-25: rgba(26, 122, 191, 0.25);
+  --c-accent-30: rgba(26, 122, 191, 0.3);
+  --c-accent-40: rgba(26, 122, 191, 0.4);
   --c-ok-10: rgba(26, 159, 85, 0.1);
   --c-ok-12: rgba(26, 159, 85, 0.12);
   --c-ok-20: rgba(26, 159, 85, 0.2);
@@ -103,11 +104,11 @@
   --c-warn-30: rgba(200, 155, 42, 0.3);
   --c-warn-60: rgba(200, 155, 42, 0.6);
   --c-danger-12: rgba(211, 47, 47, 0.12);
-  --c-line-30: rgba(208, 213, 224, 0.3);
-  --c-contrast-fg: #ffffff;
-  --c-accent-hover: #1578b8;
+  --c-line-30: rgba(214, 203, 180, 0.5);
+  --c-contrast-fg: #F4EFE6;
+  --c-accent-hover: #1588CE;
   --c-warn-hover: #dab040;
-  --c-canvas-wash: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.015));
+  --c-canvas-wash: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(8, 21, 36, 0.02));
 }
 
 :root[data-theme="high-contrast"] {
@@ -306,6 +307,18 @@ body,
   text-overflow: ellipsis;
   flex: 1;
   min-width: 0;
+}
+
+.canvas-node .node-type-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  color: var(--c-accent);
+  background: var(--c-accent-10);
+  flex-shrink: 0;
 }
 
 .canvas-node .node-type-badge {
@@ -583,6 +596,16 @@ body,
   width: 1px;
   height: 20px;
   background: var(--c-line);
+}
+
+.canvas-toolbar .canvas-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  color: var(--c-accent);
+  flex-shrink: 0;
 }
 
 .canvas-toolbar .connection-dot {
