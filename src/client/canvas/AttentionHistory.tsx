@@ -1,4 +1,10 @@
-import { attentionHistory } from '../state/attention-store';
+import {
+  attentionHistory,
+  attentionHistoryOpen,
+  attentionHistoryUnread,
+  closeAttentionHistory,
+  openAttentionHistory,
+} from '../state/attention-store';
 
 function formatTimestamp(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], {
@@ -11,11 +17,51 @@ export function AttentionHistory() {
   const entries = attentionHistory.value;
   if (entries.length === 0) return null;
 
+  const isOpen = attentionHistoryOpen.value;
+  const unread = attentionHistoryUnread.value;
+
+  if (!isOpen) {
+    return (
+      <button
+        type="button"
+        class="attention-history-tab"
+        onClick={openAttentionHistory}
+        aria-label={unread > 0 ? `What changed — ${unread} new` : 'What changed'}
+        title={unread > 0 ? `${unread} new since last viewed` : 'What changed'}
+      >
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
+          <circle cx="4.5" cy="8" r="1.1" fill="currentColor" stroke="none" />
+          <line x1="6.5" y1="6.5" x2="12.5" y2="6.5" />
+          <line x1="6.5" y1="8" x2="11" y2="8" />
+          <line x1="6.5" y1="9.5" x2="12" y2="9.5" />
+        </svg>
+        <span class="attention-history-tab-label">Changed</span>
+        {unread > 0 && (
+          <span class="attention-history-tab-badge" aria-hidden="true">
+            {unread > 9 ? '9+' : unread}
+          </span>
+        )}
+      </button>
+    );
+  }
+
   return (
     <aside class="attention-history" aria-label="Recent semantic changes">
       <div class="attention-history-header">
-        <span class="attention-history-title">What Changed</span>
-        <span class="attention-history-subtitle">Recent meaning shifts</span>
+        <div class="attention-history-header-text">
+          <span class="attention-history-title">What Changed</span>
+          <span class="attention-history-subtitle">Recent meaning shifts</span>
+        </div>
+        <button
+          type="button"
+          class="attention-history-close"
+          onClick={closeAttentionHistory}
+          aria-label="Collapse changes panel"
+          title="Collapse"
+        >
+          ×
+        </button>
       </div>
       <div class="attention-history-list">
         {entries.map((entry) => (
