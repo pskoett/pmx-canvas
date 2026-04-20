@@ -727,7 +727,8 @@ function canvasSpaHtml(): string {
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>PMX Canvas</title>
-  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=focus-field" />
+  <link rel="alternate icon" href="/favicon.ico?v=focus-field" sizes="any" />
   <style>
     html, body {
       margin: 0;
@@ -2978,7 +2979,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return responseJson({ ok: true, workspace: activeWorkspaceRoot });
           }
 
-          if (url.pathname === '/favicon.ico') {
+          if (url.pathname === '/favicon.ico' || url.pathname === '/favicon.svg') {
             return serveCanvasFavicon();
           }
 
