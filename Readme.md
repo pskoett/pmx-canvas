@@ -623,7 +623,7 @@ which makes scripting stacked layouts and batch follow-up operations easier.
 ```
 Agent (Claude Code / Codex / Cursor / any MCP client)
   |
-  |-- MCP Server ---- 36 tools + 7 resources + change notifications
+  |-- MCP Server ---- 38 tools + 7 resources + change notifications
   |-- Bun SDK ------- createCanvas()
   |-- HTTP API ------ REST + SSE at localhost:4313
   |

@@ -250,7 +250,7 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
   }).toBe(3);
 });
 
-test('markdown edit opens focused inline editing before raw source mode', async ({ page, request }) => {
+test('markdown edit opens inline WYSIWYG mode, not raw source mode', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
     data: {
       type: 'markdown',
@@ -270,13 +270,12 @@ test('markdown edit opens focused inline editing before raw source mode', async 
 
   const overlay = page.locator('.expanded-overlay-panel');
   await expect(overlay).toBeVisible();
-  await expect(overlay.locator('.md-reader-content')).toBeVisible();
+
+  const editor = overlay.locator('.md-reader-content');
+  await expect(editor).toBeVisible();
+  await expect(editor).toHaveJSProperty('isContentEditable', true);
   await expect(page.locator('.md-editor-split')).toHaveCount(0);
   await expect(overlay.locator('.md-edit-fab')).toContainText('Source');
-
-  await overlay.getByText('Paragraph text').click();
-  await expect(overlay.locator('.md-block-edit')).toBeVisible();
-  await expect(page.locator('.md-editor-split')).toHaveCount(0);
 });
 
 test('inline markdown save updates authoritative canvas node content', async ({ page, request }) => {
@@ -299,12 +298,16 @@ test('inline markdown save updates authoritative canvas node content', async ({ 
 
   const overlay = page.locator('.expanded-overlay-panel');
   await expect(overlay).toBeVisible();
-  await overlay.getByText('Original paragraph').click();
 
-  const editor = overlay.locator('.md-block-edit');
+  const editor = overlay.locator('.md-reader-content');
   await expect(editor).toBeVisible();
-  await editor.fill('Updated paragraph');
-  await overlay.getByRole('button', { name: 'Save' }).click();
+
+  await editor.evaluate((el: HTMLElement) => {
+    el.focus();
+    el.innerHTML = '<p>Updated paragraph</p>';
+  });
+  await editor.dispatchEvent('input');
+  await editor.evaluate((el: HTMLElement) => el.blur());
 
   await expect.poll(async () => {
     const response = await request.get(`/api/canvas/node/${created.id}`);

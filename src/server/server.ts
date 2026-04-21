@@ -61,7 +61,7 @@ import {
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import { diffLayouts, formatDiff, mutationHistory } from './mutation-history.js';
-import { serializeCanvasLayout, serializeCanvasNode } from './canvas-serialization.js';
+import { buildCanvasSummary, serializeCanvasLayout, serializeCanvasNode } from './canvas-serialization.js';
 import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import {
   addCanvasNode,
@@ -1034,6 +1034,24 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
   const type = (body.type as string) || 'markdown';
 
   if (!VALID_NODE_TYPES.has(type)) {
+    if (type === 'json-render') {
+      return responseJson({
+        ok: false,
+        error: 'Node type "json-render" is created via POST /api/canvas/json-render. See /api/canvas/schema for the required spec shape.',
+      }, 400);
+    }
+    if (type === 'graph') {
+      return responseJson({
+        ok: false,
+        error: 'Node type "graph" is created via POST /api/canvas/graph. See /api/canvas/schema for graphType + data fields.',
+      }, 400);
+    }
+    if (type === 'web-artifact') {
+      return responseJson({
+        ok: false,
+        error: 'Node type "web-artifact" is created via POST /api/canvas/web-artifact with appTsx + title.',
+      }, 400);
+    }
     return responseJson({ ok: false, error: `Invalid node type: "${type}".` }, 400);
   }
 
@@ -2096,13 +2114,18 @@ async function handleWorkbenchWebViewStop(): Promise<Response> {
 
 async function handleWorkbenchWebViewEvaluate(req: Request): Promise<Response> {
   const body = await readJson(req);
-  const expression = typeof body.expression === 'string' ? body.expression : '';
-  if (!expression.trim()) {
-    return responseJson({ ok: false, error: 'Missing required field: expression.' }, 400);
+  const expression = typeof body.expression === 'string' ? body.expression.trim() : '';
+  const script = typeof body.script === 'string' ? body.script.trim() : '';
+  if ((expression ? 1 : 0) + (script ? 1 : 0) !== 1) {
+    return responseJson({
+      ok: false,
+      error: 'Pass exactly one of "expression" (single JS expression) or "script" (multi-statement body, wrapped in an IIFE).',
+    }, 400);
   }
+  const source = script ? `(() => {\n${script}\n})()` : expression;
 
   try {
-    const value = await evaluateCanvasAutomationWebView(expression);
+    const value = await evaluateCanvasAutomationWebView(source);
     return responseJson({ ok: true, value });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -3435,6 +3458,10 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           // Canvas state API
           if (url.pathname === '/api/canvas/state' && req.method === 'GET') {
             return responseJson(serializeCanvasLayout(canvasState.getLayout()));
+          }
+
+          if (url.pathname === '/api/canvas/summary' && req.method === 'GET') {
+            return responseJson(buildCanvasSummary());
           }
 
           if (url.pathname === '/api/canvas/update' && req.method === 'POST') {

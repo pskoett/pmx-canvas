@@ -25,8 +25,9 @@ Initial public release.
 - Code graph with auto-detected `depends-on` edges between file nodes
   (JavaScript/TypeScript, Python, Go, Rust).
 - Resource change notifications so agents observe human curation in real time.
-- MCP server with 36 tools and 7 resources; stdio transport via
-  `@modelcontextprotocol/sdk`.
+- MCP server with 38 tools and 7 resources; stdio transport via
+  `@modelcontextprotocol/sdk`. Includes `canvas_add_diagram`, a preset that
+  renders hand-drawn diagrams via the hosted Excalidraw MCP app.
 - HTTP API plus Server-Sent Events stream for live updates.
 - TypeScript/Bun SDK (`import { createCanvas } from 'pmx-canvas'`).
 - Daemonized server via `pmx-canvas serve --daemon` with pid + log tracking.

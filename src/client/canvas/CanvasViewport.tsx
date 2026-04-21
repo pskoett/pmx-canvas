@@ -130,7 +130,7 @@ function hasUrlPayload(dataTransfer: DataTransfer | null): boolean {
 
 function isEditableElement(element: Element | null): boolean {
   if (!(element instanceof HTMLElement)) return false;
-  return Boolean(element.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""], .md-block-edit, .md-editor-split'));
+  return Boolean(element.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]'));
 }
 
 function nodeTypeFromFilename(name: string): 'image' | 'markdown' | 'file' {

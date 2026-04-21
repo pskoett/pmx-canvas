@@ -35,7 +35,7 @@ import { emitPrimaryWorkbenchEvent } from '../server/server.js';
 import { searchNodes, buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
 import { mutationHistory, diffLayouts, formatDiff } from '../server/mutation-history.js';
 import { buildCodeGraphSummary, formatCodeGraph } from '../server/code-graph.js';
-import { serializeCanvasLayout, serializeCanvasNode } from '../server/canvas-serialization.js';
+import { buildCanvasSummary, serializeCanvasLayout, serializeCanvasNode } from '../server/canvas-serialization.js';
 
 let canvas: PmxCanvas | null = null;
 
@@ -1053,34 +1053,13 @@ export async function startMcpServer(): Promise<void> {
       mimeType: 'application/json',
     },
     async () => {
-      const c = await ensureCanvas();
-      const layout = c.getLayout();
-      const pinnedIds = canvasState.contextPinnedNodeIds;
-
-      const typeCounts: Record<string, number> = {};
-      for (const n of layout.nodes) {
-        typeCounts[n.type] = (typeCounts[n.type] ?? 0) + 1;
-      }
-
-      const pinnedTitles = layout.nodes
-        .filter((n) => pinnedIds.has(n.id))
-        .map((n) => (n.data.title as string) ?? n.id);
-
-      const summary = {
-        totalNodes: layout.nodes.length,
-        totalEdges: layout.edges.length,
-        nodesByType: typeCounts,
-        pinnedCount: pinnedIds.size,
-        pinnedTitles,
-        viewport: layout.viewport,
-      };
-
+      await ensureCanvas();
       return {
         contents: [
           {
             uri: 'canvas://summary',
             mimeType: 'application/json',
-            text: JSON.stringify(summary, null, 2),
+            text: JSON.stringify(buildCanvasSummary(), null, 2),
           },
         ],
       };

@@ -1,4 +1,5 @@
-import type { CanvasLayout, CanvasNodeState } from './canvas-state.js';
+import { canvasState } from './canvas-state.js';
+import type { CanvasLayout, CanvasNodeState, ViewportState } from './canvas-state.js';
 
 export interface SerializedCanvasNode extends CanvasNodeState {
   title: string | null;
@@ -45,5 +46,37 @@ export function serializeCanvasLayout(layout: CanvasLayout): SerializedCanvasLay
   return {
     ...layout,
     nodes: layout.nodes.map(serializeCanvasNode),
+  };
+}
+
+export interface CanvasSummary {
+  totalNodes: number;
+  totalEdges: number;
+  nodesByType: Record<string, number>;
+  pinnedCount: number;
+  pinnedTitles: string[];
+  viewport: ViewportState;
+}
+
+export function buildCanvasSummary(): CanvasSummary {
+  const layout = canvasState.getLayout();
+  const pinnedIds = canvasState.contextPinnedNodeIds;
+
+  const typeCounts: Record<string, number> = {};
+  for (const n of layout.nodes) {
+    typeCounts[n.type] = (typeCounts[n.type] ?? 0) + 1;
+  }
+
+  const pinnedTitles = layout.nodes
+    .filter((n) => pinnedIds.has(n.id))
+    .map((n) => getCanvasNodeTitle(n) ?? n.id);
+
+  return {
+    totalNodes: layout.nodes.length,
+    totalEdges: layout.edges.length,
+    nodesByType: typeCounts,
+    pinnedCount: pinnedIds.size,
+    pinnedTitles,
+    viewport: layout.viewport,
   };
 }
