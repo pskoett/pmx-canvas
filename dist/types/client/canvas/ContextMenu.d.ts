@@ -14,5 +14,5 @@ interface ContextMenuProps {
     nodeId: string;
     onClose: () => void;
 }
-export declare function ContextMenu({ x, y, nodeId, onClose }: ContextMenuProps): import("preact/src").JSX.Element | null;
+export declare function ContextMenu({ x, y, nodeId, onClose }: ContextMenuProps): import("preact").JSX.Element | null;
 export {};

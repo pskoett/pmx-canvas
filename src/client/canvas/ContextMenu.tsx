@@ -1,3 +1,4 @@
+import type { ComponentChildren } from 'preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import {
   contextPinnedNodeIds,
@@ -65,16 +66,30 @@ interface ContextMenuProps {
   onClose: () => void;
 }
 
+const DEFAULT_GROUP_COLOR = '#4bbcFF';
+
+const GROUP_COLOR_PRESETS = [
+  { label: 'Blue', value: '#3b82f6' },
+  { label: 'Green', value: '#22c55e' },
+  { label: 'Yellow', value: '#eab308' },
+  { label: 'Red', value: '#ef4444' },
+  { label: 'Gray', value: '#6b7280' },
+  { label: 'Purple', value: '#a855f7' },
+] as const;
+
 export function ContextMenu({ x, y, nodeId, onClose }: ContextMenuProps) {
   const node = nodes.value.get(nodeId);
   if (!node) return null;
 
   const items = buildMenuItems(node);
   const keyCounts = new Map<string, number>();
+  const estimatedHeight = items.some((item) => item.render)
+    ? items.length * 32 + 168
+    : items.length * 32 + 8;
 
   // Keep menu on screen
-  const adjustedX = Math.min(x, window.innerWidth - 200);
-  const adjustedY = Math.min(y, window.innerHeight - items.length * 32 - 8);
+  const adjustedX = Math.min(x, Math.max(12, window.innerWidth - 240));
+  const adjustedY = Math.min(y, Math.max(12, window.innerHeight - estimatedHeight));
 
   return (
     <div
@@ -86,10 +101,13 @@ export function ContextMenu({ x, y, nodeId, onClose }: ContextMenuProps) {
         zIndex: 10000,
       }}
       onPointerDown={(e) => e.stopPropagation()}
+      onClick={(e) => e.stopPropagation()}
     >
       {items.map((item) => {
         const baseKey = item.separator
           ? 'separator'
+          : item.render
+            ? 'custom'
           : `${item.label ?? 'item'}:${item.shortcut ?? ''}`;
         const nextCount = (keyCounts.get(baseKey) ?? 0) + 1;
         keyCounts.set(baseKey, nextCount);
@@ -97,6 +115,14 @@ export function ContextMenu({ x, y, nodeId, onClose }: ContextMenuProps) {
 
         if (item.separator) {
           return <div key={itemKey} class="context-menu-separator" />;
+        }
+
+        if (item.render) {
+          return (
+            <div key={itemKey} class="context-menu-custom">
+              {item.render(onClose)}
+            </div>
+          );
         }
 
         return (
@@ -123,11 +149,102 @@ interface MenuItem {
   shortcut?: string;
   action?: () => void;
   separator?: boolean;
+  render?: (onClose: () => void) => ComponentChildren;
 }
 
 function getNodeLocalPath(node: CanvasNodeState): string | null {
   const path = typeof node.data.path === 'string' ? node.data.path.trim() : '';
   return path || null;
+}
+
+function normalizeHexColor(color: string): string {
+  const trimmed = color.trim().toLowerCase();
+  const shortMatch = trimmed.match(/^#([0-9a-f]{3})$/);
+  if (shortMatch) {
+    const [r, g, b] = shortMatch[1].split('');
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+  return trimmed;
+}
+
+function currentGroupColor(node: CanvasNodeState): string | null {
+  if (typeof node.data.color !== 'string' || !node.data.color.trim()) return null;
+  return normalizeHexColor(node.data.color);
+}
+
+function groupColorInputValue(node: CanvasNodeState): string {
+  const color = currentGroupColor(node);
+  return color && /^#[0-9a-f]{6}$/.test(color) ? color : normalizeHexColor(DEFAULT_GROUP_COLOR);
+}
+
+function applyGroupColor(node: CanvasNodeState, color: string | null): void {
+  const nextColor = color ? normalizeHexColor(color) : null;
+  updateNode(node.id, { data: { ...node.data, color: nextColor } });
+  void updateNodeFromClient(node.id, { data: { color: nextColor } });
+}
+
+function renderGroupColorSection(node: CanvasNodeState, onClose: () => void): ComponentChildren {
+  const activeColor = currentGroupColor(node);
+
+  return (
+    <div class="context-menu-section">
+      <div class="context-menu-section-header">
+        <span class="context-menu-section-label">Group color</span>
+        <button
+          type="button"
+          class="context-menu-reset"
+          onClick={() => {
+            applyGroupColor(node, null);
+            onClose();
+          }}
+        >
+          Theme default
+        </button>
+      </div>
+
+      <div class="context-menu-color-grid">
+        {GROUP_COLOR_PRESETS.map((preset) => {
+          const normalizedPreset = normalizeHexColor(preset.value);
+          const active = activeColor === normalizedPreset;
+          return (
+            <button
+              key={preset.value}
+              type="button"
+              class={`context-menu-color-swatch${active ? ' active' : ''}`}
+              aria-label={`Set group color to ${preset.label}`}
+              title={preset.label}
+              style={{ '--swatch-color': preset.value }}
+              onClick={() => {
+                applyGroupColor(node, preset.value);
+                onClose();
+              }}
+            >
+              <span
+                class="context-menu-color-dot"
+                style={{ '--swatch-color': preset.value }}
+              />
+              <span>{preset.label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      <label class="context-menu-color-custom">
+        <span>Custom</span>
+        <input
+          type="color"
+          class="context-menu-color-input"
+          aria-label="Custom group color"
+          value={groupColorInputValue(node)}
+          onClick={(e) => e.stopPropagation()}
+          onInput={(e) => {
+            applyGroupColor(node, (e.currentTarget as HTMLInputElement).value);
+            onClose();
+          }}
+        />
+      </label>
+    </div>
+  );
 }
 
 function buildMenuItems(node: CanvasNodeState): MenuItem[] {
@@ -286,6 +403,9 @@ function buildMenuItems(node: CanvasNodeState): MenuItem[] {
   if (node.type === 'group') {
     const childIds = (node.data.children as string[]) ?? [];
     items.push({ separator: true });
+    items.push({
+      render: (onClose) => renderGroupColorSection(node, onClose),
+    });
     if (childIds.length > 0) {
       items.push({
         label: `Ungroup (${childIds.length} node${childIds.length !== 1 ? 's' : ''})`,

@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { resetAttentionBridge, syncAttentionFromSse } from '../../src/client/state/attention-bridge.ts';
 import {
   attentionHistory,
+  attentionHistoryOpen,
   attentionPrimaryNodeIds,
   attentionRegions,
   attentionSecondaryNodeIds,
@@ -61,6 +62,7 @@ describe('attention bridge', () => {
     expect(attentionToast.value?.title).toBe('Context updated');
     expect(attentionToast.value?.detail).toContain('Bug report');
     expect(attentionHistory.value[0]?.title).toBe('Context updated');
+    expect(attentionHistoryOpen.value).toBe(true);
   });
 
   test('promotes nearby nodes into the focus field when neighborhood semantics change', () => {

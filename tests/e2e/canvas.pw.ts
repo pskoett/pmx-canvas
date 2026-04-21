@@ -374,6 +374,69 @@ test('ordinary node pin updates the authoritative canvas state', async ({ page, 
   }).toBe(true);
 });
 
+test('group context menu updates the group accent color', async ({ page, request }) => {
+  const createResponse = await request.post('/api/canvas/group', {
+    data: {
+      title: 'Color group',
+      x: 520,
+      y: 240,
+      width: 520,
+      height: 280,
+    },
+  });
+  const created = await createResponse.json() as { id: string };
+
+  await page.goto('/workbench');
+
+  const group = page.locator('.canvas-node.group-node').filter({ hasText: 'Color group' });
+  await expect(group).toHaveCount(1);
+
+  await group.click({ button: 'right' });
+  await page.getByRole('button', { name: 'Set group color to Green' }).click();
+
+  await expect.poll(async () => {
+    const response = await request.get(`/api/canvas/node/${created.id}`);
+    const node = await response.json() as { data: Record<string, unknown> };
+    return node.data.color;
+  }).toBe('#22c55e');
+
+  await expect(group).toHaveCSS('border-top-color', 'rgb(34, 197, 94)');
+});
+
+test('light theme uses a high-contrast blue for context-pinned nodes', async ({ page, request }) => {
+  const createResponse = await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Light theme pin',
+      content: 'Pinned in light theme',
+      x: 640,
+      y: 260,
+    },
+  });
+  const created = await createResponse.json() as { id: string };
+
+  await page.goto('/workbench');
+  await page.evaluate(() => {
+    document.documentElement.setAttribute('data-theme', 'light');
+  });
+
+  const note = page.locator('.canvas-node').filter({ hasText: 'Light theme pin' });
+  await expect(note).toHaveCount(1);
+
+  await note.locator('.ctx-pin-btn').click();
+
+  await expect.poll(async () => {
+    const response = await request.get('/api/canvas/pinned-context');
+    const pinned = await response.json() as { nodeIds: string[] };
+    return pinned.nodeIds;
+  }).toContain(created.id);
+
+  await expect(note).toHaveCSS('border-top-color', 'rgb(75, 188, 255)');
+  await expect.poll(async () => {
+    return await note.evaluate((element) => getComputedStyle(element).boxShadow);
+  }).toContain('75, 188, 255');
+});
+
 test('server-side focus updates the browser viewport', async ({ page, request }) => {
   const createResponse = await request.post('/api/canvas/node', {
     data: {

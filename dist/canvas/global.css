@@ -935,47 +935,81 @@ body,
   box-shadow: 0 4px 20px var(--c-glow-accent);
 }
 
-/* ── Inline block editing (reader mode) ────────────────── */
-.md-reader-inline-editable > div > *:not(.md-block-edit-wrap) {
-  cursor: text;
-  border-radius: 4px;
-  padding: 2px 4px;
-  margin-left: -4px;
-  margin-right: -4px;
-  transition: background 0.1s ease;
-}
-
-.md-reader-inline-editable > div > *:not(.md-block-edit-wrap):hover {
-  background: var(--c-surface-subtle);
-}
-
-.md-block-edit-wrap {
-  margin: 0.5em 0;
-}
-
-.md-block-edit {
-  width: 100%;
-  resize: none;
-  font: 15px / 1.75 var(--mono);
-  color: var(--c-text);
-  background: var(--c-panel-soft);
-  border: 1px solid var(--c-accent);
-  border-radius: var(--radius-sm);
-  padding: 12px;
+/* ── Inline WYSIWYG editor (contentEditable on the rendered HTML) ─
+   The .md-reader-content styles above already give us the reading
+   typography; we just need to strip the browser's contentEditable chrome
+   and make the caret visible. */
+.md-reader-editable {
   outline: none;
-  min-height: 48px;
-  box-shadow: 0 0 0 1px var(--c-accent), 0 4px 16px var(--c-accent-10);
+  caret-color: var(--c-accent);
+  cursor: text;
 }
 
-.md-block-edit:focus {
-  border-color: var(--c-accent);
+.md-reader-editable:focus {
+  outline: none;
 }
 
-.md-block-edit-actions {
+.md-reader-editable::selection,
+.md-reader-editable *::selection {
+  background: var(--c-accent-25);
+}
+
+/* ── Inline selection toolbar (contentEditable WYSIWYG) ────────── */
+.md-inline-format-bar {
+  position: fixed;
+  z-index: 10002; /* above the expanded overlay (z-index 10001) */
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 6px 0;
+  gap: 2px;
+  padding: 4px 6px;
+  background: var(--c-panel-glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--c-line);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px var(--c-shadow), 0 0 0 1px var(--c-line-30);
+  font-family: var(--font);
+  animation: md-inline-format-bar-in 0.1s ease-out;
+}
+
+@keyframes md-inline-format-bar-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+.md-inline-format-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 7px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  font: 600 12px var(--font);
+  color: var(--c-text-soft);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.md-inline-format-btn:hover {
+  background: var(--c-surface-hover);
+  color: var(--c-text);
+  border-color: var(--c-line);
+}
+
+.md-inline-format-btn:active {
+  background: var(--c-accent-12);
+  color: var(--c-accent);
+}
+
+.md-inline-format-divider {
+  width: 1px;
+  height: 18px;
+  background: var(--c-line);
+  margin: 0 3px;
+  flex-shrink: 0;
 }
 
 /* ── Markdown Format Bar (floating) ─────────────────────────── */
@@ -1039,10 +1073,6 @@ body,
   background: var(--c-line);
   margin: 0 3px;
   flex-shrink: 0;
-}
-
-.md-block-edit-preview {
-  transition: opacity 0.15s ease;
 }
 
 /* Auto-fit transition */
@@ -1111,7 +1141,7 @@ body,
   border: 1px solid var(--c-line);
   border-radius: var(--radius-sm);
   padding: 4px 0;
-  min-width: 180px;
+  min-width: 220px;
   box-shadow: 0 8px 32px var(--c-shadow-heavy);
 }
 
@@ -1145,6 +1175,115 @@ body,
   height: 1px;
   background: var(--c-line);
   margin: 4px 0;
+}
+
+.context-menu-custom {
+  padding: 0;
+}
+
+.context-menu-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 8px 12px 10px;
+}
+
+.context-menu-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.context-menu-section-label {
+  color: var(--c-muted);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.context-menu-reset {
+  background: none;
+  border: none;
+  color: var(--c-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  padding: 0;
+}
+
+.context-menu-reset:hover {
+  color: var(--c-accent);
+}
+
+.context-menu-color-grid {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.context-menu-color-swatch {
+  align-items: center;
+  background: var(--c-surface-subtle);
+  border: 1px solid var(--c-line);
+  border-radius: var(--radius-sm);
+  color: var(--c-text);
+  cursor: pointer;
+  display: inline-flex;
+  font: inherit;
+  font-size: 11px;
+  gap: 8px;
+  justify-content: flex-start;
+  padding: 6px 8px;
+  width: 100%;
+}
+
+.context-menu-color-swatch:hover {
+  background: var(--c-accent-8);
+  border-color: var(--c-accent-30);
+}
+
+.context-menu-color-swatch.active {
+  border-color: var(--swatch-color, var(--c-accent));
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--swatch-color, var(--c-accent)) 45%, transparent);
+}
+
+.context-menu-color-dot {
+  background: var(--swatch-color);
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--swatch-color) 60%, #000 40%);
+  flex: 0 0 auto;
+  height: 10px;
+  width: 10px;
+}
+
+.context-menu-color-custom {
+  align-items: center;
+  color: var(--c-muted);
+  display: flex;
+  font-size: 11px;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.context-menu-color-input {
+  appearance: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  height: 26px;
+  padding: 0;
+  width: 42px;
+}
+
+.context-menu-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.context-menu-color-input::-webkit-color-swatch {
+  border: 1px solid var(--c-line);
+  border-radius: 999px;
 }
 
 /* Edge labels */
@@ -1474,6 +1613,16 @@ body,
   color: var(--c-warn);
 }
 
+:root[data-theme="light"] .canvas-node.context-pinned {
+  border-color: #4BBCFF;
+  box-shadow: 0 0 0 2px #4BBCFF, 0 0 12px rgba(75, 188, 255, 0.28);
+}
+
+:root[data-theme="light"] .canvas-node.context-pinned .node-type-badge {
+  background: rgba(75, 188, 255, 0.14);
+  color: #1588CE;
+}
+
 /* ── Attention layer — human-facing semantic feedback ───────── */
 .canvas-node.attention-focus-primary {
   box-shadow:
@@ -1488,6 +1637,19 @@ body,
     var(--c-panel-soft);
 }
 
+:root[data-theme="light"] .canvas-node.attention-focus-primary {
+  box-shadow:
+    0 0 0 1px rgba(75, 188, 255, 0.72),
+    0 12px 34px rgba(75, 188, 255, 0.2),
+    inset 0 0 0 1px rgba(75, 188, 255, 0.18);
+}
+
+:root[data-theme="light"] .canvas-node.attention-focus-primary .node-titlebar {
+  background:
+    linear-gradient(90deg, rgba(75, 188, 255, 0.14), transparent 68%),
+    var(--c-panel-soft);
+}
+
 .canvas-node.attention-focus-secondary {
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--c-warn) 30%, transparent),
@@ -1499,8 +1661,23 @@ body,
   color: color-mix(in srgb, var(--c-warn) 88%, var(--c-text) 12%);
 }
 
+:root[data-theme="light"] .canvas-node.attention-focus-secondary {
+  box-shadow:
+    0 0 0 1px rgba(75, 188, 255, 0.32),
+    0 8px 24px rgba(75, 188, 255, 0.12);
+}
+
+:root[data-theme="light"] .canvas-node.attention-focus-secondary .node-type-badge {
+  background: rgba(75, 188, 255, 0.12);
+  color: #1588CE;
+}
+
 .canvas-node.attention-pulse {
   animation: attention-node-pulse 0.9s ease;
+}
+
+:root[data-theme="light"] .canvas-node.attention-pulse {
+  animation-name: attention-node-pulse-light;
 }
 
 @keyframes attention-node-pulse {
@@ -1515,6 +1692,24 @@ body,
     box-shadow:
       0 0 0 3px color-mix(in srgb, var(--c-warn) 35%, transparent),
       0 16px 34px color-mix(in srgb, var(--c-warn) 16%, transparent);
+  }
+  100% {
+    transform: translateZ(0) scale(1);
+  }
+}
+
+@keyframes attention-node-pulse-light {
+  0% {
+    transform: translateZ(0) scale(1);
+    box-shadow:
+      0 0 0 0 rgba(75, 188, 255, 0),
+      0 4px 24px var(--c-shadow);
+  }
+  38% {
+    transform: translateZ(0) scale(1.012);
+    box-shadow:
+      0 0 0 3px rgba(75, 188, 255, 0.32),
+      0 16px 34px rgba(75, 188, 255, 0.18);
   }
   100% {
     transform: translateZ(0) scale(1);
@@ -1553,6 +1748,25 @@ body,
   border: 1px solid color-mix(in srgb, var(--c-warn) 18%, transparent);
   background: radial-gradient(circle at 50% 50%, color-mix(in srgb, var(--c-warn) 9%, transparent), transparent 74%);
   box-shadow: 0 0 24px color-mix(in srgb, var(--c-warn) 10%, transparent);
+}
+
+:root[data-theme="light"] .attention-field-region {
+  background:
+    radial-gradient(circle at 25% 30%, rgba(75, 188, 255, 0.16), transparent 62%),
+    linear-gradient(135deg, rgba(75, 188, 255, 0.1), rgba(75, 188, 255, 0.05));
+  border: 1px solid rgba(75, 188, 255, 0.22);
+}
+
+:root[data-theme="light"] .attention-field-node.attention-field-primary {
+  border: 1px solid rgba(75, 188, 255, 0.4);
+  background: radial-gradient(circle at 50% 50%, rgba(75, 188, 255, 0.18), transparent 72%);
+  box-shadow: 0 0 38px rgba(75, 188, 255, 0.2);
+}
+
+:root[data-theme="light"] .attention-field-node.attention-field-secondary {
+  border: 1px solid rgba(75, 188, 255, 0.18);
+  background: radial-gradient(circle at 50% 50%, rgba(75, 188, 255, 0.1), transparent 74%);
+  box-shadow: 0 0 24px rgba(75, 188, 255, 0.12);
 }
 
 .attention-toast {
@@ -1968,10 +2182,10 @@ body,
   padding: 3px 10px;
   font-size: 11px;
   font-weight: 600;
-  background: var(--c-surface-hover);
+  background: var(--c-panel-soft);
   border: 1px solid var(--c-line);
   border-radius: var(--radius-sm);
-  color: var(--c-muted);
+  color: var(--c-text-soft);
   cursor: pointer;
   font-family: var(--font);
 }
@@ -2013,6 +2227,10 @@ body,
 .ctx-pin-btn.ctx-pin-active {
   color: var(--c-warn);
   opacity: 1 !important;
+}
+
+:root[data-theme="light"] .ctx-pin-btn.ctx-pin-active {
+  color: #4BBCFF;
 }
 
 /* ── Context pin HUD — top-right pill ────────────────────────── */
