@@ -24,7 +24,13 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { z } from 'zod';
-import { createCanvas, canvasState, type PmxCanvas } from '../server/index.js';
+import {
+  createCanvas,
+  canvasState,
+  describeCanvasSchema,
+  validateStructuredCanvasPayload,
+  type PmxCanvas,
+} from '../server/index.js';
 import { emitPrimaryWorkbenchEvent } from '../server/server.js';
 import { searchNodes, buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
 import { mutationHistory, diffLayouts, formatDiff } from '../server/mutation-history.js';
@@ -119,12 +125,13 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_add_node ────────────────────────────────────────────
   server.tool(
     'canvas_add_node',
-    'Add a node to the canvas. Returns the created node with normalized title/content and rendered geometry. Node types: markdown (rich content), status (compact indicator), context, ledger, trace, file (live file viewer — set content to a file path), image (set content to an image file path, data URI, or URL), webpage (set content to an http(s) URL so the server can fetch and cache page text), mcp-app. Use canvas_add_json_render_node, canvas_add_graph_node, and canvas_build_web_artifact for structured UI, graph, and artifact nodes.',
+    'Add a node to the canvas. Returns the created node with normalized title/content and rendered geometry. Node types: markdown (rich content), status (compact indicator), context, ledger, trace, file (live file viewer — set content to a file path), image (set content to an image file path, data URI, or URL), webpage (prefer url for the page URL; content is still accepted), mcp-app. Use canvas_add_json_render_node, canvas_add_graph_node, and canvas_build_web_artifact for structured UI, graph, and artifact nodes.',
     {
       type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'webpage', 'mcp-app', 'group'])
         .describe('Node type (prefer canvas_create_group for groups)'),
       title: z.string().optional().describe('Node title'),
       content: z.string().optional().describe('Node content (markdown for markdown nodes, file path for file nodes, image path/URL/data-URI for image nodes, URL for webpage nodes)'),
+      url: z.string().optional().describe('Canonical webpage URL field for webpage nodes. Overrides content when both are provided.'),
       x: z.number().optional().describe('X position (auto-placed if omitted)'),
       y: z.number().optional().describe('Y position (auto-placed if omitted)'),
       width: z.number().optional().describe('Width in pixels (default: 720)'),
@@ -133,15 +140,16 @@ export async function startMcpServer(): Promise<void> {
     async (input) => {
       const c = await ensureCanvas();
       if (input.type === 'webpage') {
-        if (!input.content) {
+        const url = input.url ?? input.content;
+        if (!url) {
           return {
-            content: [{ type: 'text', text: 'Webpage nodes require content to be the page URL.' }],
+            content: [{ type: 'text', text: 'Webpage nodes require a page URL via "url" (preferred) or "content".' }],
             isError: true,
           };
         }
         const result = await c.addWebpageNode({
           ...(typeof input.title === 'string' ? { title: input.title } : {}),
-          url: input.content,
+          url,
           ...(typeof input.x === 'number' ? { x: input.x } : {}),
           ...(typeof input.y === 'number' ? { y: input.y } : {}),
           ...(typeof input.width === 'number' ? { width: input.width } : {}),
@@ -156,6 +164,157 @@ export async function startMcpServer(): Promise<void> {
       return {
         content: [{ type: 'text', text: JSON.stringify(createdNodePayload(c, id), null, 2) }],
       };
+    },
+  );
+
+  server.tool(
+    'canvas_open_mcp_app',
+    'Connect to an external MCP server that declares a ui:// app resource, call the specified tool, and open the resulting MCP App inside a canvas mcp-app node.',
+    {
+      toolName: z.string().describe('Tool name on the external MCP server'),
+      serverName: z.string().optional().describe('Optional display name for the external MCP server'),
+      toolArguments: z.record(z.string(), z.unknown()).optional().describe('Arguments passed to the external tool call'),
+      title: z.string().optional().describe('Optional canvas node title override'),
+      x: z.number().optional().describe('X position (auto-placed if omitted)'),
+      y: z.number().optional().describe('Y position (auto-placed if omitted)'),
+      width: z.number().optional().describe('Width in pixels (default: 720)'),
+      height: z.number().optional().describe('Height in pixels (default: 500)'),
+      transport: z.union([
+        z.object({
+          type: z.literal('stdio'),
+          command: z.string().describe('Executable used to start the external MCP server'),
+          args: z.array(z.string()).optional().describe('Arguments for the executable'),
+          cwd: z.string().optional().describe('Optional working directory'),
+          env: z.record(z.string(), z.string()).optional().describe('Optional environment overrides'),
+        }),
+        z.object({
+          type: z.literal('http'),
+          url: z.string().describe('Streamable HTTP MCP endpoint URL'),
+          headers: z.record(z.string(), z.string()).optional().describe('Optional HTTP headers'),
+        }),
+      ]).describe('How PMX Canvas should connect to the external MCP server'),
+    },
+    async (input) => {
+      const c = await ensureCanvas();
+      try {
+        const result = await c.openMcpApp({
+          transport: input.transport,
+          toolName: input.toolName,
+          ...(typeof input.serverName === 'string' ? { serverName: input.serverName } : {}),
+          ...(input.toolArguments ? { toolArguments: input.toolArguments } : {}),
+          ...(typeof input.title === 'string' ? { title: input.title } : {}),
+          ...(typeof input.x === 'number' ? { x: input.x } : {}),
+          ...(typeof input.y === 'number' ? { y: input.y } : {}),
+          ...(typeof input.width === 'number' ? { width: input.width } : {}),
+          ...(typeof input.height === 'number' ? { height: input.height } : {}),
+        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    'canvas_add_diagram',
+    'Draw a hand-drawn diagram on the canvas via the hosted Excalidraw MCP app. Pass an array of Excalidraw elements (rectangles, ellipses, diamonds, arrows, text). The diagram opens inside an mcp-app node that supports fullscreen editing. For other MCP apps, use canvas_open_mcp_app.',
+    {
+      elements: z.union([
+        z.string().describe('JSON array string of Excalidraw elements'),
+        z.array(z.record(z.string(), z.unknown())).describe('Array of Excalidraw elements'),
+      ]).describe('Excalidraw elements to render. See https://github.com/excalidraw/excalidraw-mcp for the element format.'),
+      title: z.string().optional().describe('Optional canvas node title override'),
+      x: z.number().optional().describe('X position (auto-placed if omitted)'),
+      y: z.number().optional().describe('Y position (auto-placed if omitted)'),
+      width: z.number().optional().describe('Width in pixels (default: 720)'),
+      height: z.number().optional().describe('Height in pixels (default: 500)'),
+    },
+    async (input) => {
+      const c = await ensureCanvas();
+      try {
+        const result = await c.addDiagram({
+          elements: input.elements,
+          ...(typeof input.title === 'string' ? { title: input.title } : {}),
+          ...(typeof input.x === 'number' ? { x: input.x } : {}),
+          ...(typeof input.y === 'number' ? { y: input.y } : {}),
+          ...(typeof input.width === 'number' ? { width: input.width } : {}),
+          ...(typeof input.height === 'number' ? { height: input.height } : {}),
+        });
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
+  server.tool(
+    'canvas_describe_schema',
+    'Describe the current server-supported canvas create schemas, json-render component catalog, canonical examples, and related MCP entry points.',
+    {},
+    async () => ({
+      content: [{ type: 'text', text: JSON.stringify(describeCanvasSchema(), null, 2) }],
+    }),
+  );
+
+  server.tool(
+    'canvas_validate_spec',
+    'Validate a json-render spec or graph payload without creating a node. Returns the normalized json-render spec that the server would accept.',
+    {
+      type: z.enum(['json-render', 'graph']).describe('Structured payload type to validate'),
+      spec: jsonRenderSpecSchema.optional().describe('json-render spec to validate when type="json-render"'),
+      title: z.string().optional().describe('Optional graph title'),
+      graphType: z.string().optional().describe('Graph type when type="graph"'),
+      data: z.array(z.record(z.string(), z.unknown())).optional().describe('Graph dataset when type="graph"'),
+      xKey: z.string().optional().describe('X-axis key for line/bar graphs'),
+      yKey: z.string().optional().describe('Y-axis key for line/bar graphs'),
+      nameKey: z.string().optional().describe('Slice name key for pie graphs'),
+      valueKey: z.string().optional().describe('Slice value key for pie graphs'),
+      aggregate: z.enum(['sum', 'count', 'avg']).optional().describe('Optional aggregation for repeated keys'),
+      color: z.string().optional().describe('Optional graph color'),
+      height: z.number().optional().describe('Optional graph content height'),
+    },
+    async (input) => {
+      try {
+        const result = input.type === 'json-render'
+          ? validateStructuredCanvasPayload({
+              type: 'json-render',
+              spec: input.spec,
+            })
+          : validateStructuredCanvasPayload({
+              type: 'graph',
+              graph: {
+                title: input.title,
+                graphType: input.graphType ?? 'line',
+                data: input.data ?? [],
+                ...(typeof input.xKey === 'string' ? { xKey: input.xKey } : {}),
+                ...(typeof input.yKey === 'string' ? { yKey: input.yKey } : {}),
+                ...(typeof input.nameKey === 'string' ? { nameKey: input.nameKey } : {}),
+                ...(typeof input.valueKey === 'string' ? { valueKey: input.valueKey } : {}),
+                ...(typeof input.aggregate === 'string' ? { aggregate: input.aggregate } : {}),
+                ...(typeof input.color === 'string' ? { color: input.color } : {}),
+                ...(typeof input.height === 'number' ? { height: input.height } : {}),
+              },
+            });
+
+        return {
+          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+          isError: true,
+        };
+      }
     },
   );
 
@@ -190,6 +349,7 @@ export async function startMcpServer(): Promise<void> {
       projectPath: z.string().optional().describe('Optional workspace-relative reusable project path. Defaults to artifacts/.web-artifacts/<slug>'),
       outputPath: z.string().optional().describe('Optional workspace-relative HTML output path. Defaults to artifacts/<slug>.html'),
       openInCanvas: z.boolean().optional().describe('Open the generated artifact in canvas after build (default true)'),
+      includeLogs: z.boolean().optional().describe('Include raw build stdout/stderr in the response (default false)'),
       initScriptPath: z.string().optional().describe('Optional absolute script path override for tests/debugging'),
       bundleScriptPath: z.string().optional().describe('Optional absolute script path override for tests/debugging'),
       timeoutMs: z.number().optional().describe('Optional timeout in milliseconds for init and bundle commands'),
@@ -230,8 +390,11 @@ export async function startMcpServer(): Promise<void> {
               nodeId: result.nodeId,
               url: result.url,
               metadata: result.metadata,
-              stdout: result.stdout,
-              stderr: result.stderr,
+              logs: result.logs,
+              ...(input.includeLogs === true ? {
+                stdout: result.stdout,
+                stderr: result.stderr,
+              } : {}),
             }, null, 2),
           }],
         };
@@ -777,6 +940,25 @@ export async function startMcpServer(): Promise<void> {
   //
   // The human pins nodes on the canvas → those nodes become the agent's
   // working context. Spatial arrangement IS semantic curation.
+
+  server.resource(
+    'schema',
+    'canvas://schema',
+    {
+      description:
+        'Machine-readable create schemas, canonical examples, and json-render catalog details from the running PMX Canvas server version.',
+      mimeType: 'application/json',
+    },
+    async () => ({
+      contents: [
+        {
+          uri: 'canvas://schema',
+          mimeType: 'application/json',
+          text: JSON.stringify(describeCanvasSchema(), null, 2),
+        },
+      ],
+    }),
+  );
 
   server.resource(
     'pinned-context',

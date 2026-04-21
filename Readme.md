@@ -127,7 +127,7 @@ The canvas auto-starts on first tool call. Works with Claude Code, Cursor, Winds
 | `file` | Live file viewer with auto-update on disk changes |
 | `image` | Image viewer (file paths, data URIs, URLs) |
 | `webpage` | Persisted webpage snapshot with stored URL, extracted text, and refresh support |
-| `mcp-app` | Hosted MCP app iframes (Chart.js, Excalidraw, etc.) |
+| `mcp-app` | Hosted MCP app iframes (Excalidraw, Chart.js, etc.) -- see [MCP app nodes](#mcp-app-nodes) |
 | `json-render` | Structured UI from JSON specs |
 | `graph` | Line, bar, and pie charts |
 | `group` | Spatial container/frame that contains other nodes |
@@ -156,9 +156,55 @@ canvas_add_node({ type: 'file', content: 'src/server/index.ts' })
 Webpage nodes store the source URL on the node, fetch the page server-side, and cache extracted text for search, pins, and agent context. Saved canvases keep enough information for an agent to come back later and refresh the node from the original URL.
 
 ```typescript
-canvas_add_node({ type: 'webpage', content: 'https://example.com/docs' })
+canvas_add_node({ type: 'webpage', url: 'https://example.com/docs' }) // content still works, but url is canonical
 canvas_refresh_webpage_node({ id: 'node-abc123' })
 ```
+
+### MCP app nodes
+
+`mcp-app` nodes embed other MCP servers' UI resources (`ui://...`) directly on the canvas as
+sandboxed iframes. Any server that implements the [MCP Apps extension](https://modelcontextprotocol.io/docs/extensions/apps)
+can be opened as a node with `canvas_open_mcp_app`.
+
+#### Featured: Excalidraw (hand-drawn diagrams)
+
+[Excalidraw](https://github.com/excalidraw/excalidraw-mcp) ships a hosted MCP server at
+`https://mcp.excalidraw.com/mcp` that renders hand-drawn diagrams with streaming draw-on
+animations and fullscreen editing. PMX Canvas ships a preset so an agent can open an Excalidraw
+diagram in one call, without wiring the transport by hand:
+
+```typescript
+canvas_add_diagram({
+  elements: [
+    { type: 'rectangle', id: 'a', x: 80, y: 120, width: 180, height: 80,
+      roundness: { type: 3 }, backgroundColor: '#a5d8ff', fillStyle: 'solid',
+      label: { text: 'Agent', fontSize: 18 } },
+    { type: 'rectangle', id: 'b', x: 380, y: 120, width: 180, height: 80,
+      roundness: { type: 3 }, backgroundColor: '#d0bfff', fillStyle: 'solid',
+      label: { text: 'PMX Canvas', fontSize: 18 } },
+    { type: 'arrow', id: 'a1', x: 260, y: 160, width: 120, height: 0,
+      startBinding: { elementId: 'a' }, endBinding: { elementId: 'b' },
+      label: { text: 'adds nodes' } },
+  ],
+  title: 'Agent → Canvas',
+});
+```
+
+Under the hood this is just a thin alias for `canvas_open_mcp_app` with the Excalidraw transport
+preset. For any other MCP app, use `canvas_open_mcp_app` directly:
+
+```typescript
+canvas_open_mcp_app({
+  transport: { type: 'http', url: 'https://mcp.excalidraw.com/mcp' },
+  toolName: 'create_view',
+  serverName: 'Excalidraw',
+  toolArguments: { elements: '[ ... ]' },
+});
+```
+
+The canvas runs the tool against the remote MCP server, renders the returned `ui://` resource in
+a sandboxed iframe node, and keeps the resource's CSP + permission hints intact. Resize, drag,
+and pin the node like any other canvas node.
 
 ### Groups
 
@@ -295,7 +341,7 @@ layout validation, graph/json-render nodes, group control, snapshots, and search
 
 ### MCP server
 
-32 tools + 6 resources. Zero config for any MCP-capable agent.
+38 tools + 7 resources. Zero config for any MCP-capable agent.
 
 <details>
 <summary>MCP tools</summary>
@@ -303,6 +349,10 @@ layout validation, graph/json-render nodes, group control, snapshots, and search
 | Tool | Description |
 |------|-------------|
 | `canvas_add_node` | Add a node (markdown, status, context, file, webpage, etc.) |
+| `canvas_add_diagram` | Draw a hand-drawn diagram via the hosted Excalidraw MCP app (preset alias for `canvas_open_mcp_app`) |
+| `canvas_open_mcp_app` | Open any [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) server's `ui://` resource as an iframe node |
+| `canvas_describe_schema` | Describe the running server's create schemas, examples, and json-render catalog |
+| `canvas_validate_spec` | Validate a json-render spec or graph payload without creating a node |
 | `canvas_refresh_webpage_node` | Re-fetch and update a webpage node from its stored URL |
 | `canvas_add_json_render_node` | Create a native json-render node from a validated spec |
 | `canvas_add_graph_node` | Create a native graph node (line, bar, pie) |
@@ -345,6 +395,7 @@ layout validation, graph/json-render nodes, group control, snapshots, and search
 | Resource | Description |
 |----------|-------------|
 | `canvas://pinned-context` | Content of pinned nodes + nearby unpinned neighbors |
+| `canvas://schema` | Running-server create schemas and json-render catalog metadata |
 | `canvas://layout` | Full canvas state (all nodes, edges, viewport) |
 | `canvas://summary` | Compact overview: counts, pinned titles, viewport |
 | `canvas://spatial-context` | Proximity clusters, reading order, pinned neighborhoods |
@@ -386,6 +437,11 @@ curl -X POST http://localhost:4313/api/canvas/context-pins \
 # Get pinned context
 curl http://localhost:4313/api/canvas/pinned-context
 
+# Draw a hand-drawn diagram via the Excalidraw MCP app preset
+curl -X POST http://localhost:4313/api/canvas/diagram \
+  -H "Content-Type: application/json" \
+  -d '{"elements":[{"type":"rectangle","id":"r1","x":60,"y":60,"width":180,"height":80,"roundness":{"type":3},"backgroundColor":"#a5d8ff","fillStyle":"solid","label":{"text":"Hello","fontSize":18}}],"title":"Diagram"}'
+
 # SSE event stream
 curl -N http://localhost:4313/api/workbench/events
 
@@ -421,6 +477,14 @@ curl -X POST http://localhost:4313/api/canvas/batch \
 # Validate the current layout
 curl http://localhost:4313/api/canvas/validate
 
+# Inspect running-server schemas
+curl http://localhost:4313/api/canvas/schema
+
+# Validate a json-render spec without creating a node
+curl -X POST http://localhost:4313/api/canvas/schema/validate \
+  -H "Content-Type: application/json" \
+  -d '{"type":"json-render","spec":{"root":"card","elements":{"card":{"type":"Card","props":{"title":"Preview"},"children":[]}}}}'
+
 # Undo / redo
 curl -X POST http://localhost:4313/api/canvas/undo
 curl -X POST http://localhost:4313/api/canvas/redo
@@ -448,6 +512,16 @@ canvas.addEdge({ from: n1, to: n2, type: 'flow' });
 
 // Group related nodes
 canvas.createGroup({ title: 'Build Pipeline', childIds: [n1, n2] });
+
+// Draw a hand-drawn diagram via the Excalidraw MCP-app preset
+await canvas.addDiagram({
+  elements: [
+    { type: 'rectangle', id: 'r1', x: 80, y: 80, width: 160, height: 60,
+      roundness: { type: 3 }, backgroundColor: '#a5d8ff', fillStyle: 'solid',
+      label: { text: 'Agent' } },
+  ],
+  title: 'Quick sketch',
+});
 
 // Batch-build a graph and group around it
 await canvas.runBatch([
@@ -498,13 +572,23 @@ pmx-canvas                        # Start canvas, open browser
 pmx-canvas --demo                 # Start with sample nodes
 pmx-canvas --port=8080            # Custom port
 pmx-canvas --no-open              # Headless (for agents)
+pmx-canvas serve --daemon --no-open   # Start a detached daemon and wait for health
+pmx-canvas serve status               # Inspect daemon health + pid state
+pmx-canvas serve stop                 # Stop the daemon for this port/pid file
 pmx-canvas --theme=light          # Light theme (dark, light, high-contrast)
 pmx-canvas --mcp                  # Run as MCP server (stdio)
 pmx-canvas --webview-automation   # Start headless Bun.WebView session
+pmx-canvas open                   # Open the current workbench in a browser
+pmx-canvas node add --type webpage --url https://example.com/docs
+pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx
+pmx-canvas node add --help --type webpage --json
 pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value
+pmx-canvas node schema --type json-render --component Table --summary
 pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation
 pmx-canvas batch --file ./canvas-ops.json
 pmx-canvas validate
+pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary
+pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --include-logs
 pmx-canvas webview status         # Show WebView automation status
 pmx-canvas webview start --backend chrome --width 1440 --height 900
 pmx-canvas webview evaluate --expression "document.title"
@@ -517,6 +601,7 @@ Use the CLI when you want:
 
 - direct terminal control without MCP wiring
 - shell scripts and CI-friendly automation
+- schema-driven discovery from the running server instead of guessing flags or payloads
 - local debugging of canvas, webview, and screenshot flows
 - a control surface that covers normal canvas work without MCP wiring
 
@@ -538,7 +623,7 @@ which makes scripting stacked layouts and batch follow-up operations easier.
 ```
 Agent (Claude Code / Codex / Cursor / any MCP client)
   |
-  |-- MCP Server ---- 32 tools + 6 resources + change notifications
+  |-- MCP Server ---- 36 tools + 7 resources + change notifications
   |-- Bun SDK ------- createCanvas()
   |-- HTTP API ------ REST + SSE at localhost:4313
   |

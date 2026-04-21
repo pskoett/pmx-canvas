@@ -1,3 +1,4 @@
+.pmx-canvas.json
 .pmx-canvas-snapshots/
 node_modules/
 playwright-report/

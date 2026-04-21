@@ -38,9 +38,26 @@ import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
 import { basename, extname, join, relative, resolve } from 'node:path';
 import * as marked from 'marked';
+import type {
+  ListPromptsResult,
+  ListResourcesResult,
+  ListResourceTemplatesResult,
+  ListToolsResult,
+} from '@modelcontextprotocol/sdk/types.js';
 import { type CanvasEdge, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
+import {
+  callMcpAppTool,
+  closeAllMcpAppSessions,
+  listMcpAppPrompts,
+  listMcpAppResources,
+  listMcpAppResourceTemplates,
+  listMcpAppTools,
+  openMcpApp,
+  readMcpAppResource,
+  type ExternalMcpTransportConfig,
+} from './mcp-app-runtime.js';
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import { diffLayouts, formatDiff, mutationHistory } from './mutation-history.js';
@@ -70,6 +87,8 @@ import {
   validateCanvasNodePatch,
 } from './canvas-operations.js';
 import { validateCanvasLayout } from './canvas-validation.js';
+import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
+import { buildExcalidrawOpenMcpAppInput } from './diagram-presets.js';
 import { traceManager } from './trace-manager.js';
 import { buildWebArtifactOnCanvas, resolveWorkspacePath } from './web-artifacts.js';
 import {
@@ -1301,12 +1320,75 @@ async function handleCanvasBuildWebArtifact(req: Request): Promise<Response> {
       nodeId: result.nodeId,
       url: result.url,
       metadata: result.metadata,
-      stdout: result.stdout,
-      stderr: result.stderr,
+      logs: result.logs,
+      ...(body.includeLogs === true ? {
+        stdout: result.stdout,
+        stderr: result.stderr,
+      } : {}),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return responseJson({ ok: false, error: message }, 400);
+  }
+}
+
+function handleCanvasDescribeSchema(): Response {
+  return responseJson(describeCanvasSchema());
+}
+
+async function handleCanvasValidateSpec(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const rawType = typeof body.type === 'string' ? body.type.trim() : '';
+  if (rawType !== 'json-render' && rawType !== 'graph') {
+    return responseJson({ ok: false, error: 'Validation type must be "json-render" or "graph".' }, 400);
+  }
+
+  try {
+    if (rawType === 'json-render') {
+      const rawSpec =
+        body.spec && typeof body.spec === 'object' && !Array.isArray(body.spec)
+          ? body.spec
+          : body;
+      return responseJson(validateStructuredCanvasPayload({
+        type: 'json-render',
+        spec: rawSpec,
+      }));
+    }
+
+    const data = Array.isArray(body.data)
+      ? body.data.filter((item: unknown) => item && typeof item === 'object') as Array<Record<string, unknown>>
+      : null;
+    if (!data) {
+      return responseJson({ ok: false, error: 'Graph validation requires a data array.' }, 400);
+    }
+
+    const aggregate =
+      body.aggregate === 'sum' || body.aggregate === 'count' || body.aggregate === 'avg'
+        ? body.aggregate
+        : undefined;
+
+    return responseJson(validateStructuredCanvasPayload({
+      type: 'graph',
+      graph: {
+        title: typeof body.title === 'string' && body.title.trim() ? body.title.trim() : 'Graph',
+        graphType: typeof body.graphType === 'string'
+          ? body.graphType
+          : typeof body.typeName === 'string'
+            ? body.typeName
+            : 'line',
+        data,
+        ...(typeof body.xKey === 'string' ? { xKey: body.xKey } : {}),
+        ...(typeof body.yKey === 'string' ? { yKey: body.yKey } : {}),
+        ...(typeof body.nameKey === 'string' ? { nameKey: body.nameKey } : {}),
+        ...(typeof body.valueKey === 'string' ? { valueKey: body.valueKey } : {}),
+        ...(aggregate ? { aggregate } : {}),
+        ...(typeof body.color === 'string' ? { color: body.color } : {}),
+        ...(typeof body.height === 'number' ? { height: body.height } : {}),
+      },
+    }));
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return responseJson({ ok: false, error: message, type: rawType }, 400);
   }
 }
 
@@ -1606,6 +1688,300 @@ function handleRead(pathLike: string): Response {
     content,
     updatedAt: new Date(stat.mtimeMs).toISOString(),
   });
+}
+
+function randomExtAppToolCallId(): string {
+  return `ext-app-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeStringRecord(value: unknown): Record<string, string> | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
+  const entries = Object.entries(value)
+    .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    .map(([key, text]) => [key, text.trim()] as const)
+    .filter(([, text]) => text.length > 0);
+  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
+function parseExternalMcpTransportConfig(body: Record<string, unknown>): ExternalMcpTransportConfig | null {
+  const transport = body.transport;
+  if (!transport || typeof transport !== 'object' || Array.isArray(transport)) return null;
+  const transportRecord = transport as Record<string, unknown>;
+
+  const type = typeof transportRecord.type === 'string' ? transportRecord.type : '';
+  if (type === 'http') {
+    const url = typeof transportRecord.url === 'string' ? transportRecord.url.trim() : '';
+    if (!url) return null;
+    const headers = normalizeStringRecord(transportRecord.headers);
+    return {
+      type: 'http',
+      url,
+      ...(headers ? { headers } : {}),
+    };
+  }
+
+  if (type === 'stdio') {
+    const command = typeof transportRecord.command === 'string' ? transportRecord.command.trim() : '';
+    if (!command) return null;
+    const env = normalizeStringRecord(transportRecord.env);
+    return {
+      type: 'stdio',
+      command,
+      ...(Array.isArray(transportRecord.args)
+        ? { args: transportRecord.args.filter((value: unknown): value is string => typeof value === 'string') }
+        : {}),
+      ...(typeof transportRecord.cwd === 'string' && transportRecord.cwd.trim().length > 0 ? { cwd: transportRecord.cwd } : {}),
+      ...(env ? { env } : {}),
+    };
+  }
+
+  return null;
+}
+
+interface RunAndEmitOpenMcpAppParams {
+  transport: ExternalMcpTransportConfig;
+  toolName: string;
+  toolArguments?: Record<string, unknown>;
+  serverName?: string;
+  title?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+}
+
+async function runAndEmitOpenMcpApp(params: RunAndEmitOpenMcpAppParams): Promise<Response> {
+  try {
+    const opened = await openMcpApp({
+      transport: params.transport,
+      toolName: params.toolName,
+      ...(params.toolArguments ? { toolArguments: params.toolArguments } : {}),
+      ...(params.serverName ? { serverName: params.serverName } : {}),
+    });
+
+    const toolCallId = randomExtAppToolCallId();
+    const nodeTitle = params.title ?? opened.tool.title ?? opened.tool.name;
+
+    emitPrimaryWorkbenchEvent('ext-app-open', {
+      toolCallId,
+      title: nodeTitle,
+      html: opened.html,
+      toolInput: opened.toolInput,
+      serverName: opened.serverName,
+      toolName: opened.toolName,
+      appSessionId: opened.sessionId,
+      resourceUri: opened.resourceUri,
+      toolDefinition: opened.tool,
+      ...(opened.resourceMeta ? { resourceMeta: opened.resourceMeta } : {}),
+      ...(typeof params.x === 'number' ? { x: params.x } : {}),
+      ...(typeof params.y === 'number' ? { y: params.y } : {}),
+      ...(typeof params.width === 'number' ? { width: params.width } : {}),
+      ...(typeof params.height === 'number' ? { height: params.height } : {}),
+    });
+    emitPrimaryWorkbenchEvent('ext-app-result', {
+      toolCallId,
+      serverName: opened.serverName,
+      toolName: opened.toolName,
+      success: opened.toolResult.isError !== true,
+      result: opened.toolResult,
+    });
+
+    return responseJson({
+      ok: true,
+      toolCallId,
+      sessionId: opened.sessionId,
+      resourceUri: opened.resourceUri,
+      serverName: opened.serverName,
+      toolName: opened.toolName,
+    });
+  } catch (error) {
+    return responseJson({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    }, 400);
+  }
+}
+
+async function handleCanvasOpenMcpApp(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const transport = parseExternalMcpTransportConfig(body);
+  const toolName = typeof body.toolName === 'string' ? body.toolName.trim() : '';
+  if (!transport || !toolName) {
+    return responseJson({ ok: false, error: 'Missing valid transport or toolName.' }, 400);
+  }
+
+  const toolArguments =
+    body.toolArguments && typeof body.toolArguments === 'object' && !Array.isArray(body.toolArguments)
+      ? body.toolArguments as Record<string, unknown>
+      : undefined;
+
+  const requestedTitle = typeof body.title === 'string' && body.title.trim().length > 0
+    ? body.title.trim()
+    : undefined;
+  const requestedServerName = typeof body.serverName === 'string' && body.serverName.trim().length > 0
+    ? body.serverName.trim()
+    : undefined;
+
+  return runAndEmitOpenMcpApp({
+    transport,
+    toolName,
+    ...(toolArguments ? { toolArguments } : {}),
+    ...(requestedServerName ? { serverName: requestedServerName } : {}),
+    ...(requestedTitle ? { title: requestedTitle } : {}),
+    ...(typeof body.x === 'number' ? { x: body.x } : {}),
+    ...(typeof body.y === 'number' ? { y: body.y } : {}),
+    ...(typeof body.width === 'number' ? { width: body.width } : {}),
+    ...(typeof body.height === 'number' ? { height: body.height } : {}),
+  });
+}
+
+async function handleCanvasAddDiagram(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  let built;
+  try {
+    built = buildExcalidrawOpenMcpAppInput({
+      elements: body.elements,
+      ...(typeof body.title === 'string' ? { title: body.title } : {}),
+      ...(typeof body.x === 'number' ? { x: body.x } : {}),
+      ...(typeof body.y === 'number' ? { y: body.y } : {}),
+      ...(typeof body.width === 'number' ? { width: body.width } : {}),
+      ...(typeof body.height === 'number' ? { height: body.height } : {}),
+    });
+  } catch (error) {
+    return responseJson({
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    }, 400);
+  }
+  return runAndEmitOpenMcpApp({
+    transport: built.transport,
+    toolName: built.toolName,
+    toolArguments: built.toolArguments,
+    serverName: built.serverName,
+    ...(built.title ? { title: built.title } : {}),
+    ...(typeof built.x === 'number' ? { x: built.x } : {}),
+    ...(typeof built.y === 'number' ? { y: built.y } : {}),
+    ...(typeof built.width === 'number' ? { width: built.width } : {}),
+    ...(typeof built.height === 'number' ? { height: built.height } : {}),
+  });
+}
+
+async function handleExtAppCallTool(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
+  const toolName = typeof body.toolName === 'string' ? body.toolName.trim() : '';
+  if (!sessionId || !toolName) {
+    return responseJson({ ok: false, error: 'Missing sessionId or toolName.' }, 400);
+  }
+
+  const args =
+    body.arguments && typeof body.arguments === 'object' && !Array.isArray(body.arguments)
+      ? body.arguments as Record<string, unknown>
+      : undefined;
+
+  try {
+    const result = await callMcpAppTool(sessionId, toolName, args);
+    return responseJson({ ok: true, result });
+  } catch (error) {
+    return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
+  }
+}
+
+async function handleExtAppReadResource(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
+  const uri = typeof body.uri === 'string' ? body.uri.trim() : '';
+  if (!sessionId || !uri) {
+    return responseJson({ ok: false, error: 'Missing sessionId or uri.' }, 400);
+  }
+
+  try {
+    const result = await readMcpAppResource(sessionId, uri);
+    return responseJson({ ok: true, result });
+  } catch (error) {
+    return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
+  }
+}
+
+async function handleExtAppListTools(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
+  if (!sessionId) return responseJson({ ok: false, error: 'Missing sessionId.' }, 400);
+
+  try {
+    const result: ListToolsResult = await listMcpAppTools(sessionId);
+    return responseJson({ ok: true, result });
+  } catch (error) {
+    return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
+  }
+}
+
+async function handleExtAppListResources(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
+  if (!sessionId) return responseJson({ ok: false, error: 'Missing sessionId.' }, 400);
+
+  try {
+    const result: ListResourcesResult = await listMcpAppResources(sessionId);
+    return responseJson({ ok: true, result });
+  } catch (error) {
+    return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
+  }
+}
+
+async function handleExtAppListResourceTemplates(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
+  if (!sessionId) return responseJson({ ok: false, error: 'Missing sessionId.' }, 400);
+
+  try {
+    const result: ListResourceTemplatesResult = await listMcpAppResourceTemplates(sessionId);
+    return responseJson({ ok: true, result });
+  } catch (error) {
+    return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
+  }
+}
+
+async function handleExtAppListPrompts(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
+  if (!sessionId) return responseJson({ ok: false, error: 'Missing sessionId.' }, 400);
+
+  try {
+    const result: ListPromptsResult = await listMcpAppPrompts(sessionId);
+    return responseJson({ ok: true, result });
+  } catch (error) {
+    return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
+  }
+}
+
+async function handleExtAppModelContext(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const nodeId = typeof body.nodeId === 'string' ? body.nodeId.trim() : '';
+  if (!nodeId) return responseJson({ ok: false, error: 'Missing nodeId.' }, 400);
+
+  const node = canvasState.getNode(nodeId);
+  if (!node) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
+
+  canvasState.updateNode(nodeId, {
+    data: {
+      ...node.data,
+      appModelContext: {
+        ...(Array.isArray(body.content) ? { content: body.content } : {}),
+        ...(body.structuredContent && typeof body.structuredContent === 'object' && !Array.isArray(body.structuredContent)
+          ? { structuredContent: body.structuredContent }
+          : {}),
+        updatedAt: new Date().toISOString(),
+      },
+    },
+  });
+
+  broadcastWorkbenchEvent('canvas-layout-update', {
+    layout: canvasState.getLayout(),
+    sessionId: primaryWorkbenchSessionId,
+    timestamp: new Date().toISOString(),
+  });
+  return responseJson({ ok: true });
 }
 
 function handleWorkbenchState(): Response {
@@ -2575,6 +2951,10 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
       toolInput: payload.toolInput,
       serverName: payload.serverName,
       toolName: payload.toolName,
+      appSessionId: payload.appSessionId,
+      resourceUri: payload.resourceUri,
+      toolDefinition: payload.toolDefinition,
+      resourceMeta: payload.resourceMeta,
       hostMode: 'hosted',
       trustedDomain: true,
       ...(payload.chartConfig ? { chartConfig: payload.chartConfig } : {}),
@@ -3061,6 +3441,14 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleCanvasUpdate(req);
           }
 
+          if (url.pathname === '/api/canvas/schema' && req.method === 'GET') {
+            return handleCanvasDescribeSchema();
+          }
+
+          if (url.pathname === '/api/canvas/schema/validate' && req.method === 'POST') {
+            return handleCanvasValidateSpec(req);
+          }
+
           if (url.pathname === '/api/canvas/batch' && req.method === 'POST') {
             return handleCanvasBatch(req);
           }
@@ -3071,6 +3459,14 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/node' && req.method === 'POST') {
             return handleCanvasAddNode(req);
+          }
+
+          if (url.pathname === '/api/canvas/mcp-app/open' && req.method === 'POST') {
+            return handleCanvasOpenMcpApp(req);
+          }
+
+          if (url.pathname === '/api/canvas/diagram' && req.method === 'POST') {
+            return handleCanvasAddDiagram(req);
           }
 
           if (url.pathname === '/api/canvas/web-artifact' && req.method === 'POST') {
@@ -3254,6 +3650,34 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleCanvasValidate();
           }
 
+          if (url.pathname === '/api/ext-app/call-tool' && req.method === 'POST') {
+            return handleExtAppCallTool(req);
+          }
+
+          if (url.pathname === '/api/ext-app/read-resource' && req.method === 'POST') {
+            return handleExtAppReadResource(req);
+          }
+
+          if (url.pathname === '/api/ext-app/list-tools' && req.method === 'POST') {
+            return handleExtAppListTools(req);
+          }
+
+          if (url.pathname === '/api/ext-app/list-resources' && req.method === 'POST') {
+            return handleExtAppListResources(req);
+          }
+
+          if (url.pathname === '/api/ext-app/list-resource-templates' && req.method === 'POST') {
+            return handleExtAppListResourceTemplates(req);
+          }
+
+          if (url.pathname === '/api/ext-app/list-prompts' && req.method === 'POST') {
+            return handleExtAppListPrompts(req);
+          }
+
+          if (url.pathname === '/api/ext-app/model-context' && req.method === 'POST') {
+            return handleExtAppModelContext(req);
+          }
+
           // Static files for canvas SPA bundle
           if (url.pathname.startsWith('/canvas/')) {
             const staticResponse = serveCanvasStatic(url.pathname);
@@ -3273,6 +3697,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 }
 
 export function stopCanvasServer(): void {
+  closeAllMcpAppSessions();
   void closeCanvasAutomationWebViewInternal().catch((error) => {
     logWorkbenchWarning('stopCanvasServer closeCanvasAutomationWebViewInternal', error);
   });

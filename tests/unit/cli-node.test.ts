@@ -284,6 +284,142 @@ describe('agent CLI node commands', () => {
     expect((node.data.spec as Record<string, unknown>).root).toBe('card');
   });
 
+  test('node add supports webpage nodes with the canonical --url flag', async () => {
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'node',
+        'add',
+        '--type',
+        'webpage',
+        '--title',
+        'CLI Webpage',
+        '--url',
+        'https://example.com/docs',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      id: string;
+      data: { url?: string };
+    };
+    expect(output.ok).toBe(true);
+    expect(output.data.url).toBe('https://example.com/docs');
+  }, 15000);
+
+  test('node add supports web-artifact as a symmetric create flow', async () => {
+    const appPath = join(workspaceRoot, 'NodeAddArtifact.tsx');
+    writeFileSync(appPath, 'export default function App() { return <main>Node add artifact</main>; }', 'utf-8');
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'node',
+        'add',
+        '--type',
+        'web-artifact',
+        '--title',
+        'Node Add Artifact',
+        '--app-file',
+        appPath,
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      openedInCanvas: boolean;
+      nodeId?: string;
+      url?: string;
+    };
+    expect(output.ok).toBe(true);
+    expect(output.openedInCanvas).toBe(true);
+    expect(output.nodeId).toBeDefined();
+    expect(output.url).toContain('/artifact?path=');
+  });
+
+  test('node schema and validate spec expose running-server schema/validation info', async () => {
+    const specPath = join(workspaceRoot, 'validation-dashboard.json');
+    writeFileSync(specPath, JSON.stringify({
+      root: 'table',
+      elements: {
+        table: {
+          type: 'Table',
+          props: {
+            columns: ['Metric', 'Value'],
+            rows: [
+              ['Builds', 12],
+              ['Deploys', 4],
+            ],
+          },
+          children: [],
+        },
+      },
+    }), 'utf-8');
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['node', 'schema', '--type', 'webpage', '--field', 'url']);
+      await runAgentCli(['node', 'schema', '--type', 'json-render', '--component', 'Table', '--summary']);
+      await runAgentCli(['node', 'add', '--help', '--type', 'webpage', '--json']);
+      await runAgentCli(['validate', 'spec', '--type', 'json-render', '--spec-file', specPath, '--summary']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    expect(log).toHaveBeenCalledTimes(4);
+
+    const webpageSchema = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      type: string;
+      field: { name: string; aliases?: string[] };
+    };
+    expect(webpageSchema.type).toBe('webpage');
+    expect(webpageSchema.field.name).toBe('url');
+    expect(webpageSchema.field.aliases).toContain('content');
+
+    const tableSummary = JSON.parse(log.mock.calls[1]?.[0] as string) as {
+      type: string;
+      requiredProps: string[];
+      optionalProps: string[];
+    };
+    expect(tableSummary.type).toBe('Table');
+    expect(tableSummary.requiredProps).toContain('columns');
+    expect(tableSummary.requiredProps).toContain('rows');
+    expect(tableSummary.requiredProps).not.toContain('caption');
+    expect(tableSummary.optionalProps).toContain('caption');
+
+    const webpageHelp = JSON.parse(log.mock.calls[2]?.[0] as string) as {
+      type: string;
+      endpoint: string;
+      fields: Array<{ name: string }>;
+    };
+    expect(webpageHelp.type).toBe('webpage');
+    expect(webpageHelp.endpoint).toBe('/api/canvas/node');
+    expect(webpageHelp.fields.some((field) => field.name === 'url')).toBe(true);
+
+    const validation = JSON.parse(log.mock.calls[3]?.[0] as string) as {
+      ok: boolean;
+      type: string;
+      summary: { elementCount: number };
+    };
+    expect(validation.ok).toBe(true);
+    expect(validation.type).toBe('json-render');
+    expect(validation.summary.elementCount).toBe(1);
+  });
+
   test('edge add supports search-based node resolution', async () => {
     const from = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
       method: 'POST',
@@ -521,6 +657,99 @@ describe('agent CLI node commands', () => {
       : null;
     expect(node?.type).toBe('mcp-app');
     expect(node?.data.title).toBe('CLI Artifact');
+  });
+
+  test('web-artifact build suppresses raw logs by default and includes them on demand', async () => {
+    const initScriptPath = join(workspaceRoot, 'emit-init.sh');
+    const bundleScriptPath = join(workspaceRoot, 'emit-bundle.sh');
+    writeFileSync(initScriptPath, `#!/bin/bash
+set -e
+PROJECT_NAME="$1"
+mkdir -p "$PROJECT_NAME/src"
+echo "init stdout"
+echo "init stderr" 1>&2
+cat > "$PROJECT_NAME/package.json" <<'EOF'
+{"name":"noisy-web-artifact"}
+EOF
+cat > "$PROJECT_NAME/index.html" <<'EOF'
+<!DOCTYPE html><html><body><div id="root"></div></body></html>
+EOF
+cat > "$PROJECT_NAME/src/main.tsx" <<'EOF'
+console.log("main");
+EOF
+cat > "$PROJECT_NAME/src/App.tsx" <<'EOF'
+export default function App() { return null; }
+EOF
+`, 'utf-8');
+    writeFileSync(bundleScriptPath, `#!/bin/bash
+set -e
+echo "bundle stdout"
+echo "bundle stderr" 1>&2
+echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
+`, 'utf-8');
+    await Bun.$`chmod +x ${initScriptPath} ${bundleScriptPath}`;
+
+    const appPath = join(workspaceRoot, 'NoisyApp.tsx');
+    writeFileSync(appPath, 'export default function App() { return <main>Noisy Artifact</main>; }', 'utf-8');
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'web-artifact',
+        'build',
+        '--title',
+        'Quiet Artifact',
+        '--app-file',
+        appPath,
+        '--init-script-path',
+        initScriptPath,
+        '--bundle-script-path',
+        bundleScriptPath,
+      ]);
+      await runAgentCli([
+        'web-artifact',
+        'build',
+        '--title',
+        'Verbose Artifact',
+        '--app-file',
+        appPath,
+        '--init-script-path',
+        initScriptPath,
+        '--bundle-script-path',
+        bundleScriptPath,
+        '--include-logs',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    expect(log).toHaveBeenCalledTimes(2);
+    const quietOutput = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      logs?: {
+        stdout?: { lineCount: number; excerpt: string[] };
+        stderr?: { lineCount: number; excerpt: string[] };
+      };
+      stdout?: string;
+      stderr?: string;
+    };
+    expect(quietOutput.ok).toBe(true);
+    expect(quietOutput.stdout).toBeUndefined();
+    expect(quietOutput.stderr).toBeUndefined();
+    expect(quietOutput.logs?.stdout?.lineCount).toBeGreaterThan(0);
+    expect(quietOutput.logs?.stderr?.excerpt).toContain('bundle stderr');
+
+    const verboseOutput = JSON.parse(log.mock.calls[1]?.[0] as string) as {
+      ok: boolean;
+      stdout?: string;
+      stderr?: string;
+    };
+    expect(verboseOutput.ok).toBe(true);
+    expect(verboseOutput.stdout).toContain('bundle stdout');
+    expect(verboseOutput.stderr).toContain('bundle stderr');
   });
 
   test('node list and node get expose the same normalized title/content fields', async () => {

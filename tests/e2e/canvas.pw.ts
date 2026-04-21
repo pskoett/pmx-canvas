@@ -1,4 +1,5 @@
 import { expect, test, type Locator } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
 
 function toolbarTooltip(button: Locator): Locator {
   return button.locator('xpath=following-sibling::*[contains(@class,"toolbar-tooltip")]');
@@ -208,6 +209,45 @@ test('dropping a URL onto the canvas creates a webpage node', async ({ page, req
     const state = await currentCanvasState(request);
     return state.nodes.some((node) => node.type === 'webpage' && node.data.url === 'https://example.com/dropped-url');
   }).toBe(true);
+});
+
+test('hosts a standard MCP App node and proxies app-only tool calls', async ({ page, request }) => {
+  const fixturePath = fileURLToPath(new URL('../fixtures/mcp-app-fixture.ts', import.meta.url));
+
+  await page.goto('/workbench');
+
+  const openResponse = await request.post('/api/canvas/mcp-app/open', {
+    data: {
+      toolName: 'show_counter',
+      toolArguments: { initial: 2 },
+      transport: {
+        type: 'stdio',
+        command: 'bun',
+        args: ['run', fixturePath],
+        cwd: process.cwd(),
+      },
+    },
+  });
+  expect(openResponse.ok()).toBe(true);
+
+  const appNode = page.locator('.canvas-node').filter({ hasText: 'Counter App' });
+  await expect(appNode).toHaveCount(1);
+
+  const frame = appNode.frameLocator('iframe');
+  await expect(frame.getByText('Fixture Counter')).toBeVisible();
+  await expect(frame.locator('#count')).toHaveText('2');
+
+  await frame.getByRole('button', { name: 'Increment' }).click();
+  await expect(frame.locator('#count')).toHaveText('3');
+
+  await expect.poll(async () => {
+    const state = await currentCanvasState(request);
+    const hosted = state.nodes.find((node) => node.type === 'mcp-app' && node.data.title === 'Counter App');
+    const appModelContext = hosted?.data.appModelContext as
+      | { structuredContent?: { count?: number } }
+      | undefined;
+    return appModelContext?.structuredContent?.count ?? null;
+  }).toBe(3);
 });
 
 test('markdown edit opens focused inline editing before raw source mode', async ({ page, request }) => {

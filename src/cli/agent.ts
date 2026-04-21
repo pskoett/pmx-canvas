@@ -12,6 +12,7 @@
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
+import { openUrlInExternalBrowser } from '../server/server.js';
 import {
   ALL_SEMANTIC_WATCH_EVENT_TYPES,
   formatCompactWatchEvent,
@@ -23,6 +24,55 @@ import {
 // ── Helpers ──────────────────────────────────────────────────
 
 const DEFAULT_PORT = 4313;
+
+interface CanvasSchemaField {
+  name: string;
+  type: string;
+  required: boolean;
+  description: string;
+  aliases?: string[];
+}
+
+interface CanvasSchemaType {
+  type: string;
+  kind: 'node' | 'virtual-node';
+  description: string;
+  endpoint: string;
+  fields: CanvasSchemaField[];
+  example: Record<string, unknown>;
+  notes?: string[];
+}
+
+interface JsonRenderComponentSchema {
+  type: string;
+  description: string;
+  slots: string[];
+  example: unknown;
+  props: Array<{
+    name: string;
+    type: string;
+    required: boolean;
+    nullable: boolean;
+  }>;
+}
+
+interface CanvasSchemaResponse {
+  ok: true;
+  source: 'running-server';
+  version: string | null;
+  nodeTypes: CanvasSchemaType[];
+  jsonRender: {
+    rootShape: Record<string, string>;
+    components: JsonRenderComponentSchema[];
+  };
+  graph: {
+    graphTypes: Array<'line' | 'bar' | 'pie'>;
+  };
+  mcp: {
+    tools: string[];
+    resources: string[];
+  };
+}
 
 function getBaseUrl(): string {
   const envUrl = process.env.PMX_CANVAS_URL;
@@ -93,7 +143,8 @@ function parseFlags(args: string[]): { positional: string[]; flags: Record<strin
   // Boolean-only flags (never take a value argument)
   const BOOL_FLAGS = new Set([
     'help', 'h', 'ids', 'stdin', 'yes', 'list', 'clear', 'set', 'animated', 'dry-run',
-    'no-open-in-canvas', 'lock-arrange', 'unlock-arrange', 'json', 'compact',
+    'no-open-in-canvas', 'lock-arrange', 'unlock-arrange', 'json', 'compact', 'summary',
+    'verbose', 'include-logs',
   ]);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -125,6 +176,17 @@ function requireFlag(flags: Record<string, string | true>, name: string, hint: s
     die(`Missing required flag: --${name}`, hint);
   }
   return val;
+}
+
+function getStringFlag(
+  flags: Record<string, string | true>,
+  ...names: string[]
+): string | undefined {
+  for (const name of names) {
+    const value = flags[name];
+    if (typeof value === 'string' && value.length > 0) return value;
+  }
+  return undefined;
 }
 
 function optionalNumberFlag(flags: Record<string, string | true>, name: string, hint: string): number | undefined {
@@ -178,6 +240,406 @@ function parseRecordArrayJson(raw: string, hint: string): Array<Record<string, u
   return parsed;
 }
 
+function parseJsonValue(raw: string, label: string, hint: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    die(
+      `Invalid ${label}: ${error instanceof Error ? error.message : String(error)}`,
+      hint,
+    );
+  }
+}
+
+async function readTextInput(
+  flags: Record<string, string | true>,
+  options: {
+    fileFlags?: string[];
+    valueFlags?: string[];
+    allowStdin?: boolean;
+    label: string;
+    hint: string;
+    requiredMessage: string;
+  },
+): Promise<string> {
+  for (const name of options.fileFlags ?? []) {
+    const path = getStringFlag(flags, name);
+    if (!path) continue;
+    try {
+      return readFileSync(path, 'utf-8');
+    } catch (error) {
+      die(
+        `Unable to read --${name}: ${error instanceof Error ? error.message : String(error)}`,
+        options.hint,
+      );
+    }
+  }
+
+  for (const name of options.valueFlags ?? []) {
+    const value = getStringFlag(flags, name);
+    if (value !== undefined) return value;
+  }
+
+  if (options.allowStdin && flags.stdin) {
+    return await readStdin();
+  }
+
+  die(options.requiredMessage, options.hint);
+}
+
+function applyCommonGeometryFlags(
+  body: Record<string, unknown>,
+  flags: Record<string, string | true>,
+  hints: { x: string; y: string; width: string; height: string },
+): void {
+  const x = optionalFiniteFlag(flags, 'x', hints.x);
+  const y = optionalFiniteFlag(flags, 'y', hints.y);
+  const width = optionalPositiveFiniteFlag(flags, 'width', hints.width);
+  const height = optionalPositiveFiniteFlag(flags, 'height', hints.height);
+  if (x !== undefined) body.x = x;
+  if (y !== undefined) body.y = y;
+  if (width !== undefined) body.width = width;
+  if (height !== undefined) body.height = height;
+}
+
+async function buildJsonRenderRequestBody(
+  flags: Record<string, string | true>,
+): Promise<Record<string, unknown>> {
+  const hint =
+    'Use: pmx-canvas node add --type json-render --title "Ops Dashboard" --spec-file ./dashboard.json';
+  const title = typeof flags.title === 'string' ? flags.title.trim() : '';
+  if (!title) {
+    die('json-render nodes require --title.', hint);
+  }
+
+  const rawSpec = await readTextInput(flags, {
+    fileFlags: ['spec-file'],
+    valueFlags: ['spec-json'],
+    allowStdin: true,
+    label: 'JSON spec',
+    hint,
+    requiredMessage: 'json-render nodes require --spec-file, --spec-json, or --stdin.',
+  });
+
+  const spec = parseJsonValue(rawSpec, 'JSON spec', hint);
+  const body: Record<string, unknown> = { title, spec };
+  applyCommonGeometryFlags(body, flags, {
+    x: 'Use a finite number, e.g. --x 500',
+    y: 'Use a finite number, e.g. --y 300',
+    width: 'Use a positive number, e.g. --width 840',
+    height: 'Use a positive number, e.g. --height 620',
+  });
+  return body;
+}
+
+async function buildGraphRequestBody(
+  flags: Record<string, string | true>,
+): Promise<Record<string, unknown>> {
+  const hint =
+    'Use: pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value';
+  const rawData = await readTextInput(flags, {
+    fileFlags: ['data-file'],
+    valueFlags: ['data-json'],
+    allowStdin: true,
+    label: 'graph JSON dataset',
+    hint,
+    requiredMessage: 'Graph nodes require --data-file, --data-json, or --stdin JSON data.',
+  });
+  const data = parseRecordArrayJson(rawData, hint);
+
+  const body: Record<string, unknown> = {
+    graphType: getStringFlag(flags, 'graph-type') ?? 'line',
+    data,
+  };
+  if (typeof flags.title === 'string') body.title = flags.title;
+  if (typeof flags['x-key'] === 'string') body.xKey = flags['x-key'];
+  if (typeof flags['y-key'] === 'string') body.yKey = flags['y-key'];
+  if (typeof flags['name-key'] === 'string') body.nameKey = flags['name-key'];
+  if (typeof flags['value-key'] === 'string') body.valueKey = flags['value-key'];
+  if (flags.aggregate === 'sum' || flags.aggregate === 'count' || flags.aggregate === 'avg') {
+    body.aggregate = flags.aggregate;
+  }
+  if (typeof flags.color === 'string') body.color = flags.color;
+
+  const chartHeight = optionalPositiveFiniteFlag(flags, 'chart-height', 'Use a positive number, e.g. --chart-height 300');
+  const x = optionalFiniteFlag(flags, 'x', 'Use a finite number, e.g. --x 500');
+  const y = optionalFiniteFlag(flags, 'y', 'Use a finite number, e.g. --y 300');
+  const width = optionalPositiveFiniteFlag(flags, 'width', 'Use a positive number, e.g. --width 760');
+  const nodeHeight = optionalPositiveFiniteFlag(flags, 'height', 'Use a positive number, e.g. --height 520');
+  if (chartHeight !== undefined) body.height = chartHeight;
+  if (x !== undefined) body.x = x;
+  if (y !== undefined) body.y = y;
+  if (width !== undefined) body.width = width;
+  if (nodeHeight !== undefined) body.nodeHeight = nodeHeight;
+  return body;
+}
+
+async function buildWebArtifactRequestBody(
+  flags: Record<string, string | true>,
+): Promise<Record<string, unknown>> {
+  const hint = 'Use: pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx';
+  const title = requireFlag(flags, 'title', hint);
+  const appTsx = await readTextInput(flags, {
+    fileFlags: ['app-file'],
+    valueFlags: ['app-tsx'],
+    allowStdin: true,
+    label: 'App.tsx',
+    hint,
+    requiredMessage: 'web-artifact build requires --app-file, --app-tsx, or --stdin.',
+  });
+
+  const body: Record<string, unknown> = { title, appTsx };
+
+  const indexCssFile = getStringFlag(flags, 'index-css-file');
+  const indexCss = getStringFlag(flags, 'index-css');
+  if (indexCssFile) {
+    body.indexCss = readFileSync(indexCssFile, 'utf-8');
+  } else if (indexCss !== undefined) {
+    body.indexCss = indexCss;
+  }
+
+  const mainFile = getStringFlag(flags, 'main-file');
+  const mainTsx = getStringFlag(flags, 'main-tsx');
+  if (mainFile) {
+    body.mainTsx = readFileSync(mainFile, 'utf-8');
+  } else if (mainTsx !== undefined) {
+    body.mainTsx = mainTsx;
+  }
+
+  const indexHtmlFile = getStringFlag(flags, 'index-html-file');
+  const indexHtml = getStringFlag(flags, 'index-html');
+  if (indexHtmlFile) {
+    body.indexHtml = readFileSync(indexHtmlFile, 'utf-8');
+  } else if (indexHtml !== undefined) {
+    body.indexHtml = indexHtml;
+  }
+
+  if (typeof flags['project-path'] === 'string') body.projectPath = flags['project-path'];
+  if (typeof flags['output-path'] === 'string') body.outputPath = flags['output-path'];
+  if (typeof flags['init-script-path'] === 'string') body.initScriptPath = flags['init-script-path'];
+  if (typeof flags['bundle-script-path'] === 'string') body.bundleScriptPath = flags['bundle-script-path'];
+  if (flags['no-open-in-canvas']) body.openInCanvas = false;
+  if (flags.verbose || flags['include-logs']) body.includeLogs = true;
+
+  const timeoutMs = optionalPositiveFiniteFlag(flags, 'timeout-ms', 'Use a positive number, e.g. --timeout-ms 600000');
+  if (timeoutMs !== undefined) body.timeoutMs = timeoutMs;
+
+  return body;
+}
+
+async function runWebArtifactBuildCommand(flags: Record<string, string | true>): Promise<void> {
+  const result = await api('POST', '/api/canvas/web-artifact', await buildWebArtifactRequestBody(flags));
+  output(result);
+}
+
+async function loadCanvasSchema(): Promise<CanvasSchemaResponse> {
+  const result = await api('GET', '/api/canvas/schema');
+  return result as CanvasSchemaResponse;
+}
+
+function fieldMatches(field: { name: string; aliases?: string[] }, requested: string): boolean {
+  return field.name === requested || field.aliases?.includes(requested) === true;
+}
+
+function summarizeNodeSchema(schema: CanvasSchemaType): Record<string, unknown> {
+  return {
+    type: schema.type,
+    kind: schema.kind,
+    endpoint: schema.endpoint,
+    description: schema.description,
+    requiredFields: schema.fields.filter((field) => field.required).map((field) => field.name),
+    optionalFields: schema.fields.filter((field) => !field.required).map((field) => field.name),
+    exampleKeys: Object.keys(schema.example),
+  };
+}
+
+function summarizeJsonRenderComponent(component: JsonRenderComponentSchema): Record<string, unknown> {
+  return {
+    type: component.type,
+    description: component.description,
+    slots: component.slots,
+    requiredProps: component.props.filter((prop) => prop.required).map((prop) => prop.name),
+    optionalProps: component.props.filter((prop) => !prop.required).map((prop) => prop.name),
+  };
+}
+
+function printObjectJson(value: unknown): void {
+  output(value);
+}
+
+function printNodeSchemaHelp(schema: CanvasSchemaType): void {
+  console.log(`\npmx-canvas node add --type ${schema.type} — ${schema.description}\n`);
+  console.log(`Endpoint: ${schema.endpoint}`);
+  console.log('Flags:');
+  for (const field of schema.fields) {
+    const aliases = field.aliases?.length
+      ? ` (aliases: ${field.aliases.map((alias) => `--${alias}`).join(', ')})`
+      : '';
+    console.log(
+      `  --${field.name}${field.required ? ' [required]' : ''} <${field.type}>  ${field.description}${aliases}`,
+    );
+  }
+  if (schema.notes?.length) {
+    console.log('\nNotes:');
+    for (const note of schema.notes) {
+      console.log(`  - ${note}`);
+    }
+  }
+  console.log('\nCanonical example:');
+  console.log(JSON.stringify(schema.example, null, 2));
+  console.log('');
+}
+
+async function showNodeAddTypeHelp(flags: Record<string, string | true>): Promise<void> {
+  const requestedType = getStringFlag(flags, 'type');
+  if (!requestedType) {
+    showCommandHelp('node add');
+    return;
+  }
+
+  const schema = await loadCanvasSchema();
+  let payload: Record<string, unknown> | CanvasSchemaType | JsonRenderComponentSchema | undefined;
+  if (requestedType === 'json-render') {
+    const componentName = getStringFlag(flags, 'component');
+    if (componentName) {
+      const component = schema.jsonRender.components.find((entry) => entry.type === componentName);
+      if (!component) {
+        die(`Unknown json-render component: ${componentName}`, 'Run: pmx-canvas node schema --type json-render --summary');
+      }
+      const requestedField = getStringFlag(flags, 'field');
+      if (requestedField) {
+        const prop = component.props.find((entry) => entry.name === requestedField);
+        if (!prop) {
+          die(`Unknown json-render prop: ${requestedField}`, `Run: pmx-canvas node schema --type json-render --component ${componentName}`);
+        }
+        payload = {
+          command: 'node add',
+          type: requestedType,
+          component: componentName,
+          prop,
+        };
+      } else {
+        payload = flags.summary ? summarizeJsonRenderComponent(component) : component;
+      }
+    } else {
+      payload = flags.summary
+        ? {
+            type: 'json-render',
+            description: 'Native structured UI panel rendered from a validated json-render spec.',
+            rootShape: schema.jsonRender.rootShape,
+            components: schema.jsonRender.components.map((entry) => summarizeJsonRenderComponent(entry)),
+          }
+        : {
+            type: 'json-render',
+            rootShape: schema.jsonRender.rootShape,
+            components: schema.jsonRender.components,
+          };
+    }
+  } else if (requestedType === 'graph') {
+    const graphSchema = schema.nodeTypes.find((entry) => entry.type === 'graph');
+    if (!graphSchema) die('Graph schema is unavailable on the running server.');
+    const requestedField = getStringFlag(flags, 'field');
+    if (requestedField) {
+      const field = graphSchema.fields.find((entry) => fieldMatches(entry, requestedField));
+      if (!field) {
+        die(`Unknown graph field: ${requestedField}`, 'Run: pmx-canvas node schema --type graph');
+      }
+      payload = {
+        command: 'node add',
+        ...field,
+      };
+    } else {
+      payload = flags.summary ? summarizeNodeSchema(graphSchema) : graphSchema;
+    }
+  } else {
+    const nodeType = schema.nodeTypes.find((entry) => entry.type === requestedType);
+    if (!nodeType) {
+      die(`Unknown node type: ${requestedType}`, 'Run: pmx-canvas node schema --summary');
+    }
+    const requestedField = getStringFlag(flags, 'field');
+    if (requestedField) {
+      const field = nodeType.fields.find((entry) => fieldMatches(entry, requestedField));
+      if (!field) {
+        die(`Unknown node field: ${requestedField}`, `Run: pmx-canvas node schema --type ${requestedType}`);
+      }
+      payload = {
+        command: 'node add',
+        type: requestedType,
+        field,
+      };
+    } else {
+      payload = flags.summary ? summarizeNodeSchema(nodeType) : nodeType;
+    }
+  }
+
+  if (flags.json) {
+    printObjectJson(payload);
+    return;
+  }
+
+  if ('fields' in (payload as CanvasSchemaType)) {
+    printNodeSchemaHelp(payload as CanvasSchemaType);
+    return;
+  }
+
+  console.log('');
+  console.log(JSON.stringify(payload, null, 2));
+  console.log('');
+}
+
+function filterNodeSchemaView(
+  schema: CanvasSchemaType,
+  flags: Record<string, string | true>,
+): CanvasSchemaType | Record<string, unknown> {
+  const requestedField = getStringFlag(flags, 'field');
+  if (requestedField) {
+    const field = schema.fields.find((entry) => fieldMatches(entry, requestedField));
+    if (!field) {
+      die(`Unknown field: ${requestedField}`, `Run: pmx-canvas node schema --type ${schema.type}`);
+    }
+    return {
+      type: schema.type,
+      field,
+    };
+  }
+
+  return flags.summary ? summarizeNodeSchema(schema) : schema;
+}
+
+function filterJsonRenderSchemaView(
+  schema: CanvasSchemaResponse['jsonRender'],
+  flags: Record<string, string | true>,
+): Record<string, unknown> | JsonRenderComponentSchema {
+  const componentName = getStringFlag(flags, 'component');
+  if (!componentName) {
+    return flags.summary
+      ? {
+          rootShape: schema.rootShape,
+          components: schema.components.map((entry) => summarizeJsonRenderComponent(entry)),
+        }
+      : schema;
+  }
+
+  const component = schema.components.find((entry) => entry.type === componentName);
+  if (!component) {
+    die(`Unknown json-render component: ${componentName}`, 'Run: pmx-canvas node schema --type json-render --summary');
+  }
+
+  const requestedField = getStringFlag(flags, 'field');
+  if (requestedField) {
+    const prop = component.props.find((entry) => entry.name === requestedField);
+    if (!prop) {
+      die(`Unknown json-render prop: ${requestedField}`, `Run: pmx-canvas node schema --type json-render --component ${componentName}`);
+    }
+    return {
+      component: componentName,
+      prop,
+    };
+  }
+
+  return flags.summary ? summarizeJsonRenderComponent(component) : component;
+}
+
 // ── Commands ─────────────────────────────────────────────────
 
 const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: string; examples: string[] }> = {};
@@ -191,144 +653,148 @@ function cmd(
   COMMANDS[name] = { run, help, examples };
 }
 
+cmd('open', 'Open the current workbench in the browser', [
+  'pmx-canvas open',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('open');
+
+  const base = getBaseUrl();
+  try {
+    const response = await fetch(`${base}/health`);
+    if (!response.ok) {
+      die(`Cannot reach pmx-canvas health endpoint at ${base}: HTTP ${response.status}`);
+    }
+  } catch (error) {
+    die(
+      `Cannot connect to pmx-canvas at ${base}: ${error instanceof Error ? error.message : String(error)}`,
+      'Start the server first: pmx-canvas --no-open',
+    );
+  }
+
+  const url = `${base}/workbench`;
+  if (!openUrlInExternalBrowser(url)) {
+    die(`Failed to open browser for ${url}`);
+  }
+  output({ ok: true, url });
+});
+
 // ── node add ─────────────────────────────────────────────────
 cmd('node add', 'Add a node to the canvas', [
   'pmx-canvas node add --type markdown --title "Design Doc" --content "# Overview"',
   'pmx-canvas node add --type status --title "Build" --content "passing"',
   'pmx-canvas node add --type file --content "src/index.ts"',
+  'pmx-canvas node add --type webpage --url "https://example.com/docs"',
   'pmx-canvas node add --type markdown --title "Note" --x 100 --y 200',
   'pmx-canvas node add --type json-render --title "Ops Dashboard" --spec-file ./dashboard.json',
   'pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
+  'pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx',
 ], async (args) => {
   const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('node add');
+  if (flags.help || flags.h) return showNodeAddTypeHelp(flags);
 
   const type = (flags.type as string) || 'markdown';
 
   if (type === 'json-render') {
-    const jsonRenderHint =
-      'Use: pmx-canvas node add --type json-render --title "Ops Dashboard" --spec-file ./dashboard.json';
-    const title = typeof flags.title === 'string' ? flags.title.trim() : '';
-    if (!title) {
-      die('json-render nodes require --title.', jsonRenderHint);
-    }
-
-    let rawSpec = '';
-    if (typeof flags['spec-file'] === 'string') {
-      try {
-        rawSpec = readFileSync(flags['spec-file'], 'utf-8');
-      } catch (error) {
-        die(
-          `Unable to read --spec-file: ${error instanceof Error ? error.message : String(error)}`,
-          jsonRenderHint,
-        );
-      }
-    } else if (typeof flags['spec-json'] === 'string') {
-      rawSpec = flags['spec-json'];
-    } else if (flags.stdin) {
-      rawSpec = await readStdin();
-    } else {
-      die('json-render nodes require --spec-file, --spec-json, or --stdin.', jsonRenderHint);
-    }
-
-    let spec: unknown;
-    try {
-      spec = JSON.parse(rawSpec);
-    } catch (error) {
-      die(
-        `Invalid JSON spec: ${error instanceof Error ? error.message : String(error)}`,
-        jsonRenderHint,
-      );
-    }
-
-    const x = optionalFiniteFlag(flags, 'x', 'Use a finite number, e.g. --x 500');
-    const y = optionalFiniteFlag(flags, 'y', 'Use a finite number, e.g. --y 300');
-    const width = optionalPositiveFiniteFlag(flags, 'width', 'Use a positive number, e.g. --width 840');
-    const height = optionalPositiveFiniteFlag(flags, 'height', 'Use a positive number, e.g. --height 620');
-
-    const result = await api('POST', '/api/canvas/json-render', {
-      title,
-      spec,
-      ...(x !== undefined ? { x } : {}),
-      ...(y !== undefined ? { y } : {}),
-      ...(width !== undefined ? { width } : {}),
-      ...(height !== undefined ? { height } : {}),
-    });
+    const result = await api('POST', '/api/canvas/json-render', await buildJsonRenderRequestBody(flags));
     output(result);
     return;
   }
 
   if (type === 'graph') {
-    const graphHint =
-      'Use: pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value';
-    let data: Array<Record<string, unknown>> | null = null;
-
-    if (typeof flags['data-file'] === 'string') {
-      let raw = '';
-      try {
-        raw = readFileSync(flags['data-file'], 'utf-8');
-      } catch (error) {
-        die(
-          `Unable to read --data-file: ${error instanceof Error ? error.message : String(error)}`,
-          graphHint,
-        );
-      }
-      data = parseRecordArrayJson(raw, graphHint);
-    } else if (typeof flags['data-json'] === 'string') {
-      data = parseRecordArrayJson(flags['data-json'], graphHint);
-    } else if (flags.stdin) {
-      data = parseRecordArrayJson(await readStdin(), graphHint);
-    }
-
-    if (!data) {
-      die('Graph nodes require --data-file, --data-json, or --stdin JSON data.', graphHint);
-    }
-
-    const x = optionalFiniteFlag(flags, 'x', 'Use a finite number, e.g. --x 500');
-    const y = optionalFiniteFlag(flags, 'y', 'Use a finite number, e.g. --y 300');
-    const width = optionalPositiveFiniteFlag(flags, 'width', 'Use a positive number, e.g. --width 760');
-    const nodeHeight = optionalPositiveFiniteFlag(flags, 'height', 'Use a positive number, e.g. --height 520');
-    const chartHeight = optionalPositiveFiniteFlag(flags, 'chart-height', 'Use a positive number, e.g. --chart-height 300');
-
-    const graphBody: Record<string, unknown> = {
-      graphType: typeof flags['graph-type'] === 'string' ? flags['graph-type'] : 'line',
-      data,
-      ...(typeof flags.title === 'string' ? { title: flags.title } : {}),
-      ...(typeof flags['x-key'] === 'string' ? { xKey: flags['x-key'] } : {}),
-      ...(typeof flags['y-key'] === 'string' ? { yKey: flags['y-key'] } : {}),
-      ...(typeof flags['name-key'] === 'string' ? { nameKey: flags['name-key'] } : {}),
-      ...(typeof flags['value-key'] === 'string' ? { valueKey: flags['value-key'] } : {}),
-      ...(flags.aggregate === 'sum' || flags.aggregate === 'count' || flags.aggregate === 'avg'
-        ? { aggregate: flags.aggregate }
-        : {}),
-      ...(typeof flags.color === 'string' ? { color: flags.color } : {}),
-      ...(chartHeight !== undefined ? { height: chartHeight } : {}),
-      ...(x !== undefined ? { x } : {}),
-      ...(y !== undefined ? { y } : {}),
-      ...(width !== undefined ? { width } : {}),
-      ...(nodeHeight !== undefined ? { nodeHeight } : {}),
-    };
-
-    const result = await api('POST', '/api/canvas/graph', graphBody);
+    const result = await api('POST', '/api/canvas/graph', await buildGraphRequestBody(flags));
     output(result);
+    return;
+  }
+
+  if (type === 'web-artifact') {
+    await runWebArtifactBuildCommand(flags);
     return;
   }
 
   const body: Record<string, unknown> = { type };
   if (flags.title) body.title = flags.title;
-  if (flags.content) body.content = flags.content;
-  if (flags.x) body.x = Number(flags.x);
-  if (flags.y) body.y = Number(flags.y);
-  if (flags.width) body.width = Number(flags.width);
-  if (flags.height) body.height = Number(flags.height);
+  const webpageUrl = getStringFlag(flags, 'url');
+  if (type === 'webpage' && webpageUrl) {
+    body.url = webpageUrl;
+  } else if (flags.content) {
+    body.content = flags.content;
+  }
+  applyCommonGeometryFlags(body, flags, {
+    x: 'Use a finite number, e.g. --x 500',
+    y: 'Use a finite number, e.g. --y 300',
+    width: 'Use a positive number, e.g. --width 500',
+    height: 'Use a positive number, e.g. --height 280',
+  });
 
   // Support --stdin for piping content
   if (flags.stdin) {
-    body.content = await readStdin();
+    if (type === 'webpage') {
+      body.url = await readStdin();
+    } else {
+      body.content = await readStdin();
+    }
   }
 
   const result = await api('POST', '/api/canvas/node', body);
   output(result);
+});
+
+cmd('node schema', 'Describe server-supported node create schemas and canonical examples', [
+  'pmx-canvas node schema',
+  'pmx-canvas node schema --type webpage',
+  'pmx-canvas node schema --type json-render',
+  'pmx-canvas node schema --type json-render --component Table',
+  'pmx-canvas node schema --type webpage --field url',
+  'pmx-canvas node schema --summary',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('node schema');
+
+  const result = await loadCanvasSchema();
+  if (getStringFlag(flags, 'component') && flags.type !== 'json-render') {
+    die('--component is only supported with --type json-render.');
+  }
+
+  if (typeof flags.type !== 'string') {
+    if (flags.summary) {
+      output({
+        source: result.source,
+        version: result.version,
+        nodeTypes: result.nodeTypes.map((entry) => summarizeNodeSchema(entry)),
+        jsonRender: {
+          componentCount: result.jsonRender.components.length,
+          rootShape: result.jsonRender.rootShape,
+        },
+        graph: result.graph,
+        mcp: result.mcp,
+      });
+      return;
+    }
+    output(result);
+    return;
+  }
+
+  const requested = flags.type;
+  if (requested === 'json-render') {
+    output(filterJsonRenderSchemaView(result.jsonRender, flags));
+    return;
+  }
+  if (requested === 'graph') {
+    const graphSchema = result.nodeTypes.find((entry) => entry.type === 'graph');
+    if (graphSchema) {
+      output(filterNodeSchemaView(graphSchema, flags));
+      return;
+    }
+    output(flags.summary ? result.graph : { ...result.graph });
+    return;
+  }
+  const nodeType = result.nodeTypes.find((entry) => entry.type === requested);
+  if (nodeType) {
+    output(filterNodeSchemaView(nodeType, flags));
+    return;
+  }
+  die(`Unknown schema type: ${requested}`, 'Run: pmx-canvas node schema');
 });
 
 // ── node list ────────────────────────────────────────────────
@@ -858,6 +1324,35 @@ cmd('validate', 'Validate the current layout for collisions and missing edge end
   output(result);
 });
 
+cmd('validate spec', 'Validate a json-render spec or graph payload without creating a node', [
+  'pmx-canvas validate spec --type json-render --spec-file ./dashboard.json',
+  'pmx-canvas validate spec --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
+  'pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('validate spec');
+
+  const type = getStringFlag(flags, 'type');
+  if (type !== 'json-render' && type !== 'graph') {
+    die('validate spec requires --type json-render or --type graph.');
+  }
+
+  const body = type === 'json-render'
+    ? { type, spec: (await buildJsonRenderRequestBody({ ...flags, title: String(flags.title ?? 'Validation') })).spec }
+    : { type, ...(await buildGraphRequestBody(flags)) };
+
+  const result = await api('POST', '/api/canvas/schema/validate', body) as Record<string, unknown>;
+  if (flags.summary) {
+    output({
+      ok: result.ok,
+      type: result.type,
+      summary: result.summary,
+    });
+    return;
+  }
+  output(result);
+});
+
 // ── group remove ─────────────────────────────────────────────
 cmd('group remove', 'Ungroup all children from a group', [
   'pmx-canvas group remove <group-id>',
@@ -876,62 +1371,11 @@ cmd('group remove', 'Ungroup all children from a group', [
 cmd('web-artifact build', 'Build a bundled HTML web artifact and optionally open it on the canvas', [
   'pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx',
   'pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --index-css-file ./index.css',
+  'pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --include-logs',
 ], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('web-artifact build');
-
-  const hint = 'Use: pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx';
-  const title = requireFlag(flags, 'title', hint);
-
-  let appTsx = '';
-  if (typeof flags['app-file'] === 'string') {
-    try {
-      appTsx = readFileSync(flags['app-file'], 'utf-8');
-    } catch (error) {
-      die(
-        `Unable to read --app-file: ${error instanceof Error ? error.message : String(error)}`,
-        hint,
-      );
-    }
-  } else if (typeof flags['app-tsx'] === 'string') {
-    appTsx = flags['app-tsx'];
-  } else if (flags.stdin) {
-    appTsx = await readStdin();
-  } else {
-    die('web-artifact build requires --app-file, --app-tsx, or --stdin.', hint);
-  }
-
-  const body: Record<string, unknown> = { title, appTsx };
-
-  if (typeof flags['index-css-file'] === 'string') {
-    body.indexCss = readFileSync(flags['index-css-file'], 'utf-8');
-  } else if (typeof flags['index-css'] === 'string') {
-    body.indexCss = flags['index-css'];
-  }
-
-  if (typeof flags['main-file'] === 'string') {
-    body.mainTsx = readFileSync(flags['main-file'], 'utf-8');
-  } else if (typeof flags['main-tsx'] === 'string') {
-    body.mainTsx = flags['main-tsx'];
-  }
-
-  if (typeof flags['index-html-file'] === 'string') {
-    body.indexHtml = readFileSync(flags['index-html-file'], 'utf-8');
-  } else if (typeof flags['index-html'] === 'string') {
-    body.indexHtml = flags['index-html'];
-  }
-
-  if (typeof flags['project-path'] === 'string') body.projectPath = flags['project-path'];
-  if (typeof flags['output-path'] === 'string') body.outputPath = flags['output-path'];
-  if (typeof flags['init-script-path'] === 'string') body.initScriptPath = flags['init-script-path'];
-  if (typeof flags['bundle-script-path'] === 'string') body.bundleScriptPath = flags['bundle-script-path'];
-  if (flags['no-open-in-canvas']) body.openInCanvas = false;
-
-  const timeoutMs = optionalPositiveFiniteFlag(flags, 'timeout-ms', 'Use a positive number, e.g. --timeout-ms 600000');
-  if (timeoutMs !== undefined) body.timeoutMs = timeoutMs;
-
-  const result = await api('POST', '/api/canvas/web-artifact', body);
-  output(result);
+  await runWebArtifactBuildCommand(flags);
 });
 
 // ── clear ────────────────────────────────────────────────────
@@ -1272,12 +1716,33 @@ function showCommandHelp(name: string): void {
   for (const ex of cmd.examples) {
     console.log(`  ${ex}`);
   }
+  if (name === 'node add') {
+    console.log('\nSchema help:');
+    console.log('  pmx-canvas node add --help --type webpage');
+    console.log('  pmx-canvas node add --help --type json-render --component Table');
+    console.log('  pmx-canvas node add --help --type webpage --json');
+  }
+  if (name === 'node schema') {
+    console.log('\nFilters:');
+    console.log('  --summary                 Show compact schema summaries');
+    console.log('  --field <name>            Focus on one node field');
+    console.log('  --component <name>        Focus on one json-render component');
+  }
+  if (name === 'validate spec') {
+    console.log('\nOutput control:');
+    console.log('  --summary                 Return only validation summary metadata');
+  }
+  if (name === 'web-artifact build') {
+    console.log('\nOutput control:');
+    console.log('  --include-logs            Include raw build stdout/stderr in the response');
+    console.log('  --verbose                 Alias for --include-logs');
+  }
   console.log('');
 }
 
 function showTopLevelHelp(): void {
   console.log(`
-pmx-canvas — Agent-native CLI for spatial canvas workbench
+  pmx-canvas — Agent-native CLI for spatial canvas workbench
 
 Usage:
   pmx-canvas <command> [options]
@@ -1305,9 +1770,11 @@ Canvas commands:
   pmx-canvas layout                   Full canvas state (JSON)
   pmx-canvas status                   Quick summary
   pmx-canvas search <query>           Search nodes by content
+  pmx-canvas open                     Open the current workbench in a browser
   pmx-canvas arrange [--layout MODE]  Auto-arrange (grid|column|flow)
   pmx-canvas batch [--file FILE]      Run many canvas operations at once
   pmx-canvas validate                 Check collisions and containment issues
+  pmx-canvas validate spec            Validate json-render/graph payloads without creating nodes
   pmx-canvas watch [options]          Watch semantic canvas changes over SSE
   pmx-canvas focus <id>               Pan viewport to node
   pmx-canvas webview status           Show WebView automation status
@@ -1318,6 +1785,7 @@ Canvas commands:
   pmx-canvas webview stop             Stop automation session
   pmx-canvas web-artifact build       Build bundled web artifact HTML
   pmx-canvas clear --yes              Clear all nodes and edges
+  pmx-canvas node schema              Describe running-server node schemas
 
 Context pins:
   pmx-canvas pin <id1> <id2> ...      Set pinned nodes (same as --set)
@@ -1354,16 +1822,25 @@ Environment:
 
 Examples:
   pmx-canvas node add --type markdown --title "API Design" --content "# REST API"
+  pmx-canvas node add --type webpage --url "https://example.com/docs"
   pmx-canvas node add --type json-render --title "Dashboard" --spec-file ./dashboard.json
+  pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx
   pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value
+  pmx-canvas node add --help --type webpage
+  pmx-canvas node schema --type json-render
+  pmx-canvas node schema --type json-render --component Table --summary
   pmx-canvas node list --type file --ids
   pmx-canvas edge add --from node-abc --to node-def --type depends-on
   pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation
   pmx-canvas search "authentication"
+  pmx-canvas open
   pmx-canvas arrange --layout column
   pmx-canvas batch --file ./canvas-ops.json
   pmx-canvas validate
+  pmx-canvas validate spec --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value
+  pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary
   pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx
+  pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --include-logs
   pmx-canvas webview evaluate --script "const title = document.title; return title"
   pmx-canvas snapshot save --name "pre-refactor"
   pmx-canvas clear --dry-run

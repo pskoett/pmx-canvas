@@ -1246,6 +1246,84 @@ describe('canvas server HTTP API', () => {
     expect(layout.nodes.find((node) => node.id === graph.id)?.type).toBe('graph');
   }, 15_000);
 
+  test('exposes running-server schema metadata and structured validation over HTTP', async () => {
+    const schema = await jsonRequest<{
+      ok: boolean;
+      source: string;
+      nodeTypes: Array<{ type: string; fields: Array<{ name: string; aliases?: string[] }> }>;
+      jsonRender: { components: Array<{ type: string }> };
+      mcp: { tools: string[]; resources: string[] };
+    }>('/api/canvas/schema');
+
+    expect(schema.ok).toBe(true);
+    expect(schema.source).toBe('running-server');
+    expect(schema.nodeTypes.find((entry) => entry.type === 'webpage')?.fields.find((field) => field.name === 'url')?.aliases).toContain('content');
+    expect(schema.jsonRender.components.some((component) => component.type === 'Table')).toBe(true);
+    expect(schema.mcp.tools).toContain('canvas_describe_schema');
+    expect(schema.mcp.resources).toContain('canvas://schema');
+
+    const jsonValidation = await jsonRequest<{
+      ok: boolean;
+      type: string;
+      normalizedSpec: {
+        elements: Record<string, { props?: { rows?: string[][] } }>;
+      };
+    }>('/api/canvas/schema/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'json-render',
+        spec: {
+          root: 'table',
+          elements: {
+            table: {
+              type: 'Table',
+              props: {
+                columns: ['Metric', 'Value'],
+                rows: [
+                  ['Builds', 12],
+                  ['Deploys', 4],
+                ],
+              },
+              children: [],
+            },
+          },
+        },
+      }),
+    });
+
+    expect(jsonValidation.ok).toBe(true);
+    expect(jsonValidation.type).toBe('json-render');
+    expect(jsonValidation.normalizedSpec.elements.table?.props?.rows).toEqual([
+      ['Builds', '12'],
+      ['Deploys', '4'],
+    ]);
+
+    const graphValidation = await jsonRequest<{
+      ok: boolean;
+      type: string;
+      summary: { graphType: string; dataPoints: number };
+    }>('/api/canvas/schema/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'graph',
+        title: 'Trend',
+        graphType: 'bar',
+        data: [
+          { label: 'Docs', value: 5 },
+          { label: 'Tests', value: 8 },
+        ],
+        xKey: 'label',
+        yKey: 'value',
+      }),
+    });
+
+    expect(graphValidation.ok).toBe(true);
+    expect(graphValidation.type).toBe('graph');
+    expect(graphValidation.summary).toEqual(expect.objectContaining({ graphType: 'BarChart', dataPoints: 2 }));
+  });
+
   test('rejects invalid json-render payloads and invalid viewer requests', async () => {
     const missingTitle = await fetch(`${baseUrl}/api/canvas/json-render`, {
       method: 'POST',

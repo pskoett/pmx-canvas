@@ -123,6 +123,9 @@ bun run build                  # Build client SPA → dist/canvas/
 bun run dev                    # Start server + open browser
 bun run dev:demo               # Start with sample nodes
 bun run start                  # Start headless (no browser)
+pmx-canvas serve --daemon      # Start daemonized server with pid/log tracking
+pmx-canvas serve status        # Check daemon health + pid state
+pmx-canvas serve stop          # Stop daemonized server
 pmx-canvas --mcp               # Run as MCP server
 pmx-canvas --theme=light       # Start with light theme
 ```
@@ -164,9 +167,11 @@ Three themes: `dark` (default), `light`, `high-contrast`. Set via:
 
 ## MCP Server
 
-29 tools: `canvas_add_node`, `canvas_add_json_render_node`, `canvas_add_graph_node`, `canvas_build_web_artifact`, `canvas_update_node`, `canvas_remove_node`, `canvas_get_layout`, `canvas_get_node`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_pin_nodes`, `canvas_clear`, `canvas_snapshot`, `canvas_restore`, `canvas_search`, `canvas_undo`, `canvas_redo`, `canvas_diff`, `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup`, `canvas_webview_status`, `canvas_webview_start`, `canvas_webview_stop`, `canvas_evaluate`, `canvas_resize`, `canvas_screenshot`
+38 tools: `canvas_add_node`, `canvas_add_diagram`, `canvas_open_mcp_app`, `canvas_describe_schema`, `canvas_validate_spec`, `canvas_refresh_webpage_node`, `canvas_add_json_render_node`, `canvas_add_graph_node`, `canvas_build_web_artifact`, `canvas_update_node`, `canvas_remove_node`, `canvas_get_layout`, `canvas_get_node`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_pin_nodes`, `canvas_clear`, `canvas_snapshot`, `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_search`, `canvas_undo`, `canvas_redo`, `canvas_diff`, `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup`, `canvas_batch`, `canvas_validate`, `canvas_webview_status`, `canvas_webview_start`, `canvas_webview_stop`, `canvas_evaluate`, `canvas_resize`, `canvas_screenshot`
 
-6 resources: `canvas://pinned-context`, `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, `canvas://code-graph`
+`canvas_add_diagram` is a thin preset in `src/server/diagram-presets.ts` that proxies to the hosted [Excalidraw MCP app](https://github.com/excalidraw/excalidraw-mcp) (`https://mcp.excalidraw.com/mcp`). For any other MCP Apps server, use `canvas_open_mcp_app` directly.
+
+7 resources: `canvas://pinned-context`, `canvas://schema`, `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, `canvas://code-graph`
 
 Resource change notifications: the MCP server emits `notifications/resources/updated` when canvas state changes. Pin changes notify `canvas://pinned-context`; all mutations notify `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, and `canvas://code-graph`. This enables real-time human→agent collaboration — humans pin nodes in the browser, agents are notified immediately.
 

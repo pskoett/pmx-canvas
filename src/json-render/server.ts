@@ -214,6 +214,15 @@ function normalizeItemArray(value: unknown): unknown {
   });
 }
 
+function normalizeStringMatrix(value: unknown): unknown {
+  if (!Array.isArray(value)) return value;
+  return value.map((row) => (
+    Array.isArray(row)
+      ? row.map((cell) => String(cell ?? ''))
+      : [String(row ?? '')]
+  ));
+}
+
 function normalizeButtonVariant(value: unknown): unknown {
   if (value === 'default') return 'primary';
   if (value === 'outline') return 'secondary';
@@ -328,6 +337,15 @@ function normalizeElementProps(
 
   if (type === 'Button') {
     props.variant = normalizeButtonVariant(props.variant);
+  }
+
+  if (type === 'Table') {
+    if (Array.isArray(props.columns)) {
+      props.columns = props.columns.map((column) => String(column ?? ''));
+    }
+    if (Array.isArray(props.rows)) {
+      props.rows = normalizeStringMatrix(props.rows);
+    }
   }
 
   return props;

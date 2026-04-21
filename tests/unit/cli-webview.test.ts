@@ -1,6 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { runAgentCli } from '../../src/cli/agent.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
@@ -10,6 +12,30 @@ import {
   removeTestWorkspace,
   resetCanvasForTests,
 } from './helpers.ts';
+
+const cliIndexPath = fileURLToPath(new URL('../../src/cli/index.ts', import.meta.url));
+
+async function getAvailablePort(): Promise<number> {
+  return await new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        server.close();
+        reject(new Error('Failed to resolve an ephemeral port.'));
+        return;
+      }
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(address.port);
+      });
+    });
+  });
+}
 
 describe('agent CLI webview commands', () => {
   let workspaceRoot = '';
@@ -289,4 +315,116 @@ describe('agent CLI webview commands', () => {
     expect(output).toContain('Server options:');
     expect(output).not.toContain('pmx-canvas serve — Start the canvas server');
   });
+
+  test('serve --daemon waits for health and returns machine-readable startup info', async () => {
+    const port = await getAvailablePort();
+    const logPath = join(workspaceRoot, `daemon-${port}.log`);
+    const pidPath = join(workspaceRoot, `daemon-${port}.pid`);
+
+    const proc = Bun.spawn({
+      cmd: ['bun', 'run', cliIndexPath, 'serve', '--daemon', '--no-open', `--port=${port}`, `--log-file=${logPath}`, `--pid-file=${pidPath}`, '--wait-ms=15000'],
+      cwd: workspaceRoot,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      env: {
+        ...process.env,
+        PMX_CANVAS_DISABLE_BROWSER_OPEN: '1',
+      },
+    });
+
+    const stdout = await new Response(proc.stdout).text();
+    const stderr = await new Response(proc.stderr).text();
+    const exitCode = await proc.exited;
+    expect(exitCode).toBe(0);
+    expect(stderr).toBe('');
+
+    const payload = JSON.parse(stdout) as {
+      ok: boolean;
+      daemon: boolean;
+      pid: number;
+      url: string;
+      healthUrl: string;
+      logFile: string;
+      pidFile: string;
+    };
+    expect(payload.ok).toBe(true);
+    expect(payload.daemon).toBe(true);
+    expect(payload.pid).toBeGreaterThan(0);
+    expect(payload.logFile).toBe(logPath);
+    expect(payload.pidFile).toBe(pidPath);
+    expect(existsSync(logPath)).toBe(true);
+    expect(existsSync(pidPath)).toBe(true);
+
+    const health = await fetch(payload.healthUrl);
+    expect(health.ok).toBe(true);
+
+    process.kill(payload.pid, 'SIGTERM');
+  }, 20000);
+
+  test('serve status and serve stop manage daemon lifecycle', async () => {
+    const port = await getAvailablePort();
+    const logPath = join(workspaceRoot, `status-stop-${port}.log`);
+    const pidPath = join(workspaceRoot, `status-stop-${port}.pid`);
+
+    const startProc = Bun.spawn({
+      cmd: ['bun', 'run', cliIndexPath, 'serve', '--daemon', '--no-open', `--port=${port}`, `--log-file=${logPath}`, `--pid-file=${pidPath}`, '--wait-ms=15000'],
+      cwd: workspaceRoot,
+      stdout: 'pipe',
+      stderr: 'pipe',
+      env: {
+        ...process.env,
+        PMX_CANVAS_DISABLE_BROWSER_OPEN: '1',
+      },
+    });
+
+    const startStdout = await new Response(startProc.stdout).text();
+    const startExitCode = await startProc.exited;
+    expect(startExitCode).toBe(0);
+    const started = JSON.parse(startStdout) as { pid: number; healthUrl: string };
+    expect(started.pid).toBeGreaterThan(0);
+
+    const statusProc = Bun.spawn({
+      cmd: ['bun', 'run', cliIndexPath, 'serve', 'status', `--port=${port}`, `--log-file=${logPath}`, `--pid-file=${pidPath}`],
+      cwd: workspaceRoot,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const statusStdout = await new Response(statusProc.stdout).text();
+    const statusExitCode = await statusProc.exited;
+    expect(statusExitCode).toBe(0);
+    const statusPayload = JSON.parse(statusStdout) as {
+      ok: boolean;
+      running: boolean;
+      responsive: boolean;
+      pid: number | null;
+      pidRunning: boolean;
+    };
+    expect(statusPayload.ok).toBe(true);
+    expect(statusPayload.running).toBe(true);
+    expect(statusPayload.responsive).toBe(true);
+    expect(statusPayload.pid).toBe(started.pid);
+    expect(statusPayload.pidRunning).toBe(true);
+
+    const stopProc = Bun.spawn({
+      cmd: ['bun', 'run', cliIndexPath, 'serve', 'stop', `--port=${port}`, `--log-file=${logPath}`, `--pid-file=${pidPath}`, '--wait-ms=15000'],
+      cwd: workspaceRoot,
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const stopStdout = await new Response(stopProc.stdout).text();
+    const stopExitCode = await stopProc.exited;
+    expect(stopExitCode).toBe(0);
+    const stopPayload = JSON.parse(stopStdout) as {
+      ok: boolean;
+      stopped: boolean;
+      pid: number;
+    };
+    expect(stopPayload.ok).toBe(true);
+    expect(stopPayload.stopped).toBe(true);
+    expect(stopPayload.pid).toBe(started.pid);
+
+    const health = await fetch(started.healthUrl).catch(() => null);
+    expect(health).toBeNull();
+    expect(existsSync(pidPath)).toBe(false);
+  }, 25000);
 });

@@ -3,6 +3,7 @@
 set -euo pipefail
 
 PNPM_VERSION="10.33.0"
+ALLOWED_BUILD_PACKAGES=("@parcel/watcher" "@swc/core" "lmdb" "msgpackr-extract")
 
 function detect_runtime_major() {
   if command -v node >/dev/null 2>&1; then
@@ -57,6 +58,44 @@ function run_pnpm() {
   "${PNPM_CMD[@]}" "$@"
 }
 
+function replay_filtered_stderr() {
+  local stderr_file="$1"
+  while IFS= read -r line; do
+    if [[ "$line" == *"/dev/tty"* ]]; then
+      continue
+    fi
+    echo "$line" >&2
+  done < "$stderr_file"
+}
+
+function run_with_filtered_stderr() {
+  local stderr_file
+  stderr_file="$(mktemp)"
+  if "$@" 2>"$stderr_file"; then
+    replay_filtered_stderr "$stderr_file"
+    rm -f "$stderr_file"
+    return 0
+  fi
+
+  local status=$?
+  replay_filtered_stderr "$stderr_file"
+  rm -f "$stderr_file"
+  return "$status"
+}
+
+function run_pnpm_quiet() {
+  run_with_filtered_stderr "${PNPM_CMD[@]}" --silent "$@"
+}
+
+function run_pnpm_allow_build() {
+  local allow_build_args=()
+  local package_name
+  for package_name in "${ALLOWED_BUILD_PACKAGES[@]}"; do
+    allow_build_args+=(--allow-build="$package_name")
+  done
+  run_with_filtered_stderr "${PNPM_CMD[@]}" --silent "$@" "${allow_build_args[@]}"
+}
+
 RUNTIME_INFO="$(detect_runtime_major)"
 NODE_VERSION="${RUNTIME_INFO%%|*}"
 RUNTIME_LABEL="${RUNTIME_INFO#*|}"
@@ -107,35 +146,41 @@ fi
 echo "🚀 Creating new React + Vite project: $PROJECT_NAME"
 
 # Create new Vite project (always use latest create-vite, pin vite version later)
-run_pnpm create vite "$PROJECT_NAME" --template react-ts
+run_pnpm_quiet create vite "$PROJECT_NAME" --template react-ts --no-interactive
 
 # Navigate into project directory
 cd "$PROJECT_NAME"
 
+node -e "
+const fs = require('fs');
+const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+pkg.packageManager = 'pnpm@${PNPM_VERSION}';
+fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
+"
+
 echo "🧹 Cleaning up Vite template..."
-$SED_INPLACE '/<link rel="icon".*vite\.svg/d' index.html
+$SED_INPLACE '/<link rel="icon".*/d' index.html
 $SED_INPLACE 's/<title>.*<\/title>/<title>'"$PROJECT_NAME"'<\/title>/' index.html
 
 echo "📦 Installing base dependencies..."
-run_pnpm install
+run_pnpm_quiet install
 
 # Pin Vite version for Node 18
 if [ "$NODE_VERSION" -lt 20 ]; then
   echo "📌 Pinning Vite to $VITE_VERSION for Node 18 compatibility..."
-  run_pnpm add -D vite@"$VITE_VERSION"
+  run_pnpm_allow_build add -D vite@"$VITE_VERSION"
 fi
 
 echo "📦 Installing Tailwind CSS and dependencies..."
-run_pnpm install -D tailwindcss@3.4.1 postcss autoprefixer @types/node tailwindcss-animate
-run_pnpm install class-variance-authority clsx tailwind-merge lucide-react next-themes
+run_pnpm_allow_build add -D tailwindcss@3.4.1 postcss @types/node tailwindcss-animate parcel @parcel/config-default parcel-resolver-tspaths html-inline
+run_pnpm_quiet add class-variance-authority clsx tailwind-merge lucide-react next-themes
 
 echo "⚙️  Creating Tailwind and PostCSS configuration..."
-cat > postcss.config.js << 'EOF'
-export default {
-  plugins: {
-    tailwindcss: {},
-    autoprefixer: {},
-  },
+cat > .postcssrc.json << 'EOF'
+{
+  "plugins": {
+    "tailwindcss": {}
+  }
 }
 EOF
 
@@ -318,10 +363,18 @@ export default defineConfig({
 });
 EOF
 
+echo "🔧 Creating Parcel configuration with path alias support..."
+cat > .parcelrc << 'EOF'
+{
+  "extends": "@parcel/config-default",
+  "resolvers": ["parcel-resolver-tspaths", "..."]
+}
+EOF
+
 # Install all shadcn/ui dependencies
 echo "📦 Installing shadcn/ui dependencies..."
-run_pnpm install @radix-ui/react-accordion @radix-ui/react-aspect-ratio @radix-ui/react-avatar @radix-ui/react-checkbox @radix-ui/react-collapsible @radix-ui/react-context-menu @radix-ui/react-dialog @radix-ui/react-dropdown-menu @radix-ui/react-hover-card @radix-ui/react-label @radix-ui/react-menubar @radix-ui/react-navigation-menu @radix-ui/react-popover @radix-ui/react-progress @radix-ui/react-radio-group @radix-ui/react-scroll-area @radix-ui/react-select @radix-ui/react-separator @radix-ui/react-slider @radix-ui/react-slot @radix-ui/react-switch @radix-ui/react-tabs @radix-ui/react-toast @radix-ui/react-toggle @radix-ui/react-toggle-group @radix-ui/react-tooltip
-run_pnpm install sonner cmdk vaul embla-carousel-react react-day-picker react-resizable-panels date-fns react-hook-form @hookform/resolvers zod
+run_pnpm_quiet add @radix-ui/react-accordion @radix-ui/react-aspect-ratio @radix-ui/react-avatar @radix-ui/react-checkbox @radix-ui/react-collapsible @radix-ui/react-context-menu @radix-ui/react-dialog @radix-ui/react-dropdown-menu @radix-ui/react-hover-card @radix-ui/react-label @radix-ui/react-menubar @radix-ui/react-navigation-menu @radix-ui/react-popover @radix-ui/react-progress @radix-ui/react-radio-group @radix-ui/react-scroll-area @radix-ui/react-select @radix-ui/react-separator @radix-ui/react-slider @radix-ui/react-slot @radix-ui/react-switch @radix-ui/react-tabs @radix-ui/react-toast @radix-ui/react-toggle @radix-ui/react-toggle-group @radix-ui/react-tooltip
+run_pnpm_quiet add sonner cmdk vaul embla-carousel-react react-day-picker react-resizable-panels date-fns react-hook-form @hookform/resolvers zod
 
 # Extract shadcn components from tarball
 echo "📦 Extracting shadcn/ui components..."

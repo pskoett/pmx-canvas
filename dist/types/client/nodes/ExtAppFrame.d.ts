@@ -1,5 +1,5 @@
-import { AppBridge } from '../ext-app/bridge';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import { AppBridge } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type { CanvasNodeState } from '../types';
 type IframeLoadTarget = Pick<HTMLIFrameElement, 'addEventListener' | 'removeEventListener' | 'contentDocument'>;
 type ExtAppBridgeNotifications = Pick<AppBridge, 'sendToolInput' | 'sendToolResult'>;

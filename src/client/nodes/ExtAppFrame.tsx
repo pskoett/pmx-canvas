@@ -1,5 +1,6 @@
-import { AppBridge, PostMessageTransport } from '../ext-app/bridge';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult, ListToolsResult, RequestId, Tool } from '@modelcontextprotocol/sdk/types.js';
+import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
+import { AppBridge, PostMessageTransport, buildAllowAttribute } from '@modelcontextprotocol/ext-apps/app-bridge';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { bringToFront, canvasTheme, persistLayout, updateNode, viewport } from '../state/canvas-store';
 import { updateNodeFromClient } from '../state/intent-bridge';
@@ -13,6 +14,21 @@ type IframeLoadTarget = Pick<
 >;
 
 type ExtAppBridgeNotifications = Pick<AppBridge, 'sendToolInput' | 'sendToolResult'>;
+
+async function postJson<T>(url: string, body: Record<string, unknown>): Promise<T> {
+  const response = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const json = await response.json() as {
+    ok: boolean;
+    result?: T;
+    error?: string;
+  };
+  if (!json.ok) throw new Error(json.error ?? `Request failed: ${url}`);
+  return json.result as T;
+}
 
 export function waitForExtAppFrameLoad(target: IframeLoadTarget): Promise<void> {
   const readyState = target.contentDocument?.readyState;
@@ -62,9 +78,15 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
 
   const html = node.data.html as string | null;
   const serverName = node.data.serverName as string | undefined;
+  const appSessionId = node.data.appSessionId as string | undefined;
   const toolInput = (node.data.toolInput as Record<string, unknown> | undefined) ?? {};
   const toolResult = node.data.toolResult as CallToolResult | undefined;
   const toolName = (node.data.toolName as string) ?? 'ext-app';
+  const toolDefinition = node.data.toolDefinition as Tool | undefined;
+  const rawToolCallId = node.data.toolCallId;
+  const toolCallId: RequestId | undefined =
+    typeof rawToolCallId === 'string' || typeof rawToolCallId === 'number' ? rawToolCallId : undefined;
+  const resourceMeta = node.data.resourceMeta as { permissions?: Record<string, unknown> } | undefined;
   const maxHeight = node.size.height;
   const nodeId = node.id;
   const frameKey = `${node.id}:${retryKey}`;
@@ -116,9 +138,12 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
     };
 
     const init = async () => {
-      await waitForExtAppFrameLoad(iframe);
-      if (disposed) return;
-      const contentWindow = iframe.contentWindow;
+      let contentWindow = iframe.contentWindow;
+      if (!contentWindow) {
+        await waitForExtAppFrameLoad(iframe);
+        if (disposed) return;
+        contentWindow = iframe.contentWindow;
+      }
       if (!contentWindow) {
         throw new Error('Ext-app iframe window is unavailable');
       }
@@ -126,13 +151,27 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
       const bridge = new AppBridge(
         null,
         { name: 'PMX Canvas', version: '1.0.0' },
-        { openLinks: {} },
+        {
+          openLinks: {},
+          serverTools: { listChanged: false },
+          serverResources: { listChanged: false },
+          logging: {},
+          updateModelContext: { text: {}, structuredContent: {} },
+        },
         {
           hostContext: {
             theme: toMcpTheme(canvasTheme.value),
             platform: 'web',
             containerDimensions: { maxHeight },
             displayMode: 'inline',
+            locale: navigator.language,
+            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            ...(toolDefinition ? {
+              toolInfo: {
+                id: toolCallId,
+                tool: toolDefinition,
+              },
+            } : {}),
           },
         },
       );
@@ -172,28 +211,49 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
       // Proxy callServerTool back to PMX server
       bridge.oncalltool = async (params) => {
         try {
-          const resp = await fetch('/api/ext-app/call-tool', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              serverName,
-              toolName: params.name,
-              arguments: params.arguments,
-            }),
+          const result = await postJson<CallToolResult>('/api/ext-app/call-tool', {
+            sessionId: appSessionId,
+            serverName,
+            toolName: params.name,
+            arguments: params.arguments ?? {},
           });
-          const json = (await resp.json()) as {
-            ok: boolean;
-            result?: CallToolResult;
-            error?: string;
-          };
-          if (!json.ok) throw new Error(json.error ?? 'Tool call failed');
           setError(null);
-          return json.result as CallToolResult;
+          return result;
         } catch (err) {
           const msg = err instanceof Error ? err.message : String(err);
           setError(`Tool call failed: ${msg}`);
           throw err;
         }
+      };
+
+      bridge.setRequestHandler(ListToolsRequestSchema, async () =>
+        postJson<ListToolsResult>('/api/ext-app/list-tools', { sessionId: appSessionId }),
+      );
+
+      bridge.onlistresources = async () =>
+        postJson('/api/ext-app/list-resources', { sessionId: appSessionId });
+
+      bridge.onlistresourcetemplates = async () =>
+        postJson('/api/ext-app/list-resource-templates', { sessionId: appSessionId });
+
+      bridge.onreadresource = async (params) =>
+        postJson('/api/ext-app/read-resource', {
+          sessionId: appSessionId,
+          uri: params.uri,
+        });
+
+      bridge.onlistprompts = async () =>
+        postJson('/api/ext-app/list-prompts', { sessionId: appSessionId });
+
+      bridge.onupdatemodelcontext = async (params) => {
+        await postJson('/api/ext-app/model-context', {
+          nodeId,
+          ...(Array.isArray(params.content) ? { content: params.content } : {}),
+          ...(params.structuredContent && typeof params.structuredContent === 'object'
+            ? { structuredContent: params.structuredContent }
+            : {}),
+        });
+        return {};
       };
 
       const transport = new PostMessageTransport(contentWindow, contentWindow);
@@ -212,12 +272,22 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
           });
       };
 
-      // Auto-dismiss loading banner if bridge handshake doesn't complete in time.
-      // Chart ext-apps render from inline data and don't need the bridge;
-      // the CDN import inside the sandbox may fail, leaving oninitialized unfired.
+      // Fallback bootstrap for widgets whose initialized notification arrives late
+      // or never fires. This keeps standards-based apps usable even when the host
+      // handshake timing differs across SDK versions.
       fallbackTimer = setTimeout(() => {
-        if (!disposed) setStatus((s) => (s === 'loading' ? 'ready' : s));
-      }, 6000);
+        if (disposed || bridgeReadyRef.current) return;
+        void sendExtAppBootstrapState(bridge, latestToolInputRef.current, latestToolResultRef.current)
+          .then(() => {
+            toolResultSentRef.current = Boolean(latestToolResultRef.current);
+            setStatus(latestToolResultRef.current ? 'done' : 'ready');
+            setError(null);
+          })
+          .catch((err) => {
+            const msg = err instanceof Error ? err.message : String(err);
+            setError(`Bridge bootstrap fallback failed: ${msg}`);
+          });
+      }, 1200);
 
       await bridge.connect(transport);
       if (disposed) {
@@ -238,6 +308,8 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
           platform: 'web',
           containerDimensions: { maxHeight },
           displayMode: 'inline',
+          locale: navigator.language,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         });
       });
 
@@ -369,6 +441,7 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
         ref={iframeRef}
         srcdoc={html}
         sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+        allow={buildAllowAttribute(resourceMeta?.permissions)}
         style={{ flex: 1, border: 'none', background: 'var(--c-panel)' }}
         title={`Ext App: ${toolName}`}
       />

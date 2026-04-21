@@ -54,13 +54,23 @@ Use it when MCP is not available but you still want structured, scriptable canva
 
 ```bash
 pmx-canvas --help                           # Top-level help
+pmx-canvas serve --daemon --no-open        # Detached daemon with health output
+pmx-canvas serve status                    # Daemon health + pid status
+pmx-canvas serve stop                      # Stop the daemon for this port/pid file
 pmx-canvas layout                          # Full canvas state
 pmx-canvas status                          # Quick summary
 pmx-canvas node add --type markdown --title "Plan"
+pmx-canvas node add --type webpage --url https://example.com/docs
+pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx
+pmx-canvas node add --help --type webpage --json
+pmx-canvas node schema --type json-render --component Table --summary
 pmx-canvas node list --type file --ids
 pmx-canvas edge add --from node-a --to node-b --type depends-on
 pmx-canvas search "auth"
+pmx-canvas open
 pmx-canvas arrange --layout flow
+pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary
+pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --include-logs
 pmx-canvas pin --list
 pmx-canvas snapshot save --name "before-refactor"
 pmx-canvas code-graph
@@ -70,15 +80,19 @@ pmx-canvas spatial
 ### CLI command groups
 
 - `node add|list|get|update|remove` — manage nodes
+- `node schema` — inspect running-server create schemas and canonical examples, with `--summary`, `--field`, and `--component` filters
 - `edge add|list|remove` — manage edges
 - Search-based edge selectors must be specific enough to resolve exactly one node. Queries like
   `"DVT O3"` can be ambiguous; prefer the full visible title such as `"DVT O3 — GitOps"`.
 - `search`, `layout`, `status`, `arrange`, `focus` — inspect and navigate the canvas
+- `open` — open the current workbench in the browser
 - `pin --list|--clear|<ids...>` — manage context pins
 - `undo`, `redo`, `history` — time travel
 - `snapshot save|list|restore|delete` — manage snapshots
 - `group create|add|remove` — manage groups
 - `clear --yes` — destructive clear with explicit confirmation
+- `validate spec` — validate json-render specs and graph payloads without creating nodes
+- `serve status|stop` — inspect and stop daemonized servers started with `serve --daemon`
 - `code-graph`, `spatial` — analysis commands
 
 The CLI targets `http://localhost:4313` by default. Override with `PMX_CANVAS_URL` or
@@ -170,6 +184,13 @@ Use color consistently to convey meaning:
 - Use `xKey`/`yKey` for line or bar graphs and `nameKey`/`valueKey` for pie graphs
 - Uses the native json-render chart catalog under the hood
 
+**`canvas_describe_schema`** — Inspect the running server's create schemas and canonical examples
+- Use this before generating structured payloads when you need the authoritative current shape
+
+**`canvas_validate_spec`** — Validate a json-render spec or graph payload without creating a node
+- Returns the normalized json-render spec the server would accept
+- Use this when you want a dry run before creating a `json-render` or `graph` node
+
 **Batch graph creation**
 - Use `graph.add` inside `canvas_batch` / `pmx-canvas batch` when you need a graph node as part of
   a larger one-shot build.
@@ -255,12 +276,37 @@ Use color consistently to convey meaning:
 - **Always call `canvas_snapshot` first** to save a backup before clearing
 - This is irreversible without a prior snapshot
 
+### Diagrams (Excalidraw MCP app preset)
+
+**`canvas_add_diagram`** — Draw a hand-drawn diagram on the canvas via the hosted
+[Excalidraw MCP app](https://github.com/excalidraw/excalidraw-mcp)
+- Required: `elements` — an array of Excalidraw elements (rectangles, ellipses, diamonds, arrows,
+  text). Can also be a JSON-array string.
+- Optional: `title`, `x`, `y`, `width`, `height`
+- The diagram opens inside an `mcp-app` node with fullscreen editing and draw-on animations
+- Use this when the human needs a quick sketch, architecture diagram, or flowchart and a
+  geometric `graph` node would feel too rigid
+- Prefer labeled shapes (`"label": { "text": "..." }` on rectangle/ellipse/diamond) over
+  separate text elements — fewer tokens and auto-centered
+- Prefer the pastel fill palette in the Excalidraw `read_me` (light blue/green/orange/...) for
+  a consistent look across diagrams
+
+### External MCP apps (bring your own)
+
+**`canvas_open_mcp_app`** — Open any external [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps)
+server's `ui://` resource as an iframe node on the canvas
+- Required: `toolName`, `transport` (`http` URL or `stdio` command)
+- Optional: `serverName`, `toolArguments`, `title`, `x`, `y`, `width`, `height`
+- Use when no dedicated preset exists yet. The Excalidraw preset (`canvas_add_diagram`) is the
+  only one today
+
 ### Web Artifacts
 
 **`canvas_build_web_artifact`** — Build a single-file HTML artifact from React/Tailwind source
 - Required: `title`, `appTsx`
-- Optional: `indexCss`, `mainTsx`, `indexHtml`, extra `files`, `projectPath`, `outputPath`
+- Optional: `indexCss`, `mainTsx`, `indexHtml`, extra `files`, `projectPath`, `outputPath`, `includeLogs`
 - By default it opens the result on the canvas as an embedded app node
+- By default it returns compact log summaries; set `includeLogs: true` when you need raw stdout/stderr
 - Use this when the output should be a richer interactive UI than a simple markdown/file/image node
 - Prefer the dedicated `web-artifacts-builder` skill when you need the full React + shadcn workflow
 - Use the `playwright-cli` skill when you need to validate the built artifact in a live browser
@@ -282,6 +328,7 @@ what the human has set up and what they're focusing on.
 | Resource | What it provides |
 |----------|-----------------|
 | `canvas://pinned-context` | Content of pinned nodes + nearby unpinned neighbors |
+| `canvas://schema` | Running-server create schemas and json-render catalog metadata |
 | `canvas://layout` | Full canvas state (viewport, nodes, edges) |
 | `canvas://summary` | Compact overview: node counts by type, pinned titles |
 | `canvas://spatial-context` | Proximity clusters, reading order, pinned neighborhoods |
@@ -323,6 +370,8 @@ All POST/PATCH endpoints accept `Content-Type: application/json`. Default base U
 | GET | `/api/canvas/search?q=...` | Search nodes |
 | POST | `/api/canvas/json-render` | Create a native json-render node |
 | POST | `/api/canvas/graph` | Create a native graph node |
+| GET | `/api/canvas/schema` | Get running-server create schemas, examples, and json-render catalog metadata |
+| POST | `/api/canvas/schema/validate` | Validate a json-render spec or graph payload without creating a node |
 | GET | `/api/canvas/json-render/view?nodeId=...` | View a native json-render or graph node |
 | POST | `/api/canvas/web-artifact` | Build a bundled web artifact and optionally open it on canvas |
 | POST | `/api/canvas/group` | Create group |

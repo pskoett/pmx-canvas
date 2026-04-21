@@ -2,6 +2,7 @@
 set -euo pipefail
 
 PNPM_VERSION="10.33.0"
+ALLOWED_BUILD_PACKAGES=("@parcel/watcher" "@swc/core" "lmdb" "msgpackr-extract")
 
 function configure_pnpm() {
   if command -v pnpm >/dev/null 2>&1; then
@@ -32,6 +33,85 @@ function run_pnpm() {
   "${PNPM_CMD[@]}" "$@"
 }
 
+function run_local_binary() {
+  local binary_name="$1"
+  shift
+  local binary_path="./node_modules/.bin/$binary_name"
+  if [ ! -x "$binary_path" ]; then
+    echo "❌ Error: Expected local binary at $binary_path" >&2
+    exit 1
+  fi
+  "$binary_path" "$@"
+}
+
+function replay_filtered_stderr() {
+  local stderr_file="$1"
+  while IFS= read -r line; do
+    if [[ "$line" == *"/dev/tty"* ]]; then
+      continue
+    fi
+    echo "$line" >&2
+  done < "$stderr_file"
+}
+
+function run_with_filtered_stderr() {
+  local stderr_file
+  stderr_file="$(mktemp)"
+  if "$@" 2>"$stderr_file"; then
+    replay_filtered_stderr "$stderr_file"
+    rm -f "$stderr_file"
+    return 0
+  fi
+
+  local status=$?
+  replay_filtered_stderr "$stderr_file"
+  rm -f "$stderr_file"
+  return "$status"
+}
+
+function run_pnpm_quiet() {
+  run_with_filtered_stderr "${PNPM_CMD[@]}" --silent "$@"
+}
+
+function run_pnpm_allow_build() {
+  local allow_build_args=()
+  local package_name
+  for package_name in "${ALLOWED_BUILD_PACKAGES[@]}"; do
+    allow_build_args+=(--allow-build="$package_name")
+  done
+  run_with_filtered_stderr "${PNPM_CMD[@]}" --silent "$@" "${allow_build_args[@]}"
+}
+
+function package_has_dependency() {
+  local package_name="$1"
+  node -e '
+const fs = require("fs");
+const packageName = process.argv[1];
+const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"));
+const deps = { ...(pkg.dependencies || {}), ...(pkg.devDependencies || {}) };
+process.exit(deps[packageName] ? 0 : 1);
+' "$package_name"
+}
+
+function ensure_bundle_dependencies() {
+  local packages=(
+    "parcel"
+    "@parcel/config-default"
+    "parcel-resolver-tspaths"
+    "html-inline"
+  )
+
+  for package_name in "${packages[@]}"; do
+    if ! package_has_dependency "$package_name"; then
+      echo "📦 Installing missing bundling dependencies..."
+      run_pnpm_allow_build add -D parcel @parcel/config-default parcel-resolver-tspaths html-inline
+      return 0
+    fi
+  done
+
+  echo "✅ Reusing existing bundling dependencies"
+}
+
 declare -a PNPM_CMD
 configure_pnpm
 
@@ -50,9 +130,8 @@ if [ ! -f "index.html" ]; then
   exit 1
 fi
 
-# Install bundling dependencies
-echo "📦 Installing bundling dependencies..."
-run_pnpm add -D parcel @parcel/config-default parcel-resolver-tspaths html-inline
+# Install bundling dependencies only when missing
+ensure_bundle_dependencies
 
 # Create Parcel config with tspaths resolver
 if [ ! -f ".parcelrc" ]; then
@@ -71,11 +150,11 @@ rm -rf dist bundle.html
 
 # Build with Parcel
 echo "🔨 Building with Parcel..."
-run_pnpm exec parcel build index.html --dist-dir dist --no-source-maps
+run_with_filtered_stderr run_local_binary parcel build index.html --dist-dir dist --no-source-maps --log-level error
 
 # Inline everything into single HTML
 echo "🎯 Inlining all assets into single HTML file..."
-run_pnpm exec html-inline dist/index.html > bundle.html
+run_with_filtered_stderr run_local_binary html-inline dist/index.html > bundle.html
 
 # Get file size
 FILE_SIZE=$(du -h bundle.html | cut -f1)

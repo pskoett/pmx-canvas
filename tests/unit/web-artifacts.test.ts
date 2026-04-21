@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { existsSync, readFileSync, realpathSync } from 'node:fs';
+import { chmodSync, existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import {
@@ -115,6 +115,55 @@ describe('web artifact builders', () => {
       expect(node?.data.title).toBe('Skill Demo');
       expect(String(node?.data.url ?? '')).toContain('/artifact?path=');
       expect(readFileSync(result.filePath, 'utf-8')).toContain('Skill Demo');
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
+  test('log summaries suppress known build noise while keeping actionable lines', async () => {
+    const initScriptPath = join(workspaceRoot, 'emit-noisy-init.sh');
+    const bundleScriptPath = join(workspaceRoot, 'emit-noisy-bundle.sh');
+    writeFileSync(initScriptPath, `#!/bin/bash
+set -e
+PROJECT_NAME="$1"
+mkdir -p "$PROJECT_NAME/src"
+cat > "$PROJECT_NAME/package.json" <<'EOF'
+{"name":"noisy-artifact"}
+EOF
+cat > "$PROJECT_NAME/index.html" <<'EOF'
+<!DOCTYPE html><html><body><div id="root"></div></body></html>
+EOF
+cat > "$PROJECT_NAME/src/main.tsx" <<'EOF'
+console.log("main");
+EOF
+cat > "$PROJECT_NAME/src/App.tsx" <<'EOF'
+export default function App() { return null; }
+EOF
+`, 'utf-8');
+    writeFileSync(bundleScriptPath, `#!/bin/bash
+set -e
+echo 'Opening \`/dev/tty\` failed (6): Device not configured' 1>&2
+echo 'useful warning line' 1>&2
+echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
+`, 'utf-8');
+    chmodSync(initScriptPath, 0o755);
+    chmodSync(bundleScriptPath, 0o755);
+
+    const originalCwd = process.cwd();
+    process.chdir(workspaceRoot);
+    try {
+      const result = await executeWebArtifactBuild({
+        title: 'Noisy Artifact',
+        appTsx: 'export default function App() { return <main>Noisy Artifact</main>; }',
+        projectPath: join(workspaceRoot, 'artifacts', '.web-artifacts', 'noisy-artifact'),
+        outputPath: join(workspaceRoot, 'artifacts', 'noisy-artifact.html'),
+        initScriptPath,
+        bundleScriptPath,
+      });
+
+      expect(result.logs?.stderr?.suppressedNoiseCount).toBe(1);
+      expect(result.logs?.stderr?.excerpt).toContain('useful warning line');
+      expect(result.logs?.stderr?.excerpt.some((line) => line.includes('/dev/tty'))).toBe(false);
     } finally {
       process.chdir(originalCwd);
     }

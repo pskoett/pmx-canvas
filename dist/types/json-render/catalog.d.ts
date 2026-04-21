@@ -618,6 +618,19 @@ export interface JsonRenderIssue {
     path?: PropertyKey[];
     message?: string;
 }
+export interface JsonRenderPropDescriptor {
+    name: string;
+    type: string;
+    required: boolean;
+    nullable: boolean;
+}
+export interface JsonRenderComponentDescriptor {
+    type: string;
+    description: string;
+    slots: string[];
+    example: unknown;
+    props: JsonRenderPropDescriptor[];
+}
 interface JsonRenderValidationResult {
     success: boolean;
     data?: unknown;
@@ -625,5 +638,6 @@ interface JsonRenderValidationResult {
         issues?: JsonRenderIssue[];
     };
 }
+export declare function describeJsonRenderCatalog(): JsonRenderComponentDescriptor[];
 export declare function validateShadcnElementProps(spec: unknown): JsonRenderValidationResult;
 export {};

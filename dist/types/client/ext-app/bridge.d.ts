@@ -131,6 +131,7 @@ export declare class AppBridge {
     set onloggingmessage(callback: (params: LoggingMessageParams) => void);
     set onupdatemodelcontext(callback: RequestHandler<Record<string, unknown>, Record<string, unknown>>);
     set oncalltool(callback: RequestHandler<ToolCallParams, unknown>);
+    set onlisttools(callback: RequestHandler<Record<string, unknown>, unknown>);
     set onlistresources(callback: RequestHandler<Record<string, unknown>, unknown>);
     set onlistresourcetemplates(callback: RequestHandler<Record<string, unknown>, unknown>);
     set onreadresource(callback: RequestHandler<Record<string, unknown>, unknown>);

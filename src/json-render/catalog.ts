@@ -25,6 +25,21 @@ export interface JsonRenderIssue {
   message?: string;
 }
 
+export interface JsonRenderPropDescriptor {
+  name: string;
+  type: string;
+  required: boolean;
+  nullable: boolean;
+}
+
+export interface JsonRenderComponentDescriptor {
+  type: string;
+  description: string;
+  slots: string[];
+  example: unknown;
+  props: JsonRenderPropDescriptor[];
+}
+
 interface JsonRenderValidationResult {
   success: boolean;
   data?: unknown;
@@ -74,6 +89,110 @@ function isNullableSchema(value: unknown): boolean {
   }
   const typeName = schemaTypeName(value);
   return typeName === 'ZodNullable' || typeName === 'nullable';
+}
+
+function unwrapSchema(value: unknown): {
+  schema: unknown;
+  required: boolean;
+  nullable: boolean;
+} {
+  let current = value;
+  let required = true;
+  let nullable = false;
+
+  while (current) {
+    if (isOptionalSchema(current)) {
+      required = false;
+    }
+    if (isNullableSchema(current)) {
+      nullable = true;
+    }
+
+    const record = asRecord(current);
+    const def = asRecord(record?._def) ?? asRecord(record?.def);
+    const inner =
+      def?.innerType ??
+      def?.schema ??
+      def?.type ??
+      def?.out ??
+      def?.in;
+
+    if (!inner || inner === current || (!isOptionalSchema(current) && !isNullableSchema(current))) {
+      break;
+    }
+    current = inner;
+  }
+
+  return { schema: current, required, nullable };
+}
+
+function schemaTypeLabel(value: unknown): string {
+  const { schema, nullable } = unwrapSchema(value);
+  const record = asRecord(schema);
+  const def = asRecord(record?._def) ?? asRecord(record?.def);
+  const typeName = schemaTypeName(schema);
+
+  let label = 'unknown';
+  if (typeName === 'ZodString' || typeName === 'string') {
+    label = 'string';
+  } else if (typeName === 'ZodNumber' || typeName === 'number') {
+    label = 'number';
+  } else if (typeName === 'ZodBoolean' || typeName === 'boolean') {
+    label = 'boolean';
+  } else if (typeName === 'ZodArray' || typeName === 'array') {
+    const element = def?.type ?? def?.element ?? def?.schema;
+    label = `${schemaTypeLabel(element)}[]`;
+  } else if (typeName === 'ZodObject' || typeName === 'object') {
+    label = 'object';
+  } else if (typeName === 'ZodRecord' || typeName === 'record') {
+    label = 'record';
+  } else if (typeName === 'ZodEnum' || typeName === 'enum') {
+    const rawValues = Array.isArray(def?.values)
+      ? def.values
+      : Array.isArray(def?.entries)
+        ? def.entries
+        : Array.isArray(def?.options)
+          ? def.options
+          : [];
+    label = rawValues.length > 0
+      ? rawValues.map((entry) => JSON.stringify(entry)).join(' | ')
+      : 'enum';
+  } else if (typeName === 'ZodLiteral' || typeName === 'literal') {
+    label = JSON.stringify(def?.value ?? def?.literal ?? 'literal');
+  } else if (typeName === 'ZodAny' || typeName === 'any') {
+    label = 'any';
+  }
+
+  return nullable ? `${label} | null` : label;
+}
+
+function describePropsSchema(propsSchema: ZodishSchema): JsonRenderPropDescriptor[] {
+  const shape = propsSchema.shape;
+  if (!shape || typeof shape !== 'object') return [];
+
+  return Object.entries(shape)
+    .map(([name, schema]) => {
+      const unwrapped = unwrapSchema(schema);
+      return {
+        name,
+        type: schemaTypeLabel(unwrapped.schema),
+        required: unwrapped.required && !unwrapped.nullable,
+        nullable: unwrapped.nullable,
+      };
+    })
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+export function describeJsonRenderCatalog(): JsonRenderComponentDescriptor[] {
+  return Object.entries(allComponentDefinitions)
+    .map(([type, definition]) => ({
+      type,
+      description: definition.description ?? '',
+      slots: 'slots' in definition && Array.isArray(definition.slots) ? [...definition.slots] : [],
+      example: 'example' in definition ? definition.example : undefined,
+      props: hasSafeParse(definition.props) ? describePropsSchema(definition.props) : [],
+    }))
+    .sort((a, b) => a.type.localeCompare(b.type));
 }
 
 function normalizePropsForSchema(

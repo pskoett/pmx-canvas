@@ -59,9 +59,9 @@ This creates `bundle.html` - a self-contained artifact with all JavaScript, CSS,
 **Requirements**: Your project must have an `index.html` in the root directory.
 
 **What the script does**:
-- Installs bundling dependencies (parcel, @parcel/config-default, parcel-resolver-tspaths, html-inline)
+- Reuses existing bundling dependencies when present; otherwise installs them once
 - Creates `.parcelrc` config with path alias support
-- Builds with Parcel (no source maps)
+- Builds with Parcel (no source maps) using a quieter log profile
 - Inlines all assets into single HTML using html-inline
 
 ### Step 4: Share Artifact with User

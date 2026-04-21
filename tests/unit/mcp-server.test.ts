@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { Client } from '@modelcontextprotocol/sdk/client';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createTestWorkspace, removeTestWorkspace } from './helpers.ts';
 
@@ -16,6 +18,7 @@ interface ToolResultShape {
 }
 
 const mcpServerPath = fileURLToPath(new URL('../../src/mcp/server.ts', import.meta.url));
+const fixtureMcpAppServerPath = fileURLToPath(new URL('../fixtures/mcp-app-fixture.ts', import.meta.url));
 
 async function getAvailablePort(): Promise<number> {
   return await new Promise((resolve, reject) => {
@@ -94,6 +97,10 @@ describe('MCP parity with CLI', () => {
       'canvas_get_layout',
       'canvas_get_node',
       'canvas_add_node',
+      'canvas_open_mcp_app',
+      'canvas_add_diagram',
+      'canvas_describe_schema',
+      'canvas_validate_spec',
       'canvas_add_graph_node',
       'canvas_add_json_render_node',
       'canvas_build_web_artifact',
@@ -133,6 +140,7 @@ describe('MCP parity with CLI', () => {
     const resourceUris = new Set(resources.resources.map((resource) => resource.uri));
     const expectedResources = [
       'canvas://pinned-context',
+      'canvas://schema',
       'canvas://layout',
       'canvas://summary',
       'canvas://spatial-context',
@@ -217,6 +225,194 @@ describe('MCP parity with CLI', () => {
     expect(payload.fetch.error).toBeTruthy();
     expect(payload.error).toBeTruthy();
   }, 15000);
+
+  test('canvas_open_mcp_app opens a standard ui:// MCP App node', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const opened = parseJsonText<{
+      ok: boolean;
+      toolCallId: string;
+      sessionId: string;
+      resourceUri: string;
+    }>(await session.client.callTool({
+      name: 'canvas_open_mcp_app',
+      arguments: {
+        toolName: 'show_counter',
+        toolArguments: { initial: 2 },
+        transport: {
+          type: 'stdio',
+          command: 'bun',
+          args: ['run', fixtureMcpAppServerPath],
+          cwd: session.workspaceRoot,
+        },
+      },
+    }) as ToolResultShape);
+
+    expect(opened.ok).toBe(true);
+    expect(opened.sessionId).toContain('mcp-app-session');
+    expect(opened.resourceUri).toBe('ui://fixture/counter.html');
+
+    const layout = parseJsonText<{
+      nodes: Array<{
+        type: string;
+        data: Record<string, unknown>;
+      }>;
+    }>(await session.client.callTool({
+      name: 'canvas_get_layout',
+      arguments: {},
+    }) as ToolResultShape);
+
+    const appNode = layout.nodes.find((node) =>
+      node.type === 'mcp-app' &&
+      node.data.mode === 'ext-app' &&
+      node.data.appSessionId === opened.sessionId,
+    );
+    expect(appNode).toBeTruthy();
+    expect(appNode?.data.resourceUri).toBe('ui://fixture/counter.html');
+    expect(appNode?.data.toolName).toBe('show_counter');
+  }, 20000);
+
+  test('canvas_describe_schema, canvas_validate_spec, and canvas://schema expose the running-server schema surface', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const described = parseJsonText<{
+      ok: boolean;
+      nodeTypes: Array<{ type: string; fields: Array<{ name: string; aliases?: string[] }> }>;
+      jsonRender: { components: Array<{ type: string }> };
+    }>(await session.client.callTool({
+      name: 'canvas_describe_schema',
+      arguments: {},
+    }) as ToolResultShape);
+
+    expect(described.ok).toBe(true);
+    expect(described.nodeTypes.find((entry) => entry.type === 'webpage')?.fields.find((field) => field.name === 'url')?.aliases).toContain('content');
+    expect(described.jsonRender.components.some((component) => component.type === 'Table')).toBe(true);
+
+    const validated = parseJsonText<{
+      ok: boolean;
+      type: string;
+      normalizedSpec: {
+        elements: Record<string, { props?: { rows?: string[][] } }>;
+      };
+    }>(await session.client.callTool({
+      name: 'canvas_validate_spec',
+      arguments: {
+        type: 'json-render',
+        spec: {
+          root: 'table',
+          elements: {
+            table: {
+              type: 'Table',
+              props: {
+                columns: ['Metric', 'Value'],
+                rows: [
+                  ['Builds', 12],
+                  ['Deploys', 4],
+                ],
+              },
+              children: [],
+            },
+          },
+        },
+      },
+    }) as ToolResultShape);
+
+    expect(validated.ok).toBe(true);
+    expect(validated.type).toBe('json-render');
+    expect(validated.normalizedSpec.elements.table?.props?.rows).toEqual([
+      ['Builds', '12'],
+      ['Deploys', '4'],
+    ]);
+
+    const resource = await session.client.readResource({ uri: 'canvas://schema' });
+    const schemaText = resource.contents?.find((item) => item.uri === 'canvas://schema')?.text ?? '';
+    expect(schemaText).toContain('"source": "running-server"');
+    expect(schemaText).toContain('"canvas_validate_spec"');
+  });
+
+  test('canvas_build_web_artifact matches CLI log behavior and keeps raw logs opt-in', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const tools = await session.client.listTools();
+    const artifactTool = tools.tools.find((tool) => tool.name === 'canvas_build_web_artifact');
+    expect(artifactTool?.inputSchema.properties).toHaveProperty('includeLogs');
+
+    const initScriptPath = join(session.workspaceRoot, 'emit-init.sh');
+    const bundleScriptPath = join(session.workspaceRoot, 'emit-bundle.sh');
+    writeFileSync(initScriptPath, `#!/bin/bash
+set -e
+PROJECT_NAME="$1"
+mkdir -p "$PROJECT_NAME/src"
+echo "init stdout"
+echo "init stderr" 1>&2
+cat > "$PROJECT_NAME/package.json" <<'EOF'
+{"name":"mcp-web-artifact"}
+EOF
+cat > "$PROJECT_NAME/index.html" <<'EOF'
+<!DOCTYPE html><html><body><div id="root"></div></body></html>
+EOF
+cat > "$PROJECT_NAME/src/main.tsx" <<'EOF'
+console.log("main");
+EOF
+cat > "$PROJECT_NAME/src/App.tsx" <<'EOF'
+export default function App() { return null; }
+EOF
+`, 'utf-8');
+    writeFileSync(bundleScriptPath, `#!/bin/bash
+set -e
+echo "bundle stdout"
+echo "bundle stderr" 1>&2
+echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
+`, 'utf-8');
+    await Bun.$`chmod +x ${initScriptPath} ${bundleScriptPath}`;
+
+    const quiet = parseJsonText<{
+      path: string;
+      logs?: { stdout?: { excerpt: string[] }; stderr?: { excerpt: string[] } };
+      stdout?: string;
+      stderr?: string;
+    }>(await session.client.callTool({
+      name: 'canvas_build_web_artifact',
+      arguments: {
+        title: 'Quiet MCP Artifact',
+        appTsx: 'export default function App() { return <main>Quiet MCP Artifact</main>; }',
+        initScriptPath,
+        bundleScriptPath,
+      },
+    }) as ToolResultShape);
+    expect(quiet.path).toContain('quiet-mcp-artifact.html');
+    expect(quiet.stdout).toBeUndefined();
+    expect(quiet.stderr).toBeUndefined();
+    expect(quiet.logs?.stderr?.excerpt).toContain('bundle stderr');
+
+    const verbose = parseJsonText<{
+      stdout?: string;
+      stderr?: string;
+    }>(await session.client.callTool({
+      name: 'canvas_build_web_artifact',
+      arguments: {
+        title: 'Verbose MCP Artifact',
+        appTsx: 'export default function App() { return <main>Verbose MCP Artifact</main>; }',
+        initScriptPath,
+        bundleScriptPath,
+        includeLogs: true,
+      },
+    }) as ToolResultShape);
+    expect(verbose.stdout).toContain('bundle stdout');
+    expect(verbose.stderr).toContain('bundle stderr');
+  });
 
   test('canvas_evaluate exposes script and accepts it as input', async () => {
     const session = await createMcpSession();

@@ -30,11 +30,20 @@ import {
   validateCanvasNodePatch,
 } from './canvas-operations.js';
 import { validateCanvasLayout } from './canvas-validation.js';
+import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
 import {
   buildWebArtifactOnCanvas,
   type WebArtifactBuildInput,
   type WebArtifactCanvasBuildResult,
 } from './web-artifacts.js';
+import {
+  openMcpApp as openExternalMcpApp,
+  type ExternalMcpTransportConfig,
+} from './mcp-app-runtime.js';
+import {
+  buildExcalidrawOpenMcpAppInput,
+  type DiagramPresetOpenInput,
+} from './diagram-presets.js';
 import {
   buildGraphSpec,
   buildJsonRenderViewerHtml,
@@ -412,6 +421,18 @@ export class PmxCanvas extends EventEmitter {
     return validateCanvasLayout(canvasState.getLayout());
   }
 
+  describeSchema() {
+    return describeCanvasSchema();
+  }
+
+  validateSpec(input: {
+    type: 'json-render' | 'graph';
+    spec?: unknown;
+    graph?: GraphNodeInput;
+  }) {
+    return validateStructuredCanvasPayload(input);
+  }
+
   async runBatch(operations: Array<{ op: string; assign?: string; args?: Record<string, unknown> }>) {
     const result = await executeCanvasBatch(operations);
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
@@ -422,6 +443,62 @@ export class PmxCanvas extends EventEmitter {
     input: WebArtifactBuildInput & { openInCanvas?: boolean },
   ): Promise<WebArtifactCanvasBuildResult> {
     return buildWebArtifactOnCanvas(input);
+  }
+
+  async openMcpApp(input: {
+    transport: ExternalMcpTransportConfig;
+    toolName: string;
+    toolArguments?: Record<string, unknown>;
+    serverName?: string;
+    title?: string;
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+  }): Promise<{ ok: true; toolCallId: string; sessionId: string; resourceUri: string }> {
+    const opened = await openExternalMcpApp({
+      transport: input.transport,
+      toolName: input.toolName,
+      ...(input.toolArguments ? { toolArguments: input.toolArguments } : {}),
+      ...(input.serverName ? { serverName: input.serverName } : {}),
+    });
+    const toolCallId = `ext-app-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    emitPrimaryWorkbenchEvent('ext-app-open', {
+      toolCallId,
+      title: input.title ?? opened.tool.title ?? opened.tool.name,
+      html: opened.html,
+      toolInput: opened.toolInput,
+      serverName: opened.serverName,
+      toolName: opened.toolName,
+      appSessionId: opened.sessionId,
+      resourceUri: opened.resourceUri,
+      toolDefinition: opened.tool,
+      ...(opened.resourceMeta ? { resourceMeta: opened.resourceMeta } : {}),
+      ...(typeof input.x === 'number' ? { x: input.x } : {}),
+      ...(typeof input.y === 'number' ? { y: input.y } : {}),
+      ...(typeof input.width === 'number' ? { width: input.width } : {}),
+      ...(typeof input.height === 'number' ? { height: input.height } : {}),
+    });
+    emitPrimaryWorkbenchEvent('ext-app-result', {
+      toolCallId,
+      serverName: opened.serverName,
+      toolName: opened.toolName,
+      success: opened.toolResult.isError !== true,
+      result: opened.toolResult,
+    });
+    return {
+      ok: true,
+      toolCallId,
+      sessionId: opened.sessionId,
+      resourceUri: opened.resourceUri,
+    };
+  }
+
+  async addDiagram(
+    input: DiagramPresetOpenInput,
+  ): Promise<{ ok: true; toolCallId: string; sessionId: string; resourceUri: string }> {
+    const built = buildExcalidrawOpenMcpAppInput(input);
+    return this.openMcpApp(built);
   }
 
   addJsonRenderNode(
@@ -512,6 +589,7 @@ export { searchNodes, buildSpatialContext, detectClusters, findNeighborhoods } f
 export type { SpatialCluster, SpatialContext, SpatialNeighbor, NodeSpatialInfo } from './spatial-analysis.js';
 export { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
 export { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
+export { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
 export {
   buildWebArtifactOnCanvas,
   executeWebArtifactBuild,

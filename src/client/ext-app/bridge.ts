@@ -307,6 +307,10 @@ export class AppBridge {
     this.setRequestHandler('tools/call', callback);
   }
 
+  set onlisttools(callback: RequestHandler<Record<string, unknown>, unknown>) {
+    this.setRequestHandler('tools/list', callback);
+  }
+
   set onlistresources(callback: RequestHandler<Record<string, unknown>, unknown>) {
     this.setRequestHandler('resources/list', callback);
   }

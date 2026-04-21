@@ -3,6 +3,8 @@ import type { CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.j
 import { searchNodes } from './spatial-analysis.js';
 import { diffLayouts } from './mutation-history.js';
 import { type WebArtifactBuildInput, type WebArtifactCanvasBuildResult } from './web-artifacts.js';
+import { type ExternalMcpTransportConfig } from './mcp-app-runtime.js';
+import { type DiagramPresetOpenInput } from './diagram-presets.js';
 import { type GraphNodeInput, type JsonRenderNodeInput, type JsonRenderSpec } from '../json-render/server.js';
 import type { CanvasAutomationWebViewOptions, CanvasAutomationWebViewStatus } from './server.js';
 export declare class PmxCanvas extends EventEmitter {
@@ -139,6 +141,28 @@ export declare class PmxCanvas extends EventEmitter {
         summary: import("./code-graph.js").CodeGraphSummary;
     };
     validate(): import("./canvas-validation.js").CanvasValidationResult;
+    describeSchema(): {
+        ok: true;
+        source: "running-server";
+        version: string | null;
+        nodeTypes: import("./canvas-schema.js").CanvasCreateTypeSchema[];
+        jsonRender: {
+            rootShape: Record<string, string>;
+            components: import("../json-render/catalog.js").JsonRenderComponentDescriptor[];
+        };
+        graph: {
+            graphTypes: Array<"line" | "bar" | "pie">;
+        };
+        mcp: {
+            tools: string[];
+            resources: string[];
+        };
+    };
+    validateSpec(input: {
+        type: 'json-render' | 'graph';
+        spec?: unknown;
+        graph?: GraphNodeInput;
+    }): import("./canvas-schema.js").StructuredValidationResult;
     runBatch(operations: Array<{
         op: string;
         assign?: string;
@@ -153,6 +177,28 @@ export declare class PmxCanvas extends EventEmitter {
     buildWebArtifact(input: WebArtifactBuildInput & {
         openInCanvas?: boolean;
     }): Promise<WebArtifactCanvasBuildResult>;
+    openMcpApp(input: {
+        transport: ExternalMcpTransportConfig;
+        toolName: string;
+        toolArguments?: Record<string, unknown>;
+        serverName?: string;
+        title?: string;
+        x?: number;
+        y?: number;
+        width?: number;
+        height?: number;
+    }): Promise<{
+        ok: true;
+        toolCallId: string;
+        sessionId: string;
+        resourceUri: string;
+    }>;
+    addDiagram(input: DiagramPresetOpenInput): Promise<{
+        ok: true;
+        toolCallId: string;
+        sessionId: string;
+        resourceUri: string;
+    }>;
     addJsonRenderNode(input: JsonRenderNodeInput): {
         id: string;
         url: string;
@@ -184,6 +230,7 @@ export { searchNodes, buildSpatialContext, detectClusters, findNeighborhoods } f
 export type { SpatialCluster, SpatialContext, SpatialNeighbor, NodeSpatialInfo } from './spatial-analysis.js';
 export { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
 export { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
+export { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
 export { buildWebArtifactOnCanvas, executeWebArtifactBuild, openWebArtifactInCanvas, resolveWebArtifactScriptPath, resolveWorkspacePath, } from './web-artifacts.js';
 export { buildGraphSpec, buildJsonRenderViewerHtml, createJsonRenderNodeData, GRAPH_NODE_SIZE, JSON_RENDER_NODE_SIZE, normalizeAndValidateJsonRenderSpec, } from '../json-render/server.js';
 export type { CodeGraphSummary, CodeGraphEdge } from './code-graph.js';

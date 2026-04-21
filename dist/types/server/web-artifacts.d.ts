@@ -16,8 +16,18 @@ export interface WebArtifactBuildOutput {
     fileSize: number;
     projectPath: string;
     metadata: Record<string, unknown>;
+    logs?: {
+        stdout?: WebArtifactLogSummary;
+        stderr?: WebArtifactLogSummary;
+    };
     stdout?: string;
     stderr?: string;
+}
+export interface WebArtifactLogSummary {
+    lineCount: number;
+    excerpt: string[];
+    truncated: boolean;
+    suppressedNoiseCount: number;
 }
 export interface WebArtifactCanvasOpenResult {
     nodeId: string;

@@ -46,8 +46,19 @@ export interface WebArtifactBuildOutput {
   fileSize: number;
   projectPath: string;
   metadata: Record<string, unknown>;
+  logs?: {
+    stdout?: WebArtifactLogSummary;
+    stderr?: WebArtifactLogSummary;
+  };
   stdout?: string;
   stderr?: string;
+}
+
+export interface WebArtifactLogSummary {
+  lineCount: number;
+  excerpt: string[];
+  truncated: boolean;
+  suppressedNoiseCount: number;
 }
 
 export interface WebArtifactCanvasOpenResult {
@@ -273,6 +284,32 @@ function ensurePackageManagerBoundary(dirPath: string): void {
   writeFileSync(packageJsonPath, JSON.stringify(nextPackageJson, null, 2), 'utf-8');
 }
 
+function summarizeArtifactLog(text: string): WebArtifactLogSummary | undefined {
+  if (!text.trim()) return undefined;
+
+  const lines = text
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line) => line.trim().length > 0);
+  if (lines.length === 0) return undefined;
+
+  const noisyPatterns = [
+    /\/dev\/tty/i,
+    /no such device or address/i,
+  ];
+  const filteredLines = lines.filter((line) => !noisyPatterns.some((pattern) => pattern.test(line)));
+  const suppressedNoiseCount = lines.length - filteredLines.length;
+  const visibleLines = filteredLines.length > 0 ? filteredLines : lines;
+  const excerpt = visibleLines.slice(-6);
+
+  return {
+    lineCount: visibleLines.length,
+    excerpt,
+    truncated: visibleLines.length > excerpt.length,
+    suppressedNoiseCount,
+  };
+}
+
 export async function executeWebArtifactBuild(
   input: WebArtifactBuildInput,
 ): Promise<WebArtifactBuildOutput> {
@@ -342,6 +379,10 @@ export async function executeWebArtifactBuild(
       hasIndexCss: typeof input.indexCss === 'string',
       extraFileCount: Object.keys(input.files ?? {}).length,
       outputPreview: readFileSync(outputPath, 'utf-8').slice(0, 200),
+    },
+    logs: {
+      ...(summarizeArtifactLog(stdout) ? { stdout: summarizeArtifactLog(stdout) } : {}),
+      ...(summarizeArtifactLog(stderr) ? { stderr: summarizeArtifactLog(stderr) } : {}),
     },
     stdout: stdout || undefined,
     stderr: stderr || undefined,

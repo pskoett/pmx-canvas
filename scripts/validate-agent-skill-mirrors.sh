@@ -22,19 +22,30 @@ SKILLS=(
   "verify-gate"
 )
 
+# Only validate roots that are present in this checkout. `.claude/skills/` is
+# often excluded by a global gitignore and therefore absent in CI; skipping
+# missing roots lets the check still guard drift between whatever trees ARE
+# committed without producing false-negative CI failures.
+EXISTING_ROOTS=()
 for root in "${ROOTS[@]}"; do
-  if [ ! -d "$root" ]; then
-    echo "Missing skills root: $root" >&2
-    exit 1
+  if [ -d "$root" ]; then
+    EXISTING_ROOTS+=("$root")
+  else
+    echo "Skipping missing skills root: $root (not present in this checkout)" >&2
   fi
 done
+
+if [ "${#EXISTING_ROOTS[@]}" -lt 1 ]; then
+  echo "No skills roots found to validate." >&2
+  exit 1
+fi
 
 list_files() {
   local skill_root="$1"
   find "$skill_root" -type f | LC_ALL=C sort | sed "s#^$skill_root/##"
 }
 
-baseline_root="${ROOTS[0]}"
+baseline_root="${EXISTING_ROOTS[0]}"
 
 for skill in "${SKILLS[@]}"; do
   baseline_skill_dir="$baseline_root/$skill"
@@ -46,7 +57,7 @@ for skill in "${SKILLS[@]}"; do
 
   baseline_files="$(list_files "$baseline_skill_dir")"
 
-  for root in "${ROOTS[@]:1}"; do
+  for root in "${EXISTING_ROOTS[@]:1}"; do
     skill_dir="$root/$skill"
 
     if [ ! -d "$skill_dir" ]; then
