@@ -1,55 +1,20 @@
 import type { JSX } from 'preact';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { expandNode, updateNodeData } from '../state/canvas-store';
 import { fetchFile, renderMarkdown, saveFile, updateNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
 import { MdFormatBar } from './MdFormatBar';
 import { handleFormatShortcut, handleTab } from './md-format';
-
-/** Split markdown into blocks, respecting fenced code blocks and tables. */
-function splitMarkdownBlocks(md: string): string[] {
-  const lines = md.split('\n');
-  const blocks: string[] = [];
-  let current: string[] = [];
-  let inFence = false;
-
-  for (const line of lines) {
-    // Track fenced code blocks (``` or ~~~)
-    if (/^(`{3,}|~{3,})/.test(line)) {
-      inFence = !inFence;
-      current.push(line);
-      continue;
-    }
-    if (inFence) {
-      current.push(line);
-      continue;
-    }
-    // Blank line outside fence = block boundary
-    if (line.trim() === '') {
-      if (current.length > 0) {
-        blocks.push(current.join('\n'));
-        current = [];
-      }
-      continue;
-    }
-    current.push(line);
-  }
-  if (current.length > 0) {
-    blocks.push(current.join('\n'));
-  }
-  return blocks;
-}
+import { InlineMarkdownEditor } from './InlineMarkdownEditor';
 
 function RenderedMarkdown({
   html,
   className,
   style,
-  onBlockClick,
 }: {
   html: string;
   className?: string;
   style?: string | JSX.CSSProperties;
-  onBlockClick?: (blockIndex: number) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -58,46 +23,12 @@ function RenderedMarkdown({
     if (!container) return;
     container.replaceChildren();
     if (!html) return;
-
     const template = document.createElement('template');
     template.innerHTML = html;
     container.append(template.content.cloneNode(true));
+  }, [html]);
 
-    // If block-click is enabled, annotate top-level children
-    if (onBlockClick) {
-      const children = container.children;
-      for (let i = 0; i < children.length; i++) {
-        const el = children[i] as HTMLElement;
-        el.dataset.blockIdx = String(i);
-      }
-    }
-  }, [html, onBlockClick]);
-
-  const handleClick = useCallback(
-    (e: MouseEvent) => {
-      if (!onBlockClick) return;
-      // Walk up from target to find a top-level child with data-block-idx
-      let el = e.target as HTMLElement | null;
-      const container = containerRef.current;
-      while (el && el !== container) {
-        if (el.parentElement === container && el.dataset.blockIdx) {
-          onBlockClick(Number(el.dataset.blockIdx));
-          return;
-        }
-        el = el.parentElement;
-      }
-    },
-    [onBlockClick],
-  );
-
-  return (
-    <div
-      ref={containerRef}
-      class={className}
-      style={style}
-      onClick={onBlockClick ? handleClick : undefined}
-    />
-  );
+  return <div ref={containerRef} class={className} style={style} />;
 }
 
 export function MarkdownNode({
@@ -111,15 +42,14 @@ export function MarkdownNode({
   const [sourceMode, setSourceMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
-  const [editingBlock, setEditingBlock] = useState<number | null>(null);
-  const [blockDraft, setBlockDraft] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const blockTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const persistTimerRef = useRef<number | null>(null);
+  // Always-current md + saver, so the unmount cleanup can flush a pending
+  // debounced save without capturing stale closures.
+  const latestMdRef = useRef<string>('');
+  const persistFnRef = useRef<((md: string) => Promise<void>) | null>(null);
   const reviewActive = node.data.reviewActive as boolean | undefined;
 
-  const blocks = useMemo(() => splitMarkdownBlocks(content), [content]);
-
-  // Load content: from file (path) or inline (data.content)
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -146,7 +76,6 @@ export function MarkdownNode({
     };
   }, [path, node.id, node.data.content]);
 
-  // Re-render on content change (for full editor)
   const handleInput = useCallback(async (e: Event) => {
     const value = (e.target as HTMLTextAreaElement).value;
     setContent(value);
@@ -183,9 +112,9 @@ export function MarkdownNode({
   );
 
   const handleSave = useCallback(async () => {
-    if (!path || !dirty) return;
+    if (!dirty) return;
     await persistContent(content);
-  }, [path, dirty, content, persistContent]);
+  }, [dirty, content, persistContent]);
 
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
@@ -204,89 +133,53 @@ export function MarkdownNode({
     [handleSave],
   );
 
-  // ── Inline block editing ──────────────────────────────────────
+  // Keep refs in sync so the unmount-cleanup effect below can flush with
+  // the freshest values instead of closure captures.
+  persistFnRef.current = persistContent;
 
-  const focusBlockEditor = useCallback(() => {
-    requestAnimationFrame(() => {
-      const ta = blockTextareaRef.current;
-      if (ta) {
-        ta.focus();
-        ta.style.height = 'auto';
-        ta.style.height = `${ta.scrollHeight}px`;
-      }
-    });
-  }, []);
-
-  const startInlineEdit = useCallback(
-    (blockIndex: number) => {
-      if (editingBlock !== null) return;
-      const nextDraft = blocks[blockIndex] ?? '';
-      setEditingBlock(blockIndex);
-      setBlockDraft(nextDraft);
-      focusBlockEditor();
+  // Editor fires onChange on every keystroke; debounce the server save so we
+  // don't hit the backend on every letter.
+  const handleInlineChange = useCallback(
+    (md: string) => {
+      setContent(md);
+      setDirty(true);
+      latestMdRef.current = md;
+      if (persistTimerRef.current !== null) window.clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = window.setTimeout(() => {
+        persistTimerRef.current = null;
+        void persistContent(md);
+      }, 800);
     },
-    [editingBlock, blocks, focusBlockEditor],
+    [persistContent],
   );
 
-  const handleBlockClick = useCallback(
-    (blockIndex: number) => {
-      if (blockIndex >= blocks.length) return;
-      startInlineEdit(blockIndex);
+  // Fires on ⌘S and blur — persist immediately with whatever markdown the
+  // editor just serialized. Cancels any pending debounced save so we don't
+  // write twice with slightly different content.
+  const handleInlineSave = useCallback(
+    (md: string) => {
+      setContent(md);
+      latestMdRef.current = md;
+      if (persistTimerRef.current !== null) {
+        window.clearTimeout(persistTimerRef.current);
+        persistTimerRef.current = null;
+      }
+      void persistContent(md);
     },
-    [blocks.length, startInlineEdit],
+    [persistContent],
   );
 
-  const handleStartWriting = useCallback(() => {
-    startInlineEdit(0);
-  }, [startInlineEdit]);
-
-  const handleBlockSave = useCallback(async () => {
-    if (editingBlock === null) return;
-    const newBlocks = [...blocks];
-    newBlocks[editingBlock] = blockDraft;
-    const newContent = newBlocks.join('\n\n');
-    setContent(newContent);
-    setEditingBlock(null);
-    setDirty(true);
-    const html = await renderMarkdown(newContent);
-    setRendered(html);
-    await persistContent(newContent);
-  }, [editingBlock, blockDraft, blocks, persistContent]);
-
-  const handleBlockCancel = useCallback(() => {
-    setEditingBlock(null);
-  }, []);
-
-  const handleBlockKeyDown = useCallback(
-    (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        handleBlockCancel();
-        return;
-      }
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        e.preventDefault();
-        handleBlockSave();
-        return;
-      }
-      const ta = blockTextareaRef.current;
-      if (ta && handleFormatShortcut(e, ta)) return;
-      if (ta && e.key === 'Tab') {
-        e.preventDefault();
-        handleTab(ta, e.shiftKey);
-      }
-    },
-    [handleBlockCancel, handleBlockSave],
-  );
-
-  const handleBlockInput = useCallback((e: Event) => {
-    const ta = e.target as HTMLTextAreaElement;
-    setBlockDraft(ta.value);
-    ta.style.height = 'auto';
-    ta.style.height = `${ta.scrollHeight}px`;
-  }, []);
-
-  // ── Render helpers ────────────────────────────────────────────
+  // On unmount / node switch, flush any pending debounced save so trailing
+  // keystrokes aren't dropped when the user switches to another document.
+  useEffect(() => {
+    return () => {
+      if (persistTimerRef.current === null) return;
+      window.clearTimeout(persistTimerRef.current);
+      persistTimerRef.current = null;
+      const fn = persistFnRef.current;
+      if (fn) void fn(latestMdRef.current);
+    };
+  }, [node.id]);
 
   const reviewBanner = reviewActive ? (
     <div
@@ -305,7 +198,7 @@ export function MarkdownNode({
     </div>
   ) : null;
 
-  // ── Raw source editor (secondary mode) ────────────────────────
+  // ── Raw source editor (escape hatch) ──────────────────────────
 
   if (sourceMode && expanded) {
     return (
@@ -347,7 +240,6 @@ export function MarkdownNode({
           <textarea ref={textareaRef} value={content} onInput={handleInput} spellcheck={false} />
           <MdFormatBar textareaRef={textareaRef} />
         </div>
-        {/* D5/H4: Trust boundary — same as above */}
         <RenderedMarkdown html={rendered} className="md-preview" />
         <div
           style={{
@@ -394,96 +286,30 @@ export function MarkdownNode({
     );
   }
 
-  // ── Expanded document mode (default editing experience) ───────
+  // ── Expanded document mode (inline WYSIWYG) ───────────────────
 
   if (expanded) {
-    const editableBlocks = blocks.length > 0 ? blocks : [''];
-
-    // Render per-block: each block gets its own rendered HTML for inline editing
-    // When a block is being edited, show textarea instead of rendered content
     return (
       <div style={{ height: '100%', position: 'relative' }}>
         {reviewBanner}
         <div class="md-reader">
-          <div class="md-reader-content md-reader-inline-editable">
-            {editingBlock !== null ? (
-              // Render blocks individually: show textarea for the editing block
-              <>
-                {editableBlocks.map((_, i) =>
-                  i === editingBlock ? (
-                    <div key={`block-${i}`} class="md-block-edit-wrap">
-                      <textarea
-                        ref={blockTextareaRef}
-                        class="md-block-edit"
-                        value={blockDraft}
-                        onInput={handleBlockInput}
-                        onKeyDown={handleBlockKeyDown}
-                        spellcheck={false}
-                      />
-                      <MdFormatBar textareaRef={blockTextareaRef} />
-                      <div class="md-block-edit-actions">
-                        <span style={{ fontSize: '10px', color: 'var(--c-muted)' }}>
-                          Esc cancel · ⌘Enter save
-                        </span>
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          <button type="button" class="md-toolbar-btn" onClick={handleBlockCancel}>
-                            Cancel
-                          </button>
-                          <button
-                            type="button"
-                            class="md-toolbar-btn md-toolbar-btn-primary"
-                            onClick={handleBlockSave}
-                          >
-                            Save
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <BlockPreview key={`block-${i}`} block={editableBlocks[i]} index={i} />
-                  ),
-                )}
-              </>
-            ) : (
-              // Normal reader: full rendered HTML with click-to-edit
-              <>
-                {/* D5/H4: Same trust boundary as the split-editor preview above */}
-                <RenderedMarkdown html={rendered} onBlockClick={handleBlockClick} />
-                {!loaded && (
-                  <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '24px' }}>
-                    Loading…
-                  </div>
-                )}
-                {loaded && !rendered && (
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '12px',
-                      color: 'var(--c-dim)',
-                      padding: '48px 24px',
-                    }}
-                  >
-                    <div style={{ fontStyle: 'italic' }}>Nothing here yet.</div>
-                    <button
-                      type="button"
-                      class="md-toolbar-btn md-toolbar-btn-primary"
-                      onClick={handleStartWriting}
-                    >
-                      Start writing
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
+          {loaded ? (
+            <InlineMarkdownEditor
+              key={node.id}
+              initialHtml={rendered || '<p><br></p>'}
+              className="md-reader-content md-reader-editable"
+              onChange={handleInlineChange}
+              onSave={handleInlineSave}
+            />
+          ) : (
+            <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '24px' }}>
+              Loading…
+            </div>
+          )}
         </div>
-        {editingBlock === null && (
-          <button type="button" class="md-edit-fab" onClick={() => setSourceMode(true)}>
-            {'</> Source'}
-          </button>
-        )}
+        <button type="button" class="md-edit-fab" onClick={() => setSourceMode(true)}>
+          {'</> Source'}
+        </button>
       </div>
     );
   }
@@ -493,7 +319,6 @@ export function MarkdownNode({
   return (
     <div style={{ height: '100%', position: 'relative' }}>
       {reviewBanner}
-      {/* D5/H4: Same trust boundary as the split-editor preview above */}
       <RenderedMarkdown
         html={rendered}
         style={{ padding: rendered ? '0' : '12px', color: rendered ? undefined : 'var(--c-dim)' }}
@@ -530,34 +355,5 @@ export function MarkdownNode({
         Edit
       </button>
     </div>
-  );
-}
-
-/** Render a single markdown block as a read-only preview (used when another block is being edited). */
-function BlockPreview({ block, index }: { block: string; index: number }) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [html, setHtml] = useState('');
-
-  useEffect(() => {
-    renderMarkdown(block).then(setHtml);
-  }, [block]);
-
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-    container.replaceChildren();
-    if (!html) return;
-    const template = document.createElement('template');
-    template.innerHTML = html;
-    container.append(template.content.cloneNode(true));
-  }, [html]);
-
-  return (
-    <div
-      ref={containerRef}
-      class="md-block-preview"
-      data-block-idx={index}
-      style={{ opacity: 0.6 }}
-    />
   );
 }

@@ -50,6 +50,7 @@
     "prepublishOnly": "bun run build && bun run typecheck"
   },
   "dependencies": {
+    "@joplin/turndown-plugin-gfm": "^1.0.64",
     "@json-render/core": "^0.14.1",
     "@json-render/mcp": "^0.14.1",
     "@json-render/react": "^0.14.1",
@@ -57,11 +58,13 @@
     "@modelcontextprotocol/ext-apps": "^1.3.1",
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@preact/signals": "^2.0.0",
+    "@types/turndown": "^5.0.6",
     "marked": "^15.0.0",
     "preact": "^10.25.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "recharts": "^3.2.1",
+    "turndown": "^7.2.4",
     "zod": "^4.3.6"
   },
   "devDependencies": {

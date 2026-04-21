@@ -153,7 +153,7 @@ export function ExpandedNodeOverlay() {
             alignItems: 'center',
             gap: '10px',
             padding: '10px 16px',
-            background: 'rgba(10,14,30,0.6)',
+            background: 'var(--c-panel-glass)',
             borderBottom: '1px solid var(--c-line)',
             flexShrink: 0,
           }}
@@ -163,7 +163,7 @@ export function ExpandedNodeOverlay() {
               fontSize: '10px',
               padding: '1px 6px',
               borderRadius: '4px',
-              background: 'rgba(70,182,255,0.12)',
+              background: 'var(--c-accent-12)',
               color: 'var(--c-accent)',
               textTransform: 'uppercase',
               letterSpacing: '0.04em',
