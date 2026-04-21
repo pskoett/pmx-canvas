@@ -22,9 +22,6 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
-      - name: Validate agent skill mirrors
-        run: bun run validate:agent-skills
-
       - name: Install Playwright browser
         run: bunx playwright install --with-deps chromium
 

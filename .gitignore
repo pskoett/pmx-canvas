@@ -8,4 +8,12 @@ blob-report/
 .playwright/
 artifacts/.web-artifacts/
 artifacts/*.html
-.context-surfing/*.md
+
+# Agent-tooling meta (personal workflow artifacts, not product code)
+.agents/
+.context-surfing/
+.entire/
+.evals/
+.learnings/
+.opencode/
+.playwright-cli/

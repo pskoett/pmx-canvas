@@ -47,6 +47,25 @@ pmx-canvas --theme=light       # Light theme
 Start the canvas once per session, then reuse it. Use `--no-open` when running as an agent — the
 human can open the browser URL themselves.
 
+## Browser Workflows
+
+The browser is not just a passive view. Human interactions on the canvas persist back to the
+server and become part of the authoritative canvas state.
+
+- Double-click empty canvas — create a markdown note at that position
+- Shift+drag on empty canvas — lasso-select multiple nodes
+- Selection bar actions — when nodes are selected, the browser exposes `Pin as context`,
+  `Group`, `Connect`, and `Clear`
+- Right-click a node — open the node context menu for focus, collapse, pinning, connecting,
+  refresh/open actions, and other type-specific operations
+- Right-click a group node — recolor the group using preset swatches or a custom color picker,
+  and ungroup its children
+- Drag-and-drop files or URLs — add file, image, markdown, or webpage nodes directly
+- Paste URLs — create webpage nodes from the clipboard
+
+Use browser interactions when the human is actively curating spatial layout. Use MCP or the CLI
+when you need deterministic scripted changes or you are acting without a visible browser.
+
 ## Agent CLI
 
 PMX Canvas also ships an agent-native CLI that talks to the running HTTP server and returns JSON.
@@ -115,6 +134,8 @@ The CLI targets `http://localhost:4313` by default. Override with `PMX_CANVAS_UR
 | `json-render` | Native structured UI panel | Dashboards, forms, tables, interactive layouts from json-render specs |
 | `graph` | Native chart panel | Line, bar, and pie graphs rendered inside the canvas |
 | `group` | Spatial container/frame | Visually group related nodes together |
+| `prompt` | Prompt thread root | Canvas-native prompt entry points for agent conversations |
+| `response` | Prompt reply / streamed answer | Agent responses linked to prompt threads |
 
 ### Edge Types
 
