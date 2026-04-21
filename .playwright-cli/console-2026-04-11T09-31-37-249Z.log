@@ -1,2 +1,0 @@
-[  138702ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ http://127.0.0.1:4513/artifact?path=%2Fprivate%2Ftmp%2Fpmx-canvas-published-consumer-e2e%2Fconsumer%2Fartifacts%2Fsdlc-control-room.html&theme=dark:0
-[  139204ms] [WARNING] An iframe which has both allow-scripts and allow-same-origin for its sandbox attribute can escape its sandboxing. @ http://127.0.0.1:4513/api/canvas/json-render/view?nodeId=graph-mnu511jb-e6zj&theme=dark:0
