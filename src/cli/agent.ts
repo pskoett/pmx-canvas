@@ -1169,13 +1169,13 @@ cmd('snapshot list', 'List all saved snapshots', [
 
 // ── snapshot restore ─────────────────────────────────────────
 cmd('snapshot restore', 'Restore canvas from a snapshot', [
-  'pmx-canvas snapshot restore <snapshot-id>',
+  'pmx-canvas snapshot restore <snapshot-id-or-name>',
 ], async (args) => {
   const { positional, flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('snapshot restore');
 
   const id = positional[0];
-  if (!id) die('Missing snapshot ID', 'pmx-canvas snapshot restore <snapshot-id>');
+  if (!id) die('Missing snapshot ID or name', 'pmx-canvas snapshot restore <snapshot-id-or-name>');
 
   const result = await api('POST', `/api/canvas/snapshots/${encodeURIComponent(id)}`);
   output(result);

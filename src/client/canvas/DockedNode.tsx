@@ -52,7 +52,7 @@ export function DockedNode({ node }: { node: CanvasNodeState }) {
             }}
             title="Undock to canvas"
           >
-            \u2299
+            {'\u2299'}
           </button>
         </div>
       </div>

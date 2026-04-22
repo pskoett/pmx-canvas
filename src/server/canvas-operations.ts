@@ -10,6 +10,13 @@ import {
   type CanvasSnapshot,
 } from './canvas-state.js';
 import { rewatchAllFileNodes, unwatchAll, unwatchFileForNode, watchFileForNode } from './file-watcher.js';
+import {
+  closeMcpAppSession,
+  hasMcpAppSession,
+  listMcpAppSessionIds,
+  openMcpApp,
+  type ExternalMcpTransportConfig,
+} from './mcp-app-runtime.js';
 import { mutationHistory } from './mutation-history.js';
 import { computeGroupBounds, findOpenCanvasPosition } from './placement.js';
 import { searchNodes } from './spatial-analysis.js';
@@ -70,6 +77,241 @@ interface CanvasNodeLookupInput {
 }
 
 const MAX_CONTEXT_PINS = 20;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isExtAppNode(node: CanvasNodeState | undefined): node is CanvasNodeState {
+  return node?.type === 'mcp-app' && node.data.mode === 'ext-app';
+}
+
+function getExtAppSessionId(node: CanvasNodeState | undefined): string | null {
+  if (!isExtAppNode(node)) return null;
+  const sessionId = node.data.appSessionId;
+  return typeof sessionId === 'string' && sessionId.trim().length > 0 ? sessionId.trim() : null;
+}
+
+function normalizeTransportConfig(value: unknown): ExternalMcpTransportConfig | null {
+  if (!isRecord(value) || typeof value.type !== 'string') return null;
+
+  if (value.type === 'http') {
+    const url = typeof value.url === 'string' ? value.url.trim() : '';
+    if (!url) return null;
+    const headers = isRecord(value.headers)
+      ? Object.fromEntries(
+          Object.entries(value.headers)
+            .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+            .map(([key, headerValue]) => [key, headerValue]),
+        )
+      : undefined;
+    return {
+      type: 'http',
+      url,
+      ...(headers && Object.keys(headers).length > 0 ? { headers } : {}),
+    };
+  }
+
+  if (value.type === 'stdio') {
+    const command = typeof value.command === 'string' ? value.command.trim() : '';
+    if (!command) return null;
+    const args = Array.isArray(value.args)
+      ? value.args.filter((entry): entry is string => typeof entry === 'string')
+      : undefined;
+    const env = isRecord(value.env)
+      ? Object.fromEntries(
+          Object.entries(value.env)
+            .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+            .map(([key, envValue]) => [key, envValue]),
+        )
+      : undefined;
+    return {
+      type: 'stdio',
+      command,
+      ...(args && args.length > 0 ? { args } : {}),
+      ...(typeof value.cwd === 'string' && value.cwd.trim().length > 0 ? { cwd: value.cwd.trim() } : {}),
+      ...(env && Object.keys(env).length > 0 ? { env } : {}),
+    };
+  }
+
+  return null;
+}
+
+function setExtAppRuntimeState(
+  nodeId: string,
+  patch: {
+    appSessionId?: string | null;
+    html?: string;
+    toolInput?: Record<string, unknown>;
+    toolResult?: unknown;
+    resourceUri?: string;
+    toolDefinition?: unknown;
+    resourceMeta?: unknown;
+    serverName?: string;
+    toolName?: string;
+    transportConfig?: ExternalMcpTransportConfig;
+    sessionStatus?: 'ready' | 'rehydrating' | 'error';
+    sessionError?: string | null;
+  },
+): void {
+  const current = canvasState.getNode(nodeId);
+  if (!isExtAppNode(current)) return;
+
+  const nextData: Record<string, unknown> = { ...current.data };
+  if ('appSessionId' in patch) {
+    if (typeof patch.appSessionId === 'string' && patch.appSessionId.trim().length > 0) {
+      nextData.appSessionId = patch.appSessionId;
+    } else {
+      delete nextData.appSessionId;
+    }
+  }
+  if ('html' in patch && typeof patch.html === 'string') nextData.html = patch.html;
+  if ('toolInput' in patch && patch.toolInput) nextData.toolInput = patch.toolInput;
+  if ('toolResult' in patch && patch.toolResult !== undefined) nextData.toolResult = patch.toolResult;
+  if ('resourceUri' in patch && typeof patch.resourceUri === 'string') nextData.resourceUri = patch.resourceUri;
+  if ('toolDefinition' in patch && patch.toolDefinition !== undefined) nextData.toolDefinition = patch.toolDefinition;
+  if ('resourceMeta' in patch && patch.resourceMeta !== undefined) nextData.resourceMeta = patch.resourceMeta;
+  if ('serverName' in patch && typeof patch.serverName === 'string') nextData.serverName = patch.serverName;
+  if ('toolName' in patch && typeof patch.toolName === 'string') nextData.toolName = patch.toolName;
+  if ('transportConfig' in patch && patch.transportConfig) nextData.transportConfig = patch.transportConfig;
+  if ('sessionStatus' in patch && patch.sessionStatus) nextData.sessionStatus = patch.sessionStatus;
+  if ('sessionError' in patch) {
+    if (typeof patch.sessionError === 'string' && patch.sessionError.trim().length > 0) {
+      nextData.sessionError = patch.sessionError;
+    } else {
+      delete nextData.sessionError;
+    }
+  }
+
+  canvasState.updateNode(nodeId, { data: nextData });
+}
+
+function prepareExtAppNodesForSessionSync(forceRehydrate: boolean): string[] {
+  const currentLayout = canvasState.getLayout();
+  const targetIds: string[] = [];
+
+  canvasState.withSuppressedRecording(() => {
+    for (const node of currentLayout.nodes) {
+      if (!isExtAppNode(node)) continue;
+      const sessionId = getExtAppSessionId(node);
+      const needsRehydrate = forceRehydrate || !sessionId || !hasMcpAppSession(sessionId);
+      if (!needsRehydrate) continue;
+
+      const transportConfig = normalizeTransportConfig(node.data.transportConfig);
+      if (!transportConfig) {
+        setExtAppRuntimeState(node.id, {
+          appSessionId: null,
+          sessionStatus: 'error',
+          sessionError: 'Saved app session cannot be restored because its transport details are missing. Reopen the app to restore interactivity.',
+        });
+        continue;
+      }
+
+      setExtAppRuntimeState(node.id, {
+        appSessionId: null,
+        transportConfig,
+        sessionStatus: 'rehydrating',
+        sessionError: null,
+      });
+      targetIds.push(node.id);
+    }
+  });
+
+  return targetIds;
+}
+
+export function primeCanvasRuntimeBackends(
+  options: { forceRehydrateExtApps?: boolean } = {},
+): { targetIds: string[] } {
+  const forceRehydrateExtApps = options.forceRehydrateExtApps === true;
+  rewatchAllFileNodes();
+
+  const layout = canvasState.getLayout();
+  const referencedSessionIds = new Set(
+    layout.nodes
+      .map((node) => getExtAppSessionId(node))
+      .filter((sessionId): sessionId is string => typeof sessionId === 'string' && sessionId.length > 0),
+  );
+
+  for (const sessionId of listMcpAppSessionIds()) {
+    if (forceRehydrateExtApps || !referencedSessionIds.has(sessionId)) {
+      closeMcpAppSession(sessionId);
+    }
+  }
+
+  return { targetIds: prepareExtAppNodesForSessionSync(forceRehydrateExtApps) };
+}
+
+export async function syncCanvasRuntimeBackends(
+  options: { forceRehydrateExtApps?: boolean; alreadyPrimed?: boolean } = {},
+): Promise<{ rehydrated: number; failed: number }> {
+  const targetIds = options.alreadyPrimed === true
+    ? canvasState.getLayout().nodes
+      .filter((node) => isExtAppNode(node) && node.data.sessionStatus === 'rehydrating')
+      .map((node) => node.id)
+    : primeCanvasRuntimeBackends(options).targetIds;
+  let rehydrated = 0;
+  let failed = 0;
+
+  for (const nodeId of targetIds) {
+    const current = canvasState.getNode(nodeId);
+    if (!isExtAppNode(current)) continue;
+
+    const transport = normalizeTransportConfig(current.data.transportConfig);
+    const toolName = typeof current.data.toolName === 'string' ? current.data.toolName.trim() : '';
+    if (!transport || !toolName) {
+      canvasState.withSuppressedRecording(() => {
+        setExtAppRuntimeState(nodeId, {
+          appSessionId: null,
+          sessionStatus: 'error',
+          sessionError: 'Saved app session cannot be restored because its launch metadata is incomplete. Reopen the app to restore interactivity.',
+        });
+      });
+      failed++;
+      continue;
+    }
+
+    try {
+      const opened = await openMcpApp({
+        transport,
+        toolName,
+        ...(isRecord(current.data.toolInput) ? { toolArguments: current.data.toolInput } : {}),
+        ...(typeof current.data.serverName === 'string' && current.data.serverName.trim().length > 0
+          ? { serverName: current.data.serverName.trim() }
+          : {}),
+      });
+
+      canvasState.withSuppressedRecording(() => {
+        setExtAppRuntimeState(nodeId, {
+          appSessionId: opened.sessionId,
+          html: opened.html,
+          toolInput: opened.toolInput,
+          toolResult: opened.toolResult,
+          resourceUri: opened.resourceUri,
+          toolDefinition: opened.tool,
+          resourceMeta: opened.resourceMeta,
+          serverName: opened.serverName,
+          toolName: opened.toolName,
+          transportConfig: transport,
+          sessionStatus: 'ready',
+          sessionError: null,
+        });
+      });
+      rehydrated++;
+    } catch (error) {
+      canvasState.withSuppressedRecording(() => {
+        setExtAppRuntimeState(nodeId, {
+          appSessionId: null,
+          sessionStatus: 'error',
+          sessionError: error instanceof Error ? error.message : String(error),
+        });
+      });
+      failed++;
+    }
+  }
+
+  return { rehydrated, failed };
+}
 
 export function validateCanvasNodePatch(patch: {
   position?: { x: number; y: number };
@@ -237,7 +479,7 @@ export function addCanvasNode(input: CanvasAddNodeInput): {
     zIndex: 1,
     collapsed: false,
     pinned: false,
-    dockPosition: null,
+    dockPosition: input.type === 'context' ? 'right' : null,
     data,
   };
 
@@ -553,10 +795,11 @@ export function saveCanvasSnapshot(name: string): CanvasSnapshot | null {
   return canvasState.saveSnapshot(name);
 }
 
-export function restoreCanvasSnapshot(id: string): { ok: boolean } {
-  const ok = canvasState.restoreSnapshot(id);
+export async function restoreCanvasSnapshot(idOrName: string): Promise<{ ok: boolean }> {
+  const ok = canvasState.restoreSnapshot(idOrName);
   if (ok) {
-    rewatchAllFileNodes();
+    await syncCanvasRuntimeBackends({ forceRehydrateExtApps: true });
+    canvasState.flushToDisk();
   }
   return { ok };
 }

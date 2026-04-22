@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { canvasState, IMAGE_MIME_MAP } from './canvas-state.js';
 import type { CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
-import { watchFileForNode, onFileNodeChanged } from './file-watcher.js';
+import { onFileNodeChanged } from './file-watcher.js';
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
@@ -25,6 +25,7 @@ import {
   restoreCanvasSnapshot,
   saveCanvasSnapshot,
   scheduleCodeGraphRecompute,
+  syncCanvasRuntimeBackends,
   setCanvasContextPins,
   ungroupCanvasNodes,
   validateCanvasNodePatch,
@@ -121,13 +122,6 @@ export class PmxCanvas extends EventEmitter {
         emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
       });
     });
-
-    // Re-watch files for any file nodes restored from persistence
-    for (const node of canvasState.getLayout().nodes) {
-      if (node.type === 'file' && typeof node.data.path === 'string') {
-        watchFileForNode(node.id, node.data.path);
-      }
-    }
 
     // Initial code graph computation for restored file nodes
     scheduleCodeGraphRecompute(() => {
@@ -358,16 +352,18 @@ export class PmxCanvas extends EventEmitter {
     return buildSpatialContext(layout.nodes, layout.edges, canvasState.contextPinnedNodeIds);
   }
 
-  undo(): { ok: boolean; description?: string } {
+  async undo(): Promise<{ ok: boolean; description?: string }> {
     const entry = mutationHistory.undo();
     if (!entry) return { ok: false, description: 'Nothing to undo' };
+    await syncCanvasRuntimeBackends();
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
     return { ok: true, description: `Undid: ${entry.description}` };
   }
 
-  redo(): { ok: boolean; description?: string } {
+  async redo(): Promise<{ ok: boolean; description?: string }> {
     const entry = mutationHistory.redo();
     if (!entry) return { ok: false, description: 'Nothing to redo' };
+    await syncCanvasRuntimeBackends();
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
     return { ok: true, description: `Redid: ${entry.description}` };
   }
@@ -405,8 +401,8 @@ export class PmxCanvas extends EventEmitter {
     return saveCanvasSnapshot(name);
   }
 
-  restoreSnapshot(id: string): { ok: boolean } {
-    const result = restoreCanvasSnapshot(id);
+  async restoreSnapshot(id: string): Promise<{ ok: boolean }> {
+    const result = await restoreCanvasSnapshot(id);
     if (result.ok) {
       emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
     }
@@ -485,8 +481,11 @@ export class PmxCanvas extends EventEmitter {
       serverName: opened.serverName,
       toolName: opened.toolName,
       appSessionId: opened.sessionId,
+      transportConfig: input.transport,
       resourceUri: opened.resourceUri,
       toolDefinition: opened.tool,
+      sessionStatus: 'ready',
+      sessionError: null,
       ...(opened.resourceMeta ? { resourceMeta: opened.resourceMeta } : {}),
       ...(typeof input.x === 'number' ? { x: input.x } : {}),
       ...(typeof input.y === 'number' ? { y: input.y } : {}),

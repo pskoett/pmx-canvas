@@ -1340,12 +1340,18 @@ body,
   min-width: 200px;
   max-width: 360px;
   background: var(--c-panel-glass);
-  backdrop-filter: blur(12px);
+  backdrop-filter: blur(16px);
   border: 1px solid var(--c-line);
   border-radius: var(--radius);
+  box-shadow: 0 12px 40px var(--c-shadow-heavy), 0 0 0 1px rgba(255, 255, 255, 0.04);
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.docked-node:has(.context-body) {
+  width: 320px;
+  max-width: 320px;
 }
 
 .docked-node-header {
@@ -1399,7 +1405,8 @@ body,
 }
 
 .docked-node-body.context-body {
-  max-height: 320px;
+  max-height: 420px;
+  padding: 10px 14px;
 }
 
 /* MCP app iframe */
@@ -2488,6 +2495,12 @@ body,
 .snapshot-save-btn:disabled {
   opacity: 0.4;
   cursor: default;
+}
+
+.snapshot-restore-note {
+  padding: 0 12px 10px;
+  font-size: 10px;
+  color: var(--c-dim);
 }
 
 .snapshot-list {

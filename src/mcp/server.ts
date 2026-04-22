@@ -707,7 +707,7 @@ export async function startMcpServer(): Promise<void> {
     {},
     async () => {
       const c = await ensureCanvas();
-      const result = c.undo();
+      const result = await c.undo();
       return {
         content: [{ type: 'text', text: JSON.stringify({ ...result, canUndo: mutationHistory.canUndo(), canRedo: mutationHistory.canRedo() }) }],
       };
@@ -721,7 +721,7 @@ export async function startMcpServer(): Promise<void> {
     {},
     async () => {
       const c = await ensureCanvas();
-      const result = c.redo();
+      const result = await c.redo();
       return {
         content: [{ type: 'text', text: JSON.stringify({ ...result, canUndo: mutationHistory.canUndo(), canRedo: mutationHistory.canRedo() }) }],
       };
@@ -1295,13 +1295,13 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_restore ──────────────────────────────────────────
   server.tool(
     'canvas_restore',
-    'Restore the canvas to a previously saved snapshot. Use canvas_snapshot to save first. Pass the snapshot ID to restore.',
+    'Restore the canvas to a previously saved snapshot. Use canvas_snapshot to save first. Pass either the snapshot ID or name to restore.',
     {
-      id: z.string().describe('Snapshot ID to restore (from canvas_snapshot or snapshot list)'),
+      id: z.string().describe('Snapshot ID or name to restore (from canvas_snapshot or snapshot list)'),
     },
     async (input) => {
       const c = await ensureCanvas();
-      const result = c.restoreSnapshot(input.id);
+      const result = await c.restoreSnapshot(input.id);
       if (!result.ok) {
         return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'Snapshot not found' }) }] };
       }

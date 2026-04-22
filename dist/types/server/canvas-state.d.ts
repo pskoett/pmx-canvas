@@ -8,6 +8,9 @@
  * Persistence: canvas state auto-saves to `.pmx-canvas.json` in the workspace
  * root on every mutation (debounced). Auto-loads on `loadFromDisk()`.
  */
+interface LoadFromDiskOptions {
+    clearExisting?: boolean;
+}
 export declare const IMAGE_MIME_MAP: Record<string, string>;
 export interface CanvasSnapshot {
     id: string;
@@ -67,7 +70,7 @@ export interface CanvasNodeUpdate {
 }
 export type CanvasChangeType = 'pins' | 'nodes';
 export interface MutationRecordInfo {
-    operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'clear' | 'setPins' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
+    operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'clear' | 'restoreSnapshot' | 'setPins' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
     description: string;
     forward: () => void;
     inverse: () => void;
@@ -106,19 +109,23 @@ declare class CanvasStateManager {
     /** Set the workspace root to enable auto-persistence. */
     setWorkspaceRoot(workspaceRoot: string): void;
     getWorkspaceRoot(): string;
+    private emptyPersistedState;
     /** Load canvas state from disk. Call once on server startup. */
-    loadFromDisk(): boolean;
+    loadFromDisk(options?: LoadFromDiskOptions): boolean;
     /** Debounced save — coalesces rapid mutations into a single disk write. */
     private scheduleSave;
+    flushToDisk(): void;
     /** Write current state to disk immediately. */
     private saveToDisk;
     private get snapshotsDir();
+    private applyPersistedState;
+    private readResolvedSnapshot;
     /** Save current canvas state as a named snapshot. */
     saveSnapshot(name: string): CanvasSnapshot | null;
     /** List all saved snapshots. */
     listSnapshots(): CanvasSnapshot[];
     /** Restore canvas state from a snapshot. */
-    restoreSnapshot(id: string): boolean;
+    restoreSnapshot(idOrName: string): boolean;
     /** Read a snapshot's data without restoring it (for diff). Resolves by ID or name. */
     getSnapshotData(idOrName: string): {
         name: string;

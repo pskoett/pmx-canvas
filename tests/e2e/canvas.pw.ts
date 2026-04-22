@@ -86,6 +86,60 @@ test('renders server-created nodes and syncs context pins from the UI', async ({
   }).toBe(`1:${created.id}`);
 });
 
+test('keeps the browser, pinned context, and agent-driven canvas mutations in sync', async ({ page, request }) => {
+  const createResponse = await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Roundtrip seed',
+      content: 'Human-curated context',
+      x: 640,
+      y: 260,
+    },
+  });
+  const created = await createResponse.json() as { id: string };
+
+  await page.goto('/workbench');
+
+  const seededNode = page.locator('.canvas-node').filter({ hasText: 'Roundtrip seed' });
+  await expect(seededNode).toHaveCount(1);
+
+  await seededNode.locator('.ctx-pin-btn').click();
+  await expect(page.locator('.context-pin-bar')).toContainText('1 node in context');
+
+  await expect.poll(async () => {
+    const response = await request.get('/api/canvas/pinned-context');
+    const pinned = await response.json() as { count: number; nodeIds: string[] };
+    return `${pinned.count}:${pinned.nodeIds.join(',')}`;
+  }).toBe(`1:${created.id}`);
+
+  const agentCreateResponse = await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Agent reply node',
+      content: `Derived from ${created.id}`,
+      x: 980,
+      y: 260,
+    },
+  });
+  const agentCreated = await agentCreateResponse.json() as { id: string };
+
+  const agentNode = page.locator('.canvas-node').filter({ hasText: 'Agent reply node' });
+  await expect(agentNode).toHaveCount(1);
+
+  await expect.poll(async () => {
+    const state = await currentCanvasState(request);
+    return state.nodes.some(
+      (node) => node.id === agentCreated.id && node.data.title === 'Agent reply node',
+    );
+  }).toBe(true);
+
+  await expect.poll(async () => {
+    const response = await request.get('/api/canvas/pinned-context');
+    const pinned = await response.json() as { count: number; nodeIds: string[] };
+    return `${pinned.count}:${pinned.nodeIds.join(',')}`;
+  }).toBe(`1:${created.id}`);
+});
+
 test('semantic attention layer shows focus and interpretation history', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
     data: {
@@ -347,6 +401,50 @@ test('saves snapshots from the toolbar', async ({ page, request }) => {
     const snapshots = await response.json() as Array<{ name: string }>;
     return snapshots.map((snapshot) => snapshot.name).join(',');
   }).toContain('Toolbar snapshot');
+});
+
+test('restores snapshots from the toolbar only after confirmation', async ({ page, request }) => {
+  const createResponse = await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Restore target',
+      content: 'Original snapshot body',
+      x: 560,
+      y: 240,
+    },
+  });
+  const created = await createResponse.json() as { id: string };
+
+  const saveResponse = await request.post('/api/canvas/snapshots', {
+    data: { name: 'Toolbar restore snapshot' },
+  });
+  expect(saveResponse.ok()).toBe(true);
+
+  await request.patch(`/api/canvas/node/${created.id}`, {
+    data: { title: 'Mutated title' },
+  });
+
+  await page.goto('/workbench');
+
+  await page.getByRole('button', { name: 'Snapshots' }).click();
+  await expect(page.locator('.snapshot-panel')).toBeVisible();
+  await expect(page.locator('.snapshot-restore-note')).toContainText('Restoring replaces the current canvas');
+
+  const snapshotItem = page.locator('.snapshot-item').filter({ hasText: 'Toolbar restore snapshot' });
+  await snapshotItem.getByRole('button', { name: 'Restore' }).click();
+  await expect(snapshotItem.getByRole('button', { name: 'Confirm' })).toBeVisible();
+
+  const preConfirm = await request.get(`/api/canvas/node/${created.id}`);
+  const preConfirmNode = await preConfirm.json() as { data: Record<string, unknown> };
+  expect(preConfirmNode.data.title).toBe('Mutated title');
+
+  await snapshotItem.getByRole('button', { name: 'Confirm' }).click();
+
+  await expect.poll(async () => {
+    const response = await request.get(`/api/canvas/node/${created.id}`);
+    const node = await response.json() as { data: Record<string, unknown> };
+    return node.data.title;
+  }).toBe('Restore target');
 });
 
 test('toolbar tooltips dismiss after pointer-triggered actions', async ({ page }) => {

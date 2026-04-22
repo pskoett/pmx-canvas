@@ -83,6 +83,8 @@ import {
   restoreCanvasSnapshot,
   saveCanvasSnapshot,
   scheduleCodeGraphRecompute,
+  primeCanvasRuntimeBackends,
+  syncCanvasRuntimeBackends,
   setCanvasContextPins,
   ungroupCanvasNodes,
   validateCanvasNodePatch,
@@ -1800,8 +1802,11 @@ async function runAndEmitOpenMcpApp(params: RunAndEmitOpenMcpAppParams): Promise
       serverName: opened.serverName,
       toolName: opened.toolName,
       appSessionId: opened.sessionId,
+      transportConfig: params.transport,
       resourceUri: opened.resourceUri,
       toolDefinition: opened.tool,
+      sessionStatus: 'ready',
+      sessionError: null,
       ...(opened.resourceMeta ? { resourceMeta: opened.resourceMeta } : {}),
       ...(typeof params.x === 'number' ? { x: params.x } : {}),
       ...(typeof params.y === 'number' ? { y: params.y } : {}),
@@ -3004,9 +3009,12 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
       serverName: payload.serverName,
       toolName: payload.toolName,
       appSessionId: payload.appSessionId,
+      transportConfig: payload.transportConfig,
       resourceUri: payload.resourceUri,
       toolDefinition: payload.toolDefinition,
       resourceMeta: payload.resourceMeta,
+      sessionStatus: payload.sessionStatus,
+      sessionError: payload.sessionError,
       hostMode: 'hosted',
       trustedDomain: true,
       ...(payload.chartConfig ? { chartConfig: payload.chartConfig } : {}),
@@ -3377,6 +3385,10 @@ export interface CanvasServerOptions {
 }
 
 export function startCanvasServer(options: CanvasServerOptions = {}): string | null {
+  if (server) {
+    return typeof server.port === 'number' ? loopbackBaseUrl(server.port) : null;
+  }
+
   const workspaceRoot = options.workspaceRoot ?? process.cwd();
   activeWorkspaceRoot = normalizeWorkspaceRoot(workspaceRoot);
   if (options.autoOpenBrowser !== undefined) {
@@ -3395,16 +3407,16 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
   // ── Canvas persistence: set workspace root and load saved state ──
   canvasState.setWorkspaceRoot(activeWorkspaceRoot);
-  const loaded = canvasState.loadFromDisk();
+  const loaded = canvasState.loadFromDisk({ clearExisting: true });
   if (loaded) {
     console.log('  Canvas state restored from .pmx-canvas.json');
+    primeCanvasRuntimeBackends({ forceRehydrateExtApps: true });
+    void syncCanvasRuntimeBackends({ forceRehydrateExtApps: true, alreadyPrimed: true }).finally(() => {
+      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    });
   }
 
   rotatePrimaryWorkbenchSessionIfNeeded();
-
-  if (server) {
-    return typeof server.port === 'number' ? loopbackBaseUrl(server.port) : null;
-  }
 
   const preferredPort = options.port ?? Number(process.env.PMX_WEB_CANVAS_PORT ?? DEFAULT_PORT);
   const portCandidates = buildPortCandidates(preferredPort);
@@ -3415,7 +3427,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
         hostname: DEFAULT_HOST,
         port: portCandidate,
         idleTimeout: 0,
-        fetch(req) {
+        async fetch(req) {
           const url = new URL(req.url);
 
           if (url.pathname === '/health') {
@@ -3602,8 +3614,8 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           }
 
           if (url.pathname.startsWith('/api/canvas/snapshots/') && req.method === 'POST') {
-            const id = url.pathname.split('/').pop() ?? '';
-            const result = restoreCanvasSnapshot(id);
+            const id = decodeURIComponent(url.pathname.slice('/api/canvas/snapshots/'.length));
+            const result = await restoreCanvasSnapshot(id);
             if (!result.ok) return responseText('Snapshot not found', 404);
             broadcastWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
             return responseJson({ ok: true });
@@ -3695,6 +3707,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           if (url.pathname === '/api/canvas/undo' && req.method === 'POST') {
             const entry = mutationHistory.undo();
             if (!entry) return responseJson({ ok: false, description: 'Nothing to undo' });
+            await syncCanvasRuntimeBackends();
             emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
             emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
             return responseJson({ ok: true, description: `Undid: ${entry.description}` });
@@ -3703,6 +3716,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           if (url.pathname === '/api/canvas/redo' && req.method === 'POST') {
             const entry = mutationHistory.redo();
             if (!entry) return responseJson({ ok: false, description: 'Nothing to redo' });
+            await syncCanvasRuntimeBackends();
             emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
             emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
             return responseJson({ ok: true, description: `Redid: ${entry.description}` });
@@ -3768,6 +3782,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 }
 
 export function stopCanvasServer(): void {
+  canvasState.flushToDisk();
   closeAllMcpAppSessions();
   void closeCanvasAutomationWebViewInternal().catch((error) => {
     logWorkbenchWarning('stopCanvasServer closeCanvasAutomationWebViewInternal', error);

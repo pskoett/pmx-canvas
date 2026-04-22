@@ -88,14 +88,14 @@ export declare class PmxCanvas extends EventEmitter {
     getNode(id: string): CanvasNodeState | undefined;
     search(query: string): ReturnType<typeof searchNodes>;
     getSpatialContext(): import("./spatial-analysis.js").SpatialContext;
-    undo(): {
+    undo(): Promise<{
         ok: boolean;
         description?: string;
-    };
-    redo(): {
+    }>;
+    redo(): Promise<{
         ok: boolean;
         description?: string;
-    };
+    }>;
     getHistory(): {
         text: string;
         entries: import("./mutation-history.js").MutationSummary[];
@@ -124,9 +124,9 @@ export declare class PmxCanvas extends EventEmitter {
     };
     listSnapshots(): import("./canvas-state.js").CanvasSnapshot[];
     saveSnapshot(name: string): import("./canvas-state.js").CanvasSnapshot | null;
-    restoreSnapshot(id: string): {
+    restoreSnapshot(id: string): Promise<{
         ok: boolean;
-    };
+    }>;
     deleteSnapshot(id: string): {
         ok: boolean;
     };

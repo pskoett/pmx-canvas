@@ -8,6 +8,7 @@ import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts'
 import {
   createFakeWebArtifactScripts,
   createTestWorkspace,
+  readPersistedCanvasState,
   removeTestWorkspace,
   resetCanvasForTests,
 } from './helpers.ts';
@@ -35,6 +36,24 @@ interface WorkbenchWebViewStatusResponse {
   dataStoreDir: string | null;
   startedAt: string | null;
   lastError: string | null;
+}
+
+async function waitForNode(
+  baseUrl: string,
+  predicate: (node: CanvasStateResponse['nodes'][number]) => boolean,
+  attempts = 60,
+  delayMs = 100,
+): Promise<CanvasStateResponse['nodes'][number] | null> {
+  for (let index = 0; index < attempts; index++) {
+    const response = await fetch(`${baseUrl}/api/canvas/state`);
+    if (response.ok) {
+      const state = await response.json() as CanvasStateResponse;
+      const match = state.nodes.find(predicate);
+      if (match) return match;
+    }
+    await Bun.sleep(delayMs);
+  }
+  return null;
 }
 
 const fixtureMcpAppServerPath = fileURLToPath(new URL('../fixtures/mcp-app-fixture.ts', import.meta.url));
@@ -235,6 +254,163 @@ describe('canvas server HTTP API', () => {
     const clearError = await toolsAfterClear.json() as { error?: string };
     expect(clearError.error?.toLowerCase().includes('not found')).toBe(true);
   });
+
+  test('rehydrates ext-app snapshot sessions on restore', async () => {
+    const opened = await jsonRequest<{
+      ok: boolean;
+      sessionId: string;
+    }>('/api/canvas/mcp-app/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Snapshot Counter',
+        toolName: 'show_counter',
+        toolArguments: { initial: 2 },
+        transport: {
+          type: 'stdio',
+          command: 'bun',
+          args: ['run', fixtureMcpAppServerPath],
+          cwd: workspaceRoot,
+        },
+      }),
+    });
+    expect(opened.ok).toBe(true);
+
+    const saved = await jsonRequest<{ ok: boolean; snapshot: { id: string; name: string } }>('/api/canvas/snapshots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'counter-snapshot' }),
+    });
+    expect(saved.snapshot.name).toBe('counter-snapshot');
+
+    await jsonRequest<{ ok: boolean; sessionId: string }>('/api/canvas/mcp-app/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Transient Counter',
+        toolName: 'show_counter',
+        toolArguments: { initial: 9 },
+        transport: {
+          type: 'stdio',
+          command: 'bun',
+          args: ['run', fixtureMcpAppServerPath],
+          cwd: workspaceRoot,
+        },
+      }),
+    });
+
+    await jsonRequest<{ ok: boolean }>(`/api/canvas/snapshots/${encodeURIComponent('counter-snapshot')}`, {
+      method: 'POST',
+    });
+
+    const restoredNode = await waitForNode(
+      baseUrl,
+      (entry) =>
+        entry.type === 'mcp-app' &&
+        entry.data.title === 'Snapshot Counter' &&
+        typeof entry.data.appSessionId === 'string' &&
+        entry.data.sessionStatus === 'ready',
+    );
+    expect(restoredNode).toBeTruthy();
+    const restoredSessionId = restoredNode?.data.appSessionId as string;
+    expect(restoredSessionId).toBeTruthy();
+    expect(restoredSessionId).not.toBe(opened.sessionId);
+
+    const oldSession = await fetch(`${baseUrl}/api/ext-app/list-tools`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: opened.sessionId }),
+    });
+    expect(oldSession.ok).toBe(false);
+
+    const newSession = await fetch(`${baseUrl}/api/ext-app/list-tools`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: restoredSessionId }),
+    });
+    expect(newSession.ok).toBe(true);
+
+  }, 30000);
+
+  test('rehydrates persisted ext-app sessions after server restart', async () => {
+    const opened = await jsonRequest<{
+      ok: boolean;
+      sessionId: string;
+    }>('/api/canvas/mcp-app/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Restart Counter',
+        toolName: 'show_counter',
+        toolArguments: { initial: 5 },
+        transport: {
+          type: 'stdio',
+          command: 'bun',
+          args: ['run', fixtureMcpAppServerPath],
+          cwd: workspaceRoot,
+        },
+      }),
+    });
+    expect(opened.ok).toBe(true);
+
+    await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'Restart marker',
+        content: 'Should still exist after restart',
+      }),
+    });
+
+    stopCanvasServer();
+
+    const persisted = readPersistedCanvasState(workspaceRoot);
+    expect(
+      persisted.nodes.some(
+        (node) => node.type === 'mcp-app' && node.data.title === 'Restart Counter',
+      ),
+    ).toBe(true);
+
+    const restarted = startCanvasServer({ workspaceRoot, port: 4527 });
+    expect(restarted).toBeTruthy();
+    baseUrl = restarted!;
+
+    const restoredNode = await waitForNode(
+      baseUrl,
+      (entry) =>
+        entry.type === 'mcp-app' &&
+        entry.data.title === 'Restart Counter' &&
+        typeof entry.data.appSessionId === 'string' &&
+        entry.data.sessionStatus === 'ready',
+    );
+    expect(restoredNode).toBeTruthy();
+
+    const restoredSessionId = restoredNode?.data.appSessionId as string;
+    expect(restoredSessionId).toBeTruthy();
+    expect(restoredSessionId).not.toBe(opened.sessionId);
+
+    const staleSession = await fetch(`${baseUrl}/api/ext-app/list-tools`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: opened.sessionId }),
+    });
+    expect(staleSession.ok).toBe(false);
+
+    const liveSession = await fetch(`${baseUrl}/api/ext-app/list-tools`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: restoredSessionId }),
+    });
+    expect(liveSession.ok).toBe(true);
+
+    const stateAfterRestart = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(
+      stateAfterRestart.nodes.some(
+        (node) => node.type === 'markdown' && node.data.title === 'Restart marker',
+      ),
+    ).toBe(true);
+  }, 30000);
 
   test('creates path-backed file nodes over HTTP and uses shared arrange behavior', async () => {
     const filePath = join(workspaceRoot, 'server-api-file.ts');
@@ -965,6 +1141,21 @@ describe('canvas server HTTP API', () => {
     expect(restoredState.edges).toHaveLength(1);
     expect(restoredState.nodes.find((node) => node.id === firstNode.id)?.data.title).toBe('First');
     expect(restoredState.nodes.find((node) => node.id === secondNode.id)?.position).toEqual({ x: 620, y: 120 });
+
+    await jsonRequest<{ ok: boolean; description: string }>('/api/canvas/undo', {
+      method: 'POST',
+    });
+    const undoneState = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(undoneState.nodes).toEqual([]);
+    expect(undoneState.edges).toEqual([]);
+    expect(undoneState.viewport).toEqual({ x: 0, y: 0, scale: 1 });
+
+    await jsonRequest<{ ok: boolean; description: string }>('/api/canvas/redo', {
+      method: 'POST',
+    });
+    const redoneState = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(redoneState.nodes.find((node) => node.id === firstNode.id)?.data.title).toBe('First');
+    expect(redoneState.nodes.find((node) => node.id === secondNode.id)?.position).toEqual({ x: 620, y: 120 });
   });
 
   test('accepts edge style and animation flags over HTTP', async () => {

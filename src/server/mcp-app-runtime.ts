@@ -449,3 +449,11 @@ export function closeAllMcpAppSessions(): void {
     closeMcpAppSession(sessionId);
   }
 }
+
+export function hasMcpAppSession(sessionId: string): boolean {
+  return sessions.has(sessionId);
+}
+
+export function listMcpAppSessionIds(): string[] {
+  return [...sessions.keys()];
+}

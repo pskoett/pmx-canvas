@@ -111,6 +111,8 @@ describe('canvas state manager', () => {
     expect(canvasState.getNode(firstNode.id)?.data.title).toBe('Original title');
     expect(canvasState.getEdges()).toHaveLength(1);
     expect(Array.from(canvasState.contextPinnedNodeIds)).toEqual([firstNode.id]);
+    expect(canvasState.restoreSnapshot('baseline')).toBe(true);
+    expect(canvasState.getNode(firstNode.id)?.data.title).toBe('Original title');
 
     expect(canvasState.deleteSnapshot(snapshot!.id)).toBe(true);
     expect(canvasState.listSnapshots()).toEqual([]);
@@ -138,6 +140,33 @@ describe('canvas state manager', () => {
     expect(restored?.type).toBe('webpage');
     expect(restored?.data.url).toBe('https://example.com/article');
     expect(restored?.data.content).toBe('Cached webpage text for later agent refresh.');
+  });
+
+  test('loadFromDisk replaces existing in-memory state instead of merging into it', async () => {
+    const persistedNode = makeNode({
+      id: 'persisted-node',
+      type: 'markdown',
+      data: { title: 'Persisted node' },
+    });
+
+    canvasState.addNode(persistedNode);
+    canvasState.setContextPins([persistedNode.id]);
+    await waitForPersistence();
+
+    canvasState.addNode(
+      makeNode({
+        id: 'stale-node',
+        type: 'status',
+        position: { x: 520, y: 80 },
+        data: { title: 'Stale node' },
+      }),
+    );
+    expect(canvasState.getNode('stale-node')).toBeTruthy();
+
+    expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
+    expect(canvasState.getNode('persisted-node')?.data.title).toBe('Persisted node');
+    expect(canvasState.getNode('stale-node')).toBeUndefined();
+    expect(Array.from(canvasState.contextPinnedNodeIds)).toEqual([persistedNode.id]);
   });
 
   test('returns cloned snapshots from getters instead of live mutable internals', () => {

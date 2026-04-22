@@ -34,6 +34,18 @@ interface CanvasNodeLookupInput {
     id?: string;
     search?: string;
 }
+export declare function primeCanvasRuntimeBackends(options?: {
+    forceRehydrateExtApps?: boolean;
+}): {
+    targetIds: string[];
+};
+export declare function syncCanvasRuntimeBackends(options?: {
+    forceRehydrateExtApps?: boolean;
+    alreadyPrimed?: boolean;
+}): Promise<{
+    rehydrated: number;
+    failed: number;
+}>;
 export declare function validateCanvasNodePatch(patch: {
     position?: {
         x: number;
@@ -82,9 +94,9 @@ export declare function setCanvasContextPins(nodeIds: string[], mode?: CanvasPin
 };
 export declare function listCanvasSnapshots(): CanvasSnapshot[];
 export declare function saveCanvasSnapshot(name: string): CanvasSnapshot | null;
-export declare function restoreCanvasSnapshot(id: string): {
+export declare function restoreCanvasSnapshot(idOrName: string): Promise<{
     ok: boolean;
-};
+}>;
 export declare function deleteCanvasSnapshot(id: string): {
     ok: boolean;
 };

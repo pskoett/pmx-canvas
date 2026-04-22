@@ -48,7 +48,9 @@ export function waitForExtAppFrameLoad(target: IframeLoadTarget): Promise<void> 
 export function getExtAppBridgeInitKey(node: CanvasNodeState, retryKey: number): string {
   const html = typeof node.data.html === 'string' ? node.data.html : '';
   const serverName = typeof node.data.serverName === 'string' ? node.data.serverName : '';
-  return `${node.id}:${retryKey}:${node.size.height}:${serverName}:${html}`;
+  const appSessionId = typeof node.data.appSessionId === 'string' ? node.data.appSessionId : '';
+  const sessionStatus = typeof node.data.sessionStatus === 'string' ? node.data.sessionStatus : '';
+  return `${node.id}:${retryKey}:${node.size.height}:${serverName}:${appSessionId}:${sessionStatus}:${html}`;
 }
 
 export async function sendExtAppBootstrapState(
@@ -87,6 +89,8 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
   const toolCallId: RequestId | undefined =
     typeof rawToolCallId === 'string' || typeof rawToolCallId === 'number' ? rawToolCallId : undefined;
   const resourceMeta = node.data.resourceMeta as { permissions?: Record<string, unknown> } | undefined;
+  const sessionStatus = node.data.sessionStatus as string | undefined;
+  const sessionError = node.data.sessionError as string | undefined;
   const maxHeight = node.size.height;
   const nodeId = node.id;
   const frameKey = `${node.id}:${retryKey}`;
@@ -95,6 +99,11 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
 
   latestToolInputRef.current = toolInput;
   latestToolResultRef.current = toolResult;
+
+  const sessionUnavailableMessage =
+    sessionStatus === 'error'
+      ? (sessionError ?? 'Saved app session is unavailable. Reopen the app to restore interactivity.')
+      : 'Reconnecting saved app session...';
 
   const flushToolResult = (bridge: AppBridge | null): Promise<void> | null => {
     const pendingToolResult = latestToolResultRef.current;
@@ -210,6 +219,9 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
 
       // Proxy callServerTool back to PMX server
       bridge.oncalltool = async (params) => {
+        if (!appSessionId) {
+          throw new Error(sessionUnavailableMessage);
+        }
         try {
           const result = await postJson<CallToolResult>('/api/ext-app/call-tool', {
             sessionId: appSessionId,
@@ -227,26 +239,36 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
         }
       };
 
-      bridge.setRequestHandler(ListToolsRequestSchema, async () =>
-        postJson<ListToolsResult>('/api/ext-app/list-tools', { sessionId: appSessionId }),
-      );
+      bridge.setRequestHandler(ListToolsRequestSchema, async () => {
+        if (!appSessionId) {
+          return { tools: [] } satisfies ListToolsResult;
+        }
+        return postJson<ListToolsResult>('/api/ext-app/list-tools', { sessionId: appSessionId });
+      });
 
       bridge.onlistresources = async () =>
-        postJson('/api/ext-app/list-resources', { sessionId: appSessionId });
+        appSessionId ? postJson('/api/ext-app/list-resources', { sessionId: appSessionId }) : { resources: [] };
 
       bridge.onlistresourcetemplates = async () =>
-        postJson('/api/ext-app/list-resource-templates', { sessionId: appSessionId });
+        appSessionId
+          ? postJson('/api/ext-app/list-resource-templates', { sessionId: appSessionId })
+          : { resourceTemplates: [] };
 
-      bridge.onreadresource = async (params) =>
-        postJson('/api/ext-app/read-resource', {
+      bridge.onreadresource = async (params) => {
+        if (!appSessionId) {
+          throw new Error(sessionUnavailableMessage);
+        }
+        return postJson('/api/ext-app/read-resource', {
           sessionId: appSessionId,
           uri: params.uri,
         });
+      };
 
       bridge.onlistprompts = async () =>
-        postJson('/api/ext-app/list-prompts', { sessionId: appSessionId });
+        appSessionId ? postJson('/api/ext-app/list-prompts', { sessionId: appSessionId }) : { prompts: [] };
 
       bridge.onupdatemodelcontext = async (params) => {
+        if (!appSessionId) return {};
         await postJson('/api/ext-app/model-context', {
           nodeId,
           ...(Array.isArray(params.content) ? { content: params.content } : {}),
@@ -380,6 +402,19 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {sessionStatus && sessionStatus !== 'ready' && (
+        <div
+          style={{
+            padding: '6px 10px',
+            fontSize: '11px',
+            background: sessionStatus === 'error' ? 'var(--c-danger-12)' : 'var(--c-warn-10)',
+            color: sessionStatus === 'error' ? 'var(--c-danger)' : 'var(--c-warn)',
+            borderBottom: `1px solid ${sessionStatus === 'error' ? 'var(--c-danger-12)' : 'var(--c-warn-15)'}`,
+          }}
+        >
+          {sessionUnavailableMessage}
+        </div>
+      )}
       {error && (
         <div
           style={{

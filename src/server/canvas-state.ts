@@ -36,6 +36,10 @@ interface PersistedCanvasState {
   contextPins: string[];
 }
 
+interface LoadFromDiskOptions {
+  clearExisting?: boolean;
+}
+
 export const IMAGE_MIME_MAP: Record<string, string> = {
   png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
   gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
@@ -109,7 +113,7 @@ export interface CanvasNodeUpdate {
 export type CanvasChangeType = 'pins' | 'nodes';
 
 export interface MutationRecordInfo {
-  operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'clear' | 'setPins' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
+  operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'clear' | 'restoreSnapshot' | 'setPins' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
   description: string;
   forward: () => void;
   inverse: () => void;
@@ -362,50 +366,29 @@ class CanvasStateManager {
     return this._workspaceRoot;
   }
 
+  private emptyPersistedState(): PersistedCanvasState {
+    return {
+      version: 1,
+      viewport: { x: 0, y: 0, scale: 1 },
+      nodes: [],
+      edges: [],
+      contextPins: [],
+    };
+  }
+
   /** Load canvas state from disk. Call once on server startup. */
-  loadFromDisk(): boolean {
-    if (!this._stateFilePath || !existsSync(this._stateFilePath)) return false;
+  loadFromDisk(options: LoadFromDiskOptions = {}): boolean {
+    if (!this._stateFilePath || !existsSync(this._stateFilePath)) {
+      if (options.clearExisting) {
+        this.applyPersistedState(this.emptyPersistedState());
+      }
+      return false;
+    }
     try {
       const raw = readFileSync(this._stateFilePath, 'utf-8');
       const parsed = JSON.parse(raw) as PersistedCanvasState;
       if (!parsed || parsed.version !== 1) return false;
-
-      // Restore viewport
-      if (parsed.viewport) {
-        this._viewport = {
-          x: parsed.viewport.x ?? 0,
-          y: parsed.viewport.y ?? 0,
-          scale: parsed.viewport.scale ?? 1,
-        };
-      }
-
-      // Restore nodes
-      if (Array.isArray(parsed.nodes)) {
-        for (const node of parsed.nodes) {
-          if (node && typeof node.id === 'string') {
-            this.nodes.set(node.id, node);
-          }
-        }
-      }
-
-      // Restore edges
-      if (Array.isArray(parsed.edges)) {
-        for (const edge of parsed.edges) {
-          if (edge && typeof edge.id === 'string') {
-            this.edges.set(edge.id, edge);
-          }
-        }
-      }
-
-      // Restore context pins (only for nodes that exist)
-      if (Array.isArray(parsed.contextPins)) {
-        for (const id of parsed.contextPins) {
-          if (this.nodes.has(id)) {
-            this._contextPinnedNodeIds.add(id);
-          }
-        }
-      }
-
+      this.applyPersistedState(parsed);
       return true;
     } catch (error) {
       logCanvasStateWarning('load state from disk failed', error, {
@@ -423,6 +406,14 @@ class CanvasStateManager {
       this._saveTimer = null;
       this.saveToDisk();
     }, SAVE_DEBOUNCE_MS);
+  }
+
+  flushToDisk(): void {
+    if (this._saveTimer) {
+      clearTimeout(this._saveTimer);
+      this._saveTimer = null;
+    }
+    this.saveToDisk();
   }
 
   /** Write current state to disk immediately. */
@@ -452,6 +443,80 @@ class CanvasStateManager {
   private get snapshotsDir(): string | null {
     if (!this._stateFilePath) return null;
     return join(dirname(this._stateFilePath), SNAPSHOTS_DIR);
+  }
+
+  private applyPersistedState(state: PersistedCanvasState): void {
+    this.nodes.clear();
+    this.edges.clear();
+    this._contextPinnedNodeIds.clear();
+
+    this._viewport = {
+      x: state.viewport?.x ?? 0,
+      y: state.viewport?.y ?? 0,
+      scale: state.viewport?.scale ?? 1,
+    };
+
+    if (Array.isArray(state.nodes)) {
+      for (const node of state.nodes) {
+        if (node?.id) this.nodes.set(node.id, structuredClone(node));
+      }
+    }
+    if (Array.isArray(state.edges)) {
+      for (const edge of state.edges) {
+        if (edge?.id) this.edges.set(edge.id, structuredClone(edge));
+      }
+    }
+    if (Array.isArray(state.contextPins)) {
+      for (const pinId of state.contextPins) {
+        if (this.nodes.has(pinId)) this._contextPinnedNodeIds.add(pinId);
+      }
+    }
+  }
+
+  private readResolvedSnapshot(idOrName: string): {
+    snapshot: CanvasSnapshot;
+    state: PersistedCanvasState;
+  } | null {
+    const dir = this.snapshotsDir;
+    if (!dir || !existsSync(dir)) return null;
+
+    const directPath = join(dir, `${idOrName}.json`);
+    if (existsSync(directPath)) {
+      try {
+        const raw = readFileSync(directPath, 'utf-8');
+        const parsed = JSON.parse(raw) as PersistedCanvasState & { snapshot?: CanvasSnapshot };
+        if (parsed.snapshot) {
+          return { snapshot: parsed.snapshot, state: parsed };
+        }
+      } catch (error) {
+        logCanvasStateWarning('read snapshot by id failed', error, { idOrName, directPath });
+      }
+    }
+
+    try {
+      const matches: Array<{ snapshot: CanvasSnapshot; state: PersistedCanvasState }> = [];
+      const files = readdirSync(dir).filter((f) => f.endsWith('.json'));
+      for (const file of files) {
+        try {
+          const raw = readFileSync(join(dir, file), 'utf-8');
+          const parsed = JSON.parse(raw) as PersistedCanvasState & { snapshot?: CanvasSnapshot };
+          if (!parsed.snapshot) continue;
+          if (parsed.snapshot.name === idOrName || parsed.snapshot.id === idOrName) {
+            matches.push({ snapshot: parsed.snapshot, state: parsed });
+          }
+        } catch (error) {
+          logCanvasStateWarning('skip unreadable snapshot while searching by name', error, {
+            idOrName,
+            file,
+          });
+        }
+      }
+      matches.sort((a, b) => b.snapshot.createdAt.localeCompare(a.snapshot.createdAt));
+      return matches[0] ?? null;
+    } catch (error) {
+      logCanvasStateWarning('search snapshots by name failed', error, { idOrName, dir });
+      return null;
+    }
   }
 
   /** Save current canvas state as a named snapshot. */
@@ -512,97 +577,66 @@ class CanvasStateManager {
   }
 
   /** Restore canvas state from a snapshot. */
-  restoreSnapshot(id: string): boolean {
-    const dir = this.snapshotsDir;
-    if (!dir) return false;
+  restoreSnapshot(idOrName: string): boolean {
+    const resolved = this.readResolvedSnapshot(idOrName);
+    if (!resolved || resolved.state.version !== 1) return false;
 
-    const filePath = join(dir, `${id}.json`);
-    if (!existsSync(filePath)) return false;
+    const previousState: PersistedCanvasState = {
+      version: 1,
+      viewport: structuredClone(this._viewport),
+      nodes: Array.from(this.nodes.values(), (node) => structuredClone(node)),
+      edges: Array.from(this.edges.values(), (edge) => structuredClone(edge)),
+      contextPins: Array.from(this._contextPinnedNodeIds),
+    };
+    const nextState: PersistedCanvasState = {
+      version: 1,
+      viewport: structuredClone(resolved.state.viewport),
+      nodes: Array.isArray(resolved.state.nodes) ? resolved.state.nodes.map((node) => structuredClone(node)) : [],
+      edges: Array.isArray(resolved.state.edges) ? resolved.state.edges.map((edge) => structuredClone(edge)) : [],
+      contextPins: Array.isArray(resolved.state.contextPins) ? [...resolved.state.contextPins] : [],
+    };
 
     try {
-      const raw = readFileSync(filePath, 'utf-8');
-      const parsed = JSON.parse(raw) as PersistedCanvasState;
-      if (!parsed || parsed.version !== 1) return false;
-
-      // Clear current state
-      this.nodes.clear();
-      this.edges.clear();
-      this._contextPinnedNodeIds.clear();
-
-      // Restore from snapshot
-      if (parsed.viewport) {
-        this._viewport = {
-          x: parsed.viewport.x ?? 0,
-          y: parsed.viewport.y ?? 0,
-          scale: parsed.viewport.scale ?? 1,
-        };
-      }
-      if (Array.isArray(parsed.nodes)) {
-        for (const node of parsed.nodes) {
-          if (node?.id) this.nodes.set(node.id, node);
-        }
-      }
-      if (Array.isArray(parsed.edges)) {
-        for (const edge of parsed.edges) {
-          if (edge?.id) this.edges.set(edge.id, edge);
-        }
-      }
-      if (Array.isArray(parsed.contextPins)) {
-        for (const pinId of parsed.contextPins) {
-          if (this.nodes.has(pinId)) this._contextPinnedNodeIds.add(pinId);
-        }
-      }
-
+      this.applyPersistedState(nextState);
       this.scheduleSave();
       this.notifyChange('nodes');
       this.notifyChange('pins');
+      this.recordMutation({
+        operationType: 'restoreSnapshot',
+        description: `Restored snapshot "${resolved.snapshot.name}"`,
+        forward: this.suppressed(() => {
+          this.applyPersistedState(nextState);
+          this.scheduleSave();
+          this.notifyChange('nodes');
+          this.notifyChange('pins');
+        }),
+        inverse: this.suppressed(() => {
+          this.applyPersistedState(previousState);
+          this.scheduleSave();
+          this.notifyChange('nodes');
+          this.notifyChange('pins');
+        }),
+      });
       return true;
     } catch (error) {
-      logCanvasStateWarning('restore snapshot failed', error, { id, filePath });
+      logCanvasStateWarning('restore snapshot failed', error, {
+        idOrName,
+        snapshotId: resolved.snapshot.id,
+        snapshotName: resolved.snapshot.name,
+      });
       return false;
     }
   }
 
   /** Read a snapshot's data without restoring it (for diff). Resolves by ID or name. */
   getSnapshotData(idOrName: string): { name: string; nodes: CanvasNodeState[]; edges: CanvasEdge[] } | null {
-    const dir = this.snapshotsDir;
-    if (!dir || !existsSync(dir)) return null;
-
-    // Try direct ID first
-    const directPath = join(dir, `${idOrName}.json`);
-    if (existsSync(directPath)) {
-      try {
-        const raw = readFileSync(directPath, 'utf-8');
-        const parsed = JSON.parse(raw) as PersistedCanvasState & { snapshot?: CanvasSnapshot };
-        return { name: parsed.snapshot?.name ?? idOrName, nodes: parsed.nodes ?? [], edges: parsed.edges ?? [] };
-      } catch (error) {
-        logCanvasStateWarning('read snapshot by id failed', error, { idOrName, directPath });
-        return null;
-      }
-    }
-
-    // Search by name
-    try {
-      const files = readdirSync(dir).filter((f) => f.endsWith('.json'));
-      for (const file of files) {
-        try {
-          const raw = readFileSync(join(dir, file), 'utf-8');
-          const parsed = JSON.parse(raw) as PersistedCanvasState & { snapshot?: CanvasSnapshot };
-          if (parsed.snapshot?.name === idOrName || parsed.snapshot?.id === idOrName) {
-            return { name: parsed.snapshot.name, nodes: parsed.nodes ?? [], edges: parsed.edges ?? [] };
-          }
-        } catch (error) {
-          logCanvasStateWarning('skip unreadable snapshot while searching by name', error, {
-            idOrName,
-            file,
-          });
-        }
-      }
-    } catch (error) {
-      logCanvasStateWarning('search snapshots by name failed', error, { idOrName, dir });
-    }
-
-    return null;
+    const resolved = this.readResolvedSnapshot(idOrName);
+    if (!resolved) return null;
+    return {
+      name: resolved.snapshot.name,
+      nodes: Array.isArray(resolved.state.nodes) ? resolved.state.nodes.map((node) => structuredClone(node)) : [],
+      edges: Array.isArray(resolved.state.edges) ? resolved.state.edges.map((edge) => structuredClone(edge)) : [],
+    };
   }
 
   /** Delete a snapshot. */

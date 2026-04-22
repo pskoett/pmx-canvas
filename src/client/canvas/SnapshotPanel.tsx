@@ -30,8 +30,9 @@ export function SnapshotPanel({
   const [snapshots, setSnapshots] = useState<CanvasSnapshotInfo[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
   const [nameInput, setNameInput] = useState('');
-  const [confirming, setConfirming] = useState<string | null>(null);
+  const [confirming, setConfirming] = useState<{ id: string; action: 'restore' | 'delete' } | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -88,7 +89,9 @@ export function SnapshotPanel({
 
   const handleRestore = useCallback(async (id: string) => {
     setConfirming(null);
+    setRestoringId(id);
     const result = await restoreSnapshot(id);
+    setRestoringId(null);
     if (result.ok) onClose();
   }, [onClose]);
 
@@ -149,6 +152,10 @@ export function SnapshotPanel({
         </button>
       </div>
 
+      <div class="snapshot-restore-note">
+        Restoring replaces the current canvas. You can undo it if needed.
+      </div>
+
       {/* Snapshot list */}
       <div class="snapshot-list">
         {loading && (
@@ -173,23 +180,29 @@ export function SnapshotPanel({
               </span>
             </div>
             <div class="snapshot-item-actions">
-              {confirming === snap.id ? (
+              {confirming?.id === snap.id ? (
                 <>
                   <button
                     type="button"
-                    class="snapshot-action-btn snapshot-action-confirm"
-                    onClick={() => handleDelete(snap.id)}
-                    title="Confirm delete"
+                    class={`snapshot-action-btn ${confirming.action === 'delete' ? 'snapshot-action-confirm' : 'snapshot-action-restore'}`}
+                    onClick={() => confirming.action === 'delete' ? handleDelete(snap.id) : handleRestore(snap.id)}
+                    title={confirming.action === 'delete' ? 'Confirm delete' : 'Confirm restore'}
+                    disabled={restoringId !== null}
                   >
-                    Yes
+                    {confirming.action === 'delete'
+                      ? 'Delete'
+                      : restoringId === snap.id
+                        ? 'Restoring...'
+                        : 'Confirm'}
                   </button>
                   <button
                     type="button"
                     class="snapshot-action-btn"
                     onClick={() => setConfirming(null)}
                     title="Cancel"
+                    disabled={restoringId !== null}
                   >
-                    No
+                    Cancel
                   </button>
                 </>
               ) : (
@@ -197,16 +210,18 @@ export function SnapshotPanel({
                   <button
                     type="button"
                     class="snapshot-action-btn snapshot-action-restore"
-                    onClick={() => handleRestore(snap.id)}
+                    onClick={() => setConfirming({ id: snap.id, action: 'restore' })}
                     title="Restore this snapshot"
+                    disabled={restoringId !== null}
                   >
-                    Restore
+                    {restoringId === snap.id ? 'Restoring...' : 'Restore'}
                   </button>
                   <button
                     type="button"
                     class="snapshot-action-btn snapshot-action-delete"
-                    onClick={() => setConfirming(snap.id)}
+                    onClick={() => setConfirming({ id: snap.id, action: 'delete' })}
                     title="Delete this snapshot"
+                    disabled={restoringId !== null}
                   >
                     {'\u2715'}
                   </button>
