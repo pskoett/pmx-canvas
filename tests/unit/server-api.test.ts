@@ -332,6 +332,63 @@ describe('canvas server HTTP API', () => {
 
   }, 30000);
 
+  test('persists app model context from ext-app tool results', async () => {
+    const opened = await jsonRequest<{
+      ok: boolean;
+      sessionId: string;
+    }>('/api/canvas/mcp-app/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Context Counter',
+        toolName: 'show_counter',
+        toolArguments: { initial: 2 },
+        transport: {
+          type: 'stdio',
+          command: 'bun',
+          args: ['run', fixtureMcpAppServerPath],
+          cwd: workspaceRoot,
+        },
+      }),
+    });
+    expect(opened.ok).toBe(true);
+
+    const node = await waitForNode(
+      baseUrl,
+      (entry) =>
+        entry.type === 'mcp-app' &&
+        entry.data.title === 'Context Counter' &&
+        entry.data.appSessionId === opened.sessionId,
+    );
+    expect(node).toBeTruthy();
+
+    const toolResponse = await fetch(`${baseUrl}/api/ext-app/call-tool`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: opened.sessionId,
+        nodeId: node?.id,
+        toolName: 'increment',
+        arguments: {},
+      }),
+    });
+    expect(toolResponse.ok).toBe(true);
+
+    const updatedNode = await waitForNode(
+      baseUrl,
+      (entry) => {
+        const modelContext = entry.data.appModelContext as
+          | { structuredContent?: { count?: number } }
+          | undefined;
+        return (
+          entry.id === node?.id &&
+          modelContext?.structuredContent?.count === 3
+        );
+      },
+    );
+    expect(updatedNode).toBeTruthy();
+  }, 30000);
+
   test('rehydrates persisted ext-app sessions after server restart', async () => {
     const opened = await jsonRequest<{
       ok: boolean;

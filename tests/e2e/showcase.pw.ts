@@ -949,9 +949,10 @@ body { margin: 0; background: #0f0f1a; }
   await page.goto('/workbench');
   await page.waitForSelector('.canvas-node', { timeout: 15000 });
 
-  // Wait for all nodes to render
-  const expectedNodes = artifactId ? 25 : 24;
-  await expect(page.locator('.canvas-node')).toHaveCount(expectedNodes, { timeout: 15000 });
+  // Count both world-space canvas nodes and docked HUD nodes.
+  // Context nodes are created docked by default, so they do not use the .canvas-node wrapper.
+  const expectedRenderedNodes = artifactId ? 25 : 24;
+  await expect(page.locator('.canvas-node, .docked-node')).toHaveCount(expectedRenderedNodes, { timeout: 15000 });
 
   // Wait for edges and iframe content to settle
   await page.waitForTimeout(3000);

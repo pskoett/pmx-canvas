@@ -3,6 +3,7 @@ import { resetAttentionBridge, syncAttentionFromSse } from '../../src/client/sta
 import {
   attentionHistory,
   attentionHistoryOpen,
+  attentionHistoryUnread,
   attentionPrimaryNodeIds,
   attentionRegions,
   attentionSecondaryNodeIds,
@@ -62,7 +63,8 @@ describe('attention bridge', () => {
     expect(attentionToast.value?.title).toBe('Context updated');
     expect(attentionToast.value?.detail).toContain('Bug report');
     expect(attentionHistory.value[0]?.title).toBe('Context updated');
-    expect(attentionHistoryOpen.value).toBe(true);
+    expect(attentionHistoryOpen.value).toBe(false);
+    expect(attentionHistoryUnread.value).toBe(1);
   });
 
   test('promotes nearby nodes into the focus field when neighborhood semantics change', () => {

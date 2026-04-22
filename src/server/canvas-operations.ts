@@ -479,7 +479,7 @@ export function addCanvasNode(input: CanvasAddNodeInput): {
     zIndex: 1,
     collapsed: false,
     pinned: false,
-    dockPosition: input.type === 'context' ? 'right' : null,
+    dockPosition: null,
     data,
   };
 

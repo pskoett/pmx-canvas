@@ -6,7 +6,6 @@ import { CanvasViewport } from './canvas/CanvasViewport';
 import { CommandPalette } from './canvas/CommandPalette';
 import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
 import { ContextPinBar } from './canvas/ContextPinBar';
-import { ContextPinHud } from './canvas/ContextPinHud';
 import { DockedNode } from './canvas/DockedNode';
 import { ExpandedNodeOverlay } from './canvas/ExpandedNodeOverlay';
 import { Minimap } from './canvas/Minimap';
@@ -467,7 +466,6 @@ export function App() {
           onOpenShortcuts={() => setShortcutsOpen((v) => !v)}
         />
         <div class="hud-right">
-          <ContextPinHud />
           {dockedRight.map((n) => (
             <DockedNode key={n.id} node={n} />
           ))}

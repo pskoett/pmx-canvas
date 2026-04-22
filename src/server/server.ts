@@ -1920,11 +1920,25 @@ async function handleExtAppCallTool(req: Request): Promise<Response> {
     if (nodeId) {
       const node = canvasState.getNode(nodeId);
       if (node?.type === 'mcp-app' && node.data.mode === 'ext-app' && node.data.appSessionId === sessionId) {
+        const nextData: Record<string, unknown> = {
+          ...node.data,
+          toolResult: result,
+        };
+        const nextModelContext: Record<string, unknown> = {};
+        if (Array.isArray(result.content)) {
+          nextModelContext.content = result.content;
+        }
+        if (result.structuredContent && typeof result.structuredContent === 'object' && !Array.isArray(result.structuredContent)) {
+          nextModelContext.structuredContent = result.structuredContent;
+        }
+        if (Object.keys(nextModelContext).length > 0) {
+          nextData.appModelContext = {
+            ...nextModelContext,
+            updatedAt: new Date().toISOString(),
+          };
+        }
         canvasState.updateNode(nodeId, {
-          data: {
-            ...node.data,
-            toolResult: result,
-          },
+          data: nextData,
         });
         broadcastWorkbenchEvent('canvas-layout-update', {
           layout: canvasState.getLayout(),
@@ -2949,9 +2963,9 @@ function syncContextNodeToCanvasState(
       position: { x: 1130, y: 80 },
       size: { width: 320, height: 400 },
       zIndex: 1,
-      collapsed: true,
+      collapsed: false,
       pinned: false,
-      dockPosition: 'right',
+      dockPosition: null,
       data: mergedData,
     });
     return;

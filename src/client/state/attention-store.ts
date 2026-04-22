@@ -62,14 +62,8 @@ export function setAttentionToast(entry: AttentionEntry | null): void {
 }
 
 export function pushAttentionHistory(entry: AttentionEntry, limit = 6): void {
-  const hadEntries = attentionHistory.value.length > 0;
   attentionHistory.value = [entry, ...attentionHistory.value].slice(0, limit);
   if (!attentionHistoryOpen.value) {
-    if (!hadEntries) {
-      attentionHistoryOpen.value = true;
-      attentionHistoryUnread.value = 0;
-      return;
-    }
     attentionHistoryUnread.value = Math.min(99, attentionHistoryUnread.value + 1);
   }
 }

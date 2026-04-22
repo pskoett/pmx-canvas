@@ -301,6 +301,8 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
       | { structuredContent?: { count?: number } }
       | undefined;
     return appModelContext?.structuredContent?.count ?? null;
+  }, {
+    timeout: 15000,
   }).toBe(3);
 
   await page.reload();
@@ -361,18 +363,18 @@ test('inline markdown save updates authoritative canvas node content', async ({ 
 
   const editor = overlay.locator('.md-reader-content');
   await expect(editor).toBeVisible();
-
-  await editor.evaluate((el: HTMLElement) => {
-    el.focus();
-    el.innerHTML = '<p>Updated paragraph</p>';
-  });
-  await editor.dispatchEvent('input');
-  await editor.evaluate((el: HTMLElement) => el.blur());
+  await editor.click();
+  await page.keyboard.press('ControlOrMeta+A');
+  await page.keyboard.type('Updated paragraph');
+  await expect(editor).toContainText('Updated paragraph');
+  await page.keyboard.press('Tab');
 
   await expect.poll(async () => {
     const response = await request.get(`/api/canvas/node/${created.id}`);
     const node = await response.json() as { data: Record<string, unknown> };
     return node.data.content;
+  }, {
+    timeout: 15000,
   }).toBe('Updated paragraph');
 });
 

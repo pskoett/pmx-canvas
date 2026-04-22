@@ -145,8 +145,7 @@ function ensureContextNode(cards: unknown[]): void {
   if (existing) {
     updateNodeData(id, { cards });
   } else if (cards.length > 0) {
-    const node = makeNode(id, 'context', { cards }, 'right');
-    node.collapsed = true;
+    const node = makeNode(id, 'context', { cards });
     addNode(node);
   }
 }

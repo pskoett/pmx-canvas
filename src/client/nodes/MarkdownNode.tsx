@@ -91,7 +91,7 @@ export function MarkdownNode({
         setRendered(html);
         setDirty(false);
         updateNodeData(node.id, { content: newContent, rendered: html });
-        void updateNodeFromClient(node.id, { content: newContent, data: { rendered: html } });
+        await updateNodeFromClient(node.id, { content: newContent, data: { rendered: html } });
         return;
       }
       setSaving(true);
@@ -102,7 +102,7 @@ export function MarkdownNode({
         setRendered(html);
         setDirty(false);
         updateNodeData(node.id, { content: newContent, rendered: html, savedAt: result.updatedAt });
-        void updateNodeFromClient(node.id, {
+        await updateNodeFromClient(node.id, {
           content: newContent,
           data: { rendered: html, savedAt: result.updatedAt },
         });

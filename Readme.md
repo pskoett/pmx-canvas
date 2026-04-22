@@ -8,8 +8,8 @@ A spatial canvas workbench for coding agents. Infinite 2D canvas with nodes, edg
 </p>
 
 <p align="center">
-  <img src="docs/screenshots/demo-dark.png" alt="Published-consumer SDLC demo — dark theme" width="49%" />
-  <img src="docs/screenshots/demo-light.png" alt="Published-consumer SDLC demo — light theme" width="49%" />
+  <img src="docs/screenshots/demo-workbench-dark.png" alt="Structured workbench demo — dark theme" width="49%" />
+  <img src="docs/screenshots/demo-workbench-light.png" alt="Structured workbench demo — light theme" width="49%" />
 </p>
 
 PMX Canvas gives any agent a visual workspace where it can lay out information as connected nodes on an infinite canvas. Both the agent and the human see and interact with it in real time. The canvas is the agent's **extended working memory**: humans pin nodes to curate context, agents read that curation via MCP resource change notifications.
