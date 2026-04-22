@@ -2,7 +2,15 @@
 
 A spatial canvas workbench for coding agents. Infinite 2D canvas with nodes, edges, pan/zoom, minimap, and real-time sync -- controlled through the CLI, MCP, HTTP API, or a Bun-based JavaScript/TypeScript SDK.
 
-![PMX Canvas screenshot](https://raw.githubusercontent.com/pskoett/pmx-canvas/main/docs/screenshot.png)
+<p align="center">
+  <img src="https://raw.githubusercontent.com/pskoett/pmx-canvas/main/docs/screenshots/welcome-dark.png" alt="Empty canvas — dark theme" width="49%" />
+  <img src="https://raw.githubusercontent.com/pskoett/pmx-canvas/main/docs/screenshots/welcome-light.png" alt="Empty canvas — light theme" width="49%" />
+</p>
+
+<p align="center">
+  <img src="https://raw.githubusercontent.com/pskoett/pmx-canvas/main/docs/screenshots/demo-dark.png" alt="Canvas with release workflow — dark theme" width="49%" />
+  <img src="https://raw.githubusercontent.com/pskoett/pmx-canvas/main/docs/screenshots/demo-light.png" alt="Canvas with release workflow — light theme" width="49%" />
+</p>
 
 PMX Canvas gives any agent a visual workspace where it can lay out information as connected nodes on an infinite canvas. Both the agent and the human see and interact with it in real time. The canvas is the agent's **extended working memory**: humans pin nodes to curate context, agents read that curation via MCP resource change notifications.
 
