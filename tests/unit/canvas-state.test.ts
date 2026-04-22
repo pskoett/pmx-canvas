@@ -273,6 +273,94 @@ describe('canvas state manager', () => {
     expect(canvasState.getNode(groupId)?.size).toEqual({ width: 580, height: 432 });
   });
 
+  test('batch updates recompute parent group bounds when a grouped child moves', () => {
+    const child = makeNode({
+      id: 'node-child-batch',
+      type: 'markdown',
+      position: { x: 120, y: 160 },
+      size: { width: 360, height: 200 },
+      data: { title: 'Child batch' },
+    });
+
+    canvasState.addNode(child);
+
+    const groupId = 'group-dynamic-batch';
+    canvasState.addNode(makeNode({
+      id: groupId,
+      type: 'group',
+      position: { x: 0, y: 0 },
+      size: { width: 100, height: 100 },
+      data: { title: 'Dynamic group batch', children: [] },
+    }));
+
+    expect(canvasState.groupNodes(groupId, [child.id])).toBe(true);
+    expect(canvasState.getNode(groupId)?.position).toEqual({ x: 80, y: 88 });
+    expect(canvasState.getNode(groupId)?.size).toEqual({ width: 440, height: 312 });
+
+    expect(canvasState.applyUpdates([{
+      id: child.id,
+      position: { x: 220, y: 260 },
+      size: { width: 500, height: 320 },
+    }])).toEqual({ applied: 1, skipped: 0 });
+
+    expect(canvasState.getNode(groupId)?.position).toEqual({ x: 180, y: 188 });
+    expect(canvasState.getNode(groupId)?.size).toEqual({ width: 580, height: 432 });
+  });
+
+  test('moving a group translates its child nodes', () => {
+    const first = makeNode({
+      id: 'node-child-1',
+      type: 'markdown',
+      position: { x: 120, y: 160 },
+      size: { width: 360, height: 200 },
+      data: { title: 'Child one' },
+    });
+    const second = makeNode({
+      id: 'node-child-2',
+      type: 'file',
+      position: { x: 520, y: 160 },
+      size: { width: 400, height: 240 },
+      data: { title: 'Child two' },
+    });
+
+    canvasState.addNode(first);
+    canvasState.addNode(second);
+    canvasState.addNode(makeNode({
+      id: 'group-move',
+      type: 'group',
+      position: { x: 0, y: 0 },
+      size: { width: 100, height: 100 },
+      data: { title: 'Move group', children: [] },
+    }));
+
+    expect(canvasState.groupNodes('group-move', [first.id, second.id])).toBe(true);
+
+    const beforeFirst = canvasState.getNode(first.id)!;
+    const beforeSecond = canvasState.getNode(second.id)!;
+    const beforeGroup = canvasState.getNode('group-move')!;
+
+    expect(canvasState.applyUpdates([{
+      id: 'group-move',
+      position: {
+        x: beforeGroup.position.x + 140,
+        y: beforeGroup.position.y + 90,
+      },
+    }])).toEqual({ applied: 1, skipped: 0 });
+
+    expect(canvasState.getNode(first.id)?.position).toEqual({
+      x: beforeFirst.position.x + 140,
+      y: beforeFirst.position.y + 90,
+    });
+    expect(canvasState.getNode(second.id)?.position).toEqual({
+      x: beforeSecond.position.x + 140,
+      y: beforeSecond.position.y + 90,
+    });
+    expect(canvasState.getNode('group-move')?.position).toEqual({
+      x: beforeGroup.position.x + 140,
+      y: beforeGroup.position.y + 90,
+    });
+  });
+
   test('grouping compacts scattered children into the group bounds', () => {
     const first = makeNode({
       id: 'node-1',

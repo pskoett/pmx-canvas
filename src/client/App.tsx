@@ -341,7 +341,7 @@ export function App() {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const snapshotBtnRef = useRef<HTMLButtonElement>(null);
-  const { menu, openMenu, closeMenu } = useContextMenu();
+  const { menu, openNodeMenu, openCanvasMenu, closeMenu } = useContextMenu();
   const hasInitialLayout = hasInitialServerLayout.value;
 
   const handleToggleMinimap = useCallback(() => setMinimapVisible((v) => !v), []);
@@ -473,7 +473,10 @@ export function App() {
       </div>
       <AttentionToast />
       <AttentionHistory />
-      <CanvasViewport onNodeContextMenu={openMenu} />
+      <CanvasViewport
+        onNodeContextMenu={openNodeMenu}
+        onCanvasContextMenu={openCanvasMenu}
+      />
       {hasInitialLayout && allNodes.filter((n) => !n.dockPosition).length === 0 && (
         <WelcomeCard onOpenPalette={() => setPaletteOpen(true)} />
       )}
@@ -491,7 +494,7 @@ export function App() {
           containerHeight={window.innerHeight}
         />
       )}
-      {menu && <ContextMenu x={menu.x} y={menu.y} nodeId={menu.nodeId} onClose={closeMenu} />}
+      {menu && <ContextMenu menu={menu} onClose={closeMenu} />}
       {paletteOpen && (
         <CommandPalette
           onClose={() => setPaletteOpen(false)}

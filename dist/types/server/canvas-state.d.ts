@@ -102,6 +102,7 @@ declare class CanvasStateManager {
     private applyResolvedGroupBounds;
     private getGroupSnapshot;
     private reflowAllGroups;
+    private translateGroupChildren;
     private recomputeParentGroupBounds;
     private compactGroupChildren;
     private _stateFilePath;

@@ -138,6 +138,26 @@ export function updateNode(id: string, patch: Partial<CanvasNodeState>): void {
   const existing = nodes.value.get(id);
   if (!existing) return;
   const next = new Map(nodes.value);
+  if (existing.type === 'group' && patch.position) {
+    const deltaX = patch.position.x - existing.position.x;
+    const deltaY = patch.position.y - existing.position.y;
+    if (deltaX !== 0 || deltaY !== 0) {
+      const childIds = Array.isArray(existing.data.children)
+        ? existing.data.children.filter((childId): childId is string => typeof childId === 'string')
+        : [];
+      for (const childId of childIds) {
+        const child = next.get(childId);
+        if (!child || child.type === 'group') continue;
+        next.set(childId, {
+          ...child,
+          position: {
+            x: child.position.x + deltaX,
+            y: child.position.y + deltaY,
+          },
+        });
+      }
+    }
+  }
   next.set(id, { ...existing, ...patch });
   nodes.value = next;
 }
@@ -305,9 +325,7 @@ const STORAGE_KEY = 'pmx-canvas-layout';
 export function persistLayout(): void {
   try {
     const allNodes = Array.from(nodes.value.values());
-    const nodeUpdates = allNodes
-      .filter((n) => n.type !== 'group')
-      .map((n) => ({
+    const nodeUpdates = allNodes.map((n) => ({
       id: n.id,
       position: n.position,
       size: n.size,

@@ -176,6 +176,8 @@ interface BunWithOptionalWebView {
   WebView?: CanvasWebViewConstructor;
 }
 
+const DEFAULT_CANVAS_AUTOMATION_WEBVIEW_TIMEOUT_MS = 5000;
+
 export interface CanvasAutomationWebViewOptions {
   backend?: 'webkit' | 'chrome';
   width?: number;
@@ -310,6 +312,34 @@ function detectCanvasAutomationWebViewBackendKind(backend: CanvasWebViewBackend)
   return backend.type;
 }
 
+function getCanvasAutomationWebViewTimeoutMs(): number {
+  const raw = Number.parseInt(process.env.PMX_CANVAS_WEBVIEW_TIMEOUT_MS ?? '', 10);
+  return Number.isFinite(raw) && raw > 0
+    ? raw
+    : DEFAULT_CANVAS_AUTOMATION_WEBVIEW_TIMEOUT_MS;
+}
+
+async function withCanvasAutomationWebViewTimeout<T>(task: Promise<T>, action: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      task,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => {
+          reject(
+            new Error(
+              `Timed out after ${getCanvasAutomationWebViewTimeoutMs()}ms while ${action}. ` +
+                'Bun.WebView may be unavailable in this environment.',
+            ),
+          );
+        }, getCanvasAutomationWebViewTimeoutMs());
+      }),
+    ]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
 async function closeCanvasAutomationWebViewInternal(): Promise<boolean> {
   if (!canvasAutomationWebView) return false;
 
@@ -390,7 +420,7 @@ export async function startCanvasAutomationWebView(
     });
 
     try {
-      await view.navigate(url);
+      await withCanvasAutomationWebViewTimeout(view.navigate(url), 'starting the workbench automation WebView');
     } catch (error) {
       canvasAutomationWebViewStatus = {
         ...canvasAutomationWebViewStatus,
@@ -423,7 +453,11 @@ function requireActiveCanvasAutomationWebView(): CanvasWebViewLike {
 }
 
 export async function evaluateCanvasAutomationWebView(expression: string): Promise<unknown> {
-  return runCanvasAutomationWebViewTask(async () => requireActiveCanvasAutomationWebView().evaluate(expression));
+  return runCanvasAutomationWebViewTask(async () =>
+    withCanvasAutomationWebViewTimeout(
+      requireActiveCanvasAutomationWebView().evaluate(expression),
+      'evaluating JavaScript in the workbench automation WebView',
+    ));
 }
 
 export async function resizeCanvasAutomationWebView(
@@ -433,7 +467,10 @@ export async function resizeCanvasAutomationWebView(
   return runCanvasAutomationWebViewTask(async () => {
     const normalizedWidth = Number.isFinite(width) && width > 0 ? Math.floor(width) : 1280;
     const normalizedHeight = Number.isFinite(height) && height > 0 ? Math.floor(height) : 800;
-    await requireActiveCanvasAutomationWebView().resize(normalizedWidth, normalizedHeight);
+    await withCanvasAutomationWebViewTimeout(
+      requireActiveCanvasAutomationWebView().resize(normalizedWidth, normalizedHeight),
+      'resizing the workbench automation WebView',
+    );
     canvasAutomationWebViewStatus = {
       ...canvasAutomationWebViewStatus,
       width: normalizedWidth,
@@ -447,7 +484,10 @@ export async function screenshotCanvasAutomationWebView(
   options: Record<string, unknown> = {},
 ): Promise<Uint8Array> {
   return runCanvasAutomationWebViewTask(async () => {
-    const result = await requireActiveCanvasAutomationWebView().screenshot(options);
+    const result = await withCanvasAutomationWebViewTimeout(
+      requireActiveCanvasAutomationWebView().screenshot(options),
+      'capturing a screenshot from the workbench automation WebView',
+    );
     if (result instanceof Uint8Array) return result;
     if (result instanceof ArrayBuffer) return new Uint8Array(result);
     if (result instanceof Blob) return new Uint8Array(await result.arrayBuffer());

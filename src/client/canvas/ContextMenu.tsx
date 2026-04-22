@@ -16,6 +16,8 @@ import {
 } from '../state/canvas-store';
 import {
   createEdgeFromClient,
+  createGroupFromClient,
+  createNodeFromClient,
   refreshWebpageNodeFromClient,
   removeNodeFromClient,
   sendIntent,
@@ -25,19 +27,34 @@ import {
 import { EXPANDABLE_TYPES } from '../types';
 import type { CanvasNodeState } from '../types';
 
-interface MenuState {
-  x: number;
-  y: number;
-  nodeId: string;
-}
+export type MenuState =
+  | {
+      kind: 'node';
+      x: number;
+      y: number;
+      nodeId: string;
+    }
+  | {
+      kind: 'canvas';
+      x: number;
+      y: number;
+      canvasX: number;
+      canvasY: number;
+    };
 
 export function useContextMenu() {
   const [menu, setMenu] = useState<MenuState | null>(null);
 
-  const openMenu = useCallback((e: MouseEvent, nodeId: string) => {
+  const openNodeMenu = useCallback((e: MouseEvent, nodeId: string) => {
     e.preventDefault();
     e.stopPropagation();
-    setMenu({ x: e.clientX, y: e.clientY, nodeId });
+    setMenu({ kind: 'node', x: e.clientX, y: e.clientY, nodeId });
+  }, []);
+
+  const openCanvasMenu = useCallback((e: MouseEvent, canvasX: number, canvasY: number) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenu({ kind: 'canvas', x: e.clientX, y: e.clientY, canvasX, canvasY });
   }, []);
 
   const closeMenu = useCallback(() => setMenu(null), []);
@@ -56,13 +73,11 @@ export function useContextMenu() {
     };
   }, [menu]);
 
-  return { menu, openMenu, closeMenu };
+  return { menu, openNodeMenu, openCanvasMenu, closeMenu };
 }
 
 interface ContextMenuProps {
-  x: number;
-  y: number;
-  nodeId: string;
+  menu: MenuState;
   onClose: () => void;
 }
 
@@ -77,19 +92,23 @@ const GROUP_COLOR_PRESETS = [
   { label: 'Purple', value: '#a855f7' },
 ] as const;
 
-export function ContextMenu({ x, y, nodeId, onClose }: ContextMenuProps) {
-  const node = nodes.value.get(nodeId);
-  if (!node) return null;
-
-  const items = buildMenuItems(node);
+export function ContextMenu({ menu, onClose }: ContextMenuProps) {
+  let items: MenuItem[];
+  if (menu.kind === 'node') {
+    const node = nodes.value.get(menu.nodeId);
+    if (!node) return null;
+    items = buildNodeMenuItems(node);
+  } else {
+    items = buildCanvasMenuItems(menu.canvasX, menu.canvasY);
+  }
   const keyCounts = new Map<string, number>();
   const estimatedHeight = items.some((item) => item.render)
     ? items.length * 32 + 168
     : items.length * 32 + 8;
 
   // Keep menu on screen
-  const adjustedX = Math.min(x, Math.max(12, window.innerWidth - 240));
-  const adjustedY = Math.min(y, Math.max(12, window.innerHeight - estimatedHeight));
+  const adjustedX = Math.min(menu.x, Math.max(12, window.innerWidth - 240));
+  const adjustedY = Math.min(menu.y, Math.max(12, window.innerHeight - estimatedHeight));
 
   return (
     <div
@@ -247,7 +266,140 @@ function renderGroupColorSection(node: CanvasNodeState, onClose: () => void): Co
   );
 }
 
-function buildMenuItems(node: CanvasNodeState): MenuItem[] {
+function centeredPosition(canvasX: number, canvasY: number, width: number, height: number): {
+  x: number;
+  y: number;
+} {
+  return {
+    x: canvasX - width / 2,
+    y: canvasY - height / 2,
+  };
+}
+
+function titleFromResource(raw: string, fallback: string): string {
+  const trimmed = raw.trim().replace(/[?#].*$/, '');
+  const parts = trimmed.split('/').filter(Boolean);
+  return parts.at(-1) || fallback;
+}
+
+async function createPromptedNode(opts: {
+  promptLabel: string;
+  type: 'webpage' | 'file' | 'image';
+  canvasX: number;
+  canvasY: number;
+  width: number;
+  height: number;
+  placeholder?: string;
+  titleFallback: string;
+  errorMessage: string;
+}): Promise<void> {
+  const value = window.prompt(opts.promptLabel, opts.placeholder ?? '');
+  if (!value) return;
+  const trimmed = value.trim();
+  if (!trimmed) return;
+
+  const position = centeredPosition(opts.canvasX, opts.canvasY, opts.width, opts.height);
+  const result = await createNodeFromClient({
+    type: opts.type,
+    ...(opts.type !== 'webpage' ? { title: titleFromResource(trimmed, opts.titleFallback) } : {}),
+    content: trimmed,
+    x: position.x,
+    y: position.y,
+    width: opts.width,
+    height: opts.height,
+  });
+
+  if (!result.ok) {
+    window.alert(opts.errorMessage);
+  }
+}
+
+function buildCanvasMenuItems(canvasX: number, canvasY: number): MenuItem[] {
+  return [
+    {
+      label: 'New note',
+      action: () => {
+        const width = 360;
+        const height = 200;
+        const position = centeredPosition(canvasX, canvasY, width, height);
+        void createNodeFromClient({
+          type: 'markdown',
+          title: 'New note',
+          x: position.x,
+          y: position.y,
+          width,
+          height,
+        });
+      },
+    },
+    {
+      label: 'Open webpage...',
+      action: () => {
+        void createPromptedNode({
+          promptLabel: 'Webpage URL:',
+          type: 'webpage',
+          canvasX,
+          canvasY,
+          width: 520,
+          height: 420,
+          placeholder: 'https://example.com',
+          titleFallback: 'Webpage',
+          errorMessage: 'Could not create webpage node. Enter a valid http(s) URL.',
+        });
+      },
+    },
+    {
+      label: 'Open file...',
+      action: () => {
+        void createPromptedNode({
+          promptLabel: 'Workspace path or absolute file path:',
+          type: 'file',
+          canvasX,
+          canvasY,
+          width: 720,
+          height: 500,
+          placeholder: 'src/server/server.ts',
+          titleFallback: 'File',
+          errorMessage: 'Could not create file node. Check the path and try again.',
+        });
+      },
+    },
+    {
+      label: 'Open image...',
+      action: () => {
+        void createPromptedNode({
+          promptLabel: 'Image path, URL, or data URI:',
+          type: 'image',
+          canvasX,
+          canvasY,
+          width: 480,
+          height: 360,
+          placeholder: 'artifacts/architecture.png',
+          titleFallback: 'Image',
+          errorMessage: 'Could not create image node. Check the image source and try again.',
+        });
+      },
+    },
+    { separator: true },
+    {
+      label: 'New group',
+      action: () => {
+        const width = 600;
+        const height = 400;
+        const position = centeredPosition(canvasX, canvasY, width, height);
+        void createGroupFromClient({
+          title: 'Group',
+          x: position.x,
+          y: position.y,
+          width,
+          height,
+        });
+      },
+    },
+  ];
+}
+
+function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
   const items: MenuItem[] = [];
   const localPath = getNodeLocalPath(node);
 

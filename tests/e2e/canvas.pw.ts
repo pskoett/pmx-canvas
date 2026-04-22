@@ -1,4 +1,4 @@
-import { expect, test, type Locator } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
 function toolbarTooltip(button: Locator): Locator {
@@ -36,6 +36,18 @@ async function currentCanvasState(request: { get: Function }): Promise<{
   };
 }
 
+async function dragNodeTitlebar(page: Page, node: Locator, deltaX: number, deltaY: number): Promise<void> {
+  const titlebar = node.locator('.node-titlebar');
+  const box = await titlebar.boundingBox();
+  if (!box) throw new Error('Node titlebar is not visible for dragging.');
+  const startX = box.x + box.width / 2;
+  const startY = box.y + box.height / 2;
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await page.mouse.move(startX + deltaX, startY + deltaY, { steps: 8 });
+  await page.mouse.up();
+}
+
 test.beforeEach(async ({ request }) => {
   await clearCanvas(request);
   await clearSnapshots(request);
@@ -51,6 +63,38 @@ test('creates a markdown note from the canvas background', async ({ page, reques
   const note = page.locator('.canvas-node').filter({ hasText: 'New note' });
   await expect(note).toHaveCount(1);
   await expect(page.locator('.welcome-card')).toBeHidden();
+
+  await expect.poll(async () => {
+    const state = await currentCanvasState(request);
+    return state.nodes.filter(
+      (node) => node.type === 'markdown' && node.data.title === 'New note',
+    ).length;
+  }).toBe(1);
+});
+
+test('canvas background context menu exposes user-creatable nodes', async ({ page, request }) => {
+  await page.goto('/workbench');
+
+  const viewport = page.locator('.canvas-viewport');
+  await viewport.click({
+    button: 'right',
+    position: { x: 72, y: 120 },
+  });
+
+  const menu = page.locator('.context-menu');
+  await expect(menu).toBeVisible();
+  await expect(menu.locator('.context-menu-item').filter({ hasText: 'New note' })).toBeVisible();
+  await expect(menu.locator('.context-menu-item').filter({ hasText: 'Open webpage...' })).toBeVisible();
+  await expect(menu.locator('.context-menu-item').filter({ hasText: 'Open file...' })).toBeVisible();
+  await expect(menu.locator('.context-menu-item').filter({ hasText: 'Open image...' })).toBeVisible();
+  await expect(menu.locator('.context-menu-item').filter({ hasText: 'New group' })).toBeVisible();
+  await expect(menu).not.toContainText('status');
+  await expect(menu).not.toContainText('trace');
+  await expect(menu).not.toContainText('ledger');
+  await expect(menu).not.toContainText('context');
+  await expect(menu).not.toContainText('response');
+
+  await menu.locator('.context-menu-item').filter({ hasText: 'New note' }).click();
 
   await expect.poll(async () => {
     const state = await currentCanvasState(request);
@@ -622,6 +666,78 @@ test('group context menu updates the group accent color', async ({ page, request
   }).toBe('#22c55e');
 
   await expect(group).toHaveCSS('border-top-color', 'rgb(34, 197, 94)');
+});
+
+test('restored grouped nodes can be dragged without snapping back', async ({ page, request }) => {
+  const firstResponse = await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Grouped first',
+      content: 'First child',
+      x: 560,
+      y: 240,
+    },
+  });
+  const first = await firstResponse.json() as { id: string };
+
+  const secondResponse = await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Grouped second',
+      content: 'Second child',
+      x: 940,
+      y: 240,
+    },
+  });
+  const second = await secondResponse.json() as { id: string };
+
+  const groupResponse = await request.post('/api/canvas/group', {
+    data: {
+      title: 'Restore drag group',
+      childIds: [first.id, second.id],
+    },
+  });
+  const group = await groupResponse.json() as { id: string };
+
+  const saveResponse = await request.post('/api/canvas/snapshots', {
+    data: { name: 'Grouped drag restore snapshot' },
+  });
+  const saved = await saveResponse.json() as { snapshot: { id: string } };
+
+  await request.patch(`/api/canvas/node/${first.id}`, {
+    data: { position: { x: 1160, y: 740 } },
+  });
+
+  await page.goto('/workbench');
+  await request.post(`/api/canvas/snapshots/${saved.snapshot.id}`);
+
+  const groupedFirst = page.locator('.canvas-node').filter({ hasText: 'Grouped first' });
+  const groupedGroup = page.locator('.canvas-node.group-node').filter({ hasText: 'Restore drag group' });
+  await expect(groupedFirst).toHaveCount(1);
+  await expect(groupedGroup).toHaveCount(1);
+
+  const beforeGroupResponse = await request.get(`/api/canvas/node/${group.id}`);
+  const beforeChildResponse = await request.get(`/api/canvas/node/${first.id}`);
+  const beforeGroup = await beforeGroupResponse.json() as { position: { x: number; y: number } };
+  const beforeChild = await beforeChildResponse.json() as { position: { x: number; y: number } };
+
+  await dragNodeTitlebar(page, groupedGroup, 180, 120);
+
+  await expect.poll(async () => {
+    const groupResponseAfter = await request.get(`/api/canvas/node/${group.id}`);
+    const childResponseAfter = await request.get(`/api/canvas/node/${first.id}`);
+    const groupNode = await groupResponseAfter.json() as { position: { x: number; y: number } };
+    const childNode = await childResponseAfter.json() as { position: { x: number; y: number } };
+    const groupDeltaX = groupNode.position.x - beforeGroup.position.x;
+    const groupDeltaY = groupNode.position.y - beforeGroup.position.y;
+    const childDeltaX = childNode.position.x - beforeChild.position.x;
+    const childDeltaY = childNode.position.y - beforeChild.position.y;
+    return (
+      (Math.abs(groupDeltaX) > 10 || Math.abs(groupDeltaY) > 10) &&
+      Math.abs(groupDeltaX - childDeltaX) <= 1 &&
+      Math.abs(groupDeltaY - childDeltaY) <= 1
+    );
+  }).toBe(true);
 });
 
 test('light theme uses a high-contrast blue for context-pinned nodes', async ({ page, request }) => {

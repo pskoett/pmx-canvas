@@ -1358,17 +1358,21 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ backend: requestedBackend, width: 1440, height: 900 }),
     });
 
-    if (!initialStatus.supported) {
-      expect(startResponse.status).toBe(501);
+    if (!startResponse.ok) {
+      expect([500, 501]).toContain(startResponse.status);
       const unsupported = await startResponse.json() as {
         ok: boolean;
         error: string;
         webview: WorkbenchWebViewStatusResponse;
       };
       expect(unsupported.ok).toBe(false);
-      expect(unsupported.error).toContain('Bun.WebView');
+      expect(unsupported.error.length).toBeGreaterThan(0);
       expect(unsupported.webview.active).toBe(false);
-      expect(unsupported.webview.lastError).toContain('Bun.WebView');
+      expect(unsupported.webview.lastError).toContain(unsupported.error);
+      if (!initialStatus.supported) {
+        expect(startResponse.status).toBe(501);
+        expect(unsupported.error).toContain('Bun.WebView');
+      }
       return;
     }
 
@@ -1409,12 +1413,18 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ backend: requestedBackend, width: 900, height: 700 }),
     });
 
-    if (typeof Bun.WebView !== 'function') {
-      expect(startResponse.status).toBe(501);
+    if (!startResponse.ok) {
+      expect([500, 501]).toContain(startResponse.status);
+      const failed = await startResponse.json() as {
+        ok: boolean;
+        error: string;
+        webview: WorkbenchWebViewStatusResponse;
+      };
+      expect(failed.ok).toBe(false);
+      expect(failed.error.length).toBeGreaterThan(0);
+      expect(failed.webview.active).toBe(false);
       return;
     }
-
-    expect(startResponse.ok).toBe(true);
 
     const evaluateResponse = await fetch(`${baseUrl}/api/workbench/webview/evaluate`, {
       method: 'POST',

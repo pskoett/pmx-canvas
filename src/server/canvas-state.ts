@@ -274,6 +274,22 @@ class CanvasStateManager {
     }
   }
 
+  private translateGroupChildren(groupId: string, deltaX: number, deltaY: number): void {
+    if (deltaX === 0 && deltaY === 0) return;
+    const snapshot = this.getGroupSnapshot(groupId);
+    if (!snapshot) return;
+
+    for (const child of snapshot.children) {
+      this.nodes.set(child.id, {
+        ...child,
+        position: {
+          x: child.position.x + deltaX,
+          y: child.position.y + deltaY,
+        },
+      });
+    }
+  }
+
   private recomputeParentGroupBounds(groupId: string | undefined): void {
     if (!groupId) return;
     const snapshot = this.getGroupSnapshot(groupId);
@@ -685,6 +701,13 @@ class CanvasStateManager {
     const existing = this.nodes.get(id);
     if (!existing) return;
     const oldSnapshot = structuredClone(existing);
+    if (existing.type === 'group' && patch.position) {
+      this.translateGroupChildren(
+        id,
+        patch.position.x - existing.position.x,
+        patch.position.y - existing.position.y,
+      );
+    }
     this.nodes.set(id, { ...existing, ...patch });
     const parentGroupId = existing.data.parentGroup as string | undefined;
     if (parentGroupId) {
@@ -838,6 +861,13 @@ class CanvasStateManager {
       }
       oldSnapshots.set(update.id, structuredClone(existing));
       appliedUpdates.push(structuredClone(update));
+      if (existing.type === 'group' && update.position) {
+        this.translateGroupChildren(
+          update.id,
+          update.position.x - existing.position.x,
+          update.position.y - existing.position.y,
+        );
+      }
       this.nodes.set(update.id, {
         ...existing,
         ...(update.position && { position: update.position }),

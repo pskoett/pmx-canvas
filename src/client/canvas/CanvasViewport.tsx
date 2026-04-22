@@ -75,6 +75,7 @@ interface LassoRect {
 
 interface CanvasViewportProps {
   onNodeContextMenu?: (e: MouseEvent, nodeId: string) => void;
+  onCanvasContextMenu?: (e: MouseEvent, canvasX: number, canvasY: number) => void;
 }
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico', 'avif']);
@@ -140,7 +141,7 @@ function nodeTypeFromFilename(name: string): 'image' | 'markdown' | 'file' {
   return 'file';
 }
 
-export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
+export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu }: CanvasViewportProps) {
   const v = viewport.value;
   const isLassoing = useRef(false);
   const [lasso, setLasso] = useState<LassoRect | null>(null);
@@ -355,6 +356,25 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
     [containerRef],
   );
 
+  const handleContextMenu = useCallback(
+    (e: MouseEvent) => {
+      if (!onCanvasContextMenu) return;
+
+      const container = containerRef.current;
+      if (!container) return;
+
+      const target = e.target instanceof Element ? e.target : null;
+      if (target?.closest('.canvas-node')) return;
+
+      const rect = container.getBoundingClientRect();
+      const v = viewport.value;
+      const canvasX = (e.clientX - rect.left - v.x) / v.scale;
+      const canvasY = (e.clientY - rect.top - v.y) / v.scale;
+      onCanvasContextMenu(e, canvasX, canvasY);
+    },
+    [containerRef, onCanvasContextMenu],
+  );
+
   // ── Drag-and-drop files from filesystem ──
   const handleDragEnter = useCallback((e: DragEvent) => {
     e.preventDefault();
@@ -497,6 +517,7 @@ export function CanvasViewport({ onNodeContextMenu }: CanvasViewportProps) {
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
+      onContextMenu={handleContextMenu}
       onDblClick={handleDblClick}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
