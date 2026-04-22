@@ -49,6 +49,7 @@ import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
 import {
   callMcpAppTool,
+  closeMcpAppSession,
   closeAllMcpAppSessions,
   listMcpAppPrompts,
   listMcpAppResources,
@@ -1712,6 +1713,17 @@ function randomExtAppToolCallId(): string {
   return `ext-app-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function nodeAppSessionId(node: CanvasNodeState | undefined): string | null {
+  if (!node || node.type !== 'mcp-app') return null;
+  const sessionId = node.data.appSessionId;
+  return typeof sessionId === 'string' && sessionId.trim().length > 0 ? sessionId : null;
+}
+
+function closeNodeAppSession(node: CanvasNodeState | undefined): void {
+  const sessionId = nodeAppSessionId(node);
+  if (sessionId) closeMcpAppSession(sessionId);
+}
+
 function normalizeStringRecord(value: unknown): Record<string, string> | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
   const entries = Object.entries(value)
@@ -1896,9 +1908,26 @@ async function handleExtAppCallTool(req: Request): Promise<Response> {
     body.arguments && typeof body.arguments === 'object' && !Array.isArray(body.arguments)
       ? body.arguments as Record<string, unknown>
       : undefined;
+  const nodeId = typeof body.nodeId === 'string' ? body.nodeId.trim() : '';
 
   try {
     const result = await callMcpAppTool(sessionId, toolName, args);
+    if (nodeId) {
+      const node = canvasState.getNode(nodeId);
+      if (node?.type === 'mcp-app' && node.data.mode === 'ext-app' && node.data.appSessionId === sessionId) {
+        canvasState.updateNode(nodeId, {
+          data: {
+            ...node.data,
+            toolResult: result,
+          },
+        });
+        broadcastWorkbenchEvent('canvas-layout-update', {
+          layout: canvasState.getLayout(),
+          sessionId: primaryWorkbenchSessionId,
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
     return responseJson({ ok: true, result });
   } catch (error) {
     return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
@@ -2984,6 +3013,11 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
     };
     const existing = canvasState.getNode(id);
     if (existing) {
+      const previousSessionId = nodeAppSessionId(existing);
+      const nextSessionId = typeof payload.appSessionId === 'string' ? payload.appSessionId : null;
+      if (previousSessionId && nextSessionId && previousSessionId !== nextSessionId) {
+        closeMcpAppSession(previousSessionId);
+      }
       canvasState.updateNode(id, { data: { ...existing.data, ...dataPatch } });
     } else {
       const reusableNodeId =
@@ -2996,6 +3030,11 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
       if (reusableNodeId) {
         const reusableNode = canvasState.getNode(reusableNodeId);
         if (!reusableNode) return;
+        const previousSessionId = nodeAppSessionId(reusableNode);
+        const nextSessionId = typeof payload.appSessionId === 'string' ? payload.appSessionId : null;
+        if (previousSessionId && nextSessionId && previousSessionId !== nextSessionId) {
+          closeMcpAppSession(previousSessionId);
+        }
         canvasState.updateNode(reusableNodeId, {
           data: { ...reusableNode.data, ...dataPatch },
         });
@@ -3041,6 +3080,7 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
         : null);
     if (!id) return;
     if (payload.success === false) {
+      closeNodeAppSession(canvasState.getNode(id));
       canvasState.removeNode(id);
       return;
     }
@@ -3520,6 +3560,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname.startsWith('/api/canvas/node/') && req.method === 'DELETE') {
             const nodeId = url.pathname.slice('/api/canvas/node/'.length);
+            closeNodeAppSession(canvasState.getNode(nodeId));
             const result = removeCanvasNode(nodeId);
             if (!result.removed) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
             emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
@@ -3624,6 +3665,9 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           }
 
           if (url.pathname === '/api/canvas/clear' && req.method === 'POST') {
+            for (const node of canvasState.getLayout().nodes) {
+              closeNodeAppSession(node);
+            }
             clearCanvas();
             emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
             return responseJson({ ok: true });

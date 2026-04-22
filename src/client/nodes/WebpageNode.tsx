@@ -205,7 +205,7 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
             src={url}
             loading="lazy"
             referrerPolicy="no-referrer"
-            sandbox="allow-downloads allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-presentation allow-same-origin allow-scripts"
+            sandbox="allow-downloads allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox allow-presentation allow-scripts"
             style={{
               display: 'block',
               width: '100%',

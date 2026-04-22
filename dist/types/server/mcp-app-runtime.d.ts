@@ -41,4 +41,5 @@ export declare function listMcpAppTools(sessionId: string): Promise<ListToolsRes
 export declare function listMcpAppResources(sessionId: string): Promise<ListResourcesResult>;
 export declare function listMcpAppResourceTemplates(sessionId: string): Promise<ListResourceTemplatesResult>;
 export declare function listMcpAppPrompts(sessionId: string): Promise<ListPromptsResult>;
+export declare function closeMcpAppSession(sessionId: string): void;
 export declare function closeAllMcpAppSessions(): void;

@@ -5,7 +5,7 @@
  *
  * The generated HTML:
  * 1. Renders immediately from inline data (no bridge needed)
- * 2. Connects to host AppBridge via the ext-app App SDK (CDN)
+ * 2. Connects to host AppBridge via the embedded ext-app App SDK runtime
  * 3. Accepts updated data via toolInput for re-rendering
  */
 export interface ChartDataset {

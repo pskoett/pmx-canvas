@@ -37,6 +37,7 @@ import {
   type WebArtifactCanvasBuildResult,
 } from './web-artifacts.js';
 import {
+  closeMcpAppSession,
   openMcpApp as openExternalMcpApp,
   type ExternalMcpTransportConfig,
 } from './mcp-app-runtime.js';
@@ -236,6 +237,14 @@ export class PmxCanvas extends EventEmitter {
   }
 
   removeNode(id: string): void {
+    const existing = canvasState.getNode(id);
+    const appSessionId =
+      existing?.type === 'mcp-app' && typeof existing.data.appSessionId === 'string'
+        ? existing.data.appSessionId
+        : null;
+    if (appSessionId) {
+      closeMcpAppSession(appSessionId);
+    }
     const { removed, needsCodeGraphRecompute } = removeCanvasNode(id);
     if (!removed) return;
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
@@ -306,6 +315,11 @@ export class PmxCanvas extends EventEmitter {
   }
 
   clear(): void {
+    for (const node of canvasState.getLayout().nodes) {
+      if (node.type !== 'mcp-app') continue;
+      const sessionId = typeof node.data.appSessionId === 'string' ? node.data.appSessionId : '';
+      if (sessionId) closeMcpAppSession(sessionId);
+    }
     clearCanvas();
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   }

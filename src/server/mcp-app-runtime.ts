@@ -89,6 +89,65 @@ const clientCapabilities: ClientCapabilities & {
 };
 
 const sessions = new Map<string, McpAppSession>();
+const STORAGE_SHIM_SOURCE = `<script>
+(function() {
+  function createStorage() {
+    const data = new Map();
+    return {
+      getItem(key) {
+        const normalized = String(key);
+        return data.has(normalized) ? data.get(normalized) : null;
+      },
+      setItem(key, value) {
+        data.set(String(key), String(value));
+      },
+      removeItem(key) {
+        data.delete(String(key));
+      },
+      clear() {
+        data.clear();
+      },
+      key(index) {
+        const keys = Array.from(data.keys());
+        return typeof index === 'number' && index >= 0 && index < keys.length ? keys[index] : null;
+      },
+      get length() {
+        return data.size;
+      },
+    };
+  }
+
+  function installStorage(name) {
+    const storage = createStorage();
+
+    function installOn(target) {
+      try {
+        Object.defineProperty(target, name, {
+          configurable: true,
+          enumerable: true,
+          get() {
+            return storage;
+          },
+        });
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    try {
+      void window[name];
+      return;
+    } catch {}
+
+    if (installOn(window)) return;
+    installOn(Object.getPrototypeOf(window));
+  }
+
+  installStorage('localStorage');
+  installStorage('sessionStorage');
+})();
+</script>`;
 
 function randomId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
@@ -168,6 +227,11 @@ async function createSession(
   };
   sessions.set(session.id, session);
   return session;
+}
+
+async function closeSession(session: McpAppSession): Promise<void> {
+  sessions.delete(session.id);
+  await session.transport.close();
 }
 
 function sessionById(sessionId: string): McpAppSession {
@@ -276,44 +340,54 @@ function injectIntoHead(html: string, injected: string): string {
 }
 
 function prepareResourceHtml(html: string, meta: McpUiResourceMeta | undefined): string {
+  const injections = [STORAGE_SHIM_SOURCE];
   const cspContent = buildCspContent(meta?.csp);
-  if (!cspContent) return html;
-  const escaped = cspContent.replaceAll('&', '&amp;').replaceAll('"', '&quot;');
-  return injectIntoHead(
-    html,
-    `<meta http-equiv="Content-Security-Policy" content="${escaped}">`,
-  );
+  if (cspContent) {
+    const escaped = cspContent.replaceAll('&', '&amp;').replaceAll('"', '&quot;');
+    injections.unshift(`<meta http-equiv="Content-Security-Policy" content="${escaped}">`);
+  }
+  return injectIntoHead(html, injections.join(''));
 }
 
 export async function openMcpApp(input: OpenMcpAppInput): Promise<OpenMcpAppResult> {
   const session = await createSession(input.transport, input.serverName);
-  const tool = await findTool(session, input.toolName);
-  const resourceUri = getToolUiResourceUri(tool);
-  if (!resourceUri) {
-    throw new Error(`Tool "${input.toolName}" does not declare an MCP App resource.`);
+  try {
+    const tool = await findTool(session, input.toolName);
+    const resourceUri = getToolUiResourceUri(tool);
+    if (!resourceUri) {
+      throw new Error(`Tool "${input.toolName}" does not declare an MCP App resource.`);
+    }
+
+    const toolInput = isRecord(input.toolArguments) ? input.toolArguments : {};
+    const rawToolResult = await session.client.callTool({
+      name: tool.name,
+      arguments: toolInput,
+    });
+    const toolResult = normalizeExtAppToolResult({ result: rawToolResult });
+    const readResult = await session.client.readResource({ uri: resourceUri });
+    const resourceMeta = resourceMetaFromReadResult(readResult);
+    const html = prepareResourceHtml(htmlContentFromReadResult(readResult, resourceUri), resourceMeta);
+
+    return {
+      sessionId: session.id,
+      serverName: session.serverName,
+      toolName: tool.name,
+      tool,
+      toolInput,
+      toolResult,
+      resourceUri,
+      html,
+      ...(resourceMeta ? { resourceMeta } : {}),
+    };
+  } catch (error) {
+    void closeSession(session).catch((closeError) => {
+      console.debug('[mcp-app-runtime] failed to close openMcpApp session after error', {
+        sessionId: session.id,
+        error: closeError instanceof Error ? closeError.message : String(closeError),
+      });
+    });
+    throw error;
   }
-
-  const toolInput = isRecord(input.toolArguments) ? input.toolArguments : {};
-  const rawToolResult = await session.client.callTool({
-    name: tool.name,
-    arguments: toolInput,
-  });
-  const toolResult = normalizeExtAppToolResult({ result: rawToolResult });
-  const readResult = await session.client.readResource({ uri: resourceUri });
-  const resourceMeta = resourceMetaFromReadResult(readResult);
-  const html = prepareResourceHtml(htmlContentFromReadResult(readResult, resourceUri), resourceMeta);
-
-  return {
-    sessionId: session.id,
-    serverName: session.serverName,
-    toolName: tool.name,
-    tool,
-    toolInput,
-    toolResult,
-    resourceUri,
-    html,
-    ...(resourceMeta ? { resourceMeta } : {}),
-  };
 }
 
 export async function callMcpAppTool(
@@ -359,14 +433,19 @@ export async function listMcpAppPrompts(sessionId: string): Promise<ListPromptsR
   return session.client.listPrompts();
 }
 
-export function closeAllMcpAppSessions(): void {
-  for (const session of sessions.values()) {
-    void session.transport.close().catch((error) => {
-      console.debug('[mcp-app-runtime] session close failed', {
-        sessionId: session.id,
-        error: error instanceof Error ? error.message : String(error),
-      });
+export function closeMcpAppSession(sessionId: string): void {
+  const session = sessions.get(sessionId);
+  if (!session) return;
+  void closeSession(session).catch((error) => {
+    console.debug('[mcp-app-runtime] session close failed', {
+      sessionId,
+      error: error instanceof Error ? error.message : String(error),
     });
+  });
+}
+
+export function closeAllMcpAppSessions(): void {
+  for (const sessionId of [...sessions.keys()]) {
+    closeMcpAppSession(sessionId);
   }
-  sessions.clear();
 }

@@ -213,6 +213,7 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
         try {
           const result = await postJson<CallToolResult>('/api/ext-app/call-tool', {
             sessionId: appSessionId,
+            nodeId,
             serverName,
             toolName: params.name,
             arguments: params.arguments ?? {},

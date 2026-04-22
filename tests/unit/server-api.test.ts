@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
@@ -35,6 +36,8 @@ interface WorkbenchWebViewStatusResponse {
   startedAt: string | null;
   lastError: string | null;
 }
+
+const fixtureMcpAppServerPath = fileURLToPath(new URL('../fixtures/mcp-app-fixture.ts', import.meta.url));
 
 describe('canvas server HTTP API', () => {
   let workspaceRoot = '';
@@ -159,6 +162,78 @@ describe('canvas server HTTP API', () => {
     const layout = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
     expect(layout.nodes).toEqual([]);
     expect(layout.edges).toEqual([]);
+  });
+
+  test('closes hosted MCP app sessions when nodes are deleted or the canvas is cleared', async () => {
+    const opened = await jsonRequest<{
+      ok: boolean;
+      toolCallId: string;
+      sessionId: string;
+    }>('/api/canvas/mcp-app/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        toolName: 'show_counter',
+        toolArguments: { initial: 2 },
+        transport: {
+          type: 'stdio',
+          command: 'bun',
+          args: ['run', fixtureMcpAppServerPath],
+          cwd: workspaceRoot,
+        },
+      }),
+    });
+    expect(opened.ok).toBe(true);
+
+    const layout = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    const hostedNode = layout.nodes.find((node) => node.type === 'mcp-app' && node.data.title === 'Counter App');
+    expect(hostedNode).toBeTruthy();
+
+    const deleteResponse = await fetch(`${baseUrl}/api/canvas/node/${hostedNode?.id}`, {
+      method: 'DELETE',
+    });
+    expect(deleteResponse.ok).toBe(true);
+
+    const toolsAfterDelete = await fetch(`${baseUrl}/api/ext-app/list-tools`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: opened.sessionId }),
+    });
+    expect(toolsAfterDelete.ok).toBe(false);
+    const deleteError = await toolsAfterDelete.json() as { error?: string };
+    expect(deleteError.error?.toLowerCase().includes('not found')).toBe(true);
+
+    const reopened = await jsonRequest<{
+      ok: boolean;
+      sessionId: string;
+    }>('/api/canvas/mcp-app/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        toolName: 'show_counter',
+        toolArguments: { initial: 4 },
+        transport: {
+          type: 'stdio',
+          command: 'bun',
+          args: ['run', fixtureMcpAppServerPath],
+          cwd: workspaceRoot,
+        },
+      }),
+    });
+    expect(reopened.ok).toBe(true);
+
+    await jsonRequest<{ ok: boolean }>('/api/canvas/clear', {
+      method: 'POST',
+    });
+
+    const toolsAfterClear = await fetch(`${baseUrl}/api/ext-app/list-tools`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sessionId: reopened.sessionId }),
+    });
+    expect(toolsAfterClear.ok).toBe(false);
+    const clearError = await toolsAfterClear.json() as { error?: string };
+    expect(clearError.error?.toLowerCase().includes('not found')).toBe(true);
   });
 
   test('creates path-backed file nodes over HTTP and uses shared arrange behavior', async () => {

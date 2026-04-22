@@ -3,13 +3,13 @@
 A spatial canvas workbench for coding agents. Infinite 2D canvas with nodes, edges, pan/zoom, minimap, and real-time sync -- controlled through the CLI, MCP, HTTP API, or a Bun-based JavaScript/TypeScript SDK.
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pskoett/pmx-canvas/main/docs/screenshots/welcome-dark.png" alt="Empty canvas — dark theme" width="49%" />
-  <img src="https://raw.githubusercontent.com/pskoett/pmx-canvas/main/docs/screenshots/welcome-light.png" alt="Empty canvas — light theme" width="49%" />
+  <img src="docs/screenshots/welcome-dark.png" alt="Empty canvas — dark theme" width="49%" />
+  <img src="docs/screenshots/welcome-light.png" alt="Empty canvas — light theme" width="49%" />
 </p>
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/pskoett/pmx-canvas/main/docs/screenshots/demo-dark.png" alt="Canvas with release workflow — dark theme" width="49%" />
-  <img src="https://raw.githubusercontent.com/pskoett/pmx-canvas/main/docs/screenshots/demo-light.png" alt="Canvas with release workflow — light theme" width="49%" />
+  <img src="docs/screenshots/demo-dark.png" alt="Published-consumer SDLC demo — dark theme" width="49%" />
+  <img src="docs/screenshots/demo-light.png" alt="Published-consumer SDLC demo — light theme" width="49%" />
 </p>
 
 PMX Canvas gives any agent a visual workspace where it can lay out information as connected nodes on an infinite canvas. Both the agent and the human see and interact with it in real time. The canvas is the agent's **extended working memory**: humans pin nodes to curate context, agents read that curation via MCP resource change notifications.
@@ -116,10 +116,16 @@ The canvas auto-starts on first tool call. Works with Claude Code, Cursor, Winds
 - Minimap with click-to-navigate
 - Auto-arrange layouts (grid, column, flow)
 - Multi-select with selection bar actions
+- Snap-to-alignment guides while dragging nodes
 - Keyboard shortcuts (Cmd+0 reset, Cmd+/- zoom, Tab cycle, Esc deselect)
+- Command palette (Cmd+K) -- search nodes and actions
+- In-UI shortcut overlay -- press `?` for the full cheatsheet
 - Context menu on right-click
 - Docked panels -- pin nodes to left/right HUD
 - Expanded view -- click to expand any node to full-screen overlay
+- Inline markdown editor with format bar for rich in-place editing
+- Attention toasts + history -- surface agent mutations the human didn't initiate
+- Layout validation -- detect collisions, containment breaches, and missing edge endpoints
 - Themes: dark (default), light, high-contrast
 - Persistence: auto-saves to `.pmx-canvas.json`, restores on restart
 
@@ -139,6 +145,9 @@ The canvas auto-starts on first tool call. Works with Claude Code, Cursor, Winds
 | `json-render` | Structured UI from JSON specs |
 | `graph` | Line, bar, and pie charts |
 | `group` | Spatial container/frame that contains other nodes |
+
+Thread node types `prompt` and `response` are used internally for agent conversation
+rendering and are not created directly through the public APIs.
 
 ### Edge types
 
@@ -174,12 +183,16 @@ canvas_refresh_webpage_node({ id: 'node-abc123' })
 sandboxed iframes. Any server that implements the [MCP Apps extension](https://modelcontextprotocol.io/docs/extensions/apps)
 can be opened as a node with `canvas_open_mcp_app`.
 
-#### Featured: Excalidraw (hand-drawn diagrams)
+#### Recommended: Excalidraw (hand-drawn diagrams)
 
 [Excalidraw](https://github.com/excalidraw/excalidraw-mcp) ships a hosted MCP server at
 `https://mcp.excalidraw.com/mcp` that renders hand-drawn diagrams with streaming draw-on
-animations and fullscreen editing. PMX Canvas ships a preset so an agent can open an Excalidraw
-diagram in one call, without wiring the transport by hand:
+animations and fullscreen editing. It is a strong example of an MCP App that fits naturally
+inside PMX Canvas: the app opens as a node, can be moved and pinned like any other node, and
+supports fullscreen editing when you want to expand it into a larger workspace.
+
+PMX Canvas ships a preset so an agent can open an Excalidraw diagram in one call, without wiring
+the transport by hand:
 
 ```typescript
 canvas_add_diagram({
@@ -199,7 +212,9 @@ canvas_add_diagram({
 ```
 
 Under the hood this is just a thin alias for `canvas_open_mcp_app` with the Excalidraw transport
-preset. For any other MCP app, use `canvas_open_mcp_app` directly:
+preset. You can use the hosted Excalidraw server directly, or point the same flow at a local
+`excalidraw-mcp` instance if you prefer running the app yourself. For any other MCP app, use
+`canvas_open_mcp_app` directly:
 
 ```typescript
 canvas_open_mcp_app({
@@ -213,6 +228,46 @@ canvas_open_mcp_app({
 The canvas runs the tool against the remote MCP server, renders the returned `ui://` resource in
 a sandboxed iframe node, and keeps the resource's CSP + permission hints intact. Resize, drag,
 and pin the node like any other canvas node.
+
+### Json-render nodes
+
+`json-render` nodes turn structured JSON specs into rendered UI panels (dashboards, tables, forms,
+cards) without writing HTML. PMX Canvas ships the [`@json-render/*`](https://www.npmjs.com/package/@json-render/core)
+runtime and component catalog (core + react + shadcn), so agents can describe an interface as a
+spec and render it inline on the canvas.
+
+```typescript
+canvas_add_json_render_node({
+  title: 'Deploy status',
+  spec: {
+    root: 'card',
+    elements: {
+      card: { type: 'Card', props: { title: 'Deploy' }, children: ['status'] },
+      status: { type: 'Badge', props: { variant: 'success', label: 'Healthy' } },
+    },
+  },
+});
+```
+
+Use `canvas_describe_schema` / `canvas_validate_spec` to introspect the component catalog before
+building a spec -- see [Schema-driven discovery](#schema-driven-discovery).
+
+### Web artifacts
+
+A **web artifact** is a single-file, fully bundled HTML app (React + Tailwind + shadcn) that an
+agent builds from TSX source and drops onto the canvas as an embedded node. Useful when you want
+a real interactive UI -- charts, forms, mini-dashboards -- instead of a static node.
+
+`canvas_build_web_artifact` takes source strings (`App.tsx`, optional `index.css`, `main.tsx`,
+`index.html`, plus extra files), runs the bundled web-artifacts-builder scripts, writes the
+self-contained HTML to `artifacts/<slug>.html`, and (by default) opens it in the canvas.
+
+```bash
+pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx
+pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --include-logs
+```
+
+The matching agent skill is at [skills/web-artifacts-builder/SKILL.md](skills/web-artifacts-builder/SKILL.md).
 
 ### Groups
 
@@ -286,11 +341,33 @@ Example:
 }
 ```
 
+### Schema-driven discovery
+
+Agents don't have to guess node shapes. The running server exposes its own create schemas,
+json-render component catalog, and node-type examples so an agent can introspect before building.
+
+- `canvas_describe_schema` / `GET /api/canvas/schema` -- list all node-create schemas, required
+  fields, json-render components, and sample payloads
+- `canvas_validate_spec` / `POST /api/canvas/schema/validate` -- validate a json-render spec or
+  graph payload **without** creating a node
+- `canvas_validate` / `GET /api/canvas/validate` -- validate the current layout for collisions,
+  containment, and missing edge endpoints
+- `canvas://schema` -- the same schema data as an MCP resource
+
+The CLI's `node schema` / `validate spec` subcommands surface the same data from the terminal,
+which is strictly better than guessing flags or payloads.
+
 ### Persistence
 
 Canvas state auto-saves to `.pmx-canvas.json` in the workspace root on every mutation (debounced). The file is git-committable -- spatial knowledge persists across sessions and can be shared with a team.
 
-Override path: `PMX_CANVAS_STATE_FILE` env var.
+Configuration env vars:
+
+- `PMX_CANVAS_STATE_FILE` -- override the persistence path
+- `PMX_WEB_CANVAS_PORT` -- server-side default port (server may fall back to another port if taken)
+- `PMX_CANVAS_PORT` -- CLI client-side default target port
+- `PMX_CANVAS_THEME` -- default theme (`dark`, `light`, `high-contrast`)
+- `PMX_CANVAS_DISABLE_BROWSER_OPEN=1` -- skip auto-opening a browser (useful in CI)
 
 ### Snapshots
 
@@ -332,6 +409,57 @@ File nodes automatically detect import dependencies between each other. Add file
 - Bidirectional: browser interactions (drag, resize, pin) sync back to server
 - Auto-reconnect with exponential backoff
 - MCP resource change notifications close the human-to-agent loop
+
+### WebView automation
+
+Agents can drive a headless Bun.WebView (Chromium or WebKit) pointed at their own workbench,
+so they can screenshot, inspect, and script the live canvas without spawning a user-visible
+browser.
+
+- **Why**: let an agent verify its own UI state (what does the canvas actually look like right now?),
+  capture screenshots for PR reviews, or script interactions in tests
+- **Controls**: `canvas_webview_start` / `_stop` / `_status` to manage the session,
+  `canvas_evaluate` to run JS in the page, `canvas_resize` to change viewport,
+  `canvas_screenshot` for PNG/JPEG/WebP captures
+- **Backends**: WebKit on macOS by default; Chrome/Chromium elsewhere (override with `--backend`)
+- **Mirrored surfaces**: CLI (`pmx-canvas webview ...`), HTTP (`/api/workbench/webview/*`),
+  SDK (`canvas.startAutomationWebView()` / `evaluateAutomationWebView()` / `screenshotAutomationWebView()`)
+
+```bash
+pmx-canvas --webview-automation           # start canvas + headless WebView session
+pmx-canvas webview screenshot --output ./canvas.png
+```
+
+### Daemon mode
+
+Run the canvas as a detached background process with pid/log tracking instead of holding a
+terminal:
+
+```bash
+pmx-canvas serve --daemon --no-open       # start detached, wait for health
+pmx-canvas serve status                   # inspect health + pid state
+pmx-canvas serve stop                     # stop the daemon for this port/pid file
+```
+
+## Agent skills
+
+Installing `pmx-canvas` also ships a library of reusable agent skills under `skills/` that teach
+your agent how to use the canvas and adjacent capabilities effectively:
+
+| Skill | Purpose |
+|-------|---------|
+| [`pmx-canvas`](skills/pmx-canvas/SKILL.md) | Core canvas workflows -- when to create which node type, how to pin for context, batch builds |
+| [`pmx-canvas-testing`](skills/pmx-canvas-testing/SKILL.md) | Testing patterns against the running canvas |
+| [`web-artifacts-builder`](skills/web-artifacts-builder/SKILL.md) | Build single-file React/Tailwind artifacts for the canvas |
+| [`playwright-cli`](skills/playwright-cli/SKILL.md) | Browser automation recipes for canvas + arbitrary pages |
+| [`json-render-*`](skills/) | Drive the `@json-render/*` catalog (core, react, shadcn, mcp, codegen, ink) |
+| [`frontend-design`](skills/frontend-design/SKILL.md), [`web-design-guidelines`](skills/web-design-guidelines/SKILL.md) | Design-quality rules for agent-generated UI |
+| [`doc-coauthoring`](skills/doc-coauthoring/SKILL.md) | Structured doc-writing flow |
+| [`data-analysis`](skills/data-analysis/SKILL.md) | Data exploration patterns |
+| [`published-consumer-e2e`](skills/published-consumer-e2e/SKILL.md) | Smoke-test the published `bunx pmx-canvas` path |
+
+Point your agent's skill loader at this directory, or copy the individual `SKILL.md` files into
+your agent's skills tree.
 
 ## Integration
 

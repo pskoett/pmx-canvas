@@ -68,14 +68,13 @@ export function McpAppNode({ node }: { node: CanvasNodeState }) {
           Unverified domain
         </div>
       )}
-      {/* H7: Sandbox attrs mirror the legacy editor. allow-same-origin is required
-          for MCP apps to communicate with their own backend via fetch/XHR. This is
-          safe because MCP app URLs are only surfaced from trusted MCP servers running
-          on localhost or explicitly trusted domains. */}
+      {/* Plain iframe-backed viewers stay on an opaque origin. Hosted ext-apps use
+          the explicit postMessage bridge instead, which is the only path that needs
+          app/host RPC and broader capabilities. */}
       <iframe
         src={url}
         class="mcp-app-frame"
-        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
+        sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
         allow="clipboard-read; clipboard-write"
         loading="lazy"
         style={{ flex: 1 }}

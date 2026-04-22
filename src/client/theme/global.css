@@ -1773,24 +1773,37 @@ body,
   position: fixed;
   top: 76px;
   right: 18px;
-  width: min(340px, calc(100vw - 24px));
-  padding: 14px 16px 15px;
-  background:
-    linear-gradient(140deg, color-mix(in srgb, var(--c-panel) 94%, black 6%), color-mix(in srgb, var(--c-panel-soft) 92%, black 8%));
-  backdrop-filter: blur(18px);
+  max-width: min(260px, calc(100vw - 24px));
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 10px;
+  background: color-mix(in srgb, var(--c-panel-glass) 96%, transparent);
+  backdrop-filter: blur(14px);
   border: 1px solid color-mix(in srgb, var(--c-line) 76%, var(--c-warn) 24%);
-  border-radius: 16px;
-  box-shadow:
-    0 18px 44px var(--c-shadow-heavy),
-    0 0 0 1px color-mix(in srgb, var(--c-warn) 14%, transparent);
+  border-radius: 999px;
+  box-shadow: 0 8px 22px var(--c-shadow);
+  color: var(--c-text);
+  font: inherit;
+  cursor: pointer;
   z-index: 10003;
   animation: attention-toast-in 180ms ease-out;
+}
+
+.attention-toast:hover {
+  background: color-mix(in srgb, var(--c-panel-glass) 100%, transparent);
+  box-shadow: 0 10px 28px var(--c-shadow-heavy);
+}
+
+.attention-toast:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
 }
 
 @keyframes attention-toast-in {
   from {
     opacity: 0;
-    transform: translateY(-8px);
+    transform: translateY(-6px);
   }
   to {
     opacity: 1;
@@ -1798,28 +1811,24 @@ body,
   }
 }
 
-.attention-toast-kicker {
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--c-muted);
-  margin-bottom: 7px;
+.attention-toast-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+  box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 28%, transparent);
 }
 
 .attention-toast-title {
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1.15;
-  color: var(--c-text);
-  letter-spacing: -0.02em;
-}
-
-.attention-toast-detail {
-  margin-top: 6px;
   font-size: 12px;
-  line-height: 1.45;
-  color: var(--c-text-soft);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
 }
 
 .attention-history {
@@ -1988,6 +1997,10 @@ body,
   border-color: color-mix(in srgb, var(--c-warn) 26%, transparent);
 }
 
+.attention-toast.attention-tone-context {
+  color: color-mix(in srgb, var(--c-warn) 82%, var(--c-text) 18%);
+}
+
 .attention-tone-context .attention-history-kind,
 .attention-tone-context .attention-toast-title {
   color: color-mix(in srgb, var(--c-warn) 82%, var(--c-text) 18%);
@@ -1997,6 +2010,10 @@ body,
   border-color: color-mix(in srgb, var(--c-accent) 24%, transparent);
 }
 
+.attention-toast.attention-tone-relationship {
+  color: color-mix(in srgb, var(--c-accent) 78%, var(--c-text) 22%);
+}
+
 .attention-tone-relationship .attention-history-kind,
 .attention-tone-relationship .attention-toast-title {
   color: color-mix(in srgb, var(--c-accent) 78%, var(--c-text) 22%);
@@ -2004,6 +2021,10 @@ body,
 
 .attention-tone-group {
   border-color: color-mix(in srgb, var(--c-purple) 24%, transparent);
+}
+
+.attention-toast.attention-tone-group {
+  color: color-mix(in srgb, var(--c-purple) 78%, var(--c-text) 22%);
 }
 
 .attention-tone-group .attention-history-kind,
@@ -2016,6 +2037,11 @@ body,
   border-color: color-mix(in srgb, var(--c-warn-alt) 22%, transparent);
 }
 
+.attention-toast.attention-tone-cluster,
+.attention-toast.attention-tone-neighborhood {
+  color: color-mix(in srgb, var(--c-warn-alt) 78%, var(--c-text) 22%);
+}
+
 .attention-tone-cluster .attention-history-kind,
 .attention-tone-cluster .attention-toast-title,
 .attention-tone-neighborhood .attention-history-kind,
@@ -2025,6 +2051,10 @@ body,
 
 .attention-tone-remove {
   border-color: color-mix(in srgb, var(--c-danger) 24%, transparent);
+}
+
+.attention-toast.attention-tone-remove {
+  color: color-mix(in srgb, var(--c-danger) 78%, var(--c-text) 22%);
 }
 
 .attention-tone-remove .attention-history-kind,

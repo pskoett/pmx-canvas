@@ -248,6 +248,12 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
       | undefined;
     return appModelContext?.structuredContent?.count ?? null;
   }).toBe(3);
+
+  await page.reload();
+  const reloadedNode = page.locator('.canvas-node').filter({ hasText: 'Counter App' });
+  await expect(reloadedNode).toHaveCount(1);
+  const reloadedFrame = reloadedNode.frameLocator('iframe');
+  await expect(reloadedFrame.locator('#count')).toHaveText('3');
 });
 
 test('markdown edit opens inline WYSIWYG mode, not raw source mode', async ({ page, request }) => {
@@ -387,6 +393,78 @@ test('dark bar-chart viewer keeps tooltip without the bright hover cursor overla
 
   await expect(page.locator('.recharts-tooltip-wrapper')).toContainText('Documentation');
   await expect(page.locator('.recharts-tooltip-cursor')).toHaveCount(0);
+});
+
+test('iframe-backed graph and json-render nodes avoid the sandbox escape warning', async ({ page, request }) => {
+  const warnings: string[] = [];
+  page.on('console', (msg) => {
+    if (msg.type() === 'warning' || msg.type() === 'error') warnings.push(msg.text());
+  });
+  page.on('pageerror', (error) => warnings.push(error.message));
+
+  await request.post('/api/canvas/graph', {
+    data: {
+      title: 'Latency trend',
+      graphType: 'line',
+      data: [
+        { week: 'W15', latency: 220 },
+        { week: 'W16', latency: 205 },
+        { week: 'W17', latency: 198 },
+      ],
+      xKey: 'week',
+      yKey: 'latency',
+      color: '#e9c46a',
+      x: 420,
+      y: 220,
+      width: 420,
+      height: 320,
+    },
+  });
+
+  await request.post('/api/canvas/json-render', {
+    data: {
+      title: 'Structured summary',
+      spec: {
+        root: 'card',
+        elements: {
+          card: {
+            type: 'Card',
+            props: { title: 'Release Summary', description: 'Structured canvas surface' },
+            children: ['body'],
+          },
+          body: {
+            type: 'Text',
+            props: { text: 'All checks green except the integration suite threshold.' },
+            children: [],
+          },
+        },
+      },
+      x: 900,
+      y: 220,
+      width: 420,
+      height: 320,
+    },
+  });
+
+  await page.goto('/workbench');
+
+  const graphNode = page.locator('.canvas-node').filter({ hasText: 'Latency trend' });
+  const jsonNode = page.locator('.canvas-node').filter({ hasText: 'Structured summary' });
+  await expect(graphNode).toHaveCount(1);
+  await expect(jsonNode).toHaveCount(1);
+
+  await expect(graphNode.locator('iframe')).toHaveAttribute('sandbox', /allow-scripts/);
+  await expect(graphNode.locator('iframe')).not.toHaveAttribute('sandbox', /allow-same-origin/);
+  await expect(jsonNode.locator('iframe')).toHaveAttribute('sandbox', /allow-scripts/);
+  await expect(jsonNode.locator('iframe')).not.toHaveAttribute('sandbox', /allow-same-origin/);
+
+  await expect(graphNode.frameLocator('iframe').locator('.recharts-responsive-container')).toBeVisible();
+  await expect(jsonNode.frameLocator('iframe').getByText('Release Summary')).toBeVisible();
+
+  await page.waitForTimeout(1000);
+  expect(
+    warnings.filter((warning) => warning.includes('allow-scripts and allow-same-origin')),
+  ).toEqual([]);
 });
 
 test('ordinary node pin updates the authoritative canvas state', async ({ page, request }) => {
