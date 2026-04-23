@@ -10,10 +10,12 @@ import { defineCatalog } from '@json-render/core';
 import { schema } from './schema.js';
 import { shadcnComponentDefinitions } from '@json-render/shadcn/catalog';
 import { chartComponentDefinitions } from './charts/definitions';
+import { extraChartComponentDefinitions } from './charts/extra-definitions';
 
 export const allComponentDefinitions = {
   ...shadcnComponentDefinitions,
   ...chartComponentDefinitions,
+  ...extraChartComponentDefinitions,
 };
 
 export const catalog = defineCatalog(schema as never, {

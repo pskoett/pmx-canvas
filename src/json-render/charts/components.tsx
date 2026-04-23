@@ -26,16 +26,18 @@ import {
   YAxis,
 } from 'recharts';
 
-const CHART_COLORS = [
-  'var(--chart-1, #2563eb)',
-  'var(--chart-2, #16a34a)',
-  'var(--chart-3, #ea580c)',
-  'var(--chart-4, #8b5cf6)',
-  'var(--chart-5, #d946ef)',
-  'var(--chart-6, #0891b2)',
+// Fallbacks mirror the light-theme palette in renderer/index.css so the
+// chart still reads as on-brand if the Tailwind bundle fails to load.
+export const CHART_COLORS = [
+  'var(--chart-1, #1A7ABF)',
+  'var(--chart-2, #1a9f55)',
+  'var(--chart-3, #c89b2a)',
+  'var(--chart-4, #7c4dff)',
+  'var(--chart-5, #d32f2f)',
+  'var(--chart-6, #00838F)',
 ];
 
-type AggregateMode = 'sum' | 'count' | 'avg';
+export type AggregateMode = 'sum' | 'count' | 'avg';
 
 const AGGREGATE_FNS: Record<AggregateMode, (values: number[]) => number> = {
   sum: (v) => v.reduce((a, b) => a + b, 0),
@@ -43,7 +45,7 @@ const AGGREGATE_FNS: Record<AggregateMode, (values: number[]) => number> = {
   avg: (v) => v.reduce((a, b) => a + b, 0) / v.length,
 };
 
-function processChartData(
+export function processChartData(
   data: Record<string, unknown>[],
   xKey: string,
   yKey: string,
@@ -66,7 +68,7 @@ function processChartData(
   return result;
 }
 
-interface CartesianChartProps {
+export interface CartesianChartProps {
   title?: string | null;
   data: Record<string, unknown>[];
   xKey: string;
@@ -84,12 +86,12 @@ interface PieChartProps {
   height?: number | null;
 }
 
-const axisStyle = {
+export const axisStyle = {
   fontSize: 12,
   fill: 'var(--muted-foreground, #666)',
 };
 
-const tooltipStyle = {
+export const tooltipStyle = {
   backgroundColor: 'var(--popover, #fff)',
   border: '1px solid var(--border, #e5e5e5)',
   borderRadius: 'var(--radius, 0.5rem)',
@@ -98,7 +100,7 @@ const tooltipStyle = {
 };
 
 /** Shared wrapper for cartesian charts (Line + Bar). */
-function CartesianChart({
+export function CartesianChart({
   props,
   children,
 }: {

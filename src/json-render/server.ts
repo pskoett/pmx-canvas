@@ -25,10 +25,18 @@ export interface GraphNodeInput {
   data: Array<Record<string, unknown>>;
   xKey?: string;
   yKey?: string;
+  zKey?: string;
   nameKey?: string;
   valueKey?: string;
+  axisKey?: string;
+  metrics?: string[];
+  series?: string[];
+  barKey?: string;
+  lineKey?: string;
   aggregate?: 'sum' | 'count' | 'avg';
   color?: string;
+  barColor?: string;
+  lineColor?: string;
   height?: number;
   x?: number;
   y?: number;
@@ -39,7 +47,17 @@ export interface GraphNodeInput {
 export const JSON_RENDER_NODE_SIZE = { width: 840, height: 620 };
 export const GRAPH_NODE_SIZE = { width: 760, height: 520 };
 
-const GRAPH_TYPE_ALIASES: Record<string, 'LineChart' | 'BarChart' | 'PieChart'> = {
+export type GraphChartType =
+  | 'LineChart'
+  | 'BarChart'
+  | 'PieChart'
+  | 'AreaChart'
+  | 'ScatterChart'
+  | 'RadarChart'
+  | 'StackedBarChart'
+  | 'ComposedChart';
+
+const GRAPH_TYPE_ALIASES: Record<string, GraphChartType> = {
   line: 'LineChart',
   linechart: 'LineChart',
   chart: 'LineChart',
@@ -48,6 +66,20 @@ const GRAPH_TYPE_ALIASES: Record<string, 'LineChart' | 'BarChart' | 'PieChart'> 
   barchart: 'BarChart',
   pie: 'PieChart',
   piechart: 'PieChart',
+  area: 'AreaChart',
+  areachart: 'AreaChart',
+  scatter: 'ScatterChart',
+  scatterchart: 'ScatterChart',
+  scatterplot: 'ScatterChart',
+  radar: 'RadarChart',
+  radarchart: 'RadarChart',
+  stackedbar: 'StackedBarChart',
+  stackedbarchart: 'StackedBarChart',
+  stack: 'StackedBarChart',
+  composed: 'ComposedChart',
+  composedchart: 'ComposedChart',
+  combo: 'ComposedChart',
+  combochart: 'ComposedChart',
 };
 
 const COERCIBLE_STRING_PROPS = [
@@ -411,9 +443,15 @@ export function normalizeAndValidateJsonRenderSpec(spec: unknown): JsonRenderSpe
   return propsValidation.data as JsonRenderSpec;
 }
 
-export function normalizeGraphType(value: string): 'LineChart' | 'BarChart' | 'PieChart' {
+export function normalizeGraphType(value: string): GraphChartType {
   const normalized = value.toLowerCase().replace(/[-_\s]/g, '');
   return GRAPH_TYPE_ALIASES[normalized] ?? 'LineChart';
+}
+
+function inferKeysFromData(data: Array<Record<string, unknown>>, exclude: string[] = []): string[] {
+  const first = data[0];
+  if (!first) return [];
+  return Object.keys(first).filter((key) => !exclude.includes(key));
 }
 
 export function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec {
@@ -428,14 +466,64 @@ export function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec {
     height: input.height ?? 320,
   };
 
-  if (chartType === 'PieChart') {
-    chartProps.nameKey = input.nameKey ?? 'name';
-    chartProps.valueKey = input.valueKey ?? 'value';
-  } else {
-    chartProps.xKey = input.xKey ?? 'label';
-    chartProps.yKey = input.yKey ?? 'value';
-    chartProps.aggregate = input.aggregate ?? null;
-    chartProps.color = input.color ?? null;
+  switch (chartType) {
+    case 'PieChart': {
+      chartProps.nameKey = input.nameKey ?? 'name';
+      chartProps.valueKey = input.valueKey ?? 'value';
+      break;
+    }
+    case 'ScatterChart': {
+      chartProps.xKey = input.xKey ?? 'x';
+      chartProps.yKey = input.yKey ?? 'y';
+      chartProps.zKey = input.zKey ?? null;
+      chartProps.color = input.color ?? null;
+      break;
+    }
+    case 'RadarChart': {
+      const axisKey = input.axisKey ?? input.xKey ?? 'axis';
+      const metrics = input.metrics?.length
+        ? input.metrics
+        : inferKeysFromData(input.data, [axisKey]);
+      if (metrics.length === 0) {
+        throw new Error('RadarChart requires at least one metric key (provide `metrics` or include numeric columns in `data`).');
+      }
+      chartProps.axisKey = axisKey;
+      chartProps.metrics = metrics;
+      break;
+    }
+    case 'StackedBarChart': {
+      const xKey = input.xKey ?? 'label';
+      const series = input.series?.length
+        ? input.series
+        : inferKeysFromData(input.data, [xKey]);
+      if (series.length === 0) {
+        throw new Error('StackedBarChart requires at least one series key (provide `series` or include numeric columns in `data`).');
+      }
+      chartProps.xKey = xKey;
+      chartProps.series = series;
+      chartProps.aggregate = input.aggregate ?? null;
+      break;
+    }
+    case 'ComposedChart': {
+      chartProps.xKey = input.xKey ?? 'label';
+      chartProps.barKey = input.barKey ?? input.yKey ?? 'value';
+      chartProps.lineKey = input.lineKey
+        ?? inferKeysFromData(input.data, [chartProps.xKey as string, chartProps.barKey as string])[0]
+        ?? 'rate';
+      chartProps.barColor = input.barColor ?? null;
+      chartProps.lineColor = input.lineColor ?? null;
+      break;
+    }
+    case 'AreaChart':
+    case 'LineChart':
+    case 'BarChart':
+    default: {
+      chartProps.xKey = input.xKey ?? 'label';
+      chartProps.yKey = input.yKey ?? 'value';
+      chartProps.aggregate = input.aggregate ?? null;
+      chartProps.color = input.color ?? null;
+      break;
+    }
   }
 
   return normalizeAndValidateJsonRenderSpec({
