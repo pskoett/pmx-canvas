@@ -1495,16 +1495,30 @@ async function handleCanvasAddGraph(req: Request): Promise<Response> {
       body.aggregate === 'sum' || body.aggregate === 'count' || body.aggregate === 'avg'
         ? body.aggregate
         : undefined;
+    const metrics = Array.isArray(body.metrics)
+      ? body.metrics.filter((m: unknown): m is string => typeof m === 'string')
+      : null;
+    const series = Array.isArray(body.series)
+      ? body.series.filter((s: unknown): s is string => typeof s === 'string')
+      : null;
     const result = createCanvasGraphNode({
       title,
       graphType,
       data,
       ...(typeof body.xKey === 'string' ? { xKey: body.xKey } : {}),
       ...(typeof body.yKey === 'string' ? { yKey: body.yKey } : {}),
+      ...(typeof body.zKey === 'string' ? { zKey: body.zKey } : {}),
       ...(typeof body.nameKey === 'string' ? { nameKey: body.nameKey } : {}),
       ...(typeof body.valueKey === 'string' ? { valueKey: body.valueKey } : {}),
+      ...(typeof body.axisKey === 'string' ? { axisKey: body.axisKey } : {}),
+      ...(metrics ? { metrics } : {}),
+      ...(series ? { series } : {}),
+      ...(typeof body.barKey === 'string' ? { barKey: body.barKey } : {}),
+      ...(typeof body.lineKey === 'string' ? { lineKey: body.lineKey } : {}),
       ...(aggregate ? { aggregate } : {}),
       ...(typeof body.color === 'string' ? { color: body.color } : {}),
+      ...(typeof body.barColor === 'string' ? { barColor: body.barColor } : {}),
+      ...(typeof body.lineColor === 'string' ? { lineColor: body.lineColor } : {}),
       ...(typeof body.height === 'number' ? { height: body.height } : {}),
       ...(typeof body.x === 'number' ? { x: body.x } : {}),
       ...(typeof body.y === 'number' ? { y: body.y } : {}),

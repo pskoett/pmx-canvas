@@ -26,12 +26,14 @@
   --border: oklch(0.85 0 0);
   --input: oklch(0.85 0 0);
   --ring: oklch(0.6 0 0);
-  --chart-1: oklch(0.55 0.2 250);
-  --chart-2: oklch(0.6 0.18 150);
-  --chart-3: oklch(0.6 0.2 30);
-  --chart-4: oklch(0.55 0.2 280);
-  --chart-5: oklch(0.6 0.22 320);
-  --chart-6: oklch(0.6 0.15 200);
+  /* Slot 1 mirrors the canvas accent (light theme); slots 2-6 keep
+     enough hue variety to distinguish series. */
+  --chart-1: #1A7ABF;
+  --chart-2: #1a9f55;
+  --chart-3: #c89b2a;
+  --chart-4: #7c4dff;
+  --chart-5: #d32f2f;
+  --chart-6: #00838F;
 }
 
 :root[data-theme='dark'] {
@@ -54,12 +56,13 @@
   --border: oklch(0.25 0 0);
   --input: oklch(0.25 0 0);
   --ring: oklch(0.4 0 0);
-  --chart-1: oklch(0.65 0.2 250);
-  --chart-2: oklch(0.7 0.18 150);
-  --chart-3: oklch(0.7 0.2 30);
-  --chart-4: oklch(0.65 0.2 280);
-  --chart-5: oklch(0.7 0.22 320);
-  --chart-6: oklch(0.7 0.15 200);
+  /* Dark theme: slot 1 = canvas cyan accent. */
+  --chart-1: #4BBCFF;
+  --chart-2: #2fd07f;
+  --chart-3: #f4c542;
+  --chart-4: #b07aff;
+  --chart-5: #ff6a7f;
+  --chart-6: #00E5FF;
 }
 
 :root[data-theme='high-contrast'] {
@@ -82,6 +85,13 @@
   --border: oklch(0.5 0 0);
   --input: oklch(0.5 0 0);
   --ring: oklch(0.7 0 0);
+  /* High-contrast: pure primaries that survive the harsh background. */
+  --chart-1: #00ffff;
+  --chart-2: #00ff00;
+  --chart-3: #ffff00;
+  --chart-4: #e040fb;
+  --chart-5: #ff8000;
+  --chart-6: #ffffff;
 }
 
 @theme inline {

@@ -13,11 +13,13 @@ import { defineRegistry, JSONUIProvider, Renderer } from '@json-render/react';
 import { shadcnComponents } from '@json-render/shadcn';
 import { catalog } from '../catalog';
 import { chartComponents } from '../charts/components';
+import { extraChartComponents } from '../charts/extra-components';
 
 const { registry } = defineRegistry(catalog as never, {
   components: {
     ...shadcnComponents,
     ...chartComponents,
+    ...extraChartComponents,
   } as never,
 });
 
