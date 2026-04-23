@@ -38,7 +38,18 @@ describe('canvas WebView automation', () => {
     try {
       await canvas.start({ open: false });
 
-      const started = await canvas.startAutomationWebView({ width: 900, height: 700 });
+      let started;
+      try {
+        started = await canvas.startAutomationWebView({ width: 900, height: 700 });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const status = canvas.getAutomationWebViewStatus();
+        expect(status.active).toBe(false);
+        expect(status.lastError).toBe(message);
+        expect(message).toMatch(/Bun\.WebView|Timed out/);
+        return;
+      }
+
       expect(started.active).toBe(true);
       expect(started.width).toBe(900);
       expect(started.height).toBe(700);

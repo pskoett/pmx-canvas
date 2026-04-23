@@ -12,9 +12,9 @@ A spatial canvas workbench for coding agents. Infinite 2D canvas with nodes, edg
   <img src="docs/screenshots/demo-workbench-light.png" alt="Structured workbench demo — light theme" width="49%" />
 </p>
 
-PMX Canvas gives any agent a visual workspace where it can lay out information as connected nodes on an infinite canvas. Both the agent and the human see and interact with it in real time. The canvas is the agent's **extended working memory**: humans pin nodes to curate context, agents read that curation via MCP resource change notifications.
+PMX Canvas is a spatial thinking surface for coding agents and the humans working with them. Agents lay out plans, files, and status as connected nodes; humans rearrange, group, and pin what matters. That spatial curation — proximity, grouping, pinning — becomes structured context the agent reads in real time via MCP.
 
-**Spatial arrangement is communication.** When a human drags three file nodes next to a bug report, the agent knows they're related. When the agent reads `canvas://pinned-context`, it gets exactly the context the human curated -- no prompt engineering required.
+**Spatial arrangement is communication.** When a human drags three file nodes next to a bug report, the agent knows they're related. The canvas is the agent's **extended working memory**: humans pin nodes to curate context, agents read that curation via `canvas://pinned-context` and MCP resource change notifications.
 
 ## Prerequisites
 
@@ -803,7 +803,7 @@ bun run dev:portless:demo     # Same, with demo nodes
 
 ```bash
 bun run test                  # Unit tests
-bun run test:coverage         # Unit tests with coverage
+bun run test:coverage         # Unit tests with text summary + coverage/lcov.info
 bun run test:e2e              # Playwright end-to-end tests
 bun run test:all              # All tests
 ```
