@@ -950,7 +950,7 @@ body { margin: 0; background: #0f0f1a; }
   await page.waitForSelector('.canvas-node', { timeout: 15000 });
 
   // Count both world-space canvas nodes and docked HUD nodes.
-  // Context nodes are created docked by default, so they do not use the .canvas-node wrapper.
+  // Some HUD surfaces render outside the .canvas-node wrapper, so this assertion covers both.
   const expectedRenderedNodes = artifactId ? 25 : 24;
   await expect(page.locator('.canvas-node, .docked-node')).toHaveCount(expectedRenderedNodes, { timeout: 15000 });
 

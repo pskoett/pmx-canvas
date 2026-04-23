@@ -226,6 +226,95 @@ describe('MCP parity with CLI', () => {
     expect(payload.error).toBeTruthy();
   }, 15000);
 
+  test('canvas://pinned-context returns structured webpage context for MCP consumers', async () => {
+    const webpageServer = Bun.serve({
+      hostname: '127.0.0.1',
+      port: 0,
+      fetch() {
+        const sections = Array.from({ length: 24 }, (_, index) =>
+          `<p>Long-form webpage section ${index + 1}. This is persistent context for agent grounding and should survive truncation better than the old excerpt-only path.</p>`,
+        ).join('\n');
+        return new Response(`<!doctype html>
+<html>
+  <head>
+    <title>Long Canvas Webpage</title>
+    <meta name="description" content="Long webpage node fixture" />
+  </head>
+  <body>
+    <main>
+      <h1>Long Canvas Webpage</h1>
+      ${sections}
+    </main>
+  </body>
+</html>`, {
+          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        });
+      },
+    });
+
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      webpageServer.stop(true);
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const created = parseJsonText<{
+      id: string;
+      fetch: { ok: boolean };
+    }>(await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'webpage',
+        content: `http://127.0.0.1:${webpageServer.port}/article-long`,
+        x: 220,
+        y: 180,
+      },
+    }) as ToolResultShape);
+    expect(created.fetch.ok).toBe(true);
+
+    const pins = parseJsonText<{ ok: boolean; pinnedNodeIds: string[] }>(await session.client.callTool({
+      name: 'canvas_pin_nodes',
+      arguments: {
+        nodeIds: [created.id],
+        mode: 'set',
+      },
+    }) as ToolResultShape);
+    expect(pins.pinnedNodeIds).toEqual([created.id]);
+
+    const resource = await session.client.readResource({ uri: 'canvas://pinned-context' });
+    const textResource = resource.contents.find((entry) => 'text' in entry && typeof entry.text === 'string');
+    expect(textResource).toBeDefined();
+    const parsed = JSON.parse(textResource?.text ?? '{}') as {
+      pinnedCount: number;
+      nodes: Array<{
+        id: string;
+        type: string;
+        title: string | null;
+        content: string | null;
+        metadata?: Record<string, unknown>;
+        position?: { x: number; y: number };
+      }>;
+    };
+
+    expect(parsed.pinnedCount).toBe(1);
+    expect(parsed.nodes).toEqual([
+      expect.objectContaining({
+        id: created.id,
+        type: 'webpage',
+        title: 'Long Canvas Webpage',
+        content: expect.stringContaining('Long-form webpage section 10'),
+        metadata: expect.objectContaining({
+          url: `http://127.0.0.1:${webpageServer.port}/article-long`,
+          pageTitle: 'Long Canvas Webpage',
+          description: 'Long webpage node fixture',
+        }),
+        position: { x: 220, y: 180 },
+      }),
+    ]);
+    expect(parsed.nodes[0]).not.toHaveProperty('data');
+  });
+
   test('canvas_open_mcp_app opens a standard ui:// MCP App node', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {

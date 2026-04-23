@@ -11,6 +11,7 @@
  */
 
 import type { CanvasNodeState, CanvasEdge } from './canvas-state.js';
+import { summarizeNodeForAgentContext } from './agent-context.js';
 
 // ── Types ────────────────────────────────────────────────────────────
 
@@ -270,12 +271,16 @@ export function searchNodes(
     const title = ((node.data.title as string) ?? '').toLowerCase();
     const content = ((node.data.content as string) ?? (node.data.fileContent as string) ?? '').toLowerCase();
     const path = ((node.data.path as string) ?? '').toLowerCase();
+    const description = ((node.data.description as string) ?? '').toLowerCase();
+    const url = ((node.data.url as string) ?? '').toLowerCase();
 
     let score = 0;
     for (const term of terms) {
       // Title matches are worth more
       if (title.includes(term)) score += 3;
       if (path.includes(term)) score += 2;
+      if (url.includes(term)) score += 2;
+      if (description.includes(term)) score += 1;
       if (content.includes(term)) score += 1;
     }
 
@@ -332,7 +337,10 @@ export function buildSpatialContext(
     id: n.id,
     type: n.type,
     title: (n.data.title as string) ?? null,
-    content: (n.data.content as string) ?? null,
+    content: summarizeNodeForAgentContext(n, {
+      defaultTextLength: 320,
+      webpageTextLength: 640,
+    }) || null,
     clusterId: nodeToCluster.get(n.id) ?? null,
     readingOrder: i,
   }));

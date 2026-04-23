@@ -127,7 +127,7 @@ The canvas auto-starts on first tool call. Works with Claude Code, Cursor, Winds
 - Attention toasts + history -- surface agent mutations the human didn't initiate
 - Layout validation -- detect collisions, containment breaches, and missing edge endpoints
 - Themes: dark (default), light, high-contrast
-- Persistence: auto-saves to `.pmx-canvas.json`, restores on restart
+- Persistence: auto-saves to `.pmx-canvas/state.json`, restores on restart
 
 ### Node types
 
@@ -260,7 +260,7 @@ a real interactive UI -- charts, forms, mini-dashboards -- instead of a static n
 
 `canvas_build_web_artifact` takes source strings (`App.tsx`, optional `index.css`, `main.tsx`,
 `index.html`, plus extra files), runs the bundled web-artifacts-builder scripts, writes the
-self-contained HTML to `artifacts/<slug>.html`, and (by default) opens it in the canvas.
+self-contained HTML to `.pmx-canvas/artifacts/<slug>.html`, and (by default) opens it in the canvas.
 
 ```bash
 pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx
@@ -359,7 +359,7 @@ which is strictly better than guessing flags or payloads.
 
 ### Persistence
 
-Canvas state auto-saves to `.pmx-canvas.json` in the workspace root on every mutation (debounced). The file is git-committable -- spatial knowledge persists across sessions and can be shared with a team.
+Canvas state auto-saves to `.pmx-canvas/state.json` in the workspace root on every mutation (debounced). The file is git-committable -- spatial knowledge persists across sessions and can be shared with a team. Everything the canvas generates (state, snapshots, web artifacts, daemon log/pid) is consolidated under `.pmx-canvas/`. Legacy `.pmx-canvas.json` and `.pmx-canvas-snapshots/` are migrated to the new layout automatically on first boot.
 
 Configuration env vars:
 
@@ -378,7 +378,7 @@ canvas_snapshot({ name: 'before refactor' })
 canvas_restore({ id: 'snap-abc123' })
 ```
 
-Stored in `.pmx-canvas-snapshots/`. Toolbar button opens a panel to save, browse, restore, and delete.
+Stored in `.pmx-canvas/snapshots/`. Toolbar button opens a panel to save, browse, restore, and delete.
 
 ### Spatial semantics
 
@@ -769,8 +769,8 @@ Bun.serve HTTP + SSE Server
   |  Context pins (human curates -> agent notified)
   |  File watcher (fs.watch -> live node updates)
   |  Code graph (auto-detected dependencies)
-  |  Persistence (.pmx-canvas.json)
-  |  Snapshots (.pmx-canvas-snapshots/)
+  |  Persistence (.pmx-canvas/state.json)
+  |  Snapshots (.pmx-canvas/snapshots/)
   |
   v
 Browser (Preact SPA at /workbench)

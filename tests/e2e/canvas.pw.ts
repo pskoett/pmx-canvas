@@ -215,6 +215,7 @@ test('semantic attention layer shows focus and interpretation history', async ({
   await bugReport.locator('.ctx-pin-btn').click();
 
   await expect(page.locator('.attention-toast')).toContainText('Context updated');
+  await page.getByRole('button', { name: /recent updates/i }).click();
   await expect(page.locator('.attention-history')).toContainText('Context updated');
   await expect(bugReport).toHaveClass(/attention-focus-primary/);
 

@@ -3011,6 +3011,38 @@ button.welcome-hint:hover {
   overflow: hidden;
 }
 
+.image-node-warning-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 8px 0;
+}
+
+.image-node-warning {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid color-mix(in srgb, var(--c-warn) 42%, var(--c-line) 58%);
+  background: color-mix(in srgb, var(--c-warn) 12%, var(--c-panel-soft) 88%);
+  color: var(--c-text);
+}
+
+.image-node-warning-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--c-warn) 88%, var(--c-text) 12%);
+}
+
+.image-node-warning-detail {
+  font-size: 11px;
+  line-height: 1.35;
+  color: var(--c-text-soft);
+}
+
 .image-node-viewport {
   flex: 1;
   overflow: hidden;
@@ -3023,7 +3055,7 @@ button.welcome-hint:hover {
   ) 50% / 16px 16px;
   position: relative;
   min-height: 80px;
-  border-radius: 0 0 var(--radius-sm) var(--radius-sm);
+  border-radius: var(--radius-sm);
 }
 
 .image-node-viewport img {
@@ -3101,6 +3133,7 @@ button.welcome-hint:hover {
   color: var(--c-dim);
   gap: 8px;
   min-height: 24px;
+  margin-top: 8px;
 }
 
 .image-node-caption {

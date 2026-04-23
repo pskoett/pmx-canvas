@@ -1,3 +1,5 @@
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { computeGroupBounds, findOpenCanvasPosition } from '../../src/server/placement.ts';
@@ -140,6 +142,88 @@ describe('canvas state manager', () => {
     expect(restored?.type).toBe('webpage');
     expect(restored?.data.url).toBe('https://example.com/article');
     expect(restored?.data.content).toBe('Cached webpage text for later agent refresh.');
+  });
+
+  test('restores legacy snapshots with inferred provenance for source-backed nodes', () => {
+    const notesPath = join(workspaceRoot, 'notes.md');
+    const snapshotsDir = join(workspaceRoot, '.pmx-canvas', 'snapshots');
+    mkdirSync(snapshotsDir, { recursive: true });
+
+    writeFileSync(
+      join(snapshotsDir, 'legacy-snapshot.json'),
+      JSON.stringify({
+        version: 1,
+        snapshot: {
+          id: 'legacy-snapshot',
+          name: 'legacy',
+          createdAt: '2026-04-22T10:00:00.000Z',
+          nodeCount: 3,
+          edgeCount: 0,
+        },
+        viewport: { x: 0, y: 0, scale: 1 },
+        nodes: [
+          makeNode({
+            id: 'md-legacy',
+            type: 'markdown',
+            data: {
+              path: notesPath,
+              title: 'Notes',
+              content: '# Notes',
+            },
+          }),
+          makeNode({
+            id: 'web-legacy',
+            type: 'webpage',
+            data: {
+              title: 'Example',
+              url: 'https://example.com/docs',
+              content: 'Cached docs snapshot',
+              fetchedAt: '2026-04-22T09:30:00.000Z',
+            },
+          }),
+          makeNode({
+            id: 'app-legacy',
+            type: 'mcp-app',
+            data: {
+              mode: 'ext-app',
+              title: 'Fixture app',
+              serverName: 'fixture-server',
+              toolName: 'open_counter',
+              resourceUri: 'ui://fixture/counter.html',
+            },
+          }),
+        ],
+        edges: [],
+        contextPins: ['md-legacy'],
+      }, null, 2),
+      'utf-8',
+    );
+
+    expect(canvasState.restoreSnapshot('legacy')).toBe(true);
+
+    expect(canvasState.getNode('md-legacy')?.data.provenance).toMatchObject({
+      sourceKind: 'workspace-file',
+      refreshStrategy: 'file-read-write',
+      details: {
+        path: notesPath,
+        nodeType: 'markdown',
+      },
+    });
+    expect(canvasState.getNode('web-legacy')?.data.provenance).toMatchObject({
+      sourceKind: 'webpage-url',
+      sourceUri: 'https://example.com/docs',
+      refreshStrategy: 'webpage-refresh',
+      syncedAt: '2026-04-22T09:30:00.000Z',
+    });
+    expect(canvasState.getNode('app-legacy')?.data.provenance).toMatchObject({
+      sourceKind: 'mcp-tool',
+      refreshStrategy: 'mcp-app-rehydrate',
+      details: {
+        serverName: 'fixture-server',
+        toolName: 'open_counter',
+        resourceUri: 'ui://fixture/counter.html',
+      },
+    });
   });
 
   test('loadFromDisk replaces existing in-memory state instead of merging into it', async () => {
@@ -569,6 +653,41 @@ describe('canvas state manager', () => {
       for (let otherIndex = index + 1; otherIndex < children.length; otherIndex += 1) {
         expect(overlap(children[index], children[otherIndex])).toBe(false);
       }
+    }
+  });
+
+  test('migrates legacy .pmx-canvas.json and .pmx-canvas-snapshots/ into .pmx-canvas/', () => {
+    const migrationWorkspace = createTestWorkspace('pmx-canvas-migrate-');
+
+    const legacyState = join(migrationWorkspace, '.pmx-canvas.json');
+    writeFileSync(
+      legacyState,
+      JSON.stringify({
+        version: 1,
+        viewport: { x: 10, y: 20, scale: 1.25 },
+        nodes: [],
+        edges: [],
+        contextPins: [],
+      }, null, 2),
+      'utf-8',
+    );
+
+    const legacySnapshotsDir = join(migrationWorkspace, '.pmx-canvas-snapshots');
+    mkdirSync(legacySnapshotsDir, { recursive: true });
+    writeFileSync(join(legacySnapshotsDir, 'marker.json'), '{}', 'utf-8');
+
+    try {
+      resetCanvasForTests(migrationWorkspace);
+
+      expect(existsSync(legacyState)).toBe(false);
+      expect(existsSync(legacySnapshotsDir)).toBe(false);
+      expect(existsSync(join(migrationWorkspace, '.pmx-canvas', 'state.json'))).toBe(true);
+      expect(existsSync(join(migrationWorkspace, '.pmx-canvas', 'snapshots', 'marker.json'))).toBe(true);
+
+      expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
+      expect(canvasState.viewport).toEqual({ x: 10, y: 20, scale: 1.25 });
+    } finally {
+      removeTestWorkspace(migrationWorkspace);
     }
   });
 });

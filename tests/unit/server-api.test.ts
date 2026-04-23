@@ -84,6 +84,26 @@ describe('canvas server HTTP API', () => {
       port: 0,
       fetch(req) {
         const url = new URL(req.url);
+        if (url.pathname === '/article-long') {
+          const sections = Array.from({ length: 24 }, (_, index) =>
+            `<p>Long-form webpage section ${index + 1}. This is persistent context for agent grounding and should survive truncation better than the old excerpt-only path.</p>`,
+          ).join('\n');
+          return new Response(`<!doctype html>
+<html>
+  <head>
+    <title>Long Canvas Webpage</title>
+    <meta name="description" content="Long webpage node fixture" />
+  </head>
+  <body>
+    <main>
+      <h1>Long Canvas Webpage</h1>
+      ${sections}
+    </main>
+  </body>
+</html>`, {
+            headers: { 'Content-Type': 'text/html; charset=utf-8' },
+          });
+        }
         if (url.pathname === '/article') {
           const version = url.searchParams.get('v') ?? '1';
           const title = version === '2' ? 'Canvas Webpage v2' : 'Canvas Webpage v1';
@@ -1215,6 +1235,64 @@ describe('canvas server HTTP API', () => {
     expect(redoneState.nodes.find((node) => node.id === secondNode.id)?.position).toEqual({ x: 620, y: 120 });
   });
 
+  test('pinned-context returns structured webpage context for CLI/http consumers', async () => {
+    const created = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      fetch: { ok: boolean };
+    }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'webpage',
+        content: `${webpageOrigin}/article-long`,
+        x: 200,
+        y: 160,
+      }),
+    });
+    expect(created.ok).toBe(true);
+    expect(created.fetch.ok).toBe(true);
+
+    const pins = await jsonRequest<{ ok: boolean; count: number }>('/api/canvas/context-pins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeIds: [created.id] }),
+    });
+    expect(pins.count).toBe(1);
+
+    const pinnedContext = await jsonRequest<{
+      count: number;
+      nodeIds: string[];
+      preamble: string;
+      nodes: Array<{
+        id: string;
+        type: string;
+        title: string | null;
+        content: string | null;
+        metadata?: Record<string, unknown>;
+        position?: { x: number; y: number };
+      }>;
+    }>('/api/canvas/pinned-context');
+    expect(pinnedContext.count).toBe(1);
+    expect(pinnedContext.nodeIds).toEqual([created.id]);
+    expect(pinnedContext.preamble).toContain('Long-form webpage section 10');
+    expect(pinnedContext.nodes).toEqual([
+      expect.objectContaining({
+        id: created.id,
+        type: 'webpage',
+        title: 'Long Canvas Webpage',
+        content: expect.stringContaining('Long-form webpage section 10'),
+        metadata: expect.objectContaining({
+          url: `${webpageOrigin}/article-long`,
+          pageTitle: 'Long Canvas Webpage',
+          description: 'Long webpage node fixture',
+        }),
+        position: { x: 200, y: 160 },
+      }),
+    ]);
+    expect(pinnedContext.nodes[0]).not.toHaveProperty('data');
+  });
+
   test('accepts edge style and animation flags over HTTP', async () => {
     const firstNode = await jsonRequest<{ id: string }>('/api/canvas/node', {
       method: 'POST',
@@ -1482,8 +1560,8 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({
         title: 'HTTP Artifact',
         appTsx: 'export default function App() { return <main>HTTP Artifact</main>; }',
-        projectPath: 'artifacts/.web-artifacts/http-artifact',
-        outputPath: 'artifacts/http-artifact.html',
+        projectPath: '.pmx-canvas/artifacts/.web-artifacts/http-artifact',
+        outputPath: '.pmx-canvas/artifacts/http-artifact.html',
         initScriptPath,
         bundleScriptPath,
       }),
@@ -1492,8 +1570,8 @@ describe('canvas server HTTP API', () => {
     expect(build.openedInCanvas).toBe(true);
     expect(build.nodeId).toBeDefined();
     expect(build.url).toContain('/artifact?path=');
-    expect(build.path).toContain('/artifacts/http-artifact.html');
-    expect(build.projectPath).toContain('/artifacts/.web-artifacts/http-artifact');
+    expect(build.path).toContain('/.pmx-canvas/artifacts/http-artifact.html');
+    expect(build.projectPath).toContain('/.pmx-canvas/artifacts/.web-artifacts/http-artifact');
 
     const artifactResponse = await fetch(`${baseUrl}${build.url}`);
     expect(artifactResponse.ok).toBe(true);

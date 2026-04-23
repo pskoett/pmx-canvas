@@ -64,6 +64,7 @@ import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import { diffLayouts, formatDiff, mutationHistory } from './mutation-history.js';
 import { buildCanvasSummary, serializeCanvasLayout, serializeCanvasNode } from './canvas-serialization.js';
 import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
+import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent-context.js';
 import {
   addCanvasNode,
   addCanvasEdge,
@@ -105,7 +106,6 @@ import {
 import {
   WEBPAGE_NODE_DEFAULT_SIZE,
   normalizeWebpageUrl,
-  summarizeWebpageContent,
 } from './webpage-node.js';
 
 const DEFAULT_HOST = '127.0.0.1';
@@ -2456,65 +2456,14 @@ async function handleRender(req: Request): Promise<Response> {
   return responseJson({ html });
 }
 
-/** Build a context preamble from selected canvas node content. */
 function buildSelectionContextPreamble(contextNodeIds: string[]): string {
-  const sections: string[] = [];
-  for (const id of contextNodeIds) {
-    const node = canvasState.getNode(id);
-    if (!node) continue;
-    const title = (node.data.title as string) || node.id;
-    let summary = '';
-
-    switch (node.type) {
-      case 'markdown': {
-        const content = (node.data.rendered as string) || (node.data.content as string) || '';
-        summary = content.slice(0, 500);
-        break;
-      }
-      case 'mcp-app': {
-        const chartCfg = node.data.chartConfig as Record<string, unknown> | undefined;
-        if (chartCfg) {
-          const chartTitle = (chartCfg.title as string) || 'Untitled chart';
-          const chartType = (chartCfg.type as string) || 'unknown';
-          const labels = Array.isArray(chartCfg.labels)
-            ? (chartCfg.labels as string[]).join(', ')
-            : '';
-          summary = `Chart: ${chartTitle} (${chartType}). Labels: ${labels}`;
-        } else {
-          const url = (node.data.url as string) || '';
-          summary = url ? `MCP App: ${url}` : 'MCP App node';
-        }
-        break;
-      }
-      case 'webpage': {
-        summary = summarizeWebpageContent(node.data, 500);
-        break;
-      }
-      case 'json-render':
-      case 'graph': {
-        const graphCfg = node.data.graphConfig as Record<string, unknown> | undefined;
-        if (graphCfg) {
-          summary = `Graph: ${JSON.stringify(graphCfg).slice(0, 400)}`;
-        } else {
-          summary = JSON.stringify(node.data.spec ?? {}).slice(0, 500);
-        }
-        break;
-      }
-      case 'prompt':
-      case 'response': {
-        const text = (node.data.text as string) || (node.data.content as string) || '';
-        summary = text.slice(0, 500);
-        break;
-      }
-      default:
-        summary = JSON.stringify(node.data).slice(0, 300);
-    }
-
-    if (summary) {
-      sections.push(`[Context from "${title}" (${node.type})]\n${summary}\n`);
-    }
-  }
-  return sections.length > 0 ? `${sections.join('\n')}\n` : '';
+  const nodes = contextNodeIds
+    .map((id) => canvasState.getNode(id))
+    .filter((node): node is CanvasNodeState => node !== undefined);
+  return buildAgentContextPreamble(nodes, {
+    defaultTextLength: 700,
+    webpageTextLength: 1600,
+  });
 }
 
 async function handleCanvasPrompt(req: Request): Promise<Response> {
@@ -2790,7 +2739,15 @@ async function handleContextPinsUpdate(req: Request): Promise<Response> {
 function handleGetPinnedContext(): Response {
   const pinnedIds = Array.from(canvasState.contextPinnedNodeIds);
   const preamble = pinnedIds.length > 0 ? buildSelectionContextPreamble(pinnedIds) : '';
-  return responseJson({ preamble, nodeIds: pinnedIds, count: pinnedIds.length });
+  const nodes = pinnedIds
+    .map((id) => canvasState.getNode(id))
+    .filter((node): node is CanvasNodeState => node !== undefined)
+    .map((node) => serializeNodeForAgentContext(node, {
+      defaultTextLength: 700,
+      webpageTextLength: 1600,
+      includePosition: true,
+    }));
+  return responseJson({ preamble, nodeIds: pinnedIds, count: pinnedIds.length, nodes });
 }
 
 // ── Port resolution ───────────────────────────────────────────
@@ -3463,7 +3420,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
   canvasState.setWorkspaceRoot(activeWorkspaceRoot);
   const loaded = canvasState.loadFromDisk({ clearExisting: true });
   if (loaded) {
-    console.log('  Canvas state restored from .pmx-canvas.json');
+    console.log('  Canvas state restored from .pmx-canvas/state.json');
     primeCanvasRuntimeBackends({ forceRehydrateExtApps: true });
     void syncCanvasRuntimeBackends({ forceRehydrateExtApps: true, alreadyPrimed: true }).finally(() => {
       emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });

@@ -26,8 +26,8 @@ export function AttentionHistory() {
         type="button"
         class="attention-history-tab"
         onClick={openAttentionHistory}
-        aria-label={unread > 0 ? `What changed — ${unread} new` : 'What changed'}
-        title={unread > 0 ? `${unread} new since last viewed` : 'What changed'}
+        aria-label={unread > 0 ? `Recent updates — ${unread} new` : 'Recent updates'}
+        title={unread > 0 ? `${unread} new updates since last viewed` : 'Recent updates'}
       >
         <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
@@ -36,7 +36,7 @@ export function AttentionHistory() {
           <line x1="6.5" y1="8" x2="11" y2="8" />
           <line x1="6.5" y1="9.5" x2="12" y2="9.5" />
         </svg>
-        <span class="attention-history-tab-label">Changed</span>
+        <span class="attention-history-tab-label">Updates</span>
         {unread > 0 && (
           <span class="attention-history-tab-badge" aria-hidden="true">
             {unread > 9 ? '9+' : unread}
@@ -50,8 +50,8 @@ export function AttentionHistory() {
     <aside class="attention-history" aria-label="Recent semantic changes">
       <div class="attention-history-header">
         <div class="attention-history-header-text">
-          <span class="attention-history-title">What Changed</span>
-          <span class="attention-history-subtitle">Recent meaning shifts</span>
+          <span class="attention-history-title">Recent Updates</span>
+          <span class="attention-history-subtitle">Focus and meaning shifts</span>
         </div>
         <button
           type="button"

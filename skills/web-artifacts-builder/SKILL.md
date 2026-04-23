@@ -22,8 +22,9 @@ VERY IMPORTANT: To avoid what is often referred to as "AI slop", avoid using exc
 ## Quick Start
 
 In `pmx-canvas`, prefer the `canvas_build_web_artifact` MCP tool when available. It uses the same
-bundled runtime scripts, writes reusable source under `artifacts/.web-artifacts/`, emits a bundled
-HTML file under `artifacts/`, and can open the result directly on the canvas as an embedded node.
+bundled runtime scripts, writes reusable source under `.pmx-canvas/artifacts/.web-artifacts/`,
+emits a bundled HTML file under `.pmx-canvas/artifacts/`, and can open the result directly on the
+canvas as an embedded node.
 For browser verification after the build, pair this skill with the local `playwright-cli` skill.
 
 ### Step 1: Initialize Project

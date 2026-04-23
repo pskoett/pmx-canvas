@@ -63,6 +63,9 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
       title: 'Design Doc',
       content: '# Overview\n\nCapture the working plan here.',
     },
+    notes: [
+      'When a markdown node is path-backed (`data.path`), the server persists `data.provenance` so snapshots keep a refreshable file source.',
+    ],
   },
   {
     type: 'status',
@@ -137,6 +140,9 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
       type: 'file',
       content: 'src/server/server.ts',
     },
+    notes: [
+      'Path-backed file nodes automatically persist `data.provenance` with a file URI and file-watch refresh strategy.',
+    ],
   },
   {
     type: 'image',
@@ -146,11 +152,22 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     fields: [
       { name: 'content', type: 'string', required: true, description: 'Image path, URL, or data URI.' },
       { name: 'title', type: 'string', required: false, description: 'Optional title override.' },
+      { name: 'data.warning', type: 'string | { title?: string; detail: string }', required: false, description: 'Optional agent-supplied warning shown above the image.' },
+      { name: 'data.warnings', type: 'Array<string | { title?: string; detail: string }>', required: false, description: 'Optional list of agent-supplied image warnings.' },
+      { name: 'data.validationStatus', type: '"passed" | "failed" | "invalid"', required: false, description: 'Optional agent validation result for evidence-style images.' },
+      { name: 'data.validationMessage', type: 'string', required: false, description: 'Optional detail shown when validation fails.' },
     ],
     example: {
       type: 'image',
       content: 'artifacts/architecture.png',
+      data: {
+        validationStatus: 'failed',
+        validationMessage: 'Captured login page instead of the intended dashboard.',
+      },
     },
+    notes: [
+      'File-backed and HTTP(S)-backed images automatically persist `data.provenance` so agents can tell whether the node came from disk or a remote URL.',
+    ],
   },
   {
     type: 'webpage',
@@ -172,6 +189,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     },
     notes: [
       '`url` is the canonical field. `content` is still accepted for backward compatibility.',
+      'Webpage nodes persist `data.provenance` with the source URL and refresh strategy so reopened snapshots can be re-fetched.',
     ],
   },
   {
@@ -188,6 +206,9 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
       title: 'Embedded App',
       content: 'Use the dedicated tool for artifact builds when possible.',
     },
+    notes: [
+      'Tool-backed MCP app nodes and hosted artifact nodes persist `data.provenance` when the server can infer a reopen or rehydrate path.',
+    ],
   },
   {
     type: 'group',

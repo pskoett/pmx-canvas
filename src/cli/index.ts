@@ -374,8 +374,8 @@ const serveSubcommand = firstArg === 'serve' ? args[1] ?? '' : '';
 
 if (firstArg === 'serve' && (serveSubcommand === 'status' || serveSubcommand === 'stop')) {
   const port = parseInt(readOption('port') ?? process.env.PMX_WEB_CANVAS_PORT ?? '4313');
-  const daemonLogFile = resolve(readOption('log-file') ?? `.pmx-canvas-daemon-${port}.log`);
-  const daemonPidFile = resolve(readOption('pid-file') ?? `.pmx-canvas-daemon-${port}.pid`);
+  const daemonLogFile = resolve(readOption('log-file') ?? `.pmx-canvas/daemon-${port}.log`);
+  const daemonPidFile = resolve(readOption('pid-file') ?? `.pmx-canvas/daemon-${port}.pid`);
   const daemonWaitMs = readNumberOption('wait-ms') ?? 10_000;
 
   if (hasFlag('help') || args.includes('-h')) {
@@ -427,8 +427,8 @@ if (AGENT_COMMANDS.has(firstArg) && firstArg !== 'serve') {
   const webviewDataDir = readOption('webview-data-dir');
   const webviewWidth = readNumberOption('webview-width');
   const webviewHeight = readNumberOption('webview-height');
-  const daemonLogFile = resolve(readOption('log-file') ?? `.pmx-canvas-daemon-${port}.log`);
-  const daemonPidFile = resolve(readOption('pid-file') ?? `.pmx-canvas-daemon-${port}.pid`);
+  const daemonLogFile = resolve(readOption('log-file') ?? `.pmx-canvas/daemon-${port}.log`);
+  const daemonPidFile = resolve(readOption('pid-file') ?? `.pmx-canvas/daemon-${port}.pid`);
   const daemonWaitMs = readNumberOption('wait-ms') ?? 10_000;
   const webviewBackendOption: 'chrome' | 'webkit' | undefined =
     webviewBackend === 'chrome' || webviewBackend === 'webkit'
@@ -452,8 +452,8 @@ Server options:
   --demo         Start with sample nodes
   --no-open      Don't open browser automatically
   --daemon       Start in detached background mode and wait for health
-  --log-file=PATH  Daemon log file (default: ./.pmx-canvas-daemon-${port}.log)
-  --pid-file=PATH  Optional daemon PID file
+  --log-file=PATH  Daemon log file (default: ./.pmx-canvas/daemon-${port}.log)
+  --pid-file=PATH  Optional daemon PID file (default: ./.pmx-canvas/daemon-${port}.pid)
   --wait-ms=MS   Health-check wait budget for daemon mode (default: 10000)
   --theme=THEME  Theme: dark (default), light, high-contrast
   --webview-automation        Start a headless Bun.WebView automation session for /workbench

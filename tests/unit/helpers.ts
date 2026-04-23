@@ -75,7 +75,7 @@ export function readPersistedCanvasState(workspaceRoot: string): {
   edges: Array<{ id: string; from: string; to: string; type: string }>;
   contextPins: string[];
 } {
-  return JSON.parse(readFileSync(join(workspaceRoot, '.pmx-canvas.json'), 'utf-8')) as {
+  return JSON.parse(readFileSync(join(workspaceRoot, '.pmx-canvas', 'state.json'), 'utf-8')) as {
     nodes: CanvasNodeState[];
     edges: Array<{ id: string; from: string; to: string; type: string }>;
     contextPins: string[];

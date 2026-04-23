@@ -31,6 +31,7 @@ import {
   validateStructuredCanvasPayload,
   type PmxCanvas,
 } from '../server/index.js';
+import { serializeNodeForAgentContext } from '../server/agent-context.js';
 import { emitPrimaryWorkbenchEvent } from '../server/server.js';
 import { searchNodes, buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
 import { mutationHistory, diffLayouts, formatDiff } from '../server/mutation-history.js';
@@ -346,8 +347,8 @@ export async function startMcpServer(): Promise<void> {
       mainTsx: z.string().optional().describe('Optional contents for src/main.tsx'),
       indexHtml: z.string().optional().describe('Optional contents for index.html'),
       files: z.record(z.string(), z.string()).optional().describe('Optional map of additional project-relative file paths to file contents'),
-      projectPath: z.string().optional().describe('Optional workspace-relative reusable project path. Defaults to artifacts/.web-artifacts/<slug>'),
-      outputPath: z.string().optional().describe('Optional workspace-relative HTML output path. Defaults to artifacts/<slug>.html'),
+      projectPath: z.string().optional().describe('Optional workspace-relative reusable project path. Defaults to .pmx-canvas/artifacts/.web-artifacts/<slug>'),
+      outputPath: z.string().optional().describe('Optional workspace-relative HTML output path. Defaults to .pmx-canvas/artifacts/<slug>.html'),
       openInCanvas: z.boolean().optional().describe('Open the generated artifact in canvas after build (default true)'),
       includeLogs: z.boolean().optional().describe('Include raw build stdout/stderr in the response (default false)'),
       initScriptPath: z.string().optional().describe('Optional absolute script path override for tests/debugging'),
@@ -985,13 +986,10 @@ export async function startMcpServer(): Promise<void> {
 
       const context = {
         pinnedCount: pinnedNodes.length,
-        nodes: pinnedNodes.map((n) => ({
-          id: n.id,
-          type: n.type,
-          title: n.data.title ?? null,
-          content: n.data.content ?? null,
-          data: n.data,
-          position: n.position,
+        nodes: pinnedNodes.map((n) => serializeNodeForAgentContext(n, {
+          defaultTextLength: 700,
+          webpageTextLength: 1600,
+          includePosition: true,
         })),
         edges: pinnedEdges.map((e) => ({
           id: e.id,

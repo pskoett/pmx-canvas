@@ -5,9 +5,10 @@
  * - Agent tools (Phase 3) can read/mutate canvas state
  * - Client syncs bidirectionally (SSE for server→client, POST for client→server)
  *
- * Persistence: canvas state auto-saves to `.pmx-canvas.json` in the workspace
- * root on every mutation (debounced). Auto-loads on `loadFromDisk()`.
+ * Persistence: canvas state auto-saves to `.pmx-canvas/state.json` in the
+ * workspace root on every mutation (debounced). Auto-loads on `loadFromDisk()`.
  */
+export declare const PMX_CANVAS_DIR = ".pmx-canvas";
 interface LoadFromDiskOptions {
     clearExisting?: boolean;
 }
@@ -101,6 +102,7 @@ declare class CanvasStateManager {
     private recordMutation;
     private applyResolvedGroupBounds;
     private getGroupSnapshot;
+    private normalizeNode;
     private reflowAllGroups;
     private translateGroupChildren;
     private recomputeParentGroupBounds;
@@ -109,6 +111,12 @@ declare class CanvasStateManager {
     private _saveTimer;
     /** Set the workspace root to enable auto-persistence. */
     setWorkspaceRoot(workspaceRoot: string): void;
+    /**
+     * One-time migration: rename files from the pre-consolidation layout
+     * (`.pmx-canvas.json` + `.pmx-canvas-snapshots/`) into `.pmx-canvas/`.
+     * No-op when the new layout already exists.
+     */
+    private migrateLegacyLayout;
     getWorkspaceRoot(): string;
     private emptyPersistedState;
     /** Load canvas state from disk. Call once on server startup. */

@@ -132,11 +132,23 @@ pmx-canvas --theme=light       # Start with light theme
 
 ## Persistence
 
-Canvas state auto-saves to `.pmx-canvas.json` in the workspace root on every mutation (debounced 500ms). Auto-loads on server start. The file is git-committable — spatial knowledge persists across sessions.
+All generated files live under `.pmx-canvas/` in the workspace root:
 
-- Override path: `PMX_CANVAS_STATE_FILE` env var
+```
+.pmx-canvas/
+  state.json           # canvas state (viewport, nodes, edges, pins) — git-committable
+  snapshots/           # named snapshots (canvas_snapshot)
+  artifacts/           # web-artifact HTML bundles
+    .web-artifacts/    # reusable per-artifact build projects
+  daemon-<port>.log    # daemon stdout/stderr (when started with `serve --daemon`)
+  daemon-<port>.pid    # daemon pid file
+```
+
+State auto-saves every mutation (debounced 500ms) and auto-loads on server start. Legacy files (`.pmx-canvas.json`, `.pmx-canvas-snapshots/`) are migrated to the new layout automatically on first boot.
+
+- Override state path: `PMX_CANVAS_STATE_FILE` env var
 - `--demo` only seeds when canvas is empty (won't clobber restored state)
-- Saves: viewport, nodes, edges, context pins
+- State saves: viewport, nodes, edges, context pins
 
 ## Themes
 

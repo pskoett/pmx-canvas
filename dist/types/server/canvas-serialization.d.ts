@@ -1,9 +1,11 @@
 import type { CanvasLayout, CanvasNodeState, ViewportState } from './canvas-state.js';
+import { type CanvasNodeProvenance } from './canvas-provenance.js';
 export interface SerializedCanvasNode extends CanvasNodeState {
     title: string | null;
     content: string | null;
     path: string | null;
     url: string | null;
+    provenance: CanvasNodeProvenance | null;
 }
 export interface SerializedCanvasLayout extends Omit<CanvasLayout, 'nodes'> {
     nodes: SerializedCanvasNode[];

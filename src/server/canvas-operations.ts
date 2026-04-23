@@ -484,13 +484,14 @@ export function addCanvasNode(input: CanvasAddNodeInput): {
   };
 
   canvasState.addNode(node);
+  const storedNode = canvasState.getNode(id) ?? node;
 
   const filePath = input.type === 'file' && typeof data.path === 'string' ? data.path : null;
   if (filePath) {
     watchFileForNode(id, filePath);
   }
 
-  return { id, node, needsCodeGraphRecompute: input.type === 'file' };
+  return { id, node: storedNode, needsCodeGraphRecompute: input.type === 'file' };
 }
 
 export function resolveCanvasNode(nodeRef: CanvasNodeLookupInput): {

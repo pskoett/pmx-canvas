@@ -5,12 +5,13 @@
  * - Agent tools (Phase 3) can read/mutate canvas state
  * - Client syncs bidirectionally (SSE for server→client, POST for client→server)
  *
- * Persistence: canvas state auto-saves to `.pmx-canvas.json` in the workspace
- * root on every mutation (debounced). Auto-loads on `loadFromDisk()`.
+ * Persistence: canvas state auto-saves to `.pmx-canvas/state.json` in the
+ * workspace root on every mutation (debounced). Auto-loads on `loadFromDisk()`.
  */
 
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, renameSync, unlinkSync } from 'node:fs';
 import { join, dirname } from 'node:path';
+import { normalizeCanvasNodeData } from './canvas-provenance.js';
 import {
   type CanvasPlacementRect,
   computeGroupBounds,
@@ -24,8 +25,11 @@ function logCanvasStateWarning(action: string, error: unknown, details?: Record<
   console.warn(`[canvas-state] ${action}`, { error, ...(details ?? {}) });
 }
 
-const CANVAS_STATE_FILENAME = '.pmx-canvas.json';
-const SNAPSHOTS_DIR = '.pmx-canvas-snapshots';
+export const PMX_CANVAS_DIR = '.pmx-canvas';
+const STATE_FILENAME = 'state.json';
+const SNAPSHOTS_SUBDIR = 'snapshots';
+const LEGACY_STATE_FILENAME = '.pmx-canvas.json';
+const LEGACY_SNAPSHOTS_DIR = '.pmx-canvas-snapshots';
 const SAVE_DEBOUNCE_MS = 500;
 
 interface PersistedCanvasState {
@@ -253,6 +257,13 @@ class CanvasStateManager {
     return { group, childIds, children };
   }
 
+  private normalizeNode(node: CanvasNodeState): CanvasNodeState {
+    return {
+      ...node,
+      data: normalizeCanvasNodeData(node.type, node.data),
+    };
+  }
+
   private reflowAllGroups(): void {
     const groups = Array.from(this.nodes.values())
       .filter((node): node is CanvasNodeState => node.type === 'group')
@@ -374,8 +385,37 @@ class CanvasStateManager {
   /** Set the workspace root to enable auto-persistence. */
   setWorkspaceRoot(workspaceRoot: string): void {
     this._workspaceRoot = workspaceRoot;
+    this.migrateLegacyLayout(workspaceRoot);
     const override = (process.env.PMX_CANVAS_STATE_FILE ?? '').trim();
-    this._stateFilePath = override || join(workspaceRoot, CANVAS_STATE_FILENAME);
+    this._stateFilePath = override || join(workspaceRoot, PMX_CANVAS_DIR, STATE_FILENAME);
+  }
+
+  /**
+   * One-time migration: rename files from the pre-consolidation layout
+   * (`.pmx-canvas.json` + `.pmx-canvas-snapshots/`) into `.pmx-canvas/`.
+   * No-op when the new layout already exists.
+   */
+  private migrateLegacyLayout(workspaceRoot: string): void {
+    const newDir = join(workspaceRoot, PMX_CANVAS_DIR);
+    const legacyState = join(workspaceRoot, LEGACY_STATE_FILENAME);
+    const newState = join(newDir, STATE_FILENAME);
+    const legacySnapshots = join(workspaceRoot, LEGACY_SNAPSHOTS_DIR);
+    const newSnapshots = join(newDir, SNAPSHOTS_SUBDIR);
+
+    try {
+      if (existsSync(legacyState) && !existsSync(newState)) {
+        mkdirSync(newDir, { recursive: true });
+        renameSync(legacyState, newState);
+      }
+      if (existsSync(legacySnapshots) && !existsSync(newSnapshots)) {
+        mkdirSync(newDir, { recursive: true });
+        renameSync(legacySnapshots, newSnapshots);
+      }
+    } catch (error) {
+      logCanvasStateWarning('legacy layout migration failed', error, {
+        workspaceRoot,
+      });
+    }
   }
 
   getWorkspaceRoot(): string {
@@ -457,8 +497,8 @@ class CanvasStateManager {
   // ── Snapshots ───────────────────────────────────────────────
 
   private get snapshotsDir(): string | null {
-    if (!this._stateFilePath) return null;
-    return join(dirname(this._stateFilePath), SNAPSHOTS_DIR);
+    if (!this._workspaceRoot) return null;
+    return join(this._workspaceRoot, PMX_CANVAS_DIR, SNAPSHOTS_SUBDIR);
   }
 
   private applyPersistedState(state: PersistedCanvasState): void {
@@ -474,7 +514,9 @@ class CanvasStateManager {
 
     if (Array.isArray(state.nodes)) {
       for (const node of state.nodes) {
-        if (node?.id) this.nodes.set(node.id, structuredClone(node));
+        if (node?.id) {
+          this.nodes.set(node.id, structuredClone(this.normalizeNode(node)));
+        }
       }
     }
     if (Array.isArray(state.edges)) {
@@ -677,7 +719,7 @@ class CanvasStateManager {
   }
 
   addNode(node: CanvasNodeState): void {
-    const cloned = structuredClone(node);
+    const cloned = structuredClone(this.normalizeNode(node));
     this.nodes.set(node.id, cloned);
     this.scheduleSave();
     this.notifyChange('nodes');
@@ -708,7 +750,8 @@ class CanvasStateManager {
         patch.position.y - existing.position.y,
       );
     }
-    this.nodes.set(id, { ...existing, ...patch });
+    const nextNode = this.normalizeNode({ ...existing, ...patch });
+    this.nodes.set(id, nextNode);
     const parentGroupId = existing.data.parentGroup as string | undefined;
     if (parentGroupId) {
       if (patch.size) {

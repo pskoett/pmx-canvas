@@ -575,11 +575,12 @@ When the human wants to explore a different approach without losing current work
 
 ## Persistence
 
-Canvas state auto-saves to `.pmx-canvas.json` on every mutation (debounced 500ms). State
+Canvas state auto-saves to `.pmx-canvas/state.json` on every mutation (debounced 500ms). State
 loads automatically on server start. The file is git-committable — spatial knowledge
 persists across sessions.
 
-Snapshots save to `.pmx-canvas-snapshots/` directory.
+Snapshots save to `.pmx-canvas/snapshots/`. Web artifacts land in `.pmx-canvas/artifacts/`.
+Legacy `.pmx-canvas.json` and `.pmx-canvas-snapshots/` are auto-migrated on first boot.
 
 ## Real-Time Collaboration
 

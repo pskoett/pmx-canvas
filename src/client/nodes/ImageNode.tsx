@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import type { CanvasNodeState } from '../types';
+import { getImageNodeWarnings } from './image-warnings';
 
 /**
  * Image node renderer.
@@ -13,6 +14,7 @@ export function ImageNode({
   const src = (node.data.src as string) || '';
   const alt = (node.data.alt as string) || (node.data.title as string) || 'Image';
   const caption = (node.data.caption as string) || '';
+  const warnings = getImageNodeWarnings(node);
 
   // Determine the image source URL
   const imageSrc = src.startsWith('data:') || src.startsWith('http://') || src.startsWith('https://')
@@ -94,6 +96,16 @@ export function ImageNode({
       class={`image-node ${expanded ? 'image-node-expanded' : ''}`}
       ref={containerRef}
     >
+      {warnings.length > 0 && (
+        <div class="image-node-warning-stack">
+          {warnings.map((warning) => (
+            <div class="image-node-warning" key={`${warning.title}-${warning.detail}`}>
+              <span class="image-node-warning-title">{warning.title}</span>
+              <span class="image-node-warning-detail">{warning.detail}</span>
+            </div>
+          ))}
+        </div>
+      )}
       <div
         class="image-node-viewport"
         onWheel={handleWheel}

@@ -1,11 +1,16 @@
 import { canvasState } from './canvas-state.js';
 import type { CanvasLayout, CanvasNodeState, ViewportState } from './canvas-state.js';
+import {
+  normalizeCanvasNodeData,
+  type CanvasNodeProvenance,
+} from './canvas-provenance.js';
 
 export interface SerializedCanvasNode extends CanvasNodeState {
   title: string | null;
   content: string | null;
   path: string | null;
   url: string | null;
+  provenance: CanvasNodeProvenance | null;
 }
 
 export interface SerializedCanvasLayout extends Omit<CanvasLayout, 'nodes'> {
@@ -14,6 +19,11 @@ export interface SerializedCanvasLayout extends Omit<CanvasLayout, 'nodes'> {
 
 function pickString(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
+}
+
+function pickProvenance(value: unknown): CanvasNodeProvenance | null {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return null;
+  return value as CanvasNodeProvenance;
 }
 
 export function getCanvasNodeTitle(node: CanvasNodeState): string | null {
@@ -33,12 +43,15 @@ export function getCanvasNodeContent(node: CanvasNodeState): string | null {
 }
 
 export function serializeCanvasNode(node: CanvasNodeState): SerializedCanvasNode {
+  const data = normalizeCanvasNodeData(node.type, node.data);
   return {
     ...node,
+    data,
     title: getCanvasNodeTitle(node),
     content: getCanvasNodeContent(node),
-    path: pickString(node.data.path),
-    url: pickString(node.data.url),
+    path: pickString(data.path),
+    url: pickString(data.url),
+    provenance: pickProvenance(data.provenance),
   };
 }
 
