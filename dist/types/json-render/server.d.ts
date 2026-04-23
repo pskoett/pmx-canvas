@@ -17,10 +17,18 @@ export interface GraphNodeInput {
     data: Array<Record<string, unknown>>;
     xKey?: string;
     yKey?: string;
+    zKey?: string;
     nameKey?: string;
     valueKey?: string;
+    axisKey?: string;
+    metrics?: string[];
+    series?: string[];
+    barKey?: string;
+    lineKey?: string;
     aggregate?: 'sum' | 'count' | 'avg';
     color?: string;
+    barColor?: string;
+    lineColor?: string;
     height?: number;
     x?: number;
     y?: number;
@@ -35,8 +43,9 @@ export declare const GRAPH_NODE_SIZE: {
     width: number;
     height: number;
 };
+export type GraphChartType = 'LineChart' | 'BarChart' | 'PieChart' | 'AreaChart' | 'ScatterChart' | 'RadarChart' | 'StackedBarChart' | 'ComposedChart';
 export declare function normalizeAndValidateJsonRenderSpec(spec: unknown): JsonRenderSpec;
-export declare function normalizeGraphType(value: string): 'LineChart' | 'BarChart' | 'PieChart';
+export declare function normalizeGraphType(value: string): GraphChartType;
 export declare function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec;
 export declare function createJsonRenderNodeData(nodeId: string, title: string, spec: JsonRenderSpec, extra?: Record<string, unknown>): Record<string, unknown>;
 export declare function buildJsonRenderViewerHtml(options: {
