@@ -6,10 +6,10 @@ import {
 } from '../state/attention-store';
 import {
   activeNodeId,
+  activeNeighborNodeIds,
   bringToFront,
   contextPinnedNodeIds,
   draggingEdge,
-  edges,
   expandNode,
   nodes,
   persistLayout,
@@ -45,10 +45,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const isAttentionPrimary = attentionPrimaryNodeIds.value.has(node.id);
   const isAttentionSecondary = !isAttentionPrimary && attentionSecondaryNodeIds.value.has(node.id);
   const isAttentionPulse = attentionPulseNodeIds.value.has(node.id);
-  const focusId = activeNodeId.value;
-  const isNeighbor = !isActive && focusId !== null && Array.from(edges.value.values()).some(
-    (e) => (e.from === focusId && e.to === node.id) || (e.to === focusId && e.from === node.id),
-  );
+  const isNeighbor = !isActive && activeNeighborNodeIds.value.has(node.id);
   const searchSet = searchHighlightIds.value;
   const isSearchMatch = searchSet !== null && searchSet.has(node.id);
   const isSearchDimmed = searchSet !== null && !searchSet.has(node.id);
@@ -189,6 +186,8 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const isTrace = node.type === 'trace';
   const isTraceRunning = isTrace && node.data.status === 'running';
   const isGroup = node.type === 'group';
+  const viewportScale = Math.max(viewport.value.scale, 0.01);
+  const chromeScale = viewportScale < 1 ? Math.min(2.2, 1 / viewportScale) : 1;
 
   const groupColor = isGroup && node.data.color ? (node.data.color as string) : undefined;
   const nodeStyle: Record<string, string | number> = {
@@ -197,6 +196,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     width: `${node.size.width}px`,
     height: node.collapsed ? 'auto' : `${node.size.height}px`,
     zIndex: node.zIndex,
+    '--node-chrome-scale': chromeScale.toFixed(3),
     ...(groupColor ? { '--group-color': groupColor } : {}),
   };
   const nodeClass = [
@@ -229,7 +229,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         <span class="node-type-icon" aria-hidden="true">
           {(() => {
             const NodeIcon = getNodeIcon(node.type);
-            return <NodeIcon size={14} />;
+            return <NodeIcon size={Math.round(14 * chromeScale)} />;
           })()}
         </span>
         <span class="node-type-badge">{TYPE_LABELS[node.type]}</span>

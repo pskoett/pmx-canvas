@@ -1,5 +1,16 @@
 import type { Signal } from '@preact/signals';
 import type { CanvasEdge, CanvasNodeState, ViewportState } from '../types';
+interface MinimapBounds {
+    minX: number;
+    minY: number;
+    maxX: number;
+    maxY: number;
+}
+interface MinimapFrame {
+    bounds: MinimapBounds;
+    scale: number;
+}
+export declare function computeMinimapFrame(nodeMap: Map<string, CanvasNodeState>, currentViewport: ViewportState, containerWidth: number, containerHeight: number): MinimapFrame;
 interface MinimapProps {
     viewport: Signal<ViewportState>;
     nodes: Signal<Map<string, CanvasNodeState>>;

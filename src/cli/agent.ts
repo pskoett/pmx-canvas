@@ -66,7 +66,9 @@ interface CanvasSchemaResponse {
     components: JsonRenderComponentSchema[];
   };
   graph: {
-    graphTypes: Array<'line' | 'bar' | 'pie'>;
+    graphTypes: Array<
+      'line' | 'bar' | 'pie' | 'area' | 'scatter' | 'radar' | 'stacked-bar' | 'composed'
+    >;
   };
   mcp: {
     tools: string[];
@@ -222,6 +224,197 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
+function parseStringListFlag(
+  flags: Record<string, string | true>,
+  name: string,
+  hint: string,
+): string[] | undefined {
+  const raw = getStringFlag(flags, name);
+  if (raw === undefined) return undefined;
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    die(`Invalid value for --${name}: expected at least one string.`, hint);
+  }
+
+  if (trimmed.startsWith('[')) {
+    const parsed = parseJsonValue(trimmed, `value for --${name}`, hint);
+    if (!Array.isArray(parsed) || parsed.some((item) => typeof item !== 'string' || item.trim().length === 0)) {
+      die(`Invalid value for --${name}: expected a JSON array of non-empty strings.`, hint);
+    }
+    return parsed.map((item) => item.trim());
+  }
+
+  const values = trimmed
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (values.length === 0) {
+    die(`Invalid value for --${name}: expected a comma-separated list of keys.`, hint);
+  }
+  return values;
+}
+
+function truncateText(value: string, maxLength = 240): string {
+  const normalized = value.replace(/\s+/g, ' ').trim();
+  if (normalized.length <= maxLength) return normalized;
+  if (maxLength <= 1) return normalized.slice(0, maxLength);
+  return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}
+
+function summarizeGraphConfig(config: Record<string, unknown>): Record<string, unknown> {
+  const summary: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(config)) {
+    if (key === 'data' && Array.isArray(value)) {
+      summary.dataPoints = value.length;
+      const first = value[0];
+      if (isRecord(first)) summary.dataKeys = Object.keys(first);
+      continue;
+    }
+    summary[key] = value;
+  }
+  return summary;
+}
+
+function summarizeNodeResult(node: Record<string, unknown>): Record<string, unknown> {
+  const data = isRecord(node.data) ? node.data : {};
+  const hiddenDataKeys = new Set(['content', 'fileContent', 'html', 'rendered', 'spec', 'toolResult']);
+  const dataKeys = Object.keys(data)
+    .filter((key) => !hiddenDataKeys.has(key))
+    .sort();
+
+  return {
+    ...(node.ok !== undefined ? { ok: node.ok } : {}),
+    id: node.id ?? null,
+    type: node.type ?? null,
+    title: node.title ?? null,
+    ...(typeof node.content === 'string' ? { contentPreview: truncateText(node.content) } : {}),
+    ...(node.position !== undefined ? { position: node.position } : {}),
+    ...(node.size !== undefined ? { size: node.size } : {}),
+    ...(node.collapsed !== undefined ? { collapsed: node.collapsed } : {}),
+    ...(node.pinned !== undefined ? { pinned: node.pinned } : {}),
+    ...(node.dockPosition !== undefined ? { dockPosition: node.dockPosition } : {}),
+    ...(node.path !== undefined ? { path: node.path } : {}),
+    ...(node.url !== undefined ? { url: node.url } : {}),
+    ...(node.provenance !== undefined ? { provenance: node.provenance } : {}),
+    ...(typeof data.mode === 'string' ? { mode: data.mode } : {}),
+    ...(typeof data.viewerType === 'string' ? { viewerType: data.viewerType } : {}),
+    ...(typeof data.serverName === 'string' ? { serverName: data.serverName } : {}),
+    ...(typeof data.toolName === 'string' ? { toolName: data.toolName } : {}),
+    ...(typeof data.appSessionId === 'string' ? { appSessionId: data.appSessionId } : {}),
+    ...(typeof data.sessionStatus === 'string' ? { sessionStatus: data.sessionStatus } : {}),
+    ...(typeof data.hostMode === 'string' ? { hostMode: data.hostMode } : {}),
+    ...(typeof data.resourceUri === 'string' ? { resourceUri: data.resourceUri } : {}),
+    ...(isRecord(data.graphConfig) ? { graph: summarizeGraphConfig(data.graphConfig) } : {}),
+    ...(dataKeys.length > 0 ? { dataKeys } : {}),
+  };
+}
+
+function collectFlagValues(args: string[], name: string): string[] {
+  const values: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    const prefix = `--${name}=`;
+    if (arg.startsWith(prefix)) {
+      const value = arg.slice(prefix.length).trim();
+      if (value) values.push(value);
+      continue;
+    }
+    if (arg === `--${name}` && i + 1 < args.length && !args[i + 1].startsWith('-')) {
+      values.push(args[i + 1] as string);
+      i++;
+    }
+  }
+  return values;
+}
+
+function collectRequestedFields(
+  args: string[],
+  flags: Record<string, string | true>,
+): string[] {
+  const requested = [
+    ...collectFlagValues(args, 'field'),
+    ...((typeof flags.fields === 'string')
+      ? flags.fields.split(',').map((value) => value.trim()).filter(Boolean)
+      : []),
+  ];
+  return Array.from(new Set(requested));
+}
+
+function resolvePathValue(source: unknown, path: string[]): unknown {
+  let current = source;
+  for (const segment of path) {
+    if (!isRecord(current) && !Array.isArray(current)) return undefined;
+    current = (current as Record<string, unknown>)[segment];
+  }
+  return current;
+}
+
+function resolveNodeFieldValue(node: Record<string, unknown>, field: string): unknown {
+  if (field.includes('.')) {
+    const direct = resolvePathValue(node, field.split('.'));
+    if (direct !== undefined) return direct;
+  }
+  if (field in node) return node[field];
+
+  const data = isRecord(node.data) ? node.data : null;
+  if (!data) return undefined;
+  if (field in data) return data[field];
+  return field.includes('.') ? resolvePathValue(data, field.split('.')) : undefined;
+}
+
+function listAvailableNodeFields(node: Record<string, unknown>): string[] {
+  const topLevel = Object.keys(node).filter((key) => key !== 'data');
+  const data = isRecord(node.data) ? Object.keys(node.data).flatMap((key) => [key, `data.${key}`]) : [];
+  return Array.from(new Set([...topLevel, ...data])).sort();
+}
+
+function summarizeHistoryResult(result: Record<string, unknown>): Record<string, unknown> {
+  const entries = Array.isArray(result.entries)
+    ? result.entries.filter(isRecord)
+    : [];
+  const countsByOperation: Record<string, number> = {};
+  let currentIndex = 0;
+
+  entries.forEach((entry, index) => {
+    const op = typeof entry.operationType === 'string' ? entry.operationType : 'unknown';
+    countsByOperation[op] = (countsByOperation[op] ?? 0) + 1;
+    if (entry.isCurrent === true) currentIndex = index + 1;
+  });
+
+  const recent = entries.slice(-10).map((entry, index) => ({
+    index: entries.length - Math.min(entries.length, 10) + index + 1,
+    operationType: entry.operationType,
+    description: entry.description,
+    status: entry.isCurrent === true ? 'current' : entry.isUndone === true ? 'undone' : 'applied',
+  }));
+
+  return {
+    totalMutations: entries.length,
+    currentIndex,
+    canUndo: result.canUndo === true,
+    canRedo: result.canRedo === true,
+    countsByOperation,
+    recent,
+  };
+}
+
+function compactHistoryResult(result: Record<string, unknown>): Record<string, unknown> {
+  const entries = Array.isArray(result.entries)
+    ? result.entries.filter(isRecord)
+    : [];
+  return {
+    totalMutations: entries.length,
+    canUndo: result.canUndo === true,
+    canRedo: result.canRedo === true,
+    entries: entries.slice(-20).map((entry, index) => ({
+      index: entries.length - Math.min(entries.length, 20) + index + 1,
+      operationType: entry.operationType,
+      description: entry.description,
+      status: entry.isCurrent === true ? 'current' : entry.isUndone === true ? 'undone' : 'applied',
+    })),
+  };
+}
+
 function parseRecordArrayJson(raw: string, hint: string): Array<Record<string, unknown>> {
   let parsed: unknown;
   try {
@@ -354,12 +547,22 @@ async function buildGraphRequestBody(
   if (typeof flags.title === 'string') body.title = flags.title;
   if (typeof flags['x-key'] === 'string') body.xKey = flags['x-key'];
   if (typeof flags['y-key'] === 'string') body.yKey = flags['y-key'];
+  if (typeof flags['z-key'] === 'string') body.zKey = flags['z-key'];
   if (typeof flags['name-key'] === 'string') body.nameKey = flags['name-key'];
   if (typeof flags['value-key'] === 'string') body.valueKey = flags['value-key'];
+  if (typeof flags['axis-key'] === 'string') body.axisKey = flags['axis-key'];
+  const metrics = parseStringListFlag(flags, 'metrics', 'Use a comma-separated list, e.g. --metrics north,south');
+  const series = parseStringListFlag(flags, 'series', 'Use a comma-separated list, e.g. --series north,south');
+  if (metrics) body.metrics = metrics;
+  if (series) body.series = series;
+  if (typeof flags['bar-key'] === 'string') body.barKey = flags['bar-key'];
+  if (typeof flags['line-key'] === 'string') body.lineKey = flags['line-key'];
   if (flags.aggregate === 'sum' || flags.aggregate === 'count' || flags.aggregate === 'avg') {
     body.aggregate = flags.aggregate;
   }
   if (typeof flags.color === 'string') body.color = flags.color;
+  if (typeof flags['bar-color'] === 'string') body.barColor = flags['bar-color'];
+  if (typeof flags['line-color'] === 'string') body.lineColor = flags['line-color'];
 
   const chartHeight = optionalPositiveFiniteFlag(flags, 'chart-height', 'Use a positive number, e.g. --chart-height 300');
   const x = optionalFiniteFlag(flags, 'x', 'Use a finite number, e.g. --x 500');
@@ -801,6 +1004,7 @@ cmd('node schema', 'Describe server-supported node create schemas and canonical 
 cmd('node list', 'List all nodes on the canvas', [
   'pmx-canvas node list',
   'pmx-canvas node list --type markdown',
+  'pmx-canvas node list --type mcp-app',
   'pmx-canvas node list --ids',
 ], async (args) => {
   const { flags } = parseFlags(args);
@@ -816,7 +1020,11 @@ cmd('node list', 'List all nodes on the canvas', [
   if (flags.ids) {
     output(nodes.map((n) => n.id));
   } else {
-    output(nodes);
+    const shouldSummarize =
+      flags.summary === true ||
+      flags.compact === true ||
+      flags.type === 'mcp-app';
+    output(shouldSummarize ? nodes.map((node) => summarizeNodeResult(node)) : nodes);
   }
 });
 
@@ -824,6 +1032,8 @@ cmd('node list', 'List all nodes on the canvas', [
 cmd('node get', 'Get a node by ID', [
   'pmx-canvas node get <node-id>',
   'pmx-canvas node get node-abc123',
+  'pmx-canvas node get node-abc123 --summary',
+  'pmx-canvas node get node-abc123 --field title --field graphConfig',
 ], async (args) => {
   const { positional, flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('node get');
@@ -831,7 +1041,28 @@ cmd('node get', 'Get a node by ID', [
   const id = positional[0];
   if (!id) die('Missing node ID', 'pmx-canvas node get <node-id>');
 
-  const result = await api('GET', `/api/canvas/node/${encodeURIComponent(id)}`);
+  const result = await api('GET', `/api/canvas/node/${encodeURIComponent(id)}`) as Record<string, unknown>;
+  const requestedFields = collectRequestedFields(args, flags);
+  if (requestedFields.length > 0) {
+    const picked = Object.fromEntries(requestedFields.map((field) => [field, resolveNodeFieldValue(result, field)]));
+    const missing = requestedFields.filter((field) => picked[field] === undefined);
+    if (missing.length > 0) {
+      die(
+        `Unknown node field${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}`,
+        `Available fields: ${listAvailableNodeFields(result).join(', ')}`,
+      );
+    }
+    output({
+      id: result.id ?? id,
+      fields: picked,
+    });
+    return;
+  }
+
+  if (flags.summary || flags.compact) {
+    output(summarizeNodeResult(result));
+    return;
+  }
   output(result);
 });
 
@@ -1009,10 +1240,15 @@ cmd('search', 'Search nodes by title or content', [
 // ── layout ───────────────────────────────────────────────────
 cmd('layout', 'Get the full canvas layout (nodes, edges, viewport)', [
   'pmx-canvas layout',
+  'pmx-canvas layout --summary',
 ], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('layout');
 
+  if (flags.summary || flags.compact) {
+    output(await api('GET', '/api/canvas/summary'));
+    return;
+  }
   const result = await api('GET', '/api/canvas/state');
   output(result);
 });
@@ -1135,11 +1371,21 @@ cmd('redo', 'Redo the last undone mutation', [
 // ── history ──────────────────────────────────────────────────
 cmd('history', 'Show canvas mutation history', [
   'pmx-canvas history',
+  'pmx-canvas history --summary',
+  'pmx-canvas history --compact',
 ], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('history');
 
-  const result = await api('GET', '/api/canvas/history');
+  const result = await api('GET', '/api/canvas/history') as Record<string, unknown>;
+  if (flags.summary) {
+    output(summarizeHistoryResult(result));
+    return;
+  }
+  if (flags.compact) {
+    output(compactHistoryResult(result));
+    return;
+  }
   output(result);
 });
 
@@ -1830,15 +2076,19 @@ Examples:
   pmx-canvas node schema --type json-render
   pmx-canvas node schema --type json-render --component Table --summary
   pmx-canvas node list --type file --ids
+  pmx-canvas node get node-abc123 --summary
+  pmx-canvas node get node-abc123 --field title --field graphConfig
   pmx-canvas edge add --from node-abc --to node-def --type depends-on
   pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation
   pmx-canvas search "authentication"
   pmx-canvas open
+  pmx-canvas layout --summary
   pmx-canvas arrange --layout column
   pmx-canvas batch --file ./canvas-ops.json
   pmx-canvas validate
   pmx-canvas validate spec --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value
   pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary
+  pmx-canvas history --summary
   pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx
   pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --include-logs
   pmx-canvas webview evaluate --script "const title = document.title; return title"

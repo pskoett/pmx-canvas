@@ -34,6 +34,19 @@ export interface StructuredValidationResult {
   summary: Record<string, unknown>;
 }
 
+const CANONICAL_GRAPH_TYPES = [
+  'line',
+  'bar',
+  'pie',
+  'area',
+  'scatter',
+  'radar',
+  'stacked-bar',
+  'composed',
+] as const;
+
+type CanvasGraphType = typeof CANONICAL_GRAPH_TYPES[number];
+
 function readPackageVersion(): string | null {
   try {
     const raw = readFileSync(join(import.meta.dir, '..', '..', 'package.json'), 'utf-8');
@@ -264,15 +277,28 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     description: 'Native chart node backed by the json-render chart catalog.',
     endpoint: '/api/canvas/graph',
     fields: [
-      { name: 'graphType', type: '"line" | "bar" | "pie"', required: true, description: 'Chart type. Aliases are normalized server-side.' },
+      {
+        name: 'graphType',
+        type: '"line" | "bar" | "pie" | "area" | "scatter" | "radar" | "stacked-bar" | "composed"',
+        required: true,
+        description: 'Chart type. Aliases like "stack" and "combo" are normalized server-side.',
+      },
       { name: 'data', type: 'Record<string, unknown>[]', required: true, description: 'Chart dataset.' },
       { name: 'title', type: 'string', required: false, description: 'Optional graph title.' },
-      { name: 'xKey', type: 'string', required: false, description: 'X-axis key for line/bar graphs.' },
-      { name: 'yKey', type: 'string', required: false, description: 'Y-axis key for line/bar graphs.' },
+      { name: 'xKey', type: 'string', required: false, description: 'X-axis/category key for line, bar, area, scatter, stacked-bar, and composed charts.' },
+      { name: 'yKey', type: 'string', required: false, description: 'Y-axis value key for line, bar, area, and scatter charts. Also used as a fallback bar key for composed charts.' },
+      { name: 'zKey', type: 'string', required: false, description: 'Optional bubble-size key for scatter charts.' },
       { name: 'nameKey', type: 'string', required: false, description: 'Slice name key for pie graphs.' },
       { name: 'valueKey', type: 'string', required: false, description: 'Slice value key for pie graphs.' },
-      { name: 'aggregate', type: '"sum" | "count" | "avg"', required: false, description: 'Optional aggregation for repeated keys.' },
-      { name: 'color', type: 'string', required: false, description: 'Optional series color.' },
+      { name: 'axisKey', type: 'string', required: false, description: 'Category key for radar charts.' },
+      { name: 'metrics', type: 'string[]', required: false, description: 'Series keys to plot as radar polygons. Defaults to non-axis numeric columns.' },
+      { name: 'series', type: 'string[]', required: false, description: 'Series keys for stacked-bar segments. Defaults to non-x numeric columns.' },
+      { name: 'barKey', type: 'string', required: false, description: 'Bar series key for composed charts.' },
+      { name: 'lineKey', type: 'string', required: false, description: 'Line series key for composed charts.' },
+      { name: 'aggregate', type: '"sum" | "count" | "avg"', required: false, description: 'Optional aggregation for repeated x-axis values in line, bar, area, and stacked-bar charts.' },
+      { name: 'color', type: 'string', required: false, description: 'Optional series color for line, bar, area, and scatter charts.' },
+      { name: 'barColor', type: 'string', required: false, description: 'Optional bar color for composed charts.' },
+      { name: 'lineColor', type: 'string', required: false, description: 'Optional line color for composed charts.' },
       { name: 'height', type: 'number', required: false, description: 'Optional chart content height.' },
       { name: 'width', type: 'number', required: false, description: 'Optional node width.' },
       { name: 'nodeHeight', type: 'number', required: false, description: 'Optional node height.' },
@@ -288,6 +314,10 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
       xKey: 'day',
       yKey: 'value',
     },
+    notes: [
+      'Canonical graph types are line, bar, pie, area, scatter, radar, stacked-bar, and composed.',
+      'Server-side validation normalizes aliases like "stack" -> "stacked-bar" and "combo" -> "composed".',
+    ],
   },
   {
     type: 'web-artifact',
@@ -327,7 +357,7 @@ export function describeCanvasSchema(): {
     components: JsonRenderComponentDescriptor[];
   };
   graph: {
-    graphTypes: Array<'line' | 'bar' | 'pie'>;
+    graphTypes: CanvasGraphType[];
   };
   mcp: {
     tools: string[];
@@ -348,7 +378,7 @@ export function describeCanvasSchema(): {
       components: clone(describeJsonRenderCatalog()),
     },
     graph: {
-      graphTypes: ['line', 'bar', 'pie'],
+      graphTypes: [...CANONICAL_GRAPH_TYPES],
     },
     mcp: {
       tools: [

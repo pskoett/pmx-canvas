@@ -30,6 +30,8 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
   const fetchedAt = formatFetchedAt(typeof node.data.fetchedAt === 'string' ? node.data.fetchedAt : undefined);
   const statusCode = typeof node.data.statusCode === 'number' ? node.data.statusCode : null;
   const imageUrl = typeof node.data.imageUrl === 'string' ? node.data.imageUrl : '';
+  const frameBlocked = node.data.frameBlocked === true;
+  const frameBlockedReason = typeof node.data.frameBlockedReason === 'string' ? node.data.frameBlockedReason : '';
   const [refreshing, setRefreshing] = useState(false);
   const [showEmbed, setShowEmbed] = useState(expanded);
 
@@ -145,7 +147,7 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
         >
           {refreshing || status === 'fetching' ? 'Refreshing…' : 'Refresh'}
         </button>
-        {expanded && (
+        {expanded && !frameBlocked && (
           <button
             type="button"
             onClick={() => setShowEmbed((current) => !current)}
@@ -179,7 +181,40 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
         </button>
       </div>
 
-      {expanded && showEmbed && (
+      {expanded && frameBlocked && (
+        <div
+          style={{
+            border: '1px solid var(--c-line)',
+            borderRadius: '12px',
+            overflow: 'hidden',
+            background: 'var(--c-panel-soft)',
+          }}
+        >
+          <div
+            style={{
+              padding: '8px 12px',
+              fontSize: '11px',
+              color: 'var(--c-muted)',
+              borderBottom: '1px solid var(--c-line)',
+              background: 'rgba(255,255,255,0.03)',
+            }}
+          >
+            Live preview unavailable. This site refuses embedding, so PMX Canvas cannot show it inline.
+          </div>
+          <div
+            style={{
+              padding: '20px',
+              color: 'var(--c-text-soft)',
+              lineHeight: 1.6,
+              fontSize: '13px',
+            }}
+          >
+            {frameBlockedReason || 'The remote site blocks iframe embedding.'}
+          </div>
+        </div>
+      )}
+
+      {expanded && showEmbed && !frameBlocked && (
         <div
           style={{
             border: '1px solid var(--c-line)',
@@ -221,6 +256,7 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
         <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', color: 'var(--c-muted)', fontSize: '11px' }}>
           {fetchedAt && <span>Fetched {fetchedAt}</span>}
           {statusCode !== null && <span>HTTP {statusCode}</span>}
+          {frameBlocked && <span>Preview blocked by site</span>}
         </div>
       )}
 

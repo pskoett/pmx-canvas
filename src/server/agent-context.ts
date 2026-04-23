@@ -77,6 +77,47 @@ function summarizeWebpageData(data: Record<string, unknown>, maxLength: number):
   return truncateContextText(content, maxLength);
 }
 
+function summarizeExtAppInput(toolInput: unknown): string {
+  if (toolInput === null || toolInput === undefined) return '';
+  if (typeof toolInput !== 'object' || Array.isArray(toolInput)) return '';
+  const elements = (toolInput as Record<string, unknown>).elements;
+  if (Array.isArray(elements)) {
+    return `Diagram elements: ${elements.length}`;
+  }
+  const keys = Object.keys(toolInput as Record<string, unknown>).sort();
+  return keys.length > 0 ? `Input keys: ${keys.join(', ')}` : '';
+}
+
+function summarizeMcpAppData(data: Record<string, unknown>, maxLength: number): string {
+  const parts: string[] = [];
+  const title = typeof data.title === 'string' ? data.title : '';
+  const mode = typeof data.mode === 'string' ? data.mode : '';
+  const hostMode = typeof data.hostMode === 'string' ? data.hostMode : '';
+  const serverName = typeof data.serverName === 'string' ? data.serverName : '';
+  const toolName = typeof data.toolName === 'string' ? data.toolName : '';
+  const resourceUri = typeof data.resourceUri === 'string' ? data.resourceUri : '';
+  const path = typeof data.path === 'string' ? data.path : '';
+  const url = typeof data.url === 'string' ? data.url : '';
+  const sessionStatus = typeof data.sessionStatus === 'string' ? data.sessionStatus : '';
+  const inputSummary = summarizeExtAppInput(data.toolInput);
+
+  if (title) parts.push(`App: ${title}`);
+  if (mode || hostMode) {
+    parts.push(`Mode: ${[mode, hostMode].filter(Boolean).join(' / ')}`);
+  }
+  if (serverName || toolName) {
+    parts.push(`Source: ${[serverName, toolName].filter(Boolean).join(' / ')}`);
+  }
+  if (resourceUri) parts.push(`Resource: ${resourceUri}`);
+  if (path) parts.push(`Path: ${path}`);
+  if (url) parts.push(`URL: ${url}`);
+  if (sessionStatus) parts.push(`Session: ${sessionStatus}`);
+  if (inputSummary) parts.push(inputSummary);
+
+  if (parts.length === 0) return 'MCP App node';
+  return truncateContextText(parts.join('\n'), maxLength);
+}
+
 function metadataForNode(node: CanvasNodeState): Record<string, unknown> | undefined {
   switch (node.type) {
     case 'webpage': {
@@ -98,6 +139,14 @@ function metadataForNode(node: CanvasNodeState): Record<string, unknown> | undef
     case 'image': {
       const metadata: Record<string, unknown> = {};
       for (const key of ['src', 'path', 'mimeType', 'validationStatus', 'validationMessage']) {
+        const value = node.data[key];
+        if (value !== undefined && value !== null && value !== '') metadata[key] = value;
+      }
+      return Object.keys(metadata).length > 0 ? metadata : undefined;
+    }
+    case 'mcp-app': {
+      const metadata: Record<string, unknown> = {};
+      for (const key of ['url', 'path', 'mode', 'hostMode', 'serverName', 'toolName', 'resourceUri', 'sessionStatus']) {
         const value = node.data[key];
         if (value !== undefined && value !== null && value !== '') metadata[key] = value;
       }
@@ -130,8 +179,7 @@ export function summarizeNodeForAgentContext(
           : '';
         return truncateContextText(`Chart: ${chartTitle} (${chartType}). Labels: ${labels}`, defaultTextLength);
       }
-      const url = typeof node.data.url === 'string' ? node.data.url : '';
-      return truncateContextText(url ? `MCP App: ${url}` : 'MCP App node', defaultTextLength);
+      return summarizeMcpAppData(node.data, defaultTextLength);
     }
     case 'webpage':
       return summarizeWebpageData(node.data, webpageTextLength);

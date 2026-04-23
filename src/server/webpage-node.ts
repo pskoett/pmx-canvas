@@ -18,6 +18,8 @@ export interface WebpageSnapshot {
   fetchedAt: string;
   statusCode: number;
   contentType: string | null;
+  frameBlocked: boolean;
+  frameBlockedReason: string | null;
 }
 
 class WebpageFetchError extends Error {
@@ -129,6 +131,75 @@ function extractReadableText(html: string): string {
   return normalizeText(text).slice(0, MAX_TEXT_LENGTH);
 }
 
+function extractFrameAncestorsDirective(contentSecurityPolicy: string | null): string | null {
+  if (!contentSecurityPolicy) return null;
+  const directives = contentSecurityPolicy
+    .split(';')
+    .map((directive) => directive.trim())
+    .filter(Boolean);
+  for (const directive of directives) {
+    if (!directive.toLowerCase().startsWith('frame-ancestors')) continue;
+    return directive;
+  }
+  return null;
+}
+
+function inferFrameBlocking(headers: Headers): {
+  frameBlocked: boolean;
+  frameBlockedReason: string | null;
+} {
+  const xFrameOptions = headers.get('x-frame-options')?.trim() ?? null;
+  if (xFrameOptions) {
+    const normalized = xFrameOptions.toLowerCase();
+    if (normalized === 'deny') {
+      return {
+        frameBlocked: true,
+        frameBlockedReason: 'Live preview blocked by X-Frame-Options: DENY.',
+      };
+    }
+    if (normalized === 'sameorigin') {
+      return {
+        frameBlocked: true,
+        frameBlockedReason: 'Live preview blocked by X-Frame-Options: SAMEORIGIN.',
+      };
+    }
+  }
+
+  const frameAncestors = extractFrameAncestorsDirective(headers.get('content-security-policy'));
+  if (frameAncestors) {
+    const sources = frameAncestors
+      .split(/\s+/)
+      .slice(1)
+      .map((source) => source.trim().toLowerCase())
+      .filter(Boolean);
+
+    if (sources.includes("'none'")) {
+      return {
+        frameBlocked: true,
+        frameBlockedReason: "Live preview blocked by Content-Security-Policy: frame-ancestors 'none'.",
+      };
+    }
+
+    if (
+      sources.length > 0 &&
+      !sources.includes('*') &&
+      !sources.includes('http:') &&
+      !sources.includes('https:') &&
+      !sources.some((source) => source.includes('localhost') || source.includes('127.0.0.1'))
+    ) {
+      return {
+        frameBlocked: true,
+        frameBlockedReason: `Live preview likely blocked by Content-Security-Policy: ${frameAncestors}.`,
+      };
+    }
+  }
+
+  return {
+    frameBlocked: false,
+    frameBlockedReason: null,
+  };
+}
+
 export function normalizeWebpageUrl(rawUrl: string): string {
   const trimmed = rawUrl.trim();
   if (!trimmed) {
@@ -209,6 +280,7 @@ export async function fetchWebpageSnapshot(inputUrl: string): Promise<WebpageSna
     );
     const content = extractReadableText(body);
     const excerpt = content.slice(0, EXCERPT_LENGTH);
+    const { frameBlocked, frameBlockedReason } = inferFrameBlocking(response.headers);
 
     return {
       url: responseUrl,
@@ -220,6 +292,8 @@ export async function fetchWebpageSnapshot(inputUrl: string): Promise<WebpageSna
       fetchedAt: new Date().toISOString(),
       statusCode: response.status,
       contentType,
+      frameBlocked,
+      frameBlockedReason,
     };
   } catch (error) {
     if (error instanceof WebpageFetchError) throw error;

@@ -26,12 +26,24 @@ async function clearCanvas(request: { post: Function }): Promise<void> {
 }
 
 async function currentCanvasState(request: { get: Function }): Promise<{
-  nodes: Array<{ id: string; type: string; data: Record<string, unknown> }>;
+  nodes: Array<{
+    id: string;
+    type: string;
+    data: Record<string, unknown>;
+    position: { x: number; y: number };
+    size: { width: number; height: number };
+  }>;
   edges: Array<{ id: string; from: string; to: string; type: string }>;
 }> {
   const response = await request.get('/api/canvas/state');
   return await response.json() as {
-    nodes: Array<{ id: string; type: string; data: Record<string, unknown> }>;
+    nodes: Array<{
+      id: string;
+      type: string;
+      data: Record<string, unknown>;
+      position: { x: number; y: number };
+      size: { width: number; height: number };
+    }>;
     edges: Array<{ id: string; from: string; to: string; type: string }>;
   };
 }
@@ -128,6 +140,114 @@ test('renders server-created nodes and syncs context pins from the UI', async ({
     const pinned = await response.json() as { count: number; nodeIds: string[] };
     return `${pinned.count}:${pinned.nodeIds.join(',')}`;
   }).toBe(`1:${created.id}`);
+});
+
+test('dragging a group ignores its own children as snap targets', async ({ page, request }) => {
+  const childResponse = await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Snap child',
+      content: 'Grouped child',
+      x: 320,
+      y: 220,
+      width: 320,
+      height: 180,
+    },
+  });
+  const child = await childResponse.json() as { id: string };
+
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Reference',
+      content: 'Outside group',
+      x: 1400,
+      y: 220,
+      width: 320,
+      height: 180,
+    },
+  });
+
+  const groupResponse = await request.post('/api/canvas/group', {
+    data: {
+      title: 'Snap Group',
+      childIds: [child.id],
+      x: 280,
+      y: 148,
+      width: 840,
+      height: 312,
+    },
+  });
+  const group = await groupResponse.json() as { id: string };
+
+  await page.goto('/workbench');
+
+  const groupNode = page.locator('.canvas-node.group-node').filter({ hasText: 'Snap Group' });
+  const childNode = page.locator('.canvas-node:not(.group-node)').filter({ hasText: 'Snap child' });
+
+  await dragNodeTitlebar(page, groupNode, 36, 0);
+
+  await expect.poll(async () => {
+    const state = await currentCanvasState(request);
+    const nextGroup = state.nodes.find((node) => node.id === group.id);
+    const nextChild = state.nodes.find((node) => node.id === child.id);
+    return JSON.stringify({
+      groupX: nextGroup?.position.x,
+      childX: nextChild?.position.x,
+    });
+  }).toBe(JSON.stringify({
+    groupX: 316,
+    childX: 356,
+  }));
+});
+
+test('dragging a grouped child ignores its own parent frame as a snap target', async ({ page, request }) => {
+  const childResponse = await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Snap child',
+      content: 'Grouped child',
+      x: 320,
+      y: 220,
+      width: 320,
+      height: 180,
+    },
+  });
+  const child = await childResponse.json() as { id: string };
+
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Reference',
+      content: 'Outside group',
+      x: 1400,
+      y: 220,
+      width: 320,
+      height: 180,
+    },
+  });
+
+  await request.post('/api/canvas/group', {
+    data: {
+      title: 'Snap Group',
+      childIds: [child.id],
+      x: 280,
+      y: 148,
+      width: 840,
+      height: 312,
+    },
+  });
+
+  await page.goto('/workbench');
+  const childNode = page.locator('.canvas-node:not(.group-node)').filter({ hasText: 'Snap child' });
+
+  await dragNodeTitlebar(page, childNode, -36, 0);
+
+  await expect.poll(async () => {
+    const state = await currentCanvasState(request);
+    const nextChild = state.nodes.find((node) => node.id === child.id);
+    return nextChild?.position.x;
+  }).toBe(320);
 });
 
 test('keeps the browser, pinned context, and agent-driven canvas mutations in sync', async ({ page, request }) => {
@@ -638,6 +758,46 @@ test('ordinary node pin updates the authoritative canvas state', async ({ page, 
     const node = await response.json() as { pinned: boolean };
     return node.pinned;
   }).toBe(true);
+});
+
+test('zoomed-out node chrome keeps usable action hit targets', async ({ page, request }) => {
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Zoom chrome note',
+      content: 'Zoomed-out controls should stay hittable',
+      x: 180,
+      y: 180,
+    },
+  });
+
+  await request.post('/api/canvas/viewport', {
+    data: { x: 0, y: 0, scale: 0.56 },
+  });
+
+  await page.goto('/workbench');
+
+  const note = page.locator('.canvas-node').filter({ hasText: 'Zoom chrome note' });
+  await expect(note).toHaveCount(1);
+  await note.hover();
+
+  const controlSizes = await note.locator('.node-controls button').evaluateAll((buttons) => {
+    return buttons.map((button) => {
+      const rect = button.getBoundingClientRect();
+      return {
+        title: button.getAttribute('title'),
+        width: rect.width,
+        height: rect.height,
+      };
+    });
+  });
+
+  for (const title of ['Add to context', 'Expand (focus mode)', 'Close']) {
+    const control = controlSizes.find((button) => button.title === title);
+    expect(control, `expected ${title} control to exist`).toBeDefined();
+    expect(control?.width ?? 0, `${title} width`).toBeGreaterThanOrEqual(20);
+    expect(control?.height ?? 0, `${title} height`).toBeGreaterThanOrEqual(20);
+  }
 });
 
 test('group context menu updates the group accent color', async ({ page, request }) => {

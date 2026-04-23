@@ -1,4 +1,4 @@
-import type { CanvasEdge, CanvasNodeState, ConnectionStatus, ViewportState } from '../types';
+import type { CanvasEdge, CanvasLayout, CanvasNodeState, ConnectionStatus, ViewportState } from '../types';
 export declare const viewport: import("@preact/signals-core").Signal<ViewportState>;
 export declare const nodes: import("@preact/signals-core").Signal<Map<string, CanvasNodeState>>;
 export declare const edges: import("@preact/signals-core").Signal<Map<string, CanvasEdge>>;
@@ -22,6 +22,8 @@ export declare const draggingEdge: import("@preact/signals-core").Signal<{
 export declare const searchHighlightIds: import("@preact/signals-core").Signal<Set<string> | null>;
 export declare const selectedNodeIds: import("@preact/signals-core").Signal<Set<string>>;
 export declare const contextPinnedNodeIds: import("@preact/signals-core").Signal<Set<string>>;
+export declare function getNeighborNodeIds(nodeId: string | null, edgeMap: Map<string, CanvasEdge>): Set<string>;
+export declare const activeNeighborNodeIds: import("@preact/signals-core").ReadonlySignal<Set<string>>;
 export declare function toggleSelected(id: string): void;
 export declare function selectNodes(ids: string[]): void;
 export declare function clearSelection(): void;
@@ -49,6 +51,9 @@ export declare function undockNode(id: string): void;
 export declare function setViewport(v: Partial<ViewportState>): void;
 export declare function replaceViewport(next: ViewportState): void;
 export declare function commitViewport(next: ViewportState): void;
+export declare function applyServerCanvasLayout(layout: Pick<CanvasLayout, 'nodes' | 'edges'> & {
+    viewport?: ViewportState;
+}): void;
 /**
  * Smoothly animate the viewport to a target state.
  * Cancels any in-flight animation. Direct manipulation (pan/zoom gestures)

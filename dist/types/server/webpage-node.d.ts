@@ -12,6 +12,8 @@ export interface WebpageSnapshot {
     fetchedAt: string;
     statusCode: number;
     contentType: string | null;
+    frameBlocked: boolean;
+    frameBlockedReason: string | null;
 }
 export declare function normalizeWebpageUrl(rawUrl: string): string;
 export declare function summarizeWebpageContent(data: Record<string, unknown>, maxLength?: number): string;

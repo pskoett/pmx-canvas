@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { runAgentCli } from '../../src/cli/agent.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
@@ -11,6 +12,8 @@ import {
   removeTestWorkspace,
   resetCanvasForTests,
 } from './helpers.ts';
+
+const fixtureMcpAppServerPath = fileURLToPath(new URL('../fixtures/mcp-app-fixture.ts', import.meta.url));
 
 describe('agent CLI node commands', () => {
   let workspaceRoot = '';
@@ -224,6 +227,144 @@ describe('agent CLI node commands', () => {
     expect(node.type).toBe('graph');
     expect(node.size).toEqual({ width: 880, height: 640 });
     expect((node.data.graphConfig as Record<string, unknown>).graphType).toBe('bar');
+  });
+
+  test('node add exposes the full graph flag surface for newer chart types', async () => {
+    const radarPath = join(workspaceRoot, 'graph-radar.json');
+    const stackedPath = join(workspaceRoot, 'graph-stacked.json');
+    writeFileSync(radarPath, JSON.stringify([
+      { axis: 'Q1', north: 5, south: 7 },
+      { axis: 'Q2', north: 6, south: 4 },
+    ]), 'utf-8');
+    writeFileSync(stackedPath, JSON.stringify([
+      { month: 'Jan', north: 5, south: 2 },
+      { month: 'Feb', north: 7, south: 3 },
+    ]), 'utf-8');
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'node',
+        'add',
+        '--type',
+        'graph',
+        '--title',
+        'Radar Graph',
+        '--graph-type',
+        'radar',
+        '--data-file',
+        radarPath,
+        '--axis-key',
+        'axis',
+        '--metrics',
+        'north,south',
+      ]);
+      await runAgentCli([
+        'node',
+        'add',
+        '--type',
+        'graph',
+        '--title',
+        'Scatter Graph',
+        '--graph-type',
+        'scatter',
+        '--data-json',
+        JSON.stringify([
+          { x: 1, y: 2, size: 9 },
+          { x: 3, y: 4, size: 12 },
+        ]),
+        '--x-key',
+        'x',
+        '--y-key',
+        'y',
+        '--z-key',
+        'size',
+        '--color',
+        '#3366ff',
+      ]);
+      await runAgentCli([
+        'node',
+        'add',
+        '--type',
+        'graph',
+        '--title',
+        'Stacked Graph',
+        '--graph-type',
+        'stacked-bar',
+        '--data-file',
+        stackedPath,
+        '--x-key',
+        'month',
+        '--series',
+        'north,south',
+      ]);
+      await runAgentCli([
+        'node',
+        'add',
+        '--type',
+        'graph',
+        '--title',
+        'Composed Graph',
+        '--graph-type',
+        'composed',
+        '--data-json',
+        JSON.stringify([
+          { month: 'Jan', visits: 120, conversion: 0.24 },
+          { month: 'Feb', visits: 160, conversion: 0.31 },
+        ]),
+        '--x-key',
+        'month',
+        '--bar-key',
+        'visits',
+        '--line-key',
+        'conversion',
+        '--bar-color',
+        '#f97316',
+        '--line-color',
+        '#0ea5e9',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const outputs = log.mock.calls.map((call) => JSON.parse(call[0] as string) as { id: string });
+    expect(outputs).toHaveLength(4);
+
+    const radarNode = await jsonRequest<{ data: { graphConfig: Record<string, unknown> } }>(`/api/canvas/node/${outputs[0]?.id}`);
+    expect(radarNode.data.graphConfig).toMatchObject({
+      graphType: 'radar',
+      axisKey: 'axis',
+      metrics: ['north', 'south'],
+    });
+
+    const scatterNode = await jsonRequest<{ data: { graphConfig: Record<string, unknown> } }>(`/api/canvas/node/${outputs[1]?.id}`);
+    expect(scatterNode.data.graphConfig).toMatchObject({
+      graphType: 'scatter',
+      xKey: 'x',
+      yKey: 'y',
+      zKey: 'size',
+      color: '#3366ff',
+    });
+
+    const stackedNode = await jsonRequest<{ data: { graphConfig: Record<string, unknown> } }>(`/api/canvas/node/${outputs[2]?.id}`);
+    expect(stackedNode.data.graphConfig).toMatchObject({
+      graphType: 'stacked-bar',
+      xKey: 'month',
+      series: ['north', 'south'],
+    });
+
+    const composedNode = await jsonRequest<{ data: { graphConfig: Record<string, unknown> } }>(`/api/canvas/node/${outputs[3]?.id}`);
+    expect(composedNode.data.graphConfig).toMatchObject({
+      graphType: 'composed',
+      xKey: 'month',
+      barKey: 'visits',
+      lineKey: 'conversion',
+      barColor: '#f97316',
+      lineColor: '#0ea5e9',
+    });
   });
 
   test('node add supports json-render nodes from a spec file', async () => {
@@ -799,6 +940,157 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
       content: listed[0]?.content,
       path: listed[0]?.path,
     }));
+  });
+
+  test('node list --type mcp-app defaults to compact summaries', async () => {
+    const opened = await jsonRequest<{
+      ok: boolean;
+      nodeId: string | null;
+      sessionId: string;
+    }>('/api/canvas/mcp-app/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        toolName: 'show_counter',
+        toolArguments: { initial: 3 },
+        transport: {
+          type: 'stdio',
+          command: 'bun',
+          args: ['run', fixtureMcpAppServerPath],
+          cwd: workspaceRoot,
+        },
+      }),
+    });
+    expect(opened.ok).toBe(true);
+    expect(typeof opened.nodeId).toBe('string');
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['node', 'list', '--type', 'mcp-app']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    expect(log).toHaveBeenCalledTimes(1);
+    const listed = JSON.parse(log.mock.calls[0]?.[0] as string) as Array<{
+      id: string;
+      type: string;
+      title: string | null;
+      mode?: string;
+      serverName?: string;
+      toolName?: string;
+      sessionStatus?: string;
+      dataKeys?: string[];
+      data?: Record<string, unknown>;
+      content?: string;
+    }>;
+
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toEqual(expect.objectContaining({
+      id: opened.nodeId,
+      type: 'mcp-app',
+      title: 'Counter App',
+      mode: 'ext-app',
+      appSessionId: opened.sessionId,
+      hostMode: 'hosted',
+      toolName: 'show_counter',
+      sessionStatus: 'ready',
+    }));
+    expect(Array.isArray(listed[0]?.dataKeys)).toBe(true);
+    expect(listed[0]?.data).toBeUndefined();
+    expect(listed[0]?.content).toBeUndefined();
+  });
+
+  test('node get, layout, and history expose compact inspection modes', async () => {
+    const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/graph', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Compact Graph',
+        graphType: 'composed',
+        data: [
+          { month: 'Jan', visits: 120, conversion: 0.24 },
+          { month: 'Feb', visits: 160, conversion: 0.31 },
+        ],
+        xKey: 'month',
+        barKey: 'visits',
+        lineKey: 'conversion',
+      }),
+    });
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['node', 'get', created.id, '--summary']);
+      await runAgentCli(['node', 'get', created.id, '--field', 'title', '--field', 'graphConfig']);
+      await runAgentCli(['layout', '--summary']);
+      await runAgentCli(['history', '--summary']);
+      await runAgentCli(['history', '--compact']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    expect(log).toHaveBeenCalledTimes(5);
+
+    const nodeSummary = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      id: string;
+      graph?: { graphType: string; dataPoints: number; lineKey: string };
+      data?: unknown;
+      dataKeys?: string[];
+    };
+    expect(nodeSummary.id).toBe(created.id);
+    expect(nodeSummary.graph).toEqual(expect.objectContaining({
+      graphType: 'composed',
+      dataPoints: 2,
+      lineKey: 'conversion',
+    }));
+    expect(nodeSummary.data).toBeUndefined();
+    expect(nodeSummary.dataKeys).toContain('graphConfig');
+
+    const nodeFields = JSON.parse(log.mock.calls[1]?.[0] as string) as {
+      id: string;
+      fields: {
+        title: string;
+        graphConfig: { graphType: string; barKey: string };
+      };
+    };
+    expect(nodeFields.id).toBe(created.id);
+    expect(nodeFields.fields.title).toBe('Compact Graph');
+    expect(nodeFields.fields.graphConfig).toEqual(expect.objectContaining({
+      graphType: 'composed',
+      barKey: 'visits',
+    }));
+
+    const layoutSummary = JSON.parse(log.mock.calls[2]?.[0] as string) as {
+      totalNodes: number;
+      totalEdges: number;
+      nodesByType: Record<string, number>;
+    };
+    expect(layoutSummary.totalNodes).toBe(1);
+    expect(layoutSummary.totalEdges).toBe(0);
+    expect(layoutSummary.nodesByType.graph).toBe(1);
+
+    const historySummary = JSON.parse(log.mock.calls[3]?.[0] as string) as {
+      totalMutations: number;
+      countsByOperation: Record<string, number>;
+      recent: Array<{ description: string }>;
+    };
+    expect(historySummary.totalMutations).toBeGreaterThan(0);
+    expect(historySummary.countsByOperation.addNode).toBeGreaterThan(0);
+    expect(historySummary.recent.length).toBeGreaterThan(0);
+
+    const historyCompact = JSON.parse(log.mock.calls[4]?.[0] as string) as {
+      totalMutations: number;
+      entries: Array<{ description: string; status: string }>;
+    };
+    expect(historyCompact.totalMutations).toBe(historySummary.totalMutations);
+    expect(historyCompact.entries.length).toBeGreaterThan(0);
+    expect(['applied', 'current', 'undone']).toContain(historyCompact.entries[0]?.status);
   });
 
   test('snapshot diff works from the CLI', async () => {

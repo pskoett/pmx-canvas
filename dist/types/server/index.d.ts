@@ -151,7 +151,7 @@ export declare class PmxCanvas extends EventEmitter {
             components: import("../json-render/catalog.js").JsonRenderComponentDescriptor[];
         };
         graph: {
-            graphTypes: Array<"line" | "bar" | "pie">;
+            graphTypes: ("line" | "bar" | "pie" | "area" | "scatter" | "radar" | "composed" | "stacked-bar")[];
         };
         mcp: {
             tools: string[];

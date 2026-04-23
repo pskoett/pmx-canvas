@@ -1,5 +1,5 @@
-import { batch, signal } from '@preact/signals';
-import type { CanvasEdge, CanvasNodeState, ConnectionStatus, ViewportState } from '../types';
+import { batch, computed, signal } from '@preact/signals';
+import type { CanvasEdge, CanvasLayout, CanvasNodeState, ConnectionStatus, ViewportState } from '../types';
 import { computeAutoArrange } from '../../shared/auto-arrange';
 import { pushCanvasUpdate, updateViewportFromClient } from './intent-bridge';
 
@@ -43,6 +43,38 @@ export const selectedNodeIds = signal<Set<string>>(new Set());
 
 // ── Context pins (persistent context for agent queries) ──────
 export const contextPinnedNodeIds = signal<Set<string>>(new Set());
+
+export function getNeighborNodeIds(
+  nodeId: string | null,
+  edgeMap: Map<string, CanvasEdge>,
+): Set<string> {
+  if (!nodeId) return new Set();
+
+  const neighborIds = new Set<string>();
+  for (const edge of edgeMap.values()) {
+    if (edge.from === nodeId) neighborIds.add(edge.to);
+    if (edge.to === nodeId) neighborIds.add(edge.from);
+  }
+  return neighborIds;
+}
+
+export const activeNeighborNodeIds = computed(() => getNeighborNodeIds(activeNodeId.value, edges.value));
+
+function filterNodeIdSet(ids: Set<string>, nodeMap: Map<string, CanvasNodeState>): Set<string> {
+  const next = new Set<string>();
+  for (const id of ids) {
+    if (nodeMap.has(id)) next.add(id);
+  }
+  return next;
+}
+
+function sameSetValues(left: Set<string>, right: Set<string>): boolean {
+  if (left.size !== right.size) return false;
+  for (const value of left) {
+    if (!right.has(value)) return false;
+  }
+  return true;
+}
 
 export function toggleSelected(id: string): void {
   const next = new Set(selectedNodeIds.value);
@@ -268,6 +300,47 @@ export function commitViewport(next: ViewportState): void {
   void updateViewportFromClient(next);
 }
 
+export function applyServerCanvasLayout(layout: Pick<CanvasLayout, 'nodes' | 'edges'> & { viewport?: ViewportState }): void {
+  const nextNodes = new Map<string, CanvasNodeState>();
+  let nextMaxZ = 1;
+  for (const node of layout.nodes) {
+    nextNodes.set(node.id, node);
+    if (node.zIndex >= nextMaxZ) nextMaxZ = node.zIndex + 1;
+  }
+
+  const edgeSource = layout.edges.filter(
+    (edge) => nextNodes.has(edge.from) && nextNodes.has(edge.to),
+  );
+  const nextEdges = new Map<string, CanvasEdge>();
+  for (const edge of edgeSource) {
+    nextEdges.set(edge.id, edge);
+  }
+
+  const nextActiveNodeId =
+    activeNodeId.value !== null && nextNodes.has(activeNodeId.value) ? activeNodeId.value : null;
+  const nextExpandedNodeId =
+    expandedNodeId.value !== null && nextNodes.has(expandedNodeId.value) ? expandedNodeId.value : null;
+  const nextSelectedNodeIds = filterNodeIdSet(selectedNodeIds.value, nextNodes);
+  const nextContextPinnedNodeIds = filterNodeIdSet(contextPinnedNodeIds.value, nextNodes);
+
+  batch(() => {
+    if (layout.viewport) {
+      viewport.value = layout.viewport;
+    }
+    maxZ = nextMaxZ;
+    nodes.value = nextNodes;
+    edges.value = nextEdges;
+    activeNodeId.value = nextActiveNodeId;
+    expandedNodeId.value = nextExpandedNodeId;
+    if (!sameSetValues(selectedNodeIds.value, nextSelectedNodeIds)) {
+      selectedNodeIds.value = nextSelectedNodeIds;
+    }
+    if (!sameSetValues(contextPinnedNodeIds.value, nextContextPinnedNodeIds)) {
+      contextPinnedNodeIds.value = nextContextPinnedNodeIds;
+    }
+  });
+}
+
 // ── Animated viewport transitions ────────────────────────────
 let animationId: number | null = null;
 
@@ -462,11 +535,7 @@ export function walkGraph(direction: 'up' | 'down' | 'left' | 'right'): void {
   if (!currentNode) return;
 
   // Find all connected node IDs
-  const neighborIds = new Set<string>();
-  for (const edge of edges.value.values()) {
-    if (edge.from === current) neighborIds.add(edge.to);
-    if (edge.to === current) neighborIds.add(edge.from);
-  }
+  const neighborIds = getNeighborNodeIds(current, edges.value);
   if (neighborIds.size === 0) return;
 
   // Center of current node

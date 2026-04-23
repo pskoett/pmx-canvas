@@ -1,0 +1,98 @@
+{
+  "version": 1,
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "scale": 1
+  },
+  "nodes": [
+    {
+      "id": "node-mobu2n9v-dgvm",
+      "type": "markdown",
+      "position": {
+        "x": 320,
+        "y": 220
+      },
+      "size": {
+        "width": 320,
+        "height": 180
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "One",
+        "content": "1",
+        "parentGroup": "group-mobu2na5-hbpq"
+      }
+    },
+    {
+      "id": "node-mobu2n9y-qjnq",
+      "type": "markdown",
+      "position": {
+        "x": 760,
+        "y": 240
+      },
+      "size": {
+        "width": 320,
+        "height": 180
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "Two",
+        "content": "2",
+        "parentGroup": "group-mobu2na5-hbpq"
+      }
+    },
+    {
+      "id": "node-mobu2na2-ceaw",
+      "type": "markdown",
+      "position": {
+        "x": 1280,
+        "y": 240
+      },
+      "size": {
+        "width": 320,
+        "height": 180
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "Three",
+        "content": "3"
+      }
+    },
+    {
+      "id": "group-mobu2na5-hbpq",
+      "type": "group",
+      "position": {
+        "x": 280,
+        "y": 148
+      },
+      "size": {
+        "width": 840,
+        "height": 312
+      },
+      "zIndex": 0,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "Auto Group",
+        "children": [
+          "node-mobu2n9v-dgvm",
+          "node-mobu2n9y-qjnq"
+        ],
+        "frameMode": "fit"
+      }
+    }
+  ],
+  "edges": [],
+  "contextPins": []
+}

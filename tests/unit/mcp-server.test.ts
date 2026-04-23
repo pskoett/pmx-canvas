@@ -324,6 +324,7 @@ describe('MCP parity with CLI', () => {
 
     const opened = parseJsonText<{
       ok: boolean;
+      nodeId: string | null;
       toolCallId: string;
       sessionId: string;
       resourceUri: string;
@@ -342,6 +343,7 @@ describe('MCP parity with CLI', () => {
     }) as ToolResultShape);
 
     expect(opened.ok).toBe(true);
+    expect(typeof opened.nodeId).toBe('string');
     expect(opened.sessionId).toContain('mcp-app-session');
     expect(opened.resourceUri).toBe('ui://fixture/counter.html');
 
@@ -361,6 +363,7 @@ describe('MCP parity with CLI', () => {
       node.data.appSessionId === opened.sessionId,
     );
     expect(appNode).toBeTruthy();
+    expect(appNode?.id).toBe(opened.nodeId);
     expect(appNode?.data.resourceUri).toBe('ui://fixture/counter.html');
     expect(appNode?.data.toolName).toBe('show_counter');
   }, 20000);
@@ -383,6 +386,7 @@ describe('MCP parity with CLI', () => {
 
     expect(described.ok).toBe(true);
     expect(described.nodeTypes.find((entry) => entry.type === 'webpage')?.fields.find((field) => field.name === 'url')?.aliases).toContain('content');
+    expect(described.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'series')).toBe(true);
     expect(described.jsonRender.components.some((component) => component.type === 'Table')).toBe(true);
 
     const validated = parseJsonText<{

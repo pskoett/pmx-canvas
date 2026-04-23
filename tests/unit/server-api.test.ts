@@ -128,6 +128,26 @@ describe('canvas server HTTP API', () => {
             headers: { 'Content-Type': 'text/html; charset=utf-8' },
           });
         }
+        if (url.pathname === '/article-frame-blocked') {
+          return new Response(`<!doctype html>
+<html>
+  <head>
+    <title>Frame Blocked Fixture</title>
+    <meta name="description" content="Frame blocked webpage node fixture" />
+  </head>
+  <body>
+    <main>
+      <h1>Frame Blocked Fixture</h1>
+      <p>This page is readable by the server but not embeddable in an iframe.</p>
+    </main>
+  </body>
+</html>`, {
+            headers: {
+              'Content-Type': 'text/html; charset=utf-8',
+              'X-Frame-Options': 'SAMEORIGIN',
+            },
+          });
+        }
         return new Response('missing', { status: 404 });
       },
     });
@@ -206,6 +226,7 @@ describe('canvas server HTTP API', () => {
   test('closes hosted MCP app sessions when nodes are deleted or the canvas is cleared', async () => {
     const opened = await jsonRequest<{
       ok: boolean;
+      nodeId: string | null;
       toolCallId: string;
       sessionId: string;
     }>('/api/canvas/mcp-app/open', {
@@ -223,10 +244,12 @@ describe('canvas server HTTP API', () => {
       }),
     });
     expect(opened.ok).toBe(true);
+    expect(typeof opened.nodeId).toBe('string');
 
     const layout = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
     const hostedNode = layout.nodes.find((node) => node.type === 'mcp-app' && node.data.title === 'Counter App');
     expect(hostedNode).toBeTruthy();
+    expect(hostedNode?.id).toBe(opened.nodeId);
 
     const deleteResponse = await fetch(`${baseUrl}/api/canvas/node/${hostedNode?.id}`, {
       method: 'DELETE',
@@ -244,6 +267,7 @@ describe('canvas server HTTP API', () => {
 
     const reopened = await jsonRequest<{
       ok: boolean;
+      nodeId: string | null;
       sessionId: string;
     }>('/api/canvas/mcp-app/open', {
       method: 'POST',
@@ -260,6 +284,7 @@ describe('canvas server HTTP API', () => {
       }),
     });
     expect(reopened.ok).toBe(true);
+    expect(typeof reopened.nodeId).toBe('string');
 
     await jsonRequest<{ ok: boolean }>('/api/canvas/clear', {
       method: 'POST',
@@ -278,6 +303,7 @@ describe('canvas server HTTP API', () => {
   test('rehydrates ext-app snapshot sessions on restore', async () => {
     const opened = await jsonRequest<{
       ok: boolean;
+      nodeId: string | null;
       sessionId: string;
     }>('/api/canvas/mcp-app/open', {
       method: 'POST',
@@ -295,6 +321,7 @@ describe('canvas server HTTP API', () => {
       }),
     });
     expect(opened.ok).toBe(true);
+    expect(typeof opened.nodeId).toBe('string');
 
     const saved = await jsonRequest<{ ok: boolean; snapshot: { id: string; name: string } }>('/api/canvas/snapshots', {
       method: 'POST',
@@ -355,6 +382,7 @@ describe('canvas server HTTP API', () => {
   test('persists app model context from ext-app tool results', async () => {
     const opened = await jsonRequest<{
       ok: boolean;
+      nodeId: string | null;
       sessionId: string;
     }>('/api/canvas/mcp-app/open', {
       method: 'POST',
@@ -372,6 +400,7 @@ describe('canvas server HTTP API', () => {
       }),
     });
     expect(opened.ok).toBe(true);
+    expect(typeof opened.nodeId).toBe('string');
 
     const node = await waitForNode(
       baseUrl,
@@ -412,6 +441,7 @@ describe('canvas server HTTP API', () => {
   test('rehydrates persisted ext-app sessions after server restart', async () => {
     const opened = await jsonRequest<{
       ok: boolean;
+      nodeId: string | null;
       sessionId: string;
     }>('/api/canvas/mcp-app/open', {
       method: 'POST',
@@ -429,6 +459,7 @@ describe('canvas server HTTP API', () => {
       }),
     });
     expect(opened.ok).toBe(true);
+    expect(typeof opened.nodeId).toBe('string');
 
     await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
       method: 'POST',
@@ -891,6 +922,32 @@ describe('canvas server HTTP API', () => {
     expect(updated.data.url).toBe(`${webpageOrigin}/article?v=2`);
     expect(updated.data.pageTitle).toBe('Canvas Webpage v2');
     expect(String(updated.data.content)).toContain('Updated webpage content for saved canvas refresh.');
+  });
+
+  test('detects iframe-blocked live previews while preserving cached text context', async () => {
+    const created = await jsonRequest<{
+      ok: boolean;
+      id: string;
+    }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'webpage',
+        content: `${webpageOrigin}/article-frame-blocked`,
+      }),
+    });
+
+    const node = await jsonRequest<{
+      type: string;
+      content: string | null;
+      data: Record<string, unknown>;
+    }>(`/api/canvas/node/${created.id}`);
+
+    expect(node.type).toBe('webpage');
+    expect(node.content).toContain('This page is readable by the server');
+    expect(node.data.frameBlocked).toBe(true);
+    expect(String(node.data.frameBlockedReason)).toContain('X-Frame-Options');
+    expect(node.data.status).toBe('ready');
   });
 
   test('surfaces webpage fetch failures in the create response while preserving the error node', async () => {
@@ -1663,13 +1720,19 @@ describe('canvas server HTTP API', () => {
       source: string;
       nodeTypes: Array<{ type: string; fields: Array<{ name: string; aliases?: string[] }> }>;
       jsonRender: { components: Array<{ type: string }> };
+      graph: { graphTypes: string[] };
       mcp: { tools: string[]; resources: string[] };
     }>('/api/canvas/schema');
 
     expect(schema.ok).toBe(true);
     expect(schema.source).toBe('running-server');
     expect(schema.nodeTypes.find((entry) => entry.type === 'webpage')?.fields.find((field) => field.name === 'url')?.aliases).toContain('content');
+    expect(schema.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'zKey')).toBe(true);
+    expect(schema.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'metrics')).toBe(true);
     expect(schema.jsonRender.components.some((component) => component.type === 'Table')).toBe(true);
+    expect(schema.graph.graphTypes).toContain('area');
+    expect(schema.graph.graphTypes).toContain('stacked-bar');
+    expect(schema.graph.graphTypes).toContain('composed');
     expect(schema.mcp.tools).toContain('canvas_describe_schema');
     expect(schema.mcp.resources).toContain('canvas://schema');
 

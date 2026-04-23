@@ -114,6 +114,17 @@ pmx-canvas spatial
 - `serve status|stop` — inspect and stop daemonized servers started with `serve --daemon`
 - `code-graph`, `spatial` — analysis commands
 
+Current caveat:
+- `mcp-app` grouping is not fully uniform yet. Web artifact app nodes have grouped reliably, but
+  Excalidraw app nodes have shown inconsistent `group add` behavior and weaker rediscoverability
+  through search later in the session. When you plan to curate an app-heavy comparison area,
+  capture node IDs immediately after creation and verify membership with `node get --summary`,
+  `layout --summary`, or the browser selection state instead of relying on search alone.
+- Some `mcp-app` creation flows are still awkward to address immediately after creation. If a
+  diagram/app flow gives you a session-oriented result first, resolve the final canvas node from
+  live layout or `node list --type mcp-app` before you try to group it, wire edges to it, or
+  revisit it later.
+
 The CLI targets `http://localhost:4313` by default. Override with `PMX_CANVAS_URL` or
 `PMX_CANVAS_PORT` when the canvas is running elsewhere.
 
@@ -132,7 +143,7 @@ The CLI targets `http://localhost:4313` by default. Override with `PMX_CANVAS_UR
 | `trace` | Trace/timeline viewer | Execution traces, timelines |
 | `mcp-app` | Hosted app/embed frame | Embedded MCP apps or external app content |
 | `json-render` | Native structured UI panel | Dashboards, forms, tables, interactive layouts from json-render specs |
-| `graph` | Native chart panel | Line, bar, and pie graphs rendered inside the canvas |
+| `graph` | Native chart panel | Line, bar, pie, area, scatter, radar, stacked-bar, and composed charts rendered inside the canvas |
 | `group` | Spatial container/frame | Visually group related nodes together |
 | `prompt` | Prompt thread root | Canvas-native prompt entry points for agent conversations |
 | `response` | Prompt reply / streamed answer | Agent responses linked to prompt threads |
@@ -201,8 +212,14 @@ Use color consistently to convey meaning:
 
 **`canvas_add_graph_node`** — Add a native graph/chart node
 - Required: `graphType`, `data`
-- Supports `line`, `bar`, and `pie` graph types (aliases accepted)
-- Use `xKey`/`yKey` for line or bar graphs and `nameKey`/`valueKey` for pie graphs
+- Supports `line`, `bar`, `pie`, `area`, `scatter`, `radar`, `stacked-bar`, and `composed`
+  graph types (aliases accepted)
+- Use `xKey`/`yKey` for line, bar, area, and scatter graphs
+- Use `zKey` for scatter bubble size
+- Use `nameKey`/`valueKey` for pie graphs
+- Use `axisKey` plus `metrics` for radar graphs
+- Use `series` for stacked-bar graphs
+- Use `barKey`/`lineKey` plus optional `barColor`/`lineColor` for composed graphs
 - Uses the native json-render chart catalog under the hood
 
 **`canvas_describe_schema`** — Inspect the running server's create schemas and canonical examples
@@ -216,8 +233,9 @@ Use color consistently to convey meaning:
 - Use `graph.add` inside `canvas_batch` / `pmx-canvas batch` when you need a graph node as part of
   a larger one-shot build.
 - It accepts the same shape as `canvas_add_graph_node`: `graphType`, `data`, optional `title`,
-  `xKey`, `yKey`, `nameKey`, `valueKey`, `aggregate`, `color`, `height`, `x`, `y`, `width`,
-  and `nodeHeight`.
+  `xKey`, `yKey`, `zKey`, `nameKey`, `valueKey`, `axisKey`, `metrics`, `series`, `barKey`,
+  `lineKey`, `aggregate`, `color`, `barColor`, `lineColor`, `height`, `x`, `y`, `width`, and
+  `nodeHeight`.
 
 ### Edge Operations
 
@@ -264,6 +282,38 @@ Use color consistently to convey meaning:
 **`canvas_ungroup`** — Release children from a group
 - `groupId` (required): group to dissolve
 
+### Grouped Comparison Boards
+
+Use groups as named comparison areas, not just visual boxes.
+
+- Create the comparison frame first with `canvas_create_group` or `pmx-canvas group create`, then
+  add charts, artifacts, and diagrams into that area deliberately.
+- Prefer graph nodes for fast capability demos and side-by-side comparisons. They are lightweight,
+  validate quickly, and are easier to regenerate.
+- Prefer web artifacts when the board needs a richer narrative UI, custom interaction, or a more
+  polished presentation layer than a graph or json-render node can provide.
+- Use Excalidraw for sketching and flow diagrams, but treat it as less reliable than web-artifact
+  app nodes for grouping and rediscovery until `mcp-app` grouping parity is fixed.
+- Native node types are still the most agent-friendly. Graph nodes are the strongest comparison
+  primitive today, web artifacts are good but heavier, and Excalidraw / other `mcp-app` nodes are
+  useful but still the weakest operationally for create, rediscover, group, and reconnect flows.
+- Leave larger spacing between major regions than you think you need. The spatial analyzer still
+  tends to read dense boards as one giant cluster unless groups and gaps are both clear.
+- If you are expanding a board incrementally, verify each add-to-group step instead of assuming
+  the node joined the area. Comparison workflows depend on reliable “add this thing to the region
+  I’m already building.”
+
+Current product caveats for grouped comparison boards:
+- `mcp-app` grouping parity is inconsistent. Web artifacts have grouped cleanly; Excalidraw has
+  not always behaved the same way.
+- Search/discoverability for external app nodes can degrade over time in-session, so node IDs are
+  safer than title-based rediscovery for follow-up grouping or focus operations.
+- `mcp-app` nodes are less inspectable than native nodes. For graph nodes you can reason from
+  structured config, but app nodes often only tell you that an app exists unless you also inspect
+  nearby markdown, file, or graph context.
+- Long-running web artifact builds can exceed a short command timeout. When using them in an
+  agent workflow, prefer progress-aware handling and avoid assuming a timeout means failure.
+
 ### Search & Discovery
 
 **`canvas_search`** — Find nodes by title or content keywords
@@ -278,6 +328,11 @@ Use color consistently to convey meaning:
 - `mode`: `set` (replace all pins), `add` (add to pins), `remove` (remove from pins)
 - Pinned nodes are the primary human-to-agent communication channel
 - When a human pins nodes in the browser, they're telling you "pay attention to these"
+- Best default pin set for agent collaboration: one intent-setting markdown node plus 1-3 concrete
+  output nodes
+- Graph, file, and markdown pins usually carry richer usable context than `mcp-app` pins
+- Artifact and Excalidraw pins still matter as intent signals, but pair them with a markdown or
+  graph pin when you want the agent to understand what is inside the app, not just that it matters
 
 ### History & Snapshots
 
@@ -366,6 +421,8 @@ The `canvas://spatial-context` resource reveals how the human has organized info
   This implies sequence or priority.
 - **Pinned neighborhoods** — For each pinned node, nearby unpinned nodes are listed. These
   are the human's implicit context — things they consider related to what they pinned.
+- **Board density matters** — On a dense board, spatial context can still read like one large
+  gallery unless groups and spacing separate the major regions clearly.
 
 Use this spatial intelligence to understand what the human is thinking without them having to
 explain it explicitly.
@@ -424,6 +481,8 @@ collaboration pattern:
    - Are they clustered together (single focus) or spread across the canvas (multi-topic)?
    - What unpinned nodes are nearby? These are the human's implicit context
    - What's the reading order? Top-left to bottom-right suggests sequence or priority
+   - If an `mcp-app` node is pinned, treat it as “important but partially opaque” and use nearby
+     graph/file/markdown nodes to recover the missing semantic detail
 5. Respond by summarizing what you see, what you think the human is focusing on, and ask
    if they'd like you to act on it (add related nodes, investigate further, etc.)
 
@@ -560,6 +619,8 @@ When the human wants to explore a different approach without losing current work
 
 8. **Use pinning.** When you want the human to focus on specific nodes, pin them.
    When the human pins nodes, read `canvas://pinned-context` to see what they care about.
+   Prefer one intent-setting markdown pin plus a small set of concrete output pins over pinning a
+   whole gallery.
 
 9. **Snapshot before destructive changes.** Before clearing or major reorganization,
    save a snapshot so you can restore if needed.
@@ -572,6 +633,18 @@ When the human wants to explore a different approach without losing current work
 
 12. **Use file nodes for source code.** File nodes auto-watch for changes and update
     live. This is better than pasting code into markdown nodes.
+
+13. **Comparison boards need structure, not just content.** For galleries and evaluations, use a
+    named group, give the area breathing room, and keep related charts/artifacts inside that
+    region instead of letting them drift into the main cluster.
+
+14. **Capture external app IDs immediately.** For Excalidraw and other `mcp-app` nodes, store the
+    returned node ID or pin the node right away. Search/title rediscovery is less reliable there
+    than for markdown, graph, or file nodes.
+
+15. **Pair app nodes with explainers.** If you create or pin a web artifact or Excalidraw node,
+    add a nearby markdown, graph, or file node that explains what the app is for. This makes
+    pinned context far more useful to later agents.
 
 ## Persistence
 

@@ -22,6 +22,8 @@ export interface StructuredValidationResult {
     normalizedSpec: JsonRenderSpec;
     summary: Record<string, unknown>;
 }
+declare const CANONICAL_GRAPH_TYPES: readonly ["line", "bar", "pie", "area", "scatter", "radar", "stacked-bar", "composed"];
+type CanvasGraphType = typeof CANONICAL_GRAPH_TYPES[number];
 export declare function describeCanvasSchema(): {
     ok: true;
     source: 'running-server';
@@ -32,7 +34,7 @@ export declare function describeCanvasSchema(): {
         components: JsonRenderComponentDescriptor[];
     };
     graph: {
-        graphTypes: Array<'line' | 'bar' | 'pie'>;
+        graphTypes: CanvasGraphType[];
     };
     mcp: {
         tools: string[];
@@ -44,3 +46,4 @@ export declare function validateStructuredCanvasPayload(input: {
     spec?: unknown;
     graph?: GraphNodeInput;
 }): StructuredValidationResult;
+export {};

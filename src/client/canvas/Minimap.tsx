@@ -1,6 +1,6 @@
 import type { Signal } from '@preact/signals';
 import { useSignalEffect } from '@preact/signals';
-import { useCallback, useRef } from 'preact/hooks';
+import { useCallback, useEffect, useRef } from 'preact/hooks';
 import { canvasTheme } from '../state/canvas-store';
 import { getCanvasTokens } from '../theme/tokens';
 import type { CanvasEdge, CanvasNodeState, ViewportState } from '../types';
@@ -8,6 +8,18 @@ import type { CanvasEdge, CanvasNodeState, ViewportState } from '../types';
 const MINIMAP_W = 180;
 const MINIMAP_H = 120;
 const PADDING = 20;
+
+interface MinimapBounds {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+interface MinimapFrame {
+  bounds: MinimapBounds;
+  scale: number;
+}
 
 function getNodeColors(): Record<CanvasNodeState['type'], string> {
   const t = getCanvasTokens();
@@ -39,6 +51,53 @@ function getEdgeColors(): Record<CanvasEdge['type'], string> {
   };
 }
 
+export function computeMinimapFrame(
+  nodeMap: Map<string, CanvasNodeState>,
+  currentViewport: ViewportState,
+  containerWidth: number,
+  containerHeight: number,
+): MinimapFrame {
+  const all = Array.from(nodeMap.values());
+
+  let minX = 0;
+  let minY = 0;
+  let maxX = 1000;
+  let maxY = 800;
+
+  if (all.length > 0) {
+    minX = Number.POSITIVE_INFINITY;
+    minY = Number.POSITIVE_INFINITY;
+    maxX = Number.NEGATIVE_INFINITY;
+    maxY = Number.NEGATIVE_INFINITY;
+    for (const node of all) {
+      minX = Math.min(minX, node.position.x);
+      minY = Math.min(minY, node.position.y);
+      maxX = Math.max(maxX, node.position.x + node.size.width);
+      maxY = Math.max(maxY, node.position.y + node.size.height);
+    }
+  }
+
+  const viewportLeft = -currentViewport.x / currentViewport.scale;
+  const viewportTop = -currentViewport.y / currentViewport.scale;
+  const viewportRight = viewportLeft + containerWidth / currentViewport.scale;
+  const viewportBottom = viewportTop + containerHeight / currentViewport.scale;
+
+  const bounds = {
+    minX: Math.min(minX, viewportLeft) - PADDING,
+    minY: Math.min(minY, viewportTop) - PADDING,
+    maxX: Math.max(maxX, viewportRight) + PADDING,
+    maxY: Math.max(maxY, viewportBottom) + PADDING,
+  };
+
+  const worldW = bounds.maxX - bounds.minX || 1;
+  const worldH = bounds.maxY - bounds.minY || 1;
+
+  return {
+    bounds,
+    scale: Math.min(MINIMAP_W / worldW, MINIMAP_H / worldH),
+  };
+}
+
 interface MinimapProps {
   viewport: Signal<ViewportState>;
   nodes: Signal<Map<string, CanvasNodeState>>;
@@ -58,43 +117,17 @@ export function Minimap({
 }: MinimapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDragging = useRef(false);
-
-  // Compute bounding box of all nodes
-  const getBounds = useCallback(() => {
-    const all = Array.from(nodes.value.values());
-    if (all.length === 0) return { minX: 0, minY: 0, maxX: 1000, maxY: 800 };
-
-    let minX = Number.POSITIVE_INFINITY;
-    let minY = Number.POSITIVE_INFINITY;
-    let maxX = Number.NEGATIVE_INFINITY;
-    let maxY = Number.NEGATIVE_INFINITY;
-    for (const n of all) {
-      minX = Math.min(minX, n.position.x);
-      minY = Math.min(minY, n.position.y);
-      maxX = Math.max(maxX, n.position.x + n.size.width);
-      maxY = Math.max(maxY, n.position.y + n.size.height);
-    }
-
-    // Include viewport bounds
-    const v = viewport.value;
-    const vpLeft = -v.x / v.scale;
-    const vpTop = -v.y / v.scale;
-    const vpRight = vpLeft + containerWidth / v.scale;
-    const vpBottom = vpTop + containerHeight / v.scale;
-
-    minX = Math.min(minX, vpLeft) - PADDING;
-    minY = Math.min(minY, vpTop) - PADDING;
-    maxX = Math.max(maxX, vpRight) + PADDING;
-    maxY = Math.max(maxY, vpBottom) + PADDING;
-
-    return { minX, minY, maxX, maxY };
-  }, [nodes, viewport, containerWidth, containerHeight]);
+  const frameRef = useRef<MinimapFrame | null>(null);
+  const drawRafId = useRef<number | null>(null);
 
   const draw = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
+    const nodeMap = nodes.value;
+    const edgeMap = edges.value;
+    const currentViewport = viewport.value;
 
     const dpr = window.devicePixelRatio || 1;
     canvas.width = MINIMAP_W * dpr;
@@ -107,16 +140,15 @@ export function Minimap({
     ctx.fillStyle = t.panel + 'd9'; // panel color with ~85% alpha
     ctx.fillRect(0, 0, MINIMAP_W, MINIMAP_H);
 
-    const bounds = getBounds();
-    const worldW = bounds.maxX - bounds.minX || 1;
-    const worldH = bounds.maxY - bounds.minY || 1;
-    const scale = Math.min(MINIMAP_W / worldW, MINIMAP_H / worldH);
+    const frame = computeMinimapFrame(nodeMap, currentViewport, containerWidth, containerHeight);
+    frameRef.current = frame;
+    const { bounds, scale } = frame;
 
     const toMiniX = (x: number) => (x - bounds.minX) * scale;
     const toMiniY = (y: number) => (y - bounds.minY) * scale;
 
     // Draw nodes
-    const all = Array.from(nodes.value.values());
+    const all = Array.from(nodeMap.values());
     const nodeColors = getNodeColors();
     for (const n of all) {
       ctx.fillStyle = nodeColors[n.type] ?? t.muted;
@@ -130,8 +162,7 @@ export function Minimap({
     }
 
     const edgeColors = getEdgeColors();
-    const nodeMap = nodes.value;
-    for (const edge of edges.value.values()) {
+    for (const edge of edgeMap.values()) {
       const fromNode = nodeMap.get(edge.from);
       const toNode = nodeMap.get(edge.to);
       if (!fromNode || !toNode) continue;
@@ -149,17 +180,27 @@ export function Minimap({
     }
 
     // Draw viewport rectangle
-    const v = viewport.value;
-    const vpLeft = -v.x / v.scale;
-    const vpTop = -v.y / v.scale;
-    const vpW = containerWidth / v.scale;
-    const vpH = containerHeight / v.scale;
+    const vpLeft = -currentViewport.x / currentViewport.scale;
+    const vpTop = -currentViewport.y / currentViewport.scale;
+    const vpW = containerWidth / currentViewport.scale;
+    const vpH = containerHeight / currentViewport.scale;
 
     ctx.globalAlpha = 1;
     ctx.strokeStyle = t.accent;
     ctx.lineWidth = 1.5;
     ctx.strokeRect(toMiniX(vpLeft), toMiniY(vpTop), vpW * scale, vpH * scale);
-  }, [nodes, edges, viewport, containerWidth, containerHeight, getBounds]);
+  }, [nodes, edges, viewport, containerWidth, containerHeight]);
+
+  const drawRef = useRef(draw);
+  drawRef.current = draw;
+
+  const scheduleDraw = useCallback(() => {
+    if (drawRafId.current !== null) return;
+    drawRafId.current = window.requestAnimationFrame(() => {
+      drawRafId.current = null;
+      drawRef.current();
+    });
+  }, []);
 
   // Redraw on state changes (including theme)
   useSignalEffect(() => {
@@ -167,8 +208,19 @@ export function Minimap({
     void nodes.value;
     void edges.value;
     void viewport.value;
-    draw();
+    scheduleDraw();
   });
+
+  useEffect(() => {
+    scheduleDraw();
+  }, [containerWidth, containerHeight, scheduleDraw]);
+
+  useEffect(() => () => {
+    if (drawRafId.current !== null) {
+      window.cancelAnimationFrame(drawRafId.current);
+      drawRafId.current = null;
+    }
+  }, []);
 
   const handleNavigateFromEvent = useCallback(
     (e: MouseEvent | PointerEvent) => {
@@ -179,10 +231,11 @@ export function Minimap({
       const mx = e.clientX - rect.left;
       const my = e.clientY - rect.top;
 
-      const bounds = getBounds();
-      const worldW = bounds.maxX - bounds.minX || 1;
-      const worldH = bounds.maxY - bounds.minY || 1;
-      const scale = Math.min(MINIMAP_W / worldW, MINIMAP_H / worldH);
+      const frame =
+        frameRef.current
+        ?? computeMinimapFrame(nodes.value, viewport.value, containerWidth, containerHeight);
+      frameRef.current = frame;
+      const { bounds, scale } = frame;
 
       const v = viewport.value;
       const vpW = containerWidth / v.scale;
@@ -193,7 +246,7 @@ export function Minimap({
       const worldY = my / scale + bounds.minY;
       onNavigate(-(worldX - vpW / 2) * v.scale, -(worldY - vpH / 2) * v.scale);
     },
-    [getBounds, viewport, containerWidth, containerHeight, onNavigate],
+    [nodes, viewport, containerWidth, containerHeight, onNavigate],
   );
 
   const handlePointerDown = useCallback(

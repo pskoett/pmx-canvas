@@ -2,8 +2,12 @@ import type { CallToolResult, ListToolsResult, RequestId, Tool } from '@modelcon
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { AppBridge, PostMessageTransport, buildAllowAttribute } from '@modelcontextprotocol/ext-apps/app-bridge';
 import { useEffect, useRef, useState } from 'preact/hooks';
-import { bringToFront, canvasTheme, persistLayout, updateNode, viewport } from '../state/canvas-store';
-import { updateNodeFromClient } from '../state/intent-bridge';
+import {
+  canvasTheme,
+  collapseExpandedNode,
+  expandNode,
+  expandedNodeId,
+} from '../state/canvas-store';
 import type { CanvasNodeState } from '../types';
 
 type McpUiTheme = 'light' | 'dark';
@@ -14,6 +18,7 @@ type IframeLoadTarget = Pick<
 >;
 
 type ExtAppBridgeNotifications = Pick<AppBridge, 'sendToolInput' | 'sendToolResult'>;
+type DisplayMode = 'inline' | 'fullscreen' | 'pip';
 
 async function postJson<T>(url: string, body: Record<string, unknown>): Promise<T> {
   const response = await fetch(url, {
@@ -51,6 +56,33 @@ export function getExtAppBridgeInitKey(node: CanvasNodeState, retryKey: number):
   const appSessionId = typeof node.data.appSessionId === 'string' ? node.data.appSessionId : '';
   const sessionStatus = typeof node.data.sessionStatus === 'string' ? node.data.sessionStatus : '';
   return `${node.id}:${retryKey}:${node.size.height}:${serverName}:${appSessionId}:${sessionStatus}:${html}`;
+}
+
+export function resolveExtAppDisplayModeRequest(
+  requestedMode: DisplayMode,
+  isExpanded: boolean,
+): { nextMode: DisplayMode; shouldExpand: boolean; shouldCollapse: boolean } {
+  if (requestedMode === 'fullscreen') {
+    return {
+      nextMode: 'fullscreen',
+      shouldExpand: !isExpanded,
+      shouldCollapse: false,
+    };
+  }
+
+  if (requestedMode === 'inline') {
+    return {
+      nextMode: 'inline',
+      shouldExpand: false,
+      shouldCollapse: isExpanded,
+    };
+  }
+
+  return {
+    nextMode: requestedMode,
+    shouldExpand: false,
+    shouldCollapse: false,
+  };
 }
 
 export async function sendExtAppBootstrapState(
@@ -96,6 +128,7 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
   const frameKey = `${node.id}:${retryKey}`;
   const bridgeInitKey = getExtAppBridgeInitKey(node, retryKey);
   const toMcpTheme = (theme: string): McpUiTheme => (theme === 'light' ? 'light' : 'dark');
+  const isExpanded = expandedNodeId.value === nodeId;
 
   latestToolInputRef.current = toolInput;
   latestToolResultRef.current = toolResult;
@@ -172,7 +205,7 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
             theme: toMcpTheme(canvasTheme.value),
             platform: 'web',
             containerDimensions: { maxHeight },
-            displayMode: 'inline',
+            displayMode: isExpanded ? 'fullscreen' : 'inline',
             locale: navigator.language,
             timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
             ...(toolDefinition ? {
@@ -198,23 +231,13 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
 
       // Handle native fullscreen requests from the widget (e.g. Excalidraw expand button)
       bridge.onrequestdisplaymode = async ({ mode }) => {
-        if (mode === 'fullscreen') {
-          const v = viewport.value;
-          const padding = 40;
-          const position = {
-            x: (padding - v.x) / v.scale,
-            y: (padding - v.y) / v.scale,
-          };
-          const size = {
-            width: (window.innerWidth - padding * 2) / v.scale,
-            height: (window.innerHeight - padding * 2) / v.scale,
-          };
-          updateNode(nodeId, { position, size });
-          bringToFront(nodeId);
-          persistLayout();
-          void updateNodeFromClient(nodeId, { position, size });
+        const { nextMode, shouldExpand, shouldCollapse } = resolveExtAppDisplayModeRequest(mode, isExpanded);
+        if (shouldExpand) {
+          expandNode(nodeId);
+        } else if (shouldCollapse) {
+          collapseExpandedNode();
         }
-        return { mode };
+        return { mode: nextMode };
       };
 
       // Proxy callServerTool back to PMX server

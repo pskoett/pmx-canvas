@@ -431,6 +431,21 @@ export class PmxCanvas extends EventEmitter {
     return validateCanvasLayout(canvasState.getLayout());
   }
 
+  private findCanvasExtAppNodeId(toolCallId: string): string | null {
+    const directId = `ext-app-${toolCallId}`;
+    if (canvasState.getNode(directId)) return directId;
+    for (const node of canvasState.getLayout().nodes) {
+      if (
+        node.type === 'mcp-app' &&
+        node.data.mode === 'ext-app' &&
+        node.data.toolCallId === toolCallId
+      ) {
+        return node.id;
+      }
+    }
+    return null;
+  }
+
   describeSchema() {
     return describeCanvasSchema();
   }
@@ -465,7 +480,7 @@ export class PmxCanvas extends EventEmitter {
     y?: number;
     width?: number;
     height?: number;
-  }): Promise<{ ok: true; toolCallId: string; sessionId: string; resourceUri: string }> {
+  }): Promise<{ ok: true; nodeId: string | null; toolCallId: string; sessionId: string; resourceUri: string }> {
     const opened = await openExternalMcpApp({
       transport: input.transport,
       toolName: input.toolName,
@@ -499,8 +514,10 @@ export class PmxCanvas extends EventEmitter {
       success: opened.toolResult.isError !== true,
       result: opened.toolResult,
     });
+    const nodeId = this.findCanvasExtAppNodeId(toolCallId);
     return {
       ok: true,
+      nodeId,
       toolCallId,
       sessionId: opened.sessionId,
       resourceUri: opened.resourceUri,
@@ -509,7 +526,7 @@ export class PmxCanvas extends EventEmitter {
 
   async addDiagram(
     input: DiagramPresetOpenInput,
-  ): Promise<{ ok: true; toolCallId: string; sessionId: string; resourceUri: string }> {
+  ): Promise<{ ok: true; nodeId: string | null; toolCallId: string; sessionId: string; resourceUri: string }> {
     const built = buildExcalidrawOpenMcpAppInput(input);
     return this.openMcpApp(built);
   }

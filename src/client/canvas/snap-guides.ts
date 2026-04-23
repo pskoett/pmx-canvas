@@ -27,13 +27,56 @@ let cachedRefX: RefEdgeX[] = [];
 let cachedRefY: RefEdgeY[] = [];
 let cachedDragId: string | null = null;
 
+function getParentGroupId(node: CanvasNodeState | undefined): string | null {
+  const parentGroup = node?.data.parentGroup;
+  return typeof parentGroup === 'string' && parentGroup.length > 0 ? parentGroup : null;
+}
+
+function getChildIds(node: CanvasNodeState | undefined): string[] {
+  if (!node || !Array.isArray(node.data.children)) return [];
+  return node.data.children.filter((childId): childId is string => typeof childId === 'string');
+}
+
+function collectExcludedReferenceIds(
+  dragId: string,
+  allNodes: CanvasNodeState[],
+): Set<string> {
+  const nodeMap = new Map(allNodes.map((node) => [node.id, node]));
+  const excluded = new Set<string>([dragId]);
+  const dragNode = nodeMap.get(dragId);
+  if (!dragNode) return excluded;
+
+  let parentGroupId = getParentGroupId(dragNode);
+  while (parentGroupId && !excluded.has(parentGroupId)) {
+    excluded.add(parentGroupId);
+    parentGroupId = getParentGroupId(nodeMap.get(parentGroupId));
+  }
+
+  if (dragNode.type !== 'group') return excluded;
+
+  const pendingChildIds = [...getChildIds(dragNode)];
+  while (pendingChildIds.length > 0) {
+    const childId = pendingChildIds.pop();
+    if (!childId || excluded.has(childId)) continue;
+    excluded.add(childId);
+    const child = nodeMap.get(childId);
+    if (child?.type === 'group') {
+      pendingChildIds.push(...getChildIds(child));
+    }
+  }
+
+  return excluded;
+}
+
 /** Call at drag-start to pre-compute reference edges from stationary nodes. */
 export function buildSnapCache(dragId: string, allNodes: Iterable<CanvasNodeState>): void {
   cachedRefX = [];
   cachedRefY = [];
   cachedDragId = dragId;
-  for (const n of allNodes) {
-    if (n.id === dragId || n.dockPosition !== null) continue;
+  const nodeList = Array.from(allNodes);
+  const excludedIds = collectExcludedReferenceIds(dragId, nodeList);
+  for (const n of nodeList) {
+    if (excludedIds.has(n.id) || n.dockPosition !== null) continue;
     const l = n.position.x;
     const r = n.position.x + n.size.width;
     const cx = n.position.x + n.size.width / 2;

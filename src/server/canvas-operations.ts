@@ -616,6 +616,8 @@ export async function refreshCanvasWebpageNode(
       status: 'ready',
       statusCode: snapshot.statusCode,
       contentType: snapshot.contentType,
+      frameBlocked: snapshot.frameBlocked,
+      frameBlockedReason: snapshot.frameBlockedReason,
     };
     delete nextData.error;
 
@@ -995,10 +997,18 @@ export function createCanvasGraphNode(
         data: input.data,
         ...(input.xKey ? { xKey: input.xKey } : {}),
         ...(input.yKey ? { yKey: input.yKey } : {}),
+        ...(input.zKey ? { zKey: input.zKey } : {}),
         ...(input.nameKey ? { nameKey: input.nameKey } : {}),
         ...(input.valueKey ? { valueKey: input.valueKey } : {}),
+        ...(input.axisKey ? { axisKey: input.axisKey } : {}),
+        ...(input.metrics?.length ? { metrics: input.metrics } : {}),
+        ...(input.series?.length ? { series: input.series } : {}),
+        ...(input.barKey ? { barKey: input.barKey } : {}),
+        ...(input.lineKey ? { lineKey: input.lineKey } : {}),
         ...(input.aggregate ? { aggregate: input.aggregate } : {}),
         ...(input.color ? { color: input.color } : {}),
+        ...(input.barColor ? { barColor: input.barColor } : {}),
+        ...(input.lineColor ? { lineColor: input.lineColor } : {}),
         ...(typeof input.height === 'number' ? { height: input.height } : {}),
       },
     }),

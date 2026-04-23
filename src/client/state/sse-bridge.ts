@@ -5,6 +5,7 @@ import {
   activeNodeId,
   addEdge,
   addNode,
+  applyServerCanvasLayout,
   cancelViewportAnimation,
   canvasTheme,
   connectionStatus,
@@ -281,6 +282,89 @@ function applyCanvasTheme(theme: string): void {
   canvasTheme.value = theme;
   document.documentElement.setAttribute('data-theme', theme);
   invalidateTokenCache();
+}
+
+function isCanvasNodeType(value: unknown): value is CanvasNodeState['type'] {
+  return value === 'markdown'
+    || value === 'mcp-app'
+    || value === 'webpage'
+    || value === 'json-render'
+    || value === 'graph'
+    || value === 'prompt'
+    || value === 'response'
+    || value === 'status'
+    || value === 'context'
+    || value === 'ledger'
+    || value === 'trace'
+    || value === 'file'
+    || value === 'image'
+    || value === 'group';
+}
+
+function isCanvasEdgeType(value: unknown): value is CanvasEdge['type'] {
+  return value === 'relation'
+    || value === 'depends-on'
+    || value === 'flow'
+    || value === 'references';
+}
+
+function parseCanvasPosition(value: unknown): { x: number; y: number } | null {
+  if (!value || typeof value !== 'object') return null;
+  const position = value as { x?: unknown; y?: unknown };
+  if (typeof position.x !== 'number' || typeof position.y !== 'number') return null;
+  return { x: position.x, y: position.y };
+}
+
+function parseCanvasSize(value: unknown): { width: number; height: number } | null {
+  if (!value || typeof value !== 'object') return null;
+  const size = value as { width?: unknown; height?: unknown };
+  if (typeof size.width !== 'number' || typeof size.height !== 'number') return null;
+  return { width: size.width, height: size.height };
+}
+
+function parseCanvasNode(raw: Record<string, unknown>): CanvasNodeState | null {
+  if (typeof raw.id !== 'string' || !raw.id) return null;
+  if (!isCanvasNodeType(raw.type)) return null;
+
+  const position = parseCanvasPosition(raw.position);
+  const size = parseCanvasSize(raw.size);
+  if (!position || !size) return null;
+
+  const dockPosition =
+    raw.dockPosition === 'left' || raw.dockPosition === 'right' ? raw.dockPosition : null;
+  const data =
+    raw.data && typeof raw.data === 'object' ? Object.fromEntries(Object.entries(raw.data)) : {};
+
+  return {
+    id: raw.id,
+    type: raw.type,
+    position,
+    size,
+    zIndex: typeof raw.zIndex === 'number' ? raw.zIndex : 1,
+    collapsed: raw.collapsed === true,
+    pinned: raw.pinned === true,
+    dockPosition,
+    data,
+  };
+}
+
+function parseCanvasEdge(raw: Record<string, unknown>): CanvasEdge | null {
+  if (typeof raw.id !== 'string' || !raw.id) return null;
+  if (typeof raw.from !== 'string' || !raw.from) return null;
+  if (typeof raw.to !== 'string' || !raw.to) return null;
+  if (!isCanvasEdgeType(raw.type)) return null;
+
+  return {
+    id: raw.id,
+    from: raw.from,
+    to: raw.to,
+    type: raw.type,
+    ...(typeof raw.label === 'string' ? { label: raw.label } : {}),
+    ...(raw.style === 'solid' || raw.style === 'dashed' || raw.style === 'dotted'
+      ? { style: raw.style }
+      : {}),
+    ...(raw.animated === true ? { animated: true } : {}),
+  };
 }
 
 // ── SSE event handlers ───────────────────────────────────────
@@ -710,57 +794,26 @@ function handleCanvasLayoutUpdate(data: Record<string, unknown>): void {
   if (!layout?.nodes) return;
   hasInitialServerLayout.value = true;
 
-  if (layout.viewport) {
-    const x = typeof layout.viewport.x === 'number' ? layout.viewport.x : 0;
-    const y = typeof layout.viewport.y === 'number' ? layout.viewport.y : 0;
-    const scale = typeof layout.viewport.scale === 'number' ? layout.viewport.scale : 1;
-    cancelViewportAnimation();
-    replaceViewport({ x, y, scale });
-  }
-
-  // Reconcile server-side node state with client
-  const serverNodeIds = new Set<string>();
-  for (const raw of layout.nodes) {
-    const id = raw.id as string;
-    serverNodeIds.add(id);
-    const existing = nodes.value.get(id);
-    if (existing) {
-      updateNode(id, {
-        position: raw.position as { x: number; y: number },
-        size: raw.size as { width: number; height: number },
-        collapsed: raw.collapsed as boolean,
-        pinned: raw.pinned as boolean,
-        data: raw.data as Record<string, unknown>,
-      });
-    } else {
-      addNode(raw as unknown as CanvasNodeState);
-    }
-  }
-
-  // Remove nodes that the server deleted
-  for (const id of nodes.value.keys()) {
-    if (!serverNodeIds.has(id)) {
-      removeNode(id);
-    }
-  }
-
-  // Reconcile edges
-  if (Array.isArray(layout.edges)) {
-    const serverEdgeIds = new Set<string>();
-    for (const raw of layout.edges) {
-      const id = raw.id as string;
-      serverEdgeIds.add(id);
-      if (!edges.value.has(id)) {
-        addEdge(raw as unknown as CanvasEdge);
+  const serverNodes = layout.nodes
+    .map(parseCanvasNode)
+    .filter((node): node is CanvasNodeState => node !== null);
+  const serverEdges = Array.isArray(layout.edges)
+    ? layout.edges.map(parseCanvasEdge).filter((edge): edge is CanvasEdge => edge !== null)
+    : Array.from(edges.value.values());
+  const nextViewport = layout.viewport
+    ? {
+        x: typeof layout.viewport.x === 'number' ? layout.viewport.x : 0,
+        y: typeof layout.viewport.y === 'number' ? layout.viewport.y : 0,
+        scale: typeof layout.viewport.scale === 'number' ? layout.viewport.scale : 1,
       }
-    }
-    // Remove edges not present on server
-    for (const id of edges.value.keys()) {
-      if (!serverEdgeIds.has(id)) {
-        removeEdge(id);
-      }
-    }
-  }
+    : undefined;
+
+  cancelViewportAnimation();
+  applyServerCanvasLayout({
+    ...(nextViewport ? { viewport: nextViewport } : {}),
+    nodes: serverNodes,
+    edges: serverEdges,
+  });
 
   syncAttentionFromSse({ event: 'canvas-layout-update', data });
 }

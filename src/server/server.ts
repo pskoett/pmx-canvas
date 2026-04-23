@@ -1874,9 +1874,11 @@ async function runAndEmitOpenMcpApp(params: RunAndEmitOpenMcpAppParams): Promise
       success: opened.toolResult.isError !== true,
       result: opened.toolResult,
     });
+    const nodeId = findCanvasExtAppNodeId(toolCallId);
 
     return responseJson({
       ok: true,
+      nodeId,
       toolCallId,
       sessionId: opened.sessionId,
       resourceUri: opened.resourceUri,

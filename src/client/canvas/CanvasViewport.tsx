@@ -18,6 +18,7 @@ import {
   clearSelection,
   draggingEdge,
   edges,
+  expandedNodeId,
   nodes,
   selectNodes,
   setViewport,
@@ -139,6 +140,26 @@ function nodeTypeFromFilename(name: string): 'image' | 'markdown' | 'file' {
   if (IMAGE_EXTS.has(ext)) return 'image';
   if (MD_EXTS.has(ext)) return 'markdown';
   return 'file';
+}
+
+export function getRenderableWorldNodes(
+  allNodes: Iterable<CanvasNodeState>,
+  focusedNodeId: string | null,
+): CanvasNodeState[] {
+  const worldNodes: CanvasNodeState[] = [];
+  let insertIdx = 0; // groups fill from the front
+  for (const n of allNodes) {
+    if (n.dockPosition !== null) continue;
+    // Focus mode renders the node inside the overlay. Skip the original world
+    // instance so embedded apps do not mount twice.
+    if (focusedNodeId && n.id === focusedNodeId) continue;
+    if (n.type === 'group') {
+      worldNodes.splice(insertIdx++, 0, n);
+    } else {
+      worldNodes.push(n);
+    }
+  }
+  return worldNodes;
 }
 
 export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu }: CanvasViewportProps) {
@@ -481,16 +502,7 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu }: Canva
   // reorder DOM children when bringToFront() changes zIndex, causing browsers to
   // detach/reattach iframe elements (which forces them to reload/reconnect).
   // Group nodes render first (behind) so they serve as visual containers.
-  const worldNodes: CanvasNodeState[] = [];
-  let insertIdx = 0; // groups fill from the front
-  for (const n of nodes.value.values()) {
-    if (n.dockPosition !== null) continue;
-    if (n.type === 'group') {
-      worldNodes.splice(insertIdx++, 0, n);
-    } else {
-      worldNodes.push(n);
-    }
-  }
+  const worldNodes = getRenderableWorldNodes(nodes.value.values(), expandedNodeId.value);
 
   // Compute lasso overlay rect in screen space
   let lassoStyle: Record<string, string> | null = null;
