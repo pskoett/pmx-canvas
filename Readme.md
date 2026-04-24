@@ -20,6 +20,8 @@ PMX Canvas is a spatial thinking surface for coding agents and the humans workin
 
 - [Bun](https://bun.sh) >= 1.3.12
 
+The published SDK entrypoint is Bun-first: `import { createCanvas } from 'pmx-canvas'` is supported in Bun, while Node.js consumers should use the CLI, MCP server, or HTTP API instead.
+
 ## Quick start
 
 ### Install from npm
@@ -443,8 +445,9 @@ pmx-canvas serve stop                     # stop the daemon for this port/pid fi
 
 ## Agent skills
 
-Installing `pmx-canvas` also ships a library of reusable agent skills under `skills/` that teach
-your agent how to use the canvas and adjacent capabilities effectively:
+Installing `pmx-canvas` also ships a library of reusable agent skills under the package's
+`skills/` directory that teach your agent how to use the canvas and adjacent capabilities
+effectively:
 
 | Skill | Purpose |
 |-------|---------|

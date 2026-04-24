@@ -91,6 +91,172 @@
         ],
         "frameMode": "fit"
       }
+    },
+    {
+      "id": "ui-mociwbc7-514d",
+      "type": "json-render",
+      "position": {
+        "x": 1624,
+        "y": 80
+      },
+      "size": {
+        "width": 840,
+        "height": 620
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "Release Gate Intake",
+        "spec": {
+          "root": "card",
+          "elements": {
+            "card": {
+              "type": "Card",
+              "props": {
+                "title": "x"
+              },
+              "children": [
+                "svcSelect"
+              ]
+            },
+            "svcSelect": {
+              "type": "Select",
+              "props": {
+                "label": "x",
+                "name": "x",
+                "options": [
+                  "a"
+                ],
+                "placeholder": "x"
+              },
+              "children": []
+            }
+          }
+        },
+        "url": "/api/canvas/json-render/view?nodeId=ui-mociwbc7-514d",
+        "trustedDomain": true,
+        "sourceServer": "pmx-canvas",
+        "hostMode": "hosted",
+        "viewerType": "json-render"
+      }
+    },
+    {
+      "id": "ui-mociwbcp-wnqu",
+      "type": "json-render",
+      "position": {
+        "x": 2488,
+        "y": 80
+      },
+      "size": {
+        "width": 840,
+        "height": 620
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "Release Gate Intake",
+        "spec": {
+          "root": "card",
+          "elements": {
+            "card": {
+              "type": "Card",
+              "props": {
+                "title": "Gate Override Request",
+                "description": "Submit a manual gate override"
+              },
+              "children": [
+                "form"
+              ]
+            },
+            "form": {
+              "type": "Stack",
+              "props": {
+                "direction": "vertical",
+                "gap": "md"
+              },
+              "children": [
+                "svcSelect",
+                "gateSelect",
+                "reason",
+                "riskRadio",
+                "approve",
+                "submit"
+              ]
+            },
+            "svcSelect": {
+              "type": "Select",
+              "props": {
+                "label": "Service",
+                "name": "service",
+                "options": [
+                  "auth-service"
+                ],
+                "placeholder": "Select a service"
+              },
+              "children": []
+            },
+            "gateSelect": {
+              "type": "Select",
+              "props": {
+                "label": "Gate",
+                "name": "gate",
+                "options": [
+                  "Integration"
+                ],
+                "placeholder": "Select a gate"
+              },
+              "children": []
+            },
+            "reason": {
+              "type": "Textarea",
+              "props": {
+                "label": "Justification",
+                "name": "reason",
+                "placeholder": "Why?",
+                "rows": 3
+              },
+              "children": []
+            },
+            "riskRadio": {
+              "type": "Radio",
+              "props": {
+                "label": "Risk Level",
+                "name": "risk",
+                "options": [
+                  "Low",
+                  "Medium",
+                  "High"
+                ]
+              },
+              "children": []
+            },
+            "approve": {
+              "type": "Checkbox",
+              "props": {
+                "label": "Confirm",
+                "name": "approved"
+              },
+              "children": []
+            },
+            "submit": {
+              "type": "Button",
+              "props": {
+                "label": "Submit"
+              },
+              "children": []
+            }
+          }
+        },
+        "url": "/api/canvas/json-render/view?nodeId=ui-mociwbcp-wnqu",
+        "trustedDomain": true,
+        "sourceServer": "pmx-canvas",
+        "hostMode": "hosted",
+        "viewerType": "json-render"
+      }
     }
   ],
   "edges": [],

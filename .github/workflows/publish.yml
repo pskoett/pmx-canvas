@@ -49,6 +49,9 @@ jobs:
           fi
           echo "Publishing pmx-canvas@$PKG_VERSION"
 
+      - name: Install Playwright browser
+        run: bunx playwright install --with-deps chromium
+
       - name: Build
         run: bun run build
 
@@ -58,8 +61,11 @@ jobs:
       - name: Unit tests
         run: bun run test
 
-      - name: Pack (dry-run verification)
-        run: bun pm pack --dry-run
+      - name: Web canvas smoke
+        run: bun run test:web-canvas
+
+      - name: Release smoke
+        run: bun run release:smoke
 
       - name: Publish to npm
         if: >-

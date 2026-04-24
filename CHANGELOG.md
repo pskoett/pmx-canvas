@@ -16,7 +16,7 @@ Initial public release.
   styles (solid/dashed/dotted), and optional animation.
 - Three themes: `dark` (default), `light`, `high-contrast`, switchable via CLI flag,
   environment variable, or toolbar.
-- State persistence to `.pmx-canvas.json` (debounced auto-save, auto-load on start).
+- State persistence to `.pmx-canvas/state.json` (debounced auto-save, auto-load on start, with legacy migration from `.pmx-canvas.json`).
 - Undo / redo backed by a 200-operation ring buffer; compound `arrange()` mutations
   recorded as single history entries.
 - Snapshots with list, restore, delete, and diff against current state.
@@ -29,10 +29,10 @@ Initial public release.
   `@modelcontextprotocol/sdk`. Includes `canvas_add_diagram`, a preset that
   renders hand-drawn diagrams via the hosted Excalidraw MCP app.
 - HTTP API plus Server-Sent Events stream for live updates.
-- TypeScript/Bun SDK (`import { createCanvas } from 'pmx-canvas'`).
+- Bun SDK (`import { createCanvas } from 'pmx-canvas'`).
 - Daemonized server via `pmx-canvas serve --daemon` with pid + log tracking.
 - Web artifacts build pipeline and ext-app hosting via
   `@modelcontextprotocol/ext-apps`.
-- Agent skills shipped under `.agents/skills/`, mirrored for Claude Code and OpenCode.
+- Agent skills shipped in the package under `skills/`; repo workflow mirrors them for agent-specific trees where needed.
 
 [0.1.0]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.0

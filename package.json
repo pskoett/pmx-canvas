@@ -17,6 +17,7 @@
   },
   "files": [
     "src/",
+    "skills/",
     "dist/canvas/",
     "dist/json-render/",
     "dist/types/",

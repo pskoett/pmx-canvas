@@ -32,7 +32,14 @@ async function addEdge(
   body: Record<string, unknown>,
 ): Promise<string> {
   const r = await request.post('/api/canvas/edge', { data: body });
-  return ((await r.json()) as { id: string }).id;
+  const payload = (await r.json()) as { id?: string; ok?: boolean; error?: string };
+  if (!r.ok() || !payload.id) {
+    console.error(
+      `[showcase] addEdge failed: status=${r.status()} body=${JSON.stringify(payload)} input=${JSON.stringify(body)}`,
+    );
+    throw new Error(`addEdge failed: ${payload.error ?? r.statusText()}`);
+  }
+  return payload.id;
 }
 
 async function createGroup(
@@ -56,7 +63,15 @@ async function addJsonRender(
   body: Record<string, unknown>,
 ): Promise<string> {
   const r = await request.post('/api/canvas/json-render', { data: body });
-  return ((await r.json()) as { id: string }).id;
+  const payload = (await r.json()) as { id?: string; ok?: boolean; error?: string };
+  if (!r.ok() || !payload.id) {
+    const title = (body.title as string) ?? '<untitled>';
+    console.error(
+      `[showcase] addJsonRender failed (title="${title}"): status=${r.status()} body=${JSON.stringify(payload).slice(0, 500)}`,
+    );
+    throw new Error(`addJsonRender failed: ${payload.error ?? r.statusText()}`);
+  }
+  return payload.id;
 }
 
 async function buildArtifact(
@@ -519,7 +534,7 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
         },
         submit: {
           type: 'Button',
-          props: { text: 'Submit Override', variant: 'primary' },
+          props: { label: 'Submit Override', variant: 'primary' },
           children: [],
         },
       },
@@ -951,7 +966,7 @@ body { margin: 0; background: #0f0f1a; }
 
   // Count both world-space canvas nodes and docked HUD nodes.
   // Some HUD surfaces render outside the .canvas-node wrapper, so this assertion covers both.
-  const expectedRenderedNodes = artifactId ? 25 : 24;
+  const expectedRenderedNodes = artifactId ? 26 : 25;
   await expect(page.locator('.canvas-node, .docked-node')).toHaveCount(expectedRenderedNodes, { timeout: 15000 });
 
   // Wait for edges and iframe content to settle

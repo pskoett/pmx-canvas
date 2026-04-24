@@ -141,6 +141,7 @@ export declare class PmxCanvas extends EventEmitter {
         summary: import("./code-graph.js").CodeGraphSummary;
     };
     validate(): import("./canvas-validation.js").CanvasValidationResult;
+    private findCanvasExtAppNodeId;
     describeSchema(): {
         ok: true;
         source: "running-server";
@@ -189,12 +190,14 @@ export declare class PmxCanvas extends EventEmitter {
         height?: number;
     }): Promise<{
         ok: true;
+        nodeId: string | null;
         toolCallId: string;
         sessionId: string;
         resourceUri: string;
     }>;
     addDiagram(input: DiagramPresetOpenInput): Promise<{
         ok: true;
+        nodeId: string | null;
         toolCallId: string;
         sessionId: string;
         resourceUri: string;
