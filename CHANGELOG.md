@@ -3,6 +3,35 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.2] - 2026-04-24
+
+### Fixed
+
+- **`image` node no longer accepts non-image file paths.** Creating an image
+  node with a path like `report.pptx` previously stored the path silently
+  with no `mimeType`; the server now rejects the request with a 400 and a
+  helpful message listing the accepted extensions (png, jpg, jpeg, gif, svg,
+  webp, bmp, avif, ico). `data:` URIs are validated against `image/*` media
+  types. Use `type="file"` or `type="webpage"` for non-image sources.
+- **`web-artifact` init is more resilient on machines with tight process
+  limits.** `init-artifact.sh` and `bundle-artifact.sh` now spawn in their
+  own POSIX process group so timeouts and failures kill every descendant
+  (pnpm, bun, parcel, swc, lmdb) instead of leaving orphans that accumulate
+  FDs and eventually produce `fork: Resource temporarily unavailable`. pnpm's
+  internal child concurrency is capped to 2 via
+  `pnpm_config_child_concurrency` so the ~30-package shadcn install doesn't
+  blow past macOS's default `ulimit -u`. Failure responses now include the
+  last 20 lines of stderr (falling back to stdout) so the cause of an exit
+  code is visible directly in the API response rather than requiring a manual
+  re-run of the shell script.
+
+### Internal
+
+- New unit tests for `image` node validation (accepted extensions, URL + data
+  URI paths, rejected non-image extensions, rejected non-image data URIs).
+
+[0.1.2]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.2
+
 ## [0.1.1] - 2026-04-24
 
 ### Changed

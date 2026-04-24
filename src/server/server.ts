@@ -1105,19 +1105,26 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
   const extraData = body.data && typeof body.data === 'object' && !Array.isArray(body.data)
     ? body.data as Record<string, unknown>
     : undefined;
-  const { id, node, needsCodeGraphRecompute } = addCanvasNode({
-    type: type as CanvasNodeState['type'],
-    ...(typeof body.title === 'string' ? { title: body.title } : {}),
-    ...(typeof body.content === 'string' ? { content: body.content } : {}),
-    ...(extraData ? { data: extraData } : {}),
-    ...(typeof body.x === 'number' ? { x: body.x } : {}),
-    ...(typeof body.y === 'number' ? { y: body.y } : {}),
-    ...(typeof body.width === 'number' ? { width: body.width } : {}),
-    ...(typeof body.height === 'number' ? { height: body.height } : {}),
-    defaultWidth: 360,
-    defaultHeight: 200,
-    fileMode: 'auto',
-  });
+  let added: ReturnType<typeof addCanvasNode>;
+  try {
+    added = addCanvasNode({
+      type: type as CanvasNodeState['type'],
+      ...(typeof body.title === 'string' ? { title: body.title } : {}),
+      ...(typeof body.content === 'string' ? { content: body.content } : {}),
+      ...(extraData ? { data: extraData } : {}),
+      ...(typeof body.x === 'number' ? { x: body.x } : {}),
+      ...(typeof body.y === 'number' ? { y: body.y } : {}),
+      ...(typeof body.width === 'number' ? { width: body.width } : {}),
+      ...(typeof body.height === 'number' ? { height: body.height } : {}),
+      defaultWidth: 360,
+      defaultHeight: 200,
+      fileMode: 'auto',
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return responseJson({ ok: false, error: message }, 400);
+  }
+  const { node, needsCodeGraphRecompute } = added;
 
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   if (needsCodeGraphRecompute) {

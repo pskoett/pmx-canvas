@@ -392,17 +392,36 @@ function buildImageNodeData(input: CanvasAddNodeInput): Record<string, unknown> 
   const src = input.content ?? '';
   const isDataUri = src.startsWith('data:');
   const isUrl = src.startsWith('http://') || src.startsWith('https://');
+
+  if (isDataUri) {
+    // Basic data-URI sanity: must be an image/* mediatype.
+    const header = src.slice(5, src.indexOf(',') >= 0 ? src.indexOf(',') : src.length);
+    if (!/^image\//i.test(header)) {
+      throw new Error(
+        `Invalid image node: data URI must be an image/* media type (got "${header.slice(0, 40)}"). ` +
+          `Accepted: png, jpeg, gif, svg+xml, webp, bmp, avif, x-icon.`,
+      );
+    }
+  }
+
   if (!isDataUri && !isUrl && src) {
     const resolved = resolve(src);
+    const ext = resolved.split('.').pop()?.toLowerCase() ?? '';
     const fileName = resolved.split('/').pop() ?? src;
+    const mime = IMAGE_MIME_MAP[ext];
+    if (!mime) {
+      throw new Error(
+        `Invalid image node: "${fileName}" has unsupported extension ".${ext}". ` +
+          `Accepted: ${Object.keys(IMAGE_MIME_MAP).join(', ')}. ` +
+          `For non-image files use type="file" (live viewer) or type="webpage" (URL) instead.`,
+      );
+    }
     return {
       ...(input.data ?? {}),
       src: resolved,
       title: input.title ?? fileName,
       path: resolved,
-      ...(IMAGE_MIME_MAP[resolved.split('.').pop()?.toLowerCase() ?? '']
-        ? { mimeType: IMAGE_MIME_MAP[resolved.split('.').pop()?.toLowerCase() ?? ''] }
-        : {}),
+      mimeType: mime,
     };
   }
 

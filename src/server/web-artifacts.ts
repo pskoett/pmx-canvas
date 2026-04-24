@@ -163,6 +163,12 @@ async function runProcess(
       ]).has(key);
     }),
   );
+  // Spawn in its own process group (POSIX only — Windows has a different model).
+  // This lets us kill every descendant — pnpm, bun, parcel, swc, lmdb, etc. —
+  // if the build hangs or times out, instead of leaving orphans that accumulate
+  // file descriptors and processes across retries (seen as later
+  // `fork: Resource temporarily unavailable` in end-user reports).
+  const isPosix = process.platform !== 'win32';
   const child = spawn(command, args, {
     cwd: options.cwd,
     env: {
@@ -171,9 +177,32 @@ async function runProcess(
       CI: '1',
       npm_config_yes: 'true',
       pnpm_config_yes: 'true',
+      // Cap pnpm's internal child concurrency so installs don't blow past
+      // macOS default ulimit -u (often 256-2048) when resolving the ~30
+      // radix-ui dependencies in one `pnpm add` call.
+      pnpm_config_child_concurrency: '2',
+      NPM_CONFIG_CHILD_CONCURRENCY: '2',
     },
     stdio: ['ignore', 'pipe', 'pipe'],
+    detached: isPosix,
   });
+
+  const killTree = (signal: NodeJS.Signals): void => {
+    if (isPosix && typeof child.pid === 'number') {
+      try {
+        // Negative pid = send to the whole process group.
+        process.kill(-child.pid, signal);
+        return;
+      } catch {
+        // fall through to direct kill
+      }
+    }
+    try {
+      child.kill(signal);
+    } catch {
+      // ignore
+    }
+  };
 
   let stdout = '';
   let stderr = '';
@@ -189,12 +218,13 @@ async function runProcess(
   await new Promise<void>((resolvePromise, rejectPromise) => {
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill('SIGKILL');
+      killTree('SIGKILL');
       rejectPromise(new Error(`Command timed out after ${options.timeoutMs}ms: ${command}`));
     }, options.timeoutMs);
 
     child.on('error', (error) => {
       clearTimeout(timer);
+      killTree('SIGKILL');
       rejectPromise(error);
     });
 
@@ -202,9 +232,17 @@ async function runProcess(
       clearTimeout(timer);
       if (timedOut) return;
       if (code !== 0) {
+        const trimmedStderr = stderr.trim();
+        const stderrTail = trimmedStderr.split('\n').slice(-20).join('\n');
+        const trimmedStdout = stdout.trim();
+        const stdoutTail = trimmedStdout.split('\n').slice(-20).join('\n');
         rejectPromise(
           new Error(
-            [`Command failed (${code}): ${command} ${args.join(' ')}`, stderr.trim()]
+            [
+              `Command failed (${code}): ${command} ${args.join(' ')}`,
+              stderrTail && `stderr:\n${stderrTail}`,
+              !trimmedStderr && stdoutTail && `stdout:\n${stdoutTail}`,
+            ]
               .filter(Boolean)
               .join('\n'),
           ),
