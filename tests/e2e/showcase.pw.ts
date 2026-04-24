@@ -11,76 +11,100 @@ async function clear(request: { post: Function }): Promise<void> {
   await request.post('/api/canvas/context-pins', { data: { nodeIds: [] } });
 }
 
-async function addNode(
-  request: { post: Function },
+type PwRequest = { post: Function; patch: Function };
+
+/**
+ * Posts to a PMX Canvas endpoint and returns the parsed JSON. Throws (with a
+ * verbose diagnostic) on any HTTP failure or server-reported error, and when
+ * `idField` is provided asserts that the response contains a non-empty id.
+ *
+ * Without this guard, fetch-style helpers that blindly read `(await r.json()).id`
+ * silently swallow 400 responses and return `undefined`, which then cascades into
+ * downstream failures (missing edge endpoints, wrong node counts) that are hard
+ * to diagnose from CI output. See: the v0.1.0 red-CI incident where a Button
+ * element with `text:` instead of `label:` dropped one json-render node and
+ * caused a misleading edge-count assertion to fail.
+ */
+async function postOrThrow<T extends Record<string, unknown>>(
+  request: PwRequest,
+  endpoint: string,
   body: Record<string, unknown>,
-): Promise<string> {
-  const r = await request.post('/api/canvas/node', { data: body });
-  return ((await r.json()) as { id: string }).id;
+  idField?: keyof T,
+  context?: string,
+): Promise<T> {
+  const r = await request.post(endpoint, { data: body });
+  const payload = (await r.json()) as T & { ok?: boolean; error?: string };
+  const idValue = idField ? (payload[idField] as unknown) : 'ok';
+  const ok = r.ok() && (idField ? typeof idValue === 'string' && idValue.length > 0 : true);
+  if (!ok) {
+    const bodyPreview = JSON.stringify(body).slice(0, 200);
+    const respPreview = JSON.stringify(payload).slice(0, 500);
+    console.error(
+      `[showcase] POST ${endpoint} failed${context ? ` (${context})` : ''}: ` +
+        `status=${r.status()} resp=${respPreview} input=${bodyPreview}`,
+    );
+    throw new Error(`${endpoint} failed: ${payload.error ?? r.statusText()}`);
+  }
+  return payload;
+}
+
+async function addNode(request: PwRequest, body: Record<string, unknown>): Promise<string> {
+  const title = typeof body.title === 'string' ? body.title : undefined;
+  const p = await postOrThrow<{ id: string }>(request, '/api/canvas/node', body, 'id', title);
+  return p.id;
 }
 
 async function patchNode(
-  request: { patch: Function },
+  request: PwRequest,
   id: string,
   body: Record<string, unknown>,
 ): Promise<void> {
   await request.patch(`/api/canvas/node/${id}`, { data: body });
 }
 
-async function addEdge(
-  request: { post: Function },
-  body: Record<string, unknown>,
-): Promise<string> {
-  const r = await request.post('/api/canvas/edge', { data: body });
-  const payload = (await r.json()) as { id?: string; ok?: boolean; error?: string };
-  if (!r.ok() || !payload.id) {
-    console.error(
-      `[showcase] addEdge failed: status=${r.status()} body=${JSON.stringify(payload)} input=${JSON.stringify(body)}`,
-    );
-    throw new Error(`addEdge failed: ${payload.error ?? r.statusText()}`);
-  }
-  return payload.id;
+async function addEdge(request: PwRequest, body: Record<string, unknown>): Promise<string> {
+  const label = typeof body.label === 'string' ? body.label : `${body.from}→${body.to}`;
+  const p = await postOrThrow<{ id: string }>(request, '/api/canvas/edge', body, 'id', label);
+  return p.id;
 }
 
-async function createGroup(
-  request: { post: Function },
-  body: Record<string, unknown>,
-): Promise<string> {
-  const r = await request.post('/api/canvas/group', { data: body });
-  return ((await r.json()) as { id: string }).id;
+async function createGroup(request: PwRequest, body: Record<string, unknown>): Promise<string> {
+  const title = typeof body.title === 'string' ? body.title : undefined;
+  const p = await postOrThrow<{ id: string }>(request, '/api/canvas/group', body, 'id', title);
+  return p.id;
 }
 
-async function addGraph(
-  request: { post: Function },
-  body: Record<string, unknown>,
-): Promise<string> {
-  const r = await request.post('/api/canvas/graph', { data: body });
-  return ((await r.json()) as { id: string }).id;
+async function addGraph(request: PwRequest, body: Record<string, unknown>): Promise<string> {
+  const title = typeof body.title === 'string' ? body.title : undefined;
+  const p = await postOrThrow<{ id: string }>(request, '/api/canvas/graph', body, 'id', title);
+  return p.id;
 }
 
-async function addJsonRender(
-  request: { post: Function },
-  body: Record<string, unknown>,
-): Promise<string> {
-  const r = await request.post('/api/canvas/json-render', { data: body });
-  const payload = (await r.json()) as { id?: string; ok?: boolean; error?: string };
-  if (!r.ok() || !payload.id) {
-    const title = (body.title as string) ?? '<untitled>';
-    console.error(
-      `[showcase] addJsonRender failed (title="${title}"): status=${r.status()} body=${JSON.stringify(payload).slice(0, 500)}`,
-    );
-    throw new Error(`addJsonRender failed: ${payload.error ?? r.statusText()}`);
-  }
-  return payload.id;
+async function addJsonRender(request: PwRequest, body: Record<string, unknown>): Promise<string> {
+  const title = typeof body.title === 'string' ? body.title : undefined;
+  const p = await postOrThrow<{ id: string }>(
+    request,
+    '/api/canvas/json-render',
+    body,
+    'id',
+    title,
+  );
+  return p.id;
 }
 
 async function buildArtifact(
-  request: { post: Function },
+  request: PwRequest,
   body: Record<string, unknown>,
 ): Promise<{ id: string; url: string }> {
-  const r = await request.post('/api/canvas/web-artifact', { data: body });
-  const result = (await r.json()) as { nodeId: string; url: string };
-  return { id: result.nodeId, url: result.url };
+  const title = typeof body.title === 'string' ? body.title : undefined;
+  const p = await postOrThrow<{ nodeId: string; url: string }>(
+    request,
+    '/api/canvas/web-artifact',
+    body,
+    'nodeId',
+    title,
+  );
+  return { id: p.nodeId, url: p.url };
 }
 
 // ── Test ─────────────────────────────────────────────────────

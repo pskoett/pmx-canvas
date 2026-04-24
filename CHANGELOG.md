@@ -3,6 +3,24 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.1] - 2026-04-24
+
+### Changed
+
+- Bumped CI action versions to Node 24-compatible releases:
+  `actions/checkout@v5`, `actions/setup-node@v5`, `actions/upload-artifact@v5`,
+  and publish Node runtime to `24`.
+
+### Internal
+
+- Hardened end-to-end test helpers (`addNode`, `addEdge`, `addGraph`,
+  `addJsonRender`, `createGroup`, `buildArtifact`) via a shared `postOrThrow`
+  primitive that surfaces HTTP failures and server validation errors instead
+  of silently returning `undefined`. Prevents the class of "missing edge
+  endpoint" cascade that caused the late-cycle red CI on the v0.1.0 branch.
+
+[0.1.1]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.1
+
 ## [0.1.0] - 2026-04-21
 
 Initial public release.
