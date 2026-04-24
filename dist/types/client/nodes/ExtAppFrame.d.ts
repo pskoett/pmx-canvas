@@ -14,5 +14,5 @@ export declare function resolveExtAppDisplayModeRequest(requestedMode: DisplayMo
 export declare function sendExtAppBootstrapState(bridge: ExtAppBridgeNotifications, toolInput: Record<string, unknown>, toolResult: CallToolResult | undefined): Promise<void>;
 export declare function ExtAppFrame({ node }: {
     node: CanvasNodeState;
-}): import("preact/src").JSX.Element;
+}): import("preact/jsx-runtime").JSX.Element;
 export {};

@@ -1,12 +1,30 @@
 #!/usr/bin/env bun
 import { spawn } from 'node:child_process';
 import { existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runAgentCli } from './agent.js';
 import { createCanvas } from '../server/index.js';
 
 const args = process.argv.slice(2);
+
+// ── --version / -v ─────────────────────────────────────────────
+// Print the installed package version and exit. Resolved from the
+// sibling package.json so it stays accurate through bunx, global npm
+// installs, and repo-local runs (no hard-coded string, no build step
+// required).
+if (args.includes('--version') || args.includes('-v')) {
+  try {
+    const pkgPath = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'package.json');
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as { version?: string };
+    console.log(pkg.version ?? 'unknown');
+    process.exit(0);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`pmx-canvas: failed to read package.json (${message})`);
+    process.exit(1);
+  }
+}
 
 // ── Agent CLI subcommands ────────────────────────────────────
 // If first arg is a known subcommand (not a --flag), route to the agent CLI.

@@ -452,11 +452,26 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
   const appNode = page.locator('.canvas-node').filter({ hasText: 'Counter App' });
   await expect(appNode).toHaveCount(1);
 
-  const frame = appNode.frameLocator('iframe');
+  // Ext-app nodes are "expand to interact": in inline mode the iframe is
+  // covered by an `ext-app-preview-catcher` overlay so a stray click on the
+  // canvas doesn't trigger tool calls. The test opens the fullscreen view
+  // before proxying calls, matching the intended human interaction path.
+  await appNode.locator('.ext-app-preview-catcher').click();
+
+  // Once expanded, the iframe is re-parented into the ExpandedNodeOverlay
+  // (`.expanded-overlay-panel`), so the test follows it there for the
+  // interactive assertions.
+  const expandedPanel = page.locator('.expanded-overlay-panel');
+  const frame = expandedPanel.frameLocator('iframe');
   await expect(frame.getByText('Fixture Counter')).toBeVisible();
   await expect(frame.locator('#count')).toHaveText('2');
 
-  await frame.getByRole('button', { name: 'Increment' }).click();
+  // The widget's auto-resize notifications can make the iframe's reported
+  // bounds waver by a pixel across measurements while it settles, which the
+  // default click-stability check reads as motion. The button's *logical*
+  // position is fine; `force: true` bypasses the stability wait without
+  // changing click semantics.
+  await frame.getByRole('button', { name: 'Increment' }).click({ force: true });
   await expect(frame.locator('#count')).toHaveText('3');
 
   await expect.poll(async () => {
@@ -469,6 +484,10 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
   }, {
     timeout: 15000,
   }).toBe(3);
+
+  // Collapse back to inline before the reload so the post-reload assertion
+  // exercises the inline iframe (count persisted via appModelContext).
+  await page.keyboard.press('Escape');
 
   await page.reload();
   const reloadedNode = page.locator('.canvas-node').filter({ hasText: 'Counter App' });

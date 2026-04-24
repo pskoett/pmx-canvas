@@ -5,6 +5,24 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [0.1.2] - 2026-04-24
 
+Follow-up to 0.1.1 driven by fresh-install review feedback. Two validation /
+UX bugs, one long-tail stability fix in the MCP App host, plus new agent
+ergonomics (version flag, skill discovery).
+
+### Added
+
+- **`pmx-canvas --version` / `-v`.** Prints the installed package version and
+  exits. Version is read from the sibling `package.json` so it stays accurate
+  whether the CLI is invoked via `bunx`, a global npm install, or a repo-local
+  `bun run` — no hard-coded string, no build step required.
+- **`canvas://skills` MCP resource.** Agent skills bundled with the npm install
+  (`skills/<name>/SKILL.md`) are now discoverable through MCP. The `canvas://skills`
+  resource returns a JSON index (name, description, per-skill URI), and each
+  skill is addressable individually at `canvas://skills/<name>`. The
+  `canvas_build_web_artifact` tool description now explicitly points agents at
+  `canvas://skills/web-artifacts-builder` for the full workflow, stack choices,
+  and anti-slop design guidelines.
+
 ### Fixed
 
 - **`image` node no longer accepts non-image file paths.** Creating an image
@@ -24,11 +42,33 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   last 20 lines of stderr (falling back to stdout) so the cause of an exit
   code is visible directly in the API response rather than requiring a manual
   re-run of the shell script.
+- **MCP App (`mcp-app` / Excalidraw) state sync.** Edits saved by an MCP App
+  widget now propagate via SSE to other clients hosting the same app node
+  (fixes Excalidraw losing multi-client sync). The host also suppresses
+  echo-back re-renders when a layout update mints a new `toolResult`
+  reference with unchanged content — so a widget's own `callServerTool` call
+  no longer causes its UI to re-render mid-interaction.
+- **MCP App inline-mode click safety.** The ext-app iframe in inline mode is
+  now covered by a transparent `ext-app-preview-catcher` overlay that opens
+  the fullscreen view on click, rather than letting stray canvas clicks
+  reach the widget. Agents / users interact with widgets in the expanded
+  overlay (via MCP tools or direct click); inline mode stays a safe
+  preview.
 
 ### Internal
 
-- New unit tests for `image` node validation (accepted extensions, URL + data
-  URI paths, rejected non-image extensions, rejected non-image data URIs).
+- New unit tests: `image` node validation (accepted extensions, URL + data
+  URI paths, rejected non-image extensions, rejected non-image data URIs)
+  and `canvas://skills` discovery (loader resolves the packaged skills
+  directory, index is stable-sorted, individual skill contents resolve,
+  unknown names return null).
+- Shared `extAppToolResultsMatch` helper in `src/shared/ext-app-tool-result.ts`
+  for structural equality between `CallToolResult` values, used by the host
+  ExtAppFrame to dedupe SSE-delivered tool results.
+- E2E: Counter-fixture test updated for the new expand-to-interact
+  interaction model (opens the `.ext-app-preview-catcher` overlay, finds
+  the iframe in `.expanded-overlay-panel`, force-clicks the in-widget button
+  to tolerate the widget's auto-resize settling).
 
 [0.1.2]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.2
 

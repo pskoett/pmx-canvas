@@ -37,6 +37,7 @@ import { searchNodes, buildSpatialContext, findNeighborhoods } from '../server/s
 import { mutationHistory, diffLayouts, formatDiff } from '../server/mutation-history.js';
 import { buildCodeGraphSummary, formatCodeGraph } from '../server/code-graph.js';
 import { buildCanvasSummary, serializeCanvasLayout, serializeCanvasNode } from '../server/canvas-serialization.js';
+import { listBundledSkills, readBundledSkill } from '../server/bundled-skills.js';
 
 let canvas: PmxCanvas | null = null;
 
@@ -339,7 +340,7 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_build_web_artifact ───────────────────────────────
   server.tool(
     'canvas_build_web_artifact',
-    'Build a bundled single-file HTML web artifact from React/Tailwind source files using the bundled web-artifacts-builder skill scripts. Optionally opens the generated artifact as an embedded node on the canvas.',
+    'Build a bundled single-file HTML web artifact from React/Tailwind source files using the bundled web-artifacts-builder skill scripts. Optionally opens the generated artifact as an embedded node on the canvas. Read canvas://skills/web-artifacts-builder for the full workflow, stack, and anti-slop design guidelines before calling.',
     {
       title: z.string().describe('Artifact title used for default project and output paths'),
       appTsx: z.string().describe('Contents for src/App.tsx'),
@@ -1157,6 +1158,68 @@ export async function startMcpServer(): Promise<void> {
       };
     },
   );
+
+  // ── canvas://skills ────────────────────────────────────────
+  // Discoverability for the skill prompts bundled with the npm package
+  // (skills/<name>/SKILL.md). Before 0.1.2 these files shipped but were
+  // invisible to agents — calling canvas_build_web_artifact without the
+  // companion `web-artifacts-builder` skill led to predictable misuse.
+  // The index lists every bundled skill with its frontmatter description;
+  // individual skills are served verbatim at canvas://skills/<name>.
+  server.resource(
+    'bundled-skills',
+    'canvas://skills',
+    {
+      description:
+        'Index of agent skills bundled with this PMX Canvas install. Lists name, ' +
+        'description, and per-skill URI (canvas://skills/<name>). Read a specific ' +
+        'skill for workflow guidance — notably web-artifacts-builder for ' +
+        'canvas_build_web_artifact, and pmx-canvas for the broader workbench.',
+      mimeType: 'application/json',
+    },
+    async () => {
+      const skills = listBundledSkills();
+      const index = {
+        count: skills.length,
+        skills: skills.map((s) => ({ name: s.name, description: s.description, uri: s.uri })),
+      };
+      return {
+        contents: [
+          {
+            uri: 'canvas://skills',
+            mimeType: 'application/json',
+            text: JSON.stringify(index, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  // Register each bundled skill as its own resource so agents can address
+  // them individually (canvas://skills/web-artifacts-builder, etc.) and
+  // MCP clients can display them with per-skill descriptions.
+  for (const skill of listBundledSkills()) {
+    server.resource(
+      `skill-${skill.name}`,
+      skill.uri,
+      {
+        description: skill.description || `Bundled PMX Canvas skill: ${skill.name}`,
+        mimeType: 'text/markdown',
+      },
+      async () => {
+        const markdown = readBundledSkill(skill.name);
+        return {
+          contents: [
+            {
+              uri: skill.uri,
+              mimeType: 'text/markdown',
+              text: markdown ?? `# ${skill.name}\n\n_Skill file not found on disk._\n`,
+            },
+          ],
+        };
+      },
+    );
+  }
 
   // ── canvas_create_group ──────────────────────────────────────
   server.tool(

@@ -2,6 +2,7 @@ import type { CallToolResult, ListToolsResult, RequestId, Tool } from '@modelcon
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { AppBridge, PostMessageTransport, buildAllowAttribute } from '@modelcontextprotocol/ext-apps/app-bridge';
 import { useEffect, useRef, useState } from 'preact/hooks';
+import { extAppToolResultsMatch } from '../../shared/ext-app-tool-result.js';
 import {
   canvasTheme,
   collapseExpandedNode,
@@ -103,6 +104,7 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
   const latestToolInputRef = useRef<Record<string, unknown>>({});
   const latestToolResultRef = useRef<CallToolResult | undefined>(undefined);
   const toolResultSentRef = useRef(false);
+  const lastSentToolResultRef = useRef<CallToolResult | undefined>(undefined);
   const toolResultSendingRef = useRef<Promise<void> | null>(null);
   const bridgeReadyRef = useRef(false);
   const themeUnsubRef = useRef<(() => void) | null>(null);
@@ -140,13 +142,33 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
 
   const flushToolResult = (bridge: AppBridge | null): Promise<void> | null => {
     const pendingToolResult = latestToolResultRef.current;
-    if (!bridge || !bridgeReadyRef.current || !pendingToolResult || toolResultSentRef.current) {
+    if (!bridge || !bridgeReadyRef.current || !pendingToolResult) {
+      return null;
+    }
+    // Skip when the content is unchanged. Updates from callServerTool
+    // (e.g. Excalidraw saving edits) produce a new reference via SSE and
+    // must be forwarded to keep other clients in sync — but SSE layout
+    // updates *also* mint new references when nothing in the tool result
+    // has actually changed (e.g. after the widget's own updateModelContext
+    // call), which would echo the result back and cause the widget to
+    // re-render mid-interaction (see: Counter fixture click instability).
+    // Deep-equality via structural compare handles both cases: new content
+    // is forwarded, unchanged content is suppressed.
+    if (lastSentToolResultRef.current === pendingToolResult) {
+      return null;
+    }
+    if (
+      lastSentToolResultRef.current &&
+      extAppToolResultsMatch(lastSentToolResultRef.current, pendingToolResult)
+    ) {
+      lastSentToolResultRef.current = pendingToolResult;
       return null;
     }
     if (toolResultSendingRef.current) return toolResultSendingRef.current;
     const sendPromise = bridge
       .sendToolResult(pendingToolResult)
       .then(() => {
+        lastSentToolResultRef.current = pendingToolResult;
         toolResultSentRef.current = true;
         setStatus('done');
       })
@@ -170,6 +192,7 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
     let disposed = false;
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
     toolResultSentRef.current = false;
+    lastSentToolResultRef.current = undefined;
     toolResultSendingRef.current = null;
     bridgeReadyRef.current = false;
 
@@ -323,10 +346,14 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
       // handshake timing differs across SDK versions.
       fallbackTimer = setTimeout(() => {
         if (disposed || bridgeReadyRef.current) return;
-        void sendExtAppBootstrapState(bridge, latestToolInputRef.current, latestToolResultRef.current)
+        const bootstrapToolResult = latestToolResultRef.current;
+        void sendExtAppBootstrapState(bridge, latestToolInputRef.current, bootstrapToolResult)
           .then(() => {
-            toolResultSentRef.current = Boolean(latestToolResultRef.current);
-            setStatus(latestToolResultRef.current ? 'done' : 'ready');
+            toolResultSentRef.current = Boolean(bootstrapToolResult);
+            if (bootstrapToolResult) {
+              lastSentToolResultRef.current = bootstrapToolResult;
+            }
+            setStatus(bootstrapToolResult ? 'done' : 'ready');
             setError(null);
           })
           .catch((err) => {
@@ -344,7 +371,8 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
       bridgeRef.current = bridge;
       transportRef.current = transport;
 
-      // Propagate theme changes to ext-app iframe
+      // Propagate theme changes to ext-app iframe. Read current expanded state
+      // at fire time so the widget keeps its fullscreen/inline context accurate.
       let firstFire = true;
       themeUnsubRef.current = canvasTheme.subscribe((newTheme) => {
         if (firstFire) { firstFire = false; return; }
@@ -353,7 +381,7 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
           theme: toMcpTheme(newTheme),
           platform: 'web',
           containerDimensions: { maxHeight },
-          displayMode: 'inline',
+          displayMode: expandedNodeId.value === nodeId ? 'fullscreen' : 'inline',
           locale: navigator.language,
           timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         });
@@ -391,6 +419,24 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
       void flushToolResult(bridgeRef.current);
     }
   }, [toolResult, status]);
+
+  // Keep the widget's displayMode in sync when the host expands or collapses
+  // the node. Without this, a widget that opened in inline mode would never
+  // learn that it is now fullscreen (and vice versa), so features gated on
+  // fullscreen (like Excalidraw's edit mode) would not activate on the same
+  // click that triggered the expansion.
+  useEffect(() => {
+    const bridge = bridgeRef.current;
+    if (!bridge || !bridgeReadyRef.current) return;
+    bridge.setHostContext?.({
+      theme: toMcpTheme(canvasTheme.value),
+      platform: 'web',
+      containerDimensions: { maxHeight },
+      displayMode: isExpanded ? 'fullscreen' : 'inline',
+      locale: navigator.language,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+  }, [isExpanded, maxHeight]);
 
   // Loading state — HTML not yet fetched
   if (!html) {
@@ -493,17 +539,45 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
           Connecting to ext-app viewer...
         </div>
       )}
-      {/* allow-scripts only (no allow-same-origin) — srcdoc gets opaque origin,
-          cannot access host cookies/storage/DOM. Communication via postMessage only. */}
-      <iframe
-        key={frameKey}
-        ref={iframeRef}
-        srcdoc={html}
-        sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
-        allow={buildAllowAttribute(resourceMeta?.permissions)}
-        style={{ flex: 1, border: 'none', background: 'var(--c-panel)' }}
-        title={`Ext App: ${toolName}`}
-      />
+      {/* Iframe stack: the widget renders a preview; when not expanded, a
+          transparent click-catcher sits on top so the first click always
+          expands the node. Without this, widgets like Excalidraw show their
+          own "Edit" button inline, which triggers a fullscreen request and
+          remounts the iframe in the overlay — forcing the user to click Edit
+          a second time to actually enter edit mode. Routing all inline clicks
+          to "expand" makes the flow "open → edit" instead of "edit → expand → edit". */}
+      <div style={{ flex: 1, position: 'relative', display: 'flex', minHeight: 0 }}>
+        <iframe
+          key={frameKey}
+          ref={iframeRef}
+          srcdoc={html}
+          sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+          allow={buildAllowAttribute(resourceMeta?.permissions)}
+          style={{ flex: 1, border: 'none', background: 'var(--c-panel)' }}
+          title={`Ext App: ${toolName}`}
+        />
+        {!isExpanded && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              expandNode(nodeId);
+            }}
+            class="ext-app-preview-catcher"
+            title="Click to open"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              margin: 0,
+              cursor: 'zoom-in',
+            }}
+            aria-label="Open full view to edit"
+          />
+        )}
+      </div>
     </div>
   );
 }

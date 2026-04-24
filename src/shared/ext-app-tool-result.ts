@@ -74,3 +74,28 @@ export function normalizeExtAppToolResult(
     isError,
   };
 }
+
+/**
+ * Structural equality between two `CallToolResult` values, used by the host
+ * ExtAppFrame to suppress echo-back re-renders when an SSE layout update
+ * mints a new object reference for an otherwise-unchanged tool result.
+ *
+ * JSON-stringify is adequate here: tool results are strictly JSON (no
+ * functions, symbols, or cycles), typically small, and on the hot path we
+ * only hit this when references already differ. For very large payloads
+ * (> ~2MB) an early length check skips the stringify to avoid a user-visible
+ * stall — such results are treated as "changed" and forwarded to the widget.
+ */
+export function extAppToolResultsMatch(a: CallToolResult, b: CallToolResult): boolean {
+  if (a === b) return true;
+  if (a.isError !== b.isError) return false;
+  try {
+    const sa = JSON.stringify(a);
+    const sb = JSON.stringify(b);
+    if (sa === undefined || sb === undefined) return false;
+    if (Math.abs(sa.length - sb.length) > 2_000_000) return false;
+    return sa === sb;
+  } catch {
+    return false;
+  }
+}
