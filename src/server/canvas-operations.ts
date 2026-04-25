@@ -36,6 +36,7 @@ import {
   getWebpageFetchErrorDetails,
   normalizeWebpageUrl,
 } from './webpage-node.js';
+import { buildExcalidrawRestoreCheckpointToolInput, ensureExcalidrawCheckpointId, isExcalidrawCreateView } from './diagram-presets.js';
 
 export type CanvasArrangeMode = 'grid' | 'column' | 'flow';
 export type CanvasPinMode = 'set' | 'add' | 'remove';
@@ -80,6 +81,29 @@ const MAX_CONTEXT_PINS = 20;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function getStoredExcalidrawCheckpointId(node: CanvasNodeState): string | null {
+  const appCheckpoint = isRecord(node.data.appCheckpoint) ? node.data.appCheckpoint : null;
+  const checkpointId = appCheckpoint?.id;
+  return typeof checkpointId === 'string' && checkpointId.trim().length > 0 ? checkpointId.trim() : null;
+}
+
+function resolveExtAppRehydratedToolInput(
+  node: CanvasNodeState,
+  openedToolInput: Record<string, unknown>,
+): Record<string, unknown> {
+  if (!isExcalidrawCreateView(node.data.serverName, node.data.toolName)) return openedToolInput;
+  const checkpointId = getStoredExcalidrawCheckpointId(node);
+  if (!checkpointId) return openedToolInput;
+  const appCheckpoint = isRecord(node.data.appCheckpoint) ? node.data.appCheckpoint : null;
+  return {
+    ...openedToolInput,
+    elements: buildExcalidrawRestoreCheckpointToolInput(
+      checkpointId,
+      typeof appCheckpoint?.data === 'string' ? appCheckpoint.data : undefined,
+    ),
+  };
 }
 
 function isExtAppNode(node: CanvasNodeState | undefined): node is CanvasNodeState {
@@ -280,13 +304,18 @@ export async function syncCanvasRuntimeBackends(
           ? { serverName: current.data.serverName.trim() }
           : {}),
       });
+      const toolInput = resolveExtAppRehydratedToolInput(current, opened.toolInput);
+      const storedCheckpointId = getStoredExcalidrawCheckpointId(current);
+      const toolResult = isExcalidrawCreateView(opened.serverName, opened.toolName)
+        ? ensureExcalidrawCheckpointId(opened.toolResult, nodeId, storedCheckpointId)
+        : opened.toolResult;
 
       canvasState.withSuppressedRecording(() => {
         setExtAppRuntimeState(nodeId, {
           appSessionId: opened.sessionId,
           html: opened.html,
-          toolInput: opened.toolInput,
-          toolResult: opened.toolResult,
+          toolInput,
+          toolResult,
           resourceUri: opened.resourceUri,
           toolDefinition: opened.tool,
           resourceMeta: opened.resourceMeta,
@@ -704,7 +733,7 @@ function collectArrangeExcludedNodeIds(nodes: CanvasNodeState[]): Set<string> {
   const excluded = new Set<string>();
   for (const node of nodes) {
     const parentGroup = typeof node.data.parentGroup === 'string' ? node.data.parentGroup : null;
-    if (isArrangeLocked(node) || (parentGroup && excludedGroupIds.has(parentGroup))) {
+    if (parentGroup || isArrangeLocked(node)) {
       excluded.add(node.id);
     }
   }
@@ -747,12 +776,13 @@ export function arrangeCanvasNodes(layout: CanvasArrangeMode): { arranged: numbe
       return;
     }
 
-    const cols = Math.max(1, Math.floor(1440 / (360 + gap)));
+    const maxNodeWidth = movableNodes.reduce((max, node) => Math.max(max, node.size.width), 360);
+    const cols = Math.max(1, Math.floor(1440 / (maxNodeWidth + gap)));
     let col = 0;
     let rowY = 80;
     let rowMaxHeight = 0;
     for (const node of movableNodes) {
-      const x = 40 + col * (360 + gap);
+      const x = 40 + col * (maxNodeWidth + gap);
       canvasState.updateNode(node.id, { position: { x, y: rowY } });
       rowMaxHeight = Math.max(rowMaxHeight, node.size.height);
       col++;

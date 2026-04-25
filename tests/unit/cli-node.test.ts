@@ -145,6 +145,70 @@ describe('agent CLI node commands', () => {
     expect(output.size).toEqual({ width: 500, height: 280 });
   });
 
+  test('focus --no-pan selects without changing the server viewport', async () => {
+    const created = await jsonRequest<{
+      ok: boolean;
+      id: string;
+    }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'No pan',
+        x: 800,
+        y: 640,
+      }),
+    });
+
+    const before = canvasState.viewport;
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['focus', created.id, '--no-pan']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as { ok: boolean; focused: string; panned: boolean };
+    expect(output).toMatchObject({ ok: true, focused: created.id, panned: false });
+    expect(canvasState.viewport).toEqual(before);
+    expect(canvasState.getNode(created.id)?.zIndex).toBeGreaterThan(1);
+  });
+
+  test('status buckets hosted artifact nodes under web-artifact', async () => {
+    canvasState.addNode({
+      id: 'artifact-test',
+      type: 'mcp-app',
+      position: { x: 0, y: 0 },
+      size: { width: 960, height: 720 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: {
+        title: 'Artifact',
+        hostMode: 'hosted',
+        path: join(workspaceRoot, '.pmx-canvas', 'artifacts', 'artifact.html'),
+      },
+    });
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['status']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as { types: Record<string, number> };
+    expect(output.types['web-artifact']).toBe(1);
+    expect(output.types['mcp-app']).toBeUndefined();
+  });
+
   test('node update supports explicit arrange locking', async () => {
     const created = await jsonRequest<{
       ok: boolean;
@@ -227,6 +291,59 @@ describe('agent CLI node commands', () => {
     expect(node.type).toBe('graph');
     expect(node.size).toEqual({ width: 880, height: 640 });
     expect((node.data.graphConfig as Record<string, unknown>).graphType).toBe('bar');
+  });
+
+  test('node add accepts --data as a graph JSON alias', async () => {
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'node',
+        'add',
+        '--type',
+        'graph',
+        '--graph-type',
+        'bar',
+        '--title',
+        'Alias Graph',
+        '--data',
+        JSON.stringify([{ x: 'a', y: 1 }, { x: 'b', y: 2 }]),
+        '--x-key',
+        'x',
+        '--y-key',
+        'y',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as { ok: boolean; id: string };
+    expect(output.ok).toBe(true);
+    const node = await jsonRequest<{ data: { graphConfig: Record<string, unknown> } }>(`/api/canvas/node/${output.id}`);
+    expect(node.data.graphConfig.data).toEqual([{ x: 'a', y: 1 }, { x: 'b', y: 2 }]);
+  });
+
+  test('node add rejects generic mcp-app nodes with guidance', async () => {
+    const error = mock(() => {});
+    const originalError = console.error;
+    const originalExit = process.exit;
+    console.error = error;
+    process.exit = ((code?: number) => {
+      throw new Error(`exit:${code}`);
+    }) as typeof process.exit;
+
+    try {
+      await expect(runAgentCli(['node', 'add', '--type', 'mcp-app', '--title', 'Bad', '--content', 'x'])).rejects.toThrow('exit:1');
+    } finally {
+      console.error = originalError;
+      process.exit = originalExit;
+    }
+
+    const output = JSON.parse(error.mock.calls[0]?.[0] as string) as { error: string; hint: string };
+    expect(output.error).toContain('cannot be created with generic node add');
+    expect(output.hint).toContain('web-artifact build');
   });
 
   test('node add exposes the full graph flag surface for newer chart types', async () => {
@@ -800,6 +917,40 @@ describe('agent CLI node commands', () => {
     expect(node?.data.title).toBe('CLI Artifact');
   });
 
+  test('external-app add uses a non-empty Excalidraw default scene', async () => {
+    const fetchMock = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
+      return new Response(JSON.stringify({ ok: true, result: body }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['external-app', 'add', '--kind', 'excalidraw', '--title', 'CLI Diagram']);
+    } finally {
+      console.log = originalLog;
+      globalThis.fetch = originalFetch;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      result: {
+        title: string;
+        elements: Array<Record<string, unknown>>;
+      };
+    };
+    expect(output.result.title).toBe('CLI Diagram');
+    expect(output.result.elements).toEqual([
+      expect.objectContaining({ type: 'rectangle', id: 'pmx-start' }),
+    ]);
+  });
+
   test('web-artifact build suppresses raw logs by default and includes them on demand', async () => {
     const initScriptPath = join(workspaceRoot, 'emit-init.sh');
     const bundleScriptPath = join(workspaceRoot, 'emit-bundle.sh');
@@ -891,6 +1042,48 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
     expect(verboseOutput.ok).toBe(true);
     expect(verboseOutput.stdout).toContain('bundle stdout');
     expect(verboseOutput.stderr).toContain('bundle stderr');
+  });
+
+  test('web-artifact build prints failure JSON and exits non-zero', async () => {
+    const bundleScriptPath = join(workspaceRoot, 'fail-bundle.sh');
+    writeFileSync(bundleScriptPath, `#!/bin/bash
+set -e
+exit 2
+`, 'utf-8');
+    await Bun.$`chmod +x ${bundleScriptPath}`;
+
+    const appPath = join(workspaceRoot, 'FailApp.tsx');
+    writeFileSync(appPath, 'export default function App() { return <main>Fail</main>; }', 'utf-8');
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    const originalExit = process.exit;
+    console.log = log;
+    process.exit = ((code?: number) => {
+      throw new Error(`exit:${code}`);
+    }) as typeof process.exit;
+
+    try {
+      await expect(runAgentCli([
+        'web-artifact',
+        'build',
+        '--title',
+        'Fail Artifact',
+        '--app-file',
+        appPath,
+        '--bundle-script-path',
+        bundleScriptPath,
+      ])).rejects.toThrow('exit:1');
+    } finally {
+      console.log = originalLog;
+      process.exit = originalExit;
+    }
+
+    expect(log).toHaveBeenCalledTimes(1);
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as { ok: boolean; error: string };
+    expect(output.ok).toBe(false);
+    expect(output.error).toContain('Command failed');
+    expect(canvasState.getLayout().nodes.find((node) => node.data.title === 'Fail Artifact')).toBeUndefined();
   });
 
   test('node list and node get expose the same normalized title/content fields', async () => {

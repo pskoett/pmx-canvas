@@ -172,7 +172,7 @@ fi
 
 echo "📦 Installing Tailwind CSS and dependencies..."
 run_pnpm_allow_build add -D tailwindcss@3.4.1 postcss @types/node tailwindcss-animate parcel @parcel/config-default parcel-resolver-tspaths html-inline
-run_pnpm_quiet add class-variance-authority clsx tailwind-merge lucide-react next-themes
+run_pnpm_quiet add class-variance-authority clsx tailwind-merge lucide-react next-themes recharts
 
 echo "⚙️  Creating Tailwind and PostCSS configuration..."
 cat > .postcssrc.json << 'EOF'

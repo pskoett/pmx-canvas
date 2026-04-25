@@ -438,6 +438,241 @@ describe('canvas server HTTP API', () => {
     expect(updatedNode).toBeTruthy();
   }, 30000);
 
+  test('keeps ext-app model context separate from the replayed tool result', async () => {
+    const nodeId = 'ext-app-context-replay';
+    canvasState.addNode({
+      id: nodeId,
+      type: 'mcp-app',
+      position: { x: 0, y: 0 },
+      size: { width: 960, height: 720 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: {
+        mode: 'ext-app',
+        title: 'Diagram',
+        appSessionId: 'session-1',
+        toolResult: { content: [{ type: 'text', text: 'old' }] },
+      },
+    });
+
+    const response = await fetch(`${baseUrl}/api/ext-app/model-context`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nodeId,
+        content: [{ type: 'text', text: 'updated diagram' }],
+        structuredContent: { elements: [{ id: 'rect-1' }] },
+      }),
+    });
+    expect(response.ok).toBe(true);
+
+    const node = canvasState.getNode(nodeId);
+    expect(node?.data.appModelContext).toMatchObject({
+      structuredContent: { elements: [{ id: 'rect-1' }] },
+    });
+    expect(node?.data.toolResult).toMatchObject({
+      content: [{ type: 'text', text: 'old' }],
+    });
+  });
+
+  test('preserves existing tool result when model context only sends structured content', async () => {
+    const nodeId = 'ext-app-structured-context';
+    canvasState.addNode({
+      id: nodeId,
+      type: 'mcp-app',
+      position: { x: 0, y: 0 },
+      size: { width: 960, height: 720 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: {
+        mode: 'ext-app',
+        title: 'Counter',
+        appSessionId: 'session-1',
+        toolResult: {
+          content: [{ type: 'text', text: 'Counter incremented to 3.' }],
+          structuredContent: { count: 3 },
+        },
+      },
+    });
+
+    const response = await fetch(`${baseUrl}/api/ext-app/model-context`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nodeId,
+        structuredContent: { count: 3 },
+      }),
+    });
+    expect(response.ok).toBe(true);
+
+    const node = canvasState.getNode(nodeId);
+    expect(node?.data.appModelContext).toMatchObject({ structuredContent: { count: 3 } });
+    expect(node?.data.toolResult).toMatchObject({
+      content: [{ type: 'text', text: 'Counter incremented to 3.' }],
+      structuredContent: { count: 3 },
+    });
+  });
+
+  test('app-only checkpoint saves do not replace the bootstrap tool result', async () => {
+    const opened = await jsonRequest<{
+      ok: boolean;
+      nodeId: string | null;
+      sessionId: string;
+    }>('/api/canvas/mcp-app/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        toolName: 'show_counter',
+        toolArguments: { initial: 2 },
+        title: 'Checkpoint Fixture',
+        transport: {
+          type: 'stdio',
+          command: 'bun',
+          args: ['run', fixtureMcpAppServerPath],
+        },
+      }),
+    });
+    expect(opened.ok).toBe(true);
+    expect(typeof opened.nodeId).toBe('string');
+
+    const saveResponse = await fetch(`${baseUrl}/api/ext-app/call-tool`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: opened.sessionId,
+        nodeId: opened.nodeId,
+        toolName: 'save_checkpoint',
+        arguments: { id: 'checkpoint-1', data: '{"elements":[{"id":"manual"}]}' },
+      }),
+    });
+    expect(saveResponse.ok).toBe(true);
+
+    const node = opened.nodeId ? canvasState.getNode(opened.nodeId) : undefined;
+    expect(node?.data.toolResult).toMatchObject({
+      content: [{ type: 'text', text: 'Counter ready at 2.' }],
+      structuredContent: { count: 2 },
+    });
+
+    const readResponse = await fetch(`${baseUrl}/api/ext-app/call-tool`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: opened.sessionId,
+        toolName: 'read_checkpoint',
+        arguments: { id: 'checkpoint-1' },
+      }),
+    });
+    expect(readResponse.ok).toBe(true);
+    const read = await readResponse.json() as { result: { content: Array<{ text?: string }> } };
+    expect(read.result.content[0]?.text).toBe('{"elements":[{"id":"manual"}]}');
+  });
+
+  test('Excalidraw checkpoint saves update the replayed create_view input', async () => {
+    const opened = await jsonRequest<{
+      ok: boolean;
+      nodeId: string | null;
+      sessionId: string;
+    }>('/api/canvas/mcp-app/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Excalidraw Fixture',
+        serverName: 'Excalidraw',
+        toolName: 'create_view',
+        toolArguments: {
+          elements: JSON.stringify([
+            { type: 'rectangle', id: 'original', x: 0, y: 0, width: 10, height: 10 },
+          ]),
+        },
+        transport: {
+          type: 'stdio',
+          command: 'bun',
+          args: ['run', fixtureMcpAppServerPath],
+        },
+      }),
+    });
+    expect(opened.ok).toBe(true);
+    expect(typeof opened.nodeId).toBe('string');
+
+    const nodeId = opened.nodeId!;
+    const node = canvasState.getNode(nodeId);
+    const checkpointId = (node?.data.toolResult as { structuredContent?: { checkpointId?: string } } | undefined)
+      ?.structuredContent?.checkpointId;
+    expect(checkpointId).toBe(`pmx-${nodeId}`);
+
+    const initialReadResponse = await fetch(`${baseUrl}/api/ext-app/call-tool`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: opened.sessionId,
+        nodeId,
+        toolName: 'read_checkpoint',
+        arguments: { id: checkpointId },
+      }),
+    });
+    expect(initialReadResponse.ok).toBe(true);
+    const initialRead = await initialReadResponse.json() as { result: { content: Array<{ text?: string }> } };
+    expect(initialRead.result.content[0]?.text).toBe('');
+
+    const wrongSessionReadResponse = await fetch(`${baseUrl}/api/ext-app/call-tool`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: 'wrong-session',
+        nodeId,
+        toolName: 'read_checkpoint',
+        arguments: { id: checkpointId },
+      }),
+    });
+    expect(wrongSessionReadResponse.ok).toBe(false);
+
+    const saveResponse = await fetch(`${baseUrl}/api/ext-app/call-tool`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: opened.sessionId,
+        nodeId,
+        toolName: 'save_checkpoint',
+        arguments: {
+          id: checkpointId,
+          data: JSON.stringify({
+            elements: [{ type: 'ellipse', id: 'edited', x: 200, y: 150, width: 60, height: 40 }],
+          }),
+        },
+      }),
+    });
+    expect(saveResponse.ok).toBe(true);
+
+    const updatedNode = canvasState.getNode(nodeId);
+    const toolInput = updatedNode?.data.toolInput as { elements?: string } | undefined;
+    const replayedElements = toolInput?.elements ? JSON.parse(toolInput.elements) : [];
+    expect(replayedElements[0]).toEqual({ type: 'restoreCheckpoint', id: checkpointId });
+    expect(replayedElements[1]).toMatchObject({ type: 'cameraUpdate' });
+    expect(replayedElements[1].width / replayedElements[1].height).toBeCloseTo(4 / 3, 2);
+    expect(updatedNode?.data.toolResult).toMatchObject({
+      content: [{ type: 'text', text: 'Diagram ready.' }],
+      structuredContent: { checkpointId },
+    });
+
+    const readResponse = await fetch(`${baseUrl}/api/ext-app/call-tool`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: opened.sessionId,
+        nodeId,
+        toolName: 'read_checkpoint',
+        arguments: { id: checkpointId },
+      }),
+    });
+    expect(readResponse.ok).toBe(true);
+    const read = await readResponse.json() as { result: { content: Array<{ text?: string }> } };
+    expect(read.result.content[0]?.text).toContain('"id":"edited"');
+  });
+
   test('rehydrates persisted ext-app sessions after server restart', async () => {
     const opened = await jsonRequest<{
       ok: boolean;
@@ -518,6 +753,101 @@ describe('canvas server HTTP API', () => {
         (node) => node.type === 'markdown' && node.data.title === 'Restart marker',
       ),
     ).toBe(true);
+  }, 30000);
+
+  test('rehydrates Excalidraw checkpoint replay after server restart', async () => {
+    const opened = await jsonRequest<{
+      ok: boolean;
+      nodeId: string | null;
+      sessionId: string;
+    }>('/api/canvas/mcp-app/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Restart Diagram',
+        serverName: 'Excalidraw',
+        toolName: 'create_view',
+        toolArguments: {
+          elements: JSON.stringify([
+            { type: 'rectangle', id: 'original', x: 0, y: 0, width: 10, height: 10 },
+          ]),
+        },
+        transport: {
+          type: 'stdio',
+          command: 'bun',
+          args: ['run', fixtureMcpAppServerPath],
+          cwd: workspaceRoot,
+        },
+      }),
+    });
+    expect(opened.ok).toBe(true);
+    expect(typeof opened.nodeId).toBe('string');
+
+    const nodeId = opened.nodeId!;
+    const node = canvasState.getNode(nodeId);
+    const checkpointId = (node?.data.toolResult as { structuredContent?: { checkpointId?: string } } | undefined)
+      ?.structuredContent?.checkpointId;
+    expect(checkpointId).toBe(`pmx-${nodeId}`);
+
+    const saveResponse = await fetch(`${baseUrl}/api/ext-app/call-tool`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: opened.sessionId,
+        nodeId,
+        toolName: 'save_checkpoint',
+        arguments: {
+          id: checkpointId,
+          data: JSON.stringify({
+            elements: [{ type: 'diamond', id: 'saved-after-restart', x: 10, y: 20, width: 300, height: 240 }],
+          }),
+        },
+      }),
+    });
+    expect(saveResponse.ok).toBe(true);
+
+    stopCanvasServer();
+
+    const persisted = readPersistedCanvasState(workspaceRoot);
+    const persistedNode = persisted.nodes.find((entry) => entry.id === nodeId);
+    expect(persistedNode?.data.appCheckpoint).toMatchObject({ id: checkpointId });
+
+    const restarted = startCanvasServer({ workspaceRoot, port: 4527 });
+    expect(restarted).toBeTruthy();
+    baseUrl = restarted!;
+
+    const restoredNode = await waitForNode(
+      baseUrl,
+      (entry) =>
+        entry.id === nodeId &&
+        typeof entry.data.appSessionId === 'string' &&
+        entry.data.sessionStatus === 'ready',
+    );
+    expect(restoredNode).toBeTruthy();
+    const restoredSessionId = restoredNode?.data.appSessionId as string;
+    expect(restoredSessionId).toBeTruthy();
+    expect(restoredSessionId).not.toBe(opened.sessionId);
+
+    const restoredToolResult = restoredNode?.data.toolResult as { structuredContent?: { checkpointId?: string } } | undefined;
+    expect(restoredToolResult?.structuredContent?.checkpointId).toBe(checkpointId);
+    const restoredToolInput = restoredNode?.data.toolInput as { elements?: string } | undefined;
+    const replayedElements = restoredToolInput?.elements ? JSON.parse(restoredToolInput.elements) : [];
+    expect(replayedElements[0]).toEqual({ type: 'restoreCheckpoint', id: checkpointId });
+    expect(replayedElements[1]).toMatchObject({ type: 'cameraUpdate' });
+
+    const readResponse = await fetch(`${baseUrl}/api/ext-app/call-tool`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: restoredSessionId,
+        nodeId,
+        toolName: 'read_checkpoint',
+        arguments: { id: checkpointId },
+      }),
+    });
+    expect(readResponse.ok).toBe(true);
+    const read = await readResponse.json() as { result: { content: Array<{ text?: string }> } };
+    expect(read.result.content[0]?.text).toContain('saved-after-restart');
   }, 30000);
 
   test('creates path-backed file nodes over HTTP and uses shared arrange behavior', async () => {

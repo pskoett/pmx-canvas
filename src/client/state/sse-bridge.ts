@@ -6,6 +6,7 @@ import {
   addEdge,
   addNode,
   applyServerCanvasLayout,
+  bringToFront,
   cancelViewportAnimation,
   canvasTheme,
   connectionStatus,
@@ -827,6 +828,10 @@ function reconnectDelayMs(attempt: number): number {
 function handleCanvasFocusNode(data: Record<string, unknown>): void {
   const nodeId = data.nodeId as string;
   if (nodeId && nodes.value.has(nodeId)) {
+    if (data.noPan === true) {
+      bringToFront(nodeId);
+      return;
+    }
     focusNode(nodeId);
   }
 }

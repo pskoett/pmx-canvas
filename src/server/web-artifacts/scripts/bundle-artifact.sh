@@ -152,9 +152,19 @@ rm -rf dist bundle.html
 echo "🔨 Building with Parcel..."
 run_with_filtered_stderr run_local_binary parcel build index.html --dist-dir dist --no-source-maps --log-level error
 
+if [ ! -s "dist/index.html" ]; then
+  echo "❌ Error: Parcel did not produce dist/index.html" >&2
+  exit 1
+fi
+
 # Inline everything into single HTML
 echo "🎯 Inlining all assets into single HTML file..."
 run_with_filtered_stderr run_local_binary html-inline dist/index.html > bundle.html
+
+if [ ! -s "bundle.html" ]; then
+  echo "❌ Error: Bundled artifact is empty" >&2
+  exit 1
+fi
 
 # Get file size
 FILE_SIZE=$(du -h bundle.html | cut -f1)

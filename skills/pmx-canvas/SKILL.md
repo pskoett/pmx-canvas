@@ -10,7 +10,7 @@ description: >
   working memory — pin nodes to curate context, read spatial arrangement to understand intent.
 ---
 
-# PMX Canvas — Agent Skill
+# PMX Canvas - Agent Skill
 
 PMX Canvas is a spatial canvas workbench you control through MCP tools or HTTP API. It renders an
 infinite 2D canvas in the browser with nodes, edges, groups, pan/zoom, and a minimap. State lives
@@ -32,6 +32,10 @@ relatedness, clusters imply grouping, reading order (top-left to bottom-right) i
 - **Any time spatial layout helps** — when a flat list or text wall is not enough
 
 ## Starting the Canvas
+
+If this skill is installed before the `pmx-canvas` command exists, install the project first. See
+`references/installing-pmx-canvas.md` for local development, npm/global install, and MCP config
+options.
 
 The canvas auto-starts on first MCP tool call when running in MCP mode (`pmx-canvas --mcp`).
 For manual start:
@@ -81,6 +85,8 @@ pmx-canvas status                          # Quick summary
 pmx-canvas node add --type markdown --title "Plan"
 pmx-canvas node add --type webpage --url https://example.com/docs
 pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx
+pmx-canvas node add --type graph --graph-type bar --data '[{"x":"a","y":1}]' --x-key x --y-key y
+pmx-canvas external-app add --kind excalidraw --title "Diagram"
 pmx-canvas node add --help --type webpage --json
 pmx-canvas node schema --type json-render --component Table --summary
 pmx-canvas node list --type file --ids
@@ -88,8 +94,9 @@ pmx-canvas edge add --from node-a --to node-b --type depends-on
 pmx-canvas search "auth"
 pmx-canvas open
 pmx-canvas arrange --layout flow
+pmx-canvas focus <node-id> --no-pan             # Select/raise without moving the user's viewport
 pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary
-pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --include-logs
+pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --deps recharts --include-logs
 pmx-canvas pin --list
 pmx-canvas snapshot save --name "before-refactor"
 pmx-canvas code-graph
@@ -103,7 +110,8 @@ pmx-canvas spatial
 - `edge add|list|remove` — manage edges
 - Search-based edge selectors must be specific enough to resolve exactly one node. Queries like
   `"DVT O3"` can be ambiguous; prefer the full visible title such as `"DVT O3 — GitOps"`.
-- `search`, `layout`, `status`, `arrange`, `focus` — inspect and navigate the canvas
+- `search`, `layout`, `status`, `arrange`, `focus` — inspect and navigate the canvas. Prefer
+  `focus --no-pan` when you only need to select/raise a node without hijacking the human's camera.
 - `open` — open the current workbench in the browser
 - `pin --list|--clear|<ids...>` — manage context pins
 - `undo`, `redo`, `history` — time travel
@@ -124,6 +132,9 @@ Current caveat:
   diagram/app flow gives you a session-oriented result first, resolve the final canvas node from
   live layout or `node list --type mcp-app` before you try to group it, wire edges to it, or
   revisit it later.
+- Generic `pmx-canvas node add --type mcp-app` is intentionally not supported because app nodes
+  need app/session metadata. Use `pmx-canvas web-artifact build` for bundled React artifacts or
+  `pmx-canvas external-app add --kind excalidraw` for the Excalidraw preset.
 
 The CLI targets `http://localhost:4313` by default. Override with `PMX_CANVAS_URL` or
 `PMX_CANVAS_PORT` when the canvas is running elsewhere.
@@ -141,7 +152,7 @@ The CLI targets `http://localhost:4313` by default. Override with `PMX_CANVAS_UR
 | `context` | Context card | Key context the human should see |
 | `ledger` | Log/ledger viewer | Structured log data, audit trails |
 | `trace` | Trace/timeline viewer | Execution traces, timelines |
-| `mcp-app` | Hosted app/embed frame | Embedded MCP apps or external app content |
+| `mcp-app` | Hosted app/embed frame | Tool-backed MCP apps or external app content; not generic CLI-created notes |
 | `json-render` | Native structured UI panel | Dashboards, forms, tables, interactive layouts from json-render specs |
 | `graph` | Native chart panel | Line, bar, pie, area, scatter, radar, stacked-bar, and composed charts rendered inside the canvas |
 | `group` | Spatial container/frame | Visually group related nodes together |
@@ -267,6 +278,8 @@ Use color consistently to convey meaning:
 **`canvas_focus_node`** — Pan viewport to center on a specific node
 - `id` (required): node to focus
 - Good for drawing the human's attention
+- Avoid focusing every node in a batch. Focus only the final result or use CLI `focus --no-pan`
+  when the goal is selection/raising without camera movement.
 
 ### Groups
 
@@ -360,6 +373,9 @@ Current product caveats for grouped comparison boards:
   text). Can also be a JSON-array string.
 - Optional: `title`, `x`, `y`, `width`, `height`
 - The diagram opens inside an `mcp-app` node with fullscreen editing and draw-on animations
+- CLI equivalent: `pmx-canvas external-app add --kind excalidraw --title "Diagram"`
+- Edits made in expanded/fullscreen mode are persisted back into the node model context and replayed
+  when the app iframe remounts.
 - Use this when the human needs a quick sketch, architecture diagram, or flowchart and a
   geometric `graph` node would feel too rigid
 - Prefer labeled shapes (`"label": { "text": "..." }` on rectangle/ellipse/diamond) over
@@ -380,9 +396,12 @@ server's `ui://` resource as an iframe node on the canvas
 
 **`canvas_build_web_artifact`** — Build a single-file HTML artifact from React/Tailwind source
 - Required: `title`, `appTsx`
-- Optional: `indexCss`, `mainTsx`, `indexHtml`, extra `files`, `projectPath`, `outputPath`, `includeLogs`
+- Optional: `indexCss`, `mainTsx`, `indexHtml`, extra `files`, `projectPath`, `outputPath`, `deps`, `includeLogs`
 - By default it opens the result on the canvas as an embedded app node
 - By default it returns compact log summaries; set `includeLogs: true` when you need raw stdout/stderr
+- `recharts` is available in the scaffold. For additional libraries, pass CLI `--deps name,name2`
+  or MCP/API `deps: ["name"]` before bundling.
+- Failed or empty CLI bundles print `ok: false`, exit non-zero, and do not create a canvas node.
 - Use this when the output should be a richer interactive UI than a simple markdown/file/image node
 - Prefer the dedicated `web-artifacts-builder` skill when you need the full React + shadcn workflow
 - Use the `playwright-cli` skill when you need to validate the built artifact in a live browser
@@ -451,6 +470,8 @@ All POST/PATCH endpoints accept `Content-Type: application/json`. Default base U
 | GET | `/api/canvas/schema` | Get running-server create schemas, examples, and json-render catalog metadata |
 | POST | `/api/canvas/schema/validate` | Validate a json-render spec or graph payload without creating a node |
 | GET | `/api/canvas/json-render/view?nodeId=...` | View a native json-render or graph node |
+| POST | `/api/canvas/diagram` | Create an Excalidraw external app node |
+| POST | `/api/canvas/mcp-app/open` | Open a tool-backed MCP app node |
 | POST | `/api/canvas/web-artifact` | Build a bundled web artifact and optionally open it on canvas |
 | POST | `/api/canvas/group` | Create group |
 | POST | `/api/canvas/group/add` | Add nodes to group |

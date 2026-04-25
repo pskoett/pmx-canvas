@@ -83,7 +83,12 @@ export declare class PmxCanvas extends EventEmitter {
     ungroupNodes(groupId: string): boolean;
     clear(): void;
     arrange(layout?: 'grid' | 'column' | 'flow'): void;
-    focusNode(id: string): void;
+    focusNode(id: string, options?: {
+        noPan?: boolean;
+    }): {
+        focused: string;
+        panned: boolean;
+    } | null;
     getLayout(): CanvasLayout;
     getNode(id: string): CanvasNodeState | undefined;
     search(query: string): ReturnType<typeof searchNodes>;

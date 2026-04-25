@@ -4,8 +4,14 @@ import {
   EXCALIDRAW_MCP_TRANSPORT,
   EXCALIDRAW_MCP_URL,
   EXCALIDRAW_SERVER_NAME,
+  buildExcalidrawCheckpointId,
   buildExcalidrawOpenMcpAppInput,
+  buildExcalidrawRestoreCheckpointToolInput,
+  ensureExcalidrawCheckpointId,
+  inferExcalidrawCameraUpdate,
+  normalizeExcalidrawCheckpointDataForToolInput,
   normalizeExcalidrawElements,
+  normalizeExcalidrawElementsForToolInput,
 } from '../../src/server/diagram-presets.ts';
 
 describe('diagram-presets', () => {
@@ -21,6 +27,96 @@ describe('diagram-presets', () => {
     expect(JSON.parse(result)).toEqual([
       { type: 'ellipse', id: 'e1', x: 0, y: 0, width: 10, height: 10 },
     ]);
+  });
+
+  test('normalizeExcalidrawElements seeds empty arrays so the hosted editor can open', () => {
+    expect(JSON.parse(normalizeExcalidrawElements([]))).toEqual([
+      expect.objectContaining({
+        type: 'rectangle',
+        id: 'pmx-start',
+        label: { text: 'PMX Canvas', fontSize: 24 },
+      }),
+    ]);
+    expect(JSON.parse(normalizeExcalidrawElements('[]'))).toEqual([
+      expect.objectContaining({
+        type: 'rectangle',
+        id: 'pmx-start',
+        label: { text: 'PMX Canvas', fontSize: 24 },
+      }),
+    ]);
+  });
+
+  test('normalizeExcalidrawElements preserves shorthand labels for Excalidraw conversion', () => {
+    const result = JSON.parse(normalizeExcalidrawElements([
+      {
+        type: 'rectangle',
+        id: 'box',
+        x: 10,
+        y: 20,
+        width: 220,
+        height: 100,
+        label: { text: 'Inside box', fontSize: 24 },
+      },
+    ]));
+    expect(result[0]).toMatchObject({
+      type: 'rectangle',
+      id: 'box',
+      label: { text: 'Inside box', fontSize: 24 },
+    });
+    expect(result[0].boundElements).toBeUndefined();
+    expect(result).toHaveLength(1);
+  });
+
+  test('normalizeExcalidrawElementsForToolInput adds a camera update for visible content', () => {
+    const result = JSON.parse(normalizeExcalidrawElementsForToolInput([
+      { type: 'rectangle', id: 'r1', x: 1000, y: 800, width: 120, height: 80 },
+    ]));
+    expect(result[0]).toMatchObject({ type: 'cameraUpdate' });
+    expect(result[0].width / result[0].height).toBeCloseTo(4 / 3, 2);
+    expect(result[1]).toMatchObject({ type: 'rectangle', id: 'r1' });
+  });
+
+  test('inferExcalidrawCameraUpdate accounts for point-based elements', () => {
+    const camera = inferExcalidrawCameraUpdate([
+      { type: 'line', id: 'l1', x: 50, y: 70, points: [[0, 0], [140, 90]] },
+    ]);
+    expect(camera).toMatchObject({ type: 'cameraUpdate' });
+    expect(camera?.width).toBeGreaterThanOrEqual(320);
+    expect(camera?.height).toBeGreaterThanOrEqual(240);
+    expect((camera?.width as number) / (camera?.height as number)).toBeCloseTo(4 / 3, 2);
+  });
+
+  test('normalizeExcalidrawCheckpointDataForToolInput extracts saved elements and camera', () => {
+    const result = normalizeExcalidrawCheckpointDataForToolInput(JSON.stringify({
+      elements: [{ type: 'ellipse', id: 'saved', x: 10, y: 20, width: 30, height: 40 }],
+    }));
+    const parsed = result ? JSON.parse(result) : [];
+    expect(parsed[0]).toMatchObject({ type: 'cameraUpdate' });
+    expect(parsed[1]).toMatchObject({ type: 'ellipse', id: 'saved' });
+  });
+
+  test('buildExcalidrawRestoreCheckpointToolInput reopens the exact saved Excalidraw scene', () => {
+    expect(JSON.parse(buildExcalidrawRestoreCheckpointToolInput('checkpoint-1'))).toEqual([
+      { type: 'restoreCheckpoint', id: 'checkpoint-1' },
+    ]);
+  });
+
+  test('buildExcalidrawRestoreCheckpointToolInput includes a 4:3 camera for saved elements', () => {
+    const result = JSON.parse(buildExcalidrawRestoreCheckpointToolInput('checkpoint-1', JSON.stringify({
+      elements: [{ type: 'diamond', id: 'edited', x: -140, y: -150, width: 740, height: 660 }],
+    })));
+    expect(result[0]).toEqual({ type: 'restoreCheckpoint', id: 'checkpoint-1' });
+    expect(result[1]).toMatchObject({ type: 'cameraUpdate' });
+    expect(result[1].width / result[1].height).toBeCloseTo(4 / 3, 2);
+  });
+
+  test('checkpoint IDs are stable and injected into tool results', () => {
+    expect(buildExcalidrawCheckpointId('node id!*')).toBe('pmx-node-id');
+    expect(ensureExcalidrawCheckpointId({ content: [] }, 'node id!*')).toMatchObject({
+      structuredContent: { checkpointId: 'pmx-node-id' },
+    });
+    expect(ensureExcalidrawCheckpointId({ content: [], structuredContent: { checkpointId: 'existing' } }, 'ignored'))
+      .toMatchObject({ structuredContent: { checkpointId: 'existing' } });
   });
 
   test('normalizeExcalidrawElements rejects empty strings', () => {

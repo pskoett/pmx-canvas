@@ -1,4 +1,4 @@
-import type { CanvasEdge, CanvasLayout, CanvasNodeState, ConnectionStatus, ViewportState } from '../types';
+import { type CanvasEdge, type CanvasLayout, type CanvasNodeState, type ConnectionStatus, type ViewportState } from '../types';
 export declare const viewport: import("@preact/signals-core").Signal<ViewportState>;
 export declare const nodes: import("@preact/signals-core").Signal<Map<string, CanvasNodeState>>;
 export declare const edges: import("@preact/signals-core").Signal<Map<string, CanvasEdge>>;
@@ -9,6 +9,7 @@ export declare const traceEnabled: import("@preact/signals-core").Signal<boolean
 export declare const canvasTheme: import("@preact/signals-core").Signal<string>;
 export declare const hasInitialServerLayout: import("@preact/signals-core").Signal<boolean>;
 export declare const expandedNodeId: import("@preact/signals-core").Signal<string | null>;
+export declare const pendingExpandedNodeCloseId: import("@preact/signals-core").Signal<string | null>;
 export declare const pendingConnection: import("@preact/signals-core").Signal<{
     from: string;
 } | null>;

@@ -9,6 +9,7 @@ export interface WebArtifactBuildInput {
     outputPath?: string;
     initScriptPath?: string;
     bundleScriptPath?: string;
+    deps?: string[];
     timeoutMs?: number;
 }
 export interface WebArtifactBuildOutput {

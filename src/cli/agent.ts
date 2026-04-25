@@ -13,6 +13,7 @@
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { openUrlInExternalBrowser } from '../server/server.js';
+import { DEFAULT_EXCALIDRAW_ELEMENTS } from '../server/diagram-presets.js';
 import {
   ALL_SEMANTIC_WATCH_EVENT_TYPES,
   formatCompactWatchEvent,
@@ -24,6 +25,7 @@ import {
 // ── Helpers ──────────────────────────────────────────────────
 
 const DEFAULT_PORT = 4313;
+const defaultConsoleLog = console.log;
 
 interface CanvasSchemaField {
   name: string;
@@ -91,13 +93,19 @@ function die(message: string, hint?: string): never {
 }
 
 function output(data: unknown): void {
-  console.log(JSON.stringify(data, null, 2));
+  const text = JSON.stringify(data, null, 2);
+  if (console.log !== defaultConsoleLog) {
+    console.log(text);
+    return;
+  }
+  process.stdout.write(`${text}\n`);
 }
 
 async function api(
   method: string,
   path: string,
   body?: Record<string, unknown>,
+  options?: { allowErrorJson?: boolean },
 ): Promise<unknown> {
   const base = getBaseUrl();
   const url = `${base}${path}`;
@@ -128,6 +136,7 @@ async function api(
   }
 
   if (!res.ok) {
+    if (options?.allowErrorJson) return json;
     const err = json as Record<string, unknown>;
     die(
       err.error ? String(err.error) : `HTTP ${res.status}`,
@@ -146,7 +155,7 @@ function parseFlags(args: string[]): { positional: string[]; flags: Record<strin
   const BOOL_FLAGS = new Set([
     'help', 'h', 'ids', 'stdin', 'yes', 'list', 'clear', 'set', 'animated', 'dry-run',
     'no-open-in-canvas', 'lock-arrange', 'unlock-arrange', 'json', 'compact', 'summary',
-    'verbose', 'include-logs',
+    'verbose', 'include-logs', 'no-pan',
   ]);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -532,11 +541,11 @@ async function buildGraphRequestBody(
     'Use: pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value';
   const rawData = await readTextInput(flags, {
     fileFlags: ['data-file'],
-    valueFlags: ['data-json'],
+    valueFlags: ['data-json', 'data'],
     allowStdin: true,
     label: 'graph JSON dataset',
     hint,
-    requiredMessage: 'Graph nodes require --data-file, --data-json, or --stdin JSON data.',
+    requiredMessage: 'Graph nodes require --data-file, --data-json, --data, or --stdin JSON data.',
   });
   const data = parseRecordArrayJson(rawData, hint);
 
@@ -621,6 +630,8 @@ async function buildWebArtifactRequestBody(
   if (typeof flags['output-path'] === 'string') body.outputPath = flags['output-path'];
   if (typeof flags['init-script-path'] === 'string') body.initScriptPath = flags['init-script-path'];
   if (typeof flags['bundle-script-path'] === 'string') body.bundleScriptPath = flags['bundle-script-path'];
+  const deps = parseStringListFlag(flags, 'deps', 'Use a comma-separated list, e.g. --deps recharts,zod');
+  if (deps) body.deps = deps;
   if (flags['no-open-in-canvas']) body.openInCanvas = false;
   if (flags.verbose || flags['include-logs']) body.includeLogs = true;
 
@@ -631,8 +642,11 @@ async function buildWebArtifactRequestBody(
 }
 
 async function runWebArtifactBuildCommand(flags: Record<string, string | true>): Promise<void> {
-  const result = await api('POST', '/api/canvas/web-artifact', await buildWebArtifactRequestBody(flags));
+  const result = await api('POST', '/api/canvas/web-artifact', await buildWebArtifactRequestBody(flags), { allowErrorJson: true });
   output(result);
+  if (isRecord(result) && result.ok === false) {
+    process.exit(1);
+  }
 }
 
 async function loadCanvasSchema(): Promise<CanvasSchemaResponse> {
@@ -913,6 +927,13 @@ cmd('node add', 'Add a node to the canvas', [
   if (type === 'web-artifact') {
     await runWebArtifactBuildCommand(flags);
     return;
+  }
+
+  if (type === 'mcp-app') {
+    die(
+      'mcp-app nodes require tool-backed app metadata and cannot be created with generic node add.',
+      'Use: pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx, or pmx-canvas external-app add --kind excalidraw --title "Diagram"',
+    );
   }
 
   const body: Record<string, unknown> = { type };
@@ -1269,7 +1290,10 @@ cmd('status', 'Quick canvas summary', [
 
   const typeCounts: Record<string, number> = {};
   for (const n of layout.nodes) {
-    const t = n.type as string;
+    const data = isRecord(n.data) ? n.data : {};
+    const t = n.type === 'mcp-app' && data.hostMode === 'hosted' && typeof data.path === 'string'
+      ? 'web-artifact'
+      : n.type as string;
     typeCounts[t] = (typeCounts[t] || 0) + 1;
   }
 
@@ -1308,7 +1332,38 @@ cmd('focus', 'Pan viewport to center on a node', [
   const id = positional[0];
   if (!id) die('Missing node ID', 'pmx-canvas focus <node-id>');
 
-  const result = await api('POST', '/api/canvas/focus', { id });
+  const result = await api('POST', '/api/canvas/focus', { id, ...(flags['no-pan'] ? { noPan: true } : {}) });
+  output(result);
+});
+
+// ── external-app add ─────────────────────────────────────────
+cmd('external-app add', 'Create a hosted external app node', [
+  'pmx-canvas external-app add --kind excalidraw --title "Diagram"',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('external-app add');
+
+  const kind = typeof flags.kind === 'string' ? flags.kind.trim() : '';
+  if (kind !== 'excalidraw') {
+    die('Unsupported external app kind.', 'Use: pmx-canvas external-app add --kind excalidraw --title "Diagram"');
+  }
+
+  const body: Record<string, unknown> = {
+    title: typeof flags.title === 'string' ? flags.title : 'Excalidraw Diagram',
+    elements: DEFAULT_EXCALIDRAW_ELEMENTS,
+  };
+  const elementsJson = getStringFlag(flags, 'elements-json');
+  if (elementsJson !== undefined) body.elements = parseJsonValue(elementsJson, 'Excalidraw elements', 'Use --elements-json \'[{"type":"rectangle","id":"r1","x":0,"y":0,"width":120,"height":80}]\'');
+  const elementsFile = getStringFlag(flags, 'elements-file', 'initial-file');
+  if (elementsFile) body.elements = parseJsonValue(readFileSync(elementsFile, 'utf-8'), 'Excalidraw elements file', 'Use --elements-file ./scene.excalidraw');
+  applyCommonGeometryFlags(body, flags, {
+    x: 'Use a finite number, e.g. --x 500',
+    y: 'Use a finite number, e.g. --y 300',
+    width: 'Use a positive number, e.g. --width 960',
+    height: 'Use a positive number, e.g. --height 720',
+  });
+
+  const result = await api('POST', '/api/canvas/diagram', body);
   output(result);
 });
 
@@ -1979,9 +2034,23 @@ function showCommandHelp(name: string): void {
     console.log('  --summary                 Return only validation summary metadata');
   }
   if (name === 'web-artifact build') {
+    console.log('\nDependencies:');
+    console.log('  --deps <list>              Add npm dependencies before bundling, e.g. --deps recharts,zod');
     console.log('\nOutput control:');
     console.log('  --include-logs            Include raw build stdout/stderr in the response');
     console.log('  --verbose                 Alias for --include-logs');
+  }
+  if (name === 'focus') {
+    console.log('\nViewport:');
+    console.log('  --no-pan                  Select/raise the node without moving the viewport');
+  }
+  if (name === 'external-app add') {
+    console.log('\nOptions:');
+    console.log('  --kind excalidraw          External app kind to create');
+    console.log('  --title <title>            Node title');
+    console.log('  --elements-json <json>     Optional Excalidraw elements array JSON');
+    console.log('  --elements-file <path>     Optional file containing Excalidraw elements JSON');
+    console.log('  --initial-file <path>      Alias for --elements-file');
   }
   console.log('');
 }
@@ -2023,6 +2092,7 @@ Canvas commands:
   pmx-canvas validate spec            Validate json-render/graph payloads without creating nodes
   pmx-canvas watch [options]          Watch semantic canvas changes over SSE
   pmx-canvas focus <id>               Pan viewport to node
+  pmx-canvas external-app add          Add hosted external apps like Excalidraw
   pmx-canvas webview status           Show WebView automation status
   pmx-canvas webview start [options]  Start or replace automation session
   pmx-canvas webview evaluate         Evaluate JS in automation session
@@ -2090,6 +2160,7 @@ Examples:
   pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary
   pmx-canvas history --summary
   pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx
+  pmx-canvas external-app add --kind excalidraw --title "Diagram"
   pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --include-logs
   pmx-canvas webview evaluate --script "const title = document.title; return title"
   pmx-canvas snapshot save --name "pre-refactor"

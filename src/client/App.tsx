@@ -28,6 +28,7 @@ import {
   forceDirectedArrange,
   hasInitialServerLayout,
   nodes,
+  pendingExpandedNodeCloseId,
   persistLayout,
   selectedNodeIds,
   sessionId,
@@ -366,7 +367,7 @@ export function App() {
       }
 
       // Esc always collapses expanded node first (even from inside inputs)
-      if (e.key === 'Escape' && expandedNodeId.value) {
+      if (e.key === 'Escape' && expandedNodeId.value && !pendingExpandedNodeCloseId.value) {
         e.preventDefault();
         collapseExpandedNode();
         return;

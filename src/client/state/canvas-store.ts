@@ -1,5 +1,5 @@
 import { batch, computed, signal } from '@preact/signals';
-import type { CanvasEdge, CanvasLayout, CanvasNodeState, ConnectionStatus, ViewportState } from '../types';
+import { isExcalidrawNode, type CanvasEdge, type CanvasLayout, type CanvasNodeState, type ConnectionStatus, type ViewportState } from '../types';
 import { computeAutoArrange } from '../../shared/auto-arrange';
 import { pushCanvasUpdate, updateViewportFromClient } from './intent-bridge';
 
@@ -22,6 +22,11 @@ export const hasInitialServerLayout = signal<boolean>(false);
 // Only one node at a time can be in expanded/focus mode. When expanded, the
 // node renders as a full-viewport overlay for deep editing/reading.
 export const expandedNodeId = signal<string | null>(null);
+export const pendingExpandedNodeCloseId = signal<string | null>(null);
+let expandedCloseTimer: ReturnType<typeof setTimeout> | null = null;
+let pendingCloseInitialCheckpointAt: unknown = undefined;
+const EXCALIDRAW_CLOSE_POLL_MS = 100;
+const EXCALIDRAW_CLOSE_MAX_WAIT_MS = 2500;
 
 // ── Pending edge connection (for context menu "Connect from") ─
 export const pendingConnection = signal<{ from: string } | null>(null);
@@ -192,6 +197,14 @@ export function updateNode(id: string, patch: Partial<CanvasNodeState>): void {
   }
   next.set(id, { ...existing, ...patch });
   nodes.value = next;
+  const updatedAt = (next.get(id)?.data.appCheckpoint as { updatedAt?: unknown } | undefined)?.updatedAt;
+  if (
+    pendingExpandedNodeCloseId.value === id &&
+    updatedAt !== undefined &&
+    updatedAt !== pendingCloseInitialCheckpointAt
+  ) {
+    finishExpandedNodeClose(id);
+  }
 }
 
 export function updateNodeData(id: string, dataPatch: Record<string, unknown>): void {
@@ -585,11 +598,60 @@ export function walkGraph(direction: 'up' | 'down' | 'left' | 'right'): void {
 export function expandNode(id: string): void {
   const node = nodes.value.get(id);
   if (!node) return;
+  if (expandedCloseTimer !== null) {
+    clearTimeout(expandedCloseTimer);
+    expandedCloseTimer = null;
+  }
+  pendingExpandedNodeCloseId.value = null;
+  pendingCloseInitialCheckpointAt = undefined;
   bringToFront(id);
   expandedNodeId.value = id;
 }
 
+function finishExpandedNodeClose(nodeId: string): void {
+  if (expandedCloseTimer !== null) {
+    clearTimeout(expandedCloseTimer);
+    expandedCloseTimer = null;
+  }
+  if (expandedNodeId.value === nodeId) expandedNodeId.value = null;
+  if (pendingExpandedNodeCloseId.value === nodeId) pendingExpandedNodeCloseId.value = null;
+  pendingCloseInitialCheckpointAt = undefined;
+}
+
 export function collapseExpandedNode(): void {
+  const nodeId = expandedNodeId.value;
+  const node = nodeId ? nodes.value.get(nodeId) : undefined;
+  if (nodeId && node && isExcalidrawNode(node)) {
+    const closingNodeId = nodeId;
+    const startedAt = Date.now();
+    pendingExpandedNodeCloseId.value = closingNodeId;
+    pendingCloseInitialCheckpointAt = (node.data.appCheckpoint as { updatedAt?: unknown } | undefined)?.updatedAt;
+    if (expandedCloseTimer !== null) clearTimeout(expandedCloseTimer);
+    const pollForSave = () => {
+      const latestNode = nodes.value.get(closingNodeId);
+      const latestCheckpointAt = (latestNode?.data.appCheckpoint as { updatedAt?: unknown } | undefined)?.updatedAt;
+      if (
+        latestCheckpointAt !== undefined &&
+        latestCheckpointAt !== pendingCloseInitialCheckpointAt
+      ) {
+        finishExpandedNodeClose(closingNodeId);
+        return;
+      }
+      if (Date.now() - startedAt >= EXCALIDRAW_CLOSE_MAX_WAIT_MS) {
+        finishExpandedNodeClose(closingNodeId);
+        return;
+      }
+      expandedCloseTimer = setTimeout(pollForSave, EXCALIDRAW_CLOSE_POLL_MS);
+    };
+    expandedCloseTimer = setTimeout(pollForSave, EXCALIDRAW_CLOSE_POLL_MS);
+    return;
+  }
+  if (expandedCloseTimer !== null) {
+    clearTimeout(expandedCloseTimer);
+    expandedCloseTimer = null;
+  }
+  pendingExpandedNodeCloseId.value = null;
+  pendingCloseInitialCheckpointAt = undefined;
   expandedNodeId.value = null;
 }
 

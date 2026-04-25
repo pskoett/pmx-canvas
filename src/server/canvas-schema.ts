@@ -283,7 +283,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
         required: true,
         description: 'Chart type. Aliases like "stack" and "combo" are normalized server-side.',
       },
-      { name: 'data', type: 'Record<string, unknown>[]', required: true, description: 'Chart dataset.' },
+      { name: 'data', type: 'Record<string, unknown>[]', required: true, description: 'Chart dataset.', aliases: ['data-json'] },
       { name: 'title', type: 'string', required: false, description: 'Optional graph title.' },
       { name: 'xKey', type: 'string', required: false, description: 'X-axis/category key for line, bar, area, scatter, stacked-bar, and composed charts.' },
       { name: 'yKey', type: 'string', required: false, description: 'Y-axis value key for line, bar, area, and scatter charts. Also used as a fallback bar key for composed charts.' },
@@ -334,6 +334,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
       { name: 'outputPath', type: 'string', required: false, description: 'Optional output HTML path.' },
       { name: 'openInCanvas', type: 'boolean', required: false, description: 'Open the built artifact on the canvas (default true).' },
       { name: 'includeLogs', type: 'boolean', required: false, description: 'Include raw build stdout/stderr in the response (default false).' },
+      { name: 'deps', type: 'string[]', required: false, description: 'Optional npm dependencies to add before bundling, e.g. recharts.', aliases: ['deps'] },
     ],
     example: {
       title: 'Dashboard Artifact',

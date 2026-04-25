@@ -38,6 +38,7 @@ export interface WebArtifactBuildInput {
   outputPath?: string;
   initScriptPath?: string;
   bundleScriptPath?: string;
+  deps?: string[];
   timeoutMs?: number;
 }
 
@@ -322,6 +323,19 @@ function ensurePackageManagerBoundary(dirPath: string): void {
   writeFileSync(packageJsonPath, JSON.stringify(nextPackageJson, null, 2), 'utf-8');
 }
 
+function normalizeDependencyNames(deps: string[] | undefined): string[] {
+  const normalized = new Set<string>();
+  for (const dep of deps ?? []) {
+    const trimmed = dep.trim();
+    if (!trimmed) continue;
+    if (trimmed.startsWith('-') || !/^(@[a-z0-9._-]+\/)?[a-z0-9._-]+(@[\w.+~^*-][\w.+~^*-]*)?$/i.test(trimmed)) {
+      throw new Error(`Invalid web-artifact dependency name: ${dep}`);
+    }
+    normalized.add(trimmed);
+  }
+  return [...normalized];
+}
+
 function summarizeArtifactLog(text: string): WebArtifactLogSummary | undefined {
   if (!text.trim()) return undefined;
 
@@ -391,6 +405,23 @@ export async function executeWebArtifactBuild(
 
   writeProjectFiles(projectPath, input);
 
+  const deps = normalizeDependencyNames(input.deps);
+  if (deps.length > 0) {
+    const quotedDeps = deps.map((dep) => `'${dep.replaceAll("'", "'\\''")}'`).join(' ');
+    const pnpmVersion = DEFAULT_PACKAGE_MANAGER.split('@')[1] ?? '10.33.0';
+    // Use `bash -c` (not `-lc`): `-lc` sources the user's login profile
+    // (~/.bashrc, ~/.zshrc), which can mutate PATH or set aliases that
+    // change install behavior. With deps already validated against
+    // npm-name format and quoted via single-quote escaping, the regular
+    // shell is sufficient and reproducible across machines.
+    const depResult = await runProcess('bash', ['-c', `if command -v pnpm >/dev/null 2>&1; then pnpm --silent add --ignore-scripts -- ${quotedDeps}; elif command -v bun >/dev/null 2>&1; then bun x pnpm@${pnpmVersion} --silent add --ignore-scripts -- ${quotedDeps}; else npm install --ignore-scripts -- ${quotedDeps}; fi`], {
+      cwd: projectPath,
+      timeoutMs,
+    });
+    stdout = [stdout, depResult.stdout].filter(Boolean).join('\n');
+    stderr = [stderr, depResult.stderr].filter(Boolean).join('\n');
+  }
+
   const bundleResult = await runProcess('bash', [bundleScriptPath], {
     cwd: projectPath,
     timeoutMs,
@@ -403,18 +434,29 @@ export async function executeWebArtifactBuild(
     throw new Error(`Expected bundled artifact at ${bundlePath}`);
   }
 
+  const bundleSize = statSync(bundlePath).size;
+  if (bundleSize <= 0) {
+    throw new Error(`Bundled artifact is empty: ${bundlePath}`);
+  }
+
   mkdirSync(dirname(outputPath), { recursive: true });
   copyFileSync(bundlePath, outputPath);
+  // The script-side check in bundle-artifact.sh and the bundleSize check
+  // above already guarantee a non-empty source; copyFileSync would throw
+  // on a filesystem failure. A post-copy size check would be redundant
+  // defensive noise — see CLAUDE.md TypeScript Guardrail #3.
+  const fileSize = bundleSize;
 
   return {
     filePath: outputPath,
-    fileSize: statSync(outputPath).size,
+    fileSize,
     projectPath,
     metadata: {
       title: input.title,
       bundlePath,
       projectPath,
       hasIndexCss: typeof input.indexCss === 'string',
+      ...(deps.length > 0 ? { deps } : {}),
       extraFileCount: Object.keys(input.files ?? {}).length,
       outputPreview: readFileSync(outputPath, 'utf-8').slice(0, 200),
     },

@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
 let counter = 0;
+const checkpoints = new Map<string, string>();
 
 const resourceUri = 'ui://fixture/counter.html';
 const fixtureDir = dirname(fileURLToPath(import.meta.url));
@@ -64,6 +65,26 @@ const html = `<!doctype html>
         font-weight: 700;
         margin: 8px 0 16px;
       }
+      .editor {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: #f8fafc;
+        color: #0f172a;
+        padding: 32px;
+      }
+      .editor-card {
+        width: min(520px, 100%);
+        border: 1px solid #cbd5e1;
+        border-radius: 18px;
+        background: white;
+        padding: 22px;
+        box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
+      }
+      .editor-card p {
+        color: #475569;
+        margin: 8px 0 18px;
+      }
       button {
         border: 0;
         border-radius: 999px;
@@ -88,17 +109,66 @@ const html = `<!doctype html>
 
       const countEl = document.getElementById('count');
       const incrementButton = document.getElementById('increment');
+      let hostContext = null;
+      let checkpointId = 'fixture-checkpoint';
+      let currentCount = 0;
+      let note = '';
+      let restoredCheckpoint = null;
+      let editorEnabled = false;
 
       const render = (value) => {
-        countEl.textContent = String(value ?? 0);
+        currentCount = value ?? currentCount;
+        if (!editorEnabled || !hostContext || hostContext.displayMode !== 'fullscreen') {
+          document.body.innerHTML = '<main><section class="card"><div>Fixture Counter</div><div id="count" class="count">' + String(currentCount) + '</div><button id="increment" type="button">Increment</button></section></main>';
+          document.getElementById('increment').addEventListener('click', increment);
+          return;
+        }
+
+        document.body.innerHTML = '<main class="editor"><section class="editor-card"><h1>Fixture Editor</h1><p id="saved-note">' + (note || 'No saved edit') + '</p><button id="edit-note" type="button">Add Manual Edit</button></section></main>';
+        document.getElementById('edit-note').addEventListener('click', saveManualEdit);
       };
 
+      async function restoreCheckpoint() {
+        if (!checkpointId || restoredCheckpoint === checkpointId) return;
+        restoredCheckpoint = checkpointId;
+        const result = await app.callServerTool({
+          name: 'read_checkpoint',
+          arguments: { id: checkpointId },
+        });
+        const text = result?.content?.[0]?.text;
+        if (!text) return;
+        try {
+          const saved = JSON.parse(text);
+          if (typeof saved.note === 'string') note = saved.note;
+        } catch {}
+      }
+
       const app = new App({ name: 'fixture-counter', version: '1.0.0' }, {});
+      app.onhostcontextchanged = (ctx) => {
+        hostContext = { ...(hostContext ?? {}), ...ctx };
+        if (hostContext.displayMode === 'fullscreen') {
+          void restoreCheckpoint().then(() => render(currentCount));
+          return;
+        }
+        render(currentCount);
+      };
+      app.ontoolinput = (params) => {
+        const args = params?.arguments ?? params;
+        const initial = args?.initial;
+        editorEnabled = args?.editor === true;
+        if (typeof initial === 'number') render(initial);
+      };
       app.ontoolresult = (result) => {
+        const nextCheckpoint = result?.structuredContent?.checkpointId;
+        if (typeof nextCheckpoint === 'string') checkpointId = nextCheckpoint;
+        if (hostContext?.displayMode === 'fullscreen') {
+          void restoreCheckpoint().then(() => render(result?.structuredContent?.count ?? 0));
+          return;
+        }
         render(result?.structuredContent?.count ?? 0);
       };
 
-      incrementButton.addEventListener('click', async () => {
+      async function increment() {
         const result = await app.callServerTool({
           name: 'increment',
           arguments: {},
@@ -108,9 +178,24 @@ const html = `<!doctype html>
         await app.updateModelContext({
           structuredContent: { count: nextCount },
         });
-      });
+      }
+
+      async function saveManualEdit() {
+        note = 'Saved manual edit';
+        await app.callServerTool({
+          name: 'save_checkpoint',
+          arguments: { id: checkpointId, data: JSON.stringify({ note }) },
+        });
+        await app.updateModelContext({
+          content: [{ type: 'text', text: note }],
+        });
+        render(Number(countEl?.textContent ?? 0));
+      }
+
+      incrementButton.addEventListener('click', increment);
 
       await app.connect(new PostMessageTransport(window.parent, window.parent));
+      hostContext = app.getHostContext();
     </script>
   </body>
 </html>`;
@@ -140,9 +225,29 @@ async function main(): Promise<void> {
       counter = typeof initial === 'number' ? initial : 0;
       return {
         content: [{ type: 'text', text: `Counter ready at ${counter}.` }],
-        structuredContent: { count: counter },
+        structuredContent: { count: counter, checkpointId: 'fixture-checkpoint' },
       };
     },
+  );
+
+  registerAppTool(
+    server,
+    'create_view',
+    {
+      title: 'Diagram App',
+      description: 'Render a diagram app inside the host.',
+      inputSchema: {
+        elements: z.string(),
+      },
+      _meta: {
+        ui: {
+          resourceUri,
+        },
+      },
+    },
+    async () => ({
+      content: [{ type: 'text', text: 'Diagram ready.' }],
+    }),
   );
 
   registerAppTool(
@@ -165,6 +270,50 @@ async function main(): Promise<void> {
         structuredContent: { count: counter },
       };
     },
+  );
+
+  registerAppTool(
+    server,
+    'save_checkpoint',
+    {
+      description: 'Save edited app state.',
+      inputSchema: {
+        id: z.string(),
+        data: z.string(),
+      },
+      _meta: {
+        ui: {
+          resourceUri,
+          visibility: ['app'],
+        },
+      },
+    },
+    async ({ id, data }) => {
+      checkpoints.set(id, data);
+      return {
+        content: [{ type: 'text', text: 'ok' }],
+      };
+    },
+  );
+
+  registerAppTool(
+    server,
+    'read_checkpoint',
+    {
+      description: 'Read edited app state.',
+      inputSchema: {
+        id: z.string(),
+      },
+      _meta: {
+        ui: {
+          resourceUri,
+          visibility: ['app'],
+        },
+      },
+    },
+    async ({ id }) => ({
+      content: [{ type: 'text', text: checkpoints.get(id) ?? '' }],
+    }),
   );
 
   registerAppResource(

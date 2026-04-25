@@ -3,6 +3,68 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.3] - 2026-04-25
+
+CLI hardening release with full MCP parity for the new affordances. Closes
+gaps surfaced by the v0.1.2 fresh-install E2E (silent web-artifact failures,
+generic `mcp-app` confusion, viewport-hijacking focus), persists Excalidraw
+edits across iframe remounts, and ships a new `test:e2e-cli` coverage eval.
+
+### Added
+
+- `pmx-canvas external-app add --kind excalidraw` for tool-backed Excalidraw
+  nodes, with optional `--elements-json` / `--elements-file` / position +
+  size flags.
+- `pmx-canvas web-artifact build --deps <csv|json>` and matching HTTP
+  `deps?: string[]` for adding npm dependencies before bundling. Validated
+  against npm-name format; flags and shell metacharacters are rejected. The
+  web-artifact scaffold now bundles `recharts` by default.
+  **MCP:** `canvas_build_web_artifact` accepts `deps` for parity.
+- `pmx-canvas focus <id> --no-pan` (and HTTP `noPan: true`) selects/raises
+  a node without moving the viewport. The HTTP response gains
+  `panned: boolean`; the SSE `canvas-focus-node` event payload gains
+  `noPan`. **MCP:** `canvas_focus_node` accepts `noPan` for parity. **SDK:**
+  `c.focusNode(id, { noPan? })` returns `{ focused, panned } | null`.
+- `pmx-canvas node add --type graph --data <json>` as an alias for
+  `--data-json`.
+- `bun run test:e2e-cli` (`scripts/e2e-cli-coverage.sh` +
+  `docs/evals/e2e-cli-coverage.md`) — fresh-workspace CLI coverage eval.
+- `skills/pmx-canvas/references/installing-pmx-canvas.md` install reference
+  for first-run agents.
+
+### Changed
+
+- `pmx-canvas node add --type mcp-app …` is now rejected with guidance
+  pointing at `web-artifact build` or `external-app add` instead of creating
+  an empty node.
+- `pmx-canvas web-artifact build` exits non-zero with `ok: false` JSON on
+  bundle failure and does not create a canvas node.
+- `pmx-canvas status` buckets hosted artifact `mcp-app` nodes under
+  `web-artifact`.
+- Grid arrange spaces columns by the widest movable node so wide artifacts
+  do not overlap; `POST /api/canvas/arrange` returns `validation` +
+  `collisions` when the resulting layout has overlaps.
+
+### Fixed
+
+- Excalidraw edits made in fullscreen are now persisted into a replayable
+  `toolResult` and survive iframe remounts
+  (`POST /api/ext-app/model-context`).
+- Web-artifact builds fail loudly instead of emitting a zero-byte HTML when
+  Parcel/html-inline produce empty output (`bundle-artifact.sh` exits early
+  on missing/empty Parcel output).
+
+### Internal
+
+- Web-artifact dep installer now uses `bash -c` instead of `bash -lc`, so
+  the user's login profile (`~/.bashrc`/`~/.zshrc`) cannot perturb installs.
+- Removed the redundant post-copy bundle-size check (the script-side check
+  already guarantees a non-empty source; CLAUDE.md TypeScript Guardrail #3).
+- New unit coverage in `cli-node`, `server-api`, `web-artifacts`, and
+  `canvas-operations` test suites.
+
+[0.1.3]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.3
+
 ## [0.1.2] - 2026-04-24
 
 Follow-up to 0.1.1 driven by fresh-install review feedback. Two validation /

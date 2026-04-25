@@ -15,6 +15,7 @@ import {
   contextPinnedNodeIds,
   expandedNodeId,
   nodes,
+  pendingExpandedNodeCloseId,
   toggleContextPin,
 } from '../state/canvas-store';
 import { TYPE_LABELS } from '../types';
@@ -115,6 +116,7 @@ export function ExpandedNodeOverlay() {
   const words = wordCount(textContent);
   const isCtxPinned = nodeId ? contextPinnedNodeIds.value.has(nodeId) : false;
   const hasText = textContent.length > 0;
+  const pendingClose = pendingExpandedNodeCloseId.value === nodeId;
 
   return (
     <div
@@ -130,6 +132,7 @@ export function ExpandedNodeOverlay() {
         alignItems: 'stretch',
         justifyContent: 'center',
         padding: '32px',
+        pointerEvents: pendingClose ? 'none' : 'auto',
       }}
     >
       <div
@@ -217,7 +220,9 @@ export function ExpandedNodeOverlay() {
             )}
           </div>
 
-          <span style={{ fontSize: '10px', color: 'var(--c-muted)' }}>Esc to close</span>
+          <span style={{ fontSize: '10px', color: pendingClose ? 'var(--c-warn)' : 'var(--c-muted)' }}>
+            {pendingClose ? 'Saving edits...' : 'Esc to close'}
+          </span>
           <button
             type="button"
             onClick={handleClose}

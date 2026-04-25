@@ -496,6 +496,56 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
   await expect(reloadedFrame.locator('#count')).toHaveText('3');
 });
 
+test('MCP App fullscreen edits persist after closing and reopening the app', async ({ page, request }) => {
+  const fixturePath = fileURLToPath(new URL('../fixtures/mcp-app-fixture.ts', import.meta.url));
+
+  await page.goto('/workbench');
+
+  const openResponse = await request.post('/api/canvas/mcp-app/open', {
+    data: {
+      toolName: 'show_counter',
+      toolArguments: { initial: 2, editor: true },
+      title: 'Persistent Editor App',
+      transport: {
+        type: 'stdio',
+        command: 'bun',
+        args: ['run', fixturePath],
+        cwd: process.cwd(),
+      },
+    },
+  });
+  expect(openResponse.ok()).toBe(true);
+
+  const appNode = page.locator('.canvas-node').filter({ hasText: 'Persistent Editor App' });
+  await expect(appNode).toHaveCount(1);
+  await appNode.locator('.ext-app-preview-catcher').click();
+
+  const panel = page.locator('.expanded-overlay-panel');
+  const frame = panel.frameLocator('iframe');
+  await expect(frame.getByText('Fixture Editor')).toBeVisible();
+  await expect(frame.getByText('No saved edit')).toBeVisible();
+  await frame.getByRole('button', { name: 'Add Manual Edit' }).click();
+  await expect(frame.getByText('Saved manual edit')).toBeVisible();
+
+  await expect.poll(async () => {
+    const state = await currentCanvasState(request);
+    const hosted = state.nodes.find((node) => node.type === 'mcp-app' && node.data.title === 'Persistent Editor App');
+    const appModelContext = hosted?.data.appModelContext as
+      | { content?: Array<{ text?: string }> }
+      | undefined;
+    return appModelContext?.content?.[0]?.text ?? null;
+  }, {
+    timeout: 15000,
+  }).toBe('Saved manual edit');
+
+  await panel.getByTitle('Close (Esc)').click();
+  await appNode.locator('.ext-app-preview-catcher').click();
+
+  const reopenedFrame = page.locator('.expanded-overlay-panel').frameLocator('iframe');
+  await expect(reopenedFrame.getByText('Fixture Editor')).toBeVisible();
+  await expect(reopenedFrame.getByText('Saved manual edit')).toBeVisible();
+});
+
 test('markdown edit opens inline WYSIWYG mode, not raw source mode', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
     data: {

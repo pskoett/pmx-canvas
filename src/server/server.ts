@@ -39,6 +39,7 @@ import { existsSync, readFileSync, statSync, writeFileSync, appendFileSync } fro
 import { basename, extname, join, relative, resolve } from 'node:path';
 import * as marked from 'marked';
 import type {
+  CallToolResult,
   ListPromptsResult,
   ListResourcesResult,
   ListResourceTemplatesResult,
@@ -92,7 +93,16 @@ import {
 } from './canvas-operations.js';
 import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
-import { buildExcalidrawOpenMcpAppInput } from './diagram-presets.js';
+import {
+  EXCALIDRAW_READ_CHECKPOINT_TOOL,
+  EXCALIDRAW_SAVE_CHECKPOINT_TOOL,
+  buildExcalidrawCheckpointId,
+  buildExcalidrawOpenMcpAppInput,
+  buildExcalidrawRestoreCheckpointToolInput,
+  ensureExcalidrawCheckpointId,
+  getExcalidrawCheckpointIdFromToolResult,
+  isExcalidrawCreateView,
+} from './diagram-presets.js';
 import { traceManager } from './trace-manager.js';
 import { buildWebArtifactOnCanvas, resolveWorkspacePath } from './web-artifacts.js';
 import {
@@ -604,6 +614,79 @@ function findCanvasExtAppNodeId(toolCallId: string): string | null {
     }
   }
   return null;
+}
+
+function isCheckpointToolName(toolName: string): boolean {
+  return toolName === EXCALIDRAW_SAVE_CHECKPOINT_TOOL || toolName === EXCALIDRAW_READ_CHECKPOINT_TOOL;
+}
+
+function shouldReplayAppToolResult(toolName: string, result: CallToolResult): boolean {
+  void toolName;
+  return Boolean(
+    result.isError ||
+      result.structuredContent ||
+      result.content.some((entry) => entry.type !== 'text' || entry.text !== 'ok'),
+  );
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function getExtAppNodeCheckpointId(node: CanvasNodeState): string {
+  const appCheckpoint = isRecord(node.data.appCheckpoint) ? node.data.appCheckpoint : null;
+  const storedCheckpointId = appCheckpoint?.id;
+  if (typeof storedCheckpointId === 'string' && storedCheckpointId.trim().length > 0) {
+    return storedCheckpointId.trim();
+  }
+  return getExcalidrawCheckpointIdFromToolResult(node.data.toolResult) ?? buildExcalidrawCheckpointId(node.id);
+}
+
+function getLocalExcalidrawCheckpointData(
+  node: CanvasNodeState,
+  args: Record<string, unknown> | undefined,
+): string | null {
+  if (!isExcalidrawCreateView(node.data.serverName, node.data.toolName)) return null;
+  if (!isRecord(args) || typeof args.id !== 'string') return null;
+  if (args.id.trim() !== getExtAppNodeCheckpointId(node)) return null;
+  const appCheckpoint = isRecord(node.data.appCheckpoint) ? node.data.appCheckpoint : null;
+  const data = appCheckpoint?.data;
+  return typeof data === 'string' ? data : '';
+}
+
+function persistExcalidrawCheckpointToNode(
+  nodeId: string,
+  node: CanvasNodeState,
+  args: Record<string, unknown> | undefined,
+): boolean {
+  if (!isExcalidrawCreateView(node.data.serverName, node.data.toolName)) return false;
+  if (!isRecord(args) || typeof args.id !== 'string') return false;
+  const checkpointId = getExtAppNodeCheckpointId(node);
+  if (args.id.trim() !== checkpointId) return false;
+
+  const currentToolInput = isRecord(node.data.toolInput) ? node.data.toolInput : {};
+  const nextToolInput = {
+    ...currentToolInput,
+    elements: buildExcalidrawRestoreCheckpointToolInput(checkpointId, args.data),
+  };
+  const currentToolResult = isRecord(node.data.toolResult)
+    ? ensureExcalidrawCheckpointId(node.data.toolResult as CallToolResult, node.id, checkpointId)
+    : undefined;
+
+  canvasState.updateNode(nodeId, {
+    data: {
+      ...node.data,
+      toolInput: nextToolInput,
+      ...(currentToolResult ? { toolResult: currentToolResult } : {}),
+      appCheckpoint: {
+        toolName: EXCALIDRAW_SAVE_CHECKPOINT_TOOL,
+        id: checkpointId,
+        ...(typeof args.data === 'string' ? { data: args.data } : {}),
+        updatedAt: new Date().toISOString(),
+      },
+    },
+  });
+  return true;
 }
 
 function findReusableCanvasExtAppNodeId(serverName: string, toolName: string): string | null {
@@ -1323,7 +1406,13 @@ async function handleCanvasArrange(req: Request): Promise<Response> {
   }
   const result = arrangeCanvasNodes(layout as 'grid' | 'column' | 'flow');
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson({ ok: true, arranged: result.arranged, layout: result.layout });
+  const validation = validateCanvasLayout(canvasState.getLayout());
+  return responseJson({
+    ok: validation.ok,
+    arranged: result.arranged,
+    layout: result.layout,
+    ...(validation.ok ? {} : { validation, collisions: validation.summary.collisions }),
+  });
 }
 
 // ── Focus on node ───────────────────────────────────────────
@@ -1333,11 +1422,17 @@ async function handleCanvasFocus(req: Request): Promise<Response> {
   if (!nodeId) return responseJson({ ok: false, error: 'Missing id.' }, 400);
   const node = canvasState.getNode(nodeId);
   if (!node) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
-  canvasState.setViewport({ x: node.position.x - 100, y: node.position.y - 100 });
-  emitPrimaryWorkbenchEvent('canvas-focus-node', { nodeId });
-  emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
+  const noPan = body.noPan === true;
+  if (!noPan) {
+    canvasState.setViewport({ x: node.position.x - 100, y: node.position.y - 100 });
+  } else {
+    const maxZ = canvasState.getLayout().nodes.reduce((max, layoutNode) => Math.max(max, layoutNode.zIndex), 0);
+    canvasState.updateNode(nodeId, { zIndex: maxZ + 1 });
+  }
+  emitPrimaryWorkbenchEvent('canvas-focus-node', { nodeId, noPan });
+  if (!noPan) emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson({ ok: true, focused: nodeId });
+  return responseJson({ ok: true, focused: nodeId, panned: !noPan });
 }
 
 async function handleCanvasBuildWebArtifact(req: Request): Promise<Response> {
@@ -1374,6 +1469,9 @@ async function handleCanvasBuildWebArtifact(req: Request): Promise<Response> {
         : {}),
       ...(typeof body.bundleScriptPath === 'string'
         ? { bundleScriptPath: body.bundleScriptPath }
+        : {}),
+      ...(Array.isArray(body.deps)
+        ? { deps: body.deps.filter((dep): dep is string => typeof dep === 'string') }
         : {}),
       ...(typeof body.timeoutMs === 'number' ? { timeoutMs: body.timeoutMs } : {}),
       ...(typeof body.openInCanvas === 'boolean' ? { openInCanvas: body.openInCanvas } : {}),
@@ -1853,6 +1951,10 @@ async function runAndEmitOpenMcpApp(params: RunAndEmitOpenMcpAppParams): Promise
     });
 
     const toolCallId = randomExtAppToolCallId();
+    const nodeIdSeed = `ext-app-${toolCallId}`;
+    const toolResult = isExcalidrawCreateView(opened.serverName, opened.toolName)
+      ? ensureExcalidrawCheckpointId(opened.toolResult, nodeIdSeed)
+      : opened.toolResult;
     const nodeTitle = params.title ?? opened.tool.title ?? opened.tool.name;
 
     emitPrimaryWorkbenchEvent('ext-app-open', {
@@ -1878,8 +1980,8 @@ async function runAndEmitOpenMcpApp(params: RunAndEmitOpenMcpAppParams): Promise
       toolCallId,
       serverName: opened.serverName,
       toolName: opened.toolName,
-      success: opened.toolResult.isError !== true,
-      result: opened.toolResult,
+      success: toolResult.isError !== true,
+      result: toolResult,
     });
     const nodeId = findCanvasExtAppNodeId(toolCallId);
 
@@ -1979,35 +2081,53 @@ async function handleExtAppCallTool(req: Request): Promise<Response> {
   const nodeId = typeof body.nodeId === 'string' ? body.nodeId.trim() : '';
 
   try {
-    const result = await callMcpAppTool(sessionId, toolName, args);
+    const requestedNode = nodeId ? canvasState.getNode(nodeId) : undefined;
+    const canReadLocalCheckpoint =
+      requestedNode?.type === 'mcp-app' &&
+      requestedNode.data.mode === 'ext-app' &&
+      requestedNode.data.appSessionId === sessionId;
+    const localCheckpointData = canReadLocalCheckpoint && toolName === EXCALIDRAW_READ_CHECKPOINT_TOOL
+      ? getLocalExcalidrawCheckpointData(requestedNode, args)
+      : null;
+    const result = localCheckpointData === null
+      ? await callMcpAppTool(sessionId, toolName, args)
+      : { content: [{ type: 'text', text: localCheckpointData }] } satisfies CallToolResult;
     if (nodeId) {
       const node = canvasState.getNode(nodeId);
       if (node?.type === 'mcp-app' && node.data.mode === 'ext-app' && node.data.appSessionId === sessionId) {
-        const nextData: Record<string, unknown> = {
-          ...node.data,
-          toolResult: result,
-        };
-        const nextModelContext: Record<string, unknown> = {};
-        if (Array.isArray(result.content)) {
-          nextModelContext.content = result.content;
+        let changed = false;
+        if (toolName === EXCALIDRAW_SAVE_CHECKPOINT_TOOL && persistExcalidrawCheckpointToNode(nodeId, node, args)) {
+          // Checkpoint saves are replayed through toolInput.elements instead of
+          // replacing the original create_view result with a generic "ok".
+          changed = true;
+        } else if (!(isExcalidrawCreateView(node.data.serverName, node.data.toolName) && isCheckpointToolName(toolName))) {
+          const nextData: Record<string, unknown> = { ...node.data };
+          if (shouldReplayAppToolResult(toolName, result)) nextData.toolResult = result;
+          const nextModelContext: Record<string, unknown> = {};
+          if (Array.isArray(result.content)) {
+            nextModelContext.content = result.content;
+          }
+          if (result.structuredContent && typeof result.structuredContent === 'object' && !Array.isArray(result.structuredContent)) {
+            nextModelContext.structuredContent = result.structuredContent;
+          }
+          if (Object.keys(nextModelContext).length > 0) {
+            nextData.appModelContext = {
+              ...nextModelContext,
+              updatedAt: new Date().toISOString(),
+            };
+          }
+          canvasState.updateNode(nodeId, {
+            data: nextData,
+          });
+          changed = true;
         }
-        if (result.structuredContent && typeof result.structuredContent === 'object' && !Array.isArray(result.structuredContent)) {
-          nextModelContext.structuredContent = result.structuredContent;
+        if (changed) {
+          broadcastWorkbenchEvent('canvas-layout-update', {
+            layout: canvasState.getLayout(),
+            sessionId: primaryWorkbenchSessionId,
+            timestamp: new Date().toISOString(),
+          });
         }
-        if (Object.keys(nextModelContext).length > 0) {
-          nextData.appModelContext = {
-            ...nextModelContext,
-            updatedAt: new Date().toISOString(),
-          };
-        }
-        canvasState.updateNode(nodeId, {
-          data: nextData,
-        });
-        broadcastWorkbenchEvent('canvas-layout-update', {
-          layout: canvasState.getLayout(),
-          sessionId: primaryWorkbenchSessionId,
-          timestamp: new Date().toISOString(),
-        });
       }
     }
     return responseJson({ ok: true, result });

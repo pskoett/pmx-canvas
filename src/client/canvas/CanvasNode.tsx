@@ -143,9 +143,10 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const autoFitPersistTimer = useRef<number | null>(null);
   const AUTO_FIT_MAX = 600;
   const TITLEBAR_HEIGHT = 37;
+  const isExtAppNode = node.type === 'mcp-app' && node.data.mode === 'ext-app';
 
   useEffect(() => {
-    if (hasAutoFit.current || node.collapsed || node.dockPosition || node.type === 'group') return;
+    if (hasAutoFit.current || node.collapsed || node.dockPosition || node.type === 'group' || isExtAppNode) return;
     const body = bodyRef.current;
     if (!body) return;
 
@@ -180,7 +181,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         autoFitPersistTimer.current = null;
       }
     };
-  }, [node.id, node.type, node.collapsed, node.dockPosition, node.size.width, node.size.height]);
+  }, [node.id, node.type, isExtAppNode, node.collapsed, node.dockPosition, node.size.width, node.size.height]);
 
   const isPinned = node.pinned;
   const isTrace = node.type === 'trace';

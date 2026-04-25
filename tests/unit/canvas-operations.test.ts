@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { canvasState } from '../../src/server/canvas-state.ts';
-import { addCanvasNode, setCanvasContextPins } from '../../src/server/canvas-operations.ts';
+import { addCanvasNode, arrangeCanvasNodes, setCanvasContextPins } from '../../src/server/canvas-operations.ts';
+import { validateCanvasLayout } from '../../src/server/canvas-validation.ts';
 import {
   createTestWorkspace,
   makeNode,
@@ -39,6 +40,45 @@ describe('canvas operations', () => {
     const removeResult = setCanvasContextPins([nodeIds[0]!, nodeIds[5]!, 'missing-node'], 'remove');
     expect(removeResult.nodeIds).toEqual(nodeIds.slice(1, 5).concat(nodeIds.slice(6, 20)));
     expect(Array.from(canvasState.contextPinnedNodeIds)).toEqual(removeResult.nodeIds);
+  });
+
+  test('grid arrange spaces columns by the widest movable node', () => {
+    canvasState.addNode(makeNode({ id: 'wide', type: 'markdown', size: { width: 960, height: 240 } }));
+    canvasState.addNode(makeNode({ id: 'small-1', type: 'markdown', size: { width: 360, height: 200 } }));
+    canvasState.addNode(makeNode({ id: 'small-2', type: 'markdown', size: { width: 360, height: 200 } }));
+    canvasState.addNode(makeNode({ id: 'small-3', type: 'markdown', size: { width: 360, height: 200 } }));
+
+    arrangeCanvasNodes('grid');
+
+    const validation = validateCanvasLayout(canvasState.getLayout());
+    expect(validation.ok).toBe(true);
+    expect(validation.summary.collisions).toBe(0);
+  });
+
+  test('grid arrange moves group frames without arranging grouped children separately', () => {
+    canvasState.addNode(makeNode({
+      id: 'group-a',
+      type: 'group',
+      position: { x: 40, y: 40 },
+      size: { width: 600, height: 360 },
+      data: { title: 'Group A', children: ['child-a'] },
+    }));
+    canvasState.addNode(makeNode({
+      id: 'child-a',
+      type: 'markdown',
+      position: { x: 64, y: 84 },
+      size: { width: 360, height: 200 },
+      data: { title: 'Child A', parentGroup: 'group-a' },
+    }));
+    canvasState.addNode(makeNode({ id: 'loose-a', type: 'markdown', size: { width: 360, height: 200 } }));
+
+    arrangeCanvasNodes('grid');
+
+    const validation = validateCanvasLayout(canvasState.getLayout());
+    expect(validation.summary.containmentViolations).toBe(0);
+    expect(canvasState.getNode('child-a')?.data.parentGroup).toBe('group-a');
+    expect(canvasState.getNode('group-a')?.position).toEqual({ x: 40, y: 80 });
+    expect(canvasState.getNode('child-a')?.position).toEqual({ x: 64, y: 124 });
   });
 });
 

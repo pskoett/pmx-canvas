@@ -31,7 +31,7 @@ if (args.includes('--version') || args.includes('-v')) {
 const AGENT_COMMANDS = new Set([
   'node', 'edge', 'search', 'layout', 'status', 'arrange', 'focus',
   'pin', 'undo', 'redo', 'history', 'snapshot', 'diff', 'group', 'webview', 'open',
-  'clear', 'code-graph', 'spatial', 'watch', 'web-artifact', 'batch', 'validate', 'serve',
+  'clear', 'code-graph', 'spatial', 'watch', 'web-artifact', 'external-app', 'batch', 'validate', 'serve',
 ]);
 
 const firstArg = args[0] ?? '';
@@ -501,6 +501,7 @@ Agent CLI (works against running server):
   validate spec                       Validate json-render/graph payloads without creating nodes
   watch [--json] [--events ...]       Watch low-token semantic canvas changes
   focus <node-id>                     Pan to node
+  external-app add                    Add hosted external apps like Excalidraw
   pin <ids...> | --list | --clear     Manage context pins
   undo / redo / history               Time travel
   snapshot save|list|restore|diff|delete
@@ -542,6 +543,7 @@ Examples:
   pmx-canvas node list                                        List all nodes
   pmx-canvas node schema --type json-render                   Show running-server schema info
   pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx
+  pmx-canvas external-app add --kind excalidraw --title "Diagram"
   pmx-canvas validate spec --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value
   pmx-canvas open                                             Open the workbench in a browser
   pmx-canvas webview status                                   Show WebView automation status

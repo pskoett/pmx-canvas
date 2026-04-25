@@ -28,6 +28,7 @@ The published SDK entrypoint is Bun-first: `import { createCanvas } from 'pmx-ca
 
 ```bash
 bunx pmx-canvas              # Start canvas, open browser
+bunx pmx-canvas serve --daemon --no-open --wait-ms=20000
 bunx pmx-canvas --demo       # Start with sample nodes
 bunx pmx-canvas --mcp        # Run as MCP server
 ```
@@ -143,9 +144,9 @@ The canvas auto-starts on first tool call. Works with Claude Code, Cursor, Winds
 | `file` | Live file viewer with auto-update on disk changes |
 | `image` | Image viewer (file paths, data URIs, URLs) |
 | `webpage` | Persisted webpage snapshot with stored URL, extracted text, and refresh support |
-| `mcp-app` | Hosted MCP app iframes (Excalidraw, Chart.js, etc.) -- see [MCP app nodes](#mcp-app-nodes) |
+| `mcp-app` | Tool-backed hosted MCP app iframes (Excalidraw, web artifacts, etc.) -- see [MCP app nodes](#mcp-app-nodes) |
 | `json-render` | Structured UI from JSON specs |
-| `graph` | Line, bar, and pie charts |
+| `graph` | Line, bar, pie, area, scatter, radar, stacked-bar, and composed charts |
 | `group` | Spatial container/frame that contains other nodes |
 
 Thread node types `prompt` and `response` are used internally for agent conversation
@@ -185,6 +186,10 @@ canvas_refresh_webpage_node({ id: 'node-abc123' })
 sandboxed iframes. Any server that implements the [MCP Apps extension](https://modelcontextprotocol.io/docs/extensions/apps)
 can be opened as a node with `canvas_open_mcp_app`.
 
+Generic `pmx-canvas node add --type mcp-app` is intentionally rejected because these nodes need
+tool/session metadata. Use `pmx-canvas web-artifact build` for bundled React artifacts or
+`pmx-canvas external-app add --kind excalidraw` for the Excalidraw preset.
+
 #### Recommended: Excalidraw (hand-drawn diagrams)
 
 [Excalidraw](https://github.com/excalidraw/excalidraw-mcp) ships a hosted MCP server at
@@ -195,6 +200,10 @@ supports fullscreen editing when you want to expand it into a larger workspace.
 
 PMX Canvas ships a preset so an agent can open an Excalidraw diagram in one call, without wiring
 the transport by hand:
+
+```bash
+pmx-canvas external-app add --kind excalidraw --title "Agent to Canvas"
+```
 
 ```typescript
 canvas_add_diagram({
@@ -229,7 +238,8 @@ canvas_open_mcp_app({
 
 The canvas runs the tool against the remote MCP server, renders the returned `ui://` resource in
 a sandboxed iframe node, and keeps the resource's CSP + permission hints intact. Resize, drag,
-and pin the node like any other canvas node.
+and pin the node like any other canvas node. Edits made in expanded/fullscreen mode are persisted
+back into the node model context and replayed when the iframe remounts.
 
 ### Json-render nodes
 
@@ -266,8 +276,12 @@ self-contained HTML to `.pmx-canvas/artifacts/<slug>.html`, and (by default) ope
 
 ```bash
 pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx
-pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --include-logs
+pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --deps recharts --include-logs
 ```
+
+The scaffold includes `recharts` for chart-heavy artifacts. Pass `--deps name,name2` for any
+additional package dependencies before bundling. Failed or empty CLI bundles print `ok: false`,
+exit non-zero, and do not create a canvas node.
 
 The matching agent skill is at [skills/web-artifacts-builder/SKILL.md](skills/web-artifacts-builder/SKILL.md).
 
@@ -494,7 +508,7 @@ layout validation, graph/json-render nodes, group control, snapshots, and search
 | `canvas_validate_spec` | Validate a json-render spec or graph payload without creating a node |
 | `canvas_refresh_webpage_node` | Re-fetch and update a webpage node from its stored URL |
 | `canvas_add_json_render_node` | Create a native json-render node from a validated spec |
-| `canvas_add_graph_node` | Create a native graph node (line, bar, pie) |
+| `canvas_add_graph_node` | Create a native graph node (line, bar, pie, area, scatter, radar, stacked-bar, composed) |
 | `canvas_build_web_artifact` | Build a bundled HTML artifact and open it on the canvas |
 | `canvas_update_node` | Update content, position, size, collapsed state |
 | `canvas_remove_node` | Remove a node and its edges |
@@ -504,7 +518,7 @@ layout validation, graph/json-render nodes, group control, snapshots, and search
 | `canvas_remove_edge` | Remove a connection |
 | `canvas_arrange` | Auto-arrange (grid/column/flow) |
 | `canvas_validate` | Validate collisions, containment, and missing edge endpoints |
-| `canvas_focus_node` | Pan viewport to a node |
+| `canvas_focus_node` | Pan viewport to a node; use CLI `focus --no-pan` when you only need to select/raise |
 | `canvas_pin_nodes` | Pin nodes to include in agent context |
 | `canvas_clear` | Clear all nodes and edges |
 | `canvas_snapshot` | Save current canvas as a named snapshot |
@@ -706,6 +720,9 @@ await canvas.stopAutomationWebView();
 
 The CLI is the equally recommended shell-native way to run and control PMX Canvas.
 
+The CLI targets `http://localhost:4313` by default. Override with `PMX_CANVAS_URL` or
+`PMX_CANVAS_PORT` when the server runs elsewhere.
+
 ```bash
 pmx-canvas                        # Start canvas, open browser
 pmx-canvas --demo                 # Start with sample nodes
@@ -721,13 +738,16 @@ pmx-canvas open                   # Open the current workbench in a browser
 pmx-canvas node add --type webpage --url https://example.com/docs
 pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx
 pmx-canvas node add --help --type webpage --json
+pmx-canvas external-app add --kind excalidraw --title "Diagram"
 pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value
+pmx-canvas node add --type graph --graph-type bar --data '[{"x":"a","y":1}]' --x-key x --y-key y
 pmx-canvas node schema --type json-render --component Table --summary
 pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation
 pmx-canvas batch --file ./canvas-ops.json
 pmx-canvas validate
+pmx-canvas focus <node-id> --no-pan
 pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary
-pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --include-logs
+pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --deps recharts --include-logs
 pmx-canvas webview status         # Show WebView automation status
 pmx-canvas webview start --backend chrome --width 1440 --height 900
 pmx-canvas webview evaluate --expression "document.title"
@@ -808,8 +828,14 @@ bun run dev:portless:demo     # Same, with demo nodes
 bun run test                  # Unit tests
 bun run test:coverage         # Unit tests with text summary + coverage/lcov.info
 bun run test:e2e              # Playwright end-to-end tests
-bun run test:all              # All tests
+bun run test:e2e-cli          # Fresh-workspace CLI coverage eval
+bun run test:all              # Unit tests + browser smoke
 ```
+
+`bun run test:e2e-cli` starts a local server in a fresh temp workspace and verifies the CLI flows
+from the durable eval in [docs/evals/e2e-cli-coverage.md](docs/evals/e2e-cli-coverage.md):
+parseable JSON, node creation, graph `--data`, web-artifact failure handling, Excalidraw external
+apps, `focus --no-pan`, arrange/validate, and status subtype reporting.
 
 ## Release
 
@@ -818,6 +844,7 @@ Use this sequence before publishing a new version:
 ```bash
 bun install --frozen-lockfile
 bun run release:check
+bun run test:e2e-cli
 bun run release:smoke
 bun run pack:dry-run
 ```

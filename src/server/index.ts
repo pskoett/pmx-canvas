@@ -44,6 +44,8 @@ import {
 } from './mcp-app-runtime.js';
 import {
   buildExcalidrawOpenMcpAppInput,
+  ensureExcalidrawCheckpointId,
+  isExcalidrawCreateView,
   type DiagramPresetOpenInput,
 } from './diagram-presets.js';
 import {
@@ -323,16 +325,22 @@ export class PmxCanvas extends EventEmitter {
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   }
 
-  focusNode(id: string): void {
+  focusNode(id: string, options?: { noPan?: boolean }): { focused: string; panned: boolean } | null {
     const node = canvasState.getNode(id);
-    if (!node) return;
-    canvasState.setViewport({
-      x: node.position.x - 100,
-      y: node.position.y - 100,
-    });
-    emitPrimaryWorkbenchEvent('canvas-focus-node', { nodeId: id });
-    emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
+    if (!node) return null;
+    const noPan = options?.noPan === true;
+    if (!noPan) {
+      canvasState.setViewport({
+        x: node.position.x - 100,
+        y: node.position.y - 100,
+      });
+    }
+    emitPrimaryWorkbenchEvent('canvas-focus-node', { nodeId: id, noPan });
+    if (!noPan) {
+      emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
+    }
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return { focused: id, panned: !noPan };
   }
 
   getLayout(): CanvasLayout {
@@ -488,6 +496,10 @@ export class PmxCanvas extends EventEmitter {
       ...(input.serverName ? { serverName: input.serverName } : {}),
     });
     const toolCallId = `ext-app-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const nodeIdSeed = `ext-app-${toolCallId}`;
+    const toolResult = isExcalidrawCreateView(opened.serverName, opened.toolName)
+      ? ensureExcalidrawCheckpointId(opened.toolResult, nodeIdSeed)
+      : opened.toolResult;
     emitPrimaryWorkbenchEvent('ext-app-open', {
       toolCallId,
       title: input.title ?? opened.tool.title ?? opened.tool.name,
@@ -511,8 +523,8 @@ export class PmxCanvas extends EventEmitter {
       toolCallId,
       serverName: opened.serverName,
       toolName: opened.toolName,
-      success: opened.toolResult.isError !== true,
-      result: opened.toolResult,
+      success: toolResult.isError !== true,
+      result: toolResult,
     });
     const nodeId = this.findCanvasExtAppNodeId(toolCallId);
     return {

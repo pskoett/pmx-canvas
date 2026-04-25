@@ -3,10 +3,14 @@ import {
   activeNodeId,
   applyServerCanvasLayout,
   contextPinnedNodeIds,
+  collapseExpandedNode,
   edges,
+  expandNode,
   expandedNodeId,
   nodes,
+  pendingExpandedNodeCloseId,
   selectedNodeIds,
+  updateNode,
   viewport,
 } from '../../src/client/state/canvas-store.ts';
 import type { CanvasEdge, CanvasNodeState } from '../../src/client/types.ts';
@@ -35,6 +39,7 @@ function resetClientState(): void {
   edges.value = new Map();
   activeNodeId.value = null;
   expandedNodeId.value = null;
+  pendingExpandedNodeCloseId.value = null;
   selectedNodeIds.value = new Set();
   contextPinnedNodeIds.value = new Set();
 }
@@ -102,5 +107,52 @@ describe('applyServerCanvasLayout', () => {
 
     expect(activeNodeId.value).toBeNull();
     expect(expandedNodeId.value).toBeNull();
+  });
+
+  test('delays Excalidraw collapse so debounced checkpoint saves can flush', async () => {
+    const node = makeNode('diagram', {
+      type: 'mcp-app',
+      data: {
+        mode: 'ext-app',
+        serverName: 'Excalidraw',
+        toolName: 'create_view',
+      },
+    });
+    nodes.value = new Map([[node.id, node]]);
+
+    expandNode(node.id);
+    collapseExpandedNode();
+
+    expect(expandedNodeId.value).toBe(node.id);
+    expect(pendingExpandedNodeCloseId.value).toBe(node.id);
+
+    await Bun.sleep(2550);
+
+    expect(expandedNodeId.value).toBeNull();
+    expect(pendingExpandedNodeCloseId.value).toBeNull();
+  });
+
+  test('closes Excalidraw focus as soon as a checkpoint update arrives', async () => {
+    const node = makeNode('diagram', {
+      type: 'mcp-app',
+      data: {
+        mode: 'ext-app',
+        serverName: 'Excalidraw',
+        toolName: 'create_view',
+      },
+    });
+    nodes.value = new Map([[node.id, node]]);
+
+    expandNode(node.id);
+    collapseExpandedNode();
+    updateNode(node.id, {
+      data: {
+        ...node.data,
+        appCheckpoint: { updatedAt: 'saved' },
+      },
+    });
+
+    expect(expandedNodeId.value).toBeNull();
+    expect(pendingExpandedNodeCloseId.value).toBeNull();
   });
 });

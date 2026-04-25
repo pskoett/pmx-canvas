@@ -348,6 +348,7 @@ export async function startMcpServer(): Promise<void> {
       mainTsx: z.string().optional().describe('Optional contents for src/main.tsx'),
       indexHtml: z.string().optional().describe('Optional contents for index.html'),
       files: z.record(z.string(), z.string()).optional().describe('Optional map of additional project-relative file paths to file contents'),
+      deps: z.array(z.string()).optional().describe('Optional npm dependencies to install before bundling (e.g. ["recharts", "framer-motion@^11"]). Validated against npm-name format; flags and shell metacharacters are rejected.'),
       projectPath: z.string().optional().describe('Optional workspace-relative reusable project path. Defaults to .pmx-canvas/artifacts/.web-artifacts/<slug>'),
       outputPath: z.string().optional().describe('Optional workspace-relative HTML output path. Defaults to .pmx-canvas/artifacts/<slug>.html'),
       openInCanvas: z.boolean().optional().describe('Open the generated artifact in canvas after build (default true)'),
@@ -366,6 +367,7 @@ export async function startMcpServer(): Promise<void> {
           ...(typeof input.mainTsx === 'string' ? { mainTsx: input.mainTsx } : {}),
           ...(typeof input.indexHtml === 'string' ? { indexHtml: input.indexHtml } : {}),
           ...(input.files ? { files: input.files } : {}),
+          ...(Array.isArray(input.deps) ? { deps: input.deps } : {}),
           ...(typeof input.projectPath === 'string'
             ? { projectPath: safeWorkspacePath(input.projectPath) }
             : {}),
@@ -672,13 +674,34 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_focus_node ──────────────────────────────────────────
   server.tool(
     'canvas_focus_node',
-    'Pan the viewport to center on a specific node.',
-    { id: z.string().describe('Node ID to focus on') },
-    async ({ id }) => {
+    'Bring a node into focus. By default the viewport pans so the node is centered. Pass noPan=true to raise/select the node without moving the human\'s camera (useful when reacting to background events without disrupting the human\'s current view).',
+    {
+      id: z.string().describe('Node ID to focus on'),
+      noPan: z
+        .boolean()
+        .optional()
+        .describe('If true, raise/select the node without panning the viewport. Default false.'),
+    },
+    async ({ id, noPan }) => {
       const c = await ensureCanvas();
-      c.focusNode(id);
+      const result = c.focusNode(id, { ...(noPan === true ? { noPan: true } : {}) });
+      if (!result) {
+        return {
+          content: [
+            {
+              type: 'text',
+              text: JSON.stringify({ ok: false, error: `Node "${id}" not found.` }),
+            },
+          ],
+        };
+      }
       return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, focused: id }) }],
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ ok: true, focused: result.focused, panned: result.panned }),
+          },
+        ],
       };
     },
   );

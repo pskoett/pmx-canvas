@@ -20,6 +20,11 @@ type IframeLoadTarget = Pick<
 
 type ExtAppBridgeNotifications = Pick<AppBridge, 'sendToolInput' | 'sendToolResult'>;
 type DisplayMode = 'inline' | 'fullscreen' | 'pip';
+const DEFAULT_EXT_APP_SANDBOX = 'allow-scripts allow-popups allow-popups-to-escape-sandbox';
+
+interface ExtAppHostDimensionsTarget {
+  getBoundingClientRect(): Pick<DOMRectReadOnly, 'width' | 'height'>;
+}
 
 async function postJson<T>(url: string, body: Record<string, unknown>): Promise<T> {
   const response = await fetch(url, {
@@ -97,6 +102,33 @@ export async function sendExtAppBootstrapState(
   }
 }
 
+export function resolveExtAppSandbox(value: unknown): string {
+  return typeof value === 'string' && value.trim().length > 0
+    ? value.trim()
+    : DEFAULT_EXT_APP_SANDBOX;
+}
+
+function positiveDimension(value: number, fallback: number): number {
+  if (Number.isFinite(value) && value > 0) return Math.round(value);
+  if (Number.isFinite(fallback) && fallback > 0) return Math.round(fallback);
+  return 1;
+}
+
+export function resolveExtAppContainerDimensions(
+  target: ExtAppHostDimensionsTarget | null | undefined,
+  fallback: { width: number; height: number },
+): { width: number; height: number } {
+  const rect = target?.getBoundingClientRect();
+  return {
+    width: positiveDimension(rect?.width ?? 0, fallback.width),
+    height: positiveDimension(rect?.height ?? 0, fallback.height),
+  };
+}
+
+export function shouldApplyExtAppSizeChange(height: unknown, isExpanded: boolean): height is number {
+  return typeof height === 'number' && Number.isFinite(height) && height > 0 && !isExpanded;
+}
+
 export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const bridgeRef = useRef<AppBridge | null>(null);
@@ -122,7 +154,10 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
   const rawToolCallId = node.data.toolCallId;
   const toolCallId: RequestId | undefined =
     typeof rawToolCallId === 'string' || typeof rawToolCallId === 'number' ? rawToolCallId : undefined;
-  const resourceMeta = node.data.resourceMeta as { permissions?: Record<string, unknown> } | undefined;
+  const resourceMeta = node.data.resourceMeta as {
+    csp?: Record<string, unknown>;
+    permissions?: Record<string, unknown>;
+  } | undefined;
   const sessionStatus = node.data.sessionStatus as string | undefined;
   const sessionError = node.data.sessionError as string | undefined;
   const maxHeight = node.size.height;
@@ -191,6 +226,8 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
     if (!iframe) return;
     let disposed = false;
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    let hostContextResizeObserver: ResizeObserver | null = null;
+    let hostContextRaf: number | null = null;
     toolResultSentRef.current = false;
     lastSentToolResultRef.current = undefined;
     toolResultSendingRef.current = null;
@@ -213,6 +250,33 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
         throw new Error('Ext-app iframe window is unavailable');
       }
 
+      const buildHostContext = (displayMode: DisplayMode = expandedNodeId.value === nodeId ? 'fullscreen' : 'inline') => ({
+        theme: toMcpTheme(canvasTheme.value),
+        platform: 'web' as const,
+        containerDimensions: resolveExtAppContainerDimensions(iframe, {
+          width: node.size.width,
+          height: maxHeight,
+        }),
+        displayMode,
+        locale: navigator.language,
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        ...(toolDefinition ? {
+          toolInfo: {
+            id: toolCallId,
+            tool: toolDefinition,
+          },
+        } : {}),
+      });
+
+      const scheduleHostContextUpdate = () => {
+        if (hostContextRaf !== null) return;
+        hostContextRaf = requestAnimationFrame(() => {
+          hostContextRaf = null;
+          if (disposed || !bridgeReadyRef.current) return;
+          bridge.setHostContext?.(buildHostContext());
+        });
+      };
+
       const bridge = new AppBridge(
         null,
         { name: 'PMX Canvas', version: '1.0.0' },
@@ -224,32 +288,30 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
           updateModelContext: { text: {}, structuredContent: {} },
         },
         {
-          hostContext: {
-            theme: toMcpTheme(canvasTheme.value),
-            platform: 'web',
-            containerDimensions: { maxHeight },
-            displayMode: isExpanded ? 'fullscreen' : 'inline',
-            locale: navigator.language,
-            timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-            ...(toolDefinition ? {
-              toolInfo: {
-                id: toolCallId,
-                tool: toolDefinition,
-              },
-            } : {}),
-          },
+          hostContext: buildHostContext(isExpanded ? 'fullscreen' : 'inline'),
         },
       );
 
       // Register handlers BEFORE connect
       bridge.onsizechange = async ({ height }) => {
-        if (height && iframe) iframe.style.height = `${height}px`;
+        if (shouldApplyExtAppSizeChange(height, expandedNodeId.value === nodeId)) {
+          iframe.style.height = `${height}px`;
+        }
         return {};
       };
 
       bridge.onopenlink = async ({ url }) => {
         window.open(url, '_blank', 'noopener');
         return {};
+      };
+
+      bridge.onsandboxready = async () => {
+        await bridge.sendSandboxResourceReady({
+          html,
+          sandbox: DEFAULT_EXT_APP_SANDBOX,
+          ...(resourceMeta?.csp ? { csp: resourceMeta.csp } : {}),
+          ...(resourceMeta?.permissions ? { permissions: resourceMeta.permissions } : {}),
+        });
       };
 
       // Handle native fullscreen requests from the widget (e.g. Excalidraw expand button)
@@ -333,6 +395,7 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
         bridgeReadyRef.current = true;
         setStatus('ready');
         setError(null);
+        scheduleHostContextUpdate();
         void sendExtAppBootstrapState(bridge, latestToolInputRef.current, undefined)
           .then(() => flushToolResult(bridge))
           .catch((err) => {
@@ -370,6 +433,9 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
       }
       bridgeRef.current = bridge;
       transportRef.current = transport;
+      hostContextResizeObserver = new ResizeObserver(scheduleHostContextUpdate);
+      hostContextResizeObserver.observe(iframe);
+      if (iframe.parentElement) hostContextResizeObserver.observe(iframe.parentElement);
 
       // Propagate theme changes to ext-app iframe. Read current expanded state
       // at fire time so the widget keeps its fullscreen/inline context accurate.
@@ -378,12 +444,8 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
         if (firstFire) { firstFire = false; return; }
         if (disposed) return;
         bridge.setHostContext?.({
+          ...buildHostContext(),
           theme: toMcpTheme(newTheme),
-          platform: 'web',
-          containerDimensions: { maxHeight },
-          displayMode: expandedNodeId.value === nodeId ? 'fullscreen' : 'inline',
-          locale: navigator.language,
-          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         });
       });
 
@@ -399,6 +461,12 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
     return () => {
       disposed = true;
       clearFallbackTimer();
+      hostContextResizeObserver?.disconnect();
+      hostContextResizeObserver = null;
+      if (hostContextRaf !== null) {
+        cancelAnimationFrame(hostContextRaf);
+        hostContextRaf = null;
+      }
       bridgeReadyRef.current = false;
       toolResultSendingRef.current = null;
       themeUnsubRef.current?.();
@@ -431,7 +499,10 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
     bridge.setHostContext?.({
       theme: toMcpTheme(canvasTheme.value),
       platform: 'web',
-      containerDimensions: { maxHeight },
+      containerDimensions: resolveExtAppContainerDimensions(iframeRef.current, {
+        width: node.size.width,
+        height: maxHeight,
+      }),
       displayMode: isExpanded ? 'fullscreen' : 'inline',
       locale: navigator.language,
       timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -470,7 +541,7 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
   }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {sessionStatus && sessionStatus !== 'ready' && (
         <div
           style={{
@@ -546,14 +617,14 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
           remounts the iframe in the overlay — forcing the user to click Edit
           a second time to actually enter edit mode. Routing all inline clicks
           to "expand" makes the flow "open → edit" instead of "edit → expand → edit". */}
-      <div style={{ flex: 1, position: 'relative', display: 'flex', minHeight: 0 }}>
+      <div style={{ flex: 1, position: 'relative', display: 'flex', minHeight: 0, height: '100%' }}>
         <iframe
           key={frameKey}
           ref={iframeRef}
           srcdoc={html}
-          sandbox="allow-scripts allow-popups allow-popups-to-escape-sandbox"
+          sandbox={resolveExtAppSandbox(null)}
           allow={buildAllowAttribute(resourceMeta?.permissions)}
-          style={{ flex: 1, border: 'none', background: 'var(--c-panel)' }}
+          style={{ flex: 1, width: '100%', height: '100%', minHeight: 0, border: 'none', background: 'var(--c-panel)' }}
           title={`Ext App: ${toolName}`}
         />
         {!isExpanded && (

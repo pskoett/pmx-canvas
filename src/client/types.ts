@@ -74,6 +74,18 @@ export const EXPANDABLE_TYPES = new Set<CanvasNodeState['type']>([
   'image',
 ]);
 
+export const EXCALIDRAW_SERVER_NAME = 'Excalidraw';
+export const EXCALIDRAW_CREATE_VIEW_TOOL = 'create_view';
+
+export function isExcalidrawNode(node: CanvasNodeState): boolean {
+  return (
+    node.type === 'mcp-app' &&
+    node.data.mode === 'ext-app' &&
+    node.data.serverName === EXCALIDRAW_SERVER_NAME &&
+    node.data.toolName === EXCALIDRAW_CREATE_VIEW_TOOL
+  );
+}
+
 export interface CanvasLayout {
   viewport: ViewportState;
   nodes: CanvasNodeState[];
