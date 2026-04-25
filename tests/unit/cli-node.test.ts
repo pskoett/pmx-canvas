@@ -209,6 +209,38 @@ describe('agent CLI node commands', () => {
     expect(output.types['mcp-app']).toBeUndefined();
   });
 
+  test('node list can filter by serialized web-artifact kind', async () => {
+    canvasState.addNode({
+      id: 'artifact-kind-test',
+      type: 'mcp-app',
+      position: { x: 0, y: 0 },
+      size: { width: 960, height: 720 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: {
+        title: 'Artifact Kind',
+        viewerType: 'web-artifact',
+        path: join(workspaceRoot, '.pmx-canvas', 'artifacts', 'artifact-kind.html'),
+      },
+    });
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['node', 'list', '--type', 'web-artifact', '--summary']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as Array<{ id: string; type: string; kind?: string }>;
+    expect(output).toHaveLength(1);
+    expect(output[0]).toMatchObject({ id: 'artifact-kind-test', type: 'mcp-app', kind: 'web-artifact' });
+  });
+
   test('node update supports explicit arrange locking', async () => {
     const created = await jsonRequest<{
       ok: boolean;
@@ -323,6 +355,42 @@ describe('agent CLI node commands', () => {
     expect(output.ok).toBe(true);
     const node = await jsonRequest<{ data: { graphConfig: Record<string, unknown> } }>(`/api/canvas/node/${output.id}`);
     expect(node.data.graphConfig.data).toEqual([{ x: 'a', y: 1 }, { x: 'b', y: 2 }]);
+  });
+
+  test('node add accepts camelCase graph flags shown by schema help', async () => {
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'node',
+        'add',
+        '--type',
+        'graph',
+        '--graphType',
+        'bar',
+        '--title',
+        'Camel Graph',
+        '--data',
+        JSON.stringify([{ x: 'a', y: 1 }]),
+        '--xKey',
+        'x',
+        '--yKey',
+        'y',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as { ok: boolean; id: string };
+    expect(output.ok).toBe(true);
+    const node = await jsonRequest<{ data: { graphConfig: Record<string, unknown> } }>(`/api/canvas/node/${output.id}`);
+    expect(node.data.graphConfig).toMatchObject({
+      graphType: 'bar',
+      xKey: 'x',
+      yKey: 'y',
+    });
   });
 
   test('node add rejects generic mcp-app nodes with guidance', async () => {
@@ -915,6 +983,7 @@ describe('agent CLI node commands', () => {
       : null;
     expect(node?.type).toBe('mcp-app');
     expect(node?.data.title).toBe('CLI Artifact');
+    expect(node?.data.viewerType).toBe('web-artifact');
   });
 
   test('external-app add uses a non-empty Excalidraw default scene', async () => {
@@ -940,13 +1009,16 @@ describe('agent CLI node commands', () => {
     }
 
     const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
-      result: {
+      id?: string;
+      nodeId?: string;
+      result?: {
         title: string;
         elements: Array<Record<string, unknown>>;
       };
     };
-    expect(output.result.title).toBe('CLI Diagram');
-    expect(output.result.elements).toEqual([
+    expect(output.id).toBe(output.nodeId);
+    expect(output.result?.title).toBe('CLI Diagram');
+    expect(output.result?.elements).toEqual([
       expect.objectContaining({ type: 'rectangle', id: 'pmx-start' }),
     ]);
   });
@@ -1171,6 +1243,7 @@ exit 2
     const listed = JSON.parse(log.mock.calls[0]?.[0] as string) as Array<{
       id: string;
       type: string;
+      kind?: string;
       title: string | null;
       mode?: string;
       serverName?: string;
@@ -1185,6 +1258,7 @@ exit 2
     expect(listed[0]).toEqual(expect.objectContaining({
       id: opened.nodeId,
       type: 'mcp-app',
+      kind: 'external-app',
       title: 'Counter App',
       mode: 'ext-app',
       appSessionId: opened.sessionId,

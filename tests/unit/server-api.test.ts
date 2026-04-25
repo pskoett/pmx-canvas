@@ -571,6 +571,50 @@ describe('canvas server HTTP API', () => {
     expect(read.result.content[0]?.text).toBe('{"elements":[{"id":"manual"}]}');
   });
 
+  test('app-only text tool results update model context without replacing bootstrap replay', async () => {
+    const opened = await jsonRequest<{
+      ok: boolean;
+      nodeId: string | null;
+      sessionId: string;
+    }>('/api/canvas/mcp-app/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        toolName: 'show_counter',
+        toolArguments: { initial: 2 },
+        title: 'Text Tool Fixture',
+        transport: {
+          type: 'stdio',
+          command: 'bun',
+          args: ['run', fixtureMcpAppServerPath],
+        },
+      }),
+    });
+    expect(opened.ok).toBe(true);
+    expect(typeof opened.nodeId).toBe('string');
+
+    const readResponse = await fetch(`${baseUrl}/api/ext-app/call-tool`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        sessionId: opened.sessionId,
+        nodeId: opened.nodeId,
+        toolName: 'read_checkpoint',
+        arguments: { id: 'missing-checkpoint' },
+      }),
+    });
+    expect(readResponse.ok).toBe(true);
+
+    const node = opened.nodeId ? canvasState.getNode(opened.nodeId) : undefined;
+    expect(node?.data.toolResult).toMatchObject({
+      content: [{ type: 'text', text: 'Counter ready at 2.' }],
+      structuredContent: { count: 2 },
+    });
+    expect(node?.data.appModelContext).toMatchObject({
+      content: [{ type: 'text', text: '' }],
+    });
+  }, 30000);
+
   test('Excalidraw checkpoint saves update the replayed create_view input', async () => {
     const opened = await jsonRequest<{
       ok: boolean;
@@ -671,6 +715,38 @@ describe('canvas server HTTP API', () => {
     expect(readResponse.ok).toBe(true);
     const read = await readResponse.json() as { result: { content: Array<{ text?: string }> } };
     expect(read.result.content[0]?.text).toContain('"id":"edited"');
+  });
+
+  test('opens Excalidraw nodes with a single ext-app id prefix and id alias', async () => {
+    const opened = await jsonRequest<{
+      ok: boolean;
+      id?: string;
+      nodeId: string | null;
+      toolCallId: string;
+    }>('/api/canvas/mcp-app/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Single Prefix Diagram',
+        serverName: 'Excalidraw',
+        toolName: 'create_view',
+        toolArguments: {
+          elements: JSON.stringify([
+            { type: 'rectangle', id: 'box', x: 0, y: 0, width: 10, height: 10 },
+          ]),
+        },
+        transport: {
+          type: 'stdio',
+          command: 'bun',
+          args: ['run', fixtureMcpAppServerPath],
+        },
+      }),
+    });
+    expect(opened.ok).toBe(true);
+    expect(opened.id).toBe(opened.nodeId);
+    expect(opened.toolCallId.startsWith('ext-app-')).toBe(false);
+    expect(opened.nodeId?.startsWith('ext-app-')).toBe(true);
+    expect(opened.nodeId?.startsWith('ext-app-ext-app-')).toBe(false);
   });
 
   test('rehydrates persisted ext-app sessions after server restart', async () => {
@@ -1969,6 +2045,7 @@ describe('canvas server HTTP API', () => {
     const layout = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
     const artifactNode = layout.nodes.find((node) => node.id === build.nodeId);
     expect(artifactNode?.type).toBe('mcp-app');
+    expect(artifactNode?.kind).toBe('web-artifact');
     expect(artifactNode?.data.path).toBe(build.path);
   });
 
@@ -2107,25 +2184,36 @@ describe('canvas server HTTP API', () => {
       ok: boolean;
       type: string;
       summary: { graphType: string; dataPoints: number };
+      normalizedSpec: { elements: { chart?: { type?: string; props?: Record<string, unknown> } } };
     }>('/api/canvas/schema/validate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         type: 'graph',
         title: 'Trend',
-        graphType: 'bar',
+        graphType: 'composed',
         data: [
-          { label: 'Docs', value: 5 },
-          { label: 'Tests', value: 8 },
+          { label: 'Docs', value: 5, rate: 0.2 },
+          { label: 'Tests', value: 8, rate: 0.4 },
         ],
         xKey: 'label',
-        yKey: 'value',
+        barKey: 'value',
+        lineKey: 'rate',
+        barColor: '#60b5ff',
+        lineColor: '#d7a83f',
       }),
     });
 
     expect(graphValidation.ok).toBe(true);
     expect(graphValidation.type).toBe('graph');
-    expect(graphValidation.summary).toEqual(expect.objectContaining({ graphType: 'BarChart', dataPoints: 2 }));
+    expect(graphValidation.summary).toEqual(expect.objectContaining({ graphType: 'ComposedChart', dataPoints: 2 }));
+    expect(graphValidation.normalizedSpec.elements.chart?.props).toEqual(expect.objectContaining({
+      xKey: 'label',
+      barKey: 'value',
+      lineKey: 'rate',
+      barColor: '#60b5ff',
+      lineColor: '#d7a83f',
+    }));
   });
 
   test('rejects invalid json-render payloads and invalid viewer requests', async () => {

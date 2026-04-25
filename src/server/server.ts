@@ -46,6 +46,7 @@ import type {
   ListToolsResult,
 } from '@modelcontextprotocol/sdk/types.js';
 import { type CanvasEdge, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
+import { findCanvasExtAppNodeId as findCanvasExtAppNodeIdShared } from './ext-app-lookup.js';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
 import {
@@ -602,31 +603,42 @@ function getMarkdownPlacement(): { x: number; y: number } {
 }
 
 function findCanvasExtAppNodeId(toolCallId: string): string | null {
-  const directId = `ext-app-${toolCallId}`;
-  if (canvasState.getNode(directId)) return directId;
-  for (const node of canvasState.getLayout().nodes) {
-    if (
-      node.type === 'mcp-app' &&
-      node.data.mode === 'ext-app' &&
-      node.data.toolCallId === toolCallId
-    ) {
-      return node.id;
-    }
-  }
-  return null;
+  return findCanvasExtAppNodeIdShared(toolCallId, {
+    getNode: (id) => canvasState.getNode(id),
+    listNodes: () => canvasState.getLayout().nodes,
+  });
 }
 
 function isCheckpointToolName(toolName: string): boolean {
   return toolName === EXCALIDRAW_SAVE_CHECKPOINT_TOOL || toolName === EXCALIDRAW_READ_CHECKPOINT_TOOL;
 }
 
+/**
+ * Decide whether a fresh `callServerTool` result should *replace* the
+ * canvas node's bootstrap-replay `toolResult`.
+ *
+ * The bootstrap-replay toolResult is what the server re-sends to the
+ * widget on reload to restore visible state. We only want to overwrite
+ * it when the new result genuinely carries widget state — `isError` or
+ * `structuredContent`. A plain-text result (e.g. `read_checkpoint`
+ * returning a string status, or any informational message) updates
+ * `appModelContext` for the agent's record but should *not* clobber the
+ * bootstrap entry, because doing so would replace the widget's restored
+ * state with conversational noise on the next reload.
+ *
+ * This separation is exercised by:
+ *   - tests/unit/server-api.test.ts "keeps ext-app model context
+ *     separate from the replayed tool result" (text-only result preserves
+ *     bootstrap replay)
+ *   - tests/unit/server-api.test.ts "app-only text tool results update
+ *     model context without replacing bootstrap replay"
+ *   - tests/unit/server-api.test.ts "rehydrates Excalidraw checkpoint
+ *     replay after server restart" (structured-content result becomes
+ *     the new bootstrap replay)
+ */
 function shouldReplayAppToolResult(toolName: string, result: CallToolResult): boolean {
   void toolName;
-  return Boolean(
-    result.isError ||
-      result.structuredContent ||
-      result.content.some((entry) => entry.type !== 'text' || entry.text !== 'ok'),
-  );
+  return Boolean(result.isError || result.structuredContent);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -1545,10 +1557,22 @@ async function handleCanvasValidateSpec(req: Request): Promise<Response> {
         data,
         ...(typeof body.xKey === 'string' ? { xKey: body.xKey } : {}),
         ...(typeof body.yKey === 'string' ? { yKey: body.yKey } : {}),
+        ...(typeof body.zKey === 'string' ? { zKey: body.zKey } : {}),
         ...(typeof body.nameKey === 'string' ? { nameKey: body.nameKey } : {}),
         ...(typeof body.valueKey === 'string' ? { valueKey: body.valueKey } : {}),
+        ...(typeof body.axisKey === 'string' ? { axisKey: body.axisKey } : {}),
+        ...(Array.isArray(body.metrics)
+          ? { metrics: body.metrics.filter((m: unknown): m is string => typeof m === 'string') }
+          : {}),
+        ...(Array.isArray(body.series)
+          ? { series: body.series.filter((s: unknown): s is string => typeof s === 'string') }
+          : {}),
+        ...(typeof body.barKey === 'string' ? { barKey: body.barKey } : {}),
+        ...(typeof body.lineKey === 'string' ? { lineKey: body.lineKey } : {}),
         ...(aggregate ? { aggregate } : {}),
         ...(typeof body.color === 'string' ? { color: body.color } : {}),
+        ...(typeof body.barColor === 'string' ? { barColor: body.barColor } : {}),
+        ...(typeof body.lineColor === 'string' ? { lineColor: body.lineColor } : {}),
         ...(typeof body.height === 'number' ? { height: body.height } : {}),
       },
     }));
@@ -1871,7 +1895,7 @@ function handleRead(pathLike: string): Response {
 }
 
 function randomExtAppToolCallId(): string {
-  return `ext-app-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function nodeAppSessionId(node: CanvasNodeState | undefined): string | null {
@@ -1951,7 +1975,7 @@ async function runAndEmitOpenMcpApp(params: RunAndEmitOpenMcpAppParams): Promise
     });
 
     const toolCallId = randomExtAppToolCallId();
-    const nodeIdSeed = `ext-app-${toolCallId}`;
+    const nodeIdSeed = toolCallId.startsWith('ext-app-') ? toolCallId : `ext-app-${toolCallId}`;
     const toolResult = isExcalidrawCreateView(opened.serverName, opened.toolName)
       ? ensureExcalidrawCheckpointId(opened.toolResult, nodeIdSeed)
       : opened.toolResult;
@@ -1959,6 +1983,7 @@ async function runAndEmitOpenMcpApp(params: RunAndEmitOpenMcpAppParams): Promise
 
     emitPrimaryWorkbenchEvent('ext-app-open', {
       toolCallId,
+      nodeId: nodeIdSeed,
       title: nodeTitle,
       html: opened.html,
       toolInput: opened.toolInput,
@@ -1978,6 +2003,7 @@ async function runAndEmitOpenMcpApp(params: RunAndEmitOpenMcpAppParams): Promise
     });
     emitPrimaryWorkbenchEvent('ext-app-result', {
       toolCallId,
+      nodeId: nodeIdSeed,
       serverName: opened.serverName,
       toolName: opened.toolName,
       success: toolResult.isError !== true,
@@ -1987,6 +2013,7 @@ async function runAndEmitOpenMcpApp(params: RunAndEmitOpenMcpAppParams): Promise
 
     return responseJson({
       ok: true,
+      ...(nodeId ? { id: nodeId } : {}),
       nodeId,
       toolCallId,
       sessionId: opened.sessionId,
@@ -3151,10 +3178,13 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
   } else if (event === 'ext-app-open') {
     const toolCallId = payload.toolCallId as string;
     if (!toolCallId) return;
-    const id = `ext-app-${toolCallId}`;
+    const id = typeof payload.nodeId === 'string' && payload.nodeId.length > 0
+      ? payload.nodeId
+      : toolCallId.startsWith('ext-app-') ? toolCallId : `ext-app-${toolCallId}`;
     const dataPatch = {
       mode: 'ext-app',
       toolCallId,
+      nodeId: id,
       ...(typeof payload.title === 'string' && payload.title.trim().length > 0
         ? { title: payload.title.trim() }
         : {}),
@@ -3222,7 +3252,9 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
   } else if (event === 'ext-app-update') {
     const toolCallId = payload.toolCallId as string;
     if (!toolCallId) return;
+    const payloadNodeId = typeof payload.nodeId === 'string' ? payload.nodeId : '';
     const id =
+      (payloadNodeId && canvasState.getNode(payloadNodeId) ? payloadNodeId : null) ||
       findCanvasExtAppNodeId(toolCallId) ||
       (typeof payload.serverName === 'string' && typeof payload.toolName === 'string'
         ? findOnlyPendingCanvasExtAppNodeId(payload.serverName, payload.toolName)
@@ -3235,7 +3267,9 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
   } else if (event === 'ext-app-result') {
     const toolCallId = payload.toolCallId as string;
     if (!toolCallId) return;
+    const payloadNodeId = typeof payload.nodeId === 'string' ? payload.nodeId : '';
     const id =
+      (payloadNodeId && canvasState.getNode(payloadNodeId) ? payloadNodeId : null) ||
       findCanvasExtAppNodeId(toolCallId) ||
       (typeof payload.serverName === 'string' && typeof payload.toolName === 'string'
         ? findOnlyPendingCanvasExtAppNodeId(payload.serverName, payload.toolName)

@@ -166,7 +166,8 @@ function ensureMcpAppNode(data: Record<string, unknown>): void {
 
 function ensureExtAppNode(data: Record<string, unknown>): void {
   const toolCallId = data.toolCallId as string;
-  const id = `ext-app-${toolCallId}`;
+  const eventNodeId = typeof data.nodeId === 'string' && data.nodeId.length > 0 ? data.nodeId : null;
+  const id = eventNodeId ?? (toolCallId.startsWith('ext-app-') ? toolCallId : `ext-app-${toolCallId}`);
   const existing = nodes.value.get(id);
   if (existing) {
     updateNodeData(id, data);
@@ -232,8 +233,10 @@ function ensureExtAppNode(data: Record<string, unknown>): void {
 }
 
 function findExtAppNodeId(toolCallId: string): string | null {
-  const directId = `ext-app-${toolCallId}`;
+  const directId = toolCallId.startsWith('ext-app-') ? toolCallId : `ext-app-${toolCallId}`;
   if (nodes.value.has(directId)) return directId;
+  const legacyDirectId = `ext-app-${toolCallId}`;
+  if (legacyDirectId !== directId && nodes.value.has(legacyDirectId)) return legacyDirectId;
   for (const [nodeId, node] of nodes.value.entries()) {
     if (
       node.type === 'mcp-app' &&
@@ -244,6 +247,13 @@ function findExtAppNodeId(toolCallId: string): string | null {
     }
   }
   return null;
+}
+
+function findExtAppEventNodeId(data: Record<string, unknown>): string | null {
+  const eventNodeId = typeof data.nodeId === 'string' && data.nodeId.length > 0 ? data.nodeId : null;
+  if (eventNodeId && nodes.value.has(eventNodeId)) return eventNodeId;
+  if (typeof data.toolCallId !== 'string' || !data.toolCallId) return null;
+  return findExtAppNodeId(data.toolCallId);
 }
 
 function findOnlyPendingExtAppNodeId(serverName: unknown, toolName: unknown): string | null {
@@ -542,7 +552,7 @@ function handleExtAppOpen(data: Record<string, unknown>): void {
 function handleExtAppUpdate(data: Record<string, unknown>): void {
   if (typeof data.toolCallId !== 'string' || !data.toolCallId) return;
   const id =
-    findExtAppNodeId(data.toolCallId) ?? findOnlyPendingExtAppNodeId(data.serverName, data.toolName);
+    findExtAppEventNodeId(data) ?? findOnlyPendingExtAppNodeId(data.serverName, data.toolName);
   if (!id) return;
   if (nodes.value.has(id)) {
     updateNodeData(id, { html: data.html });
@@ -552,7 +562,7 @@ function handleExtAppUpdate(data: Record<string, unknown>): void {
 function handleExtAppResult(data: Record<string, unknown>): void {
   if (typeof data.toolCallId !== 'string' || !data.toolCallId) return;
   const id =
-    findExtAppNodeId(data.toolCallId) ?? findOnlyPendingExtAppNodeId(data.serverName, data.toolName);
+    findExtAppEventNodeId(data) ?? findOnlyPendingExtAppNodeId(data.serverName, data.toolName);
   if (!id) return;
   if (nodes.value.has(id)) {
     if (data.success === false) {

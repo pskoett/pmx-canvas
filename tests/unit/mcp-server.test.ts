@@ -324,6 +324,7 @@ describe('MCP parity with CLI', () => {
 
     const opened = parseJsonText<{
       ok: boolean;
+      id?: string;
       nodeId: string | null;
       toolCallId: string;
       sessionId: string;
@@ -344,11 +345,14 @@ describe('MCP parity with CLI', () => {
 
     expect(opened.ok).toBe(true);
     expect(typeof opened.nodeId).toBe('string');
+    expect(opened.id).toBe(opened.nodeId);
+    expect(opened.nodeId?.startsWith('ext-app-ext-app-')).toBe(false);
     expect(opened.sessionId).toContain('mcp-app-session');
     expect(opened.resourceUri).toBe('ui://fixture/counter.html');
 
     const layout = parseJsonText<{
       nodes: Array<{
+        id: string;
         type: string;
         data: Record<string, unknown>;
       }>;
@@ -429,6 +433,56 @@ describe('MCP parity with CLI', () => {
     const schemaText = resource.contents?.find((item) => item.uri === 'canvas://schema')?.text ?? '';
     expect(schemaText).toContain('"source": "running-server"');
     expect(schemaText).toContain('"canvas_validate_spec"');
+  });
+
+  test('canvas_validate_spec covers the full graph payload surface', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const tools = await session.client.listTools();
+    const validateTool = tools.tools.find((tool) => tool.name === 'canvas_validate_spec');
+    expect(validateTool?.inputSchema.properties).toHaveProperty('zKey');
+    expect(validateTool?.inputSchema.properties).toHaveProperty('axisKey');
+    expect(validateTool?.inputSchema.properties).toHaveProperty('metrics');
+    expect(validateTool?.inputSchema.properties).toHaveProperty('series');
+    expect(validateTool?.inputSchema.properties).toHaveProperty('barKey');
+    expect(validateTool?.inputSchema.properties).toHaveProperty('lineKey');
+    expect(validateTool?.inputSchema.properties).toHaveProperty('barColor');
+    expect(validateTool?.inputSchema.properties).toHaveProperty('lineColor');
+
+    const composed = parseJsonText<{
+      ok: boolean;
+      normalizedSpec: { elements: { chart?: { type?: string; props?: Record<string, unknown> } } };
+    }>(await session.client.callTool({
+      name: 'canvas_validate_spec',
+      arguments: {
+        type: 'graph',
+        title: 'MCP Composed',
+        graphType: 'composed',
+        data: [
+          { month: 'Jan', visits: 120, conversion: 0.2 },
+          { month: 'Feb', visits: 160, conversion: 0.3 },
+        ],
+        xKey: 'month',
+        barKey: 'visits',
+        lineKey: 'conversion',
+        barColor: '#60b5ff',
+        lineColor: '#d7a83f',
+      },
+    }) as ToolResultShape);
+
+    expect(composed.ok).toBe(true);
+    expect(composed.normalizedSpec.elements.chart?.type).toBe('ComposedChart');
+    expect(composed.normalizedSpec.elements.chart?.props).toEqual(expect.objectContaining({
+      xKey: 'month',
+      barKey: 'visits',
+      lineKey: 'conversion',
+      barColor: '#60b5ff',
+      lineColor: '#d7a83f',
+    }));
   });
 
   test('canvas_build_web_artifact matches CLI log behavior and keeps raw logs opt-in', async () => {
@@ -754,13 +808,13 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
             assign: 'graph',
             args: {
               title: 'Batch graph',
-              graphType: 'bar',
+              graphType: 'radar',
               data: [
-                { label: 'Docs', value: 5 },
-                { label: 'Tests', value: 8 },
+                { axis: 'Speed', north: 5, south: 3 },
+                { axis: 'Quality', north: 4, south: 6 },
               ],
-              xKey: 'label',
-              yKey: 'value',
+              axisKey: 'axis',
+              metrics: ['north', 'south'],
               width: 880,
               nodeHeight: 640,
             },
@@ -773,7 +827,11 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
     expect(typeof result.refs.graph?.id).toBe('string');
     expect(result.results[0]?.type).toBe('graph');
     expect(result.results[0]?.size).toEqual({ width: 880, height: 640 });
-    expect((result.results[0]?.data.graphConfig as Record<string, unknown>)?.graphType).toBe('bar');
+    expect(result.results[0]?.data.graphConfig).toEqual(expect.objectContaining({
+      graphType: 'radar',
+      axisKey: 'axis',
+      metrics: ['north', 'south'],
+    }));
   });
 
   test('canvas_list_snapshots and canvas_delete_snapshot match CLI snapshot management', async () => {

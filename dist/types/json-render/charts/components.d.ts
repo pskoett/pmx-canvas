@@ -39,9 +39,10 @@ export declare const tooltipStyle: {
     fontSize: number;
 };
 /** Shared wrapper for cartesian charts (Line + Bar). */
-export declare function CartesianChart({ props, children, }: {
+export declare function CartesianChart({ props, children, className, }: {
     props: CartesianChartProps;
     children: (data: Record<string, unknown>[]) => ReactNode;
+    className?: string;
 }): import("react/jsx-runtime").JSX.Element;
 declare function ChartLineChart({ props }: BaseComponentProps<CartesianChartProps>): import("react/jsx-runtime").JSX.Element;
 declare function ChartBarChart({ props }: BaseComponentProps<CartesianChartProps>): import("react/jsx-runtime").JSX.Element;

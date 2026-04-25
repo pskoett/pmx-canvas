@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { canvasState, IMAGE_MIME_MAP } from './canvas-state.js';
 import type { CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
+import { findCanvasExtAppNodeId } from './ext-app-lookup.js';
 import { onFileNodeChanged } from './file-watcher.js';
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
@@ -440,18 +441,10 @@ export class PmxCanvas extends EventEmitter {
   }
 
   private findCanvasExtAppNodeId(toolCallId: string): string | null {
-    const directId = `ext-app-${toolCallId}`;
-    if (canvasState.getNode(directId)) return directId;
-    for (const node of canvasState.getLayout().nodes) {
-      if (
-        node.type === 'mcp-app' &&
-        node.data.mode === 'ext-app' &&
-        node.data.toolCallId === toolCallId
-      ) {
-        return node.id;
-      }
-    }
-    return null;
+    return findCanvasExtAppNodeId(toolCallId, {
+      getNode: (id) => canvasState.getNode(id),
+      listNodes: () => canvasState.getLayout().nodes,
+    });
   }
 
   describeSchema() {
@@ -488,20 +481,21 @@ export class PmxCanvas extends EventEmitter {
     y?: number;
     width?: number;
     height?: number;
-  }): Promise<{ ok: true; nodeId: string | null; toolCallId: string; sessionId: string; resourceUri: string }> {
+  }): Promise<{ ok: true; id?: string; nodeId: string | null; toolCallId: string; sessionId: string; resourceUri: string }> {
     const opened = await openExternalMcpApp({
       transport: input.transport,
       toolName: input.toolName,
       ...(input.toolArguments ? { toolArguments: input.toolArguments } : {}),
       ...(input.serverName ? { serverName: input.serverName } : {}),
     });
-    const toolCallId = `ext-app-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    const toolCallId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
     const nodeIdSeed = `ext-app-${toolCallId}`;
     const toolResult = isExcalidrawCreateView(opened.serverName, opened.toolName)
       ? ensureExcalidrawCheckpointId(opened.toolResult, nodeIdSeed)
       : opened.toolResult;
     emitPrimaryWorkbenchEvent('ext-app-open', {
       toolCallId,
+      nodeId: nodeIdSeed,
       title: input.title ?? opened.tool.title ?? opened.tool.name,
       html: opened.html,
       toolInput: opened.toolInput,
@@ -521,6 +515,7 @@ export class PmxCanvas extends EventEmitter {
     });
     emitPrimaryWorkbenchEvent('ext-app-result', {
       toolCallId,
+      nodeId: nodeIdSeed,
       serverName: opened.serverName,
       toolName: opened.toolName,
       success: toolResult.isError !== true,
@@ -529,6 +524,7 @@ export class PmxCanvas extends EventEmitter {
     const nodeId = this.findCanvasExtAppNodeId(toolCallId);
     return {
       ok: true,
+      ...(nodeId ? { id: nodeId } : {}),
       nodeId,
       toolCallId,
       sessionId: opened.sessionId,
@@ -538,7 +534,7 @@ export class PmxCanvas extends EventEmitter {
 
   async addDiagram(
     input: DiagramPresetOpenInput,
-  ): Promise<{ ok: true; nodeId: string | null; toolCallId: string; sessionId: string; resourceUri: string }> {
+  ): Promise<{ ok: true; id?: string; nodeId: string | null; toolCallId: string; sessionId: string; resourceUri: string }> {
     const built = buildExcalidrawOpenMcpAppInput(input);
     return this.openMcpApp(built);
   }

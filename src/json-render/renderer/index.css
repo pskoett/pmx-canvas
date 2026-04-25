@@ -147,7 +147,21 @@ button {
 
 .pmx-chart {
   width: 100%;
+  min-width: 280px;
+  overflow-x: auto;
   padding: 0.5rem 0;
+}
+
+.pmx-chart--line,
+.pmx-chart--area,
+.pmx-chart--scatter,
+.pmx-chart--stacked-bar,
+.pmx-chart--composed {
+  min-width: 320px;
+}
+
+.pmx-chart--radar {
+  min-width: 360px;
 }
 
 .pmx-chart__title {

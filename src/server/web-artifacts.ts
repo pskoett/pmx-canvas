@@ -494,6 +494,7 @@ export function openWebArtifactInCanvas(input: {
       trustedDomain: true,
       sourceServer: 'pmx-canvas',
       hostMode: 'hosted',
+      viewerType: 'web-artifact',
     },
   };
 

@@ -84,8 +84,8 @@ pmx-canvas layout                          # Full canvas state
 pmx-canvas status                          # Quick summary
 pmx-canvas node add --type markdown --title "Plan"
 pmx-canvas node add --type webpage --url https://example.com/docs
-pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx
 pmx-canvas node add --type graph --graph-type bar --data '[{"x":"a","y":1}]' --x-key x --y-key y
+pmx-canvas node add --type graph --graphType bar --data '[{"x":"a","y":1}]' --xKey x --yKey y
 pmx-canvas external-app add --kind excalidraw --title "Diagram"
 pmx-canvas node add --help --type webpage --json
 pmx-canvas node schema --type json-render --component Table --summary
@@ -97,6 +97,8 @@ pmx-canvas arrange --layout flow
 pmx-canvas focus <node-id> --no-pan             # Select/raise without moving the user's viewport
 pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary
 pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --deps recharts --include-logs
+pmx-canvas node list --type web-artifact --summary
+pmx-canvas node list --type external-app --summary
 pmx-canvas pin --list
 pmx-canvas snapshot save --name "before-refactor"
 pmx-canvas code-graph
@@ -107,6 +109,7 @@ pmx-canvas spatial
 
 - `node add|list|get|update|remove` — manage nodes
 - `node schema` — inspect running-server create schemas and canonical examples, with `--summary`, `--field`, and `--component` filters
+- Graph CLI fields accept both kebab-case flags and camelCase schema names, e.g. `--graph-type`/`--graphType`, `--x-key`/`--xKey`, and `--bar-color`/`--barColor`.
 - `edge add|list|remove` — manage edges
 - Search-based edge selectors must be specific enough to resolve exactly one node. Queries like
   `"DVT O3"` can be ambiguous; prefer the full visible title such as `"DVT O3 — GitOps"`.
@@ -119,6 +122,8 @@ pmx-canvas spatial
 - `group create|add|remove` — manage groups
 - `clear --yes` — destructive clear with explicit confirmation
 - `validate spec` — validate json-render specs and graph payloads without creating nodes
+- `web-artifact build` — build bundled React/Tailwind HTML artifacts; use `--deps` for extra packages and `--include-logs` only when raw logs are useful
+- `external-app add --kind excalidraw` — create the hosted Excalidraw preset; response includes `id` and `nodeId` aliases for the same canvas node
 - `serve status|stop` — inspect and stop daemonized servers started with `serve --daemon`
 - `code-graph`, `spatial` — analysis commands
 
@@ -128,10 +133,9 @@ Current caveat:
   through search later in the session. When you plan to curate an app-heavy comparison area,
   capture node IDs immediately after creation and verify membership with `node get --summary`,
   `layout --summary`, or the browser selection state instead of relying on search alone.
-- Some `mcp-app` creation flows are still awkward to address immediately after creation. If a
-  diagram/app flow gives you a session-oriented result first, resolve the final canvas node from
-  live layout or `node list --type mcp-app` before you try to group it, wire edges to it, or
-  revisit it later.
+- App-like nodes persist as `type: "mcp-app"` internally but serialized results include `kind`:
+  `web-artifact`, `external-app`, or `mcp-app`. Prefer `node list --type web-artifact` or
+  `node list --type external-app` when you need the operational subtype.
 - Generic `pmx-canvas node add --type mcp-app` is intentionally not supported because app nodes
   need app/session metadata. Use `pmx-canvas web-artifact build` for bundled React artifacts or
   `pmx-canvas external-app add --kind excalidraw` for the Excalidraw preset.

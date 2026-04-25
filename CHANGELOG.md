@@ -3,6 +3,88 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.4] - 2026-04-26
+
+Graph/CLI ergonomics + canvas-node taxonomy hardening. Three threads:
+(1) full graph payload surface (`zKey`, `axisKey`, `metrics`, `series`,
+`barKey`/`lineKey`, `barColor`/`lineColor`) reaches CLI/MCP/HTTP/batch with
+both kebab-case and camelCase flag aliases, (2) `mcp-app` nodes serialize a
+`kind` discriminator so agents can target `web-artifact` / `external-app` /
+`mcp-app` subtypes without inspecting `data`, (3) the long-standing
+`ext-app-ext-app-…` double-prefix bug on node IDs is fixed with explicit
+`nodeId` propagation through SSE.
+
+### Added
+
+- Serialized `kind` discriminator on every canvas node. `mcp-app` nodes now
+  surface as `web-artifact`, `external-app`, or `mcp-app` so agents can
+  filter via `node list --type web-artifact` or
+  `--type external-app` directly.
+- Full graph payload surface on MCP, HTTP `validate-spec`, and `batch`:
+  `zKey`, `axisKey`, `metrics`, `series`, `barKey`, `lineKey`, `barColor`,
+  `lineColor`. Radar (`metrics`), stacked-bar (`series`), and composed
+  (`barKey`/`lineKey`) configs are now uniformly addressable.
+- CLI camelCase aliases for graph flags: `--graphType`, `--xKey`, `--yKey`,
+  `--zKey`, `--axisKey`, `--barKey`, `--lineKey`, `--barColor`,
+  `--lineColor`, alongside existing kebab-case forms. Same fields land in
+  `canvas_validate_spec` and `canvas_batch`.
+- `id` field on `external-app add` / `canvas_open_mcp_app` /
+  `canvas_add_diagram` responses (alias for the canvas node ID, matches
+  HTTP).
+- `viewerType: 'web-artifact'` persisted on web-artifact mcp-app nodes for
+  authoritative `kind` classification.
+
+### Changed
+
+- `SerializedCanvasNode` now includes `kind: string` (additive; consumers
+  grouping by `type === 'mcp-app'` should switch to `kind`).
+- `canvas://summary` `typeCounts` keys are derived from `kind`, not `type` —
+  `mcp-app` totals split into `web-artifact` / `external-app` / `mcp-app`.
+- Charts wrap with type-specific CSS modifier classes
+  (`pmx-chart--line/--bar/--pie/--area/--scatter/--radar/--stacked-bar/--composed`)
+  and per-type minimum widths, so axes don't clip in narrow nodes.
+- `canvas-schema.ts` cleanup based on the v0.1.4 review:
+  - `nodeHeight` no longer aliases `height` (collision with the chart-content
+    `height` field). Use `--node-height` going forward; `--height` always
+    means chart content height.
+  - `stdin` removed from the `data` and `appTsx` aliases — `--stdin` is an
+    input-mode (read from pipe), not a flag synonym. Behavior unchanged;
+    schema is now accurate.
+
+### Fixed
+
+- Excalidraw / external-app node IDs no longer double-prefix to
+  `ext-app-ext-app-…`. The canvas node ID retains the `ext-app-` prefix; the
+  `toolCallId` is the random suffix only.
+- SSE `ext-app-open` / `ext-app-update` / `ext-app-result` events now carry
+  an explicit `nodeId` so the client and server agree on node identity even
+  after the ID-format change.
+- `getCanvasNodeKind` precedence reordered so a future URL-only web-artifact
+  (no `data.path`) still classifies correctly via `viewerType`. The legacy
+  `hostMode + path` heuristic is now an explicitly-documented backwards-compat
+  fallback for canvas state.json files persisted before v0.1.4.
+
+### Internal
+
+- `findCanvasExtAppNodeId` extracted into `src/server/ext-app-lookup.ts` and
+  shared between `src/server/index.ts` and `src/server/server.ts` (was
+  duplicated; drift risk eliminated).
+- `shouldReplayAppToolResult` documented with explicit intent: only `isError`
+  or `structuredContent` results overwrite the bootstrap-replay
+  `toolResult`, so a plain-text `read_checkpoint`-style return doesn't
+  clobber widget state on reload.
+- E2E coverage now exercises camelCase graph flags and asserts the
+  single-prefix node-ID fix.
+- New unit coverage:
+  - `kind` discriminator across fresh, URL-only, legacy, ext-app, and
+    plain-mcp-app paths (6 tests).
+  - Camel-case graph flags in CLI.
+  - Full-surface graph validation in MCP `canvas_validate_spec`.
+  - Single-prefix node-ID round-trip in `external-app add`.
+  - Post-restart text-tool replay semantics.
+
+[0.1.4]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.4
+
 ## [0.1.3] - 2026-04-25
 
 CLI hardening release with full MCP parity for the new affordances. Closes

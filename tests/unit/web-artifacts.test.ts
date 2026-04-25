@@ -196,6 +196,7 @@ set -e
       expect(typeof result.nodeId).toBe('string');
       const node = result.nodeId ? canvasState.getNode(result.nodeId) : undefined;
       expect(node?.type).toBe('mcp-app');
+      expect(node?.data.viewerType).toBe('web-artifact');
       expect(node?.data.title).toBe('Skill Demo');
       expect(String(node?.data.url ?? '')).toContain('/artifact?path=');
       expect(readFileSync(result.filePath, 'utf-8')).toContain('Skill Demo');

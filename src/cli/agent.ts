@@ -237,8 +237,9 @@ function parseStringListFlag(
   flags: Record<string, string | true>,
   name: string,
   hint: string,
+  ...aliases: string[]
 ): string[] | undefined {
-  const raw = getStringFlag(flags, name);
+  const raw = getStringFlag(flags, name, ...aliases);
   if (raw === undefined) return undefined;
   const trimmed = raw.trim();
   if (!trimmed) {
@@ -295,6 +296,7 @@ function summarizeNodeResult(node: Record<string, unknown>): Record<string, unkn
     ...(node.ok !== undefined ? { ok: node.ok } : {}),
     id: node.id ?? null,
     type: node.type ?? null,
+    ...(typeof node.kind === 'string' ? { kind: node.kind } : {}),
     title: node.title ?? null,
     ...(typeof node.content === 'string' ? { contentPreview: truncateText(node.content) } : {}),
     ...(node.position !== undefined ? { position: node.position } : {}),
@@ -550,28 +552,39 @@ async function buildGraphRequestBody(
   const data = parseRecordArrayJson(rawData, hint);
 
   const body: Record<string, unknown> = {
-    graphType: getStringFlag(flags, 'graph-type') ?? 'line',
+    graphType: getStringFlag(flags, 'graph-type', 'graphType') ?? 'line',
     data,
   };
   if (typeof flags.title === 'string') body.title = flags.title;
-  if (typeof flags['x-key'] === 'string') body.xKey = flags['x-key'];
-  if (typeof flags['y-key'] === 'string') body.yKey = flags['y-key'];
-  if (typeof flags['z-key'] === 'string') body.zKey = flags['z-key'];
-  if (typeof flags['name-key'] === 'string') body.nameKey = flags['name-key'];
-  if (typeof flags['value-key'] === 'string') body.valueKey = flags['value-key'];
-  if (typeof flags['axis-key'] === 'string') body.axisKey = flags['axis-key'];
+  const xKey = getStringFlag(flags, 'x-key', 'xKey');
+  const yKey = getStringFlag(flags, 'y-key', 'yKey');
+  const zKey = getStringFlag(flags, 'z-key', 'zKey');
+  const nameKey = getStringFlag(flags, 'name-key', 'nameKey');
+  const valueKey = getStringFlag(flags, 'value-key', 'valueKey');
+  const axisKey = getStringFlag(flags, 'axis-key', 'axisKey');
+  if (xKey) body.xKey = xKey;
+  if (yKey) body.yKey = yKey;
+  if (zKey) body.zKey = zKey;
+  if (nameKey) body.nameKey = nameKey;
+  if (valueKey) body.valueKey = valueKey;
+  if (axisKey) body.axisKey = axisKey;
   const metrics = parseStringListFlag(flags, 'metrics', 'Use a comma-separated list, e.g. --metrics north,south');
   const series = parseStringListFlag(flags, 'series', 'Use a comma-separated list, e.g. --series north,south');
   if (metrics) body.metrics = metrics;
   if (series) body.series = series;
-  if (typeof flags['bar-key'] === 'string') body.barKey = flags['bar-key'];
-  if (typeof flags['line-key'] === 'string') body.lineKey = flags['line-key'];
+  const barKey = getStringFlag(flags, 'bar-key', 'barKey');
+  const lineKey = getStringFlag(flags, 'line-key', 'lineKey');
+  if (barKey) body.barKey = barKey;
+  if (lineKey) body.lineKey = lineKey;
   if (flags.aggregate === 'sum' || flags.aggregate === 'count' || flags.aggregate === 'avg') {
     body.aggregate = flags.aggregate;
   }
-  if (typeof flags.color === 'string') body.color = flags.color;
-  if (typeof flags['bar-color'] === 'string') body.barColor = flags['bar-color'];
-  if (typeof flags['line-color'] === 'string') body.lineColor = flags['line-color'];
+  const color = getStringFlag(flags, 'color');
+  const barColor = getStringFlag(flags, 'bar-color', 'barColor');
+  const lineColor = getStringFlag(flags, 'line-color', 'lineColor');
+  if (color) body.color = color;
+  if (barColor) body.barColor = barColor;
+  if (lineColor) body.lineColor = lineColor;
 
   const chartHeight = optionalPositiveFiniteFlag(flags, 'chart-height', 'Use a positive number, e.g. --chart-height 300');
   const x = optionalFiniteFlag(flags, 'x', 'Use a finite number, e.g. --x 500');
@@ -1035,7 +1048,7 @@ cmd('node list', 'List all nodes on the canvas', [
   let nodes = layout.nodes;
 
   if (flags.type && flags.type !== true) {
-    nodes = nodes.filter((n) => n.type === flags.type);
+    nodes = nodes.filter((n) => n.type === flags.type || n.kind === flags.type);
   }
 
   if (flags.ids) {
@@ -1291,7 +1304,9 @@ cmd('status', 'Quick canvas summary', [
   const typeCounts: Record<string, number> = {};
   for (const n of layout.nodes) {
     const data = isRecord(n.data) ? n.data : {};
-    const t = n.type === 'mcp-app' && data.hostMode === 'hosted' && typeof data.path === 'string'
+    const t = typeof n.kind === 'string'
+      ? n.kind
+      : n.type === 'mcp-app' && data.hostMode === 'hosted' && typeof data.path === 'string'
       ? 'web-artifact'
       : n.type as string;
     typeCounts[t] = (typeCounts[t] || 0) + 1;
@@ -1364,7 +1379,9 @@ cmd('external-app add', 'Create a hosted external app node', [
   });
 
   const result = await api('POST', '/api/canvas/diagram', body);
-  output(result);
+  output(result && typeof result === 'object' && !Array.isArray(result) && 'nodeId' in result && !('id' in result)
+    ? { id: (result as { nodeId?: unknown }).nodeId, ...result }
+    : result);
 });
 
 // ── pin ──────────────────────────────────────────────────────
@@ -2021,7 +2038,12 @@ function showCommandHelp(name: string): void {
     console.log('\nSchema help:');
     console.log('  pmx-canvas node add --help --type webpage');
     console.log('  pmx-canvas node add --help --type json-render --component Table');
+    console.log('  pmx-canvas node add --help --type graph');
     console.log('  pmx-canvas node add --help --type webpage --json');
+  }
+  if (name === 'node add' || name === 'validate spec') {
+    console.log('\nGraph flags:');
+    console.log('  Graph fields accept kebab-case CLI flags and camelCase schema names, e.g. --graph-type/--graphType and --x-key/--xKey');
   }
   if (name === 'node schema') {
     console.log('\nFilters:');

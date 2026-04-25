@@ -195,6 +195,7 @@ export declare class PmxCanvas extends EventEmitter {
         height?: number;
     }): Promise<{
         ok: true;
+        id?: string;
         nodeId: string | null;
         toolCallId: string;
         sessionId: string;
@@ -202,6 +203,7 @@ export declare class PmxCanvas extends EventEmitter {
     }>;
     addDiagram(input: DiagramPresetOpenInput): Promise<{
         ok: true;
+        id?: string;
         nodeId: string | null;
         toolCallId: string;
         sessionId: string;

@@ -421,6 +421,8 @@ done
 
 GRAPH_ID="$("${CLI[@]}" node add --type graph --graph-type bar --title "Graph Alias" --data '[{"x":"a","y":1},{"x":"b","y":2}]' --x-key x --y-key y --x 40 --y 40 --width 320 --height 240 | node_id)"
 "${CLI[@]}" node get "${GRAPH_ID}" | assert_json 'd["type"] == "graph"'
+CAMEL_GRAPH_ID="$("${CLI[@]}" node add --type graph --graphType bar --title "Graph Camel Flags" --data '[{"x":"a","y":1}]' --xKey x --yKey y | node_id)"
+"${CLI[@]}" node get "${CAMEL_GRAPH_ID}" | assert_json 'd["data"]["graphConfig"]["graphType"] == "bar" and d["data"]["graphConfig"]["xKey"] == "x" and d["data"]["graphConfig"]["yKey"] == "y" and d["data"]["spec"]["elements"]["chart"]["type"] == "BarChart"'
 
 LINE_ID="$("${CLI[@]}" node add --type graph --graph-type line --title "Graph-Line" --data-json '[{"day":"Mon","value":3},{"day":"Tue","value":5},{"day":"Wed","value":4}]' --x-key day --y-key value --color '#60b5ff' | node_id)"
 BAR_ID="$("${CLI[@]}" node add --type graph --graph-type bar --title "Graph-Bar" --data-json '[{"team":"Docs","tickets":11},{"team":"Build","tickets":7},{"team":"QA","tickets":13}]' --x-key team --y-key tickets --aggregate sum --color '#65d69b' | node_id)"
@@ -450,8 +452,8 @@ COMBO_ALIAS_ID="$("${CLI[@]}" node add --type graph --graph-type combo --title "
 MCP_APP_OUT="$(${CLI[@]} node add --type mcp-app --title T --content C 2>&1 >/dev/null || true)"
 printf '%s' "${MCP_APP_OUT}" | assert_json '"error" in d and "cannot be created" in d["error"]'
 
-DIAGRAM_ID="$("${CLI[@]}" external-app add --kind excalidraw --title "Diagram" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d["ok"] is True and isinstance(d.get("nodeId"), str) and d["nodeId"]; print(d["nodeId"])')"
-"${CLI[@]}" node get "${DIAGRAM_ID}" | assert_json 'd["type"] == "mcp-app" and d["data"]["title"] == "Diagram"'
+DIAGRAM_ID="$("${CLI[@]}" external-app add --kind excalidraw --title "Diagram" | python3 -c 'import sys,json; d=json.load(sys.stdin); assert d["ok"] is True and d.get("id") == d.get("nodeId") and isinstance(d.get("nodeId"), str) and d["nodeId"] and not d["nodeId"].startswith("ext-app-ext-app-"); print(d["nodeId"])')"
+"${CLI[@]}" node get "${DIAGRAM_ID}" | assert_json 'd["type"] == "mcp-app" and d["kind"] == "external-app" and d["data"]["title"] == "Diagram"'
 
 set +e
 BAD_OUT="$(${CLI[@]} web-artifact build --title Bad --app-file ./AppBad.tsx --include-logs)"

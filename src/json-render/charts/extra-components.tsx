@@ -45,7 +45,7 @@ function ChartAreaChart({ props }: BaseComponentProps<AreaChartProps>) {
   const stroke = props.color ?? CHART_COLORS[0];
   const gradientId = `pmx-area-${props.yKey ?? 'value'}`;
   return (
-    <CartesianChart props={props}>
+    <CartesianChart props={props} className="pmx-chart--area">
       {(data) => (
         <RechartsAreaChart data={data}>
           <defs>
@@ -88,7 +88,7 @@ function ChartScatterChart({ props }: BaseComponentProps<ScatterChartProps>) {
   const h = props.height ?? 300;
 
   return (
-    <div className="pmx-chart">
+    <div className="pmx-chart pmx-chart--scatter">
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
       <ResponsiveContainer width="100%" height={h}>
         <RechartsScatterChart>
@@ -118,7 +118,7 @@ function ChartRadarChart({ props }: BaseComponentProps<RadarChartProps>) {
   const h = props.height ?? 320;
 
   return (
-    <div className="pmx-chart">
+    <div className="pmx-chart pmx-chart--radar">
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
       <ResponsiveContainer width="100%" height={h}>
         <RechartsRadarChart data={data} outerRadius="75%">
@@ -163,7 +163,7 @@ function ChartStackedBarChart({ props }: BaseComponentProps<StackedBarChartProps
   const h = props.height ?? 300;
 
   return (
-    <div className="pmx-chart">
+    <div className="pmx-chart pmx-chart--stacked-bar">
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
       <ResponsiveContainer width="100%" height={h}>
         <RechartsBarChart data={chartData}>
@@ -234,7 +234,7 @@ function ChartComposedChart({ props }: BaseComponentProps<ComposedChartProps>) {
   const h = props.height ?? 300;
 
   return (
-    <div className="pmx-chart">
+    <div className="pmx-chart pmx-chart--composed">
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
       <ResponsiveContainer width="100%" height={h}>
         <RechartsComposedChart data={data}>

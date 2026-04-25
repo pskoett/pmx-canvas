@@ -103,15 +103,17 @@ export const tooltipStyle = {
 export function CartesianChart({
   props,
   children,
+  className,
 }: {
   props: CartesianChartProps;
   children: (data: Record<string, unknown>[]) => ReactNode;
+  className?: string;
 }) {
   const chartData = processChartData(props.data ?? [], props.xKey, props.yKey, props.aggregate);
   const h = props.height ?? 300;
 
   return (
-    <div className="pmx-chart">
+    <div className={`pmx-chart${className ? ` ${className}` : ''}`}>
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
       <ResponsiveContainer width="100%" height={h}>
         {children(chartData)}
@@ -123,7 +125,7 @@ export function CartesianChart({
 function ChartLineChart({ props }: BaseComponentProps<CartesianChartProps>) {
   const stroke = props.color ?? CHART_COLORS[0];
   return (
-    <CartesianChart props={props}>
+    <CartesianChart props={props} className="pmx-chart--line">
       {(data) => (
         <RechartsLineChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
@@ -147,7 +149,7 @@ function ChartLineChart({ props }: BaseComponentProps<CartesianChartProps>) {
 function ChartBarChart({ props }: BaseComponentProps<CartesianChartProps>) {
   const fill = props.color ?? CHART_COLORS[0];
   return (
-    <CartesianChart props={props}>
+    <CartesianChart props={props} className="pmx-chart--bar">
       {(data) => (
         <RechartsBarChart data={data}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
@@ -166,7 +168,7 @@ function ChartPieChart({ props }: BaseComponentProps<PieChartProps>) {
   const h = props.height ?? 300;
 
   return (
-    <div className="pmx-chart">
+    <div className="pmx-chart pmx-chart--pie">
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
       <ResponsiveContainer width="100%" height={h}>
         <RechartsPieChart>
