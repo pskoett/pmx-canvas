@@ -3,6 +3,62 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.5] - 2026-04-26
+
+Image-validation hardening + CLI ergonomics. The boundary where untrusted
+file paths become canvas state now validates magic bytes, and common CLI
+typos produce one-line suggestions instead of help-block dumps.
+
+### Added
+
+- **Magic-byte validation for local image nodes.** PNG / JPEG / GIF / SVG /
+  WebP / BMP / ICO / AVIF headers are sniffed before a file becomes an
+  `image` node. A file renamed `screenshot.png` containing PowerPoint XML
+  is now rejected with a clear error before it reaches the renderer.
+- **macOS cloud-on-demand placeholder detection.** Files in iCloud Drive,
+  OneDrive, etc. that are not yet downloaded locally are detected via
+  `stat -f %Xf` flags and rejected with a hint to download them first —
+  no more silent freezes when an iCloud-only file is dropped on the canvas.
+- **`/bin/dd` escape hatch with a 5s timeout** for macOS-only paths where
+  the direct fs read could hang on an unresponsive volume (e.g. an
+  unmounted SMB share that still satisfies `existsSync`). Distinguishes
+  timeout (`SIGTERM` / `ETIMEDOUT`) from generic spawn failures so the
+  cloud-storage hint isn't shown for unrelated errors.
+- **CLI typo hints for resource subcommands.**
+  - `pmx-canvas node delete <id>` and `pmx-canvas node rm <id>` exit 1 with
+    `Did you mean: pmx-canvas node remove?`.
+  - `pmx-canvas edge delete <id>` and `pmx-canvas edge rm <id>` get the
+    same treatment.
+  - `pmx-canvas node pin <id>` redirects to the top-level
+    `pmx-canvas pin <id>` command.
+
+### Changed
+
+- **`GET /api/canvas/image/:id` is now async** (`fs/promises.readFile`) and
+  validates content before serving — returns **400** on invalid image bytes
+  instead of 200 with `application/octet-stream`.
+- **Bare `pmx-canvas node` (no subcommand)** now exits 1 with structured
+  JSON instead of printing the resource help block. Use
+  `pmx-canvas node --help` for the listing.
+
+### Internal
+
+- New module `src/server/image-source.ts` extracts and extends image
+  validation from `canvas-operations.ts`. Same error contract; richer
+  checks. The MCP and HTTP layers both flow through `addCanvasNode`, so
+  CLAUDE.md rule #5 (four-layer parity) is preserved without touching
+  the SDK or MCP server.
+- Direct fs read is the fast path on every platform (no fork, no shell);
+  `dd` is only consulted on macOS as a fallback when direct read fails on
+  a path that wasn't flagged as a placeholder.
+- Real magic-byte fixtures in `tests/unit/canvas-operations.test.ts` (was:
+  `*.png` extension smoke tests). New HTTP coverage in
+  `tests/unit/server-api.test.ts` for valid / invalid / missing image
+  paths. New CLI coverage for `node delete`, `node pin`, `edge delete`,
+  `edge rm` typo hints.
+
+[0.1.5]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.5
+
 ## [0.1.4] - 2026-04-26
 
 Graph/CLI ergonomics + canvas-node taxonomy hardening. Three threads:

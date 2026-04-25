@@ -36,6 +36,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { basename, extname, join, relative, resolve } from 'node:path';
 import * as marked from 'marked';
 import type {
@@ -67,6 +68,7 @@ import { diffLayouts, formatDiff, mutationHistory } from './mutation-history.js'
 import { buildCanvasSummary, serializeCanvasLayout, serializeCanvasNode } from './canvas-serialization.js';
 import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent-context.js';
+import { validateLocalImageFile } from './image-source.js';
 import {
   addCanvasNode,
   addCanvasEdge,
@@ -1091,7 +1093,7 @@ async function handleCanvasViewport(req: Request): Promise<Response> {
 }
 
 // ── Serve image file for image nodes ─────────────────────────
-function handleCanvasImage(pathname: string): Response {
+async function handleCanvasImage(pathname: string): Promise<Response> {
   const nodeId = pathname.replace('/api/canvas/image/', '');
   const node = canvasState.getNode(nodeId);
   if (!node || node.type !== 'image') {
@@ -1105,9 +1107,13 @@ function handleCanvasImage(pathname: string): Response {
   if (!existsSync(safePath)) {
     return responseText('Image file not found', 404);
   }
-  const ext = safePath.split('.').pop()?.toLowerCase() ?? '';
-  const contentType = IMAGE_MIME_MAP[ext] || 'application/octet-stream';
-  const data = readFileSync(safePath);
+  let contentType: string;
+  try {
+    contentType = validateLocalImageFile(safePath).mimeType;
+  } catch (error) {
+    return responseText(error instanceof Error ? error.message : 'Invalid image file', 400);
+  }
+  const data = await readFile(safePath);
   return new Response(data, {
     headers: {
       'Content-Type': contentType,
@@ -3773,7 +3779,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           }
 
           if (url.pathname.startsWith('/api/canvas/image/') && req.method === 'GET') {
-            return handleCanvasImage(url.pathname);
+            return await handleCanvasImage(url.pathname);
           }
 
           if (url.pathname === '/api/canvas/edge' && req.method === 'POST') {

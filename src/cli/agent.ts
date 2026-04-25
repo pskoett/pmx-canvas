@@ -873,6 +873,21 @@ function filterJsonRenderSchemaView(
 // ── Commands ─────────────────────────────────────────────────
 
 const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: string; examples: string[] }> = {};
+const RESOURCE_COMMAND_ALIASES: Record<string, Record<string, string>> = {
+  node: {
+    delete: 'remove',
+    rm: 'remove',
+  },
+  edge: {
+    delete: 'remove',
+    rm: 'remove',
+  },
+};
+const RESOURCE_SUBCOMMAND_HINTS: Record<string, Record<string, string>> = {
+  node: {
+    pin: 'Use the top-level pin command instead: pmx-canvas pin <node-id>',
+  },
+};
 
 function cmd(
   name: string,
@@ -2225,12 +2240,32 @@ export async function runAgentCli(args: string[]): Promise<void> {
   // Unknown command — show help for the resource if it exists
   const resourceCommands = Object.keys(COMMANDS).filter((k) => k.startsWith(oneWord + ' '));
   if (resourceCommands.length > 0) {
-    console.log(`\nAvailable "${oneWord}" commands:\n`);
-    for (const k of resourceCommands) {
-      console.log(`  pmx-canvas ${k.padEnd(20)} ${COMMANDS[k].help}`);
+    if (args[1] === '--help' || args[1] === '-h') {
+      console.log(`\nAvailable "${oneWord}" commands:\n`);
+      for (const k of resourceCommands) {
+        console.log(`  pmx-canvas ${k.padEnd(20)} ${COMMANDS[k].help}`);
+      }
+      console.log('\nRun any command with --help for details.\n');
+      return;
     }
-    console.log('\nRun any command with --help for details.\n');
-    return;
+    const subcommand = args[1];
+    const suggestion = subcommand ? RESOURCE_COMMAND_ALIASES[oneWord]?.[subcommand] : undefined;
+    const extraHint = subcommand ? RESOURCE_SUBCOMMAND_HINTS[oneWord]?.[subcommand] : undefined;
+    const available = resourceCommands
+      .map((k) => k.slice(oneWord.length + 1))
+      .sort()
+      .join(', ');
+    const hints = [
+      suggestion ? `Did you mean: pmx-canvas ${oneWord} ${suggestion}?` : undefined,
+      extraHint,
+      `Available subcommands: ${available}`,
+    ].filter((hint): hint is string => typeof hint === 'string');
+    die(
+      subcommand
+        ? `Unknown ${oneWord} subcommand: "${subcommand}".`
+        : `Missing ${oneWord} subcommand.`,
+      hints.join(' '),
+    );
   }
 
   die(`Unknown command: ${oneWord}`, 'Run: pmx-canvas --help');

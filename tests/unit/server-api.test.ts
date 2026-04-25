@@ -57,6 +57,10 @@ async function waitForNode(
 }
 
 const fixtureMcpAppServerPath = fileURLToPath(new URL('../fixtures/mcp-app-fixture.ts', import.meta.url));
+const tinyPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64',
+);
 
 describe('canvas server HTTP API', () => {
   let workspaceRoot = '';
@@ -221,6 +225,59 @@ describe('canvas server HTTP API', () => {
     const layout = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
     expect(layout.nodes).toEqual([]);
     expect(layout.edges).toEqual([]);
+  });
+
+  test('image nodes accept real image files and keep the server responsive', async () => {
+    const imagePath = join(workspaceRoot, 'local-image.png');
+    writeFileSync(imagePath, tinyPng);
+
+    const created = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      kind: string;
+      data: { mimeType: string };
+    }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'image', content: imagePath, title: 'Local image' }),
+    });
+
+    expect(created).toMatchObject({ ok: true, kind: 'image' });
+    expect(created.data.mimeType).toBe('image/png');
+
+    const state = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(state.nodes.some((node) => node.id === created.id && node.type === 'image')).toBe(true);
+  });
+
+  test('image nodes reject non-image files even with an image extension', async () => {
+    const fakeImagePath = join(workspaceRoot, 'not-an-image.png');
+    writeFileSync(fakeImagePath, 'not image bytes', 'utf-8');
+
+    const response = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'image', content: fakeImagePath, title: 'Fake image' }),
+    });
+    const payload = await response.json() as { ok: boolean; error: string };
+
+    expect(response.status).toBe(400);
+    expect(payload.ok).toBe(false);
+    expect(payload.error).toContain('not a recognized image file');
+    expect(canvasState.getLayout().nodes).toHaveLength(0);
+  });
+
+  test('image nodes reject missing local files', async () => {
+    const response = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'image', content: join(workspaceRoot, 'missing.png'), title: 'Missing image' }),
+    });
+    const payload = await response.json() as { ok: boolean; error: string };
+
+    expect(response.status).toBe(400);
+    expect(payload.ok).toBe(false);
+    expect(payload.error).toContain('does not exist');
+    expect(canvasState.getLayout().nodes).toHaveLength(0);
   });
 
   test('closes hosted MCP app sessions when nodes are deleted or the canvas is cleared', async () => {

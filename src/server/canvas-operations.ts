@@ -4,7 +4,6 @@ import { recomputeCodeGraph } from './code-graph.js';
 import {
   canvasState,
   type CanvasEdge,
-  IMAGE_MIME_MAP,
   type CanvasNodeState,
   type CanvasNodeUpdate,
   type CanvasSnapshot,
@@ -36,6 +35,7 @@ import {
   getWebpageFetchErrorDetails,
   normalizeWebpageUrl,
 } from './webpage-node.js';
+import { validateLocalImageFile } from './image-source.js';
 import { buildExcalidrawRestoreCheckpointToolInput, ensureExcalidrawCheckpointId, isExcalidrawCreateView } from './diagram-presets.js';
 
 export type CanvasArrangeMode = 'grid' | 'column' | 'flow';
@@ -435,22 +435,14 @@ function buildImageNodeData(input: CanvasAddNodeInput): Record<string, unknown> 
 
   if (!isDataUri && !isUrl && src) {
     const resolved = resolve(src);
-    const ext = resolved.split('.').pop()?.toLowerCase() ?? '';
     const fileName = resolved.split('/').pop() ?? src;
-    const mime = IMAGE_MIME_MAP[ext];
-    if (!mime) {
-      throw new Error(
-        `Invalid image node: "${fileName}" has unsupported extension ".${ext}". ` +
-          `Accepted: ${Object.keys(IMAGE_MIME_MAP).join(', ')}. ` +
-          `For non-image files use type="file" (live viewer) or type="webpage" (URL) instead.`,
-      );
-    }
+    const { mimeType } = validateLocalImageFile(resolved);
     return {
       ...(input.data ?? {}),
       src: resolved,
       title: input.title ?? fileName,
       path: resolved,
-      mimeType: mime,
+      mimeType,
     };
   }
 

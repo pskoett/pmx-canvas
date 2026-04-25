@@ -414,6 +414,91 @@ describe('agent CLI node commands', () => {
     expect(output.hint).toContain('web-artifact build');
   });
 
+  test('node delete fails loudly with remove suggestion', async () => {
+    const error = mock(() => {});
+    const originalError = console.error;
+    const originalExit = process.exit;
+    console.error = error;
+    process.exit = ((code?: number) => {
+      throw new Error(`exit:${code}`);
+    }) as typeof process.exit;
+
+    try {
+      await expect(runAgentCli(['node', 'delete', 'node-missing'])).rejects.toThrow('exit:1');
+    } finally {
+      console.error = originalError;
+      process.exit = originalExit;
+    }
+
+    const output = JSON.parse(error.mock.calls[0]?.[0] as string) as { error: string; hint: string };
+    expect(output.error).toContain('Unknown node subcommand: "delete"');
+    expect(output.hint).toContain('pmx-canvas node remove');
+  });
+
+  test('node pin fails loudly and points to top-level pin command', async () => {
+    const error = mock(() => {});
+    const originalError = console.error;
+    const originalExit = process.exit;
+    console.error = error;
+    process.exit = ((code?: number) => {
+      throw new Error(`exit:${code}`);
+    }) as typeof process.exit;
+
+    try {
+      await expect(runAgentCli(['node', 'pin', 'node-missing'])).rejects.toThrow('exit:1');
+    } finally {
+      console.error = originalError;
+      process.exit = originalExit;
+    }
+
+    const output = JSON.parse(error.mock.calls[0]?.[0] as string) as { error: string; hint: string };
+    expect(output.error).toContain('Unknown node subcommand: "pin"');
+    expect(output.hint).toContain('Available subcommands:');
+    expect(output.hint).toContain('pin');
+  });
+
+  test('edge delete fails loudly with remove suggestion', async () => {
+    const error = mock(() => {});
+    const originalError = console.error;
+    const originalExit = process.exit;
+    console.error = error;
+    process.exit = ((code?: number) => {
+      throw new Error(`exit:${code}`);
+    }) as typeof process.exit;
+
+    try {
+      await expect(runAgentCli(['edge', 'delete', 'edge-missing'])).rejects.toThrow('exit:1');
+    } finally {
+      console.error = originalError;
+      process.exit = originalExit;
+    }
+
+    const output = JSON.parse(error.mock.calls[0]?.[0] as string) as { error: string; hint: string };
+    expect(output.error).toContain('Unknown edge subcommand: "delete"');
+    expect(output.hint).toContain('pmx-canvas edge remove');
+  });
+
+  test('edge rm fails loudly with remove suggestion', async () => {
+    const error = mock(() => {});
+    const originalError = console.error;
+    const originalExit = process.exit;
+    console.error = error;
+    process.exit = ((code?: number) => {
+      throw new Error(`exit:${code}`);
+    }) as typeof process.exit;
+
+    try {
+      await expect(runAgentCli(['edge', 'rm', 'edge-missing'])).rejects.toThrow('exit:1');
+    } finally {
+      console.error = originalError;
+      process.exit = originalExit;
+    }
+
+    const output = JSON.parse(error.mock.calls[0]?.[0] as string) as { error: string; hint: string };
+    expect(output.error).toContain('Unknown edge subcommand: "rm"');
+    expect(output.hint).toContain('pmx-canvas edge remove');
+  });
+
   test('node add exposes the full graph flag surface for newer chart types', async () => {
     const radarPath = join(workspaceRoot, 'graph-radar.json');
     const stackedPath = join(workspaceRoot, 'graph-stacked.json');

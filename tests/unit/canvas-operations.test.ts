@@ -1,4 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { addCanvasNode, arrangeCanvasNodes, setCanvasContextPins } from '../../src/server/canvas-operations.ts';
 import { validateCanvasLayout } from '../../src/server/canvas-validation.ts';
@@ -8,6 +10,18 @@ import {
   removeTestWorkspace,
   resetCanvasForTests,
 } from './helpers.ts';
+
+const imageFixtures: Record<string, Buffer | string> = {
+  png: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'),
+  jpg: Buffer.from([0xff, 0xd8, 0xff, 0xdb, 0x00, 0x43, 0x00]),
+  jpeg: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]),
+  gif: Buffer.from('GIF89a'),
+  svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1 1"></svg>',
+  webp: Buffer.from('RIFF\x00\x00\x00\x00WEBP', 'binary'),
+  bmp: Buffer.from('BM\x00\x00\x00\x00', 'binary'),
+  ico: Buffer.from([0x00, 0x00, 0x01, 0x00, 0x01, 0x00]),
+  avif: Buffer.from('\x00\x00\x00\x18ftypavif\x00\x00\x00\x00', 'binary'),
+};
 
 describe('canvas operations', () => {
   let workspaceRoot = '';
@@ -94,9 +108,11 @@ describe('image node validation', () => {
     removeTestWorkspace(workspaceRoot);
   });
 
-  test('accepts common image extensions', () => {
-    for (const ext of ['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'avif']) {
-      const created = addCanvasNode({ type: 'image', content: `/tmp/screenshot.${ext}` });
+  test('accepts common local image files with matching image bytes', () => {
+    for (const [ext, fixture] of Object.entries(imageFixtures)) {
+      const imagePath = join(workspaceRoot, `screenshot.${ext}`);
+      writeFileSync(imagePath, fixture);
+      const created = addCanvasNode({ type: 'image', content: imagePath });
       expect(created.node.type).toBe('image');
     }
   });
@@ -108,9 +124,19 @@ describe('image node validation', () => {
   });
 
   test('rejects non-image file paths with a helpful message', () => {
+    const filePath = join(workspaceRoot, 'Development_Platform_Roadmap.pptx');
+    writeFileSync(filePath, 'not image bytes', 'utf-8');
     expect(() =>
-      addCanvasNode({ type: 'image', content: '/tmp/Development_Platform_Roadmap.pptx' }),
+      addCanvasNode({ type: 'image', content: filePath }),
     ).toThrow(/Invalid image node.*unsupported extension.*\.pptx/);
+  });
+
+  test('rejects fake image files with image extensions', () => {
+    const filePath = join(workspaceRoot, 'fake.png');
+    writeFileSync(filePath, 'not image bytes', 'utf-8');
+    expect(() =>
+      addCanvasNode({ type: 'image', content: filePath }),
+    ).toThrow(/Invalid image node.*not a recognized image file/);
   });
 
   test('rejects non-image data URIs', () => {
