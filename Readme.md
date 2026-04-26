@@ -12,9 +12,14 @@ A spatial canvas workbench for coding agents. Infinite 2D canvas with nodes, edg
   <img src="docs/screenshots/demo-workbench-light.png" alt="Structured workbench demo — light theme" width="49%" />
 </p>
 
-PMX Canvas is a spatial thinking surface for coding agents and the humans working with them. Agents lay out plans, files, and status as connected nodes; humans rearrange, group, and pin what matters. That spatial curation — proximity, grouping, pinning — becomes structured context the agent reads in real time via MCP.
+PMX Canvas is a **collaborative spatial workspace** that humans and agents share in real time. It works in both directions:
 
-**Spatial arrangement is communication.** When a human drags three file nodes next to a bug report, the agent knows they're related. The canvas is the agent's **extended working memory**: humans pin nodes to curate context, agents read that curation via `canvas://pinned-context` and MCP resource change notifications.
+- **Human-first.** You open the canvas, drop in files, sketch a plan, group what belongs together, pin what matters. The agent watches the curation update live and uses it to ground its next action — no prompt engineering, no copy-paste.
+- **Agent-first.** You ask the agent to gather data from sources (logs, files, search results, dashboards, web pages), and it lays the findings out as nodes and edges. You step in, rearrange, edit, prune, and steer where the analysis goes next.
+
+Either way, the canvas is the **shared thinking surface** for organizing, researching, and analyzing — a place where the agent's working memory and your spatial intuition meet.
+
+**Spatial arrangement is communication.** When a human drags three file nodes next to a bug report, the agent knows they're related. When the agent drops 12 webpage nodes from a research session, the human can immediately group, prune, and pin the ones worth keeping. Both sides read the same `canvas://pinned-context`, `canvas://spatial-context`, and SSE event stream.
 
 ## Prerequisites
 
@@ -24,34 +29,118 @@ The published SDK entrypoint is Bun-first: `import { createCanvas } from 'pmx-ca
 
 ## Quick start
 
-### Recommended: install the agent skill, let your agent do the rest
+There are two paths into pmx-canvas, and they work together. Pick whichever
+matches who is starting the session — you can hand off to the other side at any
+point because both halves drive the same canvas.
 
-`pmx-canvas` ships a self-installing agent skill. You do **not** install or start the canvas
-yourself — you point your agent at the skill, and the skill teaches the agent how to install
-the package, start the server, and use every node type, group, snapshot, and search tool the
-canvas exposes.
+### Easiest: install the `pmx-canvas` agent skill (recommended)
 
-The skill source lives at [`skills/pmx-canvas/SKILL.md`](skills/pmx-canvas/SKILL.md), and after
-the canvas is running it is also discoverable through the MCP server at
-`canvas://skills/pmx-canvas` along with companion skills (`web-artifacts-builder`,
-`pmx-canvas-testing`, `playwright-cli`, the `json-render-*` family, etc. — see
-[Agent skills](#agent-skills)).
+The fastest way to get going is to install the main `pmx-canvas` agent skill
+into your agent of choice. The skill teaches the agent how to install the
+package, start the server, and drive every node type, group, snapshot, and
+search the canvas exposes. You don't have to install the rest of the bundled
+skills (`web-artifacts-builder`, `pmx-canvas-testing`, `playwright-cli`, the
+`json-render-*` family, etc.) — once the canvas is running, the agent can read
+`canvas://skills` and pull in companion skills as the work demands.
 
-**Claude Code:**
+Three install paths, in order of how universal they are:
 
 ```bash
-# from any project dir
-mkdir -p .claude/skills
-curl -L https://raw.githubusercontent.com/pskoett/pmx-canvas/main/skills/pmx-canvas/SKILL.md \
-  -o .claude/skills/pmx-canvas/SKILL.md
+# 1. GitHub CLI (gh skill — installs into the right host directory automatically;
+#    works for Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI; gh >= 2.90)
+gh skill install pskoett/pmx-canvas pmx-canvas
+
+# 2. Agent Skills CLI (any agent that follows the Agent Skills spec)
+npx skills add pskoett/pmx-canvas/skills/pmx-canvas
+
+# 3. Manual (clone + copy or symlink — works everywhere)
+git clone https://github.com/pskoett/pmx-canvas.git
+cp -r pmx-canvas/skills/pmx-canvas ~/.claude/skills/   # or your agent's skills dir
 ```
 
-Then in your conversation: *"Use the pmx-canvas skill to set up the canvas and add a markdown
-node titled Plan."* The skill handles `bunx pmx-canvas` invocation, MCP wiring, and node
-creation flow.
+Then in your agent: *"Use the `pmx-canvas` skill to start the canvas and lay
+out a plan for X."* The skill handles `bunx pmx-canvas` startup, MCP wiring,
+and the canvas operations.
 
-**Cursor / Windsurf / any MCP-capable agent:** add the MCP config below — the canvas auto-starts
-on the first tool call, and the agent reads `canvas://skills` to discover bundled skills:
+For a richer install (all bundled skills as a Claude Code / Codex / Copilot
+plugin marketplace, similar to
+[`pskoett-ai-skills`](https://github.com/pskoett/pskoett-ai-skills)), see
+[Agent skills](#agent-skills) below.
+
+### Run it directly (no agent required)
+
+You don't need an agent to use pmx-canvas — the workbench, CLI, and HTTP API
+are first-class on their own.
+
+#### Install from npm
+
+```bash
+bunx pmx-canvas              # Start canvas, open browser
+bunx pmx-canvas --demo       # Start with sample nodes
+bunx pmx-canvas --no-open    # Headless (good for daemons / CI)
+bunx pmx-canvas --mcp        # Run as MCP server (stdio)
+bunx pmx-canvas --help       # All commands
+bunx pmx-canvas serve --daemon --no-open --wait-ms=20000  # Detached background mode
+```
+
+The canvas opens at `http://localhost:4313`.
+
+#### Install from source
+
+```bash
+git clone https://github.com/pskoett/pmx-canvas.git
+cd pmx-canvas
+bun install
+bun run build
+bun run dev                   # Start + open browser
+bun run dev:demo              # Start with sample nodes
+bun run dev:portless          # https://pmx.localhost/workbench (requires global portless)
+```
+
+For local development only, you can give the canvas a stable hostname with
+[Portless](https://github.com/vercel-labs/portless):
+
+```bash
+npm install -g portless
+bun run dev:portless
+```
+
+The published `bunx pmx-canvas` path defaults to plain loopback and does **not**
+depend on Portless.
+
+#### Test the unpublished CLI from a repo checkout
+
+If you want to exercise the real package before publishing, link the repo locally:
+
+```bash
+git clone https://github.com/pskoett/pmx-canvas.git
+cd pmx-canvas
+bun install
+bun run build
+bun link
+
+# Then from any shell:
+pmx-canvas --help
+pmx-canvas --no-open
+```
+
+For one-off local runs without linking, `bun run src/cli/index.ts ...` works too.
+
+### Recommended ways to drive the canvas
+
+Once the canvas is up, two control surfaces are first-class:
+
+- **CLI** for local use, scripting, automation, and terminal-native agents.
+- **MCP** for agents that already speak the Model Context Protocol — 38 tools +
+  7 resources, including the bundled-skill index at `canvas://skills`.
+
+Both paths cover core canvas work. A few advanced capabilities (live resource
+subscriptions, `canvas_diff`) remain MCP-only. The HTTP API and the
+[Bun SDK](#javascripttypescript-sdk-bun-runtime) are also available for programmatic use.
+
+#### Connect your agent (MCP)
+
+Add to your agent's MCP config:
 
 ```json
 {
@@ -64,28 +153,11 @@ on the first tool call, and the agent reads `canvas://skills` to discover bundle
 }
 ```
 
-### For humans driving the canvas directly
+The canvas auto-starts on first tool call. Works with Claude Code, Cursor,
+Windsurf, and any MCP-capable agent.
 
-The CLI and MCP are the two primary surfaces. Pick whichever fits how you work.
-
-**CLI** (local use, scripting, automation, terminal-native agents):
-
-```bash
-bunx pmx-canvas              # Start canvas, open browser
-bunx pmx-canvas --demo       # Start with sample nodes
-bunx pmx-canvas --no-open    # Headless (good for agents)
-bunx pmx-canvas --mcp        # Run as MCP server
-bunx pmx-canvas --help       # All commands
-```
-
-The canvas opens at `http://localhost:4313`.
-
-**MCP** (agents that already speak the Model Context Protocol): use the JSON config above. The
-canvas auto-starts on first tool call. 38 tools + 7 resources, including the bundled
-`canvas://skills` index.
-
-For development workflows on the `pmx-canvas` repo itself (cloning, building from source,
-linking the unpublished CLI, etc.) see [`AGENTS.md`](AGENTS.md) and
+For developer flows on the `pmx-canvas` repo itself (release process,
+contribution gates, etc.) see [`AGENTS.md`](AGENTS.md) and
 [`docs/RELEASE.md`](docs/RELEASE.md).
 
 ## How it works
@@ -452,18 +524,26 @@ effectively:
 
 | Skill | Purpose |
 |-------|---------|
-| [`pmx-canvas`](skills/pmx-canvas/SKILL.md) | Core canvas workflows -- when to create which node type, how to pin for context, batch builds |
+| [`pmx-canvas`](skills/pmx-canvas/SKILL.md) | **Core canvas workflows** — when to create which node type, how to pin for context, batch builds. Start here. |
+| [`web-artifacts-builder`](skills/web-artifacts-builder/SKILL.md) | Build single-file React/Tailwind artifacts and drop them on the canvas as embedded nodes |
+| [`json-render-core`](skills/json-render-core/SKILL.md) | Drive the `@json-render/core` runtime — the spec format, parsing, and validation |
+| [`json-render-react`](skills/json-render-react/SKILL.md) | Render json-render specs into React using the runtime |
+| [`json-render-shadcn`](skills/json-render-shadcn/SKILL.md) | The shadcn/ui component catalog — Card, Stack, Button, Form fields, Tables |
+| [`json-render-mcp`](skills/json-render-mcp/SKILL.md) | Expose a json-render spec as a `ui://` MCP resource |
+| [`json-render-codegen`](skills/json-render-codegen/SKILL.md) | Generate json-render specs from prompts / structured input |
+| [`json-render-ink`](skills/json-render-ink/SKILL.md) | Render json-render specs to the terminal via Ink |
 | [`pmx-canvas-testing`](skills/pmx-canvas-testing/SKILL.md) | Testing patterns against the running canvas |
-| [`web-artifacts-builder`](skills/web-artifacts-builder/SKILL.md) | Build single-file React/Tailwind artifacts for the canvas |
 | [`playwright-cli`](skills/playwright-cli/SKILL.md) | Browser automation recipes for canvas + arbitrary pages |
-| [`json-render-*`](skills/) | Drive the `@json-render/*` catalog (core, react, shadcn, mcp, codegen, ink) |
 | [`frontend-design`](skills/frontend-design/SKILL.md), [`web-design-guidelines`](skills/web-design-guidelines/SKILL.md) | Design-quality rules for agent-generated UI |
 | [`doc-coauthoring`](skills/doc-coauthoring/SKILL.md) | Structured doc-writing flow |
 | [`data-analysis`](skills/data-analysis/SKILL.md) | Data exploration patterns |
 | [`published-consumer-e2e`](skills/published-consumer-e2e/SKILL.md) | Smoke-test the published `bunx pmx-canvas` path |
 
-Point your agent's skill loader at this directory, or copy the individual `SKILL.md` files into
-your agent's skills tree.
+You only need to install [`pmx-canvas`](skills/pmx-canvas/SKILL.md) up front (see the
+[Quick start](#quick-start)) — once the canvas is running, the agent can read
+`canvas://skills` to discover the rest and pull them in as the work demands. The core skill
+also references the companion skills directly so the agent knows when each one is the right
+tool.
 
 ## Integration
 
