@@ -22,6 +22,30 @@ relatedness, clusters imply grouping, reading order (top-left to bottom-right) i
 
 ## When to Use
 
+The canvas is built around five high-value thinking modes. These are the
+primary reasons the surface exists; the remaining bullets are concrete output
+shapes those modes produce.
+
+- **Idea generation** — capture divergent thoughts spatially without losing
+  them. Drop quick markdown nodes wherever they land; group later. Helps
+  riffs ("give me twelve angles on X") stay distinct instead of melting into
+  a paragraph.
+- **Validation** — test an idea against evidence. Pin the claim; place
+  supporting and contradicting sources next to it; summarize what's actually
+  backed and what's hand-waved.
+- **Research** — gather, organize, and compare sources from anywhere.
+  Webpage nodes for fetched pages, file nodes for local references, markdown
+  summaries for synthesis — all on the same searchable, pinnable surface.
+- **Analysis** — make sense of accumulated material. Cluster related
+  findings by proximity, draw `references` edges between them, then read
+  `canvas://pinned-context` to ground next-step reasoning in what the human
+  curated.
+- **Mind mapping** — show relationships, hierarchies, and structure
+  spatially. Groups for branches, edges for connections, `depends-on` and
+  `relation` types for semantic links.
+
+Concrete output shapes you might produce inside any of those modes:
+
 - **Investigation boards** — lay out files, logs, stack traces, and findings spatially while debugging
 - **Architecture diagrams** — show system components and their relationships
 - **Plans & task tracking** — create task nodes with dependencies and color-coded status
@@ -709,6 +733,75 @@ When the human wants to explore a different approach without losing current work
 2. **Then** clear: `canvas_clear` (never clear without snapshotting first)
 3. Set up the new workspace with initial nodes
 4. Tell the human the snapshot name and that `canvas_restore` can bring everything back
+
+### Idea Generation Sweep
+
+When the human wants to riff on a topic ("give me twelve angles on X"):
+
+1. Create a single seed `markdown` node with the topic; pin it
+2. Generate N ideas as separate `markdown` nodes (don't crowd into one node)
+3. Use `canvas_arrange` with `'flow'` so the seed stays anchored and the
+   ideas spread out around it
+4. Hand back to the human — they will prune, group, and pin the keepers
+5. After pruning, read `canvas://pinned-context` to see which angles survived
+   and ground the next round of expansion in those
+
+### Validation Pass
+
+When the human wants to test a claim against evidence:
+
+1. Pin the claim (`markdown` node) so `canvas://pinned-context` always
+   centers on it
+2. Build two groups beside it — "Supports" and "Refutes" — using
+   `canvas_create_group` (color the Supports group accent green, Refutes
+   red so the spatial coding is unambiguous)
+3. Drop evidence as appropriate node types: `webpage` for fetched pages,
+   `file` for local references, `markdown` for synthesis
+4. Connect each evidence node to the claim with a `references` edge so the
+   relationship is first-class
+5. Summarize: read `canvas://pinned-context` (claim) and the two groups,
+   then explicitly call out what is actually backed vs. hand-waved
+
+### Research Survey
+
+When the human asks you to gather material on a topic:
+
+1. Create a parent `group` for the survey, titled with the topic
+2. Fetch / read sources and add each as the right node type
+   (`webpage` for URLs, `file` for repo files, `markdown` for AI summaries)
+3. Set `parentGroup` on each source so they collect inside the survey frame
+4. Use `canvas_search` before adding each source to avoid duplicates
+5. After the gather phase, ask the human to pin the keepers — don't
+   pre-prune; you don't know yet which angle they want
+6. On the next turn, read `canvas://pinned-context` and continue with only
+   the surviving sources
+
+### Analysis Pattern
+
+When the human has accumulated material and wants to extract patterns:
+
+1. Read `canvas://layout` and `canvas://spatial-context` first — proximity
+   already encodes some of the analysis the human did manually
+2. Cluster related nodes by adjusting positions (`canvas_update_node`) or by
+   creating `group` nodes — tighter clusters mean stronger relationships
+3. Add `references` and `relation` edges where the clustering surfaced a
+   non-obvious link
+4. Build a summary `json-render` panel or `markdown` synthesis node that
+   names the patterns explicitly; place it adjacent to the cluster it
+   summarizes
+5. Re-pin: shift the human's pins from raw sources to the new synthesis
+   nodes once they confirm the analysis lands
+
+### Mind Map
+
+When the human wants a structured view of a domain or concept:
+
+1. Place the central concept as a `markdown` node, top-center
+2. Create `group` nodes around it for the major branches
+3. Within each group, drop sub-concept nodes; chain them with
+   `depends-on` or `relation` edges to show hierarchy
+4. Use `canvas_arrange` with `'flow'` so sibling branches don't overlap
+5. Color groups distinctly so the spatial structure reads at a glance
 
 ## Best Practices
 

@@ -53,8 +53,9 @@ bunx pmx-canvas --demo
 
 Your default browser opens at `http://localhost:4313` and you should see the canvas
 with **three sample nodes** ("Welcome to PMX Canvas", "Getting Started", "Agent
-Status") connected by **two flow edges**. If that's what you see, the install
-works. Quick sanity-check from another terminal:
+Status") connected by **two `flow` edges** (the first labeled `next`, the second
+unlabeled). If that's what you see, the install works. Quick sanity-check from
+another terminal:
 
 ```bash
 curl -s http://localhost:4313/health
@@ -67,6 +68,20 @@ Now try the canvas:
 - **Right-click** the "Agent Status" node → *Pin as context*. Pinned nodes get a coloured outline and become first-class context for any connected agent.
 - **Press `?`** to see the full keyboard-shortcut overlay.
 - **Double-click** the empty canvas to drop a new markdown note where you click.
+
+Once that all works, drop a real chart into the same canvas from another
+terminal — no agent required:
+
+```bash
+bunx pmx-canvas node add --type graph --graph-type bar \
+  --x-key day --y-key value \
+  --data '[{"day":"Mon","value":3},{"day":"Tue","value":5},{"day":"Wed","value":4},{"day":"Thu","value":7},{"day":"Fri","value":2}]' \
+  --title "Five-day count"
+```
+
+Refresh the browser; the bar chart appears as a new node alongside the demo
+content. That's the shape every agent-driven flow takes — the canvas is
+addressable from CLI, MCP, HTTP, and the SDK identically.
 
 That's the human side. To exit, `Ctrl-C` in the terminal — your edits autosave to
 `.pmx-canvas/state.json` and reload next start. To wipe the demo state, delete
@@ -86,7 +101,9 @@ that file (or run from a fresh directory).
   `https://mcp.excalidraw.com/mcp`); `bunx` itself reads the npm registry on
   first install. Nothing else phones home.
 - **State auto-saves** to `.pmx-canvas/state.json` (debounced ~500 ms after each
-  mutation). Closing the browser tab is fine. Restarting the server reloads the
+  mutation). Closing the browser tab keeps everything — only `Ctrl-C` (or
+  `pmx-canvas serve stop`) on the server actually stops the canvas. Pins,
+  positions, and node content survive both. Restarting the server reloads the
   saved state. Snapshots live under `.pmx-canvas/snapshots/`.
 
 ## Quick start
@@ -143,7 +160,12 @@ prompt**:
 > them and pin two."*
 
 You should see the browser open and four nodes appear inside ~10 seconds. If
-that works, the skill, the canvas, and the agent are all wired up. From there
+that works, the skill, the canvas, and the agent are all wired up.
+
+If your agent isn't MCP-capable yet, wire it up first — see
+[Connect your agent (MCP)](#connect-your-agent-mcp) for the JSON snippet that
+turns `bunx pmx-canvas --mcp` into a stdio MCP server your harness can connect
+to. The skill assumes the agent can call MCP tools. From there
 work up to richer prompts — the [Example](#example-pull-data-in-build-something-out)
 section below has a fuller flow.
 
@@ -215,7 +237,7 @@ Once the canvas is up, two control surfaces are first-class:
 
 - **CLI** for local use, scripting, automation, and terminal-native agents.
 - **MCP** for agents that already speak the Model Context Protocol — 38 tools +
-  7 resources, including the bundled-skill index at `canvas://skills`.
+  8 resources, including the bundled-skill index at `canvas://skills`.
 
 Both paths cover core canvas work. A few advanced capabilities (live resource
 subscriptions, `canvas_diff`) remain MCP-only. The HTTP API and the
@@ -245,10 +267,14 @@ contribution gates, etc.) see [`AGENTS.md`](AGENTS.md) and
 
 ## Example: pull data in, build something out
 
-The canvas is most useful when it's *not* empty. The pattern is the same no
-matter what you're working on: gather data from whatever surfaces you already
-have access to, ask the agent to lay it out on the canvas using whichever node
-types fit the data, then collaborate on the result.
+The canvas is most useful when it's *not* empty. The pattern is the same
+across all five modes — idea generation, validation, research, analysis,
+mind mapping: gather data from whatever surfaces you already have access
+to, ask the agent to lay it out using whichever node types fit, then
+collaborate on the result.
+
+One concrete example, in **research / analysis** mode against a
+release-planning use case:
 
 > *"Read the latest release notes from `CHANGELOG.md`, the open issues from
 > our GitHub repo, last week's deploy logs, and the pricing page from
@@ -257,6 +283,15 @@ types fit the data, then collaborate on the result.
 > deploy events, a webpage node for the URL — then build me a json-render
 > dashboard and a chart that summarize what shipped, what broke, and what's
 > still open."*
+
+The same shape works for any mode. *Idea generation:* "give me twelve
+angles on X, drop each as a markdown node, arrange them in a flow layout."
+*Validation:* "for the claim in the pinned node, place supporting and
+refuting sources beside it as webpage and file nodes." *Mind mapping:*
+"build a tree of the concepts in [topic] — central concept top-center,
+major branches as groups, sub-concepts inside each group connected with
+depends-on edges." [`skills/pmx-canvas/SKILL.md`](skills/pmx-canvas/SKILL.md)
+has step-by-step recipes for each mode under *Workflow Patterns*.
 
 What the agent does, end to end:
 
@@ -692,7 +727,7 @@ layout validation, graph/json-render nodes, group control, snapshots, and search
 
 ### MCP server
 
-38 tools + 7 resources. Zero config for any MCP-capable agent.
+38 tools + 8 resources. Zero config for any MCP-capable agent.
 
 <details>
 <summary>MCP tools</summary>
@@ -751,7 +786,8 @@ layout validation, graph/json-render nodes, group control, snapshots, and search
 | `canvas://summary` | Compact overview: counts, pinned titles, viewport |
 | `canvas://spatial-context` | Proximity clusters, reading order, pinned neighborhoods |
 | `canvas://history` | Mutation history timeline with undo/redo position |
-| `canvas://code-graph` | Auto-detected file dependency graph |
+| `canvas://code-graph` | Auto-detected file dependency graph (JS/TS, Python, Go, Rust) |
+| `canvas://skills` | Index of bundled agent skills + per-skill content at `canvas://skills/<name>` |
 
 </details>
 
@@ -1014,7 +1050,7 @@ them rather than chase them as bugs.
 ```
 Agent harness (any MCP-capable client, CLI consumer, or HTTP caller)
   |
-  |-- MCP Server ---- 38 tools + 7 resources + change notifications
+  |-- MCP Server ---- 38 tools + 8 resources + change notifications
   |-- Bun SDK ------- createCanvas()
   |-- HTTP API ------ REST + SSE at localhost:4313
   |
