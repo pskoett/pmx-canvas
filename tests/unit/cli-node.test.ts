@@ -393,6 +393,129 @@ describe('agent CLI node commands', () => {
     });
   });
 
+  test('graph add creates graph nodes without requiring node add alias syntax', async () => {
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'graph',
+        'add',
+        '--graph-type',
+        'bar',
+        '--title',
+        'Top-level Graph',
+        '--data',
+        JSON.stringify([{ label: 'a', value: 1 }]),
+        '--x-key',
+        'label',
+        '--y-key',
+        'value',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as { ok: boolean; id: string };
+    expect(output.ok).toBe(true);
+    const node = await jsonRequest<{ type: string; data: { title: string; graphConfig: Record<string, unknown> } }>(`/api/canvas/node/${output.id}`);
+    expect(node.type).toBe('graph');
+    expect(node.data.title).toBe('Top-level Graph');
+    expect(node.data.graphConfig).toMatchObject({
+      graphType: 'bar',
+      xKey: 'label',
+      yKey: 'value',
+    });
+  });
+
+  test('graph add distinguishes node frame height from chart content height', async () => {
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'graph',
+        'add',
+        '--graph-type',
+        'bar',
+        '--title',
+        'Kebab Node Height',
+        '--data',
+        JSON.stringify([{ label: 'a', value: 1 }]),
+        '--x-key',
+        'label',
+        '--y-key',
+        'value',
+        '--chart-height',
+        '190',
+        '--node-height',
+        '420',
+      ]);
+      await runAgentCli([
+        'graph',
+        'add',
+        '--graphType',
+        'bar',
+        '--title',
+        'Camel Node Height',
+        '--data',
+        JSON.stringify([{ label: 'a', value: 1 }]),
+        '--xKey',
+        'label',
+        '--yKey',
+        'value',
+        '--chart-height',
+        '210',
+        '--nodeHeight',
+        '430',
+      ]);
+      await runAgentCli([
+        'graph',
+        'add',
+        '--graph-type',
+        'bar',
+        '--title',
+        'Legacy Height',
+        '--data',
+        JSON.stringify([{ label: 'a', value: 1 }]),
+        '--x-key',
+        'label',
+        '--y-key',
+        'value',
+        '--height',
+        '440',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const outputs = log.mock.calls.map((call) => JSON.parse(call[0] as string) as { id: string });
+    expect(outputs).toHaveLength(3);
+
+    const kebabNode = await jsonRequest<{
+      size: { height: number };
+      data: { graphConfig: { height?: number } };
+    }>(`/api/canvas/node/${outputs[0]?.id}`);
+    expect(kebabNode.size.height).toBe(420);
+    expect(kebabNode.data.graphConfig.height).toBe(190);
+
+    const camelNode = await jsonRequest<{
+      size: { height: number };
+      data: { graphConfig: { height?: number } };
+    }>(`/api/canvas/node/${outputs[1]?.id}`);
+    expect(camelNode.size.height).toBe(430);
+    expect(camelNode.data.graphConfig.height).toBe(210);
+
+    const legacyNode = await jsonRequest<{
+      size: { height: number };
+      data: { graphConfig: { height?: number } };
+    }>(`/api/canvas/node/${outputs[2]?.id}`);
+    expect(legacyNode.size.height).toBe(440);
+    expect(legacyNode.data.graphConfig.height).toBeUndefined();
+  });
+
   test('node add rejects generic mcp-app nodes with guidance', async () => {
     const error = mock(() => {});
     const originalError = console.error;

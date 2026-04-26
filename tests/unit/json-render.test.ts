@@ -56,6 +56,84 @@ describe('json-render validation', () => {
     expect(spec.elements.panel?.children).toEqual(['copy']);
     expect((spec.elements.panel?.props as Record<string, unknown>).description).toBeUndefined();
   });
+
+  test('normalizes legacy Badge label and status variants', () => {
+    const spec = normalizeAndValidateJsonRenderSpec({
+      root: 'card',
+      elements: {
+        card: {
+          type: 'Card',
+          props: {
+            title: 'Legacy badge',
+          },
+          children: ['healthy', 'info', 'warning', 'error', 'danger'],
+        },
+        healthy: {
+          type: 'Badge',
+          props: {
+            label: 'Healthy',
+            variant: 'success',
+          },
+        },
+        info: {
+          type: 'Badge',
+          props: {
+            label: 'Heads up',
+            variant: 'info',
+          },
+        },
+        warning: {
+          type: 'Badge',
+          props: {
+            label: 'Attention',
+            variant: 'warning',
+          },
+        },
+        error: {
+          type: 'Badge',
+          props: {
+            label: 'Build broken',
+            variant: 'error',
+          },
+        },
+        danger: {
+          type: 'Badge',
+          props: {
+            text: 'Blocked',
+            variant: 'danger',
+          },
+        },
+      },
+    });
+
+    expect(spec.elements.healthy?.props).toEqual(expect.objectContaining({
+      text: 'Healthy',
+      variant: 'default',
+    }));
+    expect(spec.elements.info?.props).toEqual(expect.objectContaining({
+      text: 'Heads up',
+      variant: 'secondary',
+    }));
+    expect(spec.elements.warning?.props).toEqual(expect.objectContaining({
+      text: 'Attention',
+      variant: 'outline',
+    }));
+    expect(spec.elements.error?.props).toEqual(expect.objectContaining({
+      text: 'Build broken',
+      variant: 'destructive',
+    }));
+    expect(spec.elements.danger?.props).toEqual(expect.objectContaining({
+      text: 'Blocked',
+      variant: 'destructive',
+    }));
+
+    // After normalization the legacy `label` key must be gone — the spec
+    // should carry exactly one of `text` or `label`, never both.
+    for (const key of ['healthy', 'info', 'warning', 'error', 'danger'] as const) {
+      const props = spec.elements[key]?.props as Record<string, unknown>;
+      expect('label' in props).toBe(false);
+    }
+  });
 });
 
 describe('graph builder', () => {

@@ -3,6 +3,79 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.6] - 2026-04-26
+
+CLI/MCP regression cleanup after the 0.1.5 coverage pass. This release tightens
+graph creation routing, restores legacy json-render Badge compatibility, and
+makes MCP node creation routes explicit enough for agents to recover from schema
+drift without guessing.
+
+### Added
+
+- **Top-level `pmx-canvas graph add`.** This now routes through the agent CLI
+  and creates graph nodes via the same HTTP path as the canonical
+  `pmx-canvas node add --type graph ...` command, instead of falling through to
+  server startup.
+- **MCP node-type routing metadata.** `canvas_describe_schema` and
+  `canvas://schema` now expose `mcp.nodeTypeRouting`, so agents can discover
+  that `json-render`, `graph`, `web-artifact`, `external-app`, and `group`
+  use dedicated creation tools instead of guessing `canvas_add_node`.
+- **MCP schema entry for `external-app`.** The running schema now lists
+  `external-app` as a virtual node family backed by `canvas_open_mcp_app`, with
+  notes pointing Excalidraw callers to the higher-level `canvas_add_diagram`
+  preset.
+- **`mcpTool` field on every node-type schema entry**, plus
+  `canvas_open_mcp_app` and `canvas_create_group` added to the published
+  `mcp.tools` array — both surfaces help an agent discover the right tool for
+  each canvas operation without guessing.
+
+### Changed
+
+- **Graph height semantics are documented consistently across surfaces.** For
+  CLI graph commands, `--node-height` / `--nodeHeight` set the canvas node frame
+  height, `--chart-height` sets the chart content height, and `--height` remains
+  a compatibility alias for frame height. For MCP/HTTP/batch payloads,
+  `nodeHeight` is frame height and `height` is chart content height.
+- **PMX Canvas skill guidance now includes MCP-specific gotchas.** The bundled
+  skill documents the MCP node-type routing table, `canvas_open_mcp_app`
+  transport requirements, `canvas_build_web_artifact` source-string behavior and
+  cold-build timeout expectations, `canvas_pin_nodes.nodeIds`, and the required
+  `canvas_diff.snapshot` argument.
+- **Legacy `props.label` is removed from Badge specs after normalization.** The
+  validated/persisted spec now carries exactly one of `text` or `label`, never
+  both — a stricter future validator can flag the legacy key without breaking
+  saved canvases written before this release.
+- **`canvas_build_web_artifact` `id` alias is conditional.** When
+  `openInCanvas` is `false` (or no canvas node was created), the `id` field is
+  omitted from the response instead of being `undefined`. Consumers can now
+  reliably use `'id' in response` to detect the build-only case. `nodeId` is
+  always present and remains the canonical identifier.
+
+### Fixed
+
+- **`pmx-canvas graph add` no longer starts a rogue server.** The top-level
+  command is registered with the agent CLI, so malformed or valid graph commands
+  cannot fall through to server startup and leak a fallback daemon.
+- **Legacy json-render `Badge` specs are accepted again.** Saved specs using
+  `props.label` now normalize to `props.text`, and legacy status variants
+  (`success`, `info`, `warning`, `error`, `danger`) normalize to the current
+  shadcn Badge enum before validation.
+- **Web-artifact build responses include `id` (alias for `nodeId`) when a
+  canvas node was created.** Keeps MCP/HTTP add-style responses consistent.
+- **Graph CLI node-height aliases now work.** `--node-height` and
+  `--nodeHeight` set the canvas node frame height, `--chart-height` sets the
+  chart content height, and CLI `--height` remains a compatibility alias for
+  the frame height.
+
+### Internal
+
+- Regression coverage for top-level graph CLI routing, graph height flags,
+  legacy Badge normalization (now including `info → secondary` and
+  `error → destructive` plus the post-normalization `label` removal), MCP
+  node-type routing metadata, and web-artifact response ID aliases.
+
+[0.1.6]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.6
+
 ## [0.1.5] - 2026-04-26
 
 Image-validation hardening + CLI ergonomics. The boundary where untrusted

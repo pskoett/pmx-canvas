@@ -12,6 +12,7 @@ export interface CanvasCreateTypeSchema {
     kind: 'node' | 'virtual-node';
     description: string;
     endpoint: string;
+    mcpTool?: string;
     fields: CanvasCreateField[];
     example: Record<string, unknown>;
     notes?: string[];
@@ -39,6 +40,7 @@ export declare function describeCanvasSchema(): {
     mcp: {
         tools: string[];
         resources: string[];
+        nodeTypeRouting: Record<string, string>;
     };
 };
 export declare function validateStructuredCanvasPayload(input: {

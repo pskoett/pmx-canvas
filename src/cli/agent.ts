@@ -229,6 +229,18 @@ function optionalPositiveFiniteFlag(flags: Record<string, string | true>, name: 
   return parsed;
 }
 
+function optionalPositiveFiniteFlagWithAliases(
+  flags: Record<string, string | true>,
+  hint: string,
+  ...names: string[]
+): number | undefined {
+  for (const name of names) {
+    const parsed = optionalPositiveFiniteFlag(flags, name, hint);
+    if (parsed !== undefined) return parsed;
+  }
+  return undefined;
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
@@ -590,7 +602,13 @@ async function buildGraphRequestBody(
   const x = optionalFiniteFlag(flags, 'x', 'Use a finite number, e.g. --x 500');
   const y = optionalFiniteFlag(flags, 'y', 'Use a finite number, e.g. --y 300');
   const width = optionalPositiveFiniteFlag(flags, 'width', 'Use a positive number, e.g. --width 760');
-  const nodeHeight = optionalPositiveFiniteFlag(flags, 'height', 'Use a positive number, e.g. --height 520');
+  const nodeHeight = optionalPositiveFiniteFlagWithAliases(
+    flags,
+    'Use a positive number, e.g. --node-height 520',
+    'node-height',
+    'nodeHeight',
+    'height',
+  );
   if (chartHeight !== undefined) body.height = chartHeight;
   if (x !== undefined) body.x = x;
   if (y !== undefined) body.y = y;
@@ -989,6 +1007,18 @@ cmd('node add', 'Add a node to the canvas', [
   }
 
   const result = await api('POST', '/api/canvas/node', body);
+  output(result);
+});
+
+cmd('graph add', 'Add a graph node to the canvas', [
+  'pmx-canvas graph add --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
+  'pmx-canvas graph add --graphType composed --data \'[{"day":"Mon","visits":10,"conversion":0.4}]\' --xKey day --barKey visits --lineKey conversion',
+  'pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('graph add');
+
+  const result = await api('POST', '/api/canvas/graph', await buildGraphRequestBody(flags));
   output(result);
 });
 
@@ -2056,9 +2086,10 @@ function showCommandHelp(name: string): void {
     console.log('  pmx-canvas node add --help --type graph');
     console.log('  pmx-canvas node add --help --type webpage --json');
   }
-  if (name === 'node add' || name === 'validate spec') {
+  if (name === 'node add' || name === 'graph add' || name === 'validate spec') {
     console.log('\nGraph flags:');
     console.log('  Graph fields accept kebab-case CLI flags and camelCase schema names, e.g. --graph-type/--graphType and --x-key/--xKey');
+    console.log('  Use --node-height/--nodeHeight for canvas frame height; use --chart-height for chart content height. --height is kept as a frame-height alias for compatibility.');
   }
   if (name === 'node schema') {
     console.log('\nFilters:');
@@ -2112,6 +2143,7 @@ Node commands:
   pmx-canvas node get <id>            Get a node by ID
   pmx-canvas node update <id> [opts]  Update a node
   pmx-canvas node remove <id>         Remove a node
+  pmx-canvas graph add [options]      Add a graph node
 
 Edge commands:
   pmx-canvas edge add [options]       Add an edge between nodes
@@ -2179,6 +2211,7 @@ Examples:
   pmx-canvas node add --type json-render --title "Dashboard" --spec-file ./dashboard.json
   pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx
   pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value
+  pmx-canvas graph add --graph-type bar --data-file ./metrics.json --x-key label --y-key value
   pmx-canvas node add --help --type webpage
   pmx-canvas node schema --type json-render
   pmx-canvas node schema --type json-render --component Table --summary

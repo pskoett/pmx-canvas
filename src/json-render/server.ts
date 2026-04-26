@@ -262,6 +262,14 @@ function normalizeButtonVariant(value: unknown): unknown {
   return value;
 }
 
+function normalizeBadgeVariant(value: unknown): unknown {
+  if (value === 'success') return 'default';
+  if (value === 'info') return 'secondary';
+  if (value === 'warning') return 'outline';
+  if (value === 'error' || value === 'danger') return 'destructive';
+  return value;
+}
+
 function deriveElementName(elementKey: string): string {
   const normalized = elementKey.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
   return normalized || 'field';
@@ -323,6 +331,22 @@ function normalizeElementProps(
 
   if (!hasString(props.text) && hasString(props.content) && ['Text', 'Heading', 'Badge'].includes(type)) {
     props.text = props.content;
+  }
+
+  if (type === 'Badge') {
+    if (!hasString(props.text) && hasString(props.label)) {
+      props.text = props.label;
+    }
+    // Drop the legacy alias once it's been migrated so the persisted spec
+    // contains exactly one of `text` or `label` rather than both. Keeps
+    // saved canvases tidy and prevents future stricter validators from
+    // flagging the old key as unknown.
+    if ('label' in props) {
+      delete props.label;
+    }
+    if ('variant' in props) {
+      props.variant = normalizeBadgeVariant(props.variant);
+    }
   }
 
   if (type === 'Select' || type === 'Radio') {

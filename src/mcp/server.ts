@@ -47,6 +47,13 @@ const jsonRenderSpecSchema = z.object({
   state: z.record(z.string(), z.unknown()).optional(),
 }).passthrough();
 
+function structuredSchemaDescription(): string {
+  const routing = describeCanvasSchema().mcp.nodeTypeRouting;
+  return Object.entries(routing)
+    .map(([type, tool]) => `${type}: ${tool}`)
+    .join(', ');
+}
+
 function workspaceRoot(): string {
   return resolve(process.cwd());
 }
@@ -127,7 +134,7 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_add_node ────────────────────────────────────────────
   server.tool(
     'canvas_add_node',
-    'Add a node to the canvas. Returns the created node with normalized title/content and rendered geometry. Node types: markdown (rich content), status (compact indicator), context, ledger, trace, file (live file viewer — set content to a file path), image (set content to an image file path, data URI, or URL), webpage (prefer url for the page URL; content is still accepted), mcp-app. Use canvas_add_json_render_node, canvas_add_graph_node, and canvas_build_web_artifact for structured UI, graph, and artifact nodes.',
+    'Add a basic node to the canvas. Returns the created node with normalized title/content and rendered geometry. Supported here: markdown, status, context, ledger, trace, file, image, webpage, mcp-app, group. Dedicated node tools: json-render -> canvas_add_json_render_node, graph -> canvas_add_graph_node, web-artifact -> canvas_build_web_artifact, external apps -> canvas_open_mcp_app, groups -> canvas_create_group. Call canvas_describe_schema for the full nodeTypeRouting table.',
     {
       type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'webpage', 'mcp-app', 'group'])
         .describe('Node type (prefer canvas_create_group for groups)'),
@@ -171,7 +178,7 @@ export async function startMcpServer(): Promise<void> {
 
   server.tool(
     'canvas_open_mcp_app',
-    'Connect to an external MCP server that declares a ui:// app resource, call the specified tool, and open the resulting MCP App inside a canvas mcp-app node.',
+    'Connect to an external MCP server that declares a ui:// app resource, call the specified tool, and open the resulting MCP App inside a canvas mcp-app node. This is a full external-MCP transport call, not the CLI kind shortcut; use canvas_add_diagram for the built-in Excalidraw preset.',
     {
       toolName: z.string().describe('Tool name on the external MCP server'),
       serverName: z.string().optional().describe('Optional display name for the external MCP server'),
@@ -261,7 +268,7 @@ export async function startMcpServer(): Promise<void> {
 
   server.tool(
     'canvas_describe_schema',
-    'Describe the current server-supported canvas create schemas, json-render component catalog, canonical examples, and related MCP entry points.',
+    'Describe the current server-supported canvas create schemas, json-render component catalog, canonical examples, and related MCP entry points. Includes mcp.nodeTypeRouting, the authoritative map from node type to MCP creation tool.',
     {},
     async () => ({
       content: [{ type: 'text', text: JSON.stringify(describeCanvasSchema(), null, 2) }],
@@ -356,7 +363,7 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_build_web_artifact ───────────────────────────────
   server.tool(
     'canvas_build_web_artifact',
-    'Build a bundled single-file HTML web artifact from React/Tailwind source files using the bundled web-artifacts-builder skill scripts. Optionally opens the generated artifact as an embedded node on the canvas. Read canvas://skills/web-artifacts-builder for the full workflow, stack, and anti-slop design guidelines before calling.',
+    'Build a bundled single-file HTML web artifact from React/Tailwind source files using the bundled web-artifacts-builder skill scripts. MCP callers pass source content in appTsx (the CLI app-file flag reads a file before calling this path). Builds commonly take 45-60s on cold workspaces; use a long client timeout. Optionally opens the generated artifact as an embedded node on the canvas. Read canvas://skills/web-artifacts-builder for the full workflow, stack, and anti-slop design guidelines before calling.',
     {
       title: z.string().describe('Artifact title used for default project and output paths'),
       appTsx: z.string().describe('Contents for src/App.tsx'),
@@ -407,6 +414,9 @@ export async function startMcpServer(): Promise<void> {
               bytes: result.fileSize,
               projectPath: result.projectPath,
               openedInCanvas: result.openedInCanvas,
+              // `id` only present when a canvas node was actually created.
+              // See the matching block in src/server/server.ts handleCanvasBuildWebArtifact.
+              ...(typeof result.nodeId === 'string' ? { id: result.nodeId } : {}),
               nodeId: result.nodeId,
               url: result.url,
               metadata: result.metadata,
@@ -1003,7 +1013,7 @@ export async function startMcpServer(): Promise<void> {
     'canvas://schema',
     {
       description:
-        'Machine-readable create schemas, canonical examples, and json-render catalog details from the running PMX Canvas server version.',
+        `Machine-readable create schemas, canonical examples, json-render catalog details, and MCP node-type routing from the running PMX Canvas server version. Routing: ${structuredSchemaDescription()}.`,
       mimeType: 'application/json',
     },
     async () => ({

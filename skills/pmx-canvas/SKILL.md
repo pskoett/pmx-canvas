@@ -133,6 +133,7 @@ pmx-canvas node add --type markdown --title "Plan"
 pmx-canvas node add --type webpage --url https://example.com/docs
 pmx-canvas node add --type graph --graph-type bar --data '[{"x":"a","y":1}]' --x-key x --y-key y
 pmx-canvas node add --type graph --graphType bar --data '[{"x":"a","y":1}]' --xKey x --yKey y
+pmx-canvas graph add --graph-type bar --data '[{"x":"a","y":1}]' --x-key x --y-key y
 pmx-canvas external-app add --kind excalidraw --title "Diagram"
 pmx-canvas node add --help --type webpage --json
 pmx-canvas node schema --type json-render --component Table --summary
@@ -156,7 +157,11 @@ pmx-canvas spatial
 
 - `node add|list|get|update|remove` — manage nodes
 - `node schema` — inspect running-server create schemas and canonical examples, with `--summary`, `--field`, and `--component` filters
+- `graph add` — convenience alias for graph nodes; `node add --type graph` remains the canonical form
 - Graph CLI fields accept both kebab-case flags and camelCase schema names, e.g. `--graph-type`/`--graphType`, `--x-key`/`--xKey`, and `--bar-color`/`--barColor`.
+- Graph CLI height flags are split: use `--node-height`/`--nodeHeight` for the
+  canvas frame and `--chart-height` for the chart content. CLI `--height`
+  remains a frame-height compatibility alias.
 - `edge add|list|remove` — manage edges
 - Search-based edge selectors must be specific enough to resolve exactly one node. Queries like
   `"DVT O3"` can be ambiguous; prefer the full visible title such as `"DVT O3 — GitOps"`.
@@ -186,6 +191,8 @@ Current caveat:
 - Generic `pmx-canvas node add --type mcp-app` is intentionally not supported because app nodes
   need app/session metadata. Use `pmx-canvas web-artifact build` for bundled React artifacts or
   `pmx-canvas external-app add --kind excalidraw` for the Excalidraw preset.
+- For local `image` nodes on macOS, iCloud/OneDrive cloud-only placeholder files are rejected with
+  a download-first hint. Download the image locally before adding it to the canvas.
 
 The CLI targets `http://localhost:4313` by default. Override with `PMX_CANVAS_URL` or
 `PMX_CANVAS_PORT` when the canvas is running elsewhere.
@@ -243,8 +250,22 @@ Use color consistently to convey meaning:
 
 ### Node Operations
 
+MCP node-type routing:
+
+| Node category | MCP creation tool |
+|---------------|-------------------|
+| Basic nodes (`markdown`, `status`, `context`, `ledger`, `trace`, `file`, `image`, `webpage`) | `canvas_add_node` |
+| `json-render` | `canvas_add_json_render_node` |
+| `graph` | `canvas_add_graph_node` |
+| `web-artifact` | `canvas_build_web_artifact` |
+| `external-app` / tool-backed `mcp-app` | `canvas_open_mcp_app` |
+| `group` | `canvas_create_group` |
+
+If a node type is rejected by `canvas_add_node`, call `canvas_describe_schema` and read
+`mcp.nodeTypeRouting`; do not keep retrying the generic tool.
+
 **`canvas_add_node`** — Add a node to the canvas
-- `type` (required): node type (see table above)
+- `type` (required): basic node type only; structured/app/group nodes use the routing table above
 - `title`: short, scannable title
 - `content`: for most types, this is markdown text. For `file` type, pass the **file path**
   (e.g., `"src/auth/login.ts"`) — the server auto-loads the file content and watches for changes.
@@ -288,6 +309,9 @@ Use color consistently to convey meaning:
 - Required: `title`, `spec`
 - The `spec` must be a complete json-render object with `root`, `elements`, and optional `state`
 - Use this when you want a structured UI panel rendered directly inside PMX Canvas
+- For shadcn `Badge`, prefer `props.text` with variants `default`, `secondary`, `destructive`, or
+  `outline`. Legacy `props.label` and status variants (`success`, `info`, `warning`, `error`,
+  `danger`) are normalized for saved-spec compatibility.
 
 **`canvas_add_graph_node`** — Add a native graph/chart node
 - Required: `graphType`, `data`
@@ -299,10 +323,29 @@ Use color consistently to convey meaning:
 - Use `axisKey` plus `metrics` for radar graphs
 - Use `series` for stacked-bar graphs
 - Use `barKey`/`lineKey` plus optional `barColor`/`lineColor` for composed graphs
+- Use `nodeHeight` for the canvas frame height and `height` for chart content height
 - Uses the native json-render chart catalog under the hood
+
+**`canvas_build_web_artifact`** — Build and optionally open a bundled web artifact
+- Required: `title`, `appTsx` (source string contents, not a file path)
+- CLI `--app-file` reads a file before calling the same build path; MCP callers must pass the source contents
+- Cold builds commonly take 45-60 seconds; use a long client timeout such as 300000 ms or more
+- Returns both `id` and `nodeId` for the created artifact node when `openInCanvas` is true
+
+**`canvas_open_mcp_app`** — Open a tool-backed external MCP app node
+- Required: `toolName`, `transport`
+- `transport` is either `{ type: "stdio", command, args?, cwd?, env? }` or `{ type: "http", url, headers? }`
+- This is lower-level than `pmx-canvas external-app add --kind excalidraw`; use `canvas_add_diagram` for the built-in Excalidraw preset
+
+**`canvas_pin_nodes`** — Set, add, or remove pinned context nodes
+- Use `{ nodeIds: [...] }`; the field is `nodeIds`, not `ids`
+
+**`canvas_diff`** — Compare current canvas state with a saved snapshot
+- Requires `{ snapshot: "<snapshot-id-or-name>" }`; there is no implicit previous-snapshot default
 
 **`canvas_describe_schema`** — Inspect the running server's create schemas and canonical examples
 - Use this before generating structured payloads when you need the authoritative current shape
+- Read `mcp.nodeTypeRouting` to choose the right MCP creation tool for each node category
 
 **`canvas_validate_spec`** — Validate a json-render spec or graph payload without creating a node
 - Returns the normalized json-render spec the server would accept
@@ -315,6 +358,7 @@ Use color consistently to convey meaning:
   `xKey`, `yKey`, `zKey`, `nameKey`, `valueKey`, `axisKey`, `metrics`, `series`, `barKey`,
   `lineKey`, `aggregate`, `color`, `barColor`, `lineColor`, `height`, `x`, `y`, `width`, and
   `nodeHeight`.
+- In batch/MCP/HTTP payloads, `height` is chart content height and `nodeHeight` is the canvas frame height.
 
 ### Edge Operations
 

@@ -31,7 +31,7 @@ if (args.includes('--version') || args.includes('-v')) {
 const AGENT_COMMANDS = new Set([
   'node', 'edge', 'search', 'layout', 'status', 'arrange', 'focus',
   'pin', 'undo', 'redo', 'history', 'snapshot', 'diff', 'group', 'webview', 'open',
-  'clear', 'code-graph', 'spatial', 'watch', 'web-artifact', 'external-app', 'batch', 'validate', 'serve',
+  'clear', 'code-graph', 'spatial', 'watch', 'web-artifact', 'external-app', 'graph', 'batch', 'validate', 'serve',
 ]);
 
 const firstArg = args[0] ?? '';
@@ -486,6 +486,7 @@ Server options:
 
 Agent CLI (works against running server):
   node add|list|get|update|remove     Manage nodes
+  graph add                           Add graph nodes (alias for node add --type graph)
   edge add|list|remove                Manage edges
   webview status|start|evaluate|resize|screenshot|stop
                                       Manage Bun.WebView automation session
@@ -540,6 +541,7 @@ Examples:
   pmx-canvas node add --type webpage --url "https://example.com"  Add a webpage node
   pmx-canvas node add --type json-render --title "Dashboard" --spec-file ./dashboard.json
   pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx
+  pmx-canvas graph add --graph-type bar --data-file ./metrics.json --x-key label --y-key value
   pmx-canvas node list                                        List all nodes
   pmx-canvas node schema --type json-render                   Show running-server schema info
   pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx

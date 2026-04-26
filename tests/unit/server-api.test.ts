@@ -2072,6 +2072,7 @@ describe('canvas server HTTP API', () => {
       path: string;
       projectPath: string;
       openedInCanvas: boolean;
+      id?: string;
       nodeId?: string;
       url?: string;
     }>('/api/canvas/web-artifact', {
@@ -2089,6 +2090,7 @@ describe('canvas server HTTP API', () => {
 
     expect(build.openedInCanvas).toBe(true);
     expect(build.nodeId).toBeDefined();
+    expect(build.id).toBe(build.nodeId);
     expect(build.url).toContain('/artifact?path=');
     expect(build.path).toContain('/.pmx-canvas/artifacts/http-artifact.html');
     expect(build.projectPath).toContain('/.pmx-canvas/artifacts/.web-artifacts/http-artifact');
@@ -2185,7 +2187,7 @@ describe('canvas server HTTP API', () => {
       nodeTypes: Array<{ type: string; fields: Array<{ name: string; aliases?: string[] }> }>;
       jsonRender: { components: Array<{ type: string }> };
       graph: { graphTypes: string[] };
-      mcp: { tools: string[]; resources: string[] };
+      mcp: { tools: string[]; resources: string[]; nodeTypeRouting: Record<string, string> };
     }>('/api/canvas/schema');
 
     expect(schema.ok).toBe(true);
@@ -2199,6 +2201,14 @@ describe('canvas server HTTP API', () => {
     expect(schema.graph.graphTypes).toContain('composed');
     expect(schema.mcp.tools).toContain('canvas_describe_schema');
     expect(schema.mcp.resources).toContain('canvas://schema');
+    expect(schema.mcp.nodeTypeRouting).toMatchObject({
+      markdown: 'canvas_add_node',
+      'json-render': 'canvas_add_json_render_node',
+      graph: 'canvas_add_graph_node',
+      'web-artifact': 'canvas_build_web_artifact',
+      'external-app': 'canvas_open_mcp_app',
+      group: 'canvas_create_group',
+    });
 
     const jsonValidation = await jsonRequest<{
       ok: boolean;

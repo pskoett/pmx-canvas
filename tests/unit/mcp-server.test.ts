@@ -381,8 +381,9 @@ describe('MCP parity with CLI', () => {
 
     const described = parseJsonText<{
       ok: boolean;
-      nodeTypes: Array<{ type: string; fields: Array<{ name: string; aliases?: string[] }> }>;
+      nodeTypes: Array<{ type: string; kind: string; mcpTool?: string; fields: Array<{ name: string; aliases?: string[] }> }>;
       jsonRender: { components: Array<{ type: string }> };
+      mcp: { nodeTypeRouting: Record<string, string> };
     }>(await session.client.callTool({
       name: 'canvas_describe_schema',
       arguments: {},
@@ -391,6 +392,15 @@ describe('MCP parity with CLI', () => {
     expect(described.ok).toBe(true);
     expect(described.nodeTypes.find((entry) => entry.type === 'webpage')?.fields.find((field) => field.name === 'url')?.aliases).toContain('content');
     expect(described.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'series')).toBe(true);
+    expect(described.nodeTypes.find((entry) => entry.type === 'external-app')?.kind).toBe('virtual-node');
+    expect(described.mcp.nodeTypeRouting).toMatchObject({
+      markdown: 'canvas_add_node',
+      'json-render': 'canvas_add_json_render_node',
+      graph: 'canvas_add_graph_node',
+      'web-artifact': 'canvas_build_web_artifact',
+      'external-app': 'canvas_open_mcp_app',
+      group: 'canvas_create_group',
+    });
     expect(described.jsonRender.components.some((component) => component.type === 'Table')).toBe(true);
 
     const validated = parseJsonText<{
@@ -432,6 +442,8 @@ describe('MCP parity with CLI', () => {
     const resource = await session.client.readResource({ uri: 'canvas://schema' });
     const schemaText = resource.contents?.find((item) => item.uri === 'canvas://schema')?.text ?? '';
     expect(schemaText).toContain('"source": "running-server"');
+    expect(schemaText).toContain('"nodeTypeRouting"');
+    expect(schemaText).toContain('"web-artifact": "canvas_build_web_artifact"');
     expect(schemaText).toContain('"canvas_validate_spec"');
   });
 
@@ -526,6 +538,8 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
     await Bun.$`chmod +x ${initScriptPath} ${bundleScriptPath}`;
 
     const quiet = parseJsonText<{
+      id?: string;
+      nodeId?: string;
       path: string;
       logs?: { stdout?: { excerpt: string[] }; stderr?: { excerpt: string[] } };
       stdout?: string;
@@ -540,6 +554,7 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
       },
     }) as ToolResultShape);
     expect(quiet.path).toContain('quiet-mcp-artifact.html');
+    expect(quiet.id).toBe(quiet.nodeId);
     expect(quiet.stdout).toBeUndefined();
     expect(quiet.stderr).toBeUndefined();
     expect(quiet.logs?.stderr?.excerpt).toContain('bundle stderr');

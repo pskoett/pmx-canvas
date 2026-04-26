@@ -463,11 +463,15 @@ canvas_add_json_render_node({
     root: 'card',
     elements: {
       card: { type: 'Card', props: { title: 'Deploy' }, children: ['status'] },
-      status: { type: 'Badge', props: { variant: 'success', label: 'Healthy' } },
+      status: { type: 'Badge', props: { variant: 'default', text: 'Healthy' } },
     },
   },
 });
 ```
+
+`Badge` uses shadcn variants: `default`, `secondary`, `destructive`, and `outline`.
+Older saved specs using `label` or status variants such as `success`/`warning` are
+normalized during validation for compatibility.
 
 Use `canvas_describe_schema` / `canvas_validate_spec` to introspect the component catalog before
 building a spec -- see [Schema-driven discovery](#schema-driven-discovery).
@@ -580,6 +584,13 @@ json-render component catalog, and node-type examples so an agent can introspect
 
 The CLI's `node schema` / `validate spec` subcommands surface the same data from the terminal,
 which is strictly better than guessing flags or payloads.
+
+MCP node creation uses dedicated tools for structured node families. Read
+`mcp.nodeTypeRouting` from `canvas_describe_schema` / `canvas://schema` when in doubt:
+`json-render` -> `canvas_add_json_render_node`, `graph` -> `canvas_add_graph_node`,
+`web-artifact` -> `canvas_build_web_artifact`, `external-app` -> `canvas_open_mcp_app`,
+and `group` -> `canvas_create_group`. Basic nodes such as `markdown`, `status`, `file`,
+`image`, and `webpage` use `canvas_add_node`.
 
 ### Persistence
 
@@ -960,6 +971,7 @@ pmx-canvas node add --help --type webpage --json
 pmx-canvas external-app add --kind excalidraw --title "Diagram"
 pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value
 pmx-canvas node add --type graph --graph-type bar --data '[{"x":"a","y":1}]' --x-key x --y-key y
+pmx-canvas graph add --graph-type bar --data '[{"x":"a","y":1}]' --x-key x --y-key y  # Alias for graph nodes
 pmx-canvas node schema --type json-render --component Table --summary
 pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation
 pmx-canvas batch --file ./canvas-ops.json
@@ -986,6 +998,14 @@ Use the CLI when you want:
 The CLI create commands return the created node shape with normalized title/content and geometry,
 which makes scripting stacked layouts and batch follow-up operations easier.
 
+For graph nodes, `node add --type graph` is the canonical CLI form. `graph add`
+is a convenience alias that uses the same flags and server endpoint.
+
+Graph height flags are split by target: `--node-height` / `--nodeHeight` control
+the canvas node frame, while `--chart-height` controls the chart content inside
+the node. CLI `--height` is still accepted as a frame-height compatibility alias.
+For MCP/HTTP payloads, use `nodeHeight` for the frame and `height` for chart content.
+
 ## Agent compatibility
 
 pmx-canvas is harness-agnostic. Any agent that can spawn an MCP stdio server,
@@ -1011,6 +1031,10 @@ them rather than chase them as bugs.
   should capture every element ID immediately after `canvas_add_diagram`
   returns. Editing while another tool call is in flight occasionally drops
   the in-progress edit.
+- **External MCP apps are transport-based over MCP.** `canvas_open_mcp_app`
+  requires `toolName` plus a `transport` object for the external MCP server.
+  For the built-in Excalidraw preset, use `canvas_add_diagram`; the CLI's
+  `external-app add --kind excalidraw` is a higher-level convenience wrapper.
 - **Web-artifact build timeouts on cold installs.** The first
   `canvas_build_web_artifact` call in a fresh workspace runs `pnpm install`
   for ~30 dependencies. On constrained machines or slow networks, the

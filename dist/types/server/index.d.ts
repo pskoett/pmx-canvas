@@ -162,6 +162,7 @@ export declare class PmxCanvas extends EventEmitter {
         mcp: {
             tools: string[];
             resources: string[];
+            nodeTypeRouting: Record<string, string>;
         };
     };
     validateSpec(input: {
