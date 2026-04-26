@@ -32,7 +32,7 @@ import {
   type PmxCanvas,
 } from '../server/index.js';
 import { serializeNodeForAgentContext } from '../server/agent-context.js';
-import { emitPrimaryWorkbenchEvent } from '../server/server.js';
+import { emitPrimaryWorkbenchEvent, wrapCanvasAutomationScript } from '../server/server.js';
 import { searchNodes, buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
 import { mutationHistory, diffLayouts, formatDiff } from '../server/mutation-history.js';
 import { buildCodeGraphSummary, formatCodeGraph } from '../server/code-graph.js';
@@ -899,7 +899,7 @@ export async function startMcpServer(): Promise<void> {
     'Evaluate JavaScript in the active Bun.WebView automation session for the workbench page. Use this to inspect rendered browser state. Requires an active automation session started via canvas_webview_start.',
     {
       expression: z.string().optional().describe('JavaScript expression to evaluate in the page context'),
-      script: z.string().optional().describe('Multi-statement JavaScript body. The MCP server wraps it in an IIFE and evaluates the return value.'),
+      script: z.string().optional().describe('Multi-statement JavaScript body. The MCP server wraps it in an async IIFE and evaluates the resolved return value.'),
     },
     async ({ expression, script }) => {
       const c = await ensureCanvas();
@@ -910,7 +910,7 @@ export async function startMcpServer(): Promise<void> {
         };
       }
 
-      const source = script ? `(() => {\n${script}\n})()` : expression!;
+      const source = script ? wrapCanvasAutomationScript(script) : expression!;
       try {
         const value = await c.evaluateAutomationWebView(source);
         return {
@@ -1401,7 +1401,7 @@ export async function startMcpServer(): Promise<void> {
       if (!snapshot) {
         return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'Failed to save snapshot' }) }] };
       }
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, snapshot }) }] };
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, id: snapshot.id, snapshot }) }] };
     },
   );
 

@@ -473,6 +473,10 @@ export async function evaluateCanvasAutomationWebView(expression: string): Promi
     ));
 }
 
+export function wrapCanvasAutomationScript(script: string): string {
+  return `(async () => {\n${script}\n})()`;
+}
+
 export async function resizeCanvasAutomationWebView(
   width: number,
   height: number,
@@ -2389,10 +2393,10 @@ async function handleWorkbenchWebViewEvaluate(req: Request): Promise<Response> {
   if ((expression ? 1 : 0) + (script ? 1 : 0) !== 1) {
     return responseJson({
       ok: false,
-      error: 'Pass exactly one of "expression" (single JS expression) or "script" (multi-statement body, wrapped in an IIFE).',
+      error: 'Pass exactly one of "expression" (single JS expression) or "script" (multi-statement body, wrapped in an async IIFE).',
     }, 400);
   }
-  const source = script ? `(() => {\n${script}\n})()` : expression;
+  const source = script ? wrapCanvasAutomationScript(script) : expression;
 
   try {
     const value = await evaluateCanvasAutomationWebView(source);
@@ -2899,7 +2903,7 @@ async function handleSnapshotSave(req: Request): Promise<Response> {
   if (!name) return responseText('Missing snapshot name', 400);
   const snapshot = saveCanvasSnapshot(name);
   if (!snapshot) return responseText('Failed to save snapshot', 500);
-  return responseJson({ ok: true, snapshot });
+  return responseJson({ ok: true, id: snapshot.id, snapshot });
 }
 
 async function handleContextPinsUpdate(req: Request): Promise<Response> {

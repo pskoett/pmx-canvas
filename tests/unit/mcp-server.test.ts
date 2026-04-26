@@ -587,6 +587,8 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
     const evaluateTool = tools.tools.find((tool) => tool.name === 'canvas_evaluate');
     expect(evaluateTool?.inputSchema.properties).toHaveProperty('script');
     expect(evaluateTool?.inputSchema.properties).toHaveProperty('expression');
+    const evaluateProperties = evaluateTool?.inputSchema.properties as Record<string, { description?: string }> | undefined;
+    expect(evaluateProperties?.script?.description).toContain('async IIFE');
 
     const result = await session.client.callTool({
       name: 'canvas_evaluate',
@@ -856,13 +858,14 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
       removeTestWorkspace(session.workspaceRoot);
     });
 
-    const saved = parseJsonText<{ ok: boolean; snapshot: { id: string; name: string } }>(await session.client.callTool({
+    const saved = parseJsonText<{ ok: boolean; id: string; snapshot: { id: string; name: string } }>(await session.client.callTool({
       name: 'canvas_snapshot',
       arguments: {
         name: 'mcp-parity-snapshot',
       },
     }) as ToolResultShape);
     expect(saved.ok).toBe(true);
+    expect(saved.id).toBe(saved.snapshot.id);
 
     const listed = parseJsonText<{ snapshots: Array<{ id: string; name: string }> }>(await session.client.callTool({
       name: 'canvas_list_snapshots',

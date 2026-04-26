@@ -1,6 +1,6 @@
 {
   "name": "pmx-canvas",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Spatial canvas workbench for coding agents — infinite 2D canvas with agent-native CLI, MCP integration, nodes, edges, file watching, and snapshots",
   "type": "module",
   "main": "./src/server/index.ts",

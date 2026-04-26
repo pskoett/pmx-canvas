@@ -332,6 +332,10 @@ If a node type is rejected by `canvas_add_node`, call `canvas_describe_schema` a
 - Cold builds commonly take 45-60 seconds; use a long client timeout such as 300000 ms or more
 - Returns both `id` and `nodeId` for the created artifact node when `openInCanvas` is true
 
+ID extraction for mixed tool responses:
+- Most add-style tools return a flat `id`; web artifacts return `id` plus `nodeId`; snapshots return `id` plus nested `snapshot.id`.
+- Defensive extractor: `const getId = (r) => r.id ?? r.nodeId ?? r.snapshot?.id;`
+
 **`canvas_open_mcp_app`** — Open a tool-backed external MCP app node
 - Required: `toolName`, `transport`
 - `transport` is either `{ type: "stdio", command, args?, cwd?, env? }` or `{ type: "http", url, headers? }`
@@ -366,7 +370,7 @@ If a node type is rejected by `canvas_add_node`, call `canvas_describe_schema` a
 - `from`, `to` (required): source and target node IDs
 - `fromSearch`, `toSearch`: optional search-based selectors when you do not have IDs. Each search
   query must resolve to exactly one node or the edge creation fails with an ambiguity error.
-- `type`: edge type (default: `relation`)
+- `type`: `flow`, `depends-on`, `relation`, or `references` (default: `relation`)
 - `label`: descriptive relationship label
 - `style`: `solid`, `dashed`, or `dotted`
 - `animated`: boolean for visual emphasis
@@ -465,6 +469,7 @@ Current product caveats for grouped comparison boards:
 **`canvas_redo`** — Redo the last undone mutation
 **`canvas_snapshot`** — Save a named snapshot to disk
 - `name` (required): descriptive snapshot name (e.g., "before-refactor")
+- Returns `{ ok, id, snapshot }`; the flat `id` is an alias for `snapshot.id`
 **`canvas_restore`** — Restore canvas from a saved snapshot
 - `id`: snapshot to restore
 **`canvas_diff`** — Compare current canvas against a saved snapshot
@@ -502,13 +507,28 @@ tools below operate on the live canvas state.
 **`canvas_webview_stop`** — Tear down the automation session
 
 **`canvas_evaluate`** — Run JavaScript inside the workbench page and return the result
-- Required: `expression` (a JS expression or a function body)
+- Required: exactly one of `expression` (single JS expression) or `script` (multi-statement body)
+- `script` is wrapped in an async IIFE, so top-level `await` works inside script bodies
 - Useful for asserting DOM state after a sequence of canvas mutations
 - Example: read the count of rendered `.canvas-node` elements:
 
   ```typescript
   canvas_evaluate({ expression: 'document.querySelectorAll(".canvas-node").length' })
   ```
+
+Useful workbench selectors:
+- Nodes: `.canvas-node`, `.canvas-node.active`, `.canvas-node.context-pinned`, `.canvas-node.group-node`
+- Node internals: `.node-title`, `.node-titlebar`, `.node-body`, `.node-type-badge`, `.node-controls`
+- Canvas chrome: `.hud-layer`, `.canvas-toolbar`, `.connection-dot`, `.canvas-bootstrap-card`
+- Nodes do not expose stable `data-node-id` attributes. Use `canvas_get_layout`, `canvas_search`, or MCP resource data for exact node IDs.
+
+Async script example:
+
+```typescript
+canvas_evaluate({
+  script: 'const title = await Promise.resolve(document.title); return title;',
+})
+```
 
 **`canvas_resize`** — Change the WebView viewport
 - Required: `width`, `height`
@@ -535,6 +555,7 @@ canvas_webview_stop();
 [Excalidraw MCP app](https://github.com/excalidraw/excalidraw-mcp)
 - Required: `elements` — an array of Excalidraw elements (rectangles, ellipses, diamonds, arrows,
   text). Can also be a JSON-array string.
+- `elements` must be Excalidraw element objects, not Mermaid/DOT/source-text diagrams. Convert source diagrams to Excalidraw elements first or use a markdown/web-artifact node.
 - Optional: `title`, `x`, `y`, `width`, `height`
 - The diagram opens inside an `mcp-app` node with fullscreen editing and draw-on animations
 - CLI equivalent: `pmx-canvas external-app add --kind excalidraw --title "Diagram"`

@@ -1574,11 +1574,12 @@ exit 2
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'markdown', title: 'Snapshot target', content: 'before' }),
     });
-    const snapshot = await jsonRequest<{ ok: boolean; snapshot: { id: string } }>('/api/canvas/snapshots', {
+    const snapshot = await jsonRequest<{ ok: boolean; id: string; snapshot: { id: string } }>('/api/canvas/snapshots', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'cli-snapshot' }),
     });
+    expect(snapshot.id).toBe(snapshot.snapshot.id);
     await jsonRequest<{ ok: boolean; id: string }>(`/api/canvas/node/${created.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },

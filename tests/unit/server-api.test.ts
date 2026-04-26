@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
-import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
+import { startCanvasServer, stopCanvasServer, wrapCanvasAutomationScript } from '../../src/server/server.ts';
 import {
   createFakeWebArtifactScripts,
   createTestWorkspace,
@@ -169,6 +169,14 @@ describe('canvas server HTTP API', () => {
       canvasState.clear();
     });
     mutationHistory.reset();
+  });
+
+  test('wraps WebView script bodies in an async IIFE', async () => {
+    const run = new Function(
+      `return ${wrapCanvasAutomationScript('const value = await Promise.resolve("async-ok"); return value;')}`,
+    ) as () => Promise<string>;
+
+    expect(await run()).toBe('async-ok');
   });
 
   test('supports node CRUD, markdown rendering, and search', async () => {
@@ -380,11 +388,12 @@ describe('canvas server HTTP API', () => {
     expect(opened.ok).toBe(true);
     expect(typeof opened.nodeId).toBe('string');
 
-    const saved = await jsonRequest<{ ok: boolean; snapshot: { id: string; name: string } }>('/api/canvas/snapshots', {
+    const saved = await jsonRequest<{ ok: boolean; id: string; snapshot: { id: string; name: string } }>('/api/canvas/snapshots', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'counter-snapshot' }),
     });
+    expect(saved.id).toBe(saved.snapshot.id);
     expect(saved.snapshot.name).toBe('counter-snapshot');
 
     await jsonRequest<{ ok: boolean; sessionId: string }>('/api/canvas/mcp-app/open', {
@@ -1686,11 +1695,12 @@ describe('canvas server HTTP API', () => {
     expect(pinnedContext.count).toBe(1);
     expect(pinnedContext.nodeIds).toEqual([firstNode.id]);
 
-    const snapshotSave = await jsonRequest<{ ok: boolean; snapshot: { id: string; name: string } }>('/api/canvas/snapshots', {
+    const snapshotSave = await jsonRequest<{ ok: boolean; id: string; snapshot: { id: string; name: string } }>('/api/canvas/snapshots', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'before-clear' }),
     });
+    expect(snapshotSave.id).toBe(snapshotSave.snapshot.id);
     expect(snapshotSave.snapshot.name).toBe('before-clear');
 
     await jsonRequest<{ ok: boolean; id: string }>(`/api/canvas/node/${firstNode.id}`, {
@@ -2033,6 +2043,18 @@ describe('canvas server HTTP API', () => {
     const evaluated = await evaluateResponse.json() as { ok: boolean; value: unknown };
     expect(evaluated.ok).toBe(true);
     expect(evaluated.value).toBe('PMX Canvas');
+
+    const scriptResponse = await fetch(`${baseUrl}/api/workbench/webview/evaluate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        script: 'const title = await Promise.resolve(document.title); return `${title} async`;',
+      }),
+    });
+    expect(scriptResponse.ok).toBe(true);
+    const scriptEvaluated = await scriptResponse.json() as { ok: boolean; value: unknown };
+    expect(scriptEvaluated.ok).toBe(true);
+    expect(scriptEvaluated.value).toBe('PMX Canvas async');
 
     const resizeResponse = await fetch(`${baseUrl}/api/workbench/webview/resize`, {
       method: 'POST',

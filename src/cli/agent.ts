@@ -12,7 +12,7 @@
  */
 
 import { readFileSync, writeFileSync } from 'node:fs';
-import { openUrlInExternalBrowser } from '../server/server.js';
+import { openUrlInExternalBrowser, wrapCanvasAutomationScript } from '../server/server.js';
 import { DEFAULT_EXCALIDRAW_ELEMENTS } from '../server/diagram-presets.js';
 import {
   ALL_SEMANTIC_WATCH_EVENT_TYPES,
@@ -1856,9 +1856,9 @@ cmd('webview evaluate', 'Evaluate JavaScript in the active Bun.WebView automatio
         'pmx-canvas webview evaluate --file ./probe.js',
       );
     }
-    expression = `(() => {\n${script}\n})()`;
+    expression = wrapCanvasAutomationScript(script);
   } else if (typeof flags.script === 'string') {
-    expression = `(() => {\n${flags.script}\n})()`;
+    expression = wrapCanvasAutomationScript(flags.script);
   } else {
     expression = requireFlag(
       flags,

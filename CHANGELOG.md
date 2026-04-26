@@ -3,6 +3,55 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.7] - 2026-04-26
+
+Small retest-driven follow-up to 0.1.6. Three agent-facing ergonomics:
+`canvas_evaluate` now accepts top-level `await`, snapshot responses gain
+a flat `id` alias for add-style consistency, and the PMX Canvas skill
+documents real DOM selectors plus several quirks an agent would
+otherwise have to discover by trial and error.
+
+### Added
+
+- **Snapshot save responses include a flat `id` alias.** Both
+  `canvas_snapshot` and `POST /api/canvas/snapshots` still return the
+  nested `snapshot` object, and now also include `id: snapshot.id` at
+  the top level — same shape as every other add-style response in the
+  canvas API. HTTP and MCP surfaces are aligned.
+
+### Changed
+
+- **`canvas_evaluate` script mode supports top-level `await`.** Both
+  MCP and HTTP WebView script mode wrap multi-statement bodies in an
+  async IIFE and serialize the resolved return value, so an agent can
+  write `const r = await fetch(...); return r.json();` directly without
+  scaffolding the wrapper itself. WebView script documentation now
+  describes the async behavior explicitly.
+- **PMX Canvas skill docs now ship a defensive ID extractor pattern.**
+  The skill recommends `r.id ?? r.nodeId ?? r.snapshot?.id` so agents
+  pull the right id field across add-style, web-artifact, and snapshot
+  responses without branching per tool.
+- **PMX Canvas skill docs name the real WebView CSS selectors.** The
+  bundled skill calls out `.canvas-node`, `.hud-layer`,
+  `.canvas-toolbar`, `.connection-dot`, and related classes, and is
+  explicit that nodes do **not** expose stable `data-node-id`
+  attributes — agents driving the canvas via `canvas_evaluate` no
+  longer have to discover selectors by trial and error.
+- **PMX Canvas skill edge docs list the valid edge types.** `flow`,
+  `depends-on`, `relation`, `references` — same as the rest of the
+  surface but now explicit in the skill so the agent doesn't guess.
+- **PMX Canvas skill diagram docs clarify
+  `canvas_add_diagram.elements`.** The field expects Excalidraw element
+  objects (rectangles, ellipses, arrows with bindings, labels), not
+  Mermaid / DOT / Graphviz source text or any other diagram DSL.
+
+### Internal
+
+- Regression coverage for snapshot flat-`id` aliases on both MCP and
+  HTTP surfaces, plus async / top-level-`await` WebView script bodies.
+
+[0.1.7]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.7
+
 ## [0.1.6] - 2026-04-26
 
 CLI/MCP regression cleanup after the 0.1.5 coverage pass. This release tightens
@@ -50,7 +99,6 @@ drift without guessing.
   omitted from the response instead of being `undefined`. Consumers can now
   reliably use `'id' in response` to detect the build-only case. `nodeId` is
   always present and remains the canonical identifier.
-
 ### Fixed
 
 - **`pmx-canvas graph add` no longer starts a rogue server.** The top-level

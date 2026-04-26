@@ -60,6 +60,7 @@ export declare function getCanvasAutomationWebViewStatus(): CanvasAutomationWebV
 export declare function stopCanvasAutomationWebView(): Promise<boolean>;
 export declare function startCanvasAutomationWebView(url: string, options?: CanvasAutomationWebViewOptions): Promise<CanvasAutomationWebViewStatus>;
 export declare function evaluateCanvasAutomationWebView(expression: string): Promise<unknown>;
+export declare function wrapCanvasAutomationScript(script: string): string;
 export declare function resizeCanvasAutomationWebView(width: number, height: number): Promise<CanvasAutomationWebViewStatus>;
 export declare function screenshotCanvasAutomationWebView(options?: Record<string, unknown>): Promise<Uint8Array>;
 export interface PrimaryWorkbenchIntent {
