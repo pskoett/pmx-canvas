@@ -24,32 +24,37 @@ relatedness, clusters imply grouping, reading order (top-left to bottom-right) i
 
 The canvas is **agnostic about what you do with it**. Reach for it whenever a
 flat conversation, a list, or a single document hides the relationships
-between pieces of information. The total reach of any session is the union of
-pmx-canvas's own node types and whatever MCP servers + MCP apps your harness
-can talk to — adding a new MCP turns the canvas into whatever shape that
-data fits.
+between pieces of information. The total reach of any session is the union
+of pmx-canvas's own node types and whatever your harness already has access
+to — MCP servers, MCP apps, shell commands and CLIs, files in the working
+directory, web fetch, anything else in your toolbelt. The canvas does not
+care where the data came from; it cares about getting it on the surface as
+the right node type.
 
 The README has a non-exhaustive list of example use cases (idea generation,
 validation, research, analysis, mind mapping, investigation boards,
-architecture diagrams, status dashboards, comparison views, plus whatever an
-attached MCP makes possible). This skill stays focused on the operational
+architecture diagrams, status dashboards, comparison views, plus whatever
+your toolbelt unlocks). This skill stays focused on the operational
 mechanics. If a flat list or text wall is not enough to hold the
 relationships you're working with, the canvas is the right tool — the rest
 of this document is how to drive it.
 
-### When the connected MCP is unfamiliar
+### When the connected tool is unfamiliar
 
-When the human asks you to use an MCP server or MCP app you have not seen
-before:
+When the human asks you to use a data source or tool you have not used
+before — an MCP server, an MCP app, a CLI, a script, an arbitrary file
+tree:
 
-1. List the tools the MCP exposes; sample one or two outputs.
+1. List the tools / commands available; sample one or two outputs to see
+   the actual shape.
 2. Decide which canvas node type best matches each output:
    - Long-form / narrative results → `markdown`
    - Structured records, tables, dashboards → `json-render` or `graph`
    - Interactive tool surfaces with their own UI → `mcp-app` (open with
      `canvas_open_mcp_app`)
-   - Files, repos, source — `file`
-   - URLs that need cached fetches — `webpage`
+   - Local source files → `file` (live-watched)
+   - URLs that need cached fetches → `webpage`
+   - Stream of state events → `status` or `ledger`
 3. Propose the mapping to the human before bulk-creating nodes; let them
    confirm or adjust before you commit a layout.
 

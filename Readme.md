@@ -25,12 +25,14 @@ PMX Canvas is a **collaborative spatial workspace** that humans and agents share
 
 pmx-canvas drives any work that benefits from making **context, relations, and provenance explicit**. The canvas turns work that is normally scattered across chat history, tabs, files, and dashboards into something with explicit context (pinned nodes), explicit relations (edges, groups, proximity), and explicit provenance (which side added which piece). Whatever data either the human or the agent pulls in — files, fetched web pages, screenshots, log excerpts, structured panels, charts, hand-drawn diagrams, bundled web artifacts — lives on the same surface and is reachable from both sides.
 
-**The canvas is agnostic about what you do with it.** The reach of the workspace is the union of pmx-canvas's own node types and whatever MCP servers and MCP apps your agent's harness can talk to. To make that concrete:
+**The canvas is agnostic about what you do with it.** The reach of the workspace is the union of pmx-canvas's own node types and **whatever your agent's harness already has access to** — MCP servers, MCP apps, shell commands and CLIs, files in the working directory, web-fetch tools, anything else its toolbelt exposes. The canvas itself doesn't care where the data came from; it just needs the agent (or you) to drop it on the surface as the right node type. To make that concrete:
 
 - A **Jira MCP** turns the canvas into a triage board — tickets land as `markdown` nodes you can group by status and pin the in-flight ones.
 - A **database MCP** turns it into an exploratory query workbench — each query result becomes a `json-render` table or `graph` node next to the `markdown` node holding the SQL.
 - An **Excalidraw MCP app** turns it into a sketch surface — diagrams open as `mcp-app` nodes you can resize and annotate.
-- A **custom MCP** for your data source turns it into whatever shape that data fits — without pmx-canvas knowing anything about your domain.
+- A **shell-driven agent** with `gh` + `kubectl` in its harness turns it into an ops board — open issues become markdown, pod statuses become `status` nodes, the relationships you care about become edges.
+- **Plain file reads** in the agent's working directory turn it into a code-context map — `file` nodes for source, `markdown` nodes for the agent's notes, all live-watched.
+- A **custom MCP or CLI** for your data source turns it into whatever shape that data fits — without pmx-canvas knowing anything about your domain.
 
 Common use cases — non-exhaustive, mix and match as the work shifts:
 
@@ -40,7 +42,7 @@ Common use cases — non-exhaustive, mix and match as the work shifts:
 - **Analysis** — make sense of accumulated material, surface patterns
 - **Mind mapping** — relationships, hierarchies, and structure spatially
 
-…plus anything else the combination of the canvas and your installed MCP servers + MCP apps makes possible.
+…plus anything else the combination of the canvas and your agent's toolbelt — MCP servers, MCP apps, CLIs, file access, web fetch — makes possible.
 
 **Spatial arrangement is communication.** When a human drags three file nodes next to a bug report, the agent knows they're related. When the agent drops 12 webpage nodes from a research session, the human can immediately group, prune, and pin the ones worth keeping. The agent reads spatial state via `canvas://pinned-context`, `canvas://spatial-context`, and the SSE event stream; the human reads the same state through the rendered browser.
 
