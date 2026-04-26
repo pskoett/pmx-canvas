@@ -46,8 +46,8 @@ skills (`web-artifacts-builder`, `pmx-canvas-testing`, `playwright-cli`, the
 Three install paths, in order of how universal they are:
 
 ```bash
-# 1. GitHub CLI (gh skill — installs into the right host directory automatically;
-#    works for Claude Code, Codex, Cursor, GitHub Copilot, Gemini CLI; gh >= 2.90)
+# 1. GitHub CLI (gh skill — installs into the right host directory automatically
+#    for whichever agent harness you use; requires gh >= 2.90)
 gh skill install pskoett/pmx-canvas pmx-canvas
 
 # 2. Agent Skills CLI (any agent that follows the Agent Skills spec)
@@ -55,17 +55,16 @@ npx skills add pskoett/pmx-canvas/skills/pmx-canvas
 
 # 3. Manual (clone + copy or symlink — works everywhere)
 git clone https://github.com/pskoett/pmx-canvas.git
-cp -r pmx-canvas/skills/pmx-canvas ~/.claude/skills/   # or your agent's skills dir
+cp -r pmx-canvas/skills/pmx-canvas <your-agent-skills-dir>
 ```
 
-Then in your agent: *"Use the `pmx-canvas` skill to start the canvas and lay
-out a plan for X."* The skill handles `bunx pmx-canvas` startup, MCP wiring,
-and the canvas operations.
+Then prompt your agent: *"Use the `pmx-canvas` skill to start the canvas and
+lay out a plan for X."* The skill handles `bunx pmx-canvas` startup, MCP
+wiring, and the canvas operations.
 
-For a richer install (all bundled skills as a Claude Code / Codex / Copilot
-plugin marketplace, similar to
-[`pskoett-ai-skills`](https://github.com/pskoett/pskoett-ai-skills)), see
-[Agent skills](#agent-skills) below.
+For a richer install (the full bundle as a plugin marketplace, mirroring the
+pattern in [`pskoett-ai-skills`](https://github.com/pskoett/pskoett-ai-skills)),
+see [Agent skills](#agent-skills) below.
 
 ### Run it directly (no agent required)
 
@@ -153,12 +152,58 @@ Add to your agent's MCP config:
 }
 ```
 
-The canvas auto-starts on first tool call. Works with Claude Code, Cursor,
-Windsurf, and any MCP-capable agent.
+The canvas auto-starts on first tool call. Works with any MCP-capable agent
+harness — pmx-canvas does not depend on a specific coding agent.
 
 For developer flows on the `pmx-canvas` repo itself (release process,
 contribution gates, etc.) see [`AGENTS.md`](AGENTS.md) and
 [`docs/RELEASE.md`](docs/RELEASE.md).
+
+## Example: pull data in, build something out
+
+The canvas is most useful when it's *not* empty. The pattern is the same no
+matter what you're working on: gather data from whatever surfaces you already
+have access to, ask the agent to lay it out on the canvas using whichever node
+types fit the data, then collaborate on the result.
+
+> *"Read the latest release notes from `CHANGELOG.md`, the open issues from
+> our GitHub repo, last week's deploy logs, and the pricing page from
+> example.com. Put each one on the canvas as the right node type — markdown
+> for the changelog, file nodes for the local files, status nodes for the
+> deploy events, a webpage node for the URL — then build me a json-render
+> dashboard and a chart that summarize what shipped, what broke, and what's
+> still open."*
+
+What the agent does, end to end:
+
+1. Reads each source via the tools your harness already provides (filesystem,
+   web fetch, GitHub API, log readers — pmx-canvas does not impose data
+   sources; bring your own).
+2. Calls the canvas to drop each finding on the workbench:
+   - `markdown` for narrative notes and AI-summarized text
+   - `file` for live-watching local source files
+   - `webpage` for fetched web pages with cached extracted text
+   - `image` for screenshots and exported diagrams
+   - `status` / `ledger` / `trace` for structured runtime/evaluation state
+   - `json-render` for inline structured UI (dashboards, tables, forms) — see
+     [Json-render nodes](#json-render-nodes)
+   - `graph` for line / bar / pie / radar / stacked / composed charts — see
+     [the schema reference](#schema-driven-discovery)
+   - `mcp-app` (Excalidraw and other MCP App servers) for hand-drawn diagrams
+   - `web-artifact` for full bundled React/Tailwind interactive surfaces — see
+     [Web artifacts](#web-artifacts)
+   - `group` to bound related nodes into a frame
+   - `edge` to connect findings (`flow`, `depends-on`, `relation`,
+     `references`) so the relationships are first-class, not implicit
+3. You step into the canvas, rearrange, prune, group, and **pin** the nodes
+   that matter.
+4. The agent reads `canvas://pinned-context` and `canvas://spatial-context`
+   and uses your curation to ground the next round of analysis or build.
+
+This loop works for investigations, architecture sketches, research surveys,
+release planning, dashboards, post-mortems, lecture notes — anywhere the gap
+between "I have the data somewhere" and "I have a coherent picture" is
+currently blocking your thinking.
 
 ## How it works
 
@@ -836,18 +881,20 @@ which makes scripting stacked layouts and batch follow-up operations easier.
 
 ## Agent compatibility
 
-| Agent | Integration | Config |
-|-------|-------------|--------|
-| Claude Code | MCP server | `"command": "bunx", "args": ["pmx-canvas", "--mcp"]` |
-| Cursor | MCP server | Same MCP config |
-| Windsurf | MCP server | Same MCP config |
-| OpenAI Codex | MCP or HTTP | Same MCP config, or `curl` commands |
-| Any other | HTTP API | Any language can `fetch()` or `curl` |
+pmx-canvas is harness-agnostic. Any agent that can spawn an MCP stdio server,
+make HTTP requests, or invoke a CLI can drive the canvas.
+
+| Capability | Path | Config |
+|------------|------|--------|
+| MCP-capable agent | MCP stdio server | `"command": "bunx", "args": ["pmx-canvas", "--mcp"]` |
+| Shell-driven agent | CLI | `bunx pmx-canvas …` (see [Recommended ways to drive the canvas](#recommended-ways-to-drive-the-canvas)) |
+| HTTP-only environment | REST + SSE | `fetch()` / `curl` at `http://localhost:4313/api/canvas/...` |
+| Bun runtime | TypeScript SDK | `import { createCanvas } from 'pmx-canvas'` |
 
 ## Architecture
 
 ```
-Agent (Claude Code / Codex / Cursor / any MCP client)
+Agent harness (any MCP-capable client, CLI consumer, or HTTP caller)
   |
   |-- MCP Server ---- 38 tools + 7 resources + change notifications
   |-- Bun SDK ------- createCanvas()
