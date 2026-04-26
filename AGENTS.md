@@ -125,6 +125,10 @@ selection, and handoff expectations whenever you change code in this project.
 Use the `published-consumer-e2e` skill when you need to validate PMX Canvas as an installed
 package in a clean temp consumer instead of the repo dev path.
 
+For the full release recipe (pre-flight gates, version bump, tag → publish, smoke, common
+gotchas) see [`docs/RELEASE.md`](docs/RELEASE.md). The README intentionally does not document
+the release flow — it's an end-user-facing file and the release process is maintainer-only.
+
 1. **Never dismiss failing tests.** Investigate every failure before declaring success. A "pre-existing" failure still needs resolution or explicit acknowledgment.
 
 2. **Verify the full stack.** Don't just check that code compiles — start the server, hit the endpoints, confirm the SPA loads:

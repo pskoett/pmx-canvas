@@ -157,6 +157,13 @@ Three themes: `dark` (default), `light`, `high-contrast`. Set via:
 - Env: `PMX_CANVAS_THEME=light`
 - Browser: toolbar toggle button (sun/moon icon)
 
+## Releasing
+
+The full release recipe (pre-flight gates, version bump, tag → publish, smoke,
+common gotchas) lives in [`docs/RELEASE.md`](docs/RELEASE.md). The README
+intentionally does not document the release flow — it's an end-user-facing file
+and the release process is maintainer-only.
+
 ## Testing Conventions
 
 1. **Never dismiss failing tests.** Investigate every failure before declaring success. A "pre-existing" failure still needs resolution or explicit acknowledgment.

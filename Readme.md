@@ -24,69 +24,34 @@ The published SDK entrypoint is Bun-first: `import { createCanvas } from 'pmx-ca
 
 ## Quick start
 
-### Install from npm
+### Recommended: install the agent skill, let your agent do the rest
+
+`pmx-canvas` ships a self-installing agent skill. You do **not** install or start the canvas
+yourself — you point your agent at the skill, and the skill teaches the agent how to install
+the package, start the server, and use every node type, group, snapshot, and search tool the
+canvas exposes.
+
+The skill source lives at [`skills/pmx-canvas/SKILL.md`](skills/pmx-canvas/SKILL.md), and after
+the canvas is running it is also discoverable through the MCP server at
+`canvas://skills/pmx-canvas` along with companion skills (`web-artifacts-builder`,
+`pmx-canvas-testing`, `playwright-cli`, the `json-render-*` family, etc. — see
+[Agent skills](#agent-skills)).
+
+**Claude Code:**
 
 ```bash
-bunx pmx-canvas              # Start canvas, open browser
-bunx pmx-canvas serve --daemon --no-open --wait-ms=20000
-bunx pmx-canvas --demo       # Start with sample nodes
-bunx pmx-canvas --mcp        # Run as MCP server
+# from any project dir
+mkdir -p .claude/skills
+curl -L https://raw.githubusercontent.com/pskoett/pmx-canvas/main/skills/pmx-canvas/SKILL.md \
+  -o .claude/skills/pmx-canvas/SKILL.md
 ```
 
-### Install from source
+Then in your conversation: *"Use the pmx-canvas skill to set up the canvas and add a markdown
+node titled Plan."* The skill handles `bunx pmx-canvas` invocation, MCP wiring, and node
+creation flow.
 
-```bash
-git clone https://github.com/pskoett/pmx-canvas.git
-cd pmx-canvas
-bun install
-bun run build
-bun run dev                   # Start + open browser
-bun run dev:demo              # Start with sample nodes
-bun run dev:portless          # Start at https://pmx.localhost/workbench (requires global portless)
-```
-
-The canvas opens at `http://localhost:4313`.
-
-For local development only, you can give the canvas a stable hostname with
-[Portless](https://github.com/vercel-labs/portless):
-
-```bash
-npm install -g portless
-bun run dev:portless
-```
-
-Then open `https://pmx.localhost/workbench`.
-
-This is intentionally a repo-local developer workflow. The published
-`bunx pmx-canvas` path still defaults to plain loopback and does not depend on
-Portless being installed.
-
-### Test the unpublished CLI from a repo checkout
-
-If you want to exercise the real package before publishing, link the repo locally:
-
-```bash
-git clone https://github.com/pskoett/pmx-canvas.git
-cd pmx-canvas
-bun install
-bun run build
-bun link
-
-# Then from any shell:
-pmx-canvas --help
-pmx-canvas --no-open
-```
-
-For one-off local runs without linking, `bun run src/cli/index.ts ...` works too.
-
-### Recommended ways to drive the canvas
-
-- **CLI** for local use, scripting, automation, and terminal-native agents
-- **MCP** for agents that already speak the Model Context Protocol
-
-### Connect your agent (MCP)
-
-Add to your agent's MCP config:
+**Cursor / Windsurf / any MCP-capable agent:** add the MCP config below — the canvas auto-starts
+on the first tool call, and the agent reads `canvas://skills` to discover bundled skills:
 
 ```json
 {
@@ -99,7 +64,29 @@ Add to your agent's MCP config:
 }
 ```
 
-The canvas auto-starts on first tool call. Works with Claude Code, Cursor, Windsurf, and any MCP-capable agent.
+### For humans driving the canvas directly
+
+The CLI and MCP are the two primary surfaces. Pick whichever fits how you work.
+
+**CLI** (local use, scripting, automation, terminal-native agents):
+
+```bash
+bunx pmx-canvas              # Start canvas, open browser
+bunx pmx-canvas --demo       # Start with sample nodes
+bunx pmx-canvas --no-open    # Headless (good for agents)
+bunx pmx-canvas --mcp        # Run as MCP server
+bunx pmx-canvas --help       # All commands
+```
+
+The canvas opens at `http://localhost:4313`.
+
+**MCP** (agents that already speak the Model Context Protocol): use the JSON config above. The
+canvas auto-starts on first tool call. 38 tools + 7 resources, including the bundled
+`canvas://skills` index.
+
+For development workflows on the `pmx-canvas` repo itself (cloning, building from source,
+linking the unpublished CLI, etc.) see [`AGENTS.md`](AGENTS.md) and
+[`docs/RELEASE.md`](docs/RELEASE.md).
 
 ## How it works
 
@@ -836,26 +823,6 @@ bun run test:all              # Unit tests + browser smoke
 from the durable eval in [docs/evals/e2e-cli-coverage.md](docs/evals/e2e-cli-coverage.md):
 parseable JSON, node creation, graph `--data`, web-artifact failure handling, Excalidraw external
 apps, `focus --no-pan`, arrange/validate, and status subtype reporting.
-
-## Release
-
-Use this sequence before publishing a new version:
-
-```bash
-bun install --frozen-lockfile
-bun run release:check
-bun run test:e2e-cli
-bun run release:smoke
-bun run pack:dry-run
-```
-
-Then publish the version currently in `package.json`:
-
-```bash
-bun publish
-```
-
-If this is the first release from your machine, run `bunx npm login` once so Bun can reuse your npm credentials.
 
 ### Project structure
 
