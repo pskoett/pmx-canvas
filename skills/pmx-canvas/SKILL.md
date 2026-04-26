@@ -46,10 +46,30 @@ pmx-canvas --no-open           # Start without opening browser (for agents)
 pmx-canvas --port=8080         # Custom port
 pmx-canvas --demo              # Start with sample content
 pmx-canvas --theme=light       # Light theme
+pmx-canvas --version           # Print installed version and exit
 ```
+
+`--theme` accepts `dark` (default), `light`, or `high-contrast`. Same value can be set via
+the `PMX_CANVAS_THEME` environment variable, or toggled live in the browser toolbar.
 
 Start the canvas once per session, then reuse it. Use `--no-open` when running as an agent — the
 human can open the browser URL themselves.
+
+### Daemon mode (long-running background server)
+
+When you need the canvas to outlive the current shell or agent session — e.g. so a follow-up
+agent run can attach to the same state — start it as a daemon:
+
+```bash
+pmx-canvas serve --daemon --no-open --wait-ms=20000   # Detach, wait for /health
+pmx-canvas serve status                                # Print daemon health + pid state
+pmx-canvas serve stop                                  # Stop the daemon for this port
+```
+
+`serve --daemon` writes a pid file (`.pmx-canvas/daemon-<port>.pid`) and a log file
+(`.pmx-canvas/daemon-<port>.log`); the wait flag blocks until `/health` returns OK so a script
+can rely on the server being responsive when the command returns. `serve stop` reads the pid
+file, sends SIGTERM, and cleans up on exit.
 
 ## Browser Workflows
 
@@ -160,8 +180,8 @@ The CLI targets `http://localhost:4313` by default. Override with `PMX_CANVAS_UR
 | `json-render` | Native structured UI panel | Dashboards, forms, tables, interactive layouts from json-render specs |
 | `graph` | Native chart panel | Line, bar, pie, area, scatter, radar, stacked-bar, and composed charts rendered inside the canvas |
 | `group` | Spatial container/frame | Visually group related nodes together |
-| `prompt` | Prompt thread root | Canvas-native prompt entry points for agent conversations |
-| `response` | Prompt reply / streamed answer | Agent responses linked to prompt threads |
+| `prompt` | Prompt thread root | Canvas-native prompt entry points for agent conversations. **Internal type — surfaces in `canvas://layout` for thread rendering but is not created via the public `canvas_add_node` API. Don't try to add one directly.** |
+| `response` | Prompt reply / streamed answer | Agent responses linked to prompt threads. **Same internal-only restriction as `prompt`.** |
 
 ### Edge Types
 
@@ -219,6 +239,23 @@ Use color consistently to convey meaning:
 
 **`canvas_get_node`** — Get a single node's full data
 - `id` (required): node to retrieve
+
+**`canvas_refresh_webpage_node`** — Re-fetch the URL stored on a `webpage` node
+- `id` (required): webpage node to refresh
+- Optional `url`: replace the stored URL before refreshing (use when the human moved the page)
+- Returns the refreshed node with updated `pageTitle` and cached extracted text
+- Use this when a saved canvas is reopened and the agent needs fresh page content without
+  losing the node's identity, position, or pins. Example flow:
+
+  ```typescript
+  // Add the page once
+  canvas_add_node({ type: 'webpage', url: 'https://example.com/docs' })
+  // → returns { id: 'node-abc' }
+
+  // …later, after the human reopens the canvas…
+  canvas_refresh_webpage_node({ id: 'node-abc' })
+  // → re-fetches the URL, updates pageTitle + extracted text, keeps the node ID and position
+  ```
 
 **`canvas_add_json_render_node`** — Add a native json-render node
 - Required: `title`, `spec`
@@ -369,6 +406,58 @@ Current product caveats for grouped comparison boards:
 - **Always call `canvas_snapshot` first** to save a backup before clearing
 - This is irreversible without a prior snapshot
 
+### Browser Automation (WebView)
+
+The canvas exposes a headless browser session over MCP for self-inspection and
+automated screenshotting. Use this when you want to (a) verify what the live
+canvas actually looks like after a sequence of mutations, (b) capture an image
+of a freshly-built artifact for the human to review, or (c) drive arbitrary
+JavaScript inside the workbench page.
+
+The WebView automation runs on Bun's WebKit-based WebView (macOS) or a headless
+Chromium fallback (Linux). It does **not** open a visible window; it's an
+additional headless renderer attached to the same canvas server, so all five
+tools below operate on the live canvas state.
+
+**`canvas_webview_status`** — Inspect the current automation session
+- Returns `{ supported, active, backend, viewportWidth, viewportHeight, url, lastError }`
+- Call before `start` to check whether a session is already alive
+
+**`canvas_webview_start`** — Start (or replace) the automation session
+- Optional: `backend` (`webkit` macOS-only, or `chrome`), `width`, `height`
+- The session opens `/workbench` at the canvas URL, waits for the SPA to
+  hydrate, and reports back via `canvas_webview_status`
+
+**`canvas_webview_stop`** — Tear down the automation session
+
+**`canvas_evaluate`** — Run JavaScript inside the workbench page and return the result
+- Required: `expression` (a JS expression or a function body)
+- Useful for asserting DOM state after a sequence of canvas mutations
+- Example: read the count of rendered `.canvas-node` elements:
+
+  ```typescript
+  canvas_evaluate({ expression: 'document.querySelectorAll(".canvas-node").length' })
+  ```
+
+**`canvas_resize`** — Change the WebView viewport
+- Required: `width`, `height`
+- Use before `canvas_screenshot` when the human needs a specific aspect ratio
+
+**`canvas_screenshot`** — Capture a PNG of the current workbench
+- Optional: `format` (`png` default), `fullPage` (boolean)
+- Returns both an MCP image payload (renderable inline by capable agents) and
+  a path under `.pmx-canvas/screenshots/` so the human can view the file
+- Pair with `canvas_webview_resize` to control the framing
+
+Typical flow when you want to show a result:
+
+```typescript
+canvas_webview_start({ width: 1440, height: 900 });
+// …mutations…
+canvas_screenshot({ fullPage: true });
+canvas_webview_stop();
+```
+
 ### Diagrams (Excalidraw MCP app preset)
 
 **`canvas_add_diagram`** — Draw a hand-drawn diagram on the canvas via the hosted
@@ -432,7 +521,8 @@ what the human has set up and what they're focusing on.
 | `canvas://summary` | Compact overview: node counts by type, pinned titles |
 | `canvas://spatial-context` | Proximity clusters, reading order, pinned neighborhoods |
 | `canvas://history` | Human-readable mutation timeline |
-| `canvas://code-graph` | Auto-detected file import dependencies |
+| `canvas://code-graph` | Auto-detected file import dependencies (JS/TS, Python, Go, Rust) |
+| `canvas://skills` | Index of bundled agent skills shipped with the install. Each skill is also addressable as `canvas://skills/<name>` (e.g. `canvas://skills/web-artifacts-builder`) and returns the full SKILL.md. Read this resource first to discover companion workflows the canvas is built to support. |
 
 ### Reading Spatial Intent
 

@@ -1,6 +1,10 @@
 # pmx-canvas
 
-A spatial canvas workbench for coding agents. Infinite 2D canvas with nodes, edges, pan/zoom, minimap, and real-time sync -- controlled through the CLI, MCP, HTTP API, or a Bun-based JavaScript/TypeScript SDK.
+**A shared thinking surface for humans and coding agents.** Drop files, plans,
+status, charts, fetched web pages, and hand-drawn diagrams onto the same
+infinite 2D canvas; pin what matters; let the agent read your spatial curation
+as structured context. Drive it from a CLI, the Model Context Protocol, an
+HTTP API, or a Bun-based TypeScript SDK — whichever fits how your agent runs.
 
 <p align="center">
   <img src="docs/screenshots/welcome-dark.png" alt="Empty canvas — dark theme" width="49%" />
@@ -27,6 +31,52 @@ Either way, the canvas is the **shared thinking surface** for organizing, resear
 
 The published SDK entrypoint is Bun-first: `import { createCanvas } from 'pmx-canvas'` is supported in Bun, while Node.js consumers should use the CLI, MCP server, or HTTP API instead.
 
+## First five minutes
+
+If you only have time for one thing, do this:
+
+```bash
+bunx pmx-canvas --demo
+```
+
+Your default browser opens at `http://localhost:4313` and you should see the canvas
+with **three sample nodes** ("Welcome to PMX Canvas", "Getting Started", "Agent
+Status") connected by **two flow edges**. If that's what you see, the install
+works. Quick sanity-check from another terminal:
+
+```bash
+curl -s http://localhost:4313/health
+# {"ok":true,"workspace":"<your-cwd>"}
+```
+
+Now try the canvas:
+
+- **Drag** a node to a new position.
+- **Right-click** the "Agent Status" node → *Pin as context*. Pinned nodes get a coloured outline and become first-class context for any connected agent.
+- **Press `?`** to see the full keyboard-shortcut overlay.
+- **Double-click** the empty canvas to drop a new markdown note where you click.
+
+That's the human side. To exit, `Ctrl-C` in the terminal — your edits autosave to
+`.pmx-canvas/state.json` and reload next start. To wipe the demo state, delete
+that file (or run from a fresh directory).
+
+### Important scope notes
+
+- **Single-machine, today.** One canvas runs per `bunx pmx-canvas` instance, on
+  one machine. There is no built-in multi-user auth or presence — collaboration
+  means human↔agent on the same machine, plus any other browser tab/agent
+  pointed at the same `localhost:4313`. To share a canvas across machines, commit
+  `.pmx-canvas/state.json` to your repo and pull it on the other side.
+- **What leaves your machine.** The core canvas runs entirely on `localhost`.
+  Network egress only happens for these explicit, opt-in flows: `webpage` nodes
+  fetch the URL you give them; `mcp-app` / `canvas_add_diagram` calls go to
+  whatever MCP server URL you configure (the Excalidraw preset uses
+  `https://mcp.excalidraw.com/mcp`); `bunx` itself reads the npm registry on
+  first install. Nothing else phones home.
+- **State auto-saves** to `.pmx-canvas/state.json` (debounced ~500 ms after each
+  mutation). Closing the browser tab is fine. Restarting the server reloads the
+  saved state. Snapshots live under `.pmx-canvas/snapshots/`.
+
 ## Quick start
 
 There are two paths into pmx-canvas, and they work together. Pick whichever
@@ -46,21 +96,43 @@ skills (`web-artifacts-builder`, `pmx-canvas-testing`, `playwright-cli`, the
 Three install paths, in order of how universal they are:
 
 ```bash
-# 1. GitHub CLI (gh skill — installs into the right host directory automatically
-#    for whichever agent harness you use; requires gh >= 2.90)
+# 1. GitHub CLI extension. `gh skill` is the official Agent Skills extension
+#    for the GitHub CLI — it knows where each harness keeps its skills tree
+#    and copies the SKILL.md and assets into the right place. Requires
+#    `gh` >= 2.90. See https://cli.github.com/manual/gh_skill_install.
 gh skill install pskoett/pmx-canvas pmx-canvas
 
-# 2. Agent Skills CLI (any agent that follows the Agent Skills spec)
+# 2. Agent Skills CLI. `npx skills` is the runtime-agnostic installer for
+#    skills that follow the Agent Skills specification
+#    (https://agentskills.io/specification). It works for any agent harness
+#    that reads from a per-user or per-project skills directory.
 npx skills add pskoett/pmx-canvas/skills/pmx-canvas
 
-# 3. Manual (clone + copy or symlink — works everywhere)
+# 3. Manual clone + copy. Works everywhere; you pick where the skill lands.
 git clone https://github.com/pskoett/pmx-canvas.git
 cp -r pmx-canvas/skills/pmx-canvas <your-agent-skills-dir>
 ```
 
-Then prompt your agent: *"Use the `pmx-canvas` skill to start the canvas and
-lay out a plan for X."* The skill handles `bunx pmx-canvas` startup, MCP
-wiring, and the canvas operations.
+For path 3, point at whichever directory your agent harness reads. Common
+defaults — check your harness docs if it isn't here:
+
+| Harness | Skills directory |
+|---------|------------------|
+| Claude Code | `~/.claude/skills/` (user-wide) or `.claude/skills/` (project) |
+| OpenAI Codex (CLI) | `~/.codex/skills/` |
+| Cursor / Continue / others | varies — typically `.<harness>/skills/` in the repo |
+
+After install, point your agent at the skill and try the **minimum-viable
+prompt**:
+
+> *"Use the `pmx-canvas` skill to start the canvas, then add this repo's
+> `Readme.md` and the top three source files as `file` nodes. Auto-arrange
+> them and pin two."*
+
+You should see the browser open and four nodes appear inside ~10 seconds. If
+that works, the skill, the canvas, and the agent are all wired up. From there
+work up to richer prompts — the [Example](#example-pull-data-in-build-something-out)
+section below has a fuller flow.
 
 For a richer install (the full bundle as a plugin marketplace, mirroring the
 pattern in [`pskoett-ai-skills`](https://github.com/pskoett/pskoett-ai-skills)),
@@ -93,15 +165,14 @@ bun install
 bun run build
 bun run dev                   # Start + open browser
 bun run dev:demo              # Start with sample nodes
-bun run dev:portless          # https://pmx.localhost/workbench (requires global portless)
 ```
 
-For local development only, you can give the canvas a stable hostname with
-[Portless](https://github.com/vercel-labs/portless):
+For a stable local hostname, install [Portless](https://github.com/vercel-labs/portless)
+first **and then** run the portless variant:
 
 ```bash
 npm install -g portless
-bun run dev:portless
+bun run dev:portless          # https://pmx.localhost/workbench
 ```
 
 The published `bunx pmx-canvas` path defaults to plain loopback and does **not**
@@ -582,7 +653,9 @@ effectively:
 | [`frontend-design`](skills/frontend-design/SKILL.md), [`web-design-guidelines`](skills/web-design-guidelines/SKILL.md) | Design-quality rules for agent-generated UI |
 | [`doc-coauthoring`](skills/doc-coauthoring/SKILL.md) | Structured doc-writing flow |
 | [`data-analysis`](skills/data-analysis/SKILL.md) | Data exploration patterns |
-| [`published-consumer-e2e`](skills/published-consumer-e2e/SKILL.md) | Smoke-test the published `bunx pmx-canvas` path |
+
+(`published-consumer-e2e` exists in `skills/` for maintainer use — it smoke-tests the
+published `bunx` path against a clean temp consumer — but it isn't a user-facing skill.)
 
 You only need to install [`pmx-canvas`](skills/pmx-canvas/SKILL.md) up front (see the
 [Quick start](#quick-start)) — once the canvas is running, the agent can read
@@ -890,6 +963,38 @@ make HTTP requests, or invoke a CLI can drive the canvas.
 | Shell-driven agent | CLI | `bunx pmx-canvas …` (see [Recommended ways to drive the canvas](#recommended-ways-to-drive-the-canvas)) |
 | HTTP-only environment | REST + SSE | `fetch()` / `curl` at `http://localhost:4313/api/canvas/...` |
 | Bun runtime | TypeScript SDK | `import { createCanvas } from 'pmx-canvas'` |
+
+## Known limitations
+
+These are real things you'll hit and they aren't your fault — work around
+them rather than chase them as bugs.
+
+- **Single-machine, no built-in multi-user auth.** See
+  [Important scope notes](#important-scope-notes) above. Sharing a canvas
+  across machines today means committing `.pmx-canvas/state.json`.
+- **Excalidraw / external `mcp-app` flakes:** grouped Excalidraw element IDs
+  can change after edits, so an agent that builds a diagram in two passes
+  should capture every element ID immediately after `canvas_add_diagram`
+  returns. Editing while another tool call is in flight occasionally drops
+  the in-progress edit.
+- **Web-artifact build timeouts on cold installs.** The first
+  `canvas_build_web_artifact` call in a fresh workspace runs `pnpm install`
+  for ~30 dependencies. On constrained machines or slow networks, the
+  default timeout can fire before the install completes — bump
+  `--timeout-ms` (CLI) or `timeoutMs` (MCP/SDK) on first use, or
+  pre-warm with `bunx pmx-canvas web-artifact build --title warmup
+  --app-tsx 'export default () => null'`.
+- **Webpage-fetch failure modes.** Sites that require auth, render purely
+  client-side without server HTML, or block headless fetches will store
+  with empty extracted text. The node still works as a URL bookmark; the
+  agent's view of the content will be the URL only.
+- **Image cloud-on-demand stalls (macOS).** Images stored in iCloud Drive
+  / OneDrive that aren't downloaded locally are detected up-front and
+  rejected with a clear error rather than freezing the server. Download
+  the file locally first.
+- **`prompt` and `response` node types are internal.** They surface in
+  `canvas://layout` for thread rendering but aren't created via the public
+  `canvas_add_node` API.
 
 ## Architecture
 
