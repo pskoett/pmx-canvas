@@ -22,38 +22,39 @@ relatedness, clusters imply grouping, reading order (top-left to bottom-right) i
 
 ## When to Use
 
-The canvas is built around five high-value thinking modes. These are the
-primary reasons the surface exists; the remaining bullets are concrete output
-shapes those modes produce.
+The canvas is **agnostic about what you do with it**. Reach for it whenever a
+flat conversation, a list, or a single document hides the relationships
+between pieces of information. The total reach of any session is the union of
+pmx-canvas's own node types and whatever MCP servers + MCP apps your harness
+can talk to — adding a new MCP turns the canvas into whatever shape that
+data fits.
+
+A non-exhaustive list of common use cases:
 
 - **Idea generation** — capture divergent thoughts spatially without losing
-  them. Drop quick markdown nodes wherever they land; group later. Helps
-  riffs ("give me twelve angles on X") stay distinct instead of melting into
-  a paragraph.
-- **Validation** — test an idea against evidence. Pin the claim; place
-  supporting and contradicting sources next to it; summarize what's actually
-  backed and what's hand-waved.
-- **Research** — gather, organize, and compare sources from anywhere.
-  Webpage nodes for fetched pages, file nodes for local references, markdown
-  summaries for synthesis — all on the same searchable, pinnable surface.
-- **Analysis** — make sense of accumulated material. Cluster related
-  findings by proximity, draw `references` edges between them, then read
-  `canvas://pinned-context` to ground next-step reasoning in what the human
-  curated.
-- **Mind mapping** — show relationships, hierarchies, and structure
-  spatially. Groups for branches, edges for connections, `depends-on` and
-  `relation` types for semantic links.
+  them; drop markdown nodes, group and prune later
+- **Validation** — pin a claim, place supporting and contradicting evidence
+  beside it, summarize what's actually backed
+- **Research** — gather, organize, and compare sources from anywhere with
+  webpage / file / markdown nodes
+- **Analysis** — cluster accumulated material by proximity, draw `references`
+  edges, surface patterns
+- **Mind mapping** — relationships and hierarchies as groups, edges, and
+  `depends-on` / `relation` links
+- **Investigation boards** — files, logs, stack traces, and findings laid
+  out spatially while debugging
+- **Architecture diagrams / context maps** — show system components and how
+  code, config, and data flow connect
+- **Plans & status dashboards** — task nodes with dependencies, build /
+  test / deploy state
+- **Comparison views** — place options or before/after states side-by-side
+  for the human to evaluate
+- **Whatever a connected MCP makes possible** — Jira → ticket triage,
+  database MCP → exploratory query workbench, custom MCP for your domain
+  → whatever it needs to be
 
-Concrete output shapes you might produce inside any of those modes:
-
-- **Investigation boards** — lay out files, logs, stack traces, and findings spatially while debugging
-- **Architecture diagrams** — show system components and their relationships
-- **Plans & task tracking** — create task nodes with dependencies and color-coded status
-- **Status dashboards** — display build results, test output, deployment state
-- **Context maps** — show how code, configs, and data flow connect
-- **Code dependency graphs** — visualize file imports and module relationships
-- **Comparison views** — place options side by side for the human to evaluate
-- **Any time spatial layout helps** — when a flat list or text wall is not enough
+If a flat list or text wall is not enough to hold the relationships, the
+canvas is the right tool.
 
 ## Starting the Canvas
 
@@ -606,6 +607,12 @@ All POST/PATCH endpoints accept `Content-Type: application/json`. Default base U
 | GET | `/api/workbench/events` | SSE event stream |
 
 ## Workflow Patterns
+
+These are example use-case recipes, **not an exhaustive set**. The canvas is
+agnostic — every recipe below is one concrete shape the same primitives
+(nodes, edges, groups, pins) can take. New recipes become viable whenever a
+new MCP server or MCP app is connected; the surface stays the same, the
+range of work it covers grows.
 
 ### Responding to Pinned Context
 

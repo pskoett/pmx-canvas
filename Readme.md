@@ -23,17 +23,19 @@ PMX Canvas is a **collaborative spatial workspace** that humans and agents share
 
 ### What it's for
 
-pmx-canvas exists to drive a small set of high-value thinking modes — idea generation, validation, research, analysis, and mind mapping — by giving the human and the agent **one collaborative surface** where they can both place, move, group, and pin the same material. The canvas turns work that is normally scattered across chat history, tabs, files, and dashboards into something with **explicit context** (pinned nodes), **explicit relations** (edges, groups, proximity), and **explicit provenance** (which agent or human added which piece). Whatever data either side pulls in — files, fetched web pages, screenshots, log excerpts, structured panels, charts, hand-drawn diagrams, bundled web artifacts — lives on the same canvas and is reachable by both sides through `canvas://pinned-context`, `canvas://spatial-context`, the SSE event stream, and the rendered browser.
+pmx-canvas drives any work that benefits from making **context, relations, and provenance explicit**. The canvas turns work that is normally scattered across chat history, tabs, files, and dashboards into something with explicit context (pinned nodes), explicit relations (edges, groups, proximity), and explicit provenance (which side added which piece). Whatever data either the human or the agent pulls in — files, fetched web pages, screenshots, log excerpts, structured panels, charts, hand-drawn diagrams, bundled web artifacts — lives on the same surface and is reachable from both sides.
 
-The five modes the canvas is built to support — pick the one that matches the work, then mix them as the work shifts:
+**The canvas is agnostic about what you do with it.** The reach of the workspace is the union of pmx-canvas's own node types and whatever MCP servers and MCP apps your agent's harness can talk to. Hook a Jira MCP up and the canvas becomes a ticket-triage board. A database MCP turns it into an exploratory query workbench. An Excalidraw MCP app turns it into a sketch surface. A custom MCP for your data source turns it into whatever shape that data fits — without pmx-canvas knowing anything about that data.
 
-- **Idea generation.** Capture divergent thoughts spatially without losing them. Drop quick markdown nodes wherever they land, group later. The agent helps you riff: "give me twelve angles on X" → twelve nodes appear, ready to be pruned.
-- **Validation.** Test an idea against evidence. Pin the claim, place supporting and contradicting sources next to it, ask the agent to summarize what's actually backed and what's hand-waved.
-- **Research.** Gather, organize, and compare sources from anywhere. The agent fetches; you organize. Webpage nodes, file nodes, markdown summaries — all on the same surface, all searchable, all pinnable.
-- **Analysis.** Make sense of accumulated material. Cluster related findings, draw `references` edges between them, ask the agent to read `canvas://pinned-context` and tell you what pattern is emerging.
-- **Mind mapping.** Show relationships, hierarchies, and structure spatially. Groups for branches, edges for connections, `depends-on` and `relation` types for semantic links.
+Common use cases — non-exhaustive, mix and match as the work shifts:
 
-The canvas is the **shared thinking surface** for these modes — a place where the agent's working memory and your spatial intuition meet, and where context and relations stay first-class instead of disappearing into a chat scroll.
+- **Idea generation** — capture divergent thoughts spatially without losing them
+- **Validation** — test a claim against supporting and refuting evidence
+- **Research** — gather, organize, and compare sources from anywhere
+- **Analysis** — make sense of accumulated material, surface patterns
+- **Mind mapping** — relationships, hierarchies, and structure spatially
+
+…plus anything else the combination of the canvas and your installed MCP servers + MCP apps makes possible.
 
 **Spatial arrangement is communication.** When a human drags three file nodes next to a bug report, the agent knows they're related. When the agent drops 12 webpage nodes from a research session, the human can immediately group, prune, and pin the ones worth keeping. The agent reads spatial state via `canvas://pinned-context`, `canvas://spatial-context`, and the SSE event stream; the human reads the same state through the rendered browser.
 
@@ -43,51 +45,7 @@ The canvas is the **shared thinking surface** for these modes — a place where 
 
 The published SDK entrypoint is Bun-first: `import { createCanvas } from 'pmx-canvas'` is supported in Bun, while Node.js consumers should use the CLI, MCP server, or HTTP API instead.
 
-## First five minutes
-
-If you only have time for one thing, do this:
-
-```bash
-bunx pmx-canvas --demo
-```
-
-Your default browser opens at `http://localhost:4313` and you should see the canvas
-with **three sample nodes** ("Welcome to PMX Canvas", "Getting Started", "Agent
-Status") connected by **two `flow` edges** (the first labeled `next`, the second
-unlabeled). If that's what you see, the install works. Quick sanity-check from
-another terminal:
-
-```bash
-curl -s http://localhost:4313/health
-# {"ok":true,"workspace":"<your-cwd>"}
-```
-
-Now try the canvas:
-
-- **Drag** a node to a new position.
-- **Right-click** the "Agent Status" node → *Pin as context*. Pinned nodes get a coloured outline and become first-class context for any connected agent.
-- **Press `?`** to see the full keyboard-shortcut overlay.
-- **Double-click** the empty canvas to drop a new markdown note where you click.
-
-Once that all works, drop a real chart into the same canvas from another
-terminal — no agent required:
-
-```bash
-bunx pmx-canvas node add --type graph --graph-type bar \
-  --x-key day --y-key value \
-  --data '[{"day":"Mon","value":3},{"day":"Tue","value":5},{"day":"Wed","value":4},{"day":"Thu","value":7},{"day":"Fri","value":2}]' \
-  --title "Five-day count"
-```
-
-Refresh the browser; the bar chart appears as a new node alongside the demo
-content. That's the shape every agent-driven flow takes — the canvas is
-addressable from CLI, MCP, HTTP, and the SDK identically.
-
-That's the human side. To exit, `Ctrl-C` in the terminal — your edits autosave to
-`.pmx-canvas/state.json` and reload next start. To wipe the demo state, delete
-that file (or run from a fresh directory).
-
-### Important scope notes
+## Scope
 
 - **Single-machine, today.** One canvas runs per `bunx pmx-canvas` instance, on
   one machine. There is no built-in multi-user auth or presence — collaboration
@@ -95,7 +53,7 @@ that file (or run from a fresh directory).
   pointed at the same `localhost:4313`. To share a canvas across machines, commit
   `.pmx-canvas/state.json` to your repo and pull it on the other side.
 - **What leaves your machine.** The core canvas runs entirely on `localhost`.
-  Network egress only happens for these explicit, opt-in flows: `webpage` nodes
+  Network egress only happens for explicit, opt-in flows: `webpage` nodes
   fetch the URL you give them; `mcp-app` / `canvas_add_diagram` calls go to
   whatever MCP server URL you configure (the Excalidraw preset uses
   `https://mcp.excalidraw.com/mcp`); `bunx` itself reads the npm registry on
@@ -103,8 +61,8 @@ that file (or run from a fresh directory).
 - **State auto-saves** to `.pmx-canvas/state.json` (debounced ~500 ms after each
   mutation). Closing the browser tab keeps everything — only `Ctrl-C` (or
   `pmx-canvas serve stop`) on the server actually stops the canvas. Pins,
-  positions, and node content survive both. Restarting the server reloads the
-  saved state. Snapshots live under `.pmx-canvas/snapshots/`.
+  positions, and node content survive both. Snapshots live under
+  `.pmx-canvas/snapshots/`.
 
 ## Quick start
 
@@ -268,13 +226,11 @@ contribution gates, etc.) see [`AGENTS.md`](AGENTS.md) and
 ## Example: pull data in, build something out
 
 The canvas is most useful when it's *not* empty. The pattern is the same
-across all five modes — idea generation, validation, research, analysis,
-mind mapping: gather data from whatever surfaces you already have access
-to, ask the agent to lay it out using whichever node types fit, then
+across every use case: gather data from whatever surfaces the human or the
+agent has access to, lay it out using whichever node types fit, then
 collaborate on the result.
 
-One concrete example, in **research / analysis** mode against a
-release-planning use case:
+A research / analysis example against a release-planning workflow:
 
 > *"Read the latest release notes from `CHANGELOG.md`, the open issues from
 > our GitHub repo, last week's deploy logs, and the pricing page from
@@ -284,14 +240,18 @@ release-planning use case:
 > dashboard and a chart that summarize what shipped, what broke, and what's
 > still open."*
 
-The same shape works for any mode. *Idea generation:* "give me twelve
-angles on X, drop each as a markdown node, arrange them in a flow layout."
+The same shape works for any use case. *Idea generation:* "give me twelve
+angles on X, drop each as a markdown node, arrange in a flow layout."
 *Validation:* "for the claim in the pinned node, place supporting and
 refuting sources beside it as webpage and file nodes." *Mind mapping:*
 "build a tree of the concepts in [topic] — central concept top-center,
 major branches as groups, sub-concepts inside each group connected with
-depends-on edges." [`skills/pmx-canvas/SKILL.md`](skills/pmx-canvas/SKILL.md)
-has step-by-step recipes for each mode under *Workflow Patterns*.
+depends-on edges."
+
+[`skills/pmx-canvas/SKILL.md`](skills/pmx-canvas/SKILL.md) has step-by-step
+recipes for these and other patterns under *Workflow Patterns*. New
+patterns become viable whenever you add an MCP server or MCP app — the
+canvas surface stays the same, the things you can put on it grow.
 
 What the agent does, end to end:
 
