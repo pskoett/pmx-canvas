@@ -21,7 +21,17 @@ PMX Canvas is a **collaborative spatial workspace** that humans and agents share
 - **Human-first.** You open the canvas, drop in files, sketch a plan, group what belongs together, pin what matters. The agent watches the curation update live and uses it to ground its next action — no prompt engineering, no copy-paste.
 - **Agent-first.** You ask the agent to gather data from sources (logs, files, search results, dashboards, web pages), and it lays the findings out as nodes and edges. You step in, rearrange, edit, prune, and steer where the analysis goes next.
 
-Either way, the canvas is the **shared thinking surface** for organizing, researching, and analyzing — a place where the agent's working memory and your spatial intuition meet.
+### What it's for
+
+Five core modes of thinking the canvas is built to support — pick the one that matches the work and the canvas adapts to it:
+
+- **Idea generation.** Capture divergent thoughts spatially without losing them. Drop quick markdown nodes wherever they land, group later. The agent helps you riff: "give me twelve angles on X" → twelve nodes appear, ready to be pruned.
+- **Validation.** Test an idea against evidence. Pin the claim, place supporting and contradicting sources next to it, ask the agent to summarize what's actually backed and what's hand-waved.
+- **Research.** Gather, organize, and compare sources from anywhere. The agent fetches; you organize. Webpage nodes, file nodes, markdown summaries — all on the same surface, all searchable, all pinnable.
+- **Analysis.** Make sense of accumulated material. Cluster related findings, draw `references` edges between them, ask the agent to read `canvas://pinned-context` and tell you what pattern is emerging.
+- **Mind mapping.** Show relationships, hierarchies, and structure spatially. Groups for branches, edges for connections, `depends-on` and `relation` types for semantic links.
+
+Either way, the canvas is the **shared thinking surface** for these modes — a place where the agent's working memory and your spatial intuition meet.
 
 **Spatial arrangement is communication.** When a human drags three file nodes next to a bug report, the agent knows they're related. When the agent drops 12 webpage nodes from a research session, the human can immediately group, prune, and pin the ones worth keeping. Both sides read the same `canvas://pinned-context`, `canvas://spatial-context`, and SSE event stream.
 
@@ -120,6 +130,7 @@ defaults — check your harness docs if it isn't here:
 |---------|------------------|
 | Claude Code | `~/.claude/skills/` (user-wide) or `.claude/skills/` (project) |
 | OpenAI Codex (CLI) | `~/.codex/skills/` |
+| GitHub Copilot | `.github/skills/` (project) |
 | Cursor / Continue / others | varies — typically `.<harness>/skills/` in the repo |
 
 After install, point your agent at the skill and try the **minimum-viable
