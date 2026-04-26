@@ -25,7 +25,12 @@ PMX Canvas is a **collaborative spatial workspace** that humans and agents share
 
 pmx-canvas drives any work that benefits from making **context, relations, and provenance explicit**. The canvas turns work that is normally scattered across chat history, tabs, files, and dashboards into something with explicit context (pinned nodes), explicit relations (edges, groups, proximity), and explicit provenance (which side added which piece). Whatever data either the human or the agent pulls in — files, fetched web pages, screenshots, log excerpts, structured panels, charts, hand-drawn diagrams, bundled web artifacts — lives on the same surface and is reachable from both sides.
 
-**The canvas is agnostic about what you do with it.** The reach of the workspace is the union of pmx-canvas's own node types and whatever MCP servers and MCP apps your agent's harness can talk to. Hook a Jira MCP up and the canvas becomes a ticket-triage board. A database MCP turns it into an exploratory query workbench. An Excalidraw MCP app turns it into a sketch surface. A custom MCP for your data source turns it into whatever shape that data fits — without pmx-canvas knowing anything about that data.
+**The canvas is agnostic about what you do with it.** The reach of the workspace is the union of pmx-canvas's own node types and whatever MCP servers and MCP apps your agent's harness can talk to. To make that concrete:
+
+- A **Jira MCP** turns the canvas into a triage board — tickets land as `markdown` nodes you can group by status and pin the in-flight ones.
+- A **database MCP** turns it into an exploratory query workbench — each query result becomes a `json-render` table or `graph` node next to the `markdown` node holding the SQL.
+- An **Excalidraw MCP app** turns it into a sketch surface — diagrams open as `mcp-app` nodes you can resize and annotate.
+- A **custom MCP** for your data source turns it into whatever shape that data fits — without pmx-canvas knowing anything about your domain.
 
 Common use cases — non-exhaustive, mix and match as the work shifts:
 
@@ -147,7 +152,9 @@ bunx pmx-canvas --help       # All commands
 bunx pmx-canvas serve --daemon --no-open --wait-ms=20000  # Detached background mode
 ```
 
-The canvas opens at `http://localhost:4313`.
+The canvas opens at `http://localhost:4313`. Try `bunx pmx-canvas --demo`
+first — you'll see three nodes connected by two edges; that confirms the
+canvas server, the browser bundle, and the SSE event stream are all wired up.
 
 #### Install from source
 
@@ -286,13 +293,29 @@ currently blocking your thinking.
 
 ## How it works
 
-1. Agent creates nodes on the canvas (plans, code, status, investigations)
-2. Agent adds file nodes for the files it's working on -- they update live as the agent edits
-3. Human reviews, rearranges, and **pins** the important nodes
-4. MCP server notifies the agent that pinned context changed
-5. Agent reads `canvas://pinned-context` to get the human's curated focus
-6. Agent uses that context to inform its next actions
-7. The canvas becomes a shared thinking surface
+The same simple loop runs in both directions, regardless of what the work
+actually is:
+
+1. **Either side adds material** to the canvas. The agent uses any tool its
+   harness exposes (file reads, web fetch, an attached MCP server, an MCP
+   app, the canvas's own tools) and lays the result out as the right node
+   type. The human drops files, drags nodes around, types markdown.
+2. **The human curates spatial structure** — they group, position, draw
+   edges, and pin what matters. Curation is communication: proximity means
+   relatedness, pinning means "agent, focus here."
+3. **The agent reads that structure as machine-readable context.**
+   `canvas://pinned-context` returns the pinned nodes plus their nearby
+   neighbors. `canvas://spatial-context` returns proximity clusters,
+   reading order, and pinned neighborhoods. SSE notifies the agent the
+   moment any of it changes.
+4. **The agent acts on that context** using whatever tools are at its
+   disposal — `bunx pmx-canvas`'s 38 MCP tools, plus every other MCP your
+   harness has connected. Each new MCP expands what the loop can do without
+   changing the loop.
+
+The canvas's job is to keep that loop honest: spatial state stays explicit,
+provenance stays attributable to the side that made it, and both sides see
+the same workspace via different surfaces.
 
 ## Features
 
@@ -979,7 +1002,7 @@ These are real things you'll hit and they aren't your fault — work around
 them rather than chase them as bugs.
 
 - **Single-machine, no built-in multi-user auth.** See
-  [Important scope notes](#important-scope-notes) above. Sharing a canvas
+  [Scope](#scope) above. Sharing a canvas
   across machines today means committing `.pmx-canvas/state.json`.
 - **Excalidraw / external `mcp-app` flakes:** grouped Excalidraw element IDs
   can change after edits, so an agent that builds a diagram in two passes

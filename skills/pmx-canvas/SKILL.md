@@ -29,32 +29,29 @@ pmx-canvas's own node types and whatever MCP servers + MCP apps your harness
 can talk to — adding a new MCP turns the canvas into whatever shape that
 data fits.
 
-A non-exhaustive list of common use cases:
+The README has a non-exhaustive list of example use cases (idea generation,
+validation, research, analysis, mind mapping, investigation boards,
+architecture diagrams, status dashboards, comparison views, plus whatever an
+attached MCP makes possible). This skill stays focused on the operational
+mechanics. If a flat list or text wall is not enough to hold the
+relationships you're working with, the canvas is the right tool — the rest
+of this document is how to drive it.
 
-- **Idea generation** — capture divergent thoughts spatially without losing
-  them; drop markdown nodes, group and prune later
-- **Validation** — pin a claim, place supporting and contradicting evidence
-  beside it, summarize what's actually backed
-- **Research** — gather, organize, and compare sources from anywhere with
-  webpage / file / markdown nodes
-- **Analysis** — cluster accumulated material by proximity, draw `references`
-  edges, surface patterns
-- **Mind mapping** — relationships and hierarchies as groups, edges, and
-  `depends-on` / `relation` links
-- **Investigation boards** — files, logs, stack traces, and findings laid
-  out spatially while debugging
-- **Architecture diagrams / context maps** — show system components and how
-  code, config, and data flow connect
-- **Plans & status dashboards** — task nodes with dependencies, build /
-  test / deploy state
-- **Comparison views** — place options or before/after states side-by-side
-  for the human to evaluate
-- **Whatever a connected MCP makes possible** — Jira → ticket triage,
-  database MCP → exploratory query workbench, custom MCP for your domain
-  → whatever it needs to be
+### When the connected MCP is unfamiliar
 
-If a flat list or text wall is not enough to hold the relationships, the
-canvas is the right tool.
+When the human asks you to use an MCP server or MCP app you have not seen
+before:
+
+1. List the tools the MCP exposes; sample one or two outputs.
+2. Decide which canvas node type best matches each output:
+   - Long-form / narrative results → `markdown`
+   - Structured records, tables, dashboards → `json-render` or `graph`
+   - Interactive tool surfaces with their own UI → `mcp-app` (open with
+     `canvas_open_mcp_app`)
+   - Files, repos, source — `file`
+   - URLs that need cached fetches — `webpage`
+3. Propose the mapping to the human before bulk-creating nodes; let them
+   confirm or adjust before you commit a layout.
 
 ## Starting the Canvas
 
@@ -472,7 +469,7 @@ tools below operate on the live canvas state.
 - Optional: `format` (`png` default), `fullPage` (boolean)
 - Returns both an MCP image payload (renderable inline by capable agents) and
   a path under `.pmx-canvas/screenshots/` so the human can view the file
-- Pair with `canvas_webview_resize` to control the framing
+- Pair with `canvas_resize` to control the framing
 
 Typical flow when you want to show a result:
 
@@ -608,11 +605,11 @@ All POST/PATCH endpoints accept `Content-Type: application/json`. Default base U
 
 ## Workflow Patterns
 
-These are example use-case recipes, **not an exhaustive set**. The canvas is
-agnostic — every recipe below is one concrete shape the same primitives
-(nodes, edges, groups, pins) can take. New recipes become viable whenever a
-new MCP server or MCP app is connected; the surface stays the same, the
-range of work it covers grows.
+These are **operational recipes** — how to sequence canvas calls for a few
+recurring shapes of work. They are not the project's use cases (those live
+in the README and are intentionally non-exhaustive). The patterns here exist
+to make the agent's tool-call sequencing concrete: which MCP tool fires
+when, what to pin, when to read `canvas://pinned-context`, when to snapshot.
 
 ### Responding to Pinned Context
 
@@ -740,75 +737,6 @@ When the human wants to explore a different approach without losing current work
 2. **Then** clear: `canvas_clear` (never clear without snapshotting first)
 3. Set up the new workspace with initial nodes
 4. Tell the human the snapshot name and that `canvas_restore` can bring everything back
-
-### Idea Generation Sweep
-
-When the human wants to riff on a topic ("give me twelve angles on X"):
-
-1. Create a single seed `markdown` node with the topic; pin it
-2. Generate N ideas as separate `markdown` nodes (don't crowd into one node)
-3. Use `canvas_arrange` with `'flow'` so the seed stays anchored and the
-   ideas spread out around it
-4. Hand back to the human — they will prune, group, and pin the keepers
-5. After pruning, read `canvas://pinned-context` to see which angles survived
-   and ground the next round of expansion in those
-
-### Validation Pass
-
-When the human wants to test a claim against evidence:
-
-1. Pin the claim (`markdown` node) so `canvas://pinned-context` always
-   centers on it
-2. Build two groups beside it — "Supports" and "Refutes" — using
-   `canvas_create_group` (color the Supports group accent green, Refutes
-   red so the spatial coding is unambiguous)
-3. Drop evidence as appropriate node types: `webpage` for fetched pages,
-   `file` for local references, `markdown` for synthesis
-4. Connect each evidence node to the claim with a `references` edge so the
-   relationship is first-class
-5. Summarize: read `canvas://pinned-context` (claim) and the two groups,
-   then explicitly call out what is actually backed vs. hand-waved
-
-### Research Survey
-
-When the human asks you to gather material on a topic:
-
-1. Create a parent `group` for the survey, titled with the topic
-2. Fetch / read sources and add each as the right node type
-   (`webpage` for URLs, `file` for repo files, `markdown` for AI summaries)
-3. Set `parentGroup` on each source so they collect inside the survey frame
-4. Use `canvas_search` before adding each source to avoid duplicates
-5. After the gather phase, ask the human to pin the keepers — don't
-   pre-prune; you don't know yet which angle they want
-6. On the next turn, read `canvas://pinned-context` and continue with only
-   the surviving sources
-
-### Analysis Pattern
-
-When the human has accumulated material and wants to extract patterns:
-
-1. Read `canvas://layout` and `canvas://spatial-context` first — proximity
-   already encodes some of the analysis the human did manually
-2. Cluster related nodes by adjusting positions (`canvas_update_node`) or by
-   creating `group` nodes — tighter clusters mean stronger relationships
-3. Add `references` and `relation` edges where the clustering surfaced a
-   non-obvious link
-4. Build a summary `json-render` panel or `markdown` synthesis node that
-   names the patterns explicitly; place it adjacent to the cluster it
-   summarizes
-5. Re-pin: shift the human's pins from raw sources to the new synthesis
-   nodes once they confirm the analysis lands
-
-### Mind Map
-
-When the human wants a structured view of a domain or concept:
-
-1. Place the central concept as a `markdown` node, top-center
-2. Create `group` nodes around it for the major branches
-3. Within each group, drop sub-concept nodes; chain them with
-   `depends-on` or `relation` edges to show hierarchy
-4. Use `canvas_arrange` with `'flow'` so sibling branches don't overlap
-5. Color groups distinctly so the spatial structure reads at a glance
 
 ## Best Practices
 
