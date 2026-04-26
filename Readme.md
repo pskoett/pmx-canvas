@@ -130,10 +130,10 @@ defaults — check your harness docs if it isn't here:
 
 | Harness | Skills directory |
 |---------|------------------|
-| Claude Code | `~/.claude/skills/` (user-wide) or `.claude/skills/` (project) |
-| OpenAI Codex (CLI) | `~/.codex/skills/` |
-| GitHub Copilot | `.github/skills/` (project) |
-| Cursor / Continue / others | varies — typically `.<harness>/skills/` in the repo |
+| Claude Code | `.claude/skills/` (project) or `~/.claude/skills/` (user-wide) |
+| GitHub Copilot CLI | `.github/skills/`, `.claude/skills/`, or `.agents/skills/` (project); `~/.copilot/skills/`, `~/.claude/skills/`, or `~/.agents/skills/` (user-wide). [docs](https://docs.github.com/en/copilot/how-tos/copilot-cli/customize-copilot/add-skills) |
+| Cross-harness convention | `.agents/skills/` (project) — followed by an increasing number of harnesses, see the [Agent Skills specification](https://agentskills.io/specification) |
+| Other / unsure | check your harness's docs for the canonical skills directory |
 
 After install, point your agent at the skill and try the **minimum-viable
 prompt**:
