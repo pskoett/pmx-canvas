@@ -23,7 +23,9 @@ PMX Canvas is a **collaborative spatial workspace** that humans and agents share
 
 ### What it's for
 
-Five core modes of thinking the canvas is built to support — pick the one that matches the work and the canvas adapts to it:
+pmx-canvas exists to drive a small set of high-value thinking modes — idea generation, validation, research, analysis, and mind mapping — by giving the human and the agent **one collaborative surface** where they can both place, move, group, and pin the same material. The canvas turns work that is normally scattered across chat history, tabs, files, and dashboards into something with **explicit context** (pinned nodes), **explicit relations** (edges, groups, proximity), and **explicit provenance** (which agent or human added which piece). Whatever data either side pulls in — files, fetched web pages, screenshots, log excerpts, structured panels, charts, hand-drawn diagrams, bundled web artifacts — lives on the same canvas and is reachable by both sides through `canvas://pinned-context`, `canvas://spatial-context`, the SSE event stream, and the rendered browser.
+
+The five modes the canvas is built to support — pick the one that matches the work, then mix them as the work shifts:
 
 - **Idea generation.** Capture divergent thoughts spatially without losing them. Drop quick markdown nodes wherever they land, group later. The agent helps you riff: "give me twelve angles on X" → twelve nodes appear, ready to be pruned.
 - **Validation.** Test an idea against evidence. Pin the claim, place supporting and contradicting sources next to it, ask the agent to summarize what's actually backed and what's hand-waved.
@@ -31,9 +33,9 @@ Five core modes of thinking the canvas is built to support — pick the one that
 - **Analysis.** Make sense of accumulated material. Cluster related findings, draw `references` edges between them, ask the agent to read `canvas://pinned-context` and tell you what pattern is emerging.
 - **Mind mapping.** Show relationships, hierarchies, and structure spatially. Groups for branches, edges for connections, `depends-on` and `relation` types for semantic links.
 
-Either way, the canvas is the **shared thinking surface** for these modes — a place where the agent's working memory and your spatial intuition meet.
+The canvas is the **shared thinking surface** for these modes — a place where the agent's working memory and your spatial intuition meet, and where context and relations stay first-class instead of disappearing into a chat scroll.
 
-**Spatial arrangement is communication.** When a human drags three file nodes next to a bug report, the agent knows they're related. When the agent drops 12 webpage nodes from a research session, the human can immediately group, prune, and pin the ones worth keeping. Both sides read the same `canvas://pinned-context`, `canvas://spatial-context`, and SSE event stream.
+**Spatial arrangement is communication.** When a human drags three file nodes next to a bug report, the agent knows they're related. When the agent drops 12 webpage nodes from a research session, the human can immediately group, prune, and pin the ones worth keeping. The agent reads spatial state via `canvas://pinned-context`, `canvas://spatial-context`, and the SSE event stream; the human reads the same state through the rendered browser.
 
 ## Prerequisites
 
