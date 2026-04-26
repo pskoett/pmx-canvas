@@ -522,11 +522,8 @@ async function buildJsonRenderRequestBody(
   flags: Record<string, string | true>,
 ): Promise<Record<string, unknown>> {
   const hint =
-    'Use: pmx-canvas node add --type json-render --title "Ops Dashboard" --spec-file ./dashboard.json';
+    'Use: pmx-canvas node add --type json-render --spec-file ./dashboard.json --title "Ops Dashboard"';
   const title = typeof flags.title === 'string' ? flags.title.trim() : '';
-  if (!title) {
-    die('json-render nodes require --title.', hint);
-  }
 
   const rawSpec = await readTextInput(flags, {
     fileFlags: ['spec-file'],
@@ -538,7 +535,7 @@ async function buildJsonRenderRequestBody(
   });
 
   const spec = parseJsonValue(rawSpec, 'JSON spec', hint);
-  const body: Record<string, unknown> = { title, spec };
+  const body: Record<string, unknown> = { ...(title ? { title } : {}), spec };
   applyCommonGeometryFlags(body, flags, {
     x: 'Use a finite number, e.g. --x 500',
     y: 'Use a finite number, e.g. --y 300',
@@ -985,8 +982,11 @@ cmd('node add', 'Add a node to the canvas', [
   const body: Record<string, unknown> = { type };
   if (flags.title) body.title = flags.title;
   const webpageUrl = getStringFlag(flags, 'url');
+  const imagePath = getStringFlag(flags, 'path');
   if (type === 'webpage' && webpageUrl) {
     body.url = webpageUrl;
+  } else if (type === 'image' && imagePath && !flags.content) {
+    body.content = imagePath;
   } else if (flags.content) {
     body.content = flags.content;
   }

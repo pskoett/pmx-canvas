@@ -818,6 +818,52 @@ describe('agent CLI node commands', () => {
     expect((node.data.spec as Record<string, unknown>).root).toBe('card');
   });
 
+  test('node add supports image --path and json-render without title', async () => {
+    const imagePath = join(workspaceRoot, 'cli-image-path.png');
+    writeFileSync(imagePath, Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+      'base64',
+    ));
+
+    const specPath = join(workspaceRoot, 'titleless-badge.json');
+    writeFileSync(specPath, JSON.stringify({
+      type: 'Badge',
+      props: { label: 'CLI Legacy', variant: 'success' },
+    }), 'utf-8');
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['node', 'add', '--type', 'image', '--path', imagePath]);
+      await runAgentCli(['node', 'add', '--type', 'json-render', '--spec-file', specPath]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    expect(log).toHaveBeenCalledTimes(2);
+    const imageOutput = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      id: string;
+      data: { src: string; mimeType: string };
+    };
+    expect(imageOutput.ok).toBe(true);
+    expect(imageOutput.data.src).toBe(imagePath);
+    expect(imageOutput.data.mimeType).toBe('image/png');
+
+    const jsonOutput = JSON.parse(log.mock.calls[1]?.[0] as string) as {
+      ok: boolean;
+      id: string;
+      spec: { root: string; elements: Record<string, { props?: { text?: string; variant?: string; label?: string } }> };
+    };
+    expect(jsonOutput.ok).toBe(true);
+    expect(jsonOutput.spec.root).toBe('root');
+    expect(jsonOutput.spec.elements.root?.props?.text).toBe('CLI Legacy');
+    expect(jsonOutput.spec.elements.root?.props?.variant).toBe('default');
+    expect(jsonOutput.spec.elements.root?.props).not.toHaveProperty('label');
+  });
+
   test('node add supports webpage nodes with the canonical --url flag', async () => {
     const log = mock(() => {});
     const originalLog = console.log;

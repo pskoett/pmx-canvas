@@ -19,6 +19,10 @@ interface ToolResultShape {
 
 const mcpServerPath = fileURLToPath(new URL('../../src/mcp/server.ts', import.meta.url));
 const fixtureMcpAppServerPath = fileURLToPath(new URL('../fixtures/mcp-app-fixture.ts', import.meta.url));
+const tinyPng = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64',
+);
 
 async function getAvailablePort(): Promise<number> {
   return await new Promise((resolve, reject) => {
@@ -381,7 +385,7 @@ describe('MCP parity with CLI', () => {
 
     const described = parseJsonText<{
       ok: boolean;
-      nodeTypes: Array<{ type: string; kind: string; mcpTool?: string; fields: Array<{ name: string; aliases?: string[] }> }>;
+      nodeTypes: Array<{ type: string; kind: string; mcpTool?: string; fields: Array<{ name: string; aliases?: string[]; required?: boolean }> }>;
       jsonRender: { components: Array<{ type: string }> };
       mcp: { nodeTypeRouting: Record<string, string> };
     }>(await session.client.callTool({
@@ -391,6 +395,8 @@ describe('MCP parity with CLI', () => {
 
     expect(described.ok).toBe(true);
     expect(described.nodeTypes.find((entry) => entry.type === 'webpage')?.fields.find((field) => field.name === 'url')?.aliases).toContain('content');
+    expect(described.nodeTypes.find((entry) => entry.type === 'image')?.fields.find((field) => field.name === 'content')?.aliases).toContain('path');
+    expect(described.nodeTypes.find((entry) => entry.type === 'json-render')?.fields.find((field) => field.name === 'title')).toMatchObject({ required: false });
     expect(described.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'series')).toBe(true);
     expect(described.nodeTypes.find((entry) => entry.type === 'external-app')?.kind).toBe('virtual-node');
     expect(described.mcp.nodeTypeRouting).toMatchObject({
@@ -445,6 +451,60 @@ describe('MCP parity with CLI', () => {
     expect(schemaText).toContain('"nodeTypeRouting"');
     expect(schemaText).toContain('"web-artifact": "canvas_build_web_artifact"');
     expect(schemaText).toContain('"canvas_validate_spec"');
+  });
+
+  test('canvas_add_node supports image path alias and json-render accepts legacy shapes', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+    const imagePath = join(session.workspaceRoot, 'mcp-image-path.png');
+    writeFileSync(imagePath, tinyPng);
+
+    const tools = await session.client.listTools();
+    const addNodeTool = tools.tools.find((tool) => tool.name === 'canvas_add_node');
+    expect(addNodeTool?.inputSchema.properties).toHaveProperty('path');
+    const jsonRenderTool = tools.tools.find((tool) => tool.name === 'canvas_add_json_render_node');
+    expect(jsonRenderTool?.inputSchema.required).not.toContain('title');
+
+    const image = parseJsonText<{
+      ok: boolean;
+      id: string;
+      data: { src: string; mimeType: string };
+    }>(await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'image',
+        path: imagePath,
+      },
+    }) as ToolResultShape);
+    expect(image.ok).toBe(true);
+    expect(image.data.src).toBe(imagePath);
+    expect(image.data.mimeType).toBe('image/png');
+
+    const jsonRender = parseJsonText<{
+      ok: boolean;
+      id: string;
+      spec: {
+        root: string;
+        elements: Record<string, { type?: string; props?: { text?: string; variant?: string; label?: string } }>;
+      };
+    }>(await session.client.callTool({
+      name: 'canvas_add_json_render_node',
+      arguments: {
+        spec: {
+          type: 'Badge',
+          props: { label: 'MCP Legacy', variant: 'success' },
+        },
+      },
+    }) as ToolResultShape);
+    expect(jsonRender.ok).toBe(true);
+    expect(jsonRender.spec.root).toBe('root');
+    expect(jsonRender.spec.elements.root?.type).toBe('Badge');
+    expect(jsonRender.spec.elements.root?.props?.text).toBe('MCP Legacy');
+    expect(jsonRender.spec.elements.root?.props?.variant).toBe('default');
+    expect(jsonRender.spec.elements.root?.props).not.toHaveProperty('label');
   });
 
   test('canvas_validate_spec covers the full graph payload surface', async () => {

@@ -257,6 +257,27 @@ describe('canvas server HTTP API', () => {
     expect(state.nodes.some((node) => node.id === created.id && node.type === 'image')).toBe(true);
   });
 
+  test('image nodes accept path as a compatibility alias for content', async () => {
+    const imagePath = join(workspaceRoot, 'local-image-path.png');
+    writeFileSync(imagePath, tinyPng);
+
+    const created = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      kind: string;
+      data: { src: string; path: string; mimeType: string };
+    }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'image', path: imagePath, title: 'Path image' }),
+    });
+
+    expect(created).toMatchObject({ ok: true, kind: 'image' });
+    expect(created.data.src).toBe(imagePath);
+    expect(created.data.path).toBe(imagePath);
+    expect(created.data.mimeType).toBe('image/png');
+  });
+
   test('image nodes reject non-image files even with an image extension', async () => {
     const fakeImagePath = join(workspaceRoot, 'not-an-image.png');
     writeFileSync(fakeImagePath, 'not image bytes', 'utf-8');
@@ -2202,11 +2223,63 @@ describe('canvas server HTTP API', () => {
     expect(layout.nodes.find((node) => node.id === graph.id)?.type).toBe('graph');
   }, 15_000);
 
+  test('accepts json-render without title and wraps bare component specs for compatibility', async () => {
+    const inferredTitle = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      spec: { root: string; elements: Record<string, unknown> };
+    }>('/api/canvas/json-render', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        spec: {
+          root: 'card',
+          elements: {
+            card: {
+              type: 'Card',
+              props: { title: 'Inferred Dashboard' },
+              children: [],
+            },
+          },
+        },
+      }),
+    });
+    expect(inferredTitle.ok).toBe(true);
+
+    const inferredNode = await jsonRequest<{ data: { title: string } }>(`/api/canvas/node/${inferredTitle.id}`);
+    expect(inferredNode.data.title).toBe('Inferred Dashboard');
+
+    const bareComponent = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      spec: {
+        root: string;
+        elements: Record<string, { type?: string; props?: { text?: string; variant?: string; label?: string } }>;
+      };
+    }>('/api/canvas/json-render', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        spec: {
+          type: 'Badge',
+          props: { label: 'Legacy OK', variant: 'success' },
+        },
+      }),
+    });
+
+    expect(bareComponent.ok).toBe(true);
+    expect(bareComponent.spec.root).toBe('root');
+    expect(bareComponent.spec.elements.root?.type).toBe('Badge');
+    expect(bareComponent.spec.elements.root?.props?.text).toBe('Legacy OK');
+    expect(bareComponent.spec.elements.root?.props?.variant).toBe('default');
+    expect(bareComponent.spec.elements.root?.props).not.toHaveProperty('label');
+  });
+
   test('exposes running-server schema metadata and structured validation over HTTP', async () => {
     const schema = await jsonRequest<{
       ok: boolean;
       source: string;
-      nodeTypes: Array<{ type: string; fields: Array<{ name: string; aliases?: string[] }> }>;
+      nodeTypes: Array<{ type: string; fields: Array<{ name: string; aliases?: string[]; required?: boolean }> }>;
       jsonRender: { components: Array<{ type: string }> };
       graph: { graphTypes: string[] };
       mcp: { tools: string[]; resources: string[]; nodeTypeRouting: Record<string, string> };
@@ -2215,6 +2288,8 @@ describe('canvas server HTTP API', () => {
     expect(schema.ok).toBe(true);
     expect(schema.source).toBe('running-server');
     expect(schema.nodeTypes.find((entry) => entry.type === 'webpage')?.fields.find((field) => field.name === 'url')?.aliases).toContain('content');
+    expect(schema.nodeTypes.find((entry) => entry.type === 'image')?.fields.find((field) => field.name === 'content')?.aliases).toContain('path');
+    expect(schema.nodeTypes.find((entry) => entry.type === 'json-render')?.fields.find((field) => field.name === 'title')).toMatchObject({ required: false });
     expect(schema.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'zKey')).toBe(true);
     expect(schema.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'metrics')).toBe(true);
     expect(schema.jsonRender.components.some((component) => component.type === 'Table')).toBe(true);
@@ -2306,25 +2381,6 @@ describe('canvas server HTTP API', () => {
   });
 
   test('rejects invalid json-render payloads and invalid viewer requests', async () => {
-    const missingTitle = await fetch(`${baseUrl}/api/canvas/json-render`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        spec: {
-          root: 'card',
-          elements: {
-            card: {
-              type: 'Card',
-              props: { title: 'Missing title wrapper' },
-              children: [],
-            },
-          },
-        },
-      }),
-    });
-    expect(missingTitle.status).toBe(400);
-    expect((await missingTitle.json() as { ok: boolean; error: string }).error).toContain('Missing required field: title');
-
     const invalidSpec = await fetch(`${baseUrl}/api/canvas/json-render`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

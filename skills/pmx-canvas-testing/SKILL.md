@@ -40,11 +40,25 @@ bun run test:all            # Bun suite + browser smoke
   Manual browser validation also requires a fresh client bundle. `bun run test:web-canvas`
   already does this for you.
 
+## Coverage Notes
+
+- `bun run test:coverage` covers the Bun unit suite under `tests/unit/`
+- Coverage output is written to `coverage/lcov.info` and also printed as a text summary
+- CI currently uses that same unit-test coverage command, then runs browser smoke separately
+- Do not describe `test:coverage` as full-stack coverage; Playwright coverage is not wired in here
+
 ## Current Project Test Surface
 
 - Bun tests live under `tests/unit/`
 - Playwright browser smoke lives under `tests/e2e/`
-- CI runs coverage plus the browser smoke flow
+- CI runs Bun coverage plus the browser smoke flow
+
+## WebView Automation Caveat
+
+- Some Linux/CI environments expose `Bun.WebView` but still cannot start a usable automation
+  session within the timeout window
+- When testing WebView automation, treat a cleanly reported unsupported/timeout runtime boundary
+  as distinct from a product regression
 
 Prefer extending the existing suites before inventing a one-off script.
 

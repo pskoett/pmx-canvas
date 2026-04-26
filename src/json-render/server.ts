@@ -11,7 +11,7 @@ export interface JsonRenderSpec {
 }
 
 export interface JsonRenderNodeInput {
-  title: string;
+  title?: string;
   spec: unknown;
   x?: number;
   y?: number;
@@ -447,10 +447,38 @@ function normalizeSpec(spec: Record<string, unknown>): Record<string, unknown> {
   return changed ? { ...spec, elements: normalizedElements } : spec;
 }
 
-export function normalizeAndValidateJsonRenderSpec(spec: unknown): JsonRenderSpec {
+function isBareJsonRenderElement(spec: Record<string, unknown>): boolean {
+  return typeof spec.type === 'string' && !('root' in spec) && !('elements' in spec);
+}
+
+function normalizeJsonRenderInput(spec: unknown): unknown {
   const specRecord = asRecord(spec);
+  if (!specRecord || !isBareJsonRenderElement(specRecord)) return spec;
+
+  return {
+    root: 'root',
+    elements: {
+      root: {
+        ...specRecord,
+        children: Array.isArray(specRecord.children)
+          ? specRecord.children.filter((child: unknown) => typeof child === 'string')
+          : [],
+      },
+    },
+  };
+}
+
+export function inferJsonRenderNodeTitle(spec: JsonRenderSpec, fallback = 'json-render'): string {
+  const rootElement = asRecord(spec.elements[spec.root]);
+  const rootProps = asRecord(rootElement?.props);
+  const title = rootProps?.title ?? rootProps?.text ?? rootElement?.type;
+  return typeof title === 'string' && title.trim().length > 0 ? title.trim() : fallback;
+}
+
+export function normalizeAndValidateJsonRenderSpec(spec: unknown): JsonRenderSpec {
+  const specRecord = asRecord(normalizeJsonRenderInput(spec));
   if (!specRecord || typeof specRecord.root !== 'string' || !asRecord(specRecord.elements)) {
-    throw new Error('Missing root and elements in spec.');
+    throw new Error('Missing root and elements in spec. Pass a complete {root, elements} document, or a single bare component object with a type field.');
   }
 
   const normalizedSpec = normalizeSpec(specRecord);

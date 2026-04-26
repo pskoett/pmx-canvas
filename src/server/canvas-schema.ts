@@ -171,7 +171,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     endpoint: '/api/canvas/node',
     mcpTool: 'canvas_add_node',
     fields: [
-      { name: 'content', type: 'string', required: true, description: 'Image path, URL, or data URI.' },
+      { name: 'content', type: 'string', required: true, description: 'Image path, URL, or data URI.', aliases: ['path'] },
       { name: 'title', type: 'string', required: false, description: 'Optional title override.' },
       { name: 'data.warning', type: 'string | { title?: string; detail: string }', required: false, description: 'Optional agent-supplied warning shown above the image.' },
       { name: 'data.warnings', type: 'Array<string | { title?: string; detail: string }>', required: false, description: 'Optional list of agent-supplied image warnings.' },
@@ -280,8 +280,8 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     endpoint: '/api/canvas/json-render',
     mcpTool: 'canvas_add_json_render_node',
     fields: [
-      { name: 'title', type: 'string', required: true, description: 'Rendered node title.' },
-      { name: 'spec', type: 'JsonRenderSpec', required: true, description: 'Complete json-render spec.' },
+      { name: 'title', type: 'string', required: false, description: 'Optional rendered node title; inferred from the root element when omitted.' },
+      { name: 'spec', type: 'JsonRenderSpec | JsonRenderElement', required: true, description: 'Complete {root, elements} json-render spec, or a legacy single bare component object with a type field.' },
       { name: 'x', type: 'number', required: false, description: 'Optional X position.' },
       { name: 'y', type: 'number', required: false, description: 'Optional Y position.' },
       { name: 'width', type: 'number', required: false, description: 'Optional node width.' },

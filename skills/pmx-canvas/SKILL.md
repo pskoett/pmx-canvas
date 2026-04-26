@@ -270,6 +270,7 @@ If a node type is rejected by `canvas_add_node`, call `canvas_describe_schema` a
 - `content`: for most types, this is markdown text. For `file` type, pass the **file path**
   (e.g., `"src/auth/login.ts"`) — the server auto-loads the file content and watches for changes.
   For `image` type, pass a file path, URL, or data URI.
+- `path`: compatibility alias for image paths only; prefer `content` for new image calls
 - `x`, `y`: position (auto-placed if omitted — prefer omitting for auto-layout)
 - `width`, `height`: dimensions (sensible defaults provided)
 - `color`: semantic color
@@ -306,8 +307,9 @@ If a node type is rejected by `canvas_add_node`, call `canvas_describe_schema` a
   ```
 
 **`canvas_add_json_render_node`** — Add a native json-render node
-- Required: `title`, `spec`
-- The `spec` must be a complete json-render object with `root`, `elements`, and optional `state`
+- Required: `spec`; `title` is optional and inferred from the root element when omitted
+- Prefer a complete json-render object with `root`, `elements`, and optional `state`
+- Legacy bare component specs like `{ type: "Badge", props: {...} }` are accepted and wrapped into a one-element document for compatibility
 - Use this when you want a structured UI panel rendered directly inside PMX Canvas
 - For shadcn `Badge`, prefer `props.text` with variants `default`, `secondary`, `destructive`, or
   `outline`. Legacy `props.label` and status variants (`success`, `info`, `warning`, `error`,

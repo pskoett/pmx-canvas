@@ -465,6 +465,7 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
   const frame = expandedPanel.frameLocator('iframe');
   await expect(frame.getByText('Fixture Counter')).toBeVisible();
   await expect(frame.locator('#count')).toHaveText('2');
+  await expect.poll(async () => frame.locator('body').evaluate((body) => body.scrollHeight - body.clientHeight)).toBe(0);
 
   // The widget's auto-resize notifications can make the iframe's reported
   // bounds waver by a pixel across measurements while it settles, which the

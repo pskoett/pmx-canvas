@@ -43,9 +43,14 @@ const html = `<!doctype html>
     <style>
       html, body {
         margin: 0;
+        min-height: 100%;
+        overflow: hidden;
         font: 14px/1.4 system-ui, sans-serif;
         background: #101828;
         color: #e5eef8;
+      }
+      *, *::before, *::after {
+        box-sizing: border-box;
       }
       main {
         min-height: 100vh;

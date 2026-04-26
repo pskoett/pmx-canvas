@@ -41,11 +41,18 @@ import { listBundledSkills, readBundledSkill } from '../server/bundled-skills.js
 
 let canvas: PmxCanvas | null = null;
 
-const jsonRenderSpecSchema = z.object({
-  root: z.string(),
-  elements: z.record(z.string(), z.unknown()),
-  state: z.record(z.string(), z.unknown()).optional(),
-}).passthrough();
+const jsonRenderSpecSchema = z.union([
+  z.object({
+    root: z.string(),
+    elements: z.record(z.string(), z.unknown()),
+    state: z.record(z.string(), z.unknown()).optional(),
+  }).passthrough(),
+  z.object({
+    type: z.string(),
+    props: z.record(z.string(), z.unknown()).optional(),
+    children: z.array(z.string()).optional(),
+  }).passthrough(),
+]);
 
 function structuredSchemaDescription(): string {
   const routing = describeCanvasSchema().mcp.nodeTypeRouting;
@@ -140,6 +147,7 @@ export async function startMcpServer(): Promise<void> {
         .describe('Node type (prefer canvas_create_group for groups)'),
       title: z.string().optional().describe('Node title'),
       content: z.string().optional().describe('Node content (markdown for markdown nodes, file path for file nodes, image path/URL/data-URI for image nodes, URL for webpage nodes)'),
+      path: z.string().optional().describe('Compatibility alias for image node content. Prefer content for image paths.'),
       url: z.string().optional().describe('Canonical webpage URL field for webpage nodes. Overrides content when both are provided.'),
       x: z.number().optional().describe('X position (auto-placed if omitted)'),
       y: z.number().optional().describe('Y position (auto-placed if omitted)'),
@@ -169,7 +177,10 @@ export async function startMcpServer(): Promise<void> {
           ...(result.ok ? {} : { isError: true }),
         };
       }
-      const id = c.addNode(input);
+      const nodeInput = input.type === 'image' && input.path && !input.content
+        ? { ...input, content: input.path }
+        : input;
+      const id = c.addNode(nodeInput);
       return {
         content: [{ type: 'text', text: JSON.stringify(createdNodePayload(c, id), null, 2) }],
       };
@@ -442,8 +453,8 @@ export async function startMcpServer(): Promise<void> {
     'canvas_add_json_render_node',
     'Create a native json-render canvas node from a complete spec. Use this for structured dashboards, forms, tables, and other interactive UI panels that should render directly inside PMX Canvas.',
     {
-      title: z.string().describe('Node title'),
-      spec: jsonRenderSpecSchema.describe('Complete json-render spec with root, elements, and optional state'),
+      title: z.string().optional().describe('Optional node title. If omitted, PMX Canvas infers one from the root element.'),
+      spec: z.unknown().describe('json-render spec. Prefer a complete {root, elements, state?} document; a single bare component object is accepted for legacy callers.'),
       x: z.number().optional().describe('Optional X position'),
       y: z.number().optional().describe('Optional Y position'),
       width: z.number().optional().describe('Optional node width'),
@@ -453,7 +464,7 @@ export async function startMcpServer(): Promise<void> {
       const c = await ensureCanvas();
       try {
         const result = c.addJsonRenderNode({
-          title: input.title,
+          ...(typeof input.title === 'string' ? { title: input.title } : {}),
           spec: input.spec,
           ...(typeof input.x === 'number' ? { x: input.x } : {}),
           ...(typeof input.y === 'number' ? { y: input.y } : {}),

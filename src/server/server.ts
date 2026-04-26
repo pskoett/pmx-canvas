@@ -1210,12 +1210,15 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
   const extraData = body.data && typeof body.data === 'object' && !Array.isArray(body.data)
     ? body.data as Record<string, unknown>
     : undefined;
+  const content = type === 'image' && typeof body.path === 'string' && typeof body.content !== 'string'
+    ? body.path
+    : body.content;
   let added: ReturnType<typeof addCanvasNode>;
   try {
     added = addCanvasNode({
       type: type as CanvasNodeState['type'],
       ...(typeof body.title === 'string' ? { title: body.title } : {}),
-      ...(typeof body.content === 'string' ? { content: body.content } : {}),
+      ...(typeof content === 'string' ? { content } : {}),
       ...(extraData ? { data: extraData } : {}),
       ...(typeof body.x === 'number' ? { x: body.x } : {}),
       ...(typeof body.y === 'number' ? { y: body.y } : {}),
@@ -1603,13 +1606,10 @@ async function handleCanvasAddJsonRender(req: Request): Promise<Response> {
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   const rawSpec =
     body.spec && typeof body.spec === 'object' && !Array.isArray(body.spec) ? body.spec : body;
-  if (!title) {
-    return responseJson({ ok: false, error: 'Missing required field: title.' }, 400);
-  }
 
   try {
     const result = createCanvasJsonRenderNode({
-      title,
+      ...(title ? { title } : {}),
       spec: rawSpec,
       ...(typeof body.x === 'number' ? { x: body.x } : {}),
       ...(typeof body.y === 'number' ? { y: body.y } : {}),

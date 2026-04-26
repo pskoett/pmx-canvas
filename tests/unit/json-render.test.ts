@@ -134,6 +134,24 @@ describe('json-render validation', () => {
       expect('label' in props).toBe(false);
     }
   });
+
+  test('wraps bare component specs for legacy callers', () => {
+    const normalized = normalizeAndValidateJsonRenderSpec({
+      type: 'Badge',
+      props: { label: 'Legacy Badge', variant: 'success' },
+    });
+
+    expect(normalized.root).toBe('root');
+    expect(normalized.elements.root).toEqual(expect.objectContaining({
+      type: 'Badge',
+      props: expect.objectContaining({
+        text: 'Legacy Badge',
+        variant: 'default',
+      }),
+      children: [],
+    }));
+    expect((normalized.elements.root as { props?: Record<string, unknown> }).props).not.toHaveProperty('label');
+  });
 });
 
 describe('graph builder', () => {

@@ -3,6 +3,56 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.8] - 2026-04-25
+
+Retest-driven follow-up to 0.1.7. This next release restores compatibility
+for image and json-render node creation, fixes the counter MCP fixture's
+accidental iframe overflow, and syncs packaged testing guidance with the
+canonical repo skill.
+
+### Fixed
+
+- **Image `path` is accepted as a compatibility alias for `content`.**
+  `pmx-canvas node add --type image --path <file>`, HTTP
+  `/api/canvas/node` payloads with `{ type: "image", path }`, and MCP
+  `canvas_add_node({ type: "image", path })` now all validate the file
+  and populate `data.src` instead of creating an empty/broken image node.
+- **json-render creation keeps 0.1.7 compatibility.**
+  `canvas_add_json_render_node`, `POST /api/canvas/json-render`, and
+  CLI `node add --type json-render` accept omitted titles and infer a
+  node title from the root element. Bare legacy component specs like
+  `{ type: "Badge", props: {...} }` are wrapped into a one-element
+  document before validation, while complete `{ root, elements }` specs
+  remain the canonical shape.
+- **Counter MCP fixture no longer creates a scrollable iframe by
+  accident.** The fixture now uses border-box sizing and hides root
+  overflow so `100vh` layouts with padding do not become `100vh +
+  padding`. This removes the observed repeated downward scroll in the
+  counter app and adds browser coverage for zero iframe body overflow.
+
+### Changed
+
+- **Packaged PMX Canvas testing skill is back in sync with canonical
+  guidance.** It now documents that `test:coverage` covers only the Bun
+  unit suite, names the coverage artifact, and calls out the WebView
+  automation timeout caveat used to distinguish environment limits from
+  product regressions.
+- **Schema metadata for the `path` alias and relaxed json-render contract
+  is version-stable.** `canvas_describe_schema` and `canvas://schema`
+  surface the image `path` alias and `title.required: false` on
+  json-render so agents discover the new shapes without reading the
+  CHANGELOG.
+- **Agent-facing `skills/pmx-canvas/SKILL.md` documents the same
+  contract.** The skill now describes the `path` alias for image nodes
+  and the relaxed json-render contract (omitted titles, bare component
+  specs) so agents do not need to retry across shapes.
+
+### Internal
+
+- Regression coverage for image `path` alias handling across CLI/HTTP/MCP,
+  json-render compatibility for omitted titles plus bare component specs,
+  and hosted counter MCP app iframe overflow.
+
 ## [0.1.7] - 2026-04-26
 
 Small retest-driven follow-up to 0.1.6. Three agent-facing ergonomics:
@@ -50,6 +100,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.8]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.8
 [0.1.7]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.7
 
 ## [0.1.6] - 2026-04-26

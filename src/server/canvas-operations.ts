@@ -24,6 +24,7 @@ import {
   buildGraphSpec,
   createJsonRenderNodeData,
   GRAPH_NODE_SIZE,
+  inferJsonRenderNodeTitle,
   JSON_RENDER_NODE_SIZE,
   normalizeAndValidateJsonRenderSpec,
   type GraphNodeInput,
@@ -1000,7 +1001,7 @@ export function createCanvasJsonRenderNode(
     collapsed: false,
     pinned: false,
     dockPosition: null,
-    data: createJsonRenderNodeData(id, input.title, spec, {
+    data: createJsonRenderNodeData(id, input.title?.trim() || inferJsonRenderNodeTitle(spec), spec, {
       viewerType: 'json-render',
     }),
   };

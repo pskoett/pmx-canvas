@@ -4,7 +4,7 @@ export interface JsonRenderSpec {
     state?: Record<string, unknown>;
 }
 export interface JsonRenderNodeInput {
-    title: string;
+    title?: string;
     spec: unknown;
     x?: number;
     y?: number;
@@ -44,6 +44,7 @@ export declare const GRAPH_NODE_SIZE: {
     height: number;
 };
 export type GraphChartType = 'LineChart' | 'BarChart' | 'PieChart' | 'AreaChart' | 'ScatterChart' | 'RadarChart' | 'StackedBarChart' | 'ComposedChart';
+export declare function inferJsonRenderNodeTitle(spec: JsonRenderSpec, fallback?: string): string;
 export declare function normalizeAndValidateJsonRenderSpec(spec: unknown): JsonRenderSpec;
 export declare function normalizeGraphType(value: string): GraphChartType;
 export declare function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec;
