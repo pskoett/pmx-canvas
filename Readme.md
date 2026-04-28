@@ -27,7 +27,7 @@ pmx-canvas drives any work that benefits from making **context, relations, and p
 
 **The canvas is agnostic about what you do with it.** The reach of the workspace is the union of pmx-canvas's own node types and **whatever your agent's harness already has access to** — MCP servers, MCP apps, shell commands and CLIs, files in the working directory, web-fetch tools, anything else its toolbelt exposes. The canvas itself doesn't care where the data came from; it just needs the agent (or you) to drop it on the surface as the right node type. To make that concrete:
 
-- A **Jira MCP** turns the canvas into a triage board — tickets land as `markdown` nodes you can group by status and pin the in-flight ones.
+- An **Atlassian MCP** or **GitHub MCP/CLI** turns the canvas into a triage board — tickets or issues land as `markdown` nodes you can group by status and pin the in-flight ones.
 - A **database MCP** turns it into an exploratory query workbench — each query result becomes a `json-render` table or `graph` node next to the `markdown` node holding the SQL.
 - An **Excalidraw MCP app** turns it into a sketch surface — diagrams open as `mcp-app` nodes you can resize and annotate.
 - A **shell-driven agent** with `gh` + `kubectl` in its harness turns it into an ops board — open issues become markdown, pod statuses become `status` nodes, the relationships you care about become edges.
