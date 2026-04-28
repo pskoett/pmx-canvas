@@ -200,15 +200,16 @@ For one-off local runs without linking, `bun run src/cli/index.ts ...` works too
 
 ### Recommended ways to drive the canvas
 
-Once the canvas is up, two control surfaces are first-class:
+Once the canvas is up, pick the control surface that fits your agent or script:
 
 - **CLI** for local use, scripting, automation, and terminal-native agents.
 - **MCP** for agents that already speak the Model Context Protocol — 38 tools +
-  8 resources, including the bundled-skill index at `canvas://skills`.
+  8 core resources, including the bundled-skill index at `canvas://skills`.
+- **HTTP API** for REST/SSE clients in any language.
+- **Bun SDK** for TypeScript code running on Bun.
 
-Both paths cover core canvas work. A few advanced capabilities (live resource
-subscriptions, `canvas_diff`) remain MCP-only. The HTTP API and the
-[Bun SDK](#javascripttypescript-sdk-bun-runtime) are also available for programmatic use.
+The CLI and MCP cover normal canvas work; the reference sections below show
+the exact commands, tools, and payloads.
 
 #### Connect your agent (MCP)
 
@@ -377,6 +378,24 @@ File nodes display project files with line numbers and language detection. When 
 
 ```typescript
 canvas_add_node({ type: 'file', content: 'src/server/index.ts' })
+```
+
+### Image nodes
+
+Image nodes display local paths, remote URLs, and data URIs. File-backed and
+HTTP(S)-backed images preserve provenance so agents can tell where evidence
+came from, and nodes can carry validation status or warnings when an agent is
+using screenshots as proof.
+
+```typescript
+canvas_add_node({
+  type: 'image',
+  content: 'artifacts/dashboard.png',
+  data: {
+    validationStatus: 'passed',
+    validationMessage: 'Screenshot matches the requested dashboard state.',
+  },
+})
 ```
 
 ### Webpage nodes
@@ -645,6 +664,19 @@ File nodes automatically detect import dependencies between each other. Add file
 - Auto-reconnect with exponential backoff
 - MCP resource change notifications close the human-to-agent loop
 
+### Semantic watch
+
+`pmx-canvas watch` consumes the SSE stream and emits compact semantic deltas
+for agents that need low-token updates instead of full layout snapshots. It
+filters noise from harmless moves and reports meaningful events such as pins,
+node additions/removals, group changes, edge connections, and moves that
+change spatial clustering.
+
+```bash
+pmx-canvas watch --events context-pin,move-end
+pmx-canvas watch --json --events context-pin --max-events 1
+```
+
 ### WebView automation
 
 Agents can drive a headless Bun.WebView (Chromium or WebKit) pointed at their own workbench,
@@ -709,21 +741,19 @@ tool.
 
 ## Integration
 
-### CLI and MCP (recommended)
+### CLI and MCP alignment
 
-Use either of the two primary control surfaces depending on how your agent runs:
-
-- **CLI** if your workflow is shell-native, scriptable, or driven by terminal commands
-- **MCP** if your agent already uses tool/resource calls over stdio
-
-Both paths are first-class for core canvas work. A few advanced capabilities, such as `canvas_diff` and MCP resource subscriptions, remain MCP-only.
-
-CLI and MCP are intentionally kept aligned for the main canvas operations, including batch builds,
-layout validation, graph/json-render nodes, group control, snapshots, and search-based edge creation.
+CLI and MCP are kept aligned for the main canvas operations: node and edge
+creation, graph/json-render nodes, web artifacts, external apps, groups,
+batch builds, layout validation, snapshots, search, focus, pins, undo/redo,
+semantic watch streams, WebView automation, and daemon/server control where
+it applies. A few agent-native capabilities, such as resource subscriptions
+and `canvas_diff`, remain MCP-only.
 
 ### MCP server
 
-38 tools + 8 resources. Zero config for any MCP-capable agent.
+38 tools + 8 core resources, plus per-skill resources under `canvas://skills/<name>`.
+Zero config for any MCP-capable agent.
 
 <details>
 <summary>MCP tools</summary>
@@ -773,6 +803,9 @@ layout validation, graph/json-render nodes, group control, snapshots, and search
 
 <details>
 <summary>MCP resources</summary>
+
+The table lists the core resources. Individual bundled skills are also readable
+at `canvas://skills/<name>`.
 
 | Resource | Description |
 |----------|-------------|
@@ -976,6 +1009,7 @@ pmx-canvas node schema --type json-render --component Table --summary
 pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation
 pmx-canvas batch --file ./canvas-ops.json
 pmx-canvas validate
+pmx-canvas watch --events context-pin,move-end
 pmx-canvas focus <node-id> --no-pan
 pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary
 pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --deps recharts --include-logs
@@ -1018,48 +1052,12 @@ make HTTP requests, or invoke a CLI can drive the canvas.
 | HTTP-only environment | REST + SSE | `fetch()` / `curl` at `http://localhost:4313/api/canvas/...` |
 | Bun runtime | TypeScript SDK | `import { createCanvas } from 'pmx-canvas'` |
 
-## Known limitations
-
-These are real things you'll hit and they aren't your fault — work around
-them rather than chase them as bugs.
-
-- **Single-machine, no built-in multi-user auth.** See
-  [Scope](#scope) above. Sharing a canvas
-  across machines today means committing `.pmx-canvas/state.json`.
-- **Excalidraw / external `mcp-app` flakes:** grouped Excalidraw element IDs
-  can change after edits, so an agent that builds a diagram in two passes
-  should capture every element ID immediately after `canvas_add_diagram`
-  returns. Editing while another tool call is in flight occasionally drops
-  the in-progress edit.
-- **External MCP apps are transport-based over MCP.** `canvas_open_mcp_app`
-  requires `toolName` plus a `transport` object for the external MCP server.
-  For the built-in Excalidraw preset, use `canvas_add_diagram`; the CLI's
-  `external-app add --kind excalidraw` is a higher-level convenience wrapper.
-- **Web-artifact build timeouts on cold installs.** The first
-  `canvas_build_web_artifact` call in a fresh workspace runs `pnpm install`
-  for ~30 dependencies. On constrained machines or slow networks, the
-  default timeout can fire before the install completes — bump
-  `--timeout-ms` (CLI) or `timeoutMs` (MCP/SDK) on first use, or
-  pre-warm with `bunx pmx-canvas web-artifact build --title warmup
-  --app-tsx 'export default () => null'`.
-- **Webpage-fetch failure modes.** Sites that require auth, render purely
-  client-side without server HTML, or block headless fetches will store
-  with empty extracted text. The node still works as a URL bookmark; the
-  agent's view of the content will be the URL only.
-- **Image cloud-on-demand stalls (macOS).** Images stored in iCloud Drive
-  / OneDrive that aren't downloaded locally are detected up-front and
-  rejected with a clear error rather than freezing the server. Download
-  the file locally first.
-- **`prompt` and `response` node types are internal.** They surface in
-  `canvas://layout` for thread rendering but aren't created via the public
-  `canvas_add_node` API.
-
 ## Architecture
 
 ```
 Agent harness (any MCP-capable client, CLI consumer, or HTTP caller)
   |
-  |-- MCP Server ---- 38 tools + 8 resources + change notifications
+  |-- MCP Server ---- 38 tools + 8 core resources + per-skill resources + change notifications
   |-- Bun SDK ------- createCanvas()
   |-- HTTP API ------ REST + SSE at localhost:4313
   |
