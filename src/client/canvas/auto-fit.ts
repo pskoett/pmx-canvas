@@ -1,14 +1,14 @@
 import type { CanvasNodeState } from '../types';
 
-export const AUTO_FIT_MAX_HEIGHT = 600;
 export const AUTO_FIT_TITLEBAR_HEIGHT = 37;
+export const AUTO_FIT_MAX_HEIGHT = 600;
 
 function isExtAppNode(node: CanvasNodeState): boolean {
   return node.type === 'mcp-app' && node.data.mode === 'ext-app';
 }
 
 function hasExplicitStructuredFrame(node: CanvasNodeState): boolean {
-  return (node.type === 'graph' || node.type === 'json-render') && node.size.height > AUTO_FIT_MAX_HEIGHT;
+  return node.type === 'graph' || node.type === 'json-render';
 }
 
 export function shouldAutoFitNode(node: CanvasNodeState): boolean {

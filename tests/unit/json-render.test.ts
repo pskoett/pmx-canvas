@@ -109,23 +109,23 @@ describe('json-render validation', () => {
 
     expect(spec.elements.healthy?.props).toEqual(expect.objectContaining({
       text: 'Healthy',
-      variant: 'default',
+      variant: 'success',
     }));
     expect(spec.elements.info?.props).toEqual(expect.objectContaining({
       text: 'Heads up',
-      variant: 'secondary',
+      variant: 'info',
     }));
     expect(spec.elements.warning?.props).toEqual(expect.objectContaining({
       text: 'Attention',
-      variant: 'outline',
+      variant: 'warning',
     }));
     expect(spec.elements.error?.props).toEqual(expect.objectContaining({
       text: 'Build broken',
-      variant: 'destructive',
+      variant: 'error',
     }));
     expect(spec.elements.danger?.props).toEqual(expect.objectContaining({
       text: 'Blocked',
-      variant: 'destructive',
+      variant: 'danger',
     }));
 
     // After normalization the legacy `label` key must be gone — the spec
@@ -147,7 +147,7 @@ describe('json-render validation', () => {
       type: 'Badge',
       props: expect.objectContaining({
         text: 'Legacy Badge',
-        variant: 'default',
+        variant: 'success',
       }),
       visible: true,
       children: [],

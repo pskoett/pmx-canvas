@@ -143,6 +143,67 @@ button {
   cursor: pointer;
 }
 
+.pmx-badge {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  overflow: hidden;
+  white-space: nowrap;
+  border: 1px solid transparent;
+  border-radius: 9999px;
+  padding: 0.125rem 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.25rem;
+}
+
+.pmx-badge--default {
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
+
+.pmx-badge--secondary {
+  background: var(--secondary);
+  color: var(--secondary-foreground);
+}
+
+.pmx-badge--destructive {
+  background: var(--destructive);
+  color: var(--destructive-foreground);
+}
+
+.pmx-badge--outline {
+  border-color: var(--border);
+  color: var(--foreground);
+}
+
+.pmx-badge--success {
+  border-color: color-mix(in oklch, var(--chart-2) 45%, transparent);
+  background: color-mix(in oklch, var(--chart-2) 16%, transparent);
+  color: var(--chart-2);
+}
+
+.pmx-badge--info {
+  border-color: color-mix(in oklch, var(--chart-1) 45%, transparent);
+  background: color-mix(in oklch, var(--chart-1) 14%, transparent);
+  color: var(--chart-1);
+}
+
+.pmx-badge--warning {
+  border-color: color-mix(in oklch, var(--chart-3) 50%, transparent);
+  background: color-mix(in oklch, var(--chart-3) 18%, transparent);
+  color: var(--chart-3);
+}
+
+.pmx-badge--error,
+.pmx-badge--danger {
+  border-color: color-mix(in oklch, var(--destructive) 55%, transparent);
+  background: color-mix(in oklch, var(--destructive) 18%, transparent);
+  color: var(--destructive);
+}
+
 /* -- Chart components -- */
 
 .pmx-chart {

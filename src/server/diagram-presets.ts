@@ -115,6 +115,52 @@ function elementHasCameraUpdate(elements: Array<Record<string, unknown>>): boole
   return elements.some((element) => element.type === 'cameraUpdate');
 }
 
+function normalizeExcalidrawBoundText(elements: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
+  const elementsById = new Map<string, Record<string, unknown>>();
+  for (const element of elements) {
+    if (typeof element.id === 'string') elementsById.set(element.id, element);
+  }
+
+  let changed = false;
+  const boundElementIdsByContainer = new Map<string, Set<string>>();
+
+  for (const element of elements) {
+    if (element.type !== 'text' || typeof element.id !== 'string' || typeof element.containerId !== 'string') continue;
+    if (!elementsById.has(element.containerId)) continue;
+    const ids = boundElementIdsByContainer.get(element.containerId) ?? new Set<string>();
+    ids.add(element.id);
+    boundElementIdsByContainer.set(element.containerId, ids);
+  }
+
+  const normalized = elements.map((element) => {
+    if (typeof element.id !== 'string') return element;
+    const boundTextIds = boundElementIdsByContainer.get(element.id);
+    if (!boundTextIds || boundTextIds.size === 0) return element;
+
+    const existing = Array.isArray(element.boundElements)
+      ? element.boundElements.filter(isRecord)
+      : [];
+    const existingTextIds = new Set(
+      existing
+        .filter((boundElement) => boundElement.type === 'text' && typeof boundElement.id === 'string')
+        .map((boundElement) => boundElement.id as string),
+    );
+    const missing = [...boundTextIds].filter((id) => !existingTextIds.has(id));
+    if (missing.length === 0) return element;
+
+    changed = true;
+    return {
+      ...element,
+      boundElements: [
+        ...existing,
+        ...missing.map((id) => ({ type: 'text', id })),
+      ],
+    };
+  });
+
+  return changed ? normalized : elements;
+}
+
 function resolveExcalidrawCameraSize(width: number, height: number): { width: number; height: number } {
   const requiredWidth = Math.max(EXCALIDRAW_MIN_CAMERA_WIDTH, width);
   const requiredHeight = Math.max(EXCALIDRAW_MIN_CAMERA_HEIGHT, height);
@@ -211,13 +257,13 @@ export function normalizeExcalidrawElements(elements: unknown): string {
 export function normalizeExcalidrawElementsForToolInput(elements: unknown): string {
   const parsed = parseExcalidrawElements(elements);
   const seeded = parsed.length > 0 ? parsed : [...DEFAULT_EXCALIDRAW_ELEMENTS];
-  return JSON.stringify(withInferredCameraUpdate(seeded));
+  return JSON.stringify(withInferredCameraUpdate(normalizeExcalidrawBoundText(seeded)));
 }
 
 export function normalizeExcalidrawCheckpointDataForToolInput(data: unknown): string | null {
   const elements = parseExcalidrawCheckpointElements(data);
 
-  return elements ? JSON.stringify(withInferredCameraUpdate(elements)) : null;
+  return elements ? JSON.stringify(withInferredCameraUpdate(normalizeExcalidrawBoundText(elements))) : null;
 }
 
 export function buildExcalidrawRestoreCheckpointToolInput(checkpointId: string, data?: unknown): string {

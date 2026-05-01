@@ -63,7 +63,7 @@ The canvas is the agent's extended working memory: humans pin nodes to curate co
 
 3. **Rebuild canvas bundle after client source changes.** After modifying any file under `src/client/`, run `bun run build` before testing in the browser. The dist bundle is not auto-built; stale bundles silently hide new features.
 
-4. **Canvas edits happen in place.** The web canvas is a live multi-node workspace. Flows should update the current session without evicting prior nodes. Agents must not describe the canvas as requiring reopen/replace for additional documents.
+4. **Canvas edits happen in place.** The web canvas is a live multi-node workspace. Flows should update the current session without evicting prior nodes (including prior document nodes). Agents must not describe the canvas as requiring reopen/replace for additional documents.
 
 5. **MCP tools map 1:1 to PmxCanvas methods.** When adding a new canvas operation, add it to: (a) `CanvasStateManager`, (b) `PmxCanvas` class in `src/server/index.ts`, (c) HTTP endpoint in `src/server/server.ts`, (d) MCP tool in `src/mcp/server.ts`. All four layers must stay in sync.
 
@@ -80,40 +80,6 @@ The canvas is the agent's extended working memory: humans pin nodes to curate co
 - **MCP:** @modelcontextprotocol/sdk (stdio transport)
 - **Bundler:** Bun bundler for client SPA
 - **Dependencies:** `preact`, `@preact/signals`, `marked`, `@modelcontextprotocol/sdk`, `@modelcontextprotocol/ext-apps`, `zod`
-
-## Project Structure
-
-```
-src/
-  server/           # HTTP/SSE server, state management, canvas tools
-    index.ts        # PmxCanvas class, createCanvas() export
-    server.ts       # Bun.serve HTTP + SSE server, all REST endpoints
-    canvas-state.ts # CanvasStateManager singleton (authoritative state)
-    placement.ts    # Collision-aware auto-positioning
-    trace-manager.ts
-    chart-template.ts
-    context-cards.ts
-    mcp-app-host.ts
-    ext-app-*.ts    # External app hosting
-  client/           # Preact SPA (served at /workbench)
-    App.tsx          # Root component (toolbar, HUD, keyboard shortcuts)
-    index.tsx        # Entry point
-    types.ts         # Shared TypeScript types
-    canvas/          # Canvas interaction components (viewport, nodes, edges, minimap)
-    nodes/           # Node type renderers
-    state/           # State management (canvas-store, sse-bridge, intent-bridge)
-    theme/           # global.css, tokens.ts
-    utils/           # Shared pure functions (placement, ext-app-tool-result)
-  cli/
-    index.ts         # CLI entry point (--port, --demo, --no-open, --theme, --mcp)
-  mcp/
-    server.ts        # MCP server (tools + resources)
-skills/
-  pmx-canvas/
-    SKILL.md         # Agent skill file
-dist/
-  canvas/            # Built client SPA (index.js + global.css)
-```
 
 ## Build & Run
 
@@ -165,6 +131,12 @@ intentionally does not document the release flow — it's an end-user-facing fil
 and the release process is maintainer-only.
 
 ## Testing Conventions
+
+Use the `pmx-canvas-testing` skill for the repo-standard verification ladder, test command
+selection, and handoff expectations whenever you change code in this project.
+
+Use the `published-consumer-e2e` skill when you need to validate PMX Canvas as an installed
+package in a clean temp consumer instead of the repo dev path.
 
 1. **Never dismiss failing tests.** Investigate every failure before declaring success. A "pre-existing" failure still needs resolution or explicit acknowledgment.
 
@@ -270,6 +242,28 @@ When file nodes are on the canvas, the system auto-detects import dependencies a
 5. **Capture Lessons**: Update `.learnings` files after corrections
 6. **Review Before Done**: Final review to ensure everything is clear and robust
 
+## Creating a New Skill
+
+1. Create folder in `skills/` with skill name (lowercase, hyphens)
+2. Create `SKILL.md` with YAML frontmatter:
+   ```yaml
+   ---
+   name: skill-name
+   description: What it does and when to use it.
+   ---
+   ```
+3. Add optional directories: `scripts/`, `references/`, `assets/`
+4. Ensure folder name matches `name` field
+
+## Validating Skills
+
+- Frontmatter has required `name` and `description`
+- `name` is lowercase, hyphens only, matches folder
+- `description` explains what AND when to use
+- No README.md or other auxiliary files in skill folder
+- Agent-facing pipeline skills live in `.agents/skills/` and must be mirrored identically in `.claude/skills/` and `.opencode/skills/`
+- Run `bun run validate:agent-skills` after changing any mirrored skill files
+
 ## Error Hygiene
 
 When maintaining `.learnings/`:
@@ -280,23 +274,28 @@ When maintaining `.learnings/`:
 ## Agent Skill Pipeline
 
 - Agent-facing pipeline skills are stored in `.agents/skills/` and mirrored in `.claude/skills/` and `.opencode/skills/`
-- Use `skill-pipeline` as the top-level router for non-trivial coding tasks
+- Use `skill-pipeline` as the top-level router / entrypoint for non-trivial coding tasks
 - Claude Code hooks are configured in `.claude/settings.json` and point at the mirrored `.claude/skills/` scripts
 - Keep the three skill trees byte-for-byte identical; verify with `bun run validate:agent-skills`
+- Use the skill definitions under `.agents/skills/` as the canonical instructions
 
 ### How To Run It
 
+Treat pipeline depth as task-sized:
+
+- Trivial tasks: no pipeline
 - Small tasks: run `verify-gate` then `simplify-and-harden`
 - Medium tasks: run `intent-framed-agent`, then `verify-gate`, then `simplify-and-harden`
 - Large or long-running tasks: run `plan-interview`, then `intent-framed-agent` with `context-surfing`, then `verify-gate`, then `simplify-and-harden`, then `self-improvement`
 - Batch tasks: run `agent-teams-simplify-and-harden`, then `self-improvement`
 - CI/headless review: use `simplify-and-harden-ci` and `self-improvement-ci`; use `learning-aggregator-ci` and `eval-creator-ci` for the outer loop
-- Session-start hooks should surface `pre-flight-check`; Claude hooks also wire `context-surfing` handoff detection and `self-improvement` reminders
+- Run `pre-flight-check` at session start when hooks are available; Claude hooks also wire `context-surfing` handoff detection and `self-improvement` reminders
+- Use `learning-aggregator` and `eval-creator` for cross-session outer-loop improvement work
 
 ### Version
 
 - Imported pipeline version manifest: `.agents/skills/PIPELINE_VERSIONS.md`
-- Canonical imported revision: `01ae6f8b3c9a0ab96e8ec87b27fdd88677696cde`
+- Canonical imported revision: `01ae6f8b3c9a0ab96e8ec87b27fdd88677696cde` from `https://github.com/pskoett/pskoett-ai-skills`
 
 ## Browser Automation Visibility Rule
 

@@ -30,7 +30,7 @@ if (args.includes('--version') || args.includes('-v')) {
 // If first arg is a known subcommand (not a --flag), route to the agent CLI.
 const AGENT_COMMANDS = new Set([
   'node', 'edge', 'search', 'layout', 'status', 'arrange', 'focus',
-  'pin', 'undo', 'redo', 'history', 'snapshot', 'diff', 'group', 'webview', 'open',
+  'fit', 'pin', 'undo', 'redo', 'history', 'snapshot', 'diff', 'group', 'webview', 'open',
   'clear', 'code-graph', 'spatial', 'watch', 'web-artifact', 'external-app', 'graph', 'batch', 'validate', 'serve',
 ]);
 

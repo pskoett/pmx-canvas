@@ -126,7 +126,10 @@ describe('applyServerCanvasLayout', () => {
     expect(expandedNodeId.value).toBe(node.id);
     expect(pendingExpandedNodeCloseId.value).toBe(node.id);
 
-    await Bun.sleep(2550);
+    const deadline = Date.now() + 3500;
+    while (expandedNodeId.value !== null && Date.now() < deadline) {
+      await Bun.sleep(25);
+    }
 
     expect(expandedNodeId.value).toBeNull();
     expect(pendingExpandedNodeCloseId.value).toBeNull();

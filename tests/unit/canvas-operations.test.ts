@@ -94,6 +94,31 @@ describe('canvas operations', () => {
     expect(canvasState.getNode('group-a')?.position).toEqual({ x: 40, y: 80 });
     expect(canvasState.getNode('child-a')?.position).toEqual({ x: 64, y: 124 });
   });
+
+  test('validation treats group children list containment as non-collision', () => {
+    canvasState.addNode(makeNode({
+      id: 'group-a',
+      type: 'group',
+      position: { x: 40, y: 40 },
+      size: { width: 600, height: 360 },
+      data: { title: 'Group A', children: ['child-a'] },
+    }));
+    canvasState.addNode(makeNode({
+      id: 'child-a',
+      type: 'markdown',
+      position: { x: 64, y: 84 },
+      size: { width: 360, height: 200 },
+      data: { title: 'Child A' },
+    }));
+
+    const validation = validateCanvasLayout(canvasState.getLayout());
+
+    expect(validation.ok).toBe(true);
+    expect(validation.collisions).toEqual([]);
+    expect(validation.containments).toEqual([
+      expect.objectContaining({ groupId: 'group-a', childId: 'child-a' }),
+    ]);
+  });
 });
 
 describe('image node validation', () => {

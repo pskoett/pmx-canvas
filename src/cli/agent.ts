@@ -241,6 +241,14 @@ function optionalPositiveFiniteFlagWithAliases(
   return undefined;
 }
 
+function optionalBooleanFlag(flags: Record<string, string | true>, name: string, hint: string): boolean | undefined {
+  const val = flags[name];
+  if (val === undefined) return undefined;
+  if (val === true || val === 'true') return true;
+  if (val === 'false') return false;
+  die(`Invalid value for --${name}: ${String(val)}`, hint);
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
@@ -1216,6 +1224,7 @@ cmd('node update', 'Update a node by ID', [
   'pmx-canvas node update <node-id> --width 840 --height 620',
   'pmx-canvas node update <node-id> --spec-file ./dashboard.json',
   'pmx-canvas node update <graph-id> --data-file ./metrics.json --chart-height 420',
+  'pmx-canvas node update <node-id> --pinned true',
   'pmx-canvas node update <node-id> --lock-arrange',
 ], async (args) => {
   const { positional, flags } = parseFlags(args);
@@ -1234,6 +1243,17 @@ cmd('node update', 'Update a node by ID', [
   const y = optionalFiniteFlag(flags, 'y', 'Use a finite number, e.g. --y 300');
   const width = optionalPositiveFiniteFlag(flags, 'width', 'Use a positive number, e.g. --width 840');
   const height = optionalPositiveFiniteFlag(flags, 'height', 'Use a positive number, e.g. --height 620');
+  const nodeHeight = optionalPositiveFiniteFlagWithAliases(
+    flags,
+    'Use a positive number, e.g. --node-height 620',
+    'node-height',
+    'nodeHeight',
+  );
+  if (height !== undefined && nodeHeight !== undefined) {
+    die('Use either --height/--node-height, not both.');
+  }
+  const frameHeight = height ?? nodeHeight;
+  const pinned = optionalBooleanFlag(flags, 'pinned', 'Use --pinned true or --pinned false');
   if (flags['lock-arrange'] && flags['unlock-arrange']) {
     die('Use either --lock-arrange or --unlock-arrange, not both.');
   }
@@ -1243,7 +1263,7 @@ cmd('node update', 'Update a node by ID', [
       ? false
       : undefined;
 
-  if (x !== undefined || y !== undefined || width !== undefined || height !== undefined || arrangeLocked !== undefined) {
+  if (x !== undefined || y !== undefined || width !== undefined || frameHeight !== undefined || arrangeLocked !== undefined) {
     const existing = await api('GET', `/api/canvas/node/${encodeURIComponent(id)}`) as {
       position: { x: number; y: number };
       size: { width: number; height: number };
@@ -1257,10 +1277,10 @@ cmd('node update', 'Update a node by ID', [
       };
     }
 
-    if (width !== undefined || height !== undefined) {
+    if (width !== undefined || frameHeight !== undefined) {
       body.size = {
         width: width ?? existing.size.width,
-        height: height ?? existing.size.height,
+        height: frameHeight ?? existing.size.height,
       };
     }
 
@@ -1269,10 +1289,12 @@ cmd('node update', 'Update a node by ID', [
     }
   }
 
+  if (pinned !== undefined) body.pinned = pinned;
+
   if (Object.keys(body).length === 0) {
     die(
       'No updates specified',
-      'Use --title, --content, --x, --y, --width, --height, --lock-arrange, --unlock-arrange, or --stdin',
+      'Use --title, --content, --x, --y, --width, --height, --pinned, --lock-arrange, --unlock-arrange, or --stdin',
     );
   }
 

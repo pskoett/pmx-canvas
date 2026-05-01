@@ -592,7 +592,7 @@ describe('MCP parity with CLI', () => {
     expect(jsonRender.spec.root).toBe('root');
     expect(jsonRender.spec.elements.root?.type).toBe('Badge');
     expect(jsonRender.spec.elements.root?.props?.text).toBe('MCP Legacy');
-    expect(jsonRender.spec.elements.root?.props?.variant).toBe('default');
+    expect(jsonRender.spec.elements.root?.props?.variant).toBe('success');
     expect(jsonRender.spec.elements.root?.props).not.toHaveProperty('label');
   });
 

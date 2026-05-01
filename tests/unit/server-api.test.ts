@@ -2483,7 +2483,7 @@ describe('canvas server HTTP API', () => {
     expect(bareComponent.spec.root).toBe('root');
     expect(bareComponent.spec.elements.root?.type).toBe('Badge');
     expect(bareComponent.spec.elements.root?.props?.text).toBe('Legacy OK');
-    expect(bareComponent.spec.elements.root?.props?.variant).toBe('default');
+    expect(bareComponent.spec.elements.root?.props?.variant).toBe('success');
     expect(bareComponent.spec.elements.root?.props).not.toHaveProperty('label');
   });
 

@@ -17,9 +17,9 @@ function makeNode(overrides: Partial<CanvasNodeState> & Pick<CanvasNodeState, 't
 }
 
 describe('client auto-fit helpers', () => {
-  test('does not shrink explicitly tall graph and json-render frames', () => {
-    const graph = makeNode({ type: 'graph', size: { width: 1040, height: 760 } });
-    const jsonRender = makeNode({ type: 'json-render', size: { width: 900, height: 720 } });
+  test('does not shrink structured graph and json-render frames', () => {
+    const graph = makeNode({ type: 'graph', size: { width: 480, height: 380 } });
+    const jsonRender = makeNode({ type: 'json-render', size: { width: 900, height: 420 } });
 
     expect(shouldAutoFitNode(graph)).toBe(false);
     expect(shouldAutoFitNode(jsonRender)).toBe(false);
@@ -27,11 +27,9 @@ describe('client auto-fit helpers', () => {
     expect(computeAutoFitHeight(jsonRender, 160)).toBeNull();
   });
 
-  test('still caps non-explicit content auto-fit at 600px', () => {
+  test('still caps regular content auto-fit at 600px', () => {
     const markdown = makeNode({ type: 'markdown', size: { width: 360, height: 200 } });
-    const graph = makeNode({ type: 'graph', size: { width: 760, height: 520 } });
 
     expect(computeAutoFitHeight(markdown, 900)).toBe(600);
-    expect(computeAutoFitHeight(graph, 900)).toBe(600);
   });
 });

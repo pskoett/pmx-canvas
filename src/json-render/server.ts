@@ -262,14 +262,6 @@ function normalizeButtonVariant(value: unknown): unknown {
   return value;
 }
 
-function normalizeBadgeVariant(value: unknown): unknown {
-  if (value === 'success') return 'default';
-  if (value === 'info') return 'secondary';
-  if (value === 'warning') return 'outline';
-  if (value === 'error' || value === 'danger') return 'destructive';
-  return value;
-}
-
 function deriveElementName(elementKey: string): string {
   const normalized = elementKey.replace(/[^a-zA-Z0-9_-]+/g, '-').replace(/^-+|-+$/g, '');
   return normalized || 'field';
@@ -343,9 +335,6 @@ function normalizeElementProps(
     // flagging the old key as unknown.
     if ('label' in props) {
       delete props.label;
-    }
-    if ('variant' in props) {
-      props.variant = normalizeBadgeVariant(props.variant);
     }
   }
 

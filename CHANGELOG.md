@@ -3,6 +3,76 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.10] - 2026-05-01
+
+Agent-ergonomics and correctness pass on top of 0.1.9. Tightens
+structured-frame auto-fit behavior, restores semantic Badge variants in
+json-render, repairs Excalidraw bound-text references on the way out,
+fixes `pmx-canvas fit` routing through the top-level CLI, and grows the
+`node update` surface with `--pinned` and `--node-height`.
+
+### Added
+
+- **`pmx-canvas node update --pinned <true|false>`.** Agents can flip a
+  node's pin state directly through `node update` without round-tripping
+  through `pin add`/`pin remove`. The flag goes through the same
+  PATCH path as the rest of `node update`, so it composes with geometry
+  and arrange-lock flags.
+- **`pmx-canvas node update --node-height` alias.** `--node-height` is now
+  accepted as an alias for `--height` on `node update`, matching the
+  alias already supported on `node add`. Passing both `--height` and
+  `--node-height` rejects with a clear error.
+- **AGENTS.md mirrors CLAUDE.md for harness-agnostic guidance.** The
+  AGENTS.md guidance file is now a complete, self-contained mirror of
+  the project instructions in CLAUDE.md so any coding agent harness
+  finds the same architecture rules, TypeScript guardrails, build
+  commands, and testing conventions.
+
+### Changed
+
+- **`pmx-canvas fit` routes through the top-level CLI.** The `fit`
+  subcommand was added to the agent dispatcher in 0.1.9 but was missing
+  from the top-level CLI's known-subcommand list, so `pmx-canvas fit`
+  was being treated as a server-startup invocation. It now routes to
+  the agent CLI like every other subcommand.
+- **All explicit graph and json-render frames are preserved by auto-fit.**
+  The client-side auto-fit guard previously only respected explicit
+  heights when they exceeded the 600px content-fit cap. It now treats
+  all `graph` and `json-render` nodes as having explicit visual frames,
+  so agent-authored sizes survive expand-and-close cycles regardless of
+  the chosen height.
+- **json-render Badge keeps semantic variants.** The 0.1.6 normalizer
+  that mapped `success`/`info`/`warning`/`error`/`danger` to the
+  shadcn-default `default`/`secondary`/`outline`/`destructive` set has
+  been removed. The json-render catalog now declares these variants as
+  first-class, and the bundled renderer ships a Badge component that
+  styles them, so dashboards keep their intended traffic-light
+  semantics instead of collapsing to a generic neutral palette.
+
+### Fixed
+
+- **Group containment accepts the canonical children list.** Layout
+  validation flagged group/child overlaps as containment violations
+  whenever the child only carried `parentGroup` via the parent's
+  `children` array instead of the back-reference field. The check now
+  treats either side of the relationship as authoritative, so grouped
+  nodes pinned via `data.children` are no longer reported as overlap
+  violations.
+- **Excalidraw tool input repairs one-sided bound-text references.**
+  When a text element points at a container via `containerId` but the
+  container's `boundElements` list is missing the reverse pointer, the
+  diagram preset now reattaches the missing reference before sending
+  the elements to the Excalidraw MCP app. This stops labels from
+  silently dropping out of agent-authored diagrams.
+
+### Internal
+
+- Regression coverage for: structured-frame auto-fit preservation across
+  graph and json-render heights (including small frames), `node update
+  --pinned` end-to-end through CLI/HTTP, top-level CLI routing for the
+  `fit` subcommand, group-children list containment validation, and
+  Excalidraw bound-text repair on the diagram preset.
+
 ## [0.1.9] - 2026-05-01
 
 Workflow ergonomics pass for agent-authored boards. This release tightens
@@ -164,6 +234,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.10]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.10
 [0.1.9]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.9
 [0.1.8]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.8
 [0.1.7]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.7

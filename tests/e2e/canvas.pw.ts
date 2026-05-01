@@ -802,6 +802,54 @@ test('iframe-backed graph and json-render nodes avoid the sandbox escape warning
   ).toEqual([]);
 });
 
+test('graph nodes keep explicit visual frame size after expand and close', async ({ page, request }) => {
+  const createResponse = await request.post('/api/canvas/graph', {
+    data: {
+      title: 'Stable graph frame',
+      graphType: 'bar',
+      data: [
+        { label: 'A', value: 10 },
+        { label: 'B', value: 18 },
+      ],
+      xKey: 'label',
+      yKey: 'value',
+      x: 420,
+      y: 220,
+      width: 480,
+      nodeHeight: 380,
+      height: 240,
+    },
+  });
+  const created = await createResponse.json() as { id: string };
+
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  await page.goto('/workbench');
+
+  const graphNode = page.locator('.canvas-node').filter({ hasText: 'Stable graph frame' });
+  await expect(graphNode).toHaveCount(1);
+  await expect(graphNode.frameLocator('iframe').locator('.recharts-responsive-container')).toBeVisible();
+
+  const before = await graphNode.boundingBox();
+  expect(before?.width).toBeCloseTo(480, 1);
+  expect(before?.height).toBeCloseTo(380, 1);
+
+  await graphNode.getByTitle('Expand (focus mode)').click();
+  await expect(page.locator('.expanded-overlay-panel')).toBeVisible();
+  await page.getByTitle('Close (Esc)').click();
+  await expect(page.locator('.expanded-overlay-panel')).toHaveCount(0);
+
+  await expect.poll(async () => {
+    const box = await graphNode.boundingBox();
+    return box ? `${Math.round(box.width)}x${Math.round(box.height)}` : '';
+  }).toBe('480x380');
+
+  await expect.poll(async () => {
+    const response = await request.get(`/api/canvas/node/${created.id}`);
+    const node = await response.json() as { size: { width: number; height: number } };
+    return `${node.size.width}x${node.size.height}`;
+  }).toBe('480x380');
+});
+
 test('ordinary node pin updates the authoritative canvas state', async ({ page, request }) => {
   const createResponse = await request.post('/api/canvas/node', {
     data: {

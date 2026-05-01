@@ -76,6 +76,37 @@ describe('diagram-presets', () => {
     expect(result[1]).toMatchObject({ type: 'rectangle', id: 'r1' });
   });
 
+  test('normalizeExcalidrawElementsForToolInput repairs one-sided bound text references', () => {
+    const result = JSON.parse(normalizeExcalidrawElementsForToolInput([
+      {
+        type: 'rectangle',
+        id: 'box',
+        x: 10,
+        y: 20,
+        width: 220,
+        height: 100,
+        boundElements: [],
+      },
+      {
+        type: 'text',
+        id: 'box-label',
+        x: 24,
+        y: 52,
+        width: 180,
+        height: 24,
+        text: 'Bound label',
+        containerId: 'box',
+      },
+    ]));
+
+    const box = result.find((element: Record<string, unknown>) => element.id === 'box');
+    const label = result.find((element: Record<string, unknown>) => element.id === 'box-label');
+    expect(box).toMatchObject({
+      boundElements: [{ type: 'text', id: 'box-label' }],
+    });
+    expect(label).toMatchObject({ containerId: 'box' });
+  });
+
   test('inferExcalidrawCameraUpdate accounts for point-based elements', () => {
     const camera = inferExcalidrawCameraUpdate([
       { type: 'line', id: 'l1', x: 50, y: 70, points: [[0, 0], [140, 90]] },

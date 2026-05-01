@@ -5,21 +5,22 @@
  * chart components. The catalog validates specs before they are stored in
  * canvas node state or rendered in the browser viewer.
  */
+import { z } from 'zod';
 export declare const allComponentDefinitions: {
     AreaChart: {
-        readonly props: import("zod").ZodObject<{
-            title: import("zod").ZodNullable<import("zod").ZodString>;
-            data: import("zod").ZodArray<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnknown>>;
-            xKey: import("zod").ZodString;
-            yKey: import("zod").ZodString;
-            aggregate: import("zod").ZodNullable<import("zod").ZodEnum<{
+        readonly props: z.ZodObject<{
+            title: z.ZodNullable<z.ZodString>;
+            data: z.ZodArray<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            xKey: z.ZodString;
+            yKey: z.ZodString;
+            aggregate: z.ZodNullable<z.ZodEnum<{
                 count: "count";
                 sum: "sum";
                 avg: "avg";
             }>>;
-            color: import("zod").ZodNullable<import("zod").ZodString>;
-            height: import("zod").ZodNullable<import("zod").ZodNumber>;
-        }, import("zod/v4/core").$strip>;
+            color: z.ZodNullable<z.ZodString>;
+            height: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
         readonly description: "Area chart for cumulative or trend data. Same shape as LineChart but draws a filled area under the line.";
         readonly example: {
             readonly title: "Daily signups";
@@ -44,15 +45,15 @@ export declare const allComponentDefinitions: {
         };
     };
     ScatterChart: {
-        readonly props: import("zod").ZodObject<{
-            title: import("zod").ZodNullable<import("zod").ZodString>;
-            data: import("zod").ZodArray<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnknown>>;
-            xKey: import("zod").ZodString;
-            yKey: import("zod").ZodString;
-            zKey: import("zod").ZodNullable<import("zod").ZodString>;
-            color: import("zod").ZodNullable<import("zod").ZodString>;
-            height: import("zod").ZodNullable<import("zod").ZodNumber>;
-        }, import("zod/v4/core").$strip>;
+        readonly props: z.ZodObject<{
+            title: z.ZodNullable<z.ZodString>;
+            data: z.ZodArray<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            xKey: z.ZodString;
+            yKey: z.ZodString;
+            zKey: z.ZodNullable<z.ZodString>;
+            color: z.ZodNullable<z.ZodString>;
+            height: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
         readonly description: "Scatter plot for correlation or distribution. Both axes are numeric; optional zKey scales point size.";
         readonly example: {
             readonly title: "Latency vs payload size";
@@ -77,13 +78,13 @@ export declare const allComponentDefinitions: {
         };
     };
     RadarChart: {
-        readonly props: import("zod").ZodObject<{
-            title: import("zod").ZodNullable<import("zod").ZodString>;
-            data: import("zod").ZodArray<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnknown>>;
-            axisKey: import("zod").ZodString;
-            metrics: import("zod").ZodArray<import("zod").ZodString>;
-            height: import("zod").ZodNullable<import("zod").ZodNumber>;
-        }, import("zod/v4/core").$strip>;
+        readonly props: z.ZodObject<{
+            title: z.ZodNullable<z.ZodString>;
+            data: z.ZodArray<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            axisKey: z.ZodString;
+            metrics: z.ZodArray<z.ZodString>;
+            height: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
         readonly description: "Radar chart for comparing multiple metrics across categories. Each metric in `metrics` is plotted as its own polygon.";
         readonly example: {
             readonly title: "Skill comparison";
@@ -106,18 +107,18 @@ export declare const allComponentDefinitions: {
         };
     };
     StackedBarChart: {
-        readonly props: import("zod").ZodObject<{
-            title: import("zod").ZodNullable<import("zod").ZodString>;
-            data: import("zod").ZodArray<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnknown>>;
-            xKey: import("zod").ZodString;
-            series: import("zod").ZodArray<import("zod").ZodString>;
-            aggregate: import("zod").ZodNullable<import("zod").ZodEnum<{
+        readonly props: z.ZodObject<{
+            title: z.ZodNullable<z.ZodString>;
+            data: z.ZodArray<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            xKey: z.ZodString;
+            series: z.ZodArray<z.ZodString>;
+            aggregate: z.ZodNullable<z.ZodEnum<{
                 count: "count";
                 sum: "sum";
                 avg: "avg";
             }>>;
-            height: import("zod").ZodNullable<import("zod").ZodNumber>;
-        }, import("zod/v4/core").$strip>;
+            height: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
         readonly description: "Stacked bar chart for compositional data. Each entry in `series` is plotted as its own bar segment per x value.";
         readonly example: {
             readonly title: "Revenue by region";
@@ -144,16 +145,16 @@ export declare const allComponentDefinitions: {
         };
     };
     ComposedChart: {
-        readonly props: import("zod").ZodObject<{
-            title: import("zod").ZodNullable<import("zod").ZodString>;
-            data: import("zod").ZodArray<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnknown>>;
-            xKey: import("zod").ZodString;
-            barKey: import("zod").ZodString;
-            lineKey: import("zod").ZodString;
-            barColor: import("zod").ZodNullable<import("zod").ZodString>;
-            lineColor: import("zod").ZodNullable<import("zod").ZodString>;
-            height: import("zod").ZodNullable<import("zod").ZodNumber>;
-        }, import("zod/v4/core").$strip>;
+        readonly props: z.ZodObject<{
+            title: z.ZodNullable<z.ZodString>;
+            data: z.ZodArray<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            xKey: z.ZodString;
+            barKey: z.ZodString;
+            lineKey: z.ZodString;
+            barColor: z.ZodNullable<z.ZodString>;
+            lineColor: z.ZodNullable<z.ZodString>;
+            height: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
         readonly description: "Combined bar + line chart for paired metrics (e.g. counts + a derived rate) on the same axis.";
         readonly example: {
             readonly title: "Visits and conversion";
@@ -179,19 +180,19 @@ export declare const allComponentDefinitions: {
         };
     };
     LineChart: {
-        readonly props: import("zod").ZodObject<{
-            title: import("zod").ZodNullable<import("zod").ZodString>;
-            data: import("zod").ZodArray<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnknown>>;
-            xKey: import("zod").ZodString;
-            yKey: import("zod").ZodString;
-            aggregate: import("zod").ZodNullable<import("zod").ZodEnum<{
+        readonly props: z.ZodObject<{
+            title: z.ZodNullable<z.ZodString>;
+            data: z.ZodArray<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            xKey: z.ZodString;
+            yKey: z.ZodString;
+            aggregate: z.ZodNullable<z.ZodEnum<{
                 count: "count";
                 sum: "sum";
                 avg: "avg";
             }>>;
-            color: import("zod").ZodNullable<import("zod").ZodString>;
-            height: import("zod").ZodNullable<import("zod").ZodNumber>;
-        }, import("zod/v4/core").$strip>;
+            color: z.ZodNullable<z.ZodString>;
+            height: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
         readonly description: "Line chart for time-series or trend data. Provide data as an array of objects with xKey and yKey fields.";
         readonly example: {
             readonly title: "Weekly trend";
@@ -213,19 +214,19 @@ export declare const allComponentDefinitions: {
         };
     };
     BarChart: {
-        readonly props: import("zod").ZodObject<{
-            title: import("zod").ZodNullable<import("zod").ZodString>;
-            data: import("zod").ZodArray<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnknown>>;
-            xKey: import("zod").ZodString;
-            yKey: import("zod").ZodString;
-            aggregate: import("zod").ZodNullable<import("zod").ZodEnum<{
+        readonly props: z.ZodObject<{
+            title: z.ZodNullable<z.ZodString>;
+            data: z.ZodArray<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            xKey: z.ZodString;
+            yKey: z.ZodString;
+            aggregate: z.ZodNullable<z.ZodEnum<{
                 count: "count";
                 sum: "sum";
                 avg: "avg";
             }>>;
-            color: import("zod").ZodNullable<import("zod").ZodString>;
-            height: import("zod").ZodNullable<import("zod").ZodNumber>;
-        }, import("zod/v4/core").$strip>;
+            color: z.ZodNullable<z.ZodString>;
+            height: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
         readonly description: "Bar chart for comparing categories. Provide data as an array of objects with xKey and yKey fields.";
         readonly example: {
             readonly title: "Sales by region";
@@ -247,13 +248,13 @@ export declare const allComponentDefinitions: {
         };
     };
     PieChart: {
-        readonly props: import("zod").ZodObject<{
-            title: import("zod").ZodNullable<import("zod").ZodString>;
-            data: import("zod").ZodArray<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnknown>>;
-            nameKey: import("zod").ZodString;
-            valueKey: import("zod").ZodString;
-            height: import("zod").ZodNullable<import("zod").ZodNumber>;
-        }, import("zod/v4/core").$strip>;
+        readonly props: z.ZodObject<{
+            title: z.ZodNullable<z.ZodString>;
+            data: z.ZodArray<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            nameKey: z.ZodString;
+            valueKey: z.ZodString;
+            height: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
         readonly description: "Pie chart for showing proportions. Provide data as an array of objects with nameKey and valueKey fields.";
         readonly example: {
             readonly title: "Market share";
@@ -272,18 +273,39 @@ export declare const allComponentDefinitions: {
             readonly height: null;
         };
     };
+    Badge: {
+        props: z.ZodObject<{
+            text: z.ZodString;
+            variant: z.ZodNullable<z.ZodEnum<{
+                error: "error";
+                success: "success";
+                default: "default";
+                secondary: "secondary";
+                destructive: "destructive";
+                outline: "outline";
+                info: "info";
+                warning: "warning";
+                danger: "danger";
+            }>>;
+        }, z.core.$strip>;
+        description: string;
+        example: {
+            text: string;
+            variant: string;
+        };
+    };
     Card: {
-        props: import("zod").ZodObject<{
-            title: import("zod").ZodNullable<import("zod").ZodString>;
-            description: import("zod").ZodNullable<import("zod").ZodString>;
-            maxWidth: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            title: z.ZodNullable<z.ZodString>;
+            description: z.ZodNullable<z.ZodString>;
+            maxWidth: z.ZodNullable<z.ZodEnum<{
                 sm: "sm";
                 md: "md";
                 lg: "lg";
                 full: "full";
             }>>;
-            centered: import("zod").ZodNullable<import("zod").ZodBoolean>;
-        }, import("zod/v4/core").$strip>;
+            centered: z.ZodNullable<z.ZodBoolean>;
+        }, z.core.$strip>;
         slots: string[];
         description: string;
         example: {
@@ -292,31 +314,31 @@ export declare const allComponentDefinitions: {
         };
     };
     Stack: {
-        props: import("zod").ZodObject<{
-            direction: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            direction: z.ZodNullable<z.ZodEnum<{
                 horizontal: "horizontal";
                 vertical: "vertical";
             }>>;
-            gap: import("zod").ZodNullable<import("zod").ZodEnum<{
+            gap: z.ZodNullable<z.ZodEnum<{
                 sm: "sm";
                 md: "md";
                 lg: "lg";
                 none: "none";
             }>>;
-            align: import("zod").ZodNullable<import("zod").ZodEnum<{
+            align: z.ZodNullable<z.ZodEnum<{
                 start: "start";
                 center: "center";
                 end: "end";
                 stretch: "stretch";
             }>>;
-            justify: import("zod").ZodNullable<import("zod").ZodEnum<{
+            justify: z.ZodNullable<z.ZodEnum<{
                 start: "start";
                 center: "center";
                 end: "end";
                 between: "between";
                 around: "around";
             }>>;
-        }, import("zod/v4/core").$strip>;
+        }, z.core.$strip>;
         slots: string[];
         description: string;
         example: {
@@ -325,14 +347,14 @@ export declare const allComponentDefinitions: {
         };
     };
     Grid: {
-        props: import("zod").ZodObject<{
-            columns: import("zod").ZodNullable<import("zod").ZodNumber>;
-            gap: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            columns: z.ZodNullable<z.ZodNumber>;
+            gap: z.ZodNullable<z.ZodEnum<{
                 sm: "sm";
                 md: "md";
                 lg: "lg";
             }>>;
-        }, import("zod/v4/core").$strip>;
+        }, z.core.$strip>;
         slots: string[];
         description: string;
         example: {
@@ -341,81 +363,81 @@ export declare const allComponentDefinitions: {
         };
     };
     Separator: {
-        props: import("zod").ZodObject<{
-            orientation: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            orientation: z.ZodNullable<z.ZodEnum<{
                 horizontal: "horizontal";
                 vertical: "vertical";
             }>>;
-        }, import("zod/v4/core").$strip>;
+        }, z.core.$strip>;
         description: string;
     };
     Tabs: {
-        props: import("zod").ZodObject<{
-            tabs: import("zod").ZodArray<import("zod").ZodObject<{
-                label: import("zod").ZodString;
-                value: import("zod").ZodString;
-            }, import("zod/v4/core").$strip>>;
-            defaultValue: import("zod").ZodNullable<import("zod").ZodString>;
-            value: import("zod").ZodNullable<import("zod").ZodString>;
-        }, import("zod/v4/core").$strip>;
+        props: z.ZodObject<{
+            tabs: z.ZodArray<z.ZodObject<{
+                label: z.ZodString;
+                value: z.ZodString;
+            }, z.core.$strip>>;
+            defaultValue: z.ZodNullable<z.ZodString>;
+            value: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>;
         slots: string[];
         events: string[];
         description: string;
     };
     Accordion: {
-        props: import("zod").ZodObject<{
-            items: import("zod").ZodArray<import("zod").ZodObject<{
-                title: import("zod").ZodString;
-                content: import("zod").ZodString;
-            }, import("zod/v4/core").$strip>>;
-            type: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            items: z.ZodArray<z.ZodObject<{
+                title: z.ZodString;
+                content: z.ZodString;
+            }, z.core.$strip>>;
+            type: z.ZodNullable<z.ZodEnum<{
                 single: "single";
                 multiple: "multiple";
             }>>;
-        }, import("zod/v4/core").$strip>;
+        }, z.core.$strip>;
         description: string;
     };
     Collapsible: {
-        props: import("zod").ZodObject<{
-            title: import("zod").ZodString;
-            defaultOpen: import("zod").ZodNullable<import("zod").ZodBoolean>;
-        }, import("zod/v4/core").$strip>;
+        props: z.ZodObject<{
+            title: z.ZodString;
+            defaultOpen: z.ZodNullable<z.ZodBoolean>;
+        }, z.core.$strip>;
         slots: string[];
         description: string;
     };
     Dialog: {
-        props: import("zod").ZodObject<{
-            title: import("zod").ZodString;
-            description: import("zod").ZodNullable<import("zod").ZodString>;
-            openPath: import("zod").ZodString;
-        }, import("zod/v4/core").$strip>;
+        props: z.ZodObject<{
+            title: z.ZodString;
+            description: z.ZodNullable<z.ZodString>;
+            openPath: z.ZodString;
+        }, z.core.$strip>;
         slots: string[];
         description: string;
     };
     Drawer: {
-        props: import("zod").ZodObject<{
-            title: import("zod").ZodString;
-            description: import("zod").ZodNullable<import("zod").ZodString>;
-            openPath: import("zod").ZodString;
-        }, import("zod/v4/core").$strip>;
+        props: z.ZodObject<{
+            title: z.ZodString;
+            description: z.ZodNullable<z.ZodString>;
+            openPath: z.ZodString;
+        }, z.core.$strip>;
         slots: string[];
         description: string;
     };
     Carousel: {
-        props: import("zod").ZodObject<{
-            items: import("zod").ZodArray<import("zod").ZodObject<{
-                title: import("zod").ZodNullable<import("zod").ZodString>;
-                description: import("zod").ZodNullable<import("zod").ZodString>;
-            }, import("zod/v4/core").$strip>>;
-        }, import("zod/v4/core").$strip>;
+        props: z.ZodObject<{
+            items: z.ZodArray<z.ZodObject<{
+                title: z.ZodNullable<z.ZodString>;
+                description: z.ZodNullable<z.ZodString>;
+            }, z.core.$strip>>;
+        }, z.core.$strip>;
         description: string;
     };
     Table: {
-        props: import("zod").ZodObject<{
-            columns: import("zod").ZodArray<import("zod").ZodString>;
-            rows: import("zod").ZodArray<import("zod").ZodArray<import("zod").ZodString>>;
-            caption: import("zod").ZodNullable<import("zod").ZodString>;
-        }, import("zod/v4/core").$strip>;
+        props: z.ZodObject<{
+            columns: z.ZodArray<z.ZodString>;
+            rows: z.ZodArray<z.ZodArray<z.ZodString>>;
+            caption: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>;
         description: string;
         example: {
             columns: string[];
@@ -423,15 +445,15 @@ export declare const allComponentDefinitions: {
         };
     };
     Heading: {
-        props: import("zod").ZodObject<{
-            text: import("zod").ZodString;
-            level: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            text: z.ZodString;
+            level: z.ZodNullable<z.ZodEnum<{
                 h1: "h1";
                 h2: "h2";
                 h3: "h3";
                 h4: "h4";
             }>>;
-        }, import("zod/v4/core").$strip>;
+        }, z.core.$strip>;
         description: string;
         example: {
             text: string;
@@ -439,73 +461,57 @@ export declare const allComponentDefinitions: {
         };
     };
     Text: {
-        props: import("zod").ZodObject<{
-            text: import("zod").ZodString;
-            variant: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            text: z.ZodString;
+            variant: z.ZodNullable<z.ZodEnum<{
                 caption: "caption";
                 body: "body";
                 muted: "muted";
                 lead: "lead";
                 code: "code";
             }>>;
-        }, import("zod/v4/core").$strip>;
+        }, z.core.$strip>;
         description: string;
         example: {
             text: string;
         };
     };
     Image: {
-        props: import("zod").ZodObject<{
-            src: import("zod").ZodNullable<import("zod").ZodString>;
-            alt: import("zod").ZodString;
-            width: import("zod").ZodNullable<import("zod").ZodNumber>;
-            height: import("zod").ZodNullable<import("zod").ZodNumber>;
-        }, import("zod/v4/core").$strip>;
+        props: z.ZodObject<{
+            src: z.ZodNullable<z.ZodString>;
+            alt: z.ZodString;
+            width: z.ZodNullable<z.ZodNumber>;
+            height: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
         description: string;
     };
     Avatar: {
-        props: import("zod").ZodObject<{
-            src: import("zod").ZodNullable<import("zod").ZodString>;
-            name: import("zod").ZodString;
-            size: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            src: z.ZodNullable<z.ZodString>;
+            name: z.ZodString;
+            size: z.ZodNullable<z.ZodEnum<{
                 sm: "sm";
                 md: "md";
                 lg: "lg";
             }>>;
-        }, import("zod/v4/core").$strip>;
+        }, z.core.$strip>;
         description: string;
         example: {
             name: string;
             size: string;
         };
     };
-    Badge: {
-        props: import("zod").ZodObject<{
-            text: import("zod").ZodString;
-            variant: import("zod").ZodNullable<import("zod").ZodEnum<{
-                default: "default";
-                secondary: "secondary";
-                destructive: "destructive";
-                outline: "outline";
-            }>>;
-        }, import("zod/v4/core").$strip>;
-        description: string;
-        example: {
-            text: string;
-            variant: string;
-        };
-    };
     Alert: {
-        props: import("zod").ZodObject<{
-            title: import("zod").ZodString;
-            message: import("zod").ZodNullable<import("zod").ZodString>;
-            type: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            title: z.ZodString;
+            message: z.ZodNullable<z.ZodString>;
+            type: z.ZodNullable<z.ZodEnum<{
                 success: "success";
                 info: "info";
                 warning: "warning";
                 error: "error";
             }>>;
-        }, import("zod/v4/core").$strip>;
+        }, z.core.$strip>;
         description: string;
         example: {
             title: string;
@@ -514,11 +520,11 @@ export declare const allComponentDefinitions: {
         };
     };
     Progress: {
-        props: import("zod").ZodObject<{
-            value: import("zod").ZodNumber;
-            max: import("zod").ZodNullable<import("zod").ZodNumber>;
-            label: import("zod").ZodNullable<import("zod").ZodString>;
-        }, import("zod/v4/core").$strip>;
+        props: z.ZodObject<{
+            value: z.ZodNumber;
+            max: z.ZodNullable<z.ZodNumber>;
+            label: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>;
         description: string;
         example: {
             value: number;
@@ -527,61 +533,61 @@ export declare const allComponentDefinitions: {
         };
     };
     Skeleton: {
-        props: import("zod").ZodObject<{
-            width: import("zod").ZodNullable<import("zod").ZodString>;
-            height: import("zod").ZodNullable<import("zod").ZodString>;
-            rounded: import("zod").ZodNullable<import("zod").ZodBoolean>;
-        }, import("zod/v4/core").$strip>;
+        props: z.ZodObject<{
+            width: z.ZodNullable<z.ZodString>;
+            height: z.ZodNullable<z.ZodString>;
+            rounded: z.ZodNullable<z.ZodBoolean>;
+        }, z.core.$strip>;
         description: string;
     };
     Spinner: {
-        props: import("zod").ZodObject<{
-            size: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            size: z.ZodNullable<z.ZodEnum<{
                 sm: "sm";
                 md: "md";
                 lg: "lg";
             }>>;
-            label: import("zod").ZodNullable<import("zod").ZodString>;
-        }, import("zod/v4/core").$strip>;
+            label: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>;
         description: string;
     };
     Tooltip: {
-        props: import("zod").ZodObject<{
-            content: import("zod").ZodString;
-            text: import("zod").ZodString;
-        }, import("zod/v4/core").$strip>;
+        props: z.ZodObject<{
+            content: z.ZodString;
+            text: z.ZodString;
+        }, z.core.$strip>;
         description: string;
     };
     Popover: {
-        props: import("zod").ZodObject<{
-            trigger: import("zod").ZodString;
-            content: import("zod").ZodString;
-        }, import("zod/v4/core").$strip>;
+        props: z.ZodObject<{
+            trigger: z.ZodString;
+            content: z.ZodString;
+        }, z.core.$strip>;
         description: string;
     };
     Input: {
-        props: import("zod").ZodObject<{
-            label: import("zod").ZodString;
-            name: import("zod").ZodString;
-            type: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            label: z.ZodString;
+            name: z.ZodString;
+            type: z.ZodNullable<z.ZodEnum<{
                 number: "number";
                 text: "text";
                 email: "email";
                 password: "password";
             }>>;
-            placeholder: import("zod").ZodNullable<import("zod").ZodString>;
-            value: import("zod").ZodNullable<import("zod").ZodString>;
-            checks: import("zod").ZodNullable<import("zod").ZodArray<import("zod").ZodObject<{
-                type: import("zod").ZodString;
-                message: import("zod").ZodString;
-                args: import("zod").ZodOptional<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnknown>>;
-            }, import("zod/v4/core").$strip>>>;
-            validateOn: import("zod").ZodNullable<import("zod").ZodEnum<{
+            placeholder: z.ZodNullable<z.ZodString>;
+            value: z.ZodNullable<z.ZodString>;
+            checks: z.ZodNullable<z.ZodArray<z.ZodObject<{
+                type: z.ZodString;
+                message: z.ZodString;
+                args: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            }, z.core.$strip>>>;
+            validateOn: z.ZodNullable<z.ZodEnum<{
                 change: "change";
                 blur: "blur";
                 submit: "submit";
             }>>;
-        }, import("zod/v4/core").$strip>;
+        }, z.core.$strip>;
         events: string[];
         description: string;
         example: {
@@ -592,125 +598,125 @@ export declare const allComponentDefinitions: {
         };
     };
     Textarea: {
-        props: import("zod").ZodObject<{
-            label: import("zod").ZodString;
-            name: import("zod").ZodString;
-            placeholder: import("zod").ZodNullable<import("zod").ZodString>;
-            rows: import("zod").ZodNullable<import("zod").ZodNumber>;
-            value: import("zod").ZodNullable<import("zod").ZodString>;
-            checks: import("zod").ZodNullable<import("zod").ZodArray<import("zod").ZodObject<{
-                type: import("zod").ZodString;
-                message: import("zod").ZodString;
-                args: import("zod").ZodOptional<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnknown>>;
-            }, import("zod/v4/core").$strip>>>;
-            validateOn: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            label: z.ZodString;
+            name: z.ZodString;
+            placeholder: z.ZodNullable<z.ZodString>;
+            rows: z.ZodNullable<z.ZodNumber>;
+            value: z.ZodNullable<z.ZodString>;
+            checks: z.ZodNullable<z.ZodArray<z.ZodObject<{
+                type: z.ZodString;
+                message: z.ZodString;
+                args: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            }, z.core.$strip>>>;
+            validateOn: z.ZodNullable<z.ZodEnum<{
                 change: "change";
                 blur: "blur";
                 submit: "submit";
             }>>;
-        }, import("zod/v4/core").$strip>;
+        }, z.core.$strip>;
         description: string;
     };
     Select: {
-        props: import("zod").ZodObject<{
-            label: import("zod").ZodString;
-            name: import("zod").ZodString;
-            options: import("zod").ZodArray<import("zod").ZodString>;
-            placeholder: import("zod").ZodNullable<import("zod").ZodString>;
-            value: import("zod").ZodNullable<import("zod").ZodString>;
-            checks: import("zod").ZodNullable<import("zod").ZodArray<import("zod").ZodObject<{
-                type: import("zod").ZodString;
-                message: import("zod").ZodString;
-                args: import("zod").ZodOptional<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnknown>>;
-            }, import("zod/v4/core").$strip>>>;
-            validateOn: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            label: z.ZodString;
+            name: z.ZodString;
+            options: z.ZodArray<z.ZodString>;
+            placeholder: z.ZodNullable<z.ZodString>;
+            value: z.ZodNullable<z.ZodString>;
+            checks: z.ZodNullable<z.ZodArray<z.ZodObject<{
+                type: z.ZodString;
+                message: z.ZodString;
+                args: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            }, z.core.$strip>>>;
+            validateOn: z.ZodNullable<z.ZodEnum<{
                 change: "change";
                 blur: "blur";
                 submit: "submit";
             }>>;
-        }, import("zod/v4/core").$strip>;
+        }, z.core.$strip>;
         events: string[];
         description: string;
     };
     Checkbox: {
-        props: import("zod").ZodObject<{
-            label: import("zod").ZodString;
-            name: import("zod").ZodString;
-            checked: import("zod").ZodNullable<import("zod").ZodBoolean>;
-            checks: import("zod").ZodNullable<import("zod").ZodArray<import("zod").ZodObject<{
-                type: import("zod").ZodString;
-                message: import("zod").ZodString;
-                args: import("zod").ZodOptional<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnknown>>;
-            }, import("zod/v4/core").$strip>>>;
-            validateOn: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            label: z.ZodString;
+            name: z.ZodString;
+            checked: z.ZodNullable<z.ZodBoolean>;
+            checks: z.ZodNullable<z.ZodArray<z.ZodObject<{
+                type: z.ZodString;
+                message: z.ZodString;
+                args: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            }, z.core.$strip>>>;
+            validateOn: z.ZodNullable<z.ZodEnum<{
                 change: "change";
                 blur: "blur";
                 submit: "submit";
             }>>;
-        }, import("zod/v4/core").$strip>;
+        }, z.core.$strip>;
         events: string[];
         description: string;
     };
     Radio: {
-        props: import("zod").ZodObject<{
-            label: import("zod").ZodString;
-            name: import("zod").ZodString;
-            options: import("zod").ZodArray<import("zod").ZodString>;
-            value: import("zod").ZodNullable<import("zod").ZodString>;
-            checks: import("zod").ZodNullable<import("zod").ZodArray<import("zod").ZodObject<{
-                type: import("zod").ZodString;
-                message: import("zod").ZodString;
-                args: import("zod").ZodOptional<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnknown>>;
-            }, import("zod/v4/core").$strip>>>;
-            validateOn: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            label: z.ZodString;
+            name: z.ZodString;
+            options: z.ZodArray<z.ZodString>;
+            value: z.ZodNullable<z.ZodString>;
+            checks: z.ZodNullable<z.ZodArray<z.ZodObject<{
+                type: z.ZodString;
+                message: z.ZodString;
+                args: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            }, z.core.$strip>>>;
+            validateOn: z.ZodNullable<z.ZodEnum<{
                 change: "change";
                 blur: "blur";
                 submit: "submit";
             }>>;
-        }, import("zod/v4/core").$strip>;
+        }, z.core.$strip>;
         events: string[];
         description: string;
     };
     Switch: {
-        props: import("zod").ZodObject<{
-            label: import("zod").ZodString;
-            name: import("zod").ZodString;
-            checked: import("zod").ZodNullable<import("zod").ZodBoolean>;
-            checks: import("zod").ZodNullable<import("zod").ZodArray<import("zod").ZodObject<{
-                type: import("zod").ZodString;
-                message: import("zod").ZodString;
-                args: import("zod").ZodOptional<import("zod").ZodRecord<import("zod").ZodString, import("zod").ZodUnknown>>;
-            }, import("zod/v4/core").$strip>>>;
-            validateOn: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            label: z.ZodString;
+            name: z.ZodString;
+            checked: z.ZodNullable<z.ZodBoolean>;
+            checks: z.ZodNullable<z.ZodArray<z.ZodObject<{
+                type: z.ZodString;
+                message: z.ZodString;
+                args: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            }, z.core.$strip>>>;
+            validateOn: z.ZodNullable<z.ZodEnum<{
                 change: "change";
                 blur: "blur";
                 submit: "submit";
             }>>;
-        }, import("zod/v4/core").$strip>;
+        }, z.core.$strip>;
         events: string[];
         description: string;
     };
     Slider: {
-        props: import("zod").ZodObject<{
-            label: import("zod").ZodNullable<import("zod").ZodString>;
-            min: import("zod").ZodNullable<import("zod").ZodNumber>;
-            max: import("zod").ZodNullable<import("zod").ZodNumber>;
-            step: import("zod").ZodNullable<import("zod").ZodNumber>;
-            value: import("zod").ZodNullable<import("zod").ZodNumber>;
-        }, import("zod/v4/core").$strip>;
+        props: z.ZodObject<{
+            label: z.ZodNullable<z.ZodString>;
+            min: z.ZodNullable<z.ZodNumber>;
+            max: z.ZodNullable<z.ZodNumber>;
+            step: z.ZodNullable<z.ZodNumber>;
+            value: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
         events: string[];
         description: string;
     };
     Button: {
-        props: import("zod").ZodObject<{
-            label: import("zod").ZodString;
-            variant: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            label: z.ZodString;
+            variant: z.ZodNullable<z.ZodEnum<{
                 secondary: "secondary";
                 primary: "primary";
                 danger: "danger";
             }>>;
-            disabled: import("zod").ZodNullable<import("zod").ZodBoolean>;
-        }, import("zod/v4/core").$strip>;
+            disabled: z.ZodNullable<z.ZodBoolean>;
+        }, z.core.$strip>;
         events: string[];
         description: string;
         example: {
@@ -719,68 +725,68 @@ export declare const allComponentDefinitions: {
         };
     };
     Link: {
-        props: import("zod").ZodObject<{
-            label: import("zod").ZodString;
-            href: import("zod").ZodString;
-        }, import("zod/v4/core").$strip>;
+        props: z.ZodObject<{
+            label: z.ZodString;
+            href: z.ZodString;
+        }, z.core.$strip>;
         events: string[];
         description: string;
     };
     DropdownMenu: {
-        props: import("zod").ZodObject<{
-            label: import("zod").ZodString;
-            items: import("zod").ZodArray<import("zod").ZodObject<{
-                label: import("zod").ZodString;
-                value: import("zod").ZodString;
-            }, import("zod/v4/core").$strip>>;
-            value: import("zod").ZodNullable<import("zod").ZodString>;
-        }, import("zod/v4/core").$strip>;
+        props: z.ZodObject<{
+            label: z.ZodString;
+            items: z.ZodArray<z.ZodObject<{
+                label: z.ZodString;
+                value: z.ZodString;
+            }, z.core.$strip>>;
+            value: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>;
         events: string[];
         description: string;
     };
     Toggle: {
-        props: import("zod").ZodObject<{
-            label: import("zod").ZodString;
-            pressed: import("zod").ZodNullable<import("zod").ZodBoolean>;
-            variant: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            label: z.ZodString;
+            pressed: z.ZodNullable<z.ZodBoolean>;
+            variant: z.ZodNullable<z.ZodEnum<{
                 default: "default";
                 outline: "outline";
             }>>;
-        }, import("zod/v4/core").$strip>;
+        }, z.core.$strip>;
         events: string[];
         description: string;
     };
     ToggleGroup: {
-        props: import("zod").ZodObject<{
-            items: import("zod").ZodArray<import("zod").ZodObject<{
-                label: import("zod").ZodString;
-                value: import("zod").ZodString;
-            }, import("zod/v4/core").$strip>>;
-            type: import("zod").ZodNullable<import("zod").ZodEnum<{
+        props: z.ZodObject<{
+            items: z.ZodArray<z.ZodObject<{
+                label: z.ZodString;
+                value: z.ZodString;
+            }, z.core.$strip>>;
+            type: z.ZodNullable<z.ZodEnum<{
                 single: "single";
                 multiple: "multiple";
             }>>;
-            value: import("zod").ZodNullable<import("zod").ZodString>;
-        }, import("zod/v4/core").$strip>;
+            value: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>;
         events: string[];
         description: string;
     };
     ButtonGroup: {
-        props: import("zod").ZodObject<{
-            buttons: import("zod").ZodArray<import("zod").ZodObject<{
-                label: import("zod").ZodString;
-                value: import("zod").ZodString;
-            }, import("zod/v4/core").$strip>>;
-            selected: import("zod").ZodNullable<import("zod").ZodString>;
-        }, import("zod/v4/core").$strip>;
+        props: z.ZodObject<{
+            buttons: z.ZodArray<z.ZodObject<{
+                label: z.ZodString;
+                value: z.ZodString;
+            }, z.core.$strip>>;
+            selected: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>;
         events: string[];
         description: string;
     };
     Pagination: {
-        props: import("zod").ZodObject<{
-            totalPages: import("zod").ZodNumber;
-            page: import("zod").ZodNullable<import("zod").ZodNumber>;
-        }, import("zod/v4/core").$strip>;
+        props: z.ZodObject<{
+            totalPages: z.ZodNumber;
+            page: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
         events: string[];
         description: string;
     };

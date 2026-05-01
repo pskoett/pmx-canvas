@@ -15,9 +15,31 @@ import { catalog } from '../catalog';
 import { chartComponents } from '../charts/components';
 import { extraChartComponents } from '../charts/extra-components';
 
+type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'info' | 'warning' | 'error' | 'danger';
+type BadgeProps = {
+  text: string;
+  variant?: BadgeVariant | null;
+  className?: string | null;
+};
+
+function Badge({ props }: { props: BadgeProps }) {
+  const variant = props.variant;
+  const resolvedVariant = variant ?? 'default';
+  return (
+    <span
+      data-slot="badge"
+      data-variant={resolvedVariant}
+      className={`pmx-badge pmx-badge--${resolvedVariant}`}
+    >
+      {props.text}
+    </span>
+  );
+}
+
 const { registry } = defineRegistry(catalog as never, {
   components: {
     ...shadcnComponents,
+    Badge,
     ...chartComponents,
     ...extraChartComponents,
   } as never,

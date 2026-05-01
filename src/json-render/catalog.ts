@@ -7,13 +7,22 @@
  */
 
 import { defineCatalog } from '@json-render/core';
+import { z } from 'zod';
 import { schema } from './schema.js';
 import { shadcnComponentDefinitions } from '@json-render/shadcn/catalog';
 import { chartComponentDefinitions } from './charts/definitions';
 import { extraChartComponentDefinitions } from './charts/extra-definitions';
 
+const badgeDefinition = shadcnComponentDefinitions.Badge;
+
 export const allComponentDefinitions = {
   ...shadcnComponentDefinitions,
+  Badge: {
+    ...badgeDefinition,
+    props: badgeDefinition.props.extend({
+      variant: z.enum(['default', 'secondary', 'destructive', 'outline', 'success', 'info', 'warning', 'error', 'danger']).nullable(),
+    }),
+  },
   ...chartComponentDefinitions,
   ...extraChartComponentDefinitions,
 };

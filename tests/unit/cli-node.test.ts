@@ -498,6 +498,40 @@ describe('agent CLI node commands', () => {
     expect(node.data.arrangeLocked).toBe(true);
   });
 
+  test('node update supports explicit pinned state changes', async () => {
+    const created = await jsonRequest<{
+      ok: boolean;
+      id: string;
+    }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'Pin me',
+      }),
+    });
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['node', 'update', created.id, '--pinned', 'true']);
+      await runAgentCli(['node', 'update', created.id, '--pinned', 'false']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    expect(log).toHaveBeenCalledTimes(2);
+    const first = JSON.parse(log.mock.calls[0]?.[0] as string) as { node: { pinned: boolean } };
+    const second = JSON.parse(log.mock.calls[1]?.[0] as string) as { node: { pinned: boolean } };
+    expect(first.node.pinned).toBe(true);
+    expect(second.node.pinned).toBe(false);
+
+    const node = await jsonRequest<{ pinned: boolean }>(`/api/canvas/node/${created.id}`);
+    expect(node.pinned).toBe(false);
+  });
+
   test('node add supports graph nodes from a JSON data file', async () => {
     const dataPath = join(workspaceRoot, 'graph-data.json');
     writeFileSync(dataPath, JSON.stringify([
@@ -1089,7 +1123,7 @@ describe('agent CLI node commands', () => {
     expect(jsonOutput.ok).toBe(true);
     expect(jsonOutput.spec.root).toBe('root');
     expect(jsonOutput.spec.elements.root?.props?.text).toBe('CLI Legacy');
-    expect(jsonOutput.spec.elements.root?.props?.variant).toBe('default');
+    expect(jsonOutput.spec.elements.root?.props?.variant).toBe('success');
     expect(jsonOutput.spec.elements.root?.props).not.toHaveProperty('label');
   });
 

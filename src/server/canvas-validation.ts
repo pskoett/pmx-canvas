@@ -49,6 +49,13 @@ function fullyContains(group: CanvasNodeState, child: CanvasNodeState): boolean 
   );
 }
 
+function isGroupChildPair(group: CanvasNodeState, child: CanvasNodeState): boolean {
+  if (group.type !== 'group') return false;
+  if (child.data.parentGroup === group.id) return true;
+  const children = group.data.children;
+  return Array.isArray(children) && children.includes(child.id);
+}
+
 function pair(a: CanvasNodeState, b: CanvasNodeState): CanvasValidationPair {
   return {
     aId: a.id,
@@ -78,11 +85,11 @@ export function validateCanvasLayout(layout: CanvasLayout): CanvasValidationResu
       const b = layout.nodes[j]!;
       if (!overlaps(a, b)) continue;
 
-      if (a.type === 'group' && b.data.parentGroup === a.id) {
+      if (isGroupChildPair(a, b)) {
         (fullyContains(a, b) ? containments : containmentViolations).push(containment(a, b));
         continue;
       }
-      if (b.type === 'group' && a.data.parentGroup === b.id) {
+      if (isGroupChildPair(b, a)) {
         (fullyContains(b, a) ? containments : containmentViolations).push(containment(b, a));
         continue;
       }
