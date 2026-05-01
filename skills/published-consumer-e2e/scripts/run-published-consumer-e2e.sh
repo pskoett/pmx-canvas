@@ -144,7 +144,7 @@ for _ in $(seq 1 120); do
 
   NODE_COUNT="$(
     curl -fsS "http://127.0.0.1:${PORT}/api/canvas/state" \
-      | "${BUN_BIN}" -e 'let raw="";for await (const chunk of Bun.stdin.stream()){raw+=chunk instanceof Uint8Array ? Buffer.from(chunk).toString() : String(chunk);} const state=JSON.parse(raw); console.log(state.nodes.length);'
+      | python3 -c 'import json, sys; print(len(json.load(sys.stdin).get("nodes", [])))'
   )"
 
   if [[ "${NODE_COUNT}" -ge 18 ]]; then

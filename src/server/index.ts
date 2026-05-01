@@ -16,6 +16,8 @@ import {
   createCanvasGraphNode,
   createCanvasGroup,
   createCanvasJsonRenderNode,
+  buildStructuredNodeUpdate,
+  fitCanvasView,
   deleteCanvasSnapshot,
   executeCanvasBatch,
   groupCanvasNodes,
@@ -30,6 +32,7 @@ import {
   setCanvasContextPins,
   ungroupCanvasNodes,
   validateCanvasNodePatch,
+  hasStructuredNodeUpdateFields,
 } from './canvas-operations.js';
 import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
@@ -51,8 +54,6 @@ import {
 } from './diagram-presets.js';
 import {
   buildGraphSpec,
-  buildJsonRenderViewerHtml,
-  createJsonRenderNodeData,
   GRAPH_NODE_SIZE,
   JSON_RENDER_NODE_SIZE,
   normalizeAndValidateJsonRenderSpec,
@@ -221,15 +222,41 @@ export class PmxCanvas extends EventEmitter {
     return result;
   }
 
-  updateNode(id: string, patch: Partial<CanvasNodeState>): void {
+  updateNode(id: string, patch: Partial<CanvasNodeState> & Record<string, unknown>): void {
+    const existing = canvasState.getNode(id);
+    if (!existing) return;
+    const resolvedPatch: Partial<CanvasNodeState> = {};
+    if (patch.position) resolvedPatch.position = patch.position;
+    if (patch.size) resolvedPatch.size = patch.size;
+    if (patch.collapsed !== undefined) resolvedPatch.collapsed = patch.collapsed;
+    if (patch.pinned !== undefined) resolvedPatch.pinned = patch.pinned;
+    if (patch.dockPosition !== undefined) resolvedPatch.dockPosition = patch.dockPosition;
+
+    if (hasStructuredNodeUpdateFields(patch)) {
+      resolvedPatch.data = buildStructuredNodeUpdate(existing, patch).data;
+    } else if (
+      patch.data !== undefined ||
+      patch.title !== undefined ||
+      patch.content !== undefined ||
+      typeof patch.arrangeLocked === 'boolean'
+    ) {
+      resolvedPatch.data = {
+        ...existing.data,
+        ...(patch.data && typeof patch.data === 'object' && !Array.isArray(patch.data) ? patch.data : {}),
+        ...(typeof patch.title === 'string' ? { title: patch.title } : {}),
+        ...(typeof patch.content === 'string' ? { content: patch.content } : {}),
+        ...(typeof patch.arrangeLocked === 'boolean' ? { arrangeLocked: patch.arrangeLocked } : {}),
+      };
+    }
+
     const error = validateCanvasNodePatch({
-      ...(patch.position ? { position: patch.position } : {}),
-      ...(patch.size ? { size: patch.size } : {}),
+      ...(resolvedPatch.position ? { position: resolvedPatch.position } : {}),
+      ...(resolvedPatch.size ? { size: resolvedPatch.size } : {}),
     });
     if (error) {
       throw new Error(error);
     }
-    canvasState.updateNode(id, patch);
+    canvasState.updateNode(id, resolvedPatch);
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   }
 
@@ -342,6 +369,18 @@ export class PmxCanvas extends EventEmitter {
     }
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
     return { focused: id, panned: !noPan };
+  }
+
+  fitView(options?: {
+    width?: number;
+    height?: number;
+    padding?: number;
+    maxScale?: number;
+    nodeIds?: string[];
+  }): ReturnType<typeof fitCanvasView> {
+    const result = fitCanvasView(options);
+    emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: result.viewport });
+    return result;
   }
 
   getLayout(): CanvasLayout {

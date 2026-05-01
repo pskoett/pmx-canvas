@@ -1,26 +1,94 @@
 import { expect, test } from '@playwright/test';
+import { execFileSync, spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const baseUrl = process.env.PMX_CANVAS_URL ?? 'http://127.0.0.1:4513';
+const repoRoot = join(import.meta.dirname, '..', '..');
+const consumerPort = Number(new URL(baseUrl).port || '4513');
 
-test.skip(!process.env.PMX_CANVAS_URL, 'published-consumer smoke requires PMX_CANVAS_URL from the install-style workflow');
+let consumerWorkdir: string | null = null;
+let consumerServerPid: number | null = null;
+
+function resolveBunBin(): string {
+  if (process.env.BUN_BIN && existsSync(process.env.BUN_BIN)) return process.env.BUN_BIN;
+  return execFileSync('bash', ['-lc', 'command -v bun'], { encoding: 'utf-8' }).trim();
+}
+
+function parseServerPid(output: string): number {
+  const match = output.match(/PMX_SERVER_PID=(\d+)/);
+  if (!match) throw new Error(`Published-consumer setup did not report PMX_SERVER_PID. Output:\n${output}`);
+  return Number(match[1]);
+}
+
+function stopConsumerServer(): void {
+  if (!consumerServerPid) return;
+  try {
+    process.kill(-consumerServerPid, 'SIGTERM');
+  } catch {
+    try {
+      process.kill(consumerServerPid, 'SIGTERM');
+    } catch {
+      // Server may already be gone.
+    }
+  }
+  consumerServerPid = null;
+}
+
+test.beforeAll(() => {
+  if (process.env.PMX_CANVAS_URL) return;
+  consumerWorkdir = mkdtempSync(join(tmpdir(), 'pmx-canvas-published-consumer-pw-'));
+  const script = join(repoRoot, 'skills', 'published-consumer-e2e', 'scripts', 'run-published-consumer-e2e.sh');
+  const result = spawnSync('bash', [
+    script,
+    `--port=${consumerPort}`,
+    `--workdir=${consumerWorkdir}`,
+    '--skip-playwright',
+    '--keep-running',
+  ], {
+    cwd: repoRoot,
+    env: {
+      ...process.env,
+      BUN_BIN: resolveBunBin(),
+    },
+    encoding: 'utf-8',
+    timeout: 180_000,
+  });
+  const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
+  if (result.status !== 0) {
+    throw new Error(`Published-consumer setup failed (${result.status}).\n${output}`);
+  }
+  consumerServerPid = parseServerPid(output);
+});
+
+test.afterAll(() => {
+  stopConsumerServer();
+  if (consumerWorkdir) {
+    rmSync(consumerWorkdir, { recursive: true, force: true });
+    consumerWorkdir = null;
+  }
+});
 
 test('renders the published-consumer SDLC workspace', async ({ page, request }) => {
+  test.setTimeout(180_000);
   await page.goto(`${baseUrl}/workbench`);
 
-  await expect(page.locator('.canvas-node').filter({ hasText: 'Synthetic SDLC Report' })).toHaveCount(1);
-  await expect(page.locator('.canvas-node').filter({ hasText: 'Pipeline Atlas' })).toHaveCount(1);
-  await expect(page.locator('.canvas-node').filter({ hasText: 'Artifact App' })).toHaveCount(1);
-  await expect(page.locator('.canvas-node').filter({ hasText: 'Control Tower Widgets' })).toHaveCount(1);
-  await expect(page.locator('.canvas-node').filter({ hasText: 'Release Gate Intake' })).toHaveCount(1);
-  await expect(page.locator('.canvas-node').filter({ hasText: 'Service Readiness Matrix' })).toHaveCount(1);
-  await expect(page.locator('.canvas-node').filter({ hasText: 'Lead Time Trend' })).toHaveCount(1);
-  await expect(page.locator('.canvas-node').filter({ hasText: 'Defects by Stage' })).toHaveCount(1);
-  await expect(page.locator('.canvas-node').filter({ hasText: 'Operational Load' })).toHaveCount(1);
+  const nodeTitle = (title: string) => page.locator('.canvas-node .node-title').filter({ hasText: title });
+  await expect(nodeTitle('Synthetic SDLC Report')).toHaveCount(1);
+  await expect(nodeTitle('Pipeline Atlas')).toHaveCount(1);
+  await expect(nodeTitle('Artifact App')).toHaveCount(1);
+  await expect(nodeTitle('Control Tower Widgets')).toHaveCount(1);
+  await expect(nodeTitle('Release Gate Intake')).toHaveCount(1);
+  await expect(nodeTitle('Service Readiness Matrix')).toHaveCount(1);
+  await expect(nodeTitle('Lead Time Trend')).toHaveCount(1);
+  await expect(nodeTitle('Defects by Stage')).toHaveCount(1);
+  await expect(nodeTitle('Operational Load')).toHaveCount(1);
 
   await expect(page.locator('.context-pin-bar')).toContainText('3 nodes in context');
-  await expect(page.getByText('npm pack')).toBeVisible();
-  await expect(page.getByText('canvas.buildWebArtifact')).toBeVisible();
-  await expect(page.getByText('playwright')).toBeVisible();
+  await expect(page.getByText('npm pack', { exact: true })).toBeVisible();
+  await expect(page.getByText('canvas.buildWebArtifact', { exact: true })).toBeVisible();
+  await expect(page.getByText('playwright', { exact: true })).toBeVisible();
 
   const artifactFrame = page.frameLocator('.canvas-node:has-text("SDLC Control Room Artifact") iframe.mcp-app-frame');
   await expect(artifactFrame.getByText('Delivery Control Room')).toBeVisible();
@@ -40,7 +108,7 @@ test('renders the published-consumer SDLC workspace', async ({ page, request }) 
     const typeSet = new Set(state.nodes.map((node) => node.type));
     return [
       state.nodes.length >= 18,
-        ['markdown', 'image', 'file', 'status', 'context', 'ledger', 'trace', 'mcp-app', 'webpage', 'json-render', 'graph', 'group']
+        ['markdown', 'image', 'file', 'status', 'context', 'ledger', 'trace', 'mcp-app', 'json-render', 'graph', 'group']
           .every((type) => typeSet.has(type)),
     ].every(Boolean);
   }).toBe(true);

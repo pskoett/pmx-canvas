@@ -86,4 +86,32 @@ describe('PmxCanvas SDK surface', () => {
     expect(canvas.ungroupNodes(groupId)).toBe(true);
     expect((canvas.getNode(groupId)?.data.children as string[]) ?? []).toEqual([]);
   });
+
+  test('combines structured graph updates with metadata and rejects wrong node types', () => {
+    workspaceRoot = createTestWorkspace('pmx-canvas-sdk-structured-');
+    resetCanvasForTests(workspaceRoot);
+
+    const canvas = createCanvas({ port: 4790 });
+    const graph = canvas.addGraphNode({
+      title: 'SDK graph',
+      graphType: 'line',
+      data: [{ label: 'A', value: 1 }],
+      xKey: 'label',
+      yKey: 'value',
+    });
+
+    canvas.updateNode(graph.id, {
+      data: [{ label: 'B', value: 5 }],
+      arrangeLocked: true,
+    });
+
+    const updatedGraph = canvas.getNode(graph.id);
+    expect(updatedGraph?.data.arrangeLocked).toBe(true);
+    expect((updatedGraph?.data.graphConfig as { data?: Array<Record<string, unknown>> } | undefined)?.data)
+      .toEqual([{ label: 'B', value: 5 }]);
+
+    const markdownId = canvas.addNode({ type: 'markdown', title: 'Plain note' });
+    expect(() => canvas.updateNode(markdownId, { spec: { root: 'card', elements: {} } }))
+      .toThrow('Structured spec and graph updates can only be used');
+  });
 });

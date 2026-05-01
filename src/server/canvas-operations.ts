@@ -22,6 +22,7 @@ import { searchNodes } from './spatial-analysis.js';
 import { getCanvasNodeTitle, serializeCanvasNode, type SerializedCanvasNode } from './canvas-serialization.js';
 import {
   buildGraphSpec,
+  buildGraphConfig,
   createJsonRenderNodeData,
   GRAPH_NODE_SIZE,
   inferJsonRenderNodeTitle,
@@ -41,6 +42,33 @@ import { buildExcalidrawRestoreCheckpointToolInput, ensureExcalidrawCheckpointId
 
 export type CanvasArrangeMode = 'grid' | 'column' | 'flow';
 export type CanvasPinMode = 'set' | 'add' | 'remove';
+
+export interface CanvasFitViewOptions {
+  width?: number;
+  height?: number;
+  padding?: number;
+  maxScale?: number;
+  nodeIds?: string[];
+}
+
+export interface CanvasFitViewResult {
+  ok: true;
+  viewport: { x: number; y: number; scale: number };
+  nodeCount: number;
+  bounds: { x: number; y: number; width: number; height: number } | null;
+}
+
+export interface CanvasGraphNodeUpdateInput extends Partial<GraphNodeInput> {
+  spec?: unknown;
+  type?: string;
+}
+
+export interface CanvasStructuredNodeUpdateInput extends Omit<CanvasGraphNodeUpdateInput, 'data'> {
+  content?: unknown;
+  data?: unknown;
+  arrangeLocked?: unknown;
+  chartHeight?: unknown;
+}
 
 interface CanvasAddNodeInput {
   type: CanvasNodeState['type'];
@@ -82,6 +110,246 @@ const MAX_CONTEXT_PINS = 20;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function positiveNumber(value: number | undefined, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function pickString(record: Record<string, unknown>, key: string): string | undefined {
+  const value = record[key];
+  return typeof value === 'string' && value.trim().length > 0 ? value : undefined;
+}
+
+function pickNumber(record: Record<string, unknown>, key: string): number | undefined {
+  const value = record[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function pickStringArray(record: Record<string, unknown>, key: string): string[] | undefined {
+  const value = record[key];
+  if (!Array.isArray(value)) return undefined;
+  const strings = value.filter((item): item is string => typeof item === 'string' && item.trim().length > 0);
+  return strings.length > 0 ? strings : undefined;
+}
+
+function pickGraphData(record: Record<string, unknown>, key: string): Array<Record<string, unknown>> | undefined {
+  const value = record[key];
+  if (!Array.isArray(value)) return undefined;
+  const rows = value.filter((item): item is Record<string, unknown> => isRecord(item));
+  return rows.length === value.length ? rows : undefined;
+}
+
+function pickAggregate(record: Record<string, unknown>, key: string): GraphNodeInput['aggregate'] | undefined {
+  const value = record[key];
+  return value === 'sum' || value === 'count' || value === 'avg' ? value : undefined;
+}
+
+function isJsonRenderSpecLike(value: unknown): boolean {
+  return isRecord(value) && typeof value.root === 'string' && isRecord(value.elements);
+}
+
+function isGraphPayloadLike(value: unknown): value is Record<string, unknown> {
+  return isRecord(value) && !isJsonRenderSpecLike(value) && (
+    Array.isArray(value.data) || typeof value.graphType === 'string'
+  );
+}
+
+function hasGraphUpdateFields(input: Record<string, unknown>): boolean {
+  return input.graphType !== undefined ||
+    input.type !== undefined ||
+    Array.isArray(input.data) ||
+    input.xKey !== undefined ||
+    input.yKey !== undefined ||
+    input.zKey !== undefined ||
+    input.nameKey !== undefined ||
+    input.valueKey !== undefined ||
+    input.axisKey !== undefined ||
+    input.metrics !== undefined ||
+    input.series !== undefined ||
+    input.barKey !== undefined ||
+    input.lineKey !== undefined ||
+    input.aggregate !== undefined ||
+    input.color !== undefined ||
+    input.barColor !== undefined ||
+    input.lineColor !== undefined ||
+    input.chartHeight !== undefined;
+}
+
+function graphUpdateInput(input: CanvasStructuredNodeUpdateInput): CanvasGraphNodeUpdateInput {
+  const data = pickGraphData(input as Record<string, unknown>, 'data');
+  const {
+    data: _data,
+    content: _content,
+    arrangeLocked: _arrangeLocked,
+    chartHeight,
+    ...graphFields
+  } = input;
+  return {
+    ...graphFields,
+    ...(data ? { data } : {}),
+    ...(typeof chartHeight === 'number' ? { height: chartHeight } : {}),
+  };
+}
+
+function mergeNodeDataFields(
+  base: Record<string, unknown>,
+  input: CanvasStructuredNodeUpdateInput,
+): Record<string, unknown> {
+  return {
+    ...base,
+    ...(isRecord(input.data) ? input.data : {}),
+    ...(typeof input.arrangeLocked === 'boolean' ? { arrangeLocked: input.arrangeLocked } : {}),
+  };
+}
+
+export function hasStructuredNodeUpdateFields(input: Record<string, unknown>): boolean {
+  return input.spec !== undefined || hasGraphUpdateFields(input);
+}
+
+export function buildStructuredNodeUpdate(
+  node: CanvasNodeState,
+  input: CanvasStructuredNodeUpdateInput,
+): { data: Record<string, unknown> } {
+  const inputRecord = input as Record<string, unknown>;
+  const hasSpec = inputRecord.spec !== undefined;
+  const hasGraphFields = hasGraphUpdateFields(inputRecord);
+
+  if (node.type === 'json-render') {
+    if (hasGraphFields) {
+      throw new Error(`Graph update fields can only be used with graph nodes, not ${node.type} nodes.`);
+    }
+    if (!hasSpec) {
+      throw new Error('json-render structured updates require a spec.');
+    }
+    return {
+      data: mergeNodeDataFields(buildJsonRenderNodeUpdate(node, {
+        ...(typeof input.title === 'string' ? { title: input.title } : {}),
+        spec: input.spec,
+      }).data, input),
+    };
+  }
+
+  if (node.type === 'graph') {
+    return {
+      data: mergeNodeDataFields(buildGraphNodeUpdate(node, graphUpdateInput(input)).data, input),
+    };
+  }
+
+  throw new Error(`Structured spec and graph updates can only be used with json-render or graph nodes, not ${node.type} nodes.`);
+}
+
+function graphConfigToInput(config: Record<string, unknown>, fallbackTitle: string): GraphNodeInput | null {
+  const data = pickGraphData(config, 'data');
+  if (!data) return null;
+  return {
+    title: pickString(config, 'title') ?? fallbackTitle,
+    graphType: pickString(config, 'graphType') ?? 'line',
+    data,
+    ...(pickString(config, 'xKey') ? { xKey: pickString(config, 'xKey') } : {}),
+    ...(pickString(config, 'yKey') ? { yKey: pickString(config, 'yKey') } : {}),
+    ...(pickString(config, 'zKey') ? { zKey: pickString(config, 'zKey') } : {}),
+    ...(pickString(config, 'nameKey') ? { nameKey: pickString(config, 'nameKey') } : {}),
+    ...(pickString(config, 'valueKey') ? { valueKey: pickString(config, 'valueKey') } : {}),
+    ...(pickString(config, 'axisKey') ? { axisKey: pickString(config, 'axisKey') } : {}),
+    ...(pickStringArray(config, 'metrics') ? { metrics: pickStringArray(config, 'metrics') } : {}),
+    ...(pickStringArray(config, 'series') ? { series: pickStringArray(config, 'series') } : {}),
+    ...(pickString(config, 'barKey') ? { barKey: pickString(config, 'barKey') } : {}),
+    ...(pickString(config, 'lineKey') ? { lineKey: pickString(config, 'lineKey') } : {}),
+    ...(pickAggregate(config, 'aggregate') ? { aggregate: pickAggregate(config, 'aggregate') } : {}),
+    ...(pickString(config, 'color') ? { color: pickString(config, 'color') } : {}),
+    ...(pickString(config, 'barColor') ? { barColor: pickString(config, 'barColor') } : {}),
+    ...(pickString(config, 'lineColor') ? { lineColor: pickString(config, 'lineColor') } : {}),
+    ...(pickNumber(config, 'height') !== undefined ? { height: pickNumber(config, 'height') } : {}),
+  };
+}
+
+function mergeGraphInput(source: Record<string, unknown>, fallback: GraphNodeInput | null): GraphNodeInput {
+  const data = pickGraphData(source, 'data') ?? fallback?.data;
+  if (!data) throw new Error('Graph update requires a data array, either in the update payload or the existing graphConfig.');
+  return {
+    title: pickString(source, 'title') ?? fallback?.title ?? 'Graph',
+    graphType: pickString(source, 'graphType') ?? pickString(source, 'type') ?? fallback?.graphType ?? 'line',
+    data,
+    ...((pickString(source, 'xKey') ?? fallback?.xKey) ? { xKey: pickString(source, 'xKey') ?? fallback?.xKey } : {}),
+    ...((pickString(source, 'yKey') ?? fallback?.yKey) ? { yKey: pickString(source, 'yKey') ?? fallback?.yKey } : {}),
+    ...((pickString(source, 'zKey') ?? fallback?.zKey) ? { zKey: pickString(source, 'zKey') ?? fallback?.zKey } : {}),
+    ...((pickString(source, 'nameKey') ?? fallback?.nameKey) ? { nameKey: pickString(source, 'nameKey') ?? fallback?.nameKey } : {}),
+    ...((pickString(source, 'valueKey') ?? fallback?.valueKey) ? { valueKey: pickString(source, 'valueKey') ?? fallback?.valueKey } : {}),
+    ...((pickString(source, 'axisKey') ?? fallback?.axisKey) ? { axisKey: pickString(source, 'axisKey') ?? fallback?.axisKey } : {}),
+    ...((pickStringArray(source, 'metrics') ?? fallback?.metrics) ? { metrics: pickStringArray(source, 'metrics') ?? fallback?.metrics } : {}),
+    ...((pickStringArray(source, 'series') ?? fallback?.series) ? { series: pickStringArray(source, 'series') ?? fallback?.series } : {}),
+    ...((pickString(source, 'barKey') ?? fallback?.barKey) ? { barKey: pickString(source, 'barKey') ?? fallback?.barKey } : {}),
+    ...((pickString(source, 'lineKey') ?? fallback?.lineKey) ? { lineKey: pickString(source, 'lineKey') ?? fallback?.lineKey } : {}),
+    ...((pickAggregate(source, 'aggregate') ?? fallback?.aggregate) ? { aggregate: pickAggregate(source, 'aggregate') ?? fallback?.aggregate } : {}),
+    ...((pickString(source, 'color') ?? fallback?.color) ? { color: pickString(source, 'color') ?? fallback?.color } : {}),
+    ...((pickString(source, 'barColor') ?? fallback?.barColor) ? { barColor: pickString(source, 'barColor') ?? fallback?.barColor } : {}),
+    ...((pickString(source, 'lineColor') ?? fallback?.lineColor) ? { lineColor: pickString(source, 'lineColor') ?? fallback?.lineColor } : {}),
+    ...((pickNumber(source, 'height') ?? fallback?.height) !== undefined ? { height: pickNumber(source, 'height') ?? fallback?.height } : {}),
+  };
+}
+
+export function buildJsonRenderNodeUpdate(
+  node: CanvasNodeState,
+  input: { title?: string; spec: unknown },
+): { data: Record<string, unknown>; spec: JsonRenderSpec } {
+  if (node.type !== 'json-render') throw new Error(`Node "${node.id}" is not a json-render node.`);
+  const spec = normalizeAndValidateJsonRenderSpec(input.spec);
+  const title = input.title?.trim() || inferJsonRenderNodeTitle(spec);
+  return {
+    spec,
+    data: {
+      ...node.data,
+      ...createJsonRenderNodeData(node.id, title, spec, { viewerType: 'json-render' }),
+    },
+  };
+}
+
+export function buildGraphNodeUpdate(
+  node: CanvasNodeState,
+  input: CanvasGraphNodeUpdateInput,
+): { data: Record<string, unknown>; spec: JsonRenderSpec; graphConfig: Record<string, unknown> } {
+  if (node.type !== 'graph') throw new Error(`Node "${node.id}" is not a graph node.`);
+  const currentConfig = isRecord(node.data.graphConfig) ? node.data.graphConfig : {};
+  const fallbackTitle = typeof node.data.title === 'string' ? node.data.title : 'Graph';
+  const fallback = graphConfigToInput(currentConfig, fallbackTitle);
+  const source = isGraphPayloadLike(input.spec)
+    ? input.spec
+    : Object.fromEntries(
+        Object.entries(input).filter(([key, value]) => key !== 'spec' && value !== undefined),
+      );
+
+  if (input.spec !== undefined && !isGraphPayloadLike(input.spec)) {
+    const spec = normalizeAndValidateJsonRenderSpec(input.spec);
+    const title = input.title?.trim() || fallbackTitle;
+    return {
+      spec,
+      graphConfig: currentConfig,
+      data: {
+        ...node.data,
+        ...createJsonRenderNodeData(node.id, title, spec, {
+          viewerType: 'graph',
+          graphConfig: currentConfig,
+        }),
+      },
+    };
+  }
+
+  const graphInput = mergeGraphInput(source, fallback);
+  const spec = buildGraphSpec(graphInput);
+  const graphConfig = buildGraphConfig(graphInput);
+  const title = graphInput.title?.trim() || 'Graph';
+  return {
+    spec,
+    graphConfig,
+    data: {
+      ...node.data,
+      ...createJsonRenderNodeData(node.id, title, spec, {
+        viewerType: 'graph',
+        graphConfig,
+      }),
+    },
+  };
 }
 
 function getStoredExcalidrawCheckpointId(node: CanvasNodeState): string | null {
@@ -1033,31 +1301,52 @@ export function createCanvasGraphNode(
     dockPosition: null,
     data: createJsonRenderNodeData(id, title, spec, {
       viewerType: 'graph',
-      graphConfig: {
-        title,
-        graphType: input.graphType,
-        data: input.data,
-        ...(input.xKey ? { xKey: input.xKey } : {}),
-        ...(input.yKey ? { yKey: input.yKey } : {}),
-        ...(input.zKey ? { zKey: input.zKey } : {}),
-        ...(input.nameKey ? { nameKey: input.nameKey } : {}),
-        ...(input.valueKey ? { valueKey: input.valueKey } : {}),
-        ...(input.axisKey ? { axisKey: input.axisKey } : {}),
-        ...(input.metrics?.length ? { metrics: input.metrics } : {}),
-        ...(input.series?.length ? { series: input.series } : {}),
-        ...(input.barKey ? { barKey: input.barKey } : {}),
-        ...(input.lineKey ? { lineKey: input.lineKey } : {}),
-        ...(input.aggregate ? { aggregate: input.aggregate } : {}),
-        ...(input.color ? { color: input.color } : {}),
-        ...(input.barColor ? { barColor: input.barColor } : {}),
-        ...(input.lineColor ? { lineColor: input.lineColor } : {}),
-        ...(typeof input.height === 'number' ? { height: input.height } : {}),
-      },
+      graphConfig: buildGraphConfig(input),
     }),
   };
 
   canvasState.addGraphNode(node);
   return { id, url: String(node.data.url), spec, node };
+}
+
+export function fitCanvasView(options: CanvasFitViewOptions = {}): CanvasFitViewResult {
+  const width = positiveNumber(options.width, 1440);
+  const height = positiveNumber(options.height, 900);
+  const padding = positiveNumber(options.padding, 60);
+  const maxScale = positiveNumber(options.maxScale, 1);
+  const nodeIdFilter = options.nodeIds && options.nodeIds.length > 0 ? new Set(options.nodeIds) : null;
+  const targetNodes = canvasState.getLayout().nodes.filter((node) => !nodeIdFilter || nodeIdFilter.has(node.id));
+
+  if (targetNodes.length === 0) {
+    const viewport = canvasState.viewport;
+    return { ok: true, viewport, nodeCount: 0, bounds: null };
+  }
+
+  let minX = Number.POSITIVE_INFINITY;
+  let minY = Number.POSITIVE_INFINITY;
+  let maxX = Number.NEGATIVE_INFINITY;
+  let maxY = Number.NEGATIVE_INFINITY;
+  for (const node of targetNodes) {
+    minX = Math.min(minX, node.position.x);
+    minY = Math.min(minY, node.position.y);
+    maxX = Math.max(maxX, node.position.x + node.size.width);
+    maxY = Math.max(maxY, node.position.y + node.size.height);
+  }
+
+  const bounds = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+  const worldWidth = Math.max(1, bounds.width + padding * 2);
+  const worldHeight = Math.max(1, bounds.height + padding * 2);
+  const scale = Math.min(maxScale, width / worldWidth, height / worldHeight);
+  const centerX = minX + bounds.width / 2;
+  const centerY = minY + bounds.height / 2;
+  const viewport = {
+    x: width / 2 - centerX * scale,
+    y: height / 2 - centerY * scale,
+    scale,
+  };
+
+  canvasState.setViewport(viewport);
+  return { ok: true, viewport: canvasState.viewport, nodeCount: targetNodes.length, bounds };
 }
 
 function isPlainRecord(value: unknown): value is Record<string, unknown> {

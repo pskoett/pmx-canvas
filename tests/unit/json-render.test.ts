@@ -26,6 +26,7 @@ describe('json-render validation', () => {
 
     expect(spec.root).toBe('card');
     expect(Object.keys(spec.elements)).toEqual(['card']);
+    expect(spec.elements.card?.visible).toBe(true);
   });
 
   test('normalizes common element aliases and cleans non-string children', () => {
@@ -148,6 +149,7 @@ describe('json-render validation', () => {
         text: 'Legacy Badge',
         variant: 'default',
       }),
+      visible: true,
       children: [],
     }));
     expect((normalized.elements.root as { props?: Record<string, unknown> }).props).not.toHaveProperty('label');

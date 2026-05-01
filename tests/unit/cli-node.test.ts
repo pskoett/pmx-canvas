@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { runAgentCli } from '../../src/cli/agent.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
@@ -175,6 +176,234 @@ describe('agent CLI node commands', () => {
     expect(output).toMatchObject({ ok: true, focused: created.id, panned: false });
     expect(canvasState.viewport).toEqual(before);
     expect(canvasState.getNode(created.id)?.zIndex).toBeGreaterThan(1);
+  });
+
+  test('fit command updates server viewport for canvas bounds', async () => {
+    await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Fit A', x: 100, y: 100, width: 200, height: 100 }),
+    });
+    await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Fit B', x: 700, y: 500, width: 300, height: 200 }),
+    });
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['fit', '--width', '1200', '--height', '800', '--padding', '100']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      viewport: { x: number; y: number; scale: number };
+      nodeCount: number;
+    };
+    expect(output.ok).toBe(true);
+    expect(output.nodeCount).toBe(2);
+    expect(output.viewport).toEqual({ x: 50, y: 0, scale: 1 });
+    expect(canvasState.viewport).toEqual(output.viewport);
+  });
+
+  test('node update can replace json-render specs in place', async () => {
+    const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/json-render', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        spec: {
+          root: 'card',
+          elements: {
+            card: { type: 'Card', props: { title: 'Before' }, children: ['copy'] },
+            copy: { type: 'Text', props: { text: 'Before body' }, children: [] },
+          },
+        },
+      }),
+    });
+
+    const specPath = join(workspaceRoot, 'updated-json-render.json');
+    writeFileSync(specPath, JSON.stringify({
+      root: 'card',
+      elements: {
+        card: { type: 'Card', props: { title: 'After' }, children: ['copy'] },
+        copy: { type: 'Text', props: { text: 'After body' }, children: [] },
+      },
+    }), 'utf-8');
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['node', 'update', created.id, '--spec-file', specPath]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      id: string;
+      node: { data: { title: string; spec: { elements: Record<string, { props?: { text?: string } }> } } };
+    };
+    expect(output.ok).toBe(true);
+    expect(output.id).toBe(created.id);
+    expect(output.node.data.title).toBe('After');
+    expect(output.node.data.spec.elements.copy?.props?.text).toBe('After body');
+  });
+
+  test('node update can rebuild graph chart config without treating chart height as frame height', async () => {
+    const created = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      node: { size: { height: number } };
+    }>('/api/canvas/graph', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Before graph',
+        graphType: 'line',
+        data: [{ label: 'A', value: 1 }],
+        xKey: 'label',
+        yKey: 'value',
+        nodeHeight: 700,
+      }),
+    });
+
+    const dataPath = join(workspaceRoot, 'updated-graph-data.json');
+    writeFileSync(dataPath, JSON.stringify([{ label: 'B', value: 9 }]), 'utf-8');
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'node',
+        'update',
+        created.id,
+        '--title',
+        'After graph',
+        '--graph-type',
+        'bar',
+        '--data-file',
+        dataPath,
+        '--x-key',
+        'label',
+        '--y-key',
+        'value',
+        '--chart-height',
+        '420',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      id: string;
+      node: {
+        size: { height: number };
+        data: {
+          graphConfig: Record<string, unknown>;
+          spec: { elements: Record<string, { type?: string; props?: Record<string, unknown> }> };
+        };
+      };
+    };
+    expect(output.ok).toBe(true);
+    expect(output.id).toBe(created.id);
+    expect(output.node.size.height).toBe(700);
+    expect(output.node.data.graphConfig.title).toBe('After graph');
+    expect(output.node.data.graphConfig.graphType).toBe('bar');
+    expect(output.node.data.graphConfig.height).toBe(420);
+    expect(output.node.data.spec.elements.chart?.type).toBe('BarChart');
+    expect(output.node.data.spec.elements.chart?.props?.height).toBe(420);
+  });
+
+  test('node update can combine graph data and arrange locking', async () => {
+    const created = await jsonRequest<{
+      ok: boolean;
+      id: string;
+    }>('/api/canvas/graph', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Lockable graph',
+        graphType: 'line',
+        data: [{ label: 'A', value: 1 }],
+        xKey: 'label',
+        yKey: 'value',
+      }),
+    });
+
+    const dataPath = join(workspaceRoot, 'locked-graph-data.json');
+    writeFileSync(dataPath, JSON.stringify([{ label: 'B', value: 12 }]), 'utf-8');
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'node',
+        'update',
+        created.id,
+        '--data-file',
+        dataPath,
+        '--lock-arrange',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      node: { data: { arrangeLocked?: boolean; graphConfig: { data: Array<Record<string, unknown>> } } };
+    };
+    expect(output.ok).toBe(true);
+    expect(output.node.data.arrangeLocked).toBe(true);
+    expect(output.node.data.graphConfig.data).toEqual([{ label: 'B', value: 12 }]);
+  });
+
+  test('node update --stdin still updates markdown content when graph flags are absent', async () => {
+    const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'Stdin update',
+        content: 'Before',
+      }),
+    });
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    const originalStdin = process.stdin;
+    console.log = log;
+    Object.defineProperty(process, 'stdin', {
+      value: Readable.from([Buffer.from('Updated from stdin')]),
+      configurable: true,
+    });
+
+    try {
+      await runAgentCli(['node', 'update', created.id, '--stdin']);
+    } finally {
+      console.log = originalLog;
+      Object.defineProperty(process, 'stdin', { value: originalStdin, configurable: true });
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      id: string;
+      node: { data: { content: string } };
+    };
+    expect(output.ok).toBe(true);
+    expect(output.id).toBe(created.id);
+    expect(output.node.data.content).toBe('Updated from stdin');
   });
 
   test('status buckets hosted artifact nodes under web-artifact', async () => {

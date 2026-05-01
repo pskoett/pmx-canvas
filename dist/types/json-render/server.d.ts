@@ -48,6 +48,7 @@ export declare function inferJsonRenderNodeTitle(spec: JsonRenderSpec, fallback?
 export declare function normalizeAndValidateJsonRenderSpec(spec: unknown): JsonRenderSpec;
 export declare function normalizeGraphType(value: string): GraphChartType;
 export declare function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec;
+export declare function buildGraphConfig(input: GraphNodeInput): Record<string, unknown>;
 export declare function createJsonRenderNodeData(nodeId: string, title: string, spec: JsonRenderSpec, extra?: Record<string, unknown>): Record<string, unknown>;
 export declare function buildJsonRenderViewerHtml(options: {
     title: string;

@@ -114,6 +114,7 @@ describe('MCP parity with CLI', () => {
       'canvas_remove_edge',
       'canvas_arrange',
       'canvas_focus_node',
+      'canvas_fit_view',
       'canvas_clear',
       'canvas_search',
       'canvas_undo',
@@ -191,7 +192,11 @@ describe('MCP parity with CLI', () => {
         arrangeLocked: true,
       },
     }) as ToolResultShape;
-    expect(parseJsonText<{ ok: boolean; id: string }>(updated)).toEqual({ ok: true, id });
+    expect(parseJsonText<{ ok: boolean; id: string; node?: { id: string } }>(updated)).toMatchObject({
+      ok: true,
+      id,
+      node: { id },
+    });
 
     const fetched = await session.client.callTool({
       name: 'canvas_get_node',
@@ -199,6 +204,90 @@ describe('MCP parity with CLI', () => {
     }) as ToolResultShape;
     const node = parseJsonText<{ data?: { arrangeLocked?: boolean } }>(fetched);
     expect(node.data?.arrangeLocked).toBe(true);
+  });
+
+  test('canvas_update_node combines graph updates with arrangeLocked', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const added = await session.client.callTool({
+      name: 'canvas_add_graph_node',
+      arguments: {
+        title: 'MCP graph',
+        graphType: 'line',
+        data: [{ label: 'A', value: 1 }],
+        xKey: 'label',
+        yKey: 'value',
+      },
+    }) as ToolResultShape;
+    const created = parseJsonText<{ id: string }>(added);
+
+    const updated = await session.client.callTool({
+      name: 'canvas_update_node',
+      arguments: {
+        id: created.id,
+        data: [{ label: 'B', value: 8 }],
+        arrangeLocked: true,
+      },
+    }) as ToolResultShape;
+
+    const payload = parseJsonText<{
+      ok: boolean;
+      node?: { data?: { arrangeLocked?: boolean; graphConfig?: { data?: Array<Record<string, unknown>> } } };
+    }>(updated);
+    expect(payload.ok).toBe(true);
+    expect(payload.node?.data?.arrangeLocked).toBe(true);
+    expect(payload.node?.data?.graphConfig?.data).toEqual([{ label: 'B', value: 8 }]);
+  });
+
+  test('canvas_fit_view updates the viewport for screenshot workflows', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'markdown',
+        title: 'Fit A',
+        x: 100,
+        y: 100,
+        width: 200,
+        height: 100,
+      },
+    });
+    await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'markdown',
+        title: 'Fit B',
+        x: 700,
+        y: 500,
+        width: 300,
+        height: 200,
+      },
+    });
+
+    const fitted = parseJsonText<{
+      ok: boolean;
+      viewport: { x: number; y: number; scale: number };
+      nodeCount: number;
+    }>(await session.client.callTool({
+      name: 'canvas_fit_view',
+      arguments: { width: 1200, height: 800, padding: 100 },
+    }) as ToolResultShape);
+    expect(fitted).toMatchObject({ ok: true, nodeCount: 2, viewport: { x: 50, y: 0, scale: 1 } });
+
+    const layout = parseJsonText<{ viewport: { x: number; y: number; scale: number } }>(await session.client.callTool({
+      name: 'canvas_get_layout',
+      arguments: {},
+    }) as ToolResultShape);
+    expect(layout.viewport).toEqual(fitted.viewport);
   });
 
   test('canvas_add_node webpage returns explicit fetch status', async () => {

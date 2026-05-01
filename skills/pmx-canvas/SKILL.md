@@ -143,6 +143,8 @@ pmx-canvas search "auth"
 pmx-canvas open
 pmx-canvas arrange --layout flow
 pmx-canvas focus <node-id> --no-pan             # Select/raise without moving the user's viewport
+pmx-canvas fit --width 1440 --height 900        # Fit the whole board for screenshots/review
+pmx-canvas node update <node-id> --spec-file ./dashboard.json
 pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary
 pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --deps recharts --include-logs
 pmx-canvas node list --type web-artifact --summary
@@ -167,6 +169,7 @@ pmx-canvas spatial
   `"DVT O3"` can be ambiguous; prefer the full visible title such as `"DVT O3 — GitOps"`.
 - `search`, `layout`, `status`, `arrange`, `focus` — inspect and navigate the canvas. Prefer
   `focus --no-pan` when you only need to select/raise a node without hijacking the human's camera.
+- `fit [id ...]` — set the server viewport to fit the whole canvas or selected nodes before screenshots or whole-board review
 - `open` — open the current workbench in the browser
 - `pin --list|--clear|<ids...>` — manage context pins
 - `undo`, `redo`, `history` — time travel
@@ -279,7 +282,9 @@ If a node type is rejected by `canvas_add_node`, call `canvas_describe_schema` a
 
 **`canvas_update_node`** — Update an existing node
 - `id` (required): node to update
-- Any of: `title`, `content`, `color`, `x`, `y`, `width`, `height`, `collapsed`, `metadata`
+- Any of: `title`, `content`, `x`, `y`, `width`, `height`, `collapsed`, `arrangeLocked`, `data`
+- For `json-render`, pass `spec` to update the rendered spec in place while preserving node ID, edges, pins, and position
+- For `graph`, pass graph fields such as `graphType`, `data`, `xKey`, `yKey`, `color`, and `chartHeight` to rebuild the chart in place; use `height`/`nodeHeight` for frame geometry and `chartHeight` for chart content in CLI flows
 - Use to update status nodes as work progresses
 
 **`canvas_remove_node`** — Remove a node and all its connected edges
@@ -356,6 +361,10 @@ ID extraction for mixed tool responses:
 **`canvas_validate_spec`** — Validate a json-render spec or graph payload without creating a node
 - Returns the normalized json-render spec the server would accept
 - Use this when you want a dry run before creating a `json-render` or `graph` node
+
+**`canvas_fit_view`** — Fit viewport to all nodes or selected nodes
+- Optional: `width`, `height`, `padding`, `maxScale`, `nodeIds`
+- Use before screenshot workflows or whole-board review so the server viewport matches the intended camera
 
 **Batch graph creation**
 - Use `graph.add` inside `canvas_batch` / `pmx-canvas batch` when you need a graph node as part of
@@ -512,6 +521,8 @@ tools below operate on the live canvas state.
 - Required: exactly one of `expression` (single JS expression) or `script` (multi-statement body)
 - `script` is wrapped in an async IIFE, so top-level `await` works inside script bodies
 - Useful for asserting DOM state after a sequence of canvas mutations
+- Do not use `fetch()` inside `canvas_evaluate` to call PMX HTTP APIs; WebView security/CORS
+  restrictions can block those requests. Use the matching MCP tools instead.
 - Example: read the count of rendered `.canvas-node` elements:
 
   ```typescript
@@ -666,6 +677,7 @@ All POST/PATCH endpoints accept `Content-Type: application/json`. Default base U
 | POST | `/api/canvas/group/ungroup` | Ungroup |
 | POST | `/api/canvas/arrange` | Auto-arrange |
 | POST | `/api/canvas/focus` | Center viewport on node |
+| POST | `/api/canvas/fit` | Fit viewport to canvas bounds or selected nodes |
 | POST | `/api/canvas/clear` | Clear canvas |
 | POST | `/api/canvas/update` | Batch update positions |
 | GET | `/api/canvas/spatial-context` | Spatial clusters and reading order |

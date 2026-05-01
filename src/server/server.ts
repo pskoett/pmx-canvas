@@ -73,6 +73,7 @@ import {
   addCanvasNode,
   addCanvasEdge,
   applyCanvasNodeUpdates,
+  buildStructuredNodeUpdate,
   arrangeCanvasNodes,
   clearCanvas,
   createCanvasGraphNode,
@@ -80,6 +81,7 @@ import {
   createCanvasJsonRenderNode,
   deleteCanvasSnapshot,
   executeCanvasBatch,
+  fitCanvasView,
   groupCanvasNodes,
   listCanvasSnapshots,
   refreshCanvasWebpageNode,
@@ -93,6 +95,7 @@ import {
   setCanvasContextPins,
   ungroupCanvasNodes,
   validateCanvasNodePatch,
+  hasStructuredNodeUpdateFields,
 } from './canvas-operations.js';
 import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
@@ -109,12 +112,7 @@ import {
 import { traceManager } from './trace-manager.js';
 import { buildWebArtifactOnCanvas, resolveWorkspacePath } from './web-artifacts.js';
 import {
-  buildGraphSpec,
   buildJsonRenderViewerHtml,
-  createJsonRenderNodeData,
-  GRAPH_NODE_SIZE,
-  JSON_RENDER_NODE_SIZE,
-  normalizeAndValidateJsonRenderSpec,
 } from '../json-render/server.js';
 import {
   WEBPAGE_NODE_DEFAULT_SIZE,
@@ -651,6 +649,97 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+function pickFiniteNumber(record: Record<string, unknown>, key: string): number | undefined {
+  const value = record[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
+}
+
+function getRecord(value: unknown): Record<string, unknown> | undefined {
+  return isRecord(value) ? value : undefined;
+}
+
+function pickPositiveNumber(record: Record<string, unknown>, key: string): number | undefined {
+  const value = pickFiniteNumber(record, key);
+  return value !== undefined && value > 0 ? value : undefined;
+}
+
+function normalizeGeometryInput(body: Record<string, unknown>): {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  position?: { x?: number; y?: number };
+  size?: { width?: number; height?: number };
+} {
+  const position = getRecord(body.position);
+  const size = getRecord(body.size);
+  return {
+    ...(pickFiniteNumber(body, 'x') !== undefined ? { x: pickFiniteNumber(body, 'x') } : {}),
+    ...(pickFiniteNumber(body, 'y') !== undefined ? { y: pickFiniteNumber(body, 'y') } : {}),
+    ...(pickFiniteNumber(body, 'width') !== undefined ? { width: pickFiniteNumber(body, 'width') } : {}),
+    ...(pickFiniteNumber(body, 'height') !== undefined ? { height: pickFiniteNumber(body, 'height') } : {}),
+    ...(position ? {
+      position: {
+        ...(pickFiniteNumber(position, 'x') !== undefined ? { x: pickFiniteNumber(position, 'x') } : {}),
+        ...(pickFiniteNumber(position, 'y') !== undefined ? { y: pickFiniteNumber(position, 'y') } : {}),
+      },
+    } : {}),
+    ...(size ? {
+      size: {
+        ...(pickFiniteNumber(size, 'width') !== undefined ? { width: pickFiniteNumber(size, 'width') } : {}),
+        ...(pickFiniteNumber(size, 'height') !== undefined ? { height: pickFiniteNumber(size, 'height') } : {}),
+      },
+    } : {}),
+  };
+}
+
+function resolveCreateGeometry(body: Record<string, unknown>): {
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+} {
+  const geometry = normalizeGeometryInput(body);
+  const x = geometry.x ?? geometry.position?.x;
+  const y = geometry.y ?? geometry.position?.y;
+  const width = geometry.width ?? geometry.size?.width;
+  const height = geometry.height ?? geometry.size?.height;
+  return {
+    ...(x !== undefined ? { x } : {}),
+    ...(y !== undefined ? { y } : {}),
+    ...(width !== undefined ? { width } : {}),
+    ...(height !== undefined ? { height } : {}),
+  };
+}
+
+function resolvePatchGeometry(
+  body: Record<string, unknown>,
+  existing: CanvasNodeState,
+): {
+  position?: { x: number; y: number };
+  size?: { width: number; height: number };
+} {
+  const geometry = normalizeGeometryInput(body);
+  const x = geometry.x ?? geometry.position?.x;
+  const y = geometry.y ?? geometry.position?.y;
+  const width = geometry.width ?? geometry.size?.width;
+  const height = geometry.height ?? geometry.size?.height;
+  return {
+    ...(x !== undefined || y !== undefined
+      ? { position: { x: x ?? existing.position.x, y: y ?? existing.position.y } }
+      : {}),
+    ...(width !== undefined || height !== undefined
+      ? { size: { width: width ?? existing.size.width, height: height ?? existing.size.height } }
+      : {}),
+  };
+}
+
+function parseGraphPayloadData(value: unknown): Array<Record<string, unknown>> | null {
+  if (!Array.isArray(value)) return null;
+  if (value.some((item) => !isRecord(item))) return null;
+  return value as Array<Record<string, unknown>>;
+}
+
 function getExtAppNodeCheckpointId(node: CanvasNodeState): string {
   const appCheckpoint = isRecord(node.data.appCheckpoint) ? node.data.appCheckpoint : null;
   const storedCheckpointId = appCheckpoint?.id;
@@ -1130,9 +1219,11 @@ async function handleCanvasImage(pathname: string): Promise<Response> {
 const VALID_NODE_TYPES = new Set(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'mcp-app', 'webpage', 'group']);
 
 function buildNodeResponse(node: CanvasNodeState): Record<string, unknown> {
+  const serialized = serializeCanvasNode(node);
   return {
     ok: true,
-    ...serializeCanvasNode(node),
+    node: serialized,
+    ...serialized,
   };
 }
 
@@ -1153,15 +1244,15 @@ async function createCanvasWebpageNode(body: Record<string, unknown>): Promise<R
   const extraData = body.data && typeof body.data === 'object' && !Array.isArray(body.data)
     ? body.data as Record<string, unknown>
     : undefined;
+  const geometry = resolveCreateGeometry(body);
   const { id, node } = addCanvasNode({
     type: 'webpage',
     ...(typeof body.title === 'string' ? { title: body.title } : {}),
     content: normalizedUrl,
     ...(extraData ? { data: extraData } : {}),
-    ...(typeof body.x === 'number' ? { x: body.x } : {}),
-    ...(typeof body.y === 'number' ? { y: body.y } : {}),
-    ...(typeof body.width === 'number' ? { width: body.width } : { width: WEBPAGE_NODE_DEFAULT_SIZE.width }),
-    ...(typeof body.height === 'number' ? { height: body.height } : { height: WEBPAGE_NODE_DEFAULT_SIZE.height }),
+    ...geometry,
+    ...(geometry.width === undefined ? { width: WEBPAGE_NODE_DEFAULT_SIZE.width } : {}),
+    ...(geometry.height === undefined ? { height: WEBPAGE_NODE_DEFAULT_SIZE.height } : {}),
   });
 
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
@@ -1214,16 +1305,14 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
     ? body.path
     : body.content;
   let added: ReturnType<typeof addCanvasNode>;
+  const geometry = resolveCreateGeometry(body);
   try {
     added = addCanvasNode({
       type: type as CanvasNodeState['type'],
       ...(typeof body.title === 'string' ? { title: body.title } : {}),
       ...(typeof content === 'string' ? { content } : {}),
       ...(extraData ? { data: extraData } : {}),
-      ...(typeof body.x === 'number' ? { x: body.x } : {}),
-      ...(typeof body.y === 'number' ? { y: body.y } : {}),
-      ...(typeof body.width === 'number' ? { width: body.width } : {}),
-      ...(typeof body.height === 'number' ? { height: body.height } : {}),
+      ...geometry,
       defaultWidth: 360,
       defaultHeight: 200,
       fileMode: 'auto',
@@ -1374,15 +1463,19 @@ async function handleCanvasUpdateNode(nodeId: string, req: Request): Promise<Res
   if (existing.type === 'webpage' && body.refresh === true) {
     return handleCanvasRefreshWebpageNode(nodeId, req);
   }
-  const patch: Record<string, unknown> = {};
-  if (body.position) patch.position = body.position;
-  if (body.size) patch.size = body.size;
+  const patch: Record<string, unknown> = resolvePatchGeometry(body, existing);
   if (body.collapsed !== undefined) patch.collapsed = body.collapsed;
   if (body.pinned !== undefined) patch.pinned = Boolean(body.pinned);
   if (body.dockPosition === null || body.dockPosition === 'left' || body.dockPosition === 'right') {
     patch.dockPosition = body.dockPosition;
   }
-  if (body.title !== undefined || body.content !== undefined || body.data || typeof body.arrangeLocked === 'boolean') {
+  if (hasStructuredNodeUpdateFields(body)) {
+    try {
+      patch.data = buildStructuredNodeUpdate(existing, body).data;
+    } catch (error) {
+      return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
+    }
+  } else if (body.title !== undefined || body.content !== undefined || body.data || typeof body.arrangeLocked === 'boolean') {
     const data = { ...existing.data };
     if (body.title !== undefined) {
       data.title = String(body.title);
@@ -1419,7 +1512,8 @@ async function handleCanvasUpdateNode(nodeId: string, req: Request): Promise<Res
   if (error) return responseJson({ ok: false, error }, 400);
   canvasState.updateNode(nodeId, patch as Partial<CanvasNodeState>);
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson({ ok: true, id: nodeId });
+  const updated = canvasState.getNode(nodeId);
+  return responseJson(updated ? buildNodeResponse(updated) : { ok: true, id: nodeId });
 }
 
 // ── Arrange nodes ───────────────────────────────────────────
@@ -1458,6 +1552,22 @@ async function handleCanvasFocus(req: Request): Promise<Response> {
   if (!noPan) emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   return responseJson({ ok: true, focused: nodeId, panned: !noPan });
+}
+
+async function handleCanvasFit(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const nodeIds = Array.isArray(body.nodeIds)
+    ? body.nodeIds.filter((id): id is string => typeof id === 'string')
+    : undefined;
+  const result = fitCanvasView({
+    ...(typeof body.width === 'number' ? { width: body.width } : {}),
+    ...(typeof body.height === 'number' ? { height: body.height } : {}),
+    ...(typeof body.padding === 'number' ? { padding: body.padding } : {}),
+    ...(typeof body.maxScale === 'number' ? { maxScale: body.maxScale } : {}),
+    ...(nodeIds ? { nodeIds } : {}),
+  });
+  emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: result.viewport });
+  return responseJson(result);
 }
 
 async function handleCanvasBuildWebArtifact(req: Request): Promise<Response> {
@@ -1552,9 +1662,7 @@ async function handleCanvasValidateSpec(req: Request): Promise<Response> {
       }));
     }
 
-    const data = Array.isArray(body.data)
-      ? body.data.filter((item: unknown) => item && typeof item === 'object') as Array<Record<string, unknown>>
-      : null;
+    const data = parseGraphPayloadData(body.data);
     if (!data) {
       return responseJson({ ok: false, error: 'Graph validation requires a data array.' }, 400);
     }
@@ -1606,18 +1714,16 @@ async function handleCanvasAddJsonRender(req: Request): Promise<Response> {
   const title = typeof body.title === 'string' ? body.title.trim() : '';
   const rawSpec =
     body.spec && typeof body.spec === 'object' && !Array.isArray(body.spec) ? body.spec : body;
+  const geometry = resolveCreateGeometry(body);
 
   try {
     const result = createCanvasJsonRenderNode({
       ...(title ? { title } : {}),
       spec: rawSpec,
-      ...(typeof body.x === 'number' ? { x: body.x } : {}),
-      ...(typeof body.y === 'number' ? { y: body.y } : {}),
-      ...(typeof body.width === 'number' ? { width: body.width } : {}),
-      ...(typeof body.height === 'number' ? { height: body.height } : {}),
+      ...geometry,
     });
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    return responseJson({ ok: true, ...result, ...serializeCanvasNode(result.node) });
+    return responseJson({ ...buildNodeResponse(result.node), url: result.url, spec: result.spec });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return responseJson({ ok: false, error: message }, 400);
@@ -1628,9 +1734,7 @@ async function handleCanvasAddGraph(req: Request): Promise<Response> {
   const body = await readJson(req);
   const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : 'Graph';
   const graphType = typeof body.graphType === 'string' ? body.graphType : typeof body.type === 'string' ? body.type : 'line';
-  const data = Array.isArray(body.data)
-    ? body.data.filter((item: unknown) => item && typeof item === 'object') as Array<Record<string, unknown>>
-    : null;
+  const data = parseGraphPayloadData(body.data);
   if (!data) {
     return responseJson({ ok: false, error: 'Missing required field: data.' }, 400);
   }
@@ -1646,6 +1750,12 @@ async function handleCanvasAddGraph(req: Request): Promise<Response> {
     const series = Array.isArray(body.series)
       ? body.series.filter((s: unknown): s is string => typeof s === 'string')
       : null;
+    const position = getRecord(body.position);
+    const size = getRecord(body.size);
+    const x = pickFiniteNumber(body, 'x') ?? (position ? pickFiniteNumber(position, 'x') : undefined);
+    const y = pickFiniteNumber(body, 'y') ?? (position ? pickFiniteNumber(position, 'y') : undefined);
+    const width = pickPositiveNumber(body, 'width') ?? (size ? pickPositiveNumber(size, 'width') : undefined);
+    const nodeHeight = pickPositiveNumber(body, 'nodeHeight') ?? (size ? pickPositiveNumber(size, 'height') : undefined);
     const result = createCanvasGraphNode({
       title,
       graphType,
@@ -1665,13 +1775,13 @@ async function handleCanvasAddGraph(req: Request): Promise<Response> {
       ...(typeof body.barColor === 'string' ? { barColor: body.barColor } : {}),
       ...(typeof body.lineColor === 'string' ? { lineColor: body.lineColor } : {}),
       ...(typeof body.height === 'number' ? { height: body.height } : {}),
-      ...(typeof body.x === 'number' ? { x: body.x } : {}),
-      ...(typeof body.y === 'number' ? { y: body.y } : {}),
-      ...(typeof body.width === 'number' ? { width: body.width } : {}),
-      ...(typeof body.nodeHeight === 'number' ? { heightPx: body.nodeHeight } : {}),
+      ...(x !== undefined ? { x } : {}),
+      ...(y !== undefined ? { y } : {}),
+      ...(width !== undefined ? { width } : {}),
+      ...(nodeHeight !== undefined ? { heightPx: nodeHeight } : {}),
     });
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    return responseJson({ ok: true, ...result, ...serializeCanvasNode(result.node) });
+    return responseJson({ ...buildNodeResponse(result.node), url: result.url, spec: result.spec });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return responseJson({ ok: false, error: message }, 400);
@@ -3878,6 +3988,10 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/focus' && req.method === 'POST') {
             return handleCanvasFocus(req);
+          }
+
+          if (url.pathname === '/api/canvas/fit' && req.method === 'POST') {
+            return handleCanvasFit(req);
           }
 
           if (url.pathname === '/api/canvas/clear' && req.method === 'POST') {

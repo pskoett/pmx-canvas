@@ -150,7 +150,7 @@ rm -rf dist bundle.html
 
 # Build with Parcel
 echo "🔨 Building with Parcel..."
-run_with_filtered_stderr run_local_binary parcel build index.html --dist-dir dist --no-source-maps --log-level error
+run_with_filtered_stderr run_local_binary parcel build index.html --dist-dir dist --no-source-maps --log-level error --no-cache
 
 if [ ! -s "dist/index.html" ]; then
   echo "❌ Error: Parcel did not produce dist/index.html" >&2

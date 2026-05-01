@@ -2,6 +2,38 @@ import { type CanvasEdge, type CanvasNodeState, type CanvasNodeUpdate, type Canv
 import { type GraphNodeInput, type JsonRenderNodeInput, type JsonRenderSpec } from '../json-render/server.js';
 export type CanvasArrangeMode = 'grid' | 'column' | 'flow';
 export type CanvasPinMode = 'set' | 'add' | 'remove';
+export interface CanvasFitViewOptions {
+    width?: number;
+    height?: number;
+    padding?: number;
+    maxScale?: number;
+    nodeIds?: string[];
+}
+export interface CanvasFitViewResult {
+    ok: true;
+    viewport: {
+        x: number;
+        y: number;
+        scale: number;
+    };
+    nodeCount: number;
+    bounds: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    } | null;
+}
+export interface CanvasGraphNodeUpdateInput extends Partial<GraphNodeInput> {
+    spec?: unknown;
+    type?: string;
+}
+export interface CanvasStructuredNodeUpdateInput extends Omit<CanvasGraphNodeUpdateInput, 'data'> {
+    content?: unknown;
+    data?: unknown;
+    arrangeLocked?: unknown;
+    chartHeight?: unknown;
+}
 interface CanvasAddNodeInput {
     type: CanvasNodeState['type'];
     title?: string;
@@ -34,6 +66,22 @@ interface CanvasNodeLookupInput {
     id?: string;
     search?: string;
 }
+export declare function hasStructuredNodeUpdateFields(input: Record<string, unknown>): boolean;
+export declare function buildStructuredNodeUpdate(node: CanvasNodeState, input: CanvasStructuredNodeUpdateInput): {
+    data: Record<string, unknown>;
+};
+export declare function buildJsonRenderNodeUpdate(node: CanvasNodeState, input: {
+    title?: string;
+    spec: unknown;
+}): {
+    data: Record<string, unknown>;
+    spec: JsonRenderSpec;
+};
+export declare function buildGraphNodeUpdate(node: CanvasNodeState, input: CanvasGraphNodeUpdateInput): {
+    data: Record<string, unknown>;
+    spec: JsonRenderSpec;
+    graphConfig: Record<string, unknown>;
+};
 export declare function primeCanvasRuntimeBackends(options?: {
     forceRehydrateExtApps?: boolean;
 }): {
@@ -144,6 +192,7 @@ export declare function createCanvasGraphNode(input: GraphNodeInput): {
     spec: JsonRenderSpec;
     node: CanvasNodeState;
 };
+export declare function fitCanvasView(options?: CanvasFitViewOptions): CanvasFitViewResult;
 export declare function executeCanvasBatch(operations: CanvasBatchOperation[]): Promise<{
     ok: boolean;
     results: Array<Record<string, unknown>>;

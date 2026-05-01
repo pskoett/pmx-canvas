@@ -28,6 +28,7 @@ import { removeNodeFromClient, updateNodeFromClient } from '../state/intent-brid
 import { getNodeIcon } from '../icons';
 import { EXPANDABLE_TYPES, TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
+import { computeAutoFitHeight, shouldAutoFitNode } from './auto-fit';
 import { activeGuides, buildSnapCache, clearSnapCache, snapToGuides } from './snap-guides';
 import { useNodeDrag } from './use-node-drag';
 import { useNodeResize } from './use-node-resize';
@@ -141,12 +142,9 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const bodyRef = useRef<HTMLDivElement>(null);
   const hasAutoFit = useRef(false);
   const autoFitPersistTimer = useRef<number | null>(null);
-  const AUTO_FIT_MAX = 600;
-  const TITLEBAR_HEIGHT = 37;
-  const isExtAppNode = node.type === 'mcp-app' && node.data.mode === 'ext-app';
 
   useEffect(() => {
-    if (hasAutoFit.current || node.collapsed || node.dockPosition || node.type === 'group' || isExtAppNode) return;
+    if (hasAutoFit.current || !shouldAutoFitNode(node)) return;
     const body = bodyRef.current;
     if (!body) return;
 
@@ -156,9 +154,9 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         return;
       }
       const contentHeight = body.scrollHeight;
-      if (contentHeight <= 0) return;
+      const fitHeight = computeAutoFitHeight(node, contentHeight);
+      if (fitHeight === null) return;
 
-      const fitHeight = Math.min(contentHeight + TITLEBAR_HEIGHT, AUTO_FIT_MAX);
       // Only resize if the fit height differs meaningfully from current
       if (Math.abs(fitHeight - node.size.height) > 8) {
         resizeNode(node.id, { width: node.size.width, height: fitHeight });
@@ -181,7 +179,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         autoFitPersistTimer.current = null;
       }
     };
-  }, [node.id, node.type, isExtAppNode, node.collapsed, node.dockPosition, node.size.width, node.size.height]);
+  }, [node.id, node.type, node.data.mode, node.collapsed, node.dockPosition, node.size.width, node.size.height]);
 
   const isPinned = node.pinned;
   const isTrace = node.type === 'trace';

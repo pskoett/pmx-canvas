@@ -23,6 +23,8 @@ type DisplayMode = 'inline' | 'fullscreen' | 'pip';
 const DEFAULT_EXT_APP_SANDBOX = 'allow-scripts allow-popups allow-popups-to-escape-sandbox';
 
 interface ExtAppHostDimensionsTarget {
+  clientWidth?: number;
+  clientHeight?: number;
   getBoundingClientRect(): Pick<DOMRectReadOnly, 'width' | 'height'>;
 }
 
@@ -120,8 +122,8 @@ export function resolveExtAppContainerDimensions(
 ): { width: number; height: number } {
   const rect = target?.getBoundingClientRect();
   return {
-    width: positiveDimension(rect?.width ?? 0, fallback.width),
-    height: positiveDimension(rect?.height ?? 0, fallback.height),
+    width: positiveDimension(target?.clientWidth ?? 0, positiveDimension(rect?.width ?? 0, fallback.width)),
+    height: positiveDimension(target?.clientHeight ?? 0, positiveDimension(rect?.height ?? 0, fallback.height)),
   };
 }
 

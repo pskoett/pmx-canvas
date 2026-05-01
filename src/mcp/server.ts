@@ -95,7 +95,9 @@ function encodeBase64(bytes: Uint8Array): string {
 
 function createdNodePayload(c: PmxCanvas, id: string): Record<string, unknown> {
   const node = c.getNode(id);
-  return node ? { ok: true, ...serializeCanvasNode(node) } : { ok: true, id };
+  if (!node) return { ok: true, id };
+  const serialized = serializeCanvasNode(node);
+  return { ok: true, node: serialized, ...serialized };
 }
 
 export async function startMcpServer(): Promise<void> {
@@ -576,10 +578,16 @@ export async function startMcpServer(): Promise<void> {
       y: z.number().optional().describe('New Y position'),
       width: z.number().optional().describe('New width'),
       height: z.number().optional().describe('New height'),
+      spec: z.record(z.string(), z.unknown()).optional().describe('New json-render spec, or a graph payload with graphType/data for graph nodes'),
+      graphType: z.string().optional().describe('Graph type when updating a graph node'),
+      data: z.array(z.record(z.string(), z.unknown())).optional().describe('Graph dataset when updating a graph node'),
+      xKey: z.string().optional().describe('Graph x/category key'),
+      yKey: z.string().optional().describe('Graph y/value key'),
+      chartHeight: z.number().optional().describe('Graph chart content height, distinct from node height'),
       collapsed: z.boolean().optional().describe('Collapse or expand the node'),
       arrangeLocked: z.boolean().optional().describe('Prevent auto-arrange from moving this node. Pinned nodes are also skipped.'),
     },
-    async ({ id, title, content, x, y, width, height, collapsed, arrangeLocked }) => {
+    async ({ id, title, content, x, y, width, height, spec, graphType, data, xKey, yKey, chartHeight, collapsed, arrangeLocked }) => {
       const c = await ensureCanvas();
       const node = c.getNode(id);
       if (!node) {
@@ -598,22 +606,21 @@ export async function startMcpServer(): Promise<void> {
       if (collapsed !== undefined) {
         patch.collapsed = collapsed;
       }
-      if (title !== undefined || content !== undefined) {
-        patch.data = {
-          ...node.data,
-          ...(title !== undefined ? { title } : {}),
-          ...(content !== undefined ? { content } : {}),
-        };
-      }
+      if (title !== undefined) patch.title = title;
+      if (content !== undefined) patch.content = content;
+      if (spec !== undefined) patch.spec = spec;
+      if (graphType !== undefined) patch.graphType = graphType;
+      if (data !== undefined) patch.data = data;
+      if (xKey !== undefined) patch.xKey = xKey;
+      if (yKey !== undefined) patch.yKey = yKey;
+      if (chartHeight !== undefined) patch.chartHeight = chartHeight;
       if (arrangeLocked !== undefined) {
-        patch.data = {
-          ...(patch.data && typeof patch.data === 'object' ? patch.data as Record<string, unknown> : node.data),
-          arrangeLocked,
-        };
+        patch.arrangeLocked = arrangeLocked;
       }
       c.updateNode(id, patch);
+      const updated = c.getNode(id);
       return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, id }) }],
+        content: [{ type: 'text', text: JSON.stringify(updated ? createdNodePayload(c, id) : { ok: true, id }, null, 2) }],
       };
     },
   );
@@ -739,6 +746,31 @@ export async function startMcpServer(): Promise<void> {
             text: JSON.stringify({ ok: true, focused: result.focused, panned: result.panned }),
           },
         ],
+      };
+    },
+  );
+
+  server.tool(
+    'canvas_fit_view',
+    'Fit the canvas viewport to all nodes or a selected subset. Useful before screenshots and whole-board review.',
+    {
+      width: z.number().optional().describe('Viewport width used for fit math (default 1440)'),
+      height: z.number().optional().describe('Viewport height used for fit math (default 900)'),
+      padding: z.number().optional().describe('World-space padding around fitted nodes (default 60)'),
+      maxScale: z.number().optional().describe('Maximum zoom scale (default 1)'),
+      nodeIds: z.array(z.string()).optional().describe('Optional node IDs to fit instead of the whole canvas'),
+    },
+    async (input) => {
+      const c = await ensureCanvas();
+      const result = c.fitView({
+        ...(typeof input.width === 'number' ? { width: input.width } : {}),
+        ...(typeof input.height === 'number' ? { height: input.height } : {}),
+        ...(typeof input.padding === 'number' ? { padding: input.padding } : {}),
+        ...(typeof input.maxScale === 'number' ? { maxScale: input.maxScale } : {}),
+        ...(Array.isArray(input.nodeIds) ? { nodeIds: input.nodeIds } : {}),
+      });
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
       };
     },
   );

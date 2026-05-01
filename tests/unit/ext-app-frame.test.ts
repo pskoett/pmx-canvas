@@ -62,6 +62,19 @@ describe('ExtAppFrame host sizing', () => {
     });
   });
 
+  test('uses untransformed layout dimensions when the canvas viewport is zoomed', () => {
+    const target = {
+      clientWidth: 940,
+      clientHeight: 700,
+      getBoundingClientRect: () => ({ width: 470, height: 350 }),
+    };
+
+    expect(resolveExtAppContainerDimensions(target, { width: 720, height: 500 })).toEqual({
+      width: 940,
+      height: 700,
+    });
+  });
+
   test('falls back to node geometry when layout has not measured the iframe yet', () => {
     const target = {
       getBoundingClientRect: () => ({ width: 0, height: 0 }),

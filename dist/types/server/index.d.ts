@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import type { CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.js';
 import { searchNodes } from './spatial-analysis.js';
 import { diffLayouts } from './mutation-history.js';
+import { fitCanvasView } from './canvas-operations.js';
 import { type WebArtifactBuildInput, type WebArtifactCanvasBuildResult } from './web-artifacts.js';
 import { type ExternalMcpTransportConfig } from './mcp-app-runtime.js';
 import { type DiagramPresetOpenInput } from './diagram-presets.js';
@@ -48,7 +49,7 @@ export declare class PmxCanvas extends EventEmitter {
         id: string;
         error?: string;
     }>;
-    updateNode(id: string, patch: Partial<CanvasNodeState>): void;
+    updateNode(id: string, patch: Partial<CanvasNodeState> & Record<string, unknown>): void;
     removeNode(id: string): void;
     addEdge(input: {
         from?: string;
@@ -89,6 +90,13 @@ export declare class PmxCanvas extends EventEmitter {
         focused: string;
         panned: boolean;
     } | null;
+    fitView(options?: {
+        width?: number;
+        height?: number;
+        padding?: number;
+        maxScale?: number;
+        nodeIds?: string[];
+    }): ReturnType<typeof fitCanvasView>;
     getLayout(): CanvasLayout;
     getNode(id: string): CanvasNodeState | undefined;
     search(query: string): ReturnType<typeof searchNodes>;

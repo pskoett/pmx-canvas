@@ -439,6 +439,8 @@ export function describeCanvasSchema(): {
         'canvas_build_web_artifact',
         'canvas_open_mcp_app',
         'canvas_create_group',
+        'canvas_update_node',
+        'canvas_fit_view',
         'canvas_describe_schema',
         'canvas_validate_spec',
       ],

@@ -3,6 +3,67 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.9] - 2026-05-01
+
+Workflow ergonomics pass for agent-authored boards. This release tightens
+geometry contracts, adds in-place structured-node updates, and gives agents a
+first-class viewport fit operation for screenshot/review flows.
+
+### Added
+
+- **`pmx-canvas fit`, `POST /api/canvas/fit`, and `canvas_fit_view`.** Agents
+  can fit the server viewport to the whole canvas or selected node IDs using
+  consistent width/height/padding/max-scale options before screenshots or
+  whole-board review.
+- **In-place json-render and graph updates.** `node update --spec-file`, HTTP
+  `PATCH /api/canvas/node/<id>`, and MCP `canvas_update_node` can update
+  json-render specs and graph datasets/configuration without replacing the
+  node, preserving IDs, edges, pins, and placement.
+- **Nested `node` payloads on node create/update responses.** Node responses now
+  include `node: { ...serializedNode }` while retaining the existing flat
+  `id`, `position`, `size`, and data fields for compatibility.
+- **README adds reference sections for image nodes and `pmx-canvas watch`.**
+  The README now lists all four control surfaces (CLI, MCP, HTTP, Bun SDK)
+  side-by-side, documents the image node payload with provenance and
+  validation metadata, documents `pmx-canvas watch` semantic deltas, and
+  notes that bundled skills are readable as MCP resources at
+  `canvas://skills/<name>`.
+
+### Changed
+
+- **HTTP node geometry accepts flat and nested shapes.** Create/update paths now
+  accept both `{ x, y, width, height }` and `{ position, size }`, with invalid
+  sizes still rejected instead of silently ignored.
+- **Graph/json-render explicit heights are preserved in the canvas renderer.**
+  The client no longer auto-shrinks large explicit structured-node frames to the
+  generic 600px auto-fit cap.
+- **MCP schema metadata advertises update and fit tools.** `canvas_describe_schema`
+  and `canvas://schema` include `canvas_update_node` and `canvas_fit_view` in
+  the tool list.
+- **Agent-facing `skills/pmx-canvas/SKILL.md` documents the new operations.**
+  The skill now covers `canvas_fit_view`, the `node update --spec-file` flag for
+  in-place json-render updates, the per-graph-field flags for in-place graph
+  rebuilds, the `chartHeight` vs `height`/`nodeHeight` distinction, and a
+  caveat that `canvas_evaluate` scripts should not call PMX HTTP APIs via
+  `fetch()` (use the matching MCP tools instead).
+
+### Fixed
+
+- **Embedded Excalidraw previews receive unscaled host dimensions.** The ext-app
+  host now reports layout dimensions instead of canvas-zoomed bounding boxes, so
+  text inside diagram boxes remains visible in inline previews instead of only
+  appearing after expansion.
+
+### Internal
+
+- Regression coverage for HTTP/CLI/MCP fit-view parity, nested geometry inputs,
+  json-render and graph in-place updates, richer node response payloads, and the
+  structured-node auto-fit height guard. Ext-app host sizing now also covers the
+  zoomed-canvas case that affected embedded Excalidraw previews.
+- Web-artifact bundling now passes `--no-cache` to Parcel, removing flakiness on
+  repeat builds. Published-consumer e2e harness swaps the Bun stdin parser for
+  `python3` for portability across hosts.
+
 ## [0.1.8] - 2026-04-25
 
 Retest-driven follow-up to 0.1.7. This next release restores compatibility
@@ -100,6 +161,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.9]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.9
 [0.1.8]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.8
 [0.1.7]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.7
 

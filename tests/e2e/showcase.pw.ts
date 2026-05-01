@@ -834,11 +834,9 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
   // Web artifact: SDLC control room
   // ═══════════════════════════════════════════════════════════
 
-  let artifactId: string | undefined;
-  try {
-    const artifact = await buildArtifact(request, {
-      title: 'SDLC Control Room',
-      appTsx: `
+  const artifact = await buildArtifact(request, {
+    title: 'SDLC Control Room',
+    appTsx: `
 import React from 'react';
 
 const metrics = [
@@ -895,24 +893,16 @@ export default function App() {
     </div>
   );
 }`,
-      indexCss: `
+    indexCss: `
 body { margin: 0; background: #0f0f1a; }
 * { box-sizing: border-box; }`,
-      openInCanvas: true,
-    });
-    artifactId = artifact.id;
+    openInCanvas: true,
+  });
 
-    // Reposition the artifact node
-    if (artifactId) {
-      await patchNode(request, artifactId, {
-        position: { x: 1280, y: 40 },
-        size: { width: 520, height: 420 },
-      });
-    }
-  } catch {
-    // Web artifact build can fail in CI — continue without it
-    console.log('Web artifact build skipped (build tools may not be available)');
-  }
+  await patchNode(request, artifact.id, {
+    position: { x: 1280, y: 40 },
+    size: { width: 520, height: 420 },
+  });
 
   // ═══════════════════════════════════════════════════════════
   // Groups — organize by concern
@@ -969,9 +959,7 @@ body { margin: 0; background: #0f0f1a; }
   await addEdge(request, { from: profileCard, to: settingsSurface, type: 'depends-on', label: 'preferences' });
   await addEdge(request, { from: settingsSurface, to: pricingTable, type: 'flow', label: 'plan choice' });
   await addEdge(request, { from: pricingTable, to: embeddedCharts, type: 'references', label: 'usage analytics' });
-  if (artifactId) {
-    await addEdge(request, { from: context, to: artifactId, type: 'flow', label: 'control room' });
-  }
+  await addEdge(request, { from: context, to: artifact.id, type: 'flow', label: 'control room' });
 
   // ═══════════════════════════════════════════════════════════
   // Context pins — simulate human curation
@@ -990,8 +978,7 @@ body { margin: 0; background: #0f0f1a; }
 
   // Count both world-space canvas nodes and docked HUD nodes.
   // Some HUD surfaces render outside the .canvas-node wrapper, so this assertion covers both.
-  const expectedRenderedNodes = artifactId ? 26 : 25;
-  await expect(page.locator('.canvas-node, .docked-node')).toHaveCount(expectedRenderedNodes, { timeout: 15000 });
+  await expect(page.locator('.canvas-node, .docked-node')).toHaveCount(26, { timeout: 15000 });
 
   // Wait for edges and iframe content to settle
   await page.waitForTimeout(3000);

@@ -503,6 +503,41 @@ async function readTextInput(
   die(options.requiredMessage, options.hint);
 }
 
+async function readOptionalTextInput(
+  flags: Record<string, string | true>,
+  options: {
+    fileFlags?: string[];
+    valueFlags?: string[];
+    allowStdin?: boolean;
+    label: string;
+    hint: string;
+  },
+): Promise<string | undefined> {
+  for (const name of options.fileFlags ?? []) {
+    const path = getStringFlag(flags, name);
+    if (!path) continue;
+    try {
+      return readFileSync(path, 'utf-8');
+    } catch (error) {
+      die(
+        `Unable to read --${name}: ${error instanceof Error ? error.message : String(error)}`,
+        options.hint,
+      );
+    }
+  }
+
+  for (const name of options.valueFlags ?? []) {
+    const value = getStringFlag(flags, name);
+    if (value !== undefined) return value;
+  }
+
+  if (options.allowStdin && flags.stdin) {
+    return await readStdin();
+  }
+
+  return undefined;
+}
+
 function applyCommonGeometryFlags(
   body: Record<string, unknown>,
   flags: Record<string, string | true>,
@@ -516,6 +551,27 @@ function applyCommonGeometryFlags(
   if (y !== undefined) body.y = y;
   if (width !== undefined) body.width = width;
   if (height !== undefined) body.height = height;
+}
+
+async function applyStructuredNodeUpdateFlags(
+  body: Record<string, unknown>,
+  flags: Record<string, string | true>,
+): Promise<void> {
+  const specRaw = await readOptionalTextInput(flags, {
+    fileFlags: ['spec-file'],
+    valueFlags: ['spec-json'],
+    allowStdin: false,
+    label: 'JSON spec',
+    hint: 'Use: pmx-canvas node update <node-id> --spec-file ./new-spec.json',
+  });
+  if (specRaw !== undefined) {
+    body.spec = parseJsonValue(specRaw, 'JSON spec', 'Use: pmx-canvas node update <node-id> --spec-file ./new-spec.json');
+  }
+
+  const graphPatch = await buildGraphRequestBody(flags, { requireData: false, allowStdin: false });
+  for (const [key, value] of Object.entries(graphPatch)) {
+    body[key === 'height' ? 'chartHeight' : key] = value;
+  }
 }
 
 async function buildJsonRenderRequestBody(
@@ -547,23 +603,30 @@ async function buildJsonRenderRequestBody(
 
 async function buildGraphRequestBody(
   flags: Record<string, string | true>,
+  options: { requireData?: boolean; allowStdin?: boolean } = {},
 ): Promise<Record<string, unknown>> {
+  const requireData = options.requireData !== false;
+  const allowStdin = options.allowStdin !== false;
   const hint =
     'Use: pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value';
-  const rawData = await readTextInput(flags, {
-    fileFlags: ['data-file'],
-    valueFlags: ['data-json', 'data'],
-    allowStdin: true,
-    label: 'graph JSON dataset',
-    hint,
-    requiredMessage: 'Graph nodes require --data-file, --data-json, --data, or --stdin JSON data.',
-  });
-  const data = parseRecordArrayJson(rawData, hint);
 
   const body: Record<string, unknown> = {
-    graphType: getStringFlag(flags, 'graph-type', 'graphType') ?? 'line',
-    data,
+    ...(requireData ? { graphType: getStringFlag(flags, 'graph-type', 'graphType') ?? 'line' } : {}),
   };
+  const rawData = await readOptionalTextInput(flags, {
+    fileFlags: ['data-file'],
+    valueFlags: ['data-json', 'data'],
+    allowStdin,
+    label: 'graph JSON dataset',
+    hint,
+  });
+  if (rawData !== undefined) {
+    body.data = parseRecordArrayJson(rawData, hint);
+  } else if (requireData) {
+    die('Graph nodes require --data-file, --data-json, --data, or --stdin JSON data.', hint);
+  }
+  const graphType = getStringFlag(flags, 'graph-type', 'graphType');
+  if (graphType) body.graphType = graphType;
   if (typeof flags.title === 'string') body.title = flags.title;
   const xKey = getStringFlag(flags, 'x-key', 'xKey');
   const yKey = getStringFlag(flags, 'y-key', 'yKey');
@@ -1151,6 +1214,8 @@ cmd('node update', 'Update a node by ID', [
   'pmx-canvas node update <node-id> --content "Updated content"',
   'pmx-canvas node update <node-id> --title "Moved" --x 500 --y 300',
   'pmx-canvas node update <node-id> --width 840 --height 620',
+  'pmx-canvas node update <node-id> --spec-file ./dashboard.json',
+  'pmx-canvas node update <graph-id> --data-file ./metrics.json --chart-height 420',
   'pmx-canvas node update <node-id> --lock-arrange',
 ], async (args) => {
   const { positional, flags } = parseFlags(args);
@@ -1160,6 +1225,7 @@ cmd('node update', 'Update a node by ID', [
   if (!id) die('Missing node ID', 'pmx-canvas node update <node-id> --title "New Title"');
 
   const body: Record<string, unknown> = {};
+  await applyStructuredNodeUpdateFlags(body, flags);
   if (flags.title && flags.title !== true) body.title = flags.title;
   if (flags.content && flags.content !== true) body.content = flags.content;
   if (flags.stdin) body.content = await readStdin();
@@ -1199,10 +1265,7 @@ cmd('node update', 'Update a node by ID', [
     }
 
     if (arrangeLocked !== undefined) {
-      body.data = {
-        ...existing.data,
-        arrangeLocked,
-      };
+      body.arrangeLocked = arrangeLocked;
     }
   }
 
@@ -1393,6 +1456,29 @@ cmd('focus', 'Pan viewport to center on a node', [
   if (!id) die('Missing node ID', 'pmx-canvas focus <node-id>');
 
   const result = await api('POST', '/api/canvas/focus', { id, ...(flags['no-pan'] ? { noPan: true } : {}) });
+  output(result);
+});
+
+cmd('fit', 'Fit the viewport to all nodes or a selected subset', [
+  'pmx-canvas fit',
+  'pmx-canvas fit --width 1440 --height 900 --padding 80',
+  'pmx-canvas fit node-a node-b',
+], async (args) => {
+  const { positional, flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('fit');
+
+  const body: Record<string, unknown> = {};
+  const width = optionalPositiveFiniteFlag(flags, 'width', 'Use a positive number, e.g. --width 1440');
+  const height = optionalPositiveFiniteFlag(flags, 'height', 'Use a positive number, e.g. --height 900');
+  const padding = optionalPositiveFiniteFlag(flags, 'padding', 'Use a positive number, e.g. --padding 80');
+  const maxScale = optionalPositiveFiniteFlag(flags, 'max-scale', 'Use a positive number, e.g. --max-scale 1');
+  if (width !== undefined) body.width = width;
+  if (height !== undefined) body.height = height;
+  if (padding !== undefined) body.padding = padding;
+  if (maxScale !== undefined) body.maxScale = maxScale;
+  if (positional.length > 0) body.nodeIds = positional;
+
+  const result = await api('POST', '/api/canvas/fit', body);
   output(result);
 });
 
@@ -1816,7 +1902,7 @@ cmd('webview start', 'Start or replace the Bun.WebView automation session', [
     if (chromeArgv.length > 0) body.chromeArgv = chromeArgv;
   }
 
-  const result = await api('POST', '/api/workbench/webview/start', body);
+  const result = await api('POST', '/api/workbench/webview/start', body, { allowErrorJson: true });
   output(result);
 });
 
@@ -2112,6 +2198,13 @@ function showCommandHelp(name: string): void {
     console.log('\nViewport:');
     console.log('  --no-pan                  Select/raise the node without moving the viewport');
   }
+  if (name === 'fit') {
+    console.log('\nViewport:');
+    console.log('  --width <px>              Viewport width used for fit math (default 1440)');
+    console.log('  --height <px>             Viewport height used for fit math (default 900)');
+    console.log('  --padding <px>            World-space padding around fitted nodes (default 60)');
+    console.log('  --max-scale <scale>       Maximum zoom scale (default 1)');
+  }
   if (name === 'external-app add') {
     console.log('\nOptions:');
     console.log('  --kind excalidraw          External app kind to create');
@@ -2161,6 +2254,7 @@ Canvas commands:
   pmx-canvas validate spec            Validate json-render/graph payloads without creating nodes
   pmx-canvas watch [options]          Watch semantic canvas changes over SSE
   pmx-canvas focus <id>               Pan viewport to node
+  pmx-canvas fit [id ...]             Fit viewport to canvas or selected nodes
   pmx-canvas external-app add          Add hosted external apps like Excalidraw
   pmx-canvas webview status           Show WebView automation status
   pmx-canvas webview start [options]  Start or replace automation session
@@ -2222,6 +2316,7 @@ Examples:
   pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation
   pmx-canvas search "authentication"
   pmx-canvas open
+  pmx-canvas fit --width 1440 --height 900
   pmx-canvas layout --summary
   pmx-canvas arrange --layout column
   pmx-canvas batch --file ./canvas-ops.json

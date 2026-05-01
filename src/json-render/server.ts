@@ -430,6 +430,7 @@ function normalizeSpec(spec: Record<string, unknown>): Record<string, unknown> {
     const elementChanged =
       resolvedType !== element.type ||
       JSON.stringify(normalizedProps) !== JSON.stringify(rawProps) ||
+      !('visible' in element) ||
       !Array.isArray(element.children) ||
       normalizedChildren.length !== element.children.length;
 
@@ -438,6 +439,7 @@ function normalizeSpec(spec: Record<string, unknown>): Record<string, unknown> {
           ...element,
           type: resolvedType,
           props: normalizedProps,
+          visible: 'visible' in element ? element.visible : true,
           children: normalizedChildren,
         }
       : rawElement;
@@ -460,6 +462,7 @@ function normalizeJsonRenderInput(spec: unknown): unknown {
     elements: {
       root: {
         ...specRecord,
+        visible: 'visible' in specRecord ? specRecord.visible : true,
         children: Array.isArray(specRecord.children)
           ? specRecord.children.filter((child: unknown) => typeof child === 'string')
           : [],
@@ -598,6 +601,30 @@ export function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec {
       },
     },
   });
+}
+
+export function buildGraphConfig(input: GraphNodeInput): Record<string, unknown> {
+  const title = input.title?.trim() || 'Graph';
+  return {
+    title,
+    graphType: input.graphType,
+    data: input.data,
+    ...(input.xKey ? { xKey: input.xKey } : {}),
+    ...(input.yKey ? { yKey: input.yKey } : {}),
+    ...(input.zKey ? { zKey: input.zKey } : {}),
+    ...(input.nameKey ? { nameKey: input.nameKey } : {}),
+    ...(input.valueKey ? { valueKey: input.valueKey } : {}),
+    ...(input.axisKey ? { axisKey: input.axisKey } : {}),
+    ...(input.metrics?.length ? { metrics: input.metrics } : {}),
+    ...(input.series?.length ? { series: input.series } : {}),
+    ...(input.barKey ? { barKey: input.barKey } : {}),
+    ...(input.lineKey ? { lineKey: input.lineKey } : {}),
+    ...(input.aggregate ? { aggregate: input.aggregate } : {}),
+    ...(input.color ? { color: input.color } : {}),
+    ...(input.barColor ? { barColor: input.barColor } : {}),
+    ...(input.lineColor ? { lineColor: input.lineColor } : {}),
+    ...(typeof input.height === 'number' ? { height: input.height } : {}),
+  };
 }
 
 export function createJsonRenderNodeData(

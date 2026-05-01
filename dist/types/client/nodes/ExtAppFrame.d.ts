@@ -5,6 +5,8 @@ type IframeLoadTarget = Pick<HTMLIFrameElement, 'addEventListener' | 'removeEven
 type ExtAppBridgeNotifications = Pick<AppBridge, 'sendToolInput' | 'sendToolResult'>;
 type DisplayMode = 'inline' | 'fullscreen' | 'pip';
 interface ExtAppHostDimensionsTarget {
+    clientWidth?: number;
+    clientHeight?: number;
     getBoundingClientRect(): Pick<DOMRectReadOnly, 'width' | 'height'>;
 }
 export declare function waitForExtAppFrameLoad(target: IframeLoadTarget): Promise<void>;

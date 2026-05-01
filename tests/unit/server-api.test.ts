@@ -235,6 +235,47 @@ describe('canvas server HTTP API', () => {
     expect(layout.edges).toEqual([]);
   });
 
+  test('accepts flat and nested geometry and returns nested node payloads', async () => {
+    const nestedCreate = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      node: { id: string; position: { x: number; y: number }; size: { width: number; height: number } };
+      position: { x: number; y: number };
+      size: { width: number; height: number };
+    }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'Nested geometry',
+        position: { x: 440, y: 260 },
+        size: { width: 500, height: 280 },
+      }),
+    });
+
+    expect(nestedCreate.node.id).toBe(nestedCreate.id);
+    expect(nestedCreate.position).toEqual({ x: 440, y: 260 });
+    expect(nestedCreate.size).toEqual({ width: 500, height: 280 });
+    expect(nestedCreate.node.position).toEqual(nestedCreate.position);
+    expect(nestedCreate.node.size).toEqual(nestedCreate.size);
+
+    const flatPatch = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      node: { id: string; position: { x: number; y: number }; size: { width: number; height: number } };
+      position: { x: number; y: number };
+      size: { width: number; height: number };
+    }>(`/api/canvas/node/${nestedCreate.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ x: 600, height: 360 }),
+    });
+
+    expect(flatPatch.node.id).toBe(nestedCreate.id);
+    expect(flatPatch.position).toEqual({ x: 600, y: 260 });
+    expect(flatPatch.size).toEqual({ width: 500, height: 360 });
+  });
+
   test('image nodes accept real image files and keep the server responsive', async () => {
     const imagePath = join(workspaceRoot, 'local-image.png');
     writeFileSync(imagePath, tinyPng);
@@ -1658,6 +1699,39 @@ describe('canvas server HTTP API', () => {
     expect(state.viewport).toEqual({ x: 120, y: -80, scale: 1.5 });
   });
 
+  test('fits the viewport to current canvas bounds over HTTP', async () => {
+    await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Fit A', x: 100, y: 100, width: 200, height: 100 }),
+    });
+    await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Fit B', x: 700, y: 500, width: 300, height: 200 }),
+    });
+
+    const fitted = await jsonRequest<{
+      ok: boolean;
+      viewport: { x: number; y: number; scale: number };
+      bounds: { x: number; y: number; width: number; height: number };
+      nodeCount: number;
+    }>('/api/canvas/fit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ width: 1200, height: 800, padding: 100 }),
+    });
+
+    expect(fitted.ok).toBe(true);
+    expect(fitted.nodeCount).toBe(2);
+    expect(fitted.bounds).toEqual({ x: 100, y: 100, width: 900, height: 600 });
+    expect(fitted.viewport.scale).toBeCloseTo(1, 5);
+    expect(fitted.viewport).toEqual({ x: 50, y: 0, scale: 1 });
+
+    const state = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(state.viewport).toEqual(fitted.viewport);
+  });
+
   test('keeps file node cache metadata authoritative after file reload-style patching', async () => {
     const filePath = join(workspaceRoot, 'reload-target.ts');
     writeFileSync(filePath, 'export const before = 1;\n', 'utf-8');
@@ -2222,6 +2296,144 @@ describe('canvas server HTTP API', () => {
     expect(layout.nodes.find((node) => node.id === jsonRender.id)?.type).toBe('json-render');
     expect(layout.nodes.find((node) => node.id === graph.id)?.type).toBe('graph');
   }, 15_000);
+
+  test('updates json-render and graph specs in place over HTTP', async () => {
+    const jsonRender = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      node: { id: string };
+    }>('/api/canvas/json-render', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Original JSON UI',
+        spec: {
+          root: 'card',
+          elements: {
+            card: { type: 'Card', props: { title: 'Original JSON UI' }, children: ['copy'] },
+            copy: { type: 'Text', props: { text: 'Original body' }, children: [] },
+          },
+        },
+      }),
+    });
+    expect(jsonRender.node.id).toBe(jsonRender.id);
+
+    const updatedJson = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      node: { id: string; data: { title: string; spec: { elements: Record<string, { props?: { text?: string } }> } } };
+    }>(`/api/canvas/node/${jsonRender.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        spec: {
+          root: 'card',
+          elements: {
+            card: { type: 'Card', props: { title: 'Updated JSON UI' }, children: ['copy'] },
+            copy: { type: 'Text', props: { text: 'Updated body' }, children: [] },
+          },
+        },
+      }),
+    });
+    expect(updatedJson.id).toBe(jsonRender.id);
+    expect(updatedJson.node.id).toBe(jsonRender.id);
+    expect(updatedJson.node.data.title).toBe('Updated JSON UI');
+    expect(updatedJson.node.data.spec.elements.copy?.props?.text).toBe('Updated body');
+
+    const graph = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      node: { data: { graphConfig: Record<string, unknown> } };
+    }>('/api/canvas/graph', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Original Graph',
+        graphType: 'line',
+        data: [{ day: 'Mon', value: 1 }],
+        xKey: 'day',
+        yKey: 'value',
+      }),
+    });
+
+    const updatedGraph = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      node: { id: string; data: { graphConfig: Record<string, unknown>; spec: { elements: Record<string, { type?: string; props?: Record<string, unknown> }> } } };
+    }>(`/api/canvas/node/${graph.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Updated Graph',
+        graphType: 'bar',
+        data: [{ day: 'Tue', value: 7 }],
+        xKey: 'day',
+        yKey: 'value',
+        chartHeight: 420,
+        color: '#f97316',
+      }),
+    });
+
+    expect(updatedGraph.id).toBe(graph.id);
+    expect(updatedGraph.node.id).toBe(graph.id);
+    expect(updatedGraph.node.data.graphConfig.title).toBe('Updated Graph');
+    expect(updatedGraph.node.data.graphConfig.graphType).toBe('bar');
+    expect(updatedGraph.node.data.graphConfig.height).toBe(420);
+    expect(updatedGraph.node.data.spec.elements.chart?.type).toBe('BarChart');
+    expect(updatedGraph.node.data.spec.elements.chart?.props?.height).toBe(420);
+
+    const metadataPatch = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      node: { id: string; data: { note?: string; graphConfig: Record<string, unknown> } };
+    }>(`/api/canvas/node/${graph.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { note: 'metadata only' } }),
+    });
+    expect(metadataPatch.id).toBe(graph.id);
+    expect(metadataPatch.node.data.note).toBe('metadata only');
+    expect(metadataPatch.node.data.graphConfig.graphType).toBe('bar');
+
+    const mixedGraphUpdate = await jsonRequest<{
+      ok: boolean;
+      node: { data: { arrangeLocked?: boolean; graphConfig: Record<string, unknown> } };
+    }>(`/api/canvas/node/${graph.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: [{ day: 'Wed', value: 11 }],
+        arrangeLocked: true,
+      }),
+    });
+    expect(mixedGraphUpdate.ok).toBe(true);
+    expect(mixedGraphUpdate.node.data.arrangeLocked).toBe(true);
+    expect(mixedGraphUpdate.node.data.graphConfig.data).toEqual([{ day: 'Wed', value: 11 }]);
+
+    const invalidStructuredUpdate = await fetch(`${baseUrl}/api/canvas/node/${jsonRender.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ graphType: 'bar' }),
+    });
+    expect(invalidStructuredUpdate.ok).toBe(false);
+    const invalidStructuredBody = await invalidStructuredUpdate.json() as { ok: boolean; error: string };
+    expect(invalidStructuredBody.ok).toBe(false);
+    expect(invalidStructuredBody.error).toContain('Graph update fields can only be used with graph nodes');
+
+    const markdown = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Plain note' }),
+    });
+    const invalidSpecUpdate = await fetch(`${baseUrl}/api/canvas/node/${markdown.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ spec: { root: 'card', elements: {} } }),
+    });
+    expect(invalidSpecUpdate.ok).toBe(false);
+    const invalidSpecBody = await invalidSpecUpdate.json() as { ok: boolean; error: string };
+    expect(invalidSpecBody.error).toContain('Structured spec and graph updates can only be used');
+  });
 
   test('accepts json-render without title and wraps bare component specs for compatibility', async () => {
     const inferredTitle = await jsonRequest<{
