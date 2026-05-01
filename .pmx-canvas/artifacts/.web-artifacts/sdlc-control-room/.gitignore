@@ -12,6 +12,9 @@ dist
 dist-ssr
 *.local
 
+# Parcel build cache — must not be committed (gets stale and breaks CI)
+.parcel-cache
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

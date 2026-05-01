@@ -60,9 +60,12 @@ first-class viewport fit operation for screenshot/review flows.
   json-render and graph in-place updates, richer node response payloads, and the
   structured-node auto-fit height guard. Ext-app host sizing now also covers the
   zoomed-canvas case that affected embedded Excalidraw previews.
-- Web-artifact bundling now passes `--no-cache` to Parcel, removing flakiness on
-  repeat builds. Published-consumer e2e harness swaps the Bun stdin parser for
-  `python3` for portability across hosts.
+- Published-consumer e2e harness swaps the Bun stdin parser for `python3` for
+  portability across hosts.
+- Web-artifact reusable build project no longer commits its Parcel cache.
+  `.parcel-cache` is now gitignored and the previously committed copy was
+  removed; CI no longer inherits a stale cache that prevented Parcel from
+  producing `dist/index.html` for the SDLC Control Room showcase build.
 
 ## [0.1.8] - 2026-04-25
 
