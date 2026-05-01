@@ -109,6 +109,17 @@ function ensure_bundle_dependencies() {
     fi
   done
 
+  # package.json lists the deps, but node_modules may not be in sync (e.g. fresh
+  # CI checkout where node_modules is gitignored). Run a regular install so the
+  # local binaries actually exist before we hand off to Parcel. The build
+  # allowlist is already persisted in package.json's pnpm.onlyBuiltDependencies
+  # by the original `pnpm add` step, so plain `install` is enough here.
+  if [ ! -x "./node_modules/.bin/parcel" ]; then
+    echo "📦 Syncing bundling dependencies into node_modules..."
+    run_pnpm_quiet install
+    return 0
+  fi
+
   echo "✅ Reusing existing bundling dependencies"
 }
 
