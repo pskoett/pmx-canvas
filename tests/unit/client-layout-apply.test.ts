@@ -53,7 +53,7 @@ describe('applyServerCanvasLayout', () => {
     resetClientState();
   });
 
-  test('replaces the full client snapshot while preserving surviving focus state', () => {
+  test('replaces the full client snapshot without applying viewport by default', () => {
     const first = makeNode('node-1', { zIndex: 2 });
     const second = makeNode('node-2', { zIndex: 5 });
     const firstEdge = makeEdge('edge-1', first.id, second.id);
@@ -84,7 +84,7 @@ describe('applyServerCanvasLayout', () => {
       ],
     });
 
-    expect(viewport.value).toEqual({ x: 140, y: 220, scale: 0.75 });
+    expect(viewport.value).toEqual({ x: 0, y: 0, scale: 1 });
     expect(Array.from(nodes.value.keys())).toEqual(['node-2', 'node-3']);
     expect(nodes.value.get('node-2')).toEqual(updatedSecond);
     expect(Array.from(edges.value.keys())).toEqual(['edge-2']);
@@ -92,6 +92,16 @@ describe('applyServerCanvasLayout', () => {
     expect(expandedNodeId.value).toBe('node-2');
     expect(Array.from(selectedNodeIds.value)).toEqual(['node-2']);
     expect(Array.from(contextPinnedNodeIds.value)).toEqual(['node-2']);
+  });
+
+  test('applies server viewport when explicitly requested for initial sync', () => {
+    applyServerCanvasLayout({
+      viewport: { x: 140, y: 220, scale: 0.75 },
+      nodes: [makeNode('node-1')],
+      edges: [],
+    }, { applyViewport: true });
+
+    expect(viewport.value).toEqual({ x: 140, y: 220, scale: 0.75 });
   });
 
   test('clears focus state when the focused node is no longer present', () => {

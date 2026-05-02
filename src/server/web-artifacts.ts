@@ -2,9 +2,11 @@ import { spawn } from 'node:child_process';
 import {
   copyFileSync,
   existsSync,
+  readdirSync,
   mkdirSync,
   readFileSync,
   statSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from 'node:path';
@@ -71,6 +73,7 @@ export interface WebArtifactCanvasBuildResult extends WebArtifactBuildOutput {
   openedInCanvas: boolean;
   nodeId?: string;
   url?: string;
+  completedAt: string;
 }
 
 function currentWorkspaceRoot(): string {
@@ -300,6 +303,14 @@ function writeProjectFiles(
   }
 }
 
+function removeLiteralSedBackupFiles(projectPath: string): void {
+  for (const entry of readdirSync(projectPath, { withFileTypes: true })) {
+    if (entry.isFile() && entry.name.endsWith("''")) {
+      unlinkSync(join(projectPath, entry.name));
+    }
+  }
+}
+
 function ensurePackageManagerBoundary(dirPath: string): void {
   const packageJsonPath = join(dirPath, 'package.json');
   mkdirSync(dirPath, { recursive: true });
@@ -401,6 +412,7 @@ export async function executeWebArtifactBuild(
     });
     stdout = [stdout, initResult.stdout].filter(Boolean).join('\n');
     stderr = [stderr, initResult.stderr].filter(Boolean).join('\n');
+    removeLiteralSedBackupFiles(projectPath);
   }
 
   writeProjectFiles(projectPath, input);
@@ -508,7 +520,7 @@ export async function buildWebArtifactOnCanvas(input: WebArtifactBuildInput & {
 }): Promise<WebArtifactCanvasBuildResult> {
   const build = await executeWebArtifactBuild(input);
   if (input.openInCanvas === false) {
-    return { ...build, openedInCanvas: false };
+    return { ...build, openedInCanvas: false, completedAt: new Date().toISOString() };
   }
   const opened = openWebArtifactInCanvas({
     title: input.title,
@@ -519,5 +531,6 @@ export async function buildWebArtifactOnCanvas(input: WebArtifactBuildInput & {
     openedInCanvas: true,
     nodeId: opened.nodeId,
     url: opened.url,
+    completedAt: new Date().toISOString(),
   };
 }

@@ -38,6 +38,7 @@ export interface WebArtifactCanvasBuildResult extends WebArtifactBuildOutput {
     openedInCanvas: boolean;
     nodeId?: string;
     url?: string;
+    completedAt: string;
 }
 export declare function resolveWorkspacePath(pathLike: string, cwd?: string): string;
 export declare function resolveWebArtifactScriptPath(kind: 'init' | 'bundle'): string;

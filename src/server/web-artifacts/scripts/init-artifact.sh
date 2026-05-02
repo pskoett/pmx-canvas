@@ -116,12 +116,13 @@ else
   echo "✅ Using Vite $VITE_VERSION (Node 18 compatible)"
 fi
 
-# Detect OS and set sed syntax
-if [[ "$OSTYPE" == "darwin"* ]]; then
-  SED_INPLACE="sed -i ''"
-else
-  SED_INPLACE="sed -i"
-fi
+function sed_in_place() {
+  if [[ "$OSTYPE" == "darwin"* ]]; then
+    sed -i '' "$@"
+  else
+    sed -i "$@"
+  fi
+}
 
 declare -a PNPM_CMD
 configure_pnpm
@@ -159,8 +160,8 @@ fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 "
 
 echo "🧹 Cleaning up Vite template..."
-$SED_INPLACE '/<link rel="icon".*/d' index.html
-$SED_INPLACE 's/<title>.*<\/title>/<title>'"$PROJECT_NAME"'<\/title>/' index.html
+sed_in_place '/<link rel="icon".*/d' index.html
+sed_in_place 's/<title>.*<\/title>/<title>'"$PROJECT_NAME"'<\/title>/' index.html
 
 echo "📦 Installing base dependencies..."
 run_pnpm_quiet install

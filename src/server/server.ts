@@ -1639,6 +1639,7 @@ async function handleCanvasBuildWebArtifact(req: Request): Promise<Response> {
       bytes: result.fileSize,
       projectPath: result.projectPath,
       openedInCanvas: result.openedInCanvas,
+      completedAt: result.completedAt,
       // `id` is the canvas node id alias used by every other add-style
       // response. It is only present when a canvas node was actually
       // created (i.e. openInCanvas was not explicitly disabled). When

@@ -54,6 +54,8 @@ export declare function replaceViewport(next: ViewportState): void;
 export declare function commitViewport(next: ViewportState): void;
 export declare function applyServerCanvasLayout(layout: Pick<CanvasLayout, 'nodes' | 'edges'> & {
     viewport?: ViewportState;
+}, options?: {
+    applyViewport?: boolean;
 }): void;
 /**
  * Smoothly animate the viewport to a target state.

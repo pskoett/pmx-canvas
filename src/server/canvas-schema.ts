@@ -140,11 +140,18 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     fields: [
       { name: 'title', type: 'string', required: false, description: 'Optional title.' },
       { name: 'content', type: 'string', required: false, description: 'Trace summary.' },
+      { name: 'toolName', type: 'string', required: false, description: 'Tool or operation label shown in the trace pill; defaults to title.' },
+      { name: 'category', type: 'string', required: false, description: 'Trace category color key: mcp, file, subagent, or other.' },
+      { name: 'status', type: 'string', required: false, description: 'Trace status: running, success, or failed.' },
+      { name: 'duration', type: 'string', required: false, description: 'Optional duration badge text.' },
+      { name: 'resultSummary', type: 'string', required: false, description: 'Short trace result summary; defaults to content.' },
+      { name: 'error', type: 'string', required: false, description: 'Short error message shown in failed traces.' },
     ],
     example: {
       type: 'trace',
       title: 'Execution Trace',
       content: 'Canvas actions and tool events.',
+      status: 'success',
     },
   },
   {
@@ -378,12 +385,16 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
       { name: 'openInCanvas', type: 'boolean', required: false, description: 'Open the built artifact on the canvas (default true).' },
       { name: 'includeLogs', type: 'boolean', required: false, description: 'Include raw build stdout/stderr in the response (default false).' },
       { name: 'deps', type: 'string[]', required: false, description: 'Optional npm dependencies to add before bundling, e.g. recharts.', aliases: ['deps'] },
+      { name: 'timeoutMs', type: 'number', required: false, description: 'Build command timeout in milliseconds. This controls subprocess timeout, not the MCP client request timeout.' },
     ],
     example: {
       title: 'Dashboard Artifact',
       appTsx: 'export default function App() { return <main>Artifact</main>; }',
       indexCss: 'body { background: #123456; color: white; }',
     },
+    notes: [
+      'Cold builds can exceed default 60s MCP client timeouts; configure a longer MCP call timeout or retry with the same projectPath/outputPath if the first call times out.',
+    ],
   },
 ];
 

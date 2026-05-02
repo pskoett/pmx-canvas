@@ -79,7 +79,7 @@ async function createMcpSession(): Promise<{
   return { workspaceRoot, client, transport, port };
 }
 
-async function createMcpSessionForWorkspace(workspaceRoot: string, port: number): Promise<{
+async function createMcpSessionForWorkspace(workspaceRoot: string, port: number, extraEnv: Record<string, string> = {}): Promise<{
   client: Client;
   transport: StdioClientTransport;
 }> {
@@ -91,6 +91,7 @@ async function createMcpSessionForWorkspace(workspaceRoot: string, port: number)
       ...process.env,
       PMX_CANVAS_DISABLE_BROWSER_OPEN: '1',
       PMX_CANVAS_PORT: String(port),
+      ...extraEnv,
     },
     stderr: 'pipe',
   });
@@ -320,6 +321,67 @@ describe('MCP parity with CLI', () => {
     const httpLayout = await (await fetch(`${baseUrl}/api/canvas/state`)).json() as { nodes: Array<{ id: string }> };
     expect(httpLayout.nodes.some((node) => node.id === created.id)).toBe(true);
     expect(httpLayout.nodes.some((node) => node.id === addedByMcp.id)).toBe(true);
+  });
+
+  test('promotes local MCP access when a configured daemon becomes healthy later', async () => {
+    const workspaceRoot = createTestWorkspace('pmx-canvas-mcp-promote-');
+    const localPort = await getAvailablePort();
+    const remotePort = await getAvailablePort();
+    const remoteBaseUrl = `http://127.0.0.1:${remotePort}`;
+
+    const session = await createMcpSessionForWorkspace(workspaceRoot, localPort, {
+      PMX_CANVAS_URL: remoteBaseUrl,
+    });
+    cleanup.push(async () => {
+      await session.transport.close();
+      stopCanvasServer();
+      removeTestWorkspace(workspaceRoot);
+    });
+
+    const localOnly = parseJsonText<{ id: string }>(await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'markdown',
+        title: 'Before delayed daemon',
+        content: 'created in local MCP mode',
+      },
+    }) as ToolResultShape);
+    expect(localOnly.id).toBeTruthy();
+
+    const baseUrl = startCanvasServer({ workspaceRoot, port: remotePort, autoOpenBrowser: false });
+    expect(baseUrl).toBe(remoteBaseUrl);
+    const createdResponse = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'Delayed daemon node',
+        content: 'visible after promotion',
+      }),
+    });
+    expect(createdResponse.ok).toBe(true);
+    const created = await createdResponse.json() as { id: string };
+
+    const fetchedResult = await session.client.callTool({
+      name: 'canvas_get_node',
+      arguments: { id: created.id },
+    }) as ToolResultShape;
+    expect(fetchedResult.isError).not.toBe(true);
+    expect(parseJsonText<{ id: string; title: string }>(fetchedResult)).toMatchObject({
+      id: created.id,
+      title: 'Delayed daemon node',
+    });
+
+    const addedByMcp = parseJsonText<{ id: string }>(await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'markdown',
+        title: 'MCP after promotion',
+      },
+    }) as ToolResultShape);
+
+    const remoteLayout = await (await fetch(`${baseUrl}/api/canvas/state`)).json() as { nodes: Array<{ id: string }> };
+    expect(remoteLayout.nodes.some((node) => node.id === addedByMcp.id)).toBe(true);
   });
 
   test('canvas_update_node combines graph updates with arrangeLocked', async () => {
@@ -603,6 +665,8 @@ describe('MCP parity with CLI', () => {
     expect(described.nodeTypes.find((entry) => entry.type === 'image')?.fields.find((field) => field.name === 'content')?.aliases).toContain('path');
     expect(described.nodeTypes.find((entry) => entry.type === 'json-render')?.fields.find((field) => field.name === 'title')).toMatchObject({ required: false });
     expect(described.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'series')).toBe(true);
+    expect(described.nodeTypes.find((entry) => entry.type === 'trace')?.fields.some((field) => field.name === 'toolName')).toBe(true);
+    expect(described.nodeTypes.find((entry) => entry.type === 'trace')?.fields.some((field) => field.name === 'resultSummary')).toBe(true);
     expect(described.nodeTypes.find((entry) => entry.type === 'external-app')?.kind).toBe('virtual-node');
     expect(described.mcp.nodeTypeRouting).toMatchObject({
       markdown: 'canvas_add_node',
@@ -772,6 +836,7 @@ describe('MCP parity with CLI', () => {
     const tools = await session.client.listTools();
     const artifactTool = tools.tools.find((tool) => tool.name === 'canvas_build_web_artifact');
     expect(artifactTool?.inputSchema.properties).toHaveProperty('includeLogs');
+    expect(artifactTool?.description).toContain('60s MCP client timeouts');
 
     const initScriptPath = join(session.workspaceRoot, 'emit-init.sh');
     const bundleScriptPath = join(session.workspaceRoot, 'emit-bundle.sh');
@@ -809,6 +874,7 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
       logs?: { stdout?: { excerpt: string[] }; stderr?: { excerpt: string[] } };
       stdout?: string;
       stderr?: string;
+      completedAt?: string;
     }>(await session.client.callTool({
       name: 'canvas_build_web_artifact',
       arguments: {
@@ -822,6 +888,7 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
     expect(quiet.id).toBe(quiet.nodeId);
     expect(quiet.stdout).toBeUndefined();
     expect(quiet.stderr).toBeUndefined();
+    expect(quiet.completedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(quiet.logs?.stderr?.excerpt).toContain('bundle stderr');
 
     const verbose = parseJsonText<{
@@ -1023,6 +1090,62 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
     ]));
   });
 
+  test('canvas_batch documents bare refs and surfaces partial failure envelopes', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const tools = await session.client.listTools();
+    const batchTool = tools.tools.find((tool) => tool.name === 'canvas_batch');
+    expect(batchTool?.description).toContain('"$name"');
+    expect(batchTool?.description).toContain('non-atomic');
+
+    const success = parseJsonText<{
+      ok: boolean;
+      refs: Record<string, { id: string }>;
+      results: Array<{ ok: boolean; id: string; from?: string; to?: string }>;
+    }>(await session.client.callTool({
+      name: 'canvas_batch',
+      arguments: {
+        operations: [
+          { op: 'node.add', assign: 'src', args: { type: 'markdown', title: 'Bare source' } },
+          { op: 'node.add', assign: 'dst', args: { type: 'markdown', title: 'Bare target' } },
+          { op: 'edge.add', assign: 'edge', args: { from: '$src', to: '$dst', type: 'references' } },
+        ],
+      },
+    }) as ToolResultShape);
+    expect(success.ok).toBe(true);
+    expect(success.results[2]).toMatchObject({
+      from: success.refs.src.id,
+      to: success.refs.dst.id,
+    });
+
+    const failed = await session.client.callTool({
+      name: 'canvas_batch',
+      arguments: {
+        operations: [
+          { op: 'node.add', assign: 'kept', args: { type: 'markdown', title: 'Partial success' } },
+          { op: 'edge.add', args: { from: '$kept', to: '$missing', type: 'references' } },
+        ],
+      },
+    }) as ToolResultShape;
+    expect(failed.isError).toBe(true);
+    expect(parseJsonText<{
+      ok: boolean;
+      failedIndex: number;
+      error: string;
+      refs: Record<string, { id: string }>;
+      results: Array<{ id: string }>;
+    }>(failed)).toMatchObject({
+      ok: false,
+      failedIndex: 1,
+      refs: { kept: { id: expect.any(String) } },
+      results: [expect.objectContaining({ id: expect.any(String) })],
+    });
+  });
+
   test('canvas_batch supports webpage nodes and surfaces fetch status', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
@@ -1156,5 +1279,46 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
       arguments: {},
     }) as ToolResultShape);
     expect(afterDelete.snapshots.some((snapshot) => snapshot.id === saved.snapshot.id)).toBe(false);
+  });
+
+  test('canvas_restore returns a compact summary instead of the full layout', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'markdown',
+        title: 'Snapshot node',
+        content: 'snapshot content',
+      },
+    });
+    const saved = parseJsonText<{ id: string }>(await session.client.callTool({
+      name: 'canvas_snapshot',
+      arguments: { name: 'compact restore' },
+    }) as ToolResultShape);
+    await session.client.callTool({ name: 'canvas_clear', arguments: {} });
+
+    const restored = parseJsonText<{
+      ok: boolean;
+      restored: string;
+      summary: { nodeCount: number; edgeCount: number; nodesByType: Record<string, number> };
+      layout?: unknown;
+    }>(await session.client.callTool({
+      name: 'canvas_restore',
+      arguments: { id: saved.id },
+    }) as ToolResultShape);
+
+    expect(restored.ok).toBe(true);
+    expect(restored.restored).toBe(saved.id);
+    expect(restored.summary).toMatchObject({
+      nodeCount: 1,
+      edgeCount: 0,
+      nodesByType: { markdown: 1 },
+    });
+    expect(restored.layout).toBeUndefined();
   });
 });

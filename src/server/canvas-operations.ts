@@ -1373,6 +1373,7 @@ function resolveBatchRefs(value: unknown, refs: Record<string, unknown>): unknow
   if (typeof value === 'string' && value.startsWith('$')) {
     const path = value.slice(1).split('.');
     let current: unknown = refs[path[0] ?? ''];
+    if (path.length === 1 && isPlainRecord(current) && typeof current.id === 'string') return current.id;
     for (const segment of path.slice(1)) {
       if (!isPlainRecord(current) && !Array.isArray(current)) return undefined;
       current = (current as Record<string, unknown>)[segment];

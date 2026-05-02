@@ -3,6 +3,87 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.13] - 2026-05-02
+
+Live-collaboration polish on top of 0.1.12. Server-driven SSE updates no
+longer reset the user's viewport, the MCP server hot-promotes itself to
+a daemon-backed access when one shows up later, agent-authored trace
+nodes get first-class schema for the fields the renderer reads,
+`canvas_batch` exposes partial-failure envelopes and bare-step refs,
+`canvas_restore` returns a compact summary, and the web-artifact init
+path stops leaking macOS `sed -i ''` backup files into Linux projects.
+
+### Added
+
+- **First-class trace node fields in `canvas_describe_schema`.** The
+  trace `add` schema now lists `toolName`, `category`, `status`,
+  `duration`, `resultSummary`, and `error` as documented optional
+  fields, with the same defaults the renderer uses. Trace rendering was
+  also extracted to `src/client/nodes/trace-model.ts` so the
+  field-fallback contract is unit-testable.
+- **MCP can hot-promote to a daemon.** `refreshCanvasAccess()` is
+  exported from the canvas-access module and called on every
+  `ensureCanvas()` after the first. If a workspace canvas daemon comes
+  online after the MCP server started in local mode, the MCP switches
+  to the remote backend without losing its tool registration. Resource
+  notifications now track local vs remote subscriptions independently
+  so a refresh does not double-subscribe.
+- **Web-artifact build response carries a completion timestamp.**
+  `WebArtifactCanvasBuildResult` and the `/api/canvas/web-artifact`
+  HTTP response now include `completedAt` (ISO 8601) so agents that
+  trigger long builds can correlate their request with the response.
+- **`canvas_build_web_artifact` schema documents `timeoutMs` and cold-
+  build behavior.** The schema lists `timeoutMs` as the subprocess
+  timeout (distinct from the MCP client request timeout) and adds a
+  note that cold builds can exceed the default 60s MCP client timeout.
+
+### Changed
+
+- **Server SSE layout updates no longer clobber the user's pan/zoom.**
+  `applyServerCanvasLayout` only re-applies the server viewport when
+  the caller explicitly opts in via `{ applyViewport: true }`. The
+  `canvas-layout-update` SSE handler now only opts in on the very
+  first layout sync; later updates from agent or HTTP mutations leave
+  the user's current viewport alone.
+- **`canvas_restore` returns a compact summary instead of the full
+  layout.** Restoring a snapshot now responds with `{ok, restored,
+  summary: { ... }}` containing node and edge counts, pinned ids, and
+  group counts. Use `canvas_get_layout` afterwards if the full layout
+  is needed.
+- **`canvas_batch` exposes partial-failure envelopes.** When the batch
+  endpoint returns a structured failure body (HTTP non-2xx with an
+  object payload), the MCP tool surfaces that body to the caller
+  instead of throwing. Bare `$step` references in batch payloads now
+  resolve to that step's `id`, matching the ergonomic
+  `{from: '$step1', to: '$step2'}` pattern.
+- **Diagram preset keeps Excalidraw text elements as text.** The
+  bound-text → container `label` conversion added in 0.1.10 has been
+  removed; text elements now stay as text elements while
+  `boundElements` references are kept bidirectional, restoring the
+  Excalidraw-native shape the MCP app expects.
+
+### Fixed
+
+- **`init-artifact.sh` no longer leaks literal `''` backup files on
+  Linux.** The script now wraps `sed -i` in a `sed_in_place` function
+  that picks the right syntax per OS instead of relying on a
+  `$SED_INPLACE` variable that contained a literal empty argument on
+  macOS and broke under word-splitting on Linux.
+- **Web-artifact build cleans up pre-existing literal `''` files.**
+  Reusable build projects scaffolded by older versions of the init
+  script may still carry `index.html''`-style stragglers. The bundle
+  step now removes any literal-`''`-suffixed files in the project
+  directory before delegating to Parcel.
+
+### Internal
+
+- Regression coverage for: trace-model field fallbacks, applying server
+  layouts without auto-applying viewport plus the explicit
+  initial-sync path, MCP local→remote daemon promotion, `canvas_batch`
+  bare-ref resolution and partial-failure envelopes, `canvas_restore`
+  compact summary shape, Excalidraw bound-text repair without dropping
+  text elements, and the `init-artifact.sh` sed-backup cleanup.
+
 ## [0.1.12] - 2026-05-02
 
 MCP/canvas state-sharing pass on top of 0.1.11. The MCP server now
@@ -363,6 +444,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.13]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.13
 [0.1.12]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.12
 [0.1.11]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.11
 [0.1.10]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.10

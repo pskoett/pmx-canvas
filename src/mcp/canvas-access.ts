@@ -135,7 +135,11 @@ export interface CanvasAccess {
 class LocalCanvasAccess implements CanvasAccess {
   readonly remoteBaseUrl = null;
 
-  constructor(private readonly canvas: PmxCanvas) {}
+  constructor(
+    private readonly canvas: PmxCanvas,
+    readonly workspaceRoot: string,
+    readonly targetPort: number,
+  ) {}
 
   get port(): number {
     return this.canvas.port;
@@ -335,6 +339,9 @@ class RemoteCanvasAccess implements CanvasAccess {
       const error = parsed && typeof parsed === 'object' && 'error' in parsed
         ? String((parsed as { error?: unknown }).error)
         : `HTTP ${response.status}`;
+      if (path === '/api/canvas/batch' && parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as T;
+      }
       throw new Error(error);
     }
     return parsed as T;
@@ -617,6 +624,10 @@ function candidateBaseUrls(port: number): string[] {
   return urls;
 }
 
+function localBaseUrls(port: number): string[] {
+  return [`http://127.0.0.1:${port}`, `http://localhost:${port}`];
+}
+
 async function readHealth(baseUrl: string): Promise<HealthResponse | null> {
   try {
     const response = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(400) });
@@ -627,9 +638,15 @@ async function readHealth(baseUrl: string): Promise<HealthResponse | null> {
   }
 }
 
-async function findExistingCanvasServer(workspaceRoot: string, port: number): Promise<string | null> {
+async function findExistingCanvasServer(
+  workspaceRoot: string,
+  port: number,
+  options: { excludeBaseUrls?: string[] } = {},
+): Promise<string | null> {
   const canonicalWorkspaceRoot = canonicalWorkspacePath(workspaceRoot);
+  const excluded = new Set((options.excludeBaseUrls ?? []).map((baseUrl) => baseUrl.replace(/\/$/, '')));
   for (const baseUrl of candidateBaseUrls(port)) {
+    if (excluded.has(baseUrl)) continue;
     const health = await readHealth(baseUrl);
     if (health?.ok !== true) continue;
     const healthWorkspace = typeof health.workspace === 'string' ? canonicalWorkspacePath(health.workspace) : '';
@@ -637,6 +654,14 @@ async function findExistingCanvasServer(workspaceRoot: string, port: number): Pr
     return baseUrl;
   }
   return null;
+}
+
+export async function refreshCanvasAccess(access: CanvasAccess): Promise<CanvasAccess> {
+  if (!(access instanceof LocalCanvasAccess)) return access;
+  const remoteBaseUrl = await findExistingCanvasServer(access.workspaceRoot, access.targetPort, {
+    excludeBaseUrls: localBaseUrls(access.port),
+  });
+  return remoteBaseUrl ? new RemoteCanvasAccess(remoteBaseUrl) : access;
 }
 
 export async function createCanvasAccess(): Promise<CanvasAccess> {
@@ -647,5 +672,5 @@ export async function createCanvasAccess(): Promise<CanvasAccess> {
 
   const canvas = createCanvas({ port });
   await canvas.start({ open: true });
-  return new LocalCanvasAccess(canvas);
+  return new LocalCanvasAccess(canvas, workspaceRoot, port);
 }

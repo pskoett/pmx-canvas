@@ -2242,6 +2242,7 @@ describe('canvas server HTTP API', () => {
       path: string;
       projectPath: string;
       openedInCanvas: boolean;
+      completedAt?: string;
       id?: string;
       nodeId?: string;
       url?: string;
@@ -2259,6 +2260,7 @@ describe('canvas server HTTP API', () => {
     });
 
     expect(build.openedInCanvas).toBe(true);
+    expect(build.completedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(build.nodeId).toBeDefined();
     expect(build.id).toBe(build.nodeId);
     expect(build.url).toContain('/artifact?path=');
@@ -2647,6 +2649,9 @@ describe('canvas server HTTP API', () => {
     expect(schema.nodeTypes.find((entry) => entry.type === 'json-render')?.fields.find((field) => field.name === 'title')).toMatchObject({ required: false });
     expect(schema.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'zKey')).toBe(true);
     expect(schema.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'metrics')).toBe(true);
+    expect(schema.nodeTypes.find((entry) => entry.type === 'trace')?.fields.some((field) => field.name === 'toolName')).toBe(true);
+    expect(schema.nodeTypes.find((entry) => entry.type === 'trace')?.fields.some((field) => field.name === 'resultSummary')).toBe(true);
+    expect(schema.nodeTypes.find((entry) => entry.type === 'web-artifact')?.fields.some((field) => field.name === 'timeoutMs')).toBe(true);
     expect(schema.jsonRender.components.some((component) => component.type === 'Table')).toBe(true);
     expect(schema.graph.graphTypes).toContain('area');
     expect(schema.graph.graphTypes).toContain('stacked-bar');

@@ -1,4 +1,5 @@
 import type { CanvasNodeState } from '../types';
+import { buildTraceDisplayModel } from './trace-model';
 
 const CATEGORY_COLORS: Record<string, string> = {
   mcp: 'var(--c-accent)',
@@ -20,12 +21,7 @@ const STATUS_COLORS: Record<string, string> = {
 };
 
 export function TraceNode({ node }: { node: CanvasNodeState }) {
-  const toolName = (node.data.toolName as string) || 'unknown';
-  const category = (node.data.category as string) || 'other';
-  const status = (node.data.status as string) || 'running';
-  const duration = (node.data.duration as string) || '';
-  const resultSummary = (node.data.resultSummary as string) || '';
-  const error = (node.data.error as string) || '';
+  const { toolName, category, status, duration, resultSummary, error } = buildTraceDisplayModel(node.data);
 
   const catColor = CATEGORY_COLORS[category] ?? CATEGORY_COLORS.other;
   const statusIcon = STATUS_ICONS[status] ?? '◌';

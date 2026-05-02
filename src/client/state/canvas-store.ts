@@ -313,7 +313,10 @@ export function commitViewport(next: ViewportState): void {
   void updateViewportFromClient(next);
 }
 
-export function applyServerCanvasLayout(layout: Pick<CanvasLayout, 'nodes' | 'edges'> & { viewport?: ViewportState }): void {
+export function applyServerCanvasLayout(
+  layout: Pick<CanvasLayout, 'nodes' | 'edges'> & { viewport?: ViewportState },
+  options: { applyViewport?: boolean } = {},
+): void {
   const nextNodes = new Map<string, CanvasNodeState>();
   let nextMaxZ = 1;
   for (const node of layout.nodes) {
@@ -337,7 +340,7 @@ export function applyServerCanvasLayout(layout: Pick<CanvasLayout, 'nodes' | 'ed
   const nextContextPinnedNodeIds = filterNodeIdSet(contextPinnedNodeIds.value, nextNodes);
 
   batch(() => {
-    if (layout.viewport) {
+    if (options.applyViewport === true && layout.viewport) {
       viewport.value = layout.viewport;
     }
     maxZ = nextMaxZ;

@@ -135,8 +135,6 @@ function normalizeExcalidrawBoundText(elements: Array<Record<string, unknown>>):
 
   let changed = false;
   const boundElementIdsByContainer = new Map<string, Set<string>>();
-  const labelByContainer = new Map<string, Record<string, unknown>>();
-  const textIdsConvertedToLabels = new Set<string>();
 
   for (const element of elements) {
     if (element.type !== 'text' || typeof element.id !== 'string' || typeof element.containerId !== 'string') continue;
@@ -145,48 +143,28 @@ function normalizeExcalidrawBoundText(elements: Array<Record<string, unknown>>):
     const ids = boundElementIdsByContainer.get(element.containerId) ?? new Set<string>();
     ids.add(element.id);
     boundElementIdsByContainer.set(element.containerId, ids);
-    const text = typeof element.text === 'string' ? element.text.trim() : '';
-    if (!isRecord(container.label) && text.length > 0) {
-      labelByContainer.set(element.containerId, {
-        text,
-        ...(typeof element.fontSize === 'number' && Number.isFinite(element.fontSize) ? { fontSize: element.fontSize } : {}),
-      });
-      textIdsConvertedToLabels.add(element.id);
-    }
   }
 
-  const normalized = elements.flatMap<Record<string, unknown>>((element) => {
-    if (typeof element.id === 'string' && textIdsConvertedToLabels.has(element.id)) {
-      changed = true;
-      return [];
-    }
+  const normalized = elements.map((element) => {
     if (typeof element.id !== 'string') return element;
     const boundTextIds = boundElementIdsByContainer.get(element.id);
-    const label = labelByContainer.get(element.id);
-    if ((!boundTextIds || boundTextIds.size === 0) && !label) return element;
+    if (!boundTextIds || boundTextIds.size === 0) return element;
 
     const existing = Array.isArray(element.boundElements)
       ? element.boundElements.filter(isRecord)
       : [];
-    const remainingExisting = existing.filter((boundElement) => {
-      return !(boundElement.type === 'text' && typeof boundElement.id === 'string' && textIdsConvertedToLabels.has(boundElement.id));
-    });
     const existingTextIds = new Set(
-      remainingExisting
+      existing
         .filter((boundElement) => boundElement.type === 'text' && typeof boundElement.id === 'string')
         .map((boundElement) => boundElement.id as string),
     );
-    const missing = [...(boundTextIds ?? [])]
-      .filter((id) => !textIdsConvertedToLabels.has(id) && !existingTextIds.has(id));
-    if (missing.length === 0 && !label && remainingExisting.length === existing.length) return element;
+    const missing = [...boundTextIds].filter((id) => !existingTextIds.has(id));
+    if (missing.length === 0) return element;
 
     changed = true;
     return {
       ...element,
-      ...(label ? { label } : {}),
-      ...(remainingExisting.length > 0 || missing.length > 0
-        ? { boundElements: [...remainingExisting, ...missing.map((id) => ({ type: 'text', id }))] }
-        : {}),
+      boundElements: [...existing, ...missing.map((id) => ({ type: 'text', id }))],
     };
   });
 

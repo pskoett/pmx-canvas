@@ -93,6 +93,52 @@ describe('web artifact builders', () => {
     }
   });
 
+  test('removes literal macOS sed backup artifacts from initialized projects', async () => {
+    const initScriptPath = join(workspaceRoot, 'init-with-sed-backup.sh');
+    const bundleScriptPath = join(workspaceRoot, 'bundle-sed-backup.sh');
+    writeFileSync(initScriptPath, `#!/bin/bash
+set -e
+PROJECT_NAME="$1"
+mkdir -p "$PROJECT_NAME/src"
+cat > "$PROJECT_NAME/package.json" <<'EOF'
+{"name":"sed-backup-artifact"}
+EOF
+cat > "$PROJECT_NAME/index.html" <<'EOF'
+<!DOCTYPE html><html><body><div id="root"></div></body></html>
+EOF
+cat > "$PROJECT_NAME/index.html''" <<'EOF'
+stale sed backup
+EOF
+cat > "$PROJECT_NAME/src/App.tsx" <<'EOF'
+export default function App() { return null; }
+EOF
+`, 'utf-8');
+    writeFileSync(bundleScriptPath, `#!/bin/bash
+set -e
+echo '<!DOCTYPE html><html><body>sed backup</body></html>' > bundle.html
+`, 'utf-8');
+    chmodSync(initScriptPath, 0o755);
+    chmodSync(bundleScriptPath, 0o755);
+
+    const projectPath = join(workspaceRoot, 'artifacts', '.web-artifacts', 'sed-backup-artifact');
+    const originalCwd = process.cwd();
+    process.chdir(workspaceRoot);
+    try {
+      await executeWebArtifactBuild({
+        title: 'Sed Backup Artifact',
+        appTsx: 'export default function App() { return <main>Sed Backup</main>; }',
+        projectPath,
+        outputPath: join(workspaceRoot, 'artifacts', 'sed-backup-artifact.html'),
+        initScriptPath,
+        bundleScriptPath,
+      });
+      expect(existsSync(join(projectPath, "index.html''"))).toBe(false);
+      expect(existsSync(join(projectPath, 'index.html'))).toBe(true);
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
   test('fails instead of emitting a zero-byte artifact', async () => {
     const initScriptPath = join(workspaceRoot, 'init-empty.sh');
     const bundleScriptPath = join(workspaceRoot, 'bundle-empty.sh');
@@ -200,6 +246,7 @@ set -e
       expect(node?.data.title).toBe('Skill Demo');
       expect(String(node?.data.url ?? '')).toContain('/artifact?path=');
       expect(readFileSync(result.filePath, 'utf-8')).toContain('Skill Demo');
+      expect(result.completedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     } finally {
       process.chdir(originalCwd);
     }

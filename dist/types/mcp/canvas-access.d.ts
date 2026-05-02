@@ -83,5 +83,6 @@ export interface CanvasAccess {
     resizeAutomationWebView(width: number, height: number): Promise<AutomationWebViewStatus>;
     screenshotAutomationWebView(options?: AutomationScreenshotOptions): Promise<Uint8Array>;
 }
+export declare function refreshCanvasAccess(access: CanvasAccess): Promise<CanvasAccess>;
 export declare function createCanvasAccess(): Promise<CanvasAccess>;
 export {};

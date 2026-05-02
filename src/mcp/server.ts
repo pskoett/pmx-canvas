@@ -25,7 +25,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { isAbsolute, relative, resolve } from 'node:path';
 import { z } from 'zod';
 import { canvasState, describeCanvasSchema, validateStructuredCanvasPayload } from '../server/index.js';
-import { createCanvasAccess, type CanvasAccess } from './canvas-access.js';
+import { createCanvasAccess, refreshCanvasAccess, type CanvasAccess } from './canvas-access.js';
 import { serializeNodeForAgentContext } from '../server/agent-context.js';
 import { wrapCanvasAutomationScript } from '../server/server.js';
 import { buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
@@ -34,7 +34,8 @@ import { listBundledSkills, readBundledSkill } from '../server/bundled-skills.js
 
 let canvas: CanvasAccess | null = null;
 let resourceNotificationServer: McpServer | null = null;
-let resourceNotificationsStarted = false;
+let localResourceNotificationsStarted = false;
+let remoteResourceNotificationsBaseUrl: string | null = null;
 
 const jsonRenderSpecSchema = z.union([
   z.object({
@@ -78,6 +79,8 @@ function safeWorkspacePath(pathLike: string): string {
 async function ensureCanvas(): Promise<CanvasAccess> {
   if (!canvas) {
     canvas = await createCanvasAccess();
+  } else {
+    canvas = await refreshCanvasAccess(canvas);
   }
   startResourceNotifications(canvas);
   return canvas;
@@ -139,15 +142,19 @@ async function watchRemoteCanvasEvents(baseUrl: string): Promise<void> {
 }
 
 function startResourceNotifications(c: CanvasAccess): void {
-  if (resourceNotificationsStarted) return;
   const server = resourceNotificationServer;
   if (!server) return;
-  resourceNotificationsStarted = true;
 
   if (c.remoteBaseUrl) {
-    void watchRemoteCanvasEvents(c.remoteBaseUrl);
+    if (remoteResourceNotificationsBaseUrl !== c.remoteBaseUrl) {
+      remoteResourceNotificationsBaseUrl = c.remoteBaseUrl;
+      void watchRemoteCanvasEvents(c.remoteBaseUrl);
+    }
     return;
   }
+
+  if (localResourceNotificationsStarted) return;
+  localResourceNotificationsStarted = true;
 
   canvasState.onChange((type) => {
     sendCanvasResourceNotifications(type);
@@ -180,6 +187,19 @@ function buildSummaryFromLayout(layout: Awaited<ReturnType<CanvasAccess['getLayo
     nodesByType,
     pinnedCount: pinned.size,
     pinnedTitles,
+    viewport: layout.viewport,
+  };
+}
+
+function buildSnapshotRestoreSummary(layout: Awaited<ReturnType<CanvasAccess['getLayout']>>): Record<string, unknown> {
+  const nodesByType: Record<string, number> = {};
+  for (const node of layout.nodes) {
+    nodesByType[node.type] = (nodesByType[node.type] ?? 0) + 1;
+  }
+  return {
+    nodeCount: layout.nodes.length,
+    edgeCount: layout.edges.length,
+    nodesByType,
     viewport: layout.viewport,
   };
 }
@@ -463,7 +483,7 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_build_web_artifact ───────────────────────────────
   server.tool(
     'canvas_build_web_artifact',
-    'Build a bundled single-file HTML web artifact from React/Tailwind source files using the bundled web-artifacts-builder skill scripts. MCP callers pass source content in appTsx (the CLI app-file flag reads a file before calling this path). Builds commonly take 45-60s on cold workspaces; use a long client timeout. Optionally opens the generated artifact as an embedded node on the canvas. Read canvas://skills/web-artifacts-builder for the full workflow, stack, and anti-slop design guidelines before calling.',
+    'Build a bundled single-file HTML web artifact from React/Tailwind source files using the bundled web-artifacts-builder skill scripts. MCP callers pass source content in appTsx (the CLI app-file flag reads a file before calling this path). Builds can exceed default 60s MCP client timeouts on cold workspaces; set a long client timeout or retry with the same projectPath/outputPath if the client times out. Optionally opens the generated artifact as an embedded node on the canvas. Read canvas://skills/web-artifacts-builder for the full workflow, stack, and anti-slop design guidelines before calling.',
     {
       title: z.string().describe('Artifact title used for default project and output paths'),
       appTsx: z.string().describe('Contents for src/App.tsx'),
@@ -514,6 +534,7 @@ export async function startMcpServer(): Promise<void> {
               bytes: result.fileSize,
               projectPath: result.projectPath,
               openedInCanvas: result.openedInCanvas,
+              completedAt: result.completedAt,
               // `id` only present when a canvas node was actually created.
               // See the matching block in src/server/server.ts handleCanvasBuildWebArtifact.
               ...(typeof result.nodeId === 'string' ? { id: result.nodeId } : {}),
@@ -1453,7 +1474,7 @@ export async function startMcpServer(): Promise<void> {
 
   server.tool(
     'canvas_batch',
-    'Run a batch of canvas operations with optional assigned references. Supports node.add, node.update, graph.add, edge.add, group.create, group.add, group.remove, pin.set/add/remove, snapshot.save, and arrange.',
+    'Run a non-atomic batch of canvas operations with optional assigned references. Use assign to name a result, then reference it later as "$name" for the created node id or "$name.id" for a specific result field. On failure, earlier successful operations remain applied and the response includes ok:false, failedIndex, error, results, and refs. Supports node.add, node.update, graph.add, edge.add, group.create, group.add, group.remove, pin.set/add/remove, snapshot.save, and arrange.',
     {
       operations: z.array(z.object({
         op: z.string().describe('Operation name, e.g. "node.add" or "edge.add"'),
@@ -1568,8 +1589,9 @@ export async function startMcpServer(): Promise<void> {
       if (!result.ok) {
         return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'Snapshot not found' }) }] };
       }
+      const layout = await c.getLayout();
       return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, layout: serializeCanvasLayout(await c.getLayout()) }) }],
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, restored: input.id, summary: buildSnapshotRestoreSummary(layout) }, null, 2) }],
       };
     },
   );

@@ -76,7 +76,7 @@ describe('diagram-presets', () => {
     expect(result[1]).toMatchObject({ type: 'rectangle', id: 'r1' });
   });
 
-  test('normalizeExcalidrawElementsForToolInput repairs one-sided bound text references', () => {
+  test('normalizeExcalidrawElementsForToolInput repairs one-sided bound text references without dropping text', () => {
     const result = JSON.parse(normalizeExcalidrawElementsForToolInput([
       {
         type: 'rectangle',
@@ -102,9 +102,14 @@ describe('diagram-presets', () => {
     const box = result.find((element: Record<string, unknown>) => element.id === 'box');
     const label = result.find((element: Record<string, unknown>) => element.id === 'box-label');
     expect(box).toMatchObject({
-      label: { text: 'Bound label' },
+      boundElements: [{ type: 'text', id: 'box-label' }],
     });
-    expect(label).toBeUndefined();
+    expect(label).toMatchObject({
+      type: 'text',
+      id: 'box-label',
+      text: 'Bound label',
+      containerId: 'box',
+    });
   });
 
   test('normalizeExcalidrawElementsForToolInput seeds defaults for non-renderable arrays', () => {

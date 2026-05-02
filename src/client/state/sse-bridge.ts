@@ -803,6 +803,7 @@ function handleCanvasLayoutUpdate(data: Record<string, unknown>): void {
       }
     | undefined;
   if (!layout?.nodes) return;
+  const shouldApplyViewport = !hasInitialServerLayout.value;
   hasInitialServerLayout.value = true;
 
   const serverNodes = layout.nodes
@@ -824,7 +825,7 @@ function handleCanvasLayoutUpdate(data: Record<string, unknown>): void {
     ...(nextViewport ? { viewport: nextViewport } : {}),
     nodes: serverNodes,
     edges: serverEdges,
-  });
+  }, { applyViewport: shouldApplyViewport });
 
   syncAttentionFromSse({ event: 'canvas-layout-update', data });
 }
