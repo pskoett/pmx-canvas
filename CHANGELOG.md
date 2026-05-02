@@ -3,6 +3,53 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.12] - 2026-05-02
+
+MCP/canvas state-sharing pass on top of 0.1.11. The MCP server now
+attaches to an already-running canvas daemon for the current workspace
+instead of spinning up a parallel in-process state, so HTTP-created
+nodes and browser pins show up immediately in MCP responses and emit
+the matching resource notifications. The SDK's port binding is also
+hardened so explicit `port:` requests no longer silently land on a
+fallback port.
+
+### Added
+
+- **`startCanvasServer({ allowPortFallback: false })` and SDK port
+  determinism.** The HTTP server option lets callers opt out of the
+  fallback-port walk. The Bun SDK's `PmxCanvas.start()` and
+  `PmxCanvas.startAutomationWebView()` now pass this flag, so when an
+  SDK consumer says `createCanvas({ port: 4313 })` they either bind to
+  4313 or fail loudly — preventing two SDK instances or an SDK + a
+  daemon from racing onto silently different ports.
+- **`CanvasAccess` abstraction with local + remote backends.** A new
+  `src/mcp/canvas-access.ts` module defines the interface the MCP
+  server uses to talk to canvas state. `LocalCanvasAccess` wraps an
+  in-process `PmxCanvas` (legacy behavior); `RemoteCanvasAccess` talks
+  to an existing daemon over HTTP and consumes its SSE stream. The
+  factory probes for an existing canvas server in the workspace before
+  starting a new one.
+
+### Changed
+
+- **MCP server defers to an existing canvas daemon as the state
+  authority.** When `pmx-canvas --mcp` boots in a workspace that
+  already has a canvas server running on the agreed port, the MCP
+  process now reads and writes through that daemon's HTTP API instead
+  of starting its own canvas. Nodes created via the daemon's HTTP API
+  (or by a human in the browser) are visible to MCP queries
+  immediately, and SSE events from the daemon are translated into
+  MCP `notifications/resources/updated` calls for `canvas://layout`,
+  `canvas://summary`, `canvas://spatial-context`, `canvas://history`,
+  `canvas://code-graph`, and `canvas://pinned-context`.
+
+### Internal
+
+- Regression coverage for: `canvas_add_node` strict-size persistence
+  through MCP, an MCP session using an existing daemon as the state
+  authority for HTTP-created nodes, and HTTP node creation broadcasting
+  a live `canvas-layout-update` SSE event.
+
 ## [0.1.11] - 2026-05-02
 
 Agent ergonomics + chart polish on top of 0.1.10. Adds a `--strict-size`
@@ -316,6 +363,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.12]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.12
 [0.1.11]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.11
 [0.1.10]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.10
 [0.1.9]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.9

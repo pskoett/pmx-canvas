@@ -2393,6 +2393,53 @@ describe('canvas server HTTP API', () => {
     expect(graph.data.strictSize).toBe(true);
   });
 
+  test('HTTP node creation broadcasts a live canvas-layout-update event', async () => {
+    const abortController = new AbortController();
+    const eventsPromise = (async () => {
+      const response = await fetch(`${baseUrl}/api/workbench/events`, { signal: abortController.signal });
+      expect(response.ok).toBe(true);
+      const reader = response.body?.getReader();
+      expect(reader).toBeDefined();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      while (reader) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split('\n\n');
+        buffer = frames.pop() ?? '';
+        for (const frame of frames) {
+          if (!frame.includes('event: canvas-layout-update')) continue;
+          const dataLine = frame.split('\n').find((line) => line.startsWith('data: '));
+          if (!dataLine) continue;
+          const payload = JSON.parse(dataLine.slice('data: '.length)) as { layout?: { nodes?: Array<{ id: string }> } };
+          const nodeIds = payload.layout?.nodes?.map((node) => node.id) ?? [];
+          if (nodeIds.some((id) => id.startsWith('node-'))) return nodeIds;
+        }
+      }
+      return [];
+    })();
+
+    await Bun.sleep(50);
+    const created = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'HTTP SSE node',
+        content: 'broadcast me',
+      }),
+    });
+
+    const nodeIds = await Promise.race([
+      eventsPromise,
+      Bun.sleep(2_000).then(() => [] as string[]),
+    ]);
+    abortController.abort();
+
+    expect(nodeIds).toContain(created.id);
+  });
+
   test('updates json-render and graph specs in place over HTTP', async () => {
     const jsonRender = await jsonRequest<{
       ok: boolean;

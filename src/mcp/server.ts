@@ -24,22 +24,17 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { z } from 'zod';
-import {
-  createCanvas,
-  canvasState,
-  describeCanvasSchema,
-  validateStructuredCanvasPayload,
-  type PmxCanvas,
-} from '../server/index.js';
+import { canvasState, describeCanvasSchema, validateStructuredCanvasPayload } from '../server/index.js';
+import { createCanvasAccess, type CanvasAccess } from './canvas-access.js';
 import { serializeNodeForAgentContext } from '../server/agent-context.js';
-import { emitPrimaryWorkbenchEvent, wrapCanvasAutomationScript } from '../server/server.js';
-import { searchNodes, buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
-import { mutationHistory, diffLayouts, formatDiff } from '../server/mutation-history.js';
-import { buildCodeGraphSummary, formatCodeGraph } from '../server/code-graph.js';
-import { buildCanvasSummary, serializeCanvasLayout, serializeCanvasNode } from '../server/canvas-serialization.js';
+import { wrapCanvasAutomationScript } from '../server/server.js';
+import { buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
+import { getCanvasNodeTitle, serializeCanvasLayout, serializeCanvasNode } from '../server/canvas-serialization.js';
 import { listBundledSkills, readBundledSkill } from '../server/bundled-skills.js';
 
-let canvas: PmxCanvas | null = null;
+let canvas: CanvasAccess | null = null;
+let resourceNotificationServer: McpServer | null = null;
+let resourceNotificationsStarted = false;
 
 const jsonRenderSpecSchema = z.union([
   z.object({
@@ -80,24 +75,113 @@ function safeWorkspacePath(pathLike: string): string {
   return resolved;
 }
 
-async function ensureCanvas(): Promise<PmxCanvas> {
+async function ensureCanvas(): Promise<CanvasAccess> {
   if (!canvas) {
-    const port = parseInt(process.env.PMX_CANVAS_PORT ?? '4313');
-    canvas = createCanvas({ port });
-    await canvas.start({ open: true });
+    canvas = await createCanvasAccess();
   }
+  startResourceNotifications(canvas);
   return canvas;
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
+}
+
+function sendCanvasResourceNotifications(type: 'nodes' | 'pins' = 'nodes'): void {
+  const server = resourceNotificationServer;
+  if (!server) return;
+  try {
+    if (type === 'pins') {
+      server.server.sendResourceUpdated({ uri: 'canvas://pinned-context' });
+    }
+    server.server.sendResourceUpdated({ uri: 'canvas://layout' });
+    server.server.sendResourceUpdated({ uri: 'canvas://summary' });
+    server.server.sendResourceUpdated({ uri: 'canvas://spatial-context' });
+    server.server.sendResourceUpdated({ uri: 'canvas://history' });
+    server.server.sendResourceUpdated({ uri: 'canvas://code-graph' });
+  } catch (error) {
+    console.debug('[mcp] resource notification failed', error);
+  }
+}
+
+function handleRemoteSseFrame(frame: string): void {
+  const eventLine = frame.split('\n').find((line) => line.startsWith('event: '));
+  const event = eventLine?.slice('event: '.length).trim() ?? '';
+  if (!event || event === 'connected' || event === 'ping') return;
+  sendCanvasResourceNotifications(event === 'context-pins-changed' ? 'pins' : 'nodes');
+}
+
+async function watchRemoteCanvasEvents(baseUrl: string): Promise<void> {
+  const decoder = new TextDecoder();
+  while (true) {
+    try {
+      const response = await fetch(`${baseUrl}/api/workbench/events`);
+      if (!response.ok || !response.body) {
+        await sleep(1_000);
+        continue;
+      }
+
+      const reader = response.body.getReader();
+      let buffer = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split('\n\n');
+        buffer = frames.pop() ?? '';
+        for (const frame of frames) handleRemoteSseFrame(frame);
+      }
+    } catch (error) {
+      console.debug('[mcp] remote canvas event stream failed', error);
+    }
+    await sleep(1_000);
+  }
+}
+
+function startResourceNotifications(c: CanvasAccess): void {
+  if (resourceNotificationsStarted) return;
+  const server = resourceNotificationServer;
+  if (!server) return;
+  resourceNotificationsStarted = true;
+
+  if (c.remoteBaseUrl) {
+    void watchRemoteCanvasEvents(c.remoteBaseUrl);
+    return;
+  }
+
+  canvasState.onChange((type) => {
+    sendCanvasResourceNotifications(type);
+  });
 }
 
 function encodeBase64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString('base64');
 }
 
-function createdNodePayload(c: PmxCanvas, id: string): Record<string, unknown> {
-  const node = c.getNode(id);
+async function createdNodePayload(c: CanvasAccess, id: string): Promise<Record<string, unknown>> {
+  const node = await c.getNode(id);
   if (!node) return { ok: true, id };
   const serialized = serializeCanvasNode(node);
   return { ok: true, node: serialized, ...serialized };
+}
+
+function buildSummaryFromLayout(layout: Awaited<ReturnType<CanvasAccess['getLayout']>>, pinnedIds: string[]): Record<string, unknown> {
+  const pinned = new Set(pinnedIds);
+  const nodesByType: Record<string, number> = {};
+  const pinnedTitles: string[] = [];
+  for (const node of layout.nodes) {
+    const serialized = serializeCanvasNode(node);
+    nodesByType[serialized.kind] = (nodesByType[serialized.kind] ?? 0) + 1;
+    if (pinned.has(node.id)) pinnedTitles.push(getCanvasNodeTitle(node) ?? node.id);
+  }
+  return {
+    totalNodes: layout.nodes.length,
+    totalEdges: layout.edges.length,
+    nodesByType,
+    pinnedCount: pinned.size,
+    pinnedTitles,
+    viewport: layout.viewport,
+  };
 }
 
 export async function startMcpServer(): Promise<void> {
@@ -105,6 +189,7 @@ export async function startMcpServer(): Promise<void> {
     name: 'pmx-canvas',
     version: '0.1.0',
   });
+  resourceNotificationServer = server;
 
   // ── canvas_get_layout ──────────────────────────────────────────
   server.tool(
@@ -113,7 +198,7 @@ export async function startMcpServer(): Promise<void> {
     {},
     async () => {
       const c = await ensureCanvas();
-      const layout = serializeCanvasLayout(c.getLayout());
+      const layout = serializeCanvasLayout(await c.getLayout());
       return {
         content: [{ type: 'text', text: JSON.stringify(layout, null, 2) }],
       };
@@ -127,7 +212,7 @@ export async function startMcpServer(): Promise<void> {
     { id: z.string().describe('The node ID to retrieve') },
     async ({ id }) => {
       const c = await ensureCanvas();
-      const node = c.getNode(id);
+      const node = await c.getNode(id);
       if (!node) {
         return {
           content: [{ type: 'text', text: `Node "${id}" not found.` }],
@@ -184,9 +269,9 @@ export async function startMcpServer(): Promise<void> {
       const nodeInput = input.type === 'image' && input.path && !input.content
         ? { ...input, content: input.path }
         : input;
-      const id = c.addNode(nodeInput);
+      const id = await c.addNode(nodeInput);
       return {
-        content: [{ type: 'text', text: JSON.stringify(createdNodePayload(c, id), null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(await createdNodePayload(c, id), null, 2) }],
       };
     },
   );
@@ -468,7 +553,7 @@ export async function startMcpServer(): Promise<void> {
     async (input) => {
       const c = await ensureCanvas();
       try {
-        const result = c.addJsonRenderNode({
+        const result = await c.addJsonRenderNode({
           ...(typeof input.title === 'string' ? { title: input.title } : {}),
           spec: input.spec,
           ...(typeof input.x === 'number' ? { x: input.x } : {}),
@@ -481,7 +566,7 @@ export async function startMcpServer(): Promise<void> {
           content: [{
             type: 'text',
             text: JSON.stringify({
-              ...createdNodePayload(c, result.id),
+              ...await createdNodePayload(c, result.id),
               url: result.url,
               spec: result.spec,
             }, null, 2),
@@ -530,7 +615,7 @@ export async function startMcpServer(): Promise<void> {
     async (input) => {
       const c = await ensureCanvas();
       try {
-        const result = c.addGraphNode({
+        const result = await c.addGraphNode({
           graphType: input.graphType,
           data: input.data,
           ...(typeof input.title === 'string' ? { title: input.title } : {}),
@@ -561,7 +646,7 @@ export async function startMcpServer(): Promise<void> {
           content: [{
             type: 'text',
             text: JSON.stringify({
-              ...createdNodePayload(c, result.id),
+              ...await createdNodePayload(c, result.id),
               url: result.url,
               spec: result.spec,
             }, null, 2),
@@ -599,7 +684,7 @@ export async function startMcpServer(): Promise<void> {
     },
     async ({ id, title, content, x, y, width, height, spec, graphType, data, xKey, yKey, chartHeight, collapsed, arrangeLocked }) => {
       const c = await ensureCanvas();
-      const node = c.getNode(id);
+      const node = await c.getNode(id);
       if (!node) {
         return {
           content: [{ type: 'text', text: `Node "${id}" not found.` }],
@@ -627,10 +712,10 @@ export async function startMcpServer(): Promise<void> {
       if (arrangeLocked !== undefined) {
         patch.arrangeLocked = arrangeLocked;
       }
-      c.updateNode(id, patch);
-      const updated = c.getNode(id);
+      await c.updateNode(id, patch);
+      const updated = await c.getNode(id);
       return {
-        content: [{ type: 'text', text: JSON.stringify(updated ? createdNodePayload(c, id) : { ok: true, id }, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(updated ? await createdNodePayload(c, id) : { ok: true, id }, null, 2) }],
       };
     },
   );
@@ -642,7 +727,7 @@ export async function startMcpServer(): Promise<void> {
     { id: z.string().describe('Node ID to remove') },
     async ({ id }) => {
       const c = await ensureCanvas();
-      c.removeNode(id);
+      await c.removeNode(id);
       return {
         content: [{ type: 'text', text: JSON.stringify({ ok: true, removed: id }) }],
       };
@@ -678,8 +763,8 @@ export async function startMcpServer(): Promise<void> {
         };
       }
       try {
-        const id = c.addEdge(input);
-        const edge = c.getLayout().edges.find((entry) => entry.id === id);
+        const id = await c.addEdge(input);
+        const edge = (await c.getLayout()).edges.find((entry) => entry.id === id);
         return {
           content: [{
             type: 'text',
@@ -702,7 +787,7 @@ export async function startMcpServer(): Promise<void> {
     { id: z.string().describe('Edge ID to remove') },
     async ({ id }) => {
       const c = await ensureCanvas();
-      c.removeEdge(id);
+      await c.removeEdge(id);
       return {
         content: [{ type: 'text', text: JSON.stringify({ ok: true, removed: id }) }],
       };
@@ -718,7 +803,7 @@ export async function startMcpServer(): Promise<void> {
     },
     async ({ layout }) => {
       const c = await ensureCanvas();
-      c.arrange(layout ?? 'grid');
+      await c.arrange(layout ?? 'grid');
       return {
         content: [{ type: 'text', text: JSON.stringify({ ok: true, layout: layout ?? 'grid' }) }],
       };
@@ -738,7 +823,7 @@ export async function startMcpServer(): Promise<void> {
     },
     async ({ id, noPan }) => {
       const c = await ensureCanvas();
-      const result = c.focusNode(id, { ...(noPan === true ? { noPan: true } : {}) });
+      const result = await c.focusNode(id, { ...(noPan === true ? { noPan: true } : {}) });
       if (!result) {
         return {
           content: [
@@ -772,7 +857,7 @@ export async function startMcpServer(): Promise<void> {
     },
     async (input) => {
       const c = await ensureCanvas();
-      const result = c.fitView({
+      const result = await c.fitView({
         ...(typeof input.width === 'number' ? { width: input.width } : {}),
         ...(typeof input.height === 'number' ? { height: input.height } : {}),
         ...(typeof input.padding === 'number' ? { padding: input.padding } : {}),
@@ -792,7 +877,7 @@ export async function startMcpServer(): Promise<void> {
     {},
     async () => {
       const c = await ensureCanvas();
-      c.clear();
+      await c.clear();
       return {
         content: [{ type: 'text', text: JSON.stringify({ ok: true, cleared: true }) }],
       };
@@ -808,8 +893,8 @@ export async function startMcpServer(): Promise<void> {
       limit: z.number().optional().describe('Max results to return (default: 10)'),
     },
     async ({ query, limit }) => {
-      await ensureCanvas();
-      const results = searchNodes(canvasState.getLayout().nodes, query);
+      const c = await ensureCanvas();
+      const results = await c.search(query);
       const capped = results.slice(0, limit ?? 10);
       return {
         content: [{
@@ -828,8 +913,9 @@ export async function startMcpServer(): Promise<void> {
     async () => {
       const c = await ensureCanvas();
       const result = await c.undo();
+      const history = await c.getHistory();
       return {
-        content: [{ type: 'text', text: JSON.stringify({ ...result, canUndo: mutationHistory.canUndo(), canRedo: mutationHistory.canRedo() }) }],
+        content: [{ type: 'text', text: JSON.stringify({ ...result, canUndo: history.canUndo, canRedo: history.canRedo }) }],
       };
     },
   );
@@ -842,8 +928,9 @@ export async function startMcpServer(): Promise<void> {
     async () => {
       const c = await ensureCanvas();
       const result = await c.redo();
+      const history = await c.getHistory();
       return {
-        content: [{ type: 'text', text: JSON.stringify({ ...result, canUndo: mutationHistory.canUndo(), canRedo: mutationHistory.canRedo() }) }],
+        content: [{ type: 'text', text: JSON.stringify({ ...result, canUndo: history.canUndo, canRedo: history.canRedo }) }],
       };
     },
   );
@@ -856,15 +943,13 @@ export async function startMcpServer(): Promise<void> {
       snapshot: z.string().describe('Snapshot name or ID to compare against'),
     },
     async ({ snapshot }) => {
-      await ensureCanvas();
-      const snapData = canvasState.getSnapshotData(snapshot);
-      if (!snapData) {
+      const c = await ensureCanvas();
+      const result = await c.diffSnapshot(snapshot);
+      if (!result.ok) {
         return { content: [{ type: 'text', text: `Snapshot "${snapshot}" not found. Use canvas_snapshot to save one first.` }], isError: true };
       }
-      const current = canvasState.getLayout();
-      const diff = diffLayouts(snapData.name, snapData, current);
       return {
-        content: [{ type: 'text', text: formatDiff(diff) }],
+        content: [{ type: 'text', text: result.text ?? '' }],
       };
     },
   );
@@ -877,7 +962,7 @@ export async function startMcpServer(): Promise<void> {
     async () => {
       const c = await ensureCanvas();
       return {
-        content: [{ type: 'text', text: JSON.stringify(c.getAutomationWebViewStatus(), null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(await c.getAutomationWebViewStatus(), null, 2) }],
       };
     },
   );
@@ -927,13 +1012,14 @@ export async function startMcpServer(): Promise<void> {
       const c = await ensureCanvas();
       try {
         const stopped = await c.stopAutomationWebView();
+        const webview = await c.getAutomationWebViewStatus();
         return {
           content: [{
             type: 'text',
             text: JSON.stringify({
               ok: true,
               stopped,
-              webview: c.getAutomationWebViewStatus(),
+              webview,
             }, null, 2),
           }],
         };
@@ -1017,7 +1103,7 @@ export async function startMcpServer(): Promise<void> {
           ...(format ? { format } : {}),
           ...(typeof quality === 'number' ? { quality } : {}),
         });
-        const status = c.getAutomationWebViewStatus();
+        const status = await c.getAutomationWebViewStatus();
         return {
           content: [
             {
@@ -1092,8 +1178,8 @@ export async function startMcpServer(): Promise<void> {
     },
     async () => {
       const c = await ensureCanvas();
-      const pinnedIds = canvasState.contextPinnedNodeIds;
-      const layout = c.getLayout();
+      const pinnedIds = new Set(await c.getPinnedNodeIds());
+      const layout = await c.getLayout();
 
       const pinnedNodes = layout.nodes.filter((n) => pinnedIds.has(n.id));
       const pinnedEdges = layout.edges.filter(
@@ -1147,7 +1233,7 @@ export async function startMcpServer(): Promise<void> {
     },
     async () => {
       const c = await ensureCanvas();
-      const layout = serializeCanvasLayout(c.getLayout());
+      const layout = serializeCanvasLayout(await c.getLayout());
       return {
         contents: [
           {
@@ -1170,13 +1256,13 @@ export async function startMcpServer(): Promise<void> {
       mimeType: 'application/json',
     },
     async () => {
-      await ensureCanvas();
+      const c = await ensureCanvas();
       return {
         contents: [
           {
             uri: 'canvas://summary',
             mimeType: 'application/json',
-            text: JSON.stringify(buildCanvasSummary(), null, 2),
+            text: JSON.stringify(buildSummaryFromLayout(await c.getLayout(), await c.getPinnedNodeIds()), null, 2),
           },
         ],
       };
@@ -1196,9 +1282,9 @@ export async function startMcpServer(): Promise<void> {
       mimeType: 'application/json',
     },
     async () => {
-      await ensureCanvas();
-      const layout = canvasState.getLayout();
-      const spatial = buildSpatialContext(layout.nodes, layout.edges, canvasState.contextPinnedNodeIds);
+      const c = await ensureCanvas();
+      const layout = await c.getLayout();
+      const spatial = buildSpatialContext(layout.nodes, layout.edges, new Set(await c.getPinnedNodeIds()));
       return {
         contents: [
           {
@@ -1222,13 +1308,13 @@ export async function startMcpServer(): Promise<void> {
       mimeType: 'text/plain',
     },
     async () => {
-      await ensureCanvas();
+      const c = await ensureCanvas();
       return {
         contents: [
           {
             uri: 'canvas://history',
             mimeType: 'text/plain',
-            text: mutationHistory.toHumanReadable(),
+            text: (await c.getHistory()).text,
           },
         ],
       };
@@ -1247,8 +1333,8 @@ export async function startMcpServer(): Promise<void> {
       mimeType: 'application/json',
     },
     async () => {
-      await ensureCanvas();
-      const summary = buildCodeGraphSummary();
+      const c = await ensureCanvas();
+      const summary = (await c.getCodeGraph()).summary;
       return {
         contents: [
           {
@@ -1339,9 +1425,9 @@ export async function startMcpServer(): Promise<void> {
     },
     async (input) => {
       const c = await ensureCanvas();
-      const id = c.createGroup(input);
+      const id = await c.createGroup(input);
       return {
-        content: [{ type: 'text', text: JSON.stringify(createdNodePayload(c, id), null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(await createdNodePayload(c, id), null, 2) }],
       };
     },
   );
@@ -1357,7 +1443,7 @@ export async function startMcpServer(): Promise<void> {
     },
     async ({ groupId, childIds, childLayout }) => {
       const c = await ensureCanvas();
-      const ok = c.groupNodes(groupId, childIds, childLayout ? { childLayout } : undefined);
+      const ok = await c.groupNodes(groupId, childIds, childLayout ? { childLayout } : undefined);
       if (!ok) {
         return { content: [{ type: 'text', text: 'Group not found or no valid children.' }], isError: true };
       }
@@ -1392,7 +1478,7 @@ export async function startMcpServer(): Promise<void> {
     async () => {
       const c = await ensureCanvas();
       return {
-        content: [{ type: 'text', text: JSON.stringify(c.validate(), null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(await c.validate(), null, 2) }],
       };
     },
   );
@@ -1406,7 +1492,7 @@ export async function startMcpServer(): Promise<void> {
     },
     async ({ groupId }) => {
       const c = await ensureCanvas();
-      const ok = c.ungroupNodes(groupId);
+      const ok = await c.ungroupNodes(groupId);
       if (!ok) {
         return { content: [{ type: 'text', text: 'Group not found or already empty.' }], isError: true };
       }
@@ -1425,9 +1511,7 @@ export async function startMcpServer(): Promise<void> {
     },
     async ({ nodeIds, mode }) => {
       const c = await ensureCanvas();
-      const result = c.setContextPins(nodeIds, mode ?? 'set');
-
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+      const result = await c.setContextPins(nodeIds, mode ?? 'set');
 
       return {
         content: [{
@@ -1450,7 +1534,7 @@ export async function startMcpServer(): Promise<void> {
     },
     async (input) => {
       const c = await ensureCanvas();
-      const snapshot = c.saveSnapshot(input.name);
+      const snapshot = await c.saveSnapshot(input.name);
       if (!snapshot) {
         return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'Failed to save snapshot' }) }] };
       }
@@ -1466,7 +1550,7 @@ export async function startMcpServer(): Promise<void> {
     async () => {
       const c = await ensureCanvas();
       return {
-        content: [{ type: 'text', text: JSON.stringify({ snapshots: c.listSnapshots() }, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify({ snapshots: await c.listSnapshots() }, null, 2) }],
       };
     },
   );
@@ -1484,9 +1568,8 @@ export async function startMcpServer(): Promise<void> {
       if (!result.ok) {
         return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'Snapshot not found' }) }] };
       }
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
       return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, layout: serializeCanvasLayout(canvasState.getLayout()) }) }],
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, layout: serializeCanvasLayout(await c.getLayout()) }) }],
       };
     },
   );
@@ -1500,7 +1583,7 @@ export async function startMcpServer(): Promise<void> {
     },
     async ({ id }) => {
       const c = await ensureCanvas();
-      const result = c.deleteSnapshot(id);
+      const result = await c.deleteSnapshot(id);
       if (!result.ok) {
         return { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'Snapshot not found' }) }], isError: true };
       }
@@ -1509,24 +1592,6 @@ export async function startMcpServer(): Promise<void> {
       };
     },
   );
-
-  // ── Resource change notifications ──────────────────────────
-  // When canvas state changes (nodes, edges, pins), notify MCP clients
-  // so they can re-read resources like canvas://pinned-context.
-  canvasState.onChange((type) => {
-    try {
-      if (type === 'pins') {
-        server.server.sendResourceUpdated({ uri: 'canvas://pinned-context' });
-      }
-      server.server.sendResourceUpdated({ uri: 'canvas://layout' });
-      server.server.sendResourceUpdated({ uri: 'canvas://summary' });
-      server.server.sendResourceUpdated({ uri: 'canvas://spatial-context' });
-      server.server.sendResourceUpdated({ uri: 'canvas://history' });
-      server.server.sendResourceUpdated({ uri: 'canvas://code-graph' });
-    } catch (error) {
-      console.debug('[mcp] resource notification failed', error);
-    }
-  });
 
   // Connect via stdio
   const transport = new StdioServerTransport();

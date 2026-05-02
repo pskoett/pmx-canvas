@@ -96,6 +96,7 @@ export interface CanvasServerOptions {
     port?: number;
     workspaceRoot?: string;
     autoOpenBrowser?: boolean;
+    allowPortFallback?: boolean;
 }
 export declare function startCanvasServer(options?: CanvasServerOptions): string | null;
 export declare function stopCanvasServer(): void;

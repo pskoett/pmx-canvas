@@ -6,6 +6,7 @@ import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createTestWorkspace, removeTestWorkspace } from './helpers.ts';
+import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
 
 interface TextContentItem {
   type: string;
@@ -58,6 +59,7 @@ async function createMcpSession(): Promise<{
   workspaceRoot: string;
   client: Client;
   transport: StdioClientTransport;
+  port: number;
 }> {
   const workspaceRoot = createTestWorkspace('pmx-canvas-mcp-');
   const port = await getAvailablePort();
@@ -74,7 +76,27 @@ async function createMcpSession(): Promise<{
   });
   const client = new Client({ name: 'pmx-canvas-mcp-test', version: '0.1.0' }, { capabilities: {} });
   await client.connect(transport);
-  return { workspaceRoot, client, transport };
+  return { workspaceRoot, client, transport, port };
+}
+
+async function createMcpSessionForWorkspace(workspaceRoot: string, port: number): Promise<{
+  client: Client;
+  transport: StdioClientTransport;
+}> {
+  const transport = new StdioClientTransport({
+    command: 'bun',
+    args: ['run', mcpServerPath],
+    cwd: workspaceRoot,
+    env: {
+      ...process.env,
+      PMX_CANVAS_DISABLE_BROWSER_OPEN: '1',
+      PMX_CANVAS_PORT: String(port),
+    },
+    stderr: 'pipe',
+  });
+  const client = new Client({ name: 'pmx-canvas-mcp-test', version: '0.1.0' }, { capabilities: {} });
+  await client.connect(transport);
+  return { client, transport };
 }
 
 const cleanup: Array<() => Promise<void>> = [];
@@ -204,6 +226,100 @@ describe('MCP parity with CLI', () => {
     }) as ToolResultShape;
     const node = parseJsonText<{ data?: { arrangeLocked?: boolean } }>(fetched);
     expect(node.data?.arrangeLocked).toBe(true);
+  });
+
+  test('canvas_add_node exposes and persists strictSize', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const tools = await session.client.listTools();
+    const addNodeTool = tools.tools.find((tool) => tool.name === 'canvas_add_node');
+    expect(addNodeTool?.inputSchema.properties).toHaveProperty('strictSize');
+
+    const described = parseJsonText<{
+      nodeTypes: Array<{ type: string; fields: Array<{ name: string }> }>;
+    }>(await session.client.callTool({
+      name: 'canvas_describe_schema',
+      arguments: {},
+    }) as ToolResultShape);
+    expect(described.nodeTypes.find((entry) => entry.type === 'markdown')?.fields.some((field) => field.name === 'strictSize')).toBe(true);
+
+    const created = parseJsonText<{
+      id: string;
+      data: { strictSize?: boolean };
+      size: { width: number; height: number };
+    }>(await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'markdown',
+        title: 'Strict MCP markdown',
+        content: 'Tall content',
+        width: 320,
+        height: 140,
+        strictSize: true,
+      },
+    }) as ToolResultShape);
+
+    expect(created.size).toEqual({ width: 320, height: 140 });
+    expect(created.data.strictSize).toBe(true);
+  });
+
+  test('uses an existing daemon as MCP state authority for HTTP-created nodes', async () => {
+    const workspaceRoot = createTestWorkspace('pmx-canvas-mcp-remote-');
+    const port = await getAvailablePort();
+    const baseUrl = startCanvasServer({ workspaceRoot, port, autoOpenBrowser: false });
+    if (!baseUrl) throw new Error('Failed to start daemon for MCP remote authority test.');
+
+    const session = await createMcpSessionForWorkspace(workspaceRoot, port);
+    cleanup.push(async () => {
+      await session.transport.close();
+      stopCanvasServer();
+      removeTestWorkspace(workspaceRoot);
+    });
+
+    const createdResponse = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'HTTP authoritative node',
+        content: 'visible to MCP',
+        strictSize: true,
+      }),
+    });
+    expect(createdResponse.ok).toBe(true);
+    const created = await createdResponse.json() as { id: string };
+
+    const fetchedResult = await session.client.callTool({
+      name: 'canvas_get_node',
+      arguments: { id: created.id },
+    }) as ToolResultShape;
+    expect(fetchedResult.isError).not.toBe(true);
+    const fetched = parseJsonText<{
+      id: string;
+      title: string;
+      data: { strictSize?: boolean };
+    }>(fetchedResult);
+
+    expect(fetched.id).toBe(created.id);
+    expect(fetched.title).toBe('HTTP authoritative node');
+    expect(fetched.data.strictSize).toBe(true);
+
+    const addedByMcp = parseJsonText<{ id: string }>(await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'markdown',
+        title: 'MCP through daemon',
+        content: 'round trip',
+      },
+    }) as ToolResultShape);
+
+    const httpLayout = await (await fetch(`${baseUrl}/api/canvas/state`)).json() as { nodes: Array<{ id: string }> };
+    expect(httpLayout.nodes.some((node) => node.id === created.id)).toBe(true);
+    expect(httpLayout.nodes.some((node) => node.id === addedByMcp.id)).toBe(true);
   });
 
   test('canvas_update_node combines graph updates with arrangeLocked', async () => {

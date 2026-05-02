@@ -97,7 +97,7 @@ export class PmxCanvas extends EventEmitter {
     open?: boolean;
     automationWebView?: boolean | CanvasAutomationWebViewOptions;
   }): Promise<void> {
-    const base = startCanvasServer({ port: this._port });
+    const base = startCanvasServer({ port: this._port, allowPortFallback: false });
     if (!base) {
       throw new Error(`Failed to start canvas server on port ${this._port}`);
     }
@@ -605,7 +605,7 @@ export class PmxCanvas extends EventEmitter {
   async startAutomationWebView(
     options: CanvasAutomationWebViewOptions = {},
   ): Promise<CanvasAutomationWebViewStatus> {
-    const base = this._server ?? startCanvasServer({ port: this._port });
+    const base = this._server ?? startCanvasServer({ port: this._port, allowPortFallback: false });
     if (!base) {
       throw new Error(`Failed to start canvas server on port ${this._port}`);
     }

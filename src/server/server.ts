@@ -3727,6 +3727,7 @@ export interface CanvasServerOptions {
   port?: number;
   workspaceRoot?: string;
   autoOpenBrowser?: boolean;
+  allowPortFallback?: boolean;
 }
 
 export function startCanvasServer(options: CanvasServerOptions = {}): string | null {
@@ -3764,7 +3765,9 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
   rotatePrimaryWorkbenchSessionIfNeeded();
 
   const preferredPort = options.port ?? Number(process.env.PMX_WEB_CANVAS_PORT ?? DEFAULT_PORT);
-  const portCandidates = buildPortCandidates(preferredPort);
+  const portCandidates = options.allowPortFallback === false
+    ? [preferredPort > 0 ? Math.floor(preferredPort) : DEFAULT_PORT]
+    : buildPortCandidates(preferredPort);
 
   for (const portCandidate of portCandidates) {
     try {
