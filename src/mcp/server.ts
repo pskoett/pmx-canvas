@@ -155,6 +155,7 @@ export async function startMcpServer(): Promise<void> {
       y: z.number().optional().describe('Y position (auto-placed if omitted)'),
       width: z.number().optional().describe('Width in pixels (default: 720)'),
       height: z.number().optional().describe('Height in pixels (default: 600)'),
+      strictSize: z.boolean().optional().describe('Keep explicit width/height fixed and scroll overflowing content instead of browser auto-fitting'),
     },
     async (input) => {
       const c = await ensureCanvas();
@@ -173,6 +174,7 @@ export async function startMcpServer(): Promise<void> {
           ...(typeof input.y === 'number' ? { y: input.y } : {}),
           ...(typeof input.width === 'number' ? { width: input.width } : {}),
           ...(typeof input.height === 'number' ? { height: input.height } : {}),
+          ...(input.strictSize === true ? { strictSize: true } : {}),
         });
         return {
           content: [{ type: 'text', text: JSON.stringify(result) }],
@@ -461,6 +463,7 @@ export async function startMcpServer(): Promise<void> {
       y: z.number().optional().describe('Optional Y position'),
       width: z.number().optional().describe('Optional node width'),
       height: z.number().optional().describe('Optional node height'),
+      strictSize: z.boolean().optional().describe('Keep explicit width/height fixed and scroll overflowing content instead of browser auto-fitting'),
     },
     async (input) => {
       const c = await ensureCanvas();
@@ -472,6 +475,7 @@ export async function startMcpServer(): Promise<void> {
           ...(typeof input.y === 'number' ? { y: input.y } : {}),
           ...(typeof input.width === 'number' ? { width: input.width } : {}),
           ...(typeof input.height === 'number' ? { height: input.height } : {}),
+          ...(input.strictSize === true ? { strictSize: true } : {}),
         });
         return {
           content: [{
@@ -515,10 +519,13 @@ export async function startMcpServer(): Promise<void> {
       barColor: z.string().optional().describe('Optional bar color for composed charts'),
       lineColor: z.string().optional().describe('Optional line color for composed charts'),
       height: z.number().optional().describe('Optional chart content height'),
+      showLegend: z.boolean().optional().describe('Show chart legend when supported; pass false for compact node layouts'),
+      showLabels: z.boolean().optional().describe('Show direct labels when supported, such as pie slice labels (defaults to true)'),
       x: z.number().optional().describe('Optional X position'),
       y: z.number().optional().describe('Optional Y position'),
       width: z.number().optional().describe('Optional node width'),
       nodeHeight: z.number().optional().describe('Optional node height'),
+      strictSize: z.boolean().optional().describe('Keep explicit node size fixed and scroll overflowing content instead of browser auto-fitting'),
     },
     async (input) => {
       const c = await ensureCanvas();
@@ -542,10 +549,13 @@ export async function startMcpServer(): Promise<void> {
           ...(typeof input.barColor === 'string' ? { barColor: input.barColor } : {}),
           ...(typeof input.lineColor === 'string' ? { lineColor: input.lineColor } : {}),
           ...(typeof input.height === 'number' ? { height: input.height } : {}),
+          ...(typeof input.showLegend === 'boolean' ? { showLegend: input.showLegend } : {}),
+          ...(typeof input.showLabels === 'boolean' ? { showLabels: input.showLabels } : {}),
           ...(typeof input.x === 'number' ? { x: input.x } : {}),
           ...(typeof input.y === 'number' ? { y: input.y } : {}),
           ...(typeof input.width === 'number' ? { width: input.width } : {}),
           ...(typeof input.nodeHeight === 'number' ? { heightPx: input.nodeHeight } : {}),
+          ...(input.strictSize === true ? { strictSize: true } : {}),
         });
         return {
           content: [{

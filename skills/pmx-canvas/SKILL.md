@@ -144,6 +144,11 @@ pmx-canvas open
 pmx-canvas arrange --layout flow
 pmx-canvas focus <node-id> --no-pan             # Select/raise without moving the user's viewport
 pmx-canvas fit --width 1440 --height 900        # Fit the whole board for screenshots/review
+pmx-canvas screenshot --output ./canvas.png     # Shorthand for `webview screenshot`
+pmx-canvas json-render --schema --summary       # Inspect json-render component catalog
+pmx-canvas json-render --example --component Table
+pmx-canvas node add --type markdown --title "Long doc" --strict-size  # Scroll instead of auto-fit
+pmx-canvas node add --type graph --graphType pie --data-file metrics.json --show-legend false --show-labels false
 pmx-canvas node update <node-id> --spec-file ./dashboard.json
 pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary
 pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --deps recharts --include-logs
@@ -170,6 +175,10 @@ pmx-canvas spatial
 - `search`, `layout`, `status`, `arrange`, `focus` — inspect and navigate the canvas. Prefer
   `focus --no-pan` when you only need to select/raise a node without hijacking the human's camera.
 - `fit [id ...]` — set the server viewport to fit the whole canvas or selected nodes before screenshots or whole-board review
+- `screenshot --output <path>` — top-level shortcut for `webview screenshot`; supports `--format png|jpeg|webp` and `--quality`
+- `json-render --schema|--examples` — inspect the json-render component catalog with `--component`/`--field` filters; same data as `node schema --type json-render` in a more direct shape
+- `--strict-size` (alias `--scroll-overflow`) on `node add`/`node update` — keep explicit width/height fixed and scroll overflowing content instead of letting the renderer auto-fit. Useful for long markdown, dense webpages, and dashboards that should fit a tile-sized frame.
+- `--show-legend false` / `--show-labels false` on `node add --type graph` and `graph add` — hide chart legends and pie slice labels for compact graph nodes in tile-style boards.
 - `open` — open the current workbench in the browser
 - `pin --list|--clear|<ids...>` — manage context pins
 - `undo`, `redo`, `history` — time travel

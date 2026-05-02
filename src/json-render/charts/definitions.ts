@@ -63,6 +63,8 @@ export const chartComponentDefinitions = {
       nameKey: z.string(),
       valueKey: z.string(),
       height: z.number().nullable(),
+      showLegend: z.boolean().optional(),
+      showLabels: z.boolean().optional(),
     }),
     description:
       'Pie chart for showing proportions. Provide data as an array of objects with nameKey and valueKey fields.',
@@ -76,6 +78,8 @@ export const chartComponentDefinitions = {
       nameKey: 'name',
       valueKey: 'share',
       height: null,
+      showLegend: true,
+      showLabels: true,
     },
   },
 } as const;

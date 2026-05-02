@@ -34,7 +34,11 @@ import {
 import {
   CHART_COLORS,
   CartesianChart,
+  axisTickMargin,
   axisStyle,
+  chartMargin,
+  legendMargin,
+  polarChartMargin,
   tooltipStyle,
   type CartesianChartProps,
 } from './components';
@@ -47,7 +51,7 @@ function ChartAreaChart({ props }: BaseComponentProps<AreaChartProps>) {
   return (
     <CartesianChart props={props} className="pmx-chart--area">
       {(data) => (
-        <RechartsAreaChart data={data}>
+        <RechartsAreaChart data={data} margin={chartMargin}>
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor={stroke} stopOpacity={0.45} />
@@ -55,8 +59,8 @@ function ChartAreaChart({ props }: BaseComponentProps<AreaChartProps>) {
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
-          <XAxis dataKey={props.xKey} tick={axisStyle} />
-          <YAxis tick={axisStyle} />
+          <XAxis dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} />
+          <YAxis tick={axisStyle} tickMargin={axisTickMargin} />
           <Tooltip contentStyle={tooltipStyle} />
           <Area
             type="monotone"
@@ -91,10 +95,10 @@ function ChartScatterChart({ props }: BaseComponentProps<ScatterChartProps>) {
     <div className="pmx-chart pmx-chart--scatter">
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
       <ResponsiveContainer width="100%" height={h}>
-        <RechartsScatterChart>
+        <RechartsScatterChart margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
-          <XAxis type="number" dataKey={props.xKey} tick={axisStyle} name={props.xKey} />
-          <YAxis type="number" dataKey={props.yKey} tick={axisStyle} name={props.yKey} />
+          <XAxis type="number" dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} name={props.xKey} />
+          <YAxis type="number" dataKey={props.yKey} tick={axisStyle} tickMargin={axisTickMargin} name={props.yKey} />
           {props.zKey && <ZAxis type="number" dataKey={props.zKey} range={[40, 400]} name={props.zKey} />}
           <Tooltip contentStyle={tooltipStyle} cursor={{ strokeDasharray: '3 3' }} />
           <Scatter data={data} fill={fill} />
@@ -110,6 +114,7 @@ interface RadarChartProps {
   axisKey: string;
   metrics: string[];
   height?: number | null;
+  showLegend?: boolean | null;
 }
 
 function ChartRadarChart({ props }: BaseComponentProps<RadarChartProps>) {
@@ -121,12 +126,12 @@ function ChartRadarChart({ props }: BaseComponentProps<RadarChartProps>) {
     <div className="pmx-chart pmx-chart--radar">
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
       <ResponsiveContainer width="100%" height={h}>
-        <RechartsRadarChart data={data} outerRadius="75%">
+        <RechartsRadarChart data={data} outerRadius="66%" margin={polarChartMargin}>
           <PolarGrid stroke="var(--border, #e5e5e5)" />
           <PolarAngleAxis dataKey={props.axisKey} tick={axisStyle} />
           <PolarRadiusAxis tick={axisStyle} />
           <Tooltip contentStyle={tooltipStyle} />
-          <Legend />
+          {props.showLegend !== false && <Legend wrapperStyle={legendMargin} />}
           {metrics.map((metric, i) => {
             const color = CHART_COLORS[i % CHART_COLORS.length];
             return (
@@ -153,6 +158,7 @@ interface StackedBarChartProps {
   series: string[];
   aggregate?: 'sum' | 'count' | 'avg' | null;
   height?: number | null;
+  showLegend?: boolean | null;
 }
 
 function ChartStackedBarChart({ props }: BaseComponentProps<StackedBarChartProps>) {
@@ -166,12 +172,12 @@ function ChartStackedBarChart({ props }: BaseComponentProps<StackedBarChartProps
     <div className="pmx-chart pmx-chart--stacked-bar">
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
       <ResponsiveContainer width="100%" height={h}>
-        <RechartsBarChart data={chartData}>
+        <RechartsBarChart data={chartData} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
-          <XAxis dataKey={props.xKey} tick={axisStyle} />
-          <YAxis tick={axisStyle} />
+          <XAxis dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} />
+          <YAxis tick={axisStyle} tickMargin={axisTickMargin} />
           <Tooltip contentStyle={tooltipStyle} cursor={false} />
-          <Legend />
+          {props.showLegend !== false && <Legend wrapperStyle={legendMargin} />}
           {series.map((key, i) => (
             <Bar
               key={key}
@@ -225,6 +231,7 @@ interface ComposedChartProps {
   barColor?: string | null;
   lineColor?: string | null;
   height?: number | null;
+  showLegend?: boolean | null;
 }
 
 function ChartComposedChart({ props }: BaseComponentProps<ComposedChartProps>) {
@@ -237,12 +244,12 @@ function ChartComposedChart({ props }: BaseComponentProps<ComposedChartProps>) {
     <div className="pmx-chart pmx-chart--composed">
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
       <ResponsiveContainer width="100%" height={h}>
-        <RechartsComposedChart data={data}>
+        <RechartsComposedChart data={data} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
-          <XAxis dataKey={props.xKey} tick={axisStyle} />
-          <YAxis tick={axisStyle} />
+          <XAxis dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} />
+          <YAxis tick={axisStyle} tickMargin={axisTickMargin} />
           <Tooltip contentStyle={tooltipStyle} cursor={false} />
-          <Legend />
+          {props.showLegend !== false && <Legend wrapperStyle={legendMargin} />}
           <Bar dataKey={props.barKey} fill={barFill} radius={[4, 4, 0, 0]} />
           <Line
             type="monotone"

@@ -1217,13 +1217,15 @@ describe('agent CLI node commands', () => {
     try {
       await runAgentCli(['node', 'schema', '--type', 'webpage', '--field', 'url']);
       await runAgentCli(['node', 'schema', '--type', 'json-render', '--component', 'Table', '--summary']);
+      await runAgentCli(['json-render', '--schema', '--component', 'Badge', '--field', 'variant']);
+      await runAgentCli(['json-render', '--example', '--component', 'Table']);
       await runAgentCli(['node', 'add', '--help', '--type', 'webpage', '--json']);
       await runAgentCli(['validate', 'spec', '--type', 'json-render', '--spec-file', specPath, '--summary']);
     } finally {
       console.log = originalLog;
     }
 
-    expect(log).toHaveBeenCalledTimes(4);
+    expect(log).toHaveBeenCalledTimes(6);
 
     const webpageSchema = JSON.parse(log.mock.calls[0]?.[0] as string) as {
       type: string;
@@ -1244,7 +1246,22 @@ describe('agent CLI node commands', () => {
     expect(tableSummary.requiredProps).not.toContain('caption');
     expect(tableSummary.optionalProps).toContain('caption');
 
-    const webpageHelp = JSON.parse(log.mock.calls[2]?.[0] as string) as {
+    const badgeVariant = JSON.parse(log.mock.calls[2]?.[0] as string) as {
+      component: string;
+      prop: { name: string; type: string };
+    };
+    expect(badgeVariant.component).toBe('Badge');
+    expect(badgeVariant.prop.name).toBe('variant');
+    expect(badgeVariant.prop.type).toBe('enum');
+
+    const tableExample = JSON.parse(log.mock.calls[3]?.[0] as string) as {
+      component: string;
+      example: { columns: string[]; rows: string[][] };
+    };
+    expect(tableExample.component).toBe('Table');
+    expect(tableExample.example.columns).toContain('Name');
+
+    const webpageHelp = JSON.parse(log.mock.calls[4]?.[0] as string) as {
       type: string;
       endpoint: string;
       fields: Array<{ name: string }>;
@@ -1253,7 +1270,7 @@ describe('agent CLI node commands', () => {
     expect(webpageHelp.endpoint).toBe('/api/canvas/node');
     expect(webpageHelp.fields.some((field) => field.name === 'url')).toBe(true);
 
-    const validation = JSON.parse(log.mock.calls[3]?.[0] as string) as {
+    const validation = JSON.parse(log.mock.calls[5]?.[0] as string) as {
       ok: boolean;
       type: string;
       summary: { elementCount: number };
@@ -1261,6 +1278,42 @@ describe('agent CLI node commands', () => {
     expect(validation.ok).toBe(true);
     expect(validation.type).toBe('json-render');
     expect(validation.summary.elementCount).toBe(1);
+  });
+
+  test('node add can request strict sizing for scroll-contained content', async () => {
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'node',
+        'add',
+        '--type',
+        'markdown',
+        '--title',
+        'Strict frame',
+        '--content',
+        '# Tall\n\ncontent',
+        '--width',
+        '320',
+        '--height',
+        '140',
+        '--strict-size',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      id: string;
+      data: { strictSize?: boolean };
+      size: { width: number; height: number };
+    };
+    expect(output.ok).toBe(true);
+    expect(output.size).toEqual({ width: 320, height: 140 });
+    expect(output.data.strictSize).toBe(true);
   });
 
   test('edge add supports search-based node resolution', async () => {

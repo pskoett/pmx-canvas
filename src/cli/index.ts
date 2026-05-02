@@ -29,8 +29,8 @@ if (args.includes('--version') || args.includes('-v')) {
 // ── Agent CLI subcommands ────────────────────────────────────
 // If first arg is a known subcommand (not a --flag), route to the agent CLI.
 const AGENT_COMMANDS = new Set([
-  'node', 'edge', 'search', 'layout', 'status', 'arrange', 'focus',
-  'fit', 'pin', 'undo', 'redo', 'history', 'snapshot', 'diff', 'group', 'webview', 'open',
+  'node', 'edge', 'json-render', 'search', 'layout', 'status', 'arrange', 'focus',
+  'fit', 'screenshot', 'pin', 'undo', 'redo', 'history', 'snapshot', 'diff', 'group', 'webview', 'open',
   'clear', 'code-graph', 'spatial', 'watch', 'web-artifact', 'external-app', 'graph', 'batch', 'validate', 'serve',
 ]);
 
@@ -486,8 +486,10 @@ Server options:
 
 Agent CLI (works against running server):
   node add|list|get|update|remove     Manage nodes
+  json-render                          Show json-render schema/examples
   graph add                           Add graph nodes (alias for node add --type graph)
   edge add|list|remove                Manage edges
+  screenshot                           Save a WebView automation screenshot
   webview status|start|evaluate|resize|screenshot|stop
                                       Manage Bun.WebView automation session
   search <query>                      Search nodes
@@ -540,6 +542,7 @@ Examples:
   pmx-canvas node add --type markdown --title "Hello World"   Add a node
   pmx-canvas node add --type webpage --url "https://example.com"  Add a webpage node
   pmx-canvas node add --type json-render --title "Dashboard" --spec-file ./dashboard.json
+  pmx-canvas json-render --schema --summary                   Show json-render schema info
   pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx
   pmx-canvas graph add --graph-type bar --data-file ./metrics.json --x-key label --y-key value
   pmx-canvas node list                                        List all nodes
@@ -549,7 +552,7 @@ Examples:
   pmx-canvas validate spec --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value
   pmx-canvas open                                             Open the workbench in a browser
   pmx-canvas webview status                                   Show WebView automation status
-  pmx-canvas webview screenshot --output ./canvas.png         Save a WebView screenshot
+  pmx-canvas screenshot --output ./canvas.png                 Save a WebView screenshot
   pmx-canvas search "auth"                                    Find nodes
   pmx-canvas arrange --layout column                          Auto-arrange
   pmx-canvas batch --file ./canvas-ops.json                   Run batch canvas ops

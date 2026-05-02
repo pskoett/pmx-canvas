@@ -12,7 +12,7 @@ function hasExplicitStructuredFrame(node: CanvasNodeState): boolean {
 }
 
 export function shouldAutoFitNode(node: CanvasNodeState): boolean {
-  return !node.collapsed && !node.dockPosition && node.type !== 'group' && !isExtAppNode(node) && !hasExplicitStructuredFrame(node);
+  return !node.collapsed && !node.dockPosition && node.data.strictSize !== true && node.type !== 'group' && !isExtAppNode(node) && !hasExplicitStructuredFrame(node);
 }
 
 export function computeAutoFitHeight(node: CanvasNodeState, contentHeight: number): number | null {

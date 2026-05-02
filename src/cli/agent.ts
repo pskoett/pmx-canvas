@@ -155,7 +155,7 @@ function parseFlags(args: string[]): { positional: string[]; flags: Record<strin
   const BOOL_FLAGS = new Set([
     'help', 'h', 'ids', 'stdin', 'yes', 'list', 'clear', 'set', 'animated', 'dry-run',
     'no-open-in-canvas', 'lock-arrange', 'unlock-arrange', 'json', 'compact', 'summary',
-    'verbose', 'include-logs', 'no-pan',
+    'verbose', 'include-logs', 'no-pan', 'schema', 'example', 'examples', 'strict-size', 'scroll-overflow',
   ]);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -247,6 +247,10 @@ function optionalBooleanFlag(flags: Record<string, string | true>, name: string,
   if (val === true || val === 'true') return true;
   if (val === 'false') return false;
   die(`Invalid value for --${name}: ${String(val)}`, hint);
+}
+
+function applyStrictSizeFlags(body: Record<string, unknown>, flags: Record<string, string | true>): void {
+  if (flags['strict-size'] || flags['scroll-overflow']) body.strictSize = true;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -606,6 +610,7 @@ async function buildJsonRenderRequestBody(
     width: 'Use a positive number, e.g. --width 840',
     height: 'Use a positive number, e.g. --height 620',
   });
+  applyStrictSizeFlags(body, flags);
   return body;
 }
 
@@ -665,6 +670,10 @@ async function buildGraphRequestBody(
   if (color) body.color = color;
   if (barColor) body.barColor = barColor;
   if (lineColor) body.lineColor = lineColor;
+  const showLegend = optionalBooleanFlag(flags, 'show-legend', 'Use --show-legend true or --show-legend false');
+  const showLabels = optionalBooleanFlag(flags, 'show-labels', 'Use --show-labels true or --show-labels false');
+  if (showLegend !== undefined) body.showLegend = showLegend;
+  if (showLabels !== undefined) body.showLabels = showLabels;
 
   const chartHeight = optionalPositiveFiniteFlag(flags, 'chart-height', 'Use a positive number, e.g. --chart-height 300');
   const x = optionalFiniteFlag(flags, 'x', 'Use a finite number, e.g. --x 500');
@@ -682,6 +691,7 @@ async function buildGraphRequestBody(
   if (y !== undefined) body.y = y;
   if (width !== undefined) body.width = width;
   if (nodeHeight !== undefined) body.nodeHeight = nodeHeight;
+  applyStrictSizeFlags(body, flags);
   return body;
 }
 
@@ -1067,6 +1077,7 @@ cmd('node add', 'Add a node to the canvas', [
     width: 'Use a positive number, e.g. --width 500',
     height: 'Use a positive number, e.g. --height 280',
   });
+  applyStrictSizeFlags(body, flags);
 
   // Support --stdin for piping content
   if (flags.stdin) {
@@ -1079,6 +1090,37 @@ cmd('node add', 'Add a node to the canvas', [
 
   const result = await api('POST', '/api/canvas/node', body);
   output(result);
+});
+
+cmd('json-render', 'Show json-render schema and canonical examples', [
+  'pmx-canvas json-render --schema --summary',
+  'pmx-canvas json-render --examples',
+  'pmx-canvas json-render --example --component Table',
+  'pmx-canvas json-render --schema --component Badge --field variant',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('json-render');
+
+  const schema = await loadCanvasSchema();
+  const componentName = getStringFlag(flags, 'component');
+  const fieldName = getStringFlag(flags, 'field');
+
+  if (flags.example || flags.examples) {
+    if (fieldName) die('--field is only supported with --schema.', 'Use: pmx-canvas json-render --schema --component Table --field rows');
+    if (componentName) {
+      const component = schema.jsonRender.components.find((entry) => entry.type === componentName);
+      if (!component) die(`Unknown json-render component: ${componentName}`, 'Run: pmx-canvas json-render --schema --summary');
+      output({ component: component.type, example: component.example });
+      return;
+    }
+    output({
+      rootShape: schema.jsonRender.rootShape,
+      examples: Object.fromEntries(schema.jsonRender.components.map((entry) => [entry.type, entry.example])),
+    });
+    return;
+  }
+
+  output(filterJsonRenderSchemaView(schema.jsonRender, flags));
 });
 
 cmd('graph add', 'Add a graph node to the canvas', [
@@ -1097,6 +1139,7 @@ cmd('node schema', 'Describe server-supported node create schemas and canonical 
   'pmx-canvas node schema',
   'pmx-canvas node schema --type webpage',
   'pmx-canvas node schema --type json-render',
+  'pmx-canvas json-render --schema --summary',
   'pmx-canvas node schema --type json-render --component Table',
   'pmx-canvas node schema --type webpage --field url',
   'pmx-canvas node schema --summary',
@@ -1263,6 +1306,8 @@ cmd('node update', 'Update a node by ID', [
       ? false
       : undefined;
 
+  applyStrictSizeFlags(body, flags);
+
   if (x !== undefined || y !== undefined || width !== undefined || frameHeight !== undefined || arrangeLocked !== undefined) {
     const existing = await api('GET', `/api/canvas/node/${encodeURIComponent(id)}`) as {
       position: { x: number; y: number };
@@ -1294,7 +1339,7 @@ cmd('node update', 'Update a node by ID', [
   if (Object.keys(body).length === 0) {
     die(
       'No updates specified',
-      'Use --title, --content, --x, --y, --width, --height, --pinned, --lock-arrange, --unlock-arrange, or --stdin',
+      'Use --title, --content, --x, --y, --width, --height, --strict-size, --pinned, --lock-arrange, --unlock-arrange, or --stdin',
     );
   }
 
@@ -2057,6 +2102,16 @@ cmd('webview screenshot', 'Capture a screenshot from the active Bun.WebView auto
   });
 });
 
+cmd('screenshot', 'Capture a screenshot from the active Bun.WebView automation session', [
+  'pmx-canvas screenshot --output ./canvas.png',
+  'pmx-canvas screenshot --output ./canvas.webp --format webp --quality 80',
+], async (args) => {
+  if (args.includes('--help') || args.includes('-h')) return showCommandHelp('screenshot');
+  const screenshotCommand = COMMANDS['webview screenshot'];
+  if (!screenshotCommand) die('Internal error: webview screenshot command is unavailable.');
+  await screenshotCommand.run(args);
+});
+
 // ── code-graph ───────────────────────────────────────────────
 cmd('code-graph', 'Show auto-detected file dependency graph', [
   'pmx-canvas code-graph',
@@ -2193,11 +2248,21 @@ function showCommandHelp(name: string): void {
     console.log('  pmx-canvas node add --help --type json-render --component Table');
     console.log('  pmx-canvas node add --help --type graph');
     console.log('  pmx-canvas node add --help --type webpage --json');
+    console.log('  Use --strict-size to keep explicit width/height fixed and scroll overflowing content.');
+  }
+  if (name === 'json-render') {
+    console.log('\nOptions:');
+    console.log('  --schema                  Show json-render catalog schema (default)');
+    console.log('  --summary                 Show compact component summaries');
+    console.log('  --component <name>        Focus on one component');
+    console.log('  --field <name>            Focus on one component prop');
+    console.log('  --example, --examples     Print canonical component examples');
   }
   if (name === 'node add' || name === 'graph add' || name === 'validate spec') {
     console.log('\nGraph flags:');
     console.log('  Graph fields accept kebab-case CLI flags and camelCase schema names, e.g. --graph-type/--graphType and --x-key/--xKey');
     console.log('  Use --node-height/--nodeHeight for canvas frame height; use --chart-height for chart content height. --height is kept as a frame-height alias for compatibility.');
+    console.log('  Pass --show-legend false to hide legends in compact node layouts.');
   }
   if (name === 'node schema') {
     console.log('\nFilters:');
@@ -2226,6 +2291,13 @@ function showCommandHelp(name: string): void {
     console.log('  --height <px>             Viewport height used for fit math (default 900)');
     console.log('  --padding <px>            World-space padding around fitted nodes (default 60)');
     console.log('  --max-scale <scale>       Maximum zoom scale (default 1)');
+  }
+  if (name === 'screenshot' || name === 'webview screenshot') {
+    console.log('\nOptions:');
+    console.log('  --output <path>           Required output image path');
+    console.log('  --format <type>           png, jpeg, or webp');
+    console.log('  --quality <number>        Encoder quality for lossy formats');
+    console.log('  Requires an active automation session: pmx-canvas webview start');
   }
   if (name === 'external-app add') {
     console.log('\nOptions:');
@@ -2258,6 +2330,7 @@ Node commands:
   pmx-canvas node get <id>            Get a node by ID
   pmx-canvas node update <id> [opts]  Update a node
   pmx-canvas node remove <id>         Remove a node
+  pmx-canvas json-render              Show json-render schema/examples
   pmx-canvas graph add [options]      Add a graph node
 
 Edge commands:
@@ -2277,6 +2350,7 @@ Canvas commands:
   pmx-canvas watch [options]          Watch semantic canvas changes over SSE
   pmx-canvas focus <id>               Pan viewport to node
   pmx-canvas fit [id ...]             Fit viewport to canvas or selected nodes
+  pmx-canvas screenshot               Save automation screenshot to disk
   pmx-canvas external-app add          Add hosted external apps like Excalidraw
   pmx-canvas webview status           Show WebView automation status
   pmx-canvas webview start [options]  Start or replace automation session
@@ -2325,6 +2399,8 @@ Examples:
   pmx-canvas node add --type markdown --title "API Design" --content "# REST API"
   pmx-canvas node add --type webpage --url "https://example.com/docs"
   pmx-canvas node add --type json-render --title "Dashboard" --spec-file ./dashboard.json
+  pmx-canvas json-render --schema --summary
+  pmx-canvas json-render --example --component Table
   pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx
   pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value
   pmx-canvas graph add --graph-type bar --data-file ./metrics.json --x-key label --y-key value

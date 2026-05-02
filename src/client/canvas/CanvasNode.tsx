@@ -179,12 +179,13 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         autoFitPersistTimer.current = null;
       }
     };
-  }, [node.id, node.type, node.data.mode, node.collapsed, node.dockPosition, node.size.width, node.size.height]);
+  }, [node.id, node.type, node.data.mode, node.data.strictSize, node.collapsed, node.dockPosition, node.size.width, node.size.height]);
 
   const isPinned = node.pinned;
   const isTrace = node.type === 'trace';
   const isTraceRunning = isTrace && node.data.status === 'running';
   const isGroup = node.type === 'group';
+  const isStrictSize = node.data.strictSize === true;
   const viewportScale = Math.max(viewport.value.scale, 0.01);
   const chromeScale = viewportScale < 1 ? Math.min(2.2, 1 / viewportScale) : 1;
 
@@ -213,6 +214,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     isTrace ? 'trace-node' : '',
     isTraceRunning ? 'trace-running' : '',
     isGroup ? 'group-node' : '',
+    isStrictSize ? 'strict-size' : '',
   ]
     .filter(Boolean)
     .join(' ');

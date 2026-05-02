@@ -850,6 +850,71 @@ test('graph nodes keep explicit visual frame size after expand and close', async
   }).toBe('480x380');
 });
 
+test('compact graph charts keep plotted content inside the iframe viewport', async ({ page, request }) => {
+  const createResponse = await request.post('/api/canvas/graph', {
+    data: {
+      title: 'Compact clipping guard',
+      graphType: 'stacked-bar',
+      data: [
+        { label: 'A', north: 10, south: 4 },
+        { label: 'B', north: 18, south: 7 },
+      ],
+      xKey: 'label',
+      series: ['north', 'south'],
+      showLegend: false,
+      x: 420,
+      y: 220,
+      width: 480,
+      nodeHeight: 380,
+      height: 240,
+    },
+  });
+  const created = await createResponse.json() as { id: string };
+
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  await page.goto('/workbench');
+
+  const graphNode = page.locator('.canvas-node').filter({ hasText: 'Compact clipping guard' });
+  await expect(graphNode).toHaveCount(1);
+  const frame = graphNode.frameLocator('iframe');
+  await expect(frame.locator('.recharts-responsive-container')).toBeVisible();
+
+  const chartBounds = await frame.locator('.recharts-surface').evaluate((surface) => {
+    const root = document.documentElement.getBoundingClientRect();
+    const elements = Array.from(surface.querySelectorAll('text, path, rect, circle, polygon'));
+    return elements.flatMap((element) => {
+      const box = element.getBoundingClientRect();
+      if (box.width === 0 && box.height === 0) return [];
+      return [{
+        left: box.left - root.left,
+        top: box.top - root.top,
+        right: box.right - root.left,
+        bottom: box.bottom - root.top,
+        width: box.width,
+        height: box.height,
+        viewportWidth: window.innerWidth,
+        viewportHeight: window.innerHeight,
+        surfaceWidth: surface.getBoundingClientRect().width,
+        surfaceHeight: surface.getBoundingClientRect().height,
+      }];
+    });
+  });
+
+  expect(chartBounds.length).toBeGreaterThan(0);
+  for (const box of chartBounds) {
+    expect(box.left).toBeGreaterThanOrEqual(0);
+    expect(box.top).toBeGreaterThanOrEqual(0);
+    expect(box.right).toBeLessThanOrEqual(box.viewportWidth);
+    expect(box.bottom).toBeLessThanOrEqual(box.viewportHeight);
+    expect(box.surfaceWidth).toBeGreaterThan(300);
+    expect(box.surfaceHeight).toBeGreaterThan(200);
+  }
+
+  const response = await request.get(`/api/canvas/node/${created.id}`);
+  const node = await response.json() as { data: { spec?: { elements?: Record<string, { props?: Record<string, unknown> }> } } };
+  expect(node.data.spec?.elements?.chart?.props?.showLegend).toBe(false);
+});
+
 test('ordinary node pin updates the authoritative canvas state', async ({ page, request }) => {
   const createResponse = await request.post('/api/canvas/node', {
     data: {

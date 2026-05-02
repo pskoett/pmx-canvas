@@ -370,6 +370,60 @@ describe('agent CLI webview commands', () => {
     expect(output).not.toContain('Server options:');
   });
 
+  test('screenshot subcommand routes to agent CLI instead of server startup', async () => {
+    const originalArgv = process.argv;
+    const originalExit = process.exit;
+    const originalLog = console.log;
+    const log = mock(() => {});
+    const exitMock = mock((code?: number) => {
+      throw new Error(`exit:${code}`);
+    });
+
+    console.log = log;
+    process.exit = exitMock as typeof process.exit;
+    process.argv = ['bun', 'src/cli/index.ts', 'screenshot', '--help'];
+
+    try {
+      await import(`../../src/cli/index.ts?screenshot-route-test=${Date.now()}`);
+    } finally {
+      process.argv = originalArgv;
+      process.exit = originalExit;
+      console.log = originalLog;
+    }
+
+    expect(exitMock).not.toHaveBeenCalled();
+    const output = log.mock.calls.map((call) => String(call[0] ?? '')).join('\n');
+    expect(output).toContain('pmx-canvas screenshot');
+    expect(output).not.toContain('Server options:');
+  });
+
+  test('json-render subcommand routes to agent CLI instead of server startup', async () => {
+    const originalArgv = process.argv;
+    const originalExit = process.exit;
+    const originalLog = console.log;
+    const log = mock(() => {});
+    const exitMock = mock((code?: number) => {
+      throw new Error(`exit:${code}`);
+    });
+
+    console.log = log;
+    process.exit = exitMock as typeof process.exit;
+    process.argv = ['bun', 'src/cli/index.ts', 'json-render', '--help'];
+
+    try {
+      await import(`../../src/cli/index.ts?json-render-route-test=${Date.now()}`);
+    } finally {
+      process.argv = originalArgv;
+      process.exit = originalExit;
+      console.log = originalLog;
+    }
+
+    expect(exitMock).not.toHaveBeenCalled();
+    const output = log.mock.calls.map((call) => String(call[0] ?? '')).join('\n');
+    expect(output).toContain('pmx-canvas json-render');
+    expect(output).not.toContain('Server options:');
+  });
+
   test('serve --daemon waits for health and returns machine-readable startup info', async () => {
     const port = await getAvailablePort();
     const logPath = join(workspaceRoot, `daemon-${port}.log`);

@@ -84,6 +84,7 @@ export declare const allComponentDefinitions: {
             axisKey: z.ZodString;
             metrics: z.ZodArray<z.ZodString>;
             height: z.ZodNullable<z.ZodNumber>;
+            showLegend: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>;
         readonly description: "Radar chart for comparing multiple metrics across categories. Each metric in `metrics` is plotted as its own polygon.";
         readonly example: {
@@ -104,6 +105,7 @@ export declare const allComponentDefinitions: {
             readonly axisKey: "skill";
             readonly metrics: readonly ["alice", "bob"];
             readonly height: null;
+            readonly showLegend: true;
         };
     };
     StackedBarChart: {
@@ -118,6 +120,7 @@ export declare const allComponentDefinitions: {
                 avg: "avg";
             }>>;
             height: z.ZodNullable<z.ZodNumber>;
+            showLegend: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>;
         readonly description: "Stacked bar chart for compositional data. Each entry in `series` is plotted as its own bar segment per x value.";
         readonly example: {
@@ -142,6 +145,7 @@ export declare const allComponentDefinitions: {
             readonly series: readonly ["north", "south", "east"];
             readonly aggregate: null;
             readonly height: null;
+            readonly showLegend: true;
         };
     };
     ComposedChart: {
@@ -154,6 +158,7 @@ export declare const allComponentDefinitions: {
             barColor: z.ZodNullable<z.ZodString>;
             lineColor: z.ZodNullable<z.ZodString>;
             height: z.ZodNullable<z.ZodNumber>;
+            showLegend: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>;
         readonly description: "Combined bar + line chart for paired metrics (e.g. counts + a derived rate) on the same axis.";
         readonly example: {
@@ -177,6 +182,7 @@ export declare const allComponentDefinitions: {
             readonly barColor: null;
             readonly lineColor: null;
             readonly height: null;
+            readonly showLegend: true;
         };
     };
     LineChart: {
@@ -254,6 +260,8 @@ export declare const allComponentDefinitions: {
             nameKey: z.ZodString;
             valueKey: z.ZodString;
             height: z.ZodNullable<z.ZodNumber>;
+            showLegend: z.ZodOptional<z.ZodBoolean>;
+            showLabels: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>;
         readonly description: "Pie chart for showing proportions. Provide data as an array of objects with nameKey and valueKey fields.";
         readonly example: {
@@ -271,6 +279,8 @@ export declare const allComponentDefinitions: {
             readonly nameKey: "name";
             readonly valueKey: "share";
             readonly height: null;
+            readonly showLegend: true;
+            readonly showLabels: true;
         };
     };
     Badge: {

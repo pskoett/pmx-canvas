@@ -26,6 +26,7 @@ interface RadarChartProps {
     axisKey: string;
     metrics: string[];
     height?: number | null;
+    showLegend?: boolean | null;
 }
 declare function ChartRadarChart({ props }: BaseComponentProps<RadarChartProps>): import("react/jsx-runtime").JSX.Element;
 interface StackedBarChartProps {
@@ -35,6 +36,7 @@ interface StackedBarChartProps {
     series: string[];
     aggregate?: 'sum' | 'count' | 'avg' | null;
     height?: number | null;
+    showLegend?: boolean | null;
 }
 declare function ChartStackedBarChart({ props }: BaseComponentProps<StackedBarChartProps>): import("react/jsx-runtime").JSX.Element;
 interface ComposedChartProps {
@@ -46,6 +48,7 @@ interface ComposedChartProps {
     barColor?: string | null;
     lineColor?: string | null;
     height?: number | null;
+    showLegend?: boolean | null;
 }
 declare function ChartComposedChart({ props }: BaseComponentProps<ComposedChartProps>): import("react/jsx-runtime").JSX.Element;
 export declare const extraChartComponents: {

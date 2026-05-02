@@ -32,6 +32,7 @@ export interface CanvasStructuredNodeUpdateInput extends Omit<CanvasGraphNodeUpd
     content?: unknown;
     data?: unknown;
     arrangeLocked?: unknown;
+    strictSize?: boolean;
     chartHeight?: unknown;
 }
 interface CanvasAddNodeInput {
@@ -46,6 +47,7 @@ interface CanvasAddNodeInput {
     defaultWidth?: number;
     defaultHeight?: number;
     fileMode?: 'path' | 'inline' | 'auto';
+    strictSize?: boolean;
 }
 interface CanvasCreateGroupInput {
     title?: string;

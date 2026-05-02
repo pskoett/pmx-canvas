@@ -17,6 +17,7 @@ export interface JsonRenderNodeInput {
   y?: number;
   width?: number;
   height?: number;
+  strictSize?: boolean;
 }
 
 export interface GraphNodeInput {
@@ -38,10 +39,13 @@ export interface GraphNodeInput {
   barColor?: string;
   lineColor?: string;
   height?: number;
+  showLegend?: boolean;
+  showLabels?: boolean;
   x?: number;
   y?: number;
   width?: number;
   heightPx?: number;
+  strictSize?: boolean;
 }
 
 export const JSON_RENDER_NODE_SIZE = { width: 840, height: 620 };
@@ -514,6 +518,8 @@ export function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec {
     case 'PieChart': {
       chartProps.nameKey = input.nameKey ?? 'name';
       chartProps.valueKey = input.valueKey ?? 'value';
+      chartProps.showLegend = input.showLegend !== false;
+      chartProps.showLabels = input.showLabels !== false;
       break;
     }
     case 'ScatterChart': {
@@ -533,6 +539,7 @@ export function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec {
       }
       chartProps.axisKey = axisKey;
       chartProps.metrics = metrics;
+      chartProps.showLegend = input.showLegend !== false;
       break;
     }
     case 'StackedBarChart': {
@@ -546,6 +553,7 @@ export function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec {
       chartProps.xKey = xKey;
       chartProps.series = series;
       chartProps.aggregate = input.aggregate ?? null;
+      chartProps.showLegend = input.showLegend !== false;
       break;
     }
     case 'ComposedChart': {
@@ -556,6 +564,7 @@ export function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec {
         ?? 'rate';
       chartProps.barColor = input.barColor ?? null;
       chartProps.lineColor = input.lineColor ?? null;
+      chartProps.showLegend = input.showLegend !== false;
       break;
     }
     case 'AreaChart':
@@ -613,6 +622,8 @@ export function buildGraphConfig(input: GraphNodeInput): Record<string, unknown>
     ...(input.barColor ? { barColor: input.barColor } : {}),
     ...(input.lineColor ? { lineColor: input.lineColor } : {}),
     ...(typeof input.height === 'number' ? { height: input.height } : {}),
+    ...(typeof input.showLegend === 'boolean' ? { showLegend: input.showLegend } : {}),
+    ...(typeof input.showLabels === 'boolean' ? { showLabels: input.showLabels } : {}),
   };
 }
 

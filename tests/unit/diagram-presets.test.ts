@@ -102,9 +102,21 @@ describe('diagram-presets', () => {
     const box = result.find((element: Record<string, unknown>) => element.id === 'box');
     const label = result.find((element: Record<string, unknown>) => element.id === 'box-label');
     expect(box).toMatchObject({
-      boundElements: [{ type: 'text', id: 'box-label' }],
+      label: { text: 'Bound label' },
     });
-    expect(label).toMatchObject({ containerId: 'box' });
+    expect(label).toBeUndefined();
+  });
+
+  test('normalizeExcalidrawElementsForToolInput seeds defaults for non-renderable arrays', () => {
+    const result = JSON.parse(normalizeExcalidrawElementsForToolInput([
+      { type: 'cameraUpdate', x: 0, y: 0, width: 400, height: 300 },
+      { type: 'delete', ids: 'missing' },
+      { id: 'shape-without-type', x: 20, y: 20 },
+      { type: 'text', id: 'empty-text', text: '   ' },
+    ]));
+
+    expect(result[0]).toMatchObject({ type: 'cameraUpdate' });
+    expect(result[1]).toMatchObject({ type: 'rectangle', id: 'pmx-start' });
   });
 
   test('inferExcalidrawCameraUpdate accounts for point-based elements', () => {
@@ -180,6 +192,19 @@ describe('diagram-presets', () => {
     expect(EXCALIDRAW_MCP_URL).toBe('https://mcp.excalidraw.com/mcp');
     expect(built.toolArguments.elements).toContain('"type":"rectangle"');
     expect(built.title).toBeUndefined();
+  });
+
+  test('buildExcalidrawOpenMcpAppInput normalizes MCP diagram elements through the shared repair path', () => {
+    const built = buildExcalidrawOpenMcpAppInput({
+      elements: [
+        { type: 'cameraUpdate', x: 0, y: 0, width: 400, height: 300 },
+        { type: 'delete', ids: 'nothing-visible' },
+      ],
+    });
+
+    const elements = JSON.parse(built.toolArguments.elements);
+    expect(elements[0]).toMatchObject({ type: 'cameraUpdate' });
+    expect(elements[1]).toMatchObject({ type: 'rectangle', id: 'pmx-start' });
   });
 
   test('buildExcalidrawOpenMcpAppInput forwards geometry and title when provided', () => {

@@ -162,6 +162,7 @@ export class PmxCanvas extends EventEmitter {
     y?: number;
     width?: number;
     height?: number;
+    strictSize?: boolean;
   }): string {
     if (input.type === 'webpage') {
       throw new Error('Use addWebpageNode for webpage nodes so page content is fetched and cached on the server.');
@@ -171,6 +172,7 @@ export class PmxCanvas extends EventEmitter {
       defaultWidth: 360,
       defaultHeight: 200,
       fileMode: 'path',
+      ...(input.strictSize ? { strictSize: true } : {}),
     });
 
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
@@ -191,6 +193,7 @@ export class PmxCanvas extends EventEmitter {
     y?: number;
     width?: number;
     height?: number;
+    strictSize?: boolean;
   }): Promise<{ ok: boolean; id: string; error?: string; fetch: { ok: boolean; error?: string } }> {
     const { id } = addCanvasNode({
       type: 'webpage',
@@ -200,6 +203,7 @@ export class PmxCanvas extends EventEmitter {
       ...(typeof input.y === 'number' ? { y: input.y } : {}),
       ...(typeof input.width === 'number' ? { width: input.width } : {}),
       ...(typeof input.height === 'number' ? { height: input.height } : {}),
+      ...(input.strictSize ? { strictSize: true } : {}),
       defaultWidth: 520,
       defaultHeight: 420,
     });
@@ -238,7 +242,8 @@ export class PmxCanvas extends EventEmitter {
       patch.data !== undefined ||
       patch.title !== undefined ||
       patch.content !== undefined ||
-      typeof patch.arrangeLocked === 'boolean'
+      typeof patch.arrangeLocked === 'boolean' ||
+      typeof patch.strictSize === 'boolean'
     ) {
       resolvedPatch.data = {
         ...existing.data,
@@ -246,6 +251,7 @@ export class PmxCanvas extends EventEmitter {
         ...(typeof patch.title === 'string' ? { title: patch.title } : {}),
         ...(typeof patch.content === 'string' ? { content: patch.content } : {}),
         ...(typeof patch.arrangeLocked === 'boolean' ? { arrangeLocked: patch.arrangeLocked } : {}),
+        ...(typeof patch.strictSize === 'boolean' ? { strictSize: patch.strictSize } : {}),
       };
     }
 

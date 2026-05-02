@@ -81,6 +81,8 @@ export declare const chartComponentDefinitions: {
             nameKey: z.ZodString;
             valueKey: z.ZodString;
             height: z.ZodNullable<z.ZodNumber>;
+            showLegend: z.ZodOptional<z.ZodBoolean>;
+            showLabels: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>;
         readonly description: "Pie chart for showing proportions. Provide data as an array of objects with nameKey and valueKey fields.";
         readonly example: {
@@ -98,6 +100,8 @@ export declare const chartComponentDefinitions: {
             readonly nameKey: "name";
             readonly valueKey: "share";
             readonly height: null;
+            readonly showLegend: true;
+            readonly showLabels: true;
         };
     };
 };

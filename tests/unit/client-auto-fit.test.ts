@@ -32,4 +32,11 @@ describe('client auto-fit helpers', () => {
 
     expect(computeAutoFitHeight(markdown, 900)).toBe(600);
   });
+
+  test('does not auto-fit strict-size content nodes', () => {
+    const markdown = makeNode({ type: 'markdown', size: { width: 360, height: 160 }, data: { strictSize: true } });
+
+    expect(shouldAutoFitNode(markdown)).toBe(false);
+    expect(computeAutoFitHeight(markdown, 900)).toBeNull();
+  });
 });

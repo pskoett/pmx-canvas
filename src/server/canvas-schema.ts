@@ -72,6 +72,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
       { name: 'y', type: 'number', required: false, description: 'Optional Y position.' },
       { name: 'width', type: 'number', required: false, description: 'Optional node width.' },
       { name: 'height', type: 'number', required: false, description: 'Optional node height.' },
+      { name: 'strictSize', type: 'boolean', required: false, description: 'Keep explicit width/height fixed and scroll overflowing content instead of browser auto-fitting.', aliases: ['strict-size', 'scroll-overflow'] },
     ],
     example: {
       type: 'markdown',
@@ -203,6 +204,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
       { name: 'y', type: 'number', required: false, description: 'Optional Y position.' },
       { name: 'width', type: 'number', required: false, description: 'Optional node width.' },
       { name: 'height', type: 'number', required: false, description: 'Optional node height.' },
+      { name: 'strictSize', type: 'boolean', required: false, description: 'Keep explicit width/height fixed and scroll overflowing content instead of browser auto-fitting.', aliases: ['strict-size', 'scroll-overflow'] },
     ],
     example: {
       type: 'webpage',
@@ -337,8 +339,11 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
       { name: 'barColor', type: 'string', required: false, description: 'Optional bar color for composed charts.', aliases: ['bar-color'] },
       { name: 'lineColor', type: 'string', required: false, description: 'Optional line color for composed charts.', aliases: ['line-color'] },
       { name: 'height', type: 'number', required: false, description: 'Optional chart content height.', aliases: ['chart-height'] },
+      { name: 'showLegend', type: 'boolean', required: false, description: 'Show chart legend when supported; pass false for compact node layouts.', aliases: ['show-legend'] },
+      { name: 'showLabels', type: 'boolean', required: false, description: 'Show direct labels when supported, such as pie slice labels; defaults to true.', aliases: ['show-labels'] },
       { name: 'width', type: 'number', required: false, description: 'Optional node width.' },
       { name: 'nodeHeight', type: 'number', required: false, description: 'Optional node height (canvas frame). Distinct from `height`, which sets only the chart content height inside the node.', aliases: ['node-height'] },
+      { name: 'strictSize', type: 'boolean', required: false, description: 'Keep explicit node size fixed and scroll overflowing content instead of browser auto-fitting.', aliases: ['strict-size', 'scroll-overflow'] },
     ],
     example: {
       title: 'Deploy Trend',

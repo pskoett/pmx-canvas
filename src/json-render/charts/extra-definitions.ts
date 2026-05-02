@@ -73,6 +73,7 @@ export const extraChartComponentDefinitions = {
       axisKey: z.string(),
       metrics: z.array(z.string()),
       height: z.number().nullable(),
+      showLegend: z.boolean().optional(),
     }),
     description:
       'Radar chart for comparing multiple metrics across categories. Each metric in `metrics` is plotted as its own polygon.',
@@ -86,6 +87,7 @@ export const extraChartComponentDefinitions = {
       axisKey: 'skill',
       metrics: ['alice', 'bob'],
       height: null,
+      showLegend: true,
     },
   },
 
@@ -97,6 +99,7 @@ export const extraChartComponentDefinitions = {
       series: z.array(z.string()),
       aggregate: z.enum(['sum', 'count', 'avg']).nullable(),
       height: z.number().nullable(),
+      showLegend: z.boolean().optional(),
     }),
     description:
       'Stacked bar chart for compositional data. Each entry in `series` is plotted as its own bar segment per x value.',
@@ -111,6 +114,7 @@ export const extraChartComponentDefinitions = {
       series: ['north', 'south', 'east'],
       aggregate: null,
       height: null,
+      showLegend: true,
     },
   },
 
@@ -124,6 +128,7 @@ export const extraChartComponentDefinitions = {
       barColor: z.string().nullable(),
       lineColor: z.string().nullable(),
       height: z.number().nullable(),
+      showLegend: z.boolean().optional(),
     }),
     description:
       'Combined bar + line chart for paired metrics (e.g. counts + a derived rate) on the same axis.',
@@ -140,6 +145,7 @@ export const extraChartComponentDefinitions = {
       barColor: null,
       lineColor: null,
       height: null,
+      showLegend: true,
     },
   },
 } as const;

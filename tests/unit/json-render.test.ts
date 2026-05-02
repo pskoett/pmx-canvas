@@ -178,6 +178,28 @@ describe('graph builder', () => {
     expect(chart.type).toBe('RadarChart');
     expect(chart.props.axisKey).toBe('axis');
     expect(chart.props.metrics).toEqual(['a', 'b']);
+    expect(chart.props.showLegend).toBe(true);
+  });
+
+  test('builds compact graph specs that can hide legends and pie labels', () => {
+    const pie = buildGraphSpec({
+      graphType: 'pie',
+      data: [{ name: 'A', value: 25 }],
+      showLegend: false,
+      showLabels: false,
+    });
+    const pieChart = pie.elements.chart as { props: Record<string, unknown> };
+    expect(pieChart.props.showLegend).toBe(false);
+    expect(pieChart.props.showLabels).toBe(false);
+
+    const stacked = buildGraphSpec({
+      graphType: 'stacked-bar',
+      xKey: 'quarter',
+      data: [{ quarter: 'Q1', north: 1, south: 2 }],
+      showLegend: false,
+    });
+    const stackedChart = stacked.elements.chart as { props: Record<string, unknown> };
+    expect(stackedChart.props.showLegend).toBe(false);
   });
 
   test('builds a stacked-bar spec inferring series from data', () => {

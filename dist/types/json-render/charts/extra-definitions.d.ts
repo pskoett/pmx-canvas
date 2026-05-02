@@ -83,6 +83,7 @@ export declare const extraChartComponentDefinitions: {
             axisKey: z.ZodString;
             metrics: z.ZodArray<z.ZodString>;
             height: z.ZodNullable<z.ZodNumber>;
+            showLegend: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>;
         readonly description: "Radar chart for comparing multiple metrics across categories. Each metric in `metrics` is plotted as its own polygon.";
         readonly example: {
@@ -103,6 +104,7 @@ export declare const extraChartComponentDefinitions: {
             readonly axisKey: "skill";
             readonly metrics: readonly ["alice", "bob"];
             readonly height: null;
+            readonly showLegend: true;
         };
     };
     readonly StackedBarChart: {
@@ -117,6 +119,7 @@ export declare const extraChartComponentDefinitions: {
                 avg: "avg";
             }>>;
             height: z.ZodNullable<z.ZodNumber>;
+            showLegend: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>;
         readonly description: "Stacked bar chart for compositional data. Each entry in `series` is plotted as its own bar segment per x value.";
         readonly example: {
@@ -141,6 +144,7 @@ export declare const extraChartComponentDefinitions: {
             readonly series: readonly ["north", "south", "east"];
             readonly aggregate: null;
             readonly height: null;
+            readonly showLegend: true;
         };
     };
     readonly ComposedChart: {
@@ -153,6 +157,7 @@ export declare const extraChartComponentDefinitions: {
             barColor: z.ZodNullable<z.ZodString>;
             lineColor: z.ZodNullable<z.ZodString>;
             height: z.ZodNullable<z.ZodNumber>;
+            showLegend: z.ZodOptional<z.ZodBoolean>;
         }, z.core.$strip>;
         readonly description: "Combined bar + line chart for paired metrics (e.g. counts + a derived rate) on the same axis.";
         readonly example: {
@@ -176,6 +181,7 @@ export declare const extraChartComponentDefinitions: {
             readonly barColor: null;
             readonly lineColor: null;
             readonly height: null;
+            readonly showLegend: true;
         };
     };
 };

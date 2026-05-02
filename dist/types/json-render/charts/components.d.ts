@@ -26,6 +26,8 @@ interface PieChartProps {
     nameKey: string;
     valueKey: string;
     height?: number | null;
+    showLegend?: boolean | null;
+    showLabels?: boolean | null;
 }
 export declare const axisStyle: {
     fontSize: number;
@@ -37,6 +39,22 @@ export declare const tooltipStyle: {
     borderRadius: string;
     color: string;
     fontSize: number;
+};
+export declare const chartMargin: {
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
+};
+export declare const polarChartMargin: {
+    top: number;
+    right: number;
+    bottom: number;
+    left: number;
+};
+export declare const axisTickMargin = 8;
+export declare const legendMargin: {
+    top: number;
 };
 /** Shared wrapper for cartesian charts (Line + Bar). */
 export declare function CartesianChart({ props, children, className, }: {

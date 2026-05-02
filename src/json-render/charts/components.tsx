@@ -84,6 +84,8 @@ interface PieChartProps {
   nameKey: string;
   valueKey: string;
   height?: number | null;
+  showLegend?: boolean | null;
+  showLabels?: boolean | null;
 }
 
 export const axisStyle = {
@@ -98,6 +100,11 @@ export const tooltipStyle = {
   color: 'var(--popover-foreground, #111)',
   fontSize: 13,
 };
+
+export const chartMargin = { top: 14, right: 28, bottom: 28, left: 10 };
+export const polarChartMargin = { top: 18, right: 40, bottom: 30, left: 40 };
+export const axisTickMargin = 8;
+export const legendMargin = { top: 10 };
 
 /** Shared wrapper for cartesian charts (Line + Bar). */
 export function CartesianChart({
@@ -127,10 +134,10 @@ function ChartLineChart({ props }: BaseComponentProps<CartesianChartProps>) {
   return (
     <CartesianChart props={props} className="pmx-chart--line">
       {(data) => (
-        <RechartsLineChart data={data}>
+        <RechartsLineChart data={data} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
-          <XAxis dataKey={props.xKey} tick={axisStyle} />
-          <YAxis tick={axisStyle} />
+          <XAxis dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} />
+          <YAxis tick={axisStyle} tickMargin={axisTickMargin} />
           <Tooltip contentStyle={tooltipStyle} />
           <Line
             type="monotone"
@@ -151,10 +158,10 @@ function ChartBarChart({ props }: BaseComponentProps<CartesianChartProps>) {
   return (
     <CartesianChart props={props} className="pmx-chart--bar">
       {(data) => (
-        <RechartsBarChart data={data}>
+        <RechartsBarChart data={data} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
-          <XAxis dataKey={props.xKey} tick={axisStyle} />
-          <YAxis tick={axisStyle} />
+          <XAxis dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} />
+          <YAxis tick={axisStyle} tickMargin={axisTickMargin} />
           <Tooltip contentStyle={tooltipStyle} cursor={false} />
           <Bar dataKey={props.yKey} fill={fill} radius={[4, 4, 0, 0]} />
         </RechartsBarChart>
@@ -171,17 +178,18 @@ function ChartPieChart({ props }: BaseComponentProps<PieChartProps>) {
     <div className="pmx-chart pmx-chart--pie">
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
       <ResponsiveContainer width="100%" height={h}>
-        <RechartsPieChart>
+        <RechartsPieChart margin={polarChartMargin}>
           <Tooltip contentStyle={tooltipStyle} />
-          <Legend />
+          {props.showLegend !== false && <Legend wrapperStyle={legendMargin} />}
           <Pie
             data={data}
             dataKey={props.valueKey}
             nameKey={props.nameKey}
             cx="50%"
             cy="50%"
-            outerRadius="80%"
-            label
+            outerRadius="64%"
+            label={props.showLabels !== false}
+            labelLine={false}
           >
             {data.map((_, i) => (
               <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />

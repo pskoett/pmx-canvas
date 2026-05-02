@@ -10,6 +10,7 @@ export interface JsonRenderNodeInput {
     y?: number;
     width?: number;
     height?: number;
+    strictSize?: boolean;
 }
 export interface GraphNodeInput {
     title?: string;
@@ -30,10 +31,13 @@ export interface GraphNodeInput {
     barColor?: string;
     lineColor?: string;
     height?: number;
+    showLegend?: boolean;
+    showLabels?: boolean;
     x?: number;
     y?: number;
     width?: number;
     heightPx?: number;
+    strictSize?: boolean;
 }
 export declare const JSON_RENDER_NODE_SIZE: {
     width: number;

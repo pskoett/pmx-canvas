@@ -877,6 +877,59 @@ describe('canvas server HTTP API', () => {
     expect(opened.nodeId?.startsWith('ext-app-ext-app-')).toBe(false);
   });
 
+  test('resizes reusable Excalidraw app nodes when explicit geometry is provided', async () => {
+    canvasState.addNode({
+      id: 'ext-app-pending-diagram',
+      type: 'mcp-app',
+      position: { x: 10, y: 20 },
+      size: { width: 320, height: 240 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: {
+        mode: 'ext-app',
+        title: 'Pending Diagram',
+        serverName: 'Excalidraw',
+        toolName: 'create_view',
+      },
+    });
+
+    const opened = await jsonRequest<{
+      ok: boolean;
+      nodeId: string | null;
+    }>('/api/canvas/mcp-app/open', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Sized Reused Diagram',
+        serverName: 'Excalidraw',
+        toolName: 'create_view',
+        toolArguments: {
+          elements: JSON.stringify([
+            { type: 'rectangle', id: 'box', x: 0, y: 0, width: 10, height: 10 },
+          ]),
+        },
+        x: 100,
+        y: 120,
+        width: 640,
+        height: 520,
+        transport: {
+          type: 'stdio',
+          command: 'bun',
+          args: ['run', fixtureMcpAppServerPath],
+        },
+      }),
+    });
+
+    expect(opened.ok).toBe(true);
+    expect(opened.nodeId).toBe('ext-app-pending-diagram');
+    const node = canvasState.getNode('ext-app-pending-diagram');
+    expect(node?.position).toEqual({ x: 100, y: 120 });
+    expect(node?.size).toEqual({ width: 640, height: 520 });
+    expect(node?.data.title).toBe('Sized Reused Diagram');
+  });
+
   test('rehydrates persisted ext-app sessions after server restart', async () => {
     const opened = await jsonRequest<{
       ok: boolean;
@@ -2296,6 +2349,49 @@ describe('canvas server HTTP API', () => {
     expect(layout.nodes.find((node) => node.id === jsonRender.id)?.type).toBe('json-render');
     expect(layout.nodes.find((node) => node.id === graph.id)?.type).toBe('graph');
   }, 15_000);
+
+  test('strict-size requests persist on json-render and graph nodes', async () => {
+    const jsonRender = await jsonRequest<{
+      id: string;
+      size: { width: number; height: number };
+      data: { strictSize?: boolean };
+    }>('/api/canvas/json-render', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Strict JSON UI',
+        width: 420,
+        height: 260,
+        strictSize: true,
+        spec: { type: 'Text', props: { text: 'Fixed frame' } },
+      }),
+    });
+
+    expect(jsonRender.size).toEqual({ width: 420, height: 260 });
+    expect(jsonRender.data.strictSize).toBe(true);
+
+    const graph = await jsonRequest<{
+      id: string;
+      size: { width: number; height: number };
+      data: { strictSize?: boolean };
+    }>('/api/canvas/graph', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Strict Graph',
+        graphType: 'bar',
+        data: [{ label: 'A', value: 1 }],
+        xKey: 'label',
+        yKey: 'value',
+        width: 360,
+        nodeHeight: 220,
+        strictSize: true,
+      }),
+    });
+
+    expect(graph.size).toEqual({ width: 360, height: 220 });
+    expect(graph.data.strictSize).toBe(true);
+  });
 
   test('updates json-render and graph specs in place over HTTP', async () => {
     const jsonRender = await jsonRequest<{

@@ -3,6 +3,88 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.11] - 2026-05-02
+
+Agent ergonomics + chart polish on top of 0.1.10. Adds a `--strict-size`
+mode for nodes that should scroll instead of auto-fit, surfaces
+`pmx-canvas json-render` and `pmx-canvas screenshot` as top-level CLI
+shortcuts, lets graph nodes hide legends and pie labels for compact
+tile layouts, propagates explicit geometry to reused MCP-app nodes, and
+folds Excalidraw bound text into container labels before sending it
+through the diagram MCP.
+
+### Added
+
+- **`--strict-size` / `--scroll-overflow` for node create and update.**
+  All node types now accept `strictSize` to keep the explicit
+  `width`/`height` frame fixed and scroll overflowing content instead of
+  letting the canvas auto-fit the node to its content. Surfaced through
+  CLI flags, HTTP `POST/PATCH /api/canvas/node`, dedicated json-render
+  and graph endpoints, and MCP tools (`canvas_add_node`,
+  `canvas_add_json_render_node`, `canvas_add_graph_node`).
+  `canvas_describe_schema` and `canvas://schema` advertise the field on
+  markdown, webpage, and graph entries with kebab-case aliases.
+- **`pmx-canvas json-render` top-level CLI command.** Agent-friendly
+  shortcut for the json-render schema/example explorer. Supports
+  `--schema`, `--summary`, `--component <name>`, `--field <name>`, and
+  `--example`/`--examples`, mirroring the existing `node schema --type
+  json-render` data in a more direct shape.
+- **`pmx-canvas screenshot` top-level CLI command.** Shorthand for
+  `pmx-canvas webview screenshot`, with the same `--output`,
+  `--format`, and `--quality` flags. Routes through the agent CLI like
+  the other top-level subcommands.
+- **`showLegend` / `showLabels` chart display flags.** Graph node
+  payloads now accept `showLegend` and `showLabels` booleans that
+  cascade through CLI (`--show-legend`, `--show-labels`), HTTP, MCP,
+  and the json-render chart components. Set `showLegend: false` for
+  compact tile dashboards or `showLabels: false` to hide pie slice
+  labels.
+- **Skill catches up to the new CLI surface.** The agent-facing
+  `skills/pmx-canvas/SKILL.md` now documents `pmx-canvas screenshot`,
+  `pmx-canvas json-render`, the `--strict-size` flag, and the chart
+  display flags, so agents do not have to discover them by reading the
+  CHANGELOG.
+
+### Changed
+
+- **Reused MCP-app nodes accept explicit geometry on reopen.** When
+  `canvas_open_mcp_app` (or the workbench `ext-app-open` SSE event)
+  reopens an existing mcp-app node and the call passes `x`, `y`,
+  `width`, or `height`, the server now applies that geometry to the
+  existing node instead of leaving the original frame in place. This
+  lets agents resize a previously created Excalidraw or other reusable
+  app node with a single call.
+- **Compact json-render charts trim whitespace.** Bar, line, area,
+  scatter, pie, radar, stacked-bar, and composed charts share new
+  `chartMargin`, `polarChartMargin`, `axisTickMargin`, and
+  `legendMargin` constants, so axis ticks and legends sit closer to the
+  plot and small graph nodes keep more of their frame for the actual
+  chart.
+- **Diagram preset folds bound text into container labels.** The
+  Excalidraw normalization path now collapses `text` elements that
+  reference a container into the container's `label` field (when the
+  container does not already carry a label) and removes the redundant
+  text element from the outgoing payload. This produces the in-shape
+  labels Excalidraw renders by default while still keeping the
+  bound-element references repaired from 0.1.10. The same normalization
+  also runs through `buildExcalidrawOpenMcpAppInput` so MCP `open`
+  payloads are repaired identically to checkpoint and tool-input
+  payloads.
+- **Diagram preset seeds defaults when nothing renderable is present.**
+  An elements array containing only deletion or camera-update entries
+  (or stale ghosts) now falls back to the default Excalidraw preset
+  instead of being sent as an empty diagram.
+
+### Internal
+
+- Regression coverage for: `--strict-size` end-to-end through CLI,
+  HTTP, and MCP plus the auto-fit guard that keeps strict-size content
+  nodes from being auto-fitted; top-level CLI routing for `screenshot`
+  and `json-render`; compact graph specs that hide legends and pie
+  labels; reused mcp-app open with explicit geometry; Excalidraw
+  defaults for non-renderable element arrays; shared MCP open
+  normalization through the diagram-preset path.
+
 ## [0.1.10] - 2026-05-01
 
 Agent-ergonomics and correctness pass on top of 0.1.9. Tightens
@@ -234,6 +316,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.11]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.11
 [0.1.10]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.10
 [0.1.9]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.9
 [0.1.8]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.8

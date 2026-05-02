@@ -67,6 +67,7 @@ export interface CanvasStructuredNodeUpdateInput extends Omit<CanvasGraphNodeUpd
   content?: unknown;
   data?: unknown;
   arrangeLocked?: unknown;
+  strictSize?: boolean;
   chartHeight?: unknown;
 }
 
@@ -82,6 +83,7 @@ interface CanvasAddNodeInput {
   defaultWidth?: number;
   defaultHeight?: number;
   fileMode?: 'path' | 'inline' | 'auto';
+  strictSize?: boolean;
 }
 
 interface CanvasCreateGroupInput {
@@ -164,6 +166,8 @@ function hasGraphUpdateFields(input: Record<string, unknown>): boolean {
     input.zKey !== undefined ||
     input.nameKey !== undefined ||
     input.valueKey !== undefined ||
+    input.showLegend !== undefined ||
+    input.showLabels !== undefined ||
     input.axisKey !== undefined ||
     input.metrics !== undefined ||
     input.series !== undefined ||
@@ -200,6 +204,7 @@ function mergeNodeDataFields(
     ...base,
     ...(isRecord(input.data) ? input.data : {}),
     ...(typeof input.arrangeLocked === 'boolean' ? { arrangeLocked: input.arrangeLocked } : {}),
+    ...(typeof input.strictSize === 'boolean' ? { strictSize: input.strictSize } : {}),
   };
 }
 
@@ -251,6 +256,8 @@ function graphConfigToInput(config: Record<string, unknown>, fallbackTitle: stri
     ...(pickString(config, 'zKey') ? { zKey: pickString(config, 'zKey') } : {}),
     ...(pickString(config, 'nameKey') ? { nameKey: pickString(config, 'nameKey') } : {}),
     ...(pickString(config, 'valueKey') ? { valueKey: pickString(config, 'valueKey') } : {}),
+    ...(typeof config.showLegend === 'boolean' ? { showLegend: config.showLegend } : {}),
+    ...(typeof config.showLabels === 'boolean' ? { showLabels: config.showLabels } : {}),
     ...(pickString(config, 'axisKey') ? { axisKey: pickString(config, 'axisKey') } : {}),
     ...(pickStringArray(config, 'metrics') ? { metrics: pickStringArray(config, 'metrics') } : {}),
     ...(pickStringArray(config, 'series') ? { series: pickStringArray(config, 'series') } : {}),
@@ -276,6 +283,12 @@ function mergeGraphInput(source: Record<string, unknown>, fallback: GraphNodeInp
     ...((pickString(source, 'zKey') ?? fallback?.zKey) ? { zKey: pickString(source, 'zKey') ?? fallback?.zKey } : {}),
     ...((pickString(source, 'nameKey') ?? fallback?.nameKey) ? { nameKey: pickString(source, 'nameKey') ?? fallback?.nameKey } : {}),
     ...((pickString(source, 'valueKey') ?? fallback?.valueKey) ? { valueKey: pickString(source, 'valueKey') ?? fallback?.valueKey } : {}),
+    ...(typeof source.showLegend === 'boolean' || typeof fallback?.showLegend === 'boolean'
+      ? { showLegend: typeof source.showLegend === 'boolean' ? source.showLegend : fallback?.showLegend }
+      : {}),
+    ...(typeof source.showLabels === 'boolean' || typeof fallback?.showLabels === 'boolean'
+      ? { showLabels: typeof source.showLabels === 'boolean' ? source.showLabels : fallback?.showLabels }
+      : {}),
     ...((pickString(source, 'axisKey') ?? fallback?.axisKey) ? { axisKey: pickString(source, 'axisKey') ?? fallback?.axisKey } : {}),
     ...((pickStringArray(source, 'metrics') ?? fallback?.metrics) ? { metrics: pickStringArray(source, 'metrics') ?? fallback?.metrics } : {}),
     ...((pickStringArray(source, 'series') ?? fallback?.series) ? { series: pickStringArray(source, 'series') ?? fallback?.series } : {}),
@@ -752,6 +765,7 @@ function buildNodeData(input: CanvasAddNodeInput): Record<string, unknown> {
     ...(input.data ?? {}),
     ...(input.title ? { title: input.title } : {}),
     ...(input.content ? { content: input.content } : {}),
+    ...(input.strictSize ? { strictSize: true } : {}),
   };
 }
 
@@ -1271,6 +1285,7 @@ export function createCanvasJsonRenderNode(
     dockPosition: null,
     data: createJsonRenderNodeData(id, input.title?.trim() || inferJsonRenderNodeTitle(spec), spec, {
       viewerType: 'json-render',
+      ...(input.strictSize ? { strictSize: true } : {}),
     }),
   };
 
@@ -1302,6 +1317,7 @@ export function createCanvasGraphNode(
     data: createJsonRenderNodeData(id, title, spec, {
       viewerType: 'graph',
       graphConfig: buildGraphConfig(input),
+      ...(input.strictSize ? { strictSize: true } : {}),
     }),
   };
 
@@ -1418,6 +1434,7 @@ export async function executeCanvasBatch(
               ...(typeof args.y === 'number' ? { y: args.y } : {}),
               ...(typeof args.width === 'number' ? { width: args.width } : {}),
               ...(typeof args.height === 'number' ? { height: args.height } : {}),
+              ...(args.strictSize === true ? { strictSize: true } : {}),
               defaultWidth: 520,
               defaultHeight: 420,
             });
@@ -1441,6 +1458,7 @@ export async function executeCanvasBatch(
               ...(typeof args.y === 'number' ? { y: args.y } : {}),
               ...(typeof args.width === 'number' ? { width: args.width } : {}),
               ...(typeof args.height === 'number' ? { height: args.height } : {}),
+              ...(args.strictSize === true ? { strictSize: true } : {}),
               defaultWidth: 360,
               defaultHeight: 200,
               fileMode: 'auto',
@@ -1471,12 +1489,13 @@ export async function executeCanvasBatch(
           if (args.dockPosition === null || args.dockPosition === 'left' || args.dockPosition === 'right') {
             patch.dockPosition = args.dockPosition;
           }
-          if (typeof args.title === 'string' || typeof args.content === 'string' || typeof args.arrangeLocked === 'boolean' || isPlainRecord(args.data)) {
+          if (typeof args.title === 'string' || typeof args.content === 'string' || typeof args.arrangeLocked === 'boolean' || typeof args.strictSize === 'boolean' || isPlainRecord(args.data)) {
             patch.data = {
               ...node.data,
               ...(typeof args.title === 'string' ? { title: args.title } : {}),
               ...(typeof args.content === 'string' ? { content: args.content } : {}),
               ...(typeof args.arrangeLocked === 'boolean' ? { arrangeLocked: args.arrangeLocked } : {}),
+              ...(typeof args.strictSize === 'boolean' ? { strictSize: args.strictSize } : {}),
               ...(isPlainRecord(args.data) ? args.data : {}),
             };
           }
@@ -1511,6 +1530,7 @@ export async function executeCanvasBatch(
             ...(typeof args.y === 'number' ? { y: args.y } : {}),
             ...(typeof args.width === 'number' ? { width: args.width } : {}),
             ...(typeof args.nodeHeight === 'number' ? { heightPx: args.nodeHeight } : {}),
+            ...(args.strictSize === true ? { strictSize: true } : {}),
           });
           result = {
             ok: true,

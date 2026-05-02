@@ -27,6 +27,7 @@ export declare class PmxCanvas extends EventEmitter {
         y?: number;
         width?: number;
         height?: number;
+        strictSize?: boolean;
     }): string;
     addWebpageNode(input: {
         title?: string;
@@ -35,6 +36,7 @@ export declare class PmxCanvas extends EventEmitter {
         y?: number;
         width?: number;
         height?: number;
+        strictSize?: boolean;
     }): Promise<{
         ok: boolean;
         id: string;
