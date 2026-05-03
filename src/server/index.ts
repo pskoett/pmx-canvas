@@ -33,6 +33,8 @@ import {
   ungroupCanvasNodes,
   validateCanvasNodePatch,
   hasStructuredNodeUpdateFields,
+  hasTraceNodeDataFields,
+  mergeTraceNodeDataFields,
 } from './canvas-operations.js';
 import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
@@ -158,6 +160,12 @@ export class PmxCanvas extends EventEmitter {
     type: CanvasNodeState['type'];
     title?: string;
     content?: string;
+    toolName?: string;
+    category?: string;
+    status?: string;
+    duration?: string;
+    resultSummary?: string;
+    error?: string;
     x?: number;
     y?: number;
     width?: number;
@@ -243,9 +251,10 @@ export class PmxCanvas extends EventEmitter {
       patch.title !== undefined ||
       patch.content !== undefined ||
       typeof patch.arrangeLocked === 'boolean' ||
-      typeof patch.strictSize === 'boolean'
+      typeof patch.strictSize === 'boolean' ||
+      (existing.type === 'trace' && hasTraceNodeDataFields(patch))
     ) {
-      resolvedPatch.data = {
+      const nextData = {
         ...existing.data,
         ...(patch.data && typeof patch.data === 'object' && !Array.isArray(patch.data) ? patch.data : {}),
         ...(typeof patch.title === 'string' ? { title: patch.title } : {}),
@@ -253,6 +262,9 @@ export class PmxCanvas extends EventEmitter {
         ...(typeof patch.arrangeLocked === 'boolean' ? { arrangeLocked: patch.arrangeLocked } : {}),
         ...(typeof patch.strictSize === 'boolean' ? { strictSize: patch.strictSize } : {}),
       };
+      resolvedPatch.data = existing.type === 'trace'
+        ? mergeTraceNodeDataFields(nextData, patch)
+        : nextData;
     }
 
     const error = validateCanvasNodePatch({
@@ -520,21 +532,36 @@ export class PmxCanvas extends EventEmitter {
     transport: ExternalMcpTransportConfig;
     toolName: string;
     toolArguments?: Record<string, unknown>;
+    nodeId?: string;
     serverName?: string;
     title?: string;
     x?: number;
     y?: number;
     width?: number;
     height?: number;
+    timeoutMs?: number;
   }): Promise<{ ok: true; id?: string; nodeId: string | null; toolCallId: string; sessionId: string; resourceUri: string }> {
+    const targetNode = input.nodeId ? canvasState.getNode(input.nodeId) : undefined;
+    if (input.nodeId && !targetNode) {
+      throw new Error(`Node "${input.nodeId}" not found.`);
+    }
+    if (targetNode && (targetNode.type !== 'mcp-app' || targetNode.data.mode !== 'ext-app')) {
+      throw new Error(`Node "${input.nodeId}" is not an external app node.`);
+    }
+
     const opened = await openExternalMcpApp({
       transport: input.transport,
       toolName: input.toolName,
       ...(input.toolArguments ? { toolArguments: input.toolArguments } : {}),
       ...(input.serverName ? { serverName: input.serverName } : {}),
+      ...(typeof input.timeoutMs === 'number' ? { timeoutMs: input.timeoutMs } : {}),
     });
     const toolCallId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    const nodeIdSeed = `ext-app-${toolCallId}`;
+    const previousSessionId = targetNode?.data.appSessionId;
+    if (typeof previousSessionId === 'string' && previousSessionId.trim().length > 0) {
+      closeMcpAppSession(previousSessionId);
+    }
+    const nodeIdSeed = input.nodeId ?? `ext-app-${toolCallId}`;
     const toolResult = isExcalidrawCreateView(opened.serverName, opened.toolName)
       ? ensureExcalidrawCheckpointId(opened.toolResult, nodeIdSeed)
       : opened.toolResult;
@@ -566,7 +593,7 @@ export class PmxCanvas extends EventEmitter {
       success: toolResult.isError !== true,
       result: toolResult,
     });
-    const nodeId = this.findCanvasExtAppNodeId(toolCallId);
+    const nodeId = input.nodeId ?? this.findCanvasExtAppNodeId(toolCallId);
     return {
       ok: true,
       ...(nodeId ? { id: nodeId } : {}),

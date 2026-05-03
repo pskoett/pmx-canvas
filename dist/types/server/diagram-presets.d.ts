@@ -9,11 +9,13 @@ export declare const DEFAULT_EXCALIDRAW_ELEMENTS: ReadonlyArray<Record<string, u
 export declare const EXCALIDRAW_MCP_TRANSPORT: ExternalMcpTransportConfig;
 export interface DiagramPresetOpenInput {
     elements: unknown;
+    nodeId?: string;
     title?: string;
     x?: number;
     y?: number;
     width?: number;
     height?: number;
+    timeoutMs?: number;
 }
 export interface ExcalidrawOpenMcpAppInput {
     transport: ExternalMcpTransportConfig;
@@ -22,11 +24,13 @@ export interface ExcalidrawOpenMcpAppInput {
     toolArguments: {
         elements: string;
     };
+    nodeId?: string;
     title?: string;
     x?: number;
     y?: number;
     width?: number;
     height?: number;
+    timeoutMs?: number;
 }
 export declare function inferExcalidrawCameraUpdate(elements: Array<Record<string, unknown>>): Record<string, unknown> | null;
 export declare function normalizeExcalidrawElements(elements: unknown): string;

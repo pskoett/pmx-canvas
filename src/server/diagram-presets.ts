@@ -43,11 +43,13 @@ export const EXCALIDRAW_MCP_TRANSPORT: ExternalMcpTransportConfig = {
 
 export interface DiagramPresetOpenInput {
   elements: unknown;
+  nodeId?: string;
   title?: string;
   x?: number;
   y?: number;
   width?: number;
   height?: number;
+  timeoutMs?: number;
 }
 
 export interface ExcalidrawOpenMcpAppInput {
@@ -55,11 +57,13 @@ export interface ExcalidrawOpenMcpAppInput {
   toolName: string;
   serverName: string;
   toolArguments: { elements: string };
+  nodeId?: string;
   title?: string;
   x?: number;
   y?: number;
   width?: number;
   height?: number;
+  timeoutMs?: number;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -111,6 +115,21 @@ function finiteNumber(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) ? value : null;
 }
 
+function positiveFiniteNumber(value: unknown): number | null {
+  const num = finiteNumber(value);
+  return num !== null && num > 0 ? num : null;
+}
+
+function labelFromBoundText(element: Record<string, unknown>): Record<string, unknown> | null {
+  const text = typeof element.text === 'string' ? element.text : '';
+  if (text.trim().length === 0) return null;
+  const fontSize = positiveFiniteNumber(element.fontSize);
+  return {
+    text,
+    ...(fontSize ? { fontSize } : {}),
+  };
+}
+
 function elementHasCameraUpdate(elements: Array<Record<string, unknown>>): boolean {
   return elements.some((element) => element.type === 'cameraUpdate');
 }
@@ -134,39 +153,38 @@ function normalizeExcalidrawBoundText(elements: Array<Record<string, unknown>>):
   }
 
   let changed = false;
-  const boundElementIdsByContainer = new Map<string, Set<string>>();
+  const labelsByContainer = new Map<string, Record<string, unknown>>();
 
   for (const element of elements) {
     if (element.type !== 'text' || typeof element.id !== 'string' || typeof element.containerId !== 'string') continue;
     const container = elementsById.get(element.containerId);
-    if (!container) continue;
-    const ids = boundElementIdsByContainer.get(element.containerId) ?? new Set<string>();
-    ids.add(element.id);
-    boundElementIdsByContainer.set(element.containerId, ids);
+    if (!container || (container.type !== 'rectangle' && container.type !== 'ellipse' && container.type !== 'diamond')) continue;
+    const label = labelFromBoundText(element);
+    if (!label) continue;
+    labelsByContainer.set(element.containerId, label);
   }
 
-  const normalized = elements.map((element) => {
-    if (typeof element.id !== 'string') return element;
-    const boundTextIds = boundElementIdsByContainer.get(element.id);
-    if (!boundTextIds || boundTextIds.size === 0) return element;
+  const normalized: Array<Record<string, unknown>> = [];
+  for (const element of elements) {
+    if (element.type === 'text' && typeof element.containerId === 'string') {
+      if (labelsByContainer.has(element.containerId)) {
+        changed = true;
+        continue;
+      }
+    }
 
-    const existing = Array.isArray(element.boundElements)
-      ? element.boundElements.filter(isRecord)
-      : [];
-    const existingTextIds = new Set(
-      existing
-        .filter((boundElement) => boundElement.type === 'text' && typeof boundElement.id === 'string')
-        .map((boundElement) => boundElement.id as string),
-    );
-    const missing = [...boundTextIds].filter((id) => !existingTextIds.has(id));
-    if (missing.length === 0) return element;
+    if (typeof element.id !== 'string' || !labelsByContainer.has(element.id)) {
+      normalized.push(element);
+      continue;
+    }
 
     changed = true;
-    return {
-      ...element,
-      boundElements: [...existing, ...missing.map((id) => ({ type: 'text', id }))],
-    };
-  });
+    const { boundElements: _boundElements, ...container } = element;
+    normalized.push({
+      ...container,
+      label: labelsByContainer.get(element.id),
+    });
+  }
 
   return changed ? normalized : elements;
 }
@@ -333,10 +351,12 @@ export function buildExcalidrawOpenMcpAppInput(input: DiagramPresetOpenInput): E
     serverName: EXCALIDRAW_SERVER_NAME,
     toolArguments: { elements },
   };
+  if (typeof input.nodeId === 'string' && input.nodeId.trim().length > 0) out.nodeId = input.nodeId.trim();
   if (typeof input.title === 'string' && input.title.trim().length > 0) out.title = input.title.trim();
   if (typeof input.x === 'number' && Number.isFinite(input.x)) out.x = input.x;
   if (typeof input.y === 'number' && Number.isFinite(input.y)) out.y = input.y;
   if (typeof input.width === 'number' && Number.isFinite(input.width)) out.width = input.width;
   if (typeof input.height === 'number' && Number.isFinite(input.height)) out.height = input.height;
+  if (typeof input.timeoutMs === 'number' && Number.isFinite(input.timeoutMs) && input.timeoutMs > 0) out.timeoutMs = input.timeoutMs;
   return out;
 }

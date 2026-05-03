@@ -40,6 +40,12 @@ interface CanvasAddNodeInput {
     title?: string;
     content?: string;
     data?: Record<string, unknown>;
+    toolName?: string;
+    category?: string;
+    status?: string;
+    duration?: string;
+    resultSummary?: string;
+    error?: string;
     x?: number;
     y?: number;
     width?: number;
@@ -106,6 +112,8 @@ export declare function validateCanvasNodePatch(patch: {
         height: number;
     };
 }): string | null;
+export declare function mergeTraceNodeDataFields(base: Record<string, unknown>, input: Record<string, unknown>): Record<string, unknown>;
+export declare function hasTraceNodeDataFields(input: Record<string, unknown>): boolean;
 export declare function scheduleCodeGraphRecompute(onComplete?: () => void): void;
 export declare function addCanvasNode(input: CanvasAddNodeInput): {
     id: string;

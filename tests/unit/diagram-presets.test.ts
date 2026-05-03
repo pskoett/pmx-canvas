@@ -76,7 +76,7 @@ describe('diagram-presets', () => {
     expect(result[1]).toMatchObject({ type: 'rectangle', id: 'r1' });
   });
 
-  test('normalizeExcalidrawElementsForToolInput repairs one-sided bound text references without dropping text', () => {
+  test('normalizeExcalidrawElementsForToolInput converts bound text into hosted-app labels', () => {
     const result = JSON.parse(normalizeExcalidrawElementsForToolInput([
       {
         type: 'rectangle',
@@ -102,14 +102,45 @@ describe('diagram-presets', () => {
     const box = result.find((element: Record<string, unknown>) => element.id === 'box');
     const label = result.find((element: Record<string, unknown>) => element.id === 'box-label');
     expect(box).toMatchObject({
-      boundElements: [{ type: 'text', id: 'box-label' }],
+      label: { text: 'Bound label' },
     });
-    expect(label).toMatchObject({
-      type: 'text',
-      id: 'box-label',
-      text: 'Bound label',
-      containerId: 'box',
+    expect(box.boundElements).toBeUndefined();
+    expect(label).toBeUndefined();
+  });
+
+  test('normalizeExcalidrawElementsForToolInput uses labels for centered container text', () => {
+    const result = JSON.parse(normalizeExcalidrawElementsForToolInput([
+      {
+        type: 'rectangle',
+        id: 'r1',
+        x: 200,
+        y: 200,
+        width: 240,
+        height: 100,
+        boundElements: [{ type: 'text', id: 't1' }],
+      },
+      {
+        type: 'text',
+        id: 't1',
+        x: 200,
+        y: 200,
+        width: 240,
+        height: 100,
+        text: 'Centered?',
+        fontSize: 20,
+        textAlign: 'center',
+        verticalAlign: 'middle',
+        containerId: 'r1',
+      },
+    ]));
+
+    const box = result.find((element: Record<string, unknown>) => element.id === 'r1');
+    const label = result.find((element: Record<string, unknown>) => element.id === 't1');
+    expect(box).toMatchObject({
+      label: { text: 'Centered?', fontSize: 20 },
     });
+    expect(box.boundElements).toBeUndefined();
+    expect(label).toBeUndefined();
   });
 
   test('normalizeExcalidrawElementsForToolInput seeds defaults for non-renderable arrays', () => {

@@ -12,6 +12,7 @@ import type {
   TextResourceContents,
   Tool,
 } from '@modelcontextprotocol/sdk/types.js';
+import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js';
 import {
   EXTENSION_ID,
   RESOURCE_MIME_TYPE,
@@ -47,6 +48,7 @@ export interface OpenMcpAppInput {
   toolName: string;
   toolArguments?: Record<string, unknown>;
   serverName?: string;
+  timeoutMs?: number;
 }
 
 export interface OpenMcpAppResult {
@@ -184,6 +186,12 @@ function normalizeServerName(raw: string | undefined, transport: ExternalMcpTran
   return trimmed.length > 0 ? trimmed : defaultServerName(transport);
 }
 
+function requestOptions(timeoutMs: number | undefined): RequestOptions | undefined {
+  return typeof timeoutMs === 'number' && Number.isFinite(timeoutMs) && timeoutMs > 0
+    ? { timeout: timeoutMs }
+    : undefined;
+}
+
 function buildTransport(config: ExternalMcpTransportConfig): RuntimeTransport {
   if (config.type === 'http') {
     return new StreamableHTTPClientTransport(new URL(config.url), {
@@ -209,15 +217,16 @@ function buildTransport(config: ExternalMcpTransportConfig): RuntimeTransport {
 async function createSession(
   transportConfig: ExternalMcpTransportConfig,
   serverName?: string,
+  timeoutMs?: number,
 ): Promise<McpAppSession> {
   const transport = buildTransport(transportConfig);
   const client = new Client(
     { name: 'pmx-canvas-app-host', version: '0.1.0' },
     { capabilities: clientCapabilities },
   );
-  await client.connect(transport);
+  await client.connect(transport, requestOptions(timeoutMs));
 
-  const toolList = await client.listTools();
+  const toolList = await client.listTools(undefined, requestOptions(timeoutMs));
   const session: McpAppSession = {
     id: randomId('mcp-app-session'),
     serverName: normalizeServerName(serverName, transportConfig),
@@ -350,7 +359,8 @@ function prepareResourceHtml(html: string, meta: McpUiResourceMeta | undefined):
 }
 
 export async function openMcpApp(input: OpenMcpAppInput): Promise<OpenMcpAppResult> {
-  const session = await createSession(input.transport, input.serverName);
+  const options = requestOptions(input.timeoutMs);
+  const session = await createSession(input.transport, input.serverName, input.timeoutMs);
   try {
     const tool = await findTool(session, input.toolName);
     const resourceUri = getToolUiResourceUri(tool);
@@ -362,9 +372,9 @@ export async function openMcpApp(input: OpenMcpAppInput): Promise<OpenMcpAppResu
     const rawToolResult = await session.client.callTool({
       name: tool.name,
       arguments: toolInput,
-    });
+    }, undefined, options);
     const toolResult = normalizeExtAppToolResult({ result: rawToolResult });
-    const readResult = await session.client.readResource({ uri: resourceUri });
+    const readResult = await session.client.readResource({ uri: resourceUri }, options);
     const resourceMeta = resourceMetaFromReadResult(readResult);
     const html = prepareResourceHtml(htmlContentFromReadResult(readResult, resourceUri), resourceMeta);
 

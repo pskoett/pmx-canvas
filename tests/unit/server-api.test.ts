@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
-import { startCanvasServer, stopCanvasServer, wrapCanvasAutomationScript } from '../../src/server/server.ts';
+import { emitPrimaryWorkbenchEvent, startCanvasServer, stopCanvasServer, wrapCanvasAutomationScript } from '../../src/server/server.ts';
 import {
   createFakeWebArtifactScripts,
   createTestWorkspace,
@@ -425,6 +425,47 @@ describe('canvas server HTTP API', () => {
     expect(toolsAfterClear.ok).toBe(false);
     const clearError = await toolsAfterClear.json() as { error?: string };
     expect(clearError.error?.toLowerCase().includes('not found')).toBe(true);
+  });
+
+  test('updates an existing Excalidraw diagram node in place', async () => {
+    const created = await jsonRequest<{
+      ok: boolean;
+      nodeId: string | null;
+      sessionId: string;
+    }>('/api/canvas/diagram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Mutable Diagram',
+        elements: [{ type: 'rectangle', id: 'before', x: 0, y: 0, width: 80, height: 50 }],
+      }),
+    });
+    expect(created.ok).toBe(true);
+    expect(typeof created.nodeId).toBe('string');
+
+    const updated = await jsonRequest<{
+      ok: boolean;
+      nodeId: string | null;
+      sessionId: string;
+    }>('/api/canvas/diagram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        nodeId: created.nodeId,
+        elements: [{ type: 'rectangle', id: 'changed', x: 120, y: 0, width: 80, height: 50 }],
+      }),
+    });
+
+    expect(updated.ok).toBe(true);
+    expect(updated.nodeId).toBe(created.nodeId);
+    expect(updated.sessionId).not.toBe(created.sessionId);
+    const state = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(state.nodes.filter((node) => node.type === 'mcp-app')).toHaveLength(1);
+    const node = state.nodes.find((entry) => entry.id === created.nodeId);
+    const toolInput = node?.data.toolInput as { elements?: string } | undefined;
+    const elements = toolInput?.elements ? JSON.parse(toolInput.elements) as Array<Record<string, unknown>> : [];
+    expect(elements.some((element) => element.id === 'changed')).toBe(true);
+    expect(elements.some((element) => element.id === 'before')).toBe(false);
   });
 
   test('rehydrates ext-app snapshot sessions on restore', async () => {
@@ -1695,6 +1736,140 @@ describe('canvas server HTTP API', () => {
     }>(`/api/canvas/node/${created.id}`);
     expect(replayed.position).toEqual({ x: 520, y: 420 });
     expect(replayed.collapsed).toBe(true);
+  });
+
+  test('trace node creation promotes documented top-level fields into data', async () => {
+    const created = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      data: Record<string, unknown>;
+    }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'trace',
+        title: 'Trace fixture',
+        content: 'Completed',
+        toolName: 'canvas_add_node',
+        category: 'mcp',
+        status: 'success',
+        duration: '42ms',
+        resultSummary: 'Created node',
+        error: '',
+      }),
+    });
+
+    expect(created.ok).toBe(true);
+    expect(created.data).toMatchObject({
+      title: 'Trace fixture',
+      content: 'Completed',
+      toolName: 'canvas_add_node',
+      category: 'mcp',
+      status: 'success',
+      duration: '42ms',
+      resultSummary: 'Created node',
+      error: '',
+    });
+
+    const updated = await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'failed', error: 'boom' }),
+    });
+    expect(updated.data).toMatchObject({ status: 'failed', error: 'boom' });
+  });
+
+  test('runtime ext-app result sync does not clear redo history after undo', async () => {
+    const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Redo survives runtime sync', x: 120, y: 120 }),
+    });
+
+    const batchResult = await jsonRequest<{ ok: boolean; applied: number }>('/api/canvas/update', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ updates: [{ id: created.id, position: { x: 520, y: 420 } }] }),
+    });
+    expect(batchResult.applied).toBe(1);
+
+    const undone = await jsonRequest<{ ok: boolean; description: string }>('/api/canvas/undo', {
+      method: 'POST',
+    });
+    expect(undone.ok).toBe(true);
+
+    const eventId = 'ext-app-redo-runtime-sync';
+    canvasState.withSuppressedRecording(() => {
+      canvasState.addNode({
+        id: eventId,
+        type: 'mcp-app',
+        position: { x: 40, y: 40 },
+        size: { width: 320, height: 240 },
+        zIndex: 1,
+        collapsed: false,
+        pinned: false,
+        dockPosition: null,
+        data: { mode: 'ext-app', toolCallId: 'redo-sync', serverName: 'Fixture', toolName: 'show_counter' },
+      });
+    });
+    const beforeRuntimeHistory = await jsonRequest<{ canRedo: boolean }>('/api/canvas/history');
+    expect(beforeRuntimeHistory.canRedo).toBe(true);
+
+    // Runtime app updates are SSE synchronization side effects and must not
+    // truncate the user-visible redo stack.
+    emitPrimaryWorkbenchEvent('ext-app-result', {
+      toolCallId: 'redo-sync',
+      nodeId: eventId,
+      serverName: 'Fixture',
+      toolName: 'show_counter',
+      success: true,
+      result: { content: [{ type: 'text', text: 'runtime result' }] },
+    });
+
+    const history = await jsonRequest<{ canRedo: boolean }>('/api/canvas/history');
+    expect(history.canRedo).toBe(true);
+
+    const redone = await jsonRequest<{ ok: boolean; description: string }>('/api/canvas/redo', {
+      method: 'POST',
+    });
+    expect(redone.ok).toBe(true);
+    expect(redone.description).toContain('Updated 1 node (1 moved)');
+
+    const replayed = await jsonRequest<{
+      position: { x: number; y: number };
+    }>(`/api/canvas/node/${created.id}`);
+    expect(replayed.position).toEqual({ x: 520, y: 420 });
+  });
+
+  test('ext-app open remains user-visible history while runtime result sync is suppressed', async () => {
+    emitPrimaryWorkbenchEvent('ext-app-open', {
+      toolCallId: 'undoable-open',
+      nodeId: 'ext-app-undoable-open',
+      title: 'Undoable app',
+      html: '<main>app</main>',
+      toolInput: {},
+      serverName: 'Fixture',
+      toolName: 'show_counter',
+      appSessionId: 'session-undoable-open',
+      transportConfig: { type: 'http', url: 'https://example.test/mcp' },
+      resourceUri: 'ui://fixture/counter.html',
+      toolDefinition: { name: 'show_counter' },
+      sessionStatus: 'ready',
+      sessionError: null,
+    });
+
+    const afterOpen = await jsonRequest<{ canUndo: boolean; text: string }>('/api/canvas/history');
+    expect(afterOpen.canUndo).toBe(true);
+    expect(afterOpen.text).toContain('Added mcp-app node "Undoable app"');
+
+    const undone = await jsonRequest<{ ok: boolean; description: string }>('/api/canvas/undo', {
+      method: 'POST',
+    });
+    expect(undone.ok).toBe(true);
+    expect(undone.description).toContain('Added mcp-app node "Undoable app"');
+
+    const afterUndo = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(afterUndo.nodes.some((node) => node.id === 'ext-app-undoable-open')).toBe(false);
   });
 
   test('records viewport changes in history and supports undo/redo over HTTP', async () => {

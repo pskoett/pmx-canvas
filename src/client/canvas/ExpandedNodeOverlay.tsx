@@ -26,13 +26,13 @@ function renderContent(node: CanvasNodeState, expanded: boolean) {
     case 'markdown':
       return <MarkdownNode node={node} expanded={expanded} />;
     case 'mcp-app':
-      return <McpAppNode node={node} />;
+      return <McpAppNode node={node} expanded={expanded} />;
     case 'webpage':
       return <WebpageNode node={node} expanded={expanded} />;
     case 'json-render':
-      return <McpAppNode node={node} />;
+      return <McpAppNode node={node} expanded={expanded} />;
     case 'graph':
-      return <McpAppNode node={node} />;
+      return <McpAppNode node={node} expanded={expanded} />;
     case 'prompt':
       return <PromptNode node={node} />;
     case 'response':

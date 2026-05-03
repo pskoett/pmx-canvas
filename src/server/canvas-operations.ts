@@ -76,6 +76,12 @@ interface CanvasAddNodeInput {
   title?: string;
   content?: string;
   data?: Record<string, unknown>;
+  toolName?: string;
+  category?: string;
+  status?: string;
+  duration?: string;
+  resultSummary?: string;
+  error?: string;
   x?: number;
   y?: number;
   width?: number;
@@ -109,6 +115,7 @@ interface CanvasNodeLookupInput {
 }
 
 const MAX_CONTEXT_PINS = 20;
+const TRACE_DATA_FIELDS = ['toolName', 'category', 'status', 'duration', 'resultSummary', 'error'] as const;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -757,16 +764,44 @@ function buildWebpageNodeData(input: CanvasAddNodeInput): Record<string, unknown
   };
 }
 
+function normalizeTraceNodeData(input: CanvasAddNodeInput): Record<string, unknown> {
+  const data: Record<string, unknown> = { ...(input.data ?? {}) };
+  for (const field of TRACE_DATA_FIELDS) {
+    const value = input[field];
+    if (typeof value === 'string') data[field] = value;
+  }
+  if (input.title) data.title = input.title;
+  if (input.content) data.content = input.content;
+  if (input.strictSize) data.strictSize = true;
+  return data;
+}
+
 function buildNodeData(input: CanvasAddNodeInput): Record<string, unknown> {
   if (input.type === 'file') return buildFileNodeData(input);
   if (input.type === 'image') return buildImageNodeData(input);
   if (input.type === 'webpage') return buildWebpageNodeData(input);
+  if (input.type === 'trace') return normalizeTraceNodeData(input);
   return {
     ...(input.data ?? {}),
     ...(input.title ? { title: input.title } : {}),
     ...(input.content ? { content: input.content } : {}),
     ...(input.strictSize ? { strictSize: true } : {}),
   };
+}
+
+export function mergeTraceNodeDataFields(
+  base: Record<string, unknown>,
+  input: Record<string, unknown>,
+): Record<string, unknown> {
+  const next: Record<string, unknown> = { ...base };
+  for (const field of TRACE_DATA_FIELDS) {
+    if (typeof input[field] === 'string') next[field] = input[field];
+  }
+  return next;
+}
+
+export function hasTraceNodeDataFields(input: Record<string, unknown>): boolean {
+  return TRACE_DATA_FIELDS.some((field) => typeof input[field] === 'string');
 }
 
 export function scheduleCodeGraphRecompute(onComplete?: () => void): void {

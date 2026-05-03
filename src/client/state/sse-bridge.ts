@@ -529,6 +529,7 @@ function handleExtAppOpen(data: Record<string, unknown>): void {
   if (typeof data.toolCallId !== 'string' || !data.toolCallId) return;
   ensureExtAppNode({
     toolCallId: data.toolCallId,
+    ...(typeof data.nodeId === 'string' && data.nodeId.length > 0 ? { nodeId: data.nodeId } : {}),
     title: data.title,
     html: data.html,
     toolInput: data.toolInput,

@@ -13,9 +13,9 @@ function withTheme(url: string): string {
   }
 }
 
-export function McpAppNode({ node }: { node: CanvasNodeState }) {
+export function McpAppNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
   if (node.data.mode === 'ext-app') {
-    return <ExtAppFrame node={node} />;
+    return <ExtAppFrame node={node} expanded={expanded} />;
   }
 
   const url = withTheme((node.data.url as string) || '');

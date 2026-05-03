@@ -23,6 +23,12 @@ export declare class PmxCanvas extends EventEmitter {
         type: CanvasNodeState['type'];
         title?: string;
         content?: string;
+        toolName?: string;
+        category?: string;
+        status?: string;
+        duration?: string;
+        resultSummary?: string;
+        error?: string;
         x?: number;
         y?: number;
         width?: number;
@@ -198,12 +204,14 @@ export declare class PmxCanvas extends EventEmitter {
         transport: ExternalMcpTransportConfig;
         toolName: string;
         toolArguments?: Record<string, unknown>;
+        nodeId?: string;
         serverName?: string;
         title?: string;
         x?: number;
         y?: number;
         width?: number;
         height?: number;
+        timeoutMs?: number;
     }): Promise<{
         ok: true;
         id?: string;

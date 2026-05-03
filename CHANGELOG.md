@@ -3,6 +3,74 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.14] - 2026-05-02
+
+External-MCP-app and trace-node ergonomics on top of 0.1.13. Trace node
+fields land as top-level inputs across CLI / HTTP / MCP / SDK,
+`canvas_open_mcp_app` and `canvas_add_diagram` gain `nodeId` for
+update-in-place plus `timeoutMs` for cold external servers, expanded
+mcp-app frames receive the matching host context, and ext-app result
+streaming no longer pollutes undo/redo history.
+
+### Added
+
+- **Trace node fields on the add/update surfaces.** `pmx-canvas node add
+  --type trace` now accepts `--toolName`, `--category`, `--status`,
+  `--duration`, `--resultSummary`, and `--error` flags. The same fields
+  are accepted top-level on `POST /api/canvas/node`, `PATCH
+  /api/canvas/node/<id>`, MCP `canvas_add_node`, and SDK
+  `PmxCanvas.addNode()`/`updateNode()`. Updates merge per-field through
+  `mergeTraceNodeDataFields` so partial patches keep the rest intact.
+- **`canvas_open_mcp_app` and `canvas_add_diagram` accept `nodeId` for
+  update-in-place.** Passing an existing `mcp-app` ext-app node id
+  closes the previous session and reuses the node id, title, and
+  geometry instead of creating a new node. Available on MCP, HTTP
+  `POST /api/canvas/mcp-app` and `POST /api/canvas/diagram`, and CLI
+  `external-app add --node-id` (also `--nodeId` / `--id`).
+- **`canvas_open_mcp_app` and `canvas_add_diagram` accept `timeoutMs`.**
+  The value is forwarded to the external MCP client's `connect()` and
+  `listTools()` calls so cold external app servers don't fail under
+  the default request timeout. CLI `external-app add` exposes the
+  same flag as `--timeout-ms`. The MCP error message for a
+  client-cancelled `canvas_add_diagram` now points users at this
+  knob.
+- **`pmx-canvas external-app add --elements` alias.** `--elements`
+  is now accepted as an alias for `--elements-json`.
+
+### Changed
+
+- **Excalidraw bound text is folded into container labels.** When a
+  text element references a container (`containerId`) that supports a
+  native label — `rectangle`, `ellipse`, or `diamond` — the diagram
+  preset now hoists the text into the container's `label` field
+  instead of leaving a separate text element behind. This restores
+  the native Excalidraw shape so the hosted app renders the label as
+  expected. Other container shapes still keep bidirectional
+  `boundElements` references.
+- **Expanded mcp-app frames receive `fullscreen` host context.**
+  `ExpandedNodeOverlay` now passes `expanded={true}` to `McpAppNode`
+  for `mcp-app`, `json-render`, and `graph` nodes; `ExtAppFrame`
+  forwards it to the bridge as a `host-context-change` so external
+  apps know when they're rendered fullscreen versus inline.
+
+### Fixed
+
+- **Ext-app runtime result streaming no longer pollutes undo/redo.**
+  Streaming HTML updates and result-handling for hosted external apps
+  now run through `canvasState.withSuppressedRecording()` so undo no
+  longer needs to walk through every intermediate ext-app html
+  patch. Opening an ext-app remains a user-visible history step.
+
+### Internal
+
+- Regression coverage for: trace fields landing on add and patch
+  through CLI / HTTP / MCP, Excalidraw bound-text → container label
+  hoisting (including centered container text), `external-app add`
+  accepting the `--elements` alias and an existing node target,
+  `canvas_add_diagram` updating an existing Excalidraw node in
+  place, and ext-app result streaming preserving redo history after
+  an undo.
+
 ## [0.1.13] - 2026-05-02
 
 Live-collaboration polish on top of 0.1.12. Server-driven SSE updates no
@@ -444,6 +512,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.14]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.14
 [0.1.13]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.13
 [0.1.12]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.12
 [0.1.11]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.11

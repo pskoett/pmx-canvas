@@ -268,6 +268,51 @@ describe('MCP parity with CLI', () => {
     expect(created.data.strictSize).toBe(true);
   });
 
+  test('canvas_add_node exposes and persists trace fields', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const tools = await session.client.listTools();
+    const addNodeTool = tools.tools.find((tool) => tool.name === 'canvas_add_node');
+    const addDiagramTool = tools.tools.find((tool) => tool.name === 'canvas_add_diagram');
+    expect(addNodeTool?.inputSchema.properties).toHaveProperty('toolName');
+    expect(addNodeTool?.inputSchema.properties).toHaveProperty('resultSummary');
+    expect(addDiagramTool?.inputSchema.properties).toHaveProperty('timeoutMs');
+    expect(addDiagramTool?.inputSchema.properties).toHaveProperty('nodeId');
+
+    const created = parseJsonText<{
+      id: string;
+      data: Record<string, unknown>;
+    }>(await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'trace',
+        title: 'MCP trace',
+        content: 'Trace body',
+        toolName: 'canvas_add_node',
+        category: 'mcp',
+        status: 'success',
+        duration: '42ms',
+        resultSummary: 'Created node',
+        error: '',
+      },
+    }) as ToolResultShape);
+
+    expect(created.data).toMatchObject({
+      title: 'MCP trace',
+      content: 'Trace body',
+      toolName: 'canvas_add_node',
+      category: 'mcp',
+      status: 'success',
+      duration: '42ms',
+      resultSummary: 'Created node',
+      error: '',
+    });
+  });
+
   test('uses an existing daemon as MCP state authority for HTTP-created nodes', async () => {
     const workspaceRoot = createTestWorkspace('pmx-canvas-mcp-remote-');
     const port = await getAvailablePort();

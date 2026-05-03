@@ -26,6 +26,7 @@ import {
 
 const DEFAULT_PORT = 4313;
 const defaultConsoleLog = console.log;
+const TRACE_NODE_FIELDS = ['toolName', 'category', 'status', 'duration', 'resultSummary', 'error'] as const;
 
 interface CanvasSchemaField {
   name: string;
@@ -1078,6 +1079,12 @@ cmd('node add', 'Add a node to the canvas', [
     height: 'Use a positive number, e.g. --height 280',
   });
   applyStrictSizeFlags(body, flags);
+  if (type === 'trace') {
+    for (const field of TRACE_NODE_FIELDS) {
+      const value = getStringFlag(flags, field);
+      if (value !== undefined) body[field] = value;
+    }
+  }
 
   // Support --stdin for piping content
   if (flags.stdin) {
@@ -1565,7 +1572,9 @@ cmd('external-app add', 'Create a hosted external app node', [
     title: typeof flags.title === 'string' ? flags.title : 'Excalidraw Diagram',
     elements: DEFAULT_EXCALIDRAW_ELEMENTS,
   };
-  const elementsJson = getStringFlag(flags, 'elements-json');
+  const nodeId = getStringFlag(flags, 'node-id', 'nodeId', 'id');
+  if (nodeId) body.nodeId = nodeId;
+  const elementsJson = getStringFlag(flags, 'elements-json', 'elements');
   if (elementsJson !== undefined) body.elements = parseJsonValue(elementsJson, 'Excalidraw elements', 'Use --elements-json \'[{"type":"rectangle","id":"r1","x":0,"y":0,"width":120,"height":80}]\'');
   const elementsFile = getStringFlag(flags, 'elements-file', 'initial-file');
   if (elementsFile) body.elements = parseJsonValue(readFileSync(elementsFile, 'utf-8'), 'Excalidraw elements file', 'Use --elements-file ./scene.excalidraw');
@@ -1575,6 +1584,8 @@ cmd('external-app add', 'Create a hosted external app node', [
     width: 'Use a positive number, e.g. --width 960',
     height: 'Use a positive number, e.g. --height 720',
   });
+  const timeoutMs = optionalPositiveFiniteFlag(flags, 'timeout-ms', 'Use a positive number, e.g. --timeout-ms 120000');
+  if (timeoutMs !== undefined) body.timeoutMs = timeoutMs;
 
   const result = await api('POST', '/api/canvas/diagram', body);
   output(result && typeof result === 'object' && !Array.isArray(result) && 'nodeId' in result && !('id' in result)
@@ -2303,9 +2314,12 @@ function showCommandHelp(name: string): void {
     console.log('\nOptions:');
     console.log('  --kind excalidraw          External app kind to create');
     console.log('  --title <title>            Node title');
+    console.log('  --node-id <id>             Existing Excalidraw app node to update in place');
+    console.log('  --elements <json>          Optional Excalidraw elements array JSON');
     console.log('  --elements-json <json>     Optional Excalidraw elements array JSON');
     console.log('  --elements-file <path>     Optional file containing Excalidraw elements JSON');
     console.log('  --initial-file <path>      Alias for --elements-file');
+    console.log('  --timeout-ms <number>      Optional downstream MCP timeout for cold starts');
   }
   console.log('');
 }

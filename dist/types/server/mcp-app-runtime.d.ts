@@ -18,6 +18,7 @@ export interface OpenMcpAppInput {
     toolName: string;
     toolArguments?: Record<string, unknown>;
     serverName?: string;
+    timeoutMs?: number;
 }
 export interface OpenMcpAppResult {
     sessionId: string;

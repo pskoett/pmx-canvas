@@ -146,6 +146,49 @@ describe('agent CLI node commands', () => {
     expect(output.size).toEqual({ width: 500, height: 280 });
   });
 
+  test('node add forwards trace fields advertised by schema help', async () => {
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'node',
+        'add',
+        '--type',
+        'trace',
+        '--title',
+        'CLI trace',
+        '--content',
+        'Trace body',
+        '--toolName',
+        'canvas_add_node',
+        '--status',
+        'success',
+        '--duration',
+        '42ms',
+        '--resultSummary',
+        'Created node',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      data: Record<string, unknown>;
+    };
+    expect(output.ok).toBe(true);
+    expect(output.data).toMatchObject({
+      title: 'CLI trace',
+      content: 'Trace body',
+      toolName: 'canvas_add_node',
+      status: 'success',
+      duration: '42ms',
+      resultSummary: 'Created node',
+    });
+  });
+
   test('focus --no-pan selects without changing the server viewport', async () => {
     const created = await jsonRequest<{
       ok: boolean;
@@ -1572,7 +1615,7 @@ describe('agent CLI node commands', () => {
     console.log = log;
 
     try {
-      await runAgentCli(['external-app', 'add', '--kind', 'excalidraw', '--title', 'CLI Diagram']);
+      await runAgentCli(['external-app', 'add', '--kind', 'excalidraw', '--title', 'CLI Diagram', '--timeout-ms', '120000']);
     } finally {
       console.log = originalLog;
       globalThis.fetch = originalFetch;
@@ -1584,12 +1627,57 @@ describe('agent CLI node commands', () => {
       result?: {
         title: string;
         elements: Array<Record<string, unknown>>;
+        timeoutMs: number;
       };
     };
     expect(output.id).toBe(output.nodeId);
     expect(output.result?.title).toBe('CLI Diagram');
     expect(output.result?.elements).toEqual([
       expect.objectContaining({ type: 'rectangle', id: 'pmx-start' }),
+    ]);
+    expect(output.result?.timeoutMs).toBe(120000);
+  });
+
+  test('external-app add accepts elements alias and existing node targets', async () => {
+    const fetchMock = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
+      return new Response(JSON.stringify({ ok: true, result: body }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'external-app',
+        'add',
+        '--kind',
+        'excalidraw',
+        '--node-id',
+        'ext-app-existing',
+        '--elements',
+        '[{"type":"rectangle","id":"changed","x":0,"y":0,"width":80,"height":40}]',
+      ]);
+    } finally {
+      console.log = originalLog;
+      globalThis.fetch = originalFetch;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      result?: {
+        nodeId?: string;
+        elements?: Array<Record<string, unknown>>;
+      };
+    };
+    expect(output.result?.nodeId).toBe('ext-app-existing');
+    expect(output.result?.elements).toEqual([
+      expect.objectContaining({ type: 'rectangle', id: 'changed' }),
     ]);
   });
 

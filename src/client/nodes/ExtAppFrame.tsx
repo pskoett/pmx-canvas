@@ -13,11 +13,6 @@ import type { CanvasNodeState } from '../types';
 
 type McpUiTheme = 'light' | 'dark';
 
-type IframeLoadTarget = Pick<
-  HTMLIFrameElement,
-  'addEventListener' | 'removeEventListener' | 'contentDocument'
->;
-
 type ExtAppBridgeNotifications = Pick<AppBridge, 'sendToolInput' | 'sendToolResult'>;
 type DisplayMode = 'inline' | 'fullscreen' | 'pip';
 const DEFAULT_EXT_APP_SANDBOX = 'allow-scripts allow-popups allow-popups-to-escape-sandbox';
@@ -41,21 +36,6 @@ async function postJson<T>(url: string, body: Record<string, unknown>): Promise<
   };
   if (!json.ok) throw new Error(json.error ?? `Request failed: ${url}`);
   return json.result as T;
-}
-
-export function waitForExtAppFrameLoad(target: IframeLoadTarget): Promise<void> {
-  const readyState = target.contentDocument?.readyState;
-  if (readyState === 'interactive' || readyState === 'complete') {
-    return Promise.resolve();
-  }
-
-  return new Promise<void>((resolve) => {
-    const onLoad = () => {
-      target.removeEventListener('load', onLoad);
-      resolve();
-    };
-    target.addEventListener('load', onLoad, { once: true });
-  });
 }
 
 export function getExtAppBridgeInitKey(node: CanvasNodeState, retryKey: number): string {
@@ -131,7 +111,7 @@ export function shouldApplyExtAppSizeChange(height: unknown, isExpanded: boolean
   return typeof height === 'number' && Number.isFinite(height) && height > 0 && !isExpanded;
 }
 
-export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
+export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const bridgeRef = useRef<AppBridge | null>(null);
   const transportRef = useRef<PostMessageTransport | null>(null);
@@ -164,10 +144,9 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
   const sessionError = node.data.sessionError as string | undefined;
   const maxHeight = node.size.height;
   const nodeId = node.id;
-  const frameKey = `${node.id}:${retryKey}`;
-  const bridgeInitKey = getExtAppBridgeInitKey(node, retryKey);
+  const frameKey = getExtAppBridgeInitKey(node, retryKey);
   const toMcpTheme = (theme: string): McpUiTheme => (theme === 'light' ? 'light' : 'dark');
-  const isExpanded = expandedNodeId.value === nodeId;
+  const isExpanded = expanded || expandedNodeId.value === nodeId;
 
   latestToolInputRef.current = toolInput;
   latestToolResultRef.current = toolResult;
@@ -221,9 +200,9 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
     return sendPromise;
   };
 
-  // Initialize bridge when iframe loads and HTML is available
+  // Initialize as soon as HTML is mounted; some apps send initialize before iframe load fires.
   useEffect(() => {
-    if (!html) return; // Wait for HTML to arrive
+    if (!html) return;
     const iframe = iframeRef.current;
     if (!iframe) return;
     let disposed = false;
@@ -242,12 +221,8 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
     };
 
     const init = async () => {
-      let contentWindow = iframe.contentWindow;
-      if (!contentWindow) {
-        await waitForExtAppFrameLoad(iframe);
-        if (disposed) return;
-        contentWindow = iframe.contentWindow;
-      }
+      if (!html) return;
+      const contentWindow = iframe.contentWindow;
       if (!contentWindow) {
         throw new Error('Ext-app iframe window is unavailable');
       }
@@ -397,8 +372,8 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
         bridgeReadyRef.current = true;
         setStatus('ready');
         setError(null);
-        scheduleHostContextUpdate();
-        void sendExtAppBootstrapState(bridge, latestToolInputRef.current, undefined)
+        void Promise.resolve(bridge.sendHostContextChange(buildHostContext(isExpanded ? 'fullscreen' : 'inline')))
+          .then(() => sendExtAppBootstrapState(bridge, latestToolInputRef.current, undefined))
           .then(() => flushToolResult(bridge))
           .catch((err) => {
             const msg = err instanceof Error ? err.message : String(err);
@@ -481,7 +456,7 @@ export function ExtAppFrame({ node }: { node: CanvasNodeState }) {
         transportRef.current = null;
       }
     };
-  }, [bridgeInitKey]);
+  }, [frameKey]);
 
   // Forward tool result when it arrives after bridge is ready
   useEffect(() => {

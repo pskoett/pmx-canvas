@@ -1,4 +1,5 @@
 import type { CanvasNodeState } from '../types';
-export declare function McpAppNode({ node }: {
+export declare function McpAppNode({ node, expanded }: {
     node: CanvasNodeState;
+    expanded?: boolean;
 }): import("preact/src").JSX.Element;

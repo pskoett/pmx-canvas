@@ -96,6 +96,8 @@ import {
   ungroupCanvasNodes,
   validateCanvasNodePatch,
   hasStructuredNodeUpdateFields,
+  hasTraceNodeDataFields,
+  mergeTraceNodeDataFields,
 } from './canvas-operations.js';
 import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
@@ -1331,6 +1333,12 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
       ...(typeof body.title === 'string' ? { title: body.title } : {}),
       ...(typeof content === 'string' ? { content } : {}),
       ...(extraData ? { data: extraData } : {}),
+      ...(type === 'trace' && typeof body.toolName === 'string' ? { toolName: body.toolName } : {}),
+      ...(type === 'trace' && typeof body.category === 'string' ? { category: body.category } : {}),
+      ...(type === 'trace' && typeof body.status === 'string' ? { status: body.status } : {}),
+      ...(type === 'trace' && typeof body.duration === 'string' ? { duration: body.duration } : {}),
+      ...(type === 'trace' && typeof body.resultSummary === 'string' ? { resultSummary: body.resultSummary } : {}),
+      ...(type === 'trace' && typeof body.error === 'string' ? { error: body.error } : {}),
       ...(body.strictSize === true ? { strictSize: true } : {}),
       ...geometry,
       defaultWidth: 360,
@@ -1495,7 +1503,14 @@ async function handleCanvasUpdateNode(nodeId: string, req: Request): Promise<Res
     } catch (error) {
       return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
     }
-  } else if (body.title !== undefined || body.content !== undefined || body.data || typeof body.arrangeLocked === 'boolean' || typeof body.strictSize === 'boolean') {
+  } else if (
+    body.title !== undefined ||
+    body.content !== undefined ||
+    body.data ||
+    typeof body.arrangeLocked === 'boolean' ||
+    typeof body.strictSize === 'boolean' ||
+    (existing.type === 'trace' && hasTraceNodeDataFields(body))
+  ) {
     const data = { ...existing.data };
     if (body.title !== undefined) {
       data.title = String(body.title);
@@ -1524,7 +1539,9 @@ async function handleCanvasUpdateNode(nodeId: string, req: Request): Promise<Res
         }
       }
     }
-    patch.data = data;
+    patch.data = existing.type === 'trace'
+      ? mergeTraceNodeDataFields(data, body)
+      : data;
   }
   const error = validateCanvasNodePatch({
     ...(patch.position ? { position: patch.position as { x: number; y: number } } : {}),
@@ -2111,29 +2128,44 @@ interface RunAndEmitOpenMcpAppParams {
   transport: ExternalMcpTransportConfig;
   toolName: string;
   toolArguments?: Record<string, unknown>;
+  nodeId?: string;
   serverName?: string;
   title?: string;
   x?: number;
   y?: number;
   width?: number;
   height?: number;
+  timeoutMs?: number;
 }
 
 async function runAndEmitOpenMcpApp(params: RunAndEmitOpenMcpAppParams): Promise<Response> {
   try {
+    const targetNode = params.nodeId ? canvasState.getNode(params.nodeId) : undefined;
+    if (params.nodeId && !targetNode) {
+      return responseJson({ ok: false, error: `Node "${params.nodeId}" not found.` }, 404);
+    }
+    if (targetNode && (targetNode.type !== 'mcp-app' || targetNode.data.mode !== 'ext-app')) {
+      return responseJson({ ok: false, error: `Node "${params.nodeId}" is not an external app node.` }, 400);
+    }
+
     const opened = await openMcpApp({
       transport: params.transport,
       toolName: params.toolName,
       ...(params.toolArguments ? { toolArguments: params.toolArguments } : {}),
       ...(params.serverName ? { serverName: params.serverName } : {}),
+      ...(typeof params.timeoutMs === 'number' ? { timeoutMs: params.timeoutMs } : {}),
     });
 
     const toolCallId = randomExtAppToolCallId();
-    const nodeIdSeed = toolCallId.startsWith('ext-app-') ? toolCallId : `ext-app-${toolCallId}`;
+    if (params.nodeId) closeNodeAppSession(targetNode);
+    const nodeIdSeed = params.nodeId ?? (toolCallId.startsWith('ext-app-') ? toolCallId : `ext-app-${toolCallId}`);
     const toolResult = isExcalidrawCreateView(opened.serverName, opened.toolName)
       ? ensureExcalidrawCheckpointId(opened.toolResult, nodeIdSeed)
       : opened.toolResult;
-    const nodeTitle = params.title ?? opened.tool.title ?? opened.tool.name;
+    const nodeTitle = params.title
+      ?? (typeof targetNode?.data.title === 'string' ? targetNode.data.title : undefined)
+      ?? opened.tool.title
+      ?? opened.tool.name;
 
     emitPrimaryWorkbenchEvent('ext-app-open', {
       toolCallId,
@@ -2163,7 +2195,7 @@ async function runAndEmitOpenMcpApp(params: RunAndEmitOpenMcpAppParams): Promise
       success: toolResult.isError !== true,
       result: toolResult,
     });
-    const nodeId = findCanvasExtAppNodeId(toolCallId);
+    const nodeId = params.nodeId ?? findCanvasExtAppNodeId(toolCallId);
 
     return responseJson({
       ok: true,
@@ -2202,17 +2234,22 @@ async function handleCanvasOpenMcpApp(req: Request): Promise<Response> {
   const requestedServerName = typeof body.serverName === 'string' && body.serverName.trim().length > 0
     ? body.serverName.trim()
     : undefined;
+  const requestedNodeId = typeof body.nodeId === 'string' && body.nodeId.trim().length > 0
+    ? body.nodeId.trim()
+    : undefined;
 
   return runAndEmitOpenMcpApp({
     transport,
     toolName,
     ...(toolArguments ? { toolArguments } : {}),
+    ...(requestedNodeId ? { nodeId: requestedNodeId } : {}),
     ...(requestedServerName ? { serverName: requestedServerName } : {}),
     ...(requestedTitle ? { title: requestedTitle } : {}),
     ...(typeof body.x === 'number' ? { x: body.x } : {}),
     ...(typeof body.y === 'number' ? { y: body.y } : {}),
     ...(typeof body.width === 'number' ? { width: body.width } : {}),
     ...(typeof body.height === 'number' ? { height: body.height } : {}),
+    ...(typeof body.timeoutMs === 'number' ? { timeoutMs: body.timeoutMs } : {}),
   });
 }
 
@@ -2222,11 +2259,13 @@ async function handleCanvasAddDiagram(req: Request): Promise<Response> {
   try {
     built = buildExcalidrawOpenMcpAppInput({
       elements: body.elements,
+      ...(typeof body.nodeId === 'string' ? { nodeId: body.nodeId } : {}),
       ...(typeof body.title === 'string' ? { title: body.title } : {}),
       ...(typeof body.x === 'number' ? { x: body.x } : {}),
       ...(typeof body.y === 'number' ? { y: body.y } : {}),
       ...(typeof body.width === 'number' ? { width: body.width } : {}),
       ...(typeof body.height === 'number' ? { height: body.height } : {}),
+      ...(typeof body.timeoutMs === 'number' ? { timeoutMs: body.timeoutMs } : {}),
     });
   } catch (error) {
     return responseJson({
@@ -2239,11 +2278,13 @@ async function handleCanvasAddDiagram(req: Request): Promise<Response> {
     toolName: built.toolName,
     toolArguments: built.toolArguments,
     serverName: built.serverName,
+    ...(built.nodeId ? { nodeId: built.nodeId } : {}),
     ...(built.title ? { title: built.title } : {}),
     ...(typeof built.x === 'number' ? { x: built.x } : {}),
     ...(typeof built.y === 'number' ? { y: built.y } : {}),
     ...(typeof built.width === 'number' ? { width: built.width } : {}),
     ...(typeof built.height === 'number' ? { height: built.height } : {}),
+    ...(typeof built.timeoutMs === 'number' ? { timeoutMs: built.timeoutMs } : {}),
   });
 }
 
@@ -3408,52 +3449,56 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
       });
     }
   } else if (event === 'ext-app-update') {
-    const toolCallId = payload.toolCallId as string;
-    if (!toolCallId) return;
-    const payloadNodeId = typeof payload.nodeId === 'string' ? payload.nodeId : '';
-    const id =
-      (payloadNodeId && canvasState.getNode(payloadNodeId) ? payloadNodeId : null) ||
-      findCanvasExtAppNodeId(toolCallId) ||
-      (typeof payload.serverName === 'string' && typeof payload.toolName === 'string'
-        ? findOnlyPendingCanvasExtAppNodeId(payload.serverName, payload.toolName)
-        : null);
-    if (!id) return;
-    const existing = canvasState.getNode(id);
-    if (existing) {
-      canvasState.updateNode(id, { data: { ...existing.data, html: payload.html } });
-    }
+    canvasState.withSuppressedRecording(() => {
+      const toolCallId = payload.toolCallId as string;
+      if (!toolCallId) return;
+      const payloadNodeId = typeof payload.nodeId === 'string' ? payload.nodeId : '';
+      const id =
+        (payloadNodeId && canvasState.getNode(payloadNodeId) ? payloadNodeId : null) ||
+        findCanvasExtAppNodeId(toolCallId) ||
+        (typeof payload.serverName === 'string' && typeof payload.toolName === 'string'
+          ? findOnlyPendingCanvasExtAppNodeId(payload.serverName, payload.toolName)
+          : null);
+      if (!id) return;
+      const existing = canvasState.getNode(id);
+      if (existing) {
+        canvasState.updateNode(id, { data: { ...existing.data, html: payload.html } });
+      }
+    });
   } else if (event === 'ext-app-result') {
-    const toolCallId = payload.toolCallId as string;
-    if (!toolCallId) return;
-    const payloadNodeId = typeof payload.nodeId === 'string' ? payload.nodeId : '';
-    const id =
-      (payloadNodeId && canvasState.getNode(payloadNodeId) ? payloadNodeId : null) ||
-      findCanvasExtAppNodeId(toolCallId) ||
-      (typeof payload.serverName === 'string' && typeof payload.toolName === 'string'
-        ? findOnlyPendingCanvasExtAppNodeId(payload.serverName, payload.toolName)
-        : null);
-    if (!id) return;
-    if (payload.success === false) {
-      closeNodeAppSession(canvasState.getNode(id));
-      canvasState.removeNode(id);
-      return;
-    }
-    const existing = canvasState.getNode(id);
-    if (existing) {
-      canvasState.updateNode(id, {
-        data: {
-          ...existing.data,
-          toolResult: normalizeExtAppToolResult({
-            result: payload.result,
-            success: typeof payload.success === 'boolean' ? payload.success : undefined,
-            error: typeof payload.error === 'string' ? payload.error : undefined,
-            content: typeof payload.content === 'string' ? payload.content : undefined,
-            detailedContent:
-              typeof payload.detailedContent === 'string' ? payload.detailedContent : undefined,
-          }),
-        },
-      });
-    }
+    canvasState.withSuppressedRecording(() => {
+      const toolCallId = payload.toolCallId as string;
+      if (!toolCallId) return;
+      const payloadNodeId = typeof payload.nodeId === 'string' ? payload.nodeId : '';
+      const id =
+        (payloadNodeId && canvasState.getNode(payloadNodeId) ? payloadNodeId : null) ||
+        findCanvasExtAppNodeId(toolCallId) ||
+        (typeof payload.serverName === 'string' && typeof payload.toolName === 'string'
+          ? findOnlyPendingCanvasExtAppNodeId(payload.serverName, payload.toolName)
+          : null);
+      if (!id) return;
+      if (payload.success === false) {
+        closeNodeAppSession(canvasState.getNode(id));
+        canvasState.removeNode(id);
+        return;
+      }
+      const existing = canvasState.getNode(id);
+      if (existing) {
+        canvasState.updateNode(id, {
+          data: {
+            ...existing.data,
+            toolResult: normalizeExtAppToolResult({
+              result: payload.result,
+              success: typeof payload.success === 'boolean' ? payload.success : undefined,
+              error: typeof payload.error === 'string' ? payload.error : undefined,
+              content: typeof payload.content === 'string' ? payload.content : undefined,
+              detailedContent:
+                typeof payload.detailedContent === 'string' ? payload.detailedContent : undefined,
+            }),
+          },
+        });
+      }
+    });
   } else if (event === 'context-cards') {
     syncContextNodeToCanvasState(
       { cards: Array.isArray(payload.cards) ? payload.cards : [] },

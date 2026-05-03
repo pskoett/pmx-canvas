@@ -261,6 +261,12 @@ export async function startMcpServer(): Promise<void> {
       width: z.number().optional().describe('Width in pixels (default: 720)'),
       height: z.number().optional().describe('Height in pixels (default: 600)'),
       strictSize: z.boolean().optional().describe('Keep explicit width/height fixed and scroll overflowing content instead of browser auto-fitting'),
+      toolName: z.string().optional().describe('Trace node tool or operation label'),
+      category: z.string().optional().describe('Trace node category: mcp, file, subagent, or other'),
+      status: z.string().optional().describe('Trace node status: running, success, or failed'),
+      duration: z.string().optional().describe('Trace node duration badge text'),
+      resultSummary: z.string().optional().describe('Trace node result summary'),
+      error: z.string().optional().describe('Trace node error message'),
     },
     async (input) => {
       const c = await ensureCanvas();
@@ -303,11 +309,13 @@ export async function startMcpServer(): Promise<void> {
       toolName: z.string().describe('Tool name on the external MCP server'),
       serverName: z.string().optional().describe('Optional display name for the external MCP server'),
       toolArguments: z.record(z.string(), z.unknown()).optional().describe('Arguments passed to the external tool call'),
+      nodeId: z.string().optional().describe('Existing mcp-app node ID to update in place instead of creating a new node.'),
       title: z.string().optional().describe('Optional canvas node title override'),
       x: z.number().optional().describe('X position (auto-placed if omitted)'),
       y: z.number().optional().describe('Y position (auto-placed if omitted)'),
       width: z.number().optional().describe('Width in pixels (default: 720)'),
       height: z.number().optional().describe('Height in pixels (default: 500)'),
+      timeoutMs: z.number().optional().describe('Optional MCP request timeout in milliseconds for cold external app servers'),
       transport: z.union([
         z.object({
           type: z.literal('stdio'),
@@ -331,11 +339,13 @@ export async function startMcpServer(): Promise<void> {
           toolName: input.toolName,
           ...(typeof input.serverName === 'string' ? { serverName: input.serverName } : {}),
           ...(input.toolArguments ? { toolArguments: input.toolArguments } : {}),
+          ...(typeof input.nodeId === 'string' ? { nodeId: input.nodeId } : {}),
           ...(typeof input.title === 'string' ? { title: input.title } : {}),
           ...(typeof input.x === 'number' ? { x: input.x } : {}),
           ...(typeof input.y === 'number' ? { y: input.y } : {}),
           ...(typeof input.width === 'number' ? { width: input.width } : {}),
           ...(typeof input.height === 'number' ? { height: input.height } : {}),
+          ...(typeof input.timeoutMs === 'number' ? { timeoutMs: input.timeoutMs } : {}),
         });
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
@@ -357,27 +367,37 @@ export async function startMcpServer(): Promise<void> {
         z.string().describe('JSON array string of Excalidraw elements'),
         z.array(z.record(z.string(), z.unknown())).describe('Array of Excalidraw elements'),
       ]).describe('Excalidraw elements to render. See https://github.com/excalidraw/excalidraw-mcp for the element format.'),
+      nodeId: z.string().optional().describe('Existing Excalidraw mcp-app node ID to update in place instead of creating a new node.'),
       title: z.string().optional().describe('Optional canvas node title override'),
       x: z.number().optional().describe('X position (auto-placed if omitted)'),
       y: z.number().optional().describe('Y position (auto-placed if omitted)'),
       width: z.number().optional().describe('Width in pixels (default: 720)'),
       height: z.number().optional().describe('Height in pixels (default: 500)'),
+      timeoutMs: z.number().optional().describe('Optional MCP request timeout in milliseconds for Excalidraw cold starts. Client-side MCP hosts may still enforce their own total request timeout.'),
     },
-    async (input) => {
+    async (input, extra) => {
       const c = await ensureCanvas();
       try {
         const result = await c.addDiagram({
           elements: input.elements,
+          ...(typeof input.nodeId === 'string' ? { nodeId: input.nodeId } : {}),
           ...(typeof input.title === 'string' ? { title: input.title } : {}),
           ...(typeof input.x === 'number' ? { x: input.x } : {}),
           ...(typeof input.y === 'number' ? { y: input.y } : {}),
           ...(typeof input.width === 'number' ? { width: input.width } : {}),
           ...(typeof input.height === 'number' ? { height: input.height } : {}),
+          ...(typeof input.timeoutMs === 'number' ? { timeoutMs: input.timeoutMs } : {}),
         });
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
         };
       } catch (error) {
+        if (extra.signal.aborted) {
+          return {
+            content: [{ type: 'text', text: 'canvas_add_diagram was cancelled by the MCP client before Excalidraw finished. Retry with a higher client request timeout and pass timeoutMs to PMX Canvas for the downstream Excalidraw call.' }],
+            isError: true,
+          };
+        }
         return {
           content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
           isError: true,
