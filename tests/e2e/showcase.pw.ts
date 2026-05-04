@@ -976,9 +976,10 @@ body { margin: 0; background: #0f0f1a; }
   await page.goto('/workbench');
   await page.waitForSelector('.canvas-node', { timeout: 15000 });
 
-  // Count both world-space canvas nodes and docked HUD nodes.
-  // Some HUD surfaces render outside the .canvas-node wrapper, so this assertion covers both.
-  await expect(page.locator('.canvas-node, .docked-node')).toHaveCount(26, { timeout: 15000 });
+  // Count both world-space canvas nodes and docked HUD nodes. Docked surfaces
+  // deliberately expose a stable data hook because their visual classes differ
+  // between compact tabs and expanded panels.
+  await expect(page.locator('.canvas-node, [data-docked-node="true"]')).toHaveCount(26, { timeout: 15000 });
 
   // Wait for edges and iframe content to settle
   await page.waitForTimeout(3000);

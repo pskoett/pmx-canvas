@@ -43,6 +43,16 @@ import { buildExcalidrawRestoreCheckpointToolInput, ensureExcalidrawCheckpointId
 export type CanvasArrangeMode = 'grid' | 'column' | 'flow';
 export type CanvasPinMode = 'set' | 'add' | 'remove';
 
+let canvasLayoutUpdateEmitter: (() => void) | null = null;
+
+export function setCanvasLayoutUpdateEmitter(emitter: (() => void) | null): void {
+  canvasLayoutUpdateEmitter = emitter;
+}
+
+function emitCanvasLayoutUpdate(): void {
+  canvasLayoutUpdateEmitter?.();
+}
+
 export interface CanvasFitViewOptions {
   width?: number;
   height?: number;
@@ -1149,8 +1159,8 @@ export function setCanvasContextPins(
   };
 }
 
-export function listCanvasSnapshots(): CanvasSnapshot[] {
-  return canvasState.listSnapshots();
+export function listCanvasSnapshots(options?: Parameters<typeof canvasState.listSnapshots>[0]): CanvasSnapshot[] {
+  return canvasState.listSnapshots(options);
 }
 
 export function saveCanvasSnapshot(name: string): CanvasSnapshot | null {
@@ -1160,7 +1170,10 @@ export function saveCanvasSnapshot(name: string): CanvasSnapshot | null {
 export async function restoreCanvasSnapshot(idOrName: string): Promise<{ ok: boolean }> {
   const ok = canvasState.restoreSnapshot(idOrName);
   if (ok) {
-    await syncCanvasRuntimeBackends({ forceRehydrateExtApps: true });
+    primeCanvasRuntimeBackends({ forceRehydrateExtApps: true });
+    void syncCanvasRuntimeBackends({ forceRehydrateExtApps: true, alreadyPrimed: true }).finally(() => {
+      emitCanvasLayoutUpdate();
+    });
     canvasState.flushToDisk();
   }
   return { ok };
@@ -1168,6 +1181,10 @@ export async function restoreCanvasSnapshot(idOrName: string): Promise<{ ok: boo
 
 export function deleteCanvasSnapshot(id: string): { ok: boolean } {
   return { ok: canvasState.deleteSnapshot(id) };
+}
+
+export function gcCanvasSnapshots(options?: Parameters<typeof canvasState.gcSnapshots>[0]): ReturnType<typeof canvasState.gcSnapshots> {
+  return canvasState.gcSnapshots(options);
 }
 
 export function addCanvasEdge(input: {

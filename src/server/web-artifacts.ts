@@ -28,6 +28,11 @@ const DEFAULT_TIMEOUT_MS = 10 * 60_000;
 const DEFAULT_PACKAGE_MANAGER = 'pnpm@10.33.0';
 const DEFAULT_WEB_ARTIFACT_NODE_SIZE = { width: 960, height: 720 };
 const FALLBACK_PATH_DIRS = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'];
+const WEB_ARTIFACT_CONTEXT_MAX_LENGTH = 1200;
+const WEB_ARTIFACT_SOURCE_PREVIEW_MAX_LENGTH = 700;
+const WEB_ARTIFACT_CSS_PREVIEW_MAX_LENGTH = 260;
+const WEB_ARTIFACT_MAX_LISTED_SOURCE_FILES = 8;
+const WEB_ARTIFACT_MAX_STORED_SOURCE_FILES = 32;
 
 export interface WebArtifactBuildInput {
   title: string;
@@ -49,6 +54,7 @@ export interface WebArtifactBuildOutput {
   fileSize: number;
   projectPath: string;
   metadata: Record<string, unknown>;
+  sourceContext: WebArtifactSourceContext;
   logs?: {
     stdout?: WebArtifactLogSummary;
     stderr?: WebArtifactLogSummary;
@@ -64,6 +70,14 @@ export interface WebArtifactLogSummary {
   suppressedNoiseCount: number;
 }
 
+export interface WebArtifactSourceContext {
+  content: string;
+  sourceFiles: string[];
+  sourceFileCount: number;
+  sourcePreview: string;
+  deps?: string[];
+}
+
 export interface WebArtifactCanvasOpenResult {
   nodeId: string;
   url: string;
@@ -73,7 +87,10 @@ export interface WebArtifactCanvasBuildResult extends WebArtifactBuildOutput {
   openedInCanvas: boolean;
   nodeId?: string;
   url?: string;
+  startedAt: string;
   completedAt: string;
+  durationMs: number;
+  timeoutMs: number;
 }
 
 function currentWorkspaceRoot(): string {
@@ -112,6 +129,67 @@ function slugify(value: string): string {
     .replace(/^-+|-+$/g, '')
     .slice(0, 48);
   return slug.length > 0 ? slug : 'web-artifact';
+}
+
+function normalizePreviewText(text: string): string {
+  return text
+    .replace(/\r\n?/g, '\n')
+    .replace(/[ \t\f\v]+/g, ' ')
+    .replace(/\n\s+/g, '\n')
+    .replace(/\s+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+function truncatePreviewText(text: string, maxLength: number): string {
+  if (maxLength <= 0) return '';
+  const normalized = normalizePreviewText(text);
+  if (normalized.length <= maxLength) return normalized;
+  if (maxLength <= 3) return normalized.slice(0, maxLength);
+  return `${normalized.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
+}
+
+function formatSourceFileList(files: string[]): string {
+  const visible = files.slice(0, WEB_ARTIFACT_MAX_LISTED_SOURCE_FILES);
+  const remaining = files.length - visible.length;
+  return `${visible.join(', ')}${remaining > 0 ? `, +${remaining} more` : ''}`;
+}
+
+function buildWebArtifactSourceContext(
+  input: Pick<WebArtifactBuildInput, 'title' | 'appTsx' | 'indexCss' | 'mainTsx' | 'indexHtml' | 'files'>,
+  options: { deps: string[]; fileSize: number },
+): WebArtifactSourceContext {
+  const sourceFiles = new Set<string>(['src/App.tsx']);
+  if (typeof input.indexCss === 'string') sourceFiles.add('src/index.css');
+  if (typeof input.mainTsx === 'string') sourceFiles.add('src/main.tsx');
+  if (typeof input.indexHtml === 'string') sourceFiles.add('index.html');
+  for (const pathKey of Object.keys(input.files ?? {}).sort()) {
+    sourceFiles.add(pathKey);
+  }
+
+  const appPreview = truncatePreviewText(input.appTsx, WEB_ARTIFACT_SOURCE_PREVIEW_MAX_LENGTH);
+  const cssPreview = typeof input.indexCss === 'string'
+    ? truncatePreviewText(input.indexCss, WEB_ARTIFACT_CSS_PREVIEW_MAX_LENGTH)
+    : '';
+  const allSourceFiles = [...sourceFiles];
+  const storedSourceFiles = allSourceFiles.slice(0, WEB_ARTIFACT_MAX_STORED_SOURCE_FILES);
+  const parts = [
+    `Web artifact: ${input.title}`,
+    `Source files: ${formatSourceFileList(allSourceFiles)}`,
+    `Artifact bytes: ${options.fileSize}`,
+    options.deps.length > 0 ? `Dependencies: ${options.deps.join(', ')}` : '',
+    `App source preview:\n${appPreview}`,
+    cssPreview ? `CSS source preview:\n${cssPreview}` : '',
+  ].filter(Boolean);
+
+  const content = truncatePreviewText(parts.join('\n'), WEB_ARTIFACT_CONTEXT_MAX_LENGTH);
+  return {
+    content,
+    sourceFiles: storedSourceFiles,
+    sourceFileCount: allSourceFiles.length,
+    sourcePreview: appPreview,
+    ...(options.deps.length > 0 ? { deps: options.deps } : {}),
+  };
 }
 
 function isPathInside(base: string, candidate: string): boolean {
@@ -458,19 +536,23 @@ export async function executeWebArtifactBuild(
   // on a filesystem failure. A post-copy size check would be redundant
   // defensive noise — see CLAUDE.md TypeScript Guardrail #3.
   const fileSize = bundleSize;
+  const sourceContext = buildWebArtifactSourceContext(input, { deps, fileSize });
 
   return {
     filePath: outputPath,
     fileSize,
     projectPath,
+    sourceContext,
     metadata: {
       title: input.title,
       bundlePath,
       projectPath,
+      sourceFiles: sourceContext.sourceFiles,
+      sourceFileCount: sourceContext.sourceFileCount,
+      sourcePreview: sourceContext.sourcePreview,
       hasIndexCss: typeof input.indexCss === 'string',
       ...(deps.length > 0 ? { deps } : {}),
       extraFileCount: Object.keys(input.files ?? {}).length,
-      outputPreview: readFileSync(outputPath, 'utf-8').slice(0, 200),
     },
     logs: {
       ...(summarizeArtifactLog(stdout) ? { stdout: summarizeArtifactLog(stdout) } : {}),
@@ -484,6 +566,13 @@ export async function executeWebArtifactBuild(
 export function openWebArtifactInCanvas(input: {
   title: string;
   filePath: string;
+  fileSize?: number;
+  projectPath?: string;
+  content?: string;
+  sourceFiles?: string[];
+  sourceFileCount?: number;
+  sourcePreview?: string;
+  deps?: string[];
 }): WebArtifactCanvasOpenResult {
   const width = DEFAULT_WEB_ARTIFACT_NODE_SIZE.width;
   const height = DEFAULT_WEB_ARTIFACT_NODE_SIZE.height;
@@ -501,8 +590,15 @@ export function openWebArtifactInCanvas(input: {
     dockPosition: null,
     data: {
       title: input.title,
+      ...(typeof input.content === 'string' ? { content: input.content } : {}),
       url,
       path: input.filePath,
+      ...(typeof input.fileSize === 'number' ? { artifactBytes: input.fileSize } : {}),
+      ...(typeof input.projectPath === 'string' ? { projectPath: input.projectPath } : {}),
+      ...(Array.isArray(input.sourceFiles) ? { sourceFiles: input.sourceFiles } : {}),
+      ...(typeof input.sourceFileCount === 'number' ? { sourceFileCount: input.sourceFileCount } : {}),
+      ...(typeof input.sourcePreview === 'string' ? { sourcePreview: input.sourcePreview } : {}),
+      ...(Array.isArray(input.deps) && input.deps.length > 0 ? { deps: input.deps } : {}),
       trustedDomain: true,
       sourceServer: 'pmx-canvas',
       hostMode: 'hosted',
@@ -518,19 +614,36 @@ export function openWebArtifactInCanvas(input: {
 export async function buildWebArtifactOnCanvas(input: WebArtifactBuildInput & {
   openInCanvas?: boolean;
 }): Promise<WebArtifactCanvasBuildResult> {
+  const startedMs = Date.now();
+  const startedAt = new Date(startedMs).toISOString();
+  const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const build = await executeWebArtifactBuild(input);
+  const completedMs = Date.now();
+  const timing = {
+    startedAt,
+    completedAt: new Date(completedMs).toISOString(),
+    durationMs: completedMs - startedMs,
+    timeoutMs,
+  };
   if (input.openInCanvas === false) {
-    return { ...build, openedInCanvas: false, completedAt: new Date().toISOString() };
+    return { ...build, openedInCanvas: false, ...timing };
   }
   const opened = openWebArtifactInCanvas({
     title: input.title,
     filePath: build.filePath,
+    fileSize: build.fileSize,
+    projectPath: build.projectPath,
+    content: build.sourceContext.content,
+    sourceFiles: build.sourceContext.sourceFiles,
+    sourceFileCount: build.sourceContext.sourceFileCount,
+    sourcePreview: build.sourceContext.sourcePreview,
+    ...(Array.isArray(build.sourceContext.deps) ? { deps: build.sourceContext.deps } : {}),
   });
   return {
     ...build,
     openedInCanvas: true,
     nodeId: opened.nodeId,
     url: opened.url,
-    completedAt: new Date().toISOString(),
+    ...timing,
   };
 }

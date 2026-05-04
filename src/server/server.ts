@@ -65,7 +65,13 @@ import {
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import { diffLayouts, formatDiff, mutationHistory } from './mutation-history.js';
-import { buildCanvasSummary, serializeCanvasLayout, serializeCanvasNode } from './canvas-serialization.js';
+import {
+  buildCanvasSummary,
+  serializeCanvasLayout,
+  serializeCanvasLayoutWithBlobSummaries,
+  serializeCanvasNode,
+  serializeCanvasNodeWithBlobSummaries,
+} from './canvas-serialization.js';
 import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent-context.js';
 import { validateLocalImageFile } from './image-source.js';
@@ -82,6 +88,7 @@ import {
   deleteCanvasSnapshot,
   executeCanvasBatch,
   fitCanvasView,
+  gcCanvasSnapshots,
   groupCanvasNodes,
   listCanvasSnapshots,
   refreshCanvasWebpageNode,
@@ -91,6 +98,7 @@ import {
   saveCanvasSnapshot,
   scheduleCodeGraphRecompute,
   primeCanvasRuntimeBackends,
+  setCanvasLayoutUpdateEmitter,
   syncCanvasRuntimeBackends,
   setCanvasContextPins,
   ungroupCanvasNodes,
@@ -1186,7 +1194,15 @@ function serveCanvasFavicon(): Response {
 async function handleCanvasUpdate(req: Request): Promise<Response> {
   const body = await readJson(req);
   const updates = Array.isArray(body.updates) ? body.updates : [];
-  const result = applyCanvasNodeUpdates(updates);
+  const result = body.recordHistory === false
+    ? (() => {
+        let suppressedResult: ReturnType<typeof applyCanvasNodeUpdates> = { applied: 0, skipped: updates.length };
+        canvasState.withSuppressedRecording(() => {
+          suppressedResult = applyCanvasNodeUpdates(updates);
+        });
+        return suppressedResult;
+      })()
+    : applyCanvasNodeUpdates(updates);
   if (result.applied > 0) {
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   }
@@ -1236,7 +1252,7 @@ async function handleCanvasImage(pathname: string): Promise<Response> {
 }
 
 // ── Add node from client ─────────────────────────────────────
-const VALID_NODE_TYPES = new Set(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'mcp-app', 'webpage', 'group']);
+const VALID_NODE_TYPES = new Set(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'mcp-app', 'webpage', 'html', 'group']);
 
 function buildNodeResponse(node: CanvasNodeState): Record<string, unknown> {
   const serialized = serializeCanvasNode(node);
@@ -1325,6 +1341,11 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
   const content = type === 'image' && typeof body.path === 'string' && typeof body.content !== 'string'
     ? body.path
     : body.content;
+  // For html nodes, accept top-level `html` field and merge into data so callers
+  // can POST { type: 'html', title, html } without nesting under `data`.
+  const htmlMergedData = type === 'html' && typeof body.html === 'string'
+    ? { ...(extraData ?? {}), html: body.html }
+    : extraData;
   let added: ReturnType<typeof addCanvasNode>;
   const geometry = resolveCreateGeometry(body);
   try {
@@ -1332,7 +1353,7 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
       type: type as CanvasNodeState['type'],
       ...(typeof body.title === 'string' ? { title: body.title } : {}),
       ...(typeof content === 'string' ? { content } : {}),
-      ...(extraData ? { data: extraData } : {}),
+      ...(htmlMergedData ? { data: htmlMergedData } : {}),
       ...(type === 'trace' && typeof body.toolName === 'string' ? { toolName: body.toolName } : {}),
       ...(type === 'trace' && typeof body.category === 'string' ? { category: body.category } : {}),
       ...(type === 'trace' && typeof body.status === 'string' ? { status: body.status } : {}),
@@ -1341,8 +1362,8 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
       ...(type === 'trace' && typeof body.error === 'string' ? { error: body.error } : {}),
       ...(body.strictSize === true ? { strictSize: true } : {}),
       ...geometry,
-      defaultWidth: 360,
-      defaultHeight: 200,
+      defaultWidth: type === 'html' ? 720 : 360,
+      defaultHeight: type === 'html' ? 640 : 200,
       fileMode: 'auto',
     });
   } catch (error) {
@@ -1656,7 +1677,10 @@ async function handleCanvasBuildWebArtifact(req: Request): Promise<Response> {
       bytes: result.fileSize,
       projectPath: result.projectPath,
       openedInCanvas: result.openedInCanvas,
+      startedAt: result.startedAt,
       completedAt: result.completedAt,
+      durationMs: result.durationMs,
+      timeoutMs: result.timeoutMs,
       // `id` is the canvas node id alias used by every other add-style
       // response. It is only present when a canvas node was actually
       // created (i.e. openInCanvas was not explicitly disabled). When
@@ -1903,6 +1927,13 @@ function responseText(text: string, status = 400): Response {
       'Cache-Control': 'no-store',
     },
   });
+}
+
+function parsePositiveIntegerParam(value: string | null): number | undefined {
+  if (!value) return undefined;
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
+  return Math.floor(parsed);
 }
 
 function handleArtifactView(url: URL): Response {
@@ -3085,6 +3116,18 @@ async function handleSnapshotSave(req: Request): Promise<Response> {
   return responseJson({ ok: true, id: snapshot.id, snapshot });
 }
 
+async function handleSnapshotGc(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const keepValue = body.keep;
+  const keep = typeof keepValue === 'number'
+    ? keepValue
+    : typeof keepValue === 'string'
+      ? Number(keepValue)
+      : undefined;
+  const dryRun = body.dryRun === true || body['dry-run'] === true;
+  return responseJson(gcCanvasSnapshots({ keep, dryRun }));
+}
+
 async function handleContextPinsUpdate(req: Request): Promise<Response> {
   const body = await readJson(req);
   const MAX_PINS = 20;
@@ -3325,9 +3368,9 @@ function syncContextNodeToCanvasState(
       position: { x: 1130, y: 80 },
       size: { width: 320, height: 400 },
       zIndex: 1,
-      collapsed: false,
+      collapsed: true,
       pinned: false,
-      dockPosition: null,
+      dockPosition: 'right',
       data: mergedData,
     });
     return;
@@ -3800,6 +3843,9 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
   // ── Canvas persistence: set workspace root and load saved state ──
   canvasState.setWorkspaceRoot(activeWorkspaceRoot);
   const loaded = canvasState.loadFromDisk({ clearExisting: true });
+  setCanvasLayoutUpdateEmitter(() => {
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  });
   if (loaded) {
     console.log('  Canvas state restored from .pmx-canvas/state.json');
     primeCanvasRuntimeBackends({ forceRehydrateExtApps: true });
@@ -3903,7 +3949,10 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           // Canvas state API
           if (url.pathname === '/api/canvas/state' && req.method === 'GET') {
-            return responseJson(serializeCanvasLayout(canvasState.getLayout()));
+            const includeBlobs = url.searchParams.get('includeBlobs') === 'true';
+            return responseJson(includeBlobs
+              ? serializeCanvasLayout(canvasState.getLayout())
+              : serializeCanvasLayoutWithBlobSummaries(canvasState.getLayoutForPersistence()));
           }
 
           if (url.pathname === '/api/canvas/summary' && req.method === 'GET') {
@@ -3953,10 +4002,13 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           }
 
           if (url.pathname.startsWith('/api/canvas/node/') && req.method === 'GET') {
-            const nodeId = url.pathname.slice('/api/canvas/node/'.length);
-            const node = canvasState.getNode(nodeId);
+            const nodeId = decodeURIComponent(url.pathname.slice('/api/canvas/node/'.length));
+            const includeBlobs = url.searchParams.get('includeBlobs') === 'true';
+            const node = includeBlobs ? canvasState.getNode(nodeId) : canvasState.getNodeForPersistence(nodeId);
             if (!node) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
-            return responseJson(serializeCanvasNode(node));
+            return responseJson(includeBlobs
+              ? serializeCanvasNode(node)
+              : serializeCanvasNodeWithBlobSummaries(node));
           }
 
           if (url.pathname.startsWith('/api/canvas/node/') && req.method === 'PATCH') {
@@ -3992,11 +4044,19 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           // Snapshot API
           if (url.pathname === '/api/canvas/snapshots' && req.method === 'GET') {
-            return responseJson(listCanvasSnapshots());
+            return responseJson(listCanvasSnapshots({
+              limit: parsePositiveIntegerParam(url.searchParams.get('limit')),
+              query: url.searchParams.get('q') ?? url.searchParams.get('query') ?? undefined,
+              all: url.searchParams.get('all') === 'true',
+            }));
           }
 
           if (url.pathname === '/api/canvas/snapshots' && req.method === 'POST') {
             return handleSnapshotSave(req);
+          }
+
+          if (url.pathname === '/api/canvas/snapshots/gc' && req.method === 'POST') {
+            return handleSnapshotGc(req);
           }
 
           if (url.pathname.startsWith('/api/canvas/snapshots/') && url.pathname.endsWith('/diff') && req.method === 'GET') {
@@ -4182,6 +4242,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 export function stopCanvasServer(): void {
   canvasState.flushToDisk();
   closeAllMcpAppSessions();
+  setCanvasLayoutUpdateEmitter(null);
   void closeCanvasAutomationWebViewInternal().catch((error) => {
     logWorkbenchWarning('stopCanvasServer closeCanvasAutomationWebViewInternal', error);
   });

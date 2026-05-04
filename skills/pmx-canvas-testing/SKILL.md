@@ -72,6 +72,23 @@ Prefer extending the existing suites before inventing a one-off script.
 - If a change spans server and client, add at least one server-side assertion and one browser or
   API-level proof
 
+## Layout And Embedded Content Checks
+
+- For seeded or generated boards, add API-level geometry assertions: expected node/edge counts,
+  group counts, valid edge endpoints, no visible node overlaps, and group children contained with
+  header/padding space.
+- For grouped layouts, test non-group node overlap separately from group containment. Group frames
+  are allowed to contain children; children should not overlap each other or collide with headers.
+- For edge-heavy layouts, assert endpoints exist and long cross-board edges are intentional. If a
+  user says an edge “comes from nowhere,” add a regression check for missing endpoints or excessive
+  edge distance in that board.
+- For `graph`, `json-render`, `mcp-app`, webpage, and image nodes, API geometry is not enough.
+  Verify the rendered browser frame when changing sizing: iframe/body `scrollHeight` and
+  `scrollWidth` should fit the available frame unless scrolling is the intended behavior.
+- When checking embedded frame fit manually, start from a clean seeded state, rebuild stale bundles,
+  and inspect the actual iframe document in a browser. Server dimensions can look correct while the
+  embedded content is still clipped.
+
 ## Failure Handling
 
 - Never wave away a failure without checking whether your change caused it

@@ -88,6 +88,15 @@ describe('web artifact builders', () => {
       ).toContain('Card');
       expect(readFileSync(result.filePath, 'utf-8')).toContain('Opportunity Tree');
       expect(result.fileSize).toBeGreaterThan(0);
+      expect(result.sourceContext.content).toContain('Web artifact: Opportunity Tree');
+      expect(result.sourceContext.content).toContain('Source files: src/App.tsx, src/index.css, src/components/Card.tsx');
+      expect(result.sourceContext.content).toContain('App source preview:');
+      expect(result.sourceContext.content).toContain('Opportunity Tree');
+      expect(result.sourceContext.content).not.toContain('<!DOCTYPE html>');
+      expect(result.metadata.sourceFiles).toEqual(['src/App.tsx', 'src/index.css', 'src/components/Card.tsx']);
+      expect(result.metadata.sourceFileCount).toBe(3);
+      expect(result.metadata.sourcePreview).toContain('Opportunity Tree');
+      expect(result.metadata).not.toHaveProperty('outputPreview');
     } finally {
       process.chdir(originalCwd);
     }
@@ -244,9 +253,50 @@ set -e
       expect(node?.type).toBe('mcp-app');
       expect(node?.data.viewerType).toBe('web-artifact');
       expect(node?.data.title).toBe('Skill Demo');
+      expect(node?.data.content).toContain('Web artifact: Skill Demo');
+      expect(node?.data.content).toContain('App source preview:');
+      expect(node?.data.content).not.toContain('<!DOCTYPE html>');
+      expect(node?.data.sourceFiles).toEqual(['src/App.tsx']);
+      expect(node?.data.sourceFileCount).toBe(1);
+      expect(node?.data.sourcePreview).toContain('Skill Demo');
+      expect(node?.data.artifactBytes).toBeGreaterThan(0);
+      expect(node?.data.projectPath).toBe(result.projectPath);
       expect(String(node?.data.url ?? '')).toContain('/artifact?path=');
       expect(readFileSync(result.filePath, 'utf-8')).toContain('Skill Demo');
       expect(result.completedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
+
+  test('caps stored source file metadata while keeping total count in context', async () => {
+    const { initScriptPath, bundleScriptPath } = createFakeWebArtifactScripts(workspaceRoot);
+    const files = Object.fromEntries(
+      Array.from({ length: 50 }, (_, index) => [
+        `src/components/Generated${index}.tsx`,
+        `export function Generated${index}() { return <span>${index}</span>; }`,
+      ]),
+    );
+
+    const originalCwd = process.cwd();
+    process.chdir(workspaceRoot);
+    try {
+      const result = await buildWebArtifactOnCanvas({
+        title: 'Large Source Map',
+        appTsx: 'export default function App() { return <main>Large Source Map</main>; }',
+        files,
+        projectPath: join(workspaceRoot, 'artifacts', '.web-artifacts', 'large-source-map'),
+        outputPath: join(workspaceRoot, 'artifacts', 'large-source-map.html'),
+        initScriptPath,
+        bundleScriptPath,
+      });
+
+      expect(result.sourceContext.sourceFiles).toHaveLength(32);
+      expect(result.sourceContext.sourceFileCount).toBe(51);
+      expect(result.sourceContext.content).toContain('+43 more');
+      const node = result.nodeId ? canvasState.getNode(result.nodeId) : undefined;
+      expect(node?.data.sourceFiles).toHaveLength(32);
+      expect(node?.data.sourceFileCount).toBe(51);
     } finally {
       process.chdir(originalCwd);
     }

@@ -87,7 +87,7 @@ The canvas is the agent's extended working memory: humans pin nodes to curate co
 bun install                    # Install dependencies
 bun run build                  # Build client SPA → dist/canvas/
 bun run dev                    # Start server + open browser
-bun run dev:demo               # Start with sample nodes
+bun run dev:demo               # Start with the project-tour demo board
 bun run start                  # Start headless (no browser)
 pmx-canvas serve --daemon      # Start daemonized server with pid/log tracking
 pmx-canvas serve status        # Check daemon health + pid state
@@ -158,7 +158,7 @@ package in a clean temp consumer instead of the repo dev path.
 
 ## MCP Server
 
-38 tools: `canvas_add_node`, `canvas_add_diagram`, `canvas_open_mcp_app`, `canvas_describe_schema`, `canvas_validate_spec`, `canvas_refresh_webpage_node`, `canvas_add_json_render_node`, `canvas_add_graph_node`, `canvas_build_web_artifact`, `canvas_update_node`, `canvas_remove_node`, `canvas_get_layout`, `canvas_get_node`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_pin_nodes`, `canvas_clear`, `canvas_snapshot`, `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_search`, `canvas_undo`, `canvas_redo`, `canvas_diff`, `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup`, `canvas_batch`, `canvas_validate`, `canvas_webview_status`, `canvas_webview_start`, `canvas_webview_stop`, `canvas_evaluate`, `canvas_resize`, `canvas_screenshot`
+39 tools: `canvas_add_node`, `canvas_add_diagram`, `canvas_open_mcp_app`, `canvas_describe_schema`, `canvas_validate_spec`, `canvas_refresh_webpage_node`, `canvas_add_json_render_node`, `canvas_add_graph_node`, `canvas_build_web_artifact`, `canvas_update_node`, `canvas_remove_node`, `canvas_get_layout`, `canvas_get_node`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_pin_nodes`, `canvas_clear`, `canvas_snapshot`, `canvas_list_snapshots`, `canvas_gc_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_search`, `canvas_undo`, `canvas_redo`, `canvas_diff`, `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup`, `canvas_batch`, `canvas_validate`, `canvas_webview_status`, `canvas_webview_start`, `canvas_webview_stop`, `canvas_evaluate`, `canvas_resize`, `canvas_screenshot`
 
 `canvas_add_diagram` is a thin preset in `src/server/diagram-presets.ts` that proxies to the hosted [Excalidraw MCP app](https://github.com/excalidraw/excalidraw-mcp) (`https://mcp.excalidraw.com/mcp`). For any other MCP Apps server, use `canvas_open_mcp_app` directly.
 

@@ -5,7 +5,7 @@ export interface ViewportState {
 }
 export interface CanvasNodeState {
     id: string;
-    type: 'markdown' | 'mcp-app' | 'webpage' | 'json-render' | 'graph' | 'prompt' | 'response' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'image' | 'group';
+    type: 'markdown' | 'mcp-app' | 'webpage' | 'json-render' | 'graph' | 'prompt' | 'response' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'image' | 'html' | 'group';
     position: {
         x: number;
         y: number;
@@ -32,7 +32,7 @@ export interface CanvasEdge {
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 export declare const TYPE_LABELS: Record<CanvasNodeState['type'], string>;
 /** Node types that support the full-viewport expand/focus overlay. */
-export declare const EXPANDABLE_TYPES: Set<"markdown" | "mcp-app" | "webpage" | "json-render" | "graph" | "prompt" | "response" | "status" | "context" | "ledger" | "trace" | "file" | "image" | "group">;
+export declare const EXPANDABLE_TYPES: Set<"markdown" | "mcp-app" | "webpage" | "json-render" | "graph" | "prompt" | "response" | "status" | "context" | "ledger" | "trace" | "file" | "image" | "html" | "group">;
 export declare const EXCALIDRAW_SERVER_NAME = "Excalidraw";
 export declare const EXCALIDRAW_CREATE_VIEW_TOOL = "create_view";
 export declare function isExcalidrawNode(node: CanvasNodeState): boolean;

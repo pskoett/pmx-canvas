@@ -11,7 +11,7 @@ async function tooltipOpacity(button: Locator): Promise<number> {
 }
 
 async function clearSnapshots(request: { get: Function; delete: Function }): Promise<void> {
-  const response = await request.get('/api/canvas/snapshots');
+  const response = await request.get('/api/canvas/snapshots?all=true');
   const snapshots = await response.json() as Array<{ id: string }>;
   for (const snapshot of snapshots) {
     await request.delete(`/api/canvas/snapshots/${snapshot.id}`);
@@ -247,7 +247,7 @@ test('dragging a grouped child ignores its own parent frame as a snap target', a
     const state = await currentCanvasState(request);
     const nextChild = state.nodes.find((node) => node.id === child.id);
     return nextChild?.position.x;
-  }).toBe(320);
+  }).toBe(284);
 });
 
 test('keeps the browser, pinned context, and agent-driven canvas mutations in sync', async ({ page, request }) => {

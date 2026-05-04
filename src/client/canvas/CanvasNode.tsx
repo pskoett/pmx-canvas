@@ -164,7 +164,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
           window.clearTimeout(autoFitPersistTimer.current);
         }
         autoFitPersistTimer.current = window.setTimeout(() => {
-          persistLayout();
+          persistLayout({ recordHistory: false });
           autoFitPersistTimer.current = null;
         }, 0);
       }

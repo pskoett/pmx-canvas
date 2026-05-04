@@ -9,8 +9,10 @@
  * workspace root on every mutation (debounced). Auto-loads on `loadFromDisk()`.
  */
 
+import { createHash } from 'node:crypto';
 import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, renameSync, unlinkSync } from 'node:fs';
-import { join, dirname } from 'node:path';
+import { isAbsolute, join, dirname, relative } from 'node:path';
+import { gzipSync, gunzipSync } from 'node:zlib';
 import { normalizeCanvasNodeData } from './canvas-provenance.js';
 import {
   type CanvasPlacementRect,
@@ -25,12 +27,37 @@ function logCanvasStateWarning(action: string, error: unknown, details?: Record<
   console.warn(`[canvas-state] ${action}`, { error, ...(details ?? {}) });
 }
 
+function normalizePositiveInteger(value: number | undefined): number | undefined {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined;
+  return Math.floor(value);
+}
+
 export const PMX_CANVAS_DIR = '.pmx-canvas';
 const STATE_FILENAME = 'state.json';
 const SNAPSHOTS_SUBDIR = 'snapshots';
+const BLOBS_SUBDIR = 'blobs';
 const LEGACY_STATE_FILENAME = '.pmx-canvas.json';
 const LEGACY_SNAPSHOTS_DIR = '.pmx-canvas-snapshots';
 const SAVE_DEBOUNCE_MS = 500;
+const BLOB_JSON_THRESHOLD_BYTES = Number(process.env.PMX_CANVAS_BLOB_THRESHOLD_BYTES ?? '2048');
+const BLOB_DATA_FIELDS = new Set([
+  'html',
+  'toolInput',
+  'toolResult',
+  'toolDefinition',
+  'resourceMeta',
+  'appModelContext',
+  'appCheckpoint',
+]);
+
+export interface PersistedBlobRef {
+  __pmxCanvasBlob: 'v1';
+  path: string;
+  sha256: string;
+  encoding: 'json+gzip';
+  bytes: number;
+  jsonBytes: number;
+}
 
 interface PersistedCanvasState {
   version: number;
@@ -58,6 +85,24 @@ export interface CanvasSnapshot {
   edgeCount: number;
 }
 
+export interface CanvasSnapshotListOptions {
+  limit?: number;
+  query?: string;
+  all?: boolean;
+}
+
+export interface CanvasSnapshotGcOptions {
+  keep?: number;
+  dryRun?: boolean;
+}
+
+export interface CanvasSnapshotGcResult {
+  ok: boolean;
+  kept: number;
+  deleted: CanvasSnapshot[];
+  dryRun: boolean;
+}
+
 export interface CanvasNodeState {
   id: string;
   type:
@@ -74,6 +119,7 @@ export interface CanvasNodeState {
     | 'trace'
     | 'file'
     | 'image'
+    | 'html'
     | 'group';
   position: { x: number; y: number };
   size: { width: number; height: number };
@@ -152,6 +198,20 @@ function formatBatchUpdateDescription(updates: CanvasNodeUpdate[]): string {
   return parts.length > 0 ? `${prefix} (${parts.join(', ')})` : prefix;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+function isPersistedBlobRef(value: unknown): value is PersistedBlobRef {
+  return isRecord(value) &&
+    value.__pmxCanvasBlob === 'v1' &&
+    typeof value.path === 'string' &&
+    typeof value.sha256 === 'string' &&
+    value.encoding === 'json+gzip' &&
+    typeof value.bytes === 'number' &&
+    typeof value.jsonBytes === 'number';
+}
+
 class CanvasStateManager {
   private nodes = new Map<string, CanvasNodeState>();
   private edges = new Map<string, CanvasEdge>();
@@ -179,7 +239,7 @@ class CanvasStateManager {
 
   // ── Mutation recorder (for undo/redo history) ─────────────
   private _mutationRecorder: ((info: MutationRecordInfo) => void) | null = null;
-  private _suppressRecording = false;
+  private _suppressRecordingDepth = 0;
 
   /** Register a mutation recorder. Used by mutation-history to capture undo/redo closures. */
   onMutation(cb: (info: MutationRecordInfo) => void): void {
@@ -188,8 +248,8 @@ class CanvasStateManager {
 
   /** Run a function with mutation recording suppressed (for undo/redo replay and computed edges). */
   withSuppressedRecording(fn: () => void): void {
-    this._suppressRecording = true;
-    try { fn(); } finally { this._suppressRecording = false; }
+    this._suppressRecordingDepth++;
+    try { fn(); } finally { this._suppressRecordingDepth--; }
   }
 
   /** Create a closure that runs with recording suppressed. */
@@ -198,7 +258,7 @@ class CanvasStateManager {
   }
 
   private recordMutation(info: MutationRecordInfo): void {
-    if (this._suppressRecording || !this._mutationRecorder) return;
+    if (this._suppressRecordingDepth > 0 || !this._mutationRecorder) return;
     try {
       this._mutationRecorder(info);
     } catch (error) {
@@ -258,10 +318,18 @@ class CanvasStateManager {
   }
 
   private normalizeNode(node: CanvasNodeState): CanvasNodeState {
-    return {
+    const normalized: CanvasNodeState = {
       ...node,
       data: normalizeCanvasNodeData(node.type, node.data),
     };
+    // Context nodes are always docked to the right side as a pill/panel widget
+    // (see DockedNode.tsx). They start collapsed so the user sees the slim
+    // pill first; expanding reveals the full context overview panel.
+    if (normalized.type === 'context' && normalized.dockPosition !== 'right') {
+      normalized.dockPosition = 'right';
+      normalized.collapsed = true;
+    }
+    return normalized;
   }
 
   private reflowAllGroups(): void {
@@ -285,12 +353,13 @@ class CanvasStateManager {
     }
   }
 
-  private translateGroupChildren(groupId: string, deltaX: number, deltaY: number): void {
+  private translateGroupChildren(groupId: string, deltaX: number, deltaY: number, skipIds: ReadonlySet<string> = new Set()): void {
     if (deltaX === 0 && deltaY === 0) return;
     const snapshot = this.getGroupSnapshot(groupId);
     if (!snapshot) return;
 
     for (const child of snapshot.children) {
+      if (skipIds.has(child.id)) continue;
       this.nodes.set(child.id, {
         ...child,
         position: {
@@ -390,6 +459,116 @@ class CanvasStateManager {
     this._stateFilePath = override || join(workspaceRoot, PMX_CANVAS_DIR, STATE_FILENAME);
   }
 
+  private get blobsDir(): string | null {
+    if (!this._workspaceRoot) return null;
+    return join(this._workspaceRoot, PMX_CANVAS_DIR, BLOBS_SUBDIR);
+  }
+
+  private relativeBlobPath(filePath: string): string {
+    const base = join(this._workspaceRoot, PMX_CANVAS_DIR);
+    const rel = relative(base, filePath);
+    return rel || filePath;
+  }
+
+  private resolveBlobPath(ref: PersistedBlobRef): string | null {
+    if (isAbsolute(ref.path)) return null;
+    const base = join(this._workspaceRoot, PMX_CANVAS_DIR);
+    const resolved = join(base, ref.path);
+    const rel = relative(base, resolved);
+    if (rel === '' || rel.startsWith('..') || rel === '..' || isAbsolute(rel)) return null;
+    return resolved;
+  }
+
+  private writeBlobValue(value: unknown): PersistedBlobRef | null {
+    const dir = this.blobsDir;
+    if (!dir) return null;
+    const json = JSON.stringify(value);
+    if (typeof json !== 'string') return null;
+    const jsonBytes = Buffer.byteLength(json);
+    if (jsonBytes < BLOB_JSON_THRESHOLD_BYTES) return null;
+    const sha256 = createHash('sha256').update(json).digest('hex');
+    const prefix = sha256.slice(0, 2);
+    const filePath = join(dir, prefix, `${sha256}.json.gz`);
+    try {
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      if (!existsSync(dirname(filePath))) mkdirSync(dirname(filePath), { recursive: true });
+      const compressed = gzipSync(json);
+      if (!existsSync(filePath)) writeFileSync(filePath, compressed);
+      return {
+        __pmxCanvasBlob: 'v1',
+        path: this.relativeBlobPath(filePath),
+        sha256,
+        encoding: 'json+gzip',
+        bytes: compressed.byteLength,
+        jsonBytes,
+      };
+    } catch (error) {
+      logCanvasStateWarning('write blob failed', error, { filePath });
+      return null;
+    }
+  }
+
+  private readBlobValue(ref: PersistedBlobRef): unknown {
+    const filePath = this.resolveBlobPath(ref);
+    if (!filePath) return ref;
+    try {
+      const compressed = readFileSync(filePath);
+      const json = gunzipSync(compressed).toString('utf-8');
+      const sha256 = createHash('sha256').update(json).digest('hex');
+      if (sha256 !== ref.sha256) {
+        logCanvasStateWarning('blob checksum mismatch', 'checksum mismatch', { filePath });
+        return ref;
+      }
+      return JSON.parse(json) as unknown;
+    } catch (error) {
+      logCanvasStateWarning('read blob failed', error, { filePath });
+      return ref;
+    }
+  }
+
+  private externalizeNodeDataBlobs(node: CanvasNodeState): CanvasNodeState {
+    if (node.type !== 'mcp-app') return node;
+    let changed = false;
+    const data = { ...node.data };
+    for (const [key, value] of Object.entries(data)) {
+      if (!BLOB_DATA_FIELDS.has(key) || isPersistedBlobRef(value)) continue;
+      const ref = this.writeBlobValue(value);
+      if (!ref) continue;
+      data[key] = ref;
+      changed = true;
+    }
+    return changed ? { ...node, data } : node;
+  }
+
+  private resolveNodeDataBlobs(node: CanvasNodeState): CanvasNodeState {
+    if (node.type !== 'mcp-app') return node;
+    let changed = false;
+    const data = { ...node.data };
+    for (const [key, value] of Object.entries(data)) {
+      if (!BLOB_DATA_FIELDS.has(key) || !isPersistedBlobRef(value)) continue;
+      data[key] = this.readBlobValue(value);
+      changed = true;
+    }
+    return changed ? { ...node, data } : node;
+  }
+
+  isBlobReference(value: unknown): value is PersistedBlobRef {
+    return isPersistedBlobRef(value);
+  }
+
+  resolveBlobReference(value: unknown): unknown {
+    return isPersistedBlobRef(value) ? this.readBlobValue(value) : value;
+  }
+
+  private externalizePersistedStateBlobs<T extends PersistedCanvasState>(state: T): T {
+    return {
+      ...state,
+      nodes: Array.isArray(state.nodes)
+        ? state.nodes.map((node) => this.externalizeNodeDataBlobs(node))
+        : [],
+    };
+  }
+
   /**
    * One-time migration: rename files from the pre-consolidation layout
    * (`.pmx-canvas.json` + `.pmx-canvas-snapshots/`) into `.pmx-canvas/`.
@@ -479,13 +658,13 @@ class CanvasStateManager {
       const dir = dirname(this._stateFilePath);
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
-      const payload: PersistedCanvasState = {
+      const payload = this.externalizePersistedStateBlobs({
         version: 1,
         viewport: this._viewport,
         nodes: Array.from(this.nodes.values()),
         edges: Array.from(this.edges.values()),
         contextPins: Array.from(this._contextPinnedNodeIds),
-      };
+      });
       writeFileSync(this._stateFilePath, JSON.stringify(payload, null, 2), 'utf-8');
     } catch (error) {
       logCanvasStateWarning('save state to disk failed', error, {
@@ -552,15 +731,16 @@ class CanvasStateManager {
     }
 
     try {
-      const matches: Array<{ snapshot: CanvasSnapshot; state: PersistedCanvasState }> = [];
+      const matches: Array<{ snapshot: CanvasSnapshot; path: string }> = [];
       const files = readdirSync(dir).filter((f) => f.endsWith('.json'));
       for (const file of files) {
         try {
-          const raw = readFileSync(join(dir, file), 'utf-8');
+          const snapshotPath = join(dir, file);
+          const raw = readFileSync(snapshotPath, 'utf-8');
           const parsed = JSON.parse(raw) as PersistedCanvasState & { snapshot?: CanvasSnapshot };
           if (!parsed.snapshot) continue;
           if (parsed.snapshot.name === idOrName || parsed.snapshot.id === idOrName) {
-            matches.push({ snapshot: parsed.snapshot, state: parsed });
+            matches.push({ snapshot: parsed.snapshot, path: snapshotPath });
           }
         } catch (error) {
           logCanvasStateWarning('skip unreadable snapshot while searching by name', error, {
@@ -570,11 +750,29 @@ class CanvasStateManager {
         }
       }
       matches.sort((a, b) => b.snapshot.createdAt.localeCompare(a.snapshot.createdAt));
-      return matches[0] ?? null;
+      const match = matches[0];
+      if (!match) return null;
+      try {
+        const raw = readFileSync(match.path, 'utf-8');
+        const parsed = JSON.parse(raw) as PersistedCanvasState & { snapshot?: CanvasSnapshot };
+        if (parsed.snapshot) return { snapshot: parsed.snapshot, state: parsed };
+      } catch (error) {
+        logCanvasStateWarning('read matched snapshot by name failed', error, { idOrName, path: match.path });
+      }
+      return null;
     } catch (error) {
       logCanvasStateWarning('search snapshots by name failed', error, { idOrName, dir });
       return null;
     }
+  }
+
+  getSnapshotDataForPersistence(idOrName: string): { snapshot: CanvasSnapshot; state: PersistedCanvasState } | null {
+    const resolved = this.readResolvedSnapshot(idOrName);
+    if (!resolved) return null;
+    return {
+      snapshot: resolved.snapshot,
+      state: structuredClone(resolved.state),
+    };
   }
 
   /** Save current canvas state as a named snapshot. */
@@ -594,14 +792,14 @@ class CanvasStateManager {
     try {
       if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
-      const payload: PersistedCanvasState & { snapshot: CanvasSnapshot } = {
+      const payload = this.externalizePersistedStateBlobs({
         version: 1,
         snapshot,
         viewport: this._viewport,
         nodes: Array.from(this.nodes.values()),
         edges: Array.from(this.edges.values()),
         contextPins: Array.from(this._contextPinnedNodeIds),
-      };
+      });
       writeFileSync(join(dir, `${id}.json`), JSON.stringify(payload, null, 2), 'utf-8');
       return snapshot;
     } catch (error) {
@@ -610,8 +808,8 @@ class CanvasStateManager {
     }
   }
 
-  /** List all saved snapshots. */
-  listSnapshots(): CanvasSnapshot[] {
+  /** List saved snapshots, newest first. */
+  listSnapshots(options: CanvasSnapshotListOptions = {}): CanvasSnapshot[] {
     const dir = this.snapshotsDir;
     if (!dir || !existsSync(dir)) return [];
 
@@ -627,11 +825,39 @@ class CanvasStateManager {
           logCanvasStateWarning('skip corrupt snapshot file', error, { file });
         }
       }
-      return snapshots.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      const query = options.query?.trim().toLowerCase();
+      const filtered = query
+        ? snapshots.filter((snapshot) =>
+          snapshot.id.toLowerCase().includes(query) || snapshot.name.toLowerCase().includes(query),
+        )
+        : snapshots;
+      const sorted = filtered.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+      const limit = options.all ? undefined : (normalizePositiveInteger(options.limit) ?? 20);
+      return limit === undefined ? sorted : sorted.slice(0, limit);
     } catch (error) {
       logCanvasStateWarning('list snapshots failed', error, { dir });
       return [];
     }
+  }
+
+  gcSnapshots(options: CanvasSnapshotGcOptions = {}): CanvasSnapshotGcResult {
+    const keep = normalizePositiveInteger(options.keep) ?? 20;
+    const dryRun = options.dryRun ?? false;
+    const snapshots = this.listSnapshots({ all: true });
+    const deleted = snapshots.slice(keep);
+
+    if (!dryRun) {
+      for (const snapshot of deleted) {
+        this.deleteSnapshot(snapshot.id);
+      }
+    }
+
+    return {
+      ok: true,
+      kept: Math.min(keep, snapshots.length),
+      deleted,
+      dryRun,
+    };
   }
 
   /** Restore canvas state from a snapshot. */
@@ -639,13 +865,13 @@ class CanvasStateManager {
     const resolved = this.readResolvedSnapshot(idOrName);
     if (!resolved || resolved.state.version !== 1) return false;
 
-    const previousState: PersistedCanvasState = {
+    const previousState: PersistedCanvasState = this.externalizePersistedStateBlobs({
       version: 1,
       viewport: structuredClone(this._viewport),
       nodes: Array.from(this.nodes.values(), (node) => structuredClone(node)),
       edges: Array.from(this.edges.values(), (edge) => structuredClone(edge)),
       contextPins: Array.from(this._contextPinnedNodeIds),
-    };
+    });
     const nextState: PersistedCanvasState = {
       version: 1,
       viewport: structuredClone(resolved.state.viewport),
@@ -690,10 +916,16 @@ class CanvasStateManager {
   getSnapshotData(idOrName: string): { name: string; nodes: CanvasNodeState[]; edges: CanvasEdge[] } | null {
     const resolved = this.readResolvedSnapshot(idOrName);
     if (!resolved) return null;
+    const state = {
+      ...resolved.state,
+      nodes: Array.isArray(resolved.state.nodes)
+        ? resolved.state.nodes.map((node) => this.resolveNodeDataBlobs(node))
+        : [],
+    };
     return {
       name: resolved.snapshot.name,
-      nodes: Array.isArray(resolved.state.nodes) ? resolved.state.nodes.map((node) => structuredClone(node)) : [],
-      edges: Array.isArray(resolved.state.edges) ? resolved.state.edges.map((edge) => structuredClone(edge)) : [],
+      nodes: Array.isArray(state.nodes) ? state.nodes.map((node) => structuredClone(node)) : [],
+      edges: Array.isArray(state.edges) ? state.edges.map((edge) => structuredClone(edge)) : [],
     };
   }
 
@@ -821,7 +1053,12 @@ class CanvasStateManager {
 
   getNode(id: string): CanvasNodeState | undefined {
     const node = this.nodes.get(id);
-    return node ? structuredClone(node) : undefined;
+    return node ? structuredClone(this.resolveNodeDataBlobs(node)) : undefined;
+  }
+
+  getNodeForPersistence(id: string): CanvasNodeState | undefined {
+    const node = this.nodes.get(id);
+    return node ? structuredClone(this.externalizeNodeDataBlobs(node)) : undefined;
   }
 
   // ── Edge CRUD ──────────────────────────────────────────────
@@ -889,12 +1126,25 @@ class CanvasStateManager {
     };
   }
 
+  getLayoutForPersistence(): CanvasLayout {
+    return {
+      viewport: structuredClone(this._viewport),
+      nodes: Array.from(this.nodes.values(), (node) => structuredClone(this.externalizeNodeDataBlobs(node))),
+      edges: Array.from(this.edges.values(), (edge) => structuredClone(edge)),
+    };
+  }
+
   applyUpdates(updates: CanvasNodeUpdate[]): { applied: number; skipped: number } {
     let applied = 0;
     let skipped = 0;
     const touchedParentGroups = new Map<string, { compact: boolean }>();
     const oldSnapshots = new Map<string, CanvasNodeState>();
     const appliedUpdates: CanvasNodeUpdate[] = [];
+    const explicitPositionUpdateIds = new Set(
+      updates
+        .filter((update) => update.position !== undefined)
+        .map((update) => update.id),
+    );
 
     for (const update of updates) {
       const existing = this.nodes.get(update.id);
@@ -902,26 +1152,47 @@ class CanvasStateManager {
         skipped++;
         continue;
       }
+      const nextPatch: Partial<CanvasNodeState> = {};
+      if (
+        update.position &&
+        (update.position.x !== existing.position.x || update.position.y !== existing.position.y)
+      ) {
+        nextPatch.position = update.position;
+      }
+      if (
+        update.size &&
+        (update.size.width !== existing.size.width || update.size.height !== existing.size.height)
+      ) {
+        nextPatch.size = update.size;
+      }
+      if (update.collapsed !== undefined && update.collapsed !== existing.collapsed) {
+        nextPatch.collapsed = update.collapsed;
+      }
+      if (update.dockPosition !== undefined && update.dockPosition !== existing.dockPosition) {
+        nextPatch.dockPosition = update.dockPosition;
+      }
+      if (Object.keys(nextPatch).length === 0) {
+        skipped++;
+        continue;
+      }
       oldSnapshots.set(update.id, structuredClone(existing));
-      appliedUpdates.push(structuredClone(update));
-      if (existing.type === 'group' && update.position) {
+      appliedUpdates.push({ id: update.id, ...structuredClone(nextPatch) });
+      if (existing.type === 'group' && nextPatch.position) {
         this.translateGroupChildren(
           update.id,
-          update.position.x - existing.position.x,
-          update.position.y - existing.position.y,
+          nextPatch.position.x - existing.position.x,
+          nextPatch.position.y - existing.position.y,
+          explicitPositionUpdateIds,
         );
       }
-      this.nodes.set(update.id, {
+      this.nodes.set(update.id, this.normalizeNode({
         ...existing,
-        ...(update.position && { position: update.position }),
-        ...(update.size && { size: update.size }),
-        ...(update.collapsed !== undefined && { collapsed: update.collapsed }),
-        ...(update.dockPosition !== undefined && { dockPosition: update.dockPosition }),
-      });
+        ...nextPatch,
+      }));
       const parentGroupId = existing.data.parentGroup as string | undefined;
       if (parentGroupId) {
         const entry = touchedParentGroups.get(parentGroupId) ?? { compact: false };
-        entry.compact = entry.compact || update.size !== undefined;
+        entry.compact = entry.compact || nextPatch.size !== undefined;
         touchedParentGroups.set(parentGroupId, entry);
       }
       applied++;

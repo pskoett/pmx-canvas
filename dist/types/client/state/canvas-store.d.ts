@@ -47,6 +47,8 @@ export declare function resizeNode(id: string, size: {
 }): void;
 export declare function bringToFront(id: string): void;
 export declare function toggleCollapsed(id: string): void;
+export declare function collapseDockedContextNodes(): void;
+export declare const hasOpenDockedContextPanel: import("@preact/signals-core").ReadonlySignal<boolean>;
 export declare function dockNode(id: string, position: 'left' | 'right'): void;
 export declare function undockNode(id: string): void;
 export declare function setViewport(v: Partial<ViewportState>): void;
@@ -65,7 +67,9 @@ export declare function applyServerCanvasLayout(layout: Pick<CanvasLayout, 'node
 export declare function animateViewport(target: ViewportState, duration?: number): void;
 /** Cancel any in-flight viewport animation (e.g. when user starts dragging). */
 export declare function cancelViewportAnimation(): void;
-export declare function persistLayout(): void;
+export declare function persistLayout(options?: {
+    recordHistory?: boolean;
+}): void;
 export declare function restoreLayout(): Map<string, Partial<CanvasNodeState>> | null;
 export declare function fitAll(containerW: number, containerH: number): void;
 export declare function focusNode(id: string): void;

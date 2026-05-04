@@ -1,4 +1,5 @@
 import type { CanvasNodeState } from './canvas-state.js';
+import { getCanvasNodeKind } from '../shared/canvas-node-kind.js';
 
 const DEFAULT_CONTEXT_TEXT_LENGTH = 700;
 const DEFAULT_WEBPAGE_CONTEXT_TEXT_LENGTH = 1600;
@@ -6,6 +7,7 @@ const DEFAULT_WEBPAGE_CONTEXT_TEXT_LENGTH = 1600;
 export interface AgentContextNode {
   id: string;
   type: CanvasNodeState['type'];
+  kind: string;
   title: string | null;
   content: string | null;
   metadata?: Record<string, unknown>;
@@ -118,6 +120,41 @@ function summarizeMcpAppData(data: Record<string, unknown>, maxLength: number): 
   return truncateContextText(parts.join('\n'), maxLength);
 }
 
+function summarizeWebArtifactData(data: Record<string, unknown>, maxLength: number): string {
+  const parts: string[] = [];
+  const content = typeof data.content === 'string' ? data.content : '';
+  const title = typeof data.title === 'string' ? data.title : '';
+  const path = typeof data.path === 'string' ? data.path : '';
+  const url = typeof data.url === 'string' ? data.url : '';
+  const projectPath = typeof data.projectPath === 'string' ? data.projectPath : '';
+  const artifactBytes = typeof data.artifactBytes === 'number' ? data.artifactBytes : null;
+  const sourceFileCount = typeof data.sourceFileCount === 'number' ? data.sourceFileCount : null;
+  const sourceFiles = Array.isArray(data.sourceFiles)
+    ? data.sourceFiles.filter((file): file is string => typeof file === 'string')
+    : [];
+  const deps = Array.isArray(data.deps)
+    ? data.deps.filter((dep): dep is string => typeof dep === 'string')
+    : [];
+
+  if (content) parts.push(content);
+  if (!content && title) parts.push(`Web artifact: ${title}`);
+  if (sourceFiles.length > 0 && !content.includes('Source files:')) {
+    const remaining = sourceFileCount !== null ? Math.max(0, sourceFileCount - sourceFiles.length) : 0;
+    parts.push(`Source files: ${sourceFiles.join(', ')}${remaining > 0 ? `, +${remaining} more` : ''}`);
+  }
+  if (artifactBytes !== null && !content.includes('Artifact bytes:')) {
+    parts.push(`Artifact bytes: ${artifactBytes}`);
+  }
+  if (deps.length > 0 && !content.includes('Dependencies:')) {
+    parts.push(`Dependencies: ${deps.join(', ')}`);
+  }
+  if (path) parts.push(`Path: ${path}`);
+  if (projectPath) parts.push(`Project: ${projectPath}`);
+  if (url) parts.push(`URL: ${url}`);
+
+  return parts.length > 0 ? truncateContextText(parts.join('\n'), maxLength) : 'Web artifact node';
+}
+
 function metadataForNode(node: CanvasNodeState): Record<string, unknown> | undefined {
   switch (node.type) {
     case 'webpage': {
@@ -146,9 +183,13 @@ function metadataForNode(node: CanvasNodeState): Record<string, unknown> | undef
     }
     case 'mcp-app': {
       const metadata: Record<string, unknown> = {};
-      for (const key of ['url', 'path', 'mode', 'hostMode', 'serverName', 'toolName', 'resourceUri', 'sessionStatus']) {
+      for (const key of ['url', 'path', 'mode', 'hostMode', 'viewerType', 'serverName', 'toolName', 'resourceUri', 'sessionStatus', 'projectPath', 'artifactBytes', 'sourceFiles', 'sourceFileCount', 'deps']) {
         const value = node.data[key];
-        if (value !== undefined && value !== null && value !== '') metadata[key] = value;
+        if (Array.isArray(value)) {
+          if (value.length > 0) metadata[key] = value;
+        } else if (value !== undefined && value !== null && value !== '') {
+          metadata[key] = value;
+        }
       }
       return Object.keys(metadata).length > 0 ? metadata : undefined;
     }
@@ -170,6 +211,9 @@ export function summarizeNodeForAgentContext(
       return truncateContextText(content, defaultTextLength);
     }
     case 'mcp-app': {
+      if (node.data.viewerType === 'web-artifact') {
+        return summarizeWebArtifactData(node.data, defaultTextLength);
+      }
       const chartCfg = node.data.chartConfig as Record<string, unknown> | undefined;
       if (chartCfg) {
         const chartTitle = (chartCfg.title as string) || 'Untitled chart';
@@ -218,6 +262,7 @@ export function serializeNodeForAgentContext(
   return {
     id: node.id,
     type: node.type,
+    kind: getCanvasNodeKind(node),
     title: typeof node.data.title === 'string' ? node.data.title : null,
     content: summarizeNodeForAgentContext(node, options) || null,
     ...(metadata ? { metadata } : {}),
@@ -234,7 +279,9 @@ export function buildAgentContextPreamble(
       const title = (typeof node.data.title === 'string' && node.data.title) ? node.data.title : node.id;
       const content = summarizeNodeForAgentContext(node, options);
       if (!content) return '';
-      return `[Context from "${title}" (${node.type})]\n${content}\n`;
+      const kind = getCanvasNodeKind(node);
+      const typeLabel = kind === node.type ? node.type : `${node.type}/${kind}`;
+      return `[Context from "${title}" (${typeLabel})]\n${content}\n`;
     })
     .filter((section) => section.length > 0);
 

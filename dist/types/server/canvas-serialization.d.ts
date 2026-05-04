@@ -11,10 +11,13 @@ export interface SerializedCanvasNode extends CanvasNodeState {
 export interface SerializedCanvasLayout extends Omit<CanvasLayout, 'nodes'> {
     nodes: SerializedCanvasNode[];
 }
+export declare function getCanvasNodeKind(node: CanvasNodeState, data: Record<string, unknown>): string;
 export declare function getCanvasNodeTitle(node: CanvasNodeState): string | null;
 export declare function getCanvasNodeContent(node: CanvasNodeState): string | null;
 export declare function serializeCanvasNode(node: CanvasNodeState): SerializedCanvasNode;
+export declare function serializeCanvasNodeWithBlobSummaries(node: CanvasNodeState): SerializedCanvasNode;
 export declare function serializeCanvasLayout(layout: CanvasLayout): SerializedCanvasLayout;
+export declare function serializeCanvasLayoutWithBlobSummaries(layout: CanvasLayout): SerializedCanvasLayout;
 export interface CanvasSummary {
     totalNodes: number;
     totalEdges: number;

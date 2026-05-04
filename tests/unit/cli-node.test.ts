@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
+import { rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
@@ -63,6 +63,7 @@ describe('agent CLI node commands', () => {
     canvasState.withSuppressedRecording(() => {
       canvasState.clear();
     });
+    rmSync(join(workspaceRoot, '.pmx-canvas', 'snapshots'), { recursive: true, force: true });
     mutationHistory.reset();
   });
 
@@ -186,6 +187,53 @@ describe('agent CLI node commands', () => {
       status: 'success',
       duration: '42ms',
       resultSummary: 'Created node',
+    });
+  });
+
+  test('node update forwards trace fields with camel and kebab aliases', async () => {
+    const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'trace',
+        title: 'CLI trace update',
+        toolName: 'before',
+        status: 'running',
+      }),
+    });
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'node',
+        'update',
+        created.id,
+        '--tool-name',
+        'after',
+        '--status',
+        'failed',
+        '--resultSummary',
+        'Updated trace',
+        '--error',
+        'boom',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      data: Record<string, unknown>;
+    };
+    expect(output.ok).toBe(true);
+    expect(output.data).toMatchObject({
+      toolName: 'after',
+      status: 'failed',
+      resultSummary: 'Updated trace',
+      error: 'boom',
     });
   });
 
@@ -886,6 +934,73 @@ describe('agent CLI node commands', () => {
     expect(output.hint).toContain('pin');
   });
 
+  test('pin --list returns kind for mcp-app subtypes through the API parity path', async () => {
+    const markdown = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'CLI Pinned Note', content: 'CLI native context' }),
+    });
+    const artifactId = 'cli-pinned-kind-artifact';
+    canvasState.addNode({
+      id: artifactId,
+      type: 'mcp-app',
+      position: { x: 20, y: 30 },
+      size: { width: 640, height: 420 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: {
+        title: 'CLI Pinned Artifact Kind',
+        viewerType: 'web-artifact',
+        hostMode: 'hosted',
+        content: 'Web artifact: CLI Pinned Artifact Kind',
+        path: join(workspaceRoot, '.pmx-canvas', 'artifacts', 'cli-pinned-kind-artifact.html'),
+      },
+    });
+    const externalAppId = 'cli-pinned-kind-external-app';
+    canvasState.addNode({
+      id: externalAppId,
+      type: 'mcp-app',
+      position: { x: 720, y: 30 },
+      size: { width: 640, height: 420 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: {
+        title: 'CLI Pinned External App Kind',
+        mode: 'ext-app',
+        serverName: 'Fixture',
+        toolName: 'show_counter',
+      },
+    });
+    await jsonRequest<{ ok: boolean; count: number }>('/api/canvas/context-pins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeIds: [markdown.id, artifactId, externalAppId] }),
+    });
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['pin', '--list']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      nodes: Array<{ id: string; type: string; kind: string }>;
+    };
+    const kinds = Object.fromEntries(output.nodes.map((node) => [node.id, { type: node.type, kind: node.kind }]));
+
+    expect(kinds[markdown.id]).toEqual({ type: 'markdown', kind: 'markdown' });
+    expect(kinds[artifactId]).toEqual({ type: 'mcp-app', kind: 'web-artifact' });
+    expect(kinds[externalAppId]).toEqual({ type: 'mcp-app', kind: 'external-app' });
+  });
+
   test('edge delete fails loudly with remove suggestion', async () => {
     const error = mock(() => {});
     const originalError = console.error;
@@ -1227,11 +1342,19 @@ describe('agent CLI node commands', () => {
       openedInCanvas: boolean;
       nodeId?: string;
       url?: string;
+      startedAt?: string;
+      completedAt?: string;
+      durationMs?: number;
+      timeoutMs?: number;
     };
     expect(output.ok).toBe(true);
     expect(output.openedInCanvas).toBe(true);
     expect(output.nodeId).toBeDefined();
     expect(output.url).toContain('/artifact?path=');
+    expect(typeof output.startedAt).toBe('string');
+    expect(typeof output.completedAt).toBe('string');
+    expect(typeof output.durationMs).toBe('number');
+    expect(output.timeoutMs).toBe(600000);
   });
 
   test('node schema and validate spec expose running-server schema/validation info', async () => {
@@ -2053,6 +2176,48 @@ exit 2
     expect(output.ok).toBe(true);
     expect(output.text).toContain('Modified nodes (1):');
     expect(output.text).toContain('content changed');
+  });
+
+  test('snapshot list and gc support bounded cleanup from the CLI', async () => {
+    for (const name of ['cli-alpha', 'cli-beta', 'cli-alpha-old']) {
+      const saved = await jsonRequest<{ ok: boolean; snapshot: { name: string } }>('/api/canvas/snapshots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      expect(saved.snapshot.name).toBe(name);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['snapshot', 'list', '--limit', '2']);
+      await runAgentCli(['snapshot', 'list', '--query', 'alpha', '--all']);
+      await runAgentCli(['snapshot', 'gc', '--keep', '1', '--dry-run']);
+      await runAgentCli(['snapshot', 'gc', '--keep', '1', '--yes']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const limited = JSON.parse(log.mock.calls[0]?.[0] as string) as Array<{ name: string }>;
+    expect(limited.map((item) => item.name)).toEqual(['cli-alpha-old', 'cli-beta']);
+
+    const filtered = JSON.parse(log.mock.calls[1]?.[0] as string) as Array<{ name: string }>;
+    expect(filtered.map((item) => item.name)).toEqual(['cli-alpha-old', 'cli-alpha']);
+
+    const preview = JSON.parse(log.mock.calls[2]?.[0] as string) as { dryRun: boolean; deleted: Array<{ name: string }> };
+    expect(preview.dryRun).toBe(true);
+    expect(preview.deleted.map((item) => item.name)).toEqual(['cli-beta', 'cli-alpha']);
+
+    const result = JSON.parse(log.mock.calls[3]?.[0] as string) as { dryRun: boolean; deleted: Array<{ name: string }> };
+    expect(result.dryRun).toBe(false);
+    expect(result.deleted.map((item) => item.name)).toEqual(['cli-beta', 'cli-alpha']);
+
+    const remaining = await jsonRequest<Array<{ name: string }>>('/api/canvas/snapshots?all=true');
+    expect(remaining.map((item) => item.name)).toEqual(['cli-alpha-old']);
   });
 
   test('edge add supports style and animated flags', async () => {

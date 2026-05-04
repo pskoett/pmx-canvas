@@ -120,6 +120,33 @@ describe('canvas state manager', () => {
     expect(canvasState.listSnapshots()).toEqual([]);
   });
 
+  test('limits, filters, and garbage-collects snapshots', async () => {
+    const snapshots: Array<NonNullable<ReturnType<typeof canvasState.saveSnapshot>>> = [];
+    for (const name of ['alpha', 'beta', 'alpha-old']) {
+      const saved = canvasState.saveSnapshot(name);
+      expect(saved).not.toBeNull();
+      snapshots.push(saved!);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+
+    expect(canvasState.listSnapshots({ all: true }).map((item) => item.name)).toEqual(['alpha-old', 'beta', 'alpha']);
+    expect(canvasState.listSnapshots({ limit: 2 }).map((item) => item.name)).toEqual(['alpha-old', 'beta']);
+    expect(canvasState.listSnapshots({ query: 'alpha' }).map((item) => item.name)).toEqual(['alpha-old', 'alpha']);
+
+    const preview = canvasState.gcSnapshots({ keep: 1, dryRun: true });
+    expect(preview.deleted.map((item) => item.name)).toEqual(['beta', 'alpha']);
+    expect(canvasState.listSnapshots({ all: true })).toHaveLength(3);
+
+    const result = canvasState.gcSnapshots({ keep: 1 });
+    expect(result).toEqual({
+      ok: true,
+      kept: 1,
+      dryRun: false,
+      deleted: [snapshots[1], snapshots[0]],
+    });
+    expect(canvasState.listSnapshots({ all: true }).map((item) => item.name)).toEqual(['alpha-old']);
+  });
+
   test('persists webpage node URLs and cached text snapshots', async () => {
     const webpageNode = makeNode({
       id: 'webpage-1',

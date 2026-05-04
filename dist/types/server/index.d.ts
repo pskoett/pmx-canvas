@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import type { CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.js';
 import { searchNodes } from './spatial-analysis.js';
 import { diffLayouts } from './mutation-history.js';
-import { fitCanvasView } from './canvas-operations.js';
+import { fitCanvasView, gcCanvasSnapshots, listCanvasSnapshots } from './canvas-operations.js';
 import { type WebArtifactBuildInput, type WebArtifactCanvasBuildResult } from './web-artifacts.js';
 import { type ExternalMcpTransportConfig } from './mcp-app-runtime.js';
 import { type DiagramPresetOpenInput } from './diagram-presets.js';
@@ -143,7 +143,7 @@ export declare class PmxCanvas extends EventEmitter {
         count: number;
         nodeIds: string[];
     };
-    listSnapshots(): import("./canvas-state.js").CanvasSnapshot[];
+    listSnapshots(options?: Parameters<typeof listCanvasSnapshots>[0]): import("./canvas-state.js").CanvasSnapshot[];
     saveSnapshot(name: string): import("./canvas-state.js").CanvasSnapshot | null;
     restoreSnapshot(id: string): Promise<{
         ok: boolean;
@@ -151,6 +151,7 @@ export declare class PmxCanvas extends EventEmitter {
     deleteSnapshot(id: string): {
         ok: boolean;
     };
+    gcSnapshots(options?: Parameters<typeof gcCanvasSnapshots>[0]): ReturnType<typeof gcCanvasSnapshots>;
     diffSnapshot(idOrName: string): {
         ok: boolean;
         text?: string;
@@ -233,6 +234,15 @@ export declare class PmxCanvas extends EventEmitter {
         url: string;
         spec: JsonRenderSpec;
     };
+    addHtmlNode(input: {
+        html: string;
+        title?: string;
+        x?: number;
+        y?: number;
+        width?: number;
+        height?: number;
+        strictSize?: boolean;
+    }): string;
     addGraphNode(input: GraphNodeInput): {
         id: string;
         url: string;
@@ -253,7 +263,7 @@ export type { CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from '.
 export type { CanvasAutomationWebViewOptions, CanvasAutomationWebViewStatus, PrimaryWorkbenchCanvasPromptRequest, PrimaryWorkbenchIntent, } from './server.js';
 export { emitPrimaryWorkbenchEvent, consumePrimaryWorkbenchIntents, setPrimaryWorkbenchAutoOpenEnabled, setPrimaryWorkbenchCanvasPromptHandler, startCanvasServer, stopCanvasServer, getCanvasServerPort, openUrlInExternalBrowser, getCanvasAutomationWebViewStatus, startCanvasAutomationWebView, stopCanvasAutomationWebView, evaluateCanvasAutomationWebView, resizeCanvasAutomationWebView, screenshotCanvasAutomationWebView, } from './server.js';
 export { canvasState } from './canvas-state.js';
-export type { CanvasSnapshot } from './canvas-state.js';
+export type { CanvasSnapshot, CanvasSnapshotGcResult, CanvasSnapshotListOptions } from './canvas-state.js';
 export { findOpenCanvasPosition } from './placement.js';
 export { searchNodes, buildSpatialContext, detectClusters, findNeighborhoods } from './spatial-analysis.js';
 export type { SpatialCluster, SpatialContext, SpatialNeighbor, NodeSpatialInfo } from './spatial-analysis.js';

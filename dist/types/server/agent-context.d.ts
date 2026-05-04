@@ -2,6 +2,7 @@ import type { CanvasNodeState } from './canvas-state.js';
 export interface AgentContextNode {
     id: string;
     type: CanvasNodeState['type'];
+    kind: string;
     title: string | null;
     content: string | null;
     metadata?: Record<string, unknown>;

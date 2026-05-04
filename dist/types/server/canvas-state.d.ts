@@ -9,6 +9,21 @@
  * workspace root on every mutation (debounced). Auto-loads on `loadFromDisk()`.
  */
 export declare const PMX_CANVAS_DIR = ".pmx-canvas";
+export interface PersistedBlobRef {
+    __pmxCanvasBlob: 'v1';
+    path: string;
+    sha256: string;
+    encoding: 'json+gzip';
+    bytes: number;
+    jsonBytes: number;
+}
+interface PersistedCanvasState {
+    version: number;
+    viewport: ViewportState;
+    nodes: CanvasNodeState[];
+    edges: CanvasEdge[];
+    contextPins: string[];
+}
 interface LoadFromDiskOptions {
     clearExisting?: boolean;
 }
@@ -20,9 +35,24 @@ export interface CanvasSnapshot {
     nodeCount: number;
     edgeCount: number;
 }
+export interface CanvasSnapshotListOptions {
+    limit?: number;
+    query?: string;
+    all?: boolean;
+}
+export interface CanvasSnapshotGcOptions {
+    keep?: number;
+    dryRun?: boolean;
+}
+export interface CanvasSnapshotGcResult {
+    ok: boolean;
+    kept: number;
+    deleted: CanvasSnapshot[];
+    dryRun: boolean;
+}
 export interface CanvasNodeState {
     id: string;
-    type: 'markdown' | 'mcp-app' | 'webpage' | 'json-render' | 'graph' | 'prompt' | 'response' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'image' | 'group';
+    type: 'markdown' | 'mcp-app' | 'webpage' | 'json-render' | 'graph' | 'prompt' | 'response' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'image' | 'html' | 'group';
     position: {
         x: number;
         y: number;
@@ -92,7 +122,7 @@ declare class CanvasStateManager {
     onChange(cb: (type: CanvasChangeType) => void): void;
     private notifyChange;
     private _mutationRecorder;
-    private _suppressRecording;
+    private _suppressRecordingDepth;
     /** Register a mutation recorder. Used by mutation-history to capture undo/redo closures. */
     onMutation(cb: (info: MutationRecordInfo) => void): void;
     /** Run a function with mutation recording suppressed (for undo/redo replay and computed edges). */
@@ -111,6 +141,16 @@ declare class CanvasStateManager {
     private _saveTimer;
     /** Set the workspace root to enable auto-persistence. */
     setWorkspaceRoot(workspaceRoot: string): void;
+    private get blobsDir();
+    private relativeBlobPath;
+    private resolveBlobPath;
+    private writeBlobValue;
+    private readBlobValue;
+    private externalizeNodeDataBlobs;
+    private resolveNodeDataBlobs;
+    isBlobReference(value: unknown): value is PersistedBlobRef;
+    resolveBlobReference(value: unknown): unknown;
+    private externalizePersistedStateBlobs;
     /**
      * One-time migration: rename files from the pre-consolidation layout
      * (`.pmx-canvas.json` + `.pmx-canvas-snapshots/`) into `.pmx-canvas/`.
@@ -129,10 +169,15 @@ declare class CanvasStateManager {
     private get snapshotsDir();
     private applyPersistedState;
     private readResolvedSnapshot;
+    getSnapshotDataForPersistence(idOrName: string): {
+        snapshot: CanvasSnapshot;
+        state: PersistedCanvasState;
+    } | null;
     /** Save current canvas state as a named snapshot. */
     saveSnapshot(name: string): CanvasSnapshot | null;
-    /** List all saved snapshots. */
-    listSnapshots(): CanvasSnapshot[];
+    /** List saved snapshots, newest first. */
+    listSnapshots(options?: CanvasSnapshotListOptions): CanvasSnapshot[];
+    gcSnapshots(options?: CanvasSnapshotGcOptions): CanvasSnapshotGcResult;
     /** Restore canvas state from a snapshot. */
     restoreSnapshot(idOrName: string): boolean;
     /** Read a snapshot's data without restoring it (for diff). Resolves by ID or name. */
@@ -150,12 +195,14 @@ declare class CanvasStateManager {
     updateNode(id: string, patch: Partial<CanvasNodeState>): void;
     removeNode(id: string): void;
     getNode(id: string): CanvasNodeState | undefined;
+    getNodeForPersistence(id: string): CanvasNodeState | undefined;
     addEdge(edge: CanvasEdge): boolean;
     removeEdge(id: string): boolean;
     getEdges(): CanvasEdge[];
     getEdgesForNode(nodeId: string): CanvasEdge[];
     private removeEdgesForNode;
     getLayout(): CanvasLayout;
+    getLayoutForPersistence(): CanvasLayout;
     applyUpdates(updates: CanvasNodeUpdate[]): {
         applied: number;
         skipped: number;

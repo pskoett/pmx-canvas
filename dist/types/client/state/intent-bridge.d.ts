@@ -55,7 +55,9 @@ export declare function pushCanvasUpdate(updates: Array<{
     };
     collapsed?: boolean;
     dockPosition?: 'left' | 'right' | null;
-}>): Promise<void>;
+}>, options?: {
+    recordHistory?: boolean;
+}): Promise<void>;
 /** Create a canvas edge via the server. */
 export declare function createEdgeFromClient(from: string, to: string, type: string, label?: string): Promise<{
     ok: boolean;

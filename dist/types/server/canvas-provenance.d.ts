@@ -1,4 +1,4 @@
-export type CanvasNodeType = 'markdown' | 'mcp-app' | 'webpage' | 'json-render' | 'graph' | 'prompt' | 'response' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'image' | 'group';
+export type CanvasNodeType = 'markdown' | 'mcp-app' | 'webpage' | 'json-render' | 'graph' | 'prompt' | 'response' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'image' | 'html' | 'group';
 export type CanvasNodeProvenanceSourceKind = 'workspace-file' | 'webpage-url' | 'mcp-tool' | 'artifact-file' | 'image-url';
 export type CanvasNodeRefreshStrategy = 'file-watch' | 'file-read-write' | 'image-reload' | 'webpage-refresh' | 'mcp-app-rehydrate' | 'artifact-reopen';
 export interface CanvasNodeProvenance {

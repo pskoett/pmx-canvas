@@ -8,6 +8,7 @@ import { StatusNode } from '../nodes/StatusNode';
 import { ImageNode } from '../nodes/ImageNode';
 import { GroupNode } from '../nodes/GroupNode';
 import { WebpageNode } from '../nodes/WebpageNode';
+import { HtmlNode } from '../nodes/HtmlNode';
 import { PromptNode } from '../nodes/PromptNode';
 import { ResponseNode } from '../nodes/ResponseNode';
 import { TraceNode } from '../nodes/TraceNode';
@@ -60,6 +61,8 @@ function renderNodeContent(node: CanvasNodeState) {
       return <FileNode node={node} />;
     case 'image':
       return <ImageNode node={node} />;
+    case 'html':
+      return <HtmlNode node={node} />;
     case 'group':
       return <GroupNode node={node} />;
     default:

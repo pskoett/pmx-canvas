@@ -277,6 +277,28 @@ export function toggleCollapsed(id: string): void {
   updateNode(id, { collapsed: !existing.collapsed });
 }
 
+// Collapse every docked context node. Used to enforce mutual exclusion between
+// the Context side panel and the Updates side panel (they share the same
+// right-edge anchor and would otherwise visually collide).
+export function collapseDockedContextNodes(): void {
+  for (const node of nodes.value.values()) {
+    if (node.type === 'context' && node.dockPosition === 'right' && !node.collapsed) {
+      updateNode(node.id, { collapsed: true });
+    }
+  }
+}
+
+// True iff at least one docked context node is currently expanded. Used by the
+// Updates pill to hide itself while the Context panel is open.
+export const hasOpenDockedContextPanel = computed(() => {
+  for (const node of nodes.value.values()) {
+    if (node.type === 'context' && node.dockPosition === 'right' && !node.collapsed) {
+      return true;
+    }
+  }
+  return false;
+});
+
 export function dockNode(id: string, position: 'left' | 'right'): void {
   const existing = nodes.value.get(id);
   if (!existing) return;
@@ -411,7 +433,7 @@ export function cancelViewportAnimation(): void {
 // ── Persistence ───────────────────────────────────────────────
 const STORAGE_KEY = 'pmx-canvas-layout';
 
-export function persistLayout(): void {
+export function persistLayout(options: { recordHistory?: boolean } = {}): void {
   try {
     const allNodes = Array.from(nodes.value.values());
     const nodeUpdates = allNodes.map((n) => ({
@@ -444,7 +466,7 @@ export function persistLayout(): void {
       contextPinnedNodeIds: Array.from(contextPinnedNodeIds.value),
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
-    void pushCanvasUpdate(nodeUpdates);
+    void pushCanvasUpdate(nodeUpdates, options);
   } catch (error) {
     logCanvasStoreError('persistLayout', error);
   }

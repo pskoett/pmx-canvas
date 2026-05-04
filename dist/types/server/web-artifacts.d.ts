@@ -17,6 +17,7 @@ export interface WebArtifactBuildOutput {
     fileSize: number;
     projectPath: string;
     metadata: Record<string, unknown>;
+    sourceContext: WebArtifactSourceContext;
     logs?: {
         stdout?: WebArtifactLogSummary;
         stderr?: WebArtifactLogSummary;
@@ -30,6 +31,13 @@ export interface WebArtifactLogSummary {
     truncated: boolean;
     suppressedNoiseCount: number;
 }
+export interface WebArtifactSourceContext {
+    content: string;
+    sourceFiles: string[];
+    sourceFileCount: number;
+    sourcePreview: string;
+    deps?: string[];
+}
 export interface WebArtifactCanvasOpenResult {
     nodeId: string;
     url: string;
@@ -38,7 +46,10 @@ export interface WebArtifactCanvasBuildResult extends WebArtifactBuildOutput {
     openedInCanvas: boolean;
     nodeId?: string;
     url?: string;
+    startedAt: string;
     completedAt: string;
+    durationMs: number;
+    timeoutMs: number;
 }
 export declare function resolveWorkspacePath(pathLike: string, cwd?: string): string;
 export declare function resolveWebArtifactScriptPath(kind: 'init' | 'bundle'): string;
@@ -46,6 +57,13 @@ export declare function executeWebArtifactBuild(input: WebArtifactBuildInput): P
 export declare function openWebArtifactInCanvas(input: {
     title: string;
     filePath: string;
+    fileSize?: number;
+    projectPath?: string;
+    content?: string;
+    sourceFiles?: string[];
+    sourceFileCount?: number;
+    sourcePreview?: string;
+    deps?: string[];
 }): WebArtifactCanvasOpenResult;
 export declare function buildWebArtifactOnCanvas(input: WebArtifactBuildInput & {
     openInCanvas?: boolean;

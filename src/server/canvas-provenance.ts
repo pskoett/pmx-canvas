@@ -14,6 +14,7 @@ export type CanvasNodeType =
   | 'trace'
   | 'file'
   | 'image'
+  | 'html'
   | 'group';
 
 export type CanvasNodeProvenanceSourceKind =
@@ -199,7 +200,7 @@ function inferMcpAppProvenance(data: Record<string, unknown>): CanvasNodeProvena
   if (resourceUri) details.resourceUri = resourceUri;
   const transportType = isRecord(data.transportConfig) ? pickString(data.transportConfig.type) : null;
   if (transportType) details.transportType = transportType;
-  if (isRecord(data.toolInput)) details.toolInput = data.toolInput;
+  if (isRecord(data.toolInput) && data.toolInput.__pmxCanvasBlob !== 'v1') details.toolInput = data.toolInput;
 
   return {
     sourceKind: 'mcp-tool',

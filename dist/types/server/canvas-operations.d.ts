@@ -1,7 +1,8 @@
-import { type CanvasEdge, type CanvasNodeState, type CanvasNodeUpdate, type CanvasSnapshot } from './canvas-state.js';
+import { canvasState, type CanvasEdge, type CanvasNodeState, type CanvasNodeUpdate, type CanvasSnapshot } from './canvas-state.js';
 import { type GraphNodeInput, type JsonRenderNodeInput, type JsonRenderSpec } from '../json-render/server.js';
 export type CanvasArrangeMode = 'grid' | 'column' | 'flow';
 export type CanvasPinMode = 'set' | 'add' | 'remove';
+export declare function setCanvasLayoutUpdateEmitter(emitter: (() => void) | null): void;
 export interface CanvasFitViewOptions {
     width?: number;
     height?: number;
@@ -150,7 +151,7 @@ export declare function setCanvasContextPins(nodeIds: string[], mode?: CanvasPin
     count: number;
     nodeIds: string[];
 };
-export declare function listCanvasSnapshots(): CanvasSnapshot[];
+export declare function listCanvasSnapshots(options?: Parameters<typeof canvasState.listSnapshots>[0]): CanvasSnapshot[];
 export declare function saveCanvasSnapshot(name: string): CanvasSnapshot | null;
 export declare function restoreCanvasSnapshot(idOrName: string): Promise<{
     ok: boolean;
@@ -158,6 +159,7 @@ export declare function restoreCanvasSnapshot(idOrName: string): Promise<{
 export declare function deleteCanvasSnapshot(id: string): {
     ok: boolean;
 };
+export declare function gcCanvasSnapshots(options?: Parameters<typeof canvasState.gcSnapshots>[0]): ReturnType<typeof canvasState.gcSnapshots>;
 export declare function addCanvasEdge(input: {
     from?: string;
     to?: string;

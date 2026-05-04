@@ -41,19 +41,47 @@ describe('agent-context mcp-app summaries', () => {
   test('serializes web artifact metadata for pinned context consumers', () => {
     const node = makeNode({
       title: 'Canvas comparison artifact',
+      viewerType: 'web-artifact',
       hostMode: 'hosted',
+      content: 'Web artifact: Canvas comparison artifact\nApp source preview:\nexport default function App() { return <main>Compare old and new canvas states</main>; }',
+      sourceFiles: ['src/App.tsx', 'src/index.css'],
+      sourceFileCount: 2,
+      artifactBytes: 12345,
       path: '/tmp/canvas-comparison.html',
       url: '/artifact?path=%2Ftmp%2Fcanvas-comparison.html',
     });
 
     const serialized = serializeNodeForAgentContext(node, { includePosition: true });
+    expect(serialized.type).toBe('mcp-app');
+    expect(serialized.kind).toBe('web-artifact');
     expect(serialized.title).toBe('Canvas comparison artifact');
+    expect(serialized.content).toContain('Web artifact: Canvas comparison artifact');
+    expect(serialized.content).toContain('Compare old and new canvas states');
     expect(serialized.content).toContain('Path: /tmp/canvas-comparison.html');
+    expect(serialized.content).not.toContain('<!DOCTYPE html>');
     expect(serialized.metadata).toEqual(expect.objectContaining({
       path: '/tmp/canvas-comparison.html',
       url: '/artifact?path=%2Ftmp%2Fcanvas-comparison.html',
       hostMode: 'hosted',
+      viewerType: 'web-artifact',
+      sourceFiles: ['src/App.tsx', 'src/index.css'],
+      sourceFileCount: 2,
+      artifactBytes: 12345,
     }));
     expect(serialized.position).toEqual({ x: 120, y: 80 });
+  });
+
+  test('serializes external app kind for pinned context consumers', () => {
+    const node = makeNode({
+      title: 'Excalidraw app',
+      mode: 'ext-app',
+      serverName: 'Excalidraw',
+      toolName: 'create_view',
+      resourceUri: 'ui://excalidraw/app.html',
+    });
+
+    const serialized = serializeNodeForAgentContext(node);
+    expect(serialized.type).toBe('mcp-app');
+    expect(serialized.kind).toBe('external-app');
   });
 });

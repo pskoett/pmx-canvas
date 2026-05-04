@@ -7,6 +7,7 @@ import { McpAppNode } from '../nodes/McpAppNode';
 import { StatusNode } from '../nodes/StatusNode';
 import { ImageNode } from '../nodes/ImageNode';
 import { WebpageNode } from '../nodes/WebpageNode';
+import { HtmlNode } from '../nodes/HtmlNode';
 import { PromptNode } from '../nodes/PromptNode';
 import { ResponseNode } from '../nodes/ResponseNode';
 import { TraceNode } from '../nodes/TraceNode';
@@ -49,6 +50,8 @@ function renderContent(node: CanvasNodeState, expanded: boolean) {
       return <FileNode node={node} expanded={expanded} />;
     case 'image':
       return <ImageNode node={node} expanded={expanded} />;
+    case 'html':
+      return <HtmlNode node={node} expanded={expanded} />;
     default:
       return <div>Unknown node type</div>;
   }
@@ -63,6 +66,8 @@ function getNodeTextContent(node: CanvasNodeState): string {
       return (node.data.fileContent as string) || '';
     case 'webpage':
       return (node.data.content as string) || '';
+    case 'html':
+      return (node.data.html as string) || (node.data.content as string) || '';
     case 'json-render':
     case 'graph':
       return JSON.stringify(node.data.spec ?? node.data.graphConfig ?? {}, null, 2);

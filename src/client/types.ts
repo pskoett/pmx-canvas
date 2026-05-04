@@ -20,6 +20,7 @@ export interface CanvasNodeState {
     | 'trace'
     | 'file'
     | 'image'
+    | 'html'
     | 'group';
   position: { x: number; y: number };
   size: { width: number; height: number };
@@ -58,6 +59,7 @@ export const TYPE_LABELS: Record<CanvasNodeState['type'], string> = {
   trace: 'TRACE',
   file: 'FILE',
   image: 'IMG',
+  html: 'HTML',
   group: 'GROUP',
 };
 
@@ -72,6 +74,7 @@ export const EXPANDABLE_TYPES = new Set<CanvasNodeState['type']>([
   'ledger',
   'file',
   'image',
+  'html',
 ]);
 
 export const EXCALIDRAW_SERVER_NAME = 'Excalidraw';

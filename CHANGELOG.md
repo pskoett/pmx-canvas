@@ -3,6 +3,99 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.15] - 2026-05-03
+
+A bigger release focused on right-sizing what flows through MCP and the
+canvas state file. Adds an `html` node type, sidecar blob storage so
+rich ext-app payloads stay out of the main `state.json`, compact-by-
+default MCP responses with an opt-in `full` mode, `canvas_gc_snapshots`,
+a shared `getCanvasNodeKind` classifier so pinned reads tell agents the
+real kind of `mcp-app` subtypes, web-artifact source context for pinned
+reads, an extracted demo module, and a five-file `docs/` reference set.
+The README, AGENTS.md, and CLAUDE.md catch up to the new shape.
+
+### Added
+
+- **`html` node type and `canvas_add_html_node` MCP tool.** Adds a
+  dedicated HTML node renderer that sandboxes user-authored markup in
+  an iframe and injects canvas theme tokens (`--c-*` plus
+  `--color-*` aliases) so embedded content inherits the theme. Token
+  values are sanitized before interpolation. `canvas_add_node` now
+  also accepts `type: 'html'` for parity, with `canvas_add_html_node`
+  the preferred entry point. MCP tool count is now 40 (was 39).
+- **Snapshot list filtering and `canvas_gc_snapshots`.**
+  `canvas_list_snapshots` accepts options (`limit`, `before`,
+  `after`), and `canvas_gc_snapshots({keep, dryRun})` deletes older
+  snapshots while keeping the newest N. CLI `pmx-canvas snapshot
+  list` and `pmx-canvas snapshot gc` expose the same surface; HTTP
+  endpoints support both.
+- **Sidecar blob storage for large ext-app payloads.** When an
+  ext-app field on a node would exceed the configured threshold
+  (default 2048 bytes; override via
+  `PMX_CANVAS_BLOB_THRESHOLD_BYTES`), the value is written to
+  `.pmx-canvas/blobs/<sha>.json` and replaced with a checksum
+  reference in the main `state.json`. Blob refs are reinflated
+  transparently on read, with a checksum-mismatch warning if the
+  sidecar file has been tampered with.
+- **`getCanvasNodeKind()` shared classifier.** New
+  `src/shared/canvas-node-kind.ts` returns
+  `'web-artifact' | 'external-app' | 'mcp-app' | <type>` so pinned
+  reads, agent context, and CLI output report the real subtype of
+  `mcp-app` nodes (web-artifact viewers vs. external apps vs. plain
+  hosted content). `canvas://pinned-context` now includes `kind` for
+  every node.
+- **Web-artifact source context on pinned reads.** When a pinned
+  node is a web-artifact, agent context now exposes a bounded source
+  summary (`buildWebArtifactSourceContext`): a capped list of source
+  filenames plus a truncated preview, instead of inlining the full
+  bundled HTML. Total file count is preserved even when the list is
+  truncated.
+- **Standalone reference docs.** New `docs/cli.md`,
+  `docs/http-api.md`, `docs/mcp.md`, `docs/node-types.md`, and
+  `docs/sdk.md` document each surface in detail alongside the
+  README.
+- **Extracted demo module (`src/server/demo.ts`).** The project-tour
+  demo seed is now its own module with `seedDemoCanvas()` exported
+  and unit-tested, so contributors can read and iterate on the
+  demo without spelunking through the server boot path.
+- **DockedNode context dock with item-count badge.** The dock
+  surfaces a pill with the count of pinned cards plus aux tabs, and
+  the dock and the right-edge Updates panel are mutually exclusive
+  (one open at a time) so they no longer collide on the same anchor.
+- **Trace field aliases on `node update`.** `node update` accepts
+  both camel (`--toolName`) and kebab (`--tool-name`) variants for
+  trace fields, matching the `node add` flag style.
+
+### Changed
+
+- **MCP responses are compact by default.** `canvas_add_node`,
+  `canvas_get_node`, `canvas_get_layout`, and `canvas_batch` now
+  return compact node/layout payloads (id, type, position, size,
+  pinned, kind, plus a small data digest) by default. Pass
+  `full: true` (or `verbose: true`) to opt into the full payload.
+  This keeps response token counts stable for agents iterating over
+  large boards.
+- **README reframed around "moldable canvas" + curation flow.** The
+  README opens with a moldable-canvas summary, calls out
+  curation-as-communication, and adds two top-level sections:
+  `01 / Curate` (drag, group, pin) and `02 / Mix any data source`.
+- **AGENTS.md and CLAUDE.md updated for the new tool set.** Both
+  guidance files now list `canvas_add_html_node` and
+  `canvas_gc_snapshots` and the new `html` node type. Quick-start
+  shows `bun run dev:demo` for the project-tour board.
+
+### Internal
+
+- Regression coverage for: snapshot list filtering and gc through
+  CLI / HTTP / MCP, blob-sidecar persistence for large ext-app
+  payloads with opt-in full reads, pinned-context `kind`
+  serialization for native, graph, and mcp-app subtype nodes,
+  web-artifact pinned context returning a bounded source-file
+  summary instead of bundled HTML, capped source file metadata
+  preserving total count, trace field camel/kebab alias forwarding
+  on update, demo seeding, and external-app kind serialization
+  for pinned context consumers.
+
 ## [0.1.14] - 2026-05-02
 
 External-MCP-app and trace-node ergonomics on top of 0.1.13. Trace node
@@ -512,6 +605,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.15]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.15
 [0.1.14]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.14
 [0.1.13]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.13
 [0.1.12]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.12

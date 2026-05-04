@@ -83,6 +83,7 @@ const DEFAULT_POSITIONS: Record<
   trace: { x: 40, y: 900, w: 200, h: 56 },
   file: { x: 380, y: 80, w: 720, h: 600 },
   image: { x: 380, y: 80, w: 720, h: 520 },
+  html: { x: 380, y: 80, w: 720, h: 640 },
   group: { x: 220, y: 60, w: 840, h: 560 },
   prompt: { x: 380, y: 1260, w: 520, h: 400 },
   response: { x: 380, y: 1480, w: 720, h: 400 },

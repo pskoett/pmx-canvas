@@ -1844,6 +1844,147 @@ body,
   max-width: 200px;
 }
 
+/* Context dock — collapsed pill mirrors Updates pill, sits above it */
+.context-dock-tab {
+  position: fixed;
+  top: 92px;
+  right: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 8px 14px;
+  background: color-mix(in srgb, var(--c-panel-glass) 96%, transparent);
+  backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in srgb, var(--c-line) 82%, var(--c-accent) 18%);
+  border-right: 0;
+  border-radius: 14px 0 0 14px;
+  box-shadow: 0 12px 36px var(--c-shadow);
+  color: var(--c-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  z-index: 60;
+}
+
+.context-dock-tab:hover {
+  border-color: color-mix(in srgb, var(--c-accent) 40%, var(--c-line) 60%);
+  color: var(--c-accent);
+}
+
+.context-dock-tab svg {
+  display: block;
+  color: var(--c-accent);
+  flex-shrink: 0;
+}
+
+.context-dock-tab-label {
+  white-space: nowrap;
+}
+
+.context-dock-tab-badge {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--c-accent);
+  color: var(--c-contrast-fg);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+/* Context dock — expanded panel anchored top-right edge.
+   Mutually exclusive with the Updates panel (see DockedNode.tsx and
+   AttentionHistory.tsx) — opening one collapses the other, so they can both
+   share the same right: 18px anchor without overlapping. */
+.context-dock-panel {
+  position: fixed;
+  top: 92px;
+  right: 18px;
+  width: min(360px, calc(100vw - 24px));
+  max-height: calc(100vh - 110px);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  background: color-mix(in srgb, var(--c-panel-glass) 96%, transparent);
+  backdrop-filter: blur(16px);
+  border: 1px solid color-mix(in srgb, var(--c-line) 82%, var(--c-accent) 18%);
+  border-radius: 18px;
+  box-shadow: 0 14px 36px var(--c-shadow), 0 0 0 1px color-mix(in srgb, var(--c-accent) 8%, transparent);
+  z-index: 10001;
+  overflow: hidden;
+}
+
+.context-dock-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 2px 2px 4px;
+  flex-shrink: 0;
+}
+
+.context-dock-header-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.context-dock-title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-text);
+}
+
+.context-dock-subtitle {
+  font-size: 11px;
+  color: var(--c-dim);
+}
+
+.context-dock-controls {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.context-dock-icon-button {
+  width: 22px;
+  height: 22px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--c-dim);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  padding: 0;
+}
+
+.context-dock-icon-button:hover {
+  color: var(--c-text);
+  background: var(--c-surface-hover);
+}
+
+.context-dock-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
 .attention-history {
   position: fixed;
   top: 146px;

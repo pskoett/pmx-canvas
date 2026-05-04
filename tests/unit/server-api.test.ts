@@ -1,8 +1,8 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { canvasState } from '../../src/server/canvas-state.ts';
+import { canvasState, type PersistedBlobRef } from '../../src/server/canvas-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { emitPrimaryWorkbenchEvent, startCanvasServer, stopCanvasServer, wrapCanvasAutomationScript } from '../../src/server/server.ts';
 import {
@@ -23,6 +23,28 @@ interface CanvasStateResponse {
     data: Record<string, unknown>;
   }>;
   edges: Array<{ id: string; from: string; to: string; type: string }>;
+}
+
+interface BlobSummary {
+  stored: 'sidecar';
+  path: string;
+  bytes: number;
+  jsonBytes: number;
+  sha256: string;
+}
+
+function isBlobSummary(value: unknown): value is BlobSummary {
+  return value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    (value as { stored?: unknown }).stored === 'sidecar';
+}
+
+function isBlobReference(value: unknown): value is PersistedBlobRef {
+  return value !== null &&
+    typeof value === 'object' &&
+    !Array.isArray(value) &&
+    (value as { __pmxCanvasBlob?: unknown }).__pmxCanvasBlob === 'v1';
 }
 
 interface WorkbenchWebViewStatusResponse {
@@ -168,6 +190,7 @@ describe('canvas server HTTP API', () => {
     canvasState.withSuppressedRecording(() => {
       canvasState.clear();
     });
+    rmSync(join(workspaceRoot, '.pmx-canvas', 'snapshots'), { recursive: true, force: true });
     mutationHistory.reset();
   });
 
@@ -1052,6 +1075,60 @@ describe('canvas server HTTP API', () => {
       ),
     ).toBe(true);
   }, 30000);
+
+  test('stores large ext-app payloads in sidecar blobs while preserving opt-in full reads', async () => {
+    const largeToolResult = {
+      content: [
+        {
+          type: 'text',
+          text: 'x'.repeat(20_000),
+        },
+      ],
+      structuredContent: { checkpointId: 'large-checkpoint' },
+    };
+
+    canvasState.addNode({
+      id: 'ext-app-large-blob',
+      type: 'mcp-app',
+      position: { x: 20, y: 30 },
+      size: { width: 640, height: 420 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: {
+        title: 'Large ext-app blob',
+        mode: 'ext-app',
+        toolName: 'create_view',
+        serverName: 'Excalidraw',
+        toolInput: { elements: '[]' },
+        toolResult: largeToolResult,
+      },
+    });
+    canvasState.flushToDisk();
+
+    const persisted = readPersistedCanvasState(workspaceRoot);
+    const persistedNode = persisted.nodes.find((entry) => entry.id === 'ext-app-large-blob');
+    expect(isBlobReference(persistedNode?.data.toolResult)).toBe(true);
+    const blob = persistedNode?.data.toolResult as PersistedBlobRef;
+    expect(blob.jsonBytes).toBeGreaterThan(20_000);
+    expect(existsSync(join(workspaceRoot, '.pmx-canvas', blob.path))).toBe(true);
+    const rawState = readFileSync(join(workspaceRoot, '.pmx-canvas', 'state.json'), 'utf-8');
+    expect(rawState).not.toContain('x'.repeat(1000));
+
+    stopCanvasServer();
+    const restarted = startCanvasServer({ workspaceRoot, port: 4527 });
+    expect(restarted).toBeTruthy();
+    baseUrl = restarted!;
+
+    const compact = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    const compactNode = compact.nodes.find((entry) => entry.id === 'ext-app-large-blob');
+    expect(isBlobSummary(compactNode?.data.toolResult)).toBe(true);
+
+    const full = await jsonRequest<CanvasStateResponse>('/api/canvas/state?includeBlobs=true');
+    const fullNode = full.nodes.find((entry) => entry.id === 'ext-app-large-blob');
+    expect((fullNode?.data.toolResult as typeof largeToolResult | undefined)?.content[0]?.text).toBe('x'.repeat(20_000));
+  });
 
   test('rehydrates Excalidraw checkpoint replay after server restart', async () => {
     const opened = await jsonRequest<{
@@ -2088,6 +2165,57 @@ describe('canvas server HTTP API', () => {
     expect(redoneState.nodes.find((node) => node.id === secondNode.id)?.position).toEqual({ x: 620, y: 120 });
   });
 
+  test('limits, filters, and garbage-collects snapshots over HTTP', async () => {
+    for (const name of ['http-alpha', 'http-beta', 'http-alpha-old']) {
+      const saved = await jsonRequest<{ ok: boolean; snapshot: { name: string } }>('/api/canvas/snapshots', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      });
+      expect(saved.snapshot.name).toBe(name);
+      await new Promise((resolve) => setTimeout(resolve, 2));
+    }
+
+    const limited = await jsonRequest<Array<{ name: string }>>('/api/canvas/snapshots?limit=2');
+    expect(limited.map((item) => item.name)).toEqual(['http-alpha-old', 'http-beta']);
+
+    const filtered = await jsonRequest<Array<{ name: string }>>('/api/canvas/snapshots?q=alpha&all=true');
+    expect(filtered.map((item) => item.name)).toEqual(['http-alpha-old', 'http-alpha']);
+
+    const preview = await jsonRequest<{
+      ok: boolean;
+      kept: number;
+      dryRun: boolean;
+      deleted: Array<{ name: string }>;
+    }>('/api/canvas/snapshots/gc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keep: 1, dryRun: true }),
+    });
+    expect(preview.ok).toBe(true);
+    expect(preview.kept).toBe(1);
+    expect(preview.dryRun).toBe(true);
+    expect(preview.deleted.map((item) => item.name)).toEqual(['http-beta', 'http-alpha']);
+
+    const result = await jsonRequest<{
+      ok: boolean;
+      kept: number;
+      dryRun: boolean;
+      deleted: Array<{ name: string }>;
+    }>('/api/canvas/snapshots/gc', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keep: 1 }),
+    });
+    expect(result.ok).toBe(true);
+    expect(result.kept).toBe(1);
+    expect(result.dryRun).toBe(false);
+    expect(result.deleted.map((item) => item.name)).toEqual(['http-beta', 'http-alpha']);
+
+    const remaining = await jsonRequest<Array<{ name: string }>>('/api/canvas/snapshots?all=true');
+    expect(remaining.map((item) => item.name)).toEqual(['http-alpha-old']);
+  });
+
   test('pinned-context returns structured webpage context for CLI/http consumers', async () => {
     const created = await jsonRequest<{
       ok: boolean;
@@ -2144,6 +2272,127 @@ describe('canvas server HTTP API', () => {
       }),
     ]);
     expect(pinnedContext.nodes[0]).not.toHaveProperty('data');
+  });
+
+  test('pinned-context returns bounded web artifact source context without bundled html', async () => {
+    const { initScriptPath, bundleScriptPath } = createFakeWebArtifactScripts(workspaceRoot);
+
+    const build = await jsonRequest<{
+      ok: boolean;
+      id?: string;
+      nodeId?: string;
+    }>('/api/canvas/web-artifact', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Pinned Artifact',
+        appTsx: 'export default function App() { return <main>Pinned artifact explains the release checklist</main>; }',
+        projectPath: '.pmx-canvas/artifacts/.web-artifacts/pinned-artifact',
+        outputPath: '.pmx-canvas/artifacts/pinned-artifact.html',
+        initScriptPath,
+        bundleScriptPath,
+      }),
+    });
+    expect(build.ok).toBe(true);
+    expect(build.nodeId).toBeDefined();
+
+    const pins = await jsonRequest<{ ok: boolean; count: number }>('/api/canvas/context-pins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeIds: [build.nodeId] }),
+    });
+    expect(pins.count).toBe(1);
+
+    const pinnedContext = await jsonRequest<{
+      preamble: string;
+      nodes: Array<{ content: string | null; metadata?: Record<string, unknown> }>;
+    }>('/api/canvas/pinned-context');
+    expect(pinnedContext.preamble).toContain('Web artifact: Pinned Artifact');
+    expect(pinnedContext.preamble).toContain('release checklist');
+    expect(pinnedContext.preamble).not.toContain('<!DOCTYPE html>');
+    expect(pinnedContext.nodes[0]?.content).toContain('Web artifact: Pinned Artifact');
+    expect(pinnedContext.nodes[0]?.content).toContain('App source preview:');
+    expect(pinnedContext.nodes[0]?.content).not.toContain('<!DOCTYPE html>');
+    expect(pinnedContext.nodes[0]?.metadata).toEqual(expect.objectContaining({
+      viewerType: 'web-artifact',
+      sourceFiles: ['src/App.tsx'],
+      sourceFileCount: 1,
+    }));
+  });
+
+  test('pinned-context returns kind for native, graph, and mcp-app subtype nodes', async () => {
+    const markdown = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Pinned Note', content: 'Native markdown context' }),
+    });
+    const graph = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/graph', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Pinned Graph',
+        graphType: 'bar',
+        data: [{ label: 'A', value: 1 }],
+        xKey: 'label',
+        yKey: 'value',
+      }),
+    });
+    const artifactId = 'pinned-kind-artifact';
+    canvasState.addNode({
+      id: artifactId,
+      type: 'mcp-app',
+      position: { x: 20, y: 30 },
+      size: { width: 640, height: 420 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: {
+        title: 'Pinned Artifact Kind',
+        viewerType: 'web-artifact',
+        hostMode: 'hosted',
+        content: 'Web artifact: Pinned Artifact Kind',
+        path: join(workspaceRoot, '.pmx-canvas', 'artifacts', 'pinned-kind-artifact.html'),
+      },
+    });
+    const externalAppId = 'pinned-kind-external-app';
+    canvasState.addNode({
+      id: externalAppId,
+      type: 'mcp-app',
+      position: { x: 720, y: 30 },
+      size: { width: 640, height: 420 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: {
+        title: 'Pinned External App Kind',
+        mode: 'ext-app',
+        serverName: 'Fixture',
+        toolName: 'show_counter',
+      },
+    });
+
+    const ids = [markdown.id, graph.id, artifactId, externalAppId];
+    const pins = await jsonRequest<{ ok: boolean; count: number }>('/api/canvas/context-pins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeIds: ids }),
+    });
+    expect(pins.count).toBe(ids.length);
+
+    const pinnedContext = await jsonRequest<{
+      preamble: string;
+      nodes: Array<{ id: string; type: string; kind: string }>;
+    }>('/api/canvas/pinned-context');
+    const kinds = Object.fromEntries(pinnedContext.nodes.map((node) => [node.id, { type: node.type, kind: node.kind }]));
+
+    expect(kinds[markdown.id]).toEqual({ type: 'markdown', kind: 'markdown' });
+    expect(kinds[graph.id]).toEqual({ type: 'graph', kind: 'graph' });
+    expect(kinds[artifactId]).toEqual({ type: 'mcp-app', kind: 'web-artifact' });
+    expect(kinds[externalAppId]).toEqual({ type: 'mcp-app', kind: 'external-app' });
+    expect(pinnedContext.preamble).toContain('[Context from "Pinned Artifact Kind" (mcp-app/web-artifact)]');
+    expect(pinnedContext.preamble).toContain('[Context from "Pinned External App Kind" (mcp-app/external-app)]');
   });
 
   test('accepts edge style and animation flags over HTTP', async () => {
@@ -2417,10 +2666,14 @@ describe('canvas server HTTP API', () => {
       path: string;
       projectPath: string;
       openedInCanvas: boolean;
+      startedAt?: string;
       completedAt?: string;
+      durationMs?: number;
+      timeoutMs?: number;
       id?: string;
       nodeId?: string;
       url?: string;
+      metadata?: Record<string, unknown>;
     }>('/api/canvas/web-artifact', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2435,12 +2688,17 @@ describe('canvas server HTTP API', () => {
     });
 
     expect(build.openedInCanvas).toBe(true);
+    expect(build.startedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(build.completedAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(typeof build.durationMs).toBe('number');
+    expect(build.timeoutMs).toBe(600000);
     expect(build.nodeId).toBeDefined();
     expect(build.id).toBe(build.nodeId);
     expect(build.url).toContain('/artifact?path=');
     expect(build.path).toContain('/.pmx-canvas/artifacts/http-artifact.html');
     expect(build.projectPath).toContain('/.pmx-canvas/artifacts/.web-artifacts/http-artifact');
+    expect(build.metadata?.sourcePreview).toContain('HTTP Artifact');
+    expect(JSON.stringify(build.metadata)).not.toContain('<!DOCTYPE html>');
 
     const artifactResponse = await fetch(`${baseUrl}${build.url}`);
     expect(artifactResponse.ok).toBe(true);
@@ -2453,6 +2711,12 @@ describe('canvas server HTTP API', () => {
     expect(artifactNode?.type).toBe('mcp-app');
     expect(artifactNode?.kind).toBe('web-artifact');
     expect(artifactNode?.data.path).toBe(build.path);
+    expect(artifactNode?.data.content).toContain('Web artifact: HTTP Artifact');
+    expect(artifactNode?.data.content).toContain('App source preview:');
+    expect(artifactNode?.data.content).not.toContain('<!DOCTYPE html>');
+    expect(artifactNode?.data.sourceFiles).toEqual(['src/App.tsx']);
+    expect(artifactNode?.data.sourceFileCount).toBe(1);
+    expect(artifactNode?.data.artifactBytes).toBeGreaterThan(0);
   });
 
   test('creates json-render and graph nodes over HTTP and serves their viewer routes', async () => {

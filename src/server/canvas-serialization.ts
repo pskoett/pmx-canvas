@@ -4,6 +4,7 @@ import {
   normalizeCanvasNodeData,
   type CanvasNodeProvenance,
 } from './canvas-provenance.js';
+import { getCanvasNodeKind as getSharedCanvasNodeKind } from '../shared/canvas-node-kind.js';
 
 export interface SerializedCanvasNode extends CanvasNodeState {
   kind: string;
@@ -18,6 +19,14 @@ export interface SerializedCanvasLayout extends Omit<CanvasLayout, 'nodes'> {
   nodes: SerializedCanvasNode[];
 }
 
+interface BlobSummary {
+  stored: 'sidecar';
+  path: string;
+  bytes: number;
+  jsonBytes: number;
+  sha256: string;
+}
+
 function pickString(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
@@ -27,19 +36,8 @@ function pickProvenance(value: unknown): CanvasNodeProvenance | null {
   return value as CanvasNodeProvenance;
 }
 
-function getCanvasNodeKind(node: CanvasNodeState, data: Record<string, unknown>): string {
-  if (node.type !== 'mcp-app') return node.type;
-  // Authoritative discriminator added in v0.1.4. New web-artifacts always set
-  // it; matching here first means a future URL-only artifact (no `data.path`)
-  // still classifies correctly without falling through to the legacy heuristic.
-  if (data.viewerType === 'web-artifact') return 'web-artifact';
-  if (data.mode === 'ext-app') return 'external-app';
-  // Transitional fallback for canvas state.json files persisted before v0.1.4
-  // introduced `viewerType`. Web-artifacts written by older versions always
-  // stored a `path` to the bundled HTML file, so this heuristic is safe for
-  // existing data. Remove in v0.2.x once a one-shot migration runs at boot.
-  if (data.hostMode === 'hosted' && typeof data.path === 'string') return 'web-artifact';
-  return 'mcp-app';
+export function getCanvasNodeKind(node: CanvasNodeState, data: Record<string, unknown>): string {
+  return getSharedCanvasNodeKind({ type: node.type, data });
 }
 
 export function getCanvasNodeTitle(node: CanvasNodeState): string | null {
@@ -72,10 +70,37 @@ export function serializeCanvasNode(node: CanvasNodeState): SerializedCanvasNode
   };
 }
 
+function summarizeBlobValue(value: unknown): unknown {
+  if (!canvasState.isBlobReference(value)) return value;
+  return {
+    stored: 'sidecar',
+    path: value.path,
+    bytes: value.bytes,
+    jsonBytes: value.jsonBytes,
+    sha256: value.sha256,
+  } satisfies BlobSummary;
+}
+
+export function serializeCanvasNodeWithBlobSummaries(node: CanvasNodeState): SerializedCanvasNode {
+  const serialized = serializeCanvasNode(node);
+  if (serialized.type !== 'mcp-app') return serialized;
+  const data = Object.fromEntries(
+    Object.entries(serialized.data).map(([key, value]) => [key, summarizeBlobValue(value)]),
+  );
+  return { ...serialized, data };
+}
+
 export function serializeCanvasLayout(layout: CanvasLayout): SerializedCanvasLayout {
   return {
     ...layout,
     nodes: layout.nodes.map(serializeCanvasNode),
+  };
+}
+
+export function serializeCanvasLayoutWithBlobSummaries(layout: CanvasLayout): SerializedCanvasLayout {
+  return {
+    ...layout,
+    nodes: layout.nodes.map(serializeCanvasNodeWithBlobSummaries),
   };
 }
 

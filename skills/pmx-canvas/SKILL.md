@@ -225,6 +225,7 @@ The CLI targets `http://localhost:4313` by default. Override with `PMX_CANVAS_UR
 | `mcp-app` | Hosted app/embed frame | Tool-backed MCP apps or external app content; not generic CLI-created notes |
 | `json-render` | Native structured UI panel | Dashboards, forms, tables, interactive layouts from json-render specs |
 | `graph` | Native chart panel | Line, bar, pie, area, scatter, radar, stacked-bar, and composed charts rendered inside the canvas |
+| `html` | Sandboxed HTML+JS document | Self-contained HTML with optional inline `<script>` and CDN imports rendered in a sandbox-restricted iframe; canvas theme tokens are auto-injected |
 | `group` | Spatial container/frame | Visually group related nodes together |
 | `prompt` | Prompt thread root | Canvas-native prompt entry points for agent conversations. **Internal type — surfaces in `canvas://layout` for thread rendering but is not created via the public `canvas_add_node` API. Don't try to add one directly.** |
 | `response` | Prompt reply / streamed answer | Agent responses linked to prompt threads. **Same internal-only restriction as `prompt`.** |
@@ -269,6 +270,7 @@ MCP node-type routing:
 | Basic nodes (`markdown`, `status`, `context`, `ledger`, `trace`, `file`, `image`, `webpage`) | `canvas_add_node` |
 | `json-render` | `canvas_add_json_render_node` |
 | `graph` | `canvas_add_graph_node` |
+| `html` | `canvas_add_html_node` |
 | `web-artifact` | `canvas_build_web_artifact` |
 | `external-app` / tool-backed `mcp-app` | `canvas_open_mcp_app` |
 | `group` | `canvas_create_group` |
@@ -430,6 +432,27 @@ ID extraction for mixed tool responses:
 
 **`canvas_ungroup`** — Release children from a group
 - `groupId` (required): group to dissolve
+
+### Group Layout Guidance
+
+Use groups as spacious semantic regions, not as tight containers.
+
+- Size the child nodes first, especially `graph`, `json-render`, `mcp-app`, image, and webpage
+  nodes whose rendered content may need more height than their visible title suggests.
+- Give every group generous interior padding. Reserve extra top padding for the group header, then
+  keep children clear of the frame edges so headers, glow, resize handles, and node chrome do not
+  visually collide.
+- If creating a group manually, compute its frame from the final child bounds plus padding. If the
+  group exists first, expand it before adding large children rather than shrinking children to fit.
+- Use groups to label major regions of a board. Avoid wrapping every small relationship; too many
+  tight groups make the canvas harder to read than no groups.
+- Keep edges local to a group where possible. Long cross-board edges can look like they come from
+  nowhere; use a nearby bridge/context node or split the relationship into shorter labeled edges.
+- After grouping, verify the result in `canvas_get_layout` or the browser: child nodes should be
+  fully inside the group with padding, visible nodes should not overlap, and group headers should
+  not cover content.
+- If a group makes important content less visible, enlarge the group, split it into clearer
+  regions, or remove the group. Visibility is more important than preserving a frame.
 
 ### Grouped Comparison Boards
 
@@ -612,6 +635,26 @@ server's `ui://` resource as an iframe node on the canvas
 - Use this when the output should be a richer interactive UI than a simple markdown/file/image node
 - Prefer the dedicated `web-artifacts-builder` skill when you need the full React + shadcn workflow
 - Use the `playwright-cli` skill when you need to validate the built artifact in a live browser
+
+### HTML Nodes (Sandboxed iframe)
+
+**`canvas_add_html_node`** — Add a self-contained HTML document rendered in a sandboxed iframe
+- Required: `html` (full document or fragment; inline `<script>` and CDN `<script src="...">` are allowed)
+- Optional: `title`, `x`, `y`, `width` (default 720), `height` (default 640), `strictSize`
+- Iframe sandbox is `allow-scripts` only — no same-origin access, no top-navigation, no forms
+- Canvas theme tokens are auto-injected as CSS custom properties (both `--c-*` and common `--color-*` aliases such as `--color-text-primary`, `--color-bg`, `--color-accent`) so authored HTML inherits the active theme
+- Use for moderate-complexity visualizations and interactive widgets that need real JS but do not warrant a full React build (Chart.js demos, D3 sketches, custom HTML report views)
+
+### Choosing the Right Visual Tier
+
+When the output is more than markdown, pick the lightest tier that fits:
+
+| Tier | Tool | Build cost | When to pick it |
+|------|------|------------|-----------------|
+| Declarative UI | `canvas_add_json_render_node` / `canvas_add_graph_node` | None | Schema-driven dashboards, forms, charts; agent-friendly to read back via `canvas_get_node` |
+| Sandboxed HTML+JS | `canvas_add_html_node` | None | Self-contained HTML with inline JS or CDN scripts; one-off visualizations or report views |
+| Hosted MCP app | `canvas_open_mcp_app` / `canvas_add_diagram` | None | Interactive editors backed by an external MCP server (e.g. Excalidraw) |
+| Bundled React app | `canvas_build_web_artifact` | Heavy (npm install + bundle) | Multi-component UIs needing React state, routing, shadcn/ui, or Tailwind class composition |
 
 ### Native Structured UI
 

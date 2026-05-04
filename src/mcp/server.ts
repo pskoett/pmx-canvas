@@ -165,9 +165,73 @@ function encodeBase64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString('base64');
 }
 
-async function createdNodePayload(c: CanvasAccess, id: string): Promise<Record<string, unknown>> {
+function wantsFullPayload(input: { full?: boolean; verbose?: boolean; includeData?: boolean } = {}): boolean {
+  return input.full === true || input.verbose === true || input.includeData === true;
+}
+
+function compactNodePayload(node: Awaited<ReturnType<CanvasAccess['getNode']>>): Record<string, unknown> | null {
+  if (!node) return null;
+  const serialized = serializeCanvasNode(node);
+  return {
+    id: serialized.id,
+    type: serialized.type,
+    kind: serialized.kind,
+    title: serialized.title,
+    content: serialized.content,
+    position: serialized.position,
+    size: serialized.size,
+    pinned: serialized.pinned,
+    collapsed: serialized.collapsed,
+    dockPosition: serialized.dockPosition,
+    provenance: serialized.provenance,
+  };
+}
+
+function compactLayoutPayload(layout: Awaited<ReturnType<CanvasAccess['getLayout']>>, pinnedIds: string[]): Record<string, unknown> {
+  return {
+    summary: buildSummaryFromLayout(layout, pinnedIds),
+    viewport: layout.viewport,
+    nodes: layout.nodes.map((node) => compactNodePayload(node)).filter((node): node is Record<string, unknown> => node !== null),
+    edges: layout.edges.map((edge) => ({
+      id: edge.id,
+      from: edge.from,
+      to: edge.to,
+      type: edge.type,
+      ...(edge.label ? { label: edge.label } : {}),
+      ...(edge.style ? { style: edge.style } : {}),
+      ...(edge.animated !== undefined ? { animated: edge.animated } : {}),
+    })),
+  };
+}
+
+function compactBatchValue(value: unknown): unknown {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  const record = value as Record<string, unknown>;
+  const nodeLike = typeof record.id === 'string' && typeof record.type === 'string';
+  const compact: Record<string, unknown> = {};
+  for (const key of ['ok', 'id', 'type', 'kind', 'title', 'content', 'position', 'size', 'fetch', 'error', 'from', 'to', 'groupId', 'nodeIds', 'snapshot', 'arranged', 'layout']) {
+    if (record[key] !== undefined) compact[key] = record[key];
+  }
+  if (nodeLike) return compact;
+  return record;
+}
+
+function compactBatchResult(result: { ok: boolean; results: Array<Record<string, unknown>>; refs: Record<string, unknown>; failedIndex?: number; error?: string }): Record<string, unknown> {
+  return {
+    ok: result.ok,
+    ...(result.failedIndex !== undefined ? { failedIndex: result.failedIndex } : {}),
+    ...(result.error ? { error: result.error } : {}),
+    results: result.results.map((entry) => compactBatchValue(entry)),
+    refs: Object.fromEntries(Object.entries(result.refs).map(([key, value]) => [key, compactBatchValue(value)])),
+  };
+}
+
+async function createdNodePayload(c: CanvasAccess, id: string, options: { full?: boolean; verbose?: boolean; includeData?: boolean } = {}): Promise<Record<string, unknown>> {
   const node = await c.getNode(id);
   if (!node) return { ok: true, id };
+  if (!wantsFullPayload(options)) {
+    return { ok: true, node: compactNodePayload(node), id };
+  }
   const serialized = serializeCanvasNode(node);
   return { ok: true, node: serialized, ...serialized };
 }
@@ -214,13 +278,19 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_get_layout ──────────────────────────────────────────
   server.tool(
     'canvas_get_layout',
-    'Get the full canvas state: all nodes, edges, and viewport. Call this first to understand what is on the canvas.',
-    {},
-    async () => {
+    'Get the canvas layout. Defaults to a compact agent-safe projection; pass full:true for full node data.',
+    {
+      full: z.boolean().optional().describe('Return the full layout including node data. Default false keeps responses compact.'),
+      verbose: z.boolean().optional().describe('Alias for full:true.'),
+    },
+    async (input) => {
       const c = await ensureCanvas();
-      const layout = serializeCanvasLayout(await c.getLayout());
+      const layout = await c.getLayout();
+      const payload = wantsFullPayload(input)
+        ? serializeCanvasLayout(layout)
+        : compactLayoutPayload(layout, await c.getPinnedNodeIds());
       return {
-        content: [{ type: 'text', text: JSON.stringify(layout, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
       };
     },
   );
@@ -228,19 +298,24 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_get_node ────────────────────────────────────────────
   server.tool(
     'canvas_get_node',
-    'Get a single node by ID, including its full data.',
-    { id: z.string().describe('The node ID to retrieve') },
-    async ({ id }) => {
+    'Get a single node by ID. Defaults to compact metadata; pass full:true to include full data/tool results.',
+    {
+      id: z.string().describe('The node ID to retrieve'),
+      full: z.boolean().optional().describe('Include full node data, including mcp-app tool results. Default false.'),
+      verbose: z.boolean().optional().describe('Alias for full:true.'),
+    },
+    async (input) => {
       const c = await ensureCanvas();
-      const node = await c.getNode(id);
+      const node = await c.getNode(input.id);
       if (!node) {
         return {
-          content: [{ type: 'text', text: `Node "${id}" not found.` }],
+          content: [{ type: 'text', text: `Node "${input.id}" not found.` }],
           isError: true,
         };
       }
+      const payload = wantsFullPayload(input) ? serializeCanvasNode(node) : compactNodePayload(node);
       return {
-        content: [{ type: 'text', text: JSON.stringify(serializeCanvasNode(node), null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
       };
     },
   );
@@ -248,9 +323,9 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_add_node ────────────────────────────────────────────
   server.tool(
     'canvas_add_node',
-    'Add a basic node to the canvas. Returns the created node with normalized title/content and rendered geometry. Supported here: markdown, status, context, ledger, trace, file, image, webpage, mcp-app, group. Dedicated node tools: json-render -> canvas_add_json_render_node, graph -> canvas_add_graph_node, web-artifact -> canvas_build_web_artifact, external apps -> canvas_open_mcp_app, groups -> canvas_create_group. Call canvas_describe_schema for the full nodeTypeRouting table.',
+    'Add a basic node to the canvas. Returns the created node with normalized title/content and rendered geometry. Supported here: markdown, status, context, ledger, trace, file, image, webpage, mcp-app, html, group. Dedicated node tools: json-render -> canvas_add_json_render_node, graph -> canvas_add_graph_node, web-artifact -> canvas_build_web_artifact, external apps -> canvas_open_mcp_app, html (preferred) -> canvas_add_html_node, groups -> canvas_create_group. Call canvas_describe_schema for the full nodeTypeRouting table.',
     {
-      type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'webpage', 'mcp-app', 'group'])
+      type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'webpage', 'mcp-app', 'html', 'group'])
         .describe('Node type (prefer canvas_create_group for groups)'),
       title: z.string().optional().describe('Node title'),
       content: z.string().optional().describe('Node content (markdown for markdown nodes, file path for file nodes, image path/URL/data-URI for image nodes, URL for webpage nodes)'),
@@ -267,6 +342,8 @@ export async function startMcpServer(): Promise<void> {
       duration: z.string().optional().describe('Trace node duration badge text'),
       resultSummary: z.string().optional().describe('Trace node result summary'),
       error: z.string().optional().describe('Trace node error message'),
+      full: z.boolean().optional().describe('Return the full created node payload. Default false returns compact metadata.'),
+      verbose: z.boolean().optional().describe('Alias for full:true.'),
     },
     async (input) => {
       const c = await ensureCanvas();
@@ -297,7 +374,39 @@ export async function startMcpServer(): Promise<void> {
         : input;
       const id = await c.addNode(nodeInput);
       return {
-        content: [{ type: 'text', text: JSON.stringify(await createdNodePayload(c, id), null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(await createdNodePayload(c, id, input), null, 2) }],
+      };
+    },
+  );
+
+  // ── canvas_add_html_node ────────────────────────────────────────
+  server.tool(
+    'canvas_add_html_node',
+    'Add an html node: a self-contained HTML document (with optional inline <script> and CDN <script src="...">) rendered inside a sandboxed iframe (sandbox="allow-scripts"). Use this for moderate-complexity visualizations or interactive widgets that need real JS but do not warrant a full React/shadcn build. The iframe inherits canvas theme tokens via injected CSS custom properties (both --c-* and common --color-* aliases) so authored HTML using var(--color-text-secondary), var(--color-bg), etc. renders cohesively. No same-origin access; no top-navigation; no forms. For declarative-only views with zero JS, prefer canvas_add_json_render_node. For React + shadcn + routing or multi-component apps, use canvas_build_web_artifact.',
+    {
+      html: z.string().describe('HTML document or fragment. Full <html>...</html> documents are passed through with theme styles injected into <head>; bare fragments are wrapped in a minimal document. Inline <script> and remote CDN <script src="..."> are allowed.'),
+      title: z.string().optional().describe('Node title shown in the canvas titlebar.'),
+      x: z.number().optional().describe('X position (auto-placed if omitted).'),
+      y: z.number().optional().describe('Y position (auto-placed if omitted).'),
+      width: z.number().optional().describe('Width in pixels (default: 720).'),
+      height: z.number().optional().describe('Height in pixels (default: 640).'),
+      strictSize: z.boolean().optional().describe('Keep explicit width/height fixed; iframe scrolls overflow internally.'),
+      full: z.boolean().optional().describe('Return the full created node payload. Default false returns compact metadata.'),
+      verbose: z.boolean().optional().describe('Alias for full:true.'),
+    },
+    async (input) => {
+      const c = await ensureCanvas();
+      const id = await c.addHtmlNode({
+        html: input.html,
+        ...(typeof input.title === 'string' ? { title: input.title } : {}),
+        ...(typeof input.x === 'number' ? { x: input.x } : {}),
+        ...(typeof input.y === 'number' ? { y: input.y } : {}),
+        ...(typeof input.width === 'number' ? { width: input.width } : {}),
+        ...(typeof input.height === 'number' ? { height: input.height } : {}),
+        ...(input.strictSize === true ? { strictSize: true } : {}),
+      });
+      return {
+        content: [{ type: 'text', text: JSON.stringify(await createdNodePayload(c, id, input), null, 2) }],
       };
     },
   );
@@ -554,7 +663,10 @@ export async function startMcpServer(): Promise<void> {
               bytes: result.fileSize,
               projectPath: result.projectPath,
               openedInCanvas: result.openedInCanvas,
+              startedAt: result.startedAt,
               completedAt: result.completedAt,
+              durationMs: result.durationMs,
+              timeoutMs: result.timeoutMs,
               // `id` only present when a canvas node was actually created.
               // See the matching block in src/server/server.ts handleCanvasBuildWebArtifact.
               ...(typeof result.nodeId === 'string' ? { id: result.nodeId } : {}),
@@ -720,10 +832,19 @@ export async function startMcpServer(): Promise<void> {
       xKey: z.string().optional().describe('Graph x/category key'),
       yKey: z.string().optional().describe('Graph y/value key'),
       chartHeight: z.number().optional().describe('Graph chart content height, distinct from node height'),
+      toolName: z.string().optional().describe('Trace node tool or operation label'),
+      category: z.string().optional().describe('Trace node category: mcp, file, subagent, or other'),
+      status: z.string().optional().describe('Trace node status: running, success, or failed'),
+      duration: z.string().optional().describe('Trace node duration badge text'),
+      resultSummary: z.string().optional().describe('Trace node result summary'),
+      error: z.string().optional().describe('Trace node error message'),
       collapsed: z.boolean().optional().describe('Collapse or expand the node'),
       arrangeLocked: z.boolean().optional().describe('Prevent auto-arrange from moving this node. Pinned nodes are also skipped.'),
+      full: z.boolean().optional().describe('Return the full updated node payload. Default false returns compact metadata.'),
+      verbose: z.boolean().optional().describe('Alias for full:true.'),
     },
-    async ({ id, title, content, x, y, width, height, spec, graphType, data, xKey, yKey, chartHeight, collapsed, arrangeLocked }) => {
+    async (input) => {
+      const { id, title, content, x, y, width, height, spec, graphType, data, xKey, yKey, chartHeight, collapsed, arrangeLocked, toolName, category, status, duration, resultSummary, error } = input;
       const c = await ensureCanvas();
       const node = await c.getNode(id);
       if (!node) {
@@ -750,13 +871,19 @@ export async function startMcpServer(): Promise<void> {
       if (xKey !== undefined) patch.xKey = xKey;
       if (yKey !== undefined) patch.yKey = yKey;
       if (chartHeight !== undefined) patch.chartHeight = chartHeight;
+      if (toolName !== undefined) patch.toolName = toolName;
+      if (category !== undefined) patch.category = category;
+      if (status !== undefined) patch.status = status;
+      if (duration !== undefined) patch.duration = duration;
+      if (resultSummary !== undefined) patch.resultSummary = resultSummary;
+      if (error !== undefined) patch.error = error;
       if (arrangeLocked !== undefined) {
         patch.arrangeLocked = arrangeLocked;
       }
       await c.updateNode(id, patch);
       const updated = await c.getNode(id);
       return {
-        content: [{ type: 'text', text: JSON.stringify(updated ? await createdNodePayload(c, id) : { ok: true, id }, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(updated ? await createdNodePayload(c, id, input) : { ok: true, id }, null, 2) }],
       };
     },
   );
@@ -1463,12 +1590,14 @@ export async function startMcpServer(): Promise<void> {
       width: z.number().optional().describe('Width (auto-computed from children if omitted)'),
       height: z.number().optional().describe('Height (auto-computed from children if omitted)'),
       childLayout: z.enum(['grid', 'column', 'flow']).optional().describe('Optional child auto-layout. Omit to preserve current child positions.'),
+      full: z.boolean().optional().describe('Return the full created group payload. Default false returns compact metadata.'),
+      verbose: z.boolean().optional().describe('Alias for full:true.'),
     },
     async (input) => {
       const c = await ensureCanvas();
       const id = await c.createGroup(input);
       return {
-        content: [{ type: 'text', text: JSON.stringify(await createdNodePayload(c, id), null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(await createdNodePayload(c, id, input), null, 2) }],
       };
     },
   );
@@ -1501,12 +1630,15 @@ export async function startMcpServer(): Promise<void> {
         assign: z.string().optional().describe('Optional reference name for later operations'),
         args: z.record(z.string(), z.unknown()).optional().describe('Operation arguments'),
       })).describe('Ordered array of batch operations'),
+      full: z.boolean().optional().describe('Return full batch operation results. Default false compacts node-like payloads.'),
+      verbose: z.boolean().optional().describe('Alias for full:true.'),
     },
-    async ({ operations }) => {
+    async (input) => {
       const c = await ensureCanvas();
-      const result = await c.runBatch(operations);
+      const result = await c.runBatch(input.operations);
+      const payload = wantsFullPayload(input) ? result : compactBatchResult(result);
       return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
         ...(result.ok ? {} : { isError: true }),
       };
     },
@@ -1586,12 +1718,33 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_list_snapshots ───────────────────────────────────
   server.tool(
     'canvas_list_snapshots',
-    'List all saved canvas snapshots with IDs, names, timestamps, and node/edge counts.',
-    {},
-    async () => {
+    'List saved canvas snapshots with IDs, names, timestamps, and node/edge counts. Defaults to the 20 newest snapshots; pass all=true to return every snapshot.',
+    {
+      limit: z.number().optional().describe('Maximum snapshots to return (default: 20)'),
+      query: z.string().optional().describe('Optional case-insensitive ID/name filter'),
+      all: z.boolean().optional().describe('Return all snapshots instead of the default limit'),
+    },
+    async (input) => {
       const c = await ensureCanvas();
       return {
-        content: [{ type: 'text', text: JSON.stringify({ snapshots: await c.listSnapshots() }, null, 2) }],
+        content: [{ type: 'text', text: JSON.stringify({ snapshots: await c.listSnapshots(input) }, null, 2) }],
+      };
+    },
+  );
+
+  // ── canvas_gc_snapshots ─────────────────────────────────────
+  server.tool(
+    'canvas_gc_snapshots',
+    'Delete old saved canvas snapshots, keeping the newest N snapshots. Use dryRun=true to preview deletions.',
+    {
+      keep: z.number().optional().describe('Number of newest snapshots to keep (default: 20)'),
+      dryRun: z.boolean().optional().describe('Preview deletions without removing snapshot files'),
+    },
+    async (input) => {
+      const c = await ensureCanvas();
+      const result = await c.gcSnapshots(input);
+      return {
+        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
       };
     },
   );

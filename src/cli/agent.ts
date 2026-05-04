@@ -154,7 +154,7 @@ function parseFlags(args: string[]): { positional: string[]; flags: Record<strin
   const flags: Record<string, string | true> = {};
   // Boolean-only flags (never take a value argument)
   const BOOL_FLAGS = new Set([
-    'help', 'h', 'ids', 'stdin', 'yes', 'list', 'clear', 'set', 'animated', 'dry-run',
+    'help', 'h', 'ids', 'stdin', 'yes', 'list', 'clear', 'set', 'animated', 'dry-run', 'all',
     'no-open-in-canvas', 'lock-arrange', 'unlock-arrange', 'json', 'compact', 'summary',
     'verbose', 'include-logs', 'no-pan', 'schema', 'example', 'examples', 'strict-size', 'scroll-overflow',
   ]);
@@ -1081,7 +1081,7 @@ cmd('node add', 'Add a node to the canvas', [
   applyStrictSizeFlags(body, flags);
   if (type === 'trace') {
     for (const field of TRACE_NODE_FIELDS) {
-      const value = getStringFlag(flags, field);
+      const value = getStringFlag(flags, field, field.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`));
       if (value !== undefined) body[field] = value;
     }
   }
@@ -1315,6 +1315,11 @@ cmd('node update', 'Update a node by ID', [
 
   applyStrictSizeFlags(body, flags);
 
+  for (const field of TRACE_NODE_FIELDS) {
+    const value = getStringFlag(flags, field, field.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`));
+    if (value !== undefined) body[field] = value;
+  }
+
   if (x !== undefined || y !== undefined || width !== undefined || frameHeight !== undefined || arrangeLocked !== undefined) {
     const existing = await api('GET', `/api/canvas/node/${encodeURIComponent(id)}`) as {
       position: { x: number; y: number };
@@ -1346,7 +1351,7 @@ cmd('node update', 'Update a node by ID', [
   if (Object.keys(body).length === 0) {
     die(
       'No updates specified',
-      'Use --title, --content, --x, --y, --width, --height, --strict-size, --pinned, --lock-arrange, --unlock-arrange, or --stdin',
+      'Use --title, --content, --x, --y, --width, --height, --strict-size, --pinned, trace fields, --lock-arrange, --unlock-arrange, or --stdin',
     );
   }
 
@@ -1684,13 +1689,41 @@ cmd('snapshot save', 'Save a named snapshot of the current canvas', [
 });
 
 // ── snapshot list ────────────────────────────────────────────
-cmd('snapshot list', 'List all saved snapshots', [
+cmd('snapshot list', 'List saved snapshots', [
   'pmx-canvas snapshot list',
+  'pmx-canvas snapshot list --limit 50 --query baseline',
+  'pmx-canvas snapshot list --all',
 ], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('snapshot list');
 
-  const result = await api('GET', '/api/canvas/snapshots');
+  const params = new URLSearchParams();
+  const limit = optionalNumberFlag(flags, 'limit', 'Use a positive integer, e.g. --limit 50');
+  const query = getStringFlag(flags, 'query', 'q');
+  if (limit !== undefined) params.set('limit', String(limit));
+  if (query) params.set('q', query);
+  if (flags.all) params.set('all', 'true');
+  const result = await api('GET', `/api/canvas/snapshots${params.size > 0 ? `?${params.toString()}` : ''}`);
+  output(result);
+});
+
+// ── snapshot gc ──────────────────────────────────────────────
+cmd('snapshot gc', 'Delete old snapshots, keeping the newest N', [
+  'pmx-canvas snapshot gc --keep 20 --dry-run',
+  'pmx-canvas snapshot gc --keep 50 --yes',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('snapshot gc');
+
+  const keep = optionalNumberFlag(flags, 'keep', 'Use a positive integer, e.g. --keep 20');
+  const dryRun = flags['dry-run'] === true;
+  if (!dryRun && !flags.yes) {
+    die('Destructive operation requires --yes flag', 'Preview with: pmx-canvas snapshot gc --keep 20 --dry-run');
+  }
+  const result = await api('POST', '/api/canvas/snapshots/gc', {
+    ...(keep !== undefined ? { keep } : {}),
+    dryRun,
+  });
   output(result);
 });
 
@@ -2285,12 +2318,25 @@ function showCommandHelp(name: string): void {
     console.log('\nOutput control:');
     console.log('  --summary                 Return only validation summary metadata');
   }
+  if (name === 'snapshot list') {
+    console.log('\nOptions:');
+    console.log('  --limit <number>          Maximum snapshots to return (default 20)');
+    console.log('  --query <text>            Case-insensitive ID/name filter');
+    console.log('  --all                     Return all snapshots');
+  }
+  if (name === 'snapshot gc') {
+    console.log('\nOptions:');
+    console.log('  --keep <number>           Number of newest snapshots to keep (default 20)');
+    console.log('  --dry-run                 Preview deletions without removing files');
+    console.log('  --yes                     Confirm deletion');
+  }
   if (name === 'web-artifact build') {
     console.log('\nDependencies:');
     console.log('  --deps <list>              Add npm dependencies before bundling, e.g. --deps recharts,zod');
     console.log('\nOutput control:');
     console.log('  --include-logs            Include raw build stdout/stderr in the response');
     console.log('  --verbose                 Alias for --include-logs');
+    console.log('  --timeout-ms <number>     Optional init/install/build timeout in milliseconds');
   }
   if (name === 'focus') {
     console.log('\nViewport:');
@@ -2389,6 +2435,7 @@ History:
 Snapshots:
   pmx-canvas snapshot save --name X   Save a named snapshot
   pmx-canvas snapshot list            List snapshots
+  pmx-canvas snapshot gc --keep 20    Delete old snapshots
   pmx-canvas snapshot restore <id>    Restore from snapshot
   pmx-canvas snapshot diff <id>       Compare current canvas to snapshot
   pmx-canvas snapshot delete <id>     Delete a snapshot

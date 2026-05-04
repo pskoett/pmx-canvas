@@ -419,6 +419,7 @@ export function getNodeIcon(type: string): (p: IconProps) => JSX.Element {
     case 'ext-app': return IconNodeExtApp;
     case 'json-render': return IconNodeJsonRender;
     case 'graph': return IconNodeGraph;
+    case 'html': return IconNodeWebpage;
     default: return IconNodeMarkdown;
   }
 }

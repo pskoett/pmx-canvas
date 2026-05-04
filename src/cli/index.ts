@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runAgentCli } from './agent.js';
 import { createCanvas } from '../server/index.js';
+import { seedDemoCanvas } from '../server/demo.js';
 
 const args = process.argv.slice(2);
 
@@ -594,29 +595,7 @@ Examples:
     process.exit(1);
   }
 
-  if (demo && canvas.getLayout().nodes.length === 0) {
-    const n1 = canvas.addNode({
-      type: 'markdown',
-      title: 'Welcome to PMX Canvas',
-      content: '# PMX Canvas Workbench\n\nA spatial canvas for coding agents.\n\n## Features\n- Infinite 2D canvas with pan/zoom\n- Multiple node types\n- Edges between nodes\n- Real-time SSE updates\n- HTTP API for agent control',
-    });
-
-    const n2 = canvas.addNode({
-      type: 'markdown',
-      title: 'Getting Started',
-      content: `# Quick Start\n\n\`\`\`bash\n# Add a node via CLI\npmx-canvas node add --type markdown --title "Hello" --content "# World"\n\n# List nodes\npmx-canvas node list\n\n# Get canvas state\npmx-canvas layout\n\`\`\``,
-    });
-
-    const n3 = canvas.addNode({
-      type: 'status',
-      title: 'Agent Status',
-      content: 'Ready',
-    });
-
-    canvas.addEdge({ from: n1, to: n2, type: 'flow', label: 'next' });
-    canvas.addEdge({ from: n2, to: n3, type: 'flow' });
-    canvas.arrange('grid');
-  }
+  if (demo && canvas.getLayout().nodes.length === 0) seedDemoCanvas();
 
   console.log(`\n  PMX Canvas running at http://localhost:${canvas.port}`);
   console.log(`  Health: http://localhost:${canvas.port}/health\n`);

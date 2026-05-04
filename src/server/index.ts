@@ -20,6 +20,7 @@ import {
   fitCanvasView,
   deleteCanvasSnapshot,
   executeCanvasBatch,
+  gcCanvasSnapshots,
   groupCanvasNodes,
   listCanvasSnapshots,
   refreshCanvasWebpageNode,
@@ -459,8 +460,8 @@ export class PmxCanvas extends EventEmitter {
     return result;
   }
 
-  listSnapshots() {
-    return listCanvasSnapshots();
+  listSnapshots(options?: Parameters<typeof listCanvasSnapshots>[0]) {
+    return listCanvasSnapshots(options);
   }
 
   saveSnapshot(name: string) {
@@ -477,6 +478,10 @@ export class PmxCanvas extends EventEmitter {
 
   deleteSnapshot(id: string): { ok: boolean } {
     return deleteCanvasSnapshot(id);
+  }
+
+  gcSnapshots(options?: Parameters<typeof gcCanvasSnapshots>[0]): ReturnType<typeof gcCanvasSnapshots> {
+    return gcCanvasSnapshots(options);
   }
 
   diffSnapshot(idOrName: string): { ok: boolean; text?: string; diff?: ReturnType<typeof diffLayouts>; error?: string } {
@@ -619,6 +624,31 @@ export class PmxCanvas extends EventEmitter {
     return result;
   }
 
+  addHtmlNode(input: {
+    html: string;
+    title?: string;
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    strictSize?: boolean;
+  }): string {
+    const { id } = addCanvasNode({
+      type: 'html',
+      ...(typeof input.title === 'string' ? { title: input.title } : {}),
+      data: { html: input.html },
+      ...(typeof input.x === 'number' ? { x: input.x } : {}),
+      ...(typeof input.y === 'number' ? { y: input.y } : {}),
+      ...(typeof input.width === 'number' ? { width: input.width } : {}),
+      ...(typeof input.height === 'number' ? { height: input.height } : {}),
+      ...(input.strictSize ? { strictSize: true } : {}),
+      defaultWidth: 720,
+      defaultHeight: 640,
+    });
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return id;
+  }
+
   addGraphNode(input: GraphNodeInput): { id: string; url: string; spec: JsonRenderSpec } {
     const result = createCanvasGraphNode(input);
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
@@ -693,7 +723,7 @@ export {
   screenshotCanvasAutomationWebView,
 } from './server.js';
 export { canvasState } from './canvas-state.js';
-export type { CanvasSnapshot } from './canvas-state.js';
+export type { CanvasSnapshot, CanvasSnapshotGcResult, CanvasSnapshotListOptions } from './canvas-state.js';
 export { findOpenCanvasPosition } from './placement.js';
 export { searchNodes, buildSpatialContext, detectClusters, findNeighborhoods } from './spatial-analysis.js';
 export type { SpatialCluster, SpatialContext, SpatialNeighbor, NodeSpatialInfo } from './spatial-analysis.js';

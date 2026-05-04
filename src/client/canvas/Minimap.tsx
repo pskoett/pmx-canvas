@@ -37,6 +37,7 @@ function getNodeColors(): Record<CanvasNodeState['type'], string> {
     trace: t.purple,
     file: t.accent,
     image: t.ok,
+    html: t.warn,
     group: t.dim,
   };
 }

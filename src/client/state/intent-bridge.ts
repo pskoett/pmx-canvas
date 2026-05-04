@@ -101,7 +101,7 @@ export async function openWorkbenchFile(path: string): Promise<{ ok: boolean }> 
 
 /** Fetch canvas state from server. */
 export async function fetchCanvasState(): Promise<Record<string, unknown>> {
-  return requestJson('fetchCanvasState', '/api/canvas/state', {});
+  return requestJson('fetchCanvasState', '/api/canvas/state?includeBlobs=true', {});
 }
 
 /** Fetch available slash commands for prompt completion. */
@@ -148,11 +148,12 @@ export async function pushCanvasUpdate(
     collapsed?: boolean;
     dockPosition?: 'left' | 'right' | null;
   }>,
+  options: { recordHistory?: boolean } = {},
 ): Promise<void> {
   await requestBestEffort('pushCanvasUpdate', '/api/canvas/update', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ updates }),
+    body: JSON.stringify({ updates, ...(options.recordHistory === false ? { recordHistory: false } : {}) }),
   });
 }
 
@@ -286,7 +287,7 @@ export interface CanvasSnapshotInfo {
 }
 
 export async function listSnapshots(): Promise<CanvasSnapshotInfo[]> {
-  return requestJson<CanvasSnapshotInfo[]>('listSnapshots', '/api/canvas/snapshots', []);
+  return requestJson<CanvasSnapshotInfo[]>('listSnapshots', '/api/canvas/snapshots?all=true', []);
 }
 
 export async function saveSnapshot(name: string): Promise<{ ok: boolean; snapshot?: CanvasSnapshotInfo }> {
