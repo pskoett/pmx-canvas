@@ -3,6 +3,64 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.16] - 2026-05-04
+
+Live-context-dock and undo-history hygiene pass on top of 0.1.15. The
+context dock now renders the actual pinned nodes instead of falling back
+to stale context-card data, auto-focus from ext-app opens stops
+polluting undo history, and a couple of HTTP endpoints reject malformed
+payloads instead of creating blank or empty nodes.
+
+### Added
+
+- **`ContextNode` renders the active pinned nodes.** A new exported
+  `normalizePinnedContextDisplay()` produces a stable `{id, title,
+  summary, kind, path}` shape per pinned node, and the component now
+  takes a `pinnedNodes` prop. The dock falls back to the previous
+  context-card data only when no nodes are pinned, so what the agent
+  reads via `canvas://pinned-context` and what the human sees in the
+  dock are now the same view.
+- **`StatusNode` exposes `getStatusDisplayPhase()` with a documented
+  fallback chain.** The display phase falls back `phase → content
+  → status → 'idle'` and is shared by the inline node, the summary,
+  and any consumer that needs the phase shown to the user.
+
+### Changed
+
+- **`ContextPinBar` is mutually exclusive with the Updates panel.**
+  Like the docked context node, the floating pin bar now hides while
+  the right-edge attention history panel is open so the two surfaces
+  no longer collide on the same anchor.
+- **Browser-driven viewport updates support `recordHistory: false`.**
+  Client `focusNode(id, options)` and the matching
+  `commitViewportWithOptions()` thread an optional
+  `{ recordHistory: false }` flag through to `POST
+  /api/canvas/viewport`, which now wraps the mutation in
+  `withSuppressedRecording` when the flag is set. Auto-focus
+  triggered by ext-app opens uses this path so opening an external
+  app no longer fills undo history with viewport churn.
+
+### Fixed
+
+- **HTML nodes reject non-string `html` payloads.** `POST
+  /api/canvas/node` and the matching MCP path now return a 400
+  with a clear error when an html node is created with `html` (or
+  `data.html`) set to a non-string value, instead of accepting the
+  payload and producing a blank node.
+- **Group creation rejects missing child IDs.** `POST
+  /api/canvas/group` (and `canvas_create_group`) no longer silently
+  creates an empty group when one or more of the requested children
+  do not exist; it returns a 400 listing the missing IDs.
+
+### Internal
+
+- Regression coverage for: client status-node display-phase fallback,
+  ext-app auto-focus history suppression on the client side, the
+  context dock rendering pinned nodes (e2e), HTML-node payload type
+  validation over HTTP, group-create child-presence validation over
+  HTTP, and the `recordHistory: false` flag on the viewport
+  endpoint.
+
 ## [0.1.15] - 2026-05-03
 
 A bigger release focused on right-sizing what flows through MCP and the
@@ -605,6 +663,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.16]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.16
 [0.1.15]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.15
 [0.1.14]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.14
 [0.1.13]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.13

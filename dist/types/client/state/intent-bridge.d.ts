@@ -112,6 +112,8 @@ export declare function updateViewportFromClient(viewport: {
     x: number;
     y: number;
     scale: number;
+}, options?: {
+    recordHistory?: boolean;
 }): Promise<{
     ok: boolean;
 }>;

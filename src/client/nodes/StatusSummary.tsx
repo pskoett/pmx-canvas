@@ -1,8 +1,9 @@
 import { PHASE_COLORS } from '../theme/tokens';
 import type { CanvasNodeState } from '../types';
+import { getStatusDisplayPhase } from './StatusNode';
 
 export function StatusSummary({ node }: { node: CanvasNodeState }) {
-  const phase = (node.data.phase as string) || 'idle';
+  const phase = getStatusDisplayPhase(node);
   const activeTool = node.data.activeTool as string | null;
   const subagent = node.data.subagent as { state: string; name: string } | undefined;
   const phaseColor = PHASE_COLORS[phase] ?? 'var(--c-muted)';

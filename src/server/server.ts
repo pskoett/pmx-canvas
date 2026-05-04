@@ -1216,7 +1216,13 @@ async function handleCanvasViewport(req: Request): Promise<Response> {
     y: typeof body.y === 'number' ? body.y : canvasState.viewport.y,
     scale: typeof body.scale === 'number' ? body.scale : canvasState.viewport.scale,
   };
-  canvasState.setViewport(next);
+  if (body.recordHistory === false) {
+    canvasState.withSuppressedRecording(() => {
+      canvasState.setViewport(next);
+    });
+  } else {
+    canvasState.setViewport(next);
+  }
   emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
   return responseJson({ ok: true });
 }
@@ -1338,6 +1344,14 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
   const extraData = body.data && typeof body.data === 'object' && !Array.isArray(body.data)
     ? body.data as Record<string, unknown>
     : undefined;
+  if (type === 'html') {
+    if ('html' in body && typeof body.html !== 'string') {
+      return responseJson({ ok: false, error: 'HTML node field "html" must be a string.' }, 400);
+    }
+    if (extraData && 'html' in extraData && typeof extraData.html !== 'string') {
+      return responseJson({ ok: false, error: 'HTML node field "data.html" must be a string.' }, 400);
+    }
+  }
   const content = type === 'image' && typeof body.path === 'string' && typeof body.content !== 'string'
     ? body.path
     : body.content;
@@ -1395,6 +1409,15 @@ async function handleCanvasCreateGroup(req: Request): Promise<Response> {
     body.childLayout === 'grid' || body.childLayout === 'column' || body.childLayout === 'flow'
       ? body.childLayout
       : undefined;
+  if (childIds.length > 0) {
+    const missingChildIds = childIds.filter((id) => !canvasState.getNode(id));
+    if (missingChildIds.length > 0) {
+      return responseJson({
+        ok: false,
+        error: `Cannot create group: missing child node ID${missingChildIds.length === 1 ? '' : 's'}: ${missingChildIds.join(', ')}.`,
+      }, 400);
+    }
+  }
 
   const { node } = createCanvasGroup({ title, childIds, color, x, y, width, height, ...(childLayout ? { childLayout } : {}) });
 

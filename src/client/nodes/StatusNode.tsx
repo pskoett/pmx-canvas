@@ -1,8 +1,23 @@
 import { PHASE_COLORS } from '../theme/tokens';
 import type { CanvasNodeState } from '../types';
 
+export function getStatusDisplayPhase(node: CanvasNodeState): string {
+  const phase = typeof node.data.phase === 'string' && node.data.phase.trim().length > 0
+    ? node.data.phase.trim()
+    : '';
+  if (phase) return phase;
+  const content = typeof node.data.content === 'string' && node.data.content.trim().length > 0
+    ? node.data.content.trim()
+    : '';
+  if (content) return content;
+  const status = typeof node.data.status === 'string' && node.data.status.trim().length > 0
+    ? node.data.status.trim()
+    : '';
+  return status || 'idle';
+}
+
 export function StatusNode({ node }: { node: CanvasNodeState }) {
-  const phase = (node.data.phase as string) || 'idle';
+  const phase = getStatusDisplayPhase(node);
   const detail = (node.data.detail as string) || '';
   const message = (node.data.message as string) || '';
   const level = (node.data.level as string) || 'ok';

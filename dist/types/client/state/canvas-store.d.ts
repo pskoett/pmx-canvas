@@ -64,7 +64,9 @@ export declare function applyServerCanvasLayout(layout: Pick<CanvasLayout, 'node
  * Cancels any in-flight animation. Direct manipulation (pan/zoom gestures)
  * should use setViewport() instead for instant response.
  */
-export declare function animateViewport(target: ViewportState, duration?: number): void;
+export declare function animateViewport(target: ViewportState, duration?: number, options?: {
+    recordHistory?: boolean;
+}): void;
 /** Cancel any in-flight viewport animation (e.g. when user starts dragging). */
 export declare function cancelViewportAnimation(): void;
 export declare function persistLayout(options?: {
@@ -72,7 +74,9 @@ export declare function persistLayout(options?: {
 }): void;
 export declare function restoreLayout(): Map<string, Partial<CanvasNodeState>> | null;
 export declare function fitAll(containerW: number, containerH: number): void;
-export declare function focusNode(id: string): void;
+export declare function focusNode(id: string, options?: {
+    recordHistory?: boolean;
+}): void;
 export declare function cycleActiveNode(direction?: 1 | -1): void;
 export declare function walkGraph(direction: 'up' | 'down' | 'left' | 'right'): void;
 export declare function expandNode(id: string): void;

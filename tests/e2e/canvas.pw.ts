@@ -337,6 +337,7 @@ test('semantic attention layer shows focus and interpretation history', async ({
   await expect(page.locator('.attention-toast')).toContainText('Context updated');
   await page.getByRole('button', { name: /recent updates/i }).click();
   await expect(page.locator('.attention-history')).toContainText('Context updated');
+  await expect(page.locator('.context-pin-bar')).toHaveCount(0);
   await expect(bugReport).toHaveClass(/attention-focus-primary/);
 
   await request.patch(`/api/canvas/node/${authNode.id}`, {
@@ -347,6 +348,54 @@ test('semantic attention layer shows focus and interpretation history', async ({
 
   await expect(authTs).toHaveClass(/attention-focus-secondary/);
   await expect(page.locator('.attention-history')).toContainText('Neighborhood changed');
+});
+
+test('context dock renders the active pinned nodes instead of stale context cards', async ({ page, request }) => {
+  const staleContextResponse = await request.post('/api/canvas/node', {
+    data: {
+      type: 'context',
+      title: 'Stale Dock Cache',
+      content: 'This stale card should not appear for active pins.',
+      x: 1130,
+      y: 80,
+    },
+  });
+  const staleContext = await staleContextResponse.json() as { id: string };
+  await request.patch(`/api/canvas/node/${staleContext.id}`, {
+    data: { dockPosition: 'right', collapsed: false },
+  });
+
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Pinned Alpha',
+      content: 'Alpha context body',
+      x: 160,
+      y: 220,
+    },
+  });
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Pinned Beta',
+      content: 'Beta context body',
+      x: 560,
+      y: 220,
+    },
+  });
+
+  await page.goto('/workbench');
+
+  const alpha = page.locator('.canvas-node').filter({ hasText: 'Pinned Alpha' });
+  const beta = page.locator('.canvas-node').filter({ hasText: 'Pinned Beta' });
+  await alpha.locator('.ctx-pin-btn').click();
+  await beta.locator('.ctx-pin-btn').click();
+
+  const dock = page.locator('.context-dock-panel');
+  await expect(dock).toBeVisible();
+  await expect(dock).toContainText('Pinned Alpha');
+  await expect(dock).toContainText('Pinned Beta');
+  await expect(dock).not.toContainText('Stale Dock Cache');
 });
 
 test('renders webpage node preview content from cached server fetch data', async ({ page, request }) => {

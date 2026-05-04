@@ -330,9 +330,16 @@ export function replaceViewport(next: ViewportState): void {
 }
 
 export function commitViewport(next: ViewportState): void {
+  commitViewportWithOptions(next);
+}
+
+function commitViewportWithOptions(
+  next: ViewportState,
+  options: { recordHistory?: boolean } = {},
+): void {
   viewport.value = next;
-  persistLayout();
-  void updateViewportFromClient(next);
+  persistLayout(options);
+  void updateViewportFromClient(next, options);
 }
 
 export function applyServerCanvasLayout(
@@ -394,6 +401,7 @@ function easeOutCubic(t: number): number {
 export function animateViewport(
   target: ViewportState,
   duration = 300,
+  options: { recordHistory?: boolean } = {},
 ): void {
   if (animationId !== null) cancelAnimationFrame(animationId);
 
@@ -415,7 +423,7 @@ export function animateViewport(
       animationId = requestAnimationFrame(tick);
     } else {
       animationId = null;
-      commitViewport(target);
+      commitViewportWithOptions(target, options);
     }
   }
 
@@ -540,7 +548,7 @@ export function fitAll(containerW: number, containerH: number): void {
 }
 
 // ── Focus node ────────────────────────────────────────────────
-export function focusNode(id: string): void {
+export function focusNode(id: string, options: { recordHistory?: boolean } = {}): void {
   const node = nodes.value.get(id);
   if (!node) return;
   const v = viewport.value;
@@ -550,7 +558,7 @@ export function focusNode(id: string): void {
     x: window.innerWidth / 2 - cx * v.scale,
     y: window.innerHeight / 2 - cy * v.scale,
     scale: v.scale,
-  });
+  }, 300, options);
   bringToFront(id);
 }
 

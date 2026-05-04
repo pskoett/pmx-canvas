@@ -1,5 +1,5 @@
 import { openWorkbenchFile } from '../state/intent-bridge';
-import type { CanvasNodeState } from '../types';
+import { TYPE_LABELS, type CanvasNodeState } from '../types';
 
 interface ContextCard {
   key?: string;
@@ -27,6 +27,14 @@ export interface ContextCardDisplay {
 export interface ContextNodeFallbackDisplay {
   title: string;
   summary: string;
+  path: string;
+}
+
+export interface PinnedContextDisplay {
+  id: string;
+  title: string;
+  summary: string;
+  kind: string;
   path: string;
 }
 
@@ -90,6 +98,24 @@ export function normalizeContextNodeFallback(
   };
 }
 
+export function normalizePinnedContextDisplay(node: CanvasNodeState): PinnedContextDisplay {
+  const title = asTrimmedString(node.data.title) || node.id;
+  const summary =
+    asTrimmedString(node.data.content) ||
+    asTrimmedString(node.data.excerpt) ||
+    asTrimmedString(node.data.description) ||
+    asTrimmedString(node.data.pageTitle) ||
+    '';
+  const path = asTrimmedString(node.data.path) || asTrimmedString(node.data.url);
+  return {
+    id: node.id,
+    title,
+    summary,
+    kind: TYPE_LABELS[node.type] ?? node.type,
+    path,
+  };
+}
+
 function formatTokens(n: number | null): string {
   if (n === null || !Number.isFinite(n) || n < 0) return '0';
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}m`;
@@ -107,9 +133,12 @@ function usageBarColor(utilization: number): string {
 export function ContextNode({
   node,
   expanded = false,
-}: { node: CanvasNodeState; expanded?: boolean }) {
+  pinnedNodes = [],
+}: { node: CanvasNodeState; expanded?: boolean; pinnedNodes?: CanvasNodeState[] }) {
   const cards = (node.data.cards as ContextCard[]) ?? [];
   const auxTabs = (node.data.auxTabs as Array<{ id: string; url: string; reason?: string }>) ?? [];
+  const pinnedContext = pinnedNodes.map(normalizePinnedContextDisplay);
+  const hasPinnedContext = pinnedContext.length > 0;
   const currentTokens =
     typeof node.data.currentTokens === 'number' ? node.data.currentTokens : null;
   const tokenLimit = typeof node.data.tokenLimit === 'number' ? node.data.tokenLimit : null;
@@ -120,7 +149,9 @@ export function ContextNode({
     utilization !== null ? Math.max(0, Math.min(100, Math.round(utilization * 100))) : null;
   const barColor = usageBarColor(utilization ?? 0);
   const fallback =
-    cards.length === 0 && auxTabs.length === 0 ? normalizeContextNodeFallback(node.data) : null;
+    !hasPinnedContext && cards.length === 0 && auxTabs.length === 0
+      ? normalizeContextNodeFallback(node.data)
+      : null;
 
   const openCard = async (card: ContextCard): Promise<void> => {
     const path = typeof card.path === 'string' ? card.path.trim() : '';
@@ -181,7 +212,98 @@ export function ContextNode({
         </div>
       )}
 
-      {cards.length > 0 && (
+      {hasPinnedContext && (
+        <div>
+          <div
+            style={{
+              fontSize: '10px',
+              fontWeight: 600,
+              color: 'var(--c-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.04em',
+              marginBottom: '6px',
+            }}
+          >
+            Pinned Context ({pinnedContext.length})
+          </div>
+          {pinnedContext.map((display) => (
+            <div
+              key={display.id}
+              style={{
+                padding: '6px 8px',
+                background: 'var(--c-surface-subtle)',
+                borderRadius: '6px',
+                marginBottom: '4px',
+                borderLeft: '2px solid var(--c-accent)',
+              }}
+            >
+              <div style={{ fontWeight: 600, color: 'var(--c-text)', marginBottom: '2px' }}>
+                {display.title}
+              </div>
+              {display.summary && (
+                <div
+                  style={{
+                    color: 'var(--c-muted)',
+                    fontSize: '10px',
+                    lineHeight: 1.45,
+                    marginBottom: '4px',
+                    whiteSpace: 'pre-wrap',
+                  }}
+                >
+                  {display.summary}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginTop: '4px' }}>
+                <span
+                  style={{
+                    fontSize: '9px',
+                    padding: '1px 4px',
+                    background: 'var(--c-surface-hover)',
+                    color: 'var(--c-text-soft)',
+                    borderRadius: '3px',
+                    display: 'inline-block',
+                  }}
+                >
+                  {display.kind}
+                </span>
+              </div>
+              {display.path && (
+                <div style={{ marginTop: '6px' }}>
+                  <div
+                    style={{
+                      color: 'var(--c-dim)',
+                      fontSize: '10px',
+                      wordBreak: 'break-all',
+                      marginBottom: '6px',
+                    }}
+                  >
+                    {display.path}
+                  </div>
+                  {display.path.startsWith('/') && (
+                    <button
+                      type="button"
+                      onClick={() => void openWorkbenchFile(display.path)}
+                      style={{
+                        padding: '4px 8px',
+                        fontSize: '10px',
+                        background: 'var(--c-accent-12)',
+                        border: '1px solid var(--c-accent-25)',
+                        borderRadius: '4px',
+                        color: 'var(--c-text-soft)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Open in canvas
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!hasPinnedContext && cards.length > 0 && (
         <div>
           <div
             style={{
@@ -305,7 +427,7 @@ export function ContextNode({
         </div>
       )}
 
-      {auxTabs.length > 0 && (
+      {!hasPinnedContext && auxTabs.length > 0 && (
         <div>
           <div
             style={{
@@ -404,7 +526,7 @@ export function ContextNode({
         </div>
       )}
 
-      {!fallback && cards.length === 0 && auxTabs.length === 0 && (
+      {!hasPinnedContext && !fallback && cards.length === 0 && auxTabs.length === 0 && (
         <div style={{ color: 'var(--c-dim)', fontStyle: 'italic' }}>No context loaded</div>
       )}
     </div>

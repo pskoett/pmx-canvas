@@ -229,7 +229,7 @@ function ensureExtAppNode(data: Record<string, unknown>): void {
   });
   addNode(node);
   if (!node.dockPosition) {
-    focusNode(id);
+    focusNode(id, { recordHistory: false });
   }
 }
 

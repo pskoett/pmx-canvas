@@ -231,11 +231,15 @@ export async function removeNodeFromClient(id: string): Promise<{ ok: boolean; r
 /** Commit the current viewport to the authoritative server state. */
 export async function updateViewportFromClient(
   viewport: { x: number; y: number; scale: number },
+  options: { recordHistory?: boolean } = {},
 ): Promise<{ ok: boolean }> {
   return requestJson('updateViewportFromClient', '/api/canvas/viewport', { ok: false }, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(viewport),
+    body: JSON.stringify({
+      ...viewport,
+      ...(options.recordHistory === false ? { recordHistory: false } : {}),
+    }),
   });
 }
 

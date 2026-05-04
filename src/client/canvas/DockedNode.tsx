@@ -3,7 +3,7 @@ import { LedgerNode } from '../nodes/LedgerNode';
 import { StatusNode } from '../nodes/StatusNode';
 import { StatusSummary } from '../nodes/StatusSummary';
 import { attentionHistoryOpen, closeAttentionHistory } from '../state/attention-store';
-import { toggleCollapsed, undockNode } from '../state/canvas-store';
+import { getContextPinnedNodes, toggleCollapsed, undockNode } from '../state/canvas-store';
 import { TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
 
@@ -27,7 +27,8 @@ function getContextItemCount(node: CanvasNodeState): number {
 }
 
 function ContextDockedNode({ node }: { node: CanvasNodeState }) {
-  const count = getContextItemCount(node);
+  const pinnedNodes = getContextPinnedNodes();
+  const count = pinnedNodes.length > 0 ? pinnedNodes.length : getContextItemCount(node);
   const hasItems = count > 0;
   const collapsed = node.collapsed === true;
 
@@ -117,7 +118,7 @@ function ContextDockedNode({ node }: { node: CanvasNodeState }) {
         </div>
       </div>
       <div class="context-dock-body">
-        <ContextNode node={node} />
+        <ContextNode node={node} pinnedNodes={pinnedNodes} />
       </div>
     </aside>
   );

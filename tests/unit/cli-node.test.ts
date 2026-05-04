@@ -1572,6 +1572,8 @@ describe('agent CLI node commands', () => {
     expect(grouped.ok).toBe(true);
     expect(grouped.position).toEqual({ x: 40, y: 60 });
     expect(grouped.size).toEqual({ width: 960, height: 720 });
+    const groupedNode = canvasState.getNode(grouped.id);
+    expect(groupedNode?.data.children).toEqual([first.id, second.id]);
 
     canvasState.withSuppressedRecording(() => {
       canvasState.clear();

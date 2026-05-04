@@ -373,6 +373,39 @@ describe('canvas server HTTP API', () => {
     expect(canvasState.getLayout().nodes).toHaveLength(0);
   });
 
+  test('html nodes reject non-string html payloads without creating blank nodes', async () => {
+    const topLevelResponse = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'html', title: 'Invalid html numeric', html: 123 }),
+    });
+    const topLevelPayload = await topLevelResponse.json() as { ok: boolean; error: string };
+
+    expect(topLevelResponse.status).toBe(400);
+    expect(topLevelPayload.ok).toBe(false);
+    expect(topLevelPayload.error).toContain('"html" must be a string');
+
+    const dataResponse = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'html', title: 'Invalid nested html', data: { html: 123 } }),
+    });
+    const dataPayload = await dataResponse.json() as { ok: boolean; error: string };
+
+    expect(dataResponse.status).toBe(400);
+    expect(dataPayload.ok).toBe(false);
+    expect(dataPayload.error).toContain('"data.html" must be a string');
+    expect(canvasState.getLayout().nodes).toHaveLength(0);
+
+    const empty = await jsonRequest<{ ok: boolean; data: { html: string } }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'html', title: 'Empty html', html: '' }),
+    });
+    expect(empty.ok).toBe(true);
+    expect(empty.data.html).toBe('');
+  });
+
   test('closes hosted MCP app sessions when nodes are deleted or the canvas is cleared', async () => {
     const opened = await jsonRequest<{
       ok: boolean;
@@ -1367,6 +1400,20 @@ describe('canvas server HTTP API', () => {
     expect(manualChildB.position.y).toBeGreaterThan(manualChildA.position.y);
   });
 
+  test('group create rejects missing child IDs instead of creating an empty group', async () => {
+    const response = await fetch(`${baseUrl}/api/canvas/group`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Missing children', childIds: ['node-missing-a', 'node-missing-b'] }),
+    });
+    const payload = await response.json() as { ok: boolean; error: string };
+
+    expect(response.status).toBe(400);
+    expect(payload.ok).toBe(false);
+    expect(payload.error).toContain('missing child node IDs');
+    expect(canvasState.getLayout().nodes).toHaveLength(0);
+  });
+
   test('batch operations support assigned refs and validate distinguishes containment from collisions', async () => {
     const batch = await jsonRequest<{
       ok: boolean;
@@ -2001,6 +2048,33 @@ describe('canvas server HTTP API', () => {
     expect(updated.ok).toBe(true);
 
     const state = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(state.viewport).toEqual({ x: 120, y: -80, scale: 1.5 });
+  });
+
+  test('can suppress browser-driven viewport updates from undo history', async () => {
+    const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Suppressed viewport target' }),
+    });
+
+    await jsonRequest<{ ok: boolean }>('/api/canvas/viewport', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ x: 120, y: -80, scale: 1.5, recordHistory: false }),
+    });
+
+    const history = await jsonRequest<{ text: string }>('/api/canvas/history');
+    expect(history.text).not.toContain('Updated viewport');
+
+    const undone = await jsonRequest<{ ok: boolean; description: string }>('/api/canvas/undo', {
+      method: 'POST',
+    });
+    expect(undone.ok).toBe(true);
+    expect(undone.description).toContain('Added markdown node "Suppressed viewport target"');
+
+    const state = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(state.nodes.some((node) => node.id === created.id)).toBe(false);
     expect(state.viewport).toEqual({ x: 120, y: -80, scale: 1.5 });
   });
 
