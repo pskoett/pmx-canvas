@@ -29,7 +29,13 @@ import { createCanvasAccess, refreshCanvasAccess, type CanvasAccess } from './ca
 import { serializeNodeForAgentContext } from '../server/agent-context.js';
 import { wrapCanvasAutomationScript } from '../server/server.js';
 import { buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
-import { getCanvasNodeTitle, serializeCanvasLayout, serializeCanvasNode, summarizeCanvasAnnotationForContext } from '../server/canvas-serialization.js';
+import {
+  getCanvasNodeTitle,
+  serializeCanvasLayoutForAgent,
+  serializeCanvasNode,
+  serializeCanvasNodeForAgent,
+  summarizeCanvasAnnotationForContext,
+} from '../server/canvas-serialization.js';
 import { listBundledSkills, readBundledSkill } from '../server/bundled-skills.js';
 
 let canvas: CanvasAccess | null = null;
@@ -207,7 +213,7 @@ function compactLayoutPayload(layout: Awaited<ReturnType<CanvasAccess['getLayout
 
 function agentSafeFullLayoutPayload(layout: Awaited<ReturnType<CanvasAccess['getLayout']>>): Record<string, unknown> {
   return {
-    ...serializeCanvasLayout(layout),
+    ...serializeCanvasLayoutForAgent(layout),
     annotations: (layout.annotations ?? []).map((annotation) => summarizeCanvasAnnotationForContext(annotation, layout.nodes)),
   };
 }
@@ -240,7 +246,7 @@ async function createdNodePayload(c: CanvasAccess, id: string, options: { full?:
   if (!wantsFullPayload(options)) {
     return { ok: true, node: compactNodePayload(node), id };
   }
-  const serialized = serializeCanvasNode(node);
+  const serialized = serializeCanvasNodeForAgent(node);
   return { ok: true, node: serialized, ...serialized };
 }
 
@@ -324,7 +330,7 @@ export async function startMcpServer(): Promise<void> {
           isError: true,
         };
       }
-      const payload = wantsFullPayload(input) ? serializeCanvasNode(node) : compactNodePayload(node);
+      const payload = wantsFullPayload(input) ? serializeCanvasNodeForAgent(node) : compactNodePayload(node);
       return {
         content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
       };

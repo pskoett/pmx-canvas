@@ -3,6 +3,50 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.18] - 2026-05-05
+
+Token-budget polish on top of 0.1.17. Full-mode MCP responses for
+hosted external-MCP-app nodes now elide the rendered shell HTML in
+favor of a compact `{ omitted, resourceUri, bytes, sha256 }` summary,
+so an agent that asks for `full: true` no longer re-receives the same
+ext-app shell HTML on every read. Adds a dedicated
+`excalidraw-diagram-authoring.md` skill reference and folds the
+freehand annotation feature into the README's main feature list.
+
+### Added
+
+- **`serializeCanvasNodeForAgent` / `serializeCanvasLayoutForAgent`.**
+  New agent-facing serializers wrap the existing
+  `serializeCanvasNode` / `serializeCanvasLayout` helpers and replace
+  hosted ext-app shell HTML (`mcp-app` nodes in `ext-app` mode that
+  carry a `resourceUri`) with a `{ omitted: 'external-mcp-app-html',
+  resourceUri, bytes, sha256 }` descriptor. The MCP server uses
+  these wrappers for `canvas_get_node` (full), `canvas_get_layout`
+  (full), and the full-payload branch of every add-style response.
+  Non-external-app HTML — `html` nodes, bundled web-artifact
+  output — is preserved exactly as before.
+- **`skills/pmx-canvas/references/excalidraw-diagram-authoring.md`.**
+  A 145-line authoring guide for `canvas_add_diagram` covering shape-
+  level `label` format, sizing and camera rules, the pastel palette,
+  and common pitfalls. The SKILL points to it from the diagram
+  guidance section.
+
+### Changed
+
+- **README adds an `03 / Annotate` section.** The annotation feature
+  shipped in 0.1.17 is now part of the main README feature list
+  alongside Curate / Mix / Control / Save / Any agent. Subsequent
+  sections were renumbered (Control your context → 04, Save → 05,
+  Any agent → 06).
+
+### Internal
+
+- Regression coverage for: agent-mode node serialization eliding
+  hosted ext-app shell HTML, agent-mode layout serialization not
+  repeating the ext-app shell across multiple nodes, non-external-
+  app HTML payloads being preserved unchanged, and `canvas_get_node`
+  / `canvas_get_layout` full-mode elision through the MCP server.
+
 ## [0.1.17] - 2026-05-04
 
 Adds a freehand annotation layer so humans can draw directly on the
@@ -727,6 +771,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.18]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.18
 [0.1.17]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.17
 [0.1.16]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.16
 [0.1.15]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.15

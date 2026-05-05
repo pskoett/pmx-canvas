@@ -1,8 +1,8 @@
 # pmx-canvas
 
 **A moldable canvas for agent-assisted thinking.** An infinite 2D surface
-where files, plans, status, charts, fetched web pages, and hand-drawn
-diagrams live side by side. Every node carries its own renderer; agents
+where files, plans, status, charts, fetched web pages, annotations, and
+hand-drawn diagrams live side by side. Every node carries its own renderer; agents
 (and you) build new views in the middle of a session, not as a separate
 tooling project. Pin what matters and the agent reads your spatial
 curation as structured context.
@@ -41,14 +41,21 @@ surface. The reach of the canvas is the union of its
 already has access to** — MCP servers, CLIs, file reads, web fetch, anything
 on its toolbelt.
 
-### 03 / Control your context
+### 03 / Annotate
+
+Draw freehand marks directly on the canvas to circle, underline, connect, or
+call out what matters without turning the markup into another node. Annotations
+persist with state and snapshots, can be erased in the browser, and appear to
+agents as compact spatial context: target, bounds, and nearby canvas content.
+
+### 04 / Control your context
 
 Pinning is an explicit, low-noise control over what the agent sees next. No
 prompt engineering, no copy-paste — pin a node in the browser and the MCP
 server fires a `notifications/resources/updated` event the agent's harness
 picks up immediately.
 
-### 04 / Save
+### 05 / Save
 
 Spatial state auto-saves to `.pmx-canvas/state.json` (debounced ~500 ms) —
 git-committable, shareable across machines, and survives both browser
@@ -56,7 +63,7 @@ refresh and server restart. Named [snapshots](docs/mcp.md#tools), full
 undo/redo, and an auto-detected code graph (JS/TS, Python, Go, Rust) make
 the canvas durable rather than throwaway.
 
-### 05 / Any agent
+### 06 / Any agent
 
 Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (41 tools,
 8 resources, change notifications), the [CLI](docs/cli.md), the

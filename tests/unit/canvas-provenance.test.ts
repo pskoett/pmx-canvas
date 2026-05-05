@@ -1,7 +1,26 @@
+import { createHash } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 import { describe, expect, test } from 'bun:test';
-import { serializeCanvasNode } from '../../src/server/canvas-serialization.ts';
+import {
+  serializeCanvasLayoutForAgent,
+  serializeCanvasNode,
+  serializeCanvasNodeForAgent,
+} from '../../src/server/canvas-serialization.ts';
 import { makeNode } from './helpers.ts';
+
+function expectExternalMcpAppHtmlSummary(value: unknown, html: string, resourceUri: string): void {
+  expect(value !== null && typeof value === 'object' && !Array.isArray(value)).toBe(true);
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('Expected external MCP app HTML summary.');
+  }
+  const summary = value as Record<string, unknown>;
+  expect(summary).toEqual({
+    omitted: 'external-mcp-app-html',
+    resourceUri,
+    bytes: Buffer.byteLength(html, 'utf-8'),
+    sha256: createHash('sha256').update(html).digest('hex'),
+  });
+}
 
 describe('canvas node provenance', () => {
   test('serializes normalized provenance for source-backed nodes', () => {
@@ -161,5 +180,64 @@ describe('canvas node kind discriminator', () => {
       const node = serializeCanvasNode(makeNode({ id: `n-${type}`, type, data: { title: type } }));
       expect(node.kind).toBe(type);
     }
+  });
+});
+
+describe('agent-safe canvas serialization', () => {
+  const shellHtml = '<!doctype html><html><body><script type="module">large repeated iframe shell</script></body></html>';
+  const resourceUri = 'ui://fixture/app.html';
+
+  test('omits hosted external MCP app HTML from full agent node payloads', () => {
+    const node = makeNode({
+      id: 'ext-app-1',
+      type: 'mcp-app',
+      data: {
+        title: 'Hosted app',
+        mode: 'ext-app',
+        resourceUri,
+        html: shellHtml,
+        toolResult: { content: [{ type: 'text', text: 'ready' }] },
+      },
+    });
+
+    const raw = serializeCanvasNode(node);
+    const agent = serializeCanvasNodeForAgent(node);
+
+    expect(raw.data.html).toBe(shellHtml);
+    expect(agent.data.resourceUri).toBe(resourceUri);
+    expect(agent.data.toolResult).toEqual({ content: [{ type: 'text', text: 'ready' }] });
+    expectExternalMcpAppHtmlSummary(agent.data.html, shellHtml, resourceUri);
+  });
+
+  test('does not repeat external MCP app shell HTML in full agent layout payloads', () => {
+    const layout = serializeCanvasLayoutForAgent({
+      viewport: { x: 0, y: 0, scale: 1 },
+      nodes: [
+        makeNode({ id: 'ext-app-1', type: 'mcp-app', data: { mode: 'ext-app', resourceUri, html: shellHtml } }),
+        makeNode({ id: 'ext-app-2', type: 'mcp-app', data: { mode: 'ext-app', resourceUri, html: shellHtml } }),
+      ],
+      edges: [],
+      annotations: [],
+    });
+
+    expect(JSON.stringify(layout)).not.toContain('large repeated iframe shell');
+    expectExternalMcpAppHtmlSummary(layout.nodes[0]?.data.html, shellHtml, resourceUri);
+    expectExternalMcpAppHtmlSummary(layout.nodes[1]?.data.html, shellHtml, resourceUri);
+  });
+
+  test('preserves non-external-app HTML payloads', () => {
+    const artifact = serializeCanvasNodeForAgent(makeNode({
+      id: 'artifact-1',
+      type: 'mcp-app',
+      data: { viewerType: 'web-artifact', html: shellHtml },
+    }));
+    const htmlNode = serializeCanvasNodeForAgent(makeNode({
+      id: 'html-1',
+      type: 'html',
+      data: { html: shellHtml },
+    }));
+
+    expect(artifact.data.html).toBe(shellHtml);
+    expect(htmlNode.data.html).toBe(shellHtml);
   });
 });

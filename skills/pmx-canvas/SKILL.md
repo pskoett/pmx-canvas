@@ -622,6 +622,8 @@ canvas_webview_stop();
 - Do not use separate `text` elements with `containerId`/`boundElements` to place centered text
   inside shapes. The hosted SVG preview does not auto-position those; PMX normalizes imported
   canonical bound text back into shape labels for hosted app calls.
+- For detailed sizing, camera, and label-fit rules, read `references/excalidraw-diagram-authoring.md`
+  before creating dense diagrams.
 - Prefer the pastel fill palette in the Excalidraw `read_me` (light blue/green/orange/...) for
   a consistent look across diagrams
 

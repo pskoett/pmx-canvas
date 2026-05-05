@@ -781,6 +781,84 @@ describe('MCP parity with CLI', () => {
     expect(appNode?.data.toolName).toBe('show_counter');
   }, 20000);
 
+  test('canvas_get_node and canvas_get_layout full elide hosted MCP app shell HTML', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const first = parseJsonText<{
+      ok: boolean;
+      nodeId: string | null;
+      resourceUri: string;
+    }>(await session.client.callTool({
+      name: 'canvas_open_mcp_app',
+      arguments: {
+        toolName: 'show_counter',
+        toolArguments: { initial: 1 },
+        transport: {
+          type: 'stdio',
+          command: 'bun',
+          args: ['run', fixtureMcpAppServerPath],
+          cwd: session.workspaceRoot,
+        },
+      },
+    }) as ToolResultShape);
+    const second = parseJsonText<{ ok: boolean; nodeId: string | null }>(await session.client.callTool({
+      name: 'canvas_open_mcp_app',
+      arguments: {
+        toolName: 'show_counter',
+        toolArguments: { initial: 2 },
+        transport: {
+          type: 'stdio',
+          command: 'bun',
+          args: ['run', fixtureMcpAppServerPath],
+          cwd: session.workspaceRoot,
+        },
+      },
+    }) as ToolResultShape);
+
+    expect(first.ok).toBe(true);
+    expect(second.ok).toBe(true);
+    expect(typeof first.nodeId).toBe('string');
+    expect(typeof second.nodeId).toBe('string');
+
+    const nodeText = textOf(await session.client.callTool({
+      name: 'canvas_get_node',
+      arguments: { id: first.nodeId, full: true },
+    }) as ToolResultShape);
+    const fetchedNode = JSON.parse(nodeText) as { data: { html?: unknown; resourceUri?: unknown } };
+    expect(nodeText).not.toContain('Fixture Counter');
+    expect(fetchedNode.data.resourceUri).toBe('ui://fixture/counter.html');
+    expect(fetchedNode.data.html).toMatchObject({
+      omitted: 'external-mcp-app-html',
+      resourceUri: 'ui://fixture/counter.html',
+      bytes: expect.any(Number),
+      sha256: expect.any(String),
+    });
+
+    const layoutText = textOf(await session.client.callTool({
+      name: 'canvas_get_layout',
+      arguments: { full: true },
+    }) as ToolResultShape);
+    const layout = JSON.parse(layoutText) as {
+      nodes: Array<{ id: string; type: string; data: { html?: unknown; resourceUri?: unknown } }>;
+    };
+    const appNodes = layout.nodes.filter((node) => node.type === 'mcp-app');
+    expect(appNodes).toHaveLength(2);
+    expect(layoutText).not.toContain('Fixture Counter');
+    for (const appNode of appNodes) {
+      expect(appNode.data.resourceUri).toBe('ui://fixture/counter.html');
+      expect(appNode.data.html).toMatchObject({
+        omitted: 'external-mcp-app-html',
+        resourceUri: 'ui://fixture/counter.html',
+        bytes: expect.any(Number),
+        sha256: expect.any(String),
+      });
+    }
+  }, 30000);
+
   test('canvas_describe_schema, canvas_validate_spec, and canvas://schema expose the running-server schema surface', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {

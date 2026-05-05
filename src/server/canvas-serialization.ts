@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { canvasState } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasLayout, CanvasNodeState, ViewportState } from './canvas-state.js';
 import {
@@ -47,6 +48,13 @@ interface BlobSummary {
   sha256: string;
 }
 
+interface ExternalMcpAppHtmlSummary {
+  omitted: 'external-mcp-app-html';
+  resourceUri: string;
+  bytes: number;
+  sha256: string;
+}
+
 function pickString(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
@@ -90,6 +98,39 @@ export function serializeCanvasNode(node: CanvasNodeState): SerializedCanvasNode
   };
 }
 
+function summarizeExternalMcpAppHtml(node: SerializedCanvasNode): Record<string, unknown> {
+  const html = node.data.html;
+  const resourceUri = node.data.resourceUri;
+  if (
+    node.type !== 'mcp-app' ||
+    node.data.mode !== 'ext-app' ||
+    typeof html !== 'string' ||
+    html.length === 0 ||
+    typeof resourceUri !== 'string' ||
+    resourceUri.length === 0
+  ) {
+    return node.data;
+  }
+
+  return {
+    ...node.data,
+    html: {
+      omitted: 'external-mcp-app-html',
+      resourceUri,
+      bytes: Buffer.byteLength(html, 'utf-8'),
+      sha256: createHash('sha256').update(html).digest('hex'),
+    } satisfies ExternalMcpAppHtmlSummary,
+  };
+}
+
+export function serializeCanvasNodeForAgent(node: CanvasNodeState): SerializedCanvasNode {
+  const serialized = serializeCanvasNode(node);
+  return {
+    ...serialized,
+    data: summarizeExternalMcpAppHtml(serialized),
+  };
+}
+
 function summarizeBlobValue(value: unknown): unknown {
   if (!canvasState.isBlobReference(value)) return value;
   return {
@@ -114,6 +155,13 @@ export function serializeCanvasLayout(layout: CanvasLayout): SerializedCanvasLay
   return {
     ...layout,
     nodes: layout.nodes.map(serializeCanvasNode),
+  };
+}
+
+export function serializeCanvasLayoutForAgent(layout: CanvasLayout): SerializedCanvasLayout {
+  return {
+    ...layout,
+    nodes: layout.nodes.map(serializeCanvasNodeForAgent),
   };
 }
 
