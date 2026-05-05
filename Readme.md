@@ -78,6 +78,16 @@ that can spawn an MCP stdio server, call a CLI, or hit an HTTP endpoint.
 The published SDK entrypoint is Bun-first. Node.js consumers should use the
 CLI, MCP server, or HTTP API.
 
+## Install
+
+```bash
+bunx pmx-canvas              # Run without installing (recommended for one-off use)
+bun add -g pmx-canvas        # Install globally — exposes the `pmx-canvas` command
+bun add pmx-canvas           # Install into a project (needed for the Bun SDK)
+```
+
+To work on the canvas itself, clone the repo — see [Development](#development).
+
 ## Quick start
 
 ### Run the canvas
