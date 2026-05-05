@@ -64,6 +64,7 @@ interface PersistedCanvasState {
   viewport: ViewportState;
   nodes: CanvasNodeState[];
   edges: CanvasEdge[];
+  annotations?: CanvasAnnotation[];
   contextPins: string[];
 }
 
@@ -146,10 +147,27 @@ export interface CanvasEdge {
   animated?: boolean;
 }
 
+export interface CanvasAnnotationPoint {
+  x: number;
+  y: number;
+}
+
+export interface CanvasAnnotation {
+  id: string;
+  type: 'freehand';
+  points: CanvasAnnotationPoint[];
+  bounds: { x: number; y: number; width: number; height: number };
+  color: string;
+  width: number;
+  label?: string;
+  createdAt: string;
+}
+
 export interface CanvasLayout {
   viewport: ViewportState;
   nodes: CanvasNodeState[];
   edges: CanvasEdge[];
+  annotations: CanvasAnnotation[];
 }
 
 export interface CanvasNodeUpdate {
@@ -163,7 +181,7 @@ export interface CanvasNodeUpdate {
 export type CanvasChangeType = 'pins' | 'nodes';
 
 export interface MutationRecordInfo {
-  operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'clear' | 'restoreSnapshot' | 'setPins' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
+  operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
   description: string;
   forward: () => void;
   inverse: () => void;
@@ -215,6 +233,7 @@ function isPersistedBlobRef(value: unknown): value is PersistedBlobRef {
 class CanvasStateManager {
   private nodes = new Map<string, CanvasNodeState>();
   private edges = new Map<string, CanvasEdge>();
+  private annotations = new Map<string, CanvasAnnotation>();
   private _viewport: ViewportState = { x: 0, y: 0, scale: 1 };
   private _contextPinnedNodeIds = new Set<string>();
   private _workspaceRoot = process.cwd();
@@ -607,6 +626,7 @@ class CanvasStateManager {
       viewport: { x: 0, y: 0, scale: 1 },
       nodes: [],
       edges: [],
+      annotations: [],
       contextPins: [],
     };
   }
@@ -663,6 +683,7 @@ class CanvasStateManager {
         viewport: this._viewport,
         nodes: Array.from(this.nodes.values()),
         edges: Array.from(this.edges.values()),
+        annotations: Array.from(this.annotations.values()),
         contextPins: Array.from(this._contextPinnedNodeIds),
       });
       writeFileSync(this._stateFilePath, JSON.stringify(payload, null, 2), 'utf-8');
@@ -683,6 +704,7 @@ class CanvasStateManager {
   private applyPersistedState(state: PersistedCanvasState): void {
     this.nodes.clear();
     this.edges.clear();
+    this.annotations.clear();
     this._contextPinnedNodeIds.clear();
 
     this._viewport = {
@@ -701,6 +723,11 @@ class CanvasStateManager {
     if (Array.isArray(state.edges)) {
       for (const edge of state.edges) {
         if (edge?.id) this.edges.set(edge.id, structuredClone(edge));
+      }
+    }
+    if (Array.isArray(state.annotations)) {
+      for (const annotation of state.annotations) {
+        if (annotation?.id) this.annotations.set(annotation.id, structuredClone(annotation));
       }
     }
     if (Array.isArray(state.contextPins)) {
@@ -798,9 +825,12 @@ class CanvasStateManager {
         viewport: this._viewport,
         nodes: Array.from(this.nodes.values()),
         edges: Array.from(this.edges.values()),
+        annotations: Array.from(this.annotations.values()),
         contextPins: Array.from(this._contextPinnedNodeIds),
       });
       writeFileSync(join(dir, `${id}.json`), JSON.stringify(payload, null, 2), 'utf-8');
+      snapshot.nodeCount = payload.nodes.length;
+      snapshot.edgeCount = payload.edges.length;
       return snapshot;
     } catch (error) {
       logCanvasStateWarning('save snapshot failed', error, { id, name });
@@ -870,6 +900,7 @@ class CanvasStateManager {
       viewport: structuredClone(this._viewport),
       nodes: Array.from(this.nodes.values(), (node) => structuredClone(node)),
       edges: Array.from(this.edges.values(), (edge) => structuredClone(edge)),
+      annotations: Array.from(this.annotations.values(), (annotation) => structuredClone(annotation)),
       contextPins: Array.from(this._contextPinnedNodeIds),
     });
     const nextState: PersistedCanvasState = {
@@ -877,6 +908,7 @@ class CanvasStateManager {
       viewport: structuredClone(resolved.state.viewport),
       nodes: Array.isArray(resolved.state.nodes) ? resolved.state.nodes.map((node) => structuredClone(node)) : [],
       edges: Array.isArray(resolved.state.edges) ? resolved.state.edges.map((edge) => structuredClone(edge)) : [],
+      annotations: Array.isArray(resolved.state.annotations) ? resolved.state.annotations.map((annotation) => structuredClone(annotation)) : [],
       contextPins: Array.isArray(resolved.state.contextPins) ? [...resolved.state.contextPins] : [],
     };
 
@@ -913,7 +945,7 @@ class CanvasStateManager {
   }
 
   /** Read a snapshot's data without restoring it (for diff). Resolves by ID or name. */
-  getSnapshotData(idOrName: string): { name: string; nodes: CanvasNodeState[]; edges: CanvasEdge[] } | null {
+  getSnapshotData(idOrName: string): { name: string; nodes: CanvasNodeState[]; edges: CanvasEdge[]; annotations: CanvasAnnotation[] } | null {
     const resolved = this.readResolvedSnapshot(idOrName);
     if (!resolved) return null;
     const state = {
@@ -926,6 +958,7 @@ class CanvasStateManager {
       name: resolved.snapshot.name,
       nodes: Array.isArray(state.nodes) ? state.nodes.map((node) => structuredClone(node)) : [],
       edges: Array.isArray(state.edges) ? state.edges.map((edge) => structuredClone(edge)) : [],
+      annotations: Array.isArray(state.annotations) ? state.annotations.map((annotation) => structuredClone(annotation)) : [],
     };
   }
 
@@ -1110,6 +1143,40 @@ class CanvasStateManager {
       .map((edge) => structuredClone(edge));
   }
 
+  addAnnotation(annotation: CanvasAnnotation): void {
+    const cloned = structuredClone(annotation);
+    this.annotations.set(annotation.id, cloned);
+    this.scheduleSave();
+    this.notifyChange('nodes');
+    this.recordMutation({
+      operationType: 'addAnnotation',
+      description: `Added annotation ${annotation.id}`,
+      forward: this.suppressed(() => this.addAnnotation(structuredClone(cloned))),
+      inverse: this.suppressed(() => this.removeAnnotation(annotation.id)),
+    });
+  }
+
+  removeAnnotation(id: string): boolean {
+    const existing = this.annotations.get(id);
+    const removed = this.annotations.delete(id);
+    if (removed && existing) {
+      const cloned = structuredClone(existing);
+      this.scheduleSave();
+      this.notifyChange('nodes');
+      this.recordMutation({
+        operationType: 'removeAnnotation',
+        description: `Removed annotation ${id}`,
+        forward: this.suppressed(() => this.removeAnnotation(id)),
+        inverse: this.suppressed(() => this.addAnnotation(structuredClone(cloned))),
+      });
+    }
+    return removed;
+  }
+
+  getAnnotations(): CanvasAnnotation[] {
+    return Array.from(this.annotations.values(), (annotation) => structuredClone(annotation));
+  }
+
   private removeEdgesForNode(nodeId: string): void {
     for (const [id, edge] of this.edges) {
       if (edge.from === nodeId || edge.to === nodeId) {
@@ -1123,6 +1190,7 @@ class CanvasStateManager {
       viewport: structuredClone(this._viewport),
       nodes: Array.from(this.nodes.values(), (node) => structuredClone(node)),
       edges: Array.from(this.edges.values(), (edge) => structuredClone(edge)),
+      annotations: this.getAnnotations(),
     };
   }
 
@@ -1131,6 +1199,7 @@ class CanvasStateManager {
       viewport: structuredClone(this._viewport),
       nodes: Array.from(this.nodes.values(), (node) => structuredClone(this.externalizeNodeDataBlobs(node))),
       edges: Array.from(this.edges.values(), (edge) => structuredClone(edge)),
+      annotations: this.getAnnotations(),
     };
   }
 
@@ -1376,10 +1445,12 @@ class CanvasStateManager {
   clear(): void {
     const oldNodes = Array.from(this.nodes.values()).map((n) => structuredClone(n));
     const oldEdges = Array.from(this.edges.values()).map((e) => structuredClone(e));
+    const oldAnnotations = Array.from(this.annotations.values()).map((annotation) => structuredClone(annotation));
     const oldPins = Array.from(this._contextPinnedNodeIds);
     const oldViewport = { ...this._viewport };
     this.nodes.clear();
     this.edges.clear();
+    this.annotations.clear();
     this._contextPinnedNodeIds.clear();
     this._viewport = { x: 0, y: 0, scale: 1 };
     this.scheduleSave();
@@ -1392,6 +1463,7 @@ class CanvasStateManager {
       inverse: this.suppressed(() => {
         for (const n of oldNodes) this.addNode(structuredClone(n));
         for (const e of oldEdges) this.addEdge(structuredClone(e));
+        for (const annotation of oldAnnotations) this.addAnnotation(structuredClone(annotation));
         this.setContextPins(oldPins);
         this.setViewport(oldViewport);
       }),

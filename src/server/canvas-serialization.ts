@@ -1,5 +1,5 @@
 import { canvasState } from './canvas-state.js';
-import type { CanvasLayout, CanvasNodeState, ViewportState } from './canvas-state.js';
+import type { CanvasAnnotation, CanvasLayout, CanvasNodeState, ViewportState } from './canvas-state.js';
 import {
   normalizeCanvasNodeData,
   type CanvasNodeProvenance,
@@ -17,6 +17,26 @@ export interface SerializedCanvasNode extends CanvasNodeState {
 
 export interface SerializedCanvasLayout extends Omit<CanvasLayout, 'nodes'> {
   nodes: SerializedCanvasNode[];
+}
+
+export interface CanvasAnnotationSummary {
+  id: string;
+  type: CanvasAnnotation['type'];
+  bounds: CanvasAnnotation['bounds'];
+  color: string;
+  width: number;
+  pointCount: number;
+  label: string | null;
+  createdAt: string;
+}
+
+export interface CanvasAnnotationContextSummary {
+  id: string;
+  label: string | null;
+  bounds: CanvasAnnotation['bounds'];
+  targetNodeIds: string[];
+  targetNodeTitles: string[];
+  target: string;
 }
 
 interface BlobSummary {
@@ -104,9 +124,55 @@ export function serializeCanvasLayoutWithBlobSummaries(layout: CanvasLayout): Se
   };
 }
 
+export function summarizeCanvasAnnotation(annotation: CanvasAnnotation): CanvasAnnotationSummary {
+  return {
+    id: annotation.id,
+    type: annotation.type,
+    bounds: annotation.bounds,
+    color: annotation.color,
+    width: annotation.width,
+    pointCount: annotation.points.length,
+    label: annotation.label ?? null,
+    createdAt: annotation.createdAt,
+  };
+}
+
+function rectsOverlap(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number },
+): boolean {
+  return a.x <= b.x + b.width &&
+    a.x + a.width >= b.x &&
+    a.y <= b.y + b.height &&
+    a.y + a.height >= b.y;
+}
+
+export function summarizeCanvasAnnotationForContext(
+  annotation: CanvasAnnotation,
+  nodes: CanvasNodeState[],
+): CanvasAnnotationContextSummary {
+  const targetNodes = nodes.filter((node) => rectsOverlap(annotation.bounds, {
+    x: node.position.x,
+    y: node.position.y,
+    width: node.size.width,
+    height: node.size.height,
+  }));
+  const targetNodeTitles = targetNodes.map((node) => getCanvasNodeTitle(node) ?? node.id);
+  return {
+    id: annotation.id,
+    label: annotation.label ?? null,
+    bounds: annotation.bounds,
+    targetNodeIds: targetNodes.map((node) => node.id),
+    targetNodeTitles,
+    target: targetNodeTitles.length > 0 ? targetNodeTitles.join(', ') : 'empty canvas region',
+  };
+}
+
 export interface CanvasSummary {
   totalNodes: number;
   totalEdges: number;
+  totalAnnotations: number;
+  annotations: CanvasAnnotationContextSummary[];
   nodesByType: Record<string, number>;
   pinnedCount: number;
   pinnedTitles: string[];
@@ -130,6 +196,8 @@ export function buildCanvasSummary(): CanvasSummary {
   return {
     totalNodes: layout.nodes.length,
     totalEdges: layout.edges.length,
+    totalAnnotations: layout.annotations.length,
+    annotations: layout.annotations.map((annotation) => summarizeCanvasAnnotationForContext(annotation, layout.nodes)),
     nodesByType: typeCounts,
     pinnedCount: pinnedIds.size,
     pinnedTitles,

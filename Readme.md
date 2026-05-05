@@ -58,7 +58,7 @@ the canvas durable rather than throwaway.
 
 ### 05 / Any agent
 
-Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (40 tools,
+Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (41 tools,
 8 resources, change notifications), the [CLI](docs/cli.md), the
 [HTTP API](docs/http-api.md), or the [Bun SDK](docs/sdk.md). Works with
 Claude Code, GitHub Copilot CLI, Codex, Cursor, Windsurf, or any agent
@@ -136,7 +136,7 @@ the agent can read `canvas://skills` and pull in companion skills
   the three-tier visual matrix (json-render → html → web-artifact)
 - **[CLI reference](docs/cli.md)** — full command surface, daemon mode,
   watch streams, WebView automation
-- **[MCP reference](docs/mcp.md)** — 40 tools, 8 resources, change
+- **[MCP reference](docs/mcp.md)** — 41 tools, 8 resources, change
   notifications, node-type routing
 - **[HTTP API](docs/http-api.md)** — REST endpoints, SSE, batch operations
 - **[Bun SDK](docs/sdk.md)** — `createCanvas()` for TypeScript on Bun

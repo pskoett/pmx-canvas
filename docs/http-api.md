@@ -56,6 +56,21 @@ Search-based edge creation is intentionally strict: `fromSearch` and
 `toSearch` must each resolve to exactly one node. Broad queries that match
 multiple nodes fail; use the full visible title.
 
+## Annotations
+
+```bash
+# Add a freehand annotation. The default/currentColor stroke follows the active theme.
+curl -X POST http://localhost:4313/api/canvas/annotation \
+  -H "Content-Type: application/json" \
+  -d '{"points":[{"x":100,"y":120},{"x":220,"y":120}],"color":"currentColor","width":4}'
+
+# Remove an annotation
+curl -X DELETE http://localhost:4313/api/canvas/annotation/ann-123
+```
+
+Agent-readable context reports annotation IDs, targets, and bounds. Use WebView
+inspection or screenshots when the drawn shape matters.
+
 ## Pins
 
 ```bash

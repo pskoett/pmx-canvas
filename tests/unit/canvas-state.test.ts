@@ -2,6 +2,7 @@ import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { canvasState } from '../../src/server/canvas-state.ts';
+import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { computeGroupBounds, findOpenCanvasPosition } from '../../src/server/placement.ts';
 import {
   createTestWorkspace,
@@ -77,6 +78,76 @@ describe('canvas state manager', () => {
     expect(persisted.nodes.map((node) => node.id).sort()).toEqual([groupNode.id, secondNode.id]);
     expect(persisted.edges).toEqual([]);
     expect(persisted.contextPins).toEqual([secondNode.id]);
+  });
+
+  test('persists annotations separately from nodes and edges', async () => {
+    canvasState.addAnnotation({
+      id: 'ann-1',
+      type: 'freehand',
+      points: [{ x: 10, y: 20 }, { x: 40, y: 80 }],
+      bounds: { x: 10, y: 20, width: 30, height: 60 },
+      color: '#f97316',
+      width: 4,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    const layout = canvasState.getLayout();
+    expect(layout.nodes).toHaveLength(0);
+    expect(layout.edges).toHaveLength(0);
+    expect(layout.annotations).toHaveLength(1);
+    expect(layout.annotations[0]?.points).toHaveLength(2);
+
+    await waitForPersistence();
+    const persisted = readPersistedCanvasState(workspaceRoot);
+    expect(persisted.annotations).toHaveLength(1);
+    expect(persisted.annotations?.[0]?.id).toBe('ann-1');
+  });
+
+  test('removes annotations and persists the removal', async () => {
+    canvasState.addAnnotation({
+      id: 'ann-remove',
+      type: 'freehand',
+      points: [{ x: 10, y: 20 }, { x: 40, y: 80 }],
+      bounds: { x: 10, y: 20, width: 30, height: 60 },
+      color: 'currentColor',
+      width: 4,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    expect(canvasState.removeAnnotation('ann-remove')).toBe(true);
+    expect(canvasState.removeAnnotation('ann-missing')).toBe(false);
+    expect(canvasState.getAnnotations()).toEqual([]);
+
+    await waitForPersistence();
+    const persisted = readPersistedCanvasState(workspaceRoot);
+    expect(persisted.annotations).toEqual([]);
+  });
+
+  test('records annotation removal for undo and redo', () => {
+    canvasState.onMutation((info) => {
+      mutationHistory.record({
+        description: info.description,
+        operationType: info.operationType,
+        forward: info.forward,
+        inverse: info.inverse,
+      });
+    });
+    canvasState.addAnnotation({
+      id: 'ann-history',
+      type: 'freehand',
+      points: [{ x: 10, y: 20 }, { x: 40, y: 80 }],
+      bounds: { x: 10, y: 20, width: 30, height: 60 },
+      color: 'currentColor',
+      width: 4,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+    canvasState.removeAnnotation('ann-history');
+
+    expect(mutationHistory.getSummaries().at(-1)?.operationType).toBe('removeAnnotation');
+    mutationHistory.undo();
+    expect(canvasState.getAnnotations().map((annotation) => annotation.id)).toEqual(['ann-history']);
+    mutationHistory.redo();
+    expect(canvasState.getAnnotations()).toEqual([]);
   });
 
   test('saves, restores, lists, and deletes snapshots', () => {
@@ -292,6 +363,15 @@ describe('canvas state manager', () => {
     canvasState.addNode(node);
     canvasState.addNode(other);
     canvasState.addEdge(edge);
+    canvasState.addAnnotation({
+      id: 'ann-clone',
+      type: 'freehand',
+      points: [{ x: 1, y: 2 }, { x: 3, y: 4 }],
+      bounds: { x: 1, y: 2, width: 2, height: 2 },
+      color: '#f97316',
+      width: 4,
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
     canvasState.setContextPins([node.id]);
 
     const fetchedNode = canvasState.getNode(node.id)!;
@@ -301,6 +381,7 @@ describe('canvas state manager', () => {
     layout.viewport.x = 999;
     layout.nodes[0]!.position.x = 999;
     layout.edges[0]!.label = 'outside';
+    layout.annotations[0]!.points[0]!.x = 999;
 
     const pins = canvasState.contextPinnedNodeIds;
     pins.clear();
@@ -309,6 +390,7 @@ describe('canvas state manager', () => {
     expect(canvasState.getLayout().viewport.x).toBe(0);
     expect(canvasState.getNode(node.id)?.position.x).toBe(40);
     expect(canvasState.getEdges()[0]?.label).toBeUndefined();
+    expect(canvasState.getAnnotations()[0]?.points[0]?.x).toBe(1);
     expect(Array.from(canvasState.contextPinnedNodeIds)).toEqual([node.id]);
   });
 

@@ -41,6 +41,22 @@ export interface CanvasEdge {
   animated?: boolean;
 }
 
+export interface CanvasAnnotationPoint {
+  x: number;
+  y: number;
+}
+
+export interface CanvasAnnotation {
+  id: string;
+  type: 'freehand';
+  points: CanvasAnnotationPoint[];
+  bounds: { x: number; y: number; width: number; height: number };
+  color: string;
+  width: number;
+  label?: string;
+  createdAt: string;
+}
+
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
 // ── Shared constants for node type display ──────────────────
@@ -93,4 +109,5 @@ export interface CanvasLayout {
   viewport: ViewportState;
   nodes: CanvasNodeState[];
   edges: CanvasEdge[];
+  annotations?: CanvasAnnotation[];
 }

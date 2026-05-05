@@ -3,6 +3,70 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.17] - 2026-05-04
+
+Adds a freehand annotation layer so humans can draw directly on the
+canvas and agents read compact spatial annotation context (bounds,
+target nodes, optional label) without seeing the raw ink. Excalidraw
+bound-text → label hoisting now covers the full set of canonical and
+shorthand shapes the hosted app emits, and the `html` node type gets
+its first-class entry in `canvas_describe_schema` plus a CLI
+`--content` alias that maps to `data.html`.
+
+### Added
+
+- **Freehand canvas annotations.** A new top-level annotation layer
+  lets humans draw freehand strokes on the canvas with pen and
+  eraser tools wired into the toolbar. Annotations live alongside
+  nodes and edges in `canvasState` (their own `addAnnotation` /
+  `removeAnnotation` history operations), persist into snapshots,
+  and are rendered as SVG paths whose default `currentColor` stroke
+  follows the active theme via a new `--c-annotation` token.
+  Surfaces:
+  - HTTP: `POST /api/canvas/annotation`, `DELETE
+    /api/canvas/annotation/:id`.
+  - MCP: `canvas_remove_annotation` (the canvas now exposes 41 MCP
+    tools, was 40).
+  - Client: pen / eraser toolbar buttons with theme-aware iconography
+    and an `AnnotationLayer` that renders the strokes.
+- **Spatial annotation context for agents.** Each pinned-context /
+  spatial-context read now includes a compact
+  `SpatialAnnotationContext` per annotation: `id`, `label`,
+  `bounds`, `targetNodeIds`, `targetNodeTitles`, and `target`
+  summary. Agents see what the annotation *circles* (which nodes it
+  overlaps), not the freehand path itself, keeping the read budget
+  small while still letting the agent act on the human's intent.
+- **HTML node schema entry in `canvas_describe_schema`.** The `html`
+  node type added in 0.1.15 now appears in the schema tour with a
+  documented `html` field, `--content` / `--stdin` aliases, the
+  sandboxed-iframe note, and an example payload.
+- **CLI `--content` alias for HTML nodes.** `pmx-canvas node add
+  --type html --content '<main>Hello</main>'` is accepted as a
+  shorthand for setting `data.html` (also supported via `--stdin`).
+
+### Changed
+
+- **Excalidraw bound-text → container label hoisting now covers
+  every canonical shape.** The diagram preset
+  (`normalizeExcalidrawElementsForToolInput`) hoists text into a
+  `rectangle` / `ellipse` / `diamond` container's `label` for all
+  four patterns the hosted app emits: the canonical
+  `containerId`-pointing text, the centered-container variant,
+  pre-existing shorthand labels (preserved as-is), and the
+  `boundElements`-only path where the text lacks a back-reference.
+  Text alignment and vertical-alignment hints are forwarded into
+  the label when present.
+
+### Internal
+
+- Regression coverage for: annotation persistence and removal in
+  `canvasState`, annotation undo/redo history operations,
+  annotation create/delete over HTTP, html-content CLI alias
+  mapping, all four Excalidraw bound-text patterns, html node
+  rendering from server state in the browser (e2e), annotation
+  theme contrast plus eraser flow (e2e), and annotation toolbar
+  actions preserving the active light theme (e2e).
+
 ## [0.1.16] - 2026-05-04
 
 Live-context-dock and undo-history hygiene pass on top of 0.1.15. The
@@ -663,6 +727,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.17]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.17
 [0.1.16]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.16
 [0.1.15]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.15
 [0.1.14]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.14

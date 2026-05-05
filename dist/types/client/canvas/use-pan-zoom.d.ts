@@ -4,6 +4,7 @@ interface PanZoomOptions {
     viewport: Signal<ViewportState>;
     onViewportChange: (v: ViewportState) => void;
     onViewportCommit: (v: ViewportState) => void;
+    disabled?: boolean;
 }
 /**
  * Hook that wires up pan/zoom interactions on a container element.
@@ -12,5 +13,5 @@ interface PanZoomOptions {
  * - Pointer drag on background: pan
  * - Pinch (touch): zoom
  */
-export declare function usePanZoom({ viewport, onViewportChange, onViewportCommit }: PanZoomOptions): import("preact/src").RefObject<HTMLDivElement>;
+export declare function usePanZoom({ viewport, onViewportChange, onViewportCommit, disabled }: PanZoomOptions): import("preact/src").RefObject<HTMLDivElement>;
 export {};

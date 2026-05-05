@@ -147,6 +147,41 @@ describe('agent CLI node commands', () => {
     expect(output.size).toEqual({ width: 500, height: 280 });
   });
 
+  test('node add maps html content to the renderer html field', async () => {
+    const html = '<main><h1>CLI HTML widget</h1></main>';
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'node',
+        'add',
+        '--type',
+        'html',
+        '--title',
+        'CLI HTML',
+        '--content',
+        html,
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      id: string;
+      data: Record<string, unknown>;
+    };
+    expect(output.ok).toBe(true);
+    expect(output.data.html).toBe(html);
+    expect(output.data.content).toBeUndefined();
+
+    const stored = await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${output.id}`);
+    expect(stored.data.html).toBe(html);
+    expect(stored.data.content).toBeUndefined();
+  });
+
   test('node add forwards trace fields advertised by schema help', async () => {
     const log = mock(() => {});
     const originalLog = console.log;
@@ -1386,12 +1421,14 @@ describe('agent CLI node commands', () => {
       await runAgentCli(['json-render', '--schema', '--component', 'Badge', '--field', 'variant']);
       await runAgentCli(['json-render', '--example', '--component', 'Table']);
       await runAgentCli(['node', 'add', '--help', '--type', 'webpage', '--json']);
+      await runAgentCli(['node', 'schema', '--summary']);
+      await runAgentCli(['node', 'add', '--help', '--type', 'html', '--json']);
       await runAgentCli(['validate', 'spec', '--type', 'json-render', '--spec-file', specPath, '--summary']);
     } finally {
       console.log = originalLog;
     }
 
-    expect(log).toHaveBeenCalledTimes(6);
+    expect(log).toHaveBeenCalledTimes(8);
 
     const webpageSchema = JSON.parse(log.mock.calls[0]?.[0] as string) as {
       type: string;
@@ -1436,7 +1473,23 @@ describe('agent CLI node commands', () => {
     expect(webpageHelp.endpoint).toBe('/api/canvas/node');
     expect(webpageHelp.fields.some((field) => field.name === 'url')).toBe(true);
 
-    const validation = JSON.parse(log.mock.calls[5]?.[0] as string) as {
+    const schemaSummary = JSON.parse(log.mock.calls[5]?.[0] as string) as {
+      nodeTypes: Array<{ type: string; optionalFields: string[] }>;
+    };
+    const htmlSummary = schemaSummary.nodeTypes.find((entry) => entry.type === 'html');
+    expect(htmlSummary).toBeDefined();
+    expect(htmlSummary?.optionalFields).toContain('html');
+
+    const htmlHelp = JSON.parse(log.mock.calls[6]?.[0] as string) as {
+      type: string;
+      endpoint: string;
+      fields: Array<{ name: string; aliases?: string[] }>;
+    };
+    expect(htmlHelp.type).toBe('html');
+    expect(htmlHelp.endpoint).toBe('/api/canvas/node');
+    expect(htmlHelp.fields.find((field) => field.name === 'html')?.aliases).toContain('content');
+
+    const validation = JSON.parse(log.mock.calls[7]?.[0] as string) as {
       ok: boolean;
       type: string;
       summary: { elementCount: number };

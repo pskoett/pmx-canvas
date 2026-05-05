@@ -29,7 +29,7 @@ import { createCanvasAccess, refreshCanvasAccess, type CanvasAccess } from './ca
 import { serializeNodeForAgentContext } from '../server/agent-context.js';
 import { wrapCanvasAutomationScript } from '../server/server.js';
 import { buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
-import { getCanvasNodeTitle, serializeCanvasLayout, serializeCanvasNode } from '../server/canvas-serialization.js';
+import { getCanvasNodeTitle, serializeCanvasLayout, serializeCanvasNode, summarizeCanvasAnnotationForContext } from '../server/canvas-serialization.js';
 import { listBundledSkills, readBundledSkill } from '../server/bundled-skills.js';
 
 let canvas: CanvasAccess | null = null;
@@ -191,6 +191,7 @@ function compactLayoutPayload(layout: Awaited<ReturnType<CanvasAccess['getLayout
   return {
     summary: buildSummaryFromLayout(layout, pinnedIds),
     viewport: layout.viewport,
+    annotations: (layout.annotations ?? []).map((annotation) => summarizeCanvasAnnotationForContext(annotation, layout.nodes)),
     nodes: layout.nodes.map((node) => compactNodePayload(node)).filter((node): node is Record<string, unknown> => node !== null),
     edges: layout.edges.map((edge) => ({
       id: edge.id,
@@ -201,6 +202,13 @@ function compactLayoutPayload(layout: Awaited<ReturnType<CanvasAccess['getLayout
       ...(edge.style ? { style: edge.style } : {}),
       ...(edge.animated !== undefined ? { animated: edge.animated } : {}),
     })),
+  };
+}
+
+function agentSafeFullLayoutPayload(layout: Awaited<ReturnType<CanvasAccess['getLayout']>>): Record<string, unknown> {
+  return {
+    ...serializeCanvasLayout(layout),
+    annotations: (layout.annotations ?? []).map((annotation) => summarizeCanvasAnnotationForContext(annotation, layout.nodes)),
   };
 }
 
@@ -248,6 +256,8 @@ function buildSummaryFromLayout(layout: Awaited<ReturnType<CanvasAccess['getLayo
   return {
     totalNodes: layout.nodes.length,
     totalEdges: layout.edges.length,
+    totalAnnotations: (layout.annotations ?? []).length,
+    annotations: (layout.annotations ?? []).map((annotation) => summarizeCanvasAnnotationForContext(annotation, layout.nodes)),
     nodesByType,
     pinnedCount: pinned.size,
     pinnedTitles,
@@ -263,6 +273,7 @@ function buildSnapshotRestoreSummary(layout: Awaited<ReturnType<CanvasAccess['ge
   return {
     nodeCount: layout.nodes.length,
     edgeCount: layout.edges.length,
+    annotationCount: (layout.annotations ?? []).length,
     nodesByType,
     viewport: layout.viewport,
   };
@@ -287,7 +298,7 @@ export async function startMcpServer(): Promise<void> {
       const c = await ensureCanvas();
       const layout = await c.getLayout();
       const payload = wantsFullPayload(input)
-        ? serializeCanvasLayout(layout)
+        ? agentSafeFullLayoutPayload(layout)
         : compactLayoutPayload(layout, await c.getPinnedNodeIds());
       return {
         content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
@@ -902,6 +913,26 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
+  // ── canvas_remove_annotation ─────────────────────────────────────
+  server.tool(
+    'canvas_remove_annotation',
+    'Remove a human-drawn canvas annotation by ID.',
+    { id: z.string().describe('Annotation ID to remove') },
+    async ({ id }) => {
+      const c = await ensureCanvas();
+      const removed = await c.removeAnnotation(id);
+      if (!removed) {
+        return {
+          content: [{ type: 'text', text: `Annotation "${id}" not found.` }],
+          isError: true,
+        };
+      }
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, removed: id }) }],
+      };
+    },
+  );
+
   // ── canvas_add_edge ────────────────────────────────────────────
   server.tool(
     'canvas_add_edge',
@@ -1401,7 +1432,7 @@ export async function startMcpServer(): Promise<void> {
     },
     async () => {
       const c = await ensureCanvas();
-      const layout = serializeCanvasLayout(await c.getLayout());
+      const layout = agentSafeFullLayoutPayload(await c.getLayout());
       return {
         contents: [
           {
@@ -1452,7 +1483,7 @@ export async function startMcpServer(): Promise<void> {
     async () => {
       const c = await ensureCanvas();
       const layout = await c.getLayout();
-      const spatial = buildSpatialContext(layout.nodes, layout.edges, new Set(await c.getPinnedNodeIds()));
+      const spatial = buildSpatialContext(layout.nodes, layout.edges, new Set(await c.getPinnedNodeIds()), layout.annotations ?? []);
       return {
         contents: [
           {

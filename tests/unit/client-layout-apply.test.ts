@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import {
   activeNodeId,
+  annotations,
   applyServerCanvasLayout,
   contextPinnedNodeIds,
   collapseExpandedNode,
@@ -13,7 +14,7 @@ import {
   updateNode,
   viewport,
 } from '../../src/client/state/canvas-store.ts';
-import type { CanvasEdge, CanvasNodeState } from '../../src/client/types.ts';
+import type { CanvasAnnotation, CanvasEdge, CanvasNodeState } from '../../src/client/types.ts';
 
 function makeNode(id: string, overrides: Partial<CanvasNodeState> = {}): CanvasNodeState {
   return {
@@ -33,10 +34,23 @@ function makeEdge(id: string, from: string, to: string): CanvasEdge {
   return { id, from, to, type: 'relation' };
 }
 
+function makeAnnotation(id: string): CanvasAnnotation {
+  return {
+    id,
+    type: 'freehand',
+    points: [{ x: 0, y: 0 }, { x: 20, y: 20 }],
+    bounds: { x: 0, y: 0, width: 20, height: 20 },
+    color: '#f97316',
+    width: 4,
+    createdAt: '2026-01-01T00:00:00.000Z',
+  };
+}
+
 function resetClientState(): void {
   viewport.value = { x: 0, y: 0, scale: 1 };
   nodes.value = new Map();
   edges.value = new Map();
+  annotations.value = new Map();
   activeNodeId.value = null;
   expandedNodeId.value = null;
   pendingExpandedNodeCloseId.value = null;
@@ -62,6 +76,7 @@ describe('applyServerCanvasLayout', () => {
       [second.id, second],
     ]);
     edges.value = new Map([[firstEdge.id, firstEdge]]);
+    annotations.value = new Map([['old-ann', makeAnnotation('old-ann')]]);
     activeNodeId.value = second.id;
     expandedNodeId.value = second.id;
     selectedNodeIds.value = new Set([first.id, second.id, 'missing-node']);
@@ -82,12 +97,14 @@ describe('applyServerCanvasLayout', () => {
         makeEdge('edge-2', updatedSecond.id, third.id),
         makeEdge('edge-stale', updatedSecond.id, 'missing-node'),
       ],
+      annotations: [makeAnnotation('ann-1')],
     });
 
     expect(viewport.value).toEqual({ x: 0, y: 0, scale: 1 });
     expect(Array.from(nodes.value.keys())).toEqual(['node-2', 'node-3']);
     expect(nodes.value.get('node-2')).toEqual(updatedSecond);
     expect(Array.from(edges.value.keys())).toEqual(['edge-2']);
+    expect(Array.from(annotations.value.keys())).toEqual(['ann-1']);
     expect(activeNodeId.value).toBe('node-2');
     expect(expandedNodeId.value).toBe('node-2');
     expect(Array.from(selectedNodeIds.value)).toEqual(['node-2']);

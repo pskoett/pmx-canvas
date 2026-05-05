@@ -10,7 +10,7 @@
  * semantic clusters, ordered context, and implicit human intent.
  */
 
-import type { CanvasNodeState, CanvasEdge } from './canvas-state.js';
+import type { CanvasAnnotation, CanvasNodeState, CanvasEdge } from './canvas-state.js';
 import { summarizeNodeForAgentContext } from './agent-context.js';
 
 // ── Types ────────────────────────────────────────────────────────────
@@ -45,6 +45,15 @@ export interface NodeSpatialInfo {
   readingOrder: number;
 }
 
+export interface SpatialAnnotationContext {
+  id: string;
+  label: string | null;
+  bounds: CanvasAnnotation['bounds'];
+  targetNodeIds: string[];
+  targetNodeTitles: string[];
+  target: string;
+}
+
 export interface SpatialContext {
   /** Total nodes on canvas */
   totalNodes: number;
@@ -58,6 +67,7 @@ export interface SpatialContext {
     pinnedNodeTitle: string | null;
     neighbors: SpatialNeighbor[];
   }[];
+  annotations: SpatialAnnotationContext[];
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
@@ -123,6 +133,39 @@ function deriveClusterLabel(nodes: CanvasNodeState[]): string {
     return `${titled.data.title} + ${parts.join(', ')}`;
   }
   return parts.join(', ');
+}
+
+function rectsOverlap(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number },
+): boolean {
+  return a.x <= b.x + b.width &&
+    a.x + a.width >= b.x &&
+    a.y <= b.y + b.height &&
+    a.y + a.height >= b.y;
+}
+
+function summarizeAnnotationForSpatialContext(
+  annotation: CanvasAnnotation,
+  nodes: CanvasNodeState[],
+): SpatialAnnotationContext {
+  const targetNodes = nodes.filter((node) => rectsOverlap(annotation.bounds, {
+    x: node.position.x,
+    y: node.position.y,
+    width: node.size.width,
+    height: node.size.height,
+  }));
+  const targetNodeTitles = targetNodes.map((node) =>
+    typeof node.data.title === 'string' && node.data.title.length > 0 ? node.data.title : node.id,
+  );
+  return {
+    id: annotation.id,
+    label: annotation.label ?? null,
+    bounds: annotation.bounds,
+    targetNodeIds: targetNodes.map((node) => node.id),
+    targetNodeTitles,
+    target: targetNodeTitles.length > 0 ? targetNodeTitles.join(', ') : 'empty canvas region',
+  };
 }
 
 // ── Core Analysis ────────────────────────────────────────────────────
@@ -320,6 +363,7 @@ export function buildSpatialContext(
   nodes: CanvasNodeState[],
   _edges: CanvasEdge[],
   pinnedIds: Set<string>,
+  annotations: CanvasAnnotation[] = [],
 ): SpatialContext {
   const clusters = detectClusters(nodes);
 
@@ -352,5 +396,6 @@ export function buildSpatialContext(
     clusters,
     nodesInReadingOrder,
     pinnedNeighborhoods,
+    annotations: annotations.map((annotation) => summarizeAnnotationForSpatialContext(annotation, nodes)),
   };
 }

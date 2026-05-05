@@ -1,7 +1,7 @@
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { canvasState, type CanvasNodeState } from '../../src/server/canvas-state.ts';
+import { canvasState, type CanvasAnnotation, type CanvasNodeState } from '../../src/server/canvas-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { stopCanvasServer } from '../../src/server/server.ts';
 
@@ -73,11 +73,13 @@ export function removeTestWorkspace(workspaceRoot: string): void {
 export function readPersistedCanvasState(workspaceRoot: string): {
   nodes: CanvasNodeState[];
   edges: Array<{ id: string; from: string; to: string; type: string }>;
+  annotations?: CanvasAnnotation[];
   contextPins: string[];
 } {
   return JSON.parse(readFileSync(join(workspaceRoot, '.pmx-canvas', 'state.json'), 'utf-8')) as {
     nodes: CanvasNodeState[];
     edges: Array<{ id: string; from: string; to: string; type: string }>;
+    annotations?: CanvasAnnotation[];
     contextPins: string[];
   };
 }

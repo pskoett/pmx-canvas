@@ -9,7 +9,7 @@
  * actually real for agents. Instead of raw x/y coordinates, agents get
  * semantic clusters, ordered context, and implicit human intent.
  */
-import type { CanvasNodeState, CanvasEdge } from './canvas-state.js';
+import type { CanvasAnnotation, CanvasNodeState, CanvasEdge } from './canvas-state.js';
 export interface SpatialCluster {
     /** Auto-generated cluster ID */
     id: string;
@@ -45,6 +45,14 @@ export interface NodeSpatialInfo {
     /** Reading order index (top-left to bottom-right) */
     readingOrder: number;
 }
+export interface SpatialAnnotationContext {
+    id: string;
+    label: string | null;
+    bounds: CanvasAnnotation['bounds'];
+    targetNodeIds: string[];
+    targetNodeTitles: string[];
+    target: string;
+}
 export interface SpatialContext {
     /** Total nodes on canvas */
     totalNodes: number;
@@ -58,6 +66,7 @@ export interface SpatialContext {
         pinnedNodeTitle: string | null;
         neighbors: SpatialNeighbor[];
     }[];
+    annotations: SpatialAnnotationContext[];
 }
 /**
  * Detect proximity clusters using single-linkage clustering.
@@ -84,4 +93,4 @@ export declare function searchNodes(nodes: CanvasNodeState[], query: string): {
 /**
  * Build the complete spatial context for the canvas.
  */
-export declare function buildSpatialContext(nodes: CanvasNodeState[], _edges: CanvasEdge[], pinnedIds: Set<string>): SpatialContext;
+export declare function buildSpatialContext(nodes: CanvasNodeState[], _edges: CanvasEdge[], pinnedIds: Set<string>, annotations?: CanvasAnnotation[]): SpatialContext;

@@ -23,6 +23,7 @@ interface CanvasStateResponse {
     data: Record<string, unknown>;
   }>;
   edges: Array<{ id: string; from: string; to: string; type: string }>;
+  annotations?: Array<{ id: string; color: string; pointCount?: number }>;
 }
 
 interface BlobSummary {
@@ -256,6 +257,32 @@ describe('canvas server HTTP API', () => {
     const layout = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
     expect(layout.nodes).toEqual([]);
     expect(layout.edges).toEqual([]);
+  });
+
+  test('supports annotation create and delete through HTTP', async () => {
+    const created = await jsonRequest<{
+      ok: boolean;
+      annotation: { id: string; color: string; pointCount: number };
+    }>('/api/canvas/annotation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        points: [{ x: 10, y: 20 }, { x: 40, y: 80 }],
+        color: 'currentColor',
+        width: 4,
+      }),
+    });
+
+    expect(created.annotation.color).toBe('currentColor');
+    expect(created.annotation.pointCount).toBe(2);
+    expect((await jsonRequest<CanvasStateResponse>('/api/canvas/state')).annotations?.map((annotation) => annotation.id)).toEqual([created.annotation.id]);
+
+    const removed = await jsonRequest<{ ok: boolean; removed: string }>(`/api/canvas/annotation/${created.annotation.id}`, {
+      method: 'DELETE',
+    });
+
+    expect(removed.removed).toBe(created.annotation.id);
+    expect((await jsonRequest<CanvasStateResponse>('/api/canvas/state')).annotations).toEqual([]);
   });
 
   test('accepts flat and nested geometry and returns nested node payloads', async () => {

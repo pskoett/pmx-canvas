@@ -117,6 +117,28 @@ export function IconMoon(p: IconProps): JSX.Element {
   );
 }
 
+/** Pen stroke — canvas annotation mode */
+export function IconPen(p: IconProps): JSX.Element {
+  return (
+    <Icon {...p}>
+      <path d="M3 13l2.8-.7L13 5.1 10.9 3 3.7 10.2 3 13Z" />
+      <path d="M9.8 4.1l2.1 2.1" />
+      <path d="M2.5 14h11" />
+    </Icon>
+  );
+}
+
+/** Eraser — remove canvas annotations */
+export function IconEraser(p: IconProps): JSX.Element {
+  return (
+    <Icon {...p}>
+      <path d="M3 10.5 8.5 5a2 2 0 0 1 2.8 0l1.7 1.7a2 2 0 0 1 0 2.8L8.5 14H5.8L3 11.2Z" />
+      <path d="M7.5 6 12 10.5" />
+      <path d="M8.5 14H14" />
+    </Icon>
+  );
+}
+
 /** Camera — snapshots */
 export function IconSnapshot(p: IconProps): JSX.Element {
   return (

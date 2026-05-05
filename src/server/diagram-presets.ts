@@ -120,18 +120,33 @@ function positiveFiniteNumber(value: unknown): number | null {
   return num !== null && num > 0 ? num : null;
 }
 
+function elementHasCameraUpdate(elements: Array<Record<string, unknown>>): boolean {
+  return elements.some((element) => element.type === 'cameraUpdate');
+}
+
+function isTextBindableContainer(element: Record<string, unknown>): boolean {
+  return element.type === 'rectangle' || element.type === 'ellipse' || element.type === 'diamond';
+}
+
 function labelFromBoundText(element: Record<string, unknown>): Record<string, unknown> | null {
   const text = typeof element.text === 'string' ? element.text : '';
   if (text.trim().length === 0) return null;
   const fontSize = positiveFiniteNumber(element.fontSize);
+  const textAlign = typeof element.textAlign === 'string' ? element.textAlign : null;
+  const verticalAlign = typeof element.verticalAlign === 'string' ? element.verticalAlign : null;
   return {
     text,
     ...(fontSize ? { fontSize } : {}),
+    ...(textAlign ? { textAlign } : {}),
+    ...(verticalAlign ? { verticalAlign } : {}),
   };
 }
 
-function elementHasCameraUpdate(elements: Array<Record<string, unknown>>): boolean {
-  return elements.some((element) => element.type === 'cameraUpdate');
+function boundTextRefId(value: unknown): string | null {
+  if (!isRecord(value) || value.type !== 'text' || typeof value.id !== 'string' || value.id.length === 0) {
+    return null;
+  }
+  return value.id;
 }
 
 function hasRenderableExcalidrawElement(elements: Array<Record<string, unknown>>): boolean {
@@ -153,37 +168,57 @@ function normalizeExcalidrawBoundText(elements: Array<Record<string, unknown>>):
   }
 
   let changed = false;
+  const containerIdByTextId = new Map<string, string>();
   const labelsByContainer = new Map<string, Record<string, unknown>>();
+  const collapsedTextIds = new Set<string>();
+
+  for (const container of elements) {
+    if (!isTextBindableContainer(container) || typeof container.id !== 'string' || !Array.isArray(container.boundElements)) continue;
+    for (const rawBoundElement of container.boundElements) {
+      const textId = boundTextRefId(rawBoundElement);
+      if (!textId) continue;
+      const textElement = elementsById.get(textId);
+      if (textElement?.type !== 'text') continue;
+      if (typeof textElement.containerId !== 'string') {
+        containerIdByTextId.set(textId, container.id);
+      }
+    }
+  }
 
   for (const element of elements) {
-    if (element.type !== 'text' || typeof element.id !== 'string' || typeof element.containerId !== 'string') continue;
-    const container = elementsById.get(element.containerId);
-    if (!container || (container.type !== 'rectangle' && container.type !== 'ellipse' && container.type !== 'diamond')) continue;
+    if (element.type !== 'text' || typeof element.id !== 'string') continue;
+    const containerId = typeof element.containerId === 'string'
+      ? element.containerId
+      : containerIdByTextId.get(element.id);
+    if (!containerId) continue;
+    const container = elementsById.get(containerId);
+    if (!container || !isTextBindableContainer(container)) continue;
     const label = labelFromBoundText(element);
     if (!label) continue;
-    labelsByContainer.set(element.containerId, label);
+    labelsByContainer.set(containerId, label);
+    collapsedTextIds.add(element.id);
   }
+
+  if (labelsByContainer.size === 0) return elements;
 
   const normalized: Array<Record<string, unknown>> = [];
   for (const element of elements) {
-    if (element.type === 'text' && typeof element.containerId === 'string') {
-      if (labelsByContainer.has(element.containerId)) {
-        changed = true;
-        continue;
-      }
-    }
-
-    if (typeof element.id !== 'string' || !labelsByContainer.has(element.id)) {
-      normalized.push(element);
+    if (typeof element.id === 'string' && collapsedTextIds.has(element.id)) {
+      changed = true;
       continue;
     }
 
-    changed = true;
-    const { boundElements: _boundElements, ...container } = element;
-    normalized.push({
-      ...container,
-      label: labelsByContainer.get(element.id),
-    });
+    if (typeof element.id === 'string' && labelsByContainer.has(element.id)) {
+      changed = true;
+      const { boundElements: _boundElements, ...container } = element;
+      normalized.push({
+        ...container,
+        label: labelsByContainer.get(element.id),
+      });
+      continue;
+    }
+
+    normalized.push(element);
   }
 
   return changed ? normalized : elements;

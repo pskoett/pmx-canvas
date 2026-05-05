@@ -302,6 +302,10 @@ If a node type is rejected by `canvas_add_node`, call `canvas_describe_schema` a
 - `id` (required): node to remove
 - Clean up nodes that are no longer relevant
 
+**`canvas_remove_annotation`** — Remove a human-drawn annotation
+- `id` (required): annotation to remove
+- Use when context gives you the annotation ID; use WebView first if you need to identify a mark by shape or location.
+
 **`canvas_get_node`** — Get a single node's full data
 - `id` (required): node to retrieve
 
@@ -564,6 +568,11 @@ tools below operate on the live canvas state.
 Useful workbench selectors:
 - Nodes: `.canvas-node`, `.canvas-node.active`, `.canvas-node.context-pinned`, `.canvas-node.group-node`
 - Node internals: `.node-title`, `.node-titlebar`, `.node-body`, `.node-type-badge`, `.node-controls`
+- Annotations: `.annotation-layer path` renders human-drawn freehand ink. Use WebView
+  to inspect or screenshot annotation shapes; MCP/context resources only expose compact
+  annotation target summaries, not the raw visual shape. Humans can remove marks with
+  the eraser toolbar button; agents can remove a known annotation ID with
+  `canvas_remove_annotation`.
 - Canvas chrome: `.hud-layer`, `.canvas-toolbar`, `.connection-dot`, `.canvas-bootstrap-card`
 - Nodes do not expose stable `data-node-id` attributes. Use `canvas_get_layout`, `canvas_search`, or MCP resource data for exact node IDs.
 
@@ -610,6 +619,9 @@ canvas_webview_stop();
   geometric `graph` node would feel too rigid
 - Prefer labeled shapes (`"label": { "text": "..." }` on rectangle/ellipse/diamond) over
   separate text elements — fewer tokens and auto-centered
+- Do not use separate `text` elements with `containerId`/`boundElements` to place centered text
+  inside shapes. The hosted SVG preview does not auto-position those; PMX normalizes imported
+  canonical bound text back into shape labels for hosted app calls.
 - Prefer the pastel fill palette in the Excalidraw `read_me` (light blue/green/orange/...) for
   a consistent look across diagrams
 
@@ -691,6 +703,11 @@ The `canvas://spatial-context` resource reveals how the human has organized info
   This implies sequence or priority.
 - **Pinned neighborhoods** — For each pinned node, nearby unpinned nodes are listed. These
   are the human's implicit context — things they consider related to what they pinned.
+- **Annotations** — Human-drawn markup is summarized by target/bounds only, e.g. an
+  annotation over a node or empty canvas region. Use WebView (`canvas_webview_start` +
+  `canvas_evaluate`/`canvas_screenshot`) when you need to see whether the mark is an
+  arrow, line, circle, or other drawn shape. Remove known annotations with
+  `canvas_remove_annotation`; otherwise use WebView to identify the mark first.
 - **Board density matters** — On a dense board, spatial context can still read like one large
   gallery unless groups and spacing separate the major regions clearly.
 

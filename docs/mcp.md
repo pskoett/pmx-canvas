@@ -1,6 +1,6 @@
 # MCP reference
 
-PMX Canvas ships an MCP stdio server with **40 tools** + **8 core resources**,
+PMX Canvas ships an MCP stdio server with **41 tools** + **8 core resources**,
 plus per-skill resources at `canvas://skills/<name>`. The server emits
 `notifications/resources/updated` when canvas state changes — humans pin
 nodes in the browser, agents are notified immediately.
@@ -40,6 +40,7 @@ The canvas auto-starts on first tool call.
 | `canvas_remove_node` | Remove a node and its edges |
 | `canvas_get_layout` | Get full canvas state |
 | `canvas_get_node` | Get a single node by ID |
+| `canvas_remove_annotation` | Remove a human-drawn annotation by ID |
 | `canvas_add_edge` | Connect two nodes |
 | `canvas_remove_edge` | Remove a connection |
 | `canvas_arrange` | Auto-arrange (grid/column/flow) |
@@ -93,6 +94,21 @@ changes:
 
 This closes the human-to-agent loop: spatial curation in the browser becomes
 an immediate signal in the agent's context.
+
+## Annotation Visibility
+
+Human-drawn canvas annotations are rendered as browser SVG ink. MCP resources
+keep annotation context compact: agents see annotation counts, bounds, and target
+summaries such as the node or empty canvas region that was marked, but not the
+raw stroke geometry or visual shape.
+
+Annotations are a browser-visible markup layer. Use the pen toolbar button to
+draw and the eraser toolbar button to remove an annotation again; agents can also
+remove a known annotation ID with `canvas_remove_annotation`.
+
+Use WebView automation when an agent needs to actually see annotations as drawn.
+For example, inspect `.annotation-layer path` with `canvas_evaluate` or capture a
+`canvas_screenshot` to distinguish an arrow from a line, circle, or highlight.
 
 ## Node-type routing
 

@@ -1,12 +1,13 @@
 import {
   clearContextPins,
   contextPinnedNodeIds,
+  hasOpenDockedContextPanel,
 } from '../state/canvas-store';
 import { attentionHistoryOpen } from '../state/attention-store';
 
 export function ContextPinBar() {
   const count = contextPinnedNodeIds.value.size;
-  if (count === 0 || attentionHistoryOpen.value) return null;
+  if (count === 0 || attentionHistoryOpen.value || hasOpenDockedContextPanel.value) return null;
 
   return (
     <div class="context-pin-bar">

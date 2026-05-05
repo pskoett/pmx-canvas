@@ -46,7 +46,7 @@ import type {
   ListResourceTemplatesResult,
   ListToolsResult,
 } from '@modelcontextprotocol/sdk/types.js';
-import { type CanvasEdge, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
+import { type CanvasAnnotation, type CanvasEdge, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
 import { findCanvasExtAppNodeId as findCanvasExtAppNodeIdShared } from './ext-app-lookup.js';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
@@ -71,6 +71,7 @@ import {
   serializeCanvasLayoutWithBlobSummaries,
   serializeCanvasNode,
   serializeCanvasNodeWithBlobSummaries,
+  summarizeCanvasAnnotation,
 } from './canvas-serialization.js';
 import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent-context.js';
@@ -1225,6 +1226,72 @@ async function handleCanvasViewport(req: Request): Promise<Response> {
   }
   emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
   return responseJson({ ok: true });
+}
+
+function annotationBounds(points: CanvasAnnotation['points']): CanvasAnnotation['bounds'] {
+  const xs = points.map((point) => point.x);
+  const ys = points.map((point) => point.y);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  const maxX = Math.max(...xs);
+  const maxY = Math.max(...ys);
+  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+}
+
+function parseAnnotationPoints(value: unknown): CanvasAnnotation['points'] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((point) => {
+      if (!point || typeof point !== 'object' || Array.isArray(point)) return null;
+      const record = point as Record<string, unknown>;
+      if (typeof record.x !== 'number' || typeof record.y !== 'number') return null;
+      if (!Number.isFinite(record.x) || !Number.isFinite(record.y)) return null;
+      return { x: record.x, y: record.y };
+    })
+    .filter((point): point is CanvasAnnotation['points'][number] => point !== null);
+}
+
+async function handleCanvasAddAnnotation(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const points = parseAnnotationPoints(body.points);
+  if (points.length < 2) {
+    return responseJson({ ok: false, error: 'Annotation requires at least two valid points.' }, 400);
+  }
+
+  const width = typeof body.width === 'number' && Number.isFinite(body.width)
+    ? Math.min(24, Math.max(1, body.width))
+    : 4;
+  const color = typeof body.color === 'string' && (body.color === 'currentColor' || /^#[0-9a-fA-F]{6}$/.test(body.color))
+    ? body.color
+    : 'currentColor';
+  const label = typeof body.label === 'string' && body.label.trim().length > 0
+    ? body.label.trim().slice(0, 160)
+    : undefined;
+  const id = typeof body.id === 'string' && body.id.trim().length > 0
+    ? body.id.trim().slice(0, 120)
+    : `ann-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const annotation: CanvasAnnotation = {
+    id,
+    type: 'freehand',
+    points,
+    bounds: annotationBounds(points),
+    color,
+    width,
+    ...(label ? { label } : {}),
+    createdAt: new Date().toISOString(),
+  };
+
+  canvasState.addAnnotation(annotation);
+  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  return responseJson({ ok: true, annotation: summarizeCanvasAnnotation(annotation) });
+}
+
+function handleCanvasRemoveAnnotation(id: string): Response {
+  const decodedId = decodeURIComponent(id);
+  const removed = canvasState.removeAnnotation(decodedId);
+  if (!removed) return responseJson({ ok: false, error: `Annotation "${decodedId}" not found.` }, 404);
+  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  return responseJson({ ok: true, removed: decodedId });
 }
 
 // ── Serve image file for image nodes ─────────────────────────
@@ -4002,6 +4069,14 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleCanvasViewport(req);
           }
 
+          if (url.pathname === '/api/canvas/annotation' && req.method === 'POST') {
+            return handleCanvasAddAnnotation(req);
+          }
+
+          if (url.pathname.startsWith('/api/canvas/annotation/') && req.method === 'DELETE') {
+            return handleCanvasRemoveAnnotation(url.pathname.slice('/api/canvas/annotation/'.length));
+          }
+
           if (url.pathname === '/api/canvas/node' && req.method === 'POST') {
             return handleCanvasAddNode(req);
           }
@@ -4117,7 +4192,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           // Spatial context API
           if (url.pathname === '/api/canvas/spatial-context' && req.method === 'GET') {
             const layout = canvasState.getLayout();
-            const spatial = buildSpatialContext(layout.nodes, layout.edges, canvasState.contextPinnedNodeIds);
+            const spatial = buildSpatialContext(layout.nodes, layout.edges, canvasState.contextPinnedNodeIds, layout.annotations);
             return responseJson(spatial);
           }
 

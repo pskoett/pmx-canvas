@@ -29,6 +29,25 @@ export interface CanvasEdge {
     style?: 'solid' | 'dashed' | 'dotted';
     animated?: boolean;
 }
+export interface CanvasAnnotationPoint {
+    x: number;
+    y: number;
+}
+export interface CanvasAnnotation {
+    id: string;
+    type: 'freehand';
+    points: CanvasAnnotationPoint[];
+    bounds: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    };
+    color: string;
+    width: number;
+    label?: string;
+    createdAt: string;
+}
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 export declare const TYPE_LABELS: Record<CanvasNodeState['type'], string>;
 /** Node types that support the full-viewport expand/focus overlay. */
@@ -40,4 +59,5 @@ export interface CanvasLayout {
     viewport: ViewportState;
     nodes: CanvasNodeState[];
     edges: CanvasEdge[];
+    annotations?: CanvasAnnotation[];
 }

@@ -19,6 +19,10 @@ export declare function IconMinimap(p: IconProps): JSX.Element;
 export declare function IconSun(p: IconProps): JSX.Element;
 /** Crescent moon */
 export declare function IconMoon(p: IconProps): JSX.Element;
+/** Pen stroke — canvas annotation mode */
+export declare function IconPen(p: IconProps): JSX.Element;
+/** Eraser — remove canvas annotations */
+export declare function IconEraser(p: IconProps): JSX.Element;
 /** Camera — snapshots */
 export declare function IconSnapshot(p: IconProps): JSX.Element;
 /** Bullseye — trace toggle */

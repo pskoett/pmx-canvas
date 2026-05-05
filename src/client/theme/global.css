@@ -50,6 +50,7 @@
   --c-accent-hover: #6ECAFF;
   --c-warn-hover: #f5d06b;
   --c-canvas-wash: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0));
+  --c-annotation: #F4EFE6;
   /* ── Non-color tokens ────────────────────────────────────── */
   --font: "IBM Plex Sans", "SF Pro Text", "Avenir Next", system-ui, sans-serif;
   --mono: "IBM Plex Mono", "SF Mono", "Fira Code", monospace;
@@ -109,6 +110,7 @@
   --c-accent-hover: #1588CE;
   --c-warn-hover: #dab040;
   --c-canvas-wash: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(8, 21, 36, 0.02));
+  --c-annotation: #081524;
 }
 
 :root[data-theme="high-contrast"] {
@@ -162,6 +164,7 @@
   --c-accent-hover: #33ffff;
   --c-warn-hover: #ffff33;
   --c-canvas-wash: linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0));
+  --c-annotation: #ffff00;
 }
 
 * {
@@ -1469,6 +1472,28 @@ body,
   border: 1px solid var(--c-accent);
   border-radius: 2px;
   z-index: 9998;
+}
+
+.annotation-layer {
+  position: absolute;
+  inset: 0;
+  width: 1px;
+  height: 1px;
+  overflow: visible;
+  pointer-events: none;
+  z-index: 45;
+}
+
+.annotation-capture-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 9996;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--c-accent) 5%, transparent);
+}
+
+.annotation-capture-layer.erasing {
+  background: color-mix(in srgb, var(--c-danger) 6%, transparent);
 }
 
 /* ── Drop Zone (file drag-and-drop) ─────────────────────────── */

@@ -1027,6 +1027,7 @@ cmd('node add', 'Add a node to the canvas', [
   'pmx-canvas node add --type status --title "Build" --content "passing"',
   'pmx-canvas node add --type file --content "src/index.ts"',
   'pmx-canvas node add --type webpage --url "https://example.com/docs"',
+  'pmx-canvas node add --type html --title "Widget" --content "<main>Hello</main>"',
   'pmx-canvas node add --type markdown --title "Note" --x 100 --y 200',
   'pmx-canvas node add --type json-render --title "Ops Dashboard" --spec-file ./dashboard.json',
   'pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
@@ -1069,6 +1070,9 @@ cmd('node add', 'Add a node to the canvas', [
     body.url = webpageUrl;
   } else if (type === 'image' && imagePath && !flags.content) {
     body.content = imagePath;
+  } else if (type === 'html') {
+    const html = getStringFlag(flags, 'html') ?? getStringFlag(flags, 'content');
+    if (html !== undefined) body.html = html;
   } else if (flags.content) {
     body.content = flags.content;
   }
@@ -1090,6 +1094,8 @@ cmd('node add', 'Add a node to the canvas', [
   if (flags.stdin) {
     if (type === 'webpage') {
       body.url = await readStdin();
+    } else if (type === 'html') {
+      body.html = await readStdin();
     } else {
       body.content = await readStdin();
     }

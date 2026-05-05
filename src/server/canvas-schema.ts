@@ -224,6 +224,31 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     ],
   },
   {
+    type: 'html',
+    kind: 'node',
+    description: 'Sandboxed iframe node rendered from inline HTML.',
+    endpoint: '/api/canvas/node',
+    mcpTool: 'canvas_add_html_node',
+    fields: [
+      { name: 'html', type: 'string', required: false, description: 'HTML document or fragment rendered in the sandboxed iframe.', aliases: ['content', 'stdin'] },
+      { name: 'title', type: 'string', required: false, description: 'Optional node title.' },
+      { name: 'x', type: 'number', required: false, description: 'Optional X position.' },
+      { name: 'y', type: 'number', required: false, description: 'Optional Y position.' },
+      { name: 'width', type: 'number', required: false, description: 'Optional node width.' },
+      { name: 'height', type: 'number', required: false, description: 'Optional node height.' },
+      { name: 'strictSize', type: 'boolean', required: false, description: 'Keep explicit width/height fixed and scroll overflowing content instead of browser auto-fitting.', aliases: ['strict-size', 'scroll-overflow'] },
+    ],
+    example: {
+      type: 'html',
+      title: 'HTML Widget',
+      html: '<main><h1>Hello from PMX Canvas</h1></main>',
+    },
+    notes: [
+      'The CLI accepts --content as an alias and stores it as data.html so the renderer can load it.',
+      'HTML runs in a sandboxed iframe without same-origin access to the canvas host.',
+    ],
+  },
+  {
     type: 'mcp-app',
     kind: 'node',
     description: 'Hosted iframe/app node.',

@@ -41,10 +41,12 @@ import { connectSSE } from './state/sse-bridge';
 import {
   IconArrange,
   IconClearTrace,
+  IconEraser,
   IconFitAll,
   IconLogo,
   IconMinimap,
   IconMoon,
+  IconPen,
   IconResetView,
   IconSearch,
   IconShortcuts,
@@ -70,6 +72,8 @@ function sendIntent(type: string, payload: Record<string, unknown> = {}): void {
     logAppError('sendIntent', error);
   });
 }
+
+type AnnotationTool = 'pen' | 'eraser' | null;
 
 function ToolbarHint({
   label,
@@ -108,6 +112,9 @@ function Toolbar({
   snapshotBtnRef,
   onOpenPalette,
   onOpenShortcuts,
+  annotationTool,
+  onToggleAnnotationMode,
+  onToggleAnnotationEraser,
 }: {
   minimapVisible: boolean;
   onToggleMinimap: () => void;
@@ -116,6 +123,9 @@ function Toolbar({
   snapshotBtnRef: { current: HTMLButtonElement | null };
   onOpenPalette: () => void;
   onOpenShortcuts: () => void;
+  annotationTool: AnnotationTool;
+  onToggleAnnotationMode: () => void;
+  onToggleAnnotationEraser: () => void;
 }) {
   const status = connectionStatus.value;
   const hasSynced = hasInitialServerLayout.value;
@@ -278,6 +288,37 @@ function Toolbar({
 
         <div class="separator" />
 
+        <ToolbarHint
+          label={annotationTool === 'pen' ? 'Stop annotating' : 'Annotate canvas'}
+          detail="Draw directly on the canvas for human-visible markup"
+        >
+          <button
+            type="button"
+            onClick={onToggleAnnotationMode}
+            aria-label={annotationTool === 'pen' ? 'Stop annotating' : 'Annotate canvas'}
+            aria-pressed={annotationTool === 'pen'}
+            style={{ color: annotationTool === 'pen' ? 'var(--c-accent)' : undefined }}
+          >
+            <IconPen />
+          </button>
+        </ToolbarHint>
+        <ToolbarHint
+          label={annotationTool === 'eraser' ? 'Stop erasing' : 'Erase annotations'}
+          detail="Click a drawn annotation to remove it"
+        >
+          <button
+            type="button"
+            onClick={onToggleAnnotationEraser}
+            aria-label={annotationTool === 'eraser' ? 'Stop erasing' : 'Erase annotations'}
+            aria-pressed={annotationTool === 'eraser'}
+            style={{ color: annotationTool === 'eraser' ? 'var(--c-accent)' : undefined }}
+          >
+            <IconEraser />
+          </button>
+        </ToolbarHint>
+
+        <div class="separator" />
+
         <ToolbarHint label="Search nodes and actions" shortcut={`${MOD_KEY}+K`}>
           <button
             type="button"
@@ -341,6 +382,7 @@ export function App() {
   const [snapshotOpen, setSnapshotOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [annotationTool, setAnnotationTool] = useState<AnnotationTool>(null);
   const snapshotBtnRef = useRef<HTMLButtonElement>(null);
   const { menu, openNodeMenu, openCanvasMenu, closeMenu } = useContextMenu();
   const hasInitialLayout = hasInitialServerLayout.value;
@@ -348,14 +390,18 @@ export function App() {
   const handleToggleMinimap = useCallback(() => setMinimapVisible((v) => !v), []);
   const handleToggleSnapshot = useCallback(() => setSnapshotOpen((v) => !v), []);
   const handleCloseSnapshot = useCallback(() => setSnapshotOpen(false), []);
+  const handleToggleAnnotationMode = useCallback(() => setAnnotationTool((tool) => tool === 'pen' ? null : 'pen'), []);
+  const handleToggleAnnotationEraser = useCallback(() => setAnnotationTool((tool) => tool === 'eraser' ? null : 'eraser'), []);
 
   const handleMinimapNavigate = useCallback((x: number, y: number) => {
     animateViewport({ x, y, scale: viewport.value.scale }, 200);
   }, []);
 
   useEffect(() => {
-    const disconnect = connectSSE();
+    return connectSSE();
+  }, []);
 
+  useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       const mod = e.metaKey || e.ctrlKey;
 
@@ -363,6 +409,13 @@ export function App() {
       if (mod && e.key === 'k') {
         e.preventDefault();
         setPaletteOpen((v) => !v);
+        return;
+      }
+
+      // Esc exits annotation tools before handling overlays or selection.
+      if (e.key === 'Escape' && annotationTool) {
+        e.preventDefault();
+        setAnnotationTool(null);
         return;
       }
 
@@ -428,10 +481,9 @@ export function App() {
 
     document.addEventListener('keydown', handleKeyDown);
     return () => {
-      disconnect();
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [closeMenu, paletteOpen, shortcutsOpen]);
+  }, [annotationTool, closeMenu, paletteOpen, shortcutsOpen]);
 
   useEffect(() => {
     if (!hasInitialLayout) return;
@@ -465,6 +517,9 @@ export function App() {
           snapshotBtnRef={snapshotBtnRef}
           onOpenPalette={() => setPaletteOpen(true)}
           onOpenShortcuts={() => setShortcutsOpen((v) => !v)}
+          annotationTool={annotationTool}
+          onToggleAnnotationMode={handleToggleAnnotationMode}
+          onToggleAnnotationEraser={handleToggleAnnotationEraser}
         />
         <div class="hud-right">
           {dockedRight.map((n) => (
@@ -477,6 +532,8 @@ export function App() {
       <CanvasViewport
         onNodeContextMenu={openNodeMenu}
         onCanvasContextMenu={openCanvasMenu}
+        annotationMode={annotationTool !== null}
+        annotationTool={annotationTool}
       />
       {hasInitialLayout && allNodes.filter((n) => !n.dockPosition).length === 0 && (
         <WelcomeCard onOpenPalette={() => setPaletteOpen(true)} />

@@ -1,7 +1,8 @@
-import { type CanvasEdge, type CanvasLayout, type CanvasNodeState, type ConnectionStatus, type ViewportState } from '../types';
+import { type CanvasAnnotation, type CanvasEdge, type CanvasLayout, type CanvasNodeState, type ConnectionStatus, type ViewportState } from '../types';
 export declare const viewport: import("@preact/signals-core").Signal<ViewportState>;
 export declare const nodes: import("@preact/signals-core").Signal<Map<string, CanvasNodeState>>;
 export declare const edges: import("@preact/signals-core").Signal<Map<string, CanvasEdge>>;
+export declare const annotations: import("@preact/signals-core").Signal<Map<string, CanvasAnnotation>>;
 export declare const activeNodeId: import("@preact/signals-core").Signal<string | null>;
 export declare const connectionStatus: import("@preact/signals-core").Signal<ConnectionStatus>;
 export declare const sessionId: import("@preact/signals-core").Signal<string>;
@@ -41,6 +42,19 @@ export declare function removeNode(id: string): void;
 export declare function addEdge(edge: CanvasEdge): void;
 export declare function removeEdge(id: string): void;
 export declare function removeEdgesForNode(nodeId: string): void;
+export declare function addAnnotation(annotation: CanvasAnnotation): void;
+export declare function removeAnnotation(id: string): void;
+export declare function createAnnotationFromClient(input: {
+    points: CanvasAnnotation['points'];
+    color: string;
+    width: number;
+    label?: string;
+}): Promise<{
+    ok: boolean;
+}>;
+export declare function removeAnnotationFromClient(id: string): Promise<{
+    ok: boolean;
+}>;
 export declare function resizeNode(id: string, size: {
     width: number;
     height: number;
@@ -56,6 +70,7 @@ export declare function replaceViewport(next: ViewportState): void;
 export declare function commitViewport(next: ViewportState): void;
 export declare function applyServerCanvasLayout(layout: Pick<CanvasLayout, 'nodes' | 'edges'> & {
     viewport?: ViewportState;
+    annotations?: CanvasAnnotation[];
 }, options?: {
     applyViewport?: boolean;
 }): void;

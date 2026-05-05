@@ -54,6 +54,7 @@ export interface CanvasAccess {
     buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult>;
     updateNode(id: string, patch: UpdateNodePatch): Promise<void>;
     removeNode(id: string): Promise<void>;
+    removeAnnotation(id: string): Promise<boolean>;
     addEdge(input: AddEdgeInput): Promise<string>;
     removeEdge(id: string): Promise<void>;
     createGroup(input: CreateGroupInput): Promise<string>;

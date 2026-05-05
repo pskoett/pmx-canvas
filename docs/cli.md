@@ -122,6 +122,15 @@ pmx-canvas webview screenshot --output ./canvas.png
 pmx-canvas webview stop
 ```
 
+Use WebView for visual annotation inspection. Agent-readable canvas context only
+reports annotation targets and bounds; it does not describe whether the human
+drew an arrow, line, circle, or other shape. Inspect `.annotation-layer path` or
+take a screenshot when the drawn form matters.
+
+Humans draw with the pen toolbar button and remove marks with the eraser button.
+If an agent already knows the annotation ID from context, it can remove it through
+MCP with `canvas_remove_annotation`.
+
 ## When to reach for the CLI
 
 - Direct terminal control without MCP wiring

@@ -1,5 +1,5 @@
 import { batch, computed, signal } from '@preact/signals';
-import { isExcalidrawNode, type CanvasEdge, type CanvasLayout, type CanvasNodeState, type ConnectionStatus, type ViewportState } from '../types';
+import { isExcalidrawNode, type CanvasAnnotation, type CanvasEdge, type CanvasLayout, type CanvasNodeState, type ConnectionStatus, type ViewportState } from '../types';
 import { computeAutoArrange } from '../../shared/auto-arrange';
 import { pushCanvasUpdate, updateViewportFromClient } from './intent-bridge';
 
@@ -11,6 +11,7 @@ function logCanvasStoreError(action: string, error: unknown): void {
 export const viewport = signal<ViewportState>({ x: 0, y: 0, scale: 1 });
 export const nodes = signal<Map<string, CanvasNodeState>>(new Map());
 export const edges = signal<Map<string, CanvasEdge>>(new Map());
+export const annotations = signal<Map<string, CanvasAnnotation>>(new Map());
 export const activeNodeId = signal<string | null>(null);
 export const connectionStatus = signal<ConnectionStatus>('connecting');
 export const sessionId = signal<string>('');
@@ -258,6 +259,50 @@ export function removeEdgesForNode(nodeId: string): void {
   if (changed) edges.value = next;
 }
 
+export function addAnnotation(annotation: CanvasAnnotation): void {
+  const next = new Map(annotations.value);
+  next.set(annotation.id, annotation);
+  annotations.value = next;
+}
+
+export function removeAnnotation(id: string): void {
+  const next = new Map(annotations.value);
+  if (!next.delete(id)) return;
+  annotations.value = next;
+}
+
+export async function createAnnotationFromClient(input: {
+  points: CanvasAnnotation['points'];
+  color: string;
+  width: number;
+  label?: string;
+}): Promise<{ ok: boolean }> {
+  try {
+    const res = await fetch('/api/canvas/annotation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+    return { ok: res.ok };
+  } catch (error) {
+    logCanvasStoreError('createAnnotationFromClient', error);
+    return { ok: false };
+  }
+}
+
+export async function removeAnnotationFromClient(id: string): Promise<{ ok: boolean }> {
+  try {
+    const res = await fetch(`/api/canvas/annotation/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
+    if (res.ok) removeAnnotation(id);
+    return { ok: res.ok };
+  } catch (error) {
+    logCanvasStoreError('removeAnnotationFromClient', error);
+    return { ok: false };
+  }
+}
+
 export function resizeNode(id: string, size: { width: number; height: number }): void {
   const existing = nodes.value.get(id);
   if (!existing) return;
@@ -343,7 +388,7 @@ function commitViewportWithOptions(
 }
 
 export function applyServerCanvasLayout(
-  layout: Pick<CanvasLayout, 'nodes' | 'edges'> & { viewport?: ViewportState },
+  layout: Pick<CanvasLayout, 'nodes' | 'edges'> & { viewport?: ViewportState; annotations?: CanvasAnnotation[] },
   options: { applyViewport?: boolean } = {},
 ): void {
   const nextNodes = new Map<string, CanvasNodeState>();
@@ -360,6 +405,10 @@ export function applyServerCanvasLayout(
   for (const edge of edgeSource) {
     nextEdges.set(edge.id, edge);
   }
+  const nextAnnotations = new Map<string, CanvasAnnotation>();
+  for (const annotation of layout.annotations ?? []) {
+    nextAnnotations.set(annotation.id, annotation);
+  }
 
   const nextActiveNodeId =
     activeNodeId.value !== null && nextNodes.has(activeNodeId.value) ? activeNodeId.value : null;
@@ -375,6 +424,7 @@ export function applyServerCanvasLayout(
     maxZ = nextMaxZ;
     nodes.value = nextNodes;
     edges.value = nextEdges;
+    annotations.value = nextAnnotations;
     activeNodeId.value = nextActiveNodeId;
     expandedNodeId.value = nextExpandedNodeId;
     if (!sameSetValues(selectedNodeIds.value, nextSelectedNodeIds)) {

@@ -371,6 +371,7 @@ export class SemanticWatchReducer {
       this.currentLayout.nodes,
       this.currentLayout.edges,
       this.currentPins,
+      this.currentLayout.annotations ?? [],
     );
 
     if (previousEventPins.added.length === 0 && previousEventPins.removed.length === 0) {
@@ -394,7 +395,7 @@ export class SemanticWatchReducer {
     const meta = normalizeEventMeta(payload);
     if (!this.currentLayout) {
       this.currentLayout = layout;
-      this.previousSpatial = buildSpatialContext(layout.nodes, layout.edges, this.currentPins);
+      this.previousSpatial = buildSpatialContext(layout.nodes, layout.edges, this.currentPins, layout.annotations ?? []);
       return [];
     }
 
@@ -403,8 +404,9 @@ export class SemanticWatchReducer {
       prevLayout.nodes,
       prevLayout.edges,
       this.currentPins,
+      prevLayout.annotations ?? [],
     );
-    const nextSpatial = buildSpatialContext(layout.nodes, layout.edges, this.currentPins);
+    const nextSpatial = buildSpatialContext(layout.nodes, layout.edges, this.currentPins, layout.annotations ?? []);
     const events: SemanticWatchEvent[] = [];
 
     const prevNodeMap = toNodeMap(prevLayout.nodes);

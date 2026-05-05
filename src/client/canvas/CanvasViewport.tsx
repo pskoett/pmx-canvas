@@ -20,16 +20,20 @@ import {
   draggingEdge,
   edges,
   expandedNodeId,
+  annotations,
   nodes,
   selectNodes,
   setViewport,
   viewport,
+  createAnnotationFromClient,
+  removeAnnotationFromClient,
 } from '../state/canvas-store';
 import { createEdgeFromClient, createNodeFromClient } from '../state/intent-bridge';
-import type { CanvasNodeState } from '../types';
+import type { CanvasAnnotation, CanvasNodeState } from '../types';
 import { FocusFieldLayer } from './FocusFieldLayer';
 import { CanvasNode } from './CanvasNode';
 import { EdgeLayer } from './EdgeLayer';
+import { AnnotationLayer } from './AnnotationLayer';
 import { activeGuides } from './snap-guides';
 import { usePanZoom } from './use-pan-zoom';
 
@@ -70,6 +74,45 @@ function renderNodeContent(node: CanvasNodeState) {
   }
 }
 
+function distanceToSegment(
+  point: { x: number; y: number },
+  start: { x: number; y: number },
+  end: { x: number; y: number },
+): number {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  const lengthSquared = dx * dx + dy * dy;
+  if (lengthSquared === 0) return Math.hypot(point.x - start.x, point.y - start.y);
+  const t = Math.max(0, Math.min(1, ((point.x - start.x) * dx + (point.y - start.y) * dy) / lengthSquared));
+  return Math.hypot(point.x - (start.x + t * dx), point.y - (start.y + t * dy));
+}
+
+function findAnnotationAtPoint(
+  annotationList: CanvasAnnotation[],
+  point: { x: number; y: number },
+  hitRadius: number,
+): CanvasAnnotation | null {
+  for (let i = annotationList.length - 1; i >= 0; i--) {
+    const annotation = annotationList[i];
+    if (!annotation) continue;
+    const pad = hitRadius + annotation.width;
+    if (
+      point.x < annotation.bounds.x - pad ||
+      point.x > annotation.bounds.x + annotation.bounds.width + pad ||
+      point.y < annotation.bounds.y - pad ||
+      point.y > annotation.bounds.y + annotation.bounds.height + pad
+    ) continue;
+    for (let index = 1; index < annotation.points.length; index++) {
+      const start = annotation.points[index - 1];
+      const end = annotation.points[index];
+      if (start && end && distanceToSegment(point, start, end) <= hitRadius + annotation.width / 2) {
+        return annotation;
+      }
+    }
+  }
+  return null;
+}
+
 interface LassoRect {
   startX: number;
   startY: number;
@@ -77,9 +120,27 @@ interface LassoRect {
   currentY: number;
 }
 
+interface AnnotationDraft {
+  id: string;
+  type: 'freehand';
+  points: Array<{ x: number; y: number }>;
+  bounds: { x: number; y: number; width: number; height: number };
+  color: string;
+  width: number;
+  createdAt: string;
+}
+
+const ANNOTATION_COLOR = 'currentColor';
+const ANNOTATION_WIDTH = 4;
+const ERASER_HIT_RADIUS = 14;
+
+type AnnotationTool = 'pen' | 'eraser' | null;
+
 interface CanvasViewportProps {
   onNodeContextMenu?: (e: MouseEvent, nodeId: string) => void;
   onCanvasContextMenu?: (e: MouseEvent, canvasX: number, canvasY: number) => void;
+  annotationMode?: boolean;
+  annotationTool?: AnnotationTool;
 }
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico', 'avif']);
@@ -165,10 +226,13 @@ export function getRenderableWorldNodes(
   return worldNodes;
 }
 
-export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu }: CanvasViewportProps) {
+export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu, annotationMode = false, annotationTool = null }: CanvasViewportProps) {
   const v = viewport.value;
   const isLassoing = useRef(false);
+  const isAnnotating = useRef(false);
+  const annotationPoints = useRef<Array<{ x: number; y: number }>>([]);
   const [lasso, setLasso] = useState<LassoRect | null>(null);
+  const [draftAnnotation, setDraftAnnotation] = useState<AnnotationDraft | null>(null);
   const [dropActive, setDropActive] = useState(false);
   const dropCounter = useRef(0);
   // Ref mirrors lasso state so pointer handlers always read the latest value
@@ -177,15 +241,16 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu }: Canva
 
   const containerRef = usePanZoom({
     viewport,
+    disabled: annotationMode,
     onViewportChange: (next) => {
       // Don't pan while lassoing — usePanZoom's pointerdown still fires
       // (native listener) before our Preact handler can stopPropagation.
-      if (isLassoing.current) return;
+      if (isLassoing.current || annotationMode) return;
       cancelViewportAnimation();
       setViewport(next);
     },
     onViewportCommit: (next) => {
-      if (isLassoing.current) return;
+      if (isLassoing.current || annotationMode) return;
       cancelViewportAnimation();
       commitViewport(next);
     },
@@ -222,7 +287,53 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu }: Canva
   const handlePointerDown = useCallback(
     (e: PointerEvent) => {
       const container = containerRef.current;
-      if (!container || e.target !== container) return;
+      if (!container) return;
+
+      if (annotationTool === 'eraser') {
+        const target = e.target instanceof Element ? e.target : null;
+        if (target?.closest('.hud-layer, .snapshot-panel, .context-menu, .command-palette')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        const rect = container.getBoundingClientRect();
+        const vp = viewport.value;
+        const point = {
+          x: (e.clientX - rect.left - vp.x) / vp.scale,
+          y: (e.clientY - rect.top - vp.y) / vp.scale,
+        };
+        const hit = findAnnotationAtPoint(Array.from(annotations.value.values()), point, ERASER_HIT_RADIUS / vp.scale);
+        if (hit) void removeAnnotationFromClient(hit.id);
+        return;
+      }
+
+      if (annotationTool === 'pen') {
+        const target = e.target instanceof Element ? e.target : null;
+        if (target?.closest('.hud-layer, .snapshot-panel, .context-menu, .command-palette')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        activeNodeId.value = null;
+        clearSelection();
+        isAnnotating.current = true;
+        const rect = container.getBoundingClientRect();
+        const vp = viewport.value;
+        const point = {
+          x: (e.clientX - rect.left - vp.x) / vp.scale,
+          y: (e.clientY - rect.top - vp.y) / vp.scale,
+        };
+        annotationPoints.current = [point];
+        setDraftAnnotation({
+          id: 'draft-annotation',
+          type: 'freehand',
+          points: [point],
+          bounds: { x: 0, y: 0, width: 0, height: 0 },
+          color: ANNOTATION_COLOR,
+          width: ANNOTATION_WIDTH,
+          createdAt: '',
+        });
+        container.setPointerCapture(e.pointerId);
+        return;
+      }
+
+      if (e.target !== container) return;
 
       if (!e.shiftKey) {
         if (!lassoRef.current) {
@@ -243,11 +354,27 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu }: Canva
       setLasso(initial);
       container.setPointerCapture(e.pointerId);
     },
-    [containerRef],
+    [annotationTool, containerRef],
   );
 
   const handlePointerMove = useCallback(
     (e: PointerEvent) => {
+      if (isAnnotating.current) {
+        const container = containerRef.current;
+        if (!container) return;
+        const rect = container.getBoundingClientRect();
+        const vp = viewport.value;
+        const point = {
+          x: (e.clientX - rect.left - vp.x) / vp.scale,
+          y: (e.clientY - rect.top - vp.y) / vp.scale,
+        };
+        const previous = annotationPoints.current.at(-1);
+        if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) < 2) return;
+        annotationPoints.current = [...annotationPoints.current, point];
+        setDraftAnnotation((draft) => draft ? { ...draft, points: annotationPoints.current } : null);
+        return;
+      }
+
       if (!isLassoing.current || !lassoRef.current) return;
       const rect = containerRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -262,7 +389,22 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu }: Canva
     [containerRef],
   );
 
-  const handlePointerUp = useCallback(() => {
+  const handlePointerUp = useCallback((e: PointerEvent) => {
+    if (isAnnotating.current) {
+      isAnnotating.current = false;
+      const points = annotationPoints.current;
+      annotationPoints.current = [];
+      setDraftAnnotation(null);
+      if (points.length >= 2) {
+        void createAnnotationFromClient({ points, color: ANNOTATION_COLOR, width: ANNOTATION_WIDTH });
+      }
+      const container = containerRef.current;
+      if (container?.hasPointerCapture(e.pointerId)) {
+        container.releasePointerCapture(e.pointerId);
+      }
+      return;
+    }
+
     const current = lassoRef.current;
     if (!isLassoing.current || !current) return;
     isLassoing.current = false;
@@ -305,6 +447,14 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu }: Canva
 
     setLasso(null);
   }, []);
+
+  useEffect(() => {
+    if (annotationMode) return;
+    if (!isAnnotating.current && !draftAnnotation) return;
+    isAnnotating.current = false;
+    annotationPoints.current = [];
+    setDraftAnnotation(null);
+  }, [annotationMode, draftAnnotation]);
 
   // ── Drag-to-connect: track cursor in world space, hit-test on drop ──
   useEffect(() => {
@@ -359,6 +509,7 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu }: Canva
   // ── Double-click on background → create new markdown node ──
   const handleDblClick = useCallback(
     (e: MouseEvent) => {
+      if (annotationMode) return;
       const container = containerRef.current;
       if (!container || e.target !== container) return;
       const rect = container.getBoundingClientRect();
@@ -377,11 +528,12 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu }: Canva
         height: nodeH,
       });
     },
-    [containerRef],
+    [annotationMode, containerRef],
   );
 
   const handleContextMenu = useCallback(
     (e: MouseEvent) => {
+      if (annotationMode) return;
       if (!onCanvasContextMenu) return;
 
       const container = containerRef.current;
@@ -396,7 +548,7 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu }: Canva
       const canvasY = (e.clientY - rect.top - v.y) / v.scale;
       onCanvasContextMenu(e, canvasX, canvasY);
     },
-    [containerRef, onCanvasContextMenu],
+    [annotationMode, containerRef, onCanvasContextMenu],
   );
 
   // ── Drag-and-drop files from filesystem ──
@@ -543,7 +695,11 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu }: Canva
         height: '100%',
         position: 'relative',
         overflow: 'hidden',
-        cursor: draggingEdge.value ? 'crosshair' : isLassoing.current ? 'crosshair' : 'grab',
+        cursor: annotationTool === 'eraser'
+          ? 'cell'
+          : annotationMode || draggingEdge.value || isLassoing.current
+            ? 'crosshair'
+            : 'grab',
       }}
     >
       {/* D4: CSS matrix(a,b,c,d,tx,ty) — scale uniformly (a=d=scale, b=c=0)
@@ -561,6 +717,8 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu }: Canva
       >
         <FocusFieldLayer />
         <EdgeLayer nodes={nodes} edges={edges} />
+        <AnnotationLayer annotations={Array.from(annotations.value.values())} />
+        {draftAnnotation && draftAnnotation.points.length >= 2 && <AnnotationLayer annotations={[draftAnnotation]} />}
         {worldNodes.map((node) => (
           <CanvasNode key={node.id} node={node} onContextMenu={onNodeContextMenu}>
             {renderNodeContent(node)}
@@ -579,6 +737,7 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu }: Canva
           </svg>
         )}
       </div>
+      {annotationMode && <div class={`annotation-capture-layer${annotationTool === 'eraser' ? ' erasing' : ''}`} aria-hidden="true" />}
       {lassoStyle && <div class="lasso-rect" style={lassoStyle} />}
       {dropActive && (
         <div class="drop-zone-overlay">

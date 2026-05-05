@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { canvasState, IMAGE_MIME_MAP } from './canvas-state.js';
-import type { CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
+import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
 import { findCanvasExtAppNodeId } from './ext-app-lookup.js';
 import { onFileNodeChanged } from './file-watcher.js';
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
@@ -314,6 +314,23 @@ export class PmxCanvas extends EventEmitter {
     return id;
   }
 
+  addAnnotation(input: Omit<CanvasAnnotation, 'id' | 'createdAt'> & { id?: string; createdAt?: string }): string {
+    const id = input.id ?? `ann-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+    canvasState.addAnnotation({
+      ...input,
+      id,
+      createdAt: input.createdAt ?? new Date().toISOString(),
+    });
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return id;
+  }
+
+  removeAnnotation(id: string): boolean {
+    const removed = canvasState.removeAnnotation(id);
+    if (removed) emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return removed;
+  }
+
   removeEdge(id: string): void {
     removeCanvasEdge(id);
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
@@ -416,7 +433,7 @@ export class PmxCanvas extends EventEmitter {
 
   getSpatialContext() {
     const layout = canvasState.getLayout();
-    return buildSpatialContext(layout.nodes, layout.edges, canvasState.contextPinnedNodeIds);
+    return buildSpatialContext(layout.nodes, layout.edges, canvasState.contextPinnedNodeIds, layout.annotations);
   }
 
   async undo(): Promise<{ ok: boolean; description?: string }> {
@@ -723,7 +740,7 @@ export {
   screenshotCanvasAutomationWebView,
 } from './server.js';
 export { canvasState } from './canvas-state.js';
-export type { CanvasSnapshot, CanvasSnapshotGcResult, CanvasSnapshotListOptions } from './canvas-state.js';
+export type { CanvasAnnotation, CanvasSnapshot, CanvasSnapshotGcResult, CanvasSnapshotListOptions } from './canvas-state.js';
 export { findOpenCanvasPosition } from './placement.js';
 export { searchNodes, buildSpatialContext, detectClusters, findNeighborhoods } from './spatial-analysis.js';
 export type { SpatialCluster, SpatialContext, SpatialNeighbor, NodeSpatialInfo } from './spatial-analysis.js';

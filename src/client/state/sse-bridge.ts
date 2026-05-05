@@ -1,6 +1,6 @@
 import { findOpenCanvasPosition } from '../utils/placement.js';
 import { normalizeExtAppToolResult } from '../utils/ext-app-tool-result.js';
-import type { CanvasEdge, CanvasNodeState } from '../types';
+import type { CanvasAnnotation, CanvasEdge, CanvasNodeState } from '../types';
 import {
   activeNodeId,
   addEdge,
@@ -310,6 +310,7 @@ function isCanvasNodeType(value: unknown): value is CanvasNodeState['type'] {
     || value === 'trace'
     || value === 'file'
     || value === 'image'
+    || value === 'html'
     || value === 'group';
 }
 
@@ -332,6 +333,12 @@ function parseCanvasSize(value: unknown): { width: number; height: number } | nu
   const size = value as { width?: unknown; height?: unknown };
   if (typeof size.width !== 'number' || typeof size.height !== 'number') return null;
   return { width: size.width, height: size.height };
+}
+
+function parseCanvasRect(value: unknown): { x: number; y: number; width: number; height: number } | null {
+  const position = parseCanvasPosition(value);
+  const size = parseCanvasSize(value);
+  return position && size ? { ...position, ...size } : null;
 }
 
 function parseCanvasNode(raw: Record<string, unknown>): CanvasNodeState | null {
@@ -376,6 +383,28 @@ function parseCanvasEdge(raw: Record<string, unknown>): CanvasEdge | null {
       ? { style: raw.style }
       : {}),
     ...(raw.animated === true ? { animated: true } : {}),
+  };
+}
+
+function parseCanvasAnnotation(raw: Record<string, unknown>): CanvasAnnotation | null {
+  if (typeof raw.id !== 'string' || !raw.id) return null;
+  if (raw.type !== 'freehand') return null;
+  if (!Array.isArray(raw.points)) return null;
+  const points = raw.points
+    .map((point) => parseCanvasPosition(point))
+    .filter((point): point is { x: number; y: number } => point !== null);
+  const bounds = parseCanvasRect(raw.bounds);
+  if (points.length < 2 || !bounds) return null;
+
+  return {
+    id: raw.id,
+    type: 'freehand',
+    points,
+    bounds,
+    color: typeof raw.color === 'string' ? raw.color : '#f97316',
+    width: typeof raw.width === 'number' ? raw.width : 4,
+    ...(typeof raw.label === 'string' ? { label: raw.label } : {}),
+    createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : '',
   };
 }
 
@@ -801,6 +830,7 @@ function handleCanvasLayoutUpdate(data: Record<string, unknown>): void {
     | {
         nodes?: Array<Record<string, unknown>>;
         edges?: Array<Record<string, unknown>>;
+        annotations?: Array<Record<string, unknown>>;
         viewport?: Record<string, unknown>;
       }
     | undefined;
@@ -814,6 +844,9 @@ function handleCanvasLayoutUpdate(data: Record<string, unknown>): void {
   const serverEdges = Array.isArray(layout.edges)
     ? layout.edges.map(parseCanvasEdge).filter((edge): edge is CanvasEdge => edge !== null)
     : Array.from(edges.value.values());
+  const serverAnnotations = Array.isArray(layout.annotations)
+    ? layout.annotations.map(parseCanvasAnnotation).filter((annotation): annotation is CanvasAnnotation => annotation !== null)
+    : undefined;
   const nextViewport = layout.viewport
     ? {
         x: typeof layout.viewport.x === 'number' ? layout.viewport.x : 0,
@@ -827,6 +860,7 @@ function handleCanvasLayoutUpdate(data: Record<string, unknown>): void {
     ...(nextViewport ? { viewport: nextViewport } : {}),
     nodes: serverNodes,
     edges: serverEdges,
+    ...(serverAnnotations ? { annotations: serverAnnotations } : {}),
   }, { applyViewport: shouldApplyViewport });
 
   syncAttentionFromSse({ event: 'canvas-layout-update', data });

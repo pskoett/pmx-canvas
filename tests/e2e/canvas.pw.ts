@@ -396,6 +396,7 @@ test('context dock renders the active pinned nodes instead of stale context card
   await expect(dock).toContainText('Pinned Alpha');
   await expect(dock).toContainText('Pinned Beta');
   await expect(dock).not.toContainText('Stale Dock Cache');
+  await expect(page.locator('.context-pin-bar')).toHaveCount(0);
 });
 
 test('renders webpage node preview content from cached server fetch data', async ({ page, request }) => {
@@ -425,6 +426,29 @@ test('renders webpage node preview content from cached server fetch data', async
   await expect(webpageNode).toContainText('Visible webpage preview');
   await expect(webpageNode).toContainText('This cached webpage preview text is visible on the canvas.');
   await expect(webpageNode.getByRole('button', { name: 'Refresh' })).toBeVisible();
+});
+
+test('renders html nodes from server state in the workbench', async ({ page, request }) => {
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'html',
+      title: 'HTML render target',
+      html: '<main><h1>HTML render sentinel</h1><p>Sandboxed iframe content</p></main>',
+      x: 640,
+      y: 260,
+      width: 520,
+      height: 360,
+    },
+  });
+
+  await page.goto('/workbench');
+
+  const htmlNode = page.locator('.canvas-node').filter({ hasText: 'HTML render target' });
+  await expect(htmlNode).toHaveCount(1);
+  await expect(htmlNode.locator('.node-type-badge')).toHaveText('HTML');
+  await expect(htmlNode.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts');
+  await expect(htmlNode.locator('iframe')).not.toHaveAttribute('sandbox', /allow-same-origin/);
+  await expect(htmlNode.frameLocator('iframe').getByText('HTML render sentinel')).toBeVisible();
 });
 
 test('pasting a URL onto the canvas creates a webpage node', async ({ page, request }) => {
@@ -1165,6 +1189,50 @@ test('light theme uses a high-contrast blue for context-pinned nodes', async ({ 
   await expect.poll(async () => {
     return await note.evaluate((element) => getComputedStyle(element).boxShadow);
   }).toContain('75, 188, 255');
+});
+
+test('annotations use theme contrast colors and can be erased', async ({ page, request }) => {
+  await request.post('/api/canvas/annotation', {
+    data: {
+      points: [{ x: 100, y: 120 }, { x: 220, y: 120 }],
+      color: 'currentColor',
+      width: 4,
+    },
+  });
+
+  await page.goto('/workbench');
+  const annotation = page.locator('.annotation-layer path');
+  await expect(annotation).toHaveCount(1);
+  await expect(annotation).toHaveCSS('stroke', 'rgb(244, 239, 230)');
+
+  await page.evaluate(() => {
+    document.documentElement.setAttribute('data-theme', 'light');
+  });
+  await expect(annotation).toHaveCSS('stroke', 'rgb(8, 21, 36)');
+
+  await page.getByLabel('Erase annotations').click();
+  await page.mouse.click(160, 120);
+
+  await expect(annotation).toHaveCount(0);
+  await expect.poll(async () => {
+    const response = await request.get('/api/canvas/state');
+    const state = await response.json() as { annotations?: unknown[] };
+    return state.annotations?.length ?? 0;
+  }).toBe(0);
+});
+
+test('annotation toolbar actions preserve the current light theme', async ({ page }) => {
+  await page.goto('/workbench');
+  await page.getByLabel('Switch to light theme').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+
+  await page.getByLabel('Annotate canvas').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.getByLabel('Stop annotating').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+
+  await page.getByLabel('Erase annotations').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 });
 
 test('server-side focus updates the browser viewport', async ({ page, request }) => {

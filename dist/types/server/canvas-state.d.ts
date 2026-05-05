@@ -22,6 +22,7 @@ interface PersistedCanvasState {
     viewport: ViewportState;
     nodes: CanvasNodeState[];
     edges: CanvasEdge[];
+    annotations?: CanvasAnnotation[];
     contextPins: string[];
 }
 interface LoadFromDiskOptions {
@@ -81,10 +82,30 @@ export interface CanvasEdge {
     style?: 'solid' | 'dashed' | 'dotted';
     animated?: boolean;
 }
+export interface CanvasAnnotationPoint {
+    x: number;
+    y: number;
+}
+export interface CanvasAnnotation {
+    id: string;
+    type: 'freehand';
+    points: CanvasAnnotationPoint[];
+    bounds: {
+        x: number;
+        y: number;
+        width: number;
+        height: number;
+    };
+    color: string;
+    width: number;
+    label?: string;
+    createdAt: string;
+}
 export interface CanvasLayout {
     viewport: ViewportState;
     nodes: CanvasNodeState[];
     edges: CanvasEdge[];
+    annotations: CanvasAnnotation[];
 }
 export interface CanvasNodeUpdate {
     id: string;
@@ -101,7 +122,7 @@ export interface CanvasNodeUpdate {
 }
 export type CanvasChangeType = 'pins' | 'nodes';
 export interface MutationRecordInfo {
-    operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'clear' | 'restoreSnapshot' | 'setPins' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
+    operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
     description: string;
     forward: () => void;
     inverse: () => void;
@@ -114,6 +135,7 @@ interface GroupNodesOptions {
 declare class CanvasStateManager {
     private nodes;
     private edges;
+    private annotations;
     private _viewport;
     private _contextPinnedNodeIds;
     private _workspaceRoot;
@@ -185,6 +207,7 @@ declare class CanvasStateManager {
         name: string;
         nodes: CanvasNodeState[];
         edges: CanvasEdge[];
+        annotations: CanvasAnnotation[];
     } | null;
     /** Delete a snapshot. */
     deleteSnapshot(id: string): boolean;
@@ -200,6 +223,9 @@ declare class CanvasStateManager {
     removeEdge(id: string): boolean;
     getEdges(): CanvasEdge[];
     getEdgesForNode(nodeId: string): CanvasEdge[];
+    addAnnotation(annotation: CanvasAnnotation): void;
+    removeAnnotation(id: string): boolean;
+    getAnnotations(): CanvasAnnotation[];
     private removeEdgesForNode;
     getLayout(): CanvasLayout;
     getLayoutForPersistence(): CanvasLayout;

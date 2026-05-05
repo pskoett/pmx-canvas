@@ -108,7 +108,7 @@ describe('diagram-presets', () => {
     expect(label).toBeUndefined();
   });
 
-  test('normalizeExcalidrawElementsForToolInput uses labels for centered container text', () => {
+  test('normalizeExcalidrawElementsForToolInput converts canonical centered container text into labels', () => {
     const result = JSON.parse(normalizeExcalidrawElementsForToolInput([
       {
         type: 'rectangle',
@@ -137,8 +137,93 @@ describe('diagram-presets', () => {
     const box = result.find((element: Record<string, unknown>) => element.id === 'r1');
     const label = result.find((element: Record<string, unknown>) => element.id === 't1');
     expect(box).toMatchObject({
-      label: { text: 'Centered?', fontSize: 20 },
+      label: {
+        text: 'Centered?',
+        fontSize: 20,
+        textAlign: 'center',
+        verticalAlign: 'middle',
+      },
     });
+    expect(box.boundElements).toBeUndefined();
+    expect(label).toBeUndefined();
+  });
+
+  test('normalizeExcalidrawElementsForToolInput preserves shorthand labels for hosted-app conversion', () => {
+    const result = JSON.parse(normalizeExcalidrawElementsForToolInput([
+      {
+        type: 'rectangle',
+        id: 'box',
+        x: 100,
+        y: 80,
+        width: 220,
+        height: 90,
+        label: { text: 'Shorthand label', fontSize: 18 },
+      },
+    ]));
+
+    const box = result.find((element: Record<string, unknown>) => element.id === 'box');
+    const label = result.find((element: Record<string, unknown>) => element.id === 'box-label');
+    expect(box).toMatchObject({
+      label: { text: 'Shorthand label', fontSize: 18 },
+    });
+    expect(box.boundElements).toBeUndefined();
+    expect(label).toBeUndefined();
+  });
+
+  test('normalizeExcalidrawElementsForToolInput converts one-sided bound text into a hosted-app label', () => {
+    const result = JSON.parse(normalizeExcalidrawElementsForToolInput([
+      {
+        type: 'rectangle',
+        id: 'box',
+        x: 10,
+        y: 20,
+        width: 220,
+        height: 100,
+      },
+      {
+        type: 'text',
+        id: 'box-label',
+        x: 24,
+        y: 52,
+        width: 180,
+        height: 24,
+        text: 'One-sided label',
+        containerId: 'box',
+      },
+    ]));
+
+    const box = result.find((element: Record<string, unknown>) => element.id === 'box');
+    const label = result.find((element: Record<string, unknown>) => element.id === 'box-label');
+    expect(box).toMatchObject({ label: { text: 'One-sided label' } });
+    expect(box.boundElements).toBeUndefined();
+    expect(label).toBeUndefined();
+  });
+
+  test('normalizeExcalidrawElementsForToolInput converts boundElements-only text into a hosted-app label', () => {
+    const result = JSON.parse(normalizeExcalidrawElementsForToolInput([
+      {
+        type: 'rectangle',
+        id: 'box',
+        x: 10,
+        y: 20,
+        width: 220,
+        height: 100,
+        boundElements: [{ type: 'text', id: 'box-label' }],
+      },
+      {
+        type: 'text',
+        id: 'box-label',
+        x: 24,
+        y: 52,
+        width: 180,
+        height: 24,
+        text: 'Reverse-only label',
+      },
+    ]));
+
+    const box = result.find((element: Record<string, unknown>) => element.id === 'box');
+    const label = result.find((element: Record<string, unknown>) => element.id === 'box-label');
+    expect(box).toMatchObject({ label: { text: 'Reverse-only label' } });
     expect(box.boundElements).toBeUndefined();
     expect(label).toBeUndefined();
   });

@@ -106,6 +106,7 @@ export interface CanvasAccess {
   buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult>;
   updateNode(id: string, patch: UpdateNodePatch): Promise<void>;
   removeNode(id: string): Promise<void>;
+  removeAnnotation(id: string): Promise<boolean>;
   addEdge(input: AddEdgeInput): Promise<string>;
   removeEdge(id: string): Promise<void>;
   createGroup(input: CreateGroupInput): Promise<string>;
@@ -201,6 +202,10 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async removeNode(id: string): Promise<void> {
     this.canvas.removeNode(id);
+  }
+
+  async removeAnnotation(id: string): Promise<boolean> {
+    return this.canvas.removeAnnotation(id);
   }
 
   async addEdge(input: AddEdgeInput): Promise<string> {
@@ -453,6 +458,11 @@ class RemoteCanvasAccess implements CanvasAccess {
 
   async removeNode(id: string): Promise<void> {
     await this.requestJson<unknown>('DELETE', `/api/canvas/node/${encodeURIComponent(id)}`);
+  }
+
+  async removeAnnotation(id: string): Promise<boolean> {
+    const response = await this.requestJson<{ ok?: boolean }>('DELETE', `/api/canvas/annotation/${encodeURIComponent(id)}`);
+    return response.ok === true;
   }
 
   async addEdge(input: AddEdgeInput): Promise<string> {
