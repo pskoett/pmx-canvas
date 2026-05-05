@@ -84,7 +84,11 @@ CLI, MCP server, or HTTP API.
 bunx pmx-canvas              # Run without installing (recommended for one-off use)
 bun add -g pmx-canvas        # Install globally — exposes the `pmx-canvas` command
 bun add pmx-canvas           # Install into a project (needed for the Bun SDK)
+npm install -g pmx-canvas    # npm works too — still requires Bun on PATH to run
 ```
+
+`pmx-canvas` is Bun-first: the CLI is a TypeScript file with a `#!/usr/bin/env bun`
+shebang, so Bun must be installed even when you fetch the package via npm or pnpm.
 
 To work on the canvas itself, clone the repo — see [Development](#development).
 
