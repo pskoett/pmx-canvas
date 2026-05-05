@@ -3,6 +3,59 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.19] - 2026-05-05
+
+Snapshot ergonomics and reference-doc distribution. Adds `before` /
+`after` ISO timestamp filters on snapshot listing across CLI, HTTP,
+and MCP, ships the `docs/` reference tree inside the npm tarball so
+consumers see the same surface docs as the repo, and surfaces the
+existing trace-field flags in `node update --help`. Also lands the
+deflake of the MCP-app fullscreen reopen e2e (originally
+`LRN-20260505-001`) — 9/20 → 50+/50 stability via a retry-on-stuck-
+iframe helper.
+
+### Added
+
+- **`pmx-canvas snapshot list --before / --after`.** Both flags
+  accept ISO 8601 timestamps and filter against `snapshot.createdAt`.
+  Same surface lands on `GET /api/canvas/snapshots?before=&after=`,
+  `RemoteCanvasAccess.listSnapshots()`, and the `canvas_list_snapshots`
+  MCP tool schema. The CLI help (`pmx-canvas snapshot list --help`)
+  now lists the new flags alongside `--limit`, `--query`, and
+  `--all`.
+- **`docs/` shipped in the npm tarball.** The package `files`
+  allowlist now includes `docs/`, so consumers installing
+  `pmx-canvas` see the same `docs/cli.md`, `docs/http-api.md`,
+  `docs/mcp.md`, `docs/node-types.md`, and `docs/sdk.md` reference
+  files that ship in the repo.
+- **`node update --help` advertises trace flags.** The CLI help now
+  documents `--tool-name` / `--toolName`, `--category`, `--status`,
+  `--duration`, `--result-summary` / `--resultSummary`, and `--error`
+  so agents discover trace-field updates without reading the source
+  or schema.
+
+### Fixed
+
+- **MCP-app fullscreen reopen e2e is no longer flaky.** The
+  visibility check for the fixture editor used to race the ext-app
+  bridge handshake — if the iframe started parsing before the
+  parent registered its postMessage listener, the iframe's
+  `ui/initialize` request was lost and `app.connect()` hung. The
+  test now wraps the assertion in a retry-on-stuck-iframe helper
+  that closes and reopens the fullscreen overlay (each remount is
+  independent of the prior failed handshake), with three 5s
+  attempts to match the original 15s budget. Pass rate moved from
+  9/20 to 50+/50 consecutive runs.
+
+### Internal
+
+- Regression coverage for: snapshot list before/after filtering at
+  the canvas-state layer and through the CLI, snapshot list help
+  advertising the new flags, `node update --help` advertising
+  trace flags, the `docs/` allowlist entry surviving in
+  `package.json` for npm consumers, and the existing arrange
+  operation recording as a single undoable history entry.
+
 ## [0.1.18] - 2026-05-05
 
 Token-budget polish on top of 0.1.17. Full-mode MCP responses for
@@ -771,6 +824,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.19]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.19
 [0.1.18]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.18
 [0.1.17]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.17
 [0.1.16]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.16

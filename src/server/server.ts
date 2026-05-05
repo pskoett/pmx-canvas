@@ -4145,6 +4145,8 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return responseJson(listCanvasSnapshots({
               limit: parsePositiveIntegerParam(url.searchParams.get('limit')),
               query: url.searchParams.get('q') ?? url.searchParams.get('query') ?? undefined,
+              before: url.searchParams.get('before') ?? undefined,
+              after: url.searchParams.get('after') ?? undefined,
               all: url.searchParams.get('all') === 'true',
             }));
           }

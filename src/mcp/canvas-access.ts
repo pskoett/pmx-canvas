@@ -559,6 +559,8 @@ class RemoteCanvasAccess implements CanvasAccess {
     const params = new URLSearchParams();
     if (typeof options?.limit === 'number') params.set('limit', String(options.limit));
     if (options?.query) params.set('q', options.query);
+    if (options?.before) params.set('before', options.before);
+    if (options?.after) params.set('after', options.after);
     if (options?.all) params.set('all', 'true');
     const query = params.size > 0 ? `?${params.toString()}` : '';
     return await this.requestJson<SnapshotList>('GET', `/api/canvas/snapshots${query}`);

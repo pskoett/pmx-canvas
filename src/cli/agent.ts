@@ -1698,6 +1698,7 @@ cmd('snapshot save', 'Save a named snapshot of the current canvas', [
 cmd('snapshot list', 'List saved snapshots', [
   'pmx-canvas snapshot list',
   'pmx-canvas snapshot list --limit 50 --query baseline',
+  'pmx-canvas snapshot list --after 2026-05-01T00:00:00Z --before 2026-05-05T00:00:00Z',
   'pmx-canvas snapshot list --all',
 ], async (args) => {
   const { flags } = parseFlags(args);
@@ -1706,8 +1707,12 @@ cmd('snapshot list', 'List saved snapshots', [
   const params = new URLSearchParams();
   const limit = optionalNumberFlag(flags, 'limit', 'Use a positive integer, e.g. --limit 50');
   const query = getStringFlag(flags, 'query', 'q');
+  const before = getStringFlag(flags, 'before');
+  const after = getStringFlag(flags, 'after');
   if (limit !== undefined) params.set('limit', String(limit));
   if (query) params.set('q', query);
+  if (before) params.set('before', before);
+  if (after) params.set('after', after);
   if (flags.all) params.set('all', 'true');
   const result = await api('GET', `/api/canvas/snapshots${params.size > 0 ? `?${params.toString()}` : ''}`);
   output(result);
@@ -2328,7 +2333,19 @@ function showCommandHelp(name: string): void {
     console.log('\nOptions:');
     console.log('  --limit <number>          Maximum snapshots to return (default 20)');
     console.log('  --query <text>            Case-insensitive ID/name filter');
+    console.log('  --before <timestamp>      Only return snapshots created at or before this ISO timestamp');
+    console.log('  --after <timestamp>       Only return snapshots created at or after this ISO timestamp');
     console.log('  --all                     Return all snapshots');
+  }
+  if (name === 'node update') {
+    console.log('\nTrace fields:');
+    console.log('  --tool-name, --toolName   Trace tool or operation label');
+    console.log('  --category <name>         Trace category, e.g. mcp, file, subagent, other');
+    console.log('  --status <status>         Trace status, e.g. running, success, failed');
+    console.log('  --duration <text>         Trace duration badge text');
+    console.log('  --result-summary, --resultSummary <text>');
+    console.log('                            Trace result summary');
+    console.log('  --error <text>            Trace error message');
   }
   if (name === 'snapshot gc') {
     console.log('\nOptions:');

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
@@ -270,6 +270,25 @@ describe('agent CLI node commands', () => {
       resultSummary: 'Updated trace',
       error: 'boom',
     });
+  });
+
+  test('node update help advertises trace flags', async () => {
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['node', 'update', '--help']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const help = log.mock.calls.map((call) => String(call[0] ?? '')).join('\n');
+    expect(help).toContain('--tool-name');
+    expect(help).toContain('--toolName');
+    expect(help).toContain('--status');
+    expect(help).toContain('--result-summary');
+    expect(help).toContain('--resultSummary');
   });
 
   test('focus --no-pan selects without changing the server viewport', async () => {
@@ -2273,6 +2292,69 @@ exit 2
 
     const remaining = await jsonRequest<Array<{ name: string }>>('/api/canvas/snapshots?all=true');
     expect(remaining.map((item) => item.name)).toEqual(['cli-alpha-old']);
+  });
+
+  test('snapshot list supports before and after filters from the CLI', async () => {
+    const first = await jsonRequest<{ ok: boolean; snapshot: { name: string; createdAt: string } }>('/api/canvas/snapshots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'first-filtered-snapshot' }),
+    });
+    await Bun.sleep(5);
+    const second = await jsonRequest<{ ok: boolean; snapshot: { name: string; createdAt: string } }>('/api/canvas/snapshots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'second-filtered-snapshot' }),
+    });
+    await Bun.sleep(5);
+    const third = await jsonRequest<{ ok: boolean; snapshot: { name: string; createdAt: string } }>('/api/canvas/snapshots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'third-filtered-snapshot' }),
+    });
+    expect(first.ok && second.ok && third.ok).toBe(true);
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'snapshot',
+        'list',
+        '--all',
+        '--after',
+        second.snapshot.createdAt,
+        '--before',
+        second.snapshot.createdAt,
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as Array<{ name: string }>;
+    expect(output.map((snapshot) => snapshot.name)).toEqual(['second-filtered-snapshot']);
+  });
+
+  test('snapshot list help advertises before and after filters', async () => {
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['snapshot', 'list', '--help']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const help = log.mock.calls.map((call) => String(call[0] ?? '')).join('\n');
+    expect(help).toContain('--before');
+    expect(help).toContain('--after');
+  });
+
+  test('package file allowlist includes docs for npm consumers', () => {
+    const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8')) as { files?: string[] };
+    expect(pkg.files).toContain('docs/');
   });
 
   test('edge add supports style and animated flags', async () => {

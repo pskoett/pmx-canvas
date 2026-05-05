@@ -1759,6 +1759,8 @@ export async function startMcpServer(): Promise<void> {
     {
       limit: z.number().optional().describe('Maximum snapshots to return (default: 20)'),
       query: z.string().optional().describe('Optional case-insensitive ID/name filter'),
+      before: z.string().optional().describe('Only return snapshots created at or before this ISO timestamp'),
+      after: z.string().optional().describe('Only return snapshots created at or after this ISO timestamp'),
       all: z.boolean().optional().describe('Return all snapshots instead of the default limit'),
     },
     async (input) => {

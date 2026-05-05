@@ -1507,6 +1507,16 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
     }) as ToolResultShape);
     expect(filtered.snapshots.map((snapshot) => snapshot.name)).toEqual(['mcp-alpha']);
 
+    const dateFiltered = parseJsonText<{ snapshots: Array<{ id: string; name: string; createdAt: string }> }>(await session.client.callTool({
+      name: 'canvas_list_snapshots',
+      arguments: {
+        all: true,
+        after: savedSnapshots[1]!.createdAt,
+        before: savedSnapshots[1]!.createdAt,
+      },
+    }) as ToolResultShape);
+    expect(dateFiltered.snapshots.map((snapshot) => snapshot.name)).toEqual(['mcp-beta']);
+
     const preview = parseJsonText<{ ok: boolean; kept: number; dryRun: boolean; deleted: Array<{ name: string }> }>(await session.client.callTool({
       name: 'canvas_gc_snapshots',
       arguments: { keep: 2, dryRun: true },

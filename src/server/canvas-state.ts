@@ -32,6 +32,12 @@ function normalizePositiveInteger(value: number | undefined): number | undefined
   return Math.floor(value);
 }
 
+function normalizeSnapshotTimestamp(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? new Date(parsed).toISOString() : undefined;
+}
+
 export const PMX_CANVAS_DIR = '.pmx-canvas';
 const STATE_FILENAME = 'state.json';
 const SNAPSHOTS_SUBDIR = 'snapshots';
@@ -89,6 +95,8 @@ export interface CanvasSnapshot {
 export interface CanvasSnapshotListOptions {
   limit?: number;
   query?: string;
+  before?: string;
+  after?: string;
   all?: boolean;
 }
 
@@ -856,11 +864,16 @@ class CanvasStateManager {
         }
       }
       const query = options.query?.trim().toLowerCase();
-      const filtered = query
-        ? snapshots.filter((snapshot) =>
-          snapshot.id.toLowerCase().includes(query) || snapshot.name.toLowerCase().includes(query),
-        )
-        : snapshots;
+      const before = normalizeSnapshotTimestamp(options.before);
+      const after = normalizeSnapshotTimestamp(options.after);
+      const filtered = snapshots.filter((snapshot) => {
+        if (query && !snapshot.id.toLowerCase().includes(query) && !snapshot.name.toLowerCase().includes(query)) {
+          return false;
+        }
+        if (before && snapshot.createdAt > before) return false;
+        if (after && snapshot.createdAt < after) return false;
+        return true;
+      });
       const sorted = filtered.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       const limit = options.all ? undefined : (normalizePositiveInteger(options.limit) ?? 20);
       return limit === undefined ? sorted : sorted.slice(0, limit);

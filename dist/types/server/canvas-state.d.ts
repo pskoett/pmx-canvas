@@ -39,6 +39,8 @@ export interface CanvasSnapshot {
 export interface CanvasSnapshotListOptions {
     limit?: number;
     query?: string;
+    before?: string;
+    after?: string;
     all?: boolean;
 }
 export interface CanvasSnapshotGcOptions {

@@ -1889,6 +1889,55 @@ describe('canvas server HTTP API', () => {
     expect(replayed.collapsed).toBe(true);
   });
 
+  test('records arrange as a single undoable history entry', async () => {
+    const first = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Arrange A', x: 600, y: 600 }),
+    });
+    await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Arrange B', x: 900, y: 900 }),
+    });
+    mutationHistory.reset();
+
+    const before = await jsonRequest<{ position: { x: number; y: number } }>(`/api/canvas/node/${first.id}`);
+    const arranged = await jsonRequest<{ ok: boolean; arranged: number }>('/api/canvas/arrange', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ layout: 'column' }),
+    });
+    expect(arranged.ok).toBe(true);
+    expect(arranged.arranged).toBe(2);
+
+    const history = await jsonRequest<{
+      entries: Array<{ description: string; operationType: string }>;
+      canUndo: boolean;
+    }>('/api/canvas/history');
+    expect(history.canUndo).toBe(true);
+    expect(history.entries).toHaveLength(1);
+    expect(history.entries[0]).toMatchObject({
+      operationType: 'arrange',
+      description: 'Auto-arranged 2 nodes (column)',
+    });
+
+    const undone = await jsonRequest<{ ok: boolean; description: string }>('/api/canvas/undo', {
+      method: 'POST',
+    });
+    expect(undone.description).toContain('Auto-arranged 2 nodes (column)');
+    const afterUndo = await jsonRequest<{ position: { x: number; y: number } }>(`/api/canvas/node/${first.id}`);
+    expect(afterUndo.position).toEqual(before.position);
+
+    const afterHistory = await jsonRequest<{
+      entries: Array<{ isUndone: boolean }>;
+      canUndo: boolean;
+    }>('/api/canvas/history');
+    expect(afterHistory.canUndo).toBe(false);
+    expect(afterHistory.entries).toHaveLength(1);
+    expect(afterHistory.entries[0]?.isUndone).toBe(true);
+  });
+
   test('trace node creation promotes documented top-level fields into data', async () => {
     const created = await jsonRequest<{
       ok: boolean;
