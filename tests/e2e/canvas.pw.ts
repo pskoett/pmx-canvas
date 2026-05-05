@@ -592,11 +592,37 @@ test('MCP App fullscreen edits persist after closing and reopening the app', asy
 
   const appNode = page.locator('.canvas-node').filter({ hasText: 'Persistent Editor App' });
   await expect(appNode).toHaveCount(1);
-  await appNode.locator('.ext-app-preview-catcher').click();
 
   const panel = page.locator('.expanded-overlay-panel');
+  // Opening the fullscreen overlay races the ext-app bridge handshake: the
+  // iframe's content can begin parsing before the parent registers its
+  // postMessage listener, which loses the iframe's `ui/initialize` request
+  // and leaves `app.connect()` hanging. The fixture then receives the
+  // fallback `tool-input` notification with `hostContext === null` and
+  // renders the counter view permanently. Each remount is independent, so
+  // close-and-reopen retries kick a fresh iframe through the handshake. The
+  // helper polls the editor view for up to ~15s with that retry loop.
+  const openFullscreenEditor = async () => {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      if (attempt > 1) {
+        await panel.getByTitle('Close (Esc)').click({ timeout: 2_000 }).catch(() => {});
+      }
+      await appNode.locator('.ext-app-preview-catcher').click();
+      try {
+        await expect(panel.frameLocator('iframe').getByText('Fixture Editor')).toBeVisible({
+          timeout: 5_000,
+        });
+        return;
+      } catch (err) {
+        lastError = err;
+      }
+    }
+    throw lastError;
+  };
+
+  await openFullscreenEditor();
   const frame = panel.frameLocator('iframe');
-  await expect(frame.getByText('Fixture Editor')).toBeVisible();
   await expect(frame.getByText('No saved edit')).toBeVisible();
   await frame.getByRole('button', { name: 'Add Manual Edit' }).click();
   await expect(frame.getByText('Saved manual edit')).toBeVisible();
@@ -613,10 +639,10 @@ test('MCP App fullscreen edits persist after closing and reopening the app', asy
   }).toBe('Saved manual edit');
 
   await panel.getByTitle('Close (Esc)').click();
-  await appNode.locator('.ext-app-preview-catcher').click();
-
-  const reopenedFrame = page.locator('.expanded-overlay-panel').frameLocator('iframe');
-  await expect(reopenedFrame.getByText('Fixture Editor')).toBeVisible();
+  // The same handshake race can hit the reopened iframe, so use the retry
+  // helper here too.
+  await openFullscreenEditor();
+  const reopenedFrame = panel.frameLocator('iframe');
   await expect(reopenedFrame.getByText('Saved manual edit')).toBeVisible();
 });
 
