@@ -32,6 +32,17 @@ canvas.addHtmlNode({
   html: '<canvas id="c"></canvas><script src="https://cdn.jsdelivr.net/npm/chart.js"></script><script>/* ... */</script>',
 });
 
+// Generated HTML communication primitive, stored as a sandboxed html node
+canvas.addHtmlPrimitive({
+  kind: 'choice-grid',
+  title: 'Implementation options',
+  data: {
+    items: [
+      { title: 'Small patch', summary: 'Least disruption.', pros: ['Fast'], cons: ['Less flexible'] },
+    ],
+  },
+});
+
 // Hand-drawn diagram via the Excalidraw MCP-app preset
 await canvas.addDiagram({
   elements: [

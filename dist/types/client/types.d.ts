@@ -35,7 +35,7 @@ export interface CanvasAnnotationPoint {
 }
 export interface CanvasAnnotation {
     id: string;
-    type: 'freehand';
+    type: 'freehand' | 'text';
     points: CanvasAnnotationPoint[];
     bounds: {
         x: number;
@@ -45,6 +45,7 @@ export interface CanvasAnnotation {
     };
     color: string;
     width: number;
+    text?: string;
     label?: string;
     createdAt: string;
 }

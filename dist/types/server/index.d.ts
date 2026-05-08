@@ -3,6 +3,7 @@ import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout } from
 import { searchNodes } from './spatial-analysis.js';
 import { diffLayouts } from './mutation-history.js';
 import { fitCanvasView, gcCanvasSnapshots, listCanvasSnapshots } from './canvas-operations.js';
+import type { HtmlPrimitiveKind } from './html-primitives.js';
 import { type WebArtifactBuildInput, type WebArtifactCanvasBuildResult } from './web-artifacts.js';
 import { type ExternalMcpTransportConfig } from './mcp-app-runtime.js';
 import { type DiagramPresetOpenInput } from './diagram-presets.js';
@@ -181,6 +182,7 @@ export declare class PmxCanvas extends EventEmitter {
         graph: {
             graphTypes: ("line" | "bar" | "pie" | "area" | "scatter" | "radar" | "composed" | "stacked-bar")[];
         };
+        htmlPrimitives: import("./html-primitives.js").HtmlPrimitiveDescriptor[];
         mcp: {
             tools: string[];
             resources: string[];
@@ -248,6 +250,21 @@ export declare class PmxCanvas extends EventEmitter {
         height?: number;
         strictSize?: boolean;
     }): string;
+    addHtmlPrimitive(input: {
+        kind: HtmlPrimitiveKind;
+        title?: string;
+        data?: Record<string, unknown>;
+        x?: number;
+        y?: number;
+        width?: number;
+        height?: number;
+        strictSize?: boolean;
+    }): {
+        id: string;
+        kind: HtmlPrimitiveKind;
+        title: string;
+        htmlBytes: number;
+    };
     addGraphNode(input: GraphNodeInput): {
         id: string;
         url: string;
@@ -275,10 +292,12 @@ export type { SpatialCluster, SpatialContext, SpatialNeighbor, NodeSpatialInfo }
 export { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
 export { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 export { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
+export { buildHtmlPrimitive, isHtmlPrimitiveKind, listHtmlPrimitiveDescriptors } from './html-primitives.js';
 export { buildWebArtifactOnCanvas, executeWebArtifactBuild, openWebArtifactInCanvas, resolveWebArtifactScriptPath, resolveWorkspacePath, } from './web-artifacts.js';
 export { buildGraphSpec, buildJsonRenderViewerHtml, createJsonRenderNodeData, GRAPH_NODE_SIZE, JSON_RENDER_NODE_SIZE, normalizeAndValidateJsonRenderSpec, } from '../json-render/server.js';
 export type { CodeGraphSummary, CodeGraphEdge } from './code-graph.js';
 export type { MutationEntry, MutationSummary, SnapshotDiffResult } from './mutation-history.js';
 export type { WebArtifactBuildInput, WebArtifactBuildOutput, WebArtifactCanvasBuildResult, WebArtifactCanvasOpenResult, } from './web-artifacts.js';
 export type { GraphNodeInput, JsonRenderNodeInput, JsonRenderSpec } from '../json-render/server.js';
+export type { HtmlPrimitiveKind, HtmlPrimitiveDescriptor, HtmlPrimitiveInput, HtmlPrimitiveBuildResult } from './html-primitives.js';
 export { traceManager } from './trace-manager.js';

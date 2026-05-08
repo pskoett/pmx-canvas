@@ -511,7 +511,7 @@ export function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec {
 
   const chartProps: Record<string, unknown> = {
     data: input.data,
-    height: input.height ?? 320,
+    ...(typeof input.height === 'number' ? { height: input.height } : {}),
   };
 
   switch (chartType) {
@@ -648,6 +648,7 @@ export async function buildJsonRenderViewerHtml(options: {
   title: string;
   spec: JsonRenderSpec;
   theme?: 'dark' | 'light' | 'high-contrast';
+  display?: 'expanded';
 }): Promise<string> {
   try {
     await ensureJsonRenderBundle();
@@ -661,6 +662,7 @@ export async function buildJsonRenderViewerHtml(options: {
     const boot = [
       `window.__PMX_CANVAS_JSON_RENDER_SPEC__ = ${JSON.stringify(options.spec)};`,
       ...(options.theme ? [`window.__PMX_CANVAS_JSON_RENDER_THEME__ = ${JSON.stringify(options.theme)};`] : []),
+      ...(options.display ? [`window.__PMX_CANVAS_JSON_RENDER_DISPLAY__ = ${JSON.stringify(options.display)};`] : []),
       jsBundle,
     ].join('\n');
     return buildAppHtml({

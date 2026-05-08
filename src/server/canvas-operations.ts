@@ -20,6 +20,7 @@ import { mutationHistory } from './mutation-history.js';
 import { computeGroupBounds, findOpenCanvasPosition } from './placement.js';
 import { searchNodes } from './spatial-analysis.js';
 import { getCanvasNodeTitle, serializeCanvasNode, type SerializedCanvasNode } from './canvas-serialization.js';
+import { computeAutoArrange } from '../shared/auto-arrange.js';
 import {
   buildGraphSpec,
   buildGraphConfig,
@@ -101,6 +102,8 @@ interface CanvasAddNodeInput {
   fileMode?: 'path' | 'inline' | 'auto';
   strictSize?: boolean;
 }
+
+export const MARKDOWN_NODE_DEFAULT_SIZE = { width: 520, height: 360 };
 
 interface CanvasCreateGroupInput {
   title?: string;
@@ -1070,62 +1073,105 @@ function collectArrangeExcludedNodeIds(nodes: CanvasNodeState[]): Set<string> {
   return excluded;
 }
 
+function collectGridArrangeExcludedNodeIds(nodes: CanvasNodeState[]): Set<string> {
+  const nodesById = new Map(nodes.map((node) => [node.id, node]));
+  const excluded = new Set<string>();
+
+  for (const node of nodes) {
+    if (isArrangeLocked(node)) excluded.add(node.id);
+  }
+
+  for (const node of nodes) {
+    if (node.type !== 'group') continue;
+    const childIds = Array.isArray(node.data.children)
+      ? node.data.children.filter((id): id is string => typeof id === 'string')
+      : [];
+    const hasLockedChild = childIds.some((childId) => {
+      const child = nodesById.get(childId);
+      return child ? isArrangeLocked(child) : false;
+    });
+    if (!excluded.has(node.id) && !hasLockedChild) continue;
+
+    excluded.add(node.id);
+    for (const childId of childIds) excluded.add(childId);
+  }
+
+  return excluded;
+}
+
 export function arrangeCanvasNodes(layout: CanvasArrangeMode): { arranged: number; layout: CanvasArrangeMode } {
   const nodes = canvasState.getLayout().nodes;
-  const excludedIds = collectArrangeExcludedNodeIds(nodes);
+  const excludedIds = layout === 'grid'
+    ? collectGridArrangeExcludedNodeIds(nodes)
+    : collectArrangeExcludedNodeIds(nodes);
   const movableNodes = nodes.filter((node) => !excludedIds.has(node.id));
-  const gap = 24;
   const oldPositions = nodes.map((node) => ({ id: node.id, position: { ...node.position } }));
+  const oldSizes = nodes.map((node) => ({ id: node.id, size: { ...node.size } }));
+  const newSizesById = new Map<string, CanvasNodeUpdate['size']>();
+  const oldSizesById = new Map(oldSizes.map((entry) => [entry.id, entry.size]));
+  const updates: CanvasNodeUpdate[] = [];
 
-  canvasState.withSuppressedRecording(() => {
-    if (layout === 'column') {
-      let y = 80;
-      for (const node of movableNodes) {
-        canvasState.updateNode(node.id, { position: { x: 40, y } });
+  if (layout === 'column' || layout === 'flow') {
+    const gap = 24;
+    let x = 40;
+    let y = 80;
+    for (const node of movableNodes) {
+      updates.push({ id: node.id, position: { x, y } });
+      if (layout === 'column') {
         y += node.size.height + gap;
-      }
-      return;
-    }
-
-    if (layout === 'flow') {
-      let x = 40;
-      for (const node of movableNodes) {
-        canvasState.updateNode(node.id, { position: { x, y: 80 } });
+      } else {
         x += node.size.width + gap;
       }
-      return;
     }
+  } else {
+    const result = computeAutoArrange(movableNodes, canvasState.getEdges(), 'grid');
+    for (const [id, position] of result.nodePositions.entries()) {
+      updates.push({ id, position });
+    }
+    for (const [groupId, bounds] of result.groupBounds.entries()) {
+      updates.push({
+        id: groupId,
+        position: { x: bounds.x, y: bounds.y },
+        size: { width: bounds.width, height: bounds.height },
+      });
+    }
+  }
 
-    const maxNodeWidth = movableNodes.reduce((max, node) => Math.max(max, node.size.width), 360);
-    const cols = Math.max(1, Math.floor(1440 / (maxNodeWidth + gap)));
-    let col = 0;
-    let rowY = 80;
-    let rowMaxHeight = 0;
-    for (const node of movableNodes) {
-      const x = 40 + col * (maxNodeWidth + gap);
-      canvasState.updateNode(node.id, { position: { x, y: rowY } });
-      rowMaxHeight = Math.max(rowMaxHeight, node.size.height);
-      col++;
-      if (col >= cols) {
-        col = 0;
-        rowY += rowMaxHeight + gap;
-        rowMaxHeight = 0;
-      }
-    }
+  canvasState.withSuppressedRecording(() => {
+    canvasState.applyUpdates(updates, layout === 'grid' ? { skipGroupChildTranslation: true } : {});
   });
 
   const newPositions = nodes.map((node) => {
     const updated = canvasState.getNode(node.id);
     return { id: node.id, position: updated ? { ...updated.position } : { ...node.position } };
   });
+  for (const node of nodes) {
+    const updated = canvasState.getNode(node.id);
+    const size = updated ? { ...updated.size } : { ...node.size };
+    newSizesById.set(node.id, size);
+  }
   mutationHistory.record({
     description: `Auto-arranged ${movableNodes.length} nodes (${layout})`,
     operationType: 'arrange',
     forward: () => canvasState.withSuppressedRecording(() => {
-      for (const position of newPositions) canvasState.updateNode(position.id, { position: position.position });
+      canvasState.applyUpdates(newPositions.map((position) => {
+        const size = newSizesById.get(position.id);
+        return {
+          id: position.id,
+          position: position.position,
+          ...(size ? { size } : {}),
+        };
+      }), layout === 'grid' ? { skipGroupChildTranslation: true } : {});
     }),
     inverse: () => canvasState.withSuppressedRecording(() => {
-      for (const position of oldPositions) canvasState.updateNode(position.id, { position: position.position });
+      canvasState.applyUpdates(oldPositions.map((position) => {
+        const size = oldSizesById.get(position.id);
+        return {
+          id: position.id,
+          position: position.position,
+          ...(size ? { size } : {}),
+        };
+      }), layout === 'grid' ? { skipGroupChildTranslation: true } : {});
     }),
   });
 
@@ -1477,6 +1523,9 @@ export async function executeCanvasBatch(
       switch (operation.op) {
         case 'node.add': {
           const type = typeof args.type === 'string' ? args.type : 'markdown';
+          if (type === 'html-primitive') {
+            throw new Error('Batch html-primitive creation is not supported yet. Use node.add with type "html" and generated html, or create the primitive through MCP/HTTP/CLI first.');
+          }
           if (type === 'webpage') {
             const created = addCanvasNode({
               type: 'webpage',
@@ -1502,18 +1551,22 @@ export async function executeCanvasBatch(
               ...(fetch.ok ? {} : { error: fetch.error }),
             };
           } else {
+            const data = isPlainRecord(args.data) ? args.data : {};
+            const htmlData = type === 'html' && typeof args.html === 'string'
+              ? { ...data, html: args.html }
+              : data;
             const created = addCanvasNode({
               type: type as CanvasNodeState['type'],
               ...(typeof args.title === 'string' ? { title: args.title } : {}),
               ...(typeof args.content === 'string' ? { content: args.content } : {}),
-              ...(isPlainRecord(args.data) ? { data: args.data } : {}),
+              ...(Object.keys(htmlData).length > 0 ? { data: htmlData } : {}),
               ...(typeof args.x === 'number' ? { x: args.x } : {}),
               ...(typeof args.y === 'number' ? { y: args.y } : {}),
               ...(typeof args.width === 'number' ? { width: args.width } : {}),
               ...(typeof args.height === 'number' ? { height: args.height } : {}),
               ...(args.strictSize === true ? { strictSize: true } : {}),
-              defaultWidth: 360,
-              defaultHeight: 200,
+              defaultWidth: type === 'html' ? 720 : type === 'markdown' ? MARKDOWN_NODE_DEFAULT_SIZE.width : 360,
+              defaultHeight: type === 'html' ? 640 : type === 'markdown' ? MARKDOWN_NODE_DEFAULT_SIZE.height : 200,
               fileMode: 'auto',
             });
             result = { ok: true, ...serializeCreatedNode(created.node) };

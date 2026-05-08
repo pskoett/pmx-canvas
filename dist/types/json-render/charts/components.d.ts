@@ -6,7 +6,7 @@
  * chat example. Each component receives BaseComponentProps<T> and renders
  * a responsive chart inside a styled container.
  */
-import type { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import type { BaseComponentProps } from '@json-render/react';
 export declare const CHART_COLORS: string[];
 export type AggregateMode = 'sum' | 'count' | 'avg';
@@ -55,6 +55,10 @@ export declare const polarChartMargin: {
 export declare const axisTickMargin = 8;
 export declare const legendMargin: {
     top: number;
+};
+export declare function useChartFrameHeight(explicitHeight: number | null | undefined, fallbackHeight?: number): {
+    frameRef: import("react").RefObject<HTMLDivElement | null>;
+    height: number;
 };
 /** Shared wrapper for cartesian charts (Line + Bar). */
 export declare function CartesianChart({ props, children, className, }: {

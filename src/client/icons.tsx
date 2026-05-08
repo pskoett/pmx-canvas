@@ -139,6 +139,19 @@ export function IconEraser(p: IconProps): JSX.Element {
   );
 }
 
+/** Text cursor — canvas text annotation mode */
+export function IconTextAnnotation(p: IconProps): JSX.Element {
+  return (
+    <Icon {...p}>
+      <path d="M3 4h10" />
+      <path d="M8 4v8" />
+      <path d="M6 12h4" />
+      <path d="M4.5 4 4 6" />
+      <path d="M11.5 4 12 6" />
+    </Icon>
+  );
+}
+
 /** Camera — snapshots */
 export function IconSnapshot(p: IconProps): JSX.Element {
   return (

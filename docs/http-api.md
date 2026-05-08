@@ -22,6 +22,11 @@ curl http://localhost:4313/api/canvas/schema
 curl -X POST http://localhost:4313/api/canvas/schema/validate \
   -H "Content-Type: application/json" \
   -d '{"type":"json-render","spec":{"root":"card","elements":{"card":{"type":"Card","props":{"title":"Preview"},"children":[]}}}}'
+
+# Validate an HTML primitive without creating a node
+curl -X POST http://localhost:4313/api/canvas/schema/validate \
+  -H "Content-Type: application/json" \
+  -d '{"type":"html-primitive","kind":"choice-grid","data":{"items":[{"title":"A"}]}}'
 ```
 
 ## Nodes
@@ -36,6 +41,11 @@ curl -X POST http://localhost:4313/api/canvas/node \
 curl -X POST http://localhost:4313/api/canvas/node \
   -H "Content-Type: application/json" \
   -d '{"type":"html","title":"Chart","html":"<canvas id=\"c\"></canvas><script src=\"https://cdn.jsdelivr.net/npm/chart.js\"></script><script>/* ... */</script>"}'
+
+# Add a generated HTML primitive as a sandboxed html node
+curl -X POST http://localhost:4313/api/canvas/node \
+  -H "Content-Type: application/json" \
+  -d '{"type":"html-primitive","kind":"choice-grid","title":"Options","data":{"items":[{"title":"Small patch","summary":"Least disruption."}]}}'
 ```
 
 ## Edges

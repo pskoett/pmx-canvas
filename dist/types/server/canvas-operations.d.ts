@@ -56,6 +56,10 @@ interface CanvasAddNodeInput {
     fileMode?: 'path' | 'inline' | 'auto';
     strictSize?: boolean;
 }
+export declare const MARKDOWN_NODE_DEFAULT_SIZE: {
+    width: number;
+    height: number;
+};
 interface CanvasCreateGroupInput {
     title?: string;
     childIds?: string[];

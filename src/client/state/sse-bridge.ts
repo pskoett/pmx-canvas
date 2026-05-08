@@ -388,21 +388,22 @@ function parseCanvasEdge(raw: Record<string, unknown>): CanvasEdge | null {
 
 function parseCanvasAnnotation(raw: Record<string, unknown>): CanvasAnnotation | null {
   if (typeof raw.id !== 'string' || !raw.id) return null;
-  if (raw.type !== 'freehand') return null;
+  if (raw.type !== 'freehand' && raw.type !== 'text') return null;
   if (!Array.isArray(raw.points)) return null;
   const points = raw.points
     .map((point) => parseCanvasPosition(point))
     .filter((point): point is { x: number; y: number } => point !== null);
   const bounds = parseCanvasRect(raw.bounds);
-  if (points.length < 2 || !bounds) return null;
+  if (points.length < (raw.type === 'text' ? 1 : 2) || !bounds) return null;
 
   return {
     id: raw.id,
-    type: 'freehand',
+    type: raw.type,
     points,
     bounds,
     color: typeof raw.color === 'string' ? raw.color : '#f97316',
     width: typeof raw.width === 'number' ? raw.width : 4,
+    ...(typeof raw.text === 'string' ? { text: raw.text } : {}),
     ...(typeof raw.label === 'string' ? { label: raw.label } : {}),
     createdAt: typeof raw.createdAt === 'string' ? raw.createdAt : '',
   };

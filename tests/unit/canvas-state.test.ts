@@ -103,6 +103,28 @@ describe('canvas state manager', () => {
     expect(persisted.annotations?.[0]?.id).toBe('ann-1');
   });
 
+  test('persists text annotations', async () => {
+    canvasState.addAnnotation({
+      id: 'ann-text',
+      type: 'text',
+      points: [{ x: 20, y: 40 }],
+      bounds: { x: 20, y: 16, width: 120, height: 28.8 },
+      color: 'currentColor',
+      width: 24,
+      text: 'Intent note',
+      label: 'Intent note',
+      createdAt: '2026-01-01T00:00:00.000Z',
+    });
+
+    expect(canvasState.getLayout().annotations[0]?.type).toBe('text');
+    expect(canvasState.getLayout().annotations[0]?.text).toBe('Intent note');
+
+    await waitForPersistence();
+    const persisted = readPersistedCanvasState(workspaceRoot);
+    expect(persisted.annotations?.[0]?.type).toBe('text');
+    expect(persisted.annotations?.[0]?.text).toBe('Intent note');
+  });
+
   test('removes annotations and persists the removal', async () => {
     canvasState.addAnnotation({
       id: 'ann-remove',

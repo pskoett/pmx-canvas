@@ -3,6 +3,79 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.20] - 2026-05-06
+
+A bigger feature release. Adds 18 reusable HTML communication
+primitives (choice grids, plans, review sheets, system maps, design
+sheets, decks, explainers, status reports, throwaway editors…) so
+agents can stop reaching for long markdown for structured artifacts,
+introduces text annotations alongside the existing pen/eraser, makes
+expanded mcp-app/webpage/json-render/graph viewers stretch to fill
+the overlay, fixes grid arrange to respect grouped children, and
+extracts the project-tour demo to a declarative JSON seed.
+
+### Added
+
+- **`canvas_add_html_primitive` and 18 communication primitives.**
+  A new MCP tool plus CLI `html primitive add` / `html primitive
+  schema` and HTTP `POST /api/canvas/node` with `{type:
+  "html-primitive", kind, data}` (or the alternative `{type:
+  "html", primitive: kind, data}`) generate sandboxed `html` nodes
+  from named primitives: `choice-grid`, `plan-timeline`,
+  `review-sheet`, `pr-writeup`, `system-map`, `code-walkthrough`,
+  `design-sheet`, `component-gallery`, `interaction-prototype`,
+  `flowchart`, `deck`, `illustration-set`, `explainer`,
+  `status-report`, `incident-report`, `triage-board`,
+  `config-editor`, `prompt-tuner`. The MCP canvas now exposes 42
+  tools (was 41). `canvas_describe_schema` adds an `htmlPrimitives`
+  array describing each primitive's data shape.
+- **Text annotations.** The annotation toolbar gains a third tool
+  alongside pen and eraser. Text annotations render as SVG `<text>`
+  using the `--c-annotation` token, persist alongside freehand
+  strokes (`type: 'text'` on `CanvasAnnotation`), and route through
+  the same HTTP create/delete + canvas-state undo/redo paths as the
+  freehand layer.
+- **Declarative demo seed (`src/server/demo-state.json`).** The
+  project-tour demo is now a 28KB JSON snapshot loaded by a small
+  `demo.ts` shim, replacing the 800-line imperative seed. Editing
+  the tour is now a JSON edit, and the unit tests exercise the
+  loader and verify a stable grouped layout.
+- **Install section in the README.** Documents `bunx pmx-canvas`,
+  `bun add -g pmx-canvas`, `bun add pmx-canvas` (for the SDK), and
+  `npm install -g pmx-canvas`, plus the Bun-on-PATH caveat (the
+  CLI uses a `#!/usr/bin/env bun` shebang). (Released as commits
+  `f9449e5`, `fe0843c`.)
+
+### Changed
+
+- **Expanded mcp-app / webpage / json-render / graph viewers
+  stretch to fill the overlay.** `ExpandedNodeOverlay` now wraps
+  embedded viewers in a flex container, json-render and graph
+  viewers receive `?display=expanded` in the URL plus a
+  `window.__PMX_CANVAS_JSON_RENDER_DISPLAY__` global, and a new
+  `useChartFrameHeight()` hook computes available content height
+  dynamically. Expanded charts no longer leave a white band at the
+  bottom of the overlay.
+- **Grid arrange preserves grouped child offsets.** The arrange
+  algorithm in the new shared `auto-arrange.ts` excludes grouped
+  children from translation. Previously the parent group was moved
+  *and* the child was moved relative to it, double-translating the
+  child off-screen. Undo restores the original positions exactly.
+- **CommandPalette gains a "New note" markdown shortcut.** Quick-
+  add a `markdown` node from the palette with the standard
+  520×360 default size.
+
+### Internal
+
+- Regression coverage for: HTML primitive CLI/MCP creation
+  producing searchable html nodes with primitive metadata, text
+  annotation persistence and HTTP create/delete, grid arrange
+  preserving grouped child offsets through the operation and its
+  undo, declarative demo seed loading into a stable grouped layout,
+  graph chart-height absent unless explicitly provided, and
+  expanded graph nodes stretching content to the overlay frame
+  (e2e), plus pen and text annotations starting over nodes (e2e).
+
 ## [0.1.19] - 2026-05-05
 
 Snapshot ergonomics and reference-doc distribution. Adds `before` /
@@ -824,6 +897,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.20]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.20
 [0.1.19]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.19
 [0.1.18]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.18
 [0.1.17]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.17

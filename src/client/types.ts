@@ -48,11 +48,12 @@ export interface CanvasAnnotationPoint {
 
 export interface CanvasAnnotation {
   id: string;
-  type: 'freehand';
+  type: 'freehand' | 'text';
   points: CanvasAnnotationPoint[];
   bounds: { x: number; y: number; width: number; height: number };
   color: string;
   width: number;
+  text?: string;
   label?: string;
   createdAt: string;
 }

@@ -122,6 +122,7 @@ export function ExpandedNodeOverlay() {
   const isCtxPinned = nodeId ? contextPinnedNodeIds.value.has(nodeId) : false;
   const hasText = textContent.length > 0;
   const pendingClose = pendingExpandedNodeCloseId.value === nodeId;
+  const isEmbeddedViewer = node.type === 'mcp-app' || node.type === 'webpage' || node.type === 'json-render' || node.type === 'graph';
 
   return (
     <div
@@ -260,9 +261,14 @@ export function ExpandedNodeOverlay() {
             overflow: 'auto',
             padding: '16px',
             minHeight: 0,
+            ...(isEmbeddedViewer ? { display: 'flex', flexDirection: 'column' } : {}),
           }}
         >
-          {renderContent(node, true)}
+          {isEmbeddedViewer ? (
+            <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>
+              {renderContent(node, true)}
+            </div>
+          ) : renderContent(node, true)}
         </div>
       </div>
     </div>

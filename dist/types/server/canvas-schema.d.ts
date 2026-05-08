@@ -1,5 +1,6 @@
 import { type JsonRenderComponentDescriptor } from '../json-render/catalog.js';
 import { type GraphNodeInput, type JsonRenderSpec } from '../json-render/server.js';
+import { type HtmlPrimitiveDescriptor } from './html-primitives.js';
 export interface CanvasCreateField {
     name: string;
     type: string;
@@ -19,8 +20,17 @@ export interface CanvasCreateTypeSchema {
 }
 export interface StructuredValidationResult {
     ok: true;
-    type: 'json-render' | 'graph';
-    normalizedSpec: JsonRenderSpec;
+    type: 'json-render' | 'graph' | 'html-primitive';
+    normalizedSpec?: JsonRenderSpec;
+    normalizedPrimitive?: {
+        kind: string;
+        title: string;
+        htmlBytes: number;
+        defaultSize: {
+            width: number;
+            height: number;
+        };
+    };
     summary: Record<string, unknown>;
 }
 declare const CANONICAL_GRAPH_TYPES: readonly ["line", "bar", "pie", "area", "scatter", "radar", "stacked-bar", "composed"];
@@ -37,6 +47,7 @@ export declare function describeCanvasSchema(): {
     graph: {
         graphTypes: CanvasGraphType[];
     };
+    htmlPrimitives: HtmlPrimitiveDescriptor[];
     mcp: {
         tools: string[];
         resources: string[];
@@ -44,8 +55,13 @@ export declare function describeCanvasSchema(): {
     };
 };
 export declare function validateStructuredCanvasPayload(input: {
-    type: 'json-render' | 'graph';
+    type: 'json-render' | 'graph' | 'html-primitive';
     spec?: unknown;
     graph?: GraphNodeInput;
+    primitive?: {
+        kind: string;
+        title?: string;
+        data?: Record<string, unknown>;
+    };
 }): StructuredValidationResult;
 export {};

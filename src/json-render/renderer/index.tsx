@@ -49,6 +49,7 @@ declare global {
   interface Window {
     __PMX_CANVAS_JSON_RENDER_SPEC__?: Spec & { state?: Record<string, unknown> };
     __PMX_CANVAS_JSON_RENDER_THEME__?: string;
+    __PMX_CANVAS_JSON_RENDER_DISPLAY__?: string;
   }
 }
 

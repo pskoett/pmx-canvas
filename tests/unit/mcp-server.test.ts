@@ -6,6 +6,7 @@ import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createTestWorkspace, removeTestWorkspace } from './helpers.ts';
+import { MARKDOWN_NODE_DEFAULT_SIZE } from '../../src/server/canvas-operations.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
 
 interface TextContentItem {
@@ -128,6 +129,7 @@ describe('MCP parity with CLI', () => {
       'canvas_add_diagram',
       'canvas_describe_schema',
       'canvas_validate_spec',
+      'canvas_add_html_primitive',
       'canvas_add_graph_node',
       'canvas_add_json_render_node',
       'canvas_build_web_artifact',
@@ -205,7 +207,7 @@ describe('MCP parity with CLI', () => {
       node: { position: { x: number; y: number }; size: { width: number; height: number } };
     }>(added);
     expect(created.node.position).toEqual({ x: 40, y: 80 });
-    expect(created.node.size).toEqual({ width: 360, height: 200 });
+    expect(created.node.size).toEqual(MARKDOWN_NODE_DEFAULT_SIZE);
     const { id } = created;
 
     const updated = await session.client.callTool({
@@ -889,6 +891,7 @@ describe('MCP parity with CLI', () => {
       'json-render': 'canvas_add_json_render_node',
       graph: 'canvas_add_graph_node',
       'web-artifact': 'canvas_build_web_artifact',
+      'html-primitive': 'canvas_add_html_primitive',
       'external-app': 'canvas_open_mcp_app',
       group: 'canvas_create_group',
     });

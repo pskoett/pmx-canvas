@@ -8,6 +8,8 @@ type AddDiagramInput = Parameters<PmxCanvas['addDiagram']>[0];
 type AddJsonRenderNodeInput = Parameters<PmxCanvas['addJsonRenderNode']>[0];
 type AddJsonRenderNodeResult = ReturnType<PmxCanvas['addJsonRenderNode']>;
 type AddHtmlNodeInput = Parameters<PmxCanvas['addHtmlNode']>[0];
+type AddHtmlPrimitiveInput = Parameters<PmxCanvas['addHtmlPrimitive']>[0];
+type AddHtmlPrimitiveResult = ReturnType<PmxCanvas['addHtmlPrimitive']>;
 type AddGraphNodeInput = Parameters<PmxCanvas['addGraphNode']>[0];
 type AddGraphNodeResult = ReturnType<PmxCanvas['addGraphNode']>;
 type UpdateNodePatch = Parameters<PmxCanvas['updateNode']>[1];
@@ -50,6 +52,7 @@ export interface CanvasAccess {
     addDiagram(input: AddDiagramInput): Promise<OpenMcpAppResult>;
     addJsonRenderNode(input: AddJsonRenderNodeInput): Promise<AddJsonRenderNodeResult>;
     addHtmlNode(input: AddHtmlNodeInput): Promise<string>;
+    addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult>;
     addGraphNode(input: AddGraphNodeInput): Promise<AddGraphNodeResult>;
     buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult>;
     updateNode(id: string, patch: UpdateNodePatch): Promise<void>;

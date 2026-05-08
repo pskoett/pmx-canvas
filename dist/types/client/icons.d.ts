@@ -23,6 +23,8 @@ export declare function IconMoon(p: IconProps): JSX.Element;
 export declare function IconPen(p: IconProps): JSX.Element;
 /** Eraser — remove canvas annotations */
 export declare function IconEraser(p: IconProps): JSX.Element;
+/** Text cursor — canvas text annotation mode */
+export declare function IconTextAnnotation(p: IconProps): JSX.Element;
 /** Camera — snapshots */
 export declare function IconSnapshot(p: IconProps): JSX.Element;
 /** Bullseye — trace toggle */

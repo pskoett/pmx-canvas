@@ -58,4 +58,5 @@ export declare function buildJsonRenderViewerHtml(options: {
     title: string;
     spec: JsonRenderSpec;
     theme?: 'dark' | 'light' | 'high-contrast';
+    display?: 'expanded';
 }): Promise<string>;

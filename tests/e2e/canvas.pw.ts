@@ -372,6 +372,8 @@ test('context dock renders the active pinned nodes instead of stale context card
       content: 'Alpha context body',
       x: 160,
       y: 220,
+      width: 360,
+      height: 220,
     },
   });
   await request.post('/api/canvas/node', {
@@ -381,6 +383,8 @@ test('context dock renders the active pinned nodes instead of stale context card
       content: 'Beta context body',
       x: 560,
       y: 220,
+      width: 360,
+      height: 220,
     },
   });
 
@@ -949,6 +953,60 @@ test('graph nodes keep explicit visual frame size after expand and close', async
   }).toBe('480x380');
 });
 
+test('expanded graph nodes stretch chart content to the overlay frame', async ({ page, request }) => {
+  await request.post('/api/canvas/graph', {
+    data: {
+      title: 'Expanded graph fill guard',
+      graphType: 'bar',
+      data: [
+        { label: 'Inline', value: 42 },
+        { label: 'Expanded', value: 88 },
+        { label: 'Fit', value: 72 },
+      ],
+      xKey: 'label',
+      yKey: 'value',
+      x: 420,
+      y: 220,
+      width: 480,
+      nodeHeight: 380,
+      height: 240,
+    },
+  });
+
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  await page.goto('/workbench');
+
+  const graphNode = page.locator('.canvas-node').filter({ hasText: 'Expanded graph fill guard' });
+  await expect(graphNode).toHaveCount(1);
+  await graphNode.getByTitle('Expand (focus mode)').click();
+  const overlay = page.locator('.expanded-overlay-panel');
+  await expect(overlay).toBeVisible();
+
+  const expandedFrame = overlay.frameLocator('iframe');
+  await expect(expandedFrame.locator('.recharts-responsive-container')).toBeVisible();
+
+  const metrics = await overlay.locator('iframe').evaluate((iframe) => {
+    const iframeRect = iframe.getBoundingClientRect();
+    return {
+      iframeHeight: iframeRect.height,
+      iframeWidth: iframeRect.width,
+    };
+  });
+
+  const chartMetrics = await expandedFrame.locator('.recharts-surface').evaluate((surface) => {
+    const rect = surface.getBoundingClientRect();
+    return {
+      surfaceHeight: rect.height,
+      viewportHeight: window.innerHeight,
+    };
+  });
+
+  expect(metrics.iframeWidth).toBeGreaterThan(900);
+  expect(metrics.iframeHeight).toBeGreaterThan(700);
+  expect(chartMetrics.surfaceHeight).toBeGreaterThan(metrics.iframeHeight * 0.7);
+  expect(chartMetrics.surfaceHeight).toBeLessThanOrEqual(chartMetrics.viewportHeight);
+});
+
 test('compact graph charts keep plotted content inside the iframe viewport', async ({ page, request }) => {
   const createResponse = await request.post('/api/canvas/graph', {
     data: {
@@ -1245,6 +1303,43 @@ test('annotations use theme contrast colors and can be erased', async ({ page, r
     const state = await response.json() as { annotations?: unknown[] };
     return state.annotations?.length ?? 0;
   }).toBe(0);
+});
+
+test('can start pen and text annotations over nodes', async ({ page, request }) => {
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Annotate target',
+      content: 'Draw and type over this node.',
+      x: 120,
+      y: 100,
+      width: 360,
+      height: 220,
+    },
+  });
+
+  await page.goto('/workbench');
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Annotate target' })).toHaveCount(1);
+
+  await page.getByLabel('Annotate canvas').click();
+  await page.mouse.move(220, 190);
+  await page.mouse.down();
+  await page.mouse.move(300, 230, { steps: 6 });
+  await page.mouse.up();
+  await expect(page.locator('.annotation-layer path')).toHaveCount(1);
+
+  await page.getByLabel('Text annotations').click();
+  await page.mouse.click(240, 260);
+  await page.locator('.annotation-text-input').fill('Intent note');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.annotation-layer text')).toContainText('Intent note');
+  await expect(page.locator('.annotation-layer text')).toHaveCSS('fill', 'rgb(244, 239, 230)');
+
+  await expect.poll(async () => {
+    const response = await request.get('/api/canvas/state');
+    const state = await response.json() as { annotations?: Array<{ type?: string; text?: string }> };
+    return state.annotations?.map((annotation) => `${annotation.type}:${annotation.text ?? ''}`).sort() ?? [];
+  }).toEqual(['freehand:', 'text:Intent note']);
 });
 
 test('annotation toolbar actions preserve the current light theme', async ({ page }) => {

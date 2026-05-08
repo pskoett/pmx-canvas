@@ -40,6 +40,7 @@ import {
   legendMargin,
   polarChartMargin,
   tooltipStyle,
+  useChartFrameHeight,
   type CartesianChartProps,
 } from './components';
 
@@ -89,12 +90,12 @@ interface ScatterChartProps {
 function ChartScatterChart({ props }: BaseComponentProps<ScatterChartProps>) {
   const fill = props.color ?? CHART_COLORS[0];
   const data = props.data ?? [];
-  const h = props.height ?? 300;
+  const { frameRef, height } = useChartFrameHeight(props.height, 300);
 
   return (
-    <div className="pmx-chart pmx-chart--scatter">
+    <div ref={frameRef} className="pmx-chart pmx-chart--scatter">
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
-      <ResponsiveContainer width="100%" height={h}>
+      <ResponsiveContainer width="100%" height={height}>
         <RechartsScatterChart margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
           <XAxis type="number" dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} name={props.xKey} />
@@ -120,12 +121,12 @@ interface RadarChartProps {
 function ChartRadarChart({ props }: BaseComponentProps<RadarChartProps>) {
   const data = props.data ?? [];
   const metrics = (props.metrics ?? []).filter((m) => typeof m === 'string' && m.length > 0);
-  const h = props.height ?? 320;
+  const { frameRef, height } = useChartFrameHeight(props.height, 320);
 
   return (
-    <div className="pmx-chart pmx-chart--radar">
+    <div ref={frameRef} className="pmx-chart pmx-chart--radar">
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
-      <ResponsiveContainer width="100%" height={h}>
+      <ResponsiveContainer width="100%" height={height}>
         <RechartsRadarChart data={data} outerRadius="66%" margin={polarChartMargin}>
           <PolarGrid stroke="var(--border, #e5e5e5)" />
           <PolarAngleAxis dataKey={props.axisKey} tick={axisStyle} />
@@ -166,12 +167,12 @@ function ChartStackedBarChart({ props }: BaseComponentProps<StackedBarChartProps
   const chartData = props.aggregate
     ? mergeAggregated(props.data ?? [], props.xKey, series, props.aggregate)
     : props.data ?? [];
-  const h = props.height ?? 300;
+  const { frameRef, height } = useChartFrameHeight(props.height, 300);
 
   return (
-    <div className="pmx-chart pmx-chart--stacked-bar">
+    <div ref={frameRef} className="pmx-chart pmx-chart--stacked-bar">
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
-      <ResponsiveContainer width="100%" height={h}>
+      <ResponsiveContainer width="100%" height={height}>
         <RechartsBarChart data={chartData} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
           <XAxis dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} />
@@ -238,12 +239,12 @@ function ChartComposedChart({ props }: BaseComponentProps<ComposedChartProps>) {
   const data = props.data ?? [];
   const barFill = props.barColor ?? CHART_COLORS[0];
   const lineStroke = props.lineColor ?? CHART_COLORS[3];
-  const h = props.height ?? 300;
+  const { frameRef, height } = useChartFrameHeight(props.height, 300);
 
   return (
-    <div className="pmx-chart pmx-chart--composed">
+    <div ref={frameRef} className="pmx-chart pmx-chart--composed">
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
-      <ResponsiveContainer width="100%" height={h}>
+      <ResponsiveContainer width="100%" height={height}>
         <RechartsComposedChart data={data} margin={chartMargin}>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
           <XAxis dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} />

@@ -52,6 +52,7 @@ import {
   IconShortcuts,
   IconSnapshot,
   IconSun,
+  IconTextAnnotation,
   IconTrace,
   IconZoomIn,
   IconZoomOut,
@@ -73,7 +74,7 @@ function sendIntent(type: string, payload: Record<string, unknown> = {}): void {
   });
 }
 
-type AnnotationTool = 'pen' | 'eraser' | null;
+type AnnotationTool = 'pen' | 'eraser' | 'text' | null;
 
 function ToolbarHint({
   label,
@@ -115,6 +116,7 @@ function Toolbar({
   annotationTool,
   onToggleAnnotationMode,
   onToggleAnnotationEraser,
+  onToggleTextAnnotation,
 }: {
   minimapVisible: boolean;
   onToggleMinimap: () => void;
@@ -126,6 +128,7 @@ function Toolbar({
   annotationTool: AnnotationTool;
   onToggleAnnotationMode: () => void;
   onToggleAnnotationEraser: () => void;
+  onToggleTextAnnotation: () => void;
 }) {
   const status = connectionStatus.value;
   const hasSynced = hasInitialServerLayout.value;
@@ -316,6 +319,20 @@ function Toolbar({
             <IconEraser />
           </button>
         </ToolbarHint>
+        <ToolbarHint
+          label={annotationTool === 'text' ? 'Stop text annotations' : 'Text annotations'}
+          detail="Click anywhere to type an intent note"
+        >
+          <button
+            type="button"
+            onClick={onToggleTextAnnotation}
+            aria-label={annotationTool === 'text' ? 'Stop text annotations' : 'Text annotations'}
+            aria-pressed={annotationTool === 'text'}
+            style={{ color: annotationTool === 'text' ? 'var(--c-accent)' : undefined }}
+          >
+            <IconTextAnnotation />
+          </button>
+        </ToolbarHint>
 
         <div class="separator" />
 
@@ -392,6 +409,7 @@ export function App() {
   const handleCloseSnapshot = useCallback(() => setSnapshotOpen(false), []);
   const handleToggleAnnotationMode = useCallback(() => setAnnotationTool((tool) => tool === 'pen' ? null : 'pen'), []);
   const handleToggleAnnotationEraser = useCallback(() => setAnnotationTool((tool) => tool === 'eraser' ? null : 'eraser'), []);
+  const handleToggleTextAnnotation = useCallback(() => setAnnotationTool((tool) => tool === 'text' ? null : 'text'), []);
 
   const handleMinimapNavigate = useCallback((x: number, y: number) => {
     animateViewport({ x, y, scale: viewport.value.scale }, 200);
@@ -520,6 +538,7 @@ export function App() {
           annotationTool={annotationTool}
           onToggleAnnotationMode={handleToggleAnnotationMode}
           onToggleAnnotationEraser={handleToggleAnnotationEraser}
+          onToggleTextAnnotation={handleToggleTextAnnotation}
         />
         <div class="hud-right">
           {dockedRight.map((n) => (

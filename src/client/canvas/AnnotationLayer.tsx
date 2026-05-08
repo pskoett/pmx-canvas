@@ -11,18 +11,39 @@ export function AnnotationLayer({ annotations }: { annotations: CanvasAnnotation
 
   return (
     <svg class="annotation-layer" aria-hidden="true">
-      {annotations.map((annotation) => (
-        <path
-          key={annotation.id}
-          d={pointsToPath(annotation.points)}
-          fill="none"
-          stroke={annotation.color === 'currentColor' ? 'var(--c-annotation)' : annotation.color}
-          stroke-width={annotation.width}
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          opacity="0.9"
-        />
-      ))}
+      {annotations.map((annotation) => {
+        const color = annotation.color === 'currentColor' ? 'var(--c-annotation)' : annotation.color;
+        if (annotation.type === 'text') {
+          const point = annotation.points[0];
+          if (!point || !annotation.text) return null;
+          return (
+            <text
+              key={annotation.id}
+              x={point.x}
+              y={point.y}
+              fill={color}
+              font-size={annotation.width}
+              font-family="var(--font)"
+              font-weight="700"
+              opacity="0.95"
+            >
+              {annotation.text}
+            </text>
+          );
+        }
+        return (
+          <path
+            key={annotation.id}
+            d={pointsToPath(annotation.points)}
+            fill="none"
+            stroke={color}
+            stroke-width={annotation.width}
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            opacity="0.9"
+          />
+        );
+      })}
     </svg>
   );
 }

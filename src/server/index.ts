@@ -10,6 +10,7 @@ import { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './co
 import {
   addCanvasNode,
   addCanvasEdge,
+  MARKDOWN_NODE_DEFAULT_SIZE,
   applyCanvasNodeUpdates,
   arrangeCanvasNodes,
   clearCanvas,
@@ -39,6 +40,8 @@ import {
 } from './canvas-operations.js';
 import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
+import { buildHtmlPrimitive, isHtmlPrimitiveKind, listHtmlPrimitiveDescriptors } from './html-primitives.js';
+import type { HtmlPrimitiveKind } from './html-primitives.js';
 import {
   buildWebArtifactOnCanvas,
   type WebArtifactBuildInput,
@@ -178,8 +181,8 @@ export class PmxCanvas extends EventEmitter {
     }
     const { id, needsCodeGraphRecompute } = addCanvasNode({
       ...input,
-      defaultWidth: 360,
-      defaultHeight: 200,
+      defaultWidth: input.type === 'markdown' ? MARKDOWN_NODE_DEFAULT_SIZE.width : 360,
+      defaultHeight: input.type === 'markdown' ? MARKDOWN_NODE_DEFAULT_SIZE.height : 200,
       fileMode: 'path',
       ...(input.strictSize ? { strictSize: true } : {}),
     });
@@ -666,6 +669,42 @@ export class PmxCanvas extends EventEmitter {
     return id;
   }
 
+  addHtmlPrimitive(input: {
+    kind: HtmlPrimitiveKind;
+    title?: string;
+    data?: Record<string, unknown>;
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    strictSize?: boolean;
+  }): { id: string; kind: HtmlPrimitiveKind; title: string; htmlBytes: number } {
+    const built = buildHtmlPrimitive({
+      kind: input.kind,
+      ...(typeof input.title === 'string' ? { title: input.title } : {}),
+      ...(input.data ? { data: input.data } : {}),
+    });
+    const { id } = addCanvasNode({
+      type: 'html',
+      title: built.title,
+      data: {
+        html: built.html,
+        htmlPrimitive: built.kind,
+        primitiveData: built.data,
+        description: built.summary,
+      },
+      ...(typeof input.x === 'number' ? { x: input.x } : {}),
+      ...(typeof input.y === 'number' ? { y: input.y } : {}),
+      ...(typeof input.width === 'number' ? { width: input.width } : {}),
+      ...(typeof input.height === 'number' ? { height: input.height } : {}),
+      ...(input.strictSize ? { strictSize: true } : {}),
+      defaultWidth: built.defaultSize.width,
+      defaultHeight: built.defaultSize.height,
+    });
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return { id, kind: built.kind, title: built.title, htmlBytes: Buffer.byteLength(built.html, 'utf-8') };
+  }
+
   addGraphNode(input: GraphNodeInput): { id: string; url: string; spec: JsonRenderSpec } {
     const result = createCanvasGraphNode(input);
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
@@ -747,6 +786,7 @@ export type { SpatialCluster, SpatialContext, SpatialNeighbor, NodeSpatialInfo }
 export { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
 export { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 export { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
+export { buildHtmlPrimitive, isHtmlPrimitiveKind, listHtmlPrimitiveDescriptors } from './html-primitives.js';
 export {
   buildWebArtifactOnCanvas,
   executeWebArtifactBuild,
@@ -771,4 +811,5 @@ export type {
   WebArtifactCanvasOpenResult,
 } from './web-artifacts.js';
 export type { GraphNodeInput, JsonRenderNodeInput, JsonRenderSpec } from '../json-render/server.js';
+export type { HtmlPrimitiveKind, HtmlPrimitiveDescriptor, HtmlPrimitiveInput, HtmlPrimitiveBuildResult } from './html-primitives.js';
 export { traceManager } from './trace-manager.js';

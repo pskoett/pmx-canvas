@@ -1,6 +1,6 @@
 # MCP reference
 
-PMX Canvas ships an MCP stdio server with **41 tools** + **8 core resources**,
+PMX Canvas ships an MCP stdio server with **42 tools** + **8 core resources**,
 plus per-skill resources at `canvas://skills/<name>`. The server emits
 `notifications/resources/updated` when canvas state changes — humans pin
 nodes in the browser, agents are notified immediately.
@@ -28,10 +28,11 @@ The canvas auto-starts on first tool call.
 |------|-------------|
 | `canvas_add_node` | Add a node (markdown, status, context, file, webpage, html, etc.) |
 | `canvas_add_html_node` | Create an `html` node from a self-contained HTML/JS document (sandboxed iframe) |
+| `canvas_add_html_primitive` | Create a reusable generated HTML communication primitive as a sandboxed `html` node |
 | `canvas_add_diagram` | Hand-drawn diagram via the hosted Excalidraw MCP App (preset alias for `canvas_open_mcp_app`) |
 | `canvas_open_mcp_app` | Open any [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) server's `ui://` resource as an iframe node |
-| `canvas_describe_schema` | Describe the running server's create schemas, examples, and json-render catalog |
-| `canvas_validate_spec` | Validate a json-render spec or graph payload without creating a node |
+| `canvas_describe_schema` | Describe the running server's create schemas, examples, json-render catalog, and HTML primitive catalog |
+| `canvas_validate_spec` | Validate a json-render spec, graph payload, or HTML primitive payload without creating a node |
 | `canvas_refresh_webpage_node` | Re-fetch and update a webpage node from its stored URL |
 | `canvas_add_json_render_node` | Create a native json-render node from a validated spec |
 | `canvas_add_graph_node` | Create a native graph node (line, bar, pie, area, scatter, radar, stacked-bar, composed) |
@@ -118,6 +119,7 @@ in doubt:
 
 - `json-render` → `canvas_add_json_render_node`
 - `graph` → `canvas_add_graph_node`
+- `html-primitive` → `canvas_add_html_primitive`
 - `html` → `canvas_add_html_node`
 - `web-artifact` → `canvas_build_web_artifact`
 - `mcp-app` → `canvas_open_mcp_app`
@@ -128,7 +130,7 @@ in doubt:
 ## CLI/MCP alignment
 
 CLI and MCP are kept aligned for the main canvas operations: node and edge
-creation, graph/json-render/html nodes, web artifacts, external apps, groups,
+creation, graph/json-render/html/html-primitive nodes, web artifacts, external apps, groups,
 batch builds, layout validation, snapshots, search, focus, pins, undo/redo,
 semantic watch streams, WebView automation, and daemon/server control where
 it applies. A few agent-native capabilities — resource subscriptions and

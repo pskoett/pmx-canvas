@@ -73,6 +73,15 @@ interface CanvasSchemaResponse {
       'line' | 'bar' | 'pie' | 'area' | 'scatter' | 'radar' | 'stacked-bar' | 'composed'
     >;
   };
+  htmlPrimitives?: Array<{
+    kind: string;
+    title: string;
+    description: string;
+    useWhen: string;
+    defaultSize: { width: number; height: number };
+    dataShape: string;
+    example: Record<string, unknown>;
+  }>;
   mcp: {
     tools: string[];
     resources: string[];
@@ -480,6 +489,14 @@ function parseJsonValue(raw: string, label: string, hint: string): unknown {
   }
 }
 
+function parseJsonRecord(raw: string, label: string, hint: string): Record<string, unknown> {
+  const parsed = parseJsonValue(raw, label, hint);
+  if (!isRecord(parsed)) {
+    die(`${label} must be a JSON object.`, hint);
+  }
+  return parsed;
+}
+
 async function readTextInput(
   flags: Record<string, string | true>,
   options: {
@@ -610,6 +627,34 @@ async function buildJsonRenderRequestBody(
     y: 'Use a finite number, e.g. --y 300',
     width: 'Use a positive number, e.g. --width 840',
     height: 'Use a positive number, e.g. --height 620',
+  });
+  applyStrictSizeFlags(body, flags);
+  return body;
+}
+
+async function buildHtmlPrimitiveRequestBody(
+  flags: Record<string, string | true>,
+): Promise<Record<string, unknown>> {
+  const hint = 'Use: pmx-canvas html primitive add --kind choice-grid --data-file ./primitive.json --title "Options"';
+  const kind = getStringFlag(flags, 'kind', 'primitive');
+  if (!kind) die('HTML primitives require --kind.', hint);
+  const body: Record<string, unknown> = { type: 'html', primitive: kind };
+  if (typeof flags.title === 'string') body.title = flags.title;
+  const rawData = await readOptionalTextInput(flags, {
+    fileFlags: ['data-file'],
+    valueFlags: ['data-json', 'data'],
+    allowStdin: true,
+    label: 'HTML primitive data',
+    hint,
+  });
+  if (rawData !== undefined) {
+    body.data = parseJsonRecord(rawData, 'HTML primitive data', hint);
+  }
+  applyCommonGeometryFlags(body, flags, {
+    x: 'Use a finite number, e.g. --x 500',
+    y: 'Use a finite number, e.g. --y 300',
+    width: 'Use a positive number, e.g. --width 980',
+    height: 'Use a positive number, e.g. --height 720',
   });
   applyStrictSizeFlags(body, flags);
   return body;
@@ -967,6 +1012,35 @@ function filterJsonRenderSchemaView(
   return flags.summary ? summarizeJsonRenderComponent(component) : component;
 }
 
+function summarizeHtmlPrimitive(primitive: NonNullable<CanvasSchemaResponse['htmlPrimitives']>[number]): Record<string, unknown> {
+  return {
+    kind: primitive.kind,
+    title: primitive.title,
+    description: primitive.description,
+    useWhen: primitive.useWhen,
+    defaultSize: primitive.defaultSize,
+    dataShape: primitive.dataShape,
+  };
+}
+
+function filterHtmlPrimitiveSchemaView(
+  schema: CanvasSchemaResponse,
+  flags: Record<string, string | true>,
+): Record<string, unknown> {
+  const primitives = schema.htmlPrimitives ?? [];
+  const kind = getStringFlag(flags, 'kind', 'primitive');
+  if (!kind) {
+    return {
+      primitives: flags.summary ? primitives.map((entry) => summarizeHtmlPrimitive(entry)) : primitives,
+    };
+  }
+  const primitive = primitives.find((entry) => entry.kind === kind);
+  if (!primitive) {
+    die(`Unknown HTML primitive: ${kind}`, 'Run: pmx-canvas html primitive schema --summary');
+  }
+  return flags.summary ? summarizeHtmlPrimitive(primitive) : primitive;
+}
+
 // ── Commands ─────────────────────────────────────────────────
 
 const COMMANDS: Record<string, { run: (args: string[]) => Promise<void>; help: string; examples: string[] }> = {};
@@ -1028,6 +1102,7 @@ cmd('node add', 'Add a node to the canvas', [
   'pmx-canvas node add --type file --content "src/index.ts"',
   'pmx-canvas node add --type webpage --url "https://example.com/docs"',
   'pmx-canvas node add --type html --title "Widget" --content "<main>Hello</main>"',
+  'pmx-canvas node add --type html --primitive choice-grid --data-file ./options.json --title "Options"',
   'pmx-canvas node add --type markdown --title "Note" --x 100 --y 200',
   'pmx-canvas node add --type json-render --title "Ops Dashboard" --spec-file ./dashboard.json',
   'pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
@@ -1052,6 +1127,18 @@ cmd('node add', 'Add a node to the canvas', [
 
   if (type === 'web-artifact') {
     await runWebArtifactBuildCommand(flags);
+    return;
+  }
+
+  if (type === 'html-primitive') {
+    const result = await api('POST', '/api/canvas/node', await buildHtmlPrimitiveRequestBody(flags));
+    output(result);
+    return;
+  }
+
+  if (type === 'html' && getStringFlag(flags, 'primitive', 'kind')) {
+    const result = await api('POST', '/api/canvas/node', await buildHtmlPrimitiveRequestBody(flags));
+    output(result);
     return;
   }
 
@@ -1136,6 +1223,28 @@ cmd('json-render', 'Show json-render schema and canonical examples', [
   output(filterJsonRenderSchemaView(schema.jsonRender, flags));
 });
 
+cmd('html primitive add', 'Create a reusable sandboxed HTML communication primitive', [
+  'pmx-canvas html primitive add --kind choice-grid --data-file ./options.json --title "Options"',
+  'pmx-canvas html primitive add --kind plan-timeline --data-json \'{"milestones":[{"title":"Ship","detail":"Implement and verify","status":"next"}]}\'',
+  'pmx-canvas html primitive add --kind triage-board --data-file ./tickets.json --strict-size',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('html primitive add');
+  const result = await api('POST', '/api/canvas/node', await buildHtmlPrimitiveRequestBody(flags));
+  output(result);
+});
+
+cmd('html primitive schema', 'Describe reusable HTML communication primitives', [
+  'pmx-canvas html primitive schema --summary',
+  'pmx-canvas html primitive schema --kind choice-grid',
+  'pmx-canvas html primitive schema --kind triage-board --summary',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('html primitive schema');
+  const schema = await loadCanvasSchema();
+  output(filterHtmlPrimitiveSchemaView(schema, flags));
+});
+
 cmd('graph add', 'Add a graph node to the canvas', [
   'pmx-canvas graph add --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
   'pmx-canvas graph add --graphType composed --data \'[{"day":"Mon","visits":10,"conversion":0.4}]\' --xKey day --barKey visits --lineKey conversion',
@@ -1176,6 +1285,7 @@ cmd('node schema', 'Describe server-supported node create schemas and canonical 
           rootShape: result.jsonRender.rootShape,
         },
         graph: result.graph,
+        htmlPrimitives: result.htmlPrimitives?.map((entry) => summarizeHtmlPrimitive(entry)) ?? [],
         mcp: result.mcp,
       });
       return;
@@ -1898,19 +2008,31 @@ cmd('validate', 'Validate the current layout for collisions and missing edge end
 cmd('validate spec', 'Validate a json-render spec or graph payload without creating a node', [
   'pmx-canvas validate spec --type json-render --spec-file ./dashboard.json',
   'pmx-canvas validate spec --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
+  'pmx-canvas validate spec --type html-primitive --kind choice-grid --data-file ./options.json',
   'pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary',
 ], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('validate spec');
 
   const type = getStringFlag(flags, 'type');
-  if (type !== 'json-render' && type !== 'graph') {
-    die('validate spec requires --type json-render or --type graph.');
+  if (type !== 'json-render' && type !== 'graph' && type !== 'html-primitive') {
+    die('validate spec requires --type json-render, --type graph, or --type html-primitive.');
   }
 
-  const body = type === 'json-render'
-    ? { type, spec: (await buildJsonRenderRequestBody({ ...flags, title: String(flags.title ?? 'Validation') })).spec }
-    : { type, ...(await buildGraphRequestBody(flags)) };
+  let body: Record<string, unknown>;
+  if (type === 'json-render') {
+    body = { type, spec: (await buildJsonRenderRequestBody({ ...flags, title: String(flags.title ?? 'Validation') })).spec };
+  } else if (type === 'html-primitive') {
+    const primitiveBody = await buildHtmlPrimitiveRequestBody(flags);
+    body = {
+      type,
+      kind: primitiveBody.primitive,
+      ...(typeof primitiveBody.title === 'string' ? { title: primitiveBody.title } : {}),
+      ...(isRecord(primitiveBody.data) ? { data: primitiveBody.data } : {}),
+    };
+  } else {
+    body = { type, ...(await buildGraphRequestBody(flags)) };
+  }
 
   const result = await api('POST', '/api/canvas/schema/validate', body) as Record<string, unknown>;
   if (flags.summary) {
@@ -2302,8 +2424,16 @@ function showCommandHelp(name: string): void {
     console.log('  pmx-canvas node add --help --type webpage');
     console.log('  pmx-canvas node add --help --type json-render --component Table');
     console.log('  pmx-canvas node add --help --type graph');
+    console.log('  pmx-canvas html primitive schema --summary');
     console.log('  pmx-canvas node add --help --type webpage --json');
     console.log('  Use --strict-size to keep explicit width/height fixed and scroll overflowing content.');
+  }
+  if (name === 'html primitive add' || name === 'html primitive schema') {
+    console.log('\nPrimitive flags:');
+    console.log('  --kind <name>              Run `pmx-canvas html primitive schema --summary` for the full catalog');
+    console.log('  --data-file <path>         JSON object payload for the primitive');
+    console.log('  --data-json, --data <json> Inline JSON object payload');
+    console.log('  --stdin                    Read JSON object payload from stdin');
   }
   if (name === 'json-render') {
     console.log('\nOptions:');
@@ -2319,6 +2449,10 @@ function showCommandHelp(name: string): void {
     console.log('  Use --node-height/--nodeHeight for canvas frame height; use --chart-height for chart content height. --height is kept as a frame-height alias for compatibility.');
     console.log('  Pass --show-legend false to hide legends in compact node layouts.');
   }
+  if (name === 'validate spec') {
+    console.log('\nHTML primitive flags:');
+    console.log('  --type html-primitive --kind <name> --data-file ./payload.json');
+  }
   if (name === 'node schema') {
     console.log('\nFilters:');
     console.log('  --summary                 Show compact schema summaries');
@@ -2328,6 +2462,7 @@ function showCommandHelp(name: string): void {
   if (name === 'validate spec') {
     console.log('\nOutput control:');
     console.log('  --summary                 Return only validation summary metadata');
+    console.log('  For --type html-primitive, pass --kind plus optional --data-file/--data-json.');
   }
   if (name === 'snapshot list') {
     console.log('\nOptions:');
@@ -2415,6 +2550,8 @@ Node commands:
   pmx-canvas node remove <id>         Remove a node
   pmx-canvas json-render              Show json-render schema/examples
   pmx-canvas graph add [options]      Add a graph node
+  pmx-canvas html primitive add        Add an HTML communication primitive
+  pmx-canvas html primitive schema     List HTML primitive kinds and shapes
 
 Edge commands:
   pmx-canvas edge add [options]       Add an edge between nodes
@@ -2488,6 +2625,8 @@ Examples:
   pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx
   pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value
   pmx-canvas graph add --graph-type bar --data-file ./metrics.json --x-key label --y-key value
+  pmx-canvas html primitive add --kind choice-grid --data-file ./options.json --title "Options"
+  pmx-canvas html primitive schema --summary
   pmx-canvas node add --help --type webpage
   pmx-canvas node schema --type json-render
   pmx-canvas node schema --type json-render --component Table --summary
@@ -2531,6 +2670,12 @@ async function readStdin(): Promise<string> {
 export async function runAgentCli(args: string[]): Promise<void> {
   if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
     showTopLevelHelp();
+    return;
+  }
+
+  const threeWord = `${args[0]} ${args[1] ?? ''} ${args[2] ?? ''}`.trim();
+  if (COMMANDS[threeWord]) {
+    await COMMANDS[threeWord].run(args.slice(3));
     return;
   }
 

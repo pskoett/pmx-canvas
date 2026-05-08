@@ -90,7 +90,7 @@ export interface CanvasAnnotationPoint {
 }
 export interface CanvasAnnotation {
     id: string;
-    type: 'freehand';
+    type: 'freehand' | 'text';
     points: CanvasAnnotationPoint[];
     bounds: {
         x: number;
@@ -100,6 +100,7 @@ export interface CanvasAnnotation {
     };
     color: string;
     width: number;
+    text?: string;
     label?: string;
     createdAt: string;
 }
@@ -133,6 +134,9 @@ interface GroupNodesOptions {
     preservePositions?: boolean;
     layout?: 'grid' | 'column' | 'flow';
     keepGroupFrame?: boolean;
+}
+interface ApplyUpdatesOptions {
+    skipGroupChildTranslation?: boolean;
 }
 declare class CanvasStateManager {
     private nodes;
@@ -231,7 +235,7 @@ declare class CanvasStateManager {
     private removeEdgesForNode;
     getLayout(): CanvasLayout;
     getLayoutForPersistence(): CanvasLayout;
-    applyUpdates(updates: CanvasNodeUpdate[]): {
+    applyUpdates(updates: CanvasNodeUpdate[], options?: ApplyUpdatesOptions): {
         applied: number;
         skipped: number;
     };

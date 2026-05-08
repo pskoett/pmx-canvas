@@ -182,6 +182,47 @@ describe('agent CLI node commands', () => {
     expect(stored.data.content).toBeUndefined();
   });
 
+  test('html primitive CLI creates generated html node with primitive metadata', async () => {
+    const dataPath = join(workspaceRoot, 'options-primitive.json');
+    writeFileSync(dataPath, JSON.stringify({
+      items: [
+        { title: 'HTML artifact', summary: 'Readable and interactive.', pros: ['Visual'], cons: ['More verbose'] },
+      ],
+    }), 'utf-8');
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'html',
+        'primitive',
+        'add',
+        '--kind',
+        'choice-grid',
+        '--title',
+        'CLI Primitive',
+        '--data-file',
+        dataPath,
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      id: string;
+      type: string;
+      data: Record<string, unknown>;
+      primitive: { kind: string };
+    };
+    expect(output.ok).toBe(true);
+    expect(output.type).toBe('html');
+    expect(output.primitive.kind).toBe('choice-grid');
+    expect(output.data.htmlPrimitive).toBe('choice-grid');
+    expect(output.data.html).toContain('HTML artifact');
+  });
+
   test('node add forwards trace fields advertised by schema help', async () => {
     const log = mock(() => {});
     const originalLog = console.log;
@@ -1442,12 +1483,14 @@ describe('agent CLI node commands', () => {
       await runAgentCli(['node', 'add', '--help', '--type', 'webpage', '--json']);
       await runAgentCli(['node', 'schema', '--summary']);
       await runAgentCli(['node', 'add', '--help', '--type', 'html', '--json']);
+      await runAgentCli(['html', 'primitive', 'schema', '--kind', 'choice-grid', '--summary']);
       await runAgentCli(['validate', 'spec', '--type', 'json-render', '--spec-file', specPath, '--summary']);
+      await runAgentCli(['validate', 'spec', '--type', 'html-primitive', '--kind', 'choice-grid', '--data-json', '{"items":[{"title":"A"}]}', '--summary']);
     } finally {
       console.log = originalLog;
     }
 
-    expect(log).toHaveBeenCalledTimes(8);
+    expect(log).toHaveBeenCalledTimes(10);
 
     const webpageSchema = JSON.parse(log.mock.calls[0]?.[0] as string) as {
       type: string;
@@ -1507,8 +1550,16 @@ describe('agent CLI node commands', () => {
     expect(htmlHelp.type).toBe('html');
     expect(htmlHelp.endpoint).toBe('/api/canvas/node');
     expect(htmlHelp.fields.find((field) => field.name === 'html')?.aliases).toContain('content');
+    expect(htmlHelp.fields.some((field) => field.name === 'primitive')).toBe(true);
 
-    const validation = JSON.parse(log.mock.calls[7]?.[0] as string) as {
+    const htmlPrimitive = JSON.parse(log.mock.calls[7]?.[0] as string) as {
+      kind: string;
+      dataShape: string;
+    };
+    expect(htmlPrimitive.kind).toBe('choice-grid');
+    expect(htmlPrimitive.dataShape).toContain('items');
+
+    const validation = JSON.parse(log.mock.calls[8]?.[0] as string) as {
       ok: boolean;
       type: string;
       summary: { elementCount: number };
@@ -1516,6 +1567,16 @@ describe('agent CLI node commands', () => {
     expect(validation.ok).toBe(true);
     expect(validation.type).toBe('json-render');
     expect(validation.summary.elementCount).toBe(1);
+
+    const primitiveValidation = JSON.parse(log.mock.calls[9]?.[0] as string) as {
+      ok: boolean;
+      type: string;
+      summary: { kind: string; dataKeys: string[] };
+    };
+    expect(primitiveValidation.ok).toBe(true);
+    expect(primitiveValidation.type).toBe('html-primitive');
+    expect(primitiveValidation.summary.kind).toBe('choice-grid');
+    expect(primitiveValidation.summary.dataKeys).toContain('items');
   });
 
   test('node add can request strict sizing for scroll-contained content', async () => {

@@ -1,0 +1,1143 @@
+{
+  "version": 1,
+  "snapshot": {
+    "id": "snap-mo0xsd9u-0zzq",
+    "name": "Full single-batch build",
+    "createdAt": "2026-04-16T03:45:37.074Z",
+    "nodeCount": 19,
+    "edgeCount": 6
+  },
+  "viewport": {
+    "x": 0,
+    "y": 0,
+    "scale": 1
+  },
+  "nodes": [
+    {
+      "id": "node-mo0xsd9l-jobh",
+      "type": "markdown",
+      "position": {
+        "x": 40,
+        "y": 40
+      },
+      "size": {
+        "width": 2800,
+        "height": 140
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "Tech Enabling OKRs + DX — C1 2026",
+        "content": "# Tech Enabling Canvas\n\n**Teams:** DVT · DCP | **Cycle:** C1 2026 | **DX:** Dec 2025 (120 respondents, 93%)",
+        "arrangeLocked": true
+      }
+    },
+    {
+      "id": "node-mo0xsd9m-a1t5",
+      "type": "markdown",
+      "position": {
+        "x": 40,
+        "y": 240
+      },
+      "size": {
+        "width": 600,
+        "height": 200
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "DVT O1 — Self-service",
+        "content": "| KR | Target | Conf |\n|----|--------|------|\n| +1/5 CSAT | 100% | 5/10 |\n| 3 interfaces | 100% | 5/10 |\n| 5 use cases | 100% | 5/10 |",
+        "parentGroup": "group-mo0xsd9s-payr"
+      }
+    },
+    {
+      "id": "node-mo0xsd9m-hp10",
+      "type": "markdown",
+      "position": {
+        "x": 40,
+        "y": 540
+      },
+      "size": {
+        "width": 600,
+        "height": 200
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "DVT O2 — Dependabot",
+        "content": "| KR | Target | Conf |\n|----|--------|------|\n| 30% drop vulns | 100% | 5/10 |\n| +50 PRs | 100% | 5/10 |\n| 26 teams scan | 100% | 5/10 |\n| 5 auto-merge | 100% | 5/10 |\n| 15 close vulns | 100% | 5/10 |",
+        "parentGroup": "group-mo0xsd9s-payr"
+      }
+    },
+    {
+      "id": "node-mo0xsd9m-5iut",
+      "type": "markdown",
+      "position": {
+        "x": 40,
+        "y": 900
+      },
+      "size": {
+        "width": 600,
+        "height": 200
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "DVT O3 — GitOps",
+        "content": "| KR | Target | Conf |\n|----|--------|------|\n| 2+ teams change deploy | 100% | 5/10 |\n| 1+ step removed | 100% | 5/10 |\n| 3 teams faster loop | 100% | 5/10 |",
+        "parentGroup": "group-mo0xsd9s-payr"
+      }
+    },
+    {
+      "id": "node-mo0xsd9m-9f5s",
+      "type": "markdown",
+      "position": {
+        "x": 40,
+        "y": 1200
+      },
+      "size": {
+        "width": 600,
+        "height": 200
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "DVT O4 — FDE/Catalog",
+        "content": "| KR | Target | Conf |\n|----|--------|------|\n| Golden paths | 100% | 5/10 |\n| Highest value | 100% | 5/10 |\n| TBD | - | 5/10 |",
+        "parentGroup": "group-mo0xsd9s-payr"
+      }
+    },
+    {
+      "id": "node-mo0xsd9m-e9jc",
+      "type": "markdown",
+      "position": {
+        "x": 680,
+        "y": 240
+      },
+      "size": {
+        "width": 600,
+        "height": 200
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "DCP O1 — AWS PIM",
+        "content": "| KR | Target | Conf |\n|----|--------|------|\n| Reduce no-PIM | TBD | 8/10 |\n| Role model | 1 | TBD |",
+        "parentGroup": "group-mo0xsd9t-p8g1"
+      }
+    },
+    {
+      "id": "node-mo0xsd9m-5dkm",
+      "type": "markdown",
+      "position": {
+        "x": 680,
+        "y": 500
+      },
+      "size": {
+        "width": 600,
+        "height": 200
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "DCP O2 — V2 Pilot",
+        "content": "| KR | Target | Conf |\n|----|--------|------|\n| Manual V2 | 100% | 10/10 |\n| EKS GitOps | 100% | 5/10 |\n| v1→v2 docs | TBD | 6/10 |\n| DVT workload | 1 | 6/10 |",
+        "parentGroup": "group-mo0xsd9t-p8g1"
+      }
+    },
+    {
+      "id": "node-mo0xsd9m-u0cb",
+      "type": "markdown",
+      "position": {
+        "x": 680,
+        "y": 820
+      },
+      "size": {
+        "width": 600,
+        "height": 200
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "DCP O3 — V2 Arch",
+        "content": "| KR | Target | Conf |\n|----|--------|------|\n| Architecture | 100% | 8/10 |\n| Shared resp | 100% | 7/10 |\n| Tenant | 100% | 10/10 |\n| Deps mapped | 100% | 8/10 |\n| Golden path | 100% | 8/10 |",
+        "parentGroup": "group-mo0xsd9t-p8g1"
+      }
+    },
+    {
+      "id": "graph-mo0xsd9q-lssn",
+      "type": "graph",
+      "position": {
+        "x": 1320,
+        "y": 240
+      },
+      "size": {
+        "width": 760,
+        "height": 520
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "DVT critical (0-100)",
+        "spec": {
+          "root": "card",
+          "elements": {
+            "card": {
+              "type": "Card",
+              "props": {
+                "title": "DVT critical (0-100)",
+                "maxWidth": "full",
+                "centered": false
+              },
+              "children": [
+                "chart"
+              ]
+            },
+            "chart": {
+              "type": "BarChart",
+              "props": {
+                "data": [
+                  {
+                    "metric": "Red tape",
+                    "score": 0
+                  },
+                  {
+                    "metric": "Deep work",
+                    "score": 17
+                  },
+                  {
+                    "metric": "Meeting",
+                    "score": 33
+                  },
+                  {
+                    "metric": "Info-seek",
+                    "score": 50
+                  },
+                  {
+                    "metric": "Review wait",
+                    "score": 50
+                  },
+                  {
+                    "metric": "Deploy lead",
+                    "score": 25
+                  }
+                ],
+                "height": 480,
+                "xKey": "metric",
+                "yKey": "score",
+                "color": "#ef4444"
+              },
+              "children": []
+            }
+          }
+        },
+        "url": "/api/canvas/json-render/view?nodeId=graph-mo0xsd9q-lssn",
+        "trustedDomain": true,
+        "sourceServer": "pmx-canvas",
+        "hostMode": "hosted",
+        "viewerType": "graph",
+        "graphConfig": {
+          "title": "DVT critical (0-100)",
+          "graphType": "bar",
+          "data": [
+            {
+              "metric": "Red tape",
+              "score": 0
+            },
+            {
+              "metric": "Deep work",
+              "score": 17
+            },
+            {
+              "metric": "Meeting",
+              "score": 33
+            },
+            {
+              "metric": "Info-seek",
+              "score": 50
+            },
+            {
+              "metric": "Review wait",
+              "score": 50
+            },
+            {
+              "metric": "Deploy lead",
+              "score": 25
+            }
+          ],
+          "xKey": "metric",
+          "yKey": "score",
+          "color": "#ef4444",
+          "height": 480
+        },
+        "parentGroup": "group-mo0xsd9t-cpwj"
+      }
+    },
+    {
+      "id": "graph-mo0xsd9r-yu51",
+      "type": "graph",
+      "position": {
+        "x": 1320,
+        "y": 760
+      },
+      "size": {
+        "width": 760,
+        "height": 520
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "DVT wins (delta)",
+        "spec": {
+          "root": "card",
+          "elements": {
+            "card": {
+              "type": "Card",
+              "props": {
+                "title": "DVT wins (delta)",
+                "maxWidth": "full",
+                "centered": false
+              },
+              "children": [
+                "chart"
+              ]
+            },
+            "chart": {
+              "type": "BarChart",
+              "props": {
+                "data": [
+                  {
+                    "metric": "Docs",
+                    "delta": 50
+                  },
+                  {
+                    "metric": "Release",
+                    "delta": 50
+                  },
+                  {
+                    "metric": "Speed",
+                    "delta": 33
+                  },
+                  {
+                    "metric": "Planning",
+                    "delta": 33
+                  },
+                  {
+                    "metric": "Prod debug",
+                    "delta": 30
+                  },
+                  {
+                    "metric": "Deploy freq",
+                    "delta": 25
+                  }
+                ],
+                "height": 480,
+                "xKey": "metric",
+                "yKey": "delta",
+                "color": "#22c55e"
+              },
+              "children": []
+            }
+          }
+        },
+        "url": "/api/canvas/json-render/view?nodeId=graph-mo0xsd9r-yu51",
+        "trustedDomain": true,
+        "sourceServer": "pmx-canvas",
+        "hostMode": "hosted",
+        "viewerType": "graph",
+        "graphConfig": {
+          "title": "DVT wins (delta)",
+          "graphType": "bar",
+          "data": [
+            {
+              "metric": "Docs",
+              "delta": 50
+            },
+            {
+              "metric": "Release",
+              "delta": 50
+            },
+            {
+              "metric": "Speed",
+              "delta": 33
+            },
+            {
+              "metric": "Planning",
+              "delta": 33
+            },
+            {
+              "metric": "Prod debug",
+              "delta": 30
+            },
+            {
+              "metric": "Deploy freq",
+              "delta": 25
+            }
+          ],
+          "xKey": "metric",
+          "yKey": "delta",
+          "color": "#22c55e",
+          "height": 480
+        },
+        "parentGroup": "group-mo0xsd9t-cpwj"
+      }
+    },
+    {
+      "id": "graph-mo0xsd9r-dk02",
+      "type": "graph",
+      "position": {
+        "x": 1320,
+        "y": 1280
+      },
+      "size": {
+        "width": 760,
+        "height": 520
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "DCP critical (0-100)",
+        "spec": {
+          "root": "card",
+          "elements": {
+            "card": {
+              "type": "Card",
+              "props": {
+                "title": "DCP critical (0-100)",
+                "maxWidth": "full",
+                "centered": false
+              },
+              "children": [
+                "chart"
+              ]
+            },
+            "chart": {
+              "type": "BarChart",
+              "props": {
+                "data": [
+                  {
+                    "metric": "Interrupts",
+                    "score": 0
+                  },
+                  {
+                    "metric": "Dev reload",
+                    "score": 0
+                  },
+                  {
+                    "metric": "Decisions",
+                    "score": 20
+                  },
+                  {
+                    "metric": "Prod debug",
+                    "score": 20
+                  },
+                  {
+                    "metric": "Speed",
+                    "score": 25
+                  },
+                  {
+                    "metric": "Dev env",
+                    "score": 40
+                  }
+                ],
+                "height": 480,
+                "xKey": "metric",
+                "yKey": "score",
+                "color": "#ef4444"
+              },
+              "children": []
+            }
+          }
+        },
+        "url": "/api/canvas/json-render/view?nodeId=graph-mo0xsd9r-dk02",
+        "trustedDomain": true,
+        "sourceServer": "pmx-canvas",
+        "hostMode": "hosted",
+        "viewerType": "graph",
+        "graphConfig": {
+          "title": "DCP critical (0-100)",
+          "graphType": "bar",
+          "data": [
+            {
+              "metric": "Interrupts",
+              "score": 0
+            },
+            {
+              "metric": "Dev reload",
+              "score": 0
+            },
+            {
+              "metric": "Decisions",
+              "score": 20
+            },
+            {
+              "metric": "Prod debug",
+              "score": 20
+            },
+            {
+              "metric": "Speed",
+              "score": 25
+            },
+            {
+              "metric": "Dev env",
+              "score": 40
+            }
+          ],
+          "xKey": "metric",
+          "yKey": "score",
+          "color": "#ef4444",
+          "height": 480
+        },
+        "parentGroup": "group-mo0xsd9t-cpwj"
+      }
+    },
+    {
+      "id": "graph-mo0xsd9r-4ptf",
+      "type": "graph",
+      "position": {
+        "x": 1320,
+        "y": 1800
+      },
+      "size": {
+        "width": 760,
+        "height": 520
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "DCP strong (0-100)",
+        "spec": {
+          "root": "card",
+          "elements": {
+            "card": {
+              "type": "Card",
+              "props": {
+                "title": "DCP strong (0-100)",
+                "maxWidth": "full",
+                "centered": false
+              },
+              "children": [
+                "chart"
+              ]
+            },
+            "chart": {
+              "type": "BarChart",
+              "props": {
+                "data": [
+                  {
+                    "metric": "AI code",
+                    "score": 100
+                  },
+                  {
+                    "metric": "AI time",
+                    "score": 100
+                  },
+                  {
+                    "metric": "Review",
+                    "score": 100
+                  },
+                  {
+                    "metric": "Comprehension",
+                    "score": 100
+                  },
+                  {
+                    "metric": "Meeting",
+                    "score": 100
+                  },
+                  {
+                    "metric": "Info-seek",
+                    "score": 100
+                  }
+                ],
+                "height": 480,
+                "xKey": "metric",
+                "yKey": "score",
+                "color": "#22c55e"
+              },
+              "children": []
+            }
+          }
+        },
+        "url": "/api/canvas/json-render/view?nodeId=graph-mo0xsd9r-4ptf",
+        "trustedDomain": true,
+        "sourceServer": "pmx-canvas",
+        "hostMode": "hosted",
+        "viewerType": "graph",
+        "graphConfig": {
+          "title": "DCP strong (0-100)",
+          "graphType": "bar",
+          "data": [
+            {
+              "metric": "AI code",
+              "score": 100
+            },
+            {
+              "metric": "AI time",
+              "score": 100
+            },
+            {
+              "metric": "Review",
+              "score": 100
+            },
+            {
+              "metric": "Comprehension",
+              "score": 100
+            },
+            {
+              "metric": "Meeting",
+              "score": 100
+            },
+            {
+              "metric": "Info-seek",
+              "score": 100
+            }
+          ],
+          "xKey": "metric",
+          "yKey": "score",
+          "color": "#22c55e",
+          "height": 480
+        },
+        "parentGroup": "group-mo0xsd9t-cpwj"
+      }
+    },
+    {
+      "id": "graph-mo0xsd9s-099f",
+      "type": "graph",
+      "position": {
+        "x": 2120,
+        "y": 240
+      },
+      "size": {
+        "width": 720,
+        "height": 520
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "AI-authored code %",
+        "spec": {
+          "root": "card",
+          "elements": {
+            "card": {
+              "type": "Card",
+              "props": {
+                "title": "AI-authored code %",
+                "maxWidth": "full",
+                "centered": false
+              },
+              "children": [
+                "chart"
+              ]
+            },
+            "chart": {
+              "type": "BarChart",
+              "props": {
+                "data": [
+                  {
+                    "team": "DCP",
+                    "pct": 30.5
+                  },
+                  {
+                    "team": "Org avg",
+                    "pct": 15
+                  },
+                  {
+                    "team": "DVT",
+                    "pct": 14.5
+                  }
+                ],
+                "height": 480,
+                "xKey": "team",
+                "yKey": "pct",
+                "color": "#8b5cf6"
+              },
+              "children": []
+            }
+          }
+        },
+        "url": "/api/canvas/json-render/view?nodeId=graph-mo0xsd9s-099f",
+        "trustedDomain": true,
+        "sourceServer": "pmx-canvas",
+        "hostMode": "hosted",
+        "viewerType": "graph",
+        "graphConfig": {
+          "title": "AI-authored code %",
+          "graphType": "bar",
+          "data": [
+            {
+              "team": "DCP",
+              "pct": 30.5
+            },
+            {
+              "team": "Org avg",
+              "pct": 15
+            },
+            {
+              "team": "DVT",
+              "pct": 14.5
+            }
+          ],
+          "xKey": "team",
+          "yKey": "pct",
+          "color": "#8b5cf6",
+          "height": 480
+        },
+        "parentGroup": "group-mo0xsd9t-cpwj"
+      }
+    },
+    {
+      "id": "graph-mo0xsd9s-eaqs",
+      "type": "graph",
+      "position": {
+        "x": 2120,
+        "y": 760
+      },
+      "size": {
+        "width": 720,
+        "height": 520
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "Deep work trend",
+        "spec": {
+          "root": "card",
+          "elements": {
+            "card": {
+              "type": "Card",
+              "props": {
+                "title": "Deep work trend",
+                "maxWidth": "full",
+                "centered": false
+              },
+              "children": [
+                "chart"
+              ]
+            },
+            "chart": {
+              "type": "LineChart",
+              "props": {
+                "data": [
+                  {
+                    "snap": "Oct DVT",
+                    "score": 17
+                  },
+                  {
+                    "snap": "Dec DVT",
+                    "score": 17
+                  },
+                  {
+                    "snap": "Oct DCP",
+                    "score": 33
+                  },
+                  {
+                    "snap": "Dec DCP",
+                    "score": 20
+                  }
+                ],
+                "height": 480,
+                "xKey": "snap",
+                "yKey": "score",
+                "color": "#f59e0b"
+              },
+              "children": []
+            }
+          }
+        },
+        "url": "/api/canvas/json-render/view?nodeId=graph-mo0xsd9s-eaqs",
+        "trustedDomain": true,
+        "sourceServer": "pmx-canvas",
+        "hostMode": "hosted",
+        "viewerType": "graph",
+        "graphConfig": {
+          "title": "Deep work trend",
+          "graphType": "line",
+          "data": [
+            {
+              "snap": "Oct DVT",
+              "score": 17
+            },
+            {
+              "snap": "Dec DVT",
+              "score": 17
+            },
+            {
+              "snap": "Oct DCP",
+              "score": 33
+            },
+            {
+              "snap": "Dec DCP",
+              "score": 20
+            }
+          ],
+          "xKey": "snap",
+          "yKey": "score",
+          "color": "#f59e0b",
+          "height": 480
+        },
+        "parentGroup": "group-mo0xsd9t-cpwj"
+      }
+    },
+    {
+      "id": "graph-mo0xsd9s-sm0g",
+      "type": "graph",
+      "position": {
+        "x": 2120,
+        "y": 1280
+      },
+      "size": {
+        "width": 720,
+        "height": 520
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "DCP interruptions/day",
+        "spec": {
+          "root": "card",
+          "elements": {
+            "card": {
+              "type": "Card",
+              "props": {
+                "title": "DCP interruptions/day",
+                "maxWidth": "full",
+                "centered": false
+              },
+              "children": [
+                "chart"
+              ]
+            },
+            "chart": {
+              "type": "LineChart",
+              "props": {
+                "data": [
+                  {
+                    "snap": "Apr 25",
+                    "perDay": 3.5
+                  },
+                  {
+                    "snap": "Oct 25",
+                    "perDay": 4.25
+                  },
+                  {
+                    "snap": "Dec 25",
+                    "perDay": 8.5
+                  }
+                ],
+                "height": 480,
+                "xKey": "snap",
+                "yKey": "perDay",
+                "color": "#dc2626"
+              },
+              "children": []
+            }
+          }
+        },
+        "url": "/api/canvas/json-render/view?nodeId=graph-mo0xsd9s-sm0g",
+        "trustedDomain": true,
+        "sourceServer": "pmx-canvas",
+        "hostMode": "hosted",
+        "viewerType": "graph",
+        "graphConfig": {
+          "title": "DCP interruptions/day",
+          "graphType": "line",
+          "data": [
+            {
+              "snap": "Apr 25",
+              "perDay": 3.5
+            },
+            {
+              "snap": "Oct 25",
+              "perDay": 4.25
+            },
+            {
+              "snap": "Dec 25",
+              "perDay": 8.5
+            }
+          ],
+          "xKey": "snap",
+          "yKey": "perDay",
+          "color": "#dc2626",
+          "height": 480
+        },
+        "parentGroup": "group-mo0xsd9t-cpwj"
+      }
+    },
+    {
+      "id": "graph-mo0xsd9s-ft44",
+      "type": "graph",
+      "position": {
+        "x": 2120,
+        "y": 1800
+      },
+      "size": {
+        "width": 720,
+        "height": 520
+      },
+      "zIndex": 1,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "CSAT comparison",
+        "spec": {
+          "root": "card",
+          "elements": {
+            "card": {
+              "type": "Card",
+              "props": {
+                "title": "CSAT comparison",
+                "maxWidth": "full",
+                "centered": false
+              },
+              "children": [
+                "chart"
+              ]
+            },
+            "chart": {
+              "type": "BarChart",
+              "props": {
+                "data": [
+                  {
+                    "tool": "Copilot DCP",
+                    "score": 100
+                  },
+                  {
+                    "tool": "Copilot DVT",
+                    "score": 100
+                  },
+                  {
+                    "tool": "Datadog",
+                    "score": 67
+                  },
+                  {
+                    "tool": "Confluence",
+                    "score": 33
+                  },
+                  {
+                    "tool": "Jira DCP",
+                    "score": 0
+                  }
+                ],
+                "height": 480,
+                "xKey": "tool",
+                "yKey": "score",
+                "color": "#06b6d4"
+              },
+              "children": []
+            }
+          }
+        },
+        "url": "/api/canvas/json-render/view?nodeId=graph-mo0xsd9s-ft44",
+        "trustedDomain": true,
+        "sourceServer": "pmx-canvas",
+        "hostMode": "hosted",
+        "viewerType": "graph",
+        "graphConfig": {
+          "title": "CSAT comparison",
+          "graphType": "bar",
+          "data": [
+            {
+              "tool": "Copilot DCP",
+              "score": 100
+            },
+            {
+              "tool": "Copilot DVT",
+              "score": 100
+            },
+            {
+              "tool": "Datadog",
+              "score": 67
+            },
+            {
+              "tool": "Confluence",
+              "score": 33
+            },
+            {
+              "tool": "Jira DCP",
+              "score": 0
+            }
+          ],
+          "xKey": "tool",
+          "yKey": "score",
+          "color": "#06b6d4",
+          "height": 480
+        },
+        "parentGroup": "group-mo0xsd9t-cpwj"
+      }
+    },
+    {
+      "id": "group-mo0xsd9s-payr",
+      "type": "group",
+      "position": {
+        "x": 0,
+        "y": 168
+      },
+      "size": {
+        "width": 680,
+        "height": 1272
+      },
+      "zIndex": 0,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "DVT OKRs",
+        "children": [
+          "node-mo0xsd9m-a1t5",
+          "node-mo0xsd9m-hp10",
+          "node-mo0xsd9m-5iut",
+          "node-mo0xsd9m-9f5s"
+        ],
+        "frameMode": "fit",
+        "color": "#6ea8ff",
+        "arrangeLocked": true
+      }
+    },
+    {
+      "id": "group-mo0xsd9t-p8g1",
+      "type": "group",
+      "position": {
+        "x": 640,
+        "y": 168
+      },
+      "size": {
+        "width": 680,
+        "height": 892
+      },
+      "zIndex": 0,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "DCP OKRs",
+        "children": [
+          "node-mo0xsd9m-e9jc",
+          "node-mo0xsd9m-5dkm",
+          "node-mo0xsd9m-u0cb"
+        ],
+        "frameMode": "fit",
+        "color": "#f59e0b",
+        "arrangeLocked": true
+      }
+    },
+    {
+      "id": "group-mo0xsd9t-cpwj",
+      "type": "group",
+      "position": {
+        "x": 1280,
+        "y": 168
+      },
+      "size": {
+        "width": 1600,
+        "height": 2192
+      },
+      "zIndex": 0,
+      "collapsed": false,
+      "pinned": false,
+      "dockPosition": null,
+      "data": {
+        "title": "DX Dec 2025",
+        "children": [
+          "graph-mo0xsd9q-lssn",
+          "graph-mo0xsd9r-yu51",
+          "graph-mo0xsd9r-dk02",
+          "graph-mo0xsd9r-4ptf",
+          "graph-mo0xsd9s-099f",
+          "graph-mo0xsd9s-eaqs",
+          "graph-mo0xsd9s-sm0g",
+          "graph-mo0xsd9s-ft44"
+        ],
+        "frameMode": "fit",
+        "color": "#22c55e",
+        "arrangeLocked": true
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "edge-mo0xsd9u-apq0",
+      "from": "node-mo0xsd9m-a1t5",
+      "to": "graph-mo0xsd9s-099f",
+      "type": "references",
+      "label": "AI gap",
+      "style": "dashed"
+    },
+    {
+      "id": "edge-mo0xsd9u-lin2",
+      "from": "node-mo0xsd9m-hp10",
+      "to": "graph-mo0xsd9q-lssn",
+      "type": "references",
+      "label": "build 100",
+      "style": "dashed"
+    },
+    {
+      "id": "edge-mo0xsd9u-oxi9",
+      "from": "node-mo0xsd9m-5iut",
+      "to": "graph-mo0xsd9r-yu51",
+      "type": "references",
+      "label": "deploy +25",
+      "style": "dotted"
+    },
+    {
+      "id": "edge-mo0xsd9u-g44m",
+      "from": "node-mo0xsd9m-5dkm",
+      "to": "graph-mo0xsd9s-sm0g",
+      "type": "references",
+      "label": "8.5/day",
+      "style": "dashed",
+      "animated": true
+    },
+    {
+      "id": "edge-mo0xsd9u-p4nw",
+      "from": "node-mo0xsd9m-5dkm",
+      "to": "graph-mo0xsd9s-eaqs",
+      "type": "references",
+      "label": "deep work 20",
+      "style": "dashed"
+    },
+    {
+      "id": "edge-mo0xsd9u-ysd4",
+      "from": "node-mo0xsd9m-u0cb",
+      "to": "graph-mo0xsd9r-dk02",
+      "type": "references",
+      "label": "decisions 20",
+      "style": "dashed"
+    }
+  ],
+  "contextPins": [
+    "node-mo0xsd9m-5dkm",
+    "graph-mo0xsd9s-sm0g"
+  ]
+}

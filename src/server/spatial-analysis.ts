@@ -160,7 +160,7 @@ function summarizeAnnotationForSpatialContext(
   );
   return {
     id: annotation.id,
-    label: annotation.label ?? null,
+    label: annotation.label ?? annotation.text ?? null,
     bounds: annotation.bounds,
     targetNodeIds: targetNodes.map((node) => node.id),
     targetNodeTitles,
@@ -312,7 +312,7 @@ export function searchNodes(
 
   for (const node of nodes) {
     const title = ((node.data.title as string) ?? '').toLowerCase();
-    const content = ((node.data.content as string) ?? (node.data.fileContent as string) ?? '').toLowerCase();
+    const content = ((node.data.content as string) ?? (node.data.description as string) ?? (node.data.fileContent as string) ?? '').toLowerCase();
     const path = ((node.data.path as string) ?? '').toLowerCase();
     const description = ((node.data.description as string) ?? '').toLowerCase();
     const url = ((node.data.url as string) ?? '').toLowerCase();
@@ -331,7 +331,7 @@ export function searchNodes(
 
     // Extract a snippet around the first match in content
     let snippet = '';
-    const fullContent = (node.data.content as string) ?? (node.data.fileContent as string) ?? '';
+    const fullContent = (node.data.content as string) ?? (node.data.description as string) ?? (node.data.fileContent as string) ?? '';
     const matchIdx = fullContent.toLowerCase().indexOf(terms[0]);
     if (matchIdx >= 0) {
       const start = Math.max(0, matchIdx - 40);

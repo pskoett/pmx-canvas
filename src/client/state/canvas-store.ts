@@ -173,10 +173,18 @@ export function addNode(node: CanvasNodeState): void {
 }
 
 export function updateNode(id: string, patch: Partial<CanvasNodeState>): void {
+  updateNodeWithOptions(id, patch);
+}
+
+function updateNodeWithOptions(
+  id: string,
+  patch: Partial<CanvasNodeState>,
+  options: { skipGroupChildTranslation?: boolean } = {},
+): void {
   const existing = nodes.value.get(id);
   if (!existing) return;
   const next = new Map(nodes.value);
-  if (existing.type === 'group' && patch.position) {
+  if (existing.type === 'group' && patch.position && options.skipGroupChildTranslation !== true) {
     const deltaX = patch.position.x - existing.position.x;
     const deltaY = patch.position.y - existing.position.y;
     if (deltaX !== 0 || deltaY !== 0) {
@@ -272,9 +280,11 @@ export function removeAnnotation(id: string): void {
 }
 
 export async function createAnnotationFromClient(input: {
+  type?: CanvasAnnotation['type'];
   points: CanvasAnnotation['points'];
   color: string;
   width: number;
+  text?: string;
   label?: string;
 }): Promise<{ ok: boolean }> {
   try {
@@ -748,10 +758,10 @@ export function autoArrange(): void {
       updateNode(id, { position });
     }
     for (const [groupId, bounds] of result.groupBounds.entries()) {
-      updateNode(groupId, {
+      updateNodeWithOptions(groupId, {
         position: { x: bounds.x, y: bounds.y },
         size: { width: bounds.width, height: bounds.height },
-      });
+      }, { skipGroupChildTranslation: true });
     }
   });
   persistLayout();
@@ -766,10 +776,10 @@ export function forceDirectedArrange(): void {
       updateNode(id, { position });
     }
     for (const [groupId, bounds] of result.groupBounds.entries()) {
-      updateNode(groupId, {
+      updateNodeWithOptions(groupId, {
         position: { x: bounds.x, y: bounds.y },
         size: { width: bounds.width, height: bounds.height },
-      });
+      }, { skipGroupChildTranslation: true });
     }
   });
   persistLayout();

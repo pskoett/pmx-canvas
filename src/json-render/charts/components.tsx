@@ -8,7 +8,7 @@
  * a responsive chart inside a styled container.
  */
 
-import type { ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { BaseComponentProps } from '@json-render/react';
 import {
   BarChart as RechartsBarChart,
@@ -106,6 +106,40 @@ export const polarChartMargin = { top: 18, right: 40, bottom: 30, left: 40 };
 export const axisTickMargin = 8;
 export const legendMargin = { top: 10 };
 
+export function useChartFrameHeight(explicitHeight: number | null | undefined, fallbackHeight = 300) {
+  const frameRef = useRef<HTMLDivElement>(null);
+  const [autoHeight, setAutoHeight] = useState(fallbackHeight);
+
+  useEffect(() => {
+    const frame = frameRef.current;
+    if (!frame) return;
+
+    const updateHeight = () => {
+      const rect = frame.getBoundingClientRect();
+      const doc = document.documentElement;
+      const currentHeight = frame.getBoundingClientRect().height;
+      const overflow = Math.max(0, doc.scrollHeight - doc.clientHeight);
+      const available = overflow > 0 ? currentHeight - overflow : window.innerHeight - rect.top - 24;
+      setAutoHeight(Math.max(220, Math.round(available)));
+    };
+
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(document.documentElement);
+    observer.observe(frame);
+    window.addEventListener('resize', updateHeight);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', updateHeight);
+    };
+  }, [explicitHeight]);
+
+  return {
+    frameRef,
+    height: typeof explicitHeight === 'number' ? Math.min(explicitHeight, autoHeight) : autoHeight,
+  };
+}
+
 /** Shared wrapper for cartesian charts (Line + Bar). */
 export function CartesianChart({
   props,
@@ -117,12 +151,12 @@ export function CartesianChart({
   className?: string;
 }) {
   const chartData = processChartData(props.data ?? [], props.xKey, props.yKey, props.aggregate);
-  const h = props.height ?? 300;
+  const { frameRef, height } = useChartFrameHeight(props.height, 300);
 
   return (
-    <div className={`pmx-chart${className ? ` ${className}` : ''}`}>
+    <div ref={frameRef} className={`pmx-chart${className ? ` ${className}` : ''}`}>
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
-      <ResponsiveContainer width="100%" height={h}>
+      <ResponsiveContainer width="100%" height={height}>
         {children(chartData)}
       </ResponsiveContainer>
     </div>
@@ -172,12 +206,12 @@ function ChartBarChart({ props }: BaseComponentProps<CartesianChartProps>) {
 
 function ChartPieChart({ props }: BaseComponentProps<PieChartProps>) {
   const data = props.data ?? [];
-  const h = props.height ?? 300;
+  const { frameRef, height } = useChartFrameHeight(props.height, 300);
 
   return (
-    <div className="pmx-chart pmx-chart--pie">
+    <div ref={frameRef} className="pmx-chart pmx-chart--pie">
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
-      <ResponsiveContainer width="100%" height={h}>
+      <ResponsiveContainer width="100%" height={height}>
         <RechartsPieChart margin={polarChartMargin}>
           <Tooltip contentStyle={tooltipStyle} />
           {props.showLegend !== false && <Legend wrapperStyle={legendMargin} />}

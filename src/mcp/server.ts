@@ -25,6 +25,8 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { isAbsolute, relative, resolve } from 'node:path';
 import { z } from 'zod';
 import { canvasState, describeCanvasSchema, validateStructuredCanvasPayload } from '../server/index.js';
+import { isHtmlPrimitiveKind } from '../server/html-primitives.js';
+import type { HtmlPrimitiveKind } from '../server/html-primitives.js';
 import { createCanvasAccess, refreshCanvasAccess, type CanvasAccess } from './canvas-access.js';
 import { serializeNodeForAgentContext } from '../server/agent-context.js';
 import { wrapCanvasAutomationScript } from '../server/server.js';
@@ -55,6 +57,8 @@ const jsonRenderSpecSchema = z.union([
     children: z.array(z.string()).optional(),
   }).passthrough(),
 ]);
+
+const htmlPrimitiveKindSchema = z.string().refine(isHtmlPrimitiveKind, 'Unknown HTML primitive kind');
 
 function structuredSchemaDescription(): string {
   const routing = describeCanvasSchema().mcp.nodeTypeRouting;
@@ -429,6 +433,46 @@ export async function startMcpServer(): Promise<void> {
   );
 
   server.tool(
+    'canvas_add_html_primitive',
+    'Create a reusable HTML communication primitive as a normal sandboxed html node. Use this instead of long markdown for side-by-side choices, implementation plans, PR review sheets, module maps, design sheets, component galleries, flowcharts, slide decks, explainers, status reports, and throwaway editors with export/copy paths.',
+    {
+      kind: htmlPrimitiveKindSchema.describe('Primitive kind. Call canvas_describe_schema and read htmlPrimitives for data shapes and examples.'),
+      title: z.string().optional().describe('Node title shown in the canvas titlebar.'),
+      data: z.record(z.string(), z.unknown()).optional().describe('Primitive-specific data payload. See canvas_describe_schema.htmlPrimitives for each shape.'),
+      x: z.number().optional().describe('X position (auto-placed if omitted).'),
+      y: z.number().optional().describe('Y position (auto-placed if omitted).'),
+      width: z.number().optional().describe('Width in pixels (defaults per primitive).'),
+      height: z.number().optional().describe('Height in pixels (defaults per primitive).'),
+      strictSize: z.boolean().optional().describe('Keep explicit width/height fixed; iframe scrolls overflow internally.'),
+      full: z.boolean().optional().describe('Return the full created node payload. Default false returns compact metadata.'),
+      verbose: z.boolean().optional().describe('Alias for full:true.'),
+    },
+    async (input) => {
+      const c = await ensureCanvas();
+      const kind = input.kind as HtmlPrimitiveKind;
+      const result = await c.addHtmlPrimitive({
+        kind,
+        ...(typeof input.title === 'string' ? { title: input.title } : {}),
+        ...(input.data ? { data: input.data } : {}),
+        ...(typeof input.x === 'number' ? { x: input.x } : {}),
+        ...(typeof input.y === 'number' ? { y: input.y } : {}),
+        ...(typeof input.width === 'number' ? { width: input.width } : {}),
+        ...(typeof input.height === 'number' ? { height: input.height } : {}),
+        ...(input.strictSize === true ? { strictSize: true } : {}),
+      });
+      return {
+        content: [{
+          type: 'text',
+          text: JSON.stringify({
+            ...(await createdNodePayload(c, result.id, input)),
+            primitive: { kind: result.kind, title: result.title, htmlBytes: result.htmlBytes },
+          }, null, 2),
+        }],
+      };
+    },
+  );
+
+  server.tool(
     'canvas_open_mcp_app',
     'Connect to an external MCP server that declares a ui:// app resource, call the specified tool, and open the resulting MCP App inside a canvas mcp-app node. This is a full external-MCP transport call, not the CLI kind shortcut; use canvas_add_diagram for the built-in Excalidraw preset.',
     {
@@ -543,10 +587,13 @@ export async function startMcpServer(): Promise<void> {
 
   server.tool(
     'canvas_validate_spec',
-    'Validate a json-render spec or graph payload without creating a node. Returns the normalized json-render spec that the server would accept.',
+    'Validate a json-render spec, graph payload, or HTML primitive payload without creating a node. Returns normalized metadata the server would accept.',
     {
-      type: z.enum(['json-render', 'graph']).describe('Structured payload type to validate'),
+      type: z.enum(['json-render', 'graph', 'html-primitive']).describe('Structured payload type to validate'),
       spec: jsonRenderSpecSchema.optional().describe('json-render spec to validate when type="json-render"'),
+      kind: htmlPrimitiveKindSchema.optional().describe('HTML primitive kind when type="html-primitive"'),
+      primitive: htmlPrimitiveKindSchema.optional().describe('Alias for kind when type="html-primitive"'),
+      primitiveData: z.record(z.string(), z.unknown()).optional().describe('HTML primitive data payload when type="html-primitive"'),
       title: z.string().optional().describe('Optional graph title'),
       graphType: z.string().optional().describe('Graph type when type="graph"'),
       data: z.array(z.record(z.string(), z.unknown())).optional().describe('Graph dataset when type="graph"'),
@@ -573,29 +620,38 @@ export async function startMcpServer(): Promise<void> {
               type: 'json-render',
               spec: input.spec,
             })
-          : validateStructuredCanvasPayload({
-              type: 'graph',
-              graph: {
-                title: input.title,
-                graphType: input.graphType ?? 'line',
-                data: input.data ?? [],
-                ...(typeof input.xKey === 'string' ? { xKey: input.xKey } : {}),
-                ...(typeof input.yKey === 'string' ? { yKey: input.yKey } : {}),
-                ...(typeof input.zKey === 'string' ? { zKey: input.zKey } : {}),
-                ...(typeof input.nameKey === 'string' ? { nameKey: input.nameKey } : {}),
-                ...(typeof input.valueKey === 'string' ? { valueKey: input.valueKey } : {}),
-                ...(typeof input.axisKey === 'string' ? { axisKey: input.axisKey } : {}),
-                ...(Array.isArray(input.metrics) ? { metrics: input.metrics } : {}),
-                ...(Array.isArray(input.series) ? { series: input.series } : {}),
-                ...(typeof input.barKey === 'string' ? { barKey: input.barKey } : {}),
-                ...(typeof input.lineKey === 'string' ? { lineKey: input.lineKey } : {}),
-                ...(typeof input.aggregate === 'string' ? { aggregate: input.aggregate } : {}),
-                ...(typeof input.color === 'string' ? { color: input.color } : {}),
-                ...(typeof input.barColor === 'string' ? { barColor: input.barColor } : {}),
-                ...(typeof input.lineColor === 'string' ? { lineColor: input.lineColor } : {}),
-                ...(typeof input.height === 'number' ? { height: input.height } : {}),
-              },
-            });
+          : input.type === 'html-primitive'
+            ? validateStructuredCanvasPayload({
+                type: 'html-primitive',
+                primitive: {
+                  kind: (input.kind ?? input.primitive ?? '') as HtmlPrimitiveKind | '',
+                  ...(typeof input.title === 'string' ? { title: input.title } : {}),
+                  ...(input.primitiveData ? { data: input.primitiveData } : {}),
+                },
+              })
+            : validateStructuredCanvasPayload({
+                type: 'graph',
+                graph: {
+                  title: input.title,
+                  graphType: input.graphType ?? 'line',
+                  data: input.data ?? [],
+                  ...(typeof input.xKey === 'string' ? { xKey: input.xKey } : {}),
+                  ...(typeof input.yKey === 'string' ? { yKey: input.yKey } : {}),
+                  ...(typeof input.zKey === 'string' ? { zKey: input.zKey } : {}),
+                  ...(typeof input.nameKey === 'string' ? { nameKey: input.nameKey } : {}),
+                  ...(typeof input.valueKey === 'string' ? { valueKey: input.valueKey } : {}),
+                  ...(typeof input.axisKey === 'string' ? { axisKey: input.axisKey } : {}),
+                  ...(Array.isArray(input.metrics) ? { metrics: input.metrics } : {}),
+                  ...(Array.isArray(input.series) ? { series: input.series } : {}),
+                  ...(typeof input.barKey === 'string' ? { barKey: input.barKey } : {}),
+                  ...(typeof input.lineKey === 'string' ? { lineKey: input.lineKey } : {}),
+                  ...(typeof input.aggregate === 'string' ? { aggregate: input.aggregate } : {}),
+                  ...(typeof input.color === 'string' ? { color: input.color } : {}),
+                  ...(typeof input.barColor === 'string' ? { barColor: input.barColor } : {}),
+                  ...(typeof input.lineColor === 'string' ? { lineColor: input.lineColor } : {}),
+                  ...(typeof input.height === 'number' ? { height: input.height } : {}),
+                },
+              });
 
         return {
           content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
@@ -736,7 +792,7 @@ export async function startMcpServer(): Promise<void> {
           content: [{
             type: 'text',
             text: JSON.stringify({
-              ...await createdNodePayload(c, result.id),
+              ...(await createdNodePayload(c, result.id)),
               url: result.url,
               spec: result.spec,
             }, null, 2),
@@ -816,7 +872,7 @@ export async function startMcpServer(): Promise<void> {
           content: [{
             type: 'text',
             text: JSON.stringify({
-              ...await createdNodePayload(c, result.id),
+              ...(await createdNodePayload(c, result.id)),
               url: result.url,
               spec: result.spec,
             }, null, 2),

@@ -12,5 +12,6 @@ declare global {
             state?: Record<string, unknown>;
         };
         __PMX_CANVAS_JSON_RENDER_THEME__?: string;
+        __PMX_CANVAS_JSON_RENDER_DISPLAY__?: string;
     }
 }

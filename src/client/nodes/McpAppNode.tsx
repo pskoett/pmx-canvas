@@ -2,11 +2,12 @@ import type { CanvasNodeState } from '../types';
 import { canvasTheme } from '../state/canvas-store';
 import { ExtAppFrame } from './ExtAppFrame';
 
-function withTheme(url: string): string {
+function withViewerParams(url: string, expanded: boolean): string {
   if (!url) return url;
   try {
     const resolved = new URL(url, window.location.origin);
     resolved.searchParams.set('theme', canvasTheme.value === 'light' ? 'light' : 'dark');
+    if (expanded) resolved.searchParams.set('display', 'expanded');
     return resolved.toString();
   } catch {
     return url;
@@ -18,7 +19,7 @@ export function McpAppNode({ node, expanded = false }: { node: CanvasNodeState; 
     return <ExtAppFrame node={node} expanded={expanded} />;
   }
 
-  const url = withTheme((node.data.url as string) || '');
+  const url = withViewerParams((node.data.url as string) || '', expanded);
   const sourceServer = (node.data.sourceServer as string) || '';
   const hostMode = (node.data.hostMode as string) || 'hosted';
   const fallbackReason = node.data.fallbackReason as string | undefined;
@@ -54,7 +55,14 @@ export function McpAppNode({ node, expanded = false }: { node: CanvasNodeState; 
   }
 
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        ...(expanded ? { flex: 1, minHeight: 0, width: '100%' } : {}),
+      }}
+    >
       {!trustedDomain && (
         <div
           style={{
@@ -77,7 +85,7 @@ export function McpAppNode({ node, expanded = false }: { node: CanvasNodeState; 
         sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
         allow="clipboard-read; clipboard-write"
         loading="lazy"
-        style={{ flex: 1 }}
+        style={{ flex: 1, minHeight: 0, width: '100%' }}
         title={`MCP App: ${sourceServer}`}
       />
     </div>

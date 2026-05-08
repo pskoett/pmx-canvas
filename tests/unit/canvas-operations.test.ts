@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { addCanvasNode, arrangeCanvasNodes, setCanvasContextPins } from '../../src/server/canvas-operations.ts';
 import { validateCanvasLayout } from '../../src/server/canvas-validation.ts';
+import { mutationHistory } from '../../src/server/mutation-history.ts';
 import {
   createTestWorkspace,
   makeNode,
@@ -92,7 +93,83 @@ describe('canvas operations', () => {
     expect(validation.summary.containmentViolations).toBe(0);
     expect(canvasState.getNode('child-a')?.data.parentGroup).toBe('group-a');
     expect(canvasState.getNode('group-a')?.position).toEqual({ x: 40, y: 80 });
-    expect(canvasState.getNode('child-a')?.position).toEqual({ x: 64, y: 124 });
+    expect(canvasState.getNode('child-a')?.position).toEqual({ x: 80, y: 152 });
+  });
+
+  test('grid arrange preserves grouped child offsets without double translation', () => {
+    canvasState.addNode(makeNode({
+      id: 'group-a',
+      type: 'group',
+      position: { x: 0, y: 168 },
+      size: { width: 680, height: 1272 },
+      data: { title: 'Group A', children: ['child-a', 'child-b'] },
+    }));
+    canvasState.addNode(makeNode({
+      id: 'child-a',
+      type: 'markdown',
+      position: { x: 40, y: 240 },
+      size: { width: 600, height: 200 },
+      data: { title: 'Child A', parentGroup: 'group-a' },
+    }));
+    canvasState.addNode(makeNode({
+      id: 'child-b',
+      type: 'markdown',
+      position: { x: 40, y: 540 },
+      size: { width: 600, height: 200 },
+      data: { title: 'Child B', parentGroup: 'group-a' },
+    }));
+    canvasState.addNode(makeNode({
+      id: 'loose-a',
+      type: 'markdown',
+      position: { x: 1800, y: 500 },
+      size: { width: 360, height: 200 },
+      data: { title: 'Loose A' },
+    }));
+
+    arrangeCanvasNodes('grid');
+
+    const group = canvasState.getNode('group-a');
+    const childA = canvasState.getNode('child-a');
+    const childB = canvasState.getNode('child-b');
+
+    expect(group?.position).toEqual({ x: 40, y: 80 });
+    expect(childA?.position.x).toBe((group?.position.x ?? 0) + 40);
+    expect(childA?.position.y).toBe((group?.position.y ?? 0) + 72);
+    expect(childB?.position.x).toBe((group?.position.x ?? 0) + 40);
+    expect(childB?.position.y).toBe((group?.position.y ?? 0) + 372);
+    expect(validateCanvasLayout(canvasState.getLayout()).summary.containmentViolations).toBe(0);
+  });
+
+  test('grid arrange undo preserves grouped child offsets', () => {
+    canvasState.addNode(makeNode({
+      id: 'group-a',
+      type: 'group',
+      position: { x: 0, y: 168 },
+      size: { width: 680, height: 1272 },
+      data: { title: 'Group A', children: ['child-a', 'child-b'] },
+    }));
+    canvasState.addNode(makeNode({
+      id: 'child-a',
+      type: 'markdown',
+      position: { x: 40, y: 240 },
+      size: { width: 600, height: 200 },
+      data: { title: 'Child A', parentGroup: 'group-a' },
+    }));
+    canvasState.addNode(makeNode({
+      id: 'child-b',
+      type: 'markdown',
+      position: { x: 40, y: 540 },
+      size: { width: 600, height: 200 },
+      data: { title: 'Child B', parentGroup: 'group-a' },
+    }));
+
+    arrangeCanvasNodes('grid');
+    mutationHistory.undo();
+
+    expect(canvasState.getNode('group-a')?.position).toEqual({ x: 0, y: 168 });
+    expect(canvasState.getNode('child-a')?.position).toEqual({ x: 40, y: 240 });
+    expect(canvasState.getNode('child-b')?.position).toEqual({ x: 40, y: 540 });
+    expect(validateCanvasLayout(canvasState.getLayout()).summary.containmentViolations).toBe(0);
   });
 
   test('validation treats group children list containment as non-collision', () => {

@@ -18,6 +18,7 @@ export interface CanvasAnnotationSummary {
     color: string;
     width: number;
     pointCount: number;
+    text: string | null;
     label: string | null;
     createdAt: string;
 }

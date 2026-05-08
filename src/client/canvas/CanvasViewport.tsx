@@ -102,6 +102,7 @@ function findAnnotationAtPoint(
       point.y < annotation.bounds.y - pad ||
       point.y > annotation.bounds.y + annotation.bounds.height + pad
     ) continue;
+    if (annotation.type === 'text') return annotation;
     for (let index = 1; index < annotation.points.length; index++) {
       const start = annotation.points[index - 1];
       const end = annotation.points[index];
@@ -122,19 +123,27 @@ interface LassoRect {
 
 interface AnnotationDraft {
   id: string;
-  type: 'freehand';
+  type: 'freehand' | 'text';
   points: Array<{ x: number; y: number }>;
   bounds: { x: number; y: number; width: number; height: number };
   color: string;
   width: number;
+  text?: string;
   createdAt: string;
+}
+
+interface TextAnnotationDraft {
+  x: number;
+  y: number;
+  value: string;
 }
 
 const ANNOTATION_COLOR = 'currentColor';
 const ANNOTATION_WIDTH = 4;
+const TEXT_ANNOTATION_WIDTH = 24;
 const ERASER_HIT_RADIUS = 14;
 
-type AnnotationTool = 'pen' | 'eraser' | null;
+type AnnotationTool = 'pen' | 'eraser' | 'text' | null;
 
 interface CanvasViewportProps {
   onNodeContextMenu?: (e: MouseEvent, nodeId: string) => void;
@@ -233,6 +242,8 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu, annotat
   const annotationPoints = useRef<Array<{ x: number; y: number }>>([]);
   const [lasso, setLasso] = useState<LassoRect | null>(null);
   const [draftAnnotation, setDraftAnnotation] = useState<AnnotationDraft | null>(null);
+  const [textDraft, setTextDraftState] = useState<TextAnnotationDraft | null>(null);
+  const textDraftRef = useRef<TextAnnotationDraft | null>(null);
   const [dropActive, setDropActive] = useState(false);
   const dropCounter = useRef(0);
   // Ref mirrors lasso state so pointer handlers always read the latest value
@@ -255,6 +266,11 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu, annotat
       commitViewport(next);
     },
   });
+
+  const setTextDraft = useCallback((next: TextAnnotationDraft | null) => {
+    textDraftRef.current = next;
+    setTextDraftState(next);
+  }, []);
 
   const createWebpageNodes = useCallback(async (urls: string[], centerX: number, centerY: number) => {
     if (urls.length === 0) return;
@@ -302,6 +318,23 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu, annotat
         };
         const hit = findAnnotationAtPoint(Array.from(annotations.value.values()), point, ERASER_HIT_RADIUS / vp.scale);
         if (hit) void removeAnnotationFromClient(hit.id);
+        return;
+      }
+
+      if (annotationTool === 'text') {
+        const target = e.target instanceof Element ? e.target : null;
+        if (target?.closest('.hud-layer, .snapshot-panel, .context-menu, .command-palette')) return;
+        e.preventDefault();
+        e.stopPropagation();
+        activeNodeId.value = null;
+        clearSelection();
+        const rect = container.getBoundingClientRect();
+        const vp = viewport.value;
+        setTextDraft({
+          x: (e.clientX - rect.left - vp.x) / vp.scale,
+          y: (e.clientY - rect.top - vp.y) / vp.scale,
+          value: '',
+        });
         return;
       }
 
@@ -450,11 +483,32 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu, annotat
 
   useEffect(() => {
     if (annotationMode) return;
-    if (!isAnnotating.current && !draftAnnotation) return;
+    if (!isAnnotating.current && !draftAnnotation && !textDraft) return;
     isAnnotating.current = false;
     annotationPoints.current = [];
     setDraftAnnotation(null);
-  }, [annotationMode, draftAnnotation]);
+    setTextDraft(null);
+  }, [annotationMode, draftAnnotation, setTextDraft, textDraft]);
+
+  const commitTextDraft = useCallback(() => {
+    const draft = textDraftRef.current;
+    if (!draft) return;
+    const text = draft.value.trim();
+    setTextDraft(null);
+    if (!text) return;
+    const point = { x: draft.x, y: draft.y };
+    void createAnnotationFromClient({
+      type: 'text',
+      points: [point],
+      color: ANNOTATION_COLOR,
+      width: TEXT_ANNOTATION_WIDTH,
+      text,
+    });
+  }, [setTextDraft]);
+
+  useEffect(() => {
+    if (annotationTool !== 'text' && textDraft) setTextDraft(null);
+  }, [annotationTool, setTextDraft, textDraft]);
 
   // ── Drag-to-connect: track cursor in world space, hit-test on drop ──
   useEffect(() => {
@@ -517,8 +571,8 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu, annotat
       const wx = (e.clientX - rect.left - v.x) / v.scale;
       const wy = (e.clientY - rect.top - v.y) / v.scale;
       // Offset so node centers on click point
-      const nodeW = 360;
-      const nodeH = 200;
+      const nodeW = 520;
+      const nodeH = 360;
       createNodeFromClient({
         type: 'markdown',
         title: 'New note',
@@ -697,6 +751,8 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu, annotat
         overflow: 'hidden',
         cursor: annotationTool === 'eraser'
           ? 'cell'
+          : annotationTool === 'text'
+            ? 'text'
           : annotationMode || draggingEdge.value || isLassoing.current
             ? 'crosshair'
             : 'grab',
@@ -737,7 +793,32 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu, annotat
           </svg>
         )}
       </div>
-      {annotationMode && <div class={`annotation-capture-layer${annotationTool === 'eraser' ? ' erasing' : ''}`} aria-hidden="true" />}
+      {annotationMode && <div class={`annotation-capture-layer${annotationTool === 'eraser' ? ' erasing' : ''}${annotationTool === 'text' ? ' text' : ''}`} aria-hidden="true" />}
+      {textDraft && (
+        <input
+          class="annotation-text-input"
+          value={textDraft.value}
+          autoFocus
+          style={{
+            left: `${textDraft.x * v.scale + v.x}px`,
+            top: `${textDraft.y * v.scale + v.y}px`,
+            fontSize: `${TEXT_ANNOTATION_WIDTH * v.scale}px`,
+          }}
+          onInput={(e) => setTextDraft({ ...textDraft, value: (e.target as HTMLInputElement).value })}
+          onBlur={commitTextDraft}
+          onPointerDown={(e) => e.stopPropagation()}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              commitTextDraft();
+            }
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              setTextDraft(null);
+            }
+          }}
+        />
+      )}
       {lassoStyle && <div class="lasso-rect" style={lassoStyle} />}
       {dropActive && (
         <div class="drop-zone-overlay">

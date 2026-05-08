@@ -3,6 +3,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { canvasState, type PersistedBlobRef } from '../../src/server/canvas-state.ts';
+import { MARKDOWN_NODE_DEFAULT_SIZE } from '../../src/server/canvas-operations.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { emitPrimaryWorkbenchEvent, startCanvasServer, stopCanvasServer, wrapCanvasAutomationScript } from '../../src/server/server.ts';
 import {
@@ -23,7 +24,7 @@ interface CanvasStateResponse {
     data: Record<string, unknown>;
   }>;
   edges: Array<{ id: string; from: string; to: string; type: string }>;
-  annotations?: Array<{ id: string; color: string; pointCount?: number }>;
+  annotations?: Array<{ id: string; type?: string; color: string; pointCount?: number; text?: string }>;
 }
 
 interface BlobSummary {
@@ -228,7 +229,7 @@ describe('canvas server HTTP API', () => {
       }),
     });
     expect(created.position).toEqual({ x: 320, y: 180 });
-    expect(created.size).toEqual({ width: 360, height: 200 });
+    expect(created.size).toEqual(MARKDOWN_NODE_DEFAULT_SIZE);
 
     const fetchedNode = await jsonRequest<{ id: string; title: string | null; content: string | null; data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`);
     expect(fetchedNode.id).toBe(created.id);
@@ -262,7 +263,7 @@ describe('canvas server HTTP API', () => {
   test('supports annotation create and delete through HTTP', async () => {
     const created = await jsonRequest<{
       ok: boolean;
-      annotation: { id: string; color: string; pointCount: number };
+      annotation: { id: string; color: string; pointCount: number; text: string | null };
     }>('/api/canvas/annotation', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -275,6 +276,7 @@ describe('canvas server HTTP API', () => {
 
     expect(created.annotation.color).toBe('currentColor');
     expect(created.annotation.pointCount).toBe(2);
+    expect(created.annotation.text).toBeNull();
     expect((await jsonRequest<CanvasStateResponse>('/api/canvas/state')).annotations?.map((annotation) => annotation.id)).toEqual([created.annotation.id]);
 
     const removed = await jsonRequest<{ ok: boolean; removed: string }>(`/api/canvas/annotation/${created.annotation.id}`, {
@@ -283,6 +285,32 @@ describe('canvas server HTTP API', () => {
 
     expect(removed.removed).toBe(created.annotation.id);
     expect((await jsonRequest<CanvasStateResponse>('/api/canvas/state')).annotations).toEqual([]);
+  });
+
+  test('supports text annotations through HTTP', async () => {
+    const created = await jsonRequest<{
+      ok: boolean;
+      annotation: { id: string; type: string; pointCount: number; text: string | null; label: string | null };
+    }>('/api/canvas/annotation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'text',
+        points: [{ x: 10, y: 20 }],
+        color: 'currentColor',
+        width: 24,
+        text: 'Investigate intent',
+      }),
+    });
+
+    expect(created.annotation.type).toBe('text');
+    expect(created.annotation.pointCount).toBe(1);
+    expect(created.annotation.text).toBe('Investigate intent');
+    expect(created.annotation.label).toBe('Investigate intent');
+
+    const state = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(state.annotations?.[0]?.type).toBe('text');
+    expect(state.annotations?.[0]?.text).toBe('Investigate intent');
   });
 
   test('accepts flat and nested geometry and returns nested node payloads', async () => {
@@ -431,6 +459,45 @@ describe('canvas server HTTP API', () => {
     });
     expect(empty.ok).toBe(true);
     expect(empty.data.html).toBe('');
+  });
+
+  test('html primitive requests create searchable sandboxed html nodes with primitive metadata', async () => {
+    const created = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      type: string;
+      title: string;
+      size: { width: number; height: number };
+      data: Record<string, unknown>;
+      primitive: { kind: string; htmlBytes: number; defaultSize: { width: number; height: number } };
+    }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'html',
+        primitive: 'choice-grid',
+        title: 'Primitive Options',
+        data: {
+          items: [
+            { title: 'Use HTML', summary: 'Higher information density.', pros: ['Visual'], cons: ['More bytes'] },
+          ],
+        },
+      }),
+    });
+
+    expect(created.ok).toBe(true);
+    expect(created.type).toBe('html');
+    expect(created.title).toBe('Primitive Options');
+    expect(created.primitive.kind).toBe('choice-grid');
+    expect(created.primitive.htmlBytes).toBeGreaterThan(1000);
+    expect(created.size).toEqual(created.primitive.defaultSize);
+    expect(created.data.htmlPrimitive).toBe('choice-grid');
+    expect(created.data.description).toContain('Side-by-side options');
+    expect(created.data.html).toContain('Copy JSON');
+    expect(created.data.html).toContain('Use HTML');
+
+    const search = await jsonRequest<{ results: Array<{ id: string; snippet: string }> }>('/api/canvas/search?q=side-by-side');
+    expect(search.results.some((result) => result.id === created.id)).toBe(true);
   });
 
   test('closes hosted MCP app sessions when nodes are deleted or the canvas is cleared', async () => {
@@ -1789,7 +1856,7 @@ describe('canvas server HTTP API', () => {
 
     const updated = await jsonRequest<{ id: string; position: { x: number; y: number }; size: { width: number; height: number } }>(`/api/canvas/node/${created.id}`);
     expect(updated.position).toEqual({ x: 200, y: 240 });
-    expect(updated.size).toEqual({ width: 360, height: 200 });
+    expect(updated.size).toEqual(MARKDOWN_NODE_DEFAULT_SIZE);
   });
 
   test('persists node pinned and dock state through single-node patch and batch updates', async () => {
@@ -2935,6 +3002,20 @@ describe('canvas server HTTP API', () => {
     const graphHtml = await graphViewer.text();
     expect(graphHtml).toContain('Deploy Trend');
     expect(graphHtml).toContain('LineChart');
+    expect(graphHtml).not.toContain('"height":320');
+
+    const fixedHeightGraph = await jsonRequest<{ url: string }>('/api/canvas/graph', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Fixed Height Graph',
+        graphType: 'line',
+        data: [{ day: 'Mon', value: 3 }],
+        height: 280,
+      }),
+    });
+    const fixedHeightHtml = await (await fetch(`${baseUrl}${fixedHeightGraph.url}`)).text();
+    expect(fixedHeightHtml).toContain('"height":280');
 
     const layout = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
     expect(layout.nodes.find((node) => node.id === jsonRender.id)?.type).toBe('json-render');
@@ -3228,6 +3309,7 @@ describe('canvas server HTTP API', () => {
       nodeTypes: Array<{ type: string; fields: Array<{ name: string; aliases?: string[]; required?: boolean }> }>;
       jsonRender: { components: Array<{ type: string }> };
       graph: { graphTypes: string[] };
+      htmlPrimitives: Array<{ kind: string; dataShape: string }>;
       mcp: { tools: string[]; resources: string[]; nodeTypeRouting: Record<string, string> };
     }>('/api/canvas/schema');
 
@@ -3245,13 +3327,22 @@ describe('canvas server HTTP API', () => {
     expect(schema.graph.graphTypes).toContain('area');
     expect(schema.graph.graphTypes).toContain('stacked-bar');
     expect(schema.graph.graphTypes).toContain('composed');
+    expect(schema.htmlPrimitives.some((primitive) => primitive.kind === 'choice-grid')).toBe(true);
+    expect(schema.htmlPrimitives.some((primitive) => primitive.kind === 'pr-writeup')).toBe(true);
+    expect(schema.htmlPrimitives.some((primitive) => primitive.kind === 'code-walkthrough')).toBe(true);
+    expect(schema.htmlPrimitives.some((primitive) => primitive.kind === 'interaction-prototype')).toBe(true);
+    expect(schema.htmlPrimitives.some((primitive) => primitive.kind === 'illustration-set')).toBe(true);
+    expect(schema.htmlPrimitives.some((primitive) => primitive.kind === 'incident-report')).toBe(true);
+    expect(schema.htmlPrimitives.some((primitive) => primitive.kind === 'triage-board')).toBe(true);
     expect(schema.mcp.tools).toContain('canvas_describe_schema');
+    expect(schema.mcp.tools).toContain('canvas_add_html_primitive');
     expect(schema.mcp.resources).toContain('canvas://schema');
     expect(schema.mcp.nodeTypeRouting).toMatchObject({
       markdown: 'canvas_add_node',
       'json-render': 'canvas_add_json_render_node',
       graph: 'canvas_add_graph_node',
       'web-artifact': 'canvas_build_web_artifact',
+      'html-primitive': 'canvas_add_html_primitive',
       'external-app': 'canvas_open_mcp_app',
       group: 'canvas_create_group',
     });
@@ -3327,6 +3418,32 @@ describe('canvas server HTTP API', () => {
       barColor: '#60b5ff',
       lineColor: '#d7a83f',
     }));
+
+    const htmlPrimitiveValidation = await jsonRequest<{
+      ok: boolean;
+      type: string;
+      normalizedPrimitive: { kind: string; title: string; htmlBytes: number };
+      summary: { dataKeys: string[] };
+    }>('/api/canvas/schema/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'html-primitive',
+        kind: 'incident-report',
+        title: 'HTTP Incident',
+        data: {
+          summary: 'Latency incident summary.',
+          timeline: [{ time: '10:04', event: 'Alert fired', detail: 'p95 crossed threshold.' }],
+        },
+      }),
+    });
+
+    expect(htmlPrimitiveValidation.ok).toBe(true);
+    expect(htmlPrimitiveValidation.type).toBe('html-primitive');
+    expect(htmlPrimitiveValidation.normalizedPrimitive.kind).toBe('incident-report');
+    expect(htmlPrimitiveValidation.normalizedPrimitive.title).toBe('HTTP Incident');
+    expect(htmlPrimitiveValidation.normalizedPrimitive.htmlBytes).toBeGreaterThan(1000);
+    expect(htmlPrimitiveValidation.summary.dataKeys).toContain('timeline');
   });
 
   test('rejects invalid json-render payloads and invalid viewer requests', async () => {

@@ -319,8 +319,8 @@ function buildCanvasMenuItems(canvasX: number, canvasY: number): MenuItem[] {
     {
       label: 'New note',
       action: () => {
-        const width = 360;
-        const height = 200;
+        const width = 520;
+        const height = 360;
         const position = centeredPosition(canvasX, canvasY, width, height);
         void createNodeFromClient({
           type: 'markdown',

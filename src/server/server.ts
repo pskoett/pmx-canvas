@@ -79,6 +79,7 @@ import { validateLocalImageFile } from './image-source.js';
 import {
   addCanvasNode,
   addCanvasEdge,
+  MARKDOWN_NODE_DEFAULT_SIZE,
   applyCanvasNodeUpdates,
   buildStructuredNodeUpdate,
   arrangeCanvasNodes,
@@ -110,6 +111,7 @@ import {
 } from './canvas-operations.js';
 import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
+import { buildHtmlPrimitive, isHtmlPrimitiveKind } from './html-primitives.js';
 import {
   EXCALIDRAW_READ_CHECKPOINT_TOOL,
   EXCALIDRAW_SAVE_CHECKPOINT_TOOL,
@@ -129,6 +131,7 @@ import {
   WEBPAGE_NODE_DEFAULT_SIZE,
   normalizeWebpageUrl,
 } from './webpage-node.js';
+import type { JsonRenderSpec } from '../json-render/server.js';
 
 const DEFAULT_HOST = '127.0.0.1';
 const DEFAULT_PORT = 4313;
@@ -146,6 +149,40 @@ const canvasThemeSetting = (['dark', 'light', 'high-contrast'].includes(process.
   ? process.env.PMX_CANVAS_THEME!
   : 'dark');
 let lastWorkbenchContextCardsEnvelope: Record<string, unknown> | null = null;
+
+function normalizeGraphViewerSpec(
+  node: { type: string; data: Record<string, unknown> },
+  spec: JsonRenderSpec,
+  display: string | null,
+): JsonRenderSpec {
+  if (node.type !== 'graph') return spec;
+  const graphConfig = node.data.graphConfig;
+  if (
+    display !== 'expanded' &&
+    graphConfig &&
+    typeof graphConfig === 'object' &&
+    typeof (graphConfig as Record<string, unknown>).height === 'number'
+  ) {
+    return spec;
+  }
+  const chart = spec.elements.chart;
+  if (!chart || typeof chart !== 'object') return spec;
+  const chartRecord = chart as Record<string, unknown>;
+  const props = chartRecord.props;
+  if (!props || typeof props !== 'object' || typeof (props as Record<string, unknown>).height !== 'number') return spec;
+  const nextProps = { ...(props as Record<string, unknown>) };
+  delete nextProps.height;
+  return {
+    ...spec,
+    elements: {
+      ...spec.elements,
+      chart: {
+        ...chartRecord,
+        props: nextProps,
+      },
+    },
+  };
+}
 
 export interface PrimaryWorkbenchEventPayload {
   [key: string]: unknown;
@@ -1238,6 +1275,15 @@ function annotationBounds(points: CanvasAnnotation['points']): CanvasAnnotation[
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
+function textAnnotationBounds(point: CanvasAnnotation['points'][number], text: string, width: number): CanvasAnnotation['bounds'] {
+  return {
+    x: point.x,
+    y: point.y - width,
+    width: Math.max(width, text.length * width * 0.62),
+    height: width * 1.2,
+  };
+}
+
 function parseAnnotationPoints(value: unknown): CanvasAnnotation['points'] {
   if (!Array.isArray(value)) return [];
   return value
@@ -1253,31 +1299,41 @@ function parseAnnotationPoints(value: unknown): CanvasAnnotation['points'] {
 
 async function handleCanvasAddAnnotation(req: Request): Promise<Response> {
   const body = await readJson(req);
+  const type = body.type === 'text' ? 'text' : 'freehand';
   const points = parseAnnotationPoints(body.points);
-  if (points.length < 2) {
-    return responseJson({ ok: false, error: 'Annotation requires at least two valid points.' }, 400);
+  if (points.length < (type === 'text' ? 1 : 2)) {
+    return responseJson({ ok: false, error: type === 'text' ? 'Text annotation requires a valid point.' : 'Annotation requires at least two valid points.' }, 400);
   }
 
+  const defaultWidth = type === 'text' ? 24 : 4;
+  const maxWidth = type === 'text' ? 96 : 24;
   const width = typeof body.width === 'number' && Number.isFinite(body.width)
-    ? Math.min(24, Math.max(1, body.width))
-    : 4;
+    ? Math.min(maxWidth, Math.max(1, body.width))
+    : defaultWidth;
   const color = typeof body.color === 'string' && (body.color === 'currentColor' || /^#[0-9a-fA-F]{6}$/.test(body.color))
     ? body.color
     : 'currentColor';
   const label = typeof body.label === 'string' && body.label.trim().length > 0
     ? body.label.trim().slice(0, 160)
     : undefined;
+  const text = type === 'text' && typeof body.text === 'string' && body.text.trim().length > 0
+    ? body.text.trim().slice(0, 240)
+    : undefined;
+  if (type === 'text' && !text) {
+    return responseJson({ ok: false, error: 'Text annotation requires text.' }, 400);
+  }
   const id = typeof body.id === 'string' && body.id.trim().length > 0
     ? body.id.trim().slice(0, 120)
     : `ann-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const annotation: CanvasAnnotation = {
     id,
-    type: 'freehand',
+    type,
     points,
-    bounds: annotationBounds(points),
+    bounds: type === 'text' ? textAnnotationBounds(points[0]!, text!, width) : annotationBounds(points),
     color,
     width,
-    ...(label ? { label } : {}),
+    ...(text ? { text } : {}),
+    ...(label ?? text ? { label: label ?? text } : {}),
     createdAt: new Date().toISOString(),
   };
 
@@ -1401,11 +1457,18 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
         error: 'Node type "web-artifact" is created via POST /api/canvas/web-artifact with appTsx + title.',
       }, 400);
     }
+    if (type === 'html-primitive') {
+      return createCanvasHtmlPrimitiveNode(body);
+    }
     return responseJson({ ok: false, error: `Invalid node type: "${type}".` }, 400);
   }
 
   if (type === 'webpage') {
     return createCanvasWebpageNode(body);
+  }
+
+  if (type === 'html' && (typeof body.primitive === 'string' || typeof body.kind === 'string')) {
+    return createCanvasHtmlPrimitiveNode(body);
   }
 
   const extraData = body.data && typeof body.data === 'object' && !Array.isArray(body.data)
@@ -1443,8 +1506,8 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
       ...(type === 'trace' && typeof body.error === 'string' ? { error: body.error } : {}),
       ...(body.strictSize === true ? { strictSize: true } : {}),
       ...geometry,
-      defaultWidth: type === 'html' ? 720 : 360,
-      defaultHeight: type === 'html' ? 640 : 200,
+      defaultWidth: type === 'html' ? 720 : type === 'markdown' ? MARKDOWN_NODE_DEFAULT_SIZE.width : 360,
+      defaultHeight: type === 'html' ? 640 : type === 'markdown' ? MARKDOWN_NODE_DEFAULT_SIZE.height : 200,
       fileMode: 'auto',
     });
   } catch (error) {
@@ -1460,6 +1523,44 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
     });
   }
   return responseJson(buildNodeResponse(node));
+}
+
+function createCanvasHtmlPrimitiveNode(body: Record<string, unknown>): Response {
+  const rawKind = typeof body.primitive === 'string' ? body.primitive : body.kind;
+  if (typeof rawKind !== 'string' || !isHtmlPrimitiveKind(rawKind)) {
+    return responseJson({ ok: false, error: `Unknown HTML primitive: ${String(rawKind)}.` }, 400);
+  }
+  const data = isRecord(body.data) ? body.data : {};
+  const built = buildHtmlPrimitive({
+    kind: rawKind,
+    ...(typeof body.title === 'string' ? { title: body.title } : {}),
+    data,
+  });
+  const geometry = resolveCreateGeometry(body);
+  const { node } = addCanvasNode({
+    type: 'html',
+    title: built.title,
+    data: {
+      html: built.html,
+      htmlPrimitive: built.kind,
+      primitiveData: built.data,
+      description: built.summary,
+    },
+    ...(body.strictSize === true ? { strictSize: true } : {}),
+    ...geometry,
+    defaultWidth: built.defaultSize.width,
+    defaultHeight: built.defaultSize.height,
+  });
+  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  return responseJson({
+    ...buildNodeResponse(node),
+    primitive: {
+      kind: built.kind,
+      title: built.title,
+      htmlBytes: Buffer.byteLength(built.html, 'utf-8'),
+      defaultSize: built.defaultSize,
+    },
+  });
 }
 
 // ── Group operations ─────────────────────────────────────────
@@ -1799,8 +1900,8 @@ function handleCanvasDescribeSchema(): Response {
 async function handleCanvasValidateSpec(req: Request): Promise<Response> {
   const body = await readJson(req);
   const rawType = typeof body.type === 'string' ? body.type.trim() : '';
-  if (rawType !== 'json-render' && rawType !== 'graph') {
-    return responseJson({ ok: false, error: 'Validation type must be "json-render" or "graph".' }, 400);
+  if (rawType !== 'json-render' && rawType !== 'graph' && rawType !== 'html-primitive') {
+    return responseJson({ ok: false, error: 'Validation type must be "json-render", "graph", or "html-primitive".' }, 400);
   }
 
   try {
@@ -1812,6 +1913,23 @@ async function handleCanvasValidateSpec(req: Request): Promise<Response> {
       return responseJson(validateStructuredCanvasPayload({
         type: 'json-render',
         spec: rawSpec,
+      }));
+    }
+
+    if (rawType === 'html-primitive') {
+      const kind = typeof body.kind === 'string'
+        ? body.kind
+        : typeof body.primitive === 'string'
+          ? body.primitive
+          : '';
+      const data = isRecord(body.data) ? body.data : {};
+      return responseJson(validateStructuredCanvasPayload({
+        type: 'html-primitive',
+        primitive: {
+          kind,
+          ...(typeof body.title === 'string' ? { title: body.title } : {}),
+          data,
+        },
       }));
     }
 
@@ -1976,10 +2094,15 @@ async function handleJsonRenderView(url: URL): Promise<Response> {
     return responseText('json-render node not found', 404);
   }
 
-  const spec = node.data.spec;
-  if (!spec || typeof spec !== 'object') {
+  const rawSpec = node.data.spec;
+  if (!rawSpec || typeof rawSpec !== 'object') {
     return responseText('json-render spec missing', 404);
   }
+  const spec = normalizeGraphViewerSpec(
+    { type: node.type, data: node.data },
+    rawSpec as { root: string; elements: Record<string, unknown>; state?: Record<string, unknown> },
+    url.searchParams.get('display'),
+  );
 
   const themeValue = url.searchParams.get('theme');
   const theme =
@@ -1989,8 +2112,9 @@ async function handleJsonRenderView(url: URL): Promise<Response> {
   const title = (node.data.title as string) || node.id;
   const html = await buildJsonRenderViewerHtml({
     title,
-    spec: spec as { root: string; elements: Record<string, unknown>; state?: Record<string, unknown> },
+    spec,
     ...(theme ? { theme } : {}),
+    ...(url.searchParams.get('display') === 'expanded' ? { display: 'expanded' as const } : {}),
   });
   return new Response(html, {
     headers: {

@@ -164,6 +164,33 @@ canvas_add_html_node({
 A fragment without `<html>`/`<head>` is wrapped in a full document
 automatically. Default size is 720×640.
 
+### HTML primitives
+
+`html-primitive` is a virtual schema type that creates a normal sandboxed
+`html` node from a reusable communication template. Use it when a long markdown
+answer would be easier to review as an option grid, implementation timeline,
+review sheet, PR writeup, code walkthrough, system map, design sheet,
+component gallery, interaction prototype, flowchart, SVG illustration set,
+explainer, status report, incident report, triage board, config editor, or
+prompt tuner.
+
+```ts
+canvas_add_html_primitive({
+  kind: 'choice-grid',
+  title: 'Implementation options',
+  data: {
+    items: [
+      { title: 'Small patch', summary: 'Least disruption.', pros: ['Fast'], cons: ['Less flexible'] },
+    ],
+  },
+});
+```
+
+HTTP callers may post either `{ "type": "html-primitive", "kind": "choice-grid", "data": ... }`
+or `{ "type": "html", "primitive": "choice-grid", "data": ... }`. The stored
+node remains `type: "html"` with `data.htmlPrimitive`, `data.primitiveData`, and
+the generated `data.html` payload.
+
 ## Web artifacts
 
 A **web artifact** is a single-file, fully bundled HTML app (React + Tailwind
@@ -222,9 +249,9 @@ Agents don't have to guess node shapes. The running server exposes its create
 schemas, json-render component catalog, and node-type examples:
 
 - `canvas_describe_schema` / `GET /api/canvas/schema` — list all node-create
-  schemas, required fields, json-render components, and sample payloads
+  schemas, required fields, json-render components, HTML primitives, and sample payloads
 - `canvas_validate_spec` / `POST /api/canvas/schema/validate` — validate a
-  json-render spec or graph payload **without** creating a node
+  json-render spec, graph payload, or HTML primitive payload **without** creating a node
 - `canvas_validate` / `GET /api/canvas/validate` — validate the current
   layout for collisions, containment, and missing edge endpoints
 - `canvas://schema` — the same data as an MCP resource
@@ -236,6 +263,7 @@ MCP node creation uses dedicated tools for structured node families. Read
 `mcp.nodeTypeRouting` from `canvas_describe_schema` when in doubt:
 `json-render` → `canvas_add_json_render_node`,
 `graph` → `canvas_add_graph_node`,
+`html-primitive` → `canvas_add_html_primitive`,
 `html` → `canvas_add_html_node`,
 `web-artifact` → `canvas_build_web_artifact`,
 `mcp-app` → `canvas_open_mcp_app`,

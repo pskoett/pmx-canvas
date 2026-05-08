@@ -65,7 +65,7 @@ the canvas durable rather than throwaway.
 
 ### 06 / Any agent
 
-Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (41 tools,
+Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (42 tools,
 8 resources, change notifications), the [CLI](docs/cli.md), the
 [HTTP API](docs/http-api.md), or the [Bun SDK](docs/sdk.md). Works with
 Claude Code, GitHub Copilot CLI, Codex, Cursor, Windsurf, or any agent
@@ -98,16 +98,15 @@ To work on the canvas itself, clone the repo — see [Development](#development)
 
 ```bash
 bunx pmx-canvas              # Start canvas, open browser
-bunx pmx-canvas --demo       # Start with the project-tour demo board
+bunx pmx-canvas --demo       # Start with the saved dashboard demo board
 bunx pmx-canvas --no-open    # Headless (good for daemons / CI)
 bunx pmx-canvas --mcp        # Run as MCP server (stdio)
 bunx pmx-canvas --help       # All commands
 ```
 
 The canvas opens at `http://localhost:4313`. Try `--demo` first — it seeds a
-project tour with grouped markdown, status, file, image, webpage,
-json-render, graph, html, Excalidraw diagram, and MCP App nodes connected by
-labeled edges.
+saved dashboard with grouped OKR notes, graph panels, context pins, and labeled
+edges.
 
 ### Connect your agent (MCP)
 
@@ -157,7 +156,7 @@ the agent can read `canvas://skills` and pull in companion skills
   the three-tier visual matrix (json-render → html → web-artifact)
 - **[CLI reference](docs/cli.md)** — full command surface, daemon mode,
   watch streams, WebView automation
-- **[MCP reference](docs/mcp.md)** — 41 tools, 8 resources, change
+- **[MCP reference](docs/mcp.md)** — 42 tools, 8 resources, change
   notifications, node-type routing
 - **[HTTP API](docs/http-api.md)** — REST endpoints, SSE, batch operations
 - **[Bun SDK](docs/sdk.md)** — `createCanvas()` for TypeScript on Bun

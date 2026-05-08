@@ -392,6 +392,19 @@ body,
   margin: 0.4em 0;
   color: var(--c-muted);
 }
+
+.canvas-node .node-body ul,
+.canvas-node .node-body ol {
+  margin: 0.4em 0;
+  padding-left: 0.25em;
+  list-style-position: inside;
+}
+
+.canvas-node .node-body li {
+  margin: 0.2em 0;
+  padding-left: 0.15em;
+}
+
 .canvas-node .node-body a {
   color: var(--c-accent);
   text-decoration: none;
@@ -1481,19 +1494,39 @@ body,
   height: 1px;
   overflow: visible;
   pointer-events: none;
-  z-index: 45;
+  z-index: 9000;
 }
 
 .annotation-capture-layer {
   position: absolute;
   inset: 0;
   z-index: 9996;
-  pointer-events: none;
+  pointer-events: auto;
   background: color-mix(in srgb, var(--c-accent) 5%, transparent);
 }
 
 .annotation-capture-layer.erasing {
   background: color-mix(in srgb, var(--c-danger) 6%, transparent);
+}
+
+.annotation-capture-layer.text {
+  background: color-mix(in srgb, var(--c-annotation) 4%, transparent);
+}
+
+.annotation-text-input {
+  position: absolute;
+  z-index: 9997;
+  min-width: 120px;
+  max-width: min(560px, calc(100% - 24px));
+  padding: 2px 4px;
+  border: 1px solid var(--c-annotation);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--c-bg) 72%, transparent);
+  color: var(--c-annotation);
+  font-family: var(--font);
+  font-weight: 700;
+  line-height: 1.15;
+  outline: none;
 }
 
 /* ── Drop Zone (file drag-and-drop) ─────────────────────────── */

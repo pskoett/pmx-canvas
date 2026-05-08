@@ -155,6 +155,17 @@ function summarizeWebArtifactData(data: Record<string, unknown>, maxLength: numb
   return parts.length > 0 ? truncateContextText(parts.join('\n'), maxLength) : 'Web artifact node';
 }
 
+function summarizeHtmlPrimitiveData(data: Record<string, unknown>, maxLength: number): string {
+  const parts: string[] = [];
+  const primitive = typeof data.htmlPrimitive === 'string' ? data.htmlPrimitive : '';
+  const description = typeof data.description === 'string' ? data.description : '';
+  const primitiveData = data.primitiveData;
+  if (primitive) parts.push(`HTML primitive: ${primitive}`);
+  if (description) parts.push(description);
+  if (primitiveData !== undefined) parts.push(`Data: ${stringifyContextValue(primitiveData, maxLength)}`);
+  return truncateContextText(parts.join('\n'), maxLength);
+}
+
 function metadataForNode(node: CanvasNodeState): Record<string, unknown> | undefined {
   switch (node.type) {
     case 'webpage': {
@@ -232,6 +243,12 @@ export function summarizeNodeForAgentContext(
       const graphCfg = node.data.graphConfig as Record<string, unknown> | undefined;
       if (graphCfg) return truncateContextText(`Graph: ${JSON.stringify(graphCfg)}`, defaultTextLength);
       return stringifyContextValue(node.data.spec ?? {}, defaultTextLength);
+    }
+    case 'html': {
+      if (typeof node.data.htmlPrimitive === 'string') {
+        return summarizeHtmlPrimitiveData(node.data, defaultTextLength);
+      }
+      return stringifyContextValue({ title: node.data.title, description: node.data.description }, defaultTextLength);
     }
     case 'prompt':
     case 'response': {

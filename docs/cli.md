@@ -8,7 +8,7 @@ The CLI is the shell-native way to run and control PMX Canvas. It targets
 
 ```bash
 pmx-canvas                            # Start canvas, open browser
-pmx-canvas --demo                     # Start with the project-tour demo board
+pmx-canvas --demo                     # Start with the saved dashboard demo board
 pmx-canvas --port=8080                # Custom port
 pmx-canvas --no-open                  # Headless (for agents/CI)
 pmx-canvas --theme=light              # dark | light | high-contrast
@@ -35,6 +35,8 @@ pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx
 pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value
 pmx-canvas node add --type graph --graph-type bar --data '[{"x":"a","y":1}]' --x-key x --y-key y
 pmx-canvas graph add --graph-type bar --data '[{"x":"a","y":1}]' --x-key x --y-key y   # Alias
+pmx-canvas html primitive add --kind choice-grid --data-file ./options.json --title "Options"
+pmx-canvas html primitive schema --summary
 pmx-canvas node add --help --type webpage --json                                        # Schema for one type
 
 pmx-canvas external-app add --kind excalidraw --title "Diagram"
@@ -66,6 +68,7 @@ content.
 pmx-canvas node schema --type json-render --component Table --summary
 pmx-canvas validate                                                      # Layout validation
 pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary
+pmx-canvas validate spec --type html-primitive --kind choice-grid --data-json '{"items":[{"title":"A"}]}' --summary
 ```
 
 The schema commands surface the running server's data, which is strictly

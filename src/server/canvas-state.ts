@@ -162,11 +162,12 @@ export interface CanvasAnnotationPoint {
 
 export interface CanvasAnnotation {
   id: string;
-  type: 'freehand';
+  type: 'freehand' | 'text';
   points: CanvasAnnotationPoint[];
   bounds: { x: number; y: number; width: number; height: number };
   color: string;
   width: number;
+  text?: string;
   label?: string;
   createdAt: string;
 }
@@ -199,6 +200,10 @@ interface GroupNodesOptions {
   preservePositions?: boolean;
   layout?: 'grid' | 'column' | 'flow';
   keepGroupFrame?: boolean;
+}
+
+interface ApplyUpdatesOptions {
+  skipGroupChildTranslation?: boolean;
 }
 
 function formatBatchUpdateDescription(updates: CanvasNodeUpdate[]): string {
@@ -1216,7 +1221,7 @@ class CanvasStateManager {
     };
   }
 
-  applyUpdates(updates: CanvasNodeUpdate[]): { applied: number; skipped: number } {
+  applyUpdates(updates: CanvasNodeUpdate[], options: ApplyUpdatesOptions = {}): { applied: number; skipped: number } {
     let applied = 0;
     let skipped = 0;
     const touchedParentGroups = new Map<string, { compact: boolean }>();
@@ -1259,7 +1264,7 @@ class CanvasStateManager {
       }
       oldSnapshots.set(update.id, structuredClone(existing));
       appliedUpdates.push({ id: update.id, ...structuredClone(nextPatch) });
-      if (existing.type === 'group' && nextPatch.position) {
+      if (existing.type === 'group' && nextPatch.position && options.skipGroupChildTranslation !== true) {
         this.translateGroupChildren(
           update.id,
           nextPatch.position.x - existing.position.x,
@@ -1297,7 +1302,7 @@ class CanvasStateManager {
         operationType: 'batch',
         description: formatBatchUpdateDescription(appliedUpdates),
         forward: this.suppressed(() => {
-          this.applyUpdates(appliedUpdates.map((update) => structuredClone(update)));
+          this.applyUpdates(appliedUpdates.map((update) => structuredClone(update)), options);
         }),
         inverse: this.suppressed(() => {
           for (const snapshot of inverseSnapshots) {

@@ -27,6 +27,7 @@ export interface CanvasAnnotationSummary {
   color: string;
   width: number;
   pointCount: number;
+  text: string | null;
   label: string | null;
   createdAt: string;
 }
@@ -75,6 +76,11 @@ export function getCanvasNodeTitle(node: CanvasNodeState): string | null {
 }
 
 export function getCanvasNodeContent(node: CanvasNodeState): string | null {
+  if (node.type === 'html' && typeof node.data.htmlPrimitive === 'string') {
+    const primitive = node.data.htmlPrimitive;
+    const description = pickString(node.data.description);
+    return description ? `${primitive}: ${description}` : primitive;
+  }
   return pickString(node.data.content)
     ?? pickString(node.data.fileContent)
     ?? pickString(node.data.text)
@@ -180,7 +186,8 @@ export function summarizeCanvasAnnotation(annotation: CanvasAnnotation): CanvasA
     color: annotation.color,
     width: annotation.width,
     pointCount: annotation.points.length,
-    label: annotation.label ?? null,
+    text: annotation.text ?? null,
+    label: annotation.label ?? annotation.text ?? null,
     createdAt: annotation.createdAt,
   };
 }
@@ -208,7 +215,7 @@ export function summarizeCanvasAnnotationForContext(
   const targetNodeTitles = targetNodes.map((node) => getCanvasNodeTitle(node) ?? node.id);
   return {
     id: annotation.id,
-    label: annotation.label ?? null,
+    label: annotation.label ?? annotation.text ?? null,
     bounds: annotation.bounds,
     targetNodeIds: targetNodes.map((node) => node.id),
     targetNodeTitles,

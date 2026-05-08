@@ -202,6 +202,23 @@ describe('graph builder', () => {
     expect(stackedChart.props.showLegend).toBe(false);
   });
 
+  test('omits graph chart height unless explicitly provided', () => {
+    const autoSized = buildGraphSpec({
+      graphType: 'pie',
+      data: [{ name: 'A', value: 25 }],
+    });
+    const autoSizedChart = autoSized.elements.chart as { props: Record<string, unknown> };
+    expect(autoSizedChart.props).not.toHaveProperty('height');
+
+    const fixedHeight = buildGraphSpec({
+      graphType: 'pie',
+      data: [{ name: 'A', value: 25 }],
+      height: 280,
+    });
+    const fixedHeightChart = fixedHeight.elements.chart as { props: Record<string, unknown> };
+    expect(fixedHeightChart.props.height).toBe(280);
+  });
+
   test('builds a stacked-bar spec inferring series from data', () => {
     const spec = buildGraphSpec({
       graphType: 'stacked-bar',

@@ -8,6 +8,12 @@ import {
   type GraphNodeInput,
   type JsonRenderSpec,
 } from '../json-render/server.js';
+import {
+  buildHtmlPrimitive,
+  isHtmlPrimitiveKind,
+  listHtmlPrimitiveDescriptors,
+  type HtmlPrimitiveDescriptor,
+} from './html-primitives.js';
 
 export interface CanvasCreateField {
   name: string;
@@ -30,8 +36,14 @@ export interface CanvasCreateTypeSchema {
 
 export interface StructuredValidationResult {
   ok: true;
-  type: 'json-render' | 'graph';
-  normalizedSpec: JsonRenderSpec;
+  type: 'json-render' | 'graph' | 'html-primitive';
+  normalizedSpec?: JsonRenderSpec;
+  normalizedPrimitive?: {
+    kind: string;
+    title: string;
+    htmlBytes: number;
+    defaultSize: { width: number; height: number };
+  };
   summary: Record<string, unknown>;
 }
 
@@ -231,6 +243,8 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     mcpTool: 'canvas_add_html_node',
     fields: [
       { name: 'html', type: 'string', required: false, description: 'HTML document or fragment rendered in the sandboxed iframe.', aliases: ['content', 'stdin'] },
+      { name: 'primitive', type: 'HtmlPrimitiveKind', required: false, description: 'Generate HTML from a built-in communication primitive instead of passing raw HTML.', aliases: ['kind'] },
+      { name: 'data', type: 'record<string, unknown>', required: false, description: 'Primitive data when --primitive is used, or arbitrary node metadata.' },
       { name: 'title', type: 'string', required: false, description: 'Optional node title.' },
       { name: 'x', type: 'number', required: false, description: 'Optional X position.' },
       { name: 'y', type: 'number', required: false, description: 'Optional Y position.' },
@@ -245,7 +259,39 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     },
     notes: [
       'The CLI accepts --content as an alias and stores it as data.html so the renderer can load it.',
+      'Use `primitive` / `kind` with `data` to create reusable agent communication artifacts such as choice grids, plans, review sheets, explainers, and editors.',
       'HTML runs in a sandboxed iframe without same-origin access to the canvas host.',
+    ],
+  },
+  {
+    type: 'html-primitive',
+    kind: 'virtual-node',
+    description: 'Reusable sandboxed HTML communication primitive rendered as an html node.',
+    endpoint: '/api/canvas/node',
+    mcpTool: 'canvas_add_html_primitive',
+    fields: [
+      { name: 'kind', type: 'HtmlPrimitiveKind', required: true, description: 'Primitive kind. See top-level htmlPrimitives for the supported catalog.' },
+      { name: 'data', type: 'record<string, unknown>', required: false, description: 'Primitive-specific JSON object payload.' },
+      { name: 'title', type: 'string', required: false, description: 'Optional node title.' },
+      { name: 'x', type: 'number', required: false, description: 'Optional X position.' },
+      { name: 'y', type: 'number', required: false, description: 'Optional Y position.' },
+      { name: 'width', type: 'number', required: false, description: 'Optional node width; defaults per primitive.' },
+      { name: 'height', type: 'number', required: false, description: 'Optional node height; defaults per primitive.' },
+      { name: 'strictSize', type: 'boolean', required: false, description: 'Keep explicit width/height fixed and scroll overflowing content instead of browser auto-fitting.', aliases: ['strict-size', 'scroll-overflow'] },
+    ],
+    example: {
+      type: 'html-primitive',
+      kind: 'choice-grid',
+      title: 'Implementation Options',
+      data: {
+        items: [
+          { title: 'Small patch', summary: 'Least disruption.', pros: ['Fast'], cons: ['Limited flexibility'] },
+        ],
+      },
+    },
+    notes: [
+      'HTTP callers may POST { type: "html-primitive", kind, data } or { type: "html", primitive: kind, data }; both create a normal html node with primitive metadata.',
+      'Interactive editor primitives include copy/export controls so the human can send edited state back to the agent.',
     ],
   },
   {
@@ -449,6 +495,7 @@ export function describeCanvasSchema(): {
   graph: {
     graphTypes: CanvasGraphType[];
   };
+  htmlPrimitives: HtmlPrimitiveDescriptor[];
   mcp: {
     tools: string[];
     resources: string[];
@@ -472,9 +519,12 @@ export function describeCanvasSchema(): {
     graph: {
       graphTypes: [...CANONICAL_GRAPH_TYPES],
     },
+    htmlPrimitives: listHtmlPrimitiveDescriptors(),
     mcp: {
       tools: [
         'canvas_add_node',
+        'canvas_add_html_node',
+        'canvas_add_html_primitive',
         'canvas_add_json_render_node',
         'canvas_add_graph_node',
         'canvas_build_web_artifact',
@@ -492,9 +542,10 @@ export function describeCanvasSchema(): {
 }
 
 export function validateStructuredCanvasPayload(input: {
-  type: 'json-render' | 'graph';
+  type: 'json-render' | 'graph' | 'html-primitive';
   spec?: unknown;
   graph?: GraphNodeInput;
+  primitive?: { kind: string; title?: string; data?: Record<string, unknown> };
 }): StructuredValidationResult {
   if (input.type === 'json-render') {
     const normalizedSpec = normalizeAndValidateJsonRenderSpec(input.spec);
@@ -506,6 +557,35 @@ export function validateStructuredCanvasPayload(input: {
         root: normalizedSpec.root,
         elementCount: Object.keys(normalizedSpec.elements).length,
         stateKeys: Object.keys(normalizedSpec.state ?? {}).length,
+      },
+    };
+  }
+
+  if (input.type === 'html-primitive') {
+    if (!input.primitive) {
+      throw new Error('HTML primitive validation requires a primitive payload.');
+    }
+    if (!isHtmlPrimitiveKind(input.primitive.kind)) {
+      throw new Error(`Unknown HTML primitive: ${input.primitive.kind}`);
+    }
+    const built = buildHtmlPrimitive({
+      kind: input.primitive.kind,
+      ...(typeof input.primitive.title === 'string' ? { title: input.primitive.title } : {}),
+      ...(input.primitive.data ? { data: input.primitive.data } : {}),
+    });
+    return {
+      ok: true,
+      type: 'html-primitive',
+      normalizedPrimitive: {
+        kind: built.kind,
+        title: built.title,
+        htmlBytes: Buffer.byteLength(built.html, 'utf-8'),
+        defaultSize: built.defaultSize,
+      },
+      summary: {
+        kind: built.kind,
+        title: built.title,
+        dataKeys: Object.keys(built.data),
       },
     };
   }

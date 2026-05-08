@@ -45,9 +45,11 @@ export declare function removeEdgesForNode(nodeId: string): void;
 export declare function addAnnotation(annotation: CanvasAnnotation): void;
 export declare function removeAnnotation(id: string): void;
 export declare function createAnnotationFromClient(input: {
+    type?: CanvasAnnotation['type'];
     points: CanvasAnnotation['points'];
     color: string;
     width: number;
+    text?: string;
     label?: string;
 }): Promise<{
     ok: boolean;
