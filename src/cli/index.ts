@@ -32,7 +32,7 @@ if (args.includes('--version') || args.includes('-v')) {
 const AGENT_COMMANDS = new Set([
   'node', 'edge', 'json-render', 'search', 'layout', 'status', 'arrange', 'focus',
   'fit', 'screenshot', 'pin', 'undo', 'redo', 'history', 'snapshot', 'diff', 'group', 'webview', 'open',
-  'clear', 'code-graph', 'spatial', 'watch', 'web-artifact', 'external-app', 'graph', 'batch', 'validate', 'serve',
+  'clear', 'code-graph', 'spatial', 'watch', 'web-artifact', 'external-app', 'graph', 'html', 'batch', 'validate', 'serve',
 ]);
 
 const firstArg = args[0] ?? '';

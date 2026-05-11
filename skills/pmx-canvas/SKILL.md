@@ -50,6 +50,7 @@ tree:
 2. Decide which canvas node type best matches each output:
    - Long-form / narrative results → `markdown`
    - Structured records, tables, dashboards → `json-render` or `graph`
+   - Rich reusable communication artifacts → `html-primitive`
    - Interactive tool surfaces with their own UI → `mcp-app` (open with
      `canvas_open_mcp_app`)
    - Local source files → `file` (live-watched)
@@ -653,18 +654,23 @@ server's `ui://` resource as an iframe node on the canvas
 
 ### HTML Nodes (Sandboxed iframe)
 
-**`canvas_add_html_node`** — Add a self-contained HTML document rendered in a sandboxed iframe
+**`canvas_add_html_node`** — Add a normal self-contained HTML document rendered in a sandboxed iframe
 - Required: `html` (full document or fragment; inline `<script>` and CDN `<script src="...">` are allowed)
-- Optional: `title`, `x`, `y`, `width` (default 720), `height` (default 640), `strictSize`
+- Optional: `title`, `summary`, `agentSummary`, `presentation`, `slideTitles`, `embeddedNodeIds`, `embeddedUrls`, `x`, `y`, `width` (default 720), `height` (default 640), `strictSize`
 - Iframe sandbox is `allow-scripts` only — no same-origin access, no top-navigation, no forms
-- Canvas theme tokens are auto-injected as CSS custom properties (both `--c-*` and common `--color-*` aliases such as `--color-text-primary`, `--color-bg`, `--color-accent`) so authored HTML inherits the active theme
+- Canvas theme tokens are auto-injected as CSS custom properties (both `--c-*` and common `--color-*` aliases such as `--color-text-primary`, `--color-bg`, `--color-accent`) and updated live when the canvas theme changes
 - Use for moderate-complexity visualizations and interactive widgets that need real JS but do not warrant a full React build (Chart.js demos, D3 sketches, custom HTML report views)
+- Normal HTML is the default. Only pass `presentation: true` when the user explicitly asks for a deck/fullscreen presentation; otherwise do not mark raw HTML as presentable.
+- Only presentation-marked HTML nodes expose a browser `Present` button. Use it when the HTML is a deck, briefing, or fullscreen review surface; the PMX shell owns the fullscreen overlay and exits via `Esc` or `Exit presentation`.
+- PMX stores a semantic sidecar (`agentSummary`, `contentSummary`, embedded references) so HTML nodes remain understandable in search, pinned context, and spatial context
 
 **`canvas_add_html_primitive`** — Generate a reusable HTML communication primitive as a sandboxed `html` node
 - Required: `kind`; run `canvas_describe_schema` and read `htmlPrimitives` for the current catalog
 - Optional: `title`, `data`, `x`, `y`, `width`, `height`, `strictSize`
 - Use when markdown would be too dense and a structured visual artifact is clearer: tradeoff grids, implementation plans, PR reviews, module maps, design sheets, explainers, reports, and lightweight human-editable boards/editors
+- When the human asks for a PowerPoint-like output, pitch deck, briefing, or presentation, use `kind: "presentation"` unless a bespoke raw HTML deck is required. Include `slides` with short titles, one idea per slide, optional `metrics`, `note` fields for speaker notes, and optional `theme: "canvas" | "midnight" | "paper" | "aurora"` or a custom theme object.
 - Read `htmlPrimitives` from `canvas_describe_schema` for the data shape and examples before constructing a payload
+- For payload patterns, export loops, and the primitive catalog, read `references/html-primitives.md` before creating dense or editable artifacts
 
 ### Choosing the Right Visual Tier
 
@@ -673,7 +679,7 @@ When the output is more than markdown, pick the lightest tier that fits:
 | Tier | Tool | Build cost | When to pick it |
 |------|------|------------|-----------------|
 | Declarative UI | `canvas_add_json_render_node` / `canvas_add_graph_node` | None | Schema-driven dashboards, forms, charts; agent-friendly to read back via `canvas_get_node` |
-| Generated HTML primitive | `canvas_add_html_primitive` | None | Reusable communication artifacts such as choices, plans, reviews, maps, reports, decks, and lightweight editors |
+| Generated HTML primitive | `canvas_add_html_primitive` | None | Reusable communication artifacts such as choices, plans, reviews, maps, reports, presentations/decks, and lightweight editors |
 | Sandboxed HTML+JS | `canvas_add_html_node` | None | Self-contained HTML with inline JS or CDN scripts; one-off visualizations or report views |
 | Hosted MCP app | `canvas_open_mcp_app` / `canvas_add_diagram` | None | Interactive editors backed by an external MCP server (e.g. Excalidraw) |
 | Bundled React app | `canvas_build_web_artifact` | Heavy (npm install + bundle) | Multi-component UIs needing React state, routing, shadcn/ui, or Tailwind class composition |

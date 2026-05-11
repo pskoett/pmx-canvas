@@ -16,6 +16,13 @@ function makeNode(data: Record<string, unknown>): CanvasNodeState {
   };
 }
 
+function makeTypedNode(type: CanvasNodeState['type'], data: Record<string, unknown>): CanvasNodeState {
+  return {
+    ...makeNode(data),
+    type,
+  };
+}
+
 describe('agent-context mcp-app summaries', () => {
   test('summarizes ext-app nodes with source and diagram hints', () => {
     const node = makeNode({
@@ -83,5 +90,46 @@ describe('agent-context mcp-app summaries', () => {
     const serialized = serializeNodeForAgentContext(node);
     expect(serialized.type).toBe('mcp-app');
     expect(serialized.kind).toBe('external-app');
+  });
+
+  test('serializes html semantic sidecars for pinned context consumers', () => {
+    const node = makeTypedNode('html', {
+      title: 'HTML report',
+      html: '<main><h1>Visible HTML report</h1><p>Semantic sidecar text.</p></main>',
+      agentSummary: 'Explicit agent summary for the HTML report.',
+      contentSummary: 'Visible HTML report Semantic sidecar text.',
+      embeddedNodeIds: ['graph-node-1'],
+    });
+
+    const serialized = serializeNodeForAgentContext(node);
+    expect(serialized.type).toBe('html');
+    expect(serialized.content).toBe('Explicit agent summary for the HTML report.');
+    expect(serialized.metadata).toEqual(expect.objectContaining({
+      agentSummary: 'Explicit agent summary for the HTML report.',
+      contentSummary: 'Visible HTML report Semantic sidecar text.',
+      embeddedNodeIds: ['graph-node-1'],
+    }));
+  });
+
+  test('serializes html presentation metadata for pinned context consumers', () => {
+    const node = makeTypedNode('html', {
+      title: 'Planning Deck',
+      html: '<main><h1>Planning Deck</h1></main>',
+      agentSummary: 'Presentation covering planning tradeoffs.',
+      presentation: true,
+      slideCount: 2,
+      slideTitles: ['Context', 'Decision'],
+      speakerNotes: ['Pause for questions.'],
+    });
+
+    const serialized = serializeNodeForAgentContext(node);
+    expect(serialized.type).toBe('html');
+    expect(serialized.content).toBe('Presentation covering planning tradeoffs.');
+    expect(serialized.metadata).toEqual(expect.objectContaining({
+      presentation: true,
+      slideCount: 2,
+      slideTitles: ['Context', 'Decision'],
+      speakerNotes: ['Pause for questions.'],
+    }));
   });
 });

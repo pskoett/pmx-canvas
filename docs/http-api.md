@@ -40,7 +40,7 @@ curl -X POST http://localhost:4313/api/canvas/node \
 # Add an html node (sandboxed iframe)
 curl -X POST http://localhost:4313/api/canvas/node \
   -H "Content-Type: application/json" \
-  -d '{"type":"html","title":"Chart","html":"<canvas id=\"c\"></canvas><script src=\"https://cdn.jsdelivr.net/npm/chart.js\"></script><script>/* ... */</script>"}'
+  -d '{"type":"html","title":"Chart","summary":"Cost projection chart for the Q2 plan.","html":"<canvas id=\"c\"></canvas><script src=\"https://cdn.jsdelivr.net/npm/chart.js\"></script><script>/* ... */</script>"}'
 
 # Add a generated HTML primitive as a sandboxed html node
 curl -X POST http://localhost:4313/api/canvas/node \

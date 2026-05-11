@@ -76,10 +76,14 @@ export function getCanvasNodeTitle(node: CanvasNodeState): string | null {
 }
 
 export function getCanvasNodeContent(node: CanvasNodeState): string | null {
-  if (node.type === 'html' && typeof node.data.htmlPrimitive === 'string') {
-    const primitive = node.data.htmlPrimitive;
+  if (node.type === 'html') {
+    const primitive = typeof node.data.htmlPrimitive === 'string' ? node.data.htmlPrimitive : null;
     const description = pickString(node.data.description);
-    return description ? `${primitive}: ${description}` : primitive;
+    return pickString(node.data.agentSummary)
+      ?? pickString(node.data.contentSummary)
+      ?? (primitive
+        ? (description ? `${primitive}: ${description}` : primitive)
+        : null);
   }
   return pickString(node.data.content)
     ?? pickString(node.data.fileContent)
@@ -92,12 +96,13 @@ export function getCanvasNodeContent(node: CanvasNodeState): string | null {
 
 export function serializeCanvasNode(node: CanvasNodeState): SerializedCanvasNode {
   const data = normalizeCanvasNodeData(node.type, node.data);
+  const normalizedNode = { ...node, data };
   return {
     ...node,
     data,
     kind: getCanvasNodeKind(node, data),
-    title: getCanvasNodeTitle(node),
-    content: getCanvasNodeContent(node),
+    title: getCanvasNodeTitle(normalizedNode),
+    content: getCanvasNodeContent(normalizedNode),
     path: pickString(data.path),
     url: pickString(data.url),
     provenance: pickProvenance(data.provenance),

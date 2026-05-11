@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'preact/hooks';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { ContextNode } from '../nodes/ContextNode';
 import { FileNode } from '../nodes/FileNode';
 import { LedgerNode } from '../nodes/LedgerNode';
@@ -7,7 +7,7 @@ import { McpAppNode } from '../nodes/McpAppNode';
 import { StatusNode } from '../nodes/StatusNode';
 import { ImageNode } from '../nodes/ImageNode';
 import { WebpageNode } from '../nodes/WebpageNode';
-import { HtmlNode } from '../nodes/HtmlNode';
+import { HtmlNode, shouldShowPresentationControls } from '../nodes/HtmlNode';
 import { PromptNode } from '../nodes/PromptNode';
 import { ResponseNode } from '../nodes/ResponseNode';
 import { TraceNode } from '../nodes/TraceNode';
@@ -81,14 +81,61 @@ function wordCount(text: string): number {
   return text.split(/\s+/).filter(Boolean).length;
 }
 
+function isPresentationExitMessage(value: unknown, token: string): boolean {
+  return value !== null &&
+    typeof value === 'object' &&
+    (value as { source?: unknown }).source === 'pmx-canvas-html-node' &&
+    (value as { type?: unknown }).type === 'presentation-exit' &&
+    (value as { token?: unknown }).token === token;
+}
+
+function isPresentationNavigationKey(key: string): boolean {
+  return key === 'ArrowRight' || key === 'PageDown' || key === ' ' || key === 'ArrowLeft' || key === 'PageUp' || key === 'Home' || key === 'End';
+}
+
 export function ExpandedNodeOverlay() {
   const nodeId = expandedNodeId.value;
   const node = nodeId ? nodes.value.get(nodeId) : undefined;
   const [copied, setCopied] = useState(false);
+  const [presenting, setPresenting] = useState(false);
+  const [presentationExitToken, setPresentationExitToken] = useState('');
+  const presentationOverlayRef = useRef<HTMLDivElement>(null);
 
   const handleClose = useCallback(() => {
+    setPresenting(false);
     collapseExpandedNode();
   }, []);
+
+  const handlePresent = useCallback(() => {
+    setPresentationExitToken(`presentation-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
+    setPresenting(true);
+  }, []);
+
+  const postPresentationMessage = useCallback((message: Record<string, unknown>) => {
+    const frame = document.querySelector<HTMLIFrameElement>('.html-presentation-overlay iframe.html-node-frame-presentation');
+    frame?.contentWindow?.postMessage({
+      source: 'pmx-canvas-html-node',
+      token: presentationExitToken,
+      ...message,
+    }, '*');
+  }, [presentationExitToken]);
+
+  const handleExitPresentation = useCallback(() => {
+    setPresenting(false);
+  }, []);
+
+  const handlePresentationKeyDown = useCallback((event: KeyboardEvent) => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      event.stopPropagation();
+      setPresenting(false);
+      return;
+    }
+    if (!isPresentationNavigationKey(event.key)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    postPresentationMessage({ type: 'presentation-key', key: event.key });
+  }, [postPresentationMessage]);
 
   const handleBackdropPointerDown = useCallback((e: PointerEvent) => {
     if ((e.target as HTMLElement).classList.contains('expanded-overlay-backdrop')) {
@@ -111,6 +158,29 @@ export function ExpandedNodeOverlay() {
     toggleContextPin(nodeId);
   }, [nodeId]);
 
+  useEffect(() => {
+    setPresenting(false);
+  }, [nodeId]);
+
+  useLayoutEffect(() => {
+    if (!presenting) return;
+    const focusPresentationOverlay = () => {
+      presentationOverlayRef.current?.focus();
+    };
+    const focusTimers = [0, 50, 150].map((delay) => window.setTimeout(focusPresentationOverlay, delay));
+    const handleMessage = (event: MessageEvent) => {
+      if (!isPresentationExitMessage(event.data, presentationExitToken)) return;
+      setPresenting(false);
+    };
+    document.addEventListener('keydown', handlePresentationKeyDown, true);
+    window.addEventListener('message', handleMessage);
+    return () => {
+      focusTimers.forEach((timer) => window.clearTimeout(timer));
+      document.removeEventListener('keydown', handlePresentationKeyDown, true);
+      window.removeEventListener('message', handleMessage);
+    };
+  }, [handlePresentationKeyDown, presentationExitToken, presenting]);
+
   if (!node) return null;
 
   const title =
@@ -123,6 +193,7 @@ export function ExpandedNodeOverlay() {
   const hasText = textContent.length > 0;
   const pendingClose = pendingExpandedNodeCloseId.value === nodeId;
   const isEmbeddedViewer = node.type === 'mcp-app' || node.type === 'webpage' || node.type === 'json-render' || node.type === 'graph';
+  const canPresent = shouldShowPresentationControls(node);
 
   return (
     <div
@@ -218,6 +289,17 @@ export function ExpandedNodeOverlay() {
               </button>
             )}
 
+            {canPresent && (
+              <button
+                type="button"
+                class="expanded-action-btn expanded-action-primary"
+                onClick={handlePresent}
+                title="Present this HTML node fullscreen"
+              >
+                Present
+              </button>
+            )}
+
             {/* Word count */}
             {words > 0 && (
               <span class="expanded-meta">
@@ -270,6 +352,27 @@ export function ExpandedNodeOverlay() {
             </div>
           ) : renderContent(node, true)}
         </div>
+        {canPresent && presenting && (
+          <div ref={presentationOverlayRef} class="html-presentation-overlay" role="dialog" aria-modal="true" aria-label={`Present ${title}`} tabIndex={-1} onKeyDownCapture={handlePresentationKeyDown}>
+            <div class="html-presentation-toolbar">
+              <div>
+                <div class="html-presentation-kicker">HTML presentation</div>
+                <div class="html-presentation-title">{title}</div>
+              </div>
+              <button
+                type="button"
+                class="html-presentation-exit"
+                onClick={handleExitPresentation}
+                title="Exit presentation (Esc)"
+              >
+                Exit presentation
+              </button>
+            </div>
+            <div class="html-presentation-stage">
+              <HtmlNode node={node} expanded presentation presentationExitToken={presentationExitToken} />
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

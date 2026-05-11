@@ -3,6 +3,90 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.21] - 2026-05-09
+
+HTML communication maturity pass on top of 0.1.20. Adds a
+`presentation` primitive kind (PowerPoint-style decks with themes),
+turns every html node into a first-class agent context surface with
+semantic sidecars (summary, agent summary, description, slide
+titles, embedded refs), wires a real Present-mode overlay with
+iframe-focused keyboard navigation and a live theme bridge, and
+routes the `pmx-canvas html` subcommand correctly through the agent
+CLI.
+
+### Added
+
+- **New `presentation` HTML primitive kind.** `canvas_add_html_primitive
+  --kind presentation` generates a PowerPoint-style fullscreen deck
+  inside the standard sandboxed `html` node and persists the deck
+  metadata (`presentation: true`, `slideCount`, `slideTitles`,
+  optional `presentationTheme`). Themes: `canvas`, `midnight`,
+  `paper`, `aurora`, or a custom color object with `bg`, `panel`,
+  `surface`, `border`, `text`, `textSecondary`, `textMuted`,
+  `accent`, and `colorScheme`. The MCP canvas now exposes 19 HTML
+  primitives (was 18).
+- **HTML node semantic sidecars.** Every html node can now carry
+  agent-readable metadata that agents see without parsing the
+  iframe payload: `summary`, `agentSummary`, `description`,
+  `presentation`, `slideTitles`, `embeddedNodeIds`, `embeddedUrls`.
+  Same surface lands on CLI (`pmx-canvas node add --type html
+  --summary "..." --agent-summary "..." --description "..."
+  --presentation true --slide-title "..." --embedded-node-id ...`),
+  HTTP `POST /api/canvas/node`, MCP `canvas_add_html_node`, SDK
+  `PmxCanvas.addHtmlNode()`, and `canvas_describe_schema`.
+  `agent-context` and `canvas://pinned-context` now expose this
+  metadata for HTML nodes.
+- **Auto-derived `contentSummary` for html nodes.** When the agent
+  doesn't supply an explicit summary, PMX runs the rendered HTML
+  through a new `summarizeHtmlText()` (in
+  `src/server/html-node-summary.ts`) to extract a bounded plain-
+  text summary that drives search, pinned context, and spatial
+  context. `normalizeHtmlNodeSemanticData()` keeps existing
+  provenance and semantic fields stable across edits.
+- **Browser-side Present mode.** Presentation-marked html nodes
+  surface a Present button in `ExpandedNodeOverlay` that opens a
+  fullscreen overlay with the deck iframe focused. Arrow keys,
+  Page Up/Down, Space, Home, and End are forwarded into the iframe
+  via a token-scoped postMessage bridge, and pressing Escape inside
+  the iframe exits via the same bridge. A live theme bridge
+  re-injects the canvas theme tokens into the iframe whenever the
+  theme changes, so present mode reflects light/dark toggles
+  instantly.
+- **`html-primitives.md` skill reference.** New 132-line authoring
+  guide under `skills/pmx-canvas/references/` covers when to use
+  primitives versus `canvas_add_html_node` versus
+  `canvas_build_web_artifact`, the catalog, and shared design
+  language.
+
+### Changed
+
+- **`canvas_add_html_node` clarifies presentation is opt-in.** The
+  MCP tool description now states explicitly that presentation
+  mode is opt-in (pass `presentation: true` or use the
+  `presentation` primitive) — normal html nodes remain the default
+  for reports, widgets, and bespoke visualizations.
+- **Auto-fit no longer shrinks presentation html nodes.** Like
+  graph and json-render frames, presentation-marked html nodes
+  keep their explicit width and height so decks aren't squeezed
+  by the content-fit pass.
+- **`pmx-canvas html` subcommand routes through the agent CLI.**
+  Same fix as the earlier `fit` and `screenshot` routing issues —
+  `html` is now in the `AGENT_COMMANDS` set in `src/cli/index.ts`
+  so it doesn't get treated as a server-startup invocation.
+
+### Internal
+
+- Regression coverage for: HTML node semantic sidecars persisting
+  through CLI/HTTP/MCP, presentation primitives storing slide
+  metadata and theme metadata (named + custom), agent context
+  exposing html sidecars and presentation metadata, auto-fit
+  excluding presentation html frames, the `html` CLI routing,
+  client-side present-mode behavior (only explicit presentation
+  html nodes can present; theme bridge injected; srcdoc marker
+  distinguishes review vs present mode), live theme update on
+  present-mode iframe (e2e), and present mode focusing iframe
+  keyboard navigation while hiding review hints (e2e).
+
 ## [0.1.20] - 2026-05-06
 
 A bigger feature release. Adds 18 reusable HTML communication
@@ -897,6 +981,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.21]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.21
 [0.1.20]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.20
 [0.1.19]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.19
 [0.1.18]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.18

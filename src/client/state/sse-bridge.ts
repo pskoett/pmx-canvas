@@ -291,9 +291,9 @@ function ensureLedgerNode(summary: Record<string, unknown>): void {
 function applyCanvasTheme(theme: string): void {
   const valid = theme === 'dark' || theme === 'light' || theme === 'high-contrast';
   if (!valid || canvasTheme.value === theme) return;
-  canvasTheme.value = theme;
   document.documentElement.setAttribute('data-theme', theme);
   invalidateTokenCache();
+  canvasTheme.value = theme;
 }
 
 function isCanvasNodeType(value: unknown): value is CanvasNodeState['type'] {

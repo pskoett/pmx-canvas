@@ -39,4 +39,11 @@ describe('client auto-fit helpers', () => {
     expect(shouldAutoFitNode(markdown)).toBe(false);
     expect(computeAutoFitHeight(markdown, 900)).toBeNull();
   });
+
+  test('does not shrink presentation html frames', () => {
+    const presentation = makeNode({ type: 'html', size: { width: 1120, height: 700 }, data: { presentation: true } });
+
+    expect(shouldAutoFitNode(presentation)).toBe(false);
+    expect(computeAutoFitHeight(presentation, 900)).toBeNull();
+  });
 });

@@ -11,8 +11,12 @@ function hasExplicitStructuredFrame(node: CanvasNodeState): boolean {
   return node.type === 'graph' || node.type === 'json-render';
 }
 
+function isPresentationHtmlNode(node: CanvasNodeState): boolean {
+  return node.type === 'html' && node.data.presentation === true;
+}
+
 export function shouldAutoFitNode(node: CanvasNodeState): boolean {
-  return !node.collapsed && !node.dockPosition && node.data.strictSize !== true && node.type !== 'group' && !isExtAppNode(node) && !hasExplicitStructuredFrame(node);
+  return !node.collapsed && !node.dockPosition && node.data.strictSize !== true && node.type !== 'group' && !isExtAppNode(node) && !hasExplicitStructuredFrame(node) && !isPresentationHtmlNode(node);
 }
 
 export function computeAutoFitHeight(node: CanvasNodeState, contentHeight: number): number | null {

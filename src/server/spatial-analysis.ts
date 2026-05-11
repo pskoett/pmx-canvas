@@ -312,9 +312,10 @@ export function searchNodes(
 
   for (const node of nodes) {
     const title = ((node.data.title as string) ?? '').toLowerCase();
-    const content = ((node.data.content as string) ?? (node.data.description as string) ?? (node.data.fileContent as string) ?? '').toLowerCase();
+    const content = ((node.data.content as string) ?? (node.data.agentSummary as string) ?? (node.data.contentSummary as string) ?? (node.data.description as string) ?? (node.data.fileContent as string) ?? '').toLowerCase();
     const path = ((node.data.path as string) ?? '').toLowerCase();
     const description = ((node.data.description as string) ?? '').toLowerCase();
+    const summary = ((node.data.summary as string) ?? (node.data.agentSummary as string) ?? (node.data.contentSummary as string) ?? '').toLowerCase();
     const url = ((node.data.url as string) ?? '').toLowerCase();
 
     let score = 0;
@@ -324,6 +325,7 @@ export function searchNodes(
       if (path.includes(term)) score += 2;
       if (url.includes(term)) score += 2;
       if (description.includes(term)) score += 1;
+      if (summary.includes(term)) score += 1;
       if (content.includes(term)) score += 1;
     }
 
@@ -331,7 +333,7 @@ export function searchNodes(
 
     // Extract a snippet around the first match in content
     let snippet = '';
-    const fullContent = (node.data.content as string) ?? (node.data.description as string) ?? (node.data.fileContent as string) ?? '';
+    const fullContent = (node.data.content as string) ?? (node.data.agentSummary as string) ?? (node.data.contentSummary as string) ?? (node.data.description as string) ?? (node.data.fileContent as string) ?? '';
     const matchIdx = fullContent.toLowerCase().indexOf(terms[0]);
     if (matchIdx >= 0) {
       const start = Math.max(0, matchIdx - 40);

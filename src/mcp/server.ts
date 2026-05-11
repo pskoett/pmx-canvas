@@ -403,10 +403,17 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_add_html_node ────────────────────────────────────────
   server.tool(
     'canvas_add_html_node',
-    'Add an html node: a self-contained HTML document (with optional inline <script> and CDN <script src="...">) rendered inside a sandboxed iframe (sandbox="allow-scripts"). Use this for moderate-complexity visualizations or interactive widgets that need real JS but do not warrant a full React/shadcn build. The iframe inherits canvas theme tokens via injected CSS custom properties (both --c-* and common --color-* aliases) so authored HTML using var(--color-text-secondary), var(--color-bg), etc. renders cohesively. No same-origin access; no top-navigation; no forms. For declarative-only views with zero JS, prefer canvas_add_json_render_node. For React + shadcn + routing or multi-component apps, use canvas_build_web_artifact.',
+    'Add a normal html node: a self-contained HTML document (with optional inline <script> and CDN <script src="...">) rendered inside a sandboxed iframe (sandbox="allow-scripts"). This is the default HTML surface for reports, widgets, and bespoke visualizations. Presentation mode is opt-in: only pass presentation:true when the user explicitly asks for a deck/fullscreen presentation, or use canvas_add_html_primitive with kind="presentation". The iframe inherits live canvas theme tokens via injected CSS custom properties (both --c-* and common --color-* aliases) so authored HTML using var(--color-text-secondary), var(--color-bg), etc. renders cohesively. No same-origin access; no top-navigation; no forms. For declarative-only views with zero JS, prefer canvas_add_json_render_node. For React + shadcn + routing or multi-component apps, use canvas_build_web_artifact.',
     {
       html: z.string().describe('HTML document or fragment. Full <html>...</html> documents are passed through with theme styles injected into <head>; bare fragments are wrapped in a minimal document. Inline <script> and remote CDN <script src="..."> are allowed.'),
       title: z.string().optional().describe('Node title shown in the canvas titlebar.'),
+      summary: z.string().optional().describe('Agent-readable semantic summary for this HTML node. If omitted, PMX derives one from visible HTML text.'),
+      agentSummary: z.string().optional().describe('Explicit agent-readable summary. Alias for summary with higher priority when both are provided.'),
+      description: z.string().optional().describe('Short description included in search and pinned/spatial context.'),
+      presentation: z.boolean().optional().describe('Marks this HTML surface as a fullscreen presentation/deck. Omit unless the user explicitly requested presentation mode.'),
+      slideTitles: z.array(z.string()).optional().describe('Agent-readable slide titles for presentation HTML.'),
+      embeddedNodeIds: z.array(z.string()).optional().describe('Canvas node IDs embedded or represented by this HTML surface.'),
+      embeddedUrls: z.array(z.string()).optional().describe('URLs embedded or represented by this HTML surface.'),
       x: z.number().optional().describe('X position (auto-placed if omitted).'),
       y: z.number().optional().describe('Y position (auto-placed if omitted).'),
       width: z.number().optional().describe('Width in pixels (default: 720).'),
@@ -420,6 +427,13 @@ export async function startMcpServer(): Promise<void> {
       const id = await c.addHtmlNode({
         html: input.html,
         ...(typeof input.title === 'string' ? { title: input.title } : {}),
+        ...(typeof input.summary === 'string' ? { summary: input.summary } : {}),
+        ...(typeof input.agentSummary === 'string' ? { agentSummary: input.agentSummary } : {}),
+        ...(typeof input.description === 'string' ? { description: input.description } : {}),
+        ...(input.presentation === true ? { presentation: true } : {}),
+        ...(Array.isArray(input.slideTitles) ? { slideTitles: input.slideTitles } : {}),
+        ...(Array.isArray(input.embeddedNodeIds) ? { embeddedNodeIds: input.embeddedNodeIds } : {}),
+        ...(Array.isArray(input.embeddedUrls) ? { embeddedUrls: input.embeddedUrls } : {}),
         ...(typeof input.x === 'number' ? { x: input.x } : {}),
         ...(typeof input.y === 'number' ? { y: input.y } : {}),
         ...(typeof input.width === 'number' ? { width: input.width } : {}),
@@ -434,11 +448,11 @@ export async function startMcpServer(): Promise<void> {
 
   server.tool(
     'canvas_add_html_primitive',
-    'Create a reusable HTML communication primitive as a normal sandboxed html node. Use this instead of long markdown for side-by-side choices, implementation plans, PR review sheets, module maps, design sheets, component galleries, flowcharts, slide decks, explainers, status reports, and throwaway editors with export/copy paths.',
+    'Create a reusable HTML communication primitive as a normal sandboxed html node. Use this instead of long markdown for side-by-side choices, implementation plans, PR review sheets, module maps, design sheets, component galleries, flowcharts, explainers, status reports, and throwaway editors with export/copy paths. Use kind="presentation" only when the user explicitly asks for a PowerPoint-like deck, pitch, briefing, workshop walkthrough, or fullscreen story.',
     {
       kind: htmlPrimitiveKindSchema.describe('Primitive kind. Call canvas_describe_schema and read htmlPrimitives for data shapes and examples.'),
       title: z.string().optional().describe('Node title shown in the canvas titlebar.'),
-      data: z.record(z.string(), z.unknown()).optional().describe('Primitive-specific data payload. See canvas_describe_schema.htmlPrimitives for each shape.'),
+      data: z.record(z.string(), z.unknown()).optional().describe('Primitive-specific data payload. For kind="presentation", data may include theme:"canvas"|"midnight"|"paper"|"aurora" or a custom color object. See canvas_describe_schema.htmlPrimitives for each shape.'),
       x: z.number().optional().describe('X position (auto-placed if omitted).'),
       y: z.number().optional().describe('Y position (auto-placed if omitted).'),
       width: z.number().optional().describe('Width in pixels (defaults per primitive).'),

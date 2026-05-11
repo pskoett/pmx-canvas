@@ -1,4 +1,5 @@
 import { pathToFileURL } from 'node:url';
+import { normalizeHtmlNodeSemanticData } from './html-node-summary.js';
 
 export type CanvasNodeType =
   | 'markdown'
@@ -228,17 +229,18 @@ export function normalizeCanvasNodeData<T extends Record<string, unknown>>(
   nodeType: CanvasNodeType,
   data: T,
 ): T {
-  const existing = normalizeExistingProvenance(data.provenance);
-  const inferred = inferCanvasNodeProvenance(nodeType, data);
+  const semanticData = nodeType === 'html' ? normalizeHtmlNodeSemanticData(data) : data;
+  const existing = normalizeExistingProvenance(semanticData.provenance);
+  const inferred = inferCanvasNodeProvenance(nodeType, semanticData);
   const provenance = mergeProvenance(existing, inferred);
 
   if (provenance) {
-    return { ...data, provenance } as T;
+    return { ...semanticData, provenance } as T;
   }
-  if ('provenance' in data) {
-    const nextData = { ...data };
+  if ('provenance' in semanticData) {
+    const nextData = { ...semanticData };
     delete nextData.provenance;
     return nextData as T;
   }
-  return data;
+  return semanticData;
 }

@@ -1160,6 +1160,15 @@ cmd('node add', 'Add a node to the canvas', [
   } else if (type === 'html') {
     const html = getStringFlag(flags, 'html') ?? getStringFlag(flags, 'content');
     if (html !== undefined) body.html = html;
+    const summary = getStringFlag(flags, 'summary');
+    const agentSummary = getStringFlag(flags, 'agent-summary', 'agentSummary');
+    const description = getStringFlag(flags, 'description');
+    if (summary !== undefined) body.summary = summary;
+    if (agentSummary !== undefined) body.agentSummary = agentSummary;
+    if (description !== undefined) body.description = description;
+    if (optionalBooleanFlag(flags, 'presentation', 'Use --presentation true or --presentation false') === true) body.presentation = true;
+    if (typeof flags['slide-title'] === 'string') body.slideTitles = [flags['slide-title']];
+    if (typeof flags['embedded-node-id'] === 'string') body.embeddedNodeIds = [flags['embedded-node-id']];
   } else if (flags.content) {
     body.content = flags.content;
   }

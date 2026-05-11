@@ -223,6 +223,43 @@ describe('agent CLI node commands', () => {
     expect(output.data.html).toContain('HTML artifact');
   });
 
+  test('html presentation primitive CLI exposes slide metadata', async () => {
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'html',
+        'primitive',
+        'add',
+        '--kind',
+        'presentation',
+        '--title',
+        'CLI Presentation',
+        '--data-json',
+        JSON.stringify({ theme: 'aurora', slides: [{ title: 'Frame' }, { title: 'Decision', note: 'Ask for approval.' }] }),
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      type: string;
+      data: Record<string, unknown>;
+      primitive: { kind: string };
+    };
+    expect(output.ok).toBe(true);
+    expect(output.type).toBe('html');
+    expect(output.primitive.kind).toBe('presentation');
+    expect(output.data.presentation).toBe(true);
+    expect(output.data.slideCount).toBe(2);
+    expect(output.data.slideTitles).toEqual(['Frame', 'Decision']);
+    expect(output.data.speakerNotes).toEqual(['Ask for approval.']);
+    expect(output.data.presentationTheme).toBe('aurora');
+  });
+
   test('node add forwards trace fields advertised by schema help', async () => {
     const log = mock(() => {});
     const originalLog = console.log;

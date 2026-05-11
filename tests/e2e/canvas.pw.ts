@@ -453,6 +453,72 @@ test('renders html nodes from server state in the workbench', async ({ page, req
   await expect(htmlNode.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts');
   await expect(htmlNode.locator('iframe')).not.toHaveAttribute('sandbox', /allow-same-origin/);
   await expect(htmlNode.frameLocator('iframe').getByText('HTML render sentinel')).toBeVisible();
+
+  await htmlNode.getByTitle('Expand (focus mode)').click();
+  const overlay = page.locator('.expanded-overlay-panel');
+  await expect(overlay).toBeVisible();
+  await expect(overlay.getByRole('button', { name: 'Present' })).toHaveCount(0);
+  await page.getByTitle('Close (Esc)').click();
+});
+
+test('html presentation nodes live-update theme inside sandboxed iframes', async ({ page, request }) => {
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'html',
+      title: 'Theme-aware presentation',
+      html: '<main><h1>Theme sentinel</h1><p id="theme-bg">Theme</p><script>document.getElementById("theme-bg").textContent = getComputedStyle(document.documentElement).getPropertyValue("--color-bg").trim(); window.addEventListener("message", () => setTimeout(() => { document.getElementById("theme-bg").textContent = getComputedStyle(document.documentElement).getPropertyValue("--color-bg").trim(); }, 0));</script></main>',
+      presentation: true,
+      x: 640,
+      y: 260,
+      width: 520,
+      height: 360,
+    },
+  });
+
+  await page.goto('/workbench');
+  const htmlNode = page.locator('.canvas-node').filter({ hasText: 'Theme-aware presentation' });
+  await expect(htmlNode).toHaveCount(1);
+  await expect(htmlNode.frameLocator('iframe').getByText('Theme sentinel')).toBeVisible();
+
+  const before = await htmlNode.frameLocator('iframe').locator('#theme-bg').textContent();
+  await page.getByRole('button', { name: /Switch to light theme/ }).click();
+
+  await expect.poll(async () => htmlNode.frameLocator('iframe').locator('#theme-bg').textContent()).not.toBe(before);
+});
+
+test('presentation mode focuses iframe keyboard navigation and hides review hints', async ({ page, request }) => {
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'html',
+      primitive: 'presentation',
+      title: 'Keyboard Deck',
+      data: {
+        slides: [
+          { title: 'First slide', body: 'Start here.' },
+          { title: 'Second slide', body: 'Keyboard navigation lands here.' },
+        ],
+      },
+      x: 640,
+      y: 260,
+    },
+  });
+
+  await page.goto('/workbench');
+  const deckNode = page.locator('.canvas-node').filter({ hasText: 'Keyboard Deck' });
+  await expect(deckNode).toHaveCount(1);
+  await deckNode.getByTitle('Expand (focus mode)').click();
+
+  const overlay = page.locator('.expanded-overlay-panel');
+  await expect(overlay.frameLocator('iframe').getByText('Arrow keys, Space, Page Up/Down')).toBeVisible();
+  await expect(overlay.frameLocator('iframe').getByRole('button', { name: 'Copy JSON' })).toHaveCount(0);
+  await expect(overlay.frameLocator('iframe').getByRole('button', { name: 'Copy prompt' })).toHaveCount(0);
+
+  await overlay.getByRole('button', { name: 'Present' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Present Keyboard Deck' });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.frameLocator('iframe').getByText('Arrow keys, Space, Page Up/Down')).toBeHidden();
+  await page.keyboard.press('ArrowRight');
+  await expect(dialog.frameLocator('iframe').getByRole('heading', { name: 'Second slide' })).toBeVisible();
 });
 
 test('pasting a URL onto the canvas creates a webpage node', async ({ page, request }) => {

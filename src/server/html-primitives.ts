@@ -10,6 +10,7 @@ export const HTML_PRIMITIVE_KINDS = [
   'interaction-prototype',
   'flowchart',
   'deck',
+  'presentation',
   'illustration-set',
   'explainer',
   'status-report',
@@ -44,6 +45,14 @@ export interface HtmlPrimitiveBuildResult {
   summary: string;
   defaultSize: { width: number; height: number };
   data: Record<string, unknown>;
+}
+
+export interface HtmlPrimitiveSemanticMetadata {
+  presentation?: true;
+  slideCount?: number;
+  slideTitles?: string[];
+  speakerNotes?: string[];
+  presentationTheme?: string | Record<string, string>;
 }
 
 type PrimitiveRenderer = (input: { title: string; data: Record<string, unknown>; descriptor: HtmlPrimitiveDescriptor }) => string;
@@ -223,6 +232,25 @@ const DESCRIPTORS: HtmlPrimitiveDescriptor[] = [
     },
   },
   {
+    kind: 'presentation',
+    title: 'HTML Presentation',
+    description: 'PowerPoint-style fullscreen-ready HTML presentation with slide navigation, progress, speaker notes, and presentation metadata.',
+    useWhen: 'Use when the human asks for a presentation, pitch deck, briefing, workshop walkthrough, or PowerPoint-like deliverable.',
+    defaultSize: { width: 1120, height: 700 },
+    dataShape: '{ subtitle?, theme?: "canvas"|"midnight"|"paper"|"aurora"|{ bg?, panel?, surface?, border?, text?, textSecondary?, textMuted?, accent? }, slides: [{ title, kicker?, body?, bullets?: string[], metrics?: [{ label, value, detail? }], note? }] }',
+    example: {
+      kind: 'presentation',
+      title: 'Project Briefing',
+      data: {
+        subtitle: 'A meeting-ready narrative for review.',
+        slides: [
+          { title: 'Why this matters', kicker: '01', body: 'Frame the decision and outcome.', bullets: ['Human-readable', 'Fullscreen-ready'] },
+          { title: 'What changes', kicker: '02', bullets: ['Show the before/after', 'End with clear next steps'] },
+        ],
+      },
+    },
+  },
+  {
     kind: 'illustration-set',
     title: 'Illustration Set',
     description: 'Inline SVG figure sheet with captions and per-figure SVG copy/export controls.',
@@ -358,6 +386,43 @@ function fieldRecords(data: Record<string, unknown>, key: string, fallback: Reco
   return found.length > 0 ? found : fallback;
 }
 
+const DEFAULT_DECK_SLIDES: Record<string, unknown>[] = [
+  { title: 'HTML keeps humans in the loop', kicker: 'Thesis', bullets: ['Higher information density', 'Visual clarity', 'Two-way interaction'] },
+  { title: 'Use the lightest tier that works', bullets: ['json-render for structured UI', 'html primitives for rich documents', 'web artifacts for full React apps'] },
+];
+
+const DEFAULT_PRESENTATION_SLIDES: Record<string, unknown>[] = [
+  { title: 'Set the frame', kicker: '01', body: 'Open with the decision, audience, and outcome this presentation supports.' },
+  { title: 'Show the evidence', kicker: '02', bullets: ['Use concrete facts', 'Keep one idea per slide', 'Make risks visible'] },
+  { title: 'Close with action', kicker: '03', bullets: ['Decision needed', 'Owner and next step', 'Timing'] },
+];
+
+function presentationSlides(data: Record<string, unknown>, fallback = DEFAULT_PRESENTATION_SLIDES): Record<string, unknown>[] {
+  return fieldRecords(data, 'slides', fallback);
+}
+
+function enrichPresentationData(
+  kind: HtmlPrimitiveKind,
+  data: Record<string, unknown>,
+): Record<string, unknown> {
+  if (kind !== 'deck' && kind !== 'presentation') return data;
+  const slides = presentationSlides(data, kind === 'deck' ? DEFAULT_DECK_SLIDES : DEFAULT_PRESENTATION_SLIDES);
+  const slideTitles = slides.map((slide, index) => itemTitle(slide, `Slide ${index + 1}`));
+  const speakerNotes = slides
+    .map((slide) => text(slide.note).trim())
+    .filter(Boolean);
+  const theme = kind === 'presentation' ? presentationThemeMetadata(data) : undefined;
+  return {
+    ...data,
+    slides,
+    presentation: true,
+    slideCount: slides.length,
+    slideTitles,
+    ...(speakerNotes.length > 0 ? { speakerNotes } : {}),
+    ...(theme !== undefined ? { presentationTheme: theme } : {}),
+  };
+}
+
 function fieldStrings(data: Record<string, unknown>, key: string, fallback: string[]): string[] {
   const found = strings(data[key]);
   return found.length > 0 ? found : fallback;
@@ -374,9 +439,118 @@ function escapeHtml(value: string): string {
 
 function safeCssColor(value: string): string {
   const trimmed = value.trim();
+  if (/^var\(--[a-z0-9-]+\)$/i.test(trimmed)) return trimmed;
   if (/^#[0-9a-f]{3,8}$/i.test(trimmed)) return trimmed;
   if (/^(?:rgb|hsl)a?\([\d\s.,%+-]+\)$/i.test(trimmed)) return trimmed;
   return 'transparent';
+}
+
+type PresentationThemeName = 'canvas' | 'midnight' | 'paper' | 'aurora';
+
+interface PresentationThemeTokens {
+  name: PresentationThemeName | 'custom';
+  bg: string;
+  panel: string;
+  surface: string;
+  border: string;
+  text: string;
+  textSecondary: string;
+  textMuted: string;
+  accent: string;
+  colorScheme: string;
+}
+
+const PRESENTATION_THEMES: Record<PresentationThemeName, PresentationThemeTokens> = {
+  canvas: {
+    name: 'canvas',
+    bg: 'var(--color-bg, #081524)',
+    panel: 'var(--color-panel, #0f1d31)',
+    surface: 'var(--color-surface, #10213a)',
+    border: 'var(--color-border, #1b2c44)',
+    text: 'var(--color-text, #e6eef7)',
+    textSecondary: 'var(--color-text-secondary, #c7d3ea)',
+    textMuted: 'var(--color-text-muted, #8ea3bd)',
+    accent: 'var(--color-accent, #4BBCFF)',
+    colorScheme: 'dark light',
+  },
+  midnight: {
+    name: 'midnight',
+    bg: '#081524',
+    panel: '#0f1d31',
+    surface: '#10213a',
+    border: '#1b2c44',
+    text: '#e6eef7',
+    textSecondary: '#c7d3ea',
+    textMuted: '#8ea3bd',
+    accent: '#4BBCFF',
+    colorScheme: 'dark',
+  },
+  paper: {
+    name: 'paper',
+    bg: '#F4EFE6',
+    panel: '#EFE7D4',
+    surface: '#FAF6EE',
+    border: '#D6CBB4',
+    text: '#081524',
+    textSecondary: '#3d4d63',
+    textMuted: '#5c6b80',
+    accent: '#1A7ABF',
+    colorScheme: 'light',
+  },
+  aurora: {
+    name: 'aurora',
+    bg: '#090f1f',
+    panel: '#101a32',
+    surface: '#12263b',
+    border: '#24415f',
+    text: '#f5fbff',
+    textSecondary: '#d5e8f7',
+    textMuted: '#95adc2',
+    accent: '#8cffd2',
+    colorScheme: 'dark',
+  },
+};
+
+function presentationTheme(data: Record<string, unknown>): PresentationThemeTokens {
+  const raw = data.theme ?? data.presentationTheme;
+  if (typeof raw === 'string') {
+    return PRESENTATION_THEMES[raw as PresentationThemeName] ?? PRESENTATION_THEMES.canvas;
+  }
+  if (!isRecord(raw)) return PRESENTATION_THEMES.canvas;
+  const baseName = typeof raw.base === 'string' && raw.base in PRESENTATION_THEMES
+    ? raw.base as PresentationThemeName
+    : 'canvas';
+  const base = PRESENTATION_THEMES[baseName];
+  const readColor = (key: string, fallback: string): string => {
+    const value = text(raw[key]);
+    if (!value) return fallback;
+    const color = safeCssColor(value);
+    return color === 'transparent' ? fallback : color;
+  };
+  const colorScheme = raw.colorScheme === 'light' ? 'light' : raw.colorScheme === 'dark' ? 'dark' : base.colorScheme;
+  return {
+    name: 'custom',
+    bg: readColor('bg', base.bg),
+    panel: readColor('panel', base.panel),
+    surface: readColor('surface', base.surface),
+    border: readColor('border', base.border),
+    text: readColor('text', base.text),
+    textSecondary: readColor('textSecondary', base.textSecondary),
+    textMuted: readColor('textMuted', base.textMuted),
+    accent: readColor('accent', base.accent),
+    colorScheme,
+  };
+}
+
+function presentationThemeMetadata(data: Record<string, unknown>): string | Record<string, string> | undefined {
+  const raw = data.theme ?? data.presentationTheme;
+  if (typeof raw === 'string') return raw;
+  if (!isRecord(raw)) return undefined;
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (typeof value === 'string') result[key] = value;
+  }
+  return Object.keys(result).length > 0 ? result : undefined;
 }
 
 function number(value: unknown, fallback = 0): number {
@@ -760,10 +934,7 @@ document.querySelectorAll('[data-copy-svg]').forEach((button) => button.addEvent
 }
 
 function renderDeck({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
-  const slides = fieldRecords(data, 'slides', [
-    { title: 'HTML keeps humans in the loop', kicker: 'Thesis', bullets: ['Higher information density', 'Visual clarity', 'Two-way interaction'] },
-    { title: 'Use the lightest tier that works', bullets: ['json-render for structured UI', 'html primitives for rich documents', 'web artifacts for full React apps'] },
-  ]);
+  const slides = presentationSlides(data, DEFAULT_DECK_SLIDES);
   const body = `<section class="panel"><div class="small"><span id="slide-count">1</span> / ${slides.length} - use left/right arrows</div>${slides.map((item, index) => `<article class="slide ${index === 0 ? 'active' : ''}" data-slide="${index}"><div><div class="kicker">${escapeHtml(text(item.kicker, `Slide ${index + 1}`))}</div><h2>${escapeHtml(itemTitle(item, 'Slide'))}</h2><p>${escapeHtml(text(item.body, ''))}</p>${list(strings(item.bullets))}<p class="small">${escapeHtml(text(item.note, ''))}</p></div></article>`).join('')}</section>`;
   return page({
     title,
@@ -780,10 +951,130 @@ function showSlide(index) {
   document.getElementById('slide-count').textContent = String(currentSlide + 1);
 }
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'ArrowRight') showSlide(currentSlide + 1);
-  if (event.key === 'ArrowLeft') showSlide(currentSlide - 1);
+  if (event.key === 'ArrowRight' || event.key === 'PageDown' || event.key === ' ') showSlide(currentSlide + 1);
+  if (event.key === 'ArrowLeft' || event.key === 'PageUp') showSlide(currentSlide - 1);
 });`,
   });
+}
+
+function renderPresentation({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
+  const slides = presentationSlides(data);
+  const subtitle = text(data.subtitle, descriptor.description);
+  const theme = presentationTheme(data);
+  const accentOverride = safeCssColor(text(data.accent, ''));
+  const accent = accentOverride === 'transparent' ? theme.accent : accentOverride;
+  const slideMarkup = slides.map((item, index) => {
+    const metrics = records(item.metrics);
+    return `<article class="slide ${index === 0 ? 'active' : ''}" data-slide="${index}">
+      <div class="slide-grid ${metrics.length > 0 ? 'with-metrics' : 'without-metrics'}">
+        <div class="slide-copy">
+          <div class="kicker">${escapeHtml(text(item.kicker, `Slide ${index + 1}`))}</div>
+          <h2>${escapeHtml(itemTitle(item, 'Slide'))}</h2>
+          ${text(item.body) ? `<p class="lede">${escapeHtml(text(item.body))}</p>` : ''}
+          ${list(strings(item.bullets))}
+        </div>
+        ${metrics.length > 0 ? `<div class="metrics">${metrics.map((metric) => `<div class="metric"><span>${escapeHtml(text(metric.label, 'Metric'))}</span><strong>${escapeHtml(text(metric.value, '0'))}</strong>${text(metric.detail) ? `<p>${escapeHtml(text(metric.detail))}</p>` : ''}</div>`).join('')}</div>` : ''}
+      </div>
+      ${text(item.note) ? `<aside class="speaker-note"><span>Speaker note</span>${escapeHtml(text(item.note))}</aside>` : ''}
+    </article>`;
+  }).join('');
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(title)}</title>
+<style>
+  :root { color-scheme: ${theme.colorScheme}; --deck-accent: ${accent}; --deck-bg: ${theme.bg}; --deck-panel: ${theme.panel}; --deck-surface: ${theme.surface}; --deck-border: ${theme.border}; --deck-text: ${theme.text}; --deck-text-secondary: ${theme.textSecondary}; --deck-text-muted: ${theme.textMuted}; }
+  * { box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; }
+  body { margin: 0; padding: 0; background: var(--deck-bg); color: var(--deck-text); font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif); }
+  .deck { height: 100vh; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; background: radial-gradient(circle at 10% 10%, color-mix(in srgb, var(--deck-accent) 32%, transparent), transparent 28rem), linear-gradient(135deg, color-mix(in srgb, var(--deck-panel) 88%, black), var(--deck-bg)); }
+  .topbar, .bottombar { display: flex; align-items: center; justify-content: space-between; gap: 14px; padding: clamp(12px, 2.5vmin, 24px) clamp(18px, 4vw, 48px); color: var(--deck-text-secondary); }
+  .brand { display: grid; gap: 2px; }
+  .brand p { margin: 0; }
+  .eyebrow { color: var(--deck-accent); font-size: 11px; font-weight: 900; letter-spacing: .18em; text-transform: uppercase; }
+  .title { max-width: 70vw; overflow: hidden; color: var(--deck-text); font-size: clamp(16px, 2vw, 24px); font-weight: 850; letter-spacing: -.03em; text-overflow: ellipsis; white-space: nowrap; }
+  .controls { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+  button { border: 1px solid color-mix(in srgb, var(--deck-border) 82%, white); background: color-mix(in srgb, var(--deck-panel) 82%, transparent); color: var(--deck-text); border-radius: 999px; padding: 8px 12px; font: 700 12px/1 var(--font-sans, ui-sans-serif, system-ui, sans-serif); cursor: pointer; }
+  button:hover, button.active { border-color: var(--deck-accent); color: var(--deck-text); background: color-mix(in srgb, var(--deck-accent) 18%, var(--deck-panel)); }
+  .slides { min-height: 0; overflow-x: hidden; overflow-y: auto; overscroll-behavior: contain; scrollbar-gutter: stable; }
+  .slide { display: none; min-height: 100%; align-content: center; gap: clamp(16px, 3vmin, 28px); padding: clamp(24px, 5vmin, 64px) clamp(28px, 6vw, 92px); }
+  .slide.active { display: grid; }
+  .slide-grid { display: grid; gap: clamp(24px, 5vw, 72px); align-items: center; }
+  .slide-grid.with-metrics { grid-template-columns: minmax(0, 1.15fr) minmax(260px, .85fr); }
+  .slide-grid.without-metrics { grid-template-columns: minmax(0, 1fr); }
+  .slide-copy { max-width: min(1120px, 100%); }
+  .kicker { color: var(--deck-accent); font-size: clamp(12px, 1.8vw, 18px); font-weight: 950; letter-spacing: .18em; text-transform: uppercase; }
+  h2 { margin: 10px 0 18px; max-width: 16ch; font-size: clamp(40px, 8vmin, 104px); line-height: .9; letter-spacing: -.07em; }
+  .lede { max-width: 900px; margin: 0 0 20px; color: var(--deck-text-secondary); font-size: clamp(18px, 3vmin, 32px); line-height: 1.14; letter-spacing: -.03em; }
+  ul { display: grid; gap: 12px; max-width: 780px; margin: 0; padding: 0; list-style: none; }
+  li { position: relative; padding-left: 30px; color: var(--deck-text-secondary); font-size: clamp(17px, 2.2vmin, 25px); line-height: 1.22; }
+  li::before { content: ''; position: absolute; left: 0; top: .42em; width: 12px; height: 12px; border-radius: 50%; background: var(--deck-accent); box-shadow: 0 0 24px color-mix(in srgb, var(--deck-accent) 60%, transparent); }
+  .metrics { display: grid; gap: 14px; }
+  .metric { border: 1px solid color-mix(in srgb, var(--deck-accent) 42%, var(--deck-border)); border-radius: 28px; padding: 22px; background: color-mix(in srgb, var(--deck-panel) 78%, transparent); box-shadow: 0 24px 70px rgba(0,0,0,.26); }
+  .metric span { color: var(--deck-text-muted); font-size: 11px; font-weight: 900; letter-spacing: .14em; text-transform: uppercase; }
+  .metric strong { display: block; margin-top: 8px; font-size: clamp(34px, 6vw, 78px); line-height: .9; letter-spacing: -.06em; }
+  .metric p { margin: 10px 0 0; color: var(--deck-text-secondary); }
+  .speaker-note { max-width: min(1120px, 100%); border-left: 4px solid var(--deck-accent); padding: 10px 14px; color: var(--deck-text-muted); background: color-mix(in srgb, var(--deck-panel) 76%, transparent); border-radius: 14px; }
+  .speaker-note span { display: block; margin-bottom: 2px; color: var(--deck-accent); font-size: 10px; font-weight: 900; letter-spacing: .12em; text-transform: uppercase; }
+  .dots { display: flex; gap: 7px; align-items: center; }
+  .dot { width: 30px; height: 7px; border: 0; border-radius: 999px; padding: 0; background: color-mix(in srgb, var(--deck-text) 24%, transparent); }
+  .dot.active { width: 54px; background: var(--deck-accent); }
+  .hint { font-size: 12px; color: var(--deck-text-muted); }
+  html[data-pmx-presentation-mode="present"] .hint { display: none; }
+  .progress { height: 3px; width: 180px; overflow: hidden; border-radius: 999px; background: color-mix(in srgb, var(--deck-text) 18%, transparent); }
+  .progress span { display: block; height: 100%; width: 0; background: var(--deck-accent); transition: width .2s ease; }
+  @media (max-width: 820px) { .slide-grid { grid-template-columns: 1fr; } .metrics { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); } h2 { max-width: none; font-size: clamp(42px, 14vw, 78px); } .lede, li { font-size: 21px; } .topbar { align-items: flex-start; flex-direction: column; } .title { max-width: 100%; } }
+</style>
+</head>
+<body>
+<main class="deck">
+  <header class="topbar">
+    <div class="brand"><div class="eyebrow">PMX presentation</div><div class="title">${escapeHtml(title)}</div><p>${escapeHtml(subtitle)}</p></div>
+  </header>
+  <section class="slides">${slideMarkup}</section>
+  <footer class="bottombar">
+    <div class="dots">${slides.map((_, index) => `<button class="dot ${index === 0 ? 'active' : ''}" type="button" data-dot="${index}" aria-label="Go to slide ${index + 1}"></button>`).join('')}</div>
+    <div class="hint"><span id="slide-current">1</span> / ${slides.length} - Arrow keys, Space, Page Up/Down</div>
+    <div class="progress" aria-hidden="true"><span id="slide-progress"></span></div>
+  </footer>
+</main>
+<script type="application/json" id="pmx-data">${safeJson(data)}</script>
+<script>
+let currentSlide = 0;
+const slides = Array.from(document.querySelectorAll('[data-slide]'));
+const dots = Array.from(document.querySelectorAll('[data-dot]'));
+function showSlide(index) {
+  currentSlide = Math.max(0, Math.min(slides.length - 1, index));
+  slides.forEach((slide, i) => slide.classList.toggle('active', i === currentSlide));
+  dots.forEach((dot, i) => dot.classList.toggle('active', i === currentSlide));
+  document.getElementById('slide-current').textContent = String(currentSlide + 1);
+  document.getElementById('slide-progress').style.width = String(((currentSlide + 1) / slides.length) * 100) + '%';
+}
+dots.forEach((dot) => dot.addEventListener('click', () => showSlide(Number(dot.getAttribute('data-dot')))));
+function handlePresentationKey(key) {
+  if (key === 'ArrowRight' || key === 'PageDown' || key === ' ') { showSlide(currentSlide + 1); return true; }
+  if (key === 'ArrowLeft' || key === 'PageUp') { showSlide(currentSlide - 1); return true; }
+  if (key === 'Home') { showSlide(0); return true; }
+  if (key === 'End') { showSlide(slides.length - 1); return true; }
+  return false;
+}
+window.PMX_CANVAS_PRESENTATION_HANDLE_KEY = handlePresentationKey;
+document.addEventListener('pmx-presentation-key', (event) => {
+  if (!event.detail || typeof event.detail.key !== 'string') return;
+  handlePresentationKey(event.detail.key);
+});
+document.addEventListener('keydown', (event) => {
+  const tag = event.target && event.target.tagName;
+  if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+  if (handlePresentationKey(event.key)) event.preventDefault();
+});
+showSlide(0);
+</script>
+</body>
+</html>`;
 }
 
 function renderExplainer({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
@@ -952,6 +1243,7 @@ const RENDERERS: Record<HtmlPrimitiveKind, PrimitiveRenderer> = {
   flowchart: renderFlowchart,
   'illustration-set': renderIllustrationSet,
   deck: renderDeck,
+  presentation: renderPresentation,
   explainer: renderExplainer,
   'status-report': renderStatusReport,
   'incident-report': renderIncidentReport,
@@ -974,16 +1266,34 @@ export function listHtmlPrimitiveDescriptors(): HtmlPrimitiveDescriptor[] {
   return JSON.parse(JSON.stringify(DESCRIPTORS)) as HtmlPrimitiveDescriptor[];
 }
 
+export function getHtmlPrimitiveSemanticMetadata(data: Record<string, unknown>): HtmlPrimitiveSemanticMetadata {
+  if (data.presentation !== true) return {};
+  const slideTitles = strings(data.slideTitles);
+  const speakerNotes = strings(data.speakerNotes);
+  const theme = presentationThemeMetadata(data);
+  return {
+    presentation: true,
+    ...(typeof data.slideCount === 'number' && Number.isFinite(data.slideCount) ? { slideCount: data.slideCount } : {}),
+    ...(slideTitles.length > 0 ? { slideTitles } : {}),
+    ...(speakerNotes.length > 0 ? { speakerNotes } : {}),
+    ...(theme !== undefined ? { presentationTheme: theme } : {}),
+  };
+}
+
 export function buildHtmlPrimitive(input: HtmlPrimitiveInput): HtmlPrimitiveBuildResult {
   const descriptor = getHtmlPrimitiveDescriptor(input.kind);
   const title = input.title ?? descriptor.title;
-  const data = input.data ?? {};
+  const data = enrichPresentationData(input.kind, input.data ?? {});
   const renderer = RENDERERS[input.kind];
+  const slideTitles = strings(data.slideTitles);
+  const summary = slideTitles.length > 0
+    ? `${descriptor.description} Slides: ${slideTitles.join(', ')}.`
+    : descriptor.description;
   return {
     kind: input.kind,
     title,
     html: renderer({ title, data, descriptor }),
-    summary: descriptor.description,
+    summary,
     defaultSize: descriptor.defaultSize,
     data,
   };

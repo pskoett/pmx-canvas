@@ -243,6 +243,12 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     mcpTool: 'canvas_add_html_node',
     fields: [
       { name: 'html', type: 'string', required: false, description: 'HTML document or fragment rendered in the sandboxed iframe.', aliases: ['content', 'stdin'] },
+      { name: 'summary', type: 'string', required: false, description: 'Explicit agent-readable summary. If omitted, PMX derives one from visible HTML text.' },
+      { name: 'agentSummary', type: 'string', required: false, description: 'Explicit semantic sidecar used by search, pinned context, and spatial context.' },
+      { name: 'embeddedNodeIds', type: 'string[]', required: false, description: 'Canvas node IDs represented or iframe-embedded by this HTML surface.' },
+      { name: 'embeddedUrls', type: 'string[]', required: false, description: 'URLs represented or iframe-embedded by this HTML surface.' },
+      { name: 'presentation', type: 'boolean', required: false, description: 'Marks this HTML surface as a fullscreen presentation/deck.' },
+      { name: 'slideTitles', type: 'string[]', required: false, description: 'Agent-readable slide titles for presentation HTML.' },
       { name: 'primitive', type: 'HtmlPrimitiveKind', required: false, description: 'Generate HTML from a built-in communication primitive instead of passing raw HTML.', aliases: ['kind'] },
       { name: 'data', type: 'record<string, unknown>', required: false, description: 'Primitive data when --primitive is used, or arbitrary node metadata.' },
       { name: 'title', type: 'string', required: false, description: 'Optional node title.' },
@@ -259,6 +265,9 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     },
     notes: [
       'The CLI accepts --content as an alias and stores it as data.html so the renderer can load it.',
+      'Normal html nodes are the default. Presentation mode is opt-in via presentation:true or the presentation primitive.',
+      'HTML nodes persist data.contentSummary and data.agentSummary so agents can understand rich visual HTML without parsing the full iframe payload.',
+      'Only presentation-marked HTML nodes expose a browser Present button for fullscreen review; use the presentation primitive for PowerPoint-like decks.',
       'Use `primitive` / `kind` with `data` to create reusable agent communication artifacts such as choice grids, plans, review sheets, explainers, and editors.',
       'HTML runs in a sandboxed iframe without same-origin access to the canvas host.',
     ],
@@ -291,6 +300,8 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     },
     notes: [
       'HTTP callers may POST { type: "html-primitive", kind, data } or { type: "html", primitive: kind, data }; both create a normal html node with primitive metadata.',
+      'Use kind "presentation" only when a PowerPoint-like deck is requested; created nodes persist presentation, slideCount, slideTitles, and optional presentationTheme metadata for agents.',
+      'Presentation primitive data supports theme: "canvas" | "midnight" | "paper" | "aurora" or a custom color object with bg, panel, surface, border, text, textSecondary, textMuted, accent, and colorScheme.',
       'Interactive editor primitives include copy/export controls so the human can send edited state back to the agent.',
     ],
   },

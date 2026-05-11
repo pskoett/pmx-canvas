@@ -37,6 +37,10 @@ The canvas auto-starts on first tool call.
 | `canvas_add_json_render_node` | Create a native json-render node from a validated spec |
 | `canvas_add_graph_node` | Create a native graph node (line, bar, pie, area, scatter, radar, stacked-bar, composed) |
 | `canvas_build_web_artifact` | Build a bundled HTML artifact and open it on the canvas |
+
+`canvas_add_html_node` accepts optional `summary`, `agentSummary`, `embeddedNodeIds`, and
+`embeddedUrls`. PMX also derives a bounded text summary from visible HTML, so rich HTML nodes stay
+searchable and readable in pinned/spatial context.
 | `canvas_update_node` | Update content, position, size, collapsed state |
 | `canvas_remove_node` | Remove a node and its edges |
 | `canvas_get_layout` | Get full canvas state |

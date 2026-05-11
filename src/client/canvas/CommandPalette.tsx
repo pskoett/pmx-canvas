@@ -145,9 +145,9 @@ export function CommandPalette({
         badge: 'THEME',
         action: () => {
           const next = canvasTheme.value === 'dark' ? 'light' : 'dark';
-          canvasTheme.value = next;
           document.documentElement.setAttribute('data-theme', next);
           invalidateTokenCache();
+          canvasTheme.value = next;
           onClose();
         },
       },

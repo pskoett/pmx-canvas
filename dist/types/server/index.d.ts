@@ -244,6 +244,13 @@ export declare class PmxCanvas extends EventEmitter {
     addHtmlNode(input: {
         html: string;
         title?: string;
+        summary?: string;
+        agentSummary?: string;
+        description?: string;
+        presentation?: boolean;
+        slideTitles?: string[];
+        embeddedNodeIds?: string[];
+        embeddedUrls?: string[];
         x?: number;
         y?: number;
         width?: number;
@@ -292,7 +299,7 @@ export type { SpatialCluster, SpatialContext, SpatialNeighbor, NodeSpatialInfo }
 export { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
 export { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 export { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
-export { buildHtmlPrimitive, isHtmlPrimitiveKind, listHtmlPrimitiveDescriptors } from './html-primitives.js';
+export { buildHtmlPrimitive, getHtmlPrimitiveSemanticMetadata, isHtmlPrimitiveKind, listHtmlPrimitiveDescriptors } from './html-primitives.js';
 export { buildWebArtifactOnCanvas, executeWebArtifactBuild, openWebArtifactInCanvas, resolveWebArtifactScriptPath, resolveWorkspacePath, } from './web-artifacts.js';
 export { buildGraphSpec, buildJsonRenderViewerHtml, createJsonRenderNodeData, GRAPH_NODE_SIZE, JSON_RENDER_NODE_SIZE, normalizeAndValidateJsonRenderSpec, } from '../json-render/server.js';
 export type { CodeGraphSummary, CodeGraphEdge } from './code-graph.js';

@@ -237,9 +237,9 @@ function Toolbar({
             type="button"
             onClick={() => {
               const next = canvasTheme.value === 'dark' ? 'light' : 'dark';
-              canvasTheme.value = next;
               document.documentElement.setAttribute('data-theme', next);
               invalidateTokenCache();
+              canvasTheme.value = next;
             }}
             aria-label={`Switch to ${canvasTheme.value === 'dark' ? 'light' : 'dark'} theme`}
           >

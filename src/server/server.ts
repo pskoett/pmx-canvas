@@ -111,7 +111,7 @@ import {
 } from './canvas-operations.js';
 import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
-import { buildHtmlPrimitive, isHtmlPrimitiveKind } from './html-primitives.js';
+import { buildHtmlPrimitive, getHtmlPrimitiveSemanticMetadata, isHtmlPrimitiveKind } from './html-primitives.js';
 import {
   EXCALIDRAW_READ_CHECKPOINT_TOOL,
   EXCALIDRAW_SAVE_CHECKPOINT_TOOL,
@@ -1487,8 +1487,18 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
     : body.content;
   // For html nodes, accept top-level `html` field and merge into data so callers
   // can POST { type: 'html', title, html } without nesting under `data`.
-  const htmlMergedData = type === 'html' && typeof body.html === 'string'
-    ? { ...(extraData ?? {}), html: body.html }
+  const htmlMergedData = type === 'html'
+    ? {
+        ...(extraData ?? {}),
+        ...(typeof body.html === 'string' ? { html: body.html } : {}),
+        ...(typeof body.summary === 'string' ? { summary: body.summary } : {}),
+        ...(typeof body.agentSummary === 'string' ? { agentSummary: body.agentSummary } : {}),
+        ...(typeof body.description === 'string' ? { description: body.description } : {}),
+        ...(body.presentation === true ? { presentation: true } : {}),
+        ...(Array.isArray(body.slideTitles) ? { slideTitles: body.slideTitles } : {}),
+        ...(Array.isArray(body.embeddedNodeIds) ? { embeddedNodeIds: body.embeddedNodeIds } : {}),
+        ...(Array.isArray(body.embeddedUrls) ? { embeddedUrls: body.embeddedUrls } : {}),
+      }
     : extraData;
   let added: ReturnType<typeof addCanvasNode>;
   const geometry = resolveCreateGeometry(body);
@@ -1497,7 +1507,7 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
       type: type as CanvasNodeState['type'],
       ...(typeof body.title === 'string' ? { title: body.title } : {}),
       ...(typeof content === 'string' ? { content } : {}),
-      ...(htmlMergedData ? { data: htmlMergedData } : {}),
+      ...(htmlMergedData && Object.keys(htmlMergedData).length > 0 ? { data: htmlMergedData } : {}),
       ...(type === 'trace' && typeof body.toolName === 'string' ? { toolName: body.toolName } : {}),
       ...(type === 'trace' && typeof body.category === 'string' ? { category: body.category } : {}),
       ...(type === 'trace' && typeof body.status === 'string' ? { status: body.status } : {}),
@@ -1545,6 +1555,9 @@ function createCanvasHtmlPrimitiveNode(body: Record<string, unknown>): Response 
       htmlPrimitive: built.kind,
       primitiveData: built.data,
       description: built.summary,
+      agentSummary: typeof data.agentSummary === 'string' ? data.agentSummary : built.summary,
+      ...(typeof data.summary === 'string' ? { summary: data.summary } : {}),
+      ...getHtmlPrimitiveSemanticMetadata(built.data),
     },
     ...(body.strictSize === true ? { strictSize: true } : {}),
     ...geometry,

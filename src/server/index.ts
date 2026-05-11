@@ -40,7 +40,7 @@ import {
 } from './canvas-operations.js';
 import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
-import { buildHtmlPrimitive, isHtmlPrimitiveKind, listHtmlPrimitiveDescriptors } from './html-primitives.js';
+import { buildHtmlPrimitive, getHtmlPrimitiveSemanticMetadata, isHtmlPrimitiveKind, listHtmlPrimitiveDescriptors } from './html-primitives.js';
 import type { HtmlPrimitiveKind } from './html-primitives.js';
 import {
   buildWebArtifactOnCanvas,
@@ -647,6 +647,13 @@ export class PmxCanvas extends EventEmitter {
   addHtmlNode(input: {
     html: string;
     title?: string;
+    summary?: string;
+    agentSummary?: string;
+    description?: string;
+    presentation?: boolean;
+    slideTitles?: string[];
+    embeddedNodeIds?: string[];
+    embeddedUrls?: string[];
     x?: number;
     y?: number;
     width?: number;
@@ -656,7 +663,16 @@ export class PmxCanvas extends EventEmitter {
     const { id } = addCanvasNode({
       type: 'html',
       ...(typeof input.title === 'string' ? { title: input.title } : {}),
-      data: { html: input.html },
+      data: {
+        html: input.html,
+        ...(typeof input.summary === 'string' ? { summary: input.summary } : {}),
+        ...(typeof input.agentSummary === 'string' ? { agentSummary: input.agentSummary } : {}),
+        ...(typeof input.description === 'string' ? { description: input.description } : {}),
+        ...(input.presentation === true ? { presentation: true } : {}),
+        ...(Array.isArray(input.slideTitles) ? { slideTitles: input.slideTitles } : {}),
+        ...(Array.isArray(input.embeddedNodeIds) ? { embeddedNodeIds: input.embeddedNodeIds } : {}),
+        ...(Array.isArray(input.embeddedUrls) ? { embeddedUrls: input.embeddedUrls } : {}),
+      },
       ...(typeof input.x === 'number' ? { x: input.x } : {}),
       ...(typeof input.y === 'number' ? { y: input.y } : {}),
       ...(typeof input.width === 'number' ? { width: input.width } : {}),
@@ -692,6 +708,9 @@ export class PmxCanvas extends EventEmitter {
         htmlPrimitive: built.kind,
         primitiveData: built.data,
         description: built.summary,
+        agentSummary: typeof input.data?.agentSummary === 'string' ? input.data.agentSummary : built.summary,
+        ...(typeof input.data?.summary === 'string' ? { summary: input.data.summary } : {}),
+        ...getHtmlPrimitiveSemanticMetadata(built.data),
       },
       ...(typeof input.x === 'number' ? { x: input.x } : {}),
       ...(typeof input.y === 'number' ? { y: input.y } : {}),
@@ -786,7 +805,7 @@ export type { SpatialCluster, SpatialContext, SpatialNeighbor, NodeSpatialInfo }
 export { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
 export { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 export { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
-export { buildHtmlPrimitive, isHtmlPrimitiveKind, listHtmlPrimitiveDescriptors } from './html-primitives.js';
+export { buildHtmlPrimitive, getHtmlPrimitiveSemanticMetadata, isHtmlPrimitiveKind, listHtmlPrimitiveDescriptors } from './html-primitives.js';
 export {
   buildWebArtifactOnCanvas,
   executeWebArtifactBuild,

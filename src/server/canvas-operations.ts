@@ -1552,8 +1552,16 @@ export async function executeCanvasBatch(
             };
           } else {
             const data = isPlainRecord(args.data) ? args.data : {};
-            const htmlData = type === 'html' && typeof args.html === 'string'
-              ? { ...data, html: args.html }
+            const htmlData = type === 'html'
+              ? {
+                  ...data,
+                  ...(typeof args.html === 'string' ? { html: args.html } : {}),
+                  ...(typeof args.summary === 'string' ? { summary: args.summary } : {}),
+                  ...(typeof args.agentSummary === 'string' ? { agentSummary: args.agentSummary } : {}),
+                  ...(typeof args.description === 'string' ? { description: args.description } : {}),
+                  ...(Array.isArray(args.embeddedNodeIds) ? { embeddedNodeIds: args.embeddedNodeIds } : {}),
+                  ...(Array.isArray(args.embeddedUrls) ? { embeddedUrls: args.embeddedUrls } : {}),
+                }
               : data;
             const created = addCanvasNode({
               type: type as CanvasNodeState['type'],

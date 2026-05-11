@@ -192,6 +192,18 @@ function metadataForNode(node: CanvasNodeState): Record<string, unknown> | undef
       }
       return Object.keys(metadata).length > 0 ? metadata : undefined;
     }
+    case 'html': {
+      const metadata: Record<string, unknown> = {};
+      for (const key of ['summary', 'description', 'agentSummary', 'contentSummary', 'htmlPrimitive', 'presentation', 'slideCount', 'slideTitles', 'speakerNotes', 'embeddedNodeIds', 'embeddedUrls']) {
+        const value = node.data[key];
+        if (Array.isArray(value)) {
+          if (value.length > 0) metadata[key] = value;
+        } else if (value !== undefined && value !== null && value !== '') {
+          metadata[key] = value;
+        }
+      }
+      return Object.keys(metadata).length > 0 ? metadata : undefined;
+    }
     case 'mcp-app': {
       const metadata: Record<string, unknown> = {};
       for (const key of ['url', 'path', 'mode', 'hostMode', 'viewerType', 'serverName', 'toolName', 'resourceUri', 'sessionStatus', 'projectPath', 'artifactBytes', 'sourceFiles', 'sourceFileCount', 'deps']) {
@@ -245,10 +257,20 @@ export function summarizeNodeForAgentContext(
       return stringifyContextValue(node.data.spec ?? {}, defaultTextLength);
     }
     case 'html': {
+      if (typeof node.data.agentSummary === 'string') {
+        return truncateContextText(node.data.agentSummary, defaultTextLength);
+      }
       if (typeof node.data.htmlPrimitive === 'string') {
         return summarizeHtmlPrimitiveData(node.data, defaultTextLength);
       }
-      return stringifyContextValue({ title: node.data.title, description: node.data.description }, defaultTextLength);
+      return stringifyContextValue({
+        title: node.data.title,
+        description: node.data.description,
+        summary: node.data.summary,
+        contentSummary: node.data.contentSummary,
+        embeddedNodeIds: node.data.embeddedNodeIds,
+        embeddedUrls: node.data.embeddedUrls,
+      }, defaultTextLength);
     }
     case 'prompt':
     case 'response': {

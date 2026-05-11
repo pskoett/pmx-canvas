@@ -29,6 +29,7 @@ canvas.createGroup({ title: 'Build Pipeline', childIds: [n1, n2] });
 // Self-contained HTML in a sandboxed iframe
 canvas.addHtmlNode({
   title: 'Cost projection',
+  summary: 'Cost projection chart for the Q2 plan.',
   html: '<canvas id="c"></canvas><script src="https://cdn.jsdelivr.net/npm/chart.js"></script><script>/* ... */</script>',
 });
 

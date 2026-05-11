@@ -500,6 +500,224 @@ describe('canvas server HTTP API', () => {
     expect(search.results.some((result) => result.id === created.id)).toBe(true);
   });
 
+  test('presentation primitives persist slide metadata for agents', async () => {
+    const created = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      content: string | null;
+      data: Record<string, unknown>;
+      primitive: { kind: string; defaultSize: { width: number; height: number } };
+    }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'html-primitive',
+        kind: 'presentation',
+        title: 'Release Briefing',
+        data: {
+          slides: [
+            { title: 'Why now', body: 'Frame the release decision.', note: 'Open with the customer impact.' },
+            { title: 'What ships', bullets: ['Presentation mode', 'Semantic slide metadata'] },
+          ],
+        },
+      }),
+    });
+
+    expect(created.ok).toBe(true);
+    expect(created.primitive.kind).toBe('presentation');
+    expect(created.primitive.defaultSize).toEqual({ width: 1120, height: 700 });
+    expect(created.data.htmlPrimitive).toBe('presentation');
+    expect(created.data.presentation).toBe(true);
+    expect(created.data.slideCount).toBe(2);
+    expect(created.data.slideTitles).toEqual(['Why now', 'What ships']);
+    expect(created.data.speakerNotes).toEqual(['Open with the customer impact.']);
+    expect(created.data.primitiveData).toEqual(expect.objectContaining({
+      presentation: true,
+      slideCount: 2,
+      slideTitles: ['Why now', 'What ships'],
+    }));
+    expect(created.data.html).toContain('PMX presentation');
+    expect(created.data.html).toContain('Page Up/Down');
+    expect(created.data.html).not.toContain('Copy JSON');
+    expect(created.data.html).not.toContain('Copy prompt');
+    expect(created.data.html).toContain('data-pmx-presentation-mode="present"] .hint { display: none; }');
+    const generatedScripts: string[] = [];
+    for (const match of String(created.data.html).matchAll(/<script\b([^>]*)>([\s\S]*?)<\/script>/g)) {
+      const attrs = match[1] ?? '';
+      if (!/type=["']application\/json["']/i.test(attrs)) {
+        generatedScripts.push(match[2] ?? '');
+      }
+    }
+    expect(generatedScripts).not.toHaveLength(0);
+    for (const script of generatedScripts) {
+      expect(() => new Function(script)).not.toThrow();
+    }
+    expect(created.content).toContain('Slides: Why now, What ships');
+
+    const search = await jsonRequest<{ results: Array<{ id: string; snippet: string }> }>('/api/canvas/search?q=What%20ships');
+    expect(search.results.some((result) => result.id === created.id)).toBe(true);
+  });
+
+  test('presentation primitives support named and custom themes', async () => {
+    const defaultTheme = await jsonRequest<{
+      ok: boolean;
+      data: Record<string, unknown>;
+    }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'html-primitive',
+        kind: 'presentation',
+        title: 'Canvas Theme Deck',
+        data: {
+          slides: [{ title: 'Canvas themed', body: 'Follow the active PMX theme.' }],
+        },
+      }),
+    });
+
+    expect(defaultTheme.ok).toBe(true);
+    expect(defaultTheme.data.presentationTheme).toBeUndefined();
+    expect(defaultTheme.data.html).toContain('--deck-bg: var(--color-bg, #081524)');
+
+    const named = await jsonRequest<{
+      ok: boolean;
+      data: Record<string, unknown>;
+    }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'html-primitive',
+        kind: 'presentation',
+        title: 'Paper Deck',
+        data: {
+          theme: 'paper',
+          slides: [{ title: 'Light deck', body: 'Use a paper theme.' }],
+        },
+      }),
+    });
+
+    expect(named.ok).toBe(true);
+    expect(named.data.presentationTheme).toBe('paper');
+    expect(named.data.primitiveData).toEqual(expect.objectContaining({ presentationTheme: 'paper' }));
+    expect(named.data.html).toContain('color-scheme: light');
+    expect(named.data.html).toContain('--deck-bg: #F4EFE6');
+
+    const custom = await jsonRequest<{
+      ok: boolean;
+      data: Record<string, unknown>;
+    }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'html-primitive',
+        kind: 'presentation',
+        title: 'Custom Deck',
+        data: {
+          theme: {
+            base: 'paper',
+            bg: '#fff7ed',
+            panel: '#ffedd5',
+            surface: '#fed7aa',
+            border: '#fdba74',
+            text: '#431407',
+            textSecondary: '#7c2d12',
+            textMuted: '#9a3412',
+            accent: '#ea580c',
+            colorScheme: 'light',
+          },
+          slides: [{ title: 'Custom deck', body: 'Use a custom presentation theme.' }],
+        },
+      }),
+    });
+
+    expect(custom.ok).toBe(true);
+    expect(custom.data.presentationTheme).toEqual(expect.objectContaining({ accent: '#ea580c', colorScheme: 'light' }));
+    expect(custom.data.html).toContain('--deck-bg: #fff7ed');
+    expect(custom.data.html).toContain('--deck-accent: #ea580c');
+  });
+
+  test('html nodes persist semantic summaries for agent context and search', async () => {
+    const created = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      content: string | null;
+      data: Record<string, unknown>;
+    }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'html',
+        title: 'Light HTML report',
+        summary: 'Explicit semantic summary for the report.',
+        embeddedNodeIds: ['graph-source-1'],
+        html: `<!doctype html>
+          <html><head><style>.hidden{color:red}</style></head><body>
+            <h1>Quarterly HTML Report</h1>
+            <p>Revenue climbed in the light theme test.</p>
+            <script>window.secret = 'ignore me';</script>
+            <iframe src="/api/canvas/json-render/view?nodeId=graph-source-1"></iframe>
+          </body></html>`,
+      }),
+    });
+
+    expect(created.ok).toBe(true);
+    expect(created.data.summary).toBe('Explicit semantic summary for the report.');
+    expect(created.data.contentSummary).toContain('Quarterly HTML Report');
+    expect(created.data.contentSummary).toContain('Revenue climbed');
+    expect(created.data.contentSummary).not.toContain('window.secret');
+    expect(created.data.agentSummary).toContain('Explicit semantic summary');
+    expect(created.data.agentSummary).toContain('Quarterly HTML Report');
+    expect(created.data.embeddedNodeIds).toEqual(['graph-source-1']);
+    expect(created.data.embeddedUrls).toEqual(['/api/canvas/json-render/view?nodeId=graph-source-1']);
+    expect(created.content).toContain('Explicit semantic summary');
+
+    const search = await jsonRequest<{ results: Array<{ id: string; snippet: string }> }>('/api/canvas/search?q=revenue');
+    expect(search.results.some((result) => result.id === created.id && result.snippet.includes('Revenue climbed'))).toBe(true);
+
+    await jsonRequest<{ ok: boolean; count: number }>('/api/canvas/context-pins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeIds: [created.id] }),
+    });
+    const pinnedContext = await jsonRequest<{
+      preamble: string;
+      nodes: Array<{ id: string; content: string | null; metadata?: Record<string, unknown> }>;
+    }>('/api/canvas/pinned-context');
+    expect(pinnedContext.preamble).toContain('Explicit semantic summary');
+    expect(pinnedContext.preamble).toContain('Quarterly HTML Report');
+    expect(pinnedContext.nodes[0]?.metadata).toEqual(expect.objectContaining({
+      summary: 'Explicit semantic summary for the report.',
+      embeddedNodeIds: ['graph-source-1'],
+    }));
+
+    const updated = await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { html: '<main><h1>Updated HTML Report</h1><p>Churn dropped after the update.</p></main>' } }),
+    });
+    expect(updated.data.contentSummary).toContain('Updated HTML Report');
+    expect(updated.data.contentSummary).toContain('Churn dropped');
+    expect(updated.data.contentSummary).not.toContain('Revenue climbed');
+  });
+
+  test('raw html nodes can opt into presentation metadata', async () => {
+    const created = await jsonRequest<{ ok: boolean; data: Record<string, unknown> }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'html',
+        title: 'Raw Presentation',
+        html: '<main><h1>Raw deck</h1><section>Slide content</section></main>',
+        presentation: true,
+        slideTitles: ['Raw deck'],
+      }),
+    });
+
+    expect(created.ok).toBe(true);
+    expect(created.data.presentation).toBe(true);
+    expect(created.data.slideTitles).toEqual(['Raw deck']);
+  });
+
   test('closes hosted MCP app sessions when nodes are deleted or the canvas is cleared', async () => {
     const opened = await jsonRequest<{
       ok: boolean;
@@ -3332,6 +3550,7 @@ describe('canvas server HTTP API', () => {
     expect(schema.htmlPrimitives.some((primitive) => primitive.kind === 'code-walkthrough')).toBe(true);
     expect(schema.htmlPrimitives.some((primitive) => primitive.kind === 'interaction-prototype')).toBe(true);
     expect(schema.htmlPrimitives.some((primitive) => primitive.kind === 'illustration-set')).toBe(true);
+    expect(schema.htmlPrimitives.some((primitive) => primitive.kind === 'presentation')).toBe(true);
     expect(schema.htmlPrimitives.some((primitive) => primitive.kind === 'incident-report')).toBe(true);
     expect(schema.htmlPrimitives.some((primitive) => primitive.kind === 'triage-board')).toBe(true);
     expect(schema.mcp.tools).toContain('canvas_describe_schema');

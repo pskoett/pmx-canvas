@@ -143,7 +143,7 @@ component catalog before building a spec.
 
 ## HTML nodes
 
-`html` nodes render a self-contained HTML/JS document in a sandboxed iframe.
+`html` nodes render a normal self-contained HTML/JS document in a sandboxed iframe.
 They sit between `json-render` (no custom JS) and `web-artifact` (full bundled
 React app) — perfect for Chart.js, D3, custom widgets, and any HTML you can
 write or paste.
@@ -152,7 +152,8 @@ The sandbox runs with `allow-scripts` only — no same-origin access, no
 top-level navigation, no form submission. Inline `<script>` and CDN
 `<script src>` both work. The canvas auto-injects its theme tokens
 (`--c-*` and `--color-*` aliases) into the iframe `<head>` so artifacts can
-match the active theme.
+match the active theme. Theme updates are posted into sandboxed HTML iframes,
+so theme-aware HTML can follow dark/light switches without reopening the node.
 
 ```ts
 canvas_add_html_node({
@@ -164,6 +165,17 @@ canvas_add_html_node({
 A fragment without `<html>`/`<head>` is wrapped in a full document
 automatically. Default size is 720×640.
 
+Presentation mode is opt-in. Raw HTML nodes do not show the browser `Present`
+button unless callers set `presentation: true`; prefer the `presentation`
+primitive when the user explicitly asks for a PowerPoint-like deck, pitch,
+briefing, workshop walkthrough, or fullscreen story.
+
+HTML nodes also store an agent-readable semantic sidecar. Callers can pass
+`summary`, `agentSummary`, `embeddedNodeIds`, or `embeddedUrls`; when no summary
+is provided, PMX derives `data.contentSummary` from visible HTML text and stores
+`data.agentSummary` for search, pinned context, and spatial context. Scripts and
+styles are ignored during extraction.
+
 ### HTML primitives
 
 `html-primitive` is a virtual schema type that creates a normal sandboxed
@@ -171,8 +183,8 @@ automatically. Default size is 720×640.
 answer would be easier to review as an option grid, implementation timeline,
 review sheet, PR writeup, code walkthrough, system map, design sheet,
 component gallery, interaction prototype, flowchart, SVG illustration set,
-explainer, status report, incident report, triage board, config editor, or
-prompt tuner.
+presentation, explainer, status report, incident report, triage board, config
+editor, or prompt tuner.
 
 ```ts
 canvas_add_html_primitive({
@@ -189,7 +201,17 @@ canvas_add_html_primitive({
 HTTP callers may post either `{ "type": "html-primitive", "kind": "choice-grid", "data": ... }`
 or `{ "type": "html", "primitive": "choice-grid", "data": ... }`. The stored
 node remains `type: "html"` with `data.htmlPrimitive`, `data.primitiveData`, and
-the generated `data.html` payload.
+the generated `data.html` payload. Generated primitives also get an
+agent-readable summary sidecar.
+
+Only presentation-marked HTML nodes expose a `Present` button in the browser.
+Use the `presentation` primitive for PowerPoint-like decks; it persists
+`presentation`, `slideCount`, `slideTitles`, optional `speakerNotes`, and
+optional `presentationTheme` metadata while the iframe handles
+Arrow/Space/Page Up/Page Down slide navigation. Presentation data supports
+`theme: "canvas" | "midnight" | "paper" | "aurora"` or a custom color object with
+`bg`, `panel`, `surface`, `border`, `text`, `textSecondary`, `textMuted`,
+`accent`, and `colorScheme`.
 
 ## Web artifacts
 

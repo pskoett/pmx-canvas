@@ -442,7 +442,37 @@ class RemoteCanvasAccess implements CanvasAccess {
   }
 
   async addHtmlNode(input: AddHtmlNodeInput): Promise<string> {
-    return await this.requestNodeId('POST', '/api/canvas/node', { type: 'html', ...input });
+    const {
+      summary,
+      agentSummary,
+      description,
+      presentation,
+      slideTitles,
+      embeddedNodeIds,
+      embeddedUrls,
+      ...rest
+    } = input as AddHtmlNodeInput & {
+      summary?: string;
+      agentSummary?: string;
+      description?: string;
+      presentation?: boolean;
+      slideTitles?: string[];
+      embeddedNodeIds?: string[];
+      embeddedUrls?: string[];
+    };
+    return await this.requestNodeId('POST', '/api/canvas/node', {
+      type: 'html',
+      ...rest,
+      data: {
+        ...(typeof summary === 'string' ? { summary } : {}),
+        ...(typeof agentSummary === 'string' ? { agentSummary } : {}),
+        ...(typeof description === 'string' ? { description } : {}),
+        ...(presentation === true ? { presentation: true } : {}),
+        ...(Array.isArray(slideTitles) ? { slideTitles } : {}),
+        ...(Array.isArray(embeddedNodeIds) ? { embeddedNodeIds } : {}),
+        ...(Array.isArray(embeddedUrls) ? { embeddedUrls } : {}),
+      },
+    });
   }
 
   async addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult> {
