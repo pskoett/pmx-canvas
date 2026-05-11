@@ -56,6 +56,13 @@ interface ExternalMcpAppHtmlSummary {
   sha256: string;
 }
 
+interface FileContentSummary {
+  omitted: 'file-content';
+  bytes: number;
+  lineCount: number;
+  sha256: string;
+}
+
 function pickString(value: unknown): string | null {
   return typeof value === 'string' && value.length > 0 ? value : null;
 }
@@ -139,6 +146,25 @@ export function serializeCanvasNodeForAgent(node: CanvasNodeState): SerializedCa
   return {
     ...serialized,
     data: summarizeExternalMcpAppHtml(serialized),
+  };
+}
+
+export function serializeCanvasNodeCompact(node: CanvasNodeState): SerializedCanvasNode {
+  const serialized = serializeCanvasNode(node);
+  if (serialized.type !== 'file' || typeof serialized.data.fileContent !== 'string') return serialized;
+  const fileContent = serialized.data.fileContent;
+  return {
+    ...serialized,
+    content: serialized.path,
+    data: {
+      ...serialized.data,
+      fileContent: {
+        omitted: 'file-content',
+        bytes: Buffer.byteLength(fileContent, 'utf-8'),
+        lineCount: fileContent.split('\n').length,
+        sha256: createHash('sha256').update(fileContent).digest('hex'),
+      } satisfies FileContentSummary,
+    },
   };
 }
 

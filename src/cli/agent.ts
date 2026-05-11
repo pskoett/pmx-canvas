@@ -164,7 +164,7 @@ function parseFlags(args: string[]): { positional: string[]; flags: Record<strin
   // Boolean-only flags (never take a value argument)
   const BOOL_FLAGS = new Set([
     'help', 'h', 'ids', 'stdin', 'yes', 'list', 'clear', 'set', 'animated', 'dry-run', 'all',
-    'no-open-in-canvas', 'lock-arrange', 'unlock-arrange', 'json', 'compact', 'summary',
+    'no-open-in-canvas', 'lock-arrange', 'unlock-arrange', 'json', 'compact',
     'verbose', 'include-logs', 'no-pan', 'schema', 'example', 'examples', 'strict-size', 'scroll-overflow',
   ]);
   for (let i = 0; i < args.length; i++) {
@@ -1723,6 +1723,16 @@ cmd('external-app add', 'Create a hosted external app node', [
     : result);
 });
 
+cmd('diagram add', 'Create an Excalidraw diagram node', [
+  'pmx-canvas diagram add --title "Architecture"',
+  'pmx-canvas diagram add --title "Architecture" --elements \'[{"type":"rectangle","id":"r1","x":0,"y":0,"width":120,"height":80}]\'',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('diagram add');
+  const externalAppAdd = COMMANDS['external-app add'];
+  await externalAppAdd.run([...args, '--kind', 'excalidraw']);
+});
+
 // ── pin ──────────────────────────────────────────────────────
 cmd('pin', 'Manage context pins', [
   'pmx-canvas pin node1 node2 node3',
@@ -2431,11 +2441,19 @@ function showCommandHelp(name: string): void {
   if (name === 'node add') {
     console.log('\nSchema help:');
     console.log('  pmx-canvas node add --help --type webpage');
+    console.log('  pmx-canvas node add --help --type html');
     console.log('  pmx-canvas node add --help --type json-render --component Table');
     console.log('  pmx-canvas node add --help --type graph');
     console.log('  pmx-canvas html primitive schema --summary');
     console.log('  pmx-canvas node add --help --type webpage --json');
     console.log('  Use --strict-size to keep explicit width/height fixed and scroll overflowing content.');
+    console.log('\nHTML sidecar flags:');
+    console.log('  --summary <text>           Explicit human/agent-readable summary');
+    console.log('  --agent-summary <text>     Semantic summary for search, pinned context, and spatial context');
+    console.log('  --description <text>       Optional longer semantic description');
+    console.log('  --presentation true        Mark raw HTML as an explicit presentation deck');
+    console.log('  --slide-title <text>       Add a presentation slide title sidecar');
+    console.log('  --embedded-node-id <id>    Link represented/embedded canvas node ID');
   }
   if (name === 'html primitive add' || name === 'html primitive schema') {
     console.log('\nPrimitive flags:');
@@ -2534,6 +2552,10 @@ function showCommandHelp(name: string): void {
     console.log('  --initial-file <path>      Alias for --elements-file');
     console.log('  --timeout-ms <number>      Optional downstream MCP timeout for cold starts');
   }
+  if (name === 'diagram add') {
+    console.log('\nAlias:');
+    console.log('  Equivalent to: pmx-canvas external-app add --kind excalidraw ...');
+  }
   console.log('');
 }
 
@@ -2561,6 +2583,7 @@ Node commands:
   pmx-canvas graph add [options]      Add a graph node
   pmx-canvas html primitive add        Add an HTML communication primitive
   pmx-canvas html primitive schema     List HTML primitive kinds and shapes
+  pmx-canvas diagram add               Add an Excalidraw diagram node
 
 Edge commands:
   pmx-canvas edge add [options]       Add an edge between nodes
@@ -2636,6 +2659,7 @@ Examples:
   pmx-canvas graph add --graph-type bar --data-file ./metrics.json --x-key label --y-key value
   pmx-canvas html primitive add --kind choice-grid --data-file ./options.json --title "Options"
   pmx-canvas html primitive schema --summary
+  pmx-canvas diagram add --title "Architecture"
   pmx-canvas node add --help --type webpage
   pmx-canvas node schema --type json-render
   pmx-canvas node schema --type json-render --component Table --summary

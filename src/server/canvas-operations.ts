@@ -19,7 +19,7 @@ import {
 import { mutationHistory } from './mutation-history.js';
 import { computeGroupBounds, findOpenCanvasPosition } from './placement.js';
 import { searchNodes } from './spatial-analysis.js';
-import { getCanvasNodeTitle, serializeCanvasNode, type SerializedCanvasNode } from './canvas-serialization.js';
+import { getCanvasNodeTitle, serializeCanvasNodeCompact, type SerializedCanvasNode } from './canvas-serialization.js';
 import { computeAutoArrange } from '../shared/auto-arrange.js';
 import {
   buildGraphSpec,
@@ -1490,7 +1490,7 @@ function resolveBatchRefs(value: unknown, refs: Record<string, unknown>): unknow
 }
 
 function serializeCreatedNode(node: CanvasNodeState): SerializedCanvasNode {
-  return serializeCanvasNode(node);
+  return serializeCanvasNodeCompact(node);
 }
 
 export async function executeCanvasBatch(
@@ -1527,10 +1527,15 @@ export async function executeCanvasBatch(
             throw new Error('Batch html-primitive creation is not supported yet. Use node.add with type "html" and generated html, or create the primitive through MCP/HTTP/CLI first.');
           }
           if (type === 'webpage') {
+            const content = typeof args.url === 'string' && args.url.trim().length > 0
+              ? args.url
+              : typeof args.content === 'string'
+                ? args.content
+                : undefined;
             const created = addCanvasNode({
               type: 'webpage',
               ...(typeof args.title === 'string' ? { title: args.title } : {}),
-              ...(typeof args.content === 'string' ? { content: args.content } : {}),
+              ...(content ? { content } : {}),
               ...(isPlainRecord(args.data) ? { data: args.data } : {}),
               ...(typeof args.x === 'number' ? { x: args.x } : {}),
               ...(typeof args.y === 'number' ? { y: args.y } : {}),

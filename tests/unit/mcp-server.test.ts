@@ -1409,7 +1409,7 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
             assign: 'page',
             args: {
               type: 'webpage',
-              content: 'https://example.invalid',
+              url: 'https://example.invalid',
             },
           },
         ],

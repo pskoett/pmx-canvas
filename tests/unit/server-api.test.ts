@@ -636,6 +636,28 @@ describe('canvas server HTTP API', () => {
     expect(custom.data.html).toContain('--deck-accent: #ea580c');
   });
 
+  test('presentation primitives reject unknown theme names', async () => {
+    const response = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'html-primitive',
+        kind: 'presentation',
+        title: 'Bad Theme Deck',
+        data: {
+          theme: 'nonexistent',
+          slides: [{ title: 'Invalid theme' }],
+        },
+      }),
+    });
+
+    expect(response.ok).toBe(false);
+    expect(response.status).toBe(400);
+    const body = await response.json() as { error: string };
+    expect(body.error).toContain('Invalid presentation theme');
+    expect(canvasState.getLayout().nodes.some((node) => node.data.title === 'Bad Theme Deck')).toBe(false);
+  });
+
   test('html nodes persist semantic summaries for agent context and search', async () => {
     const created = await jsonRequest<{
       ok: boolean;
@@ -1904,7 +1926,7 @@ describe('canvas server HTTP API', () => {
             assign: 'page',
             args: {
               type: 'webpage',
-              content: `${webpageOrigin}/article?v=1`,
+              url: `${webpageOrigin}/article?v=1`,
             },
           },
         ],
@@ -1950,6 +1972,39 @@ describe('canvas server HTTP API', () => {
     expect(failedBatch.results[0]?.fetch.ok).toBe(false);
     expect(failedBatch.results[0]?.fetch.error).toBeTruthy();
     expect(failedBatch.results[0]?.error).toBe(failedBatch.results[0]?.fetch.error);
+  });
+
+  test('batch file node add returns compact file content metadata', async () => {
+    const filePath = join(workspaceRoot, 'batch-large-file.ts');
+    const content = Array.from({ length: 120 }, (_, index) => `export const value${index} = ${index};`).join('\n');
+    writeFileSync(filePath, content, 'utf-8');
+
+    const batch = await jsonRequest<{
+      ok: boolean;
+      results: Array<{ ok: boolean; content: string | null; data: Record<string, unknown> }>;
+    }>('/api/canvas/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operations: [
+          {
+            op: 'node.add',
+            args: {
+              type: 'file',
+              content: filePath,
+            },
+          },
+        ],
+      }),
+    });
+
+    expect(batch.ok).toBe(true);
+    expect(batch.results[0]?.content).toBe(filePath);
+    expect(batch.results[0]?.data.fileContent).toEqual(expect.objectContaining({
+      omitted: 'file-content',
+      bytes: Buffer.byteLength(content, 'utf-8'),
+    }));
+    expect(String(batch.results[0]?.data.fileContent)).not.toContain('export const value119');
   });
 
   test('creates and refreshes webpage nodes over HTTP with cached text context', async () => {
@@ -3663,6 +3718,21 @@ describe('canvas server HTTP API', () => {
     expect(htmlPrimitiveValidation.normalizedPrimitive.title).toBe('HTTP Incident');
     expect(htmlPrimitiveValidation.normalizedPrimitive.htmlBytes).toBeGreaterThan(1000);
     expect(htmlPrimitiveValidation.summary.dataKeys).toContain('timeline');
+
+    const invalidHtmlPrimitiveValidation = await fetch(`${baseUrl}/api/canvas/schema/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'html-primitive',
+        kind: 'presentation',
+        data: {
+          theme: 'nonexistent',
+          slides: [{ title: 'Bad theme' }],
+        },
+      }),
+    });
+    expect(invalidHtmlPrimitiveValidation.status).toBe(400);
+    expect((await invalidHtmlPrimitiveValidation.json() as { error: string }).error).toContain('Invalid presentation theme');
   });
 
   test('rejects invalid json-render payloads and invalid viewer requests', async () => {

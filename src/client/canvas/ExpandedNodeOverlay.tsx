@@ -93,6 +93,10 @@ function isPresentationNavigationKey(key: string): boolean {
   return key === 'ArrowRight' || key === 'PageDown' || key === ' ' || key === 'ArrowLeft' || key === 'PageUp' || key === 'Home' || key === 'End';
 }
 
+function isPresentationExitButtonTarget(target: EventTarget | null): boolean {
+  return target instanceof HTMLElement && Boolean(target.closest('.html-presentation-exit'));
+}
+
 export function ExpandedNodeOverlay() {
   const nodeId = expandedNodeId.value;
   const node = nodeId ? nodes.value.get(nodeId) : undefined;
@@ -100,6 +104,7 @@ export function ExpandedNodeOverlay() {
   const [presenting, setPresenting] = useState(false);
   const [presentationExitToken, setPresentationExitToken] = useState('');
   const presentationOverlayRef = useRef<HTMLDivElement>(null);
+  const presentationExitButtonRef = useRef<HTMLButtonElement>(null);
 
   const handleClose = useCallback(() => {
     setPresenting(false);
@@ -131,6 +136,13 @@ export function ExpandedNodeOverlay() {
       setPresenting(false);
       return;
     }
+    if (event.key === 'Tab' && !isPresentationExitButtonTarget(event.target)) {
+      event.preventDefault();
+      event.stopPropagation();
+      presentationExitButtonRef.current?.focus();
+      return;
+    }
+    if ((event.key === ' ' || event.key === 'Enter') && isPresentationExitButtonTarget(event.target)) return;
     if (!isPresentationNavigationKey(event.key)) return;
     event.preventDefault();
     event.stopPropagation();
@@ -165,7 +177,9 @@ export function ExpandedNodeOverlay() {
   useLayoutEffect(() => {
     if (!presenting) return;
     const focusPresentationOverlay = () => {
-      presentationOverlayRef.current?.focus();
+      const overlay = presentationOverlayRef.current;
+      if (!overlay || overlay.contains(document.activeElement)) return;
+      overlay.focus();
     };
     const focusTimers = [0, 50, 150].map((delay) => window.setTimeout(focusPresentationOverlay, delay));
     const handleMessage = (event: MessageEvent) => {
@@ -354,20 +368,16 @@ export function ExpandedNodeOverlay() {
         </div>
         {canPresent && presenting && (
           <div ref={presentationOverlayRef} class="html-presentation-overlay" role="dialog" aria-modal="true" aria-label={`Present ${title}`} tabIndex={-1} onKeyDownCapture={handlePresentationKeyDown}>
-            <div class="html-presentation-toolbar">
-              <div>
-                <div class="html-presentation-kicker">HTML presentation</div>
-                <div class="html-presentation-title">{title}</div>
-              </div>
-              <button
-                type="button"
-                class="html-presentation-exit"
-                onClick={handleExitPresentation}
-                title="Exit presentation (Esc)"
-              >
-                Exit presentation
-              </button>
-            </div>
+            <button
+              ref={presentationExitButtonRef}
+              type="button"
+              class="html-presentation-exit"
+              onClick={handleExitPresentation}
+              title="Exit presentation (Esc)"
+              aria-label="Exit presentation"
+            >
+              Exit presentation
+            </button>
             <div class="html-presentation-stage">
               <HtmlNode node={node} expanded presentation presentationExitToken={presentationExitToken} />
             </div>

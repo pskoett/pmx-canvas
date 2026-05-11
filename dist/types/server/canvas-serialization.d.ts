@@ -35,6 +35,7 @@ export declare function getCanvasNodeTitle(node: CanvasNodeState): string | null
 export declare function getCanvasNodeContent(node: CanvasNodeState): string | null;
 export declare function serializeCanvasNode(node: CanvasNodeState): SerializedCanvasNode;
 export declare function serializeCanvasNodeForAgent(node: CanvasNodeState): SerializedCanvasNode;
+export declare function serializeCanvasNodeCompact(node: CanvasNodeState): SerializedCanvasNode;
 export declare function serializeCanvasNodeWithBlobSummaries(node: CanvasNodeState): SerializedCanvasNode;
 export declare function serializeCanvasLayout(layout: CanvasLayout): SerializedCanvasLayout;
 export declare function serializeCanvasLayoutForAgent(layout: CanvasLayout): SerializedCanvasLayout;

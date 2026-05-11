@@ -255,7 +255,7 @@ export function HtmlNode({
         minHeight: presentation ? 0 : expanded ? '70vh' : '300px',
         border: 'none',
         background: 'var(--c-bg)',
-        borderRadius: presentation ? '18px' : '6px',
+        borderRadius: presentation ? 0 : '6px',
         display: 'block',
       }}
     />

@@ -182,6 +182,55 @@ describe('agent CLI node commands', () => {
     expect(stored.data.content).toBeUndefined();
   });
 
+  test('node add forwards html semantic sidecar flags', async () => {
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'node',
+        'add',
+        '--type',
+        'html',
+        '--title',
+        'CLI HTML Sidecars',
+        '--content',
+        '<main><h1>Sidecar body</h1></main>',
+        '--summary',
+        'Explicit CLI summary.',
+        '--agent-summary',
+        'Explicit CLI agent summary.',
+        '--description',
+        'Explicit CLI description.',
+        '--presentation',
+        'true',
+        '--slide-title',
+        'Slide One',
+        '--embedded-node-id',
+        'node-source',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      id: string;
+      data: Record<string, unknown>;
+    };
+    expect(output.ok).toBe(true);
+    expect(output.data.summary).toBe('Explicit CLI summary.');
+    expect(output.data.agentSummary).toBe('Explicit CLI agent summary.');
+    expect(output.data.description).toBe('Explicit CLI description.');
+    expect(output.data.presentation).toBe(true);
+    expect(output.data.slideTitles).toEqual(['Slide One']);
+    expect(output.data.embeddedNodeIds).toEqual(['node-source']);
+
+    const stored = await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${output.id}`);
+    expect(stored.data.summary).toBe('Explicit CLI summary.');
+  });
+
   test('html primitive CLI creates generated html node with primitive metadata', async () => {
     const dataPath = join(workspaceRoot, 'options-primitive.json');
     writeFileSync(dataPath, JSON.stringify({
@@ -367,6 +416,27 @@ describe('agent CLI node commands', () => {
     expect(help).toContain('--status');
     expect(help).toContain('--result-summary');
     expect(help).toContain('--resultSummary');
+  });
+
+  test('node add help advertises html sidecar flags', async () => {
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['node', 'add', '--help']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const help = log.mock.calls.map((call) => String(call[0] ?? '')).join('\n');
+    expect(help).toContain('--summary');
+    expect(help).toContain('--agent-summary');
+    expect(help).toContain('--description');
+    expect(help).toContain('--presentation');
+    expect(help).toContain('--slide-title');
+    expect(help).toContain('--embedded-node-id');
+    expect(help).toContain('node add --help --type html');
   });
 
   test('focus --no-pan selects without changing the server viewport', async () => {
@@ -1973,6 +2043,37 @@ describe('agent CLI node commands', () => {
     expect(output.result?.nodeId).toBe('ext-app-existing');
     expect(output.result?.elements).toEqual([
       expect.objectContaining({ type: 'rectangle', id: 'changed' }),
+    ]);
+  });
+
+  test('diagram add always uses the Excalidraw external app alias', async () => {
+    const fetchMock = mock(async (_url: string | URL | Request, init?: RequestInit) => {
+      const body = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
+      return new Response(JSON.stringify({ ok: true, result: body }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    });
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = fetchMock as typeof fetch;
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['diagram', 'add', '--kind', 'other', '--title', 'Alias Diagram']);
+    } finally {
+      console.log = originalLog;
+      globalThis.fetch = originalFetch;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      result?: { title?: string; elements?: Array<Record<string, unknown>> };
+    };
+    expect(output.result?.title).toBe('Alias Diagram');
+    expect(output.result?.elements).toEqual([
+      expect.objectContaining({ type: 'rectangle', id: 'pmx-start' }),
     ]);
   });
 

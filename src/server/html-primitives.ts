@@ -511,14 +511,23 @@ const PRESENTATION_THEMES: Record<PresentationThemeName, PresentationThemeTokens
   },
 };
 
+function isPresentationThemeName(value: string): value is PresentationThemeName {
+  return value === 'canvas' || value === 'midnight' || value === 'paper' || value === 'aurora';
+}
+
+function parsePresentationThemeName(value: string, field = 'theme'): PresentationThemeName {
+  if (isPresentationThemeName(value)) return value;
+  throw new Error(`Invalid presentation ${field} "${value}". Use canvas, midnight, paper, aurora, or a custom theme object.`);
+}
+
 function presentationTheme(data: Record<string, unknown>): PresentationThemeTokens {
   const raw = data.theme ?? data.presentationTheme;
   if (typeof raw === 'string') {
-    return PRESENTATION_THEMES[raw as PresentationThemeName] ?? PRESENTATION_THEMES.canvas;
+    return PRESENTATION_THEMES[parsePresentationThemeName(raw)];
   }
   if (!isRecord(raw)) return PRESENTATION_THEMES.canvas;
-  const baseName = typeof raw.base === 'string' && raw.base in PRESENTATION_THEMES
-    ? raw.base as PresentationThemeName
+  const baseName = typeof raw.base === 'string'
+    ? parsePresentationThemeName(raw.base, 'theme base')
     : 'canvas';
   const base = PRESENTATION_THEMES[baseName];
   const readColor = (key: string, fallback: string): string => {
@@ -544,8 +553,9 @@ function presentationTheme(data: Record<string, unknown>): PresentationThemeToke
 
 function presentationThemeMetadata(data: Record<string, unknown>): string | Record<string, string> | undefined {
   const raw = data.theme ?? data.presentationTheme;
-  if (typeof raw === 'string') return raw;
+  if (typeof raw === 'string') return parsePresentationThemeName(raw);
   if (!isRecord(raw)) return undefined;
+  if (typeof raw.base === 'string') parsePresentationThemeName(raw.base, 'theme base');
   const result: Record<string, string> = {};
   for (const [key, value] of Object.entries(raw)) {
     if (typeof value === 'string') result[key] = value;

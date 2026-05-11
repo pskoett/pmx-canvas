@@ -516,6 +516,16 @@ test('presentation mode focuses iframe keyboard navigation and hides review hint
   await overlay.getByRole('button', { name: 'Present' }).click();
   const dialog = page.getByRole('dialog', { name: 'Present Keyboard Deck' });
   await expect(dialog).toBeVisible();
+  await expect(dialog.locator('.html-presentation-toolbar')).toHaveCount(0);
+  await expect(dialog.getByRole('button', { name: 'Exit presentation' })).toHaveCSS('opacity', '0');
+  const fillsViewport = await dialog.locator('.html-presentation-stage').evaluate((stage) => {
+    const rect = stage.getBoundingClientRect();
+    return rect.left === 0 && rect.top === 0 && rect.width === window.innerWidth && rect.height === window.innerHeight;
+  });
+  expect(fillsViewport).toBe(true);
+  await page.keyboard.press('Tab');
+  await expect(dialog.getByRole('button', { name: 'Exit presentation' })).toBeFocused();
+  await expect(dialog.getByRole('button', { name: 'Exit presentation' })).toHaveCSS('opacity', '1');
   await expect(dialog.frameLocator('iframe').getByText('Arrow keys, Space, Page Up/Down')).toBeHidden();
   await page.keyboard.press('ArrowRight');
   await expect(dialog.frameLocator('iframe').getByRole('heading', { name: 'Second slide' })).toBeVisible();

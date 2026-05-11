@@ -3,6 +3,70 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.22] - 2026-05-12
+
+CLI ergonomics and response-size polish on top of 0.1.21. Adds a
+`pmx-canvas diagram add` alias, declares kebab-case aliases for the
+HTML sidecar fields in the schema, advertises those flags in `node
+add --help --type html`, elides full file bodies from compact node
+responses, validates presentation theme names with a clear error,
+and improves keyboard focus inside present mode.
+
+### Added
+
+- **`pmx-canvas diagram add` CLI alias.** A thin wrapper that
+  delegates to `pmx-canvas external-app add --kind excalidraw` so
+  diagram creation has a discoverable top-level command. The `diagram`
+  subcommand is now registered in `AGENT_COMMANDS` and surfaces in
+  `pmx-canvas --help`. The help text for `diagram add` notes the
+  equivalence so agents can switch between the two without guessing.
+- **`node add --help --type html` advertises sidecar flags.** The
+  help output now includes a dedicated "HTML sidecar flags" section
+  listing `--summary`, `--agent-summary`, `--description`,
+  `--presentation true`, `--slide-title`, and `--embedded-node-id`,
+  matching the sidecars added in 0.1.21.
+- **Kebab-case aliases for HTML sidecar fields in
+  `canvas_describe_schema`.** The schema entries for `agentSummary`,
+  `embeddedNodeIds`, `embeddedUrls`, and `slideTitles` now declare
+  the corresponding kebab-case flag names so agents reading the
+  schema discover the CLI shape without trial and error.
+
+### Changed
+
+- **Compact node responses elide file content.**
+  `serializeCanvasNodeCompact` replaces a file node's full
+  `data.fileContent` with `{ omitted: 'file-content', bytes,
+  lineCount, sha256 }`. Agents that hit `canvas_get_node`,
+  `canvas_get_layout`, or batch-style responses without
+  `full: true` no longer re-receive the file body on every read;
+  the file `path` is still exposed as `content` so the node remains
+  fetchable.
+- **Presentation theme names are validated.** Passing an invalid
+  `theme` (or `theme.base`) to a `presentation` primitive now
+  fails fast with a clear "use canvas, midnight, paper, aurora, or
+  a custom theme object" message instead of silently falling
+  through to a default. The HTTP `POST /api/canvas/node?type=html-
+  primitive` endpoint wraps `buildHtmlPrimitive` in a try/catch and
+  returns a 400 with the message.
+- **Present-mode keyboard focus is tighter.** Tabbing inside the
+  presentation overlay now jumps to the Exit button instead of
+  escaping to the underlying canvas, Space and Enter on the Exit
+  button no longer trigger slide navigation, and the overlay
+  re-focuses itself when keyboard focus drifts outside. The deck
+  iframe loses its 18px corner radius in present mode for an
+  edge-to-edge fullscreen frame.
+
+### Internal
+
+- Regression coverage for: `node add` forwarding HTML sidecar flags
+  through to the underlying html node, `node add --help --type
+  html` advertising the new flags, `diagram add` always invoking
+  the Excalidraw external app alias, `diagram` routing through the
+  agent CLI (not the server-startup path), presentation primitives
+  rejecting unknown theme names, and batch `file` node add
+  responses returning compact `file-content` metadata instead of
+  the full body.
+
 ## [0.1.21] - 2026-05-09
 
 HTML communication maturity pass on top of 0.1.20. Adds a
@@ -981,6 +1045,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.22]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.22
 [0.1.21]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.21
 [0.1.20]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.20
 [0.1.19]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.19

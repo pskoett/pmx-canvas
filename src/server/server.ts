@@ -1541,11 +1541,16 @@ function createCanvasHtmlPrimitiveNode(body: Record<string, unknown>): Response 
     return responseJson({ ok: false, error: `Unknown HTML primitive: ${String(rawKind)}.` }, 400);
   }
   const data = isRecord(body.data) ? body.data : {};
-  const built = buildHtmlPrimitive({
-    kind: rawKind,
-    ...(typeof body.title === 'string' ? { title: body.title } : {}),
-    data,
-  });
+  let built: ReturnType<typeof buildHtmlPrimitive>;
+  try {
+    built = buildHtmlPrimitive({
+      kind: rawKind,
+      ...(typeof body.title === 'string' ? { title: body.title } : {}),
+      data,
+    });
+  } catch (error) {
+    return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
+  }
   const geometry = resolveCreateGeometry(body);
   const { node } = addCanvasNode({
     type: 'html',
