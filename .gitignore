@@ -9,6 +9,10 @@ blob-report/
 artifacts/.web-artifacts/
 artifacts/*.html
 
+# SQLite WAL/SHM files (canvas.db itself is committable)
+*.db-wal
+*.db-shm
+
 # Agent-tooling meta (personal workflow artifacts, not product code)
 .agents/
 .context-surfing/

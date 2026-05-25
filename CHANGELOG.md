@@ -3,6 +3,75 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.23] - 2026-05-12
+
+Persistence overhaul. Canvas state, snapshots, context pins, and the
+large-payload blob store all move from filesystem JSON files into a
+single SQLite database at `.pmx-canvas/canvas.db` (WAL mode). The
+old `state.json`, `snapshots/`, and per-blob files are auto-imported
+on first boot and renamed to `.bak`. Adds dock-aware validation and
+arrange behavior, accepts the documented `?type=` query string on
+node creation, and grows the schema-metadata kebab-case aliases to
+include both singular and plural variants.
+
+### Added
+
+- **SQLite persistence (`src/server/canvas-db.ts`, 710 lines).**
+  Canvas state, snapshots, context pins, and the blob sidecar
+  store now live in `.pmx-canvas/canvas.db` (Bun SQLite in WAL
+  mode). Shape preserved across the migration: nodes, edges,
+  annotations, viewport, context pins, history, snapshots, and
+  blob payloads with checksum validation.
+  - Override DB path: `PMX_CANVAS_DB_PATH` env var.
+  - Backward-compatible legacy path: `PMX_CANVAS_STATE_FILE` (if
+    you set a `.db` path there, it's used as the DB; if not, it's
+    treated as a legacy JSON path for migration).
+  - `stopCanvasServer()` now calls `canvasState.close()` which
+    checkpoints WAL data into the DB file — stop the server (or
+    flush/close the SDK) before committing `canvas.db`.
+  - SQLite WAL/SHM files (`*.db-wal`, `*.db-shm`) are gitignored;
+    `canvas.db` itself is git-committable.
+- **Legacy migration on first boot.** Existing
+  `.pmx-canvas/state.json`, root `.pmx-canvas.json`,
+  `.pmx-canvas/snapshots/`, `.pmx-canvas-snapshots/`, and blob
+  files are imported into the SQLite database and renamed to
+  `.bak` on first start. The migration is idempotent and only
+  runs when the DB is empty.
+- **HTTP node create accepts `?type=` query string.** `POST
+  /api/canvas/node?type=html-primitive` with the body's `data`
+  fields is accepted as an alternative to passing `type` in the
+  body — handy for `curl` and shell-based agents. The body form
+  still wins when both are present.
+
+### Changed
+
+- **Docked nodes are excluded from layout collision validation.**
+  `validateCanvasLayout` no longer flags `dockPosition !== null`
+  nodes as overlap or containment violations. Docked HUD-style
+  nodes intentionally sit on top of canvas content; the validator
+  now models that.
+- **Docked nodes are treated as arrange-locked.** `arrange()`
+  now skips translating nodes with `dockPosition !== null` along
+  with pinned and explicitly arrange-locked nodes. Dock geometry
+  is anchored to the HUD layer, not the world grid.
+- **Schema kebab-case aliases include plural forms.** `--embedded-
+  node-ids`, `--embedded-urls`, and `--slide-titles` are now
+  documented aliases for the array-shaped HTML sidecar fields,
+  alongside the existing singular `--embedded-node-id`,
+  `--embedded-url`, and `--slide-title`.
+- **Bun engine bumped to `>=1.3.14`.** `package.json#engines.bun`
+  raised from `>=1.3.12` to `>=1.3.14` to pick up the
+  `bun:sqlite` improvements the new persistence layer depends on.
+
+### Internal
+
+- Regression coverage for: `validateCanvasLayout` ignoring docked
+  nodes as collision candidates, html primitive node creation
+  accepting the documented query-string `?type=` form, and the
+  existing canvas-state and operations suites continuing to pass
+  against the SQLite-backed persistence (including snapshot
+  save/restore, blob round-trip, and undo/redo history).
+
 ## [0.1.22] - 2026-05-12
 
 CLI ergonomics and response-size polish on top of 0.1.21. Adds a
@@ -1045,6 +1114,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.23]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.23
 [0.1.22]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.22
 [0.1.21]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.21
 [0.1.20]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.20

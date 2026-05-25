@@ -1436,7 +1436,8 @@ async function createCanvasWebpageNode(body: Record<string, unknown>): Promise<R
 
 async function handleCanvasAddNode(req: Request): Promise<Response> {
   const body = await readJson(req);
-  const type = (body.type as string) || 'markdown';
+  const queryType = new URL(req.url).searchParams.get('type');
+  const type = typeof body.type === 'string' ? body.type : queryType || 'markdown';
 
   if (!VALID_NODE_TYPES.has(type)) {
     if (type === 'json-render') {
@@ -4079,7 +4080,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   });
   if (loaded) {
-    console.log('  Canvas state restored from .pmx-canvas/state.json');
+    console.log('  Canvas state restored from .pmx-canvas/canvas.db');
     primeCanvasRuntimeBackends({ forceRehydrateExtApps: true });
     void syncCanvasRuntimeBackends({ forceRehydrateExtApps: true, alreadyPrimed: true }).finally(() => {
       emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
@@ -4482,7 +4483,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 }
 
 export function stopCanvasServer(): void {
-  canvasState.flushToDisk();
+  canvasState.close();
   closeAllMcpAppSessions();
   setCanvasLayoutUpdateEmitter(null);
   void closeCanvasAutomationWebViewInternal().catch((error) => {

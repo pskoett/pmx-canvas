@@ -960,12 +960,16 @@ When the human wants to explore a different approach without losing current work
 
 ## Persistence
 
-Canvas state auto-saves to `.pmx-canvas/state.json` on every mutation (debounced 500ms). State
-loads automatically on server start. The file is git-committable — spatial knowledge
+Canvas state auto-saves to `.pmx-canvas/canvas.db` on every mutation (debounced 500ms). State
+loads automatically on server start. The SQLite DB is git-committable — spatial knowledge
 persists across sessions.
 
-Snapshots save to `.pmx-canvas/snapshots/`. Web artifacts land in `.pmx-canvas/artifacts/`.
-Legacy `.pmx-canvas.json` and `.pmx-canvas-snapshots/` are auto-migrated on first boot.
+Snapshots, context pins, and large node blobs are stored in the same DB. Web artifacts land in
+`.pmx-canvas/artifacts/`. Legacy JSON state, snapshot, and blob files are auto-imported into
+SQLite and renamed to `.bak` on first boot.
+
+Stop the server or flush/close the SDK before committing `canvas.db`; shutdown checkpoints SQLite
+WAL data into the DB file.
 
 ## Real-Time Collaboration
 

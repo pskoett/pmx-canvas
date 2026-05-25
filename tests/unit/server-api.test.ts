@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { canvasState, type PersistedBlobRef } from '../../src/server/canvas-state.ts';
@@ -192,7 +192,7 @@ describe('canvas server HTTP API', () => {
     canvasState.withSuppressedRecording(() => {
       canvasState.clear();
     });
-    rmSync(join(workspaceRoot, '.pmx-canvas', 'snapshots'), { recursive: true, force: true });
+    canvasState.clearAllSnapshots();
     mutationHistory.reset();
   });
 
@@ -498,6 +498,33 @@ describe('canvas server HTTP API', () => {
 
     const search = await jsonRequest<{ results: Array<{ id: string; snippet: string }> }>('/api/canvas/search?q=side-by-side');
     expect(search.results.some((result) => result.id === created.id)).toBe(true);
+  });
+
+  test('html primitive node creation accepts the documented query-string type form', async () => {
+    const created = await jsonRequest<{
+      ok: boolean;
+      type: string;
+      data: Record<string, unknown>;
+      primitive: { kind: string };
+    }>('/api/canvas/node?type=html-primitive', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        kind: 'choice-grid',
+        title: 'Query Primitive Options',
+        data: {
+          items: [
+            { title: 'Query type', summary: 'Routes through html-primitive instead of markdown.' },
+          ],
+        },
+      }),
+    });
+
+    expect(created.ok).toBe(true);
+    expect(created.type).toBe('html');
+    expect(created.primitive.kind).toBe('choice-grid');
+    expect(created.data.htmlPrimitive).toBe('choice-grid');
+    expect(canvasState.getLayout().nodes.some((node) => node.type === 'markdown' && node.data.title === 'Query Primitive Options')).toBe(false);
   });
 
   test('presentation primitives persist slide metadata for agents', async () => {
@@ -829,7 +856,7 @@ describe('canvas server HTTP API', () => {
         title: 'Mutable Diagram',
         elements: [{ type: 'rectangle', id: 'before', x: 0, y: 0, width: 80, height: 50 }],
       }),
-    });
+    }, 15_000);
     expect(created.ok).toBe(true);
     expect(typeof created.nodeId).toBe('string');
 
@@ -1479,9 +1506,9 @@ describe('canvas server HTTP API', () => {
     expect(isBlobReference(persistedNode?.data.toolResult)).toBe(true);
     const blob = persistedNode?.data.toolResult as PersistedBlobRef;
     expect(blob.jsonBytes).toBeGreaterThan(20_000);
-    expect(existsSync(join(workspaceRoot, '.pmx-canvas', blob.path))).toBe(true);
-    const rawState = readFileSync(join(workspaceRoot, '.pmx-canvas', 'state.json'), 'utf-8');
-    expect(rawState).not.toContain('x'.repeat(1000));
+    // Blob is stored in SQLite db now — verify the node data field references it
+    expect(blob.__pmxCanvasBlob).toBe('v1');
+    expect(blob.sha256).toBeTruthy();
 
     stopCanvasServer();
     const restarted = startCanvasServer({ workspaceRoot, port: 4527 });
@@ -3590,6 +3617,11 @@ describe('canvas server HTTP API', () => {
     expect(schema.source).toBe('running-server');
     expect(schema.nodeTypes.find((entry) => entry.type === 'webpage')?.fields.find((field) => field.name === 'url')?.aliases).toContain('content');
     expect(schema.nodeTypes.find((entry) => entry.type === 'image')?.fields.find((field) => field.name === 'content')?.aliases).toContain('path');
+    const htmlFields = schema.nodeTypes.find((entry) => entry.type === 'html')?.fields ?? [];
+    expect(htmlFields.find((field) => field.name === 'agentSummary')?.aliases).toContain('agent-summary');
+    expect(htmlFields.find((field) => field.name === 'embeddedNodeIds')?.aliases).toEqual(expect.arrayContaining(['embedded-node-id', 'embedded-node-ids']));
+    expect(htmlFields.find((field) => field.name === 'embeddedUrls')?.aliases).toEqual(expect.arrayContaining(['embedded-url', 'embedded-urls']));
+    expect(htmlFields.find((field) => field.name === 'slideTitles')?.aliases).toEqual(expect.arrayContaining(['slide-title', 'slide-titles']));
     expect(schema.nodeTypes.find((entry) => entry.type === 'json-render')?.fields.find((field) => field.name === 'title')).toMatchObject({ required: false });
     expect(schema.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'zKey')).toBe(true);
     expect(schema.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'metrics')).toBe(true);

@@ -1032,7 +1032,7 @@ export function removeCanvasNode(id: string): {
 }
 
 function isArrangeLocked(node: CanvasNodeState): boolean {
-  return node.pinned || node.data.arrangeLocked === true;
+  return node.pinned || node.dockPosition !== null || node.data.arrangeLocked === true;
 }
 
 function collectArrangeExcludedNodeIds(nodes: CanvasNodeState[]): Set<string> {

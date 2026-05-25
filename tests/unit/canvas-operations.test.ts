@@ -70,6 +70,27 @@ describe('canvas operations', () => {
     expect(validation.summary.collisions).toBe(0);
   });
 
+  test('validation ignores docked nodes as canvas collision candidates', () => {
+    canvasState.addNode(makeNode({
+      id: 'canvas-node',
+      type: 'markdown',
+      position: { x: 780, y: 80 },
+      size: { width: 520, height: 360 },
+    }));
+    canvasState.addNode(makeNode({
+      id: 'dock-node',
+      type: 'context',
+      position: { x: 968, y: 40 },
+      size: { width: 360, height: 200 },
+      dockPosition: 'right',
+    }));
+
+    const validation = validateCanvasLayout(canvasState.getLayout());
+
+    expect(validation.ok).toBe(true);
+    expect(validation.collisions).toEqual([]);
+  });
+
   test('grid arrange moves group frames without arranging grouped children separately', () => {
     canvasState.addNode(makeNode({
       id: 'group-a',

@@ -5,15 +5,32 @@
  * - Agent tools (Phase 3) can read/mutate canvas state
  * - Client syncs bidirectionally (SSE for server→client, POST for client→server)
  *
- * Persistence: canvas state auto-saves to `.pmx-canvas/state.json` in the
- * workspace root on every mutation (debounced). Auto-loads on `loadFromDisk()`.
+ * Persistence: canvas state auto-saves to `.pmx-canvas/canvas.db` (SQLite WAL mode)
+ * in the workspace root on every mutation (debounced). Auto-loads on `loadFromDisk()`.
+ * Legacy `.pmx-canvas/state.json` is auto-migrated on first boot.
  */
 
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, renameSync, unlinkSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, renameSync, rmSync, unlinkSync } from 'node:fs';
 import { isAbsolute, join, dirname, relative } from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { normalizeCanvasNodeData } from './canvas-provenance.js';
+import {
+  openCanvasDb,
+  saveStateToDB,
+  loadStateFromDB,
+  saveSnapshotToDB,
+  loadSnapshotFromDB,
+  listSnapshotsFromDB,
+  deleteSnapshotFromDB,
+  writeBlobToDB,
+  readBlobFromDB,
+  hasBlobInDB,
+  isDbPopulated,
+  checkpointCanvasDb,
+  finalizeCanvasDbForClose,
+  type PersistedCanvasState,
+} from './canvas-db.js';
 import {
   type CanvasPlacementRect,
   computeGroupBounds,
@@ -40,6 +57,7 @@ function normalizeSnapshotTimestamp(value: string | undefined): string | undefin
 
 export const PMX_CANVAS_DIR = '.pmx-canvas';
 const STATE_FILENAME = 'state.json';
+const DB_FILENAME = 'canvas.db';
 const SNAPSHOTS_SUBDIR = 'snapshots';
 const BLOBS_SUBDIR = 'blobs';
 const LEGACY_STATE_FILENAME = '.pmx-canvas.json';
@@ -65,14 +83,8 @@ export interface PersistedBlobRef {
   jsonBytes: number;
 }
 
-interface PersistedCanvasState {
-  version: number;
-  viewport: ViewportState;
-  nodes: CanvasNodeState[];
-  edges: CanvasEdge[];
-  annotations?: CanvasAnnotation[];
-  contextPins: string[];
-}
+// Re-export for backward compat — canonical definition is now in canvas-db.ts
+export type { PersistedCanvasState } from './canvas-db.js';
 
 interface LoadFromDiskOptions {
   clearExisting?: boolean;
@@ -481,14 +493,38 @@ class CanvasStateManager {
 
   // ── Persistence ────────────────────────────────────────────
   private _stateFilePath: string | null = null;
+  private _db: import('bun:sqlite').Database | null = null;
   private _saveTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Set the workspace root to enable auto-persistence. */
   setWorkspaceRoot(workspaceRoot: string): void {
+    this.close();
     this._workspaceRoot = workspaceRoot;
     this.migrateLegacyLayout(workspaceRoot);
-    const override = (process.env.PMX_CANVAS_STATE_FILE ?? '').trim();
-    this._stateFilePath = override || join(workspaceRoot, PMX_CANVAS_DIR, STATE_FILENAME);
+
+    // Determine DB path
+    const dbOverride = (process.env.PMX_CANVAS_DB_PATH ?? '').trim();
+    const stateFileOverride = (process.env.PMX_CANVAS_STATE_FILE ?? '').trim();
+    let dbPath: string;
+    if (dbOverride) {
+      dbPath = dbOverride;
+    } else if (stateFileOverride && stateFileOverride.endsWith('.db')) {
+      dbPath = stateFileOverride;
+    } else {
+      dbPath = join(workspaceRoot, PMX_CANVAS_DIR, DB_FILENAME);
+    }
+
+    // Keep legacy _stateFilePath for JSON migration detection
+    this._stateFilePath = stateFileOverride && !stateFileOverride.endsWith('.db')
+      ? stateFileOverride
+      : join(workspaceRoot, PMX_CANVAS_DIR, STATE_FILENAME);
+
+    try {
+      this._db = openCanvasDb(dbPath);
+      this.migrateJsonToSqlite();
+    } catch (error) {
+      logCanvasStateWarning('open canvas database failed', error, { dbPath });
+    }
   }
 
   private get blobsDir(): string | null {
@@ -512,13 +548,33 @@ class CanvasStateManager {
   }
 
   private writeBlobValue(value: unknown): PersistedBlobRef | null {
-    const dir = this.blobsDir;
-    if (!dir) return null;
     const json = JSON.stringify(value);
     if (typeof json !== 'string') return null;
     const jsonBytes = Buffer.byteLength(json);
     if (jsonBytes < BLOB_JSON_THRESHOLD_BYTES) return null;
     const sha256 = createHash('sha256').update(json).digest('hex');
+
+    // Write to SQLite if DB is available
+    if (this._db) {
+      try {
+        const bytes = writeBlobToDB(this._db, sha256, json);
+        return {
+          __pmxCanvasBlob: 'v1',
+          path: `blobs/${sha256}`,
+          sha256,
+          encoding: 'json+gzip',
+          bytes,
+          jsonBytes,
+        };
+      } catch (error) {
+        logCanvasStateWarning('write blob to db failed', error, { sha256 });
+        return null;
+      }
+    }
+
+    // Fallback to filesystem (for when DB is not yet initialized)
+    const dir = this.blobsDir;
+    if (!dir) return null;
     const prefix = sha256.slice(0, 2);
     const filePath = join(dir, prefix, `${sha256}.json.gz`);
     try {
@@ -541,6 +597,24 @@ class CanvasStateManager {
   }
 
   private readBlobValue(ref: PersistedBlobRef): unknown {
+    // Try SQLite first
+    if (this._db) {
+      try {
+        const json = readBlobFromDB(this._db, ref.sha256);
+        if (json) {
+          const sha256 = createHash('sha256').update(json).digest('hex');
+          if (sha256 !== ref.sha256) {
+            logCanvasStateWarning('blob checksum mismatch (db)', 'checksum mismatch', { sha256: ref.sha256 });
+            return ref;
+          }
+          return JSON.parse(json) as unknown;
+        }
+      } catch (error) {
+        logCanvasStateWarning('read blob from db failed', error, { sha256: ref.sha256 });
+      }
+    }
+
+    // Fallback to filesystem (for legacy blobs not yet migrated)
     const filePath = this.resolveBlobPath(ref);
     if (!filePath) return ref;
     try {
@@ -629,6 +703,84 @@ class CanvasStateManager {
     }
   }
 
+  /**
+   * One-time migration: import state.json + snapshot JSON files + blob files
+   * into the SQLite database. Renames originals to `.bak`.
+   */
+  private migrateJsonToSqlite(): void {
+    if (!this._db || !this._stateFilePath) return;
+    const db = this._db;
+
+    if (isDbPopulated(this._db)) return; // DB already initialized
+
+    if (existsSync(this._stateFilePath)) {
+      try {
+        const raw = readFileSync(this._stateFilePath, 'utf-8');
+        const parsed = JSON.parse(raw) as PersistedCanvasState;
+        if (parsed && parsed.version === 1) {
+          saveStateToDB(db, parsed);
+          renameSync(this._stateFilePath, `${this._stateFilePath}.bak`);
+        }
+      } catch (error) {
+        logCanvasStateWarning('migrate state.json to sqlite failed', error, {
+          path: this._stateFilePath,
+        });
+      }
+    }
+
+    // Migrate snapshot JSON files
+    const snapshotsDir = this.snapshotsDir;
+    if (snapshotsDir && existsSync(snapshotsDir)) {
+      try {
+        const files = readdirSync(snapshotsDir).filter((f) => f.endsWith('.json'));
+        for (const file of files) {
+          try {
+            const filePath = join(snapshotsDir, file);
+            const raw = readFileSync(filePath, 'utf-8');
+            const parsed = JSON.parse(raw) as PersistedCanvasState & { snapshot?: CanvasSnapshot };
+            if (parsed.snapshot && parsed.version === 1) {
+              saveSnapshotToDB(db, parsed.snapshot, parsed);
+              renameSync(filePath, `${filePath}.bak`);
+            }
+          } catch (error) {
+            logCanvasStateWarning('migrate snapshot file to sqlite failed', error, { file });
+          }
+        }
+      } catch (error) {
+        logCanvasStateWarning('migrate snapshots dir failed', error, { snapshotsDir });
+      }
+    }
+
+    // Migrate blob files
+    const blobsDir = this.blobsDir;
+    if (blobsDir && existsSync(blobsDir)) {
+      try {
+        const prefixes = readdirSync(blobsDir).filter((d) => d.length === 2);
+        for (const prefix of prefixes) {
+          const prefixDir = join(blobsDir, prefix);
+          const blobFiles = readdirSync(prefixDir).filter((f) => f.endsWith('.json.gz'));
+          for (const blobFile of blobFiles) {
+            try {
+              const blobPath = join(prefixDir, blobFile);
+              const sha256 = blobFile.replace('.json.gz', '');
+              if (!hasBlobInDB(db, sha256)) {
+                const compressed = readFileSync(blobPath);
+                const json = gunzipSync(compressed).toString('utf-8');
+                writeBlobToDB(db, sha256, json);
+              }
+              const backupPath = `${blobPath}.bak`;
+              if (!existsSync(backupPath)) renameSync(blobPath, backupPath);
+            } catch (error) {
+              logCanvasStateWarning('migrate blob file to sqlite failed', error, { blobFile });
+            }
+          }
+        }
+      } catch (error) {
+        logCanvasStateWarning('migrate blobs dir failed', error, { blobsDir });
+      }
+    }
+  }
+
   getWorkspaceRoot(): string {
     return this._workspaceRoot;
   }
@@ -644,31 +796,45 @@ class CanvasStateManager {
     };
   }
 
-  /** Load canvas state from disk. Call once on server startup. */
+  /** Load canvas state from SQLite (or legacy JSON fallback). Call once on server startup. */
   loadFromDisk(options: LoadFromDiskOptions = {}): boolean {
-    if (!this._stateFilePath || !existsSync(this._stateFilePath)) {
-      if (options.clearExisting) {
-        this.applyPersistedState(this.emptyPersistedState());
+    // Try SQLite first (only if DB has been populated)
+    if (this._db && isDbPopulated(this._db)) {
+      try {
+        const state = loadStateFromDB(this._db);
+        if (state) {
+          this.applyPersistedState(state);
+          return true;
+        }
+      } catch (error) {
+        logCanvasStateWarning('load state from sqlite failed', error, {});
       }
-      return false;
     }
-    try {
-      const raw = readFileSync(this._stateFilePath, 'utf-8');
-      const parsed = JSON.parse(raw) as PersistedCanvasState;
-      if (!parsed || parsed.version !== 1) return false;
-      this.applyPersistedState(parsed);
-      return true;
-    } catch (error) {
-      logCanvasStateWarning('load state from disk failed', error, {
-        path: this._stateFilePath ?? undefined,
-      });
-      return false;
+
+    // Fallback to JSON (for edge cases where migration hasn't happened)
+    if (this._stateFilePath && existsSync(this._stateFilePath)) {
+      try {
+        const raw = readFileSync(this._stateFilePath, 'utf-8');
+        const parsed = JSON.parse(raw) as PersistedCanvasState;
+        if (!parsed || parsed.version !== 1) return false;
+        this.applyPersistedState(parsed);
+        return true;
+      } catch (error) {
+        logCanvasStateWarning('load state from json fallback failed', error, {
+          path: this._stateFilePath,
+        });
+      }
     }
+
+    if (options.clearExisting) {
+      this.applyPersistedState(this.emptyPersistedState());
+    }
+    return false;
   }
 
-  /** Debounced save — coalesces rapid mutations into a single disk write. */
+  /** Debounced save — coalesces rapid mutations into a single write. */
   private scheduleSave(): void {
-    if (!this._stateFilePath) return;
+    if (!this._db) return;
     if (this._saveTimer) clearTimeout(this._saveTimer);
     this._saveTimer = setTimeout(() => {
       this._saveTimer = null;
@@ -682,15 +848,19 @@ class CanvasStateManager {
       this._saveTimer = null;
     }
     this.saveToDisk();
+    if (this._db) {
+      try {
+        checkpointCanvasDb(this._db);
+      } catch (error) {
+        logCanvasStateWarning('checkpoint database failed', error, {});
+      }
+    }
   }
 
-  /** Write current state to disk immediately. */
+  /** Write current state to SQLite immediately. */
   private saveToDisk(): void {
-    if (!this._stateFilePath) return;
+    if (!this._db) return;
     try {
-      const dir = dirname(this._stateFilePath);
-      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-
       const payload = this.externalizePersistedStateBlobs({
         version: 1,
         viewport: this._viewport,
@@ -699,11 +869,31 @@ class CanvasStateManager {
         annotations: Array.from(this.annotations.values()),
         contextPins: Array.from(this._contextPinnedNodeIds),
       });
-      writeFileSync(this._stateFilePath, JSON.stringify(payload, null, 2), 'utf-8');
+      saveStateToDB(this._db, payload);
     } catch (error) {
-      logCanvasStateWarning('save state to disk failed', error, {
-        path: this._stateFilePath ?? undefined,
-      });
+      logCanvasStateWarning('save state to sqlite failed', error, {});
+    }
+  }
+
+  /** Close the SQLite database cleanly. Call on server shutdown. */
+  close(): void {
+    if (this._saveTimer) {
+      clearTimeout(this._saveTimer);
+      this._saveTimer = null;
+      this.saveToDisk();
+    }
+    if (this._db) {
+      try {
+        finalizeCanvasDbForClose(this._db);
+      } catch (error) {
+        logCanvasStateWarning('finalize database failed', error, {});
+      }
+      try {
+        this._db.close();
+      } catch (error) {
+        logCanvasStateWarning('close database failed', error, {});
+      }
+      this._db = null;
     }
   }
 
@@ -754,6 +944,13 @@ class CanvasStateManager {
     snapshot: CanvasSnapshot;
     state: PersistedCanvasState;
   } | null {
+    // Try SQLite first
+    if (this._db) {
+      const result = loadSnapshotFromDB(this._db, idOrName);
+      if (result) return result;
+    }
+
+    // Fallback to filesystem (for legacy snapshots not yet migrated)
     const dir = this.snapshotsDir;
     if (!dir || !existsSync(dir)) return null;
 
@@ -817,8 +1014,7 @@ class CanvasStateManager {
 
   /** Save current canvas state as a named snapshot. */
   saveSnapshot(name: string): CanvasSnapshot | null {
-    const dir = this.snapshotsDir;
-    if (!dir) return null;
+    if (!this._db) return null;
 
     const id = `snap-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     const snapshot: CanvasSnapshot = {
@@ -830,18 +1026,15 @@ class CanvasStateManager {
     };
 
     try {
-      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-
       const payload = this.externalizePersistedStateBlobs({
         version: 1,
-        snapshot,
         viewport: this._viewport,
         nodes: Array.from(this.nodes.values()),
         edges: Array.from(this.edges.values()),
         annotations: Array.from(this.annotations.values()),
         contextPins: Array.from(this._contextPinnedNodeIds),
       });
-      writeFileSync(join(dir, `${id}.json`), JSON.stringify(payload, null, 2), 'utf-8');
+      saveSnapshotToDB(this._db, snapshot, payload);
       snapshot.nodeCount = payload.nodes.length;
       snapshot.edgeCount = payload.edges.length;
       return snapshot;
@@ -853,6 +1046,15 @@ class CanvasStateManager {
 
   /** List saved snapshots, newest first. */
   listSnapshots(options: CanvasSnapshotListOptions = {}): CanvasSnapshot[] {
+    if (this._db) {
+      try {
+        return listSnapshotsFromDB(this._db, options);
+      } catch (error) {
+        logCanvasStateWarning('list snapshots from db failed', error, {});
+      }
+    }
+
+    // Fallback to filesystem
     const dir = this.snapshotsDir;
     if (!dir || !existsSync(dir)) return [];
 
@@ -982,6 +1184,16 @@ class CanvasStateManager {
 
   /** Delete a snapshot. */
   deleteSnapshot(id: string): boolean {
+    // Try SQLite first
+    if (this._db) {
+      try {
+        if (deleteSnapshotFromDB(this._db, id)) return true;
+      } catch (error) {
+        logCanvasStateWarning('delete snapshot from db failed', error, { id });
+      }
+    }
+
+    // Fallback to filesystem
     const dir = this.snapshotsDir;
     if (!dir) return false;
     const filePath = join(dir, `${id}.json`);
@@ -992,6 +1204,23 @@ class CanvasStateManager {
     } catch (error) {
       logCanvasStateWarning('delete snapshot failed', error, { id, filePath });
       return false;
+    }
+  }
+
+  /** Remove all snapshots from the DB. Used by test teardown. */
+  clearAllSnapshots(): void {
+    if (this._db) {
+      this._db.run('DELETE FROM snapshots');
+      this._db.run('DELETE FROM snapshot_nodes');
+      this._db.run('DELETE FROM snapshot_edges');
+      this._db.run('DELETE FROM snapshot_annotations');
+      this._db.run('DELETE FROM snapshot_pins');
+      this._db.run('DELETE FROM snapshot_meta');
+    }
+    // Also clear filesystem snapshots dir
+    const dir = this.snapshotsDir;
+    if (dir && existsSync(dir)) {
+      rmSync(dir, { recursive: true, force: true });
     }
   }
 

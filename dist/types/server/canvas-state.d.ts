@@ -5,9 +5,11 @@
  * - Agent tools (Phase 3) can read/mutate canvas state
  * - Client syncs bidirectionally (SSE for server→client, POST for client→server)
  *
- * Persistence: canvas state auto-saves to `.pmx-canvas/state.json` in the
- * workspace root on every mutation (debounced). Auto-loads on `loadFromDisk()`.
+ * Persistence: canvas state auto-saves to `.pmx-canvas/canvas.db` (SQLite WAL mode)
+ * in the workspace root on every mutation (debounced). Auto-loads on `loadFromDisk()`.
+ * Legacy `.pmx-canvas/state.json` is auto-migrated on first boot.
  */
+import { type PersistedCanvasState } from './canvas-db.js';
 export declare const PMX_CANVAS_DIR = ".pmx-canvas";
 export interface PersistedBlobRef {
     __pmxCanvasBlob: 'v1';
@@ -17,14 +19,7 @@ export interface PersistedBlobRef {
     bytes: number;
     jsonBytes: number;
 }
-interface PersistedCanvasState {
-    version: number;
-    viewport: ViewportState;
-    nodes: CanvasNodeState[];
-    edges: CanvasEdge[];
-    annotations?: CanvasAnnotation[];
-    contextPins: string[];
-}
+export type { PersistedCanvasState } from './canvas-db.js';
 interface LoadFromDiskOptions {
     clearExisting?: boolean;
 }
@@ -166,6 +161,7 @@ declare class CanvasStateManager {
     private recomputeParentGroupBounds;
     private compactGroupChildren;
     private _stateFilePath;
+    private _db;
     private _saveTimer;
     /** Set the workspace root to enable auto-persistence. */
     setWorkspaceRoot(workspaceRoot: string): void;
@@ -185,15 +181,22 @@ declare class CanvasStateManager {
      * No-op when the new layout already exists.
      */
     private migrateLegacyLayout;
+    /**
+     * One-time migration: import state.json + snapshot JSON files + blob files
+     * into the SQLite database. Renames originals to `.bak`.
+     */
+    private migrateJsonToSqlite;
     getWorkspaceRoot(): string;
     private emptyPersistedState;
-    /** Load canvas state from disk. Call once on server startup. */
+    /** Load canvas state from SQLite (or legacy JSON fallback). Call once on server startup. */
     loadFromDisk(options?: LoadFromDiskOptions): boolean;
-    /** Debounced save — coalesces rapid mutations into a single disk write. */
+    /** Debounced save — coalesces rapid mutations into a single write. */
     private scheduleSave;
     flushToDisk(): void;
-    /** Write current state to disk immediately. */
+    /** Write current state to SQLite immediately. */
     private saveToDisk;
+    /** Close the SQLite database cleanly. Call on server shutdown. */
+    close(): void;
     private get snapshotsDir();
     private applyPersistedState;
     private readResolvedSnapshot;
@@ -217,6 +220,8 @@ declare class CanvasStateManager {
     } | null;
     /** Delete a snapshot. */
     deleteSnapshot(id: string): boolean;
+    /** Remove all snapshots from the DB. Used by test teardown. */
+    clearAllSnapshots(): void;
     get viewport(): ViewportState;
     addNode(node: CanvasNodeState): void;
     addJsonRenderNode(node: CanvasNodeState): void;
@@ -250,4 +255,3 @@ declare class CanvasStateManager {
     clear(): void;
 }
 export declare const canvasState: CanvasStateManager;
-export {};

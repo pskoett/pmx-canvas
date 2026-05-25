@@ -812,7 +812,10 @@ describe('canvas state manager', () => {
 
       expect(existsSync(legacyState)).toBe(false);
       expect(existsSync(legacySnapshotsDir)).toBe(false);
-      expect(existsSync(join(migrationWorkspace, '.pmx-canvas', 'state.json'))).toBe(true);
+      // Legacy state.json is migrated to SQLite, then renamed to .bak
+      const stateJsonPath = join(migrationWorkspace, '.pmx-canvas', 'state.json');
+      const stateJsonBakPath = `${stateJsonPath}.bak`;
+      expect(existsSync(stateJsonPath) || existsSync(stateJsonBakPath)).toBe(true);
       expect(existsSync(join(migrationWorkspace, '.pmx-canvas', 'snapshots', 'marker.json'))).toBe(true);
 
       expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);

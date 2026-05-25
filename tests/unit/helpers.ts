@@ -1,7 +1,9 @@
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Database } from 'bun:sqlite';
 import { canvasState, type CanvasAnnotation, type CanvasNodeState } from '../../src/server/canvas-state.ts';
+import { loadStateFromDB } from '../../src/server/canvas-db.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { stopCanvasServer } from '../../src/server/server.ts';
 
@@ -67,6 +69,7 @@ set -e
 }
 
 export function removeTestWorkspace(workspaceRoot: string): void {
+  canvasState.close();
   rmSync(workspaceRoot, { recursive: true, force: true });
 }
 
@@ -76,6 +79,26 @@ export function readPersistedCanvasState(workspaceRoot: string): {
   annotations?: CanvasAnnotation[];
   contextPins: string[];
 } {
+  // Try SQLite first (new persistence)
+  const dbPath = join(workspaceRoot, '.pmx-canvas', 'canvas.db');
+  if (existsSync(dbPath)) {
+    const db = new Database(dbPath, { readonly: true });
+    try {
+      const state = loadStateFromDB(db);
+      if (state) {
+        return {
+          nodes: state.nodes,
+          edges: state.edges,
+          annotations: state.annotations,
+          contextPins: state.contextPins,
+        };
+      }
+    } finally {
+      db.close();
+    }
+  }
+
+  // Fallback to JSON (legacy tests)
   return JSON.parse(readFileSync(join(workspaceRoot, '.pmx-canvas', 'state.json'), 'utf-8')) as {
     nodes: CanvasNodeState[];
     edges: Array<{ id: string; from: string; to: string; type: string }>;

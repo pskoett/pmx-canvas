@@ -102,19 +102,20 @@ All generated files live under `.pmx-canvas/` in the workspace root:
 
 ```
 .pmx-canvas/
-  state.json           # canvas state (viewport, nodes, edges, pins) — git-committable
-  snapshots/           # named snapshots (canvas_snapshot)
+  canvas.db            # SQLite state, snapshots, context pins, and blobs — git-committable
   artifacts/           # web-artifact HTML bundles
     .web-artifacts/    # reusable per-artifact build projects
   daemon-<port>.log    # daemon stdout/stderr (when started with `serve --daemon`)
   daemon-<port>.pid    # daemon pid file
 ```
 
-State auto-saves every mutation (debounced 500ms) and auto-loads on server start. Legacy files (`.pmx-canvas.json`, `.pmx-canvas-snapshots/`) are migrated to the new layout automatically on first boot.
+State auto-saves every mutation (debounced 500ms) and auto-loads on server start. Legacy files (`.pmx-canvas/state.json`, `.pmx-canvas.json`, `.pmx-canvas/snapshots/`, `.pmx-canvas-snapshots/`, and blob files) are imported into SQLite and renamed to `.bak` on first boot.
 
-- Override state path: `PMX_CANVAS_STATE_FILE` env var
+- Override DB path: `PMX_CANVAS_DB_PATH` env var
+- Backward-compatible legacy JSON path: `PMX_CANVAS_STATE_FILE` env var
 - `--demo` only seeds when canvas is empty (won't clobber restored state)
-- State saves: viewport, nodes, edges, context pins
+- State saves: viewport, nodes, edges, annotations, context pins, snapshots, and large node blobs
+- Stop the server or flush/close the SDK before committing `canvas.db`; shutdown checkpoints SQLite WAL data into the DB file.
 
 ## Themes
 

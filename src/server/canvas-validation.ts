@@ -40,6 +40,10 @@ function overlaps(a: CanvasNodeState, b: CanvasNodeState): boolean {
   );
 }
 
+function participatesInCanvasCollisionValidation(node: CanvasNodeState): boolean {
+  return node.dockPosition === null;
+}
+
 function fullyContains(group: CanvasNodeState, child: CanvasNodeState): boolean {
   return (
     child.position.x >= group.position.x &&
@@ -81,8 +85,10 @@ export function validateCanvasLayout(layout: CanvasLayout): CanvasValidationResu
 
   for (let i = 0; i < layout.nodes.length; i++) {
     const a = layout.nodes[i]!;
+    if (!participatesInCanvasCollisionValidation(a)) continue;
     for (let j = i + 1; j < layout.nodes.length; j++) {
       const b = layout.nodes[j]!;
+      if (!participatesInCanvasCollisionValidation(b)) continue;
       if (!overlaps(a, b)) continue;
 
       if (isGroupChildPair(a, b)) {

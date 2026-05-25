@@ -57,11 +57,12 @@ picks up immediately.
 
 ### 05 / Save
 
-Spatial state auto-saves to `.pmx-canvas/state.json` (debounced ~500 ms) —
+Spatial state auto-saves to `.pmx-canvas/canvas.db` (debounced ~500 ms) —
 git-committable, shareable across machines, and survives both browser
 refresh and server restart. Named [snapshots](docs/mcp.md#tools), full
 undo/redo, and an auto-detected code graph (JS/TS, Python, Go, Rust) make
-the canvas durable rather than throwaway.
+the canvas durable rather than throwaway. Stop the server before committing
+the DB so SQLite WAL data is checkpointed into the file.
 
 ### 06 / Any agent
 
@@ -168,7 +169,7 @@ the agent can read `canvas://skills` and pull in companion skills
   one machine. No built-in multi-user auth or presence — collaboration means
   human ↔ agent on the same machine, plus any other browser tab/agent
   pointed at the same `localhost:4313`. To share across machines, commit
-  `.pmx-canvas/state.json`.
+  `.pmx-canvas/canvas.db`.
 - **What leaves your machine.** The core canvas runs entirely on
   `localhost`. Network egress only happens for explicit, opt-in flows:
   `webpage` nodes fetch the URL you give them; `mcp-app` /

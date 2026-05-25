@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
@@ -63,7 +63,7 @@ describe('agent CLI node commands', () => {
     canvasState.withSuppressedRecording(() => {
       canvasState.clear();
     });
-    rmSync(join(workspaceRoot, '.pmx-canvas', 'snapshots'), { recursive: true, force: true });
+    canvasState.clearAllSnapshots();
     mutationHistory.reset();
   });
 
