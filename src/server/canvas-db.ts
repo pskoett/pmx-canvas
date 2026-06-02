@@ -17,6 +17,7 @@ import type {
   CanvasSnapshotListOptions,
   ViewportState,
 } from './canvas-state.js';
+import { createEmptyAxState, normalizeAxState, type PmxAxState } from './ax-state.js';
 
 // ── Schema ──────────────────────────────────────────────────────
 
@@ -66,6 +67,11 @@ const SCHEMA_SQL = `
 
   CREATE TABLE IF NOT EXISTS context_pins (
     node_id TEXT PRIMARY KEY
+  );
+
+  CREATE TABLE IF NOT EXISTS ax_state (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL
   );
 
   CREATE TABLE IF NOT EXISTS snapshots (
@@ -149,6 +155,15 @@ function normalizeSnapshotTimestamp(value: string | undefined): string | undefin
   return Number.isFinite(parsed) ? new Date(parsed).toISOString() : undefined;
 }
 
+function parsePersistedAxState(raw: string | null | undefined): PmxAxState {
+  if (!raw) return createEmptyAxState();
+  try {
+    return normalizeAxState(JSON.parse(raw));
+  } catch {
+    return createEmptyAxState();
+  }
+}
+
 // ── Persisted State Interface ───────────────────────────────────
 
 export interface PersistedCanvasState {
@@ -158,6 +173,7 @@ export interface PersistedCanvasState {
   edges: CanvasEdge[];
   annotations?: CanvasAnnotation[];
   contextPins: string[];
+  ax?: PmxAxState;
 }
 
 // ── Database Management ─────────────────────────────────────────
@@ -199,6 +215,7 @@ export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
     db.run('DELETE FROM edges');
     db.run('DELETE FROM annotations');
     db.run('DELETE FROM context_pins');
+    db.run('DELETE FROM ax_state');
 
     // Save viewport
     db.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', ['viewport_x', String(state.viewport.x)]);
@@ -270,6 +287,8 @@ export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
     for (const pinId of state.contextPins) {
       insertPin.run(pinId);
     }
+
+    db.run('INSERT INTO ax_state (key, value) VALUES (?, ?)', ['state', JSON.stringify(state.ax ?? createEmptyAxState())]);
   });
 
   transaction();
@@ -377,6 +396,8 @@ export function loadStateFromDB(db: Database): PersistedCanvasState | null {
   const pinRows = db.query<PinRow, []>('SELECT node_id FROM context_pins').all();
   const contextPins = pinRows.map((row) => row.node_id);
 
+  const axRow = db.query<{ value: string }, [string]>('SELECT value FROM ax_state WHERE key = ?').get('state');
+
   return {
     version: 1,
     viewport,
@@ -384,6 +405,7 @@ export function loadStateFromDB(db: Database): PersistedCanvasState | null {
     edges,
     annotations,
     contextPins,
+    ax: parsePersistedAxState(axRow?.value),
   };
 }
 
@@ -405,6 +427,7 @@ export function saveSnapshotToDB(
     db.run('INSERT INTO snapshot_meta (snapshot_id, key, value) VALUES (?, ?, ?)', [snapshot.id, 'viewport_x', String(state.viewport.x)]);
     db.run('INSERT INTO snapshot_meta (snapshot_id, key, value) VALUES (?, ?, ?)', [snapshot.id, 'viewport_y', String(state.viewport.y)]);
     db.run('INSERT INTO snapshot_meta (snapshot_id, key, value) VALUES (?, ?, ?)', [snapshot.id, 'viewport_scale', String(state.viewport.scale)]);
+    db.run('INSERT INTO snapshot_meta (snapshot_id, key, value) VALUES (?, ?, ?)', [snapshot.id, 'ax_state', JSON.stringify(state.ax ?? createEmptyAxState())]);
 
     // Insert snapshot nodes
     const insertNode = db.prepare(
@@ -616,6 +639,7 @@ export function loadSnapshotFromDB(
       edges,
       annotations,
       contextPins,
+      ax: parsePersistedAxState(metaMap.get('ax_state')),
     },
   };
 }

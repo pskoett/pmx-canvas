@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { canvasState, type CanvasAnnotation, type CanvasNodeState } from '../../src/server/canvas-state.ts';
+import type { PmxAxState } from '../../src/server/ax-state.ts';
 import { loadStateFromDB } from '../../src/server/canvas-db.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { stopCanvasServer } from '../../src/server/server.ts';
@@ -78,6 +79,7 @@ export function readPersistedCanvasState(workspaceRoot: string): {
   edges: Array<{ id: string; from: string; to: string; type: string }>;
   annotations?: CanvasAnnotation[];
   contextPins: string[];
+  ax?: PmxAxState;
 } {
   // Try SQLite first (new persistence)
   const dbPath = join(workspaceRoot, '.pmx-canvas', 'canvas.db');
@@ -91,6 +93,7 @@ export function readPersistedCanvasState(workspaceRoot: string): {
           edges: state.edges,
           annotations: state.annotations,
           contextPins: state.contextPins,
+          ax: state.ax,
         };
       }
     } finally {
@@ -104,6 +107,7 @@ export function readPersistedCanvasState(workspaceRoot: string): {
     edges: Array<{ id: string; from: string; to: string; type: string }>;
     annotations?: CanvasAnnotation[];
     contextPins: string[];
+    ax?: PmxAxState;
   };
 }
 

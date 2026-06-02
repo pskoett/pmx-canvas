@@ -65,6 +65,14 @@ If this skill is installed before the `pmx-canvas` command exists, install the p
 `references/installing-pmx-canvas.md` for local development, npm/global install, and MCP config
 options.
 
+## Adapter References
+
+PMX Canvas core is host-agnostic. When a host-specific adapter is available, read the matching
+reference before using adapter-native features:
+
+- `references/github-copilot-app-adapter.md` — GitHub Copilot app project extension, native canvas
+  panel, AX context injection, and live-test checklist.
+
 The canvas auto-starts on first MCP tool call when running in MCP mode (`pmx-canvas --mcp`).
 For manual start:
 
@@ -156,6 +164,8 @@ pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --deps re
 pmx-canvas node list --type web-artifact --summary
 pmx-canvas node list --type external-app --summary
 pmx-canvas pin --list
+pmx-canvas ax context
+pmx-canvas ax focus <node-id>
 pmx-canvas snapshot save --name "before-refactor"
 pmx-canvas code-graph
 pmx-canvas spatial
@@ -175,6 +185,8 @@ pmx-canvas spatial
   `"DVT O3"` can be ambiguous; prefer the full visible title such as `"DVT O3 — GitOps"`.
 - `search`, `layout`, `status`, `arrange`, `focus` — inspect and navigate the canvas. Prefer
   `focus --no-pan` when you only need to select/raise a node without hijacking the human's camera.
+- `ax status|context|focus` — inspect the host-agnostic AX layer; `ax context`
+  combines pinned context and AX focus for adapter prompt injection.
 - `fit [id ...]` — set the server viewport to fit the whole canvas or selected nodes before screenshots or whole-board review
 - `screenshot --output <path>` — top-level shortcut for `webview screenshot`; supports `--format png|jpeg|webp` and `--quality`
 - `json-render --schema|--examples` — inspect the json-render component catalog with `--component`/`--field` filters; same data as `node schema --type json-render` in a more direct shape

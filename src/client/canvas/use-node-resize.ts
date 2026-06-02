@@ -29,12 +29,18 @@ export function useNodeResize({ nodeId, viewport, onResize, onResizeEnd }: NodeR
       isResizing.current = true;
       startPointer.current = { x: e.clientX, y: e.clientY };
       startSize.current = { w: currentWidth, h: currentHeight };
+      document.documentElement.classList.add('is-node-resizing');
+      let pendingPointer: { x: number; y: number } | null = null;
+      let frameId: number | null = null;
 
-      const onPointerMove = (ev: PointerEvent) => {
-        if (!isResizing.current) return;
+      const flushResize = () => {
+        frameId = null;
+        if (!isResizing.current || !pendingPointer) return;
+        const pointer = pendingPointer;
+        pendingPointer = null;
         const scale = viewport.value.scale;
-        const dw = (ev.clientX - startPointer.current.x) / scale;
-        const dh = (ev.clientY - startPointer.current.y) / scale;
+        const dw = (pointer.x - startPointer.current.x) / scale;
+        const dh = (pointer.y - startPointer.current.y) / scale;
         onResize(
           nodeId,
           Math.max(MIN_WIDTH, startSize.current.w + dw),
@@ -42,15 +48,29 @@ export function useNodeResize({ nodeId, viewport, onResize, onResizeEnd }: NodeR
         );
       };
 
-      const onPointerUp = () => {
+      const onPointerMove = (ev: PointerEvent) => {
+        if (!isResizing.current) return;
+        pendingPointer = { x: ev.clientX, y: ev.clientY };
+        if (frameId !== null) return;
+        frameId = window.requestAnimationFrame(flushResize);
+      };
+
+      const finishResize = () => {
+        if (frameId !== null) {
+          window.cancelAnimationFrame(frameId);
+          flushResize();
+        }
         isResizing.current = false;
+        document.documentElement.classList.remove('is-node-resizing');
         document.removeEventListener('pointermove', onPointerMove);
-        document.removeEventListener('pointerup', onPointerUp);
+        document.removeEventListener('pointerup', finishResize);
+        document.removeEventListener('pointercancel', finishResize);
         onResizeEnd();
       };
 
       document.addEventListener('pointermove', onPointerMove);
-      document.addEventListener('pointerup', onPointerUp);
+      document.addEventListener('pointerup', finishResize);
+      document.addEventListener('pointercancel', finishResize);
     },
     [nodeId, viewport, onResize, onResizeEnd],
   );

@@ -1099,6 +1099,82 @@ function collectGridArrangeExcludedNodeIds(nodes: CanvasNodeState[]): Set<string
   return excluded;
 }
 
+interface ArrangeObstacleRect {
+  id: string;
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+}
+
+const GRID_OBSTACLE_GAP_Y = 72;
+
+function rectsOverlap(a: ArrangeObstacleRect, b: ArrangeObstacleRect): boolean {
+  return (
+    a.position.x < b.position.x + b.size.width &&
+    a.position.x + a.size.width > b.position.x &&
+    a.position.y < b.position.y + b.size.height &&
+    a.position.y + a.size.height > b.position.y
+  );
+}
+
+function collectGridArrangeObstacles(nodes: CanvasNodeState[], excludedIds: Set<string>): ArrangeObstacleRect[] {
+  return nodes
+    .filter((node) => excludedIds.has(node.id) && node.dockPosition === null)
+    .map((node) => ({
+      id: node.id,
+      position: { ...node.position },
+      size: { ...node.size },
+    }));
+}
+
+function buildUpdatedArrangeRect(
+  update: CanvasNodeUpdate,
+  nodesById: Map<string, CanvasNodeState>,
+): ArrangeObstacleRect | null {
+  const node = nodesById.get(update.id);
+  if (!node) return null;
+  return {
+    id: update.id,
+    position: update.position ? { ...update.position } : { ...node.position },
+    size: update.size ? { ...update.size } : { ...node.size },
+  };
+}
+
+function shiftGridUpdatesBelowObstacles(
+  updates: CanvasNodeUpdate[],
+  nodes: CanvasNodeState[],
+  obstacles: ArrangeObstacleRect[],
+): CanvasNodeUpdate[] {
+  if (updates.length === 0 || obstacles.length === 0) return updates;
+
+  // Grid arrange only sees movable nodes, so preserved locked/docked-group frames
+  // need a separate obstacle pass before applying the planned positions.
+  const nodesById = new Map(nodes.map((node) => [node.id, node]));
+  let shifted = updates;
+
+  for (let attempt = 0; attempt <= obstacles.length; attempt++) {
+    const plannedRects = shifted
+      .map((update) => buildUpdatedArrangeRect(update, nodesById))
+      .filter((rect): rect is ArrangeObstacleRect => rect !== null);
+    if (plannedRects.length === 0) return shifted;
+
+    const blockers = obstacles.filter((obstacle) =>
+      plannedRects.some((rect) => rect.id !== obstacle.id && rectsOverlap(rect, obstacle)),
+    );
+    if (blockers.length === 0) return shifted;
+
+    const minPlannedY = Math.min(...plannedRects.map((rect) => rect.position.y));
+    const blockerBottom = Math.max(...blockers.map((rect) => rect.position.y + rect.size.height));
+    const deltaY = blockerBottom + GRID_OBSTACLE_GAP_Y - minPlannedY;
+    if (deltaY <= 0) return shifted;
+
+    shifted = shifted.map((update) => update.position
+      ? { ...update, position: { x: update.position.x, y: update.position.y + deltaY } }
+      : update);
+  }
+
+  return shifted;
+}
+
 export function arrangeCanvasNodes(layout: CanvasArrangeMode): { arranged: number; layout: CanvasArrangeMode } {
   const nodes = canvasState.getLayout().nodes;
   const excludedIds = layout === 'grid'
@@ -1135,6 +1211,9 @@ export function arrangeCanvasNodes(layout: CanvasArrangeMode): { arranged: numbe
         size: { width: bounds.width, height: bounds.height },
       });
     }
+    const obstacles = collectGridArrangeObstacles(nodes, excludedIds);
+    const shiftedUpdates = shiftGridUpdatesBelowObstacles(updates, nodes, obstacles);
+    updates.splice(0, updates.length, ...shiftedUpdates);
   }
 
   canvasState.withSuppressedRecording(() => {

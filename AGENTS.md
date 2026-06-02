@@ -4,12 +4,69 @@ Standalone spatial canvas workbench for coding agents. Infinite 2D canvas with n
 
 The canvas is the agent's extended working memory: humans pin nodes to curate context, agents read that curation via MCP resources.
 
+Provide concise, focused responses. Skip non-essential context, and keep examples minimal.
+
 ## Core Principles
 
-- **Simplicity First**: Make every change as simple as possible. Impact minimal code.
-- **No Laziness**: Find root causes. No temporary fixes. Senior developer standards.
-- **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
-- **Learn and Improve**: Every mistake is a learning opportunity. Log it, learn from it, prevent it.
+### 1. Think Before Coding
+Don't assume. Don't hide confusion. Surface tradeoffs.
+
+- **State assumptions explicitly** — If uncertain, ask rather than guess
+- **Present multiple interpretations** — Don't pick silently when ambiguity exists
+- **Push back when warranted** — If a simpler approach exists, say so
+- **Stop when confused** — Name what's unclear and ask for clarification
+
+### 2. Simplicity First
+Minimum code that solves the problem. Nothing speculative.
+
+- No features beyond what was asked
+- No abstractions for single-use code
+- No "flexibility" or "configurability" that wasn't requested
+- No error handling for impossible scenarios
+- If 200 lines could be 50, rewrite it
+
+The test: Would a senior engineer say this is overcomplicated? If yes, simplify.
+
+### 3. Surgical Changes
+Touch only what you must. Clean up only your own mess.
+
+When editing existing code:
+- Don't "improve" adjacent code, comments, or formatting
+- Don't refactor things that aren't broken
+- Match existing style, even if you'd do it differently
+- If you notice unrelated dead code, mention it — don't delete it
+
+When your changes create orphans:
+- Remove imports/variables/functions that YOUR changes made unused
+- Don't remove pre-existing dead code unless asked
+
+The test: Every changed line should trace directly to the user's request.
+
+### 4. Goal-Driven Execution
+Define success criteria. Loop until verified.
+
+Transform imperative tasks into verifiable goals:
+
+| Instead of... | Transform to... |
+|---------------|-----------------|
+| "Add validation" | "Write tests for invalid inputs, then make them pass" |
+| "Fix the bug" | "Write a test that reproduces it, then make it pass" |
+| "Refactor X" | "Ensure tests pass before and after" |
+
+For multi-step tasks, state a brief plan:
+1. [Step] → verify: [check]
+2. [Step] → verify: [check]
+3. [Step] → verify: [check]
+
+Strong success criteria let the agent loop independently. Weak criteria ("make it work") require constant clarification.
+
+### 5. Learn and Improve
+Every mistake is a learning opportunity. Log it, learn from it, prevent it.
+
+- After ANY correction from the user: log the lesson
+- Write rules for yourself that prevent the same mistake
+- Log to `.learnings/ERRORS.md`, `LEARNINGS.md`, or `FEATURE_REQUESTS.md`
+- Promote broadly applicable learnings to `CLAUDE.md` and `AGENTS.md`
 
 ## TypeScript Guardrails
 
@@ -22,7 +79,6 @@ The canvas is the agent's extended working memory: humans pin nodes to curate co
 ### 1. Plan Mode Default
 - Enter plan mode for ANY non-trivial task (3+ steps or architectural decisions)
 - If something goes sideways, STOP and re-plan immediately — don't keep pushing
-- Use plan mode for verification steps, not just building
 - Write detailed specs upfront to reduce ambiguity
 
 ### 2. Subagent Strategy
@@ -31,26 +87,7 @@ The canvas is the agent's extended working memory: humans pin nodes to curate co
 - For complex problems, throw more compute at it via subagents
 - One task per subagent for focused execution
 
-### 3. Self-Improvement Loop
-- After ANY correction from the user: log the lesson
-- Write rules for yourself that prevent the same mistake
-- Ruthlessly iterate on these lessons until mistake rate drops
-- Log to `.learnings/ERRORS.md`, `LEARNINGS.md`, or `FEATURE_REQUESTS.md`
-- Promote broadly applicable learnings to `CLAUDE.md` and `AGENTS.md`
-
-### 4. Verification Before Done
-- Never mark a task complete without proving it works
-- Diff behavior between main and your changes when relevant
-- Ask yourself: "Would a staff engineer approve this?"
-- Run the server, check endpoints, demonstrate correctness
-
-### 5. Demand Elegance (Balanced)
-- For non-trivial changes: pause and ask "is there a more elegant way?"
-- If a fix feels hacky: "Knowing everything I know now, implement the elegant solution"
-- Skip this for simple, obvious fixes — don't over-engineer
-- Challenge your own work before presenting it
-
-### 6. Autonomous Bug Fixing
+### 3. Autonomous Bug Fixing
 - When given a bug report: just fix it. Don't ask for hand-holding
 - Point at logs, errors, failing tests — then resolve them
 - Zero context switching required from the user
@@ -233,15 +270,6 @@ When file nodes are on the canvas, the system auto-detects import dependencies a
 3. Add the corresponding method to `PmxCanvas` class in `src/server/index.ts`
 4. Add the MCP tool in `src/mcp/server.ts`
 5. Update `SKILL.md`, `readme.md`, and CLI help text
-
-## Task Management
-
-1. **Plan First**: Write plan with checkable items
-2. **Verify Plan**: Check in before starting implementation
-3. **Track Progress**: Mark items complete as you go
-4. **Explain Changes**: High-level summary at each step
-5. **Capture Lessons**: Update `.learnings` files after corrections
-6. **Review Before Done**: Final review to ensure everything is clear and robust
 
 ## Creating a New Skill
 

@@ -650,6 +650,70 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
   await expect(reloadedFrame.locator('#count')).toHaveText('3');
 });
 
+test('MCP App node resize corner stays above iframe preview overlays', async ({ page, request }) => {
+  const fixturePath = fileURLToPath(new URL('../fixtures/mcp-app-fixture.ts', import.meta.url));
+
+  await page.goto('/workbench');
+
+  const openResponse = await request.post('/api/canvas/mcp-app/open', {
+    data: {
+      toolName: 'show_counter',
+      toolArguments: { initial: 1 },
+      title: 'Resize Handle App',
+      transport: {
+        type: 'stdio',
+        command: 'bun',
+        args: ['run', fixturePath],
+        cwd: process.cwd(),
+      },
+    },
+  });
+  expect(openResponse.ok()).toBe(true);
+
+  const appNode = page.locator('.canvas-node').filter({ hasText: 'Resize Handle App' });
+  await expect(appNode).toHaveCount(1);
+  const handle = appNode.locator('.node-resize-handle');
+
+  const hitTarget = await handle.evaluate((element) => {
+    const handleRect = element.getBoundingClientRect();
+    const nodeRect = element.closest('.canvas-node')?.getBoundingClientRect();
+    if (!nodeRect) throw new Error('Resize handle is not inside a canvas node.');
+    const hit = document.elementFromPoint(nodeRect.right - 4, nodeRect.bottom - 4);
+    return {
+      width: handleRect.width,
+      height: handleRect.height,
+      cursor: getComputedStyle(element).cursor,
+      hitIsHandle: hit === element || element.contains(hit),
+    };
+  });
+  expect(hitTarget).toEqual({
+    width: 32,
+    height: 32,
+    cursor: 'nwse-resize',
+    hitIsHandle: true,
+  });
+
+  const initialState = await currentCanvasState(request);
+  const initialNode = initialState.nodes.find((node) => node.type === 'mcp-app' && node.data.title === 'Resize Handle App');
+  if (!initialNode) throw new Error('Resize Handle App node missing from canvas state.');
+
+  const box = await appNode.boundingBox();
+  if (!box) throw new Error('Resize Handle App node is not visible.');
+  await page.mouse.move(box.x + box.width - 8, box.y + box.height - 8);
+  await page.mouse.down();
+  await expect.poll(async () => page.locator('html').evaluate((html) => html.classList.contains('is-node-resizing'))).toBe(true);
+  await page.mouse.move(box.x + box.width + 72, box.y + box.height + 44, { steps: 6 });
+  await page.mouse.up();
+  await expect.poll(async () => page.locator('html').evaluate((html) => html.classList.contains('is-node-resizing'))).toBe(false);
+
+  await expect.poll(async () => {
+    const state = await currentCanvasState(request);
+    const resized = state.nodes.find((node) => node.type === 'mcp-app' && node.data.title === 'Resize Handle App');
+    if (!resized) return false;
+    return resized.size.width > initialNode.size.width && resized.size.height > initialNode.size.height;
+  }).toBe(true);
+});
+
 test('MCP App fullscreen edits persist after closing and reopening the app', async ({ page, request }) => {
   const fixturePath = fileURLToPath(new URL('../fixtures/mcp-app-fixture.ts', import.meta.url));
 

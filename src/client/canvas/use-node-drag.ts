@@ -25,16 +25,32 @@ export function useNodeDrag({ nodeId, viewport, onMove, onDragEnd }: NodeDragOpt
       isDragging.current = true;
       startPointer.current = { x: e.clientX, y: e.clientY };
       startPosition.current = { x: currentX, y: currentY };
+      let pendingPointer: { x: number; y: number } | null = null;
+      let frameId: number | null = null;
 
-      const onPointerMove = (ev: PointerEvent) => {
-        if (!isDragging.current) return;
+      const flushMove = () => {
+        frameId = null;
+        if (!isDragging.current || !pendingPointer) return;
+        const pointer = pendingPointer;
+        pendingPointer = null;
         const scale = viewport.value.scale;
-        const dx = (ev.clientX - startPointer.current.x) / scale;
-        const dy = (ev.clientY - startPointer.current.y) / scale;
+        const dx = (pointer.x - startPointer.current.x) / scale;
+        const dy = (pointer.y - startPointer.current.y) / scale;
         onMove(nodeId, startPosition.current.x + dx, startPosition.current.y + dy);
       };
 
+      const onPointerMove = (ev: PointerEvent) => {
+        if (!isDragging.current) return;
+        pendingPointer = { x: ev.clientX, y: ev.clientY };
+        if (frameId !== null) return;
+        frameId = window.requestAnimationFrame(flushMove);
+      };
+
       const onPointerUp = () => {
+        if (frameId !== null) {
+          window.cancelAnimationFrame(frameId);
+          flushMove();
+        }
         isDragging.current = false;
         document.removeEventListener('pointermove', onPointerMove);
         document.removeEventListener('pointerup', onPointerUp);

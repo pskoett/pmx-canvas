@@ -100,12 +100,16 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
 }
 
-function sendCanvasResourceNotifications(type: 'nodes' | 'pins' = 'nodes'): void {
+function sendCanvasResourceNotifications(type: 'nodes' | 'pins' | 'ax' = 'nodes'): void {
   const server = resourceNotificationServer;
   if (!server) return;
   try {
     if (type === 'pins') {
       server.server.sendResourceUpdated({ uri: 'canvas://pinned-context' });
+    }
+    if (type === 'pins' || type === 'ax') {
+      server.server.sendResourceUpdated({ uri: 'canvas://ax' });
+      server.server.sendResourceUpdated({ uri: 'canvas://ax-context' });
     }
     server.server.sendResourceUpdated({ uri: 'canvas://layout' });
     server.server.sendResourceUpdated({ uri: 'canvas://summary' });
@@ -121,7 +125,9 @@ function handleRemoteSseFrame(frame: string): void {
   const eventLine = frame.split('\n').find((line) => line.startsWith('event: '));
   const event = eventLine?.slice('event: '.length).trim() ?? '';
   if (!event || event === 'connected' || event === 'ping') return;
-  sendCanvasResourceNotifications(event === 'context-pins-changed' ? 'pins' : 'nodes');
+  sendCanvasResourceNotifications(
+    event === 'context-pins-changed' ? 'pins' : event === 'ax-state-changed' ? 'ax' : 'nodes',
+  );
 }
 
 async function watchRemoteCanvasEvents(baseUrl: string): Promise<void> {
@@ -904,7 +910,7 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_update_node ─────────────────────────────────────────
   server.tool(
     'canvas_update_node',
-    'Update an existing node. You can change its content, title, position, size, or data.',
+    'Update an existing node. You can change its content, title, position, size, dock placement, or data.',
     {
       id: z.string().describe('Node ID to update'),
       title: z.string().optional().describe('New title'),
@@ -926,12 +932,14 @@ export async function startMcpServer(): Promise<void> {
       resultSummary: z.string().optional().describe('Trace node result summary'),
       error: z.string().optional().describe('Trace node error message'),
       collapsed: z.boolean().optional().describe('Collapse or expand the node'),
+      dockPosition: z.enum(['left', 'right']).nullable().optional().describe('Dock the node to the left/right HUD column, or pass null to return it to the canvas'),
+      pinned: z.boolean().optional().describe('Pin or unpin the node to exclude it from auto-arrange'),
       arrangeLocked: z.boolean().optional().describe('Prevent auto-arrange from moving this node. Pinned nodes are also skipped.'),
       full: z.boolean().optional().describe('Return the full updated node payload. Default false returns compact metadata.'),
       verbose: z.boolean().optional().describe('Alias for full:true.'),
     },
     async (input) => {
-      const { id, title, content, x, y, width, height, spec, graphType, data, xKey, yKey, chartHeight, collapsed, arrangeLocked, toolName, category, status, duration, resultSummary, error } = input;
+      const { id, title, content, x, y, width, height, spec, graphType, data, xKey, yKey, chartHeight, collapsed, dockPosition, pinned, arrangeLocked, toolName, category, status, duration, resultSummary, error } = input;
       const c = await ensureCanvas();
       const node = await c.getNode(id);
       if (!node) {
@@ -949,6 +957,12 @@ export async function startMcpServer(): Promise<void> {
       }
       if (collapsed !== undefined) {
         patch.collapsed = collapsed;
+      }
+      if (dockPosition !== undefined) {
+        patch.dockPosition = dockPosition;
+      }
+      if (pinned !== undefined) {
+        patch.pinned = pinned;
       }
       if (title !== undefined) patch.title = title;
       if (content !== undefined) patch.content = content;
@@ -1114,6 +1128,52 @@ export async function startMcpServer(): Promise<void> {
           {
             type: 'text',
             text: JSON.stringify({ ok: true, focused: result.focused, panned: result.panned }),
+          },
+        ],
+      };
+    },
+  );
+
+  // ── AX context and focus ───────────────────────────────────────
+  server.tool(
+    'canvas_get_ax',
+    'Read the host-agnostic PMX AX state and agent-ready AX context. Use this when you need pinned context plus the current focus field.',
+    {
+      includeContext: z.boolean().optional().describe('Include serialized agent-ready AX context. Default true.'),
+    },
+    async ({ includeContext }) => {
+      const c = await ensureCanvas();
+      const state = await c.getAxState();
+      const context = includeContext === false ? undefined : await c.getAxContext();
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({
+              ok: true,
+              state,
+              ...(context ? { context } : {}),
+            }),
+          },
+        ],
+      };
+    },
+  );
+
+  server.tool(
+    'canvas_set_ax_focus',
+    'Set the PMX AX focus field without requiring viewport movement. Focus is persisted and available through canvas://ax-context.',
+    {
+      nodeIds: z.array(z.string()).describe('Node IDs to place in the AX focus field. Missing nodes are ignored.'),
+    },
+    async ({ nodeIds }) => {
+      const c = await ensureCanvas();
+      const focus = await c.setAxFocus(nodeIds, { source: 'mcp' });
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ ok: true, focus }),
           },
         ],
       };
@@ -1489,6 +1549,52 @@ export async function startMcpServer(): Promise<void> {
         contents: [
           {
             uri: 'canvas://pinned-context',
+            mimeType: 'application/json',
+            text: JSON.stringify(context, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.resource(
+    'ax-state',
+    'canvas://ax',
+    {
+      description:
+        'Host-agnostic PMX AX state. This includes canvas-bound collaboration primitives such as the current AX focus.',
+      mimeType: 'application/json',
+    },
+    async () => {
+      const c = await ensureCanvas();
+      const state = await c.getAxState();
+      return {
+        contents: [
+          {
+            uri: 'canvas://ax',
+            mimeType: 'application/json',
+            text: JSON.stringify({ state }, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.resource(
+    'ax-context',
+    'canvas://ax-context',
+    {
+      description:
+        'Agent-ready PMX AX context combining pinned context, focus, and surface metadata.',
+      mimeType: 'application/json',
+    },
+    async () => {
+      const c = await ensureCanvas();
+      const context = await c.getAxContext();
+      return {
+        contents: [
+          {
+            uri: 'canvas://ax-context',
             mimeType: 'application/json',
             text: JSON.stringify(context, null, 2),
           },

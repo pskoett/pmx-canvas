@@ -31,6 +31,9 @@ type ArrangeLayout = Parameters<PmxCanvas['arrange']>[0];
 type FocusNodeResult = ReturnType<PmxCanvas['focusNode']>;
 type FitViewOptions = Parameters<PmxCanvas['fitView']>[0];
 type FitViewResult = ReturnType<PmxCanvas['fitView']>;
+type AxStateResult = ReturnType<PmxCanvas['getAxState']>;
+type AxContextResult = ReturnType<PmxCanvas['getAxContext']>;
+type SetAxFocusResult = ReturnType<PmxCanvas['setAxFocus']>;
 type SearchResult = ReturnType<PmxCanvas['search']>;
 type UndoRedoResult = Awaited<ReturnType<PmxCanvas['undo']>>;
 type HistoryResult = ReturnType<PmxCanvas['getHistory']>;
@@ -118,6 +121,9 @@ export interface CanvasAccess {
   arrange(layout?: ArrangeLayout): Promise<void>;
   focusNode(id: string, options?: { noPan?: boolean }): Promise<FocusNodeResult>;
   fitView(options?: FitViewOptions): Promise<FitViewResult>;
+  getAxState(): Promise<AxStateResult>;
+  getAxContext(): Promise<AxContextResult>;
+  setAxFocus(nodeIds: string[], options?: { source?: 'mcp' }): Promise<SetAxFocusResult>;
   clear(): Promise<void>;
   search(query: string): Promise<SearchResult>;
   undo(): Promise<UndoRedoResult>;
@@ -245,6 +251,18 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async fitView(options?: FitViewOptions): Promise<FitViewResult> {
     return this.canvas.fitView(options);
+  }
+
+  async getAxState(): Promise<AxStateResult> {
+    return this.canvas.getAxState();
+  }
+
+  async getAxContext(): Promise<AxContextResult> {
+    return this.canvas.getAxContext();
+  }
+
+  async setAxFocus(nodeIds: string[], options?: { source?: 'mcp' }): Promise<SetAxFocusResult> {
+    return this.canvas.setAxFocus(nodeIds, { source: options?.source ?? 'mcp' });
   }
 
   async clear(): Promise<void> {
@@ -585,6 +603,25 @@ class RemoteCanvasAccess implements CanvasAccess {
 
   async getHistory(): Promise<HistoryResult> {
     return await this.requestJson<HistoryResult>('GET', '/api/canvas/history');
+  }
+
+  async getAxState(): Promise<AxStateResult> {
+    const response = await this.requestJson<{ state?: AxStateResult }>('GET', '/api/canvas/ax');
+    if (!response.state) throw new Error('Remote canvas did not return AX state.');
+    return response.state;
+  }
+
+  async getAxContext(): Promise<AxContextResult> {
+    return await this.requestJson<AxContextResult>('GET', '/api/canvas/ax/context');
+  }
+
+  async setAxFocus(nodeIds: string[], options?: { source?: 'mcp' }): Promise<SetAxFocusResult> {
+    const response = await this.requestJson<{ focus?: SetAxFocusResult }>('POST', '/api/canvas/ax/focus', {
+      nodeIds,
+      source: options?.source ?? 'mcp',
+    });
+    if (!response.focus) throw new Error('Remote canvas did not return AX focus.');
+    return response.focus;
   }
 
   async setContextPins(nodeIds: string[], mode: 'set' | 'add' | 'remove' = 'set'): Promise<SetContextPinsResult> {

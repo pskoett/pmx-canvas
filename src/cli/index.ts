@@ -31,7 +31,7 @@ if (args.includes('--version') || args.includes('-v')) {
 // If first arg is a known subcommand (not a --flag), route to the agent CLI.
 const AGENT_COMMANDS = new Set([
   'node', 'edge', 'json-render', 'search', 'layout', 'status', 'arrange', 'focus',
-  'fit', 'screenshot', 'pin', 'undo', 'redo', 'history', 'snapshot', 'diff', 'group', 'webview', 'open',
+  'fit', 'screenshot', 'pin', 'ax', 'undo', 'redo', 'history', 'snapshot', 'diff', 'group', 'webview', 'open',
   'clear', 'code-graph', 'spatial', 'watch', 'web-artifact', 'external-app', 'diagram', 'graph', 'html', 'batch', 'validate', 'serve',
 ]);
 
@@ -505,6 +505,7 @@ Agent CLI (works against running server):
   validate spec                       Validate json-render/graph payloads without creating nodes
   watch [--json] [--events ...]       Watch low-token semantic canvas changes
   focus <node-id>                     Pan to node
+  ax status|context|focus             Inspect AX state and focus
   external-app add                    Add hosted external apps like Excalidraw
   diagram add                         Add an Excalidraw diagram node
   pin <ids...> | --list | --clear     Manage context pins

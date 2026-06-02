@@ -1,6 +1,8 @@
 import { EventEmitter } from 'node:events';
 import { canvasState, IMAGE_MIME_MAP } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
+import { buildCanvasAxContext } from './ax-context.js';
+import type { PmxAxContext, PmxAxFocusState, PmxAxSource, PmxAxState } from './ax-state.js';
 import { findCanvasExtAppNodeId } from './ext-app-lookup.js';
 import { onFileNodeChanged } from './file-watcher.js';
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
@@ -402,12 +404,28 @@ export class PmxCanvas extends EventEmitter {
         y: node.position.y - 100,
       });
     }
+    const focus = canvasState.setAxFocus([id], { source: 'sdk', recordHistory: false });
     emitPrimaryWorkbenchEvent('canvas-focus-node', { nodeId: id, noPan });
+    emitPrimaryWorkbenchEvent('ax-state-changed', { focus });
     if (!noPan) {
       emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
     }
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
     return { focused: id, panned: !noPan };
+  }
+
+  getAxState(): PmxAxState {
+    return canvasState.getAxState();
+  }
+
+  getAxContext(): PmxAxContext {
+    return buildCanvasAxContext();
+  }
+
+  setAxFocus(nodeIds: string[], options?: { source?: PmxAxSource }): PmxAxFocusState {
+    const focus = canvasState.setAxFocus(nodeIds, { source: options?.source ?? 'sdk' });
+    emitPrimaryWorkbenchEvent('ax-state-changed', { focus });
+    return focus;
   }
 
   fitView(options?: {

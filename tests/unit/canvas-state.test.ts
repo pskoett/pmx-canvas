@@ -213,6 +213,34 @@ describe('canvas state manager', () => {
     expect(canvasState.listSnapshots()).toEqual([]);
   });
 
+  test('persists and restores AX focus with canvas state and snapshots', async () => {
+    const firstNode = makeNode({ id: 'ax-node-a', type: 'markdown', data: { title: 'AX A', content: 'Alpha' } });
+    const secondNode = makeNode({ id: 'ax-node-b', type: 'markdown', data: { title: 'AX B', content: 'Beta' } });
+    canvasState.addNode(firstNode);
+    canvasState.addNode(secondNode);
+
+    const focus = canvasState.setAxFocus([firstNode.id, secondNode.id, 'missing-node'], { source: 'api' });
+    expect(focus.nodeIds).toEqual([firstNode.id, secondNode.id]);
+    expect(focus.primaryNodeId).toBe(firstNode.id);
+    expect(focus.source).toBe('api');
+
+    await waitForPersistence();
+    const persisted = readPersistedCanvasState(workspaceRoot);
+    expect(persisted.ax?.focus.nodeIds).toEqual([firstNode.id, secondNode.id]);
+
+    const snapshot = canvasState.saveSnapshot('ax-focus-baseline');
+    expect(snapshot).not.toBeNull();
+
+    canvasState.setAxFocus([secondNode.id], { source: 'mcp' });
+    expect(canvasState.getAxFocus().nodeIds).toEqual([secondNode.id]);
+
+    expect(canvasState.restoreSnapshot(snapshot!.id)).toBe(true);
+    expect(canvasState.getAxFocus().nodeIds).toEqual([firstNode.id, secondNode.id]);
+
+    canvasState.removeNode(firstNode.id);
+    expect(canvasState.getAxFocus().nodeIds).toEqual([secondNode.id]);
+  });
+
   test('limits, filters, and garbage-collects snapshots', async () => {
     const snapshots: Array<NonNullable<ReturnType<typeof canvasState.saveSnapshot>>> = [];
     for (const name of ['alpha', 'beta', 'alpha-old']) {

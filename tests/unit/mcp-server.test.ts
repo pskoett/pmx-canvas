@@ -139,6 +139,8 @@ describe('MCP parity with CLI', () => {
       'canvas_remove_edge',
       'canvas_arrange',
       'canvas_focus_node',
+      'canvas_get_ax',
+      'canvas_set_ax_focus',
       'canvas_fit_view',
       'canvas_clear',
       'canvas_search',
@@ -171,6 +173,8 @@ describe('MCP parity with CLI', () => {
     const resourceUris = new Set(resources.resources.map((resource) => resource.uri));
     const expectedResources = [
       'canvas://pinned-context',
+      'canvas://ax',
+      'canvas://ax-context',
       'canvas://schema',
       'canvas://layout',
       'canvas://summary',
@@ -193,6 +197,8 @@ describe('MCP parity with CLI', () => {
     const tools = await session.client.listTools();
     const updateTool = tools.tools.find((tool) => tool.name === 'canvas_update_node');
     expect(updateTool?.inputSchema.properties).toHaveProperty('arrangeLocked');
+    expect(updateTool?.inputSchema.properties).toHaveProperty('dockPosition');
+    expect(updateTool?.inputSchema.properties).toHaveProperty('pinned');
 
     const added = await session.client.callTool({
       name: 'canvas_add_node',
@@ -215,6 +221,8 @@ describe('MCP parity with CLI', () => {
       arguments: {
         id,
         arrangeLocked: true,
+        dockPosition: 'right',
+        pinned: true,
       },
     }) as ToolResultShape;
     expect(parseJsonText<{ ok: boolean; id: string; node?: { id: string } }>(updated)).toMatchObject({
@@ -227,8 +235,14 @@ describe('MCP parity with CLI', () => {
       name: 'canvas_get_node',
       arguments: { id, full: true },
     }) as ToolResultShape;
-    const node = parseJsonText<{ data?: { arrangeLocked?: boolean } }>(fetched);
+    const node = parseJsonText<{
+      dockPosition?: 'left' | 'right' | null;
+      pinned?: boolean;
+      data?: { arrangeLocked?: boolean };
+    }>(fetched);
     expect(node.data?.arrangeLocked).toBe(true);
+    expect(node.dockPosition).toBe('right');
+    expect(node.pinned).toBe(true);
   });
 
   test('canvas_add_node exposes and persists strictSize', async () => {
@@ -725,6 +739,66 @@ describe('MCP parity with CLI', () => {
     expect(kinds[graph.id]).toEqual({ type: 'graph', kind: 'graph' });
     expect(kinds[externalApp.nodeId!]).toEqual({ type: 'mcp-app', kind: 'external-app' });
   }, 30000);
+
+  test('canvas AX tools and resources expose pinned context and focus', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const pinned = parseJsonText<{ id: string }>(await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'markdown',
+        title: 'MCP AX pinned',
+        content: 'Pinned through MCP AX',
+      },
+    }) as ToolResultShape);
+    const focused = parseJsonText<{ id: string }>(await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'markdown',
+        title: 'MCP AX focused',
+        content: 'Focused through MCP AX',
+      },
+    }) as ToolResultShape);
+
+    parseJsonText<{ ok: boolean; pinnedNodeIds: string[] }>(await session.client.callTool({
+      name: 'canvas_pin_nodes',
+      arguments: {
+        nodeIds: [pinned.id],
+        mode: 'set',
+      },
+    }) as ToolResultShape);
+    const focus = parseJsonText<{ ok: boolean; focus: { nodeIds: string[]; source: string | null } }>(
+      await session.client.callTool({
+        name: 'canvas_set_ax_focus',
+        arguments: { nodeIds: [focused.id, 'missing-node'] },
+      }) as ToolResultShape,
+    );
+    expect(focus.focus).toMatchObject({ nodeIds: [focused.id], source: 'mcp' });
+
+    const toolResult = parseJsonText<{
+      state: { focus: { nodeIds: string[] } };
+      context: { pinned: { nodeIds: string[] }; focus: { nodeIds: string[] } };
+    }>(await session.client.callTool({
+      name: 'canvas_get_ax',
+      arguments: {},
+    }) as ToolResultShape);
+    expect(toolResult.state.focus.nodeIds).toEqual([focused.id]);
+    expect(toolResult.context.pinned.nodeIds).toEqual([pinned.id]);
+    expect(toolResult.context.focus.nodeIds).toEqual([focused.id]);
+
+    const resource = await session.client.readResource({ uri: 'canvas://ax-context' });
+    const textResource = resource.contents.find((entry) => 'text' in entry && typeof entry.text === 'string');
+    const context = JSON.parse(textResource?.text ?? '{}') as {
+      pinned: { nodeIds: string[] };
+      focus: { nodeIds: string[] };
+    };
+    expect(context.pinned.nodeIds).toEqual([pinned.id]);
+    expect(context.focus.nodeIds).toEqual([focused.id]);
+  });
 
   test('canvas_open_mcp_app opens a standard ui:// MCP App node', async () => {
     const session = await createMcpSession();

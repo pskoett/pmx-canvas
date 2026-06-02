@@ -83,6 +83,11 @@ await canvas.runBatch([
 canvas.arrange('grid');
 console.log(canvas.validate());
 console.log(canvas.getLayout());
+
+// AX context for host adapters
+canvas.setAxFocus({ nodeIds: [n1], source: 'sdk' });
+console.log(canvas.getAxState());
+console.log(canvas.getAxContext());
 ```
 
 ## WebView automation

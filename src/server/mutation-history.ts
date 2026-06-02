@@ -28,6 +28,7 @@ export type MutationOp =
   | 'arrange'
   | 'restoreSnapshot'
   | 'setPins'
+  | 'setAxFocus'
   | 'batch'
   | 'viewport'
   | 'groupNodes'

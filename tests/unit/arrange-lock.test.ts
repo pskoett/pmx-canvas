@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, test } from 'bun:test';
 import { arrangeCanvasNodes, createCanvasGroup } from '../../src/server/canvas-operations.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
+import { validateCanvasLayout } from '../../src/server/canvas-validation.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { makeNode } from './helpers.ts';
 
@@ -76,5 +77,59 @@ describe('arrange exclusions', () => {
     expect(canvasState.getNode(groupId)?.position).toEqual(originalGroupPosition);
     expect(canvasState.getNode(child.id)?.position).toEqual(originalChildPosition);
     expect(canvasState.getNode(other.id)?.position).toEqual({ x: 40, y: 80 });
+  });
+
+  test('keeps grid-arranged nodes out of a group preserved by a docked child', () => {
+    const dockedChild = makeNode({
+      id: 'docked-child',
+      type: 'markdown',
+      position: { x: 40, y: 80 },
+      size: { width: 360, height: 200 },
+      data: { title: 'Docked child' },
+    });
+    const groupedChild = makeNode({
+      id: 'grouped-child',
+      type: 'status',
+      position: { x: 440, y: 80 },
+      size: { width: 360, height: 200 },
+      data: { title: 'Grouped child' },
+    });
+    const graph = makeNode({
+      id: 'graph-node',
+      type: 'graph',
+      position: { x: 960, y: 80 },
+      size: { width: 360, height: 260 },
+      data: { title: 'Graph' },
+    });
+
+    canvasState.addNode(dockedChild);
+    canvasState.addNode(groupedChild);
+    canvasState.addNode(graph);
+    const { id: groupId } = createCanvasGroup({
+      title: 'Group with docked child',
+      childIds: [dockedChild.id, groupedChild.id],
+    });
+
+    const group = canvasState.getNode(groupId);
+    if (!group) {
+      throw new Error('Expected group node to exist.');
+    }
+    const originalGroupPosition = { ...group.position };
+    const originalGroupedChildPosition = { ...groupedChild.position };
+    canvasState.updateNode(dockedChild.id, { dockPosition: 'right' });
+
+    const result = arrangeCanvasNodes('grid');
+    const updatedGroup = canvasState.getNode(groupId);
+    const updatedGraph = canvasState.getNode(graph.id);
+    const validation = validateCanvasLayout(canvasState.getLayout());
+
+    expect(result.arranged).toBe(1);
+    expect(updatedGroup?.position).toEqual(originalGroupPosition);
+    expect(canvasState.getNode(groupedChild.id)?.position).toEqual(originalGroupedChildPosition);
+    expect(updatedGraph?.position.y).toBeGreaterThanOrEqual(
+      (updatedGroup?.position.y ?? 0) + (updatedGroup?.size.height ?? 0),
+    );
+    expect(validation.ok).toBe(true);
+    expect(validation.collisions).toEqual([]);
   });
 });

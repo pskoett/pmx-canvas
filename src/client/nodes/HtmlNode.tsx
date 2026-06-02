@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'preact/hooks';
 import { canvasTheme } from '../state/canvas-store';
 import { getCanvasTokens } from '../theme/tokens';
 import type { CanvasNodeState } from '../types';
+import { useIframeDocument } from './iframe-document-url';
 
 /**
  * Strip characters that could break out of a CSS custom-property value context
@@ -197,6 +198,8 @@ export function HtmlNode({
       ? node.data.content
       : '';
   const srcDoc = useMemo(() => (html ? buildSrcDoc(html, { presentation, presentationExitToken, themeToken, themeCss, theme }) : ''), [html, presentation, presentationExitToken, themeToken]);
+  const iframeSandbox = 'allow-scripts';
+  const iframeDocument = useIframeDocument(srcDoc, iframeSandbox);
 
   useEffect(() => {
     iframeRef.current?.contentWindow?.postMessage({
@@ -245,8 +248,8 @@ export function HtmlNode({
       ref={iframeRef}
       class={presentation ? 'html-node-frame html-node-frame-presentation' : 'html-node-frame'}
       title={typeof node.data.title === 'string' ? node.data.title : 'HTML node'}
-      sandbox="allow-scripts"
-      srcdoc={srcDoc}
+      sandbox={iframeSandbox}
+      {...iframeDocument.attributes}
       tabIndex={autoFocus ? 0 : undefined}
       onLoad={handleFrameLoad}
       style={{

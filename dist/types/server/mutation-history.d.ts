@@ -12,7 +12,7 @@
  * - _replaying flag prevents undo/redo from recording new entries
  */
 import type { CanvasNodeState, CanvasEdge } from './canvas-state.js';
-export type MutationOp = 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'arrange' | 'restoreSnapshot' | 'setPins' | 'batch' | 'viewport' | 'groupNodes' | 'ungroupNodes';
+export type MutationOp = 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'arrange' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'batch' | 'viewport' | 'groupNodes' | 'ungroupNodes';
 export interface MutationEntry {
     id: string;
     timestamp: string;

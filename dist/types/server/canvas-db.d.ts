@@ -6,6 +6,7 @@
  */
 import { Database } from 'bun:sqlite';
 import type { CanvasAnnotation, CanvasEdge, CanvasNodeState, CanvasSnapshot, CanvasSnapshotListOptions, ViewportState } from './canvas-state.js';
+import { type PmxAxState } from './ax-state.js';
 export interface PersistedCanvasState {
     version: number;
     viewport: ViewportState;
@@ -13,6 +14,7 @@ export interface PersistedCanvasState {
     edges: CanvasEdge[];
     annotations?: CanvasAnnotation[];
     contextPins: string[];
+    ax?: PmxAxState;
 }
 export declare function openCanvasDb(dbPath: string): Database;
 export declare function checkpointCanvasDb(db: Database): void;

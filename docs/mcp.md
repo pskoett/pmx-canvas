@@ -1,6 +1,6 @@
 # MCP reference
 
-PMX Canvas ships an MCP stdio server with **42 tools** + **8 core resources**,
+PMX Canvas ships an MCP stdio server with **45 tools** + **9 core resources**,
 plus per-skill resources at `canvas://skills/<name>`. The server emits
 `notifications/resources/updated` when canvas state changes — humans pin
 nodes in the browser, agents are notified immediately.
@@ -51,6 +51,8 @@ searchable and readable in pinned/spatial context.
 | `canvas_arrange` | Auto-arrange (grid/column/flow) |
 | `canvas_validate` | Validate collisions, containment, and missing edge endpoints |
 | `canvas_focus_node` | Pan viewport to a node; use CLI `focus --no-pan` when you only need to select/raise |
+| `canvas_get_ax` | Read the PMX AX state plus pinned/focused context |
+| `canvas_set_ax_focus` | Set the host-agnostic AX focus node set |
 | `canvas_pin_nodes` | Pin nodes to include in agent context |
 | `canvas_clear` | Clear all nodes and edges |
 | `canvas_snapshot` | Save current canvas as a named snapshot |
@@ -80,6 +82,8 @@ Individual bundled skills are also readable at `canvas://skills/<name>`.
 | Resource | Description |
 |----------|-------------|
 | `canvas://pinned-context` | Content of pinned nodes + nearby unpinned neighbors |
+| `canvas://ax` | PMX AX state, currently including persisted focus |
+| `canvas://ax-context` | Agent-readable pinned and focused AX context |
 | `canvas://schema` | Running-server create schemas and json-render catalog metadata |
 | `canvas://layout` | Full canvas state (all nodes, edges, viewport) |
 | `canvas://summary` | Compact overview: counts, pinned titles, viewport |
@@ -93,7 +97,8 @@ Individual bundled skills are also readable at `canvas://skills/<name>`.
 The MCP server emits `notifications/resources/updated` whenever canvas state
 changes:
 
-- Pin changes notify `canvas://pinned-context`
+- Pin changes notify `canvas://pinned-context`, `canvas://ax`, and `canvas://ax-context`
+- AX focus changes notify `canvas://ax` and `canvas://ax-context`
 - All mutations notify `canvas://layout`, `canvas://summary`,
   `canvas://spatial-context`, `canvas://history`, and `canvas://code-graph`
 

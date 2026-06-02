@@ -1107,10 +1107,12 @@ body,
   position: absolute;
   bottom: 0;
   right: 0;
-  width: 16px;
-  height: 16px;
+  width: 32px;
+  height: 32px;
   cursor: nwse-resize;
-  z-index: 2;
+  z-index: 30;
+  pointer-events: auto;
+  touch-action: none;
 }
 
 .canvas-node .node-resize-handle::after {
@@ -1128,6 +1130,11 @@ body,
 .canvas-node:hover .node-resize-handle::after {
   border-color: var(--c-muted);
   opacity: 1;
+}
+
+html.is-node-resizing,
+html.is-node-resizing * {
+  cursor: nwse-resize !important;
 }
 
 /* Pinned node indicator */

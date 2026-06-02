@@ -20,6 +20,9 @@ type ArrangeLayout = Parameters<PmxCanvas['arrange']>[0];
 type FocusNodeResult = ReturnType<PmxCanvas['focusNode']>;
 type FitViewOptions = Parameters<PmxCanvas['fitView']>[0];
 type FitViewResult = ReturnType<PmxCanvas['fitView']>;
+type AxStateResult = ReturnType<PmxCanvas['getAxState']>;
+type AxContextResult = ReturnType<PmxCanvas['getAxContext']>;
+type SetAxFocusResult = ReturnType<PmxCanvas['setAxFocus']>;
 type SearchResult = ReturnType<PmxCanvas['search']>;
 type UndoRedoResult = Awaited<ReturnType<PmxCanvas['undo']>>;
 type HistoryResult = ReturnType<PmxCanvas['getHistory']>;
@@ -68,6 +71,11 @@ export interface CanvasAccess {
         noPan?: boolean;
     }): Promise<FocusNodeResult>;
     fitView(options?: FitViewOptions): Promise<FitViewResult>;
+    getAxState(): Promise<AxStateResult>;
+    getAxContext(): Promise<AxContextResult>;
+    setAxFocus(nodeIds: string[], options?: {
+        source?: 'mcp';
+    }): Promise<SetAxFocusResult>;
     clear(): Promise<void>;
     search(query: string): Promise<SearchResult>;
     undo(): Promise<UndoRedoResult>;

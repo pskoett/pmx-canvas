@@ -1767,6 +1767,40 @@ cmd('pin', 'Manage context pins', [
   output(result);
 });
 
+// ── AX ────────────────────────────────────────────────────────
+cmd('ax status', 'Read host-agnostic PMX AX state', [
+  'pmx-canvas ax status',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax status');
+
+  output(await api('GET', '/api/canvas/ax'));
+});
+
+cmd('ax context', 'Read agent-ready PMX AX context', [
+  'pmx-canvas ax context',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax context');
+
+  output(await api('GET', '/api/canvas/ax/context'));
+});
+
+cmd('ax focus', 'Set or clear PMX AX focus without moving the viewport', [
+  'pmx-canvas ax focus node1 node2',
+  'pmx-canvas ax focus --clear',
+], async (args) => {
+  const { positional, flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax focus');
+
+  const nodeIds = flags.clear ? [] : positional;
+  if (!flags.clear && nodeIds.length === 0) {
+    die('Missing node ID', 'pmx-canvas ax focus <node-id> [more-node-ids]');
+  }
+
+  output(await api('POST', '/api/canvas/ax/focus', { nodeIds, source: 'cli' }));
+});
+
 // ── undo ─────────────────────────────────────────────────────
 cmd('undo', 'Undo the last canvas mutation', [
   'pmx-canvas undo',

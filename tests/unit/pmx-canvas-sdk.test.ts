@@ -57,7 +57,14 @@ describe('PmxCanvas SDK surface', () => {
     const pins = canvas.setContextPins([firstId, secondId]);
     expect(pins).toEqual({ count: 2, nodeIds: [firstId, secondId] });
 
+    const axFocus = canvas.setAxFocus([secondId, 'missing-node']);
+    expect(axFocus.nodeIds).toEqual([secondId]);
+    expect(canvas.getAxState().focus.primaryNodeId).toBe(secondId);
+    expect(canvas.getAxContext().pinned.nodeIds).toEqual([firstId, secondId]);
+    expect(canvas.getAxContext().focus.nodes[0]?.id).toBe(secondId);
+
     canvas.focusNode(firstId);
+    expect(canvas.getAxState().focus.primaryNodeId).toBe(firstId);
     expect(canvasState.viewport).toEqual({ x: 40, y: 120, scale: 1 });
 
     const applied = canvas.applyUpdates([

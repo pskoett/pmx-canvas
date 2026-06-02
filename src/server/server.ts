@@ -35,6 +35,7 @@
  */
 
 import { spawnSync } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { existsSync, readFileSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, extname, join, relative, resolve } from 'node:path';
@@ -75,6 +76,8 @@ import {
 } from './canvas-serialization.js';
 import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent-context.js';
+import { buildCanvasAxContext } from './ax-context.js';
+import type { PmxAxSource } from './ax-state.js';
 import { validateLocalImageFile } from './image-source.js';
 import {
   addCanvasNode,
@@ -1038,6 +1041,24 @@ function normalizeMarkdownExternalUrls(markdown: string): string {
 
 // ── Canvas SPA HTML ────────────────────────────────────────────
 
+const CANVAS_ASSET_VERSION = Date.now().toString(36);
+const MAX_FRAME_DOCUMENTS = 128;
+const MAX_FRAME_DOCUMENT_BYTES = 5 * 1024 * 1024;
+const DEFAULT_FRAME_DOCUMENT_SANDBOX = 'allow-scripts';
+const SAFE_FRAME_DOCUMENT_SANDBOX_TOKENS = new Set([
+  'allow-downloads',
+  'allow-forms',
+  'allow-modals',
+  'allow-orientation-lock',
+  'allow-pointer-lock',
+  'allow-popups',
+  'allow-popups-to-escape-sandbox',
+  'allow-presentation',
+  'allow-scripts',
+  'allow-storage-access-by-user-activation',
+]);
+const frameDocuments = new Map<string, { html: string; sandbox: string }>();
+
 function canvasSpaHtml(): string {
   return `<!doctype html>
 <html lang="en">
@@ -1106,7 +1127,7 @@ function canvasSpaHtml(): string {
       color: #eef4ff;
     }
   </style>
-  <link rel="stylesheet" href="/canvas/global.css" />
+  <link rel="stylesheet" href="/canvas/global.css?v=${CANVAS_ASSET_VERSION}" />
 </head>
 <body>
   <div id="canvasBootstrap">
@@ -1143,7 +1164,7 @@ function canvasSpaHtml(): string {
       }, 4000);
     })();
   </script>
-  <script type="module" src="/canvas/index.js"></script>
+  <script type="module" src="/canvas/index.js?v=${CANVAS_ASSET_VERSION}"></script>
 </body>
 </html>`;
 }
@@ -1228,6 +1249,61 @@ function serveCanvasFavicon(): Response {
 }
 
 // ── Canvas REST handlers ──────────────────────────────────────
+
+function normalizeFrameDocumentSandbox(value: unknown): string | null {
+  if (value === undefined || value === null) return DEFAULT_FRAME_DOCUMENT_SANDBOX;
+  if (typeof value !== 'string') return null;
+  const tokens = value.trim().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return DEFAULT_FRAME_DOCUMENT_SANDBOX;
+  const uniqueTokens: string[] = [];
+  for (const token of tokens) {
+    if (!SAFE_FRAME_DOCUMENT_SANDBOX_TOKENS.has(token)) return null;
+    if (!uniqueTokens.includes(token)) uniqueTokens.push(token);
+  }
+  return uniqueTokens.join(' ');
+}
+
+function addFrameDocument(html: string, sandbox: string): string {
+  const id = randomUUID();
+  frameDocuments.set(id, { html, sandbox });
+  while (frameDocuments.size > MAX_FRAME_DOCUMENTS) {
+    const firstKey = frameDocuments.keys().next().value;
+    if (typeof firstKey !== 'string') break;
+    frameDocuments.delete(firstKey);
+  }
+  return `/api/canvas/frame-documents/${id}`;
+}
+
+async function handleCreateFrameDocument(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const html = body.html;
+  if (typeof html !== 'string' || !html) {
+    return responseJson({ ok: false, error: 'Frame document requires non-empty html.' }, 400);
+  }
+  if (new TextEncoder().encode(html).byteLength > MAX_FRAME_DOCUMENT_BYTES) {
+    return responseJson({ ok: false, error: 'Frame document is too large.' }, 413);
+  }
+  const sandbox = normalizeFrameDocumentSandbox(body.sandbox);
+  if (!sandbox) {
+    return responseJson({ ok: false, error: 'Frame document sandbox contains unsupported tokens.' }, 400);
+  }
+  return responseJson({ ok: true, url: addFrameDocument(html, sandbox) });
+}
+
+function handleFrameDocument(pathname: string): Response {
+  const id = decodeURIComponent(pathname.slice('/api/canvas/frame-documents/'.length));
+  const document = frameDocuments.get(id);
+  if (!document) return responseText('Frame document not found.', 404);
+  return new Response(document.html, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Content-Security-Policy': `sandbox ${document.sandbox}`,
+      'Referrer-Policy': 'no-referrer',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+}
 
 async function handleCanvasUpdate(req: Request): Promise<Response> {
   const body = await readJson(req);
@@ -1817,10 +1893,16 @@ async function handleCanvasFocus(req: Request): Promise<Response> {
     const maxZ = canvasState.getLayout().nodes.reduce((max, layoutNode) => Math.max(max, layoutNode.zIndex), 0);
     canvasState.updateNode(nodeId, { zIndex: maxZ + 1 });
   }
+  const focus = canvasState.setAxFocus([nodeId], { source: 'api', recordHistory: false });
+  broadcastWorkbenchEvent('ax-state-changed', {
+    focus,
+    sessionId: primaryWorkbenchSessionId,
+    timestamp: new Date().toISOString(),
+  });
   emitPrimaryWorkbenchEvent('canvas-focus-node', { nodeId, noPan });
   if (!noPan) emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson({ ok: true, focused: nodeId, panned: !noPan });
+  return responseJson({ ok: true, focused: nodeId, panned: !noPan, axFocus: focus });
 }
 
 async function handleCanvasFit(req: Request): Promise<Response> {
@@ -3391,6 +3473,62 @@ function handleGetPinnedContext(): Response {
   return responseJson({ preamble, nodeIds: pinnedIds, count: pinnedIds.length, nodes });
 }
 
+function normalizeAxNodeIds(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value.filter((id): id is string => typeof id === 'string');
+}
+
+function normalizeAxSource(value: unknown, fallback: PmxAxSource): PmxAxSource {
+  return value === 'agent' ||
+    value === 'api' ||
+    value === 'browser' ||
+    value === 'cli' ||
+    value === 'copilot' ||
+    value === 'mcp' ||
+    value === 'sdk' ||
+    value === 'system'
+    ? value
+    : fallback;
+}
+
+function handleGetAxState(): Response {
+  return responseJson({ ok: true, state: canvasState.getAxState() });
+}
+
+function handleGetAxContext(): Response {
+  return responseJson(buildCanvasAxContext());
+}
+
+async function handleAxFocusUpdate(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const nodeIds = normalizeAxNodeIds(body.nodeIds);
+  const source = normalizeAxSource(body.source, 'api');
+  const focus = canvasState.setAxFocus(nodeIds, { source });
+  broadcastWorkbenchEvent('ax-state-changed', {
+    focus,
+    sessionId: primaryWorkbenchSessionId,
+    timestamp: new Date().toISOString(),
+  });
+  return responseJson({ ok: true, focus });
+}
+
+async function handleAxStatePatch(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  if (!body.focus || typeof body.focus !== 'object' || Array.isArray(body.focus)) {
+    return responseJson({ ok: false, error: 'PATCH /api/canvas/ax currently requires a focus object.' }, 400);
+  }
+  const focusInput = body.focus as Record<string, unknown>;
+  const focus = canvasState.setAxFocus(normalizeAxNodeIds(focusInput.nodeIds), {
+    source: normalizeAxSource(focusInput.source, 'api'),
+  });
+  broadcastWorkbenchEvent('ax-state-changed', {
+    focus,
+    sessionId: primaryWorkbenchSessionId,
+    timestamp: new Date().toISOString(),
+  });
+  return responseJson({ ok: true, state: canvasState.getAxState() });
+}
+
 // ── Port resolution ───────────────────────────────────────────
 
 function buildPortCandidates(preferredPort: number): number[] {
@@ -4090,7 +4228,9 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
   rotatePrimaryWorkbenchSessionIfNeeded();
 
   const preferredPort = options.port ?? Number(process.env.PMX_WEB_CANVAS_PORT ?? DEFAULT_PORT);
-  const portCandidates = options.allowPortFallback === false
+  const portCandidates = options.port === 0
+    ? [0]
+    : options.allowPortFallback === false
     ? [preferredPort > 0 ? Math.floor(preferredPort) : DEFAULT_PORT]
     : buildPortCandidates(preferredPort);
 
@@ -4117,6 +4257,14 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/json-render/view' && req.method === 'GET') {
             return handleJsonRenderView(url);
+          }
+
+          if (url.pathname === '/api/canvas/frame-documents' && req.method === 'POST') {
+            return handleCreateFrameDocument(req);
+          }
+
+          if (url.pathname.startsWith('/api/canvas/frame-documents/') && req.method === 'GET') {
+            return handleFrameDocument(url.pathname);
           }
 
           if (url.pathname === '/' || url.pathname === '/workbench' || url.pathname === '/artifact') {
@@ -4332,6 +4480,22 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/pinned-context' && req.method === 'GET') {
             return handleGetPinnedContext();
+          }
+
+          if (url.pathname === '/api/canvas/ax' && req.method === 'GET') {
+            return handleGetAxState();
+          }
+
+          if (url.pathname === '/api/canvas/ax' && req.method === 'PATCH') {
+            return handleAxStatePatch(req);
+          }
+
+          if (url.pathname === '/api/canvas/ax/context' && req.method === 'GET') {
+            return handleGetAxContext();
+          }
+
+          if (url.pathname === '/api/canvas/ax/focus' && req.method === 'POST') {
+            return handleAxFocusUpdate(req);
           }
 
           // Spatial context API

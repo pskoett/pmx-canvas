@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.js';
+import type { PmxAxContext, PmxAxFocusState, PmxAxSource, PmxAxState } from './ax-state.js';
 import { searchNodes } from './spatial-analysis.js';
 import { diffLayouts } from './mutation-history.js';
 import { fitCanvasView, gcCanvasSnapshots, listCanvasSnapshots } from './canvas-operations.js';
@@ -104,6 +105,11 @@ export declare class PmxCanvas extends EventEmitter {
         focused: string;
         panned: boolean;
     } | null;
+    getAxState(): PmxAxState;
+    getAxContext(): PmxAxContext;
+    setAxFocus(nodeIds: string[], options?: {
+        source?: PmxAxSource;
+    }): PmxAxFocusState;
     fitView(options?: {
         width?: number;
         height?: number;

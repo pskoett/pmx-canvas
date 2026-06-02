@@ -469,6 +469,54 @@ describe('agent CLI node commands', () => {
     expect(output).toMatchObject({ ok: true, focused: created.id, panned: false });
     expect(canvasState.viewport).toEqual(before);
     expect(canvasState.getNode(created.id)?.zIndex).toBeGreaterThan(1);
+    expect(canvasState.getAxFocus().nodeIds).toEqual([created.id]);
+  });
+
+  test('ax commands expose context and focus state', async () => {
+    const first = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'CLI AX first', content: 'Pinned by CLI AX test' }),
+    });
+    const second = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'CLI AX second', content: 'Focused by CLI AX test' }),
+    });
+    await jsonRequest('/api/canvas/context-pins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeIds: [first.id] }),
+    });
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['ax', 'focus', second.id]);
+      await runAgentCli(['ax', 'status']);
+      await runAgentCli(['ax', 'context']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const focusOutput = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      focus: { nodeIds: string[]; source: string | null };
+    };
+    const statusOutput = JSON.parse(log.mock.calls[1]?.[0] as string) as {
+      state: { focus: { nodeIds: string[] } };
+    };
+    const contextOutput = JSON.parse(log.mock.calls[2]?.[0] as string) as {
+      pinned: { nodeIds: string[] };
+      focus: { nodeIds: string[] };
+    };
+
+    expect(focusOutput.focus).toMatchObject({ nodeIds: [second.id], source: 'cli' });
+    expect(statusOutput.state.focus.nodeIds).toEqual([second.id]);
+    expect(contextOutput.pinned.nodeIds).toEqual([first.id]);
+    expect(contextOutput.focus.nodeIds).toEqual([second.id]);
   });
 
   test('fit command updates server viewport for canvas bounds', async () => {
@@ -2554,6 +2602,18 @@ exit 2
   test('package file allowlist includes docs for npm consumers', () => {
     const pkg = JSON.parse(readFileSync(join(process.cwd(), 'package.json'), 'utf-8')) as { files?: string[] };
     expect(pkg.files).toContain('docs/');
+    expect(pkg.files).toContain('.github/extensions/pmx-canvas/');
+  });
+
+  test('GitHub Copilot project extension exposes PMX Canvas AX adapter surfaces', () => {
+    const extension = readFileSync(join(process.cwd(), '.github/extensions/pmx-canvas/extension.mjs'), 'utf-8');
+    expect(extension).toContain('id: "pmx-canvas"');
+    expect(extension).toContain('onUserPromptSubmitted');
+    expect(extension).toContain('url: `${pmx.baseUrl}/workbench`');
+    expect(extension).toContain('"/api/canvas/ax/context"');
+    expect(extension).toContain('name: "focus_nodes"');
+    expect(extension).toContain('name: "send_instruction"');
+    expect(extension).not.toContain('console.log');
   });
 
   test('edge add supports style and animated flags', async () => {

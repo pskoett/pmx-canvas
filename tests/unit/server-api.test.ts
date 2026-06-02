@@ -101,7 +101,7 @@ describe('canvas server HTTP API', () => {
   beforeAll(() => {
     workspaceRoot = createTestWorkspace('pmx-canvas-api-');
     resetCanvasForTests(workspaceRoot);
-    const base = startCanvasServer({ workspaceRoot, port: 4527 });
+    const base = startCanvasServer({ workspaceRoot, port: 0 });
     if (!base) {
       throw new Error('Failed to start canvas server for tests.');
     }
@@ -202,6 +202,26 @@ describe('canvas server HTTP API', () => {
     ) as () => Promise<string>;
 
     expect(await run()).toBe('async-ok');
+  });
+
+  test('serves generated frame documents through same-origin URLs', async () => {
+    const created = await jsonRequest<{ ok: boolean; url: string }>('/api/canvas/frame-documents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        html: '<!doctype html><main>Frame document fixture</main>',
+        sandbox: 'allow-scripts allow-popups',
+      }),
+    });
+
+    expect(created.ok).toBe(true);
+    expect(created.url).toStartWith('/api/canvas/frame-documents/');
+
+    const response = await fetch(`${baseUrl}${created.url}`);
+    expect(response.ok).toBe(true);
+    expect(response.headers.get('content-type')).toContain('text/html');
+    expect(response.headers.get('content-security-policy')).toBe('sandbox allow-scripts allow-popups');
+    expect(await response.text()).toContain('Frame document fixture');
   });
 
   test('supports node CRUD, markdown rendering, and search', async () => {
@@ -1430,7 +1450,7 @@ describe('canvas server HTTP API', () => {
       ),
     ).toBe(true);
 
-    const restarted = startCanvasServer({ workspaceRoot, port: 4527 });
+    const restarted = startCanvasServer({ workspaceRoot, port: 0 });
     expect(restarted).toBeTruthy();
     baseUrl = restarted!;
 
@@ -1511,7 +1531,7 @@ describe('canvas server HTTP API', () => {
     expect(blob.sha256).toBeTruthy();
 
     stopCanvasServer();
-    const restarted = startCanvasServer({ workspaceRoot, port: 4527 });
+    const restarted = startCanvasServer({ workspaceRoot, port: 0 });
     expect(restarted).toBeTruthy();
     baseUrl = restarted!;
 
@@ -1581,7 +1601,7 @@ describe('canvas server HTTP API', () => {
     const persistedNode = persisted.nodes.find((entry) => entry.id === nodeId);
     expect(persistedNode?.data.appCheckpoint).toMatchObject({ id: checkpointId });
 
-    const restarted = startCanvasServer({ workspaceRoot, port: 4527 });
+    const restarted = startCanvasServer({ workspaceRoot, port: 0 });
     expect(restarted).toBeTruthy();
     baseUrl = restarted!;
 
@@ -2910,6 +2930,48 @@ describe('canvas server HTTP API', () => {
     expect(kinds[externalAppId]).toEqual({ type: 'mcp-app', kind: 'external-app' });
     expect(pinnedContext.preamble).toContain('[Context from "Pinned Artifact Kind" (mcp-app/web-artifact)]');
     expect(pinnedContext.preamble).toContain('[Context from "Pinned External App Kind" (mcp-app/external-app)]');
+  });
+
+  test('AX context combines pinned context and server-authoritative focus', async () => {
+    const pinnedNode = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Pinned AX note', content: 'Pinned context body' }),
+    });
+    const focusedNode = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Focused AX note', content: 'Focused context body' }),
+    });
+
+    await jsonRequest('/api/canvas/context-pins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeIds: [pinnedNode.id] }),
+    });
+
+    const focus = await jsonRequest<{
+      ok: boolean;
+      focus: { nodeIds: string[]; primaryNodeId: string | null; source: string | null };
+    }>('/api/canvas/ax/focus', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeIds: [focusedNode.id, 'missing-node'], source: 'api' }),
+    });
+    expect(focus.focus).toMatchObject({
+      nodeIds: [focusedNode.id],
+      primaryNodeId: focusedNode.id,
+      source: 'api',
+    });
+
+    const context = await jsonRequest<{
+      pinned: { nodeIds: string[]; preamble: string };
+      focus: { nodeIds: string[]; nodes: Array<{ id: string; content: string | null }> };
+    }>('/api/canvas/ax/context');
+    expect(context.pinned.nodeIds).toEqual([pinnedNode.id]);
+    expect(context.pinned.preamble).toContain('Pinned context body');
+    expect(context.focus.nodeIds).toEqual([focusedNode.id]);
+    expect(context.focus.nodes[0]?.content).toContain('Focused context body');
   });
 
   test('accepts edge style and animation flags over HTTP', async () => {

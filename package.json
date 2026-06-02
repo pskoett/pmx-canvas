@@ -19,6 +19,7 @@
     "src/",
     "skills/",
     "docs/",
+    ".github/extensions/pmx-canvas/",
     "dist/canvas/",
     "dist/json-render/",
     "dist/types/",

@@ -55,6 +55,11 @@ prompt engineering, no copy-paste — pin a node in the browser and the MCP
 server fires a `notifications/resources/updated` event the agent's harness
 picks up immediately.
 
+AX context adds a host-agnostic focus layer on top of pins. Core PMX exposes
+`/api/canvas/ax/context`, `canvas://ax-context`, SDK methods, and
+`pmx-canvas ax context|focus`; adapters can map that same primitive to their
+native hook systems without making PMX Canvas GitHub-specific.
+
 ### 05 / Save
 
 Spatial state auto-saves to `.pmx-canvas/canvas.db` (debounced ~500 ms) —
@@ -66,11 +71,17 @@ the DB so SQLite WAL data is checkpointed into the file.
 
 ### 06 / Any agent
 
-Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (42 tools,
-8 resources, change notifications), the [CLI](docs/cli.md), the
+Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (45 tools,
+9 resources, change notifications), the [CLI](docs/cli.md), the
 [HTTP API](docs/http-api.md), or the [Bun SDK](docs/sdk.md). Works with
 Claude Code, GitHub Copilot CLI, Codex, Cursor, Windsurf, or any agent
 that can spawn an MCP stdio server, call a CLI, or hit an HTTP endpoint.
+
+The repo also ships a GitHub Copilot app adapter at
+`.github/extensions/pmx-canvas/`. It opens the live PMX workbench in a native
+Copilot canvas panel, injects AX pinned/focused context on prompt submission,
+and exposes adapter actions for status, AX focus, context refresh, and explicit
+session steering.
 
 ## Prerequisites
 
@@ -126,6 +137,20 @@ Add to your agent's MCP config:
 
 The canvas auto-starts on first tool call.
 
+### Use inside the GitHub Copilot app
+
+This repository includes a project canvas extension:
+
+```text
+.github/extensions/pmx-canvas/extension.mjs
+```
+
+When loaded by the Copilot app, it opens the PMX workbench natively, starts a
+matching local PMX server when needed, and injects `AX` pinned/focused context
+as hidden per-turn context. The adapter is thin: PMX state still lives in
+`.pmx-canvas/canvas.db`, and the same HTTP, MCP, CLI, and SDK surfaces remain
+available to non-GitHub agents.
+
 ### Install the agent skill (recommended)
 
 The fastest way to get a working canvas is to install the `pmx-canvas` agent
@@ -148,8 +173,8 @@ Common harness skill directories: `.claude/skills/` (Claude Code),
 `.github/skills/` or `.copilot/skills/` (Copilot CLI),
 `.agents/skills/` (cross-harness convention). Once the canvas is running,
 the agent can read `canvas://skills` and pull in companion skills
-(`web-artifacts-builder`, `json-render-*`, `pmx-canvas-testing`,
-`playwright-cli`, etc.) as the work demands.
+(`control-session-orchestrator`, `web-artifacts-builder`, `json-render-*`,
+`pmx-canvas-testing`, `playwright-cli`, etc.) as the work demands.
 
 ## Documentation
 
@@ -157,7 +182,7 @@ the agent can read `canvas://skills` and pull in companion skills
   the three-tier visual matrix (json-render → html → web-artifact)
 - **[CLI reference](docs/cli.md)** — full command surface, daemon mode,
   watch streams, WebView automation
-- **[MCP reference](docs/mcp.md)** — 42 tools, 8 resources, change
+- **[MCP reference](docs/mcp.md)** — 45 tools, 9 resources, change
   notifications, node-type routing
 - **[HTTP API](docs/http-api.md)** — REST endpoints, SSE, batch operations
 - **[Bun SDK](docs/sdk.md)** — `createCanvas()` for TypeScript on Bun

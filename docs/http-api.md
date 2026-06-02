@@ -93,6 +93,30 @@ curl -X POST http://localhost:4313/api/canvas/context-pins \
 curl http://localhost:4313/api/canvas/pinned-context
 ```
 
+## AX context and focus
+
+AX context is the host-agnostic agent-experience layer. It combines existing
+context pins with a persisted focus node set that adapters can inject into
+their native prompt/context hooks.
+
+```bash
+# Get persisted AX state
+curl http://localhost:4313/api/canvas/ax
+
+# Get agent-readable pinned + focused context
+curl http://localhost:4313/api/canvas/ax/context
+
+# Set AX focus
+curl -X POST http://localhost:4313/api/canvas/ax/focus \
+  -H "Content-Type: application/json" \
+  -d '{"nodeIds":["node-1"],"source":"api"}'
+
+# Patch AX focus through the state endpoint
+curl -X PATCH http://localhost:4313/api/canvas/ax \
+  -H "Content-Type: application/json" \
+  -d '{"focus":{"nodeIds":["node-1"],"source":"api"}}'
+```
+
 ## Diagrams (Excalidraw preset)
 
 ```bash

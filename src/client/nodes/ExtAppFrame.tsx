@@ -10,6 +10,7 @@ import {
   expandedNodeId,
 } from '../state/canvas-store';
 import type { CanvasNodeState } from '../types';
+import { useIframeDocument } from './iframe-document-url';
 
 type McpUiTheme = 'light' | 'dark';
 
@@ -43,7 +44,7 @@ export function getExtAppBridgeInitKey(node: CanvasNodeState, retryKey: number):
   const serverName = typeof node.data.serverName === 'string' ? node.data.serverName : '';
   const appSessionId = typeof node.data.appSessionId === 'string' ? node.data.appSessionId : '';
   const sessionStatus = typeof node.data.sessionStatus === 'string' ? node.data.sessionStatus : '';
-  return `${node.id}:${retryKey}:${node.size.height}:${serverName}:${appSessionId}:${sessionStatus}:${html}`;
+  return `${node.id}:${retryKey}:${serverName}:${appSessionId}:${sessionStatus}:${html}`;
 }
 
 export function resolveExtAppDisplayModeRequest(
@@ -145,6 +146,8 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   const maxHeight = node.size.height;
   const nodeId = node.id;
   const frameKey = getExtAppBridgeInitKey(node, retryKey);
+  const iframeSandbox = resolveExtAppSandbox(null);
+  const iframeDocument = useIframeDocument(html ?? '', iframeSandbox);
   const toMcpTheme = (theme: string): McpUiTheme => (theme === 'light' ? 'light' : 'dark');
   const isExpanded = expanded || expandedNodeId.value === nodeId;
 
@@ -202,7 +205,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
 
   // Initialize as soon as HTML is mounted; some apps send initialize before iframe load fires.
   useEffect(() => {
-    if (!html) return;
+    if (!html || !iframeDocument.ready) return;
     const iframe = iframeRef.current;
     if (!iframe) return;
     let disposed = false;
@@ -387,7 +390,11 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
       fallbackTimer = setTimeout(() => {
         if (disposed || bridgeReadyRef.current) return;
         const bootstrapToolResult = latestToolResultRef.current;
-        void sendExtAppBootstrapState(bridge, latestToolInputRef.current, bootstrapToolResult)
+        const hostContext = buildHostContext(isExpanded ? 'fullscreen' : 'inline');
+        bridgeReadyRef.current = true;
+        bridge.setHostContext?.(hostContext);
+        void Promise.resolve(bridge.sendHostContextChange(hostContext))
+          .then(() => sendExtAppBootstrapState(bridge, latestToolInputRef.current, bootstrapToolResult))
           .then(() => {
             toolResultSentRef.current = Boolean(bootstrapToolResult);
             if (bootstrapToolResult) {
@@ -424,6 +431,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
           ...buildHostContext(),
           theme: toMcpTheme(newTheme),
         });
+        void bridge.sendHostContextChange?.(buildHostContext());
       });
 
       void flushToolResult(bridge);
@@ -456,7 +464,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
         transportRef.current = null;
       }
     };
-  }, [frameKey]);
+  }, [frameKey, iframeDocument.key]);
 
   // Forward tool result when it arrives after bridge is ready
   useEffect(() => {
@@ -474,6 +482,17 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     const bridge = bridgeRef.current;
     if (!bridge || !bridgeReadyRef.current) return;
     bridge.setHostContext?.({
+      theme: toMcpTheme(canvasTheme.value),
+      platform: 'web',
+      containerDimensions: resolveExtAppContainerDimensions(iframeRef.current, {
+        width: node.size.width,
+        height: maxHeight,
+      }),
+      displayMode: isExpanded ? 'fullscreen' : 'inline',
+      locale: navigator.language,
+      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    });
+    void bridge.sendHostContextChange?.({
       theme: toMcpTheme(canvasTheme.value),
       platform: 'web',
       containerDimensions: resolveExtAppContainerDimensions(iframeRef.current, {
@@ -518,7 +537,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   }
 
   return (
-    <div style={{ height: '100%', minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <div style={{ flex: 1, width: '100%', height: '100%', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
       {sessionStatus && sessionStatus !== 'ready' && (
         <div
           style={{
@@ -598,8 +617,8 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
         <iframe
           key={frameKey}
           ref={iframeRef}
-          srcdoc={html}
-          sandbox={resolveExtAppSandbox(null)}
+          {...iframeDocument.attributes}
+          sandbox={iframeSandbox}
           allow={buildAllowAttribute(resourceMeta?.permissions)}
           style={{ flex: 1, width: '100%', height: '100%', minHeight: 0, border: 'none', background: 'var(--c-panel)' }}
           title={`Ext App: ${toolName}`}

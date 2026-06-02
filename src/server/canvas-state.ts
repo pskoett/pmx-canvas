@@ -39,6 +39,13 @@ import {
   GROUP_TITLEBAR_HEIGHT,
   resolveGroupCollision,
 } from './placement.js';
+import {
+  createEmptyAxState,
+  normalizeAxState,
+  type PmxAxFocusState,
+  type PmxAxSource,
+  type PmxAxState,
+} from './ax-state.js';
 
 function logCanvasStateWarning(action: string, error: unknown, details?: Record<string, unknown>): void {
   console.warn(`[canvas-state] ${action}`, { error, ...(details ?? {}) });
@@ -199,10 +206,10 @@ export interface CanvasNodeUpdate {
   dockPosition?: 'left' | 'right' | null;
 }
 
-export type CanvasChangeType = 'pins' | 'nodes';
+export type CanvasChangeType = 'pins' | 'nodes' | 'ax';
 
 export interface MutationRecordInfo {
-  operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
+  operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
   description: string;
   forward: () => void;
   inverse: () => void;
@@ -261,6 +268,7 @@ class CanvasStateManager {
   private annotations = new Map<string, CanvasAnnotation>();
   private _viewport: ViewportState = { x: 0, y: 0, scale: 1 };
   private _contextPinnedNodeIds = new Set<string>();
+  private _axState: PmxAxState = createEmptyAxState();
   private _workspaceRoot = process.cwd();
 
   // ── Change listeners (for MCP resource notifications) ──────
@@ -308,6 +316,18 @@ class CanvasStateManager {
     } catch (error) {
       logCanvasStateWarning('mutation-recorder failed', error, { description: info.description });
     }
+  }
+
+  private currentNodeIdSet(): Set<string> {
+    return new Set(this.nodes.keys());
+  }
+
+  private normalizeAxForCurrentNodes(state: unknown): PmxAxState {
+    return normalizeAxState(state, this.currentNodeIdSet());
+  }
+
+  private applyAxState(state: PmxAxState): void {
+    this._axState = this.normalizeAxForCurrentNodes(state);
   }
 
   private applyResolvedGroupBounds(
@@ -793,6 +813,7 @@ class CanvasStateManager {
       edges: [],
       annotations: [],
       contextPins: [],
+      ax: createEmptyAxState(),
     };
   }
 
@@ -868,6 +889,7 @@ class CanvasStateManager {
         edges: Array.from(this.edges.values()),
         annotations: Array.from(this.annotations.values()),
         contextPins: Array.from(this._contextPinnedNodeIds),
+        ax: this.getAxState(),
       });
       saveStateToDB(this._db, payload);
     } catch (error) {
@@ -909,6 +931,7 @@ class CanvasStateManager {
     this.edges.clear();
     this.annotations.clear();
     this._contextPinnedNodeIds.clear();
+    this._axState = createEmptyAxState();
 
     this._viewport = {
       x: state.viewport?.x ?? 0,
@@ -938,6 +961,7 @@ class CanvasStateManager {
         if (this.nodes.has(pinId)) this._contextPinnedNodeIds.add(pinId);
       }
     }
+    this._axState = this.normalizeAxForCurrentNodes(state.ax);
   }
 
   private readResolvedSnapshot(idOrName: string): {
@@ -1033,6 +1057,7 @@ class CanvasStateManager {
         edges: Array.from(this.edges.values()),
         annotations: Array.from(this.annotations.values()),
         contextPins: Array.from(this._contextPinnedNodeIds),
+        ax: this.getAxState(),
       });
       saveSnapshotToDB(this._db, snapshot, payload);
       snapshot.nodeCount = payload.nodes.length;
@@ -1122,6 +1147,7 @@ class CanvasStateManager {
       edges: Array.from(this.edges.values(), (edge) => structuredClone(edge)),
       annotations: Array.from(this.annotations.values(), (annotation) => structuredClone(annotation)),
       contextPins: Array.from(this._contextPinnedNodeIds),
+      ax: this.getAxState(),
     });
     const nextState: PersistedCanvasState = {
       version: 1,
@@ -1130,6 +1156,7 @@ class CanvasStateManager {
       edges: Array.isArray(resolved.state.edges) ? resolved.state.edges.map((edge) => structuredClone(edge)) : [],
       annotations: Array.isArray(resolved.state.annotations) ? resolved.state.annotations.map((annotation) => structuredClone(annotation)) : [],
       contextPins: Array.isArray(resolved.state.contextPins) ? [...resolved.state.contextPins] : [],
+      ax: resolved.state.ax ? structuredClone(resolved.state.ax) : createEmptyAxState(),
     };
 
     try {
@@ -1137,6 +1164,7 @@ class CanvasStateManager {
       this.scheduleSave();
       this.notifyChange('nodes');
       this.notifyChange('pins');
+      this.notifyChange('ax');
       this.recordMutation({
         operationType: 'restoreSnapshot',
         description: `Restored snapshot "${resolved.snapshot.name}"`,
@@ -1145,12 +1173,14 @@ class CanvasStateManager {
           this.scheduleSave();
           this.notifyChange('nodes');
           this.notifyChange('pins');
+          this.notifyChange('ax');
         }),
         inverse: this.suppressed(() => {
           this.applyPersistedState(previousState);
           this.scheduleSave();
           this.notifyChange('nodes');
           this.notifyChange('pins');
+          this.notifyChange('ax');
         }),
       });
       return true;
@@ -1287,6 +1317,7 @@ class CanvasStateManager {
     const existing = this.nodes.get(id);
     const connectedEdges = existing ? this.getEdgesForNode(id).map((e) => structuredClone(e)) : [];
     const cloned = existing ? structuredClone(existing) : null;
+    const oldAxState = this.getAxState();
 
     // Prune from parent group's children list
     if (existing) {
@@ -1315,9 +1346,11 @@ class CanvasStateManager {
     this.nodes.delete(id);
     this.removeEdgesForNode(id);
     this._contextPinnedNodeIds.delete(id);
+    this.applyAxState(this._axState);
     this.scheduleSave();
     this.notifyChange('nodes');
     this.notifyChange('pins');
+    this.notifyChange('ax');
     if (cloned) {
       this.recordMutation({
         operationType: 'removeNode',
@@ -1326,6 +1359,9 @@ class CanvasStateManager {
         inverse: this.suppressed(() => {
           this.addNode(structuredClone(cloned));
           for (const edge of connectedEdges) this.addEdge(structuredClone(edge));
+          this.applyAxState(oldAxState);
+          this.scheduleSave();
+          this.notifyChange('ax');
         }),
       });
     }
@@ -1569,6 +1605,51 @@ class CanvasStateManager {
     return new Set(this._contextPinnedNodeIds);
   }
 
+  getAxState(): PmxAxState {
+    return structuredClone(this.normalizeAxForCurrentNodes(this._axState));
+  }
+
+  getAxFocus(): PmxAxFocusState {
+    return this.getAxState().focus;
+  }
+
+  setAxFocus(nodeIds: string[], options: { source?: PmxAxSource; recordHistory?: boolean } = {}): PmxAxFocusState {
+    const oldAxState = this.getAxState();
+    const nextAxState: PmxAxState = {
+      ...oldAxState,
+      focus: {
+        nodeIds,
+        primaryNodeId: nodeIds[0] ?? null,
+        updatedAt: new Date().toISOString(),
+        source: options.source ?? 'api',
+      },
+    };
+    this.applyAxState(nextAxState);
+    const appliedAxState = this.getAxState();
+    this.scheduleSave();
+    this.notifyChange('ax');
+    if (options.recordHistory === false) return appliedAxState.focus;
+    this.recordMutation({
+      operationType: 'setAxFocus',
+      description: `Set AX focus (${appliedAxState.focus.nodeIds.length} nodes)`,
+      forward: this.suppressed(() => {
+        this.applyAxState(appliedAxState);
+        this.scheduleSave();
+        this.notifyChange('ax');
+      }),
+      inverse: this.suppressed(() => {
+        this.applyAxState(oldAxState);
+        this.scheduleSave();
+        this.notifyChange('ax');
+      }),
+    });
+    return appliedAxState.focus;
+  }
+
+  clearAxFocus(): PmxAxFocusState {
+    return this.setAxFocus([], { source: 'system' });
+  }
+
   setContextPins(nodeIds: string[]): void {
     const oldPins = Array.from(this._contextPinnedNodeIds);
     this._contextPinnedNodeIds.clear();
@@ -1694,15 +1775,18 @@ class CanvasStateManager {
     const oldEdges = Array.from(this.edges.values()).map((e) => structuredClone(e));
     const oldAnnotations = Array.from(this.annotations.values()).map((annotation) => structuredClone(annotation));
     const oldPins = Array.from(this._contextPinnedNodeIds);
+    const oldAxState = this.getAxState();
     const oldViewport = { ...this._viewport };
     this.nodes.clear();
     this.edges.clear();
     this.annotations.clear();
     this._contextPinnedNodeIds.clear();
+    this._axState = createEmptyAxState();
     this._viewport = { x: 0, y: 0, scale: 1 };
     this.scheduleSave();
     this.notifyChange('nodes');
     this.notifyChange('pins');
+    this.notifyChange('ax');
     this.recordMutation({
       operationType: 'clear',
       description: `Cleared canvas (was ${oldNodes.length} nodes, ${oldEdges.length} edges)`,
@@ -1712,7 +1796,9 @@ class CanvasStateManager {
         for (const e of oldEdges) this.addEdge(structuredClone(e));
         for (const annotation of oldAnnotations) this.addAnnotation(structuredClone(annotation));
         this.setContextPins(oldPins);
+        this.applyAxState(oldAxState);
         this.setViewport(oldViewport);
+        this.notifyChange('ax');
       }),
     });
   }

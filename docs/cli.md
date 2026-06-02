@@ -112,6 +112,19 @@ pmx-canvas focus <node-id>            # Pan viewport to a node
 pmx-canvas focus <node-id> --no-pan   # Select/raise without panning
 ```
 
+## AX context
+
+AX commands expose the host-agnostic context contract used by adapters. Pins
+remain the explicit human-curated context set; AX focus is the current
+attention target and persists with canvas state and snapshots.
+
+```bash
+pmx-canvas ax status                  # Persisted AX state
+pmx-canvas ax context                 # Pinned + focused agent context
+pmx-canvas ax focus node-1 node-2      # Set AX focus
+pmx-canvas ax focus --clear           # Clear AX focus
+```
+
 ## WebView automation
 
 Drive a headless Bun.WebView (Chromium or WebKit) pointed at the workbench:

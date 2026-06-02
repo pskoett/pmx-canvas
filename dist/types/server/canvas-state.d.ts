@@ -10,6 +10,7 @@
  * Legacy `.pmx-canvas/state.json` is auto-migrated on first boot.
  */
 import { type PersistedCanvasState } from './canvas-db.js';
+import { type PmxAxFocusState, type PmxAxSource, type PmxAxState } from './ax-state.js';
 export declare const PMX_CANVAS_DIR = ".pmx-canvas";
 export interface PersistedBlobRef {
     __pmxCanvasBlob: 'v1';
@@ -118,9 +119,9 @@ export interface CanvasNodeUpdate {
     collapsed?: boolean;
     dockPosition?: 'left' | 'right' | null;
 }
-export type CanvasChangeType = 'pins' | 'nodes';
+export type CanvasChangeType = 'pins' | 'nodes' | 'ax';
 export interface MutationRecordInfo {
-    operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
+    operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
     description: string;
     forward: () => void;
     inverse: () => void;
@@ -139,6 +140,7 @@ declare class CanvasStateManager {
     private annotations;
     private _viewport;
     private _contextPinnedNodeIds;
+    private _axState;
     private _workspaceRoot;
     private _changeListeners;
     /** Register a listener for state changes. Used by MCP server to emit resource notifications. */
@@ -153,6 +155,9 @@ declare class CanvasStateManager {
     /** Create a closure that runs with recording suppressed. */
     private suppressed;
     private recordMutation;
+    private currentNodeIdSet;
+    private normalizeAxForCurrentNodes;
+    private applyAxState;
     private applyResolvedGroupBounds;
     private getGroupSnapshot;
     private normalizeNode;
@@ -246,6 +251,13 @@ declare class CanvasStateManager {
     };
     setViewport(v: Partial<ViewportState>): void;
     get contextPinnedNodeIds(): Set<string>;
+    getAxState(): PmxAxState;
+    getAxFocus(): PmxAxFocusState;
+    setAxFocus(nodeIds: string[], options?: {
+        source?: PmxAxSource;
+        recordHistory?: boolean;
+    }): PmxAxFocusState;
+    clearAxFocus(): PmxAxFocusState;
     setContextPins(nodeIds: string[]): void;
     clearContextPins(): void;
     /** Move child nodes into a group. Sets data.parentGroup on children and data.children on the group. */

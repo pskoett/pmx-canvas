@@ -56,6 +56,11 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   // ── Drag (with snap alignment) ──────────────────────
   const handleMove = useCallback((id: string, x: number, y: number) => {
     const snap = snapToGuides(x, y, node.size.width, node.size.height);
+    const current = nodes.value.get(id);
+    if (current?.position.x === snap.x && current.position.y === snap.y) {
+      activeGuides.value = snap.guides.length > 0 ? snap.guides : null;
+      return;
+    }
     updateNode(id, { position: { x: snap.x, y: snap.y } });
     activeGuides.value = snap.guides.length > 0 ? snap.guides : null;
   }, [node.size.width, node.size.height]);
@@ -75,6 +80,8 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
 
   // ── Resize ────────────────────────────────────────────
   const handleResize = useCallback((id: string, width: number, height: number) => {
+    const current = nodes.value.get(id);
+    if (current?.size.width === width && current.size.height === height) return;
     updateNode(id, { size: { width, height } });
   }, []);
 

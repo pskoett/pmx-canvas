@@ -287,8 +287,8 @@ export declare const allComponentDefinitions: {
         props: z.ZodObject<{
             text: z.ZodString;
             variant: z.ZodNullable<z.ZodEnum<{
-                default: "default";
                 error: "error";
+                default: "default";
                 success: "success";
                 secondary: "secondary";
                 destructive: "destructive";

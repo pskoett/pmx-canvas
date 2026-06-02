@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  getExtAppBridgeInitKey,
   resolveExtAppContainerDimensions,
   resolveExtAppDisplayModeRequest,
   resolveExtAppSandbox,
   shouldApplyExtAppSizeChange,
 } from '../../src/client/nodes/ExtAppFrame.tsx';
+import type { CanvasNodeState } from '../../src/client/types.ts';
 
 describe('ExtAppFrame display mode requests', () => {
   test('expands into focus mode instead of resizing the backing node', () => {
@@ -47,6 +49,35 @@ describe('ExtAppFrame sandbox handling', () => {
 
   test('preserves a non-empty sandbox override for sandbox proxy resources', () => {
     expect(resolveExtAppSandbox(' allow-scripts allow-forms ')).toBe('allow-scripts allow-forms');
+  });
+});
+
+describe('ExtAppFrame iframe lifetime', () => {
+  test('does not remount the iframe when only node size changes', () => {
+    const node: CanvasNodeState = {
+      id: 'ext-app-key',
+      type: 'mcp-app',
+      position: { x: 0, y: 0 },
+      size: { width: 500, height: 260 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: {
+        html: '<main>app</main>',
+        serverName: 'Fixture',
+        appSessionId: 'session-1',
+        sessionStatus: 'ready',
+      },
+    };
+
+    const resized = {
+      ...node,
+      size: { width: 640, height: 420 },
+    };
+
+    expect(getExtAppBridgeInitKey(node, 0)).toBe(getExtAppBridgeInitKey(resized, 0));
+    expect(getExtAppBridgeInitKey(node, 1)).not.toBe(getExtAppBridgeInitKey(resized, 0));
   });
 });
 
