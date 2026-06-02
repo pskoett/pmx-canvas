@@ -22,7 +22,10 @@ export function useNodeDrag({ nodeId, viewport, onMove, onDragEnd }: NodeDragOpt
   const handlePointerDown = useCallback(
     (e: PointerEvent, currentX: number, currentY: number) => {
       e.stopPropagation();
+      e.preventDefault();
       isDragging.current = true;
+      document.documentElement.classList.add('is-node-dragging');
+      window.getSelection()?.removeAllRanges();
       startPointer.current = { x: e.clientX, y: e.clientY };
       startPosition.current = { x: currentX, y: currentY };
       let pendingPointer: { x: number; y: number } | null = null;
@@ -46,19 +49,22 @@ export function useNodeDrag({ nodeId, viewport, onMove, onDragEnd }: NodeDragOpt
         frameId = window.requestAnimationFrame(flushMove);
       };
 
-      const onPointerUp = () => {
+      const finishDrag = () => {
         if (frameId !== null) {
           window.cancelAnimationFrame(frameId);
           flushMove();
         }
         isDragging.current = false;
+        document.documentElement.classList.remove('is-node-dragging');
         document.removeEventListener('pointermove', onPointerMove);
-        document.removeEventListener('pointerup', onPointerUp);
+        document.removeEventListener('pointerup', finishDrag);
+        document.removeEventListener('pointercancel', finishDrag);
         onDragEnd();
       };
 
       document.addEventListener('pointermove', onPointerMove);
-      document.addEventListener('pointerup', onPointerUp);
+      document.addEventListener('pointerup', finishDrag);
+      document.addEventListener('pointercancel', finishDrag);
     },
     [nodeId, viewport, onMove, onDragEnd],
   );

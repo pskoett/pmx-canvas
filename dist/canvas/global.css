@@ -1109,6 +1109,7 @@ body,
   right: 0;
   width: 32px;
   height: 32px;
+  background: rgba(0, 0, 0, 0.001);
   cursor: nwse-resize;
   z-index: 30;
   pointer-events: auto;
@@ -1135,6 +1136,31 @@ body,
 html.is-node-resizing,
 html.is-node-resizing * {
   cursor: nwse-resize !important;
+}
+
+html.is-node-resizing .canvas-node {
+  transition: box-shadow 0.15s ease !important;
+}
+
+html.is-node-dragging .attention-field-layer {
+  visibility: hidden;
+}
+
+html.is-node-dragging,
+html.is-node-dragging * {
+  cursor: grabbing !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+}
+
+html.is-node-dragging iframe,
+html.is-node-dragging .ext-app-preview-catcher {
+  pointer-events: none !important;
+}
+
+html.is-node-resizing iframe,
+html.is-node-resizing .ext-app-preview-catcher {
+  pointer-events: none !important;
 }
 
 /* Pinned node indicator */

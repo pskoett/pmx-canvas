@@ -620,7 +620,15 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
           {...iframeDocument.attributes}
           sandbox={iframeSandbox}
           allow={buildAllowAttribute(resourceMeta?.permissions)}
-          style={{ flex: 1, width: '100%', height: '100%', minHeight: 0, border: 'none', background: 'var(--c-panel)' }}
+          style={{
+            flex: 1,
+            width: '100%',
+            height: '100%',
+            minHeight: 0,
+            border: 'none',
+            background: 'var(--c-panel)',
+            pointerEvents: isExpanded ? 'auto' : 'none',
+          }}
           title={`Ext App: ${toolName}`}
         />
         {!isExpanded && (
@@ -634,7 +642,10 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
             title="Click to open"
             style={{
               position: 'absolute',
-              inset: 0,
+              top: 0,
+              right: '56px',
+              bottom: '56px',
+              left: 0,
               background: 'transparent',
               border: 'none',
               padding: 0,

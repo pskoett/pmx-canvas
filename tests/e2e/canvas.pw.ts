@@ -250,6 +250,53 @@ test('dragging a grouped child ignores its own parent frame as a snap target', a
   }).toBe(284);
 });
 
+test('dragging nodes suppresses attention field overlays', async ({ page, request }) => {
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Blue overlay drag guard',
+      content: 'Drag me without repainting focus fields.',
+      x: 420,
+      y: 260,
+      width: 420,
+      height: 220,
+    },
+  });
+
+  await page.goto('/workbench');
+
+  await page.evaluate(() => {
+    const worldLayer = document.querySelector('.canvas-viewport > div');
+    if (!worldLayer) throw new Error('Canvas world layer not found.');
+    const field = document.createElement('div');
+    field.className = 'attention-field-layer';
+    field.setAttribute('data-test-attention-field', 'true');
+    worldLayer.prepend(field);
+  });
+
+  const node = page.locator('.canvas-node').filter({ hasText: 'Blue overlay drag guard' });
+  await expect(node).toHaveCount(1);
+
+  const titlebar = node.locator('.node-titlebar');
+  const box = await titlebar.boundingBox();
+  if (!box) throw new Error('Node titlebar is not visible for dragging.');
+  const startX = box.x + box.width / 2;
+  const startY = box.y + box.height / 2;
+
+  await page.mouse.move(startX, startY);
+  await page.mouse.down();
+  await expect.poll(async () => page.locator('html').evaluate((html) => html.classList.contains('is-node-dragging'))).toBe(true);
+  await expect(page.locator('[data-test-attention-field="true"]')).toHaveCSS('visibility', 'hidden');
+  await expect(page.locator('html')).toHaveCSS('user-select', 'none');
+  await expect.poll(async () => page.evaluate(() => window.getSelection()?.toString() ?? '')).toBe('');
+
+  await page.mouse.move(startX + 80, startY + 50, { steps: 6 });
+  await expect.poll(async () => page.evaluate(() => window.getSelection()?.toString() ?? '')).toBe('');
+  await page.mouse.up();
+  await expect.poll(async () => page.locator('html').evaluate((html) => html.classList.contains('is-node-dragging'))).toBe(false);
+  await expect(page.locator('[data-test-attention-field="true"]')).toHaveCSS('visibility', 'visible');
+});
+
 test('keeps the browser, pinned context, and agent-driven canvas mutations in sync', async ({ page, request }) => {
   const createResponse = await request.post('/api/canvas/node', {
     data: {
@@ -677,12 +724,17 @@ test('MCP App node resize corner stays above iframe preview overlays', async ({ 
   const hitTarget = await handle.evaluate((element) => {
     const handleRect = element.getBoundingClientRect();
     const nodeRect = element.closest('.canvas-node')?.getBoundingClientRect();
+    const iframe = element.closest('.canvas-node')?.querySelector('iframe');
+    const previewCatcher = element.closest('.canvas-node')?.querySelector('.ext-app-preview-catcher');
+    const previewRect = previewCatcher?.getBoundingClientRect();
     if (!nodeRect) throw new Error('Resize handle is not inside a canvas node.');
     const hit = document.elementFromPoint(nodeRect.right - 4, nodeRect.bottom - 4);
     return {
       width: handleRect.width,
       height: handleRect.height,
       cursor: getComputedStyle(element).cursor,
+      iframePointerEvents: iframe ? getComputedStyle(iframe).pointerEvents : null,
+      previewCatcherLeavesResizeCorner: previewRect ? previewRect.right <= nodeRect.right - 48 && previewRect.bottom <= nodeRect.bottom - 48 : null,
       hitIsHandle: hit === element || element.contains(hit),
     };
   });
@@ -690,6 +742,8 @@ test('MCP App node resize corner stays above iframe preview overlays', async ({ 
     width: 32,
     height: 32,
     cursor: 'nwse-resize',
+    iframePointerEvents: 'none',
+    previewCatcherLeavesResizeCorner: true,
     hitIsHandle: true,
   });
 
@@ -702,6 +756,20 @@ test('MCP App node resize corner stays above iframe preview overlays', async ({ 
   await page.mouse.move(box.x + box.width - 8, box.y + box.height - 8);
   await page.mouse.down();
   await expect.poll(async () => page.locator('html').evaluate((html) => html.classList.contains('is-node-resizing'))).toBe(true);
+  const activeResizeStyles = await appNode.evaluate((node) => {
+    const iframe = node.querySelector('iframe');
+    const previewCatcher = node.querySelector('.ext-app-preview-catcher');
+    return {
+      nodeTransitionProperty: getComputedStyle(node).transitionProperty,
+      iframePointerEvents: iframe ? getComputedStyle(iframe).pointerEvents : null,
+      previewCatcherPointerEvents: previewCatcher ? getComputedStyle(previewCatcher).pointerEvents : null,
+    };
+  });
+  expect(activeResizeStyles).toEqual({
+    nodeTransitionProperty: 'box-shadow',
+    iframePointerEvents: 'none',
+    previewCatcherPointerEvents: 'none',
+  });
   await page.mouse.move(box.x + box.width + 72, box.y + box.height + 44, { steps: 6 });
   await page.mouse.up();
   await expect.poll(async () => page.locator('html').evaluate((html) => html.classList.contains('is-node-resizing'))).toBe(false);
