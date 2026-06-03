@@ -49,8 +49,13 @@ jobs:
           fi
           echo "Publishing pmx-canvas@$PKG_VERSION"
 
-      - name: Install Playwright browser
-        run: bunx playwright install --with-deps chromium
+      # NOTE: The Playwright browser install + web-canvas e2e are intentionally
+      # NOT run here. The Test workflow already runs the full e2e suite on every
+      # push to main and gates the tagged commit. Re-installing the Playwright
+      # browser in publish was redundant and, after a GitHub-runner apt
+      # regression, would hang ~15 min and timeout-cancel the publish. Build,
+      # typecheck, unit tests, and the browser-free release smoke still gate
+      # the publish below.
 
       - name: Build
         run: bun run build
@@ -60,9 +65,6 @@ jobs:
 
       - name: Unit tests
         run: bun run test
-
-      - name: Web canvas smoke
-        run: bun run test:web-canvas
 
       - name: Release smoke
         run: bun run release:smoke
