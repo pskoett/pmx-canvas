@@ -167,6 +167,10 @@ export class PmxCanvas extends EventEmitter {
     type: CanvasNodeState['type'];
     title?: string;
     content?: string;
+    children?: string[];
+    childIds?: string[];
+    childLayout?: 'grid' | 'column' | 'flow';
+    color?: string;
     toolName?: string;
     category?: string;
     status?: string;
@@ -181,6 +185,18 @@ export class PmxCanvas extends EventEmitter {
   }): string {
     if (input.type === 'webpage') {
       throw new Error('Use addWebpageNode for webpage nodes so page content is fetched and cached on the server.');
+    }
+    if (input.type === 'group') {
+      return this.createGroup({
+        ...(typeof input.title === 'string' ? { title: input.title } : {}),
+        childIds: input.childIds ?? input.children ?? [],
+        ...(typeof input.x === 'number' ? { x: input.x } : {}),
+        ...(typeof input.y === 'number' ? { y: input.y } : {}),
+        ...(typeof input.width === 'number' ? { width: input.width } : {}),
+        ...(typeof input.height === 'number' ? { height: input.height } : {}),
+        ...(typeof input.color === 'string' ? { color: input.color } : {}),
+        ...(input.childLayout ? { childLayout: input.childLayout } : {}),
+      });
     }
     const { id, needsCodeGraphRecompute } = addCanvasNode({
       ...input,

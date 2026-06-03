@@ -25,6 +25,10 @@ export declare class PmxCanvas extends EventEmitter {
         type: CanvasNodeState['type'];
         title?: string;
         content?: string;
+        children?: string[];
+        childIds?: string[];
+        childLayout?: 'grid' | 'column' | 'flow';
+        color?: string;
         toolName?: string;
         category?: string;
         status?: string;

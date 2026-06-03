@@ -2749,6 +2749,12 @@ describe('canvas server HTTP API', () => {
     expect(diff.text).toContain('Modified nodes (2):');
     expect(diff.diff.modifiedNodes.map((node) => node.id)).toEqual(expect.arrayContaining([firstNode.id, secondNode.id]));
 
+    const queryDiff = await jsonRequest<{ ok: boolean; diff: { snapshotName: string } }>(
+      `/api/canvas/snapshots/diff?name=${encodeURIComponent(snapshotSave.snapshot.name)}`,
+    );
+    expect(queryDiff.ok).toBe(true);
+    expect(queryDiff.diff.snapshotName).toBe(snapshotSave.snapshot.name);
+
     await jsonRequest<{ ok: boolean }>('/api/canvas/clear', {
       method: 'POST',
     });

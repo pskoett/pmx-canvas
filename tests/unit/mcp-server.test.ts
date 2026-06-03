@@ -1367,6 +1367,52 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
     expect(group.position).toEqual({ x: 40, y: 60 });
     expect(group.size).toEqual({ width: 960, height: 720 });
 
+    const aliasChild = parseJsonText<{ id: string }>(await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'markdown',
+        title: 'Generic group child',
+        x: 1120,
+        y: 240,
+        width: 220,
+        height: 140,
+      },
+    }) as ToolResultShape);
+
+    const genericGroup = parseJsonText<{ data: { children?: string[] } }>(await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'group',
+        title: 'Generic group with children alias',
+        children: [aliasChild.id],
+        full: true,
+      },
+    }) as ToolResultShape);
+    expect(genericGroup.data.children).toEqual([aliasChild.id]);
+
+    const childIdsChild = parseJsonText<{ id: string }>(await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'markdown',
+        title: 'Generic group childIds child',
+        x: 1400,
+        y: 240,
+        width: 220,
+        height: 140,
+      },
+    }) as ToolResultShape);
+
+    const childIdsGroup = parseJsonText<{ data: { children?: string[] } }>(await session.client.callTool({
+      name: 'canvas_add_node',
+      arguments: {
+        type: 'group',
+        title: 'Generic group with childIds',
+        childIds: [childIdsChild.id],
+        full: true,
+      },
+    }) as ToolResultShape);
+    expect(childIdsGroup.data.children).toEqual([childIdsChild.id]);
+
     await session.client.callTool({
       name: 'canvas_clear',
       arguments: {},

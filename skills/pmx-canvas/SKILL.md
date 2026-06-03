@@ -75,6 +75,19 @@ reference before using adapter-native features:
 - `references/codex-app-adapter.md` — Codex app native Browser + MCP adapter, AX context reading,
   focus labeling, and live-test checklist.
 
+Host-aware visibility rule:
+- If a native PMX Canvas adapter/panel is available and already represents the workbench (for example
+  the GitHub Copilot app `pmx-canvas` canvas extension, or Codex's in-app Browser opened to
+  `/workbench`), use that panel. Do **not** also open a separate browser panel to the same workbench;
+  it wastes space and confuses which surface is authoritative.
+- If no native adapter/panel is available (generic MCP client, shell-only agent, raw CLI harness,
+  or another agent harness without canvas support), open the normal PMX Canvas browser workbench first
+  so the human can see mutations as they happen. Use the server URL's `/workbench` route.
+- External URLs in `mcp-app` nodes show the "Unverified domain" interstitial by design. Only
+  same-origin `/api/canvas/frame-documents/<id>` URLs are auto-trusted. For external tools, use a
+  bundled `web-artifact`, same-origin frame document, or set `data.trustedDomain: true` only when the
+  user accepts the risk.
+
 The canvas auto-starts on first MCP tool call when running in MCP mode (`pmx-canvas --mcp`).
 For manual start:
 

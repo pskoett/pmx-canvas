@@ -4584,6 +4584,15 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleSnapshotGc(req);
           }
 
+          if (url.pathname === '/api/canvas/snapshots/diff' && req.method === 'GET') {
+            const name = url.searchParams.get('name') ?? url.searchParams.get('id') ?? '';
+            if (!name.trim()) return responseJson({ ok: false, error: 'Missing snapshot name or id.' }, 400);
+            const snapshot = canvasState.getSnapshotData(name);
+            if (!snapshot) return responseJson({ ok: false, error: `Snapshot "${name}" not found.` }, 404);
+            const diff = diffLayouts(snapshot.name, snapshot, canvasState.getLayout());
+            return responseJson({ ok: true, text: formatDiff(diff), diff });
+          }
+
           if (url.pathname.startsWith('/api/canvas/snapshots/') && url.pathname.endsWith('/diff') && req.method === 'GET') {
             const id = decodeURIComponent(url.pathname.slice('/api/canvas/snapshots/'.length, -'/diff'.length));
             const snapshot = canvasState.getSnapshotData(id);

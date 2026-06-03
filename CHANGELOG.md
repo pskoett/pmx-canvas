@@ -3,6 +3,47 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.26] - 2026-06-03
+
+Small follow-up to 0.1.25. `canvas_add_node` can now create populated
+groups directly, the snapshot diff is available over HTTP, and the
+packaged skill documents host-aware browser-panel etiquette.
+
+### Added
+
+- **`canvas_add_node({ type: 'group' })` creates a populated group.**
+  The generic add path (MCP and SDK) now routes `type: 'group'` to
+  `createGroup`, accepting `children` / `childIds` (node IDs to
+  enclose), an optional `childLayout` (`grid` / `column` / `flow`),
+  and a frame `color`. `canvas_create_group` remains the dedicated
+  entry point; this just removes the dead-end where `canvas_add_node`
+  produced an empty group node. Child-ID validation is inherited from
+  `createGroup` (missing / self / nested-group children rejected).
+- **`GET /api/canvas/snapshots/diff` over HTTP.** The snapshot-vs-
+  current-layout diff that was previously MCP-only (`canvas_diff`) is
+  now reachable over HTTP at
+  `/api/canvas/snapshots/diff?name=<name|id>`, returning both the
+  structured `diff` and a `text` rendering. Missing name → 400,
+  unknown snapshot → 404.
+
+### Changed
+
+- **Packaged skill documents host-aware browser-panel etiquette.**
+  `skills/pmx-canvas/SKILL.md` now tells agents to reuse an existing
+  native canvas panel (e.g. the GitHub Copilot `pmx-canvas` extension
+  or Codex's in-app Browser on `/workbench`) instead of opening a
+  second browser panel to the same workbench, and to open the browser
+  workbench only when no native adapter is present. It also restates
+  that only same-origin `/api/canvas/frame-documents/<id>` URLs are
+  auto-trusted — external `mcp-app` URLs show the unverified-domain
+  interstitial by design.
+
+### Internal
+
+- Regression coverage for: `canvas_add_node` group creation via both
+  `children` and `childIds` (MCP), and the HTTP snapshot-diff endpoint
+  returning the snapshot name in the structured diff.
+
 ## [0.1.25] - 2026-06-03
 
 Adapter-regression cleanup on top of 0.1.24. Fixes several issues the
@@ -1235,6 +1276,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.26]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.26
 [0.1.25]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.25
 [0.1.24]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.24
 [0.1.23]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.23
