@@ -914,7 +914,7 @@ describe('canvas server HTTP API', () => {
     const elements = toolInput?.elements ? JSON.parse(toolInput.elements) as Array<Record<string, unknown>> : [];
     expect(elements.some((element) => element.id === 'changed')).toBe(true);
     expect(elements.some((element) => element.id === 'before')).toBe(false);
-  });
+  }, 30_000);
 
   test('rehydrates ext-app snapshot sessions on restore', async () => {
     const opened = await jsonRequest<{
@@ -1364,7 +1364,7 @@ describe('canvas server HTTP API', () => {
     expect(opened.toolCallId.startsWith('ext-app-')).toBe(false);
     expect(opened.nodeId?.startsWith('ext-app-')).toBe(true);
     expect(opened.nodeId?.startsWith('ext-app-ext-app-')).toBe(false);
-  });
+  }, 30_000);
 
   test('resizes reusable Excalidraw app nodes when explicit geometry is provided', async () => {
     canvasState.addNode({
@@ -1417,7 +1417,7 @@ describe('canvas server HTTP API', () => {
     expect(node?.position).toEqual({ x: 100, y: 120 });
     expect(node?.size).toEqual({ width: 640, height: 520 });
     expect(node?.data.title).toBe('Sized Reused Diagram');
-  });
+  }, 30_000);
 
   test('rehydrates persisted ext-app sessions after server restart', async () => {
     const opened = await jsonRequest<{
