@@ -3,6 +3,75 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.24] - 2026-06-03
+
+Host-adapter and agent-experience (AX) release. Adds host-agnostic AX
+focus/context primitives across every layer, ships GitHub Copilot and
+Codex canvas adapters, moves embedded HTML/MCP-app iframes onto a
+same-origin frame-document transport (still strictly sandboxed via a
+CSP `sandbox` response header), and fixes a batch of iframe-backed
+node drag/resize/fullscreen interaction glitches.
+
+### Added
+
+- **PMX AX focus + context primitives.** A new host-agnostic
+  "agent experience" focus field lets any surface mark which nodes
+  an agent is attending to without moving the viewport. Implemented
+  end to end with full parity:
+  - State: `CanvasStateManager.getAxFocus()` / `setAxFocus()` /
+    `getAxState()`, recorded as a `setAxFocus` mutation-history op
+    (undo/redo) and persisted in a new SQLite `ax_state` table.
+  - SDK: `PmxCanvas.getAxState()`, `getAxContext()`, `setAxFocus()`.
+  - HTTP: `GET`/`PATCH /api/canvas/ax`, `GET /api/canvas/ax/context`,
+    `POST /api/canvas/ax/focus`.
+  - MCP: `canvas_get_ax`, `canvas_set_ax_focus` (45 tools total),
+    plus `canvas://ax` and `canvas://ax-context` resources that emit
+    `notifications/resources/updated` on change.
+  - CLI: `pmx-canvas ax focus <node-id...>` / `--clear`.
+  Focus state carries a `source` tag (`agent`/`api`/`browser`/`cli`/
+  `codex`/`copilot`/`mcp`/`sdk`/`system`) and node IDs are validated
+  against the live layout.
+- **GitHub Copilot canvas adapter.** A new
+  `.github/extensions/pmx-canvas/extension.mjs` (591 lines) plus
+  `skills/pmx-canvas/references/github-copilot-app-adapter.md`
+  document and implement driving the canvas from GitHub Copilot.
+- **Codex canvas adapter coverage.**
+  `skills/pmx-canvas/references/codex-app-adapter.md` documents the
+  Codex host integration, with browser regression coverage.
+- **Same-origin frame-document transport for embedded apps.**
+  Embedded HTML and MCP-app iframes now load their document from
+  `POST /api/canvas/frame-documents` → `GET /api/canvas/frame-
+  documents/<id>` instead of an inline `srcdoc`. The served document
+  carries `Content-Security-Policy: sandbox <tokens>`,
+  `Referrer-Policy: no-referrer`, and `X-Content-Type-Options:
+  nosniff`. The sandbox-token allowlist deliberately excludes
+  `allow-same-origin` and top-navigation tokens, so frame content
+  stays in an opaque origin and cannot reach the canvas host. The
+  document store is in-memory, capped at 128 entries (LRU eviction)
+  and 5 MB per document.
+
+### Changed
+
+- **Iframe-backed node drag is flicker-free.** Node drag now
+  rAF-throttles pointer moves, clears the browser text selection,
+  and toggles an `is-node-dragging` document class to suppress
+  selection and attention-field repaint artifacts. Inline app
+  iframes are kept pointer-inert near the resize handle so resize
+  starts reliably.
+- **Docs tool/resource references updated.** `docs/mcp.md` and the
+  README now read 45 tools + 9 core resources; the `AGENTS.md` and
+  `CLAUDE.md` MCP tool enumerations were corrected to the full
+  45-tool list (they had drifted to 42 and 39 respectively and were
+  missing `canvas_fit_view` and the new AX tools).
+
+### Internal
+
+- Regression coverage for: AX focus set/clear/persistence through
+  state, HTTP, MCP, SDK, and CLI; AX focus round-tripping through
+  SQLite; arrange-lock interactions; iframe-backed node
+  drag/resize/fullscreen behavior (large browser e2e additions); and
+  the Copilot/Codex adapter surfaces.
+
 ## [0.1.23] - 2026-05-12
 
 Persistence overhaul. Canvas state, snapshots, context pins, and the
@@ -1114,6 +1183,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.24]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.24
 [0.1.23]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.23
 [0.1.22]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.22
 [0.1.21]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.21
