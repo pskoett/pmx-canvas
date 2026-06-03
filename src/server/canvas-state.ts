@@ -400,6 +400,14 @@ class CanvasStateManager {
     return normalized;
   }
 
+  private nodeForRead(node: CanvasNodeState): CanvasNodeState {
+    const resolved = this.resolveNodeDataBlobs(node);
+    return {
+      ...resolved,
+      pinned: resolved.pinned || this._contextPinnedNodeIds.has(resolved.id),
+    };
+  }
+
   private reflowAllGroups(): void {
     const groups = Array.from(this.nodes.values())
       .filter((node): node is CanvasNodeState => node.type === 'group')
@@ -1379,7 +1387,7 @@ class CanvasStateManager {
 
   getNode(id: string): CanvasNodeState | undefined {
     const node = this.nodes.get(id);
-    return node ? structuredClone(this.resolveNodeDataBlobs(node)) : undefined;
+    return node ? structuredClone(this.nodeForRead(node)) : undefined;
   }
 
   getNodeForPersistence(id: string): CanvasNodeState | undefined {
@@ -1482,7 +1490,7 @@ class CanvasStateManager {
     return {
       viewport: structuredClone(this._viewport),
       theme: this._theme,
-      nodes: Array.from(this.nodes.values(), (node) => structuredClone(node)),
+      nodes: Array.from(this.nodes.values(), (node) => structuredClone(this.nodeForRead(node))),
       edges: Array.from(this.edges.values(), (edge) => structuredClone(edge)),
       annotations: this.getAnnotations(),
     };

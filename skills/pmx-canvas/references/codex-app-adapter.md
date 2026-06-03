@@ -62,8 +62,10 @@ in the Codex in-app Browser, usually `http://127.0.0.1:4313/workbench` or
 
 ## Codex-Native Workflow
 
-1. Start or connect to the PMX MCP server.
-2. Open `/workbench` in the Codex in-app Browser.
+1. Open `/workbench` in the Codex in-app Browser as the first visible action. If PMX is not running
+   yet, start/connect the MCP server first only long enough to get the workbench URL, then open the
+   browser before mutating the board.
+2. Start or keep using the PMX MCP server for agent operations.
 3. Use the browser canvas for human spatial curation: pin nodes, move nodes, group nodes, and
    inspect rendered artifacts.
 4. Use MCP tools for agent operations: create/update nodes, pin nodes, read layout, and read AX
@@ -90,9 +92,10 @@ Codex agents should treat PMX AX context as host-native working context:
 
 ## Live-Test Checklist
 
-1. Confirm the PMX MCP server is configured for the workspace.
-2. Call `canvas_get_ax` and confirm it returns `ok: true`.
-3. Open `http://127.0.0.1:4313/workbench` in the Codex in-app Browser.
+1. Open `http://127.0.0.1:4313/workbench` in the Codex in-app Browser first so the user can see
+   all later canvas mutations.
+2. Confirm the PMX MCP server is configured for the workspace.
+3. Call `canvas_get_ax` and confirm it returns `ok: true`.
 4. Add or reuse a node, then pin it from the browser or with `canvas_pin_nodes`.
 5. Read `canvas://ax-context` and confirm the pinned node appears.
 6. Call `canvas_set_ax_focus` with `source: "codex"` and a real node ID.

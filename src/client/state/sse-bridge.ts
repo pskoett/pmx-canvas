@@ -75,7 +75,7 @@ const DEFAULT_POSITIONS: Record<
   status: { x: 40, y: 80, w: 300, h: 120 },
   markdown: { x: 380, y: 80, w: 720, h: 600 },
   context: { x: 1130, y: 80, w: 320, h: 400 },
-  'mcp-app': { x: 380, y: 720, w: 720, h: 500 },
+  'mcp-app': { x: 380, y: 720, w: 960, h: 600 },
   webpage: { x: 380, y: 80, w: 520, h: 420 },
   'json-render': { x: 380, y: 720, w: 840, h: 620 },
   graph: { x: 380, y: 720, w: 760, h: 520 },

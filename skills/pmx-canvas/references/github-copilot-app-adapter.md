@@ -11,6 +11,20 @@ maps Copilot SDK features onto PMX AX primitives.
 - Canvas ID: `pmx-canvas`
 - Display name: `PMX Canvas`
 
+## Quick Start
+
+1. Install the project adapter by copying the packaged extension into the repository:
+   `mkdir -p .github/extensions/pmx-canvas && cp node_modules/pmx-canvas/.github/extensions/pmx-canvas/extension.mjs .github/extensions/pmx-canvas/extension.mjs`
+2. Reload Copilot app extensions with `extensions_reload` so `project:pmx-canvas` is registered.
+3. Start or confirm a PMX Canvas daemon for the workspace: `pmx-canvas serve --daemon`
+   and `pmx-canvas serve status`. The adapter can auto-start in many local sessions, but a running
+   daemon is the most reliable setup for fresh agents.
+4. Open the canvas with `extensionId: "project:pmx-canvas"`, `canvasId: "pmx-canvas"`, and a stable
+   `instanceId`.
+5. If the first `invoke_canvas_action` immediately after `open_canvas` returns
+   `Canvas instance not open`, retry the same action once. This is a known Copilot app timing race
+   during panel initialization, not a PMX server failure.
+
 Open it with:
 
 ```json

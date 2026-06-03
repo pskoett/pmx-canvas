@@ -47,7 +47,7 @@ import type {
   ListResourceTemplatesResult,
   ListToolsResult,
 } from '@modelcontextprotocol/sdk/types.js';
-import { type CanvasAnnotation, type CanvasEdge, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
+import { type CanvasAnnotation, type CanvasEdge, type CanvasLayout, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
 import { findCanvasExtAppNodeId as findCanvasExtAppNodeIdShared } from './ext-app-lookup.js';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
@@ -84,6 +84,7 @@ import {
   addCanvasNode,
   addCanvasEdge,
   MARKDOWN_NODE_DEFAULT_SIZE,
+  MCP_APP_NODE_DEFAULT_SIZE,
   applyCanvasNodeUpdates,
   buildStructuredNodeUpdate,
   arrangeCanvasNodes,
@@ -790,6 +791,64 @@ function parseGraphPayloadData(value: unknown): Array<Record<string, unknown>> |
   return value as Array<Record<string, unknown>>;
 }
 
+type StringListField = { value?: string[]; error?: string };
+
+function parseStringListField(field: string, value: unknown): StringListField {
+  if (value === undefined) return {};
+  if (!Array.isArray(value)) return { error: `"${field}" must be an array of node IDs.` };
+  const invalid = value.find((item) => typeof item !== 'string' || item.trim().length === 0);
+  if (invalid !== undefined) return { error: `"${field}" must contain only non-empty node IDs.` };
+  return { value };
+}
+
+function pickGroupChildIds(body: Record<string, unknown>): StringListField {
+  if ('children' in body) return parseStringListField('children', body.children);
+  if ('childIds' in body) return parseStringListField('childIds', body.childIds);
+  const data = isRecord(body.data) ? body.data : undefined;
+  return data && 'children' in data ? parseStringListField('data.children', data.children) : {};
+}
+
+function validateGroupChildIds(groupId: string, childIds: string[]): string | null {
+  const missingChildIds = childIds.filter((id) => !canvasState.getNode(id));
+  if (missingChildIds.length > 0) {
+    return `Missing child node ID${missingChildIds.length === 1 ? '' : 's'}: ${missingChildIds.join(', ')}.`;
+  }
+  const invalidChildIds = childIds.filter((id) => {
+    const node = canvasState.getNode(id);
+    return id === groupId || node?.type === 'group';
+  });
+  if (invalidChildIds.length > 0) {
+    return `Invalid group child ID${invalidChildIds.length === 1 ? '' : 's'}: ${invalidChildIds.join(', ')}.`;
+  }
+  return null;
+}
+
+function setGroupChildrenFromApi(groupId: string, childIds: string[]): boolean {
+  const group = canvasState.getNode(groupId);
+  if (!group || group.type !== 'group') return false;
+
+  const dataChildIds = Array.isArray(group.data.children)
+    ? group.data.children.filter((id): id is string => typeof id === 'string')
+    : [];
+  const parentBackrefIds = canvasState.getLayout().nodes
+    .filter((node) => node.id !== groupId && node.data.parentGroup === groupId)
+    .map((node) => node.id);
+  const currentChildIds = [...new Set([...dataChildIds, ...parentBackrefIds])];
+  if (currentChildIds.length > 0) {
+    if (currentChildIds.length !== dataChildIds.length || currentChildIds.some((id) => !dataChildIds.includes(id))) {
+      canvasState.updateNode(groupId, { data: { ...group.data, children: currentChildIds } });
+    }
+    canvasState.ungroupNodes(groupId);
+  }
+  if (childIds.length === 0) return true;
+
+  const latestGroup = canvasState.getNode(groupId);
+  return canvasState.groupNodes(groupId, childIds, {
+    preservePositions: true,
+    keepGroupFrame: latestGroup?.data.frameMode === 'manual',
+  });
+}
+
 function getExtAppNodeCheckpointId(node: CanvasNodeState): string {
   const appCheckpoint = isRecord(node.data.appCheckpoint) ? node.data.appCheckpoint : null;
   const storedCheckpointId = appCheckpoint?.id;
@@ -1467,6 +1526,20 @@ function buildNodeResponse(node: CanvasNodeState): Record<string, unknown> {
   };
 }
 
+function withContextPinReadState(node: CanvasNodeState): CanvasNodeState {
+  return {
+    ...node,
+    pinned: node.pinned || canvasState.contextPinnedNodeIds.has(node.id),
+  };
+}
+
+function withContextPinLayoutReadState(layout: CanvasLayout): CanvasLayout {
+  return {
+    ...layout,
+    nodes: layout.nodes.map(withContextPinReadState),
+  };
+}
+
 async function createCanvasWebpageNode(body: Record<string, unknown>): Promise<Response> {
   const rawUrl = typeof body.url === 'string' && body.url.trim().length > 0
     ? body.url
@@ -1547,6 +1620,23 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
     return createCanvasHtmlPrimitiveNode(body);
   }
 
+  if (type === 'group') {
+    const geometry = resolveCreateGeometry(body);
+    const childList = pickGroupChildIds(body);
+    if (childList.error) return responseJson({ ok: false, error: `Cannot create group: ${childList.error}` }, 400);
+    const childIds = childList.value ?? [];
+    const childError = validateGroupChildIds('', childIds);
+    if (childError) return responseJson({ ok: false, error: `Cannot create group: ${childError}` }, 400);
+    const { node } = createCanvasGroup({
+      ...(typeof body.title === 'string' ? { title: body.title } : {}),
+      childIds,
+      ...(typeof body.color === 'string' ? { color: body.color } : {}),
+      ...geometry,
+    });
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return responseJson(buildNodeResponse(node));
+  }
+
   const extraData = body.data && typeof body.data === 'object' && !Array.isArray(body.data)
     ? body.data as Record<string, unknown>
     : undefined;
@@ -1592,8 +1682,20 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
       ...(type === 'trace' && typeof body.error === 'string' ? { error: body.error } : {}),
       ...(body.strictSize === true ? { strictSize: true } : {}),
       ...geometry,
-      defaultWidth: type === 'html' ? 720 : type === 'markdown' ? MARKDOWN_NODE_DEFAULT_SIZE.width : 360,
-      defaultHeight: type === 'html' ? 640 : type === 'markdown' ? MARKDOWN_NODE_DEFAULT_SIZE.height : 200,
+      defaultWidth: type === 'html'
+        ? 720
+        : type === 'markdown'
+          ? MARKDOWN_NODE_DEFAULT_SIZE.width
+          : type === 'mcp-app'
+            ? MCP_APP_NODE_DEFAULT_SIZE.width
+            : 360,
+      defaultHeight: type === 'html'
+        ? 640
+        : type === 'markdown'
+          ? MARKDOWN_NODE_DEFAULT_SIZE.height
+          : type === 'mcp-app'
+            ? MCP_APP_NODE_DEFAULT_SIZE.height
+            : 200,
       fileMode: 'auto',
     });
   } catch (error) {
@@ -1797,6 +1899,13 @@ async function handleCanvasUpdateNode(nodeId: string, req: Request): Promise<Res
   if (existing.type === 'webpage' && body.refresh === true) {
     return handleCanvasRefreshWebpageNode(nodeId, req);
   }
+  const groupChildList = existing.type === 'group' ? pickGroupChildIds(body) : {};
+  if (groupChildList.error) return responseJson({ ok: false, error: `Cannot update group: ${groupChildList.error}` }, 400);
+  const groupChildIds = groupChildList.value;
+  if (groupChildIds !== undefined) {
+    const childError = validateGroupChildIds(nodeId, groupChildIds);
+    if (childError) return responseJson({ ok: false, error: `Cannot update group: ${childError}` }, 400);
+  }
   const patch: Record<string, unknown> = resolvePatchGeometry(body, existing);
   if (body.collapsed !== undefined) patch.collapsed = body.collapsed;
   if (body.pinned !== undefined) patch.pinned = Boolean(body.pinned);
@@ -1855,6 +1964,9 @@ async function handleCanvasUpdateNode(nodeId: string, req: Request): Promise<Res
   });
   if (error) return responseJson({ ok: false, error }, 400);
   canvasState.updateNode(nodeId, patch as Partial<CanvasNodeState>);
+  if (groupChildIds !== undefined && !setGroupChildrenFromApi(nodeId, groupChildIds)) {
+    return responseJson({ ok: false, error: `Group "${nodeId}" not found.` }, 404);
+  }
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   const updated = canvasState.getNode(nodeId);
   return responseJson(updated ? buildNodeResponse(updated) : { ok: true, id: nodeId });
@@ -4346,7 +4458,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             const includeBlobs = url.searchParams.get('includeBlobs') === 'true';
             return responseJson(includeBlobs
               ? serializeCanvasLayout(canvasState.getLayout())
-              : serializeCanvasLayoutWithBlobSummaries(canvasState.getLayoutForPersistence()));
+              : serializeCanvasLayoutWithBlobSummaries(withContextPinLayoutReadState(canvasState.getLayoutForPersistence())));
           }
 
           if (url.pathname === '/api/canvas/summary' && req.method === 'GET') {
@@ -4416,9 +4528,10 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             const includeBlobs = url.searchParams.get('includeBlobs') === 'true';
             const node = includeBlobs ? canvasState.getNode(nodeId) : canvasState.getNodeForPersistence(nodeId);
             if (!node) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
+            const responseNode = withContextPinReadState(node);
             return responseJson(includeBlobs
-              ? serializeCanvasNode(node)
-              : serializeCanvasNodeWithBlobSummaries(node));
+              ? serializeCanvasNode(responseNode)
+              : serializeCanvasNodeWithBlobSummaries(responseNode));
           }
 
           if (url.pathname.startsWith('/api/canvas/node/') && req.method === 'PATCH') {

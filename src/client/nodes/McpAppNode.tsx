@@ -14,6 +14,18 @@ function withViewerParams(url: string, expanded: boolean): string {
   }
 }
 
+export function isSameOriginFrameDocumentUrl(url: string, origin = window.location.origin): boolean {
+  if (!url) return false;
+  try {
+    const baseOrigin = new URL(origin).origin;
+    const resolved = new URL(url, baseOrigin);
+    return resolved.origin === baseOrigin &&
+      resolved.pathname.startsWith('/api/canvas/frame-documents/');
+  } catch {
+    return false;
+  }
+}
+
 export function McpAppNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
   if (node.data.mode === 'ext-app') {
     return <ExtAppFrame node={node} expanded={expanded} />;
@@ -23,7 +35,7 @@ export function McpAppNode({ node, expanded = false }: { node: CanvasNodeState; 
   const sourceServer = (node.data.sourceServer as string) || '';
   const hostMode = (node.data.hostMode as string) || 'hosted';
   const fallbackReason = node.data.fallbackReason as string | undefined;
-  const trustedDomain = node.data.trustedDomain as boolean | undefined;
+  const trustedDomain = node.data.trustedDomain === true || isSameOriginFrameDocumentUrl(url);
 
   if (hostMode === 'fallback') {
     return (

@@ -13,6 +13,7 @@ import {
   addCanvasNode,
   addCanvasEdge,
   MARKDOWN_NODE_DEFAULT_SIZE,
+  MCP_APP_NODE_DEFAULT_SIZE,
   applyCanvasNodeUpdates,
   arrangeCanvasNodes,
   clearCanvas,
@@ -183,8 +184,16 @@ export class PmxCanvas extends EventEmitter {
     }
     const { id, needsCodeGraphRecompute } = addCanvasNode({
       ...input,
-      defaultWidth: input.type === 'markdown' ? MARKDOWN_NODE_DEFAULT_SIZE.width : 360,
-      defaultHeight: input.type === 'markdown' ? MARKDOWN_NODE_DEFAULT_SIZE.height : 200,
+      defaultWidth: input.type === 'markdown'
+        ? MARKDOWN_NODE_DEFAULT_SIZE.width
+        : input.type === 'mcp-app'
+          ? MCP_APP_NODE_DEFAULT_SIZE.width
+          : 360,
+      defaultHeight: input.type === 'markdown'
+        ? MARKDOWN_NODE_DEFAULT_SIZE.height
+        : input.type === 'mcp-app'
+          ? MCP_APP_NODE_DEFAULT_SIZE.height
+          : 200,
       fileMode: 'path',
       ...(input.strictSize ? { strictSize: true } : {}),
     });

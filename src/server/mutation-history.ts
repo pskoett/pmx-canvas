@@ -66,6 +66,13 @@ export interface SnapshotDiffResult {
   removedEdges: { id: string; from: string; to: string; type: string }[];
 }
 
+function comparableNodeData(data: Record<string, unknown>): Record<string, unknown> {
+  const comparable = { ...data };
+  delete comparable.title;
+  delete comparable.content;
+  return comparable;
+}
+
 // ── Ring Buffer ──────────────────────────────────────────────────────
 
 const MAX_ENTRIES = 200;
@@ -256,6 +263,10 @@ export function diffLayouts(
     if (snapContent !== curContent) {
       const lenDiff = curContent.length - snapContent.length;
       changes.push(`content changed (${lenDiff >= 0 ? '+' : ''}${lenDiff} chars)`);
+    }
+
+    if (JSON.stringify(comparableNodeData(snapNode.data)) !== JSON.stringify(comparableNodeData(curNode.data))) {
+      changes.push('data changed');
     }
 
     if (changes.length > 0) {

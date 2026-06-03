@@ -103,7 +103,8 @@ interface CanvasAddNodeInput {
   strictSize?: boolean;
 }
 
-export const MARKDOWN_NODE_DEFAULT_SIZE = { width: 520, height: 360 };
+export const MARKDOWN_NODE_DEFAULT_SIZE = { width: 640, height: 420 };
+export const MCP_APP_NODE_DEFAULT_SIZE = { width: 960, height: 600 };
 
 interface CanvasCreateGroupInput {
   title?: string;
@@ -1176,7 +1177,7 @@ function shiftGridUpdatesBelowObstacles(
 }
 
 export function arrangeCanvasNodes(layout: CanvasArrangeMode): { arranged: number; layout: CanvasArrangeMode } {
-  const nodes = canvasState.getLayout().nodes;
+  const nodes = canvasState.getLayoutForPersistence().nodes;
   const excludedIds = layout === 'grid'
     ? collectGridArrangeExcludedNodeIds(nodes)
     : collectArrangeExcludedNodeIds(nodes);
@@ -1657,8 +1658,20 @@ export async function executeCanvasBatch(
               ...(typeof args.width === 'number' ? { width: args.width } : {}),
               ...(typeof args.height === 'number' ? { height: args.height } : {}),
               ...(args.strictSize === true ? { strictSize: true } : {}),
-              defaultWidth: type === 'html' ? 720 : type === 'markdown' ? MARKDOWN_NODE_DEFAULT_SIZE.width : 360,
-              defaultHeight: type === 'html' ? 640 : type === 'markdown' ? MARKDOWN_NODE_DEFAULT_SIZE.height : 200,
+              defaultWidth: type === 'html'
+                ? 720
+                : type === 'markdown'
+                  ? MARKDOWN_NODE_DEFAULT_SIZE.width
+                  : type === 'mcp-app'
+                    ? MCP_APP_NODE_DEFAULT_SIZE.width
+                    : 360,
+              defaultHeight: type === 'html'
+                ? 640
+                : type === 'markdown'
+                  ? MARKDOWN_NODE_DEFAULT_SIZE.height
+                  : type === 'mcp-app'
+                    ? MCP_APP_NODE_DEFAULT_SIZE.height
+                    : 200,
               fileMode: 'auto',
             });
             result = { ok: true, ...serializeCreatedNode(created.node) };

@@ -163,6 +163,7 @@ declare class CanvasStateManager {
     private applyResolvedGroupBounds;
     private getGroupSnapshot;
     private normalizeNode;
+    private nodeForRead;
     private reflowAllGroups;
     private translateGroupChildren;
     private recomputeParentGroupBounds;

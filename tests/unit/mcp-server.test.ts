@@ -790,6 +790,18 @@ describe('MCP parity with CLI', () => {
     expect(toolResult.context.pinned.nodeIds).toEqual([pinned.id]);
     expect(toolResult.context.focus.nodeIds).toEqual([focused.id]);
 
+    const nodePayload = parseJsonText<{ pinned: boolean }>(await session.client.callTool({
+      name: 'canvas_get_node',
+      arguments: { id: pinned.id },
+    }) as ToolResultShape);
+    expect(nodePayload.pinned).toBe(true);
+
+    const layoutPayload = parseJsonText<{ nodes: Array<{ id: string; pinned: boolean }> }>(await session.client.callTool({
+      name: 'canvas_get_layout',
+      arguments: {},
+    }) as ToolResultShape);
+    expect(layoutPayload.nodes.find((node) => node.id === pinned.id)?.pinned).toBe(true);
+
     const resource = await session.client.readResource({ uri: 'canvas://ax-context' });
     const textResource = resource.contents.find((entry) => 'text' in entry && typeof entry.text === 'string');
     const context = JSON.parse(textResource?.text ?? '{}') as {

@@ -60,6 +60,10 @@ export declare const MARKDOWN_NODE_DEFAULT_SIZE: {
     width: number;
     height: number;
 };
+export declare const MCP_APP_NODE_DEFAULT_SIZE: {
+    width: number;
+    height: number;
+};
 interface CanvasCreateGroupInput {
     title?: string;
     childIds?: string[];

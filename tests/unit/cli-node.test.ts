@@ -2389,6 +2389,11 @@ exit 2
         lineKey: 'conversion',
       }),
     });
+    await jsonRequest<{ ok: boolean; count: number }>('/api/canvas/context-pins', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeIds: [created.id] }),
+    });
 
     const log = mock(() => {});
     const originalLog = console.log;
@@ -2408,11 +2413,13 @@ exit 2
 
     const nodeSummary = JSON.parse(log.mock.calls[0]?.[0] as string) as {
       id: string;
+      pinned: boolean;
       graph?: { graphType: string; dataPoints: number; lineKey: string };
       data?: unknown;
       dataKeys?: string[];
     };
     expect(nodeSummary.id).toBe(created.id);
+    expect(nodeSummary.pinned).toBe(true);
     expect(nodeSummary.graph).toEqual(expect.objectContaining({
       graphType: 'composed',
       dataPoints: 2,

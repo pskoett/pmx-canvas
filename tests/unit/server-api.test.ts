@@ -3,7 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { canvasState, type PersistedBlobRef } from '../../src/server/canvas-state.ts';
-import { MARKDOWN_NODE_DEFAULT_SIZE } from '../../src/server/canvas-operations.ts';
+import { MARKDOWN_NODE_DEFAULT_SIZE, MCP_APP_NODE_DEFAULT_SIZE } from '../../src/server/canvas-operations.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { emitPrimaryWorkbenchEvent, startCanvasServer, stopCanvasServer, wrapCanvasAutomationScript } from '../../src/server/server.ts';
 import {
@@ -252,6 +252,13 @@ describe('canvas server HTTP API', () => {
     expect(created.position).toEqual({ x: 320, y: 180 });
     expect(created.size).toEqual(MARKDOWN_NODE_DEFAULT_SIZE);
 
+    const appNode = await jsonRequest<{ id: string; size: { width: number; height: number } }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'mcp-app', title: 'API app', content: '/api/canvas/frame-documents/test' }),
+    });
+    expect(appNode.size).toEqual(MCP_APP_NODE_DEFAULT_SIZE);
+
     const fetchedNode = await jsonRequest<{ id: string; title: string | null; content: string | null; data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`);
     expect(fetchedNode.id).toBe(created.id);
     expect(fetchedNode.title).toBe('API note');
@@ -275,6 +282,9 @@ describe('canvas server HTTP API', () => {
       method: 'DELETE',
     });
     expect(deleted.removed).toBe(created.id);
+    await jsonRequest<{ ok: boolean; removed: string }>(`/api/canvas/node/${appNode.id}`, {
+      method: 'DELETE',
+    });
 
     const layout = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
     expect(layout.nodes).toEqual([]);
@@ -2603,6 +2613,75 @@ describe('canvas server HTTP API', () => {
     expect(fetched.data.updatedAt).toBe('2026-04-12T12:00:00.000Z');
   });
 
+  test('generic group node APIs persist children and expose membership in snapshot diff', async () => {
+    const first = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Group child A', x: 120, y: 120 }),
+    });
+    const second = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Group child B', x: 760, y: 120 }),
+    });
+
+    const createdGroup = await jsonRequest<{ id: string; data: Record<string, unknown> }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'group', title: 'Generic API Group', children: [first.id] }),
+    });
+    expect(createdGroup.data.children).toEqual([first.id]);
+
+    const groupedFirst = await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${first.id}`);
+    expect(groupedFirst.data.parentGroup).toBe(createdGroup.id);
+
+    const snapshotSave = await jsonRequest<{ snapshot: { id: string } }>('/api/canvas/snapshots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'before-group-patch' }),
+    });
+
+    const patchedGroup = await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${createdGroup.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ children: [first.id, second.id] }),
+    });
+    expect(patchedGroup.data.children).toEqual([first.id, second.id]);
+
+    const groupedSecond = await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${second.id}`);
+    expect(groupedSecond.data.parentGroup).toBe(createdGroup.id);
+
+    const diff = await jsonRequest<{
+      ok: boolean;
+      text: string;
+      diff: { modifiedNodes: Array<{ id: string; changes: string[] }> };
+    }>(`/api/canvas/snapshots/${snapshotSave.snapshot.id}/diff`);
+    expect(diff.ok).toBe(true);
+    const groupDiff = diff.diff.modifiedNodes.find((node) => node.id === createdGroup.id);
+    expect(groupDiff?.changes).toContain('data changed');
+    expect(diff.text).toContain('Modified nodes');
+
+    await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${createdGroup.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { children: [] } }),
+    });
+
+    const ungroupedFirst = await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${first.id}`);
+    const ungroupedSecond = await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${second.id}`);
+    expect(ungroupedFirst.data.parentGroup).toBeUndefined();
+    expect(ungroupedSecond.data.parentGroup).toBeUndefined();
+
+    const malformedPatch = await fetch(`${baseUrl}/api/canvas/node/${createdGroup.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ children: [first.id, 123] }),
+    });
+    expect(malformedPatch.status).toBe(400);
+    const malformedBody = await malformedPatch.json() as { error?: string };
+    expect(malformedBody.error).toContain('children');
+  });
+
   test('supports edges, snapshots, clear, and pinned context over HTTP', async () => {
     const firstNode = await jsonRequest<{ id: string }>('/api/canvas/node', {
       method: 'POST',
@@ -2632,6 +2711,12 @@ describe('canvas server HTTP API', () => {
     const pinnedContext = await jsonRequest<{ count: number; nodeIds: string[] }>('/api/canvas/pinned-context');
     expect(pinnedContext.count).toBe(1);
     expect(pinnedContext.nodeIds).toEqual([firstNode.id]);
+
+    const pinnedNode = await jsonRequest<{ pinned: boolean }>(`/api/canvas/node/${firstNode.id}`);
+    expect(pinnedNode.pinned).toBe(true);
+    const stateWithPins = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(stateWithPins.nodes.find((node) => node.id === firstNode.id)?.pinned).toBe(true);
+    expect(stateWithPins.nodes.find((node) => node.id === secondNode.id)?.pinned).toBe(false);
 
     const snapshotSave = await jsonRequest<{ ok: boolean; id: string; snapshot: { id: string; name: string } }>('/api/canvas/snapshots', {
       method: 'POST',
