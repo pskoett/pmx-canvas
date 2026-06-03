@@ -1,6 +1,6 @@
 import type { CanvasLayout, CanvasNodeState } from './canvas-state.js';
 import type { AgentContextNode } from './agent-context.js';
-export type PmxAxSource = 'agent' | 'api' | 'browser' | 'cli' | 'copilot' | 'mcp' | 'sdk' | 'system';
+export type PmxAxSource = 'agent' | 'api' | 'browser' | 'cli' | 'codex' | 'copilot' | 'mcp' | 'sdk' | 'system';
 export interface PmxAxFocusState {
     nodeIds: string[];
     primaryNodeId: string | null;

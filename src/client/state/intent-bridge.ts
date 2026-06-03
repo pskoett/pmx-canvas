@@ -104,6 +104,14 @@ export async function fetchCanvasState(): Promise<Record<string, unknown>> {
   return requestJson('fetchCanvasState', '/api/canvas/state?includeBlobs=true', {});
 }
 
+export async function saveCanvasTheme(theme: string): Promise<{ ok: boolean; theme?: string }> {
+  return requestJson('saveCanvasTheme', '/api/canvas/theme', { ok: false }, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ theme }),
+  });
+}
+
 /** Fetch available slash commands for prompt completion. */
 export async function fetchSlashCommands(): Promise<Array<{ name: string; description: string }>> {
   return [];

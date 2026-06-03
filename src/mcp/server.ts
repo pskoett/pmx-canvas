@@ -1165,10 +1165,13 @@ export async function startMcpServer(): Promise<void> {
     'Set the PMX AX focus field without requiring viewport movement. Focus is persisted and available through canvas://ax-context.',
     {
       nodeIds: z.array(z.string()).describe('Node IDs to place in the AX focus field. Missing nodes are ignored.'),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
+        .optional()
+        .describe('Optional host/source label for adapter-originated focus. Defaults to mcp. Use codex from the Codex app adapter.'),
     },
-    async ({ nodeIds }) => {
+    async ({ nodeIds, source }) => {
       const c = await ensureCanvas();
-      const focus = await c.setAxFocus(nodeIds, { source: 'mcp' });
+      const focus = await c.setAxFocus(nodeIds, { source: source ?? 'mcp' });
       return {
         content: [
           {

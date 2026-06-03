@@ -8,7 +8,7 @@ import {
   nodes,
   searchHighlightIds,
 } from '../state/canvas-store';
-import { createNodeFromClient } from '../state/intent-bridge';
+import { createNodeFromClient, saveCanvasTheme } from '../state/intent-bridge';
 import { TYPE_LABELS, type CanvasNodeState } from '../types';
 import { invalidateTokenCache } from '../theme/tokens';
 
@@ -148,6 +148,7 @@ export function CommandPalette({
           document.documentElement.setAttribute('data-theme', next);
           invalidateTokenCache();
           canvasTheme.value = next;
+          void saveCanvasTheme(next);
           onClose();
         },
       },

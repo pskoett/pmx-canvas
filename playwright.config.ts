@@ -2,6 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 const port = Number(process.env.PMX_PLAYWRIGHT_PORT ?? '4517');
 const stateFile = process.env.PMX_PLAYWRIGHT_STATE_FILE ?? 'test-results/playwright/.pmx-canvas.json';
+const dbPath = process.env.PMX_PLAYWRIGHT_DB_PATH ?? 'test-results/playwright/canvas.db';
 
 export default defineConfig({
   testDir: './tests/e2e',
@@ -27,7 +28,7 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: `PMX_CANVAS_STATE_FILE=${stateFile} bun run src/cli/index.ts --no-open --port=${port}`,
+    command: `PMX_CANVAS_STATE_FILE=${stateFile} PMX_CANVAS_DB_PATH=${dbPath} bun run src/cli/index.ts --no-open --port=${port}`,
     url: `http://127.0.0.1:${port}/health`,
     reuseExistingServer: false,
     stdout: 'pipe',

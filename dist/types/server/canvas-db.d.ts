@@ -7,8 +7,11 @@
 import { Database } from 'bun:sqlite';
 import type { CanvasAnnotation, CanvasEdge, CanvasNodeState, CanvasSnapshot, CanvasSnapshotListOptions, ViewportState } from './canvas-state.js';
 import { type PmxAxState } from './ax-state.js';
+export type CanvasTheme = 'dark' | 'light' | 'high-contrast';
+export declare function normalizeCanvasTheme(value: unknown, fallback?: CanvasTheme): CanvasTheme;
 export interface PersistedCanvasState {
     version: number;
+    theme?: CanvasTheme;
     viewport: ViewportState;
     nodes: CanvasNodeState[];
     edges: CanvasEdge[];

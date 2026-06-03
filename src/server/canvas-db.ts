@@ -23,6 +23,12 @@ import { createEmptyAxState, normalizeAxState, type PmxAxState } from './ax-stat
 
 const SCHEMA_VERSION = 1;
 
+export type CanvasTheme = 'dark' | 'light' | 'high-contrast';
+
+export function normalizeCanvasTheme(value: unknown, fallback: CanvasTheme = 'dark'): CanvasTheme {
+  return value === 'dark' || value === 'light' || value === 'high-contrast' ? value : fallback;
+}
+
 const SCHEMA_SQL = `
   CREATE TABLE IF NOT EXISTS meta (
     key TEXT PRIMARY KEY,
@@ -168,6 +174,7 @@ function parsePersistedAxState(raw: string | null | undefined): PmxAxState {
 
 export interface PersistedCanvasState {
   version: number;
+  theme?: CanvasTheme;
   viewport: ViewportState;
   nodes: CanvasNodeState[];
   edges: CanvasEdge[];
@@ -217,7 +224,8 @@ export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
     db.run('DELETE FROM context_pins');
     db.run('DELETE FROM ax_state');
 
-    // Save viewport
+    // Save viewport and UI preferences
+    db.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', ['theme', normalizeCanvasTheme(state.theme)]);
     db.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', ['viewport_x', String(state.viewport.x)]);
     db.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', ['viewport_y', String(state.viewport.y)]);
     db.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', ['viewport_scale', String(state.viewport.scale)]);
@@ -317,6 +325,8 @@ export function loadStateFromDB(db: Database): PersistedCanvasState | null {
     y: getMetaValue('viewport_y'),
     scale: getMetaValue('viewport_scale') || 1,
   };
+  const themeValue = db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get('theme')?.value;
+  const theme = themeValue ? normalizeCanvasTheme(themeValue) : undefined;
 
   // Load nodes
   interface NodeRow {
@@ -400,6 +410,7 @@ export function loadStateFromDB(db: Database): PersistedCanvasState | null {
 
   return {
     version: 1,
+    theme,
     viewport,
     nodes,
     edges,

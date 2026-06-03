@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { canvasState, type CanvasAnnotation, type CanvasNodeState } from '../../src/server/canvas-state.ts';
 import type { PmxAxState } from '../../src/server/ax-state.ts';
+import type { CanvasTheme } from '../../src/server/canvas-db.ts';
 import { loadStateFromDB } from '../../src/server/canvas-db.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { stopCanvasServer } from '../../src/server/server.ts';
@@ -79,6 +80,7 @@ export function readPersistedCanvasState(workspaceRoot: string): {
   edges: Array<{ id: string; from: string; to: string; type: string }>;
   annotations?: CanvasAnnotation[];
   contextPins: string[];
+  theme?: CanvasTheme;
   ax?: PmxAxState;
 } {
   // Try SQLite first (new persistence)
@@ -93,6 +95,7 @@ export function readPersistedCanvasState(workspaceRoot: string): {
           edges: state.edges,
           annotations: state.annotations,
           contextPins: state.contextPins,
+          theme: state.theme,
           ax: state.ax,
         };
       }
@@ -107,6 +110,7 @@ export function readPersistedCanvasState(workspaceRoot: string): {
     edges: Array<{ id: string; from: string; to: string; type: string }>;
     annotations?: CanvasAnnotation[];
     contextPins: string[];
+    theme?: CanvasTheme;
     ax?: PmxAxState;
   };
 }
@@ -134,6 +138,7 @@ export function resetCanvasForTests(workspaceRoot: string): void {
   });
   mutationHistory.reset();
   canvasState.setWorkspaceRoot(workspaceRoot);
+  canvasState.setTheme('dark');
 }
 
 export async function waitForPersistence(ms = 650): Promise<void> {

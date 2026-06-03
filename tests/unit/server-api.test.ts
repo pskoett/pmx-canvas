@@ -191,6 +191,7 @@ describe('canvas server HTTP API', () => {
   beforeEach(() => {
     canvasState.withSuppressedRecording(() => {
       canvasState.clear();
+      canvasState.setTheme('dark');
     });
     canvasState.clearAllSnapshots();
     mutationHistory.reset();
@@ -2972,6 +2973,21 @@ describe('canvas server HTTP API', () => {
     expect(context.pinned.preamble).toContain('Pinned context body');
     expect(context.focus.nodeIds).toEqual([focusedNode.id]);
     expect(context.focus.nodes[0]?.content).toContain('Focused context body');
+  });
+
+  test('canvas theme endpoint persists and returns the selected theme', async () => {
+    const updated = await jsonRequest<{ ok: boolean; theme: string }>('/api/canvas/theme', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ theme: 'light' }),
+    });
+    expect(updated).toEqual({ ok: true, theme: 'light' });
+
+    const current = await jsonRequest<{ ok: boolean; theme: string }>('/api/canvas/theme');
+    expect(current).toEqual({ ok: true, theme: 'light' });
+
+    const state = await jsonRequest<{ theme?: string }>('/api/canvas/state');
+    expect(state.theme).toBe('light');
   });
 
   test('accepts edge style and animation flags over HTTP', async () => {

@@ -9,6 +9,7 @@ import {
   type CanvasSnapshot,
   type PmxCanvas,
 } from '../server/index.js';
+import type { PmxAxSource } from '../server/ax-state.js';
 
 type AddNodeInput = Parameters<PmxCanvas['addNode']>[0];
 type AddWebpageNodeInput = Parameters<PmxCanvas['addWebpageNode']>[0];
@@ -123,7 +124,7 @@ export interface CanvasAccess {
   fitView(options?: FitViewOptions): Promise<FitViewResult>;
   getAxState(): Promise<AxStateResult>;
   getAxContext(): Promise<AxContextResult>;
-  setAxFocus(nodeIds: string[], options?: { source?: 'mcp' }): Promise<SetAxFocusResult>;
+  setAxFocus(nodeIds: string[], options?: { source?: PmxAxSource }): Promise<SetAxFocusResult>;
   clear(): Promise<void>;
   search(query: string): Promise<SearchResult>;
   undo(): Promise<UndoRedoResult>;
@@ -261,7 +262,7 @@ class LocalCanvasAccess implements CanvasAccess {
     return this.canvas.getAxContext();
   }
 
-  async setAxFocus(nodeIds: string[], options?: { source?: 'mcp' }): Promise<SetAxFocusResult> {
+  async setAxFocus(nodeIds: string[], options?: { source?: PmxAxSource }): Promise<SetAxFocusResult> {
     return this.canvas.setAxFocus(nodeIds, { source: options?.source ?? 'mcp' });
   }
 
@@ -615,7 +616,7 @@ class RemoteCanvasAccess implements CanvasAccess {
     return await this.requestJson<AxContextResult>('GET', '/api/canvas/ax/context');
   }
 
-  async setAxFocus(nodeIds: string[], options?: { source?: 'mcp' }): Promise<SetAxFocusResult> {
+  async setAxFocus(nodeIds: string[], options?: { source?: PmxAxSource }): Promise<SetAxFocusResult> {
     const response = await this.requestJson<{ focus?: SetAxFocusResult }>('POST', '/api/canvas/ax/focus', {
       nodeIds,
       source: options?.source ?? 'mcp',

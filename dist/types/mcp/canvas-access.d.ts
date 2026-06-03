@@ -1,4 +1,5 @@
 import { type CanvasLayout, type CanvasNodeState, type CanvasSnapshot, type PmxCanvas } from '../server/index.js';
+import type { PmxAxSource } from '../server/ax-state.js';
 type AddNodeInput = Parameters<PmxCanvas['addNode']>[0];
 type AddWebpageNodeInput = Parameters<PmxCanvas['addWebpageNode']>[0];
 type RefreshWebpageNodeResult = Awaited<ReturnType<PmxCanvas['refreshWebpageNode']>>;
@@ -74,7 +75,7 @@ export interface CanvasAccess {
     getAxState(): Promise<AxStateResult>;
     getAxContext(): Promise<AxContextResult>;
     setAxFocus(nodeIds: string[], options?: {
-        source?: 'mcp';
+        source?: PmxAxSource;
     }): Promise<SetAxFocusResult>;
     clear(): Promise<void>;
     search(query: string): Promise<SearchResult>;

@@ -30,7 +30,9 @@ import {
   checkpointCanvasDb,
   finalizeCanvasDbForClose,
   type PersistedCanvasState,
+  type CanvasTheme,
 } from './canvas-db.js';
+import { normalizeCanvasTheme } from './canvas-db.js';
 import {
   type CanvasPlacementRect,
   computeGroupBounds,
@@ -193,6 +195,7 @@ export interface CanvasAnnotation {
 
 export interface CanvasLayout {
   viewport: ViewportState;
+  theme: CanvasTheme;
   nodes: CanvasNodeState[];
   edges: CanvasEdge[];
   annotations: CanvasAnnotation[];
@@ -267,6 +270,7 @@ class CanvasStateManager {
   private edges = new Map<string, CanvasEdge>();
   private annotations = new Map<string, CanvasAnnotation>();
   private _viewport: ViewportState = { x: 0, y: 0, scale: 1 };
+  private _theme: CanvasTheme = 'dark';
   private _contextPinnedNodeIds = new Set<string>();
   private _axState: PmxAxState = createEmptyAxState();
   private _workspaceRoot = process.cwd();
@@ -808,6 +812,7 @@ class CanvasStateManager {
   private emptyPersistedState(): PersistedCanvasState {
     return {
       version: 1,
+      theme: this._theme,
       viewport: { x: 0, y: 0, scale: 1 },
       nodes: [],
       edges: [],
@@ -884,6 +889,7 @@ class CanvasStateManager {
     try {
       const payload = this.externalizePersistedStateBlobs({
         version: 1,
+        theme: this._theme,
         viewport: this._viewport,
         nodes: Array.from(this.nodes.values()),
         edges: Array.from(this.edges.values()),
@@ -938,6 +944,7 @@ class CanvasStateManager {
       y: state.viewport?.y ?? 0,
       scale: state.viewport?.scale ?? 1,
     };
+    this._theme = normalizeCanvasTheme(state.theme, this._theme);
 
     if (Array.isArray(state.nodes)) {
       for (const node of state.nodes) {
@@ -1052,6 +1059,7 @@ class CanvasStateManager {
     try {
       const payload = this.externalizePersistedStateBlobs({
         version: 1,
+        theme: this._theme,
         viewport: this._viewport,
         nodes: Array.from(this.nodes.values()),
         edges: Array.from(this.edges.values()),
@@ -1142,6 +1150,7 @@ class CanvasStateManager {
 
     const previousState: PersistedCanvasState = this.externalizePersistedStateBlobs({
       version: 1,
+      theme: this._theme,
       viewport: structuredClone(this._viewport),
       nodes: Array.from(this.nodes.values(), (node) => structuredClone(node)),
       edges: Array.from(this.edges.values(), (edge) => structuredClone(edge)),
@@ -1151,6 +1160,7 @@ class CanvasStateManager {
     });
     const nextState: PersistedCanvasState = {
       version: 1,
+      theme: normalizeCanvasTheme(resolved.state.theme, this._theme),
       viewport: structuredClone(resolved.state.viewport),
       nodes: Array.isArray(resolved.state.nodes) ? resolved.state.nodes.map((node) => structuredClone(node)) : [],
       edges: Array.isArray(resolved.state.edges) ? resolved.state.edges.map((edge) => structuredClone(edge)) : [],
@@ -1471,6 +1481,7 @@ class CanvasStateManager {
   getLayout(): CanvasLayout {
     return {
       viewport: structuredClone(this._viewport),
+      theme: this._theme,
       nodes: Array.from(this.nodes.values(), (node) => structuredClone(node)),
       edges: Array.from(this.edges.values(), (edge) => structuredClone(edge)),
       annotations: this.getAnnotations(),
@@ -1480,6 +1491,7 @@ class CanvasStateManager {
   getLayoutForPersistence(): CanvasLayout {
     return {
       viewport: structuredClone(this._viewport),
+      theme: this._theme,
       nodes: Array.from(this.nodes.values(), (node) => structuredClone(this.externalizeNodeDataBlobs(node))),
       edges: Array.from(this.edges.values(), (edge) => structuredClone(edge)),
       annotations: this.getAnnotations(),
@@ -1597,6 +1609,19 @@ class CanvasStateManager {
         this.notifyChange('nodes');
       }),
     });
+  }
+
+  get theme(): CanvasTheme {
+    return this._theme;
+  }
+
+  setTheme(theme: CanvasTheme): CanvasTheme {
+    const next = normalizeCanvasTheme(theme, this._theme);
+    if (next === this._theme) return this._theme;
+    this._theme = next;
+    this.scheduleSave();
+    this.notifyChange('nodes');
+    return this._theme;
   }
 
   // ── Context pins ─────────────────────────────────────────────

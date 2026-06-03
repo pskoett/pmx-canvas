@@ -24,6 +24,7 @@ export declare function resolveExtAppContainerDimensions(target: ExtAppHostDimen
     height: number;
 };
 export declare function shouldApplyExtAppSizeChange(height: unknown, isExpanded: boolean): height is number;
+export declare function resolveExtAppInlineFrameHeight(appHeight: number, hostHeight: number): number;
 export declare function ExtAppFrame({ node, expanded }: {
     node: CanvasNodeState;
     expanded?: boolean;

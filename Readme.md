@@ -83,6 +83,12 @@ Copilot canvas panel, injects AX pinned/focused context on prompt submission,
 and exposes adapter actions for status, AX focus, context refresh, and explicit
 session steering.
 
+In the Codex app, PMX Canvas is MCP-first plus the Codex in-app Browser: agents
+read `canvas://ax-context` / `canvas_get_ax`, humans use the live `/workbench`
+view, and Codex-originated focus can be labeled with `source: "codex"` through
+`canvas_set_ax_focus`. The CLI remains a fallback for scripts and manual
+debugging, not the native Codex adapter path.
+
 ## Prerequisites
 
 - [Bun](https://bun.sh) >= 1.3.12

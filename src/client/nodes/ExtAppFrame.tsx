@@ -112,6 +112,10 @@ export function shouldApplyExtAppSizeChange(height: unknown, isExpanded: boolean
   return typeof height === 'number' && Number.isFinite(height) && height > 0 && !isExpanded;
 }
 
+export function resolveExtAppInlineFrameHeight(appHeight: number, hostHeight: number): number {
+  return Math.max(positiveDimension(appHeight, 1), positiveDimension(hostHeight, 1));
+}
+
 export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const bridgeRef = useRef<AppBridge | null>(null);
@@ -275,7 +279,11 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
       // Register handlers BEFORE connect
       bridge.onsizechange = async ({ height }) => {
         if (shouldApplyExtAppSizeChange(height, expandedNodeId.value === nodeId)) {
-          iframe.style.height = `${height}px`;
+          const hostDimensions = resolveExtAppContainerDimensions(iframe.parentElement ?? iframe, {
+            width: node.size.width,
+            height: maxHeight,
+          });
+          iframe.style.height = `${resolveExtAppInlineFrameHeight(height, hostDimensions.height)}px`;
         }
         return {};
       };
@@ -480,6 +488,9 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   // click that triggered the expansion.
   useEffect(() => {
     const bridge = bridgeRef.current;
+    if (iframeRef.current) {
+      iframeRef.current.style.height = '100%';
+    }
     if (!bridge || !bridgeReadyRef.current) return;
     bridge.setHostContext?.({
       theme: toMcpTheme(canvasTheme.value),

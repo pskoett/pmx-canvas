@@ -58,6 +58,7 @@ export declare const EXCALIDRAW_CREATE_VIEW_TOOL = "create_view";
 export declare function isExcalidrawNode(node: CanvasNodeState): boolean;
 export interface CanvasLayout {
     viewport: ViewportState;
+    theme?: 'dark' | 'light' | 'high-contrast';
     nodes: CanvasNodeState[];
     edges: CanvasEdge[];
     annotations?: CanvasAnnotation[];

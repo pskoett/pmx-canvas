@@ -9,7 +9,7 @@
  * in the workspace root on every mutation (debounced). Auto-loads on `loadFromDisk()`.
  * Legacy `.pmx-canvas/state.json` is auto-migrated on first boot.
  */
-import { type PersistedCanvasState } from './canvas-db.js';
+import { type PersistedCanvasState, type CanvasTheme } from './canvas-db.js';
 import { type PmxAxFocusState, type PmxAxSource, type PmxAxState } from './ax-state.js';
 export declare const PMX_CANVAS_DIR = ".pmx-canvas";
 export interface PersistedBlobRef {
@@ -102,6 +102,7 @@ export interface CanvasAnnotation {
 }
 export interface CanvasLayout {
     viewport: ViewportState;
+    theme: CanvasTheme;
     nodes: CanvasNodeState[];
     edges: CanvasEdge[];
     annotations: CanvasAnnotation[];
@@ -139,6 +140,7 @@ declare class CanvasStateManager {
     private edges;
     private annotations;
     private _viewport;
+    private _theme;
     private _contextPinnedNodeIds;
     private _axState;
     private _workspaceRoot;
@@ -250,6 +252,8 @@ declare class CanvasStateManager {
         skipped: number;
     };
     setViewport(v: Partial<ViewportState>): void;
+    get theme(): CanvasTheme;
+    setTheme(theme: CanvasTheme): CanvasTheme;
     get contextPinnedNodeIds(): Set<string>;
     getAxState(): PmxAxState;
     getAxFocus(): PmxAxFocusState;

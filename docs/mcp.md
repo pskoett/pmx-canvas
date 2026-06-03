@@ -52,7 +52,7 @@ searchable and readable in pinned/spatial context.
 | `canvas_validate` | Validate collisions, containment, and missing edge endpoints |
 | `canvas_focus_node` | Pan viewport to a node; use CLI `focus --no-pan` when you only need to select/raise |
 | `canvas_get_ax` | Read the PMX AX state plus pinned/focused context |
-| `canvas_set_ax_focus` | Set the host-agnostic AX focus node set |
+| `canvas_set_ax_focus` | Set the host-agnostic AX focus node set; adapters can pass a source such as `codex` |
 | `canvas_pin_nodes` | Pin nodes to include in agent context |
 | `canvas_clear` | Clear all nodes and edges |
 | `canvas_snapshot` | Save current canvas as a named snapshot |
@@ -104,6 +104,19 @@ changes:
 
 This closes the human-to-agent loop: spatial curation in the browser becomes
 an immediate signal in the agent's context.
+
+## Codex App Adapter
+
+In the Codex app, PMX Canvas runs natively through the existing Codex surfaces:
+MCP for tools/resources and the in-app Browser for the live `/workbench` view.
+No separate PMX renderer is needed. Prefer MCP over the CLI for Codex-native
+operation; keep the CLI for fallback scripts and manual debugging.
+
+Use `canvas://ax-context` or `canvas_get_ax` to read pinned/focused context.
+When Codex-hosted steering sets the current attention target, call
+`canvas_set_ax_focus` with `source: "codex"` so the AX state records where the
+focus came from. The full workflow lives in
+`skills/pmx-canvas/references/codex-app-adapter.md`.
 
 ## Annotation Visibility
 

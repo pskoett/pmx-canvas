@@ -78,6 +78,7 @@ import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent-context.js';
 import { buildCanvasAxContext } from './ax-context.js';
 import type { PmxAxSource } from './ax-state.js';
+import { normalizeCanvasTheme, type CanvasTheme } from './canvas-db.js';
 import { validateLocalImageFile } from './image-source.js';
 import {
   addCanvasNode,
@@ -148,9 +149,7 @@ let nextWorkbenchSubscriberId = 1;
 const workbenchSubscribers = new Map<number, ReadableStreamDefaultController<Uint8Array>>();
 const textEncoder = new TextEncoder();
 let primaryWorkbenchAutoOpenEnabled = true;
-const canvasThemeSetting = (['dark', 'light', 'high-contrast'].includes(process.env.PMX_CANVAS_THEME ?? '')
-  ? process.env.PMX_CANVAS_THEME!
-  : 'dark');
+const initialCanvasThemeSetting = normalizeCanvasTheme(process.env.PMX_CANVAS_THEME);
 let lastWorkbenchContextCardsEnvelope: Record<string, unknown> | null = null;
 
 function normalizeGraphViewerSpec(
@@ -2187,6 +2186,18 @@ function handleCanvasValidate(): Response {
   return responseJson(validateCanvasLayout(canvasState.getLayout()));
 }
 
+async function handleCanvasThemeUpdate(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const theme = normalizeCanvasTheme(body.theme, canvasState.theme);
+  const next = canvasState.setTheme(theme);
+  broadcastWorkbenchEvent('theme-changed', {
+    theme: next,
+    sessionId: primaryWorkbenchSessionId,
+    timestamp: new Date().toISOString(),
+  });
+  return responseJson({ ok: true, theme: next });
+}
+
 async function handleJsonRenderView(url: URL): Promise<Response> {
   const nodeId = url.searchParams.get('nodeId') ?? '';
   if (!nodeId) return responseText('Missing nodeId', 400);
@@ -3055,7 +3066,7 @@ function handleWorkbenchEvents(req: Request): Response {
           requestedSessionId: requestedSessionId || null,
           continuity,
           path: primaryWorkbenchPath,
-          theme: canvasThemeSetting,
+          theme: canvasState.theme,
           timestamp: new Date().toISOString(),
         }),
       );
@@ -3483,6 +3494,7 @@ function normalizeAxSource(value: unknown, fallback: PmxAxSource): PmxAxSource {
     value === 'api' ||
     value === 'browser' ||
     value === 'cli' ||
+    value === 'codex' ||
     value === 'copilot' ||
     value === 'mcp' ||
     value === 'sdk' ||
@@ -4213,6 +4225,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
   // ── Canvas persistence: set workspace root and load saved state ──
   canvasState.setWorkspaceRoot(activeWorkspaceRoot);
+  canvasState.setTheme(initialCanvasThemeSetting as CanvasTheme);
   const loaded = canvasState.loadFromDisk({ clearExisting: true });
   setCanvasLayoutUpdateEmitter(() => {
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
@@ -4338,6 +4351,14 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/summary' && req.method === 'GET') {
             return responseJson(buildCanvasSummary());
+          }
+
+          if (url.pathname === '/api/canvas/theme' && req.method === 'GET') {
+            return responseJson({ ok: true, theme: canvasState.theme });
+          }
+
+          if (url.pathname === '/api/canvas/theme' && req.method === 'POST') {
+            return handleCanvasThemeUpdate(req);
           }
 
           if (url.pathname === '/api/canvas/update' && req.method === 'POST') {

@@ -1,7 +1,7 @@
 import type { CanvasLayout, CanvasNodeState } from './canvas-state.js';
 import type { AgentContextNode } from './agent-context.js';
 
-export type PmxAxSource = 'agent' | 'api' | 'browser' | 'cli' | 'copilot' | 'mcp' | 'sdk' | 'system';
+export type PmxAxSource = 'agent' | 'api' | 'browser' | 'cli' | 'codex' | 'copilot' | 'mcp' | 'sdk' | 'system';
 
 export interface PmxAxFocusState {
   nodeIds: string[];
@@ -37,7 +37,7 @@ export interface PmxAxContext {
   focus: PmxAxFocusContext;
 }
 
-const AX_SOURCES = new Set<PmxAxSource>(['agent', 'api', 'browser', 'cli', 'copilot', 'mcp', 'sdk', 'system']);
+const AX_SOURCES = new Set<PmxAxSource>(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']);
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);

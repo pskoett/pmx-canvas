@@ -1,6 +1,8 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
+const playwrightPort = Number(process.env.PMX_PLAYWRIGHT_PORT ?? '4517');
+
 function toolbarTooltip(button: Locator): Locator {
   return button.locator('xpath=following-sibling::*[contains(@class,"toolbar-tooltip")]');
 }
@@ -22,6 +24,9 @@ async function clearCanvas(request: { post: Function }): Promise<void> {
   await request.post('/api/canvas/clear');
   await request.post('/api/canvas/context-pins', {
     data: { nodeIds: [] },
+  });
+  await request.post('/api/canvas/theme', {
+    data: { theme: 'dark' },
   });
 }
 
@@ -63,6 +68,332 @@ async function dragNodeTitlebar(page: Page, node: Locator, deltaX: number, delta
 test.beforeEach(async ({ request }) => {
   await clearCanvas(request);
   await clearSnapshots(request);
+});
+
+test('renders every canvas node type in the browser', async ({ page, request }) => {
+  const mcpFrameResponse = await request.post('/api/canvas/frame-documents', {
+    data: {
+      html: '<!doctype html><main><h1>MCP App Renderer</h1><p>Iframe-backed app node.</p></main>',
+      sandbox: 'allow-scripts',
+    },
+  });
+  const mcpFrame = await mcpFrameResponse.json() as { url: string };
+
+  const webpageFrameResponse = await request.post('/api/canvas/frame-documents', {
+    data: {
+      html: [
+        '<!doctype html>',
+        '<html><head><title>Webpage Renderer Fixture</title>',
+        '<meta name="description" content="Local webpage renderer description.">',
+        '</head><body><main>Webpage renderer body.</main></body></html>',
+      ].join(''),
+      sandbox: 'allow-scripts',
+    },
+  });
+  const webpageFrame = await webpageFrameResponse.json() as { url: string };
+  const webpageUrl = `http://127.0.0.1:${playwrightPort}${webpageFrame.url}`;
+  const imageSvg = [
+    '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90">',
+    '<rect width="160" height="90" fill="#1d4ed8"/>',
+    '<text x="16" y="50" fill="white" font-size="16">IMG node</text>',
+    '</svg>',
+  ].join('');
+
+  await request.post('/api/canvas/batch', {
+    data: {
+      operations: [
+        {
+          op: 'node.add',
+          args: {
+            type: 'markdown',
+            title: 'All Types Markdown',
+            content: 'Markdown renderer body',
+            x: 0,
+            y: 0,
+            width: 360,
+            height: 220,
+          },
+        },
+        {
+          op: 'node.add',
+          args: {
+            type: 'status',
+            title: 'All Types Status',
+            data: {
+              phase: 'testing',
+              detail: 'status renderer detail',
+              message: 'status renderer message',
+            },
+            x: 430,
+            y: 0,
+            width: 360,
+            height: 220,
+          },
+        },
+        {
+          op: 'node.add',
+          args: {
+            type: 'context',
+            title: 'All Types Context',
+            data: {
+              currentTokens: 420,
+              tokenLimit: 1000,
+              utilization: 0.42,
+              messagesLength: 7,
+              cards: [
+                {
+                  title: 'Context renderer card',
+                  summary: 'Context renderer summary',
+                  pathDisplay: 'tests/context.md',
+                  sourceKind: 'workspace',
+                },
+              ],
+            },
+            x: 860,
+            y: 0,
+            width: 360,
+            height: 260,
+          },
+        },
+        {
+          op: 'node.add',
+          args: {
+            type: 'ledger',
+            title: 'All Types Ledger',
+            data: { passedChecks: 15, failedChecks: 0 },
+            x: 1290,
+            y: 0,
+            width: 360,
+            height: 220,
+          },
+        },
+        {
+          op: 'node.add',
+          args: {
+            type: 'trace',
+            title: 'All Types Trace',
+            data: {
+              toolName: 'canvas_render_all_types',
+              category: 'mcp',
+              status: 'success',
+              duration: '12ms',
+              resultSummary: 'trace renderer result',
+            },
+            x: 0,
+            y: 330,
+            width: 360,
+            height: 140,
+          },
+        },
+        {
+          op: 'node.add',
+          args: {
+            type: 'file',
+            title: 'all-types-fixture.ts',
+            content: 'export const fileRenderer = "file renderer body";',
+            x: 430,
+            y: 330,
+            width: 420,
+            height: 260,
+          },
+        },
+        {
+          op: 'node.add',
+          args: {
+            type: 'image',
+            title: 'All Types Image',
+            content: `data:image/svg+xml,${encodeURIComponent(imageSvg)}`,
+            data: {
+              alt: 'All node types image',
+              caption: 'Image renderer caption',
+            },
+            x: 860,
+            y: 330,
+            width: 360,
+            height: 260,
+          },
+        },
+        {
+          op: 'node.add',
+          args: {
+            type: 'html',
+            title: 'All Types HTML',
+            html: '<main><h1>HTML Renderer</h1><p>HTML renderer body.</p></main>',
+            x: 1290,
+            y: 330,
+            width: 420,
+            height: 300,
+          },
+        },
+        {
+          op: 'node.add',
+          args: {
+            type: 'prompt',
+            title: 'All Types Prompt',
+            data: {
+              text: 'Prompt renderer question',
+              turns: [{ role: 'user', text: 'Prompt renderer question', status: 'pending' }],
+              threadStatus: 'pending',
+              status: 'pending',
+            },
+            x: 0,
+            y: 680,
+            width: 420,
+            height: 260,
+          },
+        },
+        {
+          op: 'node.add',
+          args: {
+            type: 'response',
+            title: 'All Types Response',
+            data: {
+              content: 'Response renderer answer',
+              status: 'complete',
+            },
+            x: 430,
+            y: 680,
+            width: 420,
+            height: 260,
+          },
+        },
+        {
+          op: 'node.add',
+          args: {
+            type: 'mcp-app',
+            title: 'All Types MCP App',
+            data: {
+              url: mcpFrame.url,
+              title: 'All Types MCP App',
+              sourceServer: 'all-types-fixture',
+              trustedDomain: true,
+            },
+            x: 860,
+            y: 680,
+            width: 420,
+            height: 300,
+          },
+        },
+      ],
+    },
+  });
+
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'webpage',
+      title: 'All Types Webpage',
+      url: webpageUrl,
+      x: 1290,
+      y: 680,
+      width: 420,
+      height: 300,
+    },
+  });
+
+  await request.post('/api/canvas/json-render', {
+    data: {
+      title: 'All Types JSON Render',
+      spec: {
+        root: 'card',
+        elements: {
+          card: {
+            type: 'Card',
+            props: { title: 'JSON Renderer Card', description: 'JSON renderer description' },
+            children: ['body'],
+          },
+          body: {
+            type: 'Text',
+            props: { text: 'JSON renderer body' },
+            children: [],
+          },
+        },
+      },
+      x: 0,
+      y: 1030,
+      width: 420,
+      height: 300,
+    },
+  });
+
+  await request.post('/api/canvas/graph', {
+    data: {
+      title: 'All Types Graph',
+      graphType: 'bar',
+      data: [
+        { label: 'One', value: 12 },
+        { label: 'Two', value: 18 },
+      ],
+      xKey: 'label',
+      yKey: 'value',
+      x: 430,
+      y: 1030,
+      width: 420,
+      nodeHeight: 300,
+      height: 220,
+    },
+  });
+
+  await request.post('/api/canvas/group', {
+    data: {
+      title: 'All Types Group',
+      x: 860,
+      y: 1030,
+      width: 420,
+      height: 260,
+    },
+  });
+
+  await request.post('/api/canvas/viewport', {
+    data: { x: 80, y: 100, scale: 0.5, recordHistory: false },
+  });
+
+  await page.goto('/workbench');
+
+  await expect.poll(async () => {
+    const state = await currentCanvasState(request);
+    return state.nodes.map((node) => node.type).sort();
+  }).toEqual([
+    'context',
+    'file',
+    'graph',
+    'group',
+    'html',
+    'image',
+    'json-render',
+    'ledger',
+    'markdown',
+    'mcp-app',
+    'prompt',
+    'response',
+    'status',
+    'trace',
+    'webpage',
+  ]);
+
+  const node = (title: string) => page.locator('.canvas-node').filter({ hasText: title });
+
+  await expect(node('All Types Markdown')).toContainText('Markdown renderer body');
+  await expect(node('All Types Status')).toContainText('testing');
+  await expect(node('All Types Status')).toContainText('status renderer message');
+  await page.getByRole('button', { name: 'Context — 1 item' }).click();
+  await expect(page.locator('.context-dock-panel')).toContainText('Context renderer card');
+  await expect(page.locator('.context-dock-panel')).toContainText('42%');
+  await expect(node('All Types Ledger')).toContainText('Passed Checks');
+  await expect(node('All Types Trace')).toContainText('canvas_render_all_types');
+  await expect(node('All Types Trace')).toContainText('trace renderer result');
+  await expect(node('all-types-fixture.ts')).toContainText('file renderer body');
+  await expect(node('All Types Image').locator('.image-node img')).toBeVisible();
+  await expect(node('All Types Image')).toContainText('Image renderer caption');
+  await expect(node('All Types Webpage')).toContainText('Webpage Renderer Fixture');
+  await expect(node('All Types Webpage')).toContainText('Local webpage renderer description.');
+  await expect(node('All Types Prompt')).toContainText('Prompt renderer question');
+  await expect(node('All Types Response')).toContainText('Response renderer answer');
+  await expect(node('All Types Group')).toContainText('Drag nodes here');
+
+  await expect(node('All Types HTML').frameLocator('iframe').getByRole('heading', { name: 'HTML Renderer' })).toBeVisible();
+  await expect(node('All Types MCP App').frameLocator('iframe').getByRole('heading', { name: 'MCP App Renderer' })).toBeVisible();
+  await expect(node('All Types JSON Render').frameLocator('iframe').getByText('JSON Renderer Card', { exact: true })).toBeVisible();
+  await expect(node('All Types Graph').frameLocator('iframe').locator('.recharts-responsive-container')).toBeVisible();
 });
 
 test('creates a markdown note from the canvas background', async ({ page, request }) => {
@@ -349,6 +680,168 @@ test('keeps the browser, pinned context, and agent-driven canvas mutations in sy
     const pinned = await response.json() as { count: number; nodeIds: string[] };
     return `${pinned.count}:${pinned.nodeIds.join(',')}`;
   }).toBe(`1:${created.id}`);
+});
+
+test('core canvas API workflows stay synchronized with the browser', async ({ page, request }) => {
+  const batchResponse = await request.post('/api/canvas/batch', {
+    data: {
+      operations: [
+        {
+          op: 'node.add',
+          assign: 'alpha',
+          args: {
+            type: 'markdown',
+            title: 'Workflow Alpha',
+            content: 'Alpha searchable body',
+            x: 120,
+            y: 160,
+            width: 360,
+            height: 220,
+          },
+        },
+        {
+          op: 'node.add',
+          assign: 'beta',
+          args: {
+            type: 'markdown',
+            title: 'Workflow Beta',
+            content: 'Beta linked body',
+            x: 660,
+            y: 160,
+            width: 360,
+            height: 220,
+          },
+        },
+        {
+          op: 'edge.add',
+          args: {
+            from: '$alpha.id',
+            to: '$beta.id',
+            type: 'flow',
+            label: 'workflow edge',
+            animated: true,
+          },
+        },
+        {
+          op: 'pin.set',
+          args: { nodeIds: ['$alpha.id'] },
+        },
+        {
+          op: 'snapshot.save',
+          assign: 'baseline',
+          args: { name: 'workflow-baseline' },
+        },
+      ],
+    },
+  });
+  expect(batchResponse.ok()).toBe(true);
+  const batch = await batchResponse.json() as {
+    ok: boolean;
+    refs: {
+      alpha: { id: string };
+      beta: { id: string };
+      baseline: { snapshot: { id: string } };
+    };
+  };
+  expect(batch.ok).toBe(true);
+
+  await page.goto('/workbench');
+  const alphaNode = page.locator('.canvas-node').filter({ hasText: 'Workflow Alpha' });
+  const betaNode = page.locator('.canvas-node').filter({ hasText: 'Workflow Beta' });
+  await expect(alphaNode).toHaveCount(1);
+  await expect(betaNode).toHaveCount(1);
+  await expect(page.getByText('workflow edge')).toBeVisible();
+  await expect(page.locator('.context-pin-bar')).toContainText('1 node in context');
+
+  const search = await request.get('/api/canvas/search?q=searchable');
+  const searchBody = await search.json() as { results: Array<{ id: string; title?: string }> };
+  expect(searchBody.results.map((result) => result.id)).toContain(batch.refs.alpha.id);
+
+  const pinned = await request.get('/api/canvas/pinned-context');
+  const pinnedBody = await pinned.json() as { count: number; nodeIds: string[] };
+  expect(pinnedBody.count).toBe(1);
+  expect(pinnedBody.nodeIds).toEqual([batch.refs.alpha.id]);
+
+  const spatial = await request.get('/api/canvas/spatial-context');
+  const spatialBody = await spatial.json() as {
+    pinnedNeighborhoods?: Array<{ pinnedNodeId: string; nearbyNodes?: Array<{ id: string }> }>;
+  };
+  expect(spatialBody.pinnedNeighborhoods?.some((entry) => entry.pinnedNodeId === batch.refs.alpha.id)).toBe(true);
+
+  const axFocus = await request.post('/api/canvas/ax/focus', {
+    data: { nodeIds: [batch.refs.beta.id], source: 'codex' },
+  });
+  expect(axFocus.ok()).toBe(true);
+  await expect.poll(async () => {
+    const ax = await request.get('/api/canvas/ax');
+    const body = await ax.json() as { state?: { focus?: { nodeIds?: string[]; source?: string } } };
+    return {
+      nodeIds: body.state?.focus?.nodeIds,
+      source: body.state?.focus?.source,
+    };
+  }).toEqual({ nodeIds: [batch.refs.beta.id], source: 'codex' });
+
+  await request.post('/api/canvas/focus', {
+    data: { id: batch.refs.beta.id },
+  });
+  await expect(betaNode).toHaveClass(/active/);
+
+  const beforeArrange = await currentCanvasState(request);
+  const beforeAlpha = beforeArrange.nodes.find((node) => node.id === batch.refs.alpha.id)?.position;
+  await request.post('/api/canvas/arrange', { data: { layout: 'column' } });
+  await expect.poll(async () => {
+    const state = await currentCanvasState(request);
+    const alpha = state.nodes.find((node) => node.id === batch.refs.alpha.id);
+    return alpha?.position;
+  }).not.toEqual(beforeAlpha);
+
+  const fitResponse = await request.post('/api/canvas/fit', {
+    data: { nodeIds: [batch.refs.alpha.id, batch.refs.beta.id], width: 1440, height: 900, padding: 80 },
+  });
+  expect(fitResponse.ok()).toBe(true);
+  await expect.poll(async () => {
+    const state = await currentCanvasState(request);
+    return state.nodes.length;
+  }).toBe(2);
+
+  const gammaResponse = await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Workflow Gamma',
+      content: 'Undo target',
+      x: 1200,
+      y: 160,
+    },
+  });
+  expect(gammaResponse.ok()).toBe(true);
+  const gamma = await gammaResponse.json() as { id: string };
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Workflow Gamma' })).toHaveCount(1);
+
+  const diffResponse = await request.get(`/api/canvas/snapshots/${batch.refs.baseline.snapshot.id}/diff`);
+  const diff = await diffResponse.json() as { text: string };
+  expect(diff.text).toContain('Workflow Gamma');
+
+  const undoResponse = await request.post('/api/canvas/undo');
+  expect(undoResponse.ok()).toBe(true);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Workflow Gamma' })).toHaveCount(0);
+  await expect.poll(async () => {
+    const state = await currentCanvasState(request);
+    return state.nodes.some((node) => node.id === gamma.id);
+  }).toBe(false);
+
+  const redoResponse = await request.post('/api/canvas/redo');
+  expect(redoResponse.ok()).toBe(true);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Workflow Gamma' })).toHaveCount(1);
+
+  const historyResponse = await request.get('/api/canvas/history');
+  const history = await historyResponse.json() as { canUndo: boolean; entries: unknown[]; text: string };
+  expect(history.canUndo).toBe(true);
+  expect(history.entries.length).toBeGreaterThan(0);
+  expect(history.text).toContain('Added markdown node');
+
+  const validateResponse = await request.get('/api/canvas/validate');
+  const validation = await validateResponse.json() as { ok: boolean };
+  expect(validation.ok).toBe(true);
 });
 
 test('semantic attention layer shows focus and interpretation history', async ({ page, request }) => {
@@ -688,7 +1181,21 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
 
   // Collapse back to inline before the reload so the post-reload assertion
   // exercises the inline iframe (count persisted via appModelContext).
-  await page.keyboard.press('Escape');
+  await expandedPanel.getByTitle('Close (Esc)').click();
+  await expect(expandedPanel).toHaveCount(0);
+  const inlineFill = await appNode.evaluate((node) => {
+    const iframe = node.querySelector('iframe');
+    const host = iframe?.parentElement;
+    if (!iframe || !host) return null;
+    const iframeRect = iframe.getBoundingClientRect();
+    const hostRect = host.getBoundingClientRect();
+    return {
+      iframeHeight: iframeRect.height,
+      hostHeight: hostRect.height,
+    };
+  });
+  expect(inlineFill).not.toBeNull();
+  expect(inlineFill!.iframeHeight).toBeGreaterThanOrEqual(inlineFill!.hostHeight - 1);
 
   await page.reload();
   const reloadedNode = page.locator('.canvas-node').filter({ hasText: 'Counter App' });
@@ -1562,6 +2069,37 @@ test('annotation toolbar actions preserve the current light theme', async ({ pag
 
   await page.getByLabel('Erase annotations').click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+});
+
+test('theme selection persists for fresh browser sessions', async ({ page, request, context }) => {
+  await page.goto('/workbench');
+  await page.getByLabel('Switch to light theme').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+
+  await expect.poll(async () => {
+    const response = await request.get('/api/canvas/theme');
+    const body = await response.json() as { theme?: string };
+    return body.theme;
+  }).toBe('light');
+
+  const secondPage = await context.newPage();
+  await secondPage.goto('/workbench');
+  await expect(secondPage.locator('html')).toHaveAttribute('data-theme', 'light');
+  await secondPage.close();
+
+  await page.getByLabel('Switch to dark theme').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+
+  await expect.poll(async () => {
+    const response = await request.get('/api/canvas/theme');
+    const body = await response.json() as { theme?: string };
+    return body.theme;
+  }).toBe('dark');
+
+  const thirdPage = await context.newPage();
+  await thirdPage.goto('/workbench');
+  await expect(thirdPage.locator('html')).toHaveAttribute('data-theme', 'dark');
+  await thirdPage.close();
 });
 
 test('server-side focus updates the browser viewport', async ({ page, request }) => {

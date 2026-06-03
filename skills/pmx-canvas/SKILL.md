@@ -72,6 +72,8 @@ reference before using adapter-native features:
 
 - `references/github-copilot-app-adapter.md` — GitHub Copilot app project extension, native canvas
   panel, AX context injection, and live-test checklist.
+- `references/codex-app-adapter.md` — Codex app native Browser + MCP adapter, AX context reading,
+  focus labeling, and live-test checklist.
 
 The canvas auto-starts on first MCP tool call when running in MCP mode (`pmx-canvas --mcp`).
 For manual start:

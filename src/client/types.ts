@@ -108,6 +108,7 @@ export function isExcalidrawNode(node: CanvasNodeState): boolean {
 
 export interface CanvasLayout {
   viewport: ViewportState;
+  theme?: 'dark' | 'light' | 'high-contrast';
   nodes: CanvasNodeState[];
   edges: CanvasEdge[];
   annotations?: CanvasAnnotation[];

@@ -2616,6 +2616,21 @@ exit 2
     expect(extension).not.toContain('console.log');
   });
 
+  test('Codex app adapter reference documents native Browser and MCP surfaces', () => {
+    const reference = readFileSync(
+      join(process.cwd(), 'skills/pmx-canvas/references/codex-app-adapter.md'),
+      'utf-8',
+    );
+    const skill = readFileSync(join(process.cwd(), 'skills/pmx-canvas/SKILL.md'), 'utf-8');
+
+    expect(skill).toContain('references/codex-app-adapter.md');
+    expect(reference).toContain('Codex in-app Browser');
+    expect(reference).toContain('pmx-canvas --mcp');
+    expect(reference).toContain('canvas://ax-context');
+    expect(reference).toContain('canvas_set_ax_focus');
+    expect(reference).toContain('source: "codex"');
+  });
+
   test('edge add supports style and animated flags', async () => {
     const first = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
       method: 'POST',

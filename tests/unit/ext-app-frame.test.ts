@@ -3,6 +3,7 @@ import {
   getExtAppBridgeInitKey,
   resolveExtAppContainerDimensions,
   resolveExtAppDisplayModeRequest,
+  resolveExtAppInlineFrameHeight,
   resolveExtAppSandbox,
   shouldApplyExtAppSizeChange,
 } from '../../src/client/nodes/ExtAppFrame.tsx';
@@ -121,5 +122,10 @@ describe('ExtAppFrame host sizing', () => {
     expect(shouldApplyExtAppSizeChange(480, false)).toBe(true);
     expect(shouldApplyExtAppSizeChange(480, true)).toBe(false);
     expect(shouldApplyExtAppSizeChange(0, false)).toBe(false);
+  });
+
+  test('does not let app resize notifications shrink below the host frame', () => {
+    expect(resolveExtAppInlineFrameHeight(420, 760)).toBe(760);
+    expect(resolveExtAppInlineFrameHeight(900, 760)).toBe(900);
   });
 });

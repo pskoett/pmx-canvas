@@ -38,6 +38,7 @@ import {
   walkGraph,
 } from './state/canvas-store';
 import { connectSSE } from './state/sse-bridge';
+import { saveCanvasTheme } from './state/intent-bridge';
 import {
   IconArrange,
   IconClearTrace,
@@ -240,6 +241,7 @@ function Toolbar({
               document.documentElement.setAttribute('data-theme', next);
               invalidateTokenCache();
               canvasTheme.value = next;
+              void saveCanvasTheme(next);
             }}
             aria-label={`Switch to ${canvasTheme.value === 'dark' ? 'light' : 'dark'} theme`}
           >

@@ -22,6 +22,10 @@ export declare function openWorkbenchFile(path: string): Promise<{
 }>;
 /** Fetch canvas state from server. */
 export declare function fetchCanvasState(): Promise<Record<string, unknown>>;
+export declare function saveCanvasTheme(theme: string): Promise<{
+    ok: boolean;
+    theme?: string;
+}>;
 /** Fetch available slash commands for prompt completion. */
 export declare function fetchSlashCommands(): Promise<Array<{
     name: string;

@@ -1,6 +1,8 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
+import { loadStateFromDB } from '../../src/server/canvas-db.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { computeGroupBounds, findOpenCanvasPosition } from '../../src/server/placement.ts';
@@ -101,6 +103,41 @@ describe('canvas state manager', () => {
     const persisted = readPersistedCanvasState(workspaceRoot);
     expect(persisted.annotations).toHaveLength(1);
     expect(persisted.annotations?.[0]?.id).toBe('ann-1');
+  });
+
+  test('persists the selected canvas theme', async () => {
+    expect(canvasState.theme).toBe('dark');
+    expect(canvasState.setTheme('light')).toBe('light');
+
+    await waitForPersistence();
+    const persisted = readPersistedCanvasState(workspaceRoot);
+    expect(persisted.theme).toBe('light');
+
+    resetCanvasForTests(workspaceRoot);
+    expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
+    expect(canvasState.theme).toBe('light');
+    expect(canvasState.getLayout().theme).toBe('light');
+  });
+
+  test('treats missing persisted theme metadata as no saved preference', async () => {
+    canvasState.setTheme('light');
+    canvasState.flushToDisk();
+
+    const dbPath = join(workspaceRoot, '.pmx-canvas', 'canvas.db');
+    const writableDb = new Database(dbPath);
+    try {
+      writableDb.run('DELETE FROM meta WHERE key = ?', ['theme']);
+    } finally {
+      writableDb.close();
+    }
+
+    const readonlyDb = new Database(dbPath, { readonly: true });
+    try {
+      const restored = loadStateFromDB(readonlyDb);
+      expect(restored?.theme).toBeUndefined();
+    } finally {
+      readonlyDb.close();
+    }
   });
 
   test('persists text annotations', async () => {

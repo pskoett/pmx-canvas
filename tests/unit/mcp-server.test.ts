@@ -774,10 +774,10 @@ describe('MCP parity with CLI', () => {
     const focus = parseJsonText<{ ok: boolean; focus: { nodeIds: string[]; source: string | null } }>(
       await session.client.callTool({
         name: 'canvas_set_ax_focus',
-        arguments: { nodeIds: [focused.id, 'missing-node'] },
+        arguments: { nodeIds: [focused.id, 'missing-node'], source: 'codex' },
       }) as ToolResultShape,
     );
-    expect(focus.focus).toMatchObject({ nodeIds: [focused.id], source: 'mcp' });
+    expect(focus.focus).toMatchObject({ nodeIds: [focused.id], source: 'codex' });
 
     const toolResult = parseJsonText<{
       state: { focus: { nodeIds: string[] } };
