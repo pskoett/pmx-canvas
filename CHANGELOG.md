@@ -3,6 +3,58 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.25] - 2026-06-03
+
+Adapter-regression cleanup on top of 0.1.24. Fixes several issues the
+GitHub Copilot and Codex canvas adapters surfaced: effective pinned
+state now shows up on node reads, PMX-served frame-document iframes are
+trusted automatically, group membership is settable through the generic
+node APIs, default node sizes were retuned, and the mutation-history
+diff no longer reports spurious "data changed" for title/content edits.
+
+### Changed
+
+- **Node reads report effective pinned state.** `canvas_get_node` and
+  `canvas_get_layout` (and every read path) now return `pinned: true`
+  when a node is in the context-pin set, not only when its own
+  `pinned` flag is set. Adapters that key off `pinned` now see what
+  the human actually pinned.
+- **Larger default node sizes.** Markdown nodes default to 640×420
+  (was 520×360) and `mcp-app` nodes get an explicit 960×600 default,
+  applied consistently across the HTTP create/batch path, the SDK,
+  and browser auto-placement. Larger app frames render their embedded
+  content without immediate manual resizing.
+- **Mutation-history diff ignores title/content for "data changed".**
+  `canvas_diff` and the history timeline no longer flag a generic
+  "data changed" when only a node's `title` or `content` differs —
+  those are already reported as their own title/content changes, so
+  the data-level diff now compares the remaining fields.
+
+### Added
+
+- **PMX-served frame documents are trusted automatically.** Embedded
+  `mcp-app` iframes whose source is a same-origin
+  `/api/canvas/frame-documents/<id>` URL are now treated as trusted
+  (no sandbox-escape warning), via a new
+  `isSameOriginFrameDocumentUrl()` guard that validates both the
+  origin and the path prefix. External URLs and unrelated same-origin
+  paths remain untrusted.
+- **Group membership through the generic node APIs.** `POST
+  /api/canvas/group` and the node update path accept `children` /
+  `childIds` (or `data.children`) and persist group membership, with
+  validation that rejects missing child IDs, self-references, and
+  nested-group children. Snapshot diffs expose the resulting
+  membership.
+
+### Internal
+
+- Regression coverage for: frame-document trust (same-origin PMX path
+  trusted; external and unrelated same-origin paths not), generic
+  group-children APIs persisting membership and surfacing it in
+  snapshot diffs, the retuned default node sizes through CLI/HTTP/MCP,
+  effective-pinned read state, and the title/content-aware
+  mutation-history diff.
+
 ## [0.1.24] - 2026-06-03
 
 Host-adapter and agent-experience (AX) release. Adds host-agnostic AX
@@ -1183,6 +1235,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.25]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.25
 [0.1.24]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.24
 [0.1.23]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.23
 [0.1.22]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.22
