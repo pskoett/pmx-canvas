@@ -1969,9 +1969,13 @@ test('light theme uses a high-contrast blue for context-pinned nodes', async ({ 
   const created = await createResponse.json() as { id: string };
 
   await page.goto('/workbench');
-  await page.evaluate(() => {
-    document.documentElement.setAttribute('data-theme', 'light');
-  });
+  // Switch to light theme through the real toolbar control so the choice is
+  // persisted server-side. A raw setAttribute('data-theme','light') is not
+  // persisted, so a later SSE round-trip (e.g. the pin below now also flips
+  // the node's effective pinned flag) would re-apply the server's stored
+  // theme and clobber it — flaking this assertion.
+  await page.getByLabel('Switch to light theme').click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 
   const note = page.locator('.canvas-node').filter({ hasText: 'Light theme pin' });
   await expect(note).toHaveCount(1);
