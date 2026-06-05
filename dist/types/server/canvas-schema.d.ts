@@ -33,7 +33,7 @@ export interface StructuredValidationResult {
     };
     summary: Record<string, unknown>;
 }
-declare const CANONICAL_GRAPH_TYPES: readonly ["line", "bar", "pie", "area", "scatter", "radar", "stacked-bar", "composed"];
+declare const CANONICAL_GRAPH_TYPES: readonly ["line", "bar", "pie", "area", "scatter", "radar", "stacked-bar", "composed", "sparkline", "dot-plot", "bullet", "slopegraph"];
 type CanvasGraphType = typeof CANONICAL_GRAPH_TYPES[number];
 export declare function describeCanvasSchema(): {
     ok: true;
@@ -43,6 +43,10 @@ export declare function describeCanvasSchema(): {
     jsonRender: {
         rootShape: Record<string, string>;
         components: JsonRenderComponentDescriptor[];
+        directives: Array<{
+            name: string;
+            usage: string;
+        }>;
     };
     graph: {
         graphTypes: CanvasGraphType[];

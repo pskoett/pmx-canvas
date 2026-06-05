@@ -53,8 +53,18 @@ export declare const chartComponentDefinitions: {
             }>>;
             color: z.ZodNullable<z.ZodString>;
             height: z.ZodNullable<z.ZodNumber>;
+            colorBy: z.ZodNullable<z.ZodEnum<{
+                value: "value";
+                series: "series";
+                category: "category";
+                none: "none";
+            }>>;
+            highlight: z.ZodNullable<z.ZodUnion<readonly [z.ZodNumber, z.ZodEnum<{
+                max: "max";
+                min: "min";
+            }>]>>;
         }, z.core.$strip>;
-        readonly description: "Bar chart for comparing categories. Provide data as an array of objects with xKey and yKey fields.";
+        readonly description: "Bar chart for comparing categories. Provide data as an array of objects with xKey and yKey fields. Color encodes data, not decoration: by default one accent with the tallest bar highlighted (colorBy='series'). Set colorBy='category' only when the category itself is the message, 'value' to shade by magnitude, or 'none' for a flat fill.";
         readonly example: {
             readonly title: "Sales by region";
             readonly data: readonly [{
@@ -72,6 +82,8 @@ export declare const chartComponentDefinitions: {
             readonly aggregate: null;
             readonly color: null;
             readonly height: null;
+            readonly colorBy: "series";
+            readonly highlight: "max";
         };
     };
     readonly PieChart: {

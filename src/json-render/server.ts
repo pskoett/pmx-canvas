@@ -2,7 +2,9 @@ import { spawn } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { buildAppHtml } from '@json-render/mcp/build-app-html';
+import { applySpecPatch, parseSpecStreamLine, type Spec, type SpecStreamLine } from '@json-render/core';
 import { allComponentDefinitions, catalog, validateShadcnElementProps, type JsonRenderIssue } from './catalog.js';
+import { isDynamicPropValue } from './directives.js';
 
 export interface JsonRenderSpec {
   root: string;
@@ -36,8 +38,23 @@ export interface GraphNodeInput {
   lineKey?: string;
   aggregate?: 'sum' | 'count' | 'avg';
   color?: string;
+  colorBy?: 'series' | 'category' | 'value' | 'none';
+  highlight?: number | 'max' | 'min' | null;
   barColor?: string;
   lineColor?: string;
+  labelKey?: string;
+  beforeKey?: string;
+  afterKey?: string;
+  beforeLabel?: string;
+  afterLabel?: string;
+  targetKey?: string;
+  rangesKey?: string;
+  sort?: 'asc' | 'desc' | 'none';
+  fill?: boolean;
+  showEndDot?: boolean;
+  showMinMax?: boolean;
+  showValue?: boolean;
+  colorByDirection?: boolean;
   height?: number;
   showLegend?: boolean;
   showLabels?: boolean;
@@ -59,7 +76,11 @@ export type GraphChartType =
   | 'ScatterChart'
   | 'RadarChart'
   | 'StackedBarChart'
-  | 'ComposedChart';
+  | 'ComposedChart'
+  | 'Sparkline'
+  | 'DotPlot'
+  | 'BulletChart'
+  | 'Slopegraph';
 
 const GRAPH_TYPE_ALIASES: Record<string, GraphChartType> = {
   line: 'LineChart',
@@ -84,6 +105,15 @@ const GRAPH_TYPE_ALIASES: Record<string, GraphChartType> = {
   composedchart: 'ComposedChart',
   combo: 'ComposedChart',
   combochart: 'ComposedChart',
+  sparkline: 'Sparkline',
+  spark: 'Sparkline',
+  dotplot: 'DotPlot',
+  dot: 'DotPlot',
+  cleveland: 'DotPlot',
+  bullet: 'BulletChart',
+  bulletchart: 'BulletChart',
+  slopegraph: 'Slopegraph',
+  slope: 'Slopegraph',
 };
 
 const COERCIBLE_STRING_PROPS = [
@@ -316,7 +346,12 @@ function normalizeElementProps(
   const props = (stripNullishDeep(rawProps) as Record<string, unknown> | undefined) ?? {};
 
   for (const key of COERCIBLE_STRING_PROPS) {
-    if (key in props && typeof props[key] !== 'string' && props[key] !== undefined) {
+    if (
+      key in props &&
+      typeof props[key] !== 'string' &&
+      props[key] !== undefined &&
+      !isDynamicPropValue(props[key])
+    ) {
       props[key] = String(props[key]);
     }
   }
@@ -567,9 +602,51 @@ export function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec {
       chartProps.showLegend = input.showLegend !== false;
       break;
     }
+    case 'BarChart': {
+      chartProps.xKey = input.xKey ?? 'label';
+      chartProps.yKey = input.yKey ?? 'value';
+      chartProps.aggregate = input.aggregate ?? null;
+      chartProps.color = input.color ?? null;
+      chartProps.colorBy = input.colorBy ?? 'series';
+      chartProps.highlight = input.highlight === undefined ? 'max' : input.highlight;
+      break;
+    }
+    case 'Sparkline': {
+      chartProps.valueKey = input.valueKey ?? input.yKey ?? 'value';
+      chartProps.color = input.color ?? null;
+      chartProps.fill = input.fill ?? null;
+      chartProps.showEndDot = input.showEndDot ?? null;
+      chartProps.showMinMax = input.showMinMax ?? null;
+      chartProps.showValue = input.showValue ?? null;
+      break;
+    }
+    case 'DotPlot': {
+      chartProps.labelKey = input.labelKey ?? input.xKey ?? 'label';
+      chartProps.valueKey = input.valueKey ?? input.yKey ?? 'value';
+      chartProps.color = input.color ?? null;
+      chartProps.sort = input.sort ?? null;
+      break;
+    }
+    case 'BulletChart': {
+      chartProps.labelKey = input.labelKey ?? input.xKey ?? null;
+      chartProps.valueKey = input.valueKey ?? input.yKey ?? 'value';
+      chartProps.targetKey = input.targetKey ?? null;
+      chartProps.rangesKey = input.rangesKey ?? null;
+      chartProps.color = input.color ?? null;
+      break;
+    }
+    case 'Slopegraph': {
+      chartProps.labelKey = input.labelKey ?? 'label';
+      chartProps.beforeKey = input.beforeKey ?? 'before';
+      chartProps.afterKey = input.afterKey ?? 'after';
+      chartProps.beforeLabel = input.beforeLabel ?? null;
+      chartProps.afterLabel = input.afterLabel ?? null;
+      chartProps.color = input.color ?? null;
+      chartProps.colorByDirection = input.colorByDirection ?? null;
+      break;
+    }
     case 'AreaChart':
     case 'LineChart':
-    case 'BarChart':
     default: {
       chartProps.xKey = input.xKey ?? 'label';
       chartProps.yKey = input.yKey ?? 'value';
@@ -619,12 +696,77 @@ export function buildGraphConfig(input: GraphNodeInput): Record<string, unknown>
     ...(input.lineKey ? { lineKey: input.lineKey } : {}),
     ...(input.aggregate ? { aggregate: input.aggregate } : {}),
     ...(input.color ? { color: input.color } : {}),
+    ...(input.colorBy ? { colorBy: input.colorBy } : {}),
+    ...(input.highlight !== undefined ? { highlight: input.highlight } : {}),
     ...(input.barColor ? { barColor: input.barColor } : {}),
     ...(input.lineColor ? { lineColor: input.lineColor } : {}),
+    ...(input.labelKey ? { labelKey: input.labelKey } : {}),
+    ...(input.beforeKey ? { beforeKey: input.beforeKey } : {}),
+    ...(input.afterKey ? { afterKey: input.afterKey } : {}),
+    ...(input.beforeLabel ? { beforeLabel: input.beforeLabel } : {}),
+    ...(input.afterLabel ? { afterLabel: input.afterLabel } : {}),
+    ...(input.targetKey ? { targetKey: input.targetKey } : {}),
+    ...(input.rangesKey ? { rangesKey: input.rangesKey } : {}),
+    ...(input.sort ? { sort: input.sort } : {}),
+    ...(typeof input.fill === 'boolean' ? { fill: input.fill } : {}),
+    ...(typeof input.showEndDot === 'boolean' ? { showEndDot: input.showEndDot } : {}),
+    ...(typeof input.showMinMax === 'boolean' ? { showMinMax: input.showMinMax } : {}),
+    ...(typeof input.showValue === 'boolean' ? { showValue: input.showValue } : {}),
+    ...(typeof input.colorByDirection === 'boolean' ? { colorByDirection: input.colorByDirection } : {}),
     ...(typeof input.height === 'number' ? { height: input.height } : {}),
     ...(typeof input.showLegend === 'boolean' ? { showLegend: input.showLegend } : {}),
     ...(typeof input.showLabels === 'boolean' ? { showLabels: input.showLabels } : {}),
   };
+}
+
+/** The minimal spec a streaming json-render node starts from before any patches. */
+export function emptyStreamingSpec(): JsonRenderSpec {
+  return { root: '', elements: {} };
+}
+
+/** Accept a SpecStream item as either a raw JSONL line or a JSON-Patch object. */
+function coerceStreamPatch(item: unknown): SpecStreamLine | null {
+  if (typeof item === 'string') return parseSpecStreamLine(item);
+  if (item && typeof item === 'object' && !Array.isArray(item)) {
+    const record = item as Record<string, unknown>;
+    if (typeof record.op === 'string' && typeof record.path === 'string') {
+      return item as SpecStreamLine;
+    }
+  }
+  return null;
+}
+
+/**
+ * Apply a batch of SpecStream patches to the current spec, accumulating the
+ * result. The canvas is the source of truth — patches are applied server-side
+ * and the browser only renders the current accumulated spec, so there is no
+ * client-side reconciliation. Tolerant by design: malformed or inapplicable
+ * patches are skipped and counted, never thrown, so a partial stream keeps
+ * building toward the final spec.
+ */
+export function applyJsonRenderStreamPatches(
+  currentSpec: JsonRenderSpec,
+  items: unknown[],
+): { spec: JsonRenderSpec; applied: number; skipped: number } {
+  let spec = currentSpec as Spec;
+  let applied = 0;
+  let skipped = 0;
+  for (const item of items) {
+    const patch = coerceStreamPatch(item);
+    if (!patch) {
+      skipped++;
+      continue;
+    }
+    try {
+      spec = applySpecPatch(spec, patch);
+      applied++;
+    } catch {
+      // Inapplicable patch (e.g. references a not-yet-added element); skip and
+      // keep streaming. A later patch may add the missing target.
+      skipped++;
+    }
+  }
+  return { spec: spec as JsonRenderSpec, applied, skipped };
 }
 
 export function createJsonRenderNodeData(
@@ -649,6 +791,7 @@ export async function buildJsonRenderViewerHtml(options: {
   spec: JsonRenderSpec;
   theme?: 'dark' | 'light' | 'high-contrast';
   display?: 'expanded';
+  devtools?: boolean;
 }): Promise<string> {
   try {
     await ensureJsonRenderBundle();
@@ -663,6 +806,7 @@ export async function buildJsonRenderViewerHtml(options: {
       `window.__PMX_CANVAS_JSON_RENDER_SPEC__ = ${JSON.stringify(options.spec)};`,
       ...(options.theme ? [`window.__PMX_CANVAS_JSON_RENDER_THEME__ = ${JSON.stringify(options.theme)};`] : []),
       ...(options.display ? [`window.__PMX_CANVAS_JSON_RENDER_DISPLAY__ = ${JSON.stringify(options.display)};`] : []),
+      ...(options.devtools ? ['window.__PMX_CANVAS_JSON_RENDER_DEVTOOLS__ = true;'] : []),
       jsBundle,
     ].join('\n');
     return buildAppHtml({

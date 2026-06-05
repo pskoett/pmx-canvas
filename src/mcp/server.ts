@@ -415,7 +415,7 @@ export async function startMcpServer(): Promise<void> {
     'canvas_add_html_node',
     'Add a normal html node: a self-contained HTML document (with optional inline <script> and CDN <script src="...">) rendered inside a sandboxed iframe (sandbox="allow-scripts"). This is the default HTML surface for reports, widgets, and bespoke visualizations. Presentation mode is opt-in: only pass presentation:true when the user explicitly asks for a deck/fullscreen presentation, or use canvas_add_html_primitive with kind="presentation". The iframe inherits live canvas theme tokens via injected CSS custom properties (both --c-* and common --color-* aliases) so authored HTML using var(--color-text-secondary), var(--color-bg), etc. renders cohesively. No same-origin access; no top-navigation; no forms. For declarative-only views with zero JS, prefer canvas_add_json_render_node. For React + shadcn + routing or multi-component apps, use canvas_build_web_artifact.',
     {
-      html: z.string().describe('HTML document or fragment. Full <html>...</html> documents are passed through with theme styles injected into <head>; bare fragments are wrapped in a minimal document. Inline <script> and remote CDN <script src="..."> are allowed.'),
+      html: z.string().describe('HTML document or fragment. Full <html>...</html> documents are passed through with theme styles injected into <head>; bare fragments are wrapped in a minimal document. Inline <script> and remote CDN <script src="..."> are allowed. If this is a bare path to an existing local .html/.htm file, the file contents are read and used as the HTML.'),
       title: z.string().optional().describe('Node title shown in the canvas titlebar.'),
       summary: z.string().optional().describe('Agent-readable semantic summary for this HTML node. If omitted, PMX derives one from visible HTML text.'),
       agentSummary: z.string().optional().describe('Explicit agent-readable summary. Alias for summary with higher priority when both are provided.'),
@@ -625,7 +625,7 @@ export async function startMcpServer(): Promise<void> {
       yKey: z.string().optional().describe('Y-axis key for line/bar graphs'),
       zKey: z.string().optional().describe('Optional bubble-size key for scatter charts'),
       nameKey: z.string().optional().describe('Slice name key for pie graphs'),
-      valueKey: z.string().optional().describe('Slice value key for pie graphs'),
+      valueKey: z.string().optional().describe('Value key for pie slices, sparkline, dot-plot, and the bullet measure'),
       axisKey: z.string().optional().describe('Category key for radar charts'),
       metrics: z.array(z.string()).optional().describe('Series keys to plot as radar polygons'),
       series: z.array(z.string()).optional().describe('Series keys for stacked-bar segments'),
@@ -633,8 +633,23 @@ export async function startMcpServer(): Promise<void> {
       lineKey: z.string().optional().describe('Line series key for composed charts'),
       aggregate: z.enum(['sum', 'count', 'avg']).optional().describe('Optional aggregation for repeated keys'),
       color: z.string().optional().describe('Optional graph color'),
+      colorBy: z.enum(['series', 'category', 'value', 'none']).optional().describe("Bar charts only: how bars are colored (default 'series')"),
+      highlight: z.union([z.number(), z.enum(['max', 'min'])]).nullable().optional().describe("Bar charts only, colorBy='series': which bar gets the accent"),
       barColor: z.string().optional().describe('Optional bar color for composed charts'),
       lineColor: z.string().optional().describe('Optional line color for composed charts'),
+      labelKey: z.string().optional().describe('Category label key for dot-plot / bullet / slopegraph rows'),
+      targetKey: z.string().optional().describe('Per-row target value key for bullet charts'),
+      rangesKey: z.string().optional().describe('Per-row qualitative band thresholds key (number[]) for bullet charts'),
+      beforeKey: z.string().optional().describe('Left-column value key for slopegraph'),
+      afterKey: z.string().optional().describe('Right-column value key for slopegraph'),
+      beforeLabel: z.string().optional().describe('Header label for the slopegraph left column'),
+      afterLabel: z.string().optional().describe('Header label for the slopegraph right column'),
+      sort: z.enum(['asc', 'desc', 'none']).optional().describe('Row sort order for dot-plot (defaults to desc)'),
+      fill: z.boolean().optional().describe('Sparkline: draw a light area fill under the line'),
+      showEndDot: z.boolean().optional().describe('Sparkline: draw a dot at the last point (default true)'),
+      showMinMax: z.boolean().optional().describe('Sparkline: mark the min and max points'),
+      showValue: z.boolean().optional().describe('Sparkline: print the last value inline'),
+      colorByDirection: z.boolean().optional().describe('Slopegraph: accent rising lines and mute falling ones (default off)'),
       height: z.number().optional().describe('Optional graph content height'),
     },
     async (input) => {
@@ -671,8 +686,23 @@ export async function startMcpServer(): Promise<void> {
                   ...(typeof input.lineKey === 'string' ? { lineKey: input.lineKey } : {}),
                   ...(typeof input.aggregate === 'string' ? { aggregate: input.aggregate } : {}),
                   ...(typeof input.color === 'string' ? { color: input.color } : {}),
+                  ...(typeof input.colorBy === 'string' ? { colorBy: input.colorBy } : {}),
+                  ...(input.highlight !== undefined ? { highlight: input.highlight } : {}),
                   ...(typeof input.barColor === 'string' ? { barColor: input.barColor } : {}),
                   ...(typeof input.lineColor === 'string' ? { lineColor: input.lineColor } : {}),
+                  ...(typeof input.labelKey === 'string' ? { labelKey: input.labelKey } : {}),
+                  ...(typeof input.targetKey === 'string' ? { targetKey: input.targetKey } : {}),
+                  ...(typeof input.rangesKey === 'string' ? { rangesKey: input.rangesKey } : {}),
+                  ...(typeof input.beforeKey === 'string' ? { beforeKey: input.beforeKey } : {}),
+                  ...(typeof input.afterKey === 'string' ? { afterKey: input.afterKey } : {}),
+                  ...(typeof input.beforeLabel === 'string' ? { beforeLabel: input.beforeLabel } : {}),
+                  ...(typeof input.afterLabel === 'string' ? { afterLabel: input.afterLabel } : {}),
+                  ...(typeof input.sort === 'string' ? { sort: input.sort } : {}),
+                  ...(typeof input.fill === 'boolean' ? { fill: input.fill } : {}),
+                  ...(typeof input.showEndDot === 'boolean' ? { showEndDot: input.showEndDot } : {}),
+                  ...(typeof input.showMinMax === 'boolean' ? { showMinMax: input.showMinMax } : {}),
+                  ...(typeof input.showValue === 'boolean' ? { showValue: input.showValue } : {}),
+                  ...(typeof input.colorByDirection === 'boolean' ? { colorByDirection: input.colorByDirection } : {}),
                   ...(typeof input.height === 'number' ? { height: input.height } : {}),
                 },
               });
@@ -831,19 +861,74 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
+  // ── canvas_stream_json_render_node ────────────────────────
+  server.tool(
+    'canvas_stream_json_render_node',
+    'Progressively build a json-render node by streaming SpecStream patches, so a panel fills in live as you generate it. Omit nodeId on the first call to create a new streaming node (returns its id); pass that same nodeId on later calls to append more patches; set done=true on the final call. Each call updates the live node. Patches are JSON-Patch operations, e.g. {"op":"add","path":"/elements/card","value":{"type":"Card","props":{"title":"Live"},"children":[]}}, {"op":"replace","path":"/root","value":"card"}, {"op":"add","path":"/elements/card/children/-","value":"row1"}. Build the spec incrementally: set /root, add container elements, then append children. The server accumulates the spec (it is the source of truth); partial specs render what they can.',
+    {
+      nodeId: z.string().optional().describe('Existing streaming node id to append to; omit to create a new streaming node'),
+      title: z.string().optional().describe('Title when creating a new streaming node'),
+      patches: z
+        .array(z.union([z.string(), z.record(z.string(), z.unknown())]))
+        .optional()
+        .describe('SpecStream patches to apply this call: JSON-Patch objects ({op,path,value}) or raw JSONL patch lines'),
+      done: z.boolean().optional().describe('Set true on the final call to mark the stream complete'),
+      x: z.number().optional().describe('Optional X position (new node)'),
+      y: z.number().optional().describe('Optional Y position (new node)'),
+      width: z.number().optional().describe('Optional node width (new node)'),
+      nodeHeight: z.number().optional().describe('Optional node height (new node)'),
+      strictSize: z.boolean().optional().describe('Keep explicit node size fixed and scroll overflowing content (new node)'),
+    },
+    async (input) => {
+      const c = await ensureCanvas();
+      try {
+        const result = await c.streamJsonRenderNode({
+          ...(typeof input.nodeId === 'string' ? { nodeId: input.nodeId } : {}),
+          ...(typeof input.title === 'string' ? { title: input.title } : {}),
+          ...(Array.isArray(input.patches) ? { patches: input.patches } : {}),
+          ...(input.done === true ? { done: true } : {}),
+          ...(typeof input.x === 'number' ? { x: input.x } : {}),
+          ...(typeof input.y === 'number' ? { y: input.y } : {}),
+          ...(typeof input.width === 'number' ? { width: input.width } : {}),
+          ...(typeof input.nodeHeight === 'number' ? { height: input.nodeHeight } : {}),
+          ...(input.strictSize === true ? { strictSize: true } : {}),
+        });
+        return {
+          content: [{
+            type: 'text',
+            text: JSON.stringify({
+              ...(await createdNodePayload(c, result.id)),
+              url: result.url,
+              applied: result.applied,
+              skipped: result.skipped,
+              specVersion: result.specVersion,
+              elementCount: result.elementCount,
+              streamStatus: result.streamStatus,
+            }, null, 2),
+          }],
+        };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+          isError: true,
+        };
+      }
+    },
+  );
+
   // ── canvas_add_graph_node ─────────────────────────────────
   server.tool(
     'canvas_add_graph_node',
-    'Create a native graph node backed by the json-render chart catalog. Supports line, bar, pie, area, scatter, radar, stacked-bar, and composed (bar+line) graphs rendered directly inside PMX Canvas.',
+    'Create a native graph node backed by the json-render chart catalog. Supports line, bar, pie, area, scatter, radar, stacked-bar, composed (bar+line), sparkline, dot-plot (Cleveland), bullet (Few KPI vs target), and slopegraph (paired before/after) graphs rendered directly inside PMX Canvas.',
     {
       title: z.string().optional().describe('Optional node title'),
-      graphType: z.string().describe('Graph type: line, bar, pie, area, scatter, radar, stacked-bar (or "stack"), composed (or "combo")'),
+      graphType: z.string().describe('Graph type: line, bar, pie, area, scatter, radar, stacked-bar (or "stack"), composed (or "combo"), sparkline, dot-plot (or "dot"), bullet, slopegraph (or "slope")'),
       data: z.array(z.record(z.string(), z.unknown())).describe('Array of chart data objects'),
       xKey: z.string().optional().describe('X-axis key (line/bar/area/scatter/stacked/composed)'),
       yKey: z.string().optional().describe('Y-axis key (line/bar/area/scatter); falls back to barKey for composed'),
       zKey: z.string().optional().describe('Optional bubble-size key for scatter charts'),
       nameKey: z.string().optional().describe('Name key for pie graphs'),
-      valueKey: z.string().optional().describe('Value key for pie graphs'),
+      valueKey: z.string().optional().describe('Value key for pie slices, sparkline, dot-plot, and the bullet measure'),
       axisKey: z.string().optional().describe('Category key for radar charts'),
       metrics: z.array(z.string()).optional().describe('Series keys to plot as radar polygons (defaults to non-axis numeric columns)'),
       series: z.array(z.string()).optional().describe('Series keys for stacked-bar segments (defaults to non-x numeric columns)'),
@@ -851,8 +936,30 @@ export async function startMcpServer(): Promise<void> {
       lineKey: z.string().optional().describe('Line series key for composed charts'),
       aggregate: z.enum(['sum', 'count', 'avg']).optional().describe('Optional aggregation for repeated x-axis values (line/bar/area/stacked)'),
       color: z.string().optional().describe('Optional series color (line/bar/area/scatter)'),
+      colorBy: z
+        .enum(['series', 'category', 'value', 'none'])
+        .optional()
+        .describe("Bar charts only: how bars are colored. 'series' (default) = single accent with one highlighted bar; 'category' = rotate palette per bar; 'value' = shade by magnitude; 'none' = flat. Prefer 'series' — color should encode data, not decorate."),
+      highlight: z
+        .union([z.number(), z.enum(['max', 'min'])])
+        .nullable()
+        .optional()
+        .describe("Bar charts only, for colorBy='series': which bar gets the accent — 'max' (default), 'min', a 0-based index, or null for no emphasis."),
       barColor: z.string().optional().describe('Optional bar color for composed charts'),
       lineColor: z.string().optional().describe('Optional line color for composed charts'),
+      labelKey: z.string().optional().describe('Category label key for dot-plot / bullet / slopegraph rows'),
+      targetKey: z.string().optional().describe('Per-row target value key for bullet charts'),
+      rangesKey: z.string().optional().describe('Per-row qualitative band thresholds key (number[]) for bullet charts'),
+      beforeKey: z.string().optional().describe('Left-column value key for slopegraph'),
+      afterKey: z.string().optional().describe('Right-column value key for slopegraph'),
+      beforeLabel: z.string().optional().describe('Header label for the slopegraph left column'),
+      afterLabel: z.string().optional().describe('Header label for the slopegraph right column'),
+      sort: z.enum(['asc', 'desc', 'none']).optional().describe('Row sort order for dot-plot (defaults to desc)'),
+      fill: z.boolean().optional().describe('Sparkline: draw a light area fill under the line'),
+      showEndDot: z.boolean().optional().describe('Sparkline: draw a dot at the last point (default true)'),
+      showMinMax: z.boolean().optional().describe('Sparkline: mark the min and max points'),
+      showValue: z.boolean().optional().describe('Sparkline: print the last value inline'),
+      colorByDirection: z.boolean().optional().describe('Slopegraph: accent rising lines and mute falling ones (default off — lines use one neutral ink)'),
       height: z.number().optional().describe('Optional chart content height'),
       showLegend: z.boolean().optional().describe('Show chart legend when supported; pass false for compact node layouts'),
       showLabels: z.boolean().optional().describe('Show direct labels when supported, such as pie slice labels (defaults to true)'),
@@ -881,8 +988,23 @@ export async function startMcpServer(): Promise<void> {
           ...(typeof input.lineKey === 'string' ? { lineKey: input.lineKey } : {}),
           ...(typeof input.aggregate === 'string' ? { aggregate: input.aggregate } : {}),
           ...(typeof input.color === 'string' ? { color: input.color } : {}),
+          ...(typeof input.colorBy === 'string' ? { colorBy: input.colorBy } : {}),
+          ...(input.highlight !== undefined ? { highlight: input.highlight } : {}),
           ...(typeof input.barColor === 'string' ? { barColor: input.barColor } : {}),
           ...(typeof input.lineColor === 'string' ? { lineColor: input.lineColor } : {}),
+          ...(typeof input.labelKey === 'string' ? { labelKey: input.labelKey } : {}),
+          ...(typeof input.targetKey === 'string' ? { targetKey: input.targetKey } : {}),
+          ...(typeof input.rangesKey === 'string' ? { rangesKey: input.rangesKey } : {}),
+          ...(typeof input.beforeKey === 'string' ? { beforeKey: input.beforeKey } : {}),
+          ...(typeof input.afterKey === 'string' ? { afterKey: input.afterKey } : {}),
+          ...(typeof input.beforeLabel === 'string' ? { beforeLabel: input.beforeLabel } : {}),
+          ...(typeof input.afterLabel === 'string' ? { afterLabel: input.afterLabel } : {}),
+          ...(typeof input.sort === 'string' ? { sort: input.sort } : {}),
+          ...(typeof input.fill === 'boolean' ? { fill: input.fill } : {}),
+          ...(typeof input.showEndDot === 'boolean' ? { showEndDot: input.showEndDot } : {}),
+          ...(typeof input.showMinMax === 'boolean' ? { showMinMax: input.showMinMax } : {}),
+          ...(typeof input.showValue === 'boolean' ? { showValue: input.showValue } : {}),
+          ...(typeof input.colorByDirection === 'boolean' ? { colorByDirection: input.colorByDirection } : {}),
           ...(typeof input.height === 'number' ? { height: input.height } : {}),
           ...(typeof input.showLegend === 'boolean' ? { showLegend: input.showLegend } : {}),
           ...(typeof input.showLabels === 'boolean' ? { showLabels: input.showLabels } : {}),

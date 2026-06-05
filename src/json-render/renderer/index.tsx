@@ -14,6 +14,9 @@ import { shadcnComponents } from '@json-render/shadcn';
 import { catalog } from '../catalog';
 import { chartComponents } from '../charts/components';
 import { extraChartComponents } from '../charts/extra-components';
+import { tufteChartComponents } from '../charts/tufte-components';
+import { pmxCanvasDirectives } from '../directives';
+import { JsonRenderDevtools } from '@json-render/devtools-react';
 
 type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'info' | 'warning' | 'error' | 'danger';
 type BadgeProps = {
@@ -36,12 +39,37 @@ function Badge({ props }: { props: BadgeProps }) {
   );
 }
 
+type ButtonVariant = 'primary' | 'secondary' | 'destructive' | 'danger' | 'outline' | 'ghost' | 'success';
+type ButtonProps = {
+  label: string;
+  variant?: ButtonVariant | null;
+  disabled?: boolean | null;
+};
+
+function Button({ props, emit }: { props: ButtonProps; emit: (event: string) => void }) {
+  const resolvedVariant = props.variant ?? 'primary';
+  return (
+    <button
+      type="button"
+      data-slot="button"
+      data-variant={resolvedVariant}
+      className={`pmx-button pmx-button--${resolvedVariant}`}
+      disabled={props.disabled ?? false}
+      onClick={() => emit('press')}
+    >
+      {props.label}
+    </button>
+  );
+}
+
 const { registry } = defineRegistry(catalog as never, {
   components: {
     ...shadcnComponents,
     Badge,
+    Button,
     ...chartComponents,
     ...extraChartComponents,
+    ...tufteChartComponents,
   } as never,
 });
 
@@ -50,6 +78,7 @@ declare global {
     __PMX_CANVAS_JSON_RENDER_SPEC__?: Spec & { state?: Record<string, unknown> };
     __PMX_CANVAS_JSON_RENDER_THEME__?: string;
     __PMX_CANVAS_JSON_RENDER_DISPLAY__?: string;
+    __PMX_CANVAS_JSON_RENDER_DEVTOOLS__?: boolean;
   }
 }
 
@@ -95,8 +124,12 @@ function App() {
       <JSONUIProvider
         registry={registry}
         initialState={spec.state ?? undefined}
+        directives={pmxCanvasDirectives}
       >
         <Renderer spec={spec} registry={registry} loading={false} />
+        {window.__PMX_CANVAS_JSON_RENDER_DEVTOOLS__ ? (
+          <JsonRenderDevtools position="right" />
+        ) : null}
       </JSONUIProvider>
     </div>
   );

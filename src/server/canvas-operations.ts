@@ -22,9 +22,11 @@ import { searchNodes } from './spatial-analysis.js';
 import { getCanvasNodeTitle, serializeCanvasNodeCompact, type SerializedCanvasNode } from './canvas-serialization.js';
 import { computeAutoArrange } from '../shared/auto-arrange.js';
 import {
+  applyJsonRenderStreamPatches,
   buildGraphSpec,
   buildGraphConfig,
   createJsonRenderNodeData,
+  emptyStreamingSpec,
   GRAPH_NODE_SIZE,
   inferJsonRenderNodeTitle,
   JSON_RENDER_NODE_SIZE,
@@ -827,6 +829,39 @@ export function scheduleCodeGraphRecompute(onComplete?: () => void): void {
   }, 300);
 }
 
+/**
+ * Resolve an html-node `html` field that may be a path to a local .html/.htm file.
+ *
+ * If the string looks like a bare filesystem path to an existing HTML file
+ * (no markup, no newlines, short, ends in .html/.htm, exists on disk), read the
+ * file and return its contents. Otherwise return the string unchanged as raw HTML.
+ * On read failure, fall back to the raw string and warn — never throw.
+ *
+ * This is a local dev tool, so reading a user-pointed-at local file is acceptable;
+ * the markup/newline guards prevent misclassifying genuine HTML as a path.
+ */
+export function resolveHtmlContent(html: string): string {
+  const trimmed = html.trim();
+  const looksLikePath =
+    trimmed.length > 0 &&
+    trimmed.length <= 1024 &&
+    !trimmed.includes('\n') &&
+    !trimmed.includes('<') &&
+    /\.html?$/i.test(trimmed);
+  if (!looksLikePath) return html;
+
+  const resolved = resolve(trimmed);
+  if (!existsSync(resolved) || !statSync(resolved).isFile()) return html;
+
+  try {
+    return readFileSync(resolved, 'utf-8');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn(`[pmx-canvas] html node: failed to read "${resolved}" (${message}); treating --content as raw HTML.`);
+    return html;
+  }
+}
+
 export function addCanvasNode(input: CanvasAddNodeInput): {
   id: string;
   node: CanvasNodeState;
@@ -1469,6 +1504,78 @@ export function createCanvasJsonRenderNode(
 
   canvasState.addJsonRenderNode(node);
   return { id, url: String(node.data.url), spec, node };
+}
+
+/**
+ * Create an empty streaming json-render node. Unlike createCanvasJsonRenderNode
+ * this does NOT validate a complete spec — the node starts blank and is filled
+ * in by appendCanvasJsonRenderStream as SpecStream patches arrive.
+ */
+export function createCanvasStreamingJsonRenderNode(input: {
+  title?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  strictSize?: boolean;
+}): { id: string; url: string; spec: JsonRenderSpec; node: CanvasNodeState } {
+  const spec = emptyStreamingSpec();
+  const width = input.width ?? JSON_RENDER_NODE_SIZE.width;
+  const height = input.height ?? JSON_RENDER_NODE_SIZE.height;
+  const position =
+    input.x !== undefined && input.y !== undefined
+      ? { x: input.x, y: input.y }
+      : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
+  const id = `ui-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+  const node: CanvasNodeState = {
+    id,
+    type: 'json-render',
+    position,
+    size: { width, height },
+    zIndex: 1,
+    collapsed: false,
+    pinned: false,
+    dockPosition: null,
+    data: createJsonRenderNodeData(id, input.title?.trim() || 'Streaming', spec, {
+      viewerType: 'json-render',
+      streamStatus: 'open',
+      specVersion: 0,
+      ...(input.strictSize ? { strictSize: true } : {}),
+    }),
+  };
+
+  canvasState.addJsonRenderNode(node);
+  return { id, url: String(node.data.url), spec, node };
+}
+
+/**
+ * Apply a batch of SpecStream patches to an existing json-render node, bumping
+ * its specVersion so the browser reloads the viewer with the accumulated spec.
+ */
+export function appendCanvasJsonRenderStream(
+  nodeId: string,
+  patches: unknown[],
+  done: boolean,
+):
+  | { ok: true; applied: number; skipped: number; specVersion: number; elementCount: number; streamStatus: 'open' | 'closed' }
+  | { ok: false; error: string } {
+  const node = canvasState.getNode(nodeId);
+  if (!node) return { ok: false, error: `Node "${nodeId}" not found.` };
+  if (node.type !== 'json-render') return { ok: false, error: `Node "${nodeId}" is not a json-render node.` };
+
+  const currentSpec = (node.data.spec as JsonRenderSpec | undefined) ?? emptyStreamingSpec();
+  const { spec, applied, skipped } = applyJsonRenderStreamPatches(currentSpec, patches);
+  const prevVersion = typeof node.data.specVersion === 'number' ? node.data.specVersion : 0;
+  const specVersion = prevVersion + 1;
+  const streamStatus: 'open' | 'closed' = done ? 'closed' : 'open';
+
+  canvasState.updateNode(nodeId, {
+    data: { ...node.data, spec, specVersion, streamStatus },
+  });
+
+  const elementCount =
+    spec.elements && typeof spec.elements === 'object' ? Object.keys(spec.elements).length : 0;
+  return { ok: true, applied, skipped, specVersion, elementCount, streamStatus };
 }
 
 export function createCanvasGraphNode(

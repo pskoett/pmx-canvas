@@ -56,6 +56,10 @@ const CANONICAL_GRAPH_TYPES = [
   'radar',
   'stacked-bar',
   'composed',
+  'sparkline',
+  'dot-plot',
+  'bullet',
+  'slopegraph',
 ] as const;
 
 type CanvasGraphType = typeof CANONICAL_GRAPH_TYPES[number];
@@ -406,9 +410,9 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     fields: [
       {
         name: 'graphType',
-        type: '"line" | "bar" | "pie" | "area" | "scatter" | "radar" | "stacked-bar" | "composed"',
+        type: '"line" | "bar" | "pie" | "area" | "scatter" | "radar" | "stacked-bar" | "composed" | "sparkline" | "dot-plot" | "bullet" | "slopegraph"',
         required: true,
-        description: 'Chart type. Aliases like "stack" and "combo" are normalized server-side.',
+        description: 'Chart type. Includes the Tufte primitives sparkline, dot-plot (Cleveland), bullet (Few KPI vs target), and slopegraph (paired before/after). Aliases like "stack", "combo", "dot", and "slope" are normalized server-side.',
         aliases: ['graph-type'],
       },
       { name: 'data', type: 'Record<string, unknown>[]', required: true, description: 'Chart dataset. The CLI also accepts piped JSON via --stdin.', aliases: ['data-json', 'data-file'] },
@@ -417,7 +421,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
       { name: 'yKey', type: 'string', required: false, description: 'Y-axis value key for line, bar, area, and scatter charts. Also used as a fallback bar key for composed charts.', aliases: ['y-key'] },
       { name: 'zKey', type: 'string', required: false, description: 'Optional bubble-size key for scatter charts.', aliases: ['z-key'] },
       { name: 'nameKey', type: 'string', required: false, description: 'Slice name key for pie graphs.', aliases: ['name-key'] },
-      { name: 'valueKey', type: 'string', required: false, description: 'Slice value key for pie graphs.', aliases: ['value-key'] },
+      { name: 'valueKey', type: 'string', required: false, description: 'Value key for pie slices, sparkline, dot-plot, and the bullet measure.', aliases: ['value-key'] },
       { name: 'axisKey', type: 'string', required: false, description: 'Category key for radar charts.', aliases: ['axis-key'] },
       { name: 'metrics', type: 'string[]', required: false, description: 'Series keys to plot as radar polygons. Defaults to non-axis numeric columns.' },
       { name: 'series', type: 'string[]', required: false, description: 'Series keys for stacked-bar segments. Defaults to non-x numeric columns.' },
@@ -427,6 +431,14 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
       { name: 'color', type: 'string', required: false, description: 'Optional series color for line, bar, area, and scatter charts.' },
       { name: 'barColor', type: 'string', required: false, description: 'Optional bar color for composed charts.', aliases: ['bar-color'] },
       { name: 'lineColor', type: 'string', required: false, description: 'Optional line color for composed charts.', aliases: ['line-color'] },
+      { name: 'colorBy', type: '"series" | "category" | "value" | "none"', required: false, description: 'Bar charts only: how bars are colored. Default "series" (single accent + one highlighted bar). "category" rotates the palette, "value" shades by magnitude, "none" is flat. Color should encode data, not decorate.', aliases: ['color-by'] },
+      { name: 'highlight', type: 'number | "max" | "min"', required: false, description: 'Bar charts (colorBy="series") only: which bar gets the accent — "max" (default), "min", a 0-based index, or null for no emphasis.' },
+      { name: 'labelKey', type: 'string', required: false, description: 'Category label key for dot-plot, bullet, and slopegraph rows.', aliases: ['label-key'] },
+      { name: 'targetKey', type: 'string', required: false, description: 'Per-row target value key for bullet charts.', aliases: ['target-key'] },
+      { name: 'rangesKey', type: 'string', required: false, description: 'Per-row qualitative band thresholds (number[]) key for bullet charts.', aliases: ['ranges-key'] },
+      { name: 'beforeKey', type: 'string', required: false, description: 'Left-column value key for slopegraph.', aliases: ['before-key'] },
+      { name: 'afterKey', type: 'string', required: false, description: 'Right-column value key for slopegraph.', aliases: ['after-key'] },
+      { name: 'sort', type: '"asc" | "desc" | "none"', required: false, description: 'Row sort order for dot-plot (defaults to desc).' },
       { name: 'height', type: 'number', required: false, description: 'Optional chart content height.', aliases: ['chart-height'] },
       { name: 'showLegend', type: 'boolean', required: false, description: 'Show chart legend when supported; pass false for compact node layouts.', aliases: ['show-legend'] },
       { name: 'showLabels', type: 'boolean', required: false, description: 'Show direct labels when supported, such as pie slice labels; defaults to true.', aliases: ['show-labels'] },
@@ -502,6 +514,7 @@ export function describeCanvasSchema(): {
   jsonRender: {
     rootShape: Record<string, string>;
     components: JsonRenderComponentDescriptor[];
+    directives: Array<{ name: string; usage: string }>;
   };
   graph: {
     graphTypes: CanvasGraphType[];
@@ -526,6 +539,15 @@ export function describeCanvasSchema(): {
         state: 'record<string, unknown> | optional',
       },
       components: clone(describeJsonRenderCatalog()),
+      directives: [
+        { name: '$format', usage: '{ "$format": "currency"|"number"|"percent"|"date", "value": <num|state-ref>, "currency"?: "USD", "locale"?, "style"?, "options"? } — Intl-formatted string' },
+        { name: '$math', usage: '{ "$math": "add"|"subtract"|"multiply"|"divide"|"mod"|"min"|"max"|"round"|"floor"|"ceil"|"abs", "a": <num>, "b"?: <num> }' },
+        { name: '$concat', usage: '{ "$concat": [<value>, <value>, ...] } — join values into one string' },
+        { name: '$count', usage: '{ "$count": <array|state-ref> } — length of an array' },
+        { name: '$truncate', usage: '{ "$truncate": <string>, "length": <num>, "suffix"?: "…" }' },
+        { name: '$pluralize', usage: '{ "$pluralize": <count>, "one": "item", "other": "items" }' },
+        { name: '$join', usage: '{ "$join": <array>, "separator"?: ", " }' },
+      ],
     },
     graph: {
       graphTypes: [...CANONICAL_GRAPH_TYPES],
@@ -537,6 +559,7 @@ export function describeCanvasSchema(): {
         'canvas_add_html_node',
         'canvas_add_html_primitive',
         'canvas_add_json_render_node',
+        'canvas_stream_json_render_node',
         'canvas_add_graph_node',
         'canvas_build_web_artifact',
         'canvas_open_mcp_app',

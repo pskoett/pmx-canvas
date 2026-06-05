@@ -12,8 +12,11 @@ import { schema } from './schema.js';
 import { shadcnComponentDefinitions } from '@json-render/shadcn/catalog';
 import { chartComponentDefinitions } from './charts/definitions';
 import { extraChartComponentDefinitions } from './charts/extra-definitions';
+import { tufteChartComponentDefinitions } from './charts/tufte-definitions';
+import { isDynamicPropValue } from './directives.js';
 
 const badgeDefinition = shadcnComponentDefinitions.Badge;
+const buttonDefinition = shadcnComponentDefinitions.Button;
 
 export const allComponentDefinitions = {
   ...shadcnComponentDefinitions,
@@ -23,8 +26,18 @@ export const allComponentDefinitions = {
       variant: z.enum(['default', 'secondary', 'destructive', 'outline', 'success', 'info', 'warning', 'error', 'danger']).nullable(),
     }),
   },
+  Button: {
+    ...buttonDefinition,
+    props: buttonDefinition.props.extend({
+      variant: z.enum(['primary', 'secondary', 'destructive', 'danger', 'outline', 'ghost', 'success']).nullable(),
+    }),
+    description:
+      'Clickable button. Bind on.press for handler. Choose variant by intent — at most ONE primary per view (the main call to action); use secondary for supporting actions; destructive (alias danger) for delete/remove/irreversible actions; outline/ghost for low-emphasis or toolbar actions; success to confirm a positive result. Omitting variant renders primary, so reserve the default for the single main action and set an explicit variant on every other button.',
+    example: { label: 'Save changes', variant: 'primary' },
+  },
   ...chartComponentDefinitions,
   ...extraChartComponentDefinitions,
+  ...tufteChartComponentDefinitions,
 };
 
 export const catalog = defineCatalog(schema as never, {
@@ -241,8 +254,9 @@ export function validateShadcnElementProps(spec: unknown): JsonRenderValidationR
     const definition = allComponentDefinitions[element.type as keyof typeof allComponentDefinitions];
     if (!definition || !hasSafeParse(definition.props)) continue;
 
+    const elementProps = asRecord(element.props) ?? {};
     const parsed = definition.props.safeParse(
-      normalizePropsForSchema(definition.props, asRecord(element.props) ?? {}),
+      normalizePropsForSchema(definition.props, elementProps),
     );
     if (parsed.success) continue;
 
@@ -250,6 +264,13 @@ export function validateShadcnElementProps(spec: unknown): JsonRenderValidationR
       const issuePath = Array.isArray(issue.path)
         ? issue.path.map((segment) => (typeof segment === 'symbol' ? String(segment) : segment))
         : [];
+      // A prop holding a `$`-keyed dynamic expression ($state/$item/$format/…)
+      // resolves to its real type at render time, so the static prop schema
+      // cannot type-check it — drop issues that point at such a prop.
+      const propKey = issuePath[0];
+      if (typeof propKey === 'string' && isDynamicPropValue(elementProps[propKey])) {
+        continue;
+      }
       issues.push({
         path: ['elements', elementKey, 'props', ...issuePath],
         message: issue.message ?? 'invalid value',

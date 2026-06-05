@@ -1102,6 +1102,7 @@ cmd('node add', 'Add a node to the canvas', [
   'pmx-canvas node add --type file --content "src/index.ts"',
   'pmx-canvas node add --type webpage --url "https://example.com/docs"',
   'pmx-canvas node add --type html --title "Widget" --content "<main>Hello</main>"',
+  'pmx-canvas node add --type html --title "Showcase" --content ./report.html   (a .html path is read from disk; otherwise --content is raw HTML)',
   'pmx-canvas node add --type html --primitive choice-grid --data-file ./options.json --title "Options"',
   'pmx-canvas node add --type markdown --title "Note" --x 100 --y 200',
   'pmx-canvas node add --type json-render --title "Ops Dashboard" --spec-file ./dashboard.json',

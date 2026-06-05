@@ -35,6 +35,12 @@ In `pmx-canvas`, prefer `canvas_add_graph_node` for charts and trend lines and
 `canvas_add_json_render_node` when the analysis should land as a richer dashboard or table inside
 the canvas.
 
+For chart design and color choices, apply the `tufte-viz` skill (`skills/tufte-viz/SKILL.md`): color
+must encode data, not decorate. Single-series bar charts default to one accent with the key bar
+highlighted (`colorBy: series`); opt into `category`/`value` only when color carries a variable.
+Prefer `sparkline`/`dot-plot`/`bullet`/`slopegraph` and direct labels over legends; use small
+multiples for more than ~4 overlapping series.
+
 ## When to Use
 
 - Answering quantitative questions about engineering performance, delivery, or team health

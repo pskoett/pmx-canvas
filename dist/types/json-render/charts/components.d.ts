@@ -11,6 +11,8 @@ import type { BaseComponentProps } from '@json-render/react';
 export declare const CHART_COLORS: string[];
 export type AggregateMode = 'sum' | 'count' | 'avg';
 export declare function processChartData(data: Record<string, unknown>[], xKey: string, yKey: string, aggregate: AggregateMode | null | undefined): Record<string, unknown>[];
+export type BarColorBy = 'series' | 'category' | 'value' | 'none';
+export type BarHighlight = number | 'max' | 'min' | null;
 export interface CartesianChartProps {
     title?: string | null;
     data: Record<string, unknown>[];
@@ -19,6 +21,10 @@ export interface CartesianChartProps {
     aggregate?: AggregateMode | null;
     color?: string | null;
     height?: number | null;
+    /** Bar-only: how bar fills are colored. Defaults to 'series'. Ignored by line charts. */
+    colorBy?: BarColorBy | null;
+    /** Bar-only: which bar gets the accent under colorBy='series'. Defaults to 'max'. */
+    highlight?: BarHighlight;
 }
 interface PieChartProps {
     title?: string | null;
@@ -59,6 +65,7 @@ export declare const legendMargin: {
 export declare function useChartFrameHeight(explicitHeight: number | null | undefined, fallbackHeight?: number): {
     frameRef: import("react").RefObject<HTMLDivElement | null>;
     height: number;
+    width: number;
 };
 /** Shared wrapper for cartesian charts (Line + Bar). */
 export declare function CartesianChart({ props, children, className, }: {

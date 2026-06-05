@@ -19,6 +19,8 @@ type OpenMcpAppResult = Awaited<ReturnType<PmxCanvas['openMcpApp']>>;
 type AddDiagramInput = Parameters<PmxCanvas['addDiagram']>[0];
 type AddJsonRenderNodeInput = Parameters<PmxCanvas['addJsonRenderNode']>[0];
 type AddJsonRenderNodeResult = ReturnType<PmxCanvas['addJsonRenderNode']>;
+type StreamJsonRenderNodeInput = Parameters<PmxCanvas['streamJsonRenderNode']>[0];
+type StreamJsonRenderNodeResult = ReturnType<PmxCanvas['streamJsonRenderNode']>;
 type AddHtmlNodeInput = Parameters<PmxCanvas['addHtmlNode']>[0];
 type AddHtmlPrimitiveInput = Parameters<PmxCanvas['addHtmlPrimitive']>[0];
 type AddHtmlPrimitiveResult = ReturnType<PmxCanvas['addHtmlPrimitive']>;
@@ -107,6 +109,7 @@ export interface CanvasAccess {
   openMcpApp(input: OpenMcpAppInput): Promise<OpenMcpAppResult>;
   addDiagram(input: AddDiagramInput): Promise<OpenMcpAppResult>;
   addJsonRenderNode(input: AddJsonRenderNodeInput): Promise<AddJsonRenderNodeResult>;
+  streamJsonRenderNode(input: StreamJsonRenderNodeInput): Promise<StreamJsonRenderNodeResult>;
   addHtmlNode(input: AddHtmlNodeInput): Promise<string>;
   addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult>;
   addGraphNode(input: AddGraphNodeInput): Promise<AddGraphNodeResult>;
@@ -192,6 +195,10 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async addJsonRenderNode(input: AddJsonRenderNodeInput): Promise<AddJsonRenderNodeResult> {
     return this.canvas.addJsonRenderNode(input);
+  }
+
+  async streamJsonRenderNode(input: StreamJsonRenderNodeInput): Promise<StreamJsonRenderNodeResult> {
+    return this.canvas.streamJsonRenderNode(input);
   }
 
   async addHtmlNode(input: AddHtmlNodeInput): Promise<string> {
@@ -458,6 +465,29 @@ class RemoteCanvasAccess implements CanvasAccess {
     const id = typeof response.id === 'string' ? response.id : response.node?.id;
     if (!id) throw new Error('json-render response did not include a node id.');
     return { id, url: response.url, spec: response.spec };
+  }
+
+  async streamJsonRenderNode(input: StreamJsonRenderNodeInput): Promise<StreamJsonRenderNodeResult> {
+    const response = await this.requestJson<{
+      id?: string;
+      url?: string;
+      applied?: number;
+      skipped?: number;
+      specVersion?: number;
+      elementCount?: number;
+      streamStatus?: 'open' | 'closed';
+    }>('POST', '/api/canvas/json-render/stream', input);
+    const id = typeof response.id === 'string' ? response.id : undefined;
+    if (!id) throw new Error('json-render stream response did not include a node id.');
+    return {
+      id,
+      url: response.url ?? '',
+      applied: response.applied ?? 0,
+      skipped: response.skipped ?? 0,
+      specVersion: response.specVersion ?? 0,
+      elementCount: response.elementCount ?? 0,
+      streamStatus: response.streamStatus ?? 'open',
+    };
   }
 
   async addHtmlNode(input: AddHtmlNodeInput): Promise<string> {

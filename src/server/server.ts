@@ -86,12 +86,14 @@ import {
   MARKDOWN_NODE_DEFAULT_SIZE,
   MCP_APP_NODE_DEFAULT_SIZE,
   applyCanvasNodeUpdates,
+  appendCanvasJsonRenderStream,
   buildStructuredNodeUpdate,
   arrangeCanvasNodes,
   clearCanvas,
   createCanvasGraphNode,
   createCanvasGroup,
   createCanvasJsonRenderNode,
+  createCanvasStreamingJsonRenderNode,
   deleteCanvasSnapshot,
   executeCanvasBatch,
   fitCanvasView,
@@ -101,6 +103,7 @@ import {
   refreshCanvasWebpageNode,
   removeCanvasNode,
   removeCanvasEdge,
+  resolveHtmlContent,
   restoreCanvasSnapshot,
   saveCanvasSnapshot,
   scheduleCodeGraphRecompute,
@@ -1656,7 +1659,7 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
   const htmlMergedData = type === 'html'
     ? {
         ...(extraData ?? {}),
-        ...(typeof body.html === 'string' ? { html: body.html } : {}),
+        ...(typeof body.html === 'string' ? { html: resolveHtmlContent(body.html) } : {}),
         ...(typeof body.summary === 'string' ? { summary: body.summary } : {}),
         ...(typeof body.agentSummary === 'string' ? { agentSummary: body.agentSummary } : {}),
         ...(typeof body.description === 'string' ? { description: body.description } : {}),
@@ -2214,6 +2217,34 @@ async function handleCanvasAddJsonRender(req: Request): Promise<Response> {
   }
 }
 
+async function handleJsonRenderStream(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const patches = Array.isArray(body.patches) ? body.patches : [];
+  const done = body.done === true;
+  const geometry = resolveCreateGeometry(body);
+  try {
+    let nodeId = typeof body.nodeId === 'string' && body.nodeId ? body.nodeId : undefined;
+    let url = '';
+    if (!nodeId) {
+      const created = createCanvasStreamingJsonRenderNode({
+        ...(typeof body.title === 'string' ? { title: body.title } : {}),
+        ...(body.strictSize === true ? { strictSize: true } : {}),
+        ...geometry,
+      });
+      nodeId = created.id;
+      url = created.url;
+    }
+    const result = appendCanvasJsonRenderStream(nodeId, patches, done);
+    if (!result.ok) return responseJson({ ok: false, error: result.error }, 400);
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    const node = canvasState.getNode(nodeId);
+    return responseJson({ id: nodeId, url: url || String(node?.data.url ?? ''), ...result });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return responseJson({ ok: false, error: message }, 400);
+  }
+}
+
 async function handleCanvasAddGraph(req: Request): Promise<Response> {
   const body = await readJson(req);
   const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : 'Graph';
@@ -2242,6 +2273,16 @@ async function handleCanvasAddGraph(req: Request): Promise<Response> {
     const nodeHeight = pickPositiveNumber(body, 'nodeHeight') ?? (size ? pickPositiveNumber(size, 'height') : undefined);
     const showLegend = typeof body.showLegend === 'boolean' ? body.showLegend : undefined;
     const showLabels = typeof body.showLabels === 'boolean' ? body.showLabels : undefined;
+    const colorBy =
+      body.colorBy === 'series' || body.colorBy === 'category' || body.colorBy === 'value' || body.colorBy === 'none'
+        ? body.colorBy
+        : undefined;
+    const highlight =
+      typeof body.highlight === 'number' || body.highlight === 'max' || body.highlight === 'min' || body.highlight === null
+        ? body.highlight
+        : undefined;
+    const sort =
+      body.sort === 'asc' || body.sort === 'desc' || body.sort === 'none' ? body.sort : undefined;
     const result = createCanvasGraphNode({
       title,
       graphType,
@@ -2258,8 +2299,23 @@ async function handleCanvasAddGraph(req: Request): Promise<Response> {
       ...(typeof body.lineKey === 'string' ? { lineKey: body.lineKey } : {}),
       ...(aggregate ? { aggregate } : {}),
       ...(typeof body.color === 'string' ? { color: body.color } : {}),
+      ...(colorBy ? { colorBy } : {}),
+      ...(highlight !== undefined ? { highlight } : {}),
       ...(typeof body.barColor === 'string' ? { barColor: body.barColor } : {}),
       ...(typeof body.lineColor === 'string' ? { lineColor: body.lineColor } : {}),
+      ...(typeof body.labelKey === 'string' ? { labelKey: body.labelKey } : {}),
+      ...(typeof body.targetKey === 'string' ? { targetKey: body.targetKey } : {}),
+      ...(typeof body.rangesKey === 'string' ? { rangesKey: body.rangesKey } : {}),
+      ...(typeof body.beforeKey === 'string' ? { beforeKey: body.beforeKey } : {}),
+      ...(typeof body.afterKey === 'string' ? { afterKey: body.afterKey } : {}),
+      ...(typeof body.beforeLabel === 'string' ? { beforeLabel: body.beforeLabel } : {}),
+      ...(typeof body.afterLabel === 'string' ? { afterLabel: body.afterLabel } : {}),
+      ...(sort ? { sort } : {}),
+      ...(typeof body.fill === 'boolean' ? { fill: body.fill } : {}),
+      ...(typeof body.showEndDot === 'boolean' ? { showEndDot: body.showEndDot } : {}),
+      ...(typeof body.showMinMax === 'boolean' ? { showMinMax: body.showMinMax } : {}),
+      ...(typeof body.showValue === 'boolean' ? { showValue: body.showValue } : {}),
+      ...(typeof body.colorByDirection === 'boolean' ? { colorByDirection: body.colorByDirection } : {}),
       ...(typeof body.height === 'number' ? { height: body.height } : {}),
       ...(showLegend !== undefined ? { showLegend } : {}),
       ...(showLabels !== undefined ? { showLabels } : {}),
@@ -2334,11 +2390,17 @@ async function handleJsonRenderView(url: URL): Promise<Response> {
       ? themeValue
       : undefined;
   const title = (node.data.title as string) || node.id;
+  // Devtools panel is double-gated: the operator must opt in via the env flag
+  // AND the request must carry ?devtools=1. Off by default in all normal runs.
+  const devtoolsEnabled =
+    process.env.PMX_CANVAS_JSON_RENDER_DEVTOOLS === '1' &&
+    url.searchParams.get('devtools') === '1';
   const html = await buildJsonRenderViewerHtml({
     title,
     spec,
     ...(theme ? { theme } : {}),
     ...(url.searchParams.get('display') === 'expanded' ? { display: 'expanded' as const } : {}),
+    ...(devtoolsEnabled ? { devtools: true } : {}),
   });
   return new Response(html, {
     headers: {
@@ -4701,6 +4763,10 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/json-render' && req.method === 'POST') {
             return handleCanvasAddJsonRender(req);
+          }
+
+          if (url.pathname === '/api/canvas/json-render/stream' && req.method === 'POST') {
+            return handleJsonRenderStream(req);
           }
 
           if (url.pathname === '/api/canvas/graph' && req.method === 'POST') {

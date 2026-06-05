@@ -17,6 +17,21 @@ const cartesianProps = z.object({
   height: z.number().nullable(),
 });
 
+const barChartProps = cartesianProps.extend({
+  colorBy: z
+    .enum(['series', 'category', 'value', 'none'])
+    .nullable()
+    .describe(
+      "How bars are colored. 'series' (default) = single accent with ONE highlighted bar (Tufte-safe emphasis); 'category' = rotate the categorical palette per bar (only when the x-axis category itself is the message); 'value' = sequential shade by magnitude; 'none' = flat single accent.",
+    ),
+  highlight: z
+    .union([z.number(), z.enum(['max', 'min'])])
+    .nullable()
+    .describe(
+      "For colorBy='series', which bar gets the accent: 'max' (default, tallest), 'min' (shortest), a 0-based index, or null for no emphasis. Ignored by other colorBy modes.",
+    ),
+});
+
 export const chartComponentDefinitions = {
   LineChart: {
     props: cartesianProps,
@@ -38,9 +53,9 @@ export const chartComponentDefinitions = {
   },
 
   BarChart: {
-    props: cartesianProps,
+    props: barChartProps,
     description:
-      'Bar chart for comparing categories. Provide data as an array of objects with xKey and yKey fields.',
+      "Bar chart for comparing categories. Provide data as an array of objects with xKey and yKey fields. Color encodes data, not decoration: by default one accent with the tallest bar highlighted (colorBy='series'). Set colorBy='category' only when the category itself is the message, 'value' to shade by magnitude, or 'none' for a flat fill.",
     example: {
       title: 'Sales by region',
       data: [
@@ -53,6 +68,8 @@ export const chartComponentDefinitions = {
       aggregate: null,
       color: null,
       height: null,
+      colorBy: 'series',
+      highlight: 'max',
     },
   },
 

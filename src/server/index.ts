@@ -12,6 +12,8 @@ import { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './co
 import {
   addCanvasNode,
   addCanvasEdge,
+  appendCanvasJsonRenderStream,
+  createCanvasStreamingJsonRenderNode,
   MARKDOWN_NODE_DEFAULT_SIZE,
   MCP_APP_NODE_DEFAULT_SIZE,
   applyCanvasNodeUpdates,
@@ -30,6 +32,7 @@ import {
   refreshCanvasWebpageNode,
   removeCanvasNode,
   removeCanvasEdge,
+  resolveHtmlContent,
   restoreCanvasSnapshot,
   saveCanvasSnapshot,
   scheduleCodeGraphRecompute,
@@ -687,6 +690,65 @@ export class PmxCanvas extends EventEmitter {
     return result;
   }
 
+  /**
+   * Progressively build a json-render node from SpecStream patches. Omit nodeId
+   * to create a new streaming node; pass the same nodeId on later calls to
+   * append more patches. The server accumulates the spec and the browser
+   * reloads the viewer as the specVersion bumps.
+   */
+  streamJsonRenderNode(input: {
+    nodeId?: string;
+    title?: string;
+    patches?: unknown[];
+    done?: boolean;
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    strictSize?: boolean;
+  }): {
+    id: string;
+    url: string;
+    applied: number;
+    skipped: number;
+    specVersion: number;
+    elementCount: number;
+    streamStatus: 'open' | 'closed';
+  } {
+    let nodeId = input.nodeId;
+    let url = '';
+    if (!nodeId) {
+      const created = createCanvasStreamingJsonRenderNode({
+        ...(input.title !== undefined ? { title: input.title } : {}),
+        ...(input.x !== undefined ? { x: input.x } : {}),
+        ...(input.y !== undefined ? { y: input.y } : {}),
+        ...(input.width !== undefined ? { width: input.width } : {}),
+        ...(input.height !== undefined ? { height: input.height } : {}),
+        ...(input.strictSize ? { strictSize: true } : {}),
+      });
+      nodeId = created.id;
+      url = created.url;
+    } else {
+      url = String(canvasState.getNode(nodeId)?.data.url ?? '');
+    }
+    const result = appendCanvasJsonRenderStream(
+      nodeId,
+      Array.isArray(input.patches) ? input.patches : [],
+      input.done === true,
+    );
+    if (!result.ok) throw new Error(result.error);
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    return {
+      id: nodeId,
+      url,
+      applied: result.applied,
+      skipped: result.skipped,
+      specVersion: result.specVersion,
+      elementCount: result.elementCount,
+      streamStatus: result.streamStatus,
+    };
+  }
+
   addHtmlNode(input: {
     html: string;
     title?: string;
@@ -707,7 +769,7 @@ export class PmxCanvas extends EventEmitter {
       type: 'html',
       ...(typeof input.title === 'string' ? { title: input.title } : {}),
       data: {
-        html: input.html,
+        html: resolveHtmlContent(input.html),
         ...(typeof input.summary === 'string' ? { summary: input.summary } : {}),
         ...(typeof input.agentSummary === 'string' ? { agentSummary: input.agentSummary } : {}),
         ...(typeof input.description === 'string' ? { description: input.description } : {}),

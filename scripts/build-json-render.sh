@@ -33,6 +33,10 @@ sources = [
     root / "src/json-render/renderer/index.css",
     root / "src/json-render/charts/components.tsx",
     root / "src/json-render/charts/definitions.ts",
+    root / "src/json-render/charts/extra-components.tsx",
+    root / "src/json-render/charts/extra-definitions.ts",
+    root / "src/json-render/charts/tufte-components.tsx",
+    root / "src/json-render/charts/tufte-definitions.ts",
 ]
 artifacts = [
     root / "dist/json-render/index.js",
@@ -66,6 +70,10 @@ command = [
     "--outdir",
     "dist/json-render",
     "--minify",
+    # Ship prod-mode React and let isProduction() fold the @json-render devtools
+    # panel out of the bundle (the panel is also runtime-gated by the
+    # __PMX_CANVAS_JSON_RENDER_DEVTOOLS__ global, so it never mounts by default).
+    '--define:process.env.NODE_ENV="production"',
 ]
 
 try:
