@@ -124,6 +124,18 @@ export declare function validateCanvasNodePatch(patch: {
 export declare function mergeTraceNodeDataFields(base: Record<string, unknown>, input: Record<string, unknown>): Record<string, unknown>;
 export declare function hasTraceNodeDataFields(input: Record<string, unknown>): boolean;
 export declare function scheduleCodeGraphRecompute(onComplete?: () => void): void;
+/**
+ * Resolve an html-node `html` field that may be a path to a local .html/.htm file.
+ *
+ * If the string looks like a bare filesystem path to an existing HTML file
+ * (no markup, no newlines, short, ends in .html/.htm, exists on disk), read the
+ * file and return its contents. Otherwise return the string unchanged as raw HTML.
+ * On read failure, fall back to the raw string and warn — never throw.
+ *
+ * This is a local dev tool, so reading a user-pointed-at local file is acceptable;
+ * the markup/newline guards prevent misclassifying genuine HTML as a path.
+ */
+export declare function resolveHtmlContent(html: string): string;
 export declare function addCanvasNode(input: CanvasAddNodeInput): {
     id: string;
     node: CanvasNodeState;
@@ -205,6 +217,39 @@ export declare function createCanvasJsonRenderNode(input: JsonRenderNodeInput): 
     url: string;
     spec: JsonRenderSpec;
     node: CanvasNodeState;
+};
+/**
+ * Create an empty streaming json-render node. Unlike createCanvasJsonRenderNode
+ * this does NOT validate a complete spec — the node starts blank and is filled
+ * in by appendCanvasJsonRenderStream as SpecStream patches arrive.
+ */
+export declare function createCanvasStreamingJsonRenderNode(input: {
+    title?: string;
+    x?: number;
+    y?: number;
+    width?: number;
+    height?: number;
+    strictSize?: boolean;
+}): {
+    id: string;
+    url: string;
+    spec: JsonRenderSpec;
+    node: CanvasNodeState;
+};
+/**
+ * Apply a batch of SpecStream patches to an existing json-render node, bumping
+ * its specVersion so the browser reloads the viewer with the accumulated spec.
+ */
+export declare function appendCanvasJsonRenderStream(nodeId: string, patches: unknown[], done: boolean): {
+    ok: true;
+    applied: number;
+    skipped: number;
+    specVersion: number;
+    elementCount: number;
+    streamStatus: 'open' | 'closed';
+} | {
+    ok: false;
+    error: string;
 };
 export declare function createCanvasGraphNode(input: GraphNodeInput): {
     id: string;

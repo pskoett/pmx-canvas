@@ -55,20 +55,21 @@ function ChartAreaChart({ props }: BaseComponentProps<AreaChartProps>) {
         <RechartsAreaChart data={data} margin={chartMargin}>
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor={stroke} stopOpacity={0.45} />
-              <stop offset="100%" stopColor={stroke} stopOpacity={0.05} />
+              <stop offset="0%" stopColor={stroke} stopOpacity={0.55} />
+              <stop offset="100%" stopColor={stroke} stopOpacity={0.12} />
             </linearGradient>
           </defs>
           <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
           <XAxis dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} />
-          <YAxis tick={axisStyle} tickMargin={axisTickMargin} />
+          <YAxis domain={[0, 'auto']} tick={axisStyle} tickMargin={axisTickMargin} />
           <Tooltip contentStyle={tooltipStyle} />
           <Area
             type="monotone"
             dataKey={props.yKey}
             stroke={stroke}
-            strokeWidth={2}
+            strokeWidth={2.5}
             fill={`url(#${gradientId})`}
+            dot={{ r: 2.5, fill: stroke, strokeWidth: 0 }}
             activeDot={{ r: 5 }}
           />
         </RechartsAreaChart>

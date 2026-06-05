@@ -188,9 +188,13 @@ export declare class PmxCanvas extends EventEmitter {
         jsonRender: {
             rootShape: Record<string, string>;
             components: import("../json-render/catalog.js").JsonRenderComponentDescriptor[];
+            directives: Array<{
+                name: string;
+                usage: string;
+            }>;
         };
         graph: {
-            graphTypes: ("line" | "bar" | "pie" | "area" | "scatter" | "radar" | "composed" | "stacked-bar")[];
+            graphTypes: ("line" | "bar" | "pie" | "area" | "scatter" | "radar" | "composed" | "sparkline" | "bullet" | "slopegraph" | "stacked-bar" | "dot-plot")[];
         };
         htmlPrimitives: import("./html-primitives.js").HtmlPrimitiveDescriptor[];
         mcp: {
@@ -250,6 +254,31 @@ export declare class PmxCanvas extends EventEmitter {
         id: string;
         url: string;
         spec: JsonRenderSpec;
+    };
+    /**
+     * Progressively build a json-render node from SpecStream patches. Omit nodeId
+     * to create a new streaming node; pass the same nodeId on later calls to
+     * append more patches. The server accumulates the spec and the browser
+     * reloads the viewer as the specVersion bumps.
+     */
+    streamJsonRenderNode(input: {
+        nodeId?: string;
+        title?: string;
+        patches?: unknown[];
+        done?: boolean;
+        x?: number;
+        y?: number;
+        width?: number;
+        height?: number;
+        strictSize?: boolean;
+    }): {
+        id: string;
+        url: string;
+        applied: number;
+        skipped: number;
+        specVersion: number;
+        elementCount: number;
+        streamStatus: 'open' | 'closed';
     };
     addHtmlNode(input: {
         html: string;

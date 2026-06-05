@@ -8,6 +8,8 @@ type OpenMcpAppResult = Awaited<ReturnType<PmxCanvas['openMcpApp']>>;
 type AddDiagramInput = Parameters<PmxCanvas['addDiagram']>[0];
 type AddJsonRenderNodeInput = Parameters<PmxCanvas['addJsonRenderNode']>[0];
 type AddJsonRenderNodeResult = ReturnType<PmxCanvas['addJsonRenderNode']>;
+type StreamJsonRenderNodeInput = Parameters<PmxCanvas['streamJsonRenderNode']>[0];
+type StreamJsonRenderNodeResult = ReturnType<PmxCanvas['streamJsonRenderNode']>;
 type AddHtmlNodeInput = Parameters<PmxCanvas['addHtmlNode']>[0];
 type AddHtmlPrimitiveInput = Parameters<PmxCanvas['addHtmlPrimitive']>[0];
 type AddHtmlPrimitiveResult = ReturnType<PmxCanvas['addHtmlPrimitive']>;
@@ -55,6 +57,7 @@ export interface CanvasAccess {
     openMcpApp(input: OpenMcpAppInput): Promise<OpenMcpAppResult>;
     addDiagram(input: AddDiagramInput): Promise<OpenMcpAppResult>;
     addJsonRenderNode(input: AddJsonRenderNodeInput): Promise<AddJsonRenderNodeResult>;
+    streamJsonRenderNode(input: StreamJsonRenderNodeInput): Promise<StreamJsonRenderNodeResult>;
     addHtmlNode(input: AddHtmlNodeInput): Promise<string>;
     addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult>;
     addGraphNode(input: AddGraphNodeInput): Promise<AddGraphNodeResult>;

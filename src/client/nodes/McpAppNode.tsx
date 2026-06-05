@@ -2,12 +2,15 @@ import type { CanvasNodeState } from '../types';
 import { canvasTheme } from '../state/canvas-store';
 import { ExtAppFrame } from './ExtAppFrame';
 
-function withViewerParams(url: string, expanded: boolean): string {
+function withViewerParams(url: string, expanded: boolean, specVersion?: number): string {
   if (!url) return url;
   try {
     const resolved = new URL(url, window.location.origin);
     resolved.searchParams.set('theme', canvasTheme.value === 'light' ? 'light' : 'dark');
     if (expanded) resolved.searchParams.set('display', 'expanded');
+    // Streaming json-render nodes bump specVersion as patches accumulate; including
+    // it in the src reloads the iframe so it re-reads the latest accumulated spec.
+    if (typeof specVersion === 'number') resolved.searchParams.set('v', String(specVersion));
     return resolved.toString();
   } catch {
     return url;
@@ -31,7 +34,8 @@ export function McpAppNode({ node, expanded = false }: { node: CanvasNodeState; 
     return <ExtAppFrame node={node} expanded={expanded} />;
   }
 
-  const url = withViewerParams((node.data.url as string) || '', expanded);
+  const specVersion = typeof node.data.specVersion === 'number' ? node.data.specVersion : undefined;
+  const url = withViewerParams((node.data.url as string) || '', expanded, specVersion);
   const sourceServer = (node.data.sourceServer as string) || '';
   const hostMode = (node.data.hostMode as string) || 'hosted';
   const fallbackReason = node.data.fallbackReason as string | undefined;

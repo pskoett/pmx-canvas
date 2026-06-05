@@ -3894,6 +3894,38 @@ describe('canvas server HTTP API', () => {
       lineColor: '#d7a83f',
     }));
 
+    const invalidGraphValidation = await fetch(`${baseUrl}/api/canvas/schema/validate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'graph',
+        graphType: 'bar',
+        data: [{ label: 'Docs', value: 5 }],
+        xKey: 'missingLabel',
+        yKey: 'value',
+      }),
+    });
+    expect(invalidGraphValidation.ok).toBe(false);
+    const invalidGraphBody = await invalidGraphValidation.json() as { ok: boolean; error: string };
+    expect(invalidGraphBody.ok).toBe(false);
+    expect(invalidGraphBody.error).toContain('missingLabel');
+    expect(invalidGraphBody.error).toContain('Available keys: label, value');
+
+    const invalidGraphCreate = await fetch(`${baseUrl}/api/canvas/graph`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        graphType: 'bar',
+        data: [{ label: 'Docs', value: 5 }],
+        xKey: 'label',
+        yKey: 'missingValue',
+      }),
+    });
+    expect(invalidGraphCreate.ok).toBe(false);
+    const invalidGraphCreateBody = await invalidGraphCreate.json() as { ok: boolean; error: string };
+    expect(invalidGraphCreateBody.ok).toBe(false);
+    expect(invalidGraphCreateBody.error).toContain('missingValue');
+
     const htmlPrimitiveValidation = await jsonRequest<{
       ok: boolean;
       type: string;

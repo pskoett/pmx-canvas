@@ -7,6 +7,160 @@
  */
 import { z } from 'zod';
 export declare const allComponentDefinitions: {
+    Sparkline: {
+        readonly props: z.ZodObject<{
+            title: z.ZodNullable<z.ZodString>;
+            data: z.ZodArray<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            valueKey: z.ZodString;
+            color: z.ZodNullable<z.ZodString>;
+            fill: z.ZodNullable<z.ZodBoolean>;
+            showEndDot: z.ZodNullable<z.ZodBoolean>;
+            showMinMax: z.ZodNullable<z.ZodBoolean>;
+            showValue: z.ZodNullable<z.ZodBoolean>;
+            height: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
+        readonly description: "Word-sized sparkline: a single trend line with no axes, grid, or labels. Optional end dot, min/max markers, light area fill, and an inline last value. The canonical Tufte primitive for showing a trajectory in minimal space.";
+        readonly example: {
+            readonly title: "Latency p95";
+            readonly data: readonly [{
+                readonly t: 0;
+                readonly ms: 120;
+            }, {
+                readonly t: 1;
+                readonly ms: 138;
+            }, {
+                readonly t: 2;
+                readonly ms: 117;
+            }, {
+                readonly t: 3;
+                readonly ms: 152;
+            }, {
+                readonly t: 4;
+                readonly ms: 109;
+            }];
+            readonly valueKey: "ms";
+            readonly color: null;
+            readonly fill: true;
+            readonly showEndDot: true;
+            readonly showMinMax: false;
+            readonly showValue: true;
+            readonly height: null;
+        };
+    };
+    DotPlot: {
+        readonly props: z.ZodObject<{
+            title: z.ZodNullable<z.ZodString>;
+            data: z.ZodArray<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            labelKey: z.ZodString;
+            valueKey: z.ZodString;
+            color: z.ZodNullable<z.ZodString>;
+            sort: z.ZodNullable<z.ZodEnum<{
+                none: "none";
+                asc: "asc";
+                desc: "desc";
+            }>>;
+            height: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
+        readonly description: "Cleveland dot plot: categorical labels down the Y axis, one dot per category positioned by value on X. Higher data-ink ratio than a bar chart for ranked comparison. Sorts descending by default.";
+        readonly example: {
+            readonly title: "Build time by package";
+            readonly data: readonly [{
+                readonly pkg: "core";
+                readonly seconds: 42;
+            }, {
+                readonly pkg: "client";
+                readonly seconds: 31;
+            }, {
+                readonly pkg: "mcp";
+                readonly seconds: 18;
+            }, {
+                readonly pkg: "cli";
+                readonly seconds: 9;
+            }];
+            readonly labelKey: "pkg";
+            readonly valueKey: "seconds";
+            readonly color: null;
+            readonly sort: "desc";
+            readonly height: null;
+        };
+    };
+    BulletChart: {
+        readonly props: z.ZodObject<{
+            title: z.ZodNullable<z.ZodString>;
+            data: z.ZodArray<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            labelKey: z.ZodNullable<z.ZodString>;
+            valueKey: z.ZodString;
+            targetKey: z.ZodNullable<z.ZodString>;
+            rangesKey: z.ZodNullable<z.ZodString>;
+            color: z.ZodNullable<z.ZodString>;
+            height: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
+        readonly description: "Stephen Few's bullet graph: a measure bar against grayscale qualitative bands with a target tick and per-row scale ticks. Compact KPI-vs-target display. Provide per-row `ranges` (ascending band thresholds) and `target`.";
+        readonly example: {
+            readonly title: "Quarterly KPIs vs target";
+            readonly data: readonly [{
+                readonly label: "Revenue";
+                readonly value: 84;
+                readonly target: 90;
+                readonly ranges: readonly [50, 75, 100];
+            }, {
+                readonly label: "NPS";
+                readonly value: 67;
+                readonly target: 60;
+                readonly ranges: readonly [40, 60, 80];
+            }, {
+                readonly label: "Uptime";
+                readonly value: 99;
+                readonly target: 99.9;
+                readonly ranges: readonly [95, 99, 100];
+            }];
+            readonly labelKey: "label";
+            readonly valueKey: "value";
+            readonly targetKey: "target";
+            readonly rangesKey: "ranges";
+            readonly color: null;
+            readonly height: null;
+        };
+    };
+    Slopegraph: {
+        readonly props: z.ZodObject<{
+            title: z.ZodNullable<z.ZodString>;
+            data: z.ZodArray<z.ZodRecord<z.ZodString, z.ZodUnknown>>;
+            labelKey: z.ZodString;
+            beforeKey: z.ZodString;
+            afterKey: z.ZodString;
+            beforeLabel: z.ZodNullable<z.ZodString>;
+            afterLabel: z.ZodNullable<z.ZodString>;
+            color: z.ZodNullable<z.ZodString>;
+            colorByDirection: z.ZodNullable<z.ZodBoolean>;
+            height: z.ZodNullable<z.ZodNumber>;
+        }, z.core.$strip>;
+        readonly description: "Tufte slopegraph: two value columns (before/after) with a connecting line per category. Lines use one neutral ink by default; set colorByDirection to accent rising lines and mute falling ones. Ideal for paired change across many items.";
+        readonly example: {
+            readonly title: "Coverage before/after refactor";
+            readonly data: readonly [{
+                readonly module: "auth";
+                readonly before: 62;
+                readonly after: 81;
+            }, {
+                readonly module: "canvas";
+                readonly before: 74;
+                readonly after: 78;
+            }, {
+                readonly module: "mcp";
+                readonly before: 55;
+                readonly after: 49;
+            }];
+            readonly labelKey: "module";
+            readonly beforeKey: "before";
+            readonly afterKey: "after";
+            readonly beforeLabel: "Before";
+            readonly afterLabel: "After";
+            readonly color: null;
+            readonly colorByDirection: null;
+            readonly height: null;
+        };
+    };
     AreaChart: {
         readonly props: z.ZodObject<{
             title: z.ZodNullable<z.ZodString>;
@@ -232,8 +386,18 @@ export declare const allComponentDefinitions: {
             }>>;
             color: z.ZodNullable<z.ZodString>;
             height: z.ZodNullable<z.ZodNumber>;
+            colorBy: z.ZodNullable<z.ZodEnum<{
+                value: "value";
+                series: "series";
+                category: "category";
+                none: "none";
+            }>>;
+            highlight: z.ZodNullable<z.ZodUnion<readonly [z.ZodNumber, z.ZodEnum<{
+                max: "max";
+                min: "min";
+            }>]>>;
         }, z.core.$strip>;
-        readonly description: "Bar chart for comparing categories. Provide data as an array of objects with xKey and yKey fields.";
+        readonly description: "Bar chart for comparing categories. Provide data as an array of objects with xKey and yKey fields. Color encodes data, not decoration: by default one accent with the tallest bar highlighted (colorBy='series'). Set colorBy='category' only when the category itself is the message, 'value' to shade by magnitude, or 'none' for a flat fill.";
         readonly example: {
             readonly title: "Sales by region";
             readonly data: readonly [{
@@ -251,6 +415,8 @@ export declare const allComponentDefinitions: {
             readonly aggregate: null;
             readonly color: null;
             readonly height: null;
+            readonly colorBy: "series";
+            readonly highlight: "max";
         };
     };
     PieChart: {
@@ -304,6 +470,27 @@ export declare const allComponentDefinitions: {
             variant: string;
         };
     };
+    Button: {
+        props: z.ZodObject<{
+            label: z.ZodString;
+            disabled: z.ZodNullable<z.ZodBoolean>;
+            variant: z.ZodNullable<z.ZodEnum<{
+                success: "success";
+                secondary: "secondary";
+                destructive: "destructive";
+                outline: "outline";
+                danger: "danger";
+                primary: "primary";
+                ghost: "ghost";
+            }>>;
+        }, z.core.$strip>;
+        description: string;
+        example: {
+            label: string;
+            variant: string;
+        };
+        events: string[];
+    };
     Card: {
         props: z.ZodObject<{
             title: z.ZodNullable<z.ZodString>;
@@ -315,6 +502,7 @@ export declare const allComponentDefinitions: {
                 full: "full";
             }>>;
             centered: z.ZodNullable<z.ZodBoolean>;
+            className: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>;
         slots: string[];
         description: string;
@@ -334,6 +522,7 @@ export declare const allComponentDefinitions: {
                 md: "md";
                 lg: "lg";
                 none: "none";
+                xl: "xl";
             }>>;
             align: z.ZodNullable<z.ZodEnum<{
                 start: "start";
@@ -348,6 +537,7 @@ export declare const allComponentDefinitions: {
                 between: "between";
                 around: "around";
             }>>;
+            className: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>;
         slots: string[];
         description: string;
@@ -363,7 +553,9 @@ export declare const allComponentDefinitions: {
                 sm: "sm";
                 md: "md";
                 lg: "lg";
+                xl: "xl";
             }>>;
+            className: z.ZodNullable<z.ZodString>;
         }, z.core.$strip>;
         slots: string[];
         description: string;
@@ -716,23 +908,6 @@ export declare const allComponentDefinitions: {
         }, z.core.$strip>;
         events: string[];
         description: string;
-    };
-    Button: {
-        props: z.ZodObject<{
-            label: z.ZodString;
-            variant: z.ZodNullable<z.ZodEnum<{
-                secondary: "secondary";
-                primary: "primary";
-                danger: "danger";
-            }>>;
-            disabled: z.ZodNullable<z.ZodBoolean>;
-        }, z.core.$strip>;
-        events: string[];
-        description: string;
-        example: {
-            label: string;
-            variant: string;
-        };
     };
     Link: {
         props: z.ZodObject<{

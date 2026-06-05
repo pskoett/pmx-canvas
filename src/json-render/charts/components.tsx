@@ -68,6 +68,9 @@ export function processChartData(
   return result;
 }
 
+export type BarColorBy = 'series' | 'category' | 'value' | 'none';
+export type BarHighlight = number | 'max' | 'min' | null;
+
 export interface CartesianChartProps {
   title?: string | null;
   data: Record<string, unknown>[];
@@ -76,6 +79,10 @@ export interface CartesianChartProps {
   aggregate?: AggregateMode | null;
   color?: string | null;
   height?: number | null;
+  /** Bar-only: how bar fills are colored. Defaults to 'series'. Ignored by line charts. */
+  colorBy?: BarColorBy | null;
+  /** Bar-only: which bar gets the accent under colorBy='series'. Defaults to 'max'. */
+  highlight?: BarHighlight;
 }
 
 interface PieChartProps {
@@ -109,6 +116,7 @@ export const legendMargin = { top: 10 };
 export function useChartFrameHeight(explicitHeight: number | null | undefined, fallbackHeight = 300) {
   const frameRef = useRef<HTMLDivElement>(null);
   const [autoHeight, setAutoHeight] = useState(fallbackHeight);
+  const [autoWidth, setAutoWidth] = useState(0);
 
   useEffect(() => {
     const frame = frameRef.current;
@@ -121,6 +129,7 @@ export function useChartFrameHeight(explicitHeight: number | null | undefined, f
       const overflow = Math.max(0, doc.scrollHeight - doc.clientHeight);
       const available = overflow > 0 ? currentHeight - overflow : window.innerHeight - rect.top - 24;
       setAutoHeight(Math.max(220, Math.round(available)));
+      setAutoWidth(Math.round(rect.width));
     };
 
     updateHeight();
@@ -137,6 +146,7 @@ export function useChartFrameHeight(explicitHeight: number | null | undefined, f
   return {
     frameRef,
     height: typeof explicitHeight === 'number' ? Math.min(explicitHeight, autoHeight) : autoHeight,
+    width: autoWidth,
   };
 }
 
@@ -187,19 +197,96 @@ function ChartLineChart({ props }: BaseComponentProps<CartesianChartProps>) {
   );
 }
 
+/**
+ * Resolve the highlighted bar index for colorBy='series'.
+ * 'max'/'min' pick the tallest/shortest yKey value; a number is used as-is
+ * (clamped to range); null/out-of-range means no bar is emphasized.
+ */
+function resolveHighlightIndex(
+  data: Record<string, unknown>[],
+  yKey: string,
+  highlight: BarHighlight,
+): number {
+  if (highlight === null || data.length === 0) return -1;
+  if (typeof highlight === 'number') {
+    return highlight >= 0 && highlight < data.length ? highlight : -1;
+  }
+  let best = 0;
+  let bestVal = Number(data[0]?.[yKey] ?? 0);
+  for (let i = 1; i < data.length; i++) {
+    const val = Number(data[i]?.[yKey] ?? 0);
+    if (highlight === 'max' ? val > bestVal : val < bestVal) {
+      best = i;
+      bestVal = val;
+    }
+  }
+  return best;
+}
+
+/** Per-bar fill for each colorBy mode. Reuses the <Cell> pattern proven in ChartPieChart. */
+function barCellFill(
+  mode: BarColorBy,
+  accent: string,
+  index: number,
+  value: number,
+  range: { min: number; max: number },
+  highlightIndex: number,
+): string {
+  switch (mode) {
+    case 'category':
+      return CHART_COLORS[index % CHART_COLORS.length];
+    case 'value': {
+      // Sequential shade by magnitude: 35% (lowest) -> 100% (highest) accent,
+      // mixed toward a SOLID background token so every bar is opaque and the
+      // ramp is a true lightness sequence (not a translucency that reads
+      // differently depending on what is behind the bar).
+      const span = range.max - range.min;
+      const t = span > 0 ? (value - range.min) / span : 1;
+      const pct = Math.round(35 + t * 65);
+      return `color-mix(in oklch, ${accent} ${pct}%, var(--card, var(--background)))`;
+    }
+    case 'none':
+      return accent;
+    case 'series':
+    default:
+      // Tufte-safe emphasis: one accent bar, the rest a muted version of it.
+      return index === highlightIndex
+        ? accent
+        : `color-mix(in oklch, ${accent} 32%, transparent)`;
+  }
+}
+
 function ChartBarChart({ props }: BaseComponentProps<CartesianChartProps>) {
-  const fill = props.color ?? CHART_COLORS[0];
+  const accent = props.color ?? CHART_COLORS[0];
+  const mode: BarColorBy = props.colorBy ?? 'series';
+  const highlight: BarHighlight = props.highlight === undefined ? 'max' : props.highlight;
   return (
     <CartesianChart props={props} className="pmx-chart--bar">
-      {(data) => (
-        <RechartsBarChart data={data} margin={chartMargin}>
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
-          <XAxis dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} />
-          <YAxis tick={axisStyle} tickMargin={axisTickMargin} />
-          <Tooltip contentStyle={tooltipStyle} cursor={false} />
-          <Bar dataKey={props.yKey} fill={fill} radius={[4, 4, 0, 0]} />
-        </RechartsBarChart>
-      )}
+      {(data) => {
+        const values = data.map((row) => Number(row[props.yKey] ?? 0));
+        const range = {
+          min: values.length ? Math.min(...values) : 0,
+          max: values.length ? Math.max(...values) : 0,
+        };
+        const highlightIndex =
+          mode === 'series' ? resolveHighlightIndex(data, props.yKey, highlight) : -1;
+        return (
+          <RechartsBarChart data={data} margin={chartMargin}>
+            <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
+            <XAxis dataKey={props.xKey} tick={axisStyle} tickMargin={axisTickMargin} />
+            <YAxis domain={[0, 'auto']} tick={axisStyle} tickMargin={axisTickMargin} />
+            <Tooltip contentStyle={tooltipStyle} cursor={false} />
+            <Bar dataKey={props.yKey} radius={[4, 4, 0, 0]}>
+              {data.map((_, i) => (
+                <Cell
+                  key={i}
+                  fill={barCellFill(mode, accent, i, values[i], range, highlightIndex)}
+                />
+              ))}
+            </Bar>
+          </RechartsBarChart>
+        );
+      }}
     </CartesianChart>
   );
 }

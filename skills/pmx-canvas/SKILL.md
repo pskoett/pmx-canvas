@@ -252,7 +252,7 @@ The CLI targets `http://localhost:4313` by default. Override with `PMX_CANVAS_UR
 | `trace` | Trace/timeline viewer | Execution traces, timelines |
 | `mcp-app` | Hosted app/embed frame | Tool-backed MCP apps or external app content; not generic CLI-created notes |
 | `json-render` | Native structured UI panel | Dashboards, forms, tables, interactive layouts from json-render specs |
-| `graph` | Native chart panel | Line, bar, pie, area, scatter, radar, stacked-bar, and composed charts rendered inside the canvas |
+| `graph` | Native chart panel | Line, bar, pie, area, scatter, radar, stacked-bar, composed, plus Tufte primitives (sparkline, dot-plot, bullet, slopegraph) rendered inside the canvas |
 | `html` | Sandboxed HTML+JS document | Self-contained HTML with optional inline `<script>` and CDN imports rendered in a sandbox-restricted iframe; canvas theme tokens are auto-injected |
 | `group` | Spatial container/frame | Visually group related nodes together |
 | `prompt` | Prompt thread root | Canvas-native prompt entry points for agent conversations. **Internal type — surfaces in `canvas://layout` for thread rendering but is not created via the public `canvas_add_node` API. Don't try to add one directly.** |
@@ -364,18 +364,46 @@ If a node type is rejected by `canvas_add_node`, call `canvas_describe_schema` a
   `outline`. Legacy `props.label` and status variants (`success`, `info`, `warning`, `error`,
   `danger`) are normalized for saved-spec compatibility.
 
+**`canvas_stream_json_render_node`** — Build a json-render node progressively (live)
+- Omit `nodeId` on the first call to create a new streaming node — it returns the node `id`
+- Pass that same `nodeId` on later calls to append more `patches`; set `done: true` on the final call
+- `patches` are SpecStream JSON-Patch ops applied server-side (the canvas accumulates the spec):
+  `{ "op": "add", "path": "/elements/card", "value": { "type": "Card", "props": { "title": "Live" }, "children": [] } }`,
+  `{ "op": "replace", "path": "/root", "value": "card" }`,
+  `{ "op": "add", "path": "/elements/card/children/-", "value": "row1" }`
+- Build incrementally: set `/root`, add container elements, then append child element ids and elements
+- Each call re-renders the live node; partial specs render what they can. Use for dashboards/reports
+  that should fill in as you generate them rather than appearing all at once.
+
 **`canvas_add_graph_node`** — Add a native graph/chart node
 - Required: `graphType`, `data`
-- Supports `line`, `bar`, `pie`, `area`, `scatter`, `radar`, `stacked-bar`, and `composed`
-  graph types (aliases accepted)
+- Supports `line`, `bar`, `pie`, `area`, `scatter`, `radar`, `stacked-bar`, `composed`,
+  and the Tufte primitives `sparkline`, `dot-plot`, `bullet`, `slopegraph` (aliases accepted)
 - Use `xKey`/`yKey` for line, bar, area, and scatter graphs
 - Use `zKey` for scatter bubble size
 - Use `nameKey`/`valueKey` for pie graphs
 - Use `axisKey` plus `metrics` for radar graphs
 - Use `series` for stacked-bar graphs
 - Use `barKey`/`lineKey` plus optional `barColor`/`lineColor` for composed graphs
+- Bar charts: `colorBy` (`series` default = one accent + a highlighted bar, `category`, `value`, `none`) and `highlight` (`max`/`min`/index)
+- Use `valueKey` for `sparkline` (plus `fill`/`showEndDot`/`showMinMax`/`showValue`)
+- Use `labelKey`/`valueKey` (plus `sort`) for `dot-plot`
+- Use `labelKey`/`valueKey`/`targetKey`/`rangesKey` for `bullet`
+- Use `labelKey`/`beforeKey`/`afterKey` (plus `beforeLabel`/`afterLabel`/`colorByDirection`) for `slopegraph`
 - Use `nodeHeight` for the canvas frame height and `height` for chart content height
 - Uses the native json-render chart catalog under the hood
+
+**Tufte-aware charting** — color must encode data, not decorate. For chart design and critique, use
+the `tufte-viz` skill (`skills/tufte-viz/SKILL.md`). Key rules:
+- Single-series `bar` charts use `colorBy`: default `series` (one accent + one highlighted bar),
+  `category` (opt-in palette), `value` (sequential shade by magnitude), or `none` (flat). Do not
+  rainbow categorical bars by default.
+- Prefer the Tufte primitives where they fit: `sparkline` (inline trend), `dot-plot` (ranked single
+  metric vs. a bar forest), `bullet` (measure vs. target, replaces a gauge), `slopegraph`
+  (before/after across many categories).
+- Direct-label data (`showLegend: false`) instead of a legend when one or two series are identifiable.
+- For more than ~4 overlapping series, build small multiples (several small graph nodes on a shared
+  scale, arranged in a grid/group) instead of one multi-color chart.
 
 **`canvas_build_web_artifact`** — Build and optionally open a bundled web artifact
 - Required: `title`, `appTsx` (source string contents, not a file path)
@@ -682,7 +710,7 @@ server's `ui://` resource as an iframe node on the canvas
 ### HTML Nodes (Sandboxed iframe)
 
 **`canvas_add_html_node`** — Add a normal self-contained HTML document rendered in a sandboxed iframe
-- Required: `html` (full document or fragment; inline `<script>` and CDN `<script src="...">` are allowed)
+- Required: `html` (full document or fragment; inline `<script>` and CDN `<script src="...">` are allowed). If `html` is a bare path to an existing local `.html`/`.htm` file, the server reads that file's contents; otherwise it is treated as raw HTML.
 - Optional: `title`, `summary`, `agentSummary`, `presentation`, `slideTitles`, `embeddedNodeIds`, `embeddedUrls`, `x`, `y`, `width` (default 720), `height` (default 640), `strictSize`
 - Iframe sandbox is `allow-scripts` only — no same-origin access, no top-navigation, no forms
 - Canvas theme tokens are auto-injected as CSS custom properties (both `--c-*` and common `--color-*` aliases such as `--color-text-primary`, `--color-bg`, `--color-accent`) and updated live when the canvas theme changes
@@ -777,6 +805,7 @@ All POST/PATCH endpoints accept `Content-Type: application/json`. Default base U
 | GET | `/api/canvas/pinned-context` | Get current pins with neighborhood context |
 | GET | `/api/canvas/search?q=...` | Search nodes |
 | POST | `/api/canvas/json-render` | Create a native json-render node |
+| POST | `/api/canvas/json-render/stream` | Create/append a streaming json-render node (SpecStream patches) |
 | POST | `/api/canvas/graph` | Create a native graph node |
 | GET | `/api/canvas/schema` | Get running-server create schemas, examples, and json-render catalog metadata |
 | POST | `/api/canvas/schema/validate` | Validate a json-render spec or graph payload without creating a node |
