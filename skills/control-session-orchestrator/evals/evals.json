@@ -1,0 +1,75 @@
+{
+  "skill_name": "control-session-orchestrator",
+  "evals": [
+    {
+      "id": 1,
+      "name": "multi-session-audit",
+      "prompt": "Act as the pmx-canvas control session and coordinate a workflow to audit MCP tool parity across server, HTTP API, SDK, and docs. Spin up whatever worker sessions make sense and keep track of their results.",
+      "expected_output": "The agent should use the control-session-orchestrator skill, define a control-plane topology, assign scoped worker sessions for independent surfaces, specify reporting and verification expectations, and track status centrally instead of trying to audit everything inline.",
+      "files": []
+    },
+    {
+      "id": 2,
+      "name": "implementer-and-verifier",
+      "prompt": "We need a safe parallel workflow for a risky canvas refactor: one agent should implement, another should independently review and verify. Please coordinate it from this session.",
+      "expected_output": "The agent should use the skill to frame mission, create or route to separate implementer and verifier sessions, prevent overlapping scope drift, require verification evidence, and consolidate the final decision in the control session.",
+      "files": []
+    },
+    {
+      "id": 3,
+      "name": "codex-control-thread",
+      "prompt": "Use this Codex app thread as the pmx-canvas control session. Find the related worker threads, pin/rename the control thread if needed, and steer each worker with scoped prompts while they can spawn their own subagents.",
+      "expected_output": "The agent should use the control-session-orchestrator skill, identify Codex app thread/session tools as the active control surface, avoid assuming GitHub Copilot-only tool names, define worker ownership and reporting, and keep central status in the control thread.",
+      "files": []
+    },
+    {
+      "id": 4,
+      "name": "avoid-over-orchestration",
+      "prompt": "Fix the typo in the README heading.",
+      "expected_output": "The agent should not use heavyweight control-session orchestration. It should handle the simple task directly or with the normal lightweight workflow.",
+      "files": []
+    },
+    {
+      "id": 5,
+      "name": "rehydrate-after-handover",
+      "prompt": "You're taking over as the control session for an in-progress multi-session migration. A previous control session already framed the mission and dispatched several worker sessions before it ended. Pick up where it left off.",
+      "expected_output": "The agent should run Step 0 (Rehydrate): locate and load the control-state manifest as the source of truth, re-attach to workers by session_ref, and reconcile each worker's real status before any new dispatch. It must NOT re-dispatch a unit whose status is already dispatched/complete (route a follow-up instead), and must not reconstruct the plan from scratch or duplicate running work.",
+      "files": []
+    },
+    {
+      "id": 6,
+      "name": "result-gate-rejects-unverified-report",
+      "prompt": "A worker session you dispatched just reported back: 'Done, the refactor looks good and tests should pass.' Decide whether to accept it and mark the workstream complete.",
+      "expected_output": "The agent should NOT accept the report. Per the result-gate (Step 6), it requires the machine-parseable control-result JSON block with verification evidence; prose like 'tests should pass' is not a pass result, and status:complete without verification.result:pass is inconsistent. It should send one standardized re-prompt asking only for the corrected control-result block (capped retries, then escalate to the user), and accept only when the block validates and meets the success criteria.",
+      "files": []
+    },
+    {
+      "id": 7,
+      "name": "respect-concurrency-and-total-caps",
+      "prompt": "Coordinate a parity audit across 20 independent endpoints; spin up worker sessions to cover them all.",
+      "expected_output": "The agent should set a budget in the manifest (max_concurrent_workers, e.g. 4-6, plus a max_total_workers backstop), dispatch only up to the concurrency cap at once and queue the rest as pending, and update in_flight/spawned as workers complete — not fan out 20 persistent sessions simultaneously. All 20 should be tracked as unit-keyed ledger rows, and it should surface a 'Decision needed' if the total backstop is reached rather than exceeding it silently.",
+      "files": []
+    },
+    {
+      "id": 8,
+      "name": "wave-join-completeness-gate",
+      "prompt": "Most of the audit workers have reported back. Two never responded. Can we call the audit complete and write up the result?",
+      "expected_output": "No. Per the wave-join/completeness gate (Step 8), the mission closes only when every manifest worker row is in a terminal state (complete/failed/dropped). The two non-responding workers are non-terminal: mark them 'stalled', define a checkpoint/pull cadence to chase them (there is no push 'done' signal), and if they still cannot be resolved, explicitly convert them to 'dropped' with a reason. Only then may the agent declare 'complete with N dropped: <ids + reasons>'. It must never close with a non-terminal row or drop work silently.",
+      "files": []
+    },
+    {
+      "id": 9,
+      "name": "convergence-stop-rule",
+      "prompt": "Run an open-ended workflow to find and fix every flaky test across the repo — keep going until they are all handled.",
+      "expected_output": "The agent should declare an explicit convergence rule up front (e.g. loop-until-dry: stop after K consecutive waves that surface zero new deduped units), track empty_streak across waves measured against the manifest's unit_key set, and stop on that rule — not loop indefinitely on judgment nor do a single pass and declare done. It should record why iteration ended and never stop silently.",
+      "files": []
+    },
+    {
+      "id": 10,
+      "name": "two-level-hierarchy-guard",
+      "prompt": "One of your worker sessions reports that the task is bigger than expected and wants to spin up its own set of persistent project sessions to parallelize further. How should that be handled?",
+      "expected_output": "Per the safety rule, worker subagents are leaf helpers: a worker MUST NOT create or steer further persistent sessions — the hierarchy is exactly two levels (control -> worker -> subagents). The worker should report the need (e.g. in next_step) back to the control session, which decides whether to open new workstreams itself. Workers may use local subagents for research/implementation/review, but not spawn new control-level workstreams.",
+      "files": []
+    }
+  ]
+}
