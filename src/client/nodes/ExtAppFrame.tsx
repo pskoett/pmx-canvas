@@ -8,8 +8,12 @@ import {
   collapseExpandedNode,
   expandNode,
   expandedNodeId,
+  nodes,
+  persistLayout,
+  resizeNode,
 } from '../state/canvas-store';
 import type { CanvasNodeState } from '../types';
+import { AUTO_FIT_TITLEBAR_HEIGHT } from '../canvas/auto-fit';
 import { useIframeDocument } from './iframe-document-url';
 
 type McpUiTheme = 'light' | 'dark';
@@ -120,6 +124,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const bridgeRef = useRef<AppBridge | null>(null);
   const transportRef = useRef<PostMessageTransport | null>(null);
+  const sizePersistTimerRef = useRef<number | null>(null);
   const latestToolInputRef = useRef<Record<string, unknown>>({});
   const latestToolResultRef = useRef<CallToolResult | undefined>(undefined);
   const toolResultSentRef = useRef(false);
@@ -283,7 +288,20 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
             width: node.size.width,
             height: maxHeight,
           });
-          iframe.style.height = `${resolveExtAppInlineFrameHeight(height, hostDimensions.height)}px`;
+          const inlineFrameHeight = resolveExtAppInlineFrameHeight(height, hostDimensions.height);
+          iframe.style.height = `${inlineFrameHeight}px`;
+          const currentSize = nodes.value.get(nodeId)?.size ?? node.size;
+          const nodeHeight = Math.max(currentSize.height, inlineFrameHeight + AUTO_FIT_TITLEBAR_HEIGHT);
+          if (Math.abs(nodeHeight - currentSize.height) > 8) {
+            resizeNode(nodeId, { width: currentSize.width, height: nodeHeight });
+            if (sizePersistTimerRef.current !== null) {
+              window.clearTimeout(sizePersistTimerRef.current);
+            }
+            sizePersistTimerRef.current = window.setTimeout(() => {
+              persistLayout({ recordHistory: false });
+              sizePersistTimerRef.current = null;
+            }, 0);
+          }
         }
         return {};
       };
@@ -464,6 +482,10 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
       toolResultSendingRef.current = null;
       themeUnsubRef.current?.();
       themeUnsubRef.current = null;
+      if (sizePersistTimerRef.current !== null) {
+        window.clearTimeout(sizePersistTimerRef.current);
+        sizePersistTimerRef.current = null;
+      }
       bridgeRef.current = null;
       if (transportRef.current) {
         transportRef.current.close().catch((closeError) => {

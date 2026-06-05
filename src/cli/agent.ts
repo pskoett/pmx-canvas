@@ -183,7 +183,12 @@ function parseFlags(args: string[]): { positional: string[]; flags: Record<strin
         }
       }
     } else if (arg.startsWith('-') && arg.length === 2) {
-      flags[arg.slice(1)] = true;
+      const key = arg.slice(1);
+      if (!BOOL_FLAGS.has(key) && i + 1 < args.length && !args[i + 1].startsWith('-')) {
+        flags[key] = args[++i];
+      } else {
+        flags[key] = true;
+      }
     } else {
       positional.push(arg);
     }

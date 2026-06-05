@@ -537,6 +537,86 @@ function inferKeysFromData(data: Array<Record<string, unknown>>, exclude: string
   return Object.keys(first).filter((key) => !exclude.includes(key));
 }
 
+function collectDataKeys(data: Array<Record<string, unknown>>): Set<string> {
+  const keys = new Set<string>();
+  for (const row of data) {
+    for (const key of Object.keys(row)) keys.add(key);
+  }
+  return keys;
+}
+
+function assertGraphDataKeys(
+  data: Array<Record<string, unknown>>,
+  chartType: GraphChartType,
+  chartProps: Record<string, unknown>,
+): void {
+  if (data.length === 0) return;
+  const available = collectDataKeys(data);
+  const required = new Set<string>();
+
+  const addString = (value: unknown): void => {
+    if (typeof value === 'string' && value.length > 0) required.add(value);
+  };
+  const addStringList = (value: unknown): void => {
+    if (!Array.isArray(value)) return;
+    for (const item of value) addString(item);
+  };
+
+  switch (chartType) {
+    case 'PieChart':
+      addString(chartProps.nameKey);
+      addString(chartProps.valueKey);
+      break;
+    case 'ScatterChart':
+      addString(chartProps.xKey);
+      addString(chartProps.yKey);
+      addString(chartProps.zKey);
+      break;
+    case 'RadarChart':
+      addString(chartProps.axisKey);
+      addStringList(chartProps.metrics);
+      break;
+    case 'StackedBarChart':
+      addString(chartProps.xKey);
+      addStringList(chartProps.series);
+      break;
+    case 'ComposedChart':
+      addString(chartProps.xKey);
+      addString(chartProps.barKey);
+      addString(chartProps.lineKey);
+      break;
+    case 'Sparkline':
+      addString(chartProps.valueKey);
+      break;
+    case 'DotPlot':
+      addString(chartProps.labelKey);
+      addString(chartProps.valueKey);
+      break;
+    case 'BulletChart':
+      addString(chartProps.labelKey);
+      addString(chartProps.valueKey);
+      addString(chartProps.targetKey);
+      addString(chartProps.rangesKey);
+      break;
+    case 'Slopegraph':
+      addString(chartProps.labelKey);
+      addString(chartProps.beforeKey);
+      addString(chartProps.afterKey);
+      break;
+    case 'AreaChart':
+    case 'BarChart':
+    case 'LineChart':
+      addString(chartProps.xKey);
+      addString(chartProps.yKey);
+      break;
+  }
+
+  const missing = [...required].filter((key) => !available.has(key));
+  if (missing.length === 0) return;
+  const availableList = [...available].sort().join(', ') || '(none)';
+  throw new Error(`Graph data key mismatch for ${chartType}: missing ${missing.join(', ')}. Available keys: ${availableList}.`);
+}
+
 export function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec {
   const title = input.title?.trim() || 'Graph';
   const chartType = normalizeGraphType(input.graphType);
@@ -603,8 +683,10 @@ export function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec {
       break;
     }
     case 'BarChart': {
-      chartProps.xKey = input.xKey ?? 'label';
-      chartProps.yKey = input.yKey ?? 'value';
+      const xKey = input.xKey ?? inferKeysFromData(input.data)[0] ?? 'label';
+      const yKey = input.yKey ?? inferKeysFromData(input.data, [xKey])[0] ?? 'value';
+      chartProps.xKey = xKey;
+      chartProps.yKey = yKey;
       chartProps.aggregate = input.aggregate ?? null;
       chartProps.color = input.color ?? null;
       chartProps.colorBy = input.colorBy ?? 'series';
@@ -648,13 +730,17 @@ export function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec {
     case 'AreaChart':
     case 'LineChart':
     default: {
-      chartProps.xKey = input.xKey ?? 'label';
-      chartProps.yKey = input.yKey ?? 'value';
+      const xKey = input.xKey ?? inferKeysFromData(input.data)[0] ?? 'label';
+      const yKey = input.yKey ?? inferKeysFromData(input.data, [xKey])[0] ?? 'value';
+      chartProps.xKey = xKey;
+      chartProps.yKey = yKey;
       chartProps.aggregate = input.aggregate ?? null;
       chartProps.color = input.color ?? null;
       break;
     }
   }
+
+  assertGraphDataKeys(input.data, chartType, chartProps);
 
   return normalizeAndValidateJsonRenderSpec({
     root: 'card',

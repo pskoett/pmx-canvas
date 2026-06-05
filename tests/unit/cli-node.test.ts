@@ -147,6 +147,35 @@ describe('agent CLI node commands', () => {
     expect(output.size).toEqual({ width: 500, height: 280 });
   });
 
+  test('node add accepts single-dash coordinate aliases', async () => {
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli([
+        'node',
+        'add',
+        '--type',
+        'markdown',
+        '--title',
+        'Single Dash Position',
+        '-x',
+        '420',
+        '-y',
+        '260',
+      ]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as { ok: boolean; id: string };
+    expect(output.ok).toBe(true);
+
+    const node = await jsonRequest<{ position: { x: number; y: number } }>(`/api/canvas/node/${output.id}`);
+    expect(node.position).toEqual({ x: 420, y: 260 });
+  });
+
   test('node add maps html content to the renderer html field', async () => {
     const html = '<main><h1>CLI HTML widget</h1></main>';
     const log = mock(() => {});
