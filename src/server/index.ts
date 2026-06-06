@@ -2,7 +2,27 @@ import { EventEmitter } from 'node:events';
 import { canvasState, IMAGE_MIME_MAP } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
 import { buildCanvasAxContext } from './ax-context.js';
-import type { PmxAxContext, PmxAxFocusState, PmxAxSource, PmxAxState } from './ax-state.js';
+import type {
+  PmxAxApprovalGate,
+  PmxAxContext,
+  PmxAxEvent,
+  PmxAxEvidence,
+  PmxAxEvidenceKind,
+  PmxAxFocusState,
+  PmxAxHostCapability,
+  PmxAxReviewAnchorType,
+  PmxAxReviewAnnotation,
+  PmxAxReviewKind,
+  PmxAxReviewRegion,
+  PmxAxReviewSeverity,
+  PmxAxReviewStatus,
+  PmxAxSource,
+  PmxAxState,
+  PmxAxSteeringMessage,
+  PmxAxWorkItem,
+  PmxAxWorkItemStatus,
+} from './ax-state.js';
+import type { AxTimelineQuery } from './canvas-db.js';
 import { findCanvasExtAppNodeId } from './ext-app-lookup.js';
 import { onFileNodeChanged } from './file-watcher.js';
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
@@ -454,6 +474,131 @@ export class PmxCanvas extends EventEmitter {
     const focus = canvasState.setAxFocus(nodeIds, { source: options?.source ?? 'sdk' });
     emitPrimaryWorkbenchEvent('ax-state-changed', { focus });
     return focus;
+  }
+
+  recordAxEvent(
+    input: { kind: PmxAxEvent['kind']; summary: string; detail?: string | null; nodeIds?: string[]; data?: Record<string, unknown> | null },
+    options?: { source?: PmxAxSource },
+  ): PmxAxEvent {
+    const event = canvasState.recordAxEvent(input, { source: options?.source ?? 'sdk' });
+    emitPrimaryWorkbenchEvent('ax-event-created', { event });
+    return event;
+  }
+
+  sendSteering(message: string, options?: { source?: PmxAxSource }): PmxAxSteeringMessage {
+    const steering = canvasState.recordSteeringMessage(message, { source: options?.source ?? 'sdk' });
+    emitPrimaryWorkbenchEvent('ax-event-created', { steering });
+    return steering;
+  }
+
+  markSteeringDelivered(id: string): boolean {
+    const ok = canvasState.markSteeringDelivered(id);
+    if (ok) emitPrimaryWorkbenchEvent('ax-event-created', { steeringDelivered: id });
+    return ok;
+  }
+
+  getAxTimeline(query?: AxTimelineQuery): ReturnType<typeof canvasState.getAxTimeline> {
+    return canvasState.getAxTimeline(query);
+  }
+
+  listWorkItems(): PmxAxWorkItem[] {
+    return canvasState.getWorkItems();
+  }
+
+  addWorkItem(
+    input: { title: string; status?: PmxAxWorkItemStatus; detail?: string | null; nodeIds?: string[] },
+    options?: { source?: PmxAxSource },
+  ): PmxAxWorkItem {
+    const workItem = canvasState.addWorkItem(input, { source: options?.source ?? 'sdk' });
+    emitPrimaryWorkbenchEvent('ax-state-changed', { workItem });
+    return workItem;
+  }
+
+  updateWorkItem(
+    id: string,
+    patch: { title?: string; status?: PmxAxWorkItemStatus; detail?: string | null; nodeIds?: string[] },
+    options?: { source?: PmxAxSource },
+  ): PmxAxWorkItem | null {
+    const workItem = canvasState.updateWorkItem(id, patch, { source: options?.source ?? 'sdk' });
+    if (workItem) emitPrimaryWorkbenchEvent('ax-state-changed', { workItem });
+    return workItem;
+  }
+
+  listApprovalGates(): PmxAxApprovalGate[] {
+    return canvasState.getApprovalGates();
+  }
+
+  requestApproval(
+    input: { title: string; detail?: string | null; action?: string | null; nodeIds?: string[] },
+    options?: { source?: PmxAxSource },
+  ): PmxAxApprovalGate {
+    const approvalGate = canvasState.requestApproval(input, { source: options?.source ?? 'sdk' });
+    emitPrimaryWorkbenchEvent('ax-state-changed', { approvalGate });
+    return approvalGate;
+  }
+
+  resolveApproval(
+    id: string,
+    decision: 'approved' | 'rejected',
+    options?: { resolution?: string; source?: PmxAxSource },
+  ): PmxAxApprovalGate | null {
+    const approvalGate = canvasState.resolveApproval(id, decision, {
+      ...(options?.resolution !== undefined ? { resolution: options.resolution } : {}),
+      source: options?.source ?? 'sdk',
+    });
+    if (approvalGate) emitPrimaryWorkbenchEvent('ax-state-changed', { approvalGate });
+    return approvalGate;
+  }
+
+  addEvidence(
+    input: { kind: PmxAxEvidenceKind; title: string; body?: string | null; ref?: string | null; nodeIds?: string[]; data?: Record<string, unknown> | null },
+    options?: { source?: PmxAxSource },
+  ): PmxAxEvidence {
+    const evidence = canvasState.addEvidence(input, { source: options?.source ?? 'sdk' });
+    emitPrimaryWorkbenchEvent('ax-event-created', { evidence });
+    return evidence;
+  }
+
+  listReviewAnnotations(): PmxAxReviewAnnotation[] {
+    return canvasState.getReviewAnnotations();
+  }
+
+  addReviewAnnotation(
+    input: {
+      body: string;
+      kind?: PmxAxReviewKind;
+      severity?: PmxAxReviewSeverity;
+      anchorType?: PmxAxReviewAnchorType;
+      nodeId?: string | null;
+      file?: string | null;
+      region?: PmxAxReviewRegion | null;
+      author?: string | null;
+    },
+    options?: { source?: PmxAxSource },
+  ): PmxAxReviewAnnotation {
+    const reviewAnnotation = canvasState.addReviewAnnotation(input, { source: options?.source ?? 'sdk' });
+    emitPrimaryWorkbenchEvent('ax-state-changed', { reviewAnnotation });
+    return reviewAnnotation;
+  }
+
+  updateReviewAnnotation(
+    id: string,
+    patch: { body?: string; status?: PmxAxReviewStatus; severity?: PmxAxReviewSeverity; kind?: PmxAxReviewKind },
+    options?: { source?: PmxAxSource },
+  ): PmxAxReviewAnnotation | null {
+    const reviewAnnotation = canvasState.updateReviewAnnotation(id, patch, { source: options?.source ?? 'sdk' });
+    if (reviewAnnotation) emitPrimaryWorkbenchEvent('ax-state-changed', { reviewAnnotation });
+    return reviewAnnotation;
+  }
+
+  getHostCapability(): PmxAxHostCapability | null {
+    return canvasState.getHostCapability();
+  }
+
+  reportHostCapability(input: unknown, options?: { source?: PmxAxSource }): PmxAxHostCapability {
+    const host = canvasState.setHostCapability(input, { source: options?.source ?? 'sdk' });
+    emitPrimaryWorkbenchEvent('ax-state-changed', { host });
+    return host;
   }
 
   fitView(options?: {
@@ -937,3 +1082,27 @@ export type {
 export type { GraphNodeInput, JsonRenderNodeInput, JsonRenderSpec } from '../json-render/server.js';
 export type { HtmlPrimitiveKind, HtmlPrimitiveDescriptor, HtmlPrimitiveInput, HtmlPrimitiveBuildResult } from './html-primitives.js';
 export { traceManager } from './trace-manager.js';
+export type {
+  PmxAxApprovalGate,
+  PmxAxApprovalStatus,
+  PmxAxContext,
+  PmxAxEvent,
+  PmxAxEventKind,
+  PmxAxEvidence,
+  PmxAxEvidenceKind,
+  PmxAxFocusState,
+  PmxAxHostCapability,
+  PmxAxReviewAnchorType,
+  PmxAxReviewAnnotation,
+  PmxAxReviewKind,
+  PmxAxReviewRegion,
+  PmxAxReviewSeverity,
+  PmxAxReviewStatus,
+  PmxAxSource,
+  PmxAxState,
+  PmxAxSteeringMessage,
+  PmxAxTimelineSummary,
+  PmxAxWorkItem,
+  PmxAxWorkItemStatus,
+} from './ax-state.js';
+export type { AxTimelineQuery } from './canvas-db.js';

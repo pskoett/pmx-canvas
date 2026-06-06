@@ -1,6 +1,8 @@
 import { EventEmitter } from 'node:events';
+import { canvasState } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.js';
-import type { PmxAxContext, PmxAxFocusState, PmxAxSource, PmxAxState } from './ax-state.js';
+import type { PmxAxApprovalGate, PmxAxContext, PmxAxEvent, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxWorkItem, PmxAxWorkItemStatus } from './ax-state.js';
+import type { AxTimelineQuery } from './canvas-db.js';
 import { searchNodes } from './spatial-analysis.js';
 import { diffLayouts } from './mutation-history.js';
 import { fitCanvasView, gcCanvasSnapshots, listCanvasSnapshots } from './canvas-operations.js';
@@ -114,6 +116,85 @@ export declare class PmxCanvas extends EventEmitter {
     setAxFocus(nodeIds: string[], options?: {
         source?: PmxAxSource;
     }): PmxAxFocusState;
+    recordAxEvent(input: {
+        kind: PmxAxEvent['kind'];
+        summary: string;
+        detail?: string | null;
+        nodeIds?: string[];
+        data?: Record<string, unknown> | null;
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxEvent;
+    sendSteering(message: string, options?: {
+        source?: PmxAxSource;
+    }): PmxAxSteeringMessage;
+    markSteeringDelivered(id: string): boolean;
+    getAxTimeline(query?: AxTimelineQuery): ReturnType<typeof canvasState.getAxTimeline>;
+    listWorkItems(): PmxAxWorkItem[];
+    addWorkItem(input: {
+        title: string;
+        status?: PmxAxWorkItemStatus;
+        detail?: string | null;
+        nodeIds?: string[];
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxWorkItem;
+    updateWorkItem(id: string, patch: {
+        title?: string;
+        status?: PmxAxWorkItemStatus;
+        detail?: string | null;
+        nodeIds?: string[];
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxWorkItem | null;
+    listApprovalGates(): PmxAxApprovalGate[];
+    requestApproval(input: {
+        title: string;
+        detail?: string | null;
+        action?: string | null;
+        nodeIds?: string[];
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxApprovalGate;
+    resolveApproval(id: string, decision: 'approved' | 'rejected', options?: {
+        resolution?: string;
+        source?: PmxAxSource;
+    }): PmxAxApprovalGate | null;
+    addEvidence(input: {
+        kind: PmxAxEvidenceKind;
+        title: string;
+        body?: string | null;
+        ref?: string | null;
+        nodeIds?: string[];
+        data?: Record<string, unknown> | null;
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxEvidence;
+    listReviewAnnotations(): PmxAxReviewAnnotation[];
+    addReviewAnnotation(input: {
+        body: string;
+        kind?: PmxAxReviewKind;
+        severity?: PmxAxReviewSeverity;
+        anchorType?: PmxAxReviewAnchorType;
+        nodeId?: string | null;
+        file?: string | null;
+        region?: PmxAxReviewRegion | null;
+        author?: string | null;
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxReviewAnnotation;
+    updateReviewAnnotation(id: string, patch: {
+        body?: string;
+        status?: PmxAxReviewStatus;
+        severity?: PmxAxReviewSeverity;
+        kind?: PmxAxReviewKind;
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxReviewAnnotation | null;
+    getHostCapability(): PmxAxHostCapability | null;
+    reportHostCapability(input: unknown, options?: {
+        source?: PmxAxSource;
+    }): PmxAxHostCapability;
     fitView(options?: {
         width?: number;
         height?: number;
@@ -347,3 +428,5 @@ export type { WebArtifactBuildInput, WebArtifactBuildOutput, WebArtifactCanvasBu
 export type { GraphNodeInput, JsonRenderNodeInput, JsonRenderSpec } from '../json-render/server.js';
 export type { HtmlPrimitiveKind, HtmlPrimitiveDescriptor, HtmlPrimitiveInput, HtmlPrimitiveBuildResult } from './html-primitives.js';
 export { traceManager } from './trace-manager.js';
+export type { PmxAxApprovalGate, PmxAxApprovalStatus, PmxAxContext, PmxAxEvent, PmxAxEventKind, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxTimelineSummary, PmxAxWorkItem, PmxAxWorkItemStatus, } from './ax-state.js';
+export type { AxTimelineQuery } from './canvas-db.js';

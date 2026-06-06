@@ -4,6 +4,7 @@ import { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { loadStateFromDB } from '../../src/server/canvas-db.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
+import { AX_TIMELINE_RETENTION } from '../../src/server/ax-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { computeGroupBounds, findOpenCanvasPosition } from '../../src/server/placement.ts';
 import {
@@ -276,6 +277,109 @@ describe('canvas state manager', () => {
 
     canvasState.removeNode(firstNode.id);
     expect(canvasState.getAxFocus().nodeIds).toEqual([secondNode.id]);
+  });
+
+  test('persists and snapshots canvas-bound AX work items, approvals, and review annotations', async () => {
+    const node = makeNode({ id: 'wi-node', type: 'markdown', data: { title: 'Work node', content: 'Body' } });
+    canvasState.addNode(node);
+
+    const workItem = canvasState.addWorkItem({ title: 'Wire auth', status: 'in-progress', nodeIds: [node.id] }, { source: 'api' });
+    expect(workItem.status).toBe('in-progress');
+    expect(workItem.nodeIds).toEqual([node.id]);
+
+    const gate = canvasState.requestApproval({ title: 'Deploy', action: 'deploy.prod' }, { source: 'api' });
+    expect(gate.status).toBe('pending');
+
+    const review = canvasState.addReviewAnnotation(
+      { body: 'needs a test', kind: 'finding', severity: 'warning', anchorType: 'node', nodeId: node.id },
+      { source: 'api' },
+    );
+    expect(review.status).toBe('open');
+    expect(review.nodeId).toBe(node.id);
+
+    await waitForPersistence();
+    const persisted = readPersistedCanvasState(workspaceRoot);
+    expect(persisted.ax?.workItems.map((w) => w.id)).toEqual([workItem.id]);
+    expect(persisted.ax?.approvalGates.map((g) => g.id)).toEqual([gate.id]);
+    expect(persisted.ax?.reviewAnnotations.map((r) => r.id)).toEqual([review.id]);
+
+    const snapshot = canvasState.saveSnapshot('ax-canvas-bound');
+    expect(snapshot).not.toBeNull();
+
+    // Mutate after snapshot, then restore — canvas-bound AX rides the snapshot blob.
+    canvasState.updateWorkItem(workItem.id, { status: 'done' });
+    canvasState.resolveApproval(gate.id, 'approved');
+    expect(canvasState.getWorkItems()[0]?.status).toBe('done');
+    expect(canvasState.getApprovalGates()[0]?.status).toBe('approved');
+
+    expect(canvasState.restoreSnapshot(snapshot!.id)).toBe(true);
+    expect(canvasState.getWorkItems()[0]?.status).toBe('in-progress');
+    expect(canvasState.getApprovalGates()[0]?.status).toBe('pending');
+    expect(canvasState.getReviewAnnotations().map((r) => r.id)).toEqual([review.id]);
+  });
+
+  test('drops node-anchored review annotations when the anchor node is removed', () => {
+    const node = makeNode({ id: 'rev-node', type: 'markdown', data: { title: 'Review node' } });
+    canvasState.addNode(node);
+    const review = canvasState.addReviewAnnotation({ body: 'fix this', anchorType: 'node', nodeId: node.id }, { source: 'api' });
+    expect(canvasState.getReviewAnnotations().map((r) => r.id)).toEqual([review.id]);
+
+    canvasState.removeNode(node.id);
+    expect(canvasState.getReviewAnnotations()).toEqual([]);
+  });
+
+  test('records the AX timeline in the DB but excludes it from snapshots', async () => {
+    const event = canvasState.recordAxEvent({ kind: 'tool-start', summary: 'ran tests' }, { source: 'api' });
+    const evidence = canvasState.addEvidence({ kind: 'test-output', title: 'unit pass' }, { source: 'api' });
+    const steering = canvasState.recordSteeringMessage('focus on the failing test', { source: 'api' });
+    expect(event.kind).toBe('tool-start');
+    expect(evidence.kind).toBe('test-output');
+    expect(steering.delivered).toBe(false);
+
+    const timeline = canvasState.getAxTimeline();
+    expect(timeline.events.map((e) => e.id)).toContain(event.id);
+    expect(timeline.evidence.map((e) => e.id)).toContain(evidence.id);
+    expect(timeline.steering.map((s) => s.id)).toContain(steering.id);
+
+    await waitForPersistence();
+    const persisted = readPersistedCanvasState(workspaceRoot);
+    // Timeline is a separate partition — never serialized into the snapshot blob.
+    expect(persisted.ax).not.toHaveProperty('events');
+    expect(persisted.ax).not.toHaveProperty('evidence');
+    expect(persisted.ax).not.toHaveProperty('steering');
+    expect(persisted.ax).not.toHaveProperty('host');
+  });
+
+  test('marks steering messages delivered and bounds timeline by retention', () => {
+    const steering = canvasState.recordSteeringMessage('first message', { source: 'api' });
+    expect(canvasState.getAxSteering({ onlyPending: true }).map((s) => s.id)).toContain(steering.id);
+    expect(canvasState.markSteeringDelivered(steering.id)).toBe(true);
+    expect(canvasState.getAxSteering({ onlyPending: true }).map((s) => s.id)).not.toContain(steering.id);
+
+    for (let i = 0; i < AX_TIMELINE_RETENTION + 5; i++) {
+      canvasState.recordAxEvent({ kind: 'tool-result', summary: `event ${i}` }, { source: 'api' });
+    }
+    expect(canvasState.getAxTimelineSummary().counts.events).toBe(AX_TIMELINE_RETENTION);
+  });
+
+  test('clear() empties canvas-bound AX state but keeps timeline and host capability', async () => {
+    const node = makeNode({ id: 'clear-node', type: 'markdown', data: { title: 'Clear node' } });
+    canvasState.addNode(node);
+    canvasState.addWorkItem({ title: 'survives?' }, { source: 'api' });
+    const event = canvasState.recordAxEvent({ kind: 'prompt', summary: 'a prompt' }, { source: 'api' });
+    const host = canvasState.setHostCapability({ host: 'copilot', capabilities: { canvas: true, sessionMessaging: true } }, { source: 'api' });
+    expect(host.host).toBe('copilot');
+    expect(host.sessionMessaging).toBe(true);
+
+    canvasState.clear();
+    expect(canvasState.getWorkItems()).toEqual([]);
+    // Timeline + host survive clear (separate partitions).
+    expect(canvasState.getAxEvents().map((e) => e.id)).toContain(event.id);
+    expect(canvasState.getHostCapability()?.host).toBe('copilot');
+
+    await waitForPersistence();
+    const persisted = readPersistedCanvasState(workspaceRoot);
+    expect(persisted.ax?.workItems).toEqual([]);
   });
 
   test('limits, filters, and garbage-collects snapshots', async () => {

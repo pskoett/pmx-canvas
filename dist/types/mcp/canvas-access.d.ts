@@ -26,6 +26,29 @@ type FitViewResult = ReturnType<PmxCanvas['fitView']>;
 type AxStateResult = ReturnType<PmxCanvas['getAxState']>;
 type AxContextResult = ReturnType<PmxCanvas['getAxContext']>;
 type SetAxFocusResult = ReturnType<PmxCanvas['setAxFocus']>;
+type RecordAxEventInput = Parameters<PmxCanvas['recordAxEvent']>[0];
+type RecordAxEventResult = ReturnType<PmxCanvas['recordAxEvent']>;
+type SendSteeringResult = ReturnType<PmxCanvas['sendSteering']>;
+type GetAxTimelineQuery = Parameters<PmxCanvas['getAxTimeline']>[0];
+type GetAxTimelineResult = ReturnType<PmxCanvas['getAxTimeline']>;
+type AddWorkItemInput = Parameters<PmxCanvas['addWorkItem']>[0];
+type AddWorkItemResult = ReturnType<PmxCanvas['addWorkItem']>;
+type UpdateWorkItemPatch = Parameters<PmxCanvas['updateWorkItem']>[1];
+type UpdateWorkItemResult = ReturnType<PmxCanvas['updateWorkItem']>;
+type ListWorkItemsResult = ReturnType<PmxCanvas['listWorkItems']>;
+type RequestApprovalInput = Parameters<PmxCanvas['requestApproval']>[0];
+type RequestApprovalResult = ReturnType<PmxCanvas['requestApproval']>;
+type ResolveApprovalResult = ReturnType<PmxCanvas['resolveApproval']>;
+type ListApprovalGatesResult = ReturnType<PmxCanvas['listApprovalGates']>;
+type AddEvidenceInput = Parameters<PmxCanvas['addEvidence']>[0];
+type AddEvidenceResult = ReturnType<PmxCanvas['addEvidence']>;
+type AddReviewAnnotationInput = Parameters<PmxCanvas['addReviewAnnotation']>[0];
+type AddReviewAnnotationResult = ReturnType<PmxCanvas['addReviewAnnotation']>;
+type UpdateReviewAnnotationPatch = Parameters<PmxCanvas['updateReviewAnnotation']>[1];
+type UpdateReviewAnnotationResult = ReturnType<PmxCanvas['updateReviewAnnotation']>;
+type ListReviewAnnotationsResult = ReturnType<PmxCanvas['listReviewAnnotations']>;
+type GetHostCapabilityResult = ReturnType<PmxCanvas['getHostCapability']>;
+type ReportHostCapabilityResult = ReturnType<PmxCanvas['reportHostCapability']>;
 type SearchResult = ReturnType<PmxCanvas['search']>;
 type UndoRedoResult = Awaited<ReturnType<PmxCanvas['undo']>>;
 type HistoryResult = ReturnType<PmxCanvas['getHistory']>;
@@ -80,6 +103,42 @@ export interface CanvasAccess {
     setAxFocus(nodeIds: string[], options?: {
         source?: PmxAxSource;
     }): Promise<SetAxFocusResult>;
+    recordAxEvent(input: RecordAxEventInput, options?: {
+        source?: PmxAxSource;
+    }): Promise<RecordAxEventResult>;
+    sendSteering(message: string, options?: {
+        source?: PmxAxSource;
+    }): Promise<SendSteeringResult>;
+    getAxTimeline(query?: GetAxTimelineQuery): Promise<GetAxTimelineResult>;
+    addWorkItem(input: AddWorkItemInput, options?: {
+        source?: PmxAxSource;
+    }): Promise<AddWorkItemResult>;
+    updateWorkItem(id: string, patch: UpdateWorkItemPatch, options?: {
+        source?: PmxAxSource;
+    }): Promise<UpdateWorkItemResult>;
+    listWorkItems(): Promise<ListWorkItemsResult>;
+    requestApproval(input: RequestApprovalInput, options?: {
+        source?: PmxAxSource;
+    }): Promise<RequestApprovalResult>;
+    resolveApproval(id: string, decision: 'approved' | 'rejected', options?: {
+        resolution?: string;
+        source?: PmxAxSource;
+    }): Promise<ResolveApprovalResult>;
+    listApprovalGates(): Promise<ListApprovalGatesResult>;
+    addEvidence(input: AddEvidenceInput, options?: {
+        source?: PmxAxSource;
+    }): Promise<AddEvidenceResult>;
+    addReviewAnnotation(input: AddReviewAnnotationInput, options?: {
+        source?: PmxAxSource;
+    }): Promise<AddReviewAnnotationResult>;
+    updateReviewAnnotation(id: string, patch: UpdateReviewAnnotationPatch, options?: {
+        source?: PmxAxSource;
+    }): Promise<UpdateReviewAnnotationResult>;
+    listReviewAnnotations(): Promise<ListReviewAnnotationsResult>;
+    getHostCapability(): Promise<GetHostCapabilityResult>;
+    reportHostCapability(input: unknown, options?: {
+        source?: PmxAxSource;
+    }): Promise<ReportHostCapabilityResult>;
     clear(): Promise<void>;
     search(query: string): Promise<SearchResult>;
     undo(): Promise<UndoRedoResult>;

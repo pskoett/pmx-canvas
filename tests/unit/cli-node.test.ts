@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
@@ -546,6 +546,125 @@ describe('agent CLI node commands', () => {
     expect(statusOutput.state.focus.nodeIds).toEqual([second.id]);
     expect(contextOutput.pinned.nodeIds).toEqual([first.id]);
     expect(contextOutput.focus.nodeIds).toEqual([second.id]);
+  });
+
+  test('ax timeline commands record events, steering, and evidence with the cli source', async () => {
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['ax', 'event', 'add', '--kind', 'tool-start', '--summary', 'ran tests']);
+      await runAgentCli(['ax', 'steer', 'focus on the failing test']);
+      await runAgentCli(['ax', 'evidence', 'add', '--kind', 'test-output', '--title', 'unit pass']);
+      await runAgentCli(['ax', 'timeline']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const eventOut = JSON.parse(log.mock.calls[0]?.[0] as string) as { ok: boolean; event: { kind: string; source: string } };
+    const steerOut = JSON.parse(log.mock.calls[1]?.[0] as string) as { ok: boolean; steering: { message: string; source: string } };
+    const evidenceOut = JSON.parse(log.mock.calls[2]?.[0] as string) as { ok: boolean; evidence: { kind: string } };
+    const timelineOut = JSON.parse(log.mock.calls[3]?.[0] as string) as {
+      events: Array<{ id: string }>;
+      steering: Array<{ id: string }>;
+      evidence: Array<{ id: string }>;
+    };
+
+    expect(eventOut.event).toMatchObject({ kind: 'tool-start', source: 'cli' });
+    expect(steerOut.steering).toMatchObject({ message: 'focus on the failing test', source: 'cli' });
+    expect(evidenceOut.evidence.kind).toBe('test-output');
+    expect(timelineOut.events.length).toBeGreaterThan(0);
+    expect(timelineOut.steering.length).toBeGreaterThan(0);
+    expect(timelineOut.evidence.length).toBeGreaterThan(0);
+  });
+
+  test('ax canvas-bound commands manage work items, approvals, reviews, and host capability', async () => {
+    const node = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'CLI work node' }),
+    });
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    let workItemId = '';
+    let approvalId = '';
+    try {
+      await runAgentCli(['ax', 'work', 'add', '--title', 'Wire auth', '--status', 'in-progress', node.id]);
+      workItemId = (JSON.parse(log.mock.calls[0]?.[0] as string) as { workItem: { id: string } }).workItem.id;
+      await runAgentCli(['ax', 'work', 'update', workItemId, '--status', 'done']);
+      await runAgentCli(['ax', 'approval', 'request', '--title', 'Deploy']);
+      approvalId = (JSON.parse(log.mock.calls[2]?.[0] as string) as { approvalGate: { id: string } }).approvalGate.id;
+      await runAgentCli(['ax', 'approval', 'resolve', approvalId, '--decision', 'approved']);
+      await runAgentCli(['ax', 'review', 'add', '--body', 'needs a test', '--node', node.id]);
+      await runAgentCli(['ax', 'host', 'report', '--host', 'copilot', '--canvas', '--session-messaging']);
+      await runAgentCli(['ax', 'host', 'status']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const updatedWork = JSON.parse(log.mock.calls[1]?.[0] as string) as { workItem: { status: string } };
+    const resolvedApproval = JSON.parse(log.mock.calls[3]?.[0] as string) as { approvalGate: { status: string } };
+    const review = JSON.parse(log.mock.calls[4]?.[0] as string) as { reviewAnnotation: { nodeId: string; source: string } };
+    const hostReport = JSON.parse(log.mock.calls[5]?.[0] as string) as { host: { host: string; sessionMessaging: boolean } };
+    const hostStatus = JSON.parse(log.mock.calls[6]?.[0] as string) as { host: { host: string } };
+
+    expect(updatedWork.workItem.status).toBe('done');
+    expect(resolvedApproval.approvalGate.status).toBe('approved');
+    expect(review.reviewAnnotation).toMatchObject({ nodeId: node.id, source: 'cli' });
+    expect(hostReport.host).toMatchObject({ host: 'copilot', sessionMessaging: true });
+    expect(hostStatus.host.host).toBe('copilot');
+  });
+
+  test('ax event add fails loud when the required kind flag is missing', async () => {
+    const errorLog = mock(() => {});
+    const originalError = console.error;
+    const originalExit = process.exit;
+    console.error = errorLog;
+    let exitCode: number | undefined;
+    // @ts-expect-error test stub for process.exit
+    process.exit = ((code?: number) => {
+      exitCode = code;
+      throw new Error('process.exit');
+    }) as typeof process.exit;
+
+    try {
+      await runAgentCli(['ax', 'event', 'add', '--summary', 'no kind here']);
+    } catch (error) {
+      expect((error as Error).message).toBe('process.exit');
+    } finally {
+      console.error = originalError;
+      process.exit = originalExit;
+    }
+
+    expect(exitCode).toBe(1);
+    const payload = JSON.parse(errorLog.mock.calls[0]?.[0] as string) as { error: string };
+    expect(payload.error).toContain('kind');
+  });
+
+  test('copilot install-extension --dry-run writes nothing', async () => {
+    const target = join(workspaceRoot, '.github', 'extensions', 'pmx-canvas', 'extension.mjs');
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['copilot', 'install-extension', '--dry-run', '--target', target]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      dryRun: boolean;
+      wrote: boolean;
+      targetPath: string;
+    };
+    expect(output).toMatchObject({ ok: true, dryRun: true, wrote: false, targetPath: target });
+    expect(existsSync(target)).toBe(false);
   });
 
   test('fit command updates server viewport for canvas bounds', async () => {

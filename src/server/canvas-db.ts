@@ -17,7 +17,26 @@ import type {
   CanvasSnapshotListOptions,
   ViewportState,
 } from './canvas-state.js';
-import { createEmptyAxState, normalizeAxState, type PmxAxState } from './ax-state.js';
+import {
+  createEmptyAxState,
+  normalizeAxState,
+  normalizeAxEvent,
+  normalizeAxEvidence,
+  normalizeAxSteeringMessage,
+  normalizeAxHostCapability,
+  AX_TIMELINE_RETENTION,
+  AX_TIMELINE_DEFAULT_LIMIT,
+  AX_TIMELINE_MAX_LIMIT,
+  AX_CONTEXT_EVENT_LIMIT,
+  AX_CONTEXT_EVIDENCE_LIMIT,
+  AX_CONTEXT_STEERING_LIMIT,
+  type PmxAxState,
+  type PmxAxEvent,
+  type PmxAxEvidence,
+  type PmxAxSteeringMessage,
+  type PmxAxHostCapability,
+  type PmxAxTimelineSummary,
+} from './ax-state.js';
 
 // ── Schema ──────────────────────────────────────────────────────
 
@@ -147,6 +166,49 @@ const SCHEMA_SQL = `
     sha256 TEXT PRIMARY KEY,
     data BLOB NOT NULL,
     json_bytes INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS ax_events (
+    seq INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL,
+    summary TEXT NOT NULL,
+    detail TEXT,
+    node_ids TEXT NOT NULL DEFAULT '[]',
+    data TEXT,
+    created_at TEXT NOT NULL,
+    source TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_ax_events_seq ON ax_events (seq);
+
+  CREATE TABLE IF NOT EXISTS ax_evidence (
+    seq INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT NOT NULL UNIQUE,
+    kind TEXT NOT NULL,
+    title TEXT NOT NULL,
+    body TEXT,
+    ref TEXT,
+    node_ids TEXT NOT NULL DEFAULT '[]',
+    data TEXT,
+    created_at TEXT NOT NULL,
+    source TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_ax_evidence_seq ON ax_evidence (seq);
+
+  CREATE TABLE IF NOT EXISTS ax_steering (
+    seq INTEGER PRIMARY KEY AUTOINCREMENT,
+    id TEXT NOT NULL UNIQUE,
+    message TEXT NOT NULL,
+    delivered INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL,
+    source TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_ax_steering_seq ON ax_steering (seq);
+
+  CREATE TABLE IF NOT EXISTS ax_host_capabilities (
+    host TEXT PRIMARY KEY,
+    reported_at TEXT NOT NULL,
+    payload TEXT NOT NULL
   );
 `;
 
@@ -742,4 +804,125 @@ export function hasBlobInDB(db: Database, sha256: string): boolean {
     'SELECT COUNT(*) as c FROM blobs WHERE sha256 = ?',
   ).get(sha256);
   return (row?.c ?? 0) > 0;
+}
+
+// ── AX Timeline Persistence (NOT snapshotted; bounded by retention) ──
+
+function safeParseJson(raw: string | null | undefined): unknown {
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export interface AxTimelineQuery {
+  limit?: number;
+  sessionId?: string;
+}
+
+function clampTimelineLimit(limit: number | undefined): number {
+  if (typeof limit !== 'number' || !Number.isFinite(limit) || limit <= 0) return AX_TIMELINE_DEFAULT_LIMIT;
+  return Math.min(Math.floor(limit), AX_TIMELINE_MAX_LIMIT);
+}
+
+function trimAxTable(db: Database, table: 'ax_events' | 'ax_evidence' | 'ax_steering'): void {
+  db.run(
+    `DELETE FROM ${table} WHERE seq <= (SELECT seq FROM ${table} ORDER BY seq DESC LIMIT 1 OFFSET ?)`,
+    [AX_TIMELINE_RETENTION],
+  );
+}
+
+function readLastSeq(db: Database, table: 'ax_events' | 'ax_evidence' | 'ax_steering'): number {
+  const row = db.query<{ seq: number }, []>(`SELECT seq FROM ${table} ORDER BY seq DESC LIMIT 1`).get();
+  return row ? Number(row.seq) : 0;
+}
+
+export function appendAxEventToDB(db: Database, ev: Omit<PmxAxEvent, 'seq'>): PmxAxEvent {
+  db.run(
+    'INSERT INTO ax_events (id, kind, summary, detail, node_ids, data, created_at, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    [ev.id, ev.kind, ev.summary, ev.detail, JSON.stringify(ev.nodeIds), ev.data ? JSON.stringify(ev.data) : null, ev.createdAt, ev.source],
+  );
+  const seq = readLastSeq(db, 'ax_events');
+  trimAxTable(db, 'ax_events');
+  return { ...ev, seq };
+}
+
+export function appendAxEvidenceToDB(db: Database, ev: Omit<PmxAxEvidence, 'seq'>): PmxAxEvidence {
+  db.run(
+    'INSERT INTO ax_evidence (id, kind, title, body, ref, node_ids, data, created_at, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+    [ev.id, ev.kind, ev.title, ev.body, ev.ref, JSON.stringify(ev.nodeIds), ev.data ? JSON.stringify(ev.data) : null, ev.createdAt, ev.source],
+  );
+  const seq = readLastSeq(db, 'ax_evidence');
+  trimAxTable(db, 'ax_evidence');
+  return { ...ev, seq };
+}
+
+export function appendAxSteeringToDB(db: Database, s: Omit<PmxAxSteeringMessage, 'seq'>): PmxAxSteeringMessage {
+  db.run(
+    'INSERT INTO ax_steering (id, message, delivered, created_at, source) VALUES (?, ?, ?, ?, ?)',
+    [s.id, s.message, s.delivered ? 1 : 0, s.createdAt, s.source],
+  );
+  const seq = readLastSeq(db, 'ax_steering');
+  trimAxTable(db, 'ax_steering');
+  return { ...s, seq };
+}
+
+export function markAxSteeringDeliveredInDB(db: Database, id: string): boolean {
+  const r = db.run('UPDATE ax_steering SET delivered = 1 WHERE id = ?', [id]);
+  return r.changes > 0;
+}
+
+export function loadAxEventsFromDB(db: Database, q: AxTimelineQuery = {}): PmxAxEvent[] {
+  interface Row { seq: number; id: string; kind: string; summary: string; detail: string | null; node_ids: string; data: string | null; created_at: string; source: string | null }
+  const rows = db.query<Row, [number]>('SELECT * FROM ax_events ORDER BY seq DESC LIMIT ?').all(clampTimelineLimit(q.limit));
+  return rows
+    .map((r) => normalizeAxEvent({ ...r, createdAt: r.created_at, nodeIds: safeParseJson(r.node_ids), data: safeParseJson(r.data) }))
+    .filter((e): e is PmxAxEvent => e !== null);
+}
+
+export function loadAxEvidenceFromDB(db: Database, q: AxTimelineQuery = {}): PmxAxEvidence[] {
+  interface Row { seq: number; id: string; kind: string; title: string; body: string | null; ref: string | null; node_ids: string; data: string | null; created_at: string; source: string | null }
+  const rows = db.query<Row, [number]>('SELECT * FROM ax_evidence ORDER BY seq DESC LIMIT ?').all(clampTimelineLimit(q.limit));
+  return rows
+    .map((r) => normalizeAxEvidence({ ...r, createdAt: r.created_at, nodeIds: safeParseJson(r.node_ids), data: safeParseJson(r.data) }))
+    .filter((e): e is PmxAxEvidence => e !== null);
+}
+
+export function loadAxSteeringFromDB(db: Database, q: AxTimelineQuery & { onlyPending?: boolean } = {}): PmxAxSteeringMessage[] {
+  interface Row { seq: number; id: string; message: string; delivered: number; created_at: string; source: string | null }
+  const sql = q.onlyPending
+    ? 'SELECT * FROM ax_steering WHERE delivered = 0 ORDER BY seq DESC LIMIT ?'
+    : 'SELECT * FROM ax_steering ORDER BY seq DESC LIMIT ?';
+  const rows = db.query<Row, [number]>(sql).all(clampTimelineLimit(q.limit));
+  return rows
+    .map((r) => normalizeAxSteeringMessage({ ...r, createdAt: r.created_at, delivered: r.delivered === 1 }))
+    .filter((s): s is PmxAxSteeringMessage => s !== null);
+}
+
+function countRows(db: Database, table: 'ax_events' | 'ax_evidence' | 'ax_steering'): number {
+  return Number(db.query<{ n: number }, []>(`SELECT COUNT(*) AS n FROM ${table}`).get()?.n ?? 0);
+}
+
+export function loadAxTimelineSummaryFromDB(db: Database): PmxAxTimelineSummary {
+  return {
+    recentEvents: loadAxEventsFromDB(db, { limit: AX_CONTEXT_EVENT_LIMIT }),
+    recentEvidence: loadAxEvidenceFromDB(db, { limit: AX_CONTEXT_EVIDENCE_LIMIT }),
+    pendingSteering: loadAxSteeringFromDB(db, { onlyPending: true, limit: AX_CONTEXT_STEERING_LIMIT }),
+    counts: { events: countRows(db, 'ax_events'), evidence: countRows(db, 'ax_evidence'), steering: countRows(db, 'ax_steering') },
+  };
+}
+
+export function upsertAxHostCapabilityToDB(db: Database, cap: PmxAxHostCapability): void {
+  const host = cap.host ?? 'default';
+  db.run(
+    'INSERT OR REPLACE INTO ax_host_capabilities (host, reported_at, payload) VALUES (?, ?, ?)',
+    [host, cap.reportedAt ?? new Date().toISOString(), JSON.stringify(cap)],
+  );
+}
+
+export function loadAxHostCapabilityFromDB(db: Database): PmxAxHostCapability | null {
+  const row = db.query<{ payload: string }, []>('SELECT payload FROM ax_host_capabilities ORDER BY reported_at DESC LIMIT 1').get();
+  return row ? normalizeAxHostCapability(safeParseJson(row.payload)) : null;
 }

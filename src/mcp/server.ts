@@ -100,7 +100,7 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolveSleep) => setTimeout(resolveSleep, ms));
 }
 
-function sendCanvasResourceNotifications(type: 'nodes' | 'pins' | 'ax' = 'nodes'): void {
+function sendCanvasResourceNotifications(type: 'nodes' | 'pins' | 'ax' | 'ax-timeline' = 'nodes'): void {
   const server = resourceNotificationServer;
   if (!server) return;
   try {
@@ -109,6 +109,12 @@ function sendCanvasResourceNotifications(type: 'nodes' | 'pins' | 'ax' = 'nodes'
     }
     if (type === 'pins' || type === 'ax') {
       server.server.sendResourceUpdated({ uri: 'canvas://ax' });
+      server.server.sendResourceUpdated({ uri: 'canvas://ax-context' });
+      server.server.sendResourceUpdated({ uri: 'canvas://ax-timeline' });
+      server.server.sendResourceUpdated({ uri: 'canvas://ax-work' });
+    }
+    if (type === 'ax-timeline') {
+      server.server.sendResourceUpdated({ uri: 'canvas://ax-timeline' });
       server.server.sendResourceUpdated({ uri: 'canvas://ax-context' });
     }
     server.server.sendResourceUpdated({ uri: 'canvas://layout' });
@@ -126,7 +132,13 @@ function handleRemoteSseFrame(frame: string): void {
   const event = eventLine?.slice('event: '.length).trim() ?? '';
   if (!event || event === 'connected' || event === 'ping') return;
   sendCanvasResourceNotifications(
-    event === 'context-pins-changed' ? 'pins' : event === 'ax-state-changed' ? 'ax' : 'nodes',
+    event === 'context-pins-changed'
+      ? 'pins'
+      : event === 'ax-state-changed'
+        ? 'ax'
+        : event === 'ax-event-created'
+          ? 'ax-timeline'
+          : 'nodes',
   );
 }
 
@@ -1270,6 +1282,7 @@ export async function startMcpServer(): Promise<void> {
     async ({ includeContext }) => {
       const c = await ensureCanvas();
       const state = await c.getAxState();
+      const host = await c.getHostCapability();
       const context = includeContext === false ? undefined : await c.getAxContext();
       return {
         content: [
@@ -1278,6 +1291,7 @@ export async function startMcpServer(): Promise<void> {
             text: JSON.stringify({
               ok: true,
               state,
+              host,
               ...(context ? { context } : {}),
             }),
           },
@@ -1305,6 +1319,306 @@ export async function startMcpServer(): Promise<void> {
             text: JSON.stringify({ ok: true, focus }),
           },
         ],
+      };
+    },
+  );
+
+  server.tool(
+    'canvas_record_ax_event',
+    'Record a normalized AX timeline event (prompt/assistant-message/tool-start/tool-result/failure/approval/steering). Timeline events persist for diagnostics and continuity but are not restored by snapshots.',
+    {
+      kind: z.enum(['prompt', 'assistant-message', 'tool-start', 'tool-result', 'failure', 'approval', 'steering'])
+        .describe('Normalized event kind.'),
+      summary: z.string().describe('Short human-readable summary of the event.'),
+      detail: z.string().optional().describe('Optional longer detail or payload text.'),
+      nodeIds: z.array(z.string()).optional().describe('Optional node IDs this event relates to.'),
+      data: z.record(z.string(), z.unknown()).optional().describe('Optional structured data payload.'),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
+        .optional()
+        .describe('Optional host/source label. Defaults to mcp.'),
+    },
+    async ({ kind, summary, detail, nodeIds, data, source }) => {
+      const c = await ensureCanvas();
+      const event = await c.recordAxEvent(
+        {
+          kind,
+          summary,
+          ...(typeof detail === 'string' ? { detail } : {}),
+          ...(Array.isArray(nodeIds) ? { nodeIds } : {}),
+          ...(data ? { data } : {}),
+        },
+        { source: source ?? 'mcp' },
+      );
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ ok: true, event }),
+          },
+        ],
+      };
+    },
+  );
+
+  server.tool(
+    'canvas_send_steering',
+    'Record a steering message: a user instruction from the surface to the active agent session. Persisted on the AX timeline and exposed via canvas://ax-timeline.',
+    {
+      message: z.string().describe('The steering instruction to deliver to the active agent session.'),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
+        .optional()
+        .describe('Optional host/source label. Defaults to mcp.'),
+    },
+    async ({ message, source }) => {
+      const c = await ensureCanvas();
+      const steering = await c.sendSteering(message, { source: source ?? 'mcp' });
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ ok: true, steering }),
+          },
+        ],
+      };
+    },
+  );
+
+  server.tool(
+    'canvas_get_ax_timeline',
+    'Read the bounded AX timeline: recent agent-events, evidence, and steering messages plus counts. Use this for diagnostics and session continuity.',
+    {
+      limit: z.number().optional().describe('Max rows per timeline table (default 50, max 200).'),
+    },
+    async ({ limit }) => {
+      const c = await ensureCanvas();
+      const timeline = await c.getAxTimeline(
+        typeof limit === 'number' && limit > 0 ? { limit } : undefined,
+      );
+      return {
+        content: [
+          {
+            type: 'text',
+            text: JSON.stringify({ ok: true, ...timeline }),
+          },
+        ],
+      };
+    },
+  );
+
+  server.tool(
+    'canvas_add_work_item',
+    'Add a canvas-bound AX work item: a visible task/plan/status tied to nodes and agent work. Work items participate in snapshots and are exposed via canvas://ax-work.',
+    {
+      title: z.string().describe('Short title of the work item.'),
+      status: z.enum(['todo', 'in-progress', 'blocked', 'done', 'cancelled'])
+        .optional()
+        .describe('Work item status. Defaults to todo.'),
+      detail: z.string().optional().describe('Optional longer description.'),
+      nodeIds: z.array(z.string()).optional().describe('Optional node IDs this work item is tied to.'),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
+        .optional()
+        .describe('Optional host/source label. Defaults to mcp.'),
+    },
+    async ({ title, status, detail, nodeIds, source }) => {
+      const c = await ensureCanvas();
+      const workItem = await c.addWorkItem(
+        {
+          title,
+          ...(status ? { status } : {}),
+          ...(typeof detail === 'string' ? { detail } : {}),
+          ...(Array.isArray(nodeIds) ? { nodeIds } : {}),
+        },
+        { source: source ?? 'mcp' },
+      );
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, workItem }) }],
+      };
+    },
+  );
+
+  server.tool(
+    'canvas_update_work_item',
+    'Update a canvas-bound AX work item by ID (title/status/detail/nodeIds). Returns null if the work item does not exist.',
+    {
+      id: z.string().describe('Work item ID to update.'),
+      title: z.string().optional().describe('New title.'),
+      status: z.enum(['todo', 'in-progress', 'blocked', 'done', 'cancelled'])
+        .optional()
+        .describe('New status.'),
+      detail: z.string().optional().describe('New detail text.'),
+      nodeIds: z.array(z.string()).optional().describe('Replacement node IDs.'),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
+        .optional()
+        .describe('Optional host/source label. Defaults to mcp.'),
+    },
+    async ({ id, title, status, detail, nodeIds, source }) => {
+      const c = await ensureCanvas();
+      const workItem = await c.updateWorkItem(
+        id,
+        {
+          ...(typeof title === 'string' ? { title } : {}),
+          ...(status ? { status } : {}),
+          ...(typeof detail === 'string' ? { detail } : {}),
+          ...(Array.isArray(nodeIds) ? { nodeIds } : {}),
+        },
+        { source: source ?? 'mcp' },
+      );
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: workItem !== null, workItem }) }],
+      };
+    },
+  );
+
+  server.tool(
+    'canvas_request_approval',
+    'Request human approval before a high-impact AX action: creates a pending approval gate tied to nodes. Canvas-bound and snapshotted; exposed via canvas://ax-work.',
+    {
+      title: z.string().describe('Short title of what needs approval.'),
+      detail: z.string().optional().describe('Optional explanation of the action and its impact.'),
+      action: z.string().optional().describe('Optional machine-readable action identifier the approval gates.'),
+      nodeIds: z.array(z.string()).optional().describe('Optional node IDs this approval relates to.'),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
+        .optional()
+        .describe('Optional host/source label. Defaults to mcp.'),
+    },
+    async ({ title, detail, action, nodeIds, source }) => {
+      const c = await ensureCanvas();
+      const approvalGate = await c.requestApproval(
+        {
+          title,
+          ...(typeof detail === 'string' ? { detail } : {}),
+          ...(typeof action === 'string' ? { action } : {}),
+          ...(Array.isArray(nodeIds) ? { nodeIds } : {}),
+        },
+        { source: source ?? 'mcp' },
+      );
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, approvalGate }) }],
+      };
+    },
+  );
+
+  server.tool(
+    'canvas_resolve_approval',
+    'Resolve a pending approval gate by ID with approved or rejected. Returns null if the gate does not exist or is already resolved.',
+    {
+      id: z.string().describe('Approval gate ID to resolve.'),
+      decision: z.enum(['approved', 'rejected']).describe('Approval decision.'),
+      resolution: z.string().optional().describe('Optional human-readable resolution note.'),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
+        .optional()
+        .describe('Optional host/source label. Defaults to mcp.'),
+    },
+    async ({ id, decision, resolution, source }) => {
+      const c = await ensureCanvas();
+      const approvalGate = await c.resolveApproval(id, decision, {
+        ...(typeof resolution === 'string' ? { resolution } : {}),
+        source: source ?? 'mcp',
+      });
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: approvalGate !== null, approvalGate }) }],
+      };
+    },
+  );
+
+  server.tool(
+    'canvas_add_evidence',
+    'Record an AX evidence item (logs/tool-result/screenshot/file/diff/test-output) on the timeline. Evidence persists for diagnostics and continuity but is not restored by snapshots; exposed via canvas://ax-timeline.',
+    {
+      kind: z.enum(['logs', 'tool-result', 'screenshot', 'file', 'diff', 'test-output'])
+        .describe('Evidence kind.'),
+      title: z.string().describe('Short human-readable title for the evidence.'),
+      body: z.string().optional().describe('Optional inline body/content.'),
+      ref: z.string().optional().describe('Optional reference (path, URL, or external locator).'),
+      nodeIds: z.array(z.string()).optional().describe('Optional node IDs this evidence relates to.'),
+      data: z.record(z.string(), z.unknown()).optional().describe('Optional structured data payload.'),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
+        .optional()
+        .describe('Optional host/source label. Defaults to mcp.'),
+    },
+    async ({ kind, title, body, ref, nodeIds, data, source }) => {
+      const c = await ensureCanvas();
+      const evidence = await c.addEvidence(
+        {
+          kind,
+          title,
+          ...(typeof body === 'string' ? { body } : {}),
+          ...(typeof ref === 'string' ? { ref } : {}),
+          ...(Array.isArray(nodeIds) ? { nodeIds } : {}),
+          ...(data ? { data } : {}),
+        },
+        { source: source ?? 'mcp' },
+      );
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, evidence }) }],
+      };
+    },
+  );
+
+  server.tool(
+    'canvas_add_review_annotation',
+    'Add a canvas-bound review annotation: a comment or finding anchored to a node, file, or region. Review annotations participate in snapshots and are exposed via canvas://ax-work.',
+    {
+      body: z.string().describe('Annotation body text.'),
+      kind: z.enum(['comment', 'finding']).optional().describe('Annotation kind. Default comment.'),
+      severity: z.enum(['info', 'warning', 'error']).optional().describe('Severity. Default info.'),
+      anchorType: z.enum(['node', 'file', 'region']).optional().describe('Anchor type. Default node.'),
+      nodeId: z.string().optional().describe('Node ID when anchorType is node.'),
+      file: z.string().optional().describe('File path when anchorType is file.'),
+      region: z.object({
+        line: z.number().optional(),
+        endLine: z.number().optional(),
+        label: z.string().optional(),
+      }).optional().describe('Region descriptor when anchorType is region.'),
+      author: z.string().optional().describe('Optional author label.'),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
+        .optional()
+        .describe('Optional host/source label. Defaults to mcp.'),
+    },
+    async ({ body, kind, severity, anchorType, nodeId, file, region, author, source }) => {
+      const c = await ensureCanvas();
+      const reviewAnnotation = await c.addReviewAnnotation(
+        {
+          body,
+          ...(kind ? { kind } : {}),
+          ...(severity ? { severity } : {}),
+          ...(anchorType ? { anchorType } : {}),
+          ...(typeof nodeId === 'string' ? { nodeId } : {}),
+          ...(typeof file === 'string' ? { file } : {}),
+          ...(region ? { region } : {}),
+          ...(typeof author === 'string' ? { author } : {}),
+        },
+        { source: source ?? 'mcp' },
+      );
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, reviewAnnotation }) }],
+      };
+    },
+  );
+
+  server.tool(
+    'canvas_report_host_capability',
+    'Report host/session capability from an adapter: what the host can do (canvas/hooks/tools/sessionMessaging/permissions/files/uiPrompts). Stored for diagnostics; core does not depend on a host.',
+    {
+      host: z.string().optional().describe('Host identifier (e.g. copilot, codex).'),
+      canvas: z.boolean().optional(),
+      hooks: z.boolean().optional(),
+      tools: z.boolean().optional(),
+      sessionMessaging: z.boolean().optional(),
+      permissions: z.boolean().optional(),
+      files: z.boolean().optional(),
+      uiPrompts: z.boolean().optional(),
+      raw: z.record(z.string(), z.unknown()).optional().describe('Optional raw capability payload for diagnostics.'),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
+        .optional()
+        .describe('Optional host/source label. Defaults to mcp.'),
+    },
+    async (input) => {
+      const c = await ensureCanvas();
+      const { source, ...capability } = input;
+      const host = await c.reportHostCapability(capability, { source: source ?? 'mcp' });
+      return {
+        content: [{ type: 'text', text: JSON.stringify({ ok: true, host }) }],
       };
     },
   );
@@ -1726,6 +2040,53 @@ export async function startMcpServer(): Promise<void> {
             uri: 'canvas://ax-context',
             mimeType: 'application/json',
             text: JSON.stringify(context, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.resource(
+    'ax-timeline',
+    'canvas://ax-timeline',
+    {
+      description:
+        'Bounded PMX AX timeline: recent agent-events, evidence, and steering messages with counts. Persisted for diagnostics and continuity; not restored by snapshots.',
+      mimeType: 'application/json',
+    },
+    async () => {
+      const c = await ensureCanvas();
+      const timeline = await c.getAxTimeline();
+      return {
+        contents: [
+          {
+            uri: 'canvas://ax-timeline',
+            mimeType: 'application/json',
+            text: JSON.stringify(timeline, null, 2),
+          },
+        ],
+      };
+    },
+  );
+
+  server.resource(
+    'ax-work',
+    'canvas://ax-work',
+    {
+      description:
+        'Canvas-bound PMX AX work state: work items, approval gates, and review annotations. Participates in snapshots and restore.',
+      mimeType: 'application/json',
+    },
+    async () => {
+      const c = await ensureCanvas();
+      const [workItems, approvalGates] = await Promise.all([c.listWorkItems(), c.listApprovalGates()]);
+      const state = await c.getAxState();
+      return {
+        contents: [
+          {
+            uri: 'canvas://ax-work',
+            mimeType: 'application/json',
+            text: JSON.stringify({ workItems, approvalGates, reviewAnnotations: state.reviewAnnotations }, null, 2),
           },
         ],
       };

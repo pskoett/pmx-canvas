@@ -37,6 +37,29 @@ type FitViewResult = ReturnType<PmxCanvas['fitView']>;
 type AxStateResult = ReturnType<PmxCanvas['getAxState']>;
 type AxContextResult = ReturnType<PmxCanvas['getAxContext']>;
 type SetAxFocusResult = ReturnType<PmxCanvas['setAxFocus']>;
+type RecordAxEventInput = Parameters<PmxCanvas['recordAxEvent']>[0];
+type RecordAxEventResult = ReturnType<PmxCanvas['recordAxEvent']>;
+type SendSteeringResult = ReturnType<PmxCanvas['sendSteering']>;
+type GetAxTimelineQuery = Parameters<PmxCanvas['getAxTimeline']>[0];
+type GetAxTimelineResult = ReturnType<PmxCanvas['getAxTimeline']>;
+type AddWorkItemInput = Parameters<PmxCanvas['addWorkItem']>[0];
+type AddWorkItemResult = ReturnType<PmxCanvas['addWorkItem']>;
+type UpdateWorkItemPatch = Parameters<PmxCanvas['updateWorkItem']>[1];
+type UpdateWorkItemResult = ReturnType<PmxCanvas['updateWorkItem']>;
+type ListWorkItemsResult = ReturnType<PmxCanvas['listWorkItems']>;
+type RequestApprovalInput = Parameters<PmxCanvas['requestApproval']>[0];
+type RequestApprovalResult = ReturnType<PmxCanvas['requestApproval']>;
+type ResolveApprovalResult = ReturnType<PmxCanvas['resolveApproval']>;
+type ListApprovalGatesResult = ReturnType<PmxCanvas['listApprovalGates']>;
+type AddEvidenceInput = Parameters<PmxCanvas['addEvidence']>[0];
+type AddEvidenceResult = ReturnType<PmxCanvas['addEvidence']>;
+type AddReviewAnnotationInput = Parameters<PmxCanvas['addReviewAnnotation']>[0];
+type AddReviewAnnotationResult = ReturnType<PmxCanvas['addReviewAnnotation']>;
+type UpdateReviewAnnotationPatch = Parameters<PmxCanvas['updateReviewAnnotation']>[1];
+type UpdateReviewAnnotationResult = ReturnType<PmxCanvas['updateReviewAnnotation']>;
+type ListReviewAnnotationsResult = ReturnType<PmxCanvas['listReviewAnnotations']>;
+type GetHostCapabilityResult = ReturnType<PmxCanvas['getHostCapability']>;
+type ReportHostCapabilityResult = ReturnType<PmxCanvas['reportHostCapability']>;
 type SearchResult = ReturnType<PmxCanvas['search']>;
 type UndoRedoResult = Awaited<ReturnType<PmxCanvas['undo']>>;
 type HistoryResult = ReturnType<PmxCanvas['getHistory']>;
@@ -128,6 +151,21 @@ export interface CanvasAccess {
   getAxState(): Promise<AxStateResult>;
   getAxContext(): Promise<AxContextResult>;
   setAxFocus(nodeIds: string[], options?: { source?: PmxAxSource }): Promise<SetAxFocusResult>;
+  recordAxEvent(input: RecordAxEventInput, options?: { source?: PmxAxSource }): Promise<RecordAxEventResult>;
+  sendSteering(message: string, options?: { source?: PmxAxSource }): Promise<SendSteeringResult>;
+  getAxTimeline(query?: GetAxTimelineQuery): Promise<GetAxTimelineResult>;
+  addWorkItem(input: AddWorkItemInput, options?: { source?: PmxAxSource }): Promise<AddWorkItemResult>;
+  updateWorkItem(id: string, patch: UpdateWorkItemPatch, options?: { source?: PmxAxSource }): Promise<UpdateWorkItemResult>;
+  listWorkItems(): Promise<ListWorkItemsResult>;
+  requestApproval(input: RequestApprovalInput, options?: { source?: PmxAxSource }): Promise<RequestApprovalResult>;
+  resolveApproval(id: string, decision: 'approved' | 'rejected', options?: { resolution?: string; source?: PmxAxSource }): Promise<ResolveApprovalResult>;
+  listApprovalGates(): Promise<ListApprovalGatesResult>;
+  addEvidence(input: AddEvidenceInput, options?: { source?: PmxAxSource }): Promise<AddEvidenceResult>;
+  addReviewAnnotation(input: AddReviewAnnotationInput, options?: { source?: PmxAxSource }): Promise<AddReviewAnnotationResult>;
+  updateReviewAnnotation(id: string, patch: UpdateReviewAnnotationPatch, options?: { source?: PmxAxSource }): Promise<UpdateReviewAnnotationResult>;
+  listReviewAnnotations(): Promise<ListReviewAnnotationsResult>;
+  getHostCapability(): Promise<GetHostCapabilityResult>;
+  reportHostCapability(input: unknown, options?: { source?: PmxAxSource }): Promise<ReportHostCapabilityResult>;
   clear(): Promise<void>;
   search(query: string): Promise<SearchResult>;
   undo(): Promise<UndoRedoResult>;
@@ -271,6 +309,69 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async setAxFocus(nodeIds: string[], options?: { source?: PmxAxSource }): Promise<SetAxFocusResult> {
     return this.canvas.setAxFocus(nodeIds, { source: options?.source ?? 'mcp' });
+  }
+
+  async recordAxEvent(input: RecordAxEventInput, options?: { source?: PmxAxSource }): Promise<RecordAxEventResult> {
+    return this.canvas.recordAxEvent(input, { source: options?.source ?? 'mcp' });
+  }
+
+  async sendSteering(message: string, options?: { source?: PmxAxSource }): Promise<SendSteeringResult> {
+    return this.canvas.sendSteering(message, { source: options?.source ?? 'mcp' });
+  }
+
+  async getAxTimeline(query?: GetAxTimelineQuery): Promise<GetAxTimelineResult> {
+    return this.canvas.getAxTimeline(query);
+  }
+
+  async addWorkItem(input: AddWorkItemInput, options?: { source?: PmxAxSource }): Promise<AddWorkItemResult> {
+    return this.canvas.addWorkItem(input, { source: options?.source ?? 'mcp' });
+  }
+
+  async updateWorkItem(id: string, patch: UpdateWorkItemPatch, options?: { source?: PmxAxSource }): Promise<UpdateWorkItemResult> {
+    return this.canvas.updateWorkItem(id, patch, { source: options?.source ?? 'mcp' });
+  }
+
+  async listWorkItems(): Promise<ListWorkItemsResult> {
+    return this.canvas.listWorkItems();
+  }
+
+  async requestApproval(input: RequestApprovalInput, options?: { source?: PmxAxSource }): Promise<RequestApprovalResult> {
+    return this.canvas.requestApproval(input, { source: options?.source ?? 'mcp' });
+  }
+
+  async resolveApproval(id: string, decision: 'approved' | 'rejected', options?: { resolution?: string; source?: PmxAxSource }): Promise<ResolveApprovalResult> {
+    return this.canvas.resolveApproval(id, decision, {
+      ...(options?.resolution !== undefined ? { resolution: options.resolution } : {}),
+      source: options?.source ?? 'mcp',
+    });
+  }
+
+  async listApprovalGates(): Promise<ListApprovalGatesResult> {
+    return this.canvas.listApprovalGates();
+  }
+
+  async addEvidence(input: AddEvidenceInput, options?: { source?: PmxAxSource }): Promise<AddEvidenceResult> {
+    return this.canvas.addEvidence(input, { source: options?.source ?? 'mcp' });
+  }
+
+  async addReviewAnnotation(input: AddReviewAnnotationInput, options?: { source?: PmxAxSource }): Promise<AddReviewAnnotationResult> {
+    return this.canvas.addReviewAnnotation(input, { source: options?.source ?? 'mcp' });
+  }
+
+  async updateReviewAnnotation(id: string, patch: UpdateReviewAnnotationPatch, options?: { source?: PmxAxSource }): Promise<UpdateReviewAnnotationResult> {
+    return this.canvas.updateReviewAnnotation(id, patch, { source: options?.source ?? 'mcp' });
+  }
+
+  async listReviewAnnotations(): Promise<ListReviewAnnotationsResult> {
+    return this.canvas.listReviewAnnotations();
+  }
+
+  async getHostCapability(): Promise<GetHostCapabilityResult> {
+    return this.canvas.getHostCapability();
+  }
+
+  async reportHostCapability(input: unknown, options?: { source?: PmxAxSource }): Promise<ReportHostCapabilityResult> {
+    return this.canvas.reportHostCapability(input, { source: options?.source ?? 'mcp' });
   }
 
   async clear(): Promise<void> {
@@ -653,6 +754,132 @@ class RemoteCanvasAccess implements CanvasAccess {
     });
     if (!response.focus) throw new Error('Remote canvas did not return AX focus.');
     return response.focus;
+  }
+
+  async recordAxEvent(input: RecordAxEventInput, options?: { source?: PmxAxSource }): Promise<RecordAxEventResult> {
+    const response = await this.requestJson<{ event?: RecordAxEventResult }>('POST', '/api/canvas/ax/event', {
+      ...input,
+      source: options?.source ?? 'mcp',
+    });
+    if (!response.event) throw new Error('Remote canvas did not return an AX event.');
+    return response.event;
+  }
+
+  async sendSteering(message: string, options?: { source?: PmxAxSource }): Promise<SendSteeringResult> {
+    const response = await this.requestJson<{ steering?: SendSteeringResult }>('POST', '/api/canvas/ax/steer', {
+      message,
+      source: options?.source ?? 'mcp',
+    });
+    if (!response.steering) throw new Error('Remote canvas did not return a steering message.');
+    return response.steering;
+  }
+
+  async getAxTimeline(query?: GetAxTimelineQuery): Promise<GetAxTimelineResult> {
+    const qs = query?.limit ? `?limit=${query.limit}` : '';
+    return await this.requestJson<GetAxTimelineResult>('GET', `/api/canvas/ax/timeline${qs}`);
+  }
+
+  async addWorkItem(input: AddWorkItemInput, options?: { source?: PmxAxSource }): Promise<AddWorkItemResult> {
+    const response = await this.requestJson<{ workItem?: AddWorkItemResult }>('POST', '/api/canvas/ax/work', {
+      ...input,
+      source: options?.source ?? 'mcp',
+    });
+    if (!response.workItem) throw new Error('Remote canvas did not return a work item.');
+    return response.workItem;
+  }
+
+  async updateWorkItem(id: string, patch: UpdateWorkItemPatch, options?: { source?: PmxAxSource }): Promise<UpdateWorkItemResult> {
+    const response = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/work/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...patch, source: options?.source ?? 'mcp' }),
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return (await response.json() as { workItem?: AddWorkItemResult }).workItem ?? null;
+  }
+
+  async listWorkItems(): Promise<ListWorkItemsResult> {
+    const response = await this.requestJson<{ workItems?: ListWorkItemsResult }>('GET', '/api/canvas/ax/work');
+    return response.workItems ?? [];
+  }
+
+  async requestApproval(input: RequestApprovalInput, options?: { source?: PmxAxSource }): Promise<RequestApprovalResult> {
+    const response = await this.requestJson<{ approvalGate?: RequestApprovalResult }>('POST', '/api/canvas/ax/approval', {
+      ...input,
+      source: options?.source ?? 'mcp',
+    });
+    if (!response.approvalGate) throw new Error('Remote canvas did not return an approval gate.');
+    return response.approvalGate;
+  }
+
+  async resolveApproval(id: string, decision: 'approved' | 'rejected', options?: { resolution?: string; source?: PmxAxSource }): Promise<ResolveApprovalResult> {
+    const response = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/approval/${encodeURIComponent(id)}/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        decision,
+        ...(options?.resolution !== undefined ? { resolution: options.resolution } : {}),
+        source: options?.source ?? 'mcp',
+      }),
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return (await response.json() as { approvalGate?: RequestApprovalResult }).approvalGate ?? null;
+  }
+
+  async listApprovalGates(): Promise<ListApprovalGatesResult> {
+    const response = await this.requestJson<{ approvalGates?: ListApprovalGatesResult }>('GET', '/api/canvas/ax/approval');
+    return response.approvalGates ?? [];
+  }
+
+  async addEvidence(input: AddEvidenceInput, options?: { source?: PmxAxSource }): Promise<AddEvidenceResult> {
+    const response = await this.requestJson<{ evidence?: AddEvidenceResult }>('POST', '/api/canvas/ax/evidence', {
+      ...input,
+      source: options?.source ?? 'mcp',
+    });
+    if (!response.evidence) throw new Error('Remote canvas did not return an evidence item.');
+    return response.evidence;
+  }
+
+  async addReviewAnnotation(input: AddReviewAnnotationInput, options?: { source?: PmxAxSource }): Promise<AddReviewAnnotationResult> {
+    const response = await this.requestJson<{ reviewAnnotation?: AddReviewAnnotationResult }>('POST', '/api/canvas/ax/review', {
+      ...input,
+      source: options?.source ?? 'mcp',
+    });
+    if (!response.reviewAnnotation) throw new Error('Remote canvas did not return a review annotation.');
+    return response.reviewAnnotation;
+  }
+
+  async updateReviewAnnotation(id: string, patch: UpdateReviewAnnotationPatch, options?: { source?: PmxAxSource }): Promise<UpdateReviewAnnotationResult> {
+    const response = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/review/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...patch, source: options?.source ?? 'mcp' }),
+    });
+    if (response.status === 404) return null;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return (await response.json() as { reviewAnnotation?: AddReviewAnnotationResult }).reviewAnnotation ?? null;
+  }
+
+  async listReviewAnnotations(): Promise<ListReviewAnnotationsResult> {
+    const response = await this.requestJson<{ reviewAnnotations?: ListReviewAnnotationsResult }>('GET', '/api/canvas/ax/review');
+    return response.reviewAnnotations ?? [];
+  }
+
+  async getHostCapability(): Promise<GetHostCapabilityResult> {
+    const response = await this.requestJson<{ host?: GetHostCapabilityResult }>('GET', '/api/canvas/ax/host-capability');
+    return response.host ?? null;
+  }
+
+  async reportHostCapability(input: unknown, options?: { source?: PmxAxSource }): Promise<ReportHostCapabilityResult> {
+    const body = input !== null && typeof input === 'object' && !Array.isArray(input) ? { ...input } : {};
+    const response = await this.requestJson<{ host?: ReportHostCapabilityResult }>('PUT', '/api/canvas/ax/host-capability', {
+      ...body,
+      source: options?.source ?? 'mcp',
+    });
+    if (!response.host) throw new Error('Remote canvas did not return host capability.');
+    return response.host;
   }
 
   async setContextPins(nodeIds: string[], mode: 'set' | 'add' | 'remove' = 'set'): Promise<SetContextPinsResult> {

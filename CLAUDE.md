@@ -190,19 +190,29 @@ package in a clean temp consumer instead of the repo dev path.
 
 ## Canvas Types
 
-**Node types:** `markdown`, `status`, `context`, `ledger`, `trace`, `file`, `image`, `mcp-app`, `json-render`, `graph`, `group`, plus internal thread node types `prompt` and `response`
+**Node types:** `markdown`, `status`, `context`, `ledger`, `trace`, `file`, `image`, `html`, `mcp-app`, `webpage`, `json-render`, `graph`, `group`, plus internal thread node types `prompt` and `response`
 
 **Edge types:** `flow`, `depends-on`, `relation`, `references` — all support labels, styles (solid/dashed/dotted), and animation.
 
 ## MCP Server
 
-46 tools: `canvas_get_layout`, `canvas_get_node`, `canvas_add_node`, `canvas_add_html_node`, `canvas_add_html_primitive`, `canvas_open_mcp_app`, `canvas_add_diagram`, `canvas_describe_schema`, `canvas_validate_spec`, `canvas_refresh_webpage_node`, `canvas_build_web_artifact`, `canvas_add_json_render_node`, `canvas_stream_json_render_node`, `canvas_add_graph_node`, `canvas_update_node`, `canvas_remove_node`, `canvas_remove_annotation`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_get_ax`, `canvas_set_ax_focus`, `canvas_fit_view`, `canvas_clear`, `canvas_search`, `canvas_undo`, `canvas_redo`, `canvas_diff`, `canvas_webview_status`, `canvas_webview_start`, `canvas_webview_stop`, `canvas_evaluate`, `canvas_resize`, `canvas_screenshot`, `canvas_create_group`, `canvas_group_nodes`, `canvas_batch`, `canvas_validate`, `canvas_ungroup`, `canvas_pin_nodes`, `canvas_snapshot`, `canvas_list_snapshots`, `canvas_gc_snapshots`, `canvas_restore`, `canvas_delete_snapshot`
+56 tools: `canvas_get_layout`, `canvas_get_node`, `canvas_add_node`, `canvas_add_html_node`, `canvas_add_html_primitive`, `canvas_open_mcp_app`, `canvas_add_diagram`, `canvas_describe_schema`, `canvas_validate_spec`, `canvas_refresh_webpage_node`, `canvas_build_web_artifact`, `canvas_add_json_render_node`, `canvas_stream_json_render_node`, `canvas_add_graph_node`, `canvas_update_node`, `canvas_remove_node`, `canvas_remove_annotation`, `canvas_add_edge`, `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_get_ax`, `canvas_set_ax_focus`, `canvas_record_ax_event`, `canvas_send_steering`, `canvas_get_ax_timeline`, `canvas_add_work_item`, `canvas_update_work_item`, `canvas_request_approval`, `canvas_resolve_approval`, `canvas_add_evidence`, `canvas_add_review_annotation`, `canvas_report_host_capability`, `canvas_fit_view`, `canvas_clear`, `canvas_search`, `canvas_undo`, `canvas_redo`, `canvas_diff`, `canvas_webview_status`, `canvas_webview_start`, `canvas_webview_stop`, `canvas_evaluate`, `canvas_resize`, `canvas_screenshot`, `canvas_create_group`, `canvas_group_nodes`, `canvas_batch`, `canvas_validate`, `canvas_ungroup`, `canvas_pin_nodes`, `canvas_snapshot`, `canvas_list_snapshots`, `canvas_gc_snapshots`, `canvas_restore`, `canvas_delete_snapshot`
 
 `canvas_add_diagram` is a thin preset in `src/server/diagram-presets.ts` that proxies to the hosted [Excalidraw MCP app](https://github.com/excalidraw/excalidraw-mcp) (`https://mcp.excalidraw.com/mcp`). For any other MCP Apps server, use `canvas_open_mcp_app` directly.
 
-7 resources: `canvas://pinned-context`, `canvas://schema`, `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, `canvas://code-graph`
+12 resources: `canvas://pinned-context`, `canvas://schema`, `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, `canvas://code-graph`, `canvas://ax`, `canvas://ax-context`, `canvas://ax-timeline`, `canvas://ax-work`, `canvas://skills` (plus per-skill `canvas://skills/<name>`)
 
 Resource change notifications: the MCP server emits `notifications/resources/updated` when canvas state changes. Pin changes notify `canvas://pinned-context`; all mutations notify `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, and `canvas://code-graph`. This enables real-time human→agent collaboration — humans pin nodes in the browser, agents are notified immediately.
+
+### AX Primitives (host-agnostic)
+
+Neutral, agent-agnostic agent-experience primitives. The core never imports a host SDK (e.g. `@github/copilot-sdk`); host adapters map onto these HTTP/MCP surfaces. State lives in three partitions:
+
+- **Canvas-bound** (`focus`, `work-item`, `approval-gate`, `review-annotation`): live in `PmxAxState`, participate in snapshots + restore, cleared by `canvas_clear`. Read via `canvas_get_ax` / `canvas://ax-work`.
+- **Timeline** (`agent-event`, `evidence-item`, `steering-message`): persist in dedicated DB tables for diagnostics/continuity, bounded by retention (500 rows/table), NOT restored by snapshots, NOT cleared by `canvas_clear`. Read via `canvas_get_ax_timeline` / `canvas://ax-timeline`.
+- **Host/session** (`host-capability`): reported by adapters into its own table, exposed for diagnostics, survives `canvas_clear`. Read via `canvas_get_ax`.
+
+Approval gates implement PMX approvals first (`pending → approved/rejected`); host permission hooks are mapped only where low-risk.
 
 ### Spatial Semantics Layer
 
