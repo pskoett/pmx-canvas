@@ -843,12 +843,16 @@ class RemoteCanvasAccess implements CanvasAccess {
   }
 
   async addReviewAnnotation(input: AddReviewAnnotationInput, options?: { source?: PmxAxSource }): Promise<AddReviewAnnotationResult> {
-    const response = await this.requestJson<{ reviewAnnotation?: AddReviewAnnotationResult }>('POST', '/api/canvas/ax/review', {
-      ...input,
-      source: options?.source ?? 'mcp',
+    const response = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...input, source: options?.source ?? 'mcp' }),
     });
-    if (!response.reviewAnnotation) throw new Error('Remote canvas did not return a review annotation.');
-    return response.reviewAnnotation;
+    // 400 = validation rejection (e.g. node-anchored review with an unknown
+    // nodeId); mirror the local path and return null rather than throwing.
+    if (response.status === 400) return null;
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return (await response.json() as { reviewAnnotation?: AddReviewAnnotationResult }).reviewAnnotation ?? null;
   }
 
   async updateReviewAnnotation(id: string, patch: UpdateReviewAnnotationPatch, options?: { source?: PmxAxSource }): Promise<UpdateReviewAnnotationResult> {

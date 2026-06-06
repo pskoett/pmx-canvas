@@ -182,7 +182,7 @@ export declare class PmxCanvas extends EventEmitter {
         author?: string | null;
     }, options?: {
         source?: PmxAxSource;
-    }): PmxAxReviewAnnotation;
+    }): PmxAxReviewAnnotation | null;
     updateReviewAnnotation(id: string, patch: {
         body?: string;
         status?: PmxAxReviewStatus;

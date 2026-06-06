@@ -328,6 +328,23 @@ describe('canvas state manager', () => {
     expect(canvasState.getReviewAnnotations()).toEqual([]);
   });
 
+  test('rejects node-anchored review annotations with a missing or unknown nodeId instead of false success', () => {
+    // Default anchorType is 'node'; a call with no nodeId must reject, not
+    // silently store nothing while returning a phantom success object.
+    expect(canvasState.addReviewAnnotation({ body: 'no anchor' }, { source: 'api' })).toBeNull();
+    expect(canvasState.addReviewAnnotation({ body: 'bad anchor', anchorType: 'node', nodeId: 'does-not-exist' }, { source: 'api' })).toBeNull();
+    expect(canvasState.getReviewAnnotations()).toEqual([]);
+
+    // A file anchor needs no node, and a valid node anchor succeeds.
+    const fileReview = canvasState.addReviewAnnotation({ body: 'file note', anchorType: 'file', file: 'src/x.ts' }, { source: 'api' });
+    expect(fileReview).not.toBeNull();
+    const anchorNode = makeNode({ id: 'rev-ok-node', type: 'markdown', data: { title: 'Anchor' } });
+    canvasState.addNode(anchorNode);
+    const nodeReview = canvasState.addReviewAnnotation({ body: 'node note', anchorType: 'node', nodeId: anchorNode.id }, { source: 'api' });
+    expect(nodeReview).not.toBeNull();
+    expect(canvasState.getReviewAnnotations().map((r) => r.id).sort()).toEqual([fileReview!.id, nodeReview!.id].sort());
+  });
+
   test('records the AX timeline in the DB but excludes it from snapshots', async () => {
     const event = canvasState.recordAxEvent({ kind: 'tool-start', summary: 'ran tests' }, { source: 'api' });
     const evidence = canvasState.addEvidence({ kind: 'test-output', title: 'unit pass' }, { source: 'api' });

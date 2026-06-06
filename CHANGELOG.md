@@ -3,6 +3,79 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.27] - 2026-06-06
+
+Big release: the full host-agnostic agent-experience (AX) primitive
+contract and a json-render 0.19 upgrade with Tufte charts, directives,
+and live SpecStream rendering. The MCP canvas now exposes 56 tools (was
+45) and four AX resources. Plus the native GitHub Copilot and Codex
+canvas adapters are featured in the README.
+
+### Added
+
+- **Full AX primitive contract (plan-004 Phases 2-5).** Eleven new MCP
+  tools, each with complete parity across CanvasStateManager, SQLite
+  persistence, the Bun SDK, HTTP, the MCP server, the RemoteCanvasAccess
+  proxy, and the CLI, organized into three lifecycle partitions:
+  - **Canvas-bound** (participate in snapshots + restore, cleared by
+    `canvas_clear`, read via `canvas_get_ax` / `canvas://ax-work`):
+    `canvas_add_work_item`, `canvas_update_work_item`,
+    `canvas_request_approval`, `canvas_resolve_approval` (state machine
+    `pending → approved/rejected`, double-resolve rejected),
+    `canvas_add_review_annotation`.
+  - **Timeline** (persist in dedicated DB tables bounded by 500-row
+    retention, NOT restored by snapshots, NOT cleared by
+    `canvas_clear`, read via `canvas_get_ax_timeline` /
+    `canvas://ax-timeline`): `canvas_add_evidence`,
+    `canvas_record_ax_event`, `canvas_send_steering`.
+  - **Host/session** (survives `canvas_clear`):
+    `canvas_report_host_capability`.
+  New resources: `canvas://ax-work` and `canvas://ax-timeline` (joining
+  `canvas://ax` and `canvas://ax-context`). CLI gains `pmx-canvas ax`
+  subcommands.
+- **`canvas_stream_json_render_node` (SpecStream).** Progressively build
+  a json-render node by streaming JSON-Patch operations; the server
+  accumulates the spec (it is the source of truth) and the live node
+  re-renders as patches arrive. Omit `nodeId` to create, pass it back to
+  append, set `done:true` to finish.
+- **Tufte chart types.** json-render graph nodes gain `Sparkline`,
+  `DotPlot`, `BulletChart`, and `Slopegraph`, wired through the full
+  definitions → catalog → component-registry pipeline alongside the
+  existing chart types.
+- **json-render 0.19.0 upgrade + directives + devtools.** All
+  `@json-render/*` packages move to 0.19.0. Specs can use the standard
+  stateless directives (`$format`, `$math`, `$concat`, `$count`,
+  `$truncate`, `$pluralize`, `$join`) for server-side derivations; an
+  opt-in devtools panel (double-gated behind an env flag + `?devtools=1`)
+  is available for debugging.
+- **Native GitHub Copilot and Codex canvas adapters featured in the
+  README**, with the `.github/extensions/pmx-canvas` Copilot extension
+  and the Codex/Copilot app-adapter skill references.
+
+### Fixed
+
+- **SpecStream rejects prototype-pollution patch paths.** Streamed
+  JSON-Patch paths whose JSON-Pointer contains a `__proto__`,
+  `constructor`, or `prototype` segment are now skipped (and counted)
+  rather than applied, closing a server-side prototype-pollution vector
+  in the new streaming path.
+- **`canvas_add_review_annotation` no longer reports false success for
+  invalid node anchors.** A node-anchored review annotation whose
+  `nodeId` is missing or not on the canvas was silently dropped by
+  normalization yet returned as a populated success object. It now
+  rejects up front (`ok:false` / HTTP 400 / MCP error) across every
+  layer, so agents can't lose review findings to a typo'd node id.
+
+### Internal
+
+- Regression coverage added for: SpecStream patch application (happy
+  path, malformed-item skipping, and the prototype-pollution guard with
+  an explicit `Object.prototype` cleanliness assertion), the Tufte
+  Sparkline/Slopegraph spec builders, and node-anchor validation for
+  review annotations (missing / unknown / file / valid). Docs updated:
+  `docs/mcp.md` adds the `canvas_fit_view` row, and
+  `skills/pmx-canvas/SKILL.md` lists the four `canvas://ax*` resources.
+
 ## [0.1.26] - 2026-06-03
 
 Small follow-up to 0.1.25. `canvas_add_node` can now create populated
@@ -1276,6 +1349,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.27]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.27
 [0.1.26]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.26
 [0.1.25]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.25
 [0.1.24]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.24

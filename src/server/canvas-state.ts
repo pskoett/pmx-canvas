@@ -1858,7 +1858,16 @@ class CanvasStateManager {
       author?: string | null;
     },
     options: { source?: PmxAxSource } = {},
-  ): PmxAxReviewAnnotation {
+  ): PmxAxReviewAnnotation | null {
+    // Validate the node anchor up front. A node-anchored review whose nodeId is
+    // missing or unknown would otherwise be silently dropped by
+    // normalizeAxForCurrentNodes after apply, yet still returned as a phantom
+    // success object — false success / silent data loss. Reject instead so the
+    // HTTP/MCP layers surface ok:false / 4xx.
+    const anchorType = input.anchorType ?? 'node';
+    if (anchorType === 'node' && (typeof input.nodeId !== 'string' || !this.currentNodeIdSet().has(input.nodeId))) {
+      return null;
+    }
     const oldAxState = this.getAxState();
     const annotation = createAxReviewAnnotation(input, options.source ?? 'api');
     this.applyAxState({ ...oldAxState, reviewAnnotations: [...oldAxState.reviewAnnotations, annotation] });

@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  applyJsonRenderStreamPatches,
   buildGraphSpec,
+  emptyStreamingSpec,
   normalizeAndValidateJsonRenderSpec,
   normalizeGraphType,
 } from '../../src/json-render/server.ts';
@@ -261,5 +263,69 @@ describe('graph builder', () => {
     const chart = spec.elements.chart as { type: string; props: Record<string, unknown> };
     expect(chart.type).toBe('ScatterChart');
     expect(chart.props.zKey).toBe('weight');
+  });
+});
+
+describe('Tufte chart types', () => {
+  test('resolves Tufte aliases', () => {
+    expect(normalizeGraphType('spark')).toBe('Sparkline');
+    expect(normalizeGraphType('sparkline')).toBe('Sparkline');
+    expect(normalizeGraphType('slope')).toBe('Slopegraph');
+    expect(normalizeGraphType('slopegraph')).toBe('Slopegraph');
+  });
+
+  test('builds a Sparkline spec', () => {
+    const spec = buildGraphSpec({
+      graphType: 'sparkline',
+      xKey: 't',
+      yKey: 'v',
+      data: [{ t: 1, v: 10 }, { t: 2, v: 14 }, { t: 3, v: 9 }],
+    });
+    const chart = spec.elements.chart as { type: string; props: Record<string, unknown> };
+    expect(chart.type).toBe('Sparkline');
+  });
+
+  test('builds a Slopegraph spec', () => {
+    const spec = buildGraphSpec({
+      graphType: 'slopegraph',
+      data: [{ label: 'A', before: 30, after: 48 }, { label: 'B', before: 42, after: 40 }],
+    });
+    const chart = spec.elements.chart as { type: string; props: Record<string, unknown> };
+    expect(chart.type).toBe('Slopegraph');
+  });
+});
+
+describe('json-render SpecStream', () => {
+  test('applies add patches and accumulates the spec', () => {
+    let spec = emptyStreamingSpec();
+    const r1 = applyJsonRenderStreamPatches(spec, [
+      { op: 'add', path: '/root', value: 'card' },
+      { op: 'add', path: '/elements/card', value: { type: 'Card', props: { title: 'Live' }, children: [] } },
+    ]);
+    expect(r1.applied).toBe(2);
+    expect(r1.skipped).toBe(0);
+    expect((r1.spec as { root: string }).root).toBe('card');
+    expect(Object.keys((r1.spec as { elements: Record<string, unknown> }).elements)).toContain('card');
+  });
+
+  test('skips malformed items without throwing', () => {
+    const r = applyJsonRenderStreamPatches(emptyStreamingSpec(), ['not json', 42, { nope: true }]);
+    expect(r.applied).toBe(0);
+    expect(r.skipped).toBe(3);
+  });
+
+  test('rejects prototype-pollution paths and does not pollute Object.prototype', () => {
+    const before = ({} as Record<string, unknown>).polluted;
+    const r = applyJsonRenderStreamPatches(emptyStreamingSpec(), [
+      { op: 'add', path: '/__proto__/polluted', value: true },
+      { op: 'add', path: '/constructor/prototype/polluted', value: true },
+      { op: 'add', path: '/elements/~0proto/x', value: 1 },
+    ]);
+    // All three are unsafe (the third decodes to a literal segment that is fine,
+    // but the first two must be skipped). Critically, Object.prototype is clean.
+    expect(({} as Record<string, unknown>).polluted).toBe(before);
+    expect(Object.prototype.hasOwnProperty('polluted')).toBe(false);
+    // The two __proto__/constructor patches are skipped.
+    expect(r.skipped).toBeGreaterThanOrEqual(2);
   });
 });

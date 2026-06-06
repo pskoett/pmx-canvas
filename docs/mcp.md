@@ -52,6 +52,7 @@ searchable and readable in pinned/spatial context.
 | `canvas_arrange` | Auto-arrange (grid/column/flow) |
 | `canvas_validate` | Validate collisions, containment, and missing edge endpoints |
 | `canvas_focus_node` | Pan viewport to a node; use CLI `focus --no-pan` when you only need to select/raise |
+| `canvas_fit_view` | Fit the canvas viewport to all nodes or a selected subset |
 | `canvas_get_ax` | Read the PMX AX state (focus, work items, approvals, review annotations, host capability) plus pinned/focused context |
 | `canvas_set_ax_focus` | Set the host-agnostic AX focus node set; adapters can pass a source such as `codex` |
 | `canvas_record_ax_event` | Record a normalized timeline `agent-event` (prompt/assistant-message/tool-start/tool-result/failure/approval/steering) |

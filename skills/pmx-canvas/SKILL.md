@@ -775,6 +775,10 @@ what the human has set up and what they're focusing on.
 | `canvas://spatial-context` | Proximity clusters, reading order, pinned neighborhoods |
 | `canvas://history` | Human-readable mutation timeline |
 | `canvas://code-graph` | Auto-detected file import dependencies (JS/TS, Python, Go, Rust) |
+| `canvas://ax` | Host-agnostic AX state: focus, work items, approval gates, review annotations, host capability |
+| `canvas://ax-context` | Agent-ready AX context: pinned context + current focus |
+| `canvas://ax-work` | Canvas-bound AX work: work items, approval gates, review annotations |
+| `canvas://ax-timeline` | Bounded AX timeline: recent agent events, evidence, and steering messages |
 | `canvas://skills` | Index of bundled agent skills shipped with the install. Each skill is also addressable as `canvas://skills/<name>` (e.g. `canvas://skills/web-artifacts-builder`) and returns the full SKILL.md. Read this resource first to discover companion workflows the canvas is built to support. |
 
 ### Reading Spatial Intent

@@ -306,7 +306,7 @@ declare class CanvasStateManager {
         author?: string | null;
     }, options?: {
         source?: PmxAxSource;
-    }): PmxAxReviewAnnotation;
+    }): PmxAxReviewAnnotation | null;
     updateReviewAnnotation(id: string, patch: {
         body?: string;
         status?: PmxAxReviewStatus;

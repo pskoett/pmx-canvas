@@ -3951,6 +3951,9 @@ async function handleAxReviewAdd(req: Request): Promise<Response> {
     },
     { source: normalizeAxSource(body.source, 'api') },
   );
+  if (!reviewAnnotation) {
+    return responseJson({ ok: false, error: 'node-anchored review annotation requires a nodeId that exists on the canvas.' }, 400);
+  }
   broadcastWorkbenchEvent('ax-state-changed', {
     reviewAnnotation,
     sessionId: primaryWorkbenchSessionId,

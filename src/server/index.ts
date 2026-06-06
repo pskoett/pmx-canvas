@@ -575,8 +575,9 @@ export class PmxCanvas extends EventEmitter {
       author?: string | null;
     },
     options?: { source?: PmxAxSource },
-  ): PmxAxReviewAnnotation {
+  ): PmxAxReviewAnnotation | null {
     const reviewAnnotation = canvasState.addReviewAnnotation(input, { source: options?.source ?? 'sdk' });
+    if (!reviewAnnotation) return null;
     emitPrimaryWorkbenchEvent('ax-state-changed', { reviewAnnotation });
     return reviewAnnotation;
   }

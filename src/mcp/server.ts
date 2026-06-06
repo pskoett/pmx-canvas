@@ -1590,6 +1590,12 @@ export async function startMcpServer(): Promise<void> {
         },
         { source: source ?? 'mcp' },
       );
+      if (!reviewAnnotation) {
+        return {
+          content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'node-anchored review annotation requires a nodeId that exists on the canvas.' }) }],
+          isError: true,
+        };
+      }
       return {
         content: [{ type: 'text', text: JSON.stringify({ ok: true, reviewAnnotation }) }],
       };

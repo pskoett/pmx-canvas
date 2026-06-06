@@ -810,16 +810,38 @@ export function emptyStreamingSpec(): JsonRenderSpec {
   return { root: '', elements: {} };
 }
 
+const UNSAFE_PATCH_SEGMENTS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * Reject JSON-Pointer paths that would let a streamed patch reach a prototype
+ * chain (`__proto__`/`constructor`/`prototype`). The upstream applySpecPatch
+ * walks the path with plain property assignment and has no such guard, so an
+ * agent-supplied patch like `{op:'add',path:'/__proto__/x',value:...}` would
+ * otherwise pollute Object.prototype server-side. Segments are JSON-Pointer
+ * escaped (`~1`->`/`, `~0`->`~`); decode before comparing.
+ */
+function isSafePatchPath(path: string): boolean {
+  for (const rawSegment of path.split('/')) {
+    const segment = rawSegment.replace(/~1/g, '/').replace(/~0/g, '~');
+    if (UNSAFE_PATCH_SEGMENTS.has(segment)) return false;
+  }
+  return true;
+}
+
 /** Accept a SpecStream item as either a raw JSONL line or a JSON-Patch object. */
 function coerceStreamPatch(item: unknown): SpecStreamLine | null {
-  if (typeof item === 'string') return parseSpecStreamLine(item);
-  if (item && typeof item === 'object' && !Array.isArray(item)) {
-    const record = item as Record<string, unknown>;
-    if (typeof record.op === 'string' && typeof record.path === 'string') {
-      return item as SpecStreamLine;
+  const patch = (() => {
+    if (typeof item === 'string') return parseSpecStreamLine(item);
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+      const record = item as Record<string, unknown>;
+      if (typeof record.op === 'string' && typeof record.path === 'string') {
+        return item as SpecStreamLine;
+      }
     }
-  }
-  return null;
+    return null;
+  })();
+  if (!patch || typeof patch.path !== 'string' || !isSafePatchPath(patch.path)) return null;
+  return patch;
 }
 
 /**
