@@ -36,6 +36,8 @@ import {
   createCanvasStreamingJsonRenderNode,
   MARKDOWN_NODE_DEFAULT_SIZE,
   MCP_APP_NODE_DEFAULT_SIZE,
+  IMAGE_NODE_DEFAULT_SIZE,
+  LEDGER_NODE_DEFAULT_SIZE,
   applyCanvasNodeUpdates,
   arrangeCanvasNodes,
   clearCanvas,
@@ -186,6 +188,11 @@ export class PmxCanvas extends EventEmitter {
     this._server = null;
   }
 
+  /**
+   * Add a node to the canvas and return the created node (including its `id`,
+   * resolved geometry, and data). Destructure `const { id } = canvas.addNode(...)`
+   * or keep the whole node — both work. (Previously returned a bare id string.)
+   */
   addNode(input: {
     type: CanvasNodeState['type'];
     title?: string;
@@ -205,12 +212,12 @@ export class PmxCanvas extends EventEmitter {
     width?: number;
     height?: number;
     strictSize?: boolean;
-  }): string {
+  }): CanvasNodeState {
     if (input.type === 'webpage') {
       throw new Error('Use addWebpageNode for webpage nodes so page content is fetched and cached on the server.');
     }
     if (input.type === 'group') {
-      return this.createGroup({
+      const groupId = this.createGroup({
         ...(typeof input.title === 'string' ? { title: input.title } : {}),
         childIds: input.childIds ?? input.children ?? [],
         ...(typeof input.x === 'number' ? { x: input.x } : {}),
@@ -220,6 +227,9 @@ export class PmxCanvas extends EventEmitter {
         ...(typeof input.color === 'string' ? { color: input.color } : {}),
         ...(input.childLayout ? { childLayout: input.childLayout } : {}),
       });
+      const groupNode = canvasState.getNode(groupId);
+      if (!groupNode) throw new Error(`Group node "${groupId}" was not created.`);
+      return groupNode;
     }
     const { id, needsCodeGraphRecompute } = addCanvasNode({
       ...input,
@@ -227,12 +237,20 @@ export class PmxCanvas extends EventEmitter {
         ? MARKDOWN_NODE_DEFAULT_SIZE.width
         : input.type === 'mcp-app'
           ? MCP_APP_NODE_DEFAULT_SIZE.width
-          : 360,
+          : input.type === 'image'
+            ? IMAGE_NODE_DEFAULT_SIZE.width
+            : input.type === 'ledger'
+              ? LEDGER_NODE_DEFAULT_SIZE.width
+              : 360,
       defaultHeight: input.type === 'markdown'
         ? MARKDOWN_NODE_DEFAULT_SIZE.height
         : input.type === 'mcp-app'
           ? MCP_APP_NODE_DEFAULT_SIZE.height
-          : 200,
+          : input.type === 'image'
+            ? IMAGE_NODE_DEFAULT_SIZE.height
+            : input.type === 'ledger'
+              ? LEDGER_NODE_DEFAULT_SIZE.height
+              : 200,
       fileMode: 'path',
       ...(input.strictSize ? { strictSize: true } : {}),
     });
@@ -245,7 +263,9 @@ export class PmxCanvas extends EventEmitter {
       });
     }
 
-    return id;
+    const node = canvasState.getNode(id);
+    if (!node) throw new Error(`Node "${id}" was not created.`);
+    return node;
   }
 
   async addWebpageNode(input: {

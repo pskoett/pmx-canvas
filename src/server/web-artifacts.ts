@@ -5,11 +5,12 @@ import {
   readdirSync,
   mkdirSync,
   readFileSync,
+  realpathSync,
   statSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
-import { basename, delimiter, dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { ensureArtifactsDir, getWorkspaceRoot } from './artifact-paths.js';
 import { canvasState, type CanvasNodeState } from './canvas-state.js';
 import { findOpenCanvasPosition } from './placement.js';
@@ -338,6 +339,33 @@ async function runProcess(
   return { stdout: stdout.trim(), stderr: stderr.trim() };
 }
 
+/**
+ * Resolve the init/bundle script path. Without an override the trusted bundled
+ * resolver is used. An override (a test/debugging escape hatch exposed on every
+ * surface — CLI --init-script-path/--bundle-script-path, the MCP tool, the HTTP
+ * endpoint, and the SDK) is only honored when it resolves inside the active
+ * workspace root — otherwise it would let a caller exec an arbitrary host script
+ * via bash as the server user. This containment is the single chokepoint that
+ * makes forwarding the field safe across all of those surfaces.
+ */
+function resolveTrustedScriptPath(override: string | undefined, kind: 'init' | 'bundle'): string {
+  if (!override) return resolveWebArtifactScriptPath(kind);
+  const resolved = resolve(override);
+  // Compare real (symlink-resolved) paths on both sides so a legitimately
+  // contained override under a symlinked root (e.g. macOS /var -> /private/var,
+  // or a workspace that itself lives beneath a symlink) is not wrongly rejected.
+  // The candidate is realpath'd only when it exists; a non-existent escape path
+  // still fails the containment check below (or the existsSync guard at the call
+  // site). This keeps the guard strict — genuine escapes are still rejected.
+  const realRoot = realpathSync(currentWorkspaceRoot());
+  const realCandidate = existsSync(resolved) ? realpathSync(resolved) : resolved;
+  const workspaceRel = relative(realRoot, realCandidate);
+  if (workspaceRel === '..' || workspaceRel.startsWith(`..${sep}`) || isAbsolute(workspaceRel)) {
+    throw new Error(`Web-artifact ${kind} script override must resolve inside the workspace: ${override}`);
+  }
+  return resolved;
+}
+
 export function resolveWebArtifactScriptPath(kind: 'init' | 'bundle'): string {
   const scriptFile = kind === 'init' ? 'init-artifact.sh' : 'bundle-artifact.sh';
   const candidates = [
@@ -459,10 +487,8 @@ export async function executeWebArtifactBuild(
   const slug = slugify(input.title);
   const projectPath = resolve(input.projectPath ?? join(artifactsDir, '.web-artifacts', slug));
   const outputPath = resolve(input.outputPath ?? join(artifactsDir, `${slug}.html`));
-  const initScriptPath = resolve(input.initScriptPath ?? resolveWebArtifactScriptPath('init'));
-  const bundleScriptPath = resolve(
-    input.bundleScriptPath ?? resolveWebArtifactScriptPath('bundle'),
-  );
+  const initScriptPath = resolveTrustedScriptPath(input.initScriptPath, 'init');
+  const bundleScriptPath = resolveTrustedScriptPath(input.bundleScriptPath, 'bundle');
   const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
 
   if (!existsSync(initScriptPath)) {

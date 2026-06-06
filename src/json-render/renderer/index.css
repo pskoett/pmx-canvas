@@ -268,7 +268,12 @@ button {
 .pmx-chart {
   width: 100%;
   min-width: 280px;
-  overflow-x: auto;
+  /* overflow:visible (not overflow-x:auto) so the chart is NOT its own scroll
+     container. overflow-x:auto makes overflow-y compute to auto too (CSS quirk),
+     which — once a chart fills the viewport — added a second nested scrollbar on
+     top of the iframe document's. Let the single iframe document handle any
+     overflow instead. */
+  overflow: visible;
   padding: 0.5rem 0;
 }
 

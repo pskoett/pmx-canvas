@@ -764,8 +764,8 @@ export async function startMcpServer(): Promise<void> {
       outputPath: z.string().optional().describe('Optional workspace-relative HTML output path. Defaults to .pmx-canvas/artifacts/<slug>.html'),
       openInCanvas: z.boolean().optional().describe('Open the generated artifact in canvas after build (default true)'),
       includeLogs: z.boolean().optional().describe('Include raw build stdout/stderr in the response (default false)'),
-      initScriptPath: z.string().optional().describe('Optional absolute script path override for tests/debugging'),
-      bundleScriptPath: z.string().optional().describe('Optional absolute script path override for tests/debugging'),
+      initScriptPath: z.string().optional().describe('Optional script path override for tests/debugging. Must resolve inside the workspace.'),
+      bundleScriptPath: z.string().optional().describe('Optional script path override for tests/debugging. Must resolve inside the workspace.'),
       timeoutMs: z.number().optional().describe('Optional timeout in milliseconds for init and bundle commands'),
     },
     async (input) => {

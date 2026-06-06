@@ -93,6 +93,8 @@ import {
   addCanvasEdge,
   MARKDOWN_NODE_DEFAULT_SIZE,
   MCP_APP_NODE_DEFAULT_SIZE,
+  IMAGE_NODE_DEFAULT_SIZE,
+  LEDGER_NODE_DEFAULT_SIZE,
   applyCanvasNodeUpdates,
   appendCanvasJsonRenderStream,
   buildStructuredNodeUpdate,
@@ -1506,7 +1508,13 @@ async function handleCanvasImage(pathname: string): Promise<Response> {
   if (!src || src.startsWith('data:') || src.startsWith('http')) {
     return responseText('Not a file-based image', 400);
   }
-  const safePath = resolve(src);
+  // Contain the file read to the active workspace. `src` comes from node data,
+  // which any unauthenticated local caller can set — without this guard the
+  // image route serves arbitrary host files (e.g. ../../etc/passwd).
+  const safePath = resolveWorkspaceArtifactPath(src);
+  if (!safePath) {
+    return responseText('Image path is outside the workspace', 403);
+  }
   if (!existsSync(safePath)) {
     return responseText('Image file not found', 404);
   }
@@ -1699,14 +1707,22 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
           ? MARKDOWN_NODE_DEFAULT_SIZE.width
           : type === 'mcp-app'
             ? MCP_APP_NODE_DEFAULT_SIZE.width
-            : 360,
+            : type === 'image'
+              ? IMAGE_NODE_DEFAULT_SIZE.width
+              : type === 'ledger'
+                ? LEDGER_NODE_DEFAULT_SIZE.width
+                : 360,
       defaultHeight: type === 'html'
         ? 640
         : type === 'markdown'
           ? MARKDOWN_NODE_DEFAULT_SIZE.height
           : type === 'mcp-app'
             ? MCP_APP_NODE_DEFAULT_SIZE.height
-            : 200,
+            : type === 'image'
+              ? IMAGE_NODE_DEFAULT_SIZE.height
+              : type === 'ledger'
+                ? LEDGER_NODE_DEFAULT_SIZE.height
+                : 200,
       fileMode: 'auto',
     });
   } catch (error) {
@@ -2072,6 +2088,10 @@ async function handleCanvasBuildWebArtifact(req: Request): Promise<Response> {
       ...(typeof body.outputPath === 'string'
         ? { outputPath: resolveWorkspacePath(body.outputPath, activeWorkspaceRoot) }
         : {}),
+      // Script-path overrides are honored only when contained inside the
+      // workspace (enforced by resolveTrustedScriptPath in
+      // executeWebArtifactBuild), so they cannot point at an arbitrary host
+      // script for bash execution.
       ...(typeof body.initScriptPath === 'string'
         ? { initScriptPath: body.initScriptPath }
         : {}),

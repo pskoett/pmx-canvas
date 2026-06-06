@@ -12,6 +12,43 @@ describe('json-render validation', () => {
     expect(() => normalizeAndValidateJsonRenderSpec({})).toThrow('Missing root and elements in spec.');
   });
 
+  test('rejects an unknown $-keyed directive instead of rendering "[object Object]"', () => {
+    expect(() =>
+      normalizeAndValidateJsonRenderSpec({
+        root: 'h',
+        elements: {
+          h: { type: 'Heading', props: { text: { $path: '/title' } }, children: [] },
+        },
+      }),
+    ).toThrow(/Unknown directive "\$path"/);
+    expect(() =>
+      normalizeAndValidateJsonRenderSpec({
+        root: 'h',
+        elements: {
+          h: { type: 'Heading', props: { text: { $path: '/title' } }, children: [] },
+        },
+      }),
+    ).toThrow(/"\$state"/);
+  });
+
+  test('still accepts recognized directives and $state bindings', () => {
+    const spec = normalizeAndValidateJsonRenderSpec({
+      root: 'card',
+      elements: {
+        card: {
+          type: 'Card',
+          props: {
+            title: { $state: '/title' },
+            description: { $format: 'currency', value: 5 },
+          },
+          children: [],
+        },
+      },
+    });
+    expect((spec.elements.card?.props as Record<string, unknown>).title).toEqual({ $state: '/title' });
+    expect((spec.elements.card?.props as Record<string, unknown>).description).toEqual({ $format: 'currency', value: 5 });
+  });
+
   test('accepts minimal valid specs', () => {
     const spec = normalizeAndValidateJsonRenderSpec({
       root: 'card',

@@ -350,4 +350,30 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
       process.chdir(originalCwd);
     }
   });
+
+  test('rejects a script-path override that resolves outside the workspace', async () => {
+    const originalCwd = process.cwd();
+    process.chdir(workspaceRoot);
+    try {
+      // A path outside the workspace must not be honored — it would let a caller
+      // exec an arbitrary host script via bash.
+      await expect(
+        executeWebArtifactBuild({
+          title: 'Escape Attempt',
+          appTsx: 'export default function App() { return null; }',
+          initScriptPath: join(workspaceRoot, '..', 'evil-init.sh'),
+        }),
+      ).rejects.toThrow(/must resolve inside the workspace/);
+
+      await expect(
+        executeWebArtifactBuild({
+          title: 'Escape Attempt 2',
+          appTsx: 'export default function App() { return null; }',
+          bundleScriptPath: '/tmp/evil-bundle.sh',
+        }),
+      ).rejects.toThrow(/must resolve inside the workspace/);
+    } finally {
+      process.chdir(originalCwd);
+    }
+  });
 });

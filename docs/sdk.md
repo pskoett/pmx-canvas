@@ -15,16 +15,16 @@ import { createCanvas } from 'pmx-canvas';
 const canvas = createCanvas({ port: 4313 });
 await canvas.start({ open: true });
 
-// Add nodes
+// Add nodes — addNode returns the created node (with `.id`, geometry, and data)
 const n1 = canvas.addNode({ type: 'markdown', title: 'Plan', content: '# Step 1\nDo the thing.' });
 const n2 = canvas.addNode({ type: 'status', title: 'Build', content: 'passing' });
 const n3 = canvas.addNode({ type: 'file', content: 'src/index.ts' });
 
-// Connect them
-canvas.addEdge({ from: n1, to: n2, type: 'flow' });
+// Connect them (edges and groups reference node ids)
+canvas.addEdge({ from: n1.id, to: n2.id, type: 'flow' });
 
 // Group related nodes
-canvas.createGroup({ title: 'Build Pipeline', childIds: [n1, n2] });
+canvas.createGroup({ title: 'Build Pipeline', childIds: [n1.id, n3.id] });
 
 // Self-contained HTML in a sandboxed iframe
 canvas.addHtmlNode({

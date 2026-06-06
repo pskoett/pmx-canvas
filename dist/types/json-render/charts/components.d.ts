@@ -67,6 +67,16 @@ export declare function useChartFrameHeight(explicitHeight: number | null | unde
     height: number;
     width: number;
 };
+/**
+ * Height available for the plotted SVG inside `.pmx-chart`, i.e. the measured
+ * frame height minus the non-plot chrome: the `.pmx-chart__title` block (~24px
+ * of text + margin, only when a title is shown) plus the chart's own vertical
+ * padding. Sizing the SVG to this — instead of the full frame height — keeps a
+ * filled chart's title+plot within the frame so it doesn't push a scrollbar onto
+ * the single iframe-document scroller. Dense charts still exceed it and scroll
+ * (one scrollbar, as expected).
+ */
+export declare function chartPlotHeight(height: number, hasTitle: boolean): number;
 /** Shared wrapper for cartesian charts (Line + Bar). */
 export declare function CartesianChart({ props, children, className, }: {
     props: CartesianChartProps;

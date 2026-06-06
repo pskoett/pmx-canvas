@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { canvasState, type PersistedBlobRef } from '../../src/server/canvas-state.ts';
@@ -457,6 +457,28 @@ describe('canvas server HTTP API', () => {
     expect(payload.ok).toBe(false);
     expect(payload.error).toContain('does not exist');
     expect(canvasState.getLayout().nodes).toHaveLength(0);
+  });
+
+  test('the image route refuses to serve files outside the workspace', async () => {
+    // A valid image that lives OUTSIDE the workspace (in the parent dir). Image
+    // node creation does not enforce containment, so the node can be planted;
+    // the /api/canvas/image/<id> route must refuse to read it (path traversal).
+    const outsidePath = join(workspaceRoot, '..', `pmx-traversal-${Date.now()}.png`);
+    writeFileSync(outsidePath, tinyPng);
+    try {
+      const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'image', content: outsidePath, title: 'Outside image' }),
+      });
+      expect(created.ok).toBe(true);
+
+      const imageResponse = await fetch(`${baseUrl}/api/canvas/image/${created.id}`);
+      expect(imageResponse.status).toBe(403);
+      expect(await imageResponse.text()).toContain('outside the workspace');
+    } finally {
+      rmSync(outsidePath, { force: true });
+    }
   });
 
   test('html nodes reject non-string html payloads without creating blank nodes', async () => {

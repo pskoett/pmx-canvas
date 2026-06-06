@@ -23,6 +23,11 @@ export declare class PmxCanvas extends EventEmitter {
         automationWebView?: boolean | CanvasAutomationWebViewOptions;
     }): Promise<void>;
     stop(): void;
+    /**
+     * Add a node to the canvas and return the created node (including its `id`,
+     * resolved geometry, and data). Destructure `const { id } = canvas.addNode(...)`
+     * or keep the whole node — both work. (Previously returned a bare id string.)
+     */
     addNode(input: {
         type: CanvasNodeState['type'];
         title?: string;
@@ -42,7 +47,7 @@ export declare class PmxCanvas extends EventEmitter {
         width?: number;
         height?: number;
         strictSize?: boolean;
-    }): string;
+    }): CanvasNodeState;
     addWebpageNode(input: {
         title?: string;
         url: string;

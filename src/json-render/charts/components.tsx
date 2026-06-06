@@ -124,12 +124,24 @@ export function useChartFrameHeight(explicitHeight: number | null | undefined, f
 
     const updateHeight = () => {
       const rect = frame.getBoundingClientRect();
-      const doc = document.documentElement;
-      const currentHeight = frame.getBoundingClientRect().height;
-      const overflow = Math.max(0, doc.scrollHeight - doc.clientHeight);
-      const available = overflow > 0 ? currentHeight - overflow : window.innerHeight - rect.top - 24;
-      setAutoHeight(Math.max(220, Math.round(available)));
-      setAutoWidth(Math.round(rect.width));
+      // Available height runs from the frame's top to the bottom of the iframe
+      // viewport. It is deliberately NOT derived from the document's own scroll
+      // overflow: feeding the chart's own overflow back into its height creates a
+      // shrink -> no-overflow -> grow -> overflow feedback loop that repaints
+      // forever (the reported Tufte-chart flicker). When natural content exceeds
+      // the viewport the document simply scrolls (with a stable gutter, see
+      // index.css) instead of the height oscillating.
+      // Reserve ~44px below the frame for the chrome that sits under the chart
+      // inside the json-render card (card padding/margin ≈ 41px, measured stable
+      // across node sizes). rect.top already accounts for everything above. With
+      // too small a reserve a filled chart spills ~17px past the viewport and the
+      // iframe document shows a needless scrollbar.
+      const available = Math.max(220, Math.round(window.innerHeight - rect.top - 44));
+      const nextWidth = Math.round(rect.width);
+      // Dead-band: ignore sub-threshold churn so a stray re-measure (e.g. a
+      // scrollbar toggling) can't ping-pong state and repaint.
+      setAutoHeight((prev) => (Math.abs(available - prev) > 2 ? available : prev));
+      setAutoWidth((prev) => (Math.abs(nextWidth - prev) > 2 ? nextWidth : prev));
     };
 
     updateHeight();
@@ -148,6 +160,19 @@ export function useChartFrameHeight(explicitHeight: number | null | undefined, f
     height: typeof explicitHeight === 'number' ? Math.min(explicitHeight, autoHeight) : autoHeight,
     width: autoWidth,
   };
+}
+
+/**
+ * Height available for the plotted SVG inside `.pmx-chart`, i.e. the measured
+ * frame height minus the non-plot chrome: the `.pmx-chart__title` block (~24px
+ * of text + margin, only when a title is shown) plus the chart's own vertical
+ * padding. Sizing the SVG to this — instead of the full frame height — keeps a
+ * filled chart's title+plot within the frame so it doesn't push a scrollbar onto
+ * the single iframe-document scroller. Dense charts still exceed it and scroll
+ * (one scrollbar, as expected).
+ */
+export function chartPlotHeight(height: number, hasTitle: boolean): number {
+  return Math.max(60, height - (hasTitle ? 36 : 12));
 }
 
 /** Shared wrapper for cartesian charts (Line + Bar). */

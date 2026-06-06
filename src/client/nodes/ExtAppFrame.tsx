@@ -221,6 +221,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
     let hostContextResizeObserver: ResizeObserver | null = null;
     let hostContextRaf: number | null = null;
+    let readyNudgeRaf: number | null = null;
     toolResultSentRef.current = false;
     lastSentToolResultRef.current = undefined;
     toolResultSendingRef.current = null;
@@ -263,6 +264,24 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
           hostContextRaf = null;
           if (disposed || !bridgeReadyRef.current) return;
           bridge.setHostContext?.(buildHostContext());
+        });
+      };
+
+      // Re-deliver host context once the iframe has been laid out and painted.
+      // Canvas-backed widgets (e.g. Excalidraw) size their drawing surface from
+      // containerDimensions at first render; the single handshake-time delivery
+      // can land before the embedded frame has settled, leaving a black canvas
+      // until an expand/collapse forces a reflow. A double rAF lands after
+      // layout+paint, and sendHostContextChange always delivers (setHostContext
+      // would diff-suppress the identical context just sent at handshake).
+      const nudgeHostContextAfterLayout = () => {
+        if (readyNudgeRaf !== null) return;
+        readyNudgeRaf = requestAnimationFrame(() => {
+          readyNudgeRaf = requestAnimationFrame(() => {
+            readyNudgeRaf = null;
+            if (disposed || !bridgeReadyRef.current) return;
+            void bridge.sendHostContextChange?.(buildHostContext());
+          });
         });
       };
 
@@ -404,6 +423,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
         void Promise.resolve(bridge.sendHostContextChange(buildHostContext(isExpanded ? 'fullscreen' : 'inline')))
           .then(() => sendExtAppBootstrapState(bridge, latestToolInputRef.current, undefined))
           .then(() => flushToolResult(bridge))
+          .then(() => nudgeHostContextAfterLayout())
           .catch((err) => {
             const msg = err instanceof Error ? err.message : String(err);
             setError(`Bridge bootstrap failed: ${msg}`);
@@ -428,6 +448,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
             }
             setStatus(bootstrapToolResult ? 'done' : 'ready');
             setError(null);
+            nudgeHostContextAfterLayout();
           })
           .catch((err) => {
             const msg = err instanceof Error ? err.message : String(err);
@@ -477,6 +498,10 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
       if (hostContextRaf !== null) {
         cancelAnimationFrame(hostContextRaf);
         hostContextRaf = null;
+      }
+      if (readyNudgeRaf !== null) {
+        cancelAnimationFrame(readyNudgeRaf);
+        readyNudgeRaf = null;
       }
       bridgeReadyRef.current = false;
       toolResultSendingRef.current = null;

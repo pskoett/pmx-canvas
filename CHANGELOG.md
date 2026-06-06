@@ -3,6 +3,41 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.28] - 2026-06-06
+
+### Changed
+
+- **BREAKING (SDK): `PmxCanvas.addNode()` now returns the created node**
+  (a `CanvasNodeState` with `id`, geometry, and data) instead of a bare
+  id string. Use `const { id } = canvas.addNode(...)` or keep the whole
+  node. The MCP / HTTP / CLI surfaces and the internal `CanvasAccess`
+  contract are unchanged (still id-based).
+
+### Fixed
+
+- Tufte graph nodes (DotPlot/Bullet/Slopegraph) no longer flicker: the
+  chart-height ResizeObserver no longer feeds the document's own scroll
+  overflow back into its height.
+- Expanded Tufte graph views now fill the modal instead of staying
+  tile-sized with whitespace.
+- Graph node iframes no longer show a doubled scrollbar; a chart that
+  fits shows none, a dense chart shows exactly one.
+- Excalidraw / ext-app nodes paint on first mount instead of rendering
+  black until a manual expand/collapse (a post-layout host-context
+  nudge is delivered once the iframe has settled).
+- `image` and `ledger` nodes get roomier default sizes (480×360 /
+  420×280) instead of a cramped 360-wide frame.
+- `pmx-canvas web-artifact build` streams a stderr heartbeat during the
+  long install+bundle so agents don't see it as hung.
+- json-render rejects an unknown `$`-directive (e.g. `$path`) with a
+  clear error pointing at `$state`, instead of rendering
+  `"[object Object]"`.
+- Web-artifact script-path overrides are contained to the workspace with
+  a symlink-aware (realpath) check, fixing a false rejection on macOS.
+- **Security:** the `/api/canvas/image/<id>` route now refuses to serve
+  files outside the workspace root (returns 403), closing a path-
+  traversal read (e.g. an image node pointed at `../../etc/passwd`).
+
 ## [0.1.27] - 2026-06-06
 
 Big release: the full host-agnostic agent-experience (AX) primitive
@@ -1349,6 +1384,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.28]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.28
 [0.1.27]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.27
 [0.1.26]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.26
 [0.1.25]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.25

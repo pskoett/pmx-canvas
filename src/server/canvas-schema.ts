@@ -540,6 +540,7 @@ export function describeCanvasSchema(): {
       },
       components: clone(describeJsonRenderCatalog()),
       directives: [
+        { name: '$state', usage: '{ "$state": "/path/to/value" } — read a value from the state model by path (one-way). Use this to bind a value by path; there is no $path directive.' },
         { name: '$format', usage: '{ "$format": "currency"|"number"|"percent"|"date", "value": <num|state-ref>, "currency"?: "USD", "locale"?, "style"?, "options"? } — Intl-formatted string' },
         { name: '$math', usage: '{ "$math": "add"|"subtract"|"multiply"|"divide"|"mod"|"min"|"max"|"round"|"floor"|"ceil"|"abs", "a": <num>, "b"?: <num> }' },
         { name: '$concat', usage: '{ "$concat": [<value>, <value>, ...] } — join values into one string' },

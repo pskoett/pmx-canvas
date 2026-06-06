@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { buildAppHtml } from '@json-render/mcp/build-app-html';
 import { applySpecPatch, parseSpecStreamLine, type Spec, type SpecStreamLine } from '@json-render/core';
 import { allComponentDefinitions, catalog, validateShadcnElementProps, type JsonRenderIssue } from './catalog.js';
-import { isDynamicPropValue } from './directives.js';
+import { findUnknownDirectiveKey, isDynamicPropValue } from './directives.js';
 
 export interface JsonRenderSpec {
   root: string;
@@ -510,6 +510,24 @@ export function normalizeAndValidateJsonRenderSpec(spec: unknown): JsonRenderSpe
   const specRecord = asRecord(normalizeJsonRenderInput(spec));
   if (!specRecord || typeof specRecord.root !== 'string' || !asRecord(specRecord.elements)) {
     throw new Error('Missing root and elements in spec. Pass a complete {root, elements} document, or a single bare component object with a type field.');
+  }
+
+  // Reject an unrecognized $-keyed expression object in any element prop BEFORE
+  // normalization can string-coerce it to "[object Object]" (the reported $path
+  // symptom). The error names the offending key and points at $state, the
+  // correct path-read binding.
+  const elementsRecord = asRecord(specRecord.elements) ?? {};
+  for (const [elementKey, rawElement] of Object.entries(elementsRecord)) {
+    const props = asRecord(asRecord(rawElement)?.props);
+    if (!props) continue;
+    for (const [propKey, propValue] of Object.entries(props)) {
+      const unknownKey = findUnknownDirectiveKey(propValue);
+      if (unknownKey) {
+        throw new Error(
+          `Unknown directive "${unknownKey}" on elements.${elementKey}.props.${propKey}. Valid directives are $format, $math, $concat, $count, $truncate, $pluralize, $join; to read a value from state by path use { "$state": "/path" } (there is no $path directive).`,
+        );
+      }
+    }
   }
 
   const normalizedSpec = normalizeSpec(specRecord);

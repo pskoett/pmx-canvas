@@ -101,7 +101,7 @@ const articleId = canvas.addNode({
   y: 40,
   width: 760,
   height: 760,
-});
+}).id;
 
 const imageId = canvas.addNode({
   type: 'image',
@@ -111,7 +111,7 @@ const imageId = canvas.addNode({
   y: 840,
   width: 760,
   height: 320,
-});
+}).id;
 
 const articleFileId = canvas.addNode({
   type: 'file',
@@ -121,7 +121,7 @@ const articleFileId = canvas.addNode({
   y: 1190,
   width: 760,
   height: 360,
-});
+}).id;
 
 const appFileId = canvas.addNode({
   type: 'file',
@@ -131,7 +131,7 @@ const appFileId = canvas.addNode({
   y: 1580,
   width: 760,
   height: 360,
-});
+}).id;
 
 const dataFileId = canvas.addNode({
   type: 'file',
@@ -141,7 +141,7 @@ const dataFileId = canvas.addNode({
   y: 1970,
   width: 760,
   height: 360,
-});
+}).id;
 
 const statusId = canvas.addNode({
   type: 'status',
@@ -150,7 +150,7 @@ const statusId = canvas.addNode({
   y: 40,
   width: 340,
   height: 170,
-});
+}).id;
 
 const statusNode = canvas.getNode(statusId);
 canvas.updateNode(statusId, {
@@ -176,7 +176,7 @@ const contextId = canvas.addNode({
   y: 40,
   width: 360,
   height: 320,
-});
+}).id;
 
 const contextNode = canvas.getNode(contextId);
 canvas.updateNode(contextId, {
@@ -205,7 +205,7 @@ const ledgerId = canvas.addNode({
   y: 390,
   width: 360,
   height: 240,
-});
+}).id;
 
 const ledgerNode = canvas.getNode(ledgerId);
 canvas.updateNode(ledgerId, {
@@ -224,7 +224,7 @@ const traceIds = traceEvents.map((trace, index) => {
     y: 240 + index * 76,
     width: 340,
     height: 60,
-  });
+  }).id;
   const node = canvas.getNode(id);
   canvas.updateNode(id, {
     data: {

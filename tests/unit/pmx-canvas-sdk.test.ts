@@ -24,7 +24,7 @@ describe('PmxCanvas SDK surface', () => {
 
     const canvas = createCanvas({ port: 4789 });
 
-    const firstId = canvas.addNode({
+    const firstNode = canvas.addNode({
       type: 'markdown',
       title: 'First note',
       content: 'Alpha',
@@ -33,13 +33,17 @@ describe('PmxCanvas SDK surface', () => {
       width: 300,
       height: 180,
     });
+    // addNode returns the created node (with .id), not a bare id string.
+    expect(typeof firstNode.id).toBe('string');
+    expect(firstNode.type).toBe('markdown');
+    const firstId = firstNode.id;
     const secondId = canvas.addNode({
       type: 'markdown',
       title: 'Second note',
       content: 'Beta',
       x: 520,
       y: 220,
-    });
+    }).id;
 
     expect(canvas.port).toBe(4789);
     expect(canvas.getNode(firstId)?.data.title).toBe('First note');
@@ -117,7 +121,7 @@ describe('PmxCanvas SDK surface', () => {
     expect((updatedGraph?.data.graphConfig as { data?: Array<Record<string, unknown>> } | undefined)?.data)
       .toEqual([{ label: 'B', value: 5 }]);
 
-    const markdownId = canvas.addNode({ type: 'markdown', title: 'Plain note' });
+    const markdownId = canvas.addNode({ type: 'markdown', title: 'Plain note' }).id;
     expect(() => canvas.updateNode(markdownId, { spec: { root: 'card', elements: {} } }))
       .toThrow('Structured spec and graph updates can only be used');
   });

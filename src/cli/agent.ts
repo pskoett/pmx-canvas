@@ -805,7 +805,28 @@ async function buildWebArtifactRequestBody(
 }
 
 async function runWebArtifactBuildCommand(flags: Record<string, string | true>): Promise<void> {
-  const result = await api('POST', '/api/canvas/web-artifact', await buildWebArtifactRequestBody(flags), { allowErrorJson: true });
+  const body = await buildWebArtifactRequestBody(flags);
+  // The build (init + dependency install + bundle) runs server-side and only
+  // returns a single HTTP response on completion, which can take minutes on a
+  // cold workspace. With no output an agent's tool wait expires before the node
+  // appears and the build looks hung. Emit a default-on heartbeat to stderr
+  // while the request is in flight — stdout (output) and the JSON response body
+  // stay untouched, so anything parsing stdout is unaffected.
+  const startedMs = Date.now();
+  process.stderr.write(
+    `[web-artifact] building "${String(body.title)}" — init + install + bundle (this can take a few minutes)...\n`,
+  );
+  const heartbeat = setInterval(() => {
+    const elapsedSeconds = Math.round((Date.now() - startedMs) / 1000);
+    process.stderr.write(`[web-artifact] still building... ${elapsedSeconds}s elapsed\n`);
+  }, 10_000);
+  if (typeof heartbeat.unref === 'function') heartbeat.unref();
+  let result: unknown;
+  try {
+    result = await api('POST', '/api/canvas/web-artifact', body, { allowErrorJson: true });
+  } finally {
+    clearInterval(heartbeat);
+  }
   output(result);
   if (isRecord(result) && result.ok === false) {
     process.exit(1);

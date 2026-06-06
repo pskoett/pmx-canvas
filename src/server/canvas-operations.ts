@@ -107,6 +107,12 @@ interface CanvasAddNodeInput {
 
 export const MARKDOWN_NODE_DEFAULT_SIZE = { width: 640, height: 420 };
 export const MCP_APP_NODE_DEFAULT_SIZE = { width: 960, height: 600 };
+// Image and ledger nodes previously fell through to the generic 360x200 frame,
+// which clipped content (a 360-wide image / log stream is cramped). Give them
+// roomier defaults; height still auto-fits to content (see auto-fit.ts), so the
+// width bump is the reliable lever.
+export const IMAGE_NODE_DEFAULT_SIZE = { width: 480, height: 360 };
+export const LEDGER_NODE_DEFAULT_SIZE = { width: 420, height: 280 };
 
 interface CanvasCreateGroupInput {
   title?: string;
@@ -1771,14 +1777,22 @@ export async function executeCanvasBatch(
                   ? MARKDOWN_NODE_DEFAULT_SIZE.width
                   : type === 'mcp-app'
                     ? MCP_APP_NODE_DEFAULT_SIZE.width
-                    : 360,
+                    : type === 'image'
+                      ? IMAGE_NODE_DEFAULT_SIZE.width
+                      : type === 'ledger'
+                        ? LEDGER_NODE_DEFAULT_SIZE.width
+                        : 360,
               defaultHeight: type === 'html'
                 ? 640
                 : type === 'markdown'
                   ? MARKDOWN_NODE_DEFAULT_SIZE.height
                   : type === 'mcp-app'
                     ? MCP_APP_NODE_DEFAULT_SIZE.height
-                    : 200,
+                    : type === 'image'
+                      ? IMAGE_NODE_DEFAULT_SIZE.height
+                      : type === 'ledger'
+                        ? LEDGER_NODE_DEFAULT_SIZE.height
+                        : 200,
               fileMode: 'auto',
             });
             result = { ok: true, ...serializeCreatedNode(created.node) };

@@ -212,7 +212,9 @@ class LocalCanvasAccess implements CanvasAccess {
   }
 
   async addNode(input: AddNodeInput): Promise<string> {
-    return this.canvas.addNode(input);
+    // PmxCanvas.addNode returns the created node; the CanvasAccess contract
+    // (shared with the remote proxy + MCP) stays id-only.
+    return this.canvas.addNode(input).id;
   }
 
   async addWebpageNode(input: AddWebpageNodeInput): Promise<Awaited<ReturnType<PmxCanvas['addWebpageNode']>>> {

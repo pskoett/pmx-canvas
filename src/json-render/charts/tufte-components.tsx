@@ -12,7 +12,7 @@
  */
 
 import type { BaseComponentProps } from '@json-render/react';
-import { CHART_COLORS, useChartFrameHeight } from './components';
+import { CHART_COLORS, chartPlotHeight, useChartFrameHeight } from './components';
 
 const ACCENT = CHART_COLORS[0];
 const INK = 'var(--foreground, #111)';
@@ -155,7 +155,12 @@ function ChartDotPlot({ props }: BaseComponentProps<DotPlotProps>) {
   const labelW = 140;
   const valueW = 52;
   const padX = 12;
-  const rowH = rows.length > 0 ? Math.min(36, (height - 12) / rows.length) : 24;
+  // Distribute rows across the available plot height with 36px as a MINIMUM (not
+  // a maximum): a sparse chart fills a tall expanded card instead of staying
+  // tile-sized and top-aligned with whitespace below; a dense chart keeps ≥36px
+  // rows and scrolls cleanly (height no longer oscillates — see useChartFrameHeight).
+  const plotH = chartPlotHeight(height, Boolean(props.title));
+  const rowH = rows.length > 0 ? Math.max(36, plotH / rows.length) : 24;
   const plotLeft = labelW + padX;
 
   return (
@@ -231,7 +236,11 @@ function ChartBulletChart({ props }: BaseComponentProps<BulletChartProps>) {
   const w = width || 480;
   const labelW = 120;
   const padX = 12;
-  const rowH = rows.length > 0 ? Math.min(56, (height - 12) / rows.length) : 48;
+  // Fill the available plot height with 56px as a MINIMUM per row (the bar itself
+  // is capped at barH below, so extra row height just adds breathing room) so a
+  // sparse bullet chart fills a tall expanded card instead of leaving whitespace.
+  const plotH = chartPlotHeight(height, Boolean(props.title));
+  const rowH = rows.length > 0 ? Math.max(56, plotH / rows.length) : 48;
 
   return (
     <div ref={frameRef} className="pmx-chart pmx-chart--bullet" style={{ height }}>
@@ -328,12 +337,15 @@ function ChartSlopegraph({ props }: BaseComponentProps<SlopegraphProps>) {
   // measured pixels (fallback width until the ResizeObserver reports the size).
   const w = width || 480;
   const rightX = Math.max(leftX + 40, w - rightInset);
-  const scaleY = (v: number) => topPad + (1 - (v - min) / (max - min)) * (height - topPad - botPad);
+  // Size the SVG to the plot height (frame minus title/padding) so the chart
+  // fills without pushing a scrollbar onto the iframe document.
+  const plotH = chartPlotHeight(height, Boolean(props.title));
+  const scaleY = (v: number) => topPad + (1 - (v - min) / (max - min)) * (plotH - topPad - botPad);
 
   return (
     <div ref={frameRef} className="pmx-chart pmx-chart--slopegraph" style={{ height }}>
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
-      <svg className="pmx-chart__slopegraph-svg" width="100%" height={height} role="img" aria-label={props.title ?? 'slopegraph'}>
+      <svg className="pmx-chart__slopegraph-svg" width="100%" height={plotH} role="img" aria-label={props.title ?? 'slopegraph'}>
         <text x={leftX} y={14} textAnchor="end" fontSize={12} fontWeight={600} fill={MUTED}>
           {props.beforeLabel ?? props.beforeKey}
         </text>
