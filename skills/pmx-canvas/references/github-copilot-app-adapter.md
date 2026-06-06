@@ -83,6 +83,12 @@ The adapter rejects an unrelated running PMX server unless `serverUrl` is explic
 | `get_ax_context` | Return current pinned + focused AX context. |
 | `focus_nodes` | Set AX focus with `source: "copilot"`. |
 | `send_instruction` | Send an explicit prompt into the active Copilot session. |
+| `add_work_item` | Create a canvas-bound AX work item. |
+| `request_approval` | Open an approval gate (`pending`) before a high-impact action. |
+| `resolve_approval` | Resolve an approval gate as approved/rejected. |
+| `add_review_annotation` | Record a review comment/finding anchored to a node/file/region. |
+| `get_timeline` | Read the bounded AX timeline (events, evidence, steering). |
+| `report_capability` | Report host capabilities for diagnostics. |
 
 Example focus action:
 

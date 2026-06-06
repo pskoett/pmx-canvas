@@ -91,20 +91,37 @@ Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (56 tools,
 Claude Code, GitHub Copilot CLI, Codex, Cursor, Windsurf, or any agent
 that can spawn an MCP stdio server, call a CLI, or hit an HTTP endpoint.
 
-The repo also ships a GitHub Copilot app adapter at
-`.github/extensions/pmx-canvas/`. It opens the live PMX workbench in a native
-Copilot canvas panel, injects AX pinned/focused context on prompt submission,
-and exposes adapter actions for status, AX focus, context refresh, explicit
-session steering, work items, approval gates, review annotations, the AX
-timeline, and host-capability reporting — all mapped onto the same neutral AX
-surfaces. Install it into another repo with
-`pmx-canvas copilot install-extension` (`--dry-run` to preview).
+### 07 / Native app adapters
 
-In the Codex app, PMX Canvas is MCP-first plus the Codex in-app Browser: agents
-read `canvas://ax-context` / `canvas_get_ax`, humans use the live `/workbench`
-view, and Codex-originated focus can be labeled with `source: "codex"` through
-`canvas_set_ax_focus`. The CLI remains a fallback for scripts and manual
-debugging, not the native Codex adapter path.
+PMX Canvas doesn't just run in a browser tab — it embeds **natively inside the
+agent apps you already use**, as a thin adapter layer over the same neutral AX
+surfaces (the core never imports a host SDK).
+
+<p align="center">
+  <img src="docs/screenshots/github-copilot-app.png" alt="PMX Canvas as a native canvas panel in the GitHub Copilot app" width="100%" />
+</p>
+<p align="center"><sub>PMX Canvas as a native canvas panel in the GitHub Copilot app.</sub></p>
+
+<p align="center">
+  <img src="docs/screenshots/codex-app.png" alt="PMX Canvas workbench in the Codex in-app Browser" width="100%" />
+</p>
+<p align="center"><sub>The live PMX workbench in the Codex in-app Browser.</sub></p>
+
+- **GitHub Copilot app** — a committed project canvas extension
+  (`.github/extensions/pmx-canvas/`) opens the live PMX workbench in a native
+  Copilot panel, injects pinned/focused AX context on prompt submission, and
+  exposes actions for focus, session steering, work items, approval gates,
+  review annotations, the AX timeline, and host-capability reporting. Install it
+  into any repo with `pmx-canvas copilot install-extension` (`--dry-run` to
+  preview).
+- **Codex app** — native through the Codex in-app Browser (opened to
+  `/workbench`) plus the PMX MCP server: agents read `canvas://ax-context` /
+  `canvas_get_ax` and label Codex-originated focus with `source: "codex"`. No
+  extension API needed — Codex's two native surfaces (MCP + in-app Browser) are
+  exactly what the canvas requires.
+
+The contract is host-agnostic, so a new host plugs in the same way: map its
+hooks, canvas, and session APIs onto PMX's AX primitives — no core changes.
 
 ## Prerequisites
 
@@ -172,7 +189,20 @@ When loaded by the Copilot app, it opens the PMX workbench natively, starts a
 matching local PMX server when needed, and injects `AX` pinned/focused context
 as hidden per-turn context. The adapter is thin: PMX state still lives in
 `.pmx-canvas/canvas.db`, and the same HTTP, MCP, CLI, and SDK surfaces remain
-available to non-GitHub agents.
+available to non-GitHub agents. See
+[`github-copilot-app-adapter.md`](skills/pmx-canvas/references/github-copilot-app-adapter.md)
+for the full setup and live-test checklist.
+
+### Use inside the Codex app
+
+Codex needs no extension — its two native surfaces are exactly what the canvas
+requires. Add the PMX MCP server to the Codex workspace config (same snippet as
+[Connect your agent](#connect-your-agent-mcp)), then open the returned
+`/workbench` URL in the **Codex in-app Browser** so you can see mutations live.
+Agents read pinned/focused context from `canvas://ax-context` / `canvas_get_ax`
+and label Codex-originated focus with `source: "codex"`. See
+[`codex-app-adapter.md`](skills/pmx-canvas/references/codex-app-adapter.md) for
+the full workflow and live-test checklist.
 
 ### Install the agent skill (recommended)
 
