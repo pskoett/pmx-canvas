@@ -454,13 +454,13 @@ export declare const allComponentDefinitions: {
             text: z.ZodString;
             variant: z.ZodNullable<z.ZodEnum<{
                 error: "error";
+                info: "info";
+                warning: "warning";
                 default: "default";
                 success: "success";
                 secondary: "secondary";
                 destructive: "destructive";
                 outline: "outline";
-                info: "info";
-                warning: "warning";
                 danger: "danger";
             }>>;
         }, z.core.$strip>;

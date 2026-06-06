@@ -25,14 +25,19 @@ export function buildCanvasAxPinnedContext(): PmxAxPinnedContext {
 
 export function buildCanvasAxContext(): PmxAxContext {
   const layout = canvasState.getLayout();
-  const focus = canvasState.getAxFocus();
-  const focusNodes = focus.nodeIds
+  const ax = canvasState.getAxState();
+  const focusNodes = ax.focus.nodeIds
     .map((id) => canvasState.getNode(id))
     .filter((node): node is CanvasNodeState => node !== undefined);
   return buildAxContext({
     layout,
     pinned: buildCanvasAxPinnedContext(),
-    focus,
+    focus: ax.focus,
     focusNodes: serializeNodes(focusNodes),
+    workItems: ax.workItems,
+    approvalGates: ax.approvalGates,
+    reviewAnnotations: ax.reviewAnnotations,
+    timeline: canvasState.getAxTimelineSummary(),
+    host: canvasState.getHostCapability(),
   });
 }

@@ -77,7 +77,15 @@ import {
 import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent-context.js';
 import { buildCanvasAxContext } from './ax-context.js';
-import type { PmxAxSource } from './ax-state.js';
+import { isAxEventKind, isAxEvidenceKind } from './ax-state.js';
+import type {
+  PmxAxReviewAnchorType,
+  PmxAxReviewKind,
+  PmxAxReviewRegion,
+  PmxAxReviewSeverity,
+  PmxAxReviewStatus,
+  PmxAxSource,
+} from './ax-state.js';
 import { normalizeCanvasTheme, type CanvasTheme } from './canvas-db.js';
 import { validateLocalImageFile } from './image-source.js';
 import {
@@ -3715,6 +3723,281 @@ async function handleAxStatePatch(req: Request): Promise<Response> {
   return responseJson({ ok: true, state: canvasState.getAxState() });
 }
 
+async function handleAxEventAdd(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  if (!isAxEventKind(body.kind) || typeof body.summary !== 'string') {
+    return responseJson({ ok: false, error: 'event requires kind and summary.' }, 400);
+  }
+  const event = canvasState.recordAxEvent(
+    {
+      kind: body.kind,
+      summary: body.summary,
+      detail: typeof body.detail === 'string' ? body.detail : null,
+      nodeIds: normalizeAxNodeIds(body.nodeIds),
+      data: isRecord(body.data) ? body.data : null,
+    },
+    { source: normalizeAxSource(body.source, 'api') },
+  );
+  broadcastWorkbenchEvent('ax-event-created', {
+    event,
+    sessionId: primaryWorkbenchSessionId,
+    timestamp: new Date().toISOString(),
+  });
+  return responseJson({ ok: true, event });
+}
+
+async function handleAxSteer(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  if (typeof body.message !== 'string' || !body.message.trim()) {
+    return responseJson({ ok: false, error: 'steer requires a non-empty message.' }, 400);
+  }
+  const steering = canvasState.recordSteeringMessage(body.message, {
+    source: normalizeAxSource(body.source, 'api'),
+  });
+  broadcastWorkbenchEvent('ax-event-created', {
+    steering,
+    sessionId: primaryWorkbenchSessionId,
+    timestamp: new Date().toISOString(),
+  });
+  return responseJson({ ok: true, steering });
+}
+
+function handleAxTimelineGet(url: URL): Response {
+  const limit = Number(url.searchParams.get('limit') ?? '');
+  return responseJson({
+    ok: true,
+    ...canvasState.getAxTimeline(Number.isFinite(limit) && limit > 0 ? { limit } : {}),
+  });
+}
+
+const AX_WORK_STATUSES = new Set(['todo', 'in-progress', 'blocked', 'done', 'cancelled']);
+
+function normalizeAxWorkItemStatus(value: unknown): 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled' | undefined {
+  return typeof value === 'string' && AX_WORK_STATUSES.has(value)
+    ? value as 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled'
+    : undefined;
+}
+
+function handleAxWorkList(): Response {
+  return responseJson({ ok: true, workItems: canvasState.getWorkItems() });
+}
+
+async function handleAxWorkAdd(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  if (typeof body.title !== 'string' || !body.title.trim()) {
+    return responseJson({ ok: false, error: 'work item requires a title.' }, 400);
+  }
+  const status = normalizeAxWorkItemStatus(body.status);
+  const workItem = canvasState.addWorkItem(
+    {
+      title: body.title,
+      ...(status ? { status } : {}),
+      ...(typeof body.detail === 'string' ? { detail: body.detail } : {}),
+      ...(Array.isArray(body.nodeIds) ? { nodeIds: normalizeAxNodeIds(body.nodeIds) } : {}),
+    },
+    { source: normalizeAxSource(body.source, 'api') },
+  );
+  broadcastWorkbenchEvent('ax-state-changed', {
+    workItem,
+    sessionId: primaryWorkbenchSessionId,
+    timestamp: new Date().toISOString(),
+  });
+  return responseJson({ ok: true, workItem });
+}
+
+async function handleAxWorkUpdate(req: Request, id: string): Promise<Response> {
+  const body = await readJson(req);
+  const status = normalizeAxWorkItemStatus(body.status);
+  const workItem = canvasState.updateWorkItem(
+    id,
+    {
+      ...(typeof body.title === 'string' ? { title: body.title } : {}),
+      ...(status ? { status } : {}),
+      ...(typeof body.detail === 'string' || body.detail === null ? { detail: body.detail as string | null } : {}),
+      ...(Array.isArray(body.nodeIds) ? { nodeIds: normalizeAxNodeIds(body.nodeIds) } : {}),
+    },
+    { source: normalizeAxSource(body.source, 'api') },
+  );
+  if (!workItem) return responseJson({ ok: false, error: 'work item not found.' }, 404);
+  broadcastWorkbenchEvent('ax-state-changed', {
+    workItem,
+    sessionId: primaryWorkbenchSessionId,
+    timestamp: new Date().toISOString(),
+  });
+  return responseJson({ ok: true, workItem });
+}
+
+function handleAxApprovalList(): Response {
+  return responseJson({ ok: true, approvalGates: canvasState.getApprovalGates() });
+}
+
+async function handleAxApprovalRequest(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  if (typeof body.title !== 'string' || !body.title.trim()) {
+    return responseJson({ ok: false, error: 'approval request requires a title.' }, 400);
+  }
+  const approvalGate = canvasState.requestApproval(
+    {
+      title: body.title,
+      ...(typeof body.detail === 'string' ? { detail: body.detail } : {}),
+      ...(typeof body.action === 'string' ? { action: body.action } : {}),
+      ...(Array.isArray(body.nodeIds) ? { nodeIds: normalizeAxNodeIds(body.nodeIds) } : {}),
+    },
+    { source: normalizeAxSource(body.source, 'api') },
+  );
+  broadcastWorkbenchEvent('ax-state-changed', {
+    approvalGate,
+    sessionId: primaryWorkbenchSessionId,
+    timestamp: new Date().toISOString(),
+  });
+  return responseJson({ ok: true, approvalGate });
+}
+
+async function handleAxApprovalResolve(req: Request, id: string): Promise<Response> {
+  const body = await readJson(req);
+  if (body.decision !== 'approved' && body.decision !== 'rejected') {
+    return responseJson({ ok: false, error: 'resolve requires decision approved or rejected.' }, 400);
+  }
+  const approvalGate = canvasState.resolveApproval(
+    id,
+    body.decision,
+    {
+      ...(typeof body.resolution === 'string' ? { resolution: body.resolution } : {}),
+      source: normalizeAxSource(body.source, 'api'),
+    },
+  );
+  if (!approvalGate) return responseJson({ ok: false, error: 'approval gate not found or already resolved.' }, 404);
+  broadcastWorkbenchEvent('ax-state-changed', {
+    approvalGate,
+    sessionId: primaryWorkbenchSessionId,
+    timestamp: new Date().toISOString(),
+  });
+  return responseJson({ ok: true, approvalGate });
+}
+
+async function handleAxEvidenceAdd(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  if (!isAxEvidenceKind(body.kind) || typeof body.title !== 'string' || !body.title.trim()) {
+    return responseJson({ ok: false, error: 'evidence requires kind and title.' }, 400);
+  }
+  const evidence = canvasState.addEvidence(
+    {
+      kind: body.kind,
+      title: body.title,
+      body: typeof body.body === 'string' ? body.body : null,
+      ref: typeof body.ref === 'string' ? body.ref : null,
+      nodeIds: normalizeAxNodeIds(body.nodeIds),
+      data: isRecord(body.data) ? body.data : null,
+    },
+    { source: normalizeAxSource(body.source, 'api') },
+  );
+  broadcastWorkbenchEvent('ax-event-created', {
+    evidence,
+    sessionId: primaryWorkbenchSessionId,
+    timestamp: new Date().toISOString(),
+  });
+  return responseJson({ ok: true, evidence });
+}
+
+const AX_REVIEW_KINDS = new Set(['comment', 'finding']);
+const AX_REVIEW_SEVERITIES = new Set(['info', 'warning', 'error']);
+const AX_REVIEW_STATUSES = new Set(['open', 'resolved', 'dismissed']);
+const AX_REVIEW_ANCHORS = new Set(['node', 'file', 'region']);
+
+function normalizeAxReviewKind(value: unknown): PmxAxReviewKind | undefined {
+  return typeof value === 'string' && AX_REVIEW_KINDS.has(value) ? value as PmxAxReviewKind : undefined;
+}
+function normalizeAxReviewSeverity(value: unknown): PmxAxReviewSeverity | undefined {
+  return typeof value === 'string' && AX_REVIEW_SEVERITIES.has(value) ? value as PmxAxReviewSeverity : undefined;
+}
+function normalizeAxReviewStatus(value: unknown): PmxAxReviewStatus | undefined {
+  return typeof value === 'string' && AX_REVIEW_STATUSES.has(value) ? value as PmxAxReviewStatus : undefined;
+}
+function normalizeAxReviewAnchor(value: unknown): PmxAxReviewAnchorType | undefined {
+  return typeof value === 'string' && AX_REVIEW_ANCHORS.has(value) ? value as PmxAxReviewAnchorType : undefined;
+}
+function normalizeAxReviewRegion(value: unknown): PmxAxReviewRegion | undefined {
+  if (!isRecord(value)) return undefined;
+  return {
+    ...(typeof value.line === 'number' ? { line: value.line } : {}),
+    ...(typeof value.endLine === 'number' ? { endLine: value.endLine } : {}),
+    ...(typeof value.label === 'string' ? { label: value.label } : {}),
+  };
+}
+
+function handleAxReviewList(): Response {
+  return responseJson({ ok: true, reviewAnnotations: canvasState.getReviewAnnotations() });
+}
+
+async function handleAxReviewAdd(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  if (typeof body.body !== 'string' || !body.body.trim()) {
+    return responseJson({ ok: false, error: 'review annotation requires a body.' }, 400);
+  }
+  const kind = normalizeAxReviewKind(body.kind);
+  const severity = normalizeAxReviewSeverity(body.severity);
+  const anchorType = normalizeAxReviewAnchor(body.anchorType);
+  const region = normalizeAxReviewRegion(body.region);
+  const reviewAnnotation = canvasState.addReviewAnnotation(
+    {
+      body: body.body,
+      ...(kind ? { kind } : {}),
+      ...(severity ? { severity } : {}),
+      ...(anchorType ? { anchorType } : {}),
+      ...(typeof body.nodeId === 'string' ? { nodeId: body.nodeId } : {}),
+      ...(typeof body.file === 'string' ? { file: body.file } : {}),
+      ...(region ? { region } : {}),
+      ...(typeof body.author === 'string' ? { author: body.author } : {}),
+    },
+    { source: normalizeAxSource(body.source, 'api') },
+  );
+  broadcastWorkbenchEvent('ax-state-changed', {
+    reviewAnnotation,
+    sessionId: primaryWorkbenchSessionId,
+    timestamp: new Date().toISOString(),
+  });
+  return responseJson({ ok: true, reviewAnnotation });
+}
+
+async function handleAxReviewUpdate(req: Request, id: string): Promise<Response> {
+  const body = await readJson(req);
+  const status = normalizeAxReviewStatus(body.status);
+  const severity = normalizeAxReviewSeverity(body.severity);
+  const kind = normalizeAxReviewKind(body.kind);
+  const reviewAnnotation = canvasState.updateReviewAnnotation(
+    id,
+    {
+      ...(typeof body.body === 'string' ? { body: body.body } : {}),
+      ...(status ? { status } : {}),
+      ...(severity ? { severity } : {}),
+      ...(kind ? { kind } : {}),
+    },
+    { source: normalizeAxSource(body.source, 'api') },
+  );
+  if (!reviewAnnotation) return responseJson({ ok: false, error: 'review annotation not found.' }, 404);
+  broadcastWorkbenchEvent('ax-state-changed', {
+    reviewAnnotation,
+    sessionId: primaryWorkbenchSessionId,
+    timestamp: new Date().toISOString(),
+  });
+  return responseJson({ ok: true, reviewAnnotation });
+}
+
+function handleAxHostCapabilityGet(): Response {
+  return responseJson({ ok: true, host: canvasState.getHostCapability() });
+}
+
+async function handleAxHostCapabilityReport(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const host = canvasState.setHostCapability(body, { source: normalizeAxSource(body.source, 'api') });
+  broadcastWorkbenchEvent('ax-state-changed', {
+    host,
+    sessionId: primaryWorkbenchSessionId,
+    timestamp: new Date().toISOString(),
+  });
+  return responseJson({ ok: true, host });
+}
+
 // ── Port resolution ───────────────────────────────────────────
 
 function buildPortCandidates(preferredPort: number): number[] {
@@ -4701,6 +4984,71 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/ax/focus' && req.method === 'POST') {
             return handleAxFocusUpdate(req);
+          }
+
+          if (url.pathname === '/api/canvas/ax/event' && req.method === 'POST') {
+            return handleAxEventAdd(req);
+          }
+
+          if (url.pathname === '/api/canvas/ax/steer' && req.method === 'POST') {
+            return handleAxSteer(req);
+          }
+
+          if (url.pathname === '/api/canvas/ax/timeline' && req.method === 'GET') {
+            return handleAxTimelineGet(url);
+          }
+
+          if (url.pathname === '/api/canvas/ax/work' && req.method === 'GET') {
+            return handleAxWorkList();
+          }
+
+          if (url.pathname === '/api/canvas/ax/work' && req.method === 'POST') {
+            return handleAxWorkAdd(req);
+          }
+
+          if (url.pathname.startsWith('/api/canvas/ax/work/') && req.method === 'PATCH') {
+            const workItemId = decodeURIComponent(url.pathname.slice('/api/canvas/ax/work/'.length));
+            return handleAxWorkUpdate(req, workItemId);
+          }
+
+          if (url.pathname === '/api/canvas/ax/approval' && req.method === 'GET') {
+            return handleAxApprovalList();
+          }
+
+          if (url.pathname === '/api/canvas/ax/approval' && req.method === 'POST') {
+            return handleAxApprovalRequest(req);
+          }
+
+          if (url.pathname.startsWith('/api/canvas/ax/approval/') && url.pathname.endsWith('/resolve') && req.method === 'POST') {
+            const approvalId = decodeURIComponent(
+              url.pathname.slice('/api/canvas/ax/approval/'.length, -'/resolve'.length),
+            );
+            return handleAxApprovalResolve(req, approvalId);
+          }
+
+          if (url.pathname === '/api/canvas/ax/evidence' && req.method === 'POST') {
+            return handleAxEvidenceAdd(req);
+          }
+
+          if (url.pathname === '/api/canvas/ax/review' && req.method === 'GET') {
+            return handleAxReviewList();
+          }
+
+          if (url.pathname === '/api/canvas/ax/review' && req.method === 'POST') {
+            return handleAxReviewAdd(req);
+          }
+
+          if (url.pathname.startsWith('/api/canvas/ax/review/') && req.method === 'PATCH') {
+            const reviewId = decodeURIComponent(url.pathname.slice('/api/canvas/ax/review/'.length));
+            return handleAxReviewUpdate(req, reviewId);
+          }
+
+          if (url.pathname === '/api/canvas/ax/host-capability' && req.method === 'GET') {
+            return handleAxHostCapabilityGet();
+          }
+
+          if (url.pathname === '/api/canvas/ax/host-capability' && req.method === 'PUT') {
+            return handleAxHostCapabilityReport(req);
           }
 
           // Spatial context API

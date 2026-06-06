@@ -85,9 +85,27 @@ console.log(canvas.validate());
 console.log(canvas.getLayout());
 
 // AX context for host adapters
-canvas.setAxFocus({ nodeIds: [n1], source: 'sdk' });
+canvas.setAxFocus([n1], { source: 'sdk' });
 console.log(canvas.getAxState());
 console.log(canvas.getAxContext());
+
+// AX primitives — host-agnostic agent-experience layer
+// Timeline (persisted for diagnostics, retention-bounded, not snapshotted)
+canvas.recordAxEvent({ kind: 'tool-start', summary: 'ran tests' }, { source: 'sdk' });
+canvas.addEvidence({ kind: 'test-output', title: 'unit pass' }, { source: 'sdk' });
+canvas.sendSteering('focus on the failing test first', { source: 'sdk' });
+console.log(canvas.getAxTimeline({ limit: 50 }));
+
+// Canvas-bound (rides snapshots + restore, cleared by canvas.clear())
+const work = canvas.addWorkItem({ title: 'Wire up auth', status: 'in-progress', nodeIds: [n1] }, { source: 'sdk' });
+canvas.updateWorkItem(work.id, { status: 'done' });
+const gate = canvas.requestApproval({ title: 'Deploy to prod', action: 'deploy.prod' }, { source: 'sdk' });
+canvas.resolveApproval(gate.id, 'approved', { source: 'sdk' });
+canvas.addReviewAnnotation({ body: 'off-by-one', kind: 'finding', severity: 'error', anchorType: 'file', file: 'src/x.ts' }, { source: 'sdk' });
+
+// Host/session capability (own table, survives clear)
+canvas.reportHostCapability({ host: 'copilot', canvas: true, sessionMessaging: true }, { source: 'sdk' });
+console.log(canvas.getHostCapability());
 ```
 
 ## WebView automation

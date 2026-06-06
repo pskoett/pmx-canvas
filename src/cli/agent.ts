@@ -11,7 +11,9 @@
  * - --yes for destructive actions, --dry-run for preview
  */
 
-import { readFileSync, writeFileSync } from 'node:fs';
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { openUrlInExternalBrowser, wrapCanvasAutomationScript } from '../server/server.js';
 import { DEFAULT_EXCALIDRAW_ELEMENTS } from '../server/diagram-presets.js';
 import {
@@ -166,6 +168,7 @@ function parseFlags(args: string[]): { positional: string[]; flags: Record<strin
     'help', 'h', 'ids', 'stdin', 'yes', 'list', 'clear', 'set', 'animated', 'dry-run', 'all',
     'no-open-in-canvas', 'lock-arrange', 'unlock-arrange', 'json', 'compact',
     'verbose', 'include-logs', 'no-pan', 'schema', 'example', 'examples', 'strict-size', 'scroll-overflow',
+    'report', 'canvas', 'hooks', 'tools', 'session-messaging', 'permissions', 'files', 'ui-prompts',
   ]);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -1805,6 +1808,275 @@ cmd('ax focus', 'Set or clear PMX AX focus without moving the viewport', [
   }
 
   output(await api('POST', '/api/canvas/ax/focus', { nodeIds, source: 'cli' }));
+});
+
+cmd('ax event add', 'Record a normalized AX timeline event', [
+  'pmx-canvas ax event add --kind tool-start --summary "ran tests"',
+  'pmx-canvas ax event add --kind failure --summary "build broke" --detail "..." node1 node2',
+], async (args) => {
+  const { positional, flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax event add');
+
+  const kind = requireFlag(flags, 'kind', 'pmx-canvas ax event add --kind <kind> --summary <text>');
+  const summary = requireFlag(flags, 'summary', 'pmx-canvas ax event add --kind <kind> --summary <text>');
+  const detail = getStringFlag(flags, 'detail');
+
+  output(await api('POST', '/api/canvas/ax/event', {
+    kind,
+    summary,
+    ...(detail ? { detail } : {}),
+    ...(positional.length > 0 ? { nodeIds: positional } : {}),
+    source: 'cli',
+  }));
+});
+
+cmd('ax steer', 'Send a steering message to the active agent session', [
+  'pmx-canvas ax steer "focus on the failing test first"',
+  'pmx-canvas ax steer --message "stop and re-plan"',
+], async (args) => {
+  const { positional, flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax steer');
+
+  const message = getStringFlag(flags, 'message') ?? positional.join(' ').trim();
+  if (!message) {
+    die('Missing steering message', 'pmx-canvas ax steer <message>');
+  }
+
+  output(await api('POST', '/api/canvas/ax/steer', { message, source: 'cli' }));
+});
+
+cmd('ax timeline', 'Read the bounded AX timeline (events, evidence, steering)', [
+  'pmx-canvas ax timeline',
+  'pmx-canvas ax timeline --limit 100',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax timeline');
+
+  const limit = optionalNumberFlag(flags, 'limit', 'pmx-canvas ax timeline --limit <n>');
+  output(await api('GET', `/api/canvas/ax/timeline${limit ? `?limit=${limit}` : ''}`));
+});
+
+cmd('ax work add', 'Add a canvas-bound AX work item', [
+  'pmx-canvas ax work add --title "Wire up auth" --status in-progress',
+  'pmx-canvas ax work add --title "Review API" node1 node2',
+], async (args) => {
+  const { positional, flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax work add');
+
+  const title = requireFlag(flags, 'title', 'pmx-canvas ax work add --title <text>');
+  const status = getStringFlag(flags, 'status');
+  const detail = getStringFlag(flags, 'detail');
+
+  output(await api('POST', '/api/canvas/ax/work', {
+    title,
+    ...(status ? { status } : {}),
+    ...(detail ? { detail } : {}),
+    ...(positional.length > 0 ? { nodeIds: positional } : {}),
+    source: 'cli',
+  }));
+});
+
+cmd('ax work update', 'Update a canvas-bound AX work item by ID', [
+  'pmx-canvas ax work update <id> --status done',
+  'pmx-canvas ax work update <id> --title "New title" --detail "..."',
+], async (args) => {
+  const { positional, flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax work update');
+
+  const id = positional[0];
+  if (!id) die('Missing work item ID', 'pmx-canvas ax work update <id> --status <status>');
+  const title = getStringFlag(flags, 'title');
+  const status = getStringFlag(flags, 'status');
+  const detail = getStringFlag(flags, 'detail');
+
+  output(await api('PATCH', `/api/canvas/ax/work/${encodeURIComponent(id)}`, {
+    ...(title ? { title } : {}),
+    ...(status ? { status } : {}),
+    ...(detail ? { detail } : {}),
+    ...(positional.length > 1 ? { nodeIds: positional.slice(1) } : {}),
+    source: 'cli',
+  }));
+});
+
+cmd('ax work list', 'List canvas-bound AX work items', [
+  'pmx-canvas ax work list',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax work list');
+
+  output(await api('GET', '/api/canvas/ax/work'));
+});
+
+cmd('ax approval request', 'Request a canvas-bound AX approval gate', [
+  'pmx-canvas ax approval request --title "Deploy to prod"',
+  'pmx-canvas ax approval request --title "Drop table" --action db.drop node1',
+], async (args) => {
+  const { positional, flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax approval request');
+
+  const title = requireFlag(flags, 'title', 'pmx-canvas ax approval request --title <text>');
+  const detail = getStringFlag(flags, 'detail');
+  const action = getStringFlag(flags, 'action');
+
+  output(await api('POST', '/api/canvas/ax/approval', {
+    title,
+    ...(detail ? { detail } : {}),
+    ...(action ? { action } : {}),
+    ...(positional.length > 0 ? { nodeIds: positional } : {}),
+    source: 'cli',
+  }));
+});
+
+cmd('ax approval resolve', 'Resolve a pending AX approval gate by ID', [
+  'pmx-canvas ax approval resolve <id> --decision approved',
+  'pmx-canvas ax approval resolve <id> --decision rejected --resolution "too risky"',
+], async (args) => {
+  const { positional, flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax approval resolve');
+
+  const id = positional[0];
+  if (!id) die('Missing approval gate ID', 'pmx-canvas ax approval resolve <id> --decision <approved|rejected>');
+  const decision = requireFlag(flags, 'decision', 'pmx-canvas ax approval resolve <id> --decision <approved|rejected>');
+  if (decision !== 'approved' && decision !== 'rejected') {
+    die('Invalid decision', 'pmx-canvas ax approval resolve <id> --decision <approved|rejected>');
+  }
+  const resolution = getStringFlag(flags, 'resolution');
+
+  output(await api('POST', `/api/canvas/ax/approval/${encodeURIComponent(id)}/resolve`, {
+    decision,
+    ...(resolution ? { resolution } : {}),
+    source: 'cli',
+  }));
+});
+
+cmd('ax approval list', 'List canvas-bound AX approval gates', [
+  'pmx-canvas ax approval list',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax approval list');
+
+  output(await api('GET', '/api/canvas/ax/approval'));
+});
+
+cmd('ax evidence add', 'Record an AX evidence item on the timeline', [
+  'pmx-canvas ax evidence add --kind test-output --title "unit pass" --body "..."',
+  'pmx-canvas ax evidence add --kind screenshot --title "before" --ref /tmp/before.png node1',
+], async (args) => {
+  const { positional, flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax evidence add');
+
+  const kind = requireFlag(flags, 'kind', 'pmx-canvas ax evidence add --kind <kind> --title <text>');
+  const title = requireFlag(flags, 'title', 'pmx-canvas ax evidence add --kind <kind> --title <text>');
+  const body = getStringFlag(flags, 'body');
+  const ref = getStringFlag(flags, 'ref');
+
+  output(await api('POST', '/api/canvas/ax/evidence', {
+    kind,
+    title,
+    ...(body ? { body } : {}),
+    ...(ref ? { ref } : {}),
+    ...(positional.length > 0 ? { nodeIds: positional } : {}),
+    source: 'cli',
+  }));
+});
+
+cmd('ax review add', 'Add a canvas-bound AX review annotation', [
+  'pmx-canvas ax review add --body "needs a test" --node node1',
+  'pmx-canvas ax review add --body "off-by-one" --kind finding --severity error --file src/x.ts',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax review add');
+
+  const body = requireFlag(flags, 'body', 'pmx-canvas ax review add --body <text>');
+  const kind = getStringFlag(flags, 'kind');
+  const severity = getStringFlag(flags, 'severity');
+  const anchorType = getStringFlag(flags, 'anchor');
+  const nodeId = getStringFlag(flags, 'node');
+  const file = getStringFlag(flags, 'file');
+  const author = getStringFlag(flags, 'author');
+
+  output(await api('POST', '/api/canvas/ax/review', {
+    body,
+    ...(kind ? { kind } : {}),
+    ...(severity ? { severity } : {}),
+    ...(anchorType ? { anchorType } : {}),
+    ...(nodeId ? { nodeId } : {}),
+    ...(file ? { file } : {}),
+    ...(author ? { author } : {}),
+    source: 'cli',
+  }));
+});
+
+cmd('ax review list', 'List canvas-bound AX review annotations', [
+  'pmx-canvas ax review list',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax review list');
+
+  output(await api('GET', '/api/canvas/ax/review'));
+});
+
+cmd('ax host report', 'Report host/session capability to the canvas', [
+  'pmx-canvas ax host report --host copilot --canvas --tools --session-messaging',
+  'pmx-canvas ax host report --host codex --canvas --files',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax host report');
+
+  const host = getStringFlag(flags, 'host');
+
+  output(await api('PUT', '/api/canvas/ax/host-capability', {
+    ...(host ? { host } : {}),
+    canvas: flags.canvas === true,
+    hooks: flags.hooks === true,
+    tools: flags.tools === true,
+    sessionMessaging: flags['session-messaging'] === true,
+    permissions: flags.permissions === true,
+    files: flags.files === true,
+    uiPrompts: flags['ui-prompts'] === true,
+    source: 'cli',
+  }));
+});
+
+cmd('ax host status', 'Read the reported host/session capability', [
+  'pmx-canvas ax host status',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax host status');
+
+  output(await api('GET', '/api/canvas/ax/host-capability'));
+});
+
+// ── copilot install-extension ────────────────────────────────
+cmd('copilot install-extension', 'Install the bundled GitHub Copilot extension adapter', [
+  'pmx-canvas copilot install-extension --dry-run',
+  'pmx-canvas copilot install-extension --target .github/extensions/pmx-canvas/extension.mjs --yes',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('copilot install-extension');
+
+  const sourcePath = fileURLToPath(new URL('../../.github/extensions/pmx-canvas/extension.mjs', import.meta.url));
+  if (!existsSync(sourcePath)) {
+    die('Bundled Copilot extension adapter not found.', `Expected at ${sourcePath}`);
+  }
+
+  const targetPath = getStringFlag(flags, 'target')
+    ?? join(process.cwd(), '.github', 'extensions', 'pmx-canvas', 'extension.mjs');
+  const dryRun = flags['dry-run'] === true;
+  const targetExists = existsSync(targetPath);
+
+  if (dryRun) {
+    output({ ok: true, dryRun: true, sourcePath, targetPath, targetExists, wrote: false });
+    return;
+  }
+
+  if (targetExists && flags.yes !== true) {
+    die('Target already exists. Re-run with --yes to overwrite.', `Target: ${targetPath}`);
+  }
+
+  mkdirSync(dirname(targetPath), { recursive: true });
+  copyFileSync(sourcePath, targetPath);
+  output({ ok: true, dryRun: false, sourcePath, targetPath, wrote: true });
 });
 
 // ── undo ─────────────────────────────────────────────────────

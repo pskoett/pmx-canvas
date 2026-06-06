@@ -388,6 +388,16 @@ async function startPanelServer(instanceId, ctx, pmx) {
                     return;
                 }
                 await copilotSession?.send({ prompt: body.prompt });
+                // Explicit user instruction from the panel → mirror onto the AX
+                // timeline as a steering message (fire-and-forget).
+                if (entry.pmx?.baseUrl) {
+                    void fetchJson(entry.pmx.baseUrl, "/api/canvas/ax/steer", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ message: body.prompt, source: "copilot" }),
+                        timeoutMs: 2_000,
+                    }).catch(() => {});
+                }
                 jsonResponse(res, 200, { ok: true });
                 return;
             }
@@ -432,6 +442,39 @@ async function setAxFocus(baseUrl, workspaceRoot, input = {}, nodeIds = []) {
         body: JSON.stringify({ nodeIds: Array.isArray(nodeIds) ? nodeIds : [], source: "copilot" }),
         timeoutMs: 2_000,
     });
+}
+
+// POST a host-agnostic AX record to the canvas with the copilot source label.
+// Resolves the server first so the action returns an actionable error when the
+// canvas is unavailable, then maps the neutral primitive over plain HTTP.
+async function postAxRecord(ctx, path, payload) {
+    const resolved = await resolvePmxServer(ctx, { autoStart: false });
+    if (!resolved.ok || !resolved.baseUrl) {
+        return { ok: false, error: resolved.error ?? "PMX Canvas server is unavailable." };
+    }
+    try {
+        return await fetchJson(resolved.baseUrl, path, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...payload, source: "copilot" }),
+            timeoutMs: 2_000,
+        });
+    } catch (error) {
+        return { ok: false, error: error instanceof Error ? error.message : String(error) };
+    }
+}
+
+// Fire-and-forget mirror of a copilot-originated action onto the AX timeline.
+// Never throws — adapter UX must not depend on the canvas being reachable.
+function recordCopilotSteering(ctx, message) {
+    void postAxRecord(ctx, "/api/canvas/ax/steer", { message }).catch(() => {});
+}
+
+async function getAxTimeline(ctx, limit) {
+    const resolved = await resolvePmxServer(ctx, { autoStart: false });
+    if (!resolved.ok || !resolved.baseUrl) return { ok: false, error: resolved.error };
+    const query = typeof limit === "number" && limit > 0 ? `?limit=${limit}` : "";
+    return await fetchJson(resolved.baseUrl, `/api/canvas/ax/timeline${query}`, { timeoutMs: 2_000 });
 }
 
 function hasUsefulAxContext(context) {
@@ -513,7 +556,155 @@ const pmxCanvas = createCanvas({
                 const prompt = typeof ctx.input?.prompt === "string" ? ctx.input.prompt.trim() : "";
                 if (!prompt) throw new CanvasError("prompt_required", "prompt is required");
                 await copilotSession?.send({ prompt });
+                // Mirror the explicit user instruction onto the AX timeline as a
+                // steering message (fire-and-forget). This is an explicit action
+                // flow, never a sync from the prompt hook.
+                recordCopilotSteering(ctx, prompt);
                 return { ok: true };
+            },
+        },
+        {
+            name: "add_work_item",
+            description: "Add a canvas-bound PMX AX work item (visible task/plan/status) from Copilot.",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    title: { type: "string" },
+                    status: { type: "string", enum: ["todo", "in-progress", "blocked", "done", "cancelled"] },
+                    detail: { type: "string" },
+                    nodeIds: { type: "array", items: { type: "string" } },
+                },
+                required: ["title"],
+                additionalProperties: false,
+            },
+            handler: async (ctx) => await postAxRecord(ctx, "/api/canvas/ax/work", {
+                title: ctx.input?.title,
+                ...(ctx.input?.status ? { status: ctx.input.status } : {}),
+                ...(ctx.input?.detail ? { detail: ctx.input.detail } : {}),
+                ...(Array.isArray(ctx.input?.nodeIds) ? { nodeIds: ctx.input.nodeIds } : {}),
+            }),
+        },
+        {
+            name: "request_approval",
+            description: "Request human approval before a high-impact action via a PMX AX approval gate.",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    title: { type: "string" },
+                    detail: { type: "string" },
+                    action: { type: "string" },
+                    nodeIds: { type: "array", items: { type: "string" } },
+                },
+                required: ["title"],
+                additionalProperties: false,
+            },
+            handler: async (ctx) => await postAxRecord(ctx, "/api/canvas/ax/approval", {
+                title: ctx.input?.title,
+                ...(ctx.input?.detail ? { detail: ctx.input.detail } : {}),
+                ...(ctx.input?.action ? { action: ctx.input.action } : {}),
+                ...(Array.isArray(ctx.input?.nodeIds) ? { nodeIds: ctx.input.nodeIds } : {}),
+            }),
+        },
+        {
+            name: "resolve_approval",
+            description: "Resolve a pending PMX AX approval gate (approved or rejected).",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    id: { type: "string" },
+                    decision: { type: "string", enum: ["approved", "rejected"] },
+                    resolution: { type: "string" },
+                },
+                required: ["id", "decision"],
+                additionalProperties: false,
+            },
+            handler: async (ctx) => await postAxRecord(
+                ctx,
+                `/api/canvas/ax/approval/${encodeURIComponent(String(ctx.input?.id ?? ""))}/resolve`,
+                {
+                    decision: ctx.input?.decision,
+                    ...(ctx.input?.resolution ? { resolution: ctx.input.resolution } : {}),
+                },
+            ),
+        },
+        {
+            name: "add_review_annotation",
+            description: "Add a canvas-bound PMX AX review annotation (comment/finding) anchored to a node, file, or region.",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    body: { type: "string" },
+                    kind: { type: "string", enum: ["comment", "finding"] },
+                    severity: { type: "string", enum: ["info", "warning", "error"] },
+                    anchorType: { type: "string", enum: ["node", "file", "region"] },
+                    nodeId: { type: "string" },
+                    file: { type: "string" },
+                },
+                required: ["body"],
+                additionalProperties: false,
+            },
+            handler: async (ctx) => await postAxRecord(ctx, "/api/canvas/ax/review", {
+                body: ctx.input?.body,
+                ...(ctx.input?.kind ? { kind: ctx.input.kind } : {}),
+                ...(ctx.input?.severity ? { severity: ctx.input.severity } : {}),
+                ...(ctx.input?.anchorType ? { anchorType: ctx.input.anchorType } : {}),
+                ...(ctx.input?.nodeId ? { nodeId: ctx.input.nodeId } : {}),
+                ...(ctx.input?.file ? { file: ctx.input.file } : {}),
+            }),
+        },
+        {
+            name: "get_timeline",
+            description: "Read the bounded PMX AX timeline (events, evidence, steering) for diagnostics and continuity.",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    limit: { type: "integer", minimum: 1, maximum: 200 },
+                },
+                additionalProperties: false,
+            },
+            handler: async (ctx) => await getAxTimeline(ctx, ctx.input?.limit),
+        },
+        {
+            name: "report_capability",
+            description: "Report this Copilot host/session capability to the canvas for AX diagnostics.",
+            inputSchema: {
+                type: "object",
+                properties: {
+                    canvas: { type: "boolean" },
+                    hooks: { type: "boolean" },
+                    tools: { type: "boolean" },
+                    sessionMessaging: { type: "boolean" },
+                    permissions: { type: "boolean" },
+                    files: { type: "boolean" },
+                    uiPrompts: { type: "boolean" },
+                },
+                additionalProperties: false,
+            },
+            handler: async (ctx) => {
+                const resolved = await resolvePmxServer(ctx, { autoStart: false });
+                if (!resolved.ok || !resolved.baseUrl) {
+                    return { ok: false, error: resolved.error ?? "PMX Canvas server is unavailable." };
+                }
+                try {
+                    return await fetchJson(resolved.baseUrl, "/api/canvas/ax/host-capability", {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                            host: "copilot",
+                            canvas: ctx.input?.canvas === true,
+                            hooks: ctx.input?.hooks === true,
+                            tools: ctx.input?.tools === true,
+                            sessionMessaging: ctx.input?.sessionMessaging === true,
+                            permissions: ctx.input?.permissions === true,
+                            files: ctx.input?.files === true,
+                            uiPrompts: ctx.input?.uiPrompts === true,
+                            source: "copilot",
+                        }),
+                        timeoutMs: 2_000,
+                    });
+                } catch (error) {
+                    return { ok: false, error: error instanceof Error ? error.message : String(error) };
+                }
             },
         },
     ],

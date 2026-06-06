@@ -117,6 +117,70 @@ curl -X PATCH http://localhost:4313/api/canvas/ax \
   -d '{"focus":{"nodeIds":["node-1"],"source":"api"}}'
 ```
 
+## AX primitives (timeline, work, host)
+
+Host-agnostic agent-experience primitives across three state partitions.
+Canvas-bound state (work items, approval gates, review annotations) rides
+canvas snapshots; timeline state (events, evidence, steering) persists for
+diagnostics but is retention-bounded and not restored by snapshots; the host
+capability is reported by adapters and survives `canvas_clear`.
+
+```bash
+# Timeline — record a normalized agent-event
+curl -X POST http://localhost:4313/api/canvas/ax/event \
+  -H "Content-Type: application/json" \
+  -d '{"kind":"tool-start","summary":"ran tests","source":"api"}'
+
+# Timeline — send a steering message to the active agent session
+curl -X POST http://localhost:4313/api/canvas/ax/steer \
+  -H "Content-Type: application/json" \
+  -d '{"message":"focus on the failing test first","source":"api"}'
+
+# Timeline — record an evidence item (logs/tool-result/screenshot/file/diff/test-output)
+curl -X POST http://localhost:4313/api/canvas/ax/evidence \
+  -H "Content-Type: application/json" \
+  -d '{"kind":"test-output","title":"unit pass","source":"api"}'
+
+# Timeline — read the bounded timeline (default limit 50, max 200)
+curl "http://localhost:4313/api/canvas/ax/timeline?limit=50"
+
+# Canvas-bound — add / update a work item
+curl -X POST http://localhost:4313/api/canvas/ax/work \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Wire up auth","status":"in-progress","nodeIds":["node-1"],"source":"api"}'
+curl -X PATCH http://localhost:4313/api/canvas/ax/work/<id> \
+  -H "Content-Type: application/json" \
+  -d '{"status":"done"}'
+curl http://localhost:4313/api/canvas/ax/work
+
+# Canvas-bound — request / resolve an approval gate (pending → approved/rejected)
+curl -X POST http://localhost:4313/api/canvas/ax/approval \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Deploy to prod","action":"deploy.prod","source":"api"}'
+curl -X POST http://localhost:4313/api/canvas/ax/approval/<id>/resolve \
+  -H "Content-Type: application/json" \
+  -d '{"decision":"approved","source":"api"}'
+curl http://localhost:4313/api/canvas/ax/approval
+
+# Canvas-bound — add a review annotation (comment/finding) anchored to node/file/region
+curl -X POST http://localhost:4313/api/canvas/ax/review \
+  -H "Content-Type: application/json" \
+  -d '{"body":"off-by-one","kind":"finding","severity":"error","anchorType":"file","file":"src/x.ts","source":"api"}'
+curl http://localhost:4313/api/canvas/ax/review
+
+# Host/session — report and read host capability
+curl -X PUT http://localhost:4313/api/canvas/ax/host-capability \
+  -H "Content-Type: application/json" \
+  -d '{"host":"copilot","canvas":true,"sessionMessaging":true,"source":"api"}'
+curl http://localhost:4313/api/canvas/ax/host-capability
+```
+
+Validation: `/ax/event` requires a valid `kind` + `summary` (400 otherwise);
+`/ax/evidence` requires `kind` + `title`; `/ax/steer`, `/ax/work`,
+`/ax/approval`, `/ax/review` require their primary field; `PATCH /ax/work/:id`
+and `PATCH /ax/review/:id` return 404 for unknown IDs; approval resolve returns
+404 if the gate is missing or already resolved.
+
 ## Diagrams (Excalidraw preset)
 
 ```bash

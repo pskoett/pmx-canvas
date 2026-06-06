@@ -32,7 +32,7 @@ if (args.includes('--version') || args.includes('-v')) {
 const AGENT_COMMANDS = new Set([
   'node', 'edge', 'json-render', 'search', 'layout', 'status', 'arrange', 'focus',
   'fit', 'screenshot', 'pin', 'ax', 'undo', 'redo', 'history', 'snapshot', 'diff', 'group', 'webview', 'open',
-  'clear', 'code-graph', 'spatial', 'watch', 'web-artifact', 'external-app', 'diagram', 'graph', 'html', 'batch', 'validate', 'serve',
+  'clear', 'code-graph', 'spatial', 'watch', 'web-artifact', 'external-app', 'diagram', 'graph', 'html', 'batch', 'validate', 'serve', 'copilot',
 ]);
 
 const firstArg = args[0] ?? '';
@@ -563,6 +563,7 @@ Examples:
   pmx-canvas validate                                         Check layout collisions
   pmx-canvas watch --events context-pin,move-end              Watch semantic deltas
   pmx-canvas clear --dry-run                                  Preview destructive op
+  pmx-canvas copilot install-extension --dry-run             Preview Copilot adapter install
 `);
     process.exit(0);
   }

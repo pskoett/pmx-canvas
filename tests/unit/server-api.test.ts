@@ -3066,6 +3066,189 @@ describe('canvas server HTTP API', () => {
     expect(context.focus.nodes[0]?.content).toContain('Focused context body');
   });
 
+  test('AX timeline endpoints round-trip events, steering, and evidence', async () => {
+    const event = await jsonRequest<{ ok: boolean; event: { id: string; kind: string } }>('/api/canvas/ax/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'tool-start', summary: 'ran tests', source: 'api' }),
+    });
+    expect(event.event.kind).toBe('tool-start');
+
+    const steering = await jsonRequest<{ ok: boolean; steering: { id: string; message: string } }>('/api/canvas/ax/steer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'focus on the failing test', source: 'api' }),
+    });
+    expect(steering.steering.message).toBe('focus on the failing test');
+
+    const evidence = await jsonRequest<{ ok: boolean; evidence: { id: string; kind: string } }>('/api/canvas/ax/evidence', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'test-output', title: 'unit pass', source: 'api' }),
+    });
+    expect(evidence.evidence.kind).toBe('test-output');
+
+    const timeline = await jsonRequest<{
+      ok: boolean;
+      events: Array<{ id: string }>;
+      evidence: Array<{ id: string }>;
+      steering: Array<{ id: string }>;
+    }>('/api/canvas/ax/timeline');
+    expect(timeline.events.map((e) => e.id)).toContain(event.event.id);
+    expect(timeline.evidence.map((e) => e.id)).toContain(evidence.evidence.id);
+    expect(timeline.steering.map((s) => s.id)).toContain(steering.steering.id);
+  });
+
+  test('AX event endpoint rejects an invalid kind with a 400', async () => {
+    const response = await fetch(`${baseUrl}/api/canvas/ax/event`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'not-a-real-kind', summary: 'nope' }),
+    });
+    expect(response.status).toBe(400);
+    const body = await response.json() as { ok: boolean };
+    expect(body.ok).toBe(false);
+  });
+
+  test('AX work item and approval gate endpoints round-trip over HTTP', async () => {
+    const node = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'AX work node' }),
+    });
+
+    const created = await jsonRequest<{ ok: boolean; workItem: { id: string; status: string } }>('/api/canvas/ax/work', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Implement auth', status: 'todo', nodeIds: [node.id], source: 'api' }),
+    });
+    expect(created.workItem.status).toBe('todo');
+
+    const updated = await jsonRequest<{ ok: boolean; workItem: { status: string } }>(
+      `/api/canvas/ax/work/${created.workItem.id}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'done', source: 'api' }),
+      },
+    );
+    expect(updated.workItem.status).toBe('done');
+
+    const missing = await fetch(`${baseUrl}/api/canvas/ax/work/does-not-exist`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'done' }),
+    });
+    expect(missing.status).toBe(404);
+
+    const gate = await jsonRequest<{ ok: boolean; approvalGate: { id: string; status: string } }>('/api/canvas/ax/approval', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Deploy to prod', action: 'deploy.prod', source: 'api' }),
+    });
+    expect(gate.approvalGate.status).toBe('pending');
+
+    const resolved = await jsonRequest<{ ok: boolean; approvalGate: { status: string } }>(
+      `/api/canvas/ax/approval/${gate.approvalGate.id}/resolve`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision: 'approved', source: 'api' }),
+      },
+    );
+    expect(resolved.approvalGate.status).toBe('approved');
+
+    const reResolve = await fetch(`${baseUrl}/api/canvas/ax/approval/${gate.approvalGate.id}/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision: 'rejected' }),
+    });
+    expect(reResolve.status).toBe(404);
+  });
+
+  test('AX review annotation and host capability endpoints round-trip over HTTP', async () => {
+    const review = await jsonRequest<{ ok: boolean; reviewAnnotation: { id: string; status: string; severity: string } }>(
+      '/api/canvas/ax/review',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'off-by-one', kind: 'finding', severity: 'error', anchorType: 'file', file: 'src/x.ts', source: 'api' }),
+      },
+    );
+    expect(review.reviewAnnotation.severity).toBe('error');
+
+    const updated = await jsonRequest<{ ok: boolean; reviewAnnotation: { status: string } }>(
+      `/api/canvas/ax/review/${review.reviewAnnotation.id}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'resolved', source: 'api' }),
+      },
+    );
+    expect(updated.reviewAnnotation.status).toBe('resolved');
+
+    const reported = await jsonRequest<{ ok: boolean; host: { host: string; sessionMessaging: boolean } }>(
+      '/api/canvas/ax/host-capability',
+      {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host: 'copilot', canvas: true, sessionMessaging: true, source: 'api' }),
+      },
+    );
+    expect(reported.host.host).toBe('copilot');
+    expect(reported.host.sessionMessaging).toBe(true);
+
+    const read = await jsonRequest<{ ok: boolean; host: { host: string } | null }>('/api/canvas/ax/host-capability');
+    expect(read.host?.host).toBe('copilot');
+  });
+
+  test('AX mutations emit ax-event-created and ax-state-changed SSE events', async () => {
+    const abortController = new AbortController();
+    const eventsPromise = (async () => {
+      const response = await fetch(`${baseUrl}/api/workbench/events`, { signal: abortController.signal });
+      expect(response.ok).toBe(true);
+      const reader = response.body?.getReader();
+      expect(reader).toBeDefined();
+      const decoder = new TextDecoder();
+      let buffer = '';
+      const seen = new Set<string>();
+      while (reader) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const frames = buffer.split('\n\n');
+        buffer = frames.pop() ?? '';
+        for (const frame of frames) {
+          const eventLine = frame.split('\n').find((line) => line.startsWith('event: '));
+          if (eventLine) seen.add(eventLine.slice('event: '.length));
+        }
+        if (seen.has('ax-event-created') && seen.has('ax-state-changed')) return seen;
+      }
+      return seen;
+    })();
+
+    await Bun.sleep(50);
+    await jsonRequest('/api/canvas/ax/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'prompt', summary: 'timeline event', source: 'api' }),
+    });
+    await jsonRequest('/api/canvas/ax/work', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'canvas-bound work', source: 'api' }),
+    });
+
+    const seen = await Promise.race([
+      eventsPromise,
+      Bun.sleep(2_000).then(() => new Set<string>()),
+    ]);
+    abortController.abort();
+
+    expect(seen.has('ax-event-created')).toBe(true);
+    expect(seen.has('ax-state-changed')).toBe(true);
+  });
+
   test('canvas theme endpoint persists and returns the selected theme', async () => {
     const updated = await jsonRequest<{ ok: boolean; theme: string }>('/api/canvas/theme', {
       method: 'POST',

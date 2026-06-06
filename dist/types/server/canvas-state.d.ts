@@ -9,8 +9,8 @@
  * in the workspace root on every mutation (debounced). Auto-loads on `loadFromDisk()`.
  * Legacy `.pmx-canvas/state.json` is auto-migrated on first boot.
  */
-import { type PersistedCanvasState, type CanvasTheme } from './canvas-db.js';
-import { type PmxAxFocusState, type PmxAxSource, type PmxAxState } from './ax-state.js';
+import { type PersistedCanvasState, type CanvasTheme, type AxTimelineQuery } from './canvas-db.js';
+import { type PmxAxFocusState, type PmxAxSource, type PmxAxState, type PmxAxWorkItem, type PmxAxWorkItemStatus, type PmxAxApprovalGate, type PmxAxReviewAnnotation, type PmxAxReviewKind, type PmxAxReviewSeverity, type PmxAxReviewStatus, type PmxAxReviewAnchorType, type PmxAxReviewRegion, type PmxAxEvent, type PmxAxEventKind, type PmxAxEvidence, type PmxAxEvidenceKind, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
 export declare const PMX_CANVAS_DIR = ".pmx-canvas";
 export interface PersistedBlobRef {
     __pmxCanvasBlob: 'v1';
@@ -120,9 +120,9 @@ export interface CanvasNodeUpdate {
     collapsed?: boolean;
     dockPosition?: 'left' | 'right' | null;
 }
-export type CanvasChangeType = 'pins' | 'nodes' | 'ax';
+export type CanvasChangeType = 'pins' | 'nodes' | 'ax' | 'ax-timeline';
 export interface MutationRecordInfo {
-    operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
+    operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
     description: string;
     forward: () => void;
     inverse: () => void;
@@ -143,6 +143,7 @@ declare class CanvasStateManager {
     private _theme;
     private _contextPinnedNodeIds;
     private _axState;
+    private _axHostCapability;
     private _workspaceRoot;
     private _changeListeners;
     /** Register a listener for state changes. Used by MCP server to emit resource notifications. */
@@ -263,6 +264,96 @@ declare class CanvasStateManager {
         recordHistory?: boolean;
     }): PmxAxFocusState;
     clearAxFocus(): PmxAxFocusState;
+    getWorkItems(): PmxAxWorkItem[];
+    addWorkItem(input: {
+        title: string;
+        status?: PmxAxWorkItemStatus;
+        detail?: string | null;
+        nodeIds?: string[];
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxWorkItem;
+    updateWorkItem(id: string, patch: {
+        title?: string;
+        status?: PmxAxWorkItemStatus;
+        detail?: string | null;
+        nodeIds?: string[];
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxWorkItem | null;
+    getApprovalGates(): PmxAxApprovalGate[];
+    requestApproval(input: {
+        title: string;
+        detail?: string | null;
+        action?: string | null;
+        nodeIds?: string[];
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxApprovalGate;
+    resolveApproval(id: string, decision: 'approved' | 'rejected', options?: {
+        resolution?: string;
+        source?: PmxAxSource;
+    }): PmxAxApprovalGate | null;
+    getReviewAnnotations(): PmxAxReviewAnnotation[];
+    addReviewAnnotation(input: {
+        body: string;
+        kind?: PmxAxReviewKind;
+        severity?: PmxAxReviewSeverity;
+        anchorType?: PmxAxReviewAnchorType;
+        nodeId?: string | null;
+        file?: string | null;
+        region?: PmxAxReviewRegion | null;
+        author?: string | null;
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxReviewAnnotation;
+    updateReviewAnnotation(id: string, patch: {
+        body?: string;
+        status?: PmxAxReviewStatus;
+        severity?: PmxAxReviewSeverity;
+        kind?: PmxAxReviewKind;
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxReviewAnnotation | null;
+    getHostCapability(): PmxAxHostCapability | null;
+    setHostCapability(input: unknown, _options?: {
+        source?: PmxAxSource;
+    }): PmxAxHostCapability;
+    recordAxEvent(input: {
+        kind: PmxAxEventKind;
+        summary: string;
+        detail?: string | null;
+        nodeIds?: string[];
+        data?: Record<string, unknown> | null;
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxEvent;
+    addEvidence(input: {
+        kind: PmxAxEvidenceKind;
+        title: string;
+        body?: string | null;
+        ref?: string | null;
+        nodeIds?: string[];
+        data?: Record<string, unknown> | null;
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxEvidence;
+    recordSteeringMessage(message: string, options?: {
+        source?: PmxAxSource;
+    }): PmxAxSteeringMessage;
+    markSteeringDelivered(id: string): boolean;
+    getAxEvents(q?: AxTimelineQuery): PmxAxEvent[];
+    getAxEvidence(q?: AxTimelineQuery): PmxAxEvidence[];
+    getAxSteering(q?: AxTimelineQuery & {
+        onlyPending?: boolean;
+    }): PmxAxSteeringMessage[];
+    getAxTimelineSummary(): PmxAxTimelineSummary;
+    getAxTimeline(q?: AxTimelineQuery): {
+        events: PmxAxEvent[];
+        evidence: PmxAxEvidence[];
+        steering: PmxAxSteeringMessage[];
+        summary: PmxAxTimelineSummary;
+    };
     setContextPins(nodeIds: string[]): void;
     clearContextPins(): void;
     /** Move child nodes into a group. Sets data.parentGroup on children and data.children on the group. */

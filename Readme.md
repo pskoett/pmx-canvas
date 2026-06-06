@@ -3,9 +3,10 @@
 **A moldable canvas for agent-assisted thinking.** An infinite 2D surface
 where files, plans, status, charts, fetched web pages, annotations, and
 hand-drawn diagrams live side by side. Every node carries its own renderer; agents
-(and you) build new views in the middle of a session, not as a separate
-tooling project. Pin what matters and the agent reads your spatial
-curation as structured context.
+(and you) build new views in the middle of a session — even streaming a
+structured panel into place as they generate it — not as a separate tooling
+project. Pin what matters and the agent reads your spatial curation as
+structured context.
 
 <p align="center">
   <img src="docs/screenshots/welcome-dark.png" alt="Empty canvas — dark theme" width="49%" />
@@ -50,15 +51,28 @@ agents as compact spatial context: target, bounds, and nearby canvas content.
 
 ### 04 / Control your context
 
-Pinning is an explicit, low-noise control over what the agent sees next. No
-prompt engineering, no copy-paste — pin a node in the browser and the MCP
-server fires a `notifications/resources/updated` event the agent's harness
-picks up immediately.
+Steer the agent and see its work, without prompt engineering or copy-paste.
+Pin a node in the browser and the MCP server fires a
+`notifications/resources/updated` event the agent's harness picks up
+immediately — an explicit, low-noise control over what the agent sees next.
 
-AX context adds a host-agnostic focus layer on top of pins. Core PMX exposes
-`/api/canvas/ax/context`, `canvas://ax-context`, SDK methods, and
-`pmx-canvas ax context|focus`; adapters can map that same primitive to their
-native hook systems without making PMX Canvas GitHub-specific.
+On top of pins, a host-agnostic **AX (agent-experience) layer** turns the
+canvas into a shared workspace between you and the agent:
+
+- **Focus** — promote nodes into the agent's active context without moving the viewport.
+- **Work items & approval gates** — track visible tasks tied to nodes, and gate
+  high-impact actions behind a human `pending → approved/rejected` decision.
+- **Steering messages & agent-event timeline** — send instructions to the
+  active session, and read a normalized, bounded timeline of prompts, tool
+  runs, evidence (logs/diffs/screenshots/test-output), and failures.
+- **Host capability** — adapters report what the host can do, for diagnostics.
+
+Canvas-bound state (focus, work items, approvals, review annotations) rides
+canvas snapshots and restore; the timeline persists for continuity but is
+retention-bounded and never restored by a snapshot. Every primitive is reachable
+from MCP, the HTTP API, the SDK, and `pmx-canvas ax …`. The core never depends
+on any host SDK, so adapters (e.g. the GitHub Copilot app) map onto the same
+neutral surfaces without making PMX Canvas vendor-specific.
 
 ### 05 / Save
 
@@ -71,8 +85,8 @@ the DB so SQLite WAL data is checkpointed into the file.
 
 ### 06 / Any agent
 
-Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (45 tools,
-9 resources, change notifications), the [CLI](docs/cli.md), the
+Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (56 tools,
+12 resources, change notifications), the [CLI](docs/cli.md), the
 [HTTP API](docs/http-api.md), or the [Bun SDK](docs/sdk.md). Works with
 Claude Code, GitHub Copilot CLI, Codex, Cursor, Windsurf, or any agent
 that can spawn an MCP stdio server, call a CLI, or hit an HTTP endpoint.
@@ -80,8 +94,11 @@ that can spawn an MCP stdio server, call a CLI, or hit an HTTP endpoint.
 The repo also ships a GitHub Copilot app adapter at
 `.github/extensions/pmx-canvas/`. It opens the live PMX workbench in a native
 Copilot canvas panel, injects AX pinned/focused context on prompt submission,
-and exposes adapter actions for status, AX focus, context refresh, and explicit
-session steering.
+and exposes adapter actions for status, AX focus, context refresh, explicit
+session steering, work items, approval gates, review annotations, the AX
+timeline, and host-capability reporting — all mapped onto the same neutral AX
+surfaces. Install it into another repo with
+`pmx-canvas copilot install-extension` (`--dry-run` to preview).
 
 In the Codex app, PMX Canvas is MCP-first plus the Codex in-app Browser: agents
 read `canvas://ax-context` / `canvas_get_ax`, humans use the live `/workbench`
@@ -91,7 +108,7 @@ debugging, not the native Codex adapter path.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh) >= 1.3.12
+- [Bun](https://bun.sh) >= 1.3.14
 
 The published SDK entrypoint is Bun-first. Node.js consumers should use the
 CLI, MCP server, or HTTP API.
@@ -188,7 +205,7 @@ the agent can read `canvas://skills` and pull in companion skills
   the three-tier visual matrix (json-render → html → web-artifact)
 - **[CLI reference](docs/cli.md)** — full command surface, daemon mode,
   watch streams, WebView automation
-- **[MCP reference](docs/mcp.md)** — 45 tools, 9 resources, change
+- **[MCP reference](docs/mcp.md)** — 56 tools, 12 resources, change
   notifications, node-type routing
 - **[HTTP API](docs/http-api.md)** — REST endpoints, SSE, batch operations
 - **[Bun SDK](docs/sdk.md)** — `createCanvas()` for TypeScript on Bun

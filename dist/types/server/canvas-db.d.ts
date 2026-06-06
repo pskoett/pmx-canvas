@@ -6,7 +6,7 @@
  */
 import { Database } from 'bun:sqlite';
 import type { CanvasAnnotation, CanvasEdge, CanvasNodeState, CanvasSnapshot, CanvasSnapshotListOptions, ViewportState } from './canvas-state.js';
-import { type PmxAxState } from './ax-state.js';
+import { type PmxAxState, type PmxAxEvent, type PmxAxEvidence, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
 export type CanvasTheme = 'dark' | 'light' | 'high-contrast';
 export declare function normalizeCanvasTheme(value: unknown, fallback?: CanvasTheme): CanvasTheme;
 export interface PersistedCanvasState {
@@ -36,3 +36,19 @@ export declare function deleteSnapshotFromDB(db: Database, id: string): boolean;
 export declare function writeBlobToDB(db: Database, sha256: string, jsonValue: string): number;
 export declare function readBlobFromDB(db: Database, sha256: string): string | null;
 export declare function hasBlobInDB(db: Database, sha256: string): boolean;
+export interface AxTimelineQuery {
+    limit?: number;
+    sessionId?: string;
+}
+export declare function appendAxEventToDB(db: Database, ev: Omit<PmxAxEvent, 'seq'>): PmxAxEvent;
+export declare function appendAxEvidenceToDB(db: Database, ev: Omit<PmxAxEvidence, 'seq'>): PmxAxEvidence;
+export declare function appendAxSteeringToDB(db: Database, s: Omit<PmxAxSteeringMessage, 'seq'>): PmxAxSteeringMessage;
+export declare function markAxSteeringDeliveredInDB(db: Database, id: string): boolean;
+export declare function loadAxEventsFromDB(db: Database, q?: AxTimelineQuery): PmxAxEvent[];
+export declare function loadAxEvidenceFromDB(db: Database, q?: AxTimelineQuery): PmxAxEvidence[];
+export declare function loadAxSteeringFromDB(db: Database, q?: AxTimelineQuery & {
+    onlyPending?: boolean;
+}): PmxAxSteeringMessage[];
+export declare function loadAxTimelineSummaryFromDB(db: Database): PmxAxTimelineSummary;
+export declare function upsertAxHostCapabilityToDB(db: Database, cap: PmxAxHostCapability): void;
+export declare function loadAxHostCapabilityFromDB(db: Database): PmxAxHostCapability | null;

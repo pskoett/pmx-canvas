@@ -1,6 +1,6 @@
 # MCP reference
 
-PMX Canvas ships an MCP stdio server with **45 tools** + **9 core resources**,
+PMX Canvas ships an MCP stdio server with **56 tools** + **12 core resources**,
 plus per-skill resources at `canvas://skills/<name>`. The server emits
 `notifications/resources/updated` when canvas state changes — humans pin
 nodes in the browser, agents are notified immediately.
@@ -35,7 +35,8 @@ The canvas auto-starts on first tool call.
 | `canvas_validate_spec` | Validate a json-render spec, graph payload, or HTML primitive payload without creating a node |
 | `canvas_refresh_webpage_node` | Re-fetch and update a webpage node from its stored URL |
 | `canvas_add_json_render_node` | Create a native json-render node from a validated spec |
-| `canvas_add_graph_node` | Create a native graph node (line, bar, pie, area, scatter, radar, stacked-bar, composed) |
+| `canvas_stream_json_render_node` | Progressively build a json-render node from SpecStream JSON-Patch ops (live/streaming panels) |
+| `canvas_add_graph_node` | Create a native graph node (line, bar, pie, area, scatter, radar, stacked-bar, composed, sparkline, dot-plot, bullet, slopegraph) |
 | `canvas_build_web_artifact` | Build a bundled HTML artifact and open it on the canvas |
 
 `canvas_add_html_node` accepts optional `summary`, `agentSummary`, `embeddedNodeIds`, and
@@ -51,8 +52,18 @@ searchable and readable in pinned/spatial context.
 | `canvas_arrange` | Auto-arrange (grid/column/flow) |
 | `canvas_validate` | Validate collisions, containment, and missing edge endpoints |
 | `canvas_focus_node` | Pan viewport to a node; use CLI `focus --no-pan` when you only need to select/raise |
-| `canvas_get_ax` | Read the PMX AX state plus pinned/focused context |
+| `canvas_get_ax` | Read the PMX AX state (focus, work items, approvals, review annotations, host capability) plus pinned/focused context |
 | `canvas_set_ax_focus` | Set the host-agnostic AX focus node set; adapters can pass a source such as `codex` |
+| `canvas_record_ax_event` | Record a normalized timeline `agent-event` (prompt/assistant-message/tool-start/tool-result/failure/approval/steering) |
+| `canvas_send_steering` | Record a `steering-message`: a user instruction from the surface to the active agent session |
+| `canvas_get_ax_timeline` | Read the bounded AX timeline (events, evidence, steering) plus counts |
+| `canvas_add_work_item` | Add a canvas-bound `work-item` (visible task/plan/status tied to nodes) |
+| `canvas_update_work_item` | Update a work item's title/status/detail/nodeIds by ID |
+| `canvas_request_approval` | Request human approval via an `approval-gate` (pending) before a high-impact action |
+| `canvas_resolve_approval` | Resolve a pending approval gate (`approved`/`rejected`) |
+| `canvas_add_evidence` | Record an `evidence-item` on the timeline (logs/tool-result/screenshot/file/diff/test-output) |
+| `canvas_add_review_annotation` | Add a canvas-bound `review-annotation` (comment/finding) anchored to a node, file, or region |
+| `canvas_report_host_capability` | Report a host/session `host-capability` for diagnostics |
 | `canvas_pin_nodes` | Pin nodes to include in agent context |
 | `canvas_clear` | Clear all nodes and edges |
 | `canvas_snapshot` | Save current canvas as a named snapshot |
@@ -82,8 +93,10 @@ Individual bundled skills are also readable at `canvas://skills/<name>`.
 | Resource | Description |
 |----------|-------------|
 | `canvas://pinned-context` | Content of pinned nodes + nearby unpinned neighbors |
-| `canvas://ax` | PMX AX state, currently including persisted focus |
-| `canvas://ax-context` | Agent-readable pinned and focused AX context |
+| `canvas://ax` | PMX AX state: focus, work items, approval gates, review annotations |
+| `canvas://ax-context` | Agent-readable pinned and focused AX context, plus timeline summary and host capability |
+| `canvas://ax-work` | Canvas-bound AX work: work items, approval gates, review annotations |
+| `canvas://ax-timeline` | Bounded AX timeline: recent agent-events, evidence, and steering messages |
 | `canvas://schema` | Running-server create schemas and json-render catalog metadata |
 | `canvas://layout` | Full canvas state (all nodes, edges, viewport) |
 | `canvas://summary` | Compact overview: counts, pinned titles, viewport |
@@ -99,6 +112,10 @@ changes:
 
 - Pin changes notify `canvas://pinned-context`, `canvas://ax`, and `canvas://ax-context`
 - AX focus changes notify `canvas://ax` and `canvas://ax-context`
+- Canvas-bound AX mutations (work items, approval gates, review annotations,
+  host capability) notify `canvas://ax`, `canvas://ax-work`, and `canvas://ax-context`
+- AX timeline mutations (agent-events, evidence, steering) notify
+  `canvas://ax-timeline` and `canvas://ax-context`
 - All mutations notify `canvas://layout`, `canvas://summary`,
   `canvas://spatial-context`, `canvas://history`, and `canvas://code-graph`
 

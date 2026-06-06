@@ -181,6 +181,10 @@ pmx-canvas node list --type external-app --summary
 pmx-canvas pin --list
 pmx-canvas ax context
 pmx-canvas ax focus <node-id>
+pmx-canvas ax work add --title "Wire up auth" --status in-progress <node-id>
+pmx-canvas ax approval request --title "Deploy to prod"
+pmx-canvas ax steer "focus on the failing test first"
+pmx-canvas ax timeline --limit 50
 pmx-canvas snapshot save --name "before-refactor"
 pmx-canvas code-graph
 pmx-canvas spatial
@@ -202,6 +206,15 @@ pmx-canvas spatial
   `focus --no-pan` when you only need to select/raise a node without hijacking the human's camera.
 - `ax status|context|focus` — inspect the host-agnostic AX layer; `ax context`
   combines pinned context and AX focus for adapter prompt injection.
+- `ax event add`, `ax steer`, `ax evidence add`, `ax timeline` — the AX timeline
+  (agent-events, steering messages, evidence). Persisted for diagnostics,
+  retention-bounded, and excluded from snapshots.
+- `ax work add|update|list`, `ax approval request|resolve|list`,
+  `ax review add|list` — canvas-bound AX state (work items, approval gates,
+  review annotations) that rides snapshots and restore and is cleared by `clear`.
+- `ax host report|status` — report/read the host/session capability (own partition).
+- `copilot install-extension [--dry-run] [--yes]` — install the bundled GitHub
+  Copilot adapter into a repo; the core stays host-agnostic.
 - `fit [id ...]` — set the server viewport to fit the whole canvas or selected nodes before screenshots or whole-board review
 - `screenshot --output <path>` — top-level shortcut for `webview screenshot`; supports `--format png|jpeg|webp` and `--quality`
 - `json-render --schema|--examples` — inspect the json-render component catalog with `--component`/`--field` filters; same data as `node schema --type json-render` in a more direct shape

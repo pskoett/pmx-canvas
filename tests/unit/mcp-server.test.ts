@@ -141,6 +141,16 @@ describe('MCP parity with CLI', () => {
       'canvas_focus_node',
       'canvas_get_ax',
       'canvas_set_ax_focus',
+      'canvas_record_ax_event',
+      'canvas_send_steering',
+      'canvas_get_ax_timeline',
+      'canvas_add_work_item',
+      'canvas_update_work_item',
+      'canvas_request_approval',
+      'canvas_resolve_approval',
+      'canvas_add_evidence',
+      'canvas_add_review_annotation',
+      'canvas_report_host_capability',
       'canvas_fit_view',
       'canvas_clear',
       'canvas_search',
@@ -175,6 +185,8 @@ describe('MCP parity with CLI', () => {
       'canvas://pinned-context',
       'canvas://ax',
       'canvas://ax-context',
+      'canvas://ax-timeline',
+      'canvas://ax-work',
       'canvas://schema',
       'canvas://layout',
       'canvas://summary',
@@ -185,6 +197,69 @@ describe('MCP parity with CLI', () => {
     for (const uri of expectedResources) {
       expect(resourceUris.has(uri)).toBe(true);
     }
+  });
+
+  test('AX timeline and canvas-bound tools round-trip over MCP with the mcp source default', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const event = parseJsonText<{ ok: boolean; event: { id: string; kind: string; source: string } }>(
+      await session.client.callTool({
+        name: 'canvas_record_ax_event',
+        arguments: { kind: 'tool-start', summary: 'ran the suite' },
+      }) as ToolResultShape,
+    );
+    expect(event.event.kind).toBe('tool-start');
+    expect(event.event.source).toBe('mcp');
+
+    const work = parseJsonText<{ ok: boolean; workItem: { id: string; status: string; source: string } }>(
+      await session.client.callTool({
+        name: 'canvas_add_work_item',
+        arguments: { title: 'Wire MCP work item', status: 'in-progress' },
+      }) as ToolResultShape,
+    );
+    expect(work.workItem.status).toBe('in-progress');
+    expect(work.workItem.source).toBe('mcp');
+
+    const gate = parseJsonText<{ ok: boolean; approvalGate: { id: string; status: string } }>(
+      await session.client.callTool({
+        name: 'canvas_request_approval',
+        arguments: { title: 'Deploy from MCP' },
+      }) as ToolResultShape,
+    );
+    expect(gate.approvalGate.status).toBe('pending');
+
+    const resolved = parseJsonText<{ ok: boolean; approvalGate: { status: string } }>(
+      await session.client.callTool({
+        name: 'canvas_resolve_approval',
+        arguments: { id: gate.approvalGate.id, decision: 'approved' },
+      }) as ToolResultShape,
+    );
+    expect(resolved.approvalGate.status).toBe('approved');
+
+    const timeline = parseJsonText<{ ok: boolean; events: Array<{ id: string }> }>(
+      await session.client.callTool({
+        name: 'canvas_get_ax_timeline',
+        arguments: {},
+      }) as ToolResultShape,
+    );
+    expect(timeline.events.map((e) => e.id)).toContain(event.event.id);
+
+    // canvas_get_ax now folds in the new canvas-bound arrays and host capability.
+    const ax = parseJsonText<{
+      ok: boolean;
+      state: { workItems: Array<{ id: string }>; approvalGates: Array<{ id: string }> };
+    }>(
+      await session.client.callTool({
+        name: 'canvas_get_ax',
+        arguments: {},
+      }) as ToolResultShape,
+    );
+    expect(ax.state.workItems.map((w) => w.id)).toContain(work.workItem.id);
+    expect(ax.state.approvalGates.map((g) => g.id)).toContain(gate.approvalGate.id);
   });
 
   test('canvas_update_node exposes arrangeLocked and persists it', async () => {

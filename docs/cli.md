@@ -125,6 +125,48 @@ pmx-canvas ax focus node-1 node-2      # Set AX focus
 pmx-canvas ax focus --clear           # Clear AX focus
 ```
 
+### AX primitives
+
+Host-agnostic agent-experience primitives. Timeline commands persist for
+diagnostics (retention-bounded, not snapshotted); work items, approval gates,
+and review annotations are canvas-bound and ride snapshots/restore.
+
+```bash
+# Timeline
+pmx-canvas ax event add --kind tool-start --summary "ran tests"
+pmx-canvas ax steer "focus on the failing test first"
+pmx-canvas ax evidence add --kind test-output --title "unit pass"
+pmx-canvas ax timeline --limit 50
+
+# Work items (canvas-bound)
+pmx-canvas ax work add --title "Wire up auth" --status in-progress node-1
+pmx-canvas ax work update <id> --status done
+pmx-canvas ax work list
+
+# Approval gates (canvas-bound; pending → approved/rejected)
+pmx-canvas ax approval request --title "Deploy to prod" --action deploy.prod
+pmx-canvas ax approval resolve <id> --decision approved
+pmx-canvas ax approval list
+
+# Review annotations (canvas-bound)
+pmx-canvas ax review add --body "off-by-one" --kind finding --severity error --file src/x.ts
+pmx-canvas ax review list
+
+# Host capability (own partition; survives clear)
+pmx-canvas ax host report --host copilot --canvas --session-messaging
+pmx-canvas ax host status
+```
+
+## Copilot adapter
+
+Install the bundled GitHub Copilot extension adapter into a repo. The adapter
+maps onto the same neutral AX surfaces (it never makes the core GitHub-specific).
+
+```bash
+pmx-canvas copilot install-extension --dry-run   # Preview target, writes nothing
+pmx-canvas copilot install-extension --yes        # Install/overwrite into .github/extensions/pmx-canvas/
+```
+
 ## WebView automation
 
 Drive a headless Bun.WebView (Chromium or WebKit) pointed at the workbench:

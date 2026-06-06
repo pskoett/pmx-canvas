@@ -19,7 +19,7 @@ see [MCP tools](mcp.md), [HTTP API](http-api.md), and [SDK](sdk.md).
 | `webpage` | Persisted webpage snapshot with stored URL, extracted text, refresh |
 | `mcp-app` | Tool-backed hosted MCP App iframes (Excalidraw, etc.) |
 | `json-render` | Structured UI from JSON specs (cards, tables, forms) |
-| `graph` | Charts (line, bar, pie, area, scatter, radar, stacked-bar, composed) |
+| `graph` | Charts (line, bar, pie, area, scatter, radar, stacked-bar, composed, plus Tufte primitives: sparkline, dot-plot, bullet, slopegraph) |
 | `html` | Self-contained HTML/JS in a sandboxed iframe |
 | `web-artifact` | Bundled React/Tailwind artifact (full single-file app) |
 | `group` | Spatial container/frame around other nodes |
