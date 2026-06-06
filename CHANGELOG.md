@@ -3,6 +3,37 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.1.29] - 2026-06-06
+
+### Changed
+
+- **Bullet graph nodes accept the conventional `actual` measure key** in
+  addition to `value`, so `data: [{ label, actual, target }]` renders
+  without an explicit `valueKey` instead of failing the data-key check.
+- **Node-create MCP responses expose both `id` and a `nodeId` alias.**
+  All node-create tools (including SpecStream) now return both keys,
+  matching the existing external-app / web-artifact responses, so agents
+  using either key (or a cached schema) work.
+- **Friendlier AX CLI errors for bare subcommands.** Running `pmx-canvas
+  ax event` (or `evidence`/`host`/`work`/`approval`/`review`) without the
+  action now suggests the full command (e.g. `ax event add`) or lists the
+  available actions instead of a generic unknown-command error.
+
+### Fixed
+
+- **`pmx-canvas --mcp` no longer crashes with `EADDRINUSE`** when a daemon
+  already holds the target port for a *different* workspace. The MCP/SDK
+  auto-start now falls back to a free port (a same-workspace daemon is
+  still attached to as before) and prints a stderr note explaining how to
+  share one canvas (`PMX_CANVAS_URL` / `PMX_CANVAS_PORT` or run the daemon
+  from this workspace). An explicit SDK `start()` port is still honored
+  exactly unless `allowPortFallback` is passed.
+- **Ledger nodes render body `content` as a log** — one line per entry,
+  no stray "Content" field label, and a literal `\n` (as the shell
+  passes through `--content "a\nb"`) is treated as a line break instead
+  of being shown verbatim. Structured key/value fields still render as
+  rows, now with a gap so the label never runs into the value.
+
 ## [0.1.28] - 2026-06-06
 
 ### Changed
@@ -1384,6 +1415,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.29]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.29
 [0.1.28]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.28
 [0.1.27]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.27
 [0.1.26]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.26

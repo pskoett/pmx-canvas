@@ -1001,6 +1001,33 @@ test('renders html nodes from server state in the workbench', async ({ page, req
   await page.getByTitle('Close (Esc)').click();
 });
 
+test('ledger nodes render content as split log lines without a label or literal newlines', async ({ page, request }) => {
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'ledger',
+      title: 'Ledger render target',
+      // Literal backslash-n, exactly as the shell passes through
+      // `--content "a\nb"` (it does not expand the escape inside quotes).
+      content: 'Entry 1: foo\\nEntry 2: bar\\nEntry 3: baz',
+      x: 680,
+      y: 280,
+    },
+  });
+
+  await page.goto('/workbench');
+
+  const ledgerNode = page.locator('.canvas-node').filter({ hasText: 'Ledger render target' });
+  await expect(ledgerNode).toHaveCount(1);
+  // Each entry renders...
+  await expect(ledgerNode).toContainText('Entry 1: foo');
+  await expect(ledgerNode).toContainText('Entry 2: bar');
+  await expect(ledgerNode).toContainText('Entry 3: baz');
+  // ...with the literal "\n" turned into line breaks (not shown verbatim) and
+  // no stray "Content" field label running into the first entry.
+  await expect(ledgerNode).not.toContainText('\\n');
+  await expect(ledgerNode).not.toContainText('Content');
+});
+
 test('html presentation nodes live-update theme inside sandboxed iframes', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
     data: {

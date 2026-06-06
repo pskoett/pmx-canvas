@@ -263,13 +263,16 @@ function compactBatchResult(result: { ok: boolean; results: Array<Record<string,
 }
 
 async function createdNodePayload(c: CanvasAccess, id: string, options: { full?: boolean; verbose?: boolean; includeData?: boolean } = {}): Promise<Record<string, unknown>> {
+  // Expose both `id` and a `nodeId` alias on every node-create response so
+  // agents using either key (or a cached schema) work — matching the
+  // external-app / web-artifact responses that already return both.
   const node = await c.getNode(id);
-  if (!node) return { ok: true, id };
+  if (!node) return { ok: true, id, nodeId: id };
   if (!wantsFullPayload(options)) {
-    return { ok: true, node: compactNodePayload(node), id };
+    return { ok: true, node: compactNodePayload(node), id, nodeId: id };
   }
   const serialized = serializeCanvasNodeForAgent(node);
-  return { ok: true, node: serialized, ...serialized };
+  return { ok: true, node: serialized, ...serialized, nodeId: node.id };
 }
 
 function buildSummaryFromLayout(layout: Awaited<ReturnType<CanvasAccess['getLayout']>>, pinnedIds: string[]): Record<string, unknown> {

@@ -645,6 +645,31 @@ describe('agent CLI node commands', () => {
     expect(payload.error).toContain('kind');
   });
 
+  test('a bare ax subcommand points at the full command', async () => {
+    const errorLog = mock(() => {});
+    const originalError = console.error;
+    const originalExit = process.exit;
+    console.error = errorLog;
+    // @ts-expect-error test stub for process.exit
+    process.exit = (() => {
+      throw new Error('process.exit');
+    }) as typeof process.exit;
+
+    try {
+      await runAgentCli(['ax', 'event']);
+    } catch (error) {
+      expect((error as Error).message).toBe('process.exit');
+    } finally {
+      console.error = originalError;
+      process.exit = originalExit;
+    }
+
+    const payload = JSON.parse(errorLog.mock.calls[0]?.[0] as string) as { error: string; hint?: string };
+    expect(payload.error).toContain('event');
+    // alias map turns the bare verb into a "did you mean" suggestion
+    expect(`${payload.hint ?? ''}`).toContain('ax event add');
+  });
+
   test('copilot install-extension --dry-run writes nothing', async () => {
     const target = join(workspaceRoot, '.github', 'extensions', 'pmx-canvas', 'extension.mjs');
     const log = mock(() => {});

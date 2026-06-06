@@ -130,8 +130,14 @@ export class PmxCanvas extends EventEmitter {
   async start(options?: {
     open?: boolean;
     automationWebView?: boolean | CanvasAutomationWebViewOptions;
+    /**
+     * Bind a nearby free port when the preferred one is taken instead of
+     * failing. Default false (an explicit SDK port is honored exactly); the
+     * MCP auto-start opts in so a daemon already on the port can't crash it.
+     */
+    allowPortFallback?: boolean;
   }): Promise<void> {
-    const base = startCanvasServer({ port: this._port, allowPortFallback: false });
+    const base = startCanvasServer({ port: this._port, allowPortFallback: options?.allowPortFallback ?? false });
     if (!base) {
       throw new Error(`Failed to start canvas server on port ${this._port}`);
     }

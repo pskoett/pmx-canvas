@@ -330,6 +330,29 @@ describe('Tufte chart types', () => {
     const chart = spec.elements.chart as { type: string; props: Record<string, unknown> };
     expect(chart.type).toBe('Slopegraph');
   });
+
+  test('BulletChart accepts the conventional "actual" measure key', () => {
+    // Explicit "value" column still resolves to value.
+    const withValue = buildGraphSpec({
+      graphType: 'bullet',
+      labelKey: 'label',
+      targetKey: 'target',
+      data: [{ label: 'Revenue', value: 275, target: 250 }],
+    });
+    expect((withValue.elements.chart as { props: Record<string, unknown> }).props.valueKey).toBe('value');
+
+    // Data using "actual" (no explicit valueKey) now resolves to actual instead
+    // of failing the data-key-mismatch check on a default of "value".
+    const withActual = buildGraphSpec({
+      graphType: 'bullet',
+      labelKey: 'label',
+      targetKey: 'target',
+      data: [{ label: 'Revenue', actual: 275, target: 250 }],
+    });
+    const chart = withActual.elements.chart as { type: string; props: Record<string, unknown> };
+    expect(chart.type).toBe('BulletChart');
+    expect(chart.props.valueKey).toBe('actual');
+  });
 });
 
 describe('json-render SpecStream', () => {

@@ -1082,10 +1082,23 @@ const RESOURCE_COMMAND_ALIASES: Record<string, Record<string, string>> = {
     delete: 'remove',
     rm: 'remove',
   },
+  ax: {
+    // Single-subcommand AX groups: the bare verb maps to its only action so
+    // `ax event` / `ax evidence` suggest the full command instead of erroring.
+    event: 'event add',
+    evidence: 'evidence add',
+  },
 };
 const RESOURCE_SUBCOMMAND_HINTS: Record<string, Record<string, string>> = {
   node: {
     pin: 'Use the top-level pin command instead: pmx-canvas pin <node-id>',
+  },
+  ax: {
+    // Multi-subcommand AX groups: point at the available actions.
+    host: 'Pick an action: pmx-canvas ax host report | pmx-canvas ax host status',
+    work: 'Pick an action: pmx-canvas ax work add | update | list',
+    approval: 'Pick an action: pmx-canvas ax approval request | resolve | list',
+    review: 'Pick an action: pmx-canvas ax review add | list',
   },
 };
 

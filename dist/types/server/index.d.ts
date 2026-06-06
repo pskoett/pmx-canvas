@@ -21,6 +21,12 @@ export declare class PmxCanvas extends EventEmitter {
     start(options?: {
         open?: boolean;
         automationWebView?: boolean | CanvasAutomationWebViewOptions;
+        /**
+         * Bind a nearby free port when the preferred one is taken instead of
+         * failing. Default false (an explicit SDK port is honored exactly); the
+         * MCP auto-start opts in so a daemon already on the port can't crash it.
+         */
+        allowPortFallback?: boolean;
     }): Promise<void>;
     stop(): void;
     /**

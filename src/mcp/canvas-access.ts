@@ -1063,7 +1063,23 @@ export async function createCanvasAccess(): Promise<CanvasAccess> {
   const remoteBaseUrl = await findExistingCanvasServer(workspaceRoot, port);
   if (remoteBaseUrl) return new RemoteCanvasAccess(remoteBaseUrl);
 
+  // No same-workspace server to attach to. Allow a port fallback so a daemon
+  // already holding the preferred port (e.g. one serving a *different*
+  // workspace) doesn't crash this MCP/SDK session with EADDRINUSE — start our
+  // own canvas on a free port instead, and explain how to share one if intended.
   const canvas = createCanvas({ port });
-  await canvas.start({ open: true });
+  await canvas.start({ open: true, allowPortFallback: true });
+  const boundPort = canvas.port;
+  if (boundPort !== port) {
+    const occupant = await readHealth(`http://127.0.0.1:${port}`);
+    const occupantWorkspace =
+      typeof occupant?.workspace === 'string' ? ` (serving ${occupant.workspace})` : '';
+    // stderr only — stdout is the MCP stdio JSON-RPC channel.
+    process.stderr.write(
+      `[pmx-canvas] preferred port ${port} was in use${occupantWorkspace}; ` +
+        `started this canvas on port ${boundPort} instead. To share one canvas, run the daemon ` +
+        `from this workspace or set PMX_CANVAS_URL / PMX_CANVAS_PORT to point at it.\n`,
+    );
+  }
   return new LocalCanvasAccess(canvas, workspaceRoot, port);
 }

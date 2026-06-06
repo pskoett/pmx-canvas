@@ -285,10 +285,13 @@ describe('MCP parity with CLI', () => {
     }) as ToolResultShape;
     const created = parseJsonText<{
       id: string;
+      nodeId: string;
       node: { position: { x: number; y: number }; size: { width: number; height: number } };
     }>(added);
     expect(created.node.position).toEqual({ x: 40, y: 80 });
     expect(created.node.size).toEqual(MARKDOWN_NODE_DEFAULT_SIZE);
+    // Node-create responses expose both `id` and a `nodeId` alias.
+    expect(created.nodeId).toBe(created.id);
     const { id } = created;
 
     const updated = await session.client.callTool({

@@ -563,6 +563,20 @@ function collectDataKeys(data: Array<Record<string, unknown>>): Set<string> {
   return keys;
 }
 
+/**
+ * Pick the first candidate key that actually exists in the data. Lets a chart
+ * accept a conventional synonym (e.g. a bullet chart's "actual" measure as well
+ * as "value") without an explicit valueKey, instead of failing the data-key
+ * check on a reasonable guess.
+ */
+function firstPresentDataKey(
+  data: Array<Record<string, unknown>>,
+  candidates: string[],
+): string | undefined {
+  const keys = collectDataKeys(data);
+  return candidates.find((key) => keys.has(key));
+}
+
 function assertGraphDataKeys(
   data: Array<Record<string, unknown>>,
   chartType: GraphChartType,
@@ -729,7 +743,10 @@ export function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec {
     }
     case 'BulletChart': {
       chartProps.labelKey = input.labelKey ?? input.xKey ?? null;
-      chartProps.valueKey = input.valueKey ?? input.yKey ?? 'value';
+      // The measure column is conventionally "value", but bullet charts also
+      // call it "actual" — accept either when no valueKey is given.
+      chartProps.valueKey =
+        input.valueKey ?? input.yKey ?? firstPresentDataKey(input.data, ['value', 'actual']) ?? 'value';
       chartProps.targetKey = input.targetKey ?? null;
       chartProps.rangesKey = input.rangesKey ?? null;
       chartProps.color = input.color ?? null;

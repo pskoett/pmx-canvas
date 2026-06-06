@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test';
+import { createServer } from 'node:net';
 import { createCanvas } from '../../src/server/index.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
+import { stopCanvasServer } from '../../src/server/server.ts';
 import {
   createTestWorkspace,
   removeTestWorkspace,
@@ -124,5 +126,34 @@ describe('PmxCanvas SDK surface', () => {
     const markdownId = canvas.addNode({ type: 'markdown', title: 'Plain note' }).id;
     expect(() => canvas.updateNode(markdownId, { spec: { root: 'card', elements: {} } }))
       .toThrow('Structured spec and graph updates can only be used');
+  });
+
+  test('start() honors the port by default but can fall back when it is taken', async () => {
+    workspaceRoot = createTestWorkspace('pmx-canvas-sdk-fallback-');
+    resetCanvasForTests(workspaceRoot);
+
+    // Occupy the preferred port on the canvas server's host (stands in for a
+    // daemon already running on it — e.g. one serving a different workspace).
+    const preferred = 4799;
+    const blocker = createServer();
+    await new Promise<void>((resolve, reject) => {
+      blocker.once('error', reject);
+      blocker.listen(preferred, '127.0.0.1', () => resolve());
+    });
+    try {
+      // Default: the explicit SDK port is honored exactly, so a taken port fails loud.
+      const strict = createCanvas({ port: preferred });
+      await expect(strict.start({ open: false })).rejects.toThrow(/Failed to start canvas server/);
+
+      // allowPortFallback (used by the MCP auto-start): bind a nearby free port
+      // instead of crashing with EADDRINUSE.
+      const lenient = createCanvas({ port: preferred });
+      await lenient.start({ open: false, allowPortFallback: true });
+      expect(lenient.port).toBeGreaterThan(0);
+      expect(lenient.port).not.toBe(preferred);
+    } finally {
+      stopCanvasServer();
+      await new Promise<void>((resolve) => blocker.close(() => resolve()));
+    }
   });
 });
