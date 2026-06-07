@@ -51,6 +51,11 @@ type ListModeRequestsResult = ReturnType<PmxCanvas['listModeRequests']>;
 type RequestModeInput = Parameters<PmxCanvas['requestMode']>[0];
 type RequestModeResult = ReturnType<PmxCanvas['requestMode']>;
 type ResolveModeRequestResult = ReturnType<PmxCanvas['resolveModeRequest']>;
+type GetCommandRegistryResult = ReturnType<PmxCanvas['getCommandRegistry']>;
+type InvokeCommandResult = ReturnType<PmxCanvas['invokeCommand']>;
+type GetPolicyResult = ReturnType<PmxCanvas['getPolicy']>;
+type SetPolicyInput = Parameters<PmxCanvas['setPolicy']>[0];
+type SetPolicyResult = ReturnType<PmxCanvas['setPolicy']>;
 type GetAxTimelineQuery = Parameters<PmxCanvas['getAxTimeline']>[0];
 type GetAxTimelineResult = ReturnType<PmxCanvas['getAxTimeline']>;
 type AddWorkItemInput = Parameters<PmxCanvas['addWorkItem']>[0];
@@ -186,6 +191,10 @@ export interface CanvasAccess {
   listModeRequests(): Promise<ListModeRequestsResult>;
   requestMode(input: RequestModeInput, options?: { source?: PmxAxSource }): Promise<RequestModeResult>;
   resolveModeRequest(id: string, decision: 'approved' | 'rejected', options?: { resolution?: string; source?: PmxAxSource }): Promise<ResolveModeRequestResult>;
+  getCommandRegistry(): Promise<GetCommandRegistryResult>;
+  invokeCommand(name: string, args?: Record<string, unknown> | null, options?: { source?: PmxAxSource }): Promise<InvokeCommandResult>;
+  getPolicy(): Promise<GetPolicyResult>;
+  setPolicy(patch: SetPolicyInput, options?: { source?: PmxAxSource }): Promise<SetPolicyResult>;
   clear(): Promise<void>;
   search(query: string): Promise<SearchResult>;
   undo(): Promise<UndoRedoResult>;
@@ -383,6 +392,22 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async resolveModeRequest(id: string, decision: 'approved' | 'rejected', options?: { resolution?: string; source?: PmxAxSource }): Promise<ResolveModeRequestResult> {
     return this.canvas.resolveModeRequest(id, decision, { ...(options ?? {}), source: options?.source ?? 'mcp' });
+  }
+
+  async getCommandRegistry(): Promise<GetCommandRegistryResult> {
+    return this.canvas.getCommandRegistry();
+  }
+
+  async invokeCommand(name: string, args?: Record<string, unknown> | null, options?: { source?: PmxAxSource }): Promise<InvokeCommandResult> {
+    return this.canvas.invokeCommand(name, args ?? null, { source: options?.source ?? 'mcp' });
+  }
+
+  async getPolicy(): Promise<GetPolicyResult> {
+    return this.canvas.getPolicy();
+  }
+
+  async setPolicy(patch: SetPolicyInput, options?: { source?: PmxAxSource }): Promise<SetPolicyResult> {
+    return this.canvas.setPolicy(patch, { source: options?.source ?? 'mcp' });
   }
 
   async updateWorkItem(id: string, patch: UpdateWorkItemPatch, options?: { source?: PmxAxSource }): Promise<UpdateWorkItemResult> {
@@ -929,6 +954,35 @@ class RemoteCanvasAccess implements CanvasAccess {
     if (res.status === 404) return null;
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     return (await res.json() as { modeRequest?: ResolveModeRequestResult }).modeRequest ?? null;
+  }
+
+  async getCommandRegistry(): Promise<GetCommandRegistryResult> {
+    const r = await this.requestJson<{ commands?: GetCommandRegistryResult }>('GET', '/api/canvas/ax/command');
+    return r.commands ?? [];
+  }
+
+  async invokeCommand(name: string, args?: Record<string, unknown> | null, options?: { source?: PmxAxSource }): Promise<InvokeCommandResult> {
+    const r = await this.requestJson<{ event?: InvokeCommandResult }>('POST', '/api/canvas/ax/command', {
+      name,
+      ...(args ? { args } : {}),
+      source: options?.source ?? 'mcp',
+    });
+    return r.event ?? null;
+  }
+
+  async getPolicy(): Promise<GetPolicyResult> {
+    const r = await this.requestJson<{ policy?: GetPolicyResult }>('GET', '/api/canvas/ax/policy');
+    if (!r.policy) throw new Error('Remote canvas did not return a policy.');
+    return r.policy;
+  }
+
+  async setPolicy(patch: SetPolicyInput, options?: { source?: PmxAxSource }): Promise<SetPolicyResult> {
+    const r = await this.requestJson<{ policy?: SetPolicyResult }>('POST', '/api/canvas/ax/policy', {
+      ...patch,
+      source: options?.source ?? 'mcp',
+    });
+    if (!r.policy) throw new Error('Remote canvas did not return a policy.');
+    return r.policy;
   }
 
   async updateWorkItem(id: string, patch: UpdateWorkItemPatch, options?: { source?: PmxAxSource }): Promise<UpdateWorkItemResult> {

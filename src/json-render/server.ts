@@ -935,7 +935,10 @@ export async function buildJsonRenderViewerHtml(options: {
   theme?: 'dark' | 'light' | 'high-contrast';
   display?: 'expanded';
   devtools?: boolean;
+  nodeId?: string;
+  axToken?: string;
 }): Promise<string> {
+  const sanitizeAxValue = (v?: string): string => (typeof v === 'string' ? v.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80) : '');
   try {
     await ensureJsonRenderBundle();
     const dir = bundleDir();
@@ -950,6 +953,10 @@ export async function buildJsonRenderViewerHtml(options: {
       ...(options.theme ? [`window.__PMX_CANVAS_JSON_RENDER_THEME__ = ${JSON.stringify(options.theme)};`] : []),
       ...(options.display ? [`window.__PMX_CANVAS_JSON_RENDER_DISPLAY__ = ${JSON.stringify(options.display)};`] : []),
       ...(options.devtools ? ['window.__PMX_CANVAS_JSON_RENDER_DEVTOOLS__ = true;'] : []),
+      ...(options.nodeId && options.axToken ? [
+        `window.__PMX_CANVAS_JSON_RENDER_NODE_ID__ = ${JSON.stringify(sanitizeAxValue(options.nodeId))};`,
+        `window.__PMX_CANVAS_AX_TOKEN__ = ${JSON.stringify(sanitizeAxValue(options.axToken))};`,
+      ] : []),
       jsBundle,
     ].join('\n');
     return buildAppHtml({

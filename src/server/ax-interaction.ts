@@ -58,23 +58,6 @@ export const AX_INTERACTION_TYPES = [
 
 export type AxInteractionType = (typeof AX_INTERACTION_TYPES)[number];
 
-// Interaction types that map onto an existing AX operation. `ax.command.invoke`
-// is reserved for a later phase (no node grants it yet); until then it is
-// rejected as "recognized but not yet executable" rather than silently accepted.
-const EXECUTABLE_INTERACTION_TYPES = new Set<AxInteractionType>([
-  'ax.event.record',
-  'ax.steer',
-  'ax.work.create',
-  'ax.work.update',
-  'ax.evidence.add',
-  'ax.approval.request',
-  'ax.approval.resolve',
-  'ax.review.add',
-  'ax.focus.set',
-  'ax.elicitation.request',
-  'ax.mode.request',
-]);
-
 // ── Node capability model ──────────────────────────────────────
 
 export type AxDeliveryMode = 'record-only' | 'notify-agent' | 'send-to-agent';
@@ -103,8 +86,8 @@ function caps(
  * a node can anchor AX state but only eligible types may EMIT interactions.
  */
 export const DEFAULT_NODE_AX_CAPABILITIES: Record<CanvasNodeType, NodeAxCapabilities> = {
-  markdown: caps(true, ['ax.steer', 'ax.work.create', 'ax.evidence.add', 'ax.event.record'], 'notify-agent'),
-  context: caps(true, ['ax.focus.set', 'ax.steer', 'ax.evidence.add', 'ax.event.record'], 'notify-agent'),
+  markdown: caps(true, ['ax.steer', 'ax.work.create', 'ax.evidence.add', 'ax.command.invoke', 'ax.event.record'], 'notify-agent'),
+  context: caps(true, ['ax.focus.set', 'ax.steer', 'ax.evidence.add', 'ax.command.invoke', 'ax.event.record'], 'notify-agent'),
   status: caps(true, ['ax.work.create', 'ax.work.update', 'ax.approval.request', 'ax.mode.request', 'ax.event.record'], 'notify-agent'),
   file: caps(true, ['ax.evidence.add', 'ax.review.add', 'ax.focus.set', 'ax.event.record']),
   'json-render': caps(true, ['ax.work.create', 'ax.work.update', 'ax.evidence.add', 'ax.elicitation.request', 'ax.event.record']),
@@ -113,7 +96,7 @@ export const DEFAULT_NODE_AX_CAPABILITIES: Record<CanvasNodeType, NodeAxCapabili
   trace: caps(true, ['ax.evidence.add', 'ax.event.record']),
   image: caps(true, ['ax.evidence.add', 'ax.review.add']),
   webpage: caps(true, ['ax.evidence.add', 'ax.review.add', 'ax.focus.set', 'ax.event.record']),
-  group: caps(true, ['ax.focus.set', 'ax.work.create', 'ax.event.record']),
+  group: caps(true, ['ax.focus.set', 'ax.work.create', 'ax.command.invoke', 'ax.event.record']),
   // Opt-in: arbitrary/sandboxed author content. Ceiling is broad but disabled
   // until a node explicitly sets data.axCapabilities.enabled = true.
   html: caps(
@@ -128,12 +111,21 @@ export const DEFAULT_NODE_AX_CAPABILITIES: Record<CanvasNodeType, NodeAxCapabili
       'ax.focus.set',
       'ax.elicitation.request',
       'ax.mode.request',
+      'ax.command.invoke',
       'ax.event.record',
     ],
     'notify-agent',
   ),
-  // Bridged in later phases (app identity + schema validation required).
-  'mcp-app': caps(false, ['ax.event.record', 'ax.evidence.add']),
+  // Opt-in ext-app bridge (Phase 6). Disabled by default; when a node enables it,
+  // interactions are still node-scoped (sourceSurface 'mcp-app') and server-validated.
+  // Ceiling covers the work-tracking surface a trusted app reasonably drives:
+  // record diagnostics + evidence, create/update its own work item, set focus to
+  // itself, and request human input. Excludes higher-trust types (steer, approval,
+  // review, command, mode) which stay native-control / adapter only.
+  'mcp-app': caps(false, [
+    'ax.event.record', 'ax.evidence.add', 'ax.work.create', 'ax.work.update',
+    'ax.focus.set', 'ax.elicitation.request',
+  ]),
   // Internal thread nodes — anchor only, no human-facing emission by default.
   prompt: caps(false, ['ax.event.record']),
   response: caps(false, ['ax.event.record']),
@@ -277,6 +269,10 @@ const PAYLOAD_SCHEMAS: Record<string, z.ZodType> = {
     reason: z.string().nullish(),
     nodeIds: z.array(z.string()).optional(),
   }),
+  'ax.command.invoke': z.object({
+    name: z.string().min(1),
+    args: z.record(z.string(), z.unknown()).optional(),
+  }),
 };
 
 // ── Dispatch ───────────────────────────────────────────────────
@@ -336,6 +332,7 @@ export interface AxInteractionManager {
     input: { mode: PmxAxMode; reason?: string | null; nodeIds?: string[] },
     options?: { source?: PmxAxSource },
   ): PmxAxModeRequest;
+  invokeCommand(name: string, args?: Record<string, unknown> | null, options?: { source?: PmxAxSource }): PmxAxEvent | null;
 }
 
 export interface AxInteractionEvent {
@@ -418,9 +415,6 @@ export function applyAxInteraction(
   if (!capabilities.allowed.includes(type)) {
     return reject(type, sourceNodeId, 403, 'not-allowed', `Node type "${node.type}" cannot emit "${type}".`);
   }
-  if (!EXECUTABLE_INTERACTION_TYPES.has(type)) {
-    return reject(type, sourceNodeId, 501, 'not-executable', `"${type}" is recognized but not yet executable.`);
-  }
   // Fail closed: approval-gated interaction types are rejected until approval
   // routing lands, rather than dispatched without the gate they require.
   if (capabilities.requiresApproval.includes(type)) {
@@ -435,11 +429,19 @@ export function applyAxInteraction(
   }
   const opts = { source };
 
-  // Sandboxed/semi-trusted surfaces (sandboxed HTML, MCP apps) may only emit
-  // interactions scoped to their OWN node — they cannot target arbitrary canvas
-  // nodes via caller-supplied nodeIds. Trusted surfaces (native node controls,
-  // host adapters) may pass explicit nodeIds.
-  const scoped = interaction.sourceSurface === 'html-node' || interaction.sourceSurface === 'mcp-app';
+  // Sandboxed/semi-trusted surfaces — sandboxed HTML, MCP apps, and the
+  // json-render/graph viewer (all opaque-origin iframes rendering author-controlled
+  // content) — may only emit interactions scoped to their OWN node: caller-supplied
+  // nodeIds are clamped to the source node so a spec/app cannot anchor AX state on
+  // arbitrary canvas nodes. Trusted surfaces (native node controls, host adapters)
+  // may pass explicit nodeIds. Note: the clamp covers node *re-association*; target
+  // ids for ax.work.update / ax.approval.resolve remain addressable across surfaces
+  // (ids are non-secret — surfaced in canvas://ax-work), which is accepted under the
+  // single-workspace local-trust model.
+  const scoped =
+    interaction.sourceSurface === 'html-node' ||
+    interaction.sourceSurface === 'mcp-app' ||
+    interaction.sourceSurface === 'json-render';
   const scopedNodeIds = (requested?: string[]): string[] => (scoped ? [sourceNodeId] : (requested ?? [sourceNodeId]));
 
   switch (type) {
@@ -534,6 +536,12 @@ export function applyAxInteraction(
         opts,
       );
       return accept(type, sourceNodeId, modeRequest, 'ax-state-changed', { modeRequest });
+    }
+    case 'ax.command.invoke': {
+      const p = payloadParsed.data as { name: string; args?: Record<string, unknown> };
+      const event = manager.invokeCommand(p.name, p.args ?? null, opts);
+      if (!event) return reject(type, sourceNodeId, 400, 'unknown-command', `Unknown command "${p.name}".`);
+      return accept(type, sourceNodeId, event, 'ax-event-created', { event });
     }
     default:
       return reject(type, sourceNodeId, 501, 'not-executable', `"${type}" is recognized but not yet executable.`);

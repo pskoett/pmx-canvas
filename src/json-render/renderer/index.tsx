@@ -79,7 +79,37 @@ declare global {
     __PMX_CANVAS_JSON_RENDER_THEME__?: string;
     __PMX_CANVAS_JSON_RENDER_DISPLAY__?: string;
     __PMX_CANVAS_JSON_RENDER_DEVTOOLS__?: boolean;
+    __PMX_CANVAS_JSON_RENDER_NODE_ID__?: string;
+    __PMX_CANVAS_AX_TOKEN__?: string;
   }
+}
+
+// AX interaction types a json-render spec can bind actions to. When an action
+// named like one of these fires, we forward it to the parent canvas (which
+// validates + submits through the capability-gated endpoint). Convention-based
+// opt-in: spec authors name the action handler after the AX interaction type.
+const AX_INTERACTION_HANDLER_NAMES = [
+  'ax.event.record', 'ax.steer', 'ax.work.create', 'ax.work.update',
+  'ax.evidence.add', 'ax.approval.request', 'ax.review.add', 'ax.focus.set',
+  'ax.elicitation.request', 'ax.mode.request', 'ax.command.invoke',
+] as const;
+
+function buildAxHandlers(): Record<string, (params: Record<string, unknown>) => void> {
+  const nodeId = window.__PMX_CANVAS_JSON_RENDER_NODE_ID__;
+  const token = window.__PMX_CANVAS_AX_TOKEN__;
+  const handlers: Record<string, (params: Record<string, unknown>) => void> = {};
+  if (!nodeId || !token) return handlers;
+  for (const type of AX_INTERACTION_HANDLER_NAMES) {
+    handlers[type] = (params: Record<string, unknown>) => {
+      window.parent.postMessage({
+        source: 'pmx-canvas-ax',
+        token,
+        nodeId,
+        interaction: { type, payload: params && typeof params === 'object' ? params : {} },
+      }, '*');
+    };
+  }
+  return handlers;
 }
 
 function syncPreferredTheme(): void {
@@ -125,6 +155,7 @@ function App() {
         registry={registry}
         initialState={spec.state ?? undefined}
         directives={pmxCanvasDirectives}
+        handlers={buildAxHandlers()}
       >
         <Renderer spec={spec} registry={registry} loading={false} />
         {window.__PMX_CANVAS_JSON_RENDER_DEVTOOLS__ ? (

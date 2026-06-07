@@ -40,6 +40,11 @@ type ListModeRequestsResult = ReturnType<PmxCanvas['listModeRequests']>;
 type RequestModeInput = Parameters<PmxCanvas['requestMode']>[0];
 type RequestModeResult = ReturnType<PmxCanvas['requestMode']>;
 type ResolveModeRequestResult = ReturnType<PmxCanvas['resolveModeRequest']>;
+type GetCommandRegistryResult = ReturnType<PmxCanvas['getCommandRegistry']>;
+type InvokeCommandResult = ReturnType<PmxCanvas['invokeCommand']>;
+type GetPolicyResult = ReturnType<PmxCanvas['getPolicy']>;
+type SetPolicyInput = Parameters<PmxCanvas['setPolicy']>[0];
+type SetPolicyResult = ReturnType<PmxCanvas['setPolicy']>;
 type GetAxTimelineQuery = Parameters<PmxCanvas['getAxTimeline']>[0];
 type GetAxTimelineResult = ReturnType<PmxCanvas['getAxTimeline']>;
 type AddWorkItemInput = Parameters<PmxCanvas['addWorkItem']>[0];
@@ -173,6 +178,14 @@ export interface CanvasAccess {
         resolution?: string;
         source?: PmxAxSource;
     }): Promise<ResolveModeRequestResult>;
+    getCommandRegistry(): Promise<GetCommandRegistryResult>;
+    invokeCommand(name: string, args?: Record<string, unknown> | null, options?: {
+        source?: PmxAxSource;
+    }): Promise<InvokeCommandResult>;
+    getPolicy(): Promise<GetPolicyResult>;
+    setPolicy(patch: SetPolicyInput, options?: {
+        source?: PmxAxSource;
+    }): Promise<SetPolicyResult>;
     clear(): Promise<void>;
     search(query: string): Promise<SearchResult>;
     undo(): Promise<UndoRedoResult>;

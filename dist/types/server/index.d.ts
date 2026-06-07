@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import { canvasState } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.js';
 import { type AxInteractionInput, type AxInteractionPublicResult } from './ax-interaction.js';
-import type { PmxAxApprovalGate, PmxAxContext, PmxAxElicitation, PmxAxEvent, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxMode, PmxAxModeRequest, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxWorkItem, PmxAxWorkItemStatus } from './ax-state.js';
+import type { PmxAxApprovalGate, PmxAxCommandDescriptor, PmxAxContext, PmxAxElicitation, PmxAxEvent, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxMode, PmxAxModeRequest, PmxAxPolicy, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxWorkItem, PmxAxWorkItemStatus } from './ax-state.js';
 import type { AxTimelineQuery } from './canvas-db.js';
 import { searchNodes } from './spatial-analysis.js';
 import { diffLayouts } from './mutation-history.js';
@@ -243,6 +243,17 @@ export declare class PmxCanvas extends EventEmitter {
         resolution?: string;
         source?: PmxAxSource;
     }): PmxAxModeRequest | null;
+    getCommandRegistry(): PmxAxCommandDescriptor[];
+    invokeCommand(name: string, args?: Record<string, unknown> | null, options?: {
+        source?: PmxAxSource;
+    }): PmxAxEvent | null;
+    getPolicy(): PmxAxPolicy;
+    setPolicy(patch: {
+        tools?: Partial<PmxAxPolicy['tools']>;
+        prompt?: Partial<PmxAxPolicy['prompt']>;
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxPolicy;
     fitView(options?: {
         width?: number;
         height?: number;
@@ -476,5 +487,5 @@ export type { WebArtifactBuildInput, WebArtifactBuildOutput, WebArtifactCanvasBu
 export type { GraphNodeInput, JsonRenderNodeInput, JsonRenderSpec } from '../json-render/server.js';
 export type { HtmlPrimitiveKind, HtmlPrimitiveDescriptor, HtmlPrimitiveInput, HtmlPrimitiveBuildResult } from './html-primitives.js';
 export { traceManager } from './trace-manager.js';
-export type { PmxAxApprovalGate, PmxAxApprovalStatus, PmxAxContext, PmxAxEvent, PmxAxElicitation, PmxAxElicitationStatus, PmxAxEventKind, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxMode, PmxAxModeRequest, PmxAxModeRequestStatus, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxTimelineSummary, PmxAxWorkItem, PmxAxWorkItemStatus, } from './ax-state.js';
+export type { PmxAxApprovalGate, PmxAxApprovalStatus, PmxAxCommandDescriptor, PmxAxContext, PmxAxEvent, PmxAxElicitation, PmxAxElicitationStatus, PmxAxEventKind, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxMode, PmxAxModeRequest, PmxAxModeRequestStatus, PmxAxPolicy, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxTimelineSummary, PmxAxWorkItem, PmxAxWorkItemStatus, } from './ax-state.js';
 export type { AxTimelineQuery } from './canvas-db.js';

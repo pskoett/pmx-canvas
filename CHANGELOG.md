@@ -58,6 +58,32 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   by default), so the MCP-app interaction bridge (Phase 6) is gated and
   forward-compatible until that trust boundary is designed.
 
+- **PMX-AX follow-ups — command registry, tool/prompt policy, json-render +
+  MCP-app bridges.** The four documented deferrals now ship. (1) A **command
+  registry** (`pmx.plan`, `pmx.execute`, `pmx.promote-context`, `pmx.summarize`,
+  `pmx.review`) with a registry-gated `invokeCommand` (records an `agent-event`
+  of kind `command`); unknown names are rejected (`400`). Executable via the
+  envelope (`ax.command.invoke`) and exposed over HTTP
+  (`GET|POST /api/canvas/ax/command`), SDK, CanvasAccess, MCP
+  (`canvas_invoke_command`), and CLI (`pmx-canvas ax command list|invoke`).
+  (2) A canvas-bound, snapshotted **tool/prompt policy** singleton
+  (`tools.allowed|excluded|approvalRequired`, `prompt.systemAppend|mode`) read
+  into `canvas://ax-context`; set via `GET|POST /api/canvas/ax/policy`,
+  `canvas_set_ax_policy`, and `pmx-canvas ax policy get|set` (patches merge and
+  are normalized server-side). (3) The **json-render viewer → AX channel**: a
+  spec action named after an AX type (e.g. `on.press → { action:
+  "ax.work.create" }`) is forwarded by the viewer bundle to the parent canvas,
+  which validates (iframe source + per-viewer nonce + node id) and submits
+  through the capability-gated endpoint (`sourceSurface: 'json-render'`). The
+  bridge nonce/node-id globals are injected into the viewer HTML only when the
+  embedding node requests them. (4) The **MCP-app interaction bridge (Phase 6)**:
+  opted-in ext-app `mcp-app` nodes get `window.PMX_AX.emit(...)` injected into
+  the app HTML (same nonce-tagged shape as the HTML bridge,
+  `sourceSurface: 'mcp-app'`), disabled by default and node-scoped. All emit
+  surfaces remain convenience-only — the server re-validates every interaction
+  against the node's effective capabilities, so it stays the single trust
+  boundary.
+
 - **PMX-AX native node controls (plan-004 Phase 2).** Inline AX controls on
   native nodes that submit interactions through the browser: status nodes get a
   "Track as work" button (→ `ax.work.create`), file nodes a "mark as evidence"
@@ -86,6 +112,13 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   bare tab); `webpage` / URL-backed `mcp-app` nodes redirect to their site.
 
 ### Fixed
+
+- **json-render specs preserve `on` event bindings through validation.** The
+  json-render element schema dropped the `on` field during validation, so
+  spec-authored action bindings (`on.press`, `on.change`, …) were silently
+  stripped before reaching the viewer and never fired. `on` is now retained,
+  which both makes general json-render interactivity work and is what lets the
+  json-render → AX channel above dispatch its `ax.*` actions.
 
 - **Canvas iframes are promoted to their own compositing layer**
   (`transform: translateZ(0)` on `.html-node-frame` / `.mcp-app-frame`) to

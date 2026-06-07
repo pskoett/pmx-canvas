@@ -1767,6 +1767,40 @@ export async function startMcpServer(): Promise<void> {
   );
 
   server.tool(
+    'canvas_invoke_command',
+    'Invoke a registry-gated PMX command intent (pmx.plan | pmx.execute | pmx.promote-context | pmx.summarize | pmx.review). Records a timeline event a host/agent can observe — NOT arbitrary execution; unknown names are rejected.',
+    {
+      name: z.string().describe('A command name from the PMX command registry.'),
+      args: z.record(z.string(), z.unknown()).optional(),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']).optional(),
+    },
+    async ({ name, args, source }) => {
+      const c = await ensureCanvas();
+      const event = await c.invokeCommand(name, args ?? null, { source: source ?? 'mcp' });
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: Boolean(event), event }) }] };
+    },
+  );
+
+  server.tool(
+    'canvas_set_ax_policy',
+    'Set the declarative AX policy (allowed/excluded/approval-required tools; prompt mode/append). PMX stores it and exposes it via canvas://ax-context; host adapters READ and enforce it. Merges with the existing policy.',
+    {
+      tools: z.object({
+        allowed: z.array(z.string()).optional(),
+        excluded: z.array(z.string()).optional(),
+        approvalRequired: z.array(z.string()).optional(),
+      }).optional(),
+      prompt: z.object({ systemAppend: z.string().optional(), mode: z.string().optional() }).optional(),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']).optional(),
+    },
+    async ({ tools, prompt, source }) => {
+      const c = await ensureCanvas();
+      const policy = await c.setPolicy({ ...(tools ? { tools } : {}), ...(prompt ? { prompt } : {}) }, { source: source ?? 'mcp' });
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, policy }) }] };
+    },
+  );
+
+  server.tool(
     'canvas_fit_view',
     'Fit the canvas viewport to all nodes or a selected subset. Useful before screenshots and whole-board review.',
     {
@@ -2229,7 +2263,14 @@ export async function startMcpServer(): Promise<void> {
           {
             uri: 'canvas://ax-work',
             mimeType: 'application/json',
-            text: JSON.stringify({ workItems, approvalGates, reviewAnnotations: state.reviewAnnotations }, null, 2),
+            text: JSON.stringify({
+              workItems,
+              approvalGates,
+              reviewAnnotations: state.reviewAnnotations,
+              elicitations: state.elicitations,
+              modeRequests: state.modeRequests,
+              policy: state.policy,
+            }, null, 2),
           },
         ],
       };

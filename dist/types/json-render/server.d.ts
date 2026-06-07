@@ -90,4 +90,6 @@ export declare function buildJsonRenderViewerHtml(options: {
     theme?: 'dark' | 'light' | 'high-contrast';
     display?: 'expanded';
     devtools?: boolean;
+    nodeId?: string;
+    axToken?: string;
 }): Promise<string>;

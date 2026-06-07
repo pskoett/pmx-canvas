@@ -1473,6 +1473,19 @@ html.is-node-resizing .ext-app-preview-catcher {
   border-radius: 0 0 calc(var(--radius) - 1px) calc(var(--radius) - 1px);
 }
 
+/* Promote canvas iframes to their own GPU compositing layer. An iframe embedded
+   in the zoom/pan-transformed canvas — especially near the heavy backdrop-filter
+   blur used across the chrome and behind group frames — can intermittently paint
+   blank until a resize/zoom forces a repaint (reported for grouped HTML nodes;
+   the same class of compositor glitch as the earlier Excalidraw flicker). A no-op
+   3D transform forces a stable layer so the iframe keeps painting through
+   surrounding layout/stacking changes. */
+.mcp-app-frame,
+.html-node-frame {
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
 /* ── Prompt nodes ──────────────────────────────────────────── */
 .canvas-node:has(.prompt-node-inner) {
   border-color: var(--c-accent-30);

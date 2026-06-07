@@ -7,7 +7,7 @@ export interface PmxAxFocusState {
     updatedAt: string | null;
     source: PmxAxSource | null;
 }
-export type PmxAxEventKind = 'prompt' | 'assistant-message' | 'tool-start' | 'tool-result' | 'failure' | 'approval' | 'steering';
+export type PmxAxEventKind = 'prompt' | 'assistant-message' | 'tool-start' | 'tool-result' | 'failure' | 'approval' | 'steering' | 'command';
 export type PmxAxEvidenceKind = 'logs' | 'tool-result' | 'screenshot' | 'file' | 'diff' | 'test-output';
 export type PmxAxWorkItemStatus = 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled';
 export type PmxAxApprovalStatus = 'pending' | 'approved' | 'rejected';
@@ -124,6 +124,7 @@ export interface PmxAxState {
     reviewAnnotations: PmxAxReviewAnnotation[];
     elicitations: PmxAxElicitation[];
     modeRequests: PmxAxModeRequest[];
+    policy: PmxAxPolicy;
 }
 export interface PmxAxPinnedContext {
     preamble: string;
@@ -148,9 +149,30 @@ export interface PmxAxContext {
     reviewAnnotations: PmxAxReviewAnnotation[];
     elicitations: PmxAxElicitation[];
     modeRequests: PmxAxModeRequest[];
+    policy: PmxAxPolicy;
     timeline: PmxAxTimelineSummary;
     host: PmxAxHostCapability | null;
 }
+export interface PmxAxCommandDescriptor {
+    name: string;
+    description: string;
+}
+export declare const AX_COMMAND_REGISTRY: Record<string, PmxAxCommandDescriptor>;
+export declare function isAxCommand(name: unknown): name is string;
+export declare function listAxCommands(): PmxAxCommandDescriptor[];
+export interface PmxAxPolicy {
+    tools: {
+        allowed: string[];
+        excluded: string[];
+        approvalRequired: string[];
+    };
+    prompt: {
+        systemAppend: string | null;
+        mode: string | null;
+    };
+}
+export declare function createEmptyAxPolicy(): PmxAxPolicy;
+export declare function normalizeAxPolicy(input: unknown): PmxAxPolicy;
 export declare function isAxEventKind(value: unknown): value is PmxAxEventKind;
 export declare function isAxEvidenceKind(value: unknown): value is PmxAxEvidenceKind;
 export declare function createEmptyAxFocusState(): PmxAxFocusState;
@@ -250,6 +272,7 @@ export declare function buildAxContext(input: {
     reviewAnnotations: PmxAxReviewAnnotation[];
     elicitations: PmxAxElicitation[];
     modeRequests: PmxAxModeRequest[];
+    policy: PmxAxPolicy;
     timeline: PmxAxTimelineSummary;
     host: PmxAxHostCapability | null;
 }): PmxAxContext;

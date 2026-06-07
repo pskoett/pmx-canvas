@@ -174,6 +174,22 @@ describe('AX neutral-primitive parity and host isolation', () => {
         cliCommand: "cmd('ax mode request'",
         accessMethod: 'requestMode(',
       },
+      {
+        label: 'command',
+        sdkMethod: 'invokeCommand(',
+        httpRoute: '/api/canvas/ax/command',
+        mcpTool: "'canvas_invoke_command'",
+        cliCommand: "cmd('ax command invoke'",
+        accessMethod: 'invokeCommand(',
+      },
+      {
+        label: 'policy',
+        sdkMethod: 'setPolicy(',
+        httpRoute: '/api/canvas/ax/policy',
+        mcpTool: "'canvas_set_ax_policy'",
+        cliCommand: "cmd('ax policy set'",
+        accessMethod: 'setPolicy(',
+      },
     ];
 
     const missing: string[] = [];

@@ -81,6 +81,7 @@ import { buildCanvasAxContext } from './ax-context.js';
 import { applyAxInteraction, resolveNodeAxCapabilities } from './ax-interaction.js';
 import { isAxEventKind, isAxEvidenceKind } from './ax-state.js';
 import type {
+  PmxAxPolicy,
   PmxAxReviewAnchorType,
   PmxAxReviewKind,
   PmxAxReviewRegion,
@@ -2530,12 +2531,14 @@ async function handleJsonRenderView(url: URL): Promise<Response> {
   const devtoolsEnabled =
     process.env.PMX_CANVAS_JSON_RENDER_DEVTOOLS === '1' &&
     url.searchParams.get('devtools') === '1';
+  const axToken = url.searchParams.get('axToken');
   const html = await buildJsonRenderViewerHtml({
     title,
     spec,
     ...(theme ? { theme } : {}),
     ...(url.searchParams.get('display') === 'expanded' ? { display: 'expanded' as const } : {}),
     ...(devtoolsEnabled ? { devtools: true } : {}),
+    ...(axToken ? { nodeId, axToken } : {}),
   });
   return new Response(html, {
     headers: {
@@ -3919,6 +3922,35 @@ async function handleAxModeResolve(req: Request, id: string): Promise<Response> 
   if (!modeRequest) return responseJson({ ok: false, error: 'mode request not found or already resolved.' }, 404);
   broadcastWorkbenchEvent('ax-state-changed', { modeRequest, sessionId: primaryWorkbenchSessionId, timestamp: new Date().toISOString() });
   return responseJson({ ok: true, modeRequest });
+}
+
+function handleAxCommandList(): Response {
+  return responseJson({ ok: true, commands: canvasState.getCommandRegistry() });
+}
+
+async function handleAxCommandInvoke(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  if (typeof body.name !== 'string') {
+    return responseJson({ ok: false, error: 'command requires a name.' }, 400);
+  }
+  const event = canvasState.invokeCommand(body.name, isRecord(body.args) ? body.args : null, { source: normalizeAxSource(body.source, 'api') });
+  if (!event) return responseJson({ ok: false, error: `Unknown command "${body.name}".` }, 400);
+  broadcastWorkbenchEvent('ax-event-created', { event, sessionId: primaryWorkbenchSessionId, timestamp: new Date().toISOString() });
+  return responseJson({ ok: true, event });
+}
+
+function handleAxPolicyGet(): Response {
+  return responseJson({ ok: true, policy: canvasState.getPolicy() });
+}
+
+async function handleAxPolicySet(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const patch: { tools?: Partial<PmxAxPolicy['tools']>; prompt?: Partial<PmxAxPolicy['prompt']> } = {};
+  if (isRecord(body.tools)) patch.tools = body.tools as Partial<PmxAxPolicy['tools']>;
+  if (isRecord(body.prompt)) patch.prompt = body.prompt as Partial<PmxAxPolicy['prompt']>;
+  const policy = canvasState.setPolicy(patch, { source: normalizeAxSource(body.source, 'api') });
+  broadcastWorkbenchEvent('ax-state-changed', { policy, sessionId: primaryWorkbenchSessionId, timestamp: new Date().toISOString() });
+  return responseJson({ ok: true, policy });
 }
 
 async function handleAxFocusUpdate(req: Request): Promise<Response> {
@@ -5329,6 +5361,22 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
               url.pathname.slice('/api/canvas/ax/mode/'.length, -'/resolve'.length),
             );
             return handleAxModeResolve(req, modeId);
+          }
+
+          if (url.pathname === '/api/canvas/ax/command' && req.method === 'GET') {
+            return handleAxCommandList();
+          }
+
+          if (url.pathname === '/api/canvas/ax/command' && req.method === 'POST') {
+            return handleAxCommandInvoke(req);
+          }
+
+          if (url.pathname === '/api/canvas/ax/policy' && req.method === 'GET') {
+            return handleAxPolicyGet();
+          }
+
+          if (url.pathname === '/api/canvas/ax/policy' && req.method === 'POST') {
+            return handleAxPolicySet(req);
           }
 
           // Spatial context API

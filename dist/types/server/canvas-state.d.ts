@@ -10,7 +10,7 @@
  * Legacy `.pmx-canvas/state.json` is auto-migrated on first boot.
  */
 import { type PersistedCanvasState, type CanvasTheme, type AxTimelineQuery } from './canvas-db.js';
-import { type PmxAxElicitation, type PmxAxModeRequest, type PmxAxMode, type PmxAxFocusState, type PmxAxSource, type PmxAxState, type PmxAxWorkItem, type PmxAxWorkItemStatus, type PmxAxApprovalGate, type PmxAxReviewAnnotation, type PmxAxReviewKind, type PmxAxReviewSeverity, type PmxAxReviewStatus, type PmxAxReviewAnchorType, type PmxAxReviewRegion, type PmxAxEvent, type PmxAxEventKind, type PmxAxEvidence, type PmxAxEvidenceKind, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
+import { type PmxAxElicitation, type PmxAxModeRequest, type PmxAxMode, type PmxAxCommandDescriptor, type PmxAxPolicy, type PmxAxFocusState, type PmxAxSource, type PmxAxState, type PmxAxWorkItem, type PmxAxWorkItemStatus, type PmxAxApprovalGate, type PmxAxReviewAnnotation, type PmxAxReviewKind, type PmxAxReviewSeverity, type PmxAxReviewStatus, type PmxAxReviewAnchorType, type PmxAxReviewRegion, type PmxAxEvent, type PmxAxEventKind, type PmxAxEvidence, type PmxAxEvidenceKind, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
 export declare const PMX_CANVAS_DIR = ".pmx-canvas";
 export interface PersistedBlobRef {
     __pmxCanvasBlob: 'v1';
@@ -122,7 +122,7 @@ export interface CanvasNodeUpdate {
 }
 export type CanvasChangeType = 'pins' | 'nodes' | 'ax' | 'ax-timeline';
 export interface MutationRecordInfo {
-    operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'requestElicitation' | 'respondElicitation' | 'requestMode' | 'resolveModeRequest' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
+    operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'requestElicitation' | 'respondElicitation' | 'requestMode' | 'resolveModeRequest' | 'setPolicy' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
     description: string;
     forward: () => void;
     inverse: () => void;
@@ -339,6 +339,19 @@ declare class CanvasStateManager {
         resolution?: string;
         source?: PmxAxSource;
     }): PmxAxModeRequest | null;
+    getCommandRegistry(): PmxAxCommandDescriptor[];
+    /** Invoke a registry-gated PMX command intent — records a timeline event (no execution). */
+    invokeCommand(name: string, args?: Record<string, unknown> | null, options?: {
+        source?: PmxAxSource;
+    }): PmxAxEvent | null;
+    getPolicy(): PmxAxPolicy;
+    /** Merge a declarative tool/prompt policy patch (canvas-bound, snapshotted). */
+    setPolicy(patch: {
+        tools?: Partial<PmxAxPolicy['tools']>;
+        prompt?: Partial<PmxAxPolicy['prompt']>;
+    }, _options?: {
+        source?: PmxAxSource;
+    }): PmxAxPolicy;
     setHostCapability(input: unknown, _options?: {
         source?: PmxAxSource;
     }): PmxAxHostCapability;

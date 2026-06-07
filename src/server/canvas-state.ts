@@ -66,9 +66,15 @@ import {
   createAxSteeringMessage,
   createAxElicitation,
   createAxModeRequest,
+  isAxCommand,
+  listAxCommands,
+  AX_COMMAND_REGISTRY,
+  normalizeAxPolicy,
   type PmxAxElicitation,
   type PmxAxModeRequest,
   type PmxAxMode,
+  type PmxAxCommandDescriptor,
+  type PmxAxPolicy,
   type PmxAxFocusState,
   type PmxAxSource,
   type PmxAxState,
@@ -253,7 +259,7 @@ export interface CanvasNodeUpdate {
 export type CanvasChangeType = 'pins' | 'nodes' | 'ax' | 'ax-timeline';
 
 export interface MutationRecordInfo {
-  operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'requestElicitation' | 'respondElicitation' | 'requestMode' | 'resolveModeRequest' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
+  operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'requestElicitation' | 'respondElicitation' | 'requestMode' | 'resolveModeRequest' | 'setPolicy' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
   description: string;
   forward: () => void;
   inverse: () => void;
@@ -2022,6 +2028,46 @@ class CanvasStateManager {
       inverse: this.suppressed(() => { this.applyAxState(oldAxState); this.scheduleSave(); this.notifyChange('ax'); }),
     });
     return applied.modeRequests.find((m) => m.id === id) ?? null;
+  }
+
+  getCommandRegistry(): PmxAxCommandDescriptor[] {
+    return listAxCommands();
+  }
+
+  /** Invoke a registry-gated PMX command intent — records a timeline event (no execution). */
+  invokeCommand(name: string, args: Record<string, unknown> | null = null, options: { source?: PmxAxSource } = {}): PmxAxEvent | null {
+    if (!isAxCommand(name)) return null;
+    return this.recordAxEvent(
+      { kind: 'command', summary: name, detail: AX_COMMAND_REGISTRY[name].description, data: { command: name, ...(args ? { args } : {}) } },
+      options,
+    );
+  }
+
+  getPolicy(): PmxAxPolicy {
+    return this.getAxState().policy;
+  }
+
+  /** Merge a declarative tool/prompt policy patch (canvas-bound, snapshotted). */
+  setPolicy(
+    patch: { tools?: Partial<PmxAxPolicy['tools']>; prompt?: Partial<PmxAxPolicy['prompt']> },
+    _options: { source?: PmxAxSource } = {},
+  ): PmxAxPolicy {
+    const oldAxState = this.getAxState();
+    const merged = normalizeAxPolicy({
+      tools: { ...oldAxState.policy.tools, ...(patch.tools ?? {}) },
+      prompt: { ...oldAxState.policy.prompt, ...(patch.prompt ?? {}) },
+    });
+    this.applyAxState({ ...oldAxState, policy: merged });
+    const applied = this.getAxState();
+    this.scheduleSave();
+    this.notifyChange('ax');
+    this.recordMutation({
+      operationType: 'setPolicy',
+      description: 'Updated AX policy',
+      forward: this.suppressed(() => { this.applyAxState(applied); this.scheduleSave(); this.notifyChange('ax'); }),
+      inverse: this.suppressed(() => { this.applyAxState(oldAxState); this.scheduleSave(); this.notifyChange('ax'); }),
+    });
+    return applied.policy;
   }
 
   setHostCapability(input: unknown, _options: { source?: PmxAxSource } = {}): PmxAxHostCapability {

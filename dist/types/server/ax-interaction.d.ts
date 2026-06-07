@@ -177,6 +177,9 @@ export interface AxInteractionManager {
     }, options?: {
         source?: PmxAxSource;
     }): PmxAxModeRequest;
+    invokeCommand(name: string, args?: Record<string, unknown> | null, options?: {
+        source?: PmxAxSource;
+    }): PmxAxEvent | null;
 }
 export interface AxInteractionEvent {
     event: string;

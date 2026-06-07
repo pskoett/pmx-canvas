@@ -1102,6 +1102,8 @@ const RESOURCE_SUBCOMMAND_HINTS: Record<string, Record<string, string>> = {
     delivery: 'Pick an action: pmx-canvas ax delivery list | mark',
     elicitation: 'Pick an action: pmx-canvas ax elicitation request | respond | list',
     mode: 'Pick an action: pmx-canvas ax mode request | resolve | list',
+    command: 'Pick an action: pmx-canvas ax command list | invoke',
+    policy: 'Pick an action: pmx-canvas ax policy get | set',
   },
 };
 
@@ -2004,6 +2006,54 @@ cmd('ax mode list', 'List mode requests', ['pmx-canvas ax mode list'], async (ar
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax mode list');
   output(await api('GET', '/api/canvas/ax/mode'));
+});
+
+cmd('ax command list', 'List the PMX command registry', ['pmx-canvas ax command list'], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax command list');
+  output(await api('GET', '/api/canvas/ax/command'));
+});
+
+cmd('ax command invoke', 'Invoke a registry-gated PMX command intent', [
+  'pmx-canvas ax command invoke pmx.plan',
+  'pmx-canvas ax command invoke pmx.promote-context --args \'{"nodeIds":["n1"]}\'',
+], async (args) => {
+  const { positional, flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax command invoke');
+  const name = getStringFlag(flags, 'name') ?? positional[0];
+  if (!name) die('Missing command name', 'pmx-canvas ax command invoke <name>');
+  let cmdArgs: unknown;
+  const raw = getStringFlag(flags, 'args');
+  if (raw) {
+    try { cmdArgs = JSON.parse(raw); } catch { die('Invalid --args JSON', '--args \'{"k":"v"}\''); }
+  }
+  output(await api('POST', '/api/canvas/ax/command', { name, ...(cmdArgs !== undefined ? { args: cmdArgs } : {}), source: 'cli' }));
+});
+
+cmd('ax policy get', 'Show the current declarative AX policy', ['pmx-canvas ax policy get'], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax policy get');
+  output(await api('GET', '/api/canvas/ax/policy'));
+});
+
+cmd('ax policy set', 'Set the declarative AX policy (stored by PMX, enforced by adapters)', [
+  'pmx-canvas ax policy set --excluded-tools shell,write --mode concise',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax policy set');
+  const csv = (v?: string) => (v ? v.split(',').map((s) => s.trim()).filter(Boolean) : undefined);
+  const allowed = csv(getStringFlag(flags, 'allowed-tools'));
+  const excluded = csv(getStringFlag(flags, 'excluded-tools'));
+  const approvalRequired = csv(getStringFlag(flags, 'approval-tools'));
+  const mode = getStringFlag(flags, 'mode');
+  const systemAppend = getStringFlag(flags, 'system-append');
+  const tools = (allowed || excluded || approvalRequired)
+    ? { ...(allowed ? { allowed } : {}), ...(excluded ? { excluded } : {}), ...(approvalRequired ? { approvalRequired } : {}) }
+    : undefined;
+  const prompt = (mode || systemAppend)
+    ? { ...(mode ? { mode } : {}), ...(systemAppend ? { systemAppend } : {}) }
+    : undefined;
+  output(await api('POST', '/api/canvas/ax/policy', { ...(tools ? { tools } : {}), ...(prompt ? { prompt } : {}), source: 'cli' }));
 });
 
 cmd('ax timeline', 'Read the bounded AX timeline (events, evidence, steering)', [

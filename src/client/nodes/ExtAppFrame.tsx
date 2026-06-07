@@ -1,9 +1,11 @@
 import type { CallToolResult, ListToolsResult, RequestId, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { AppBridge, PostMessageTransport, buildAllowAttribute } from '@modelcontextprotocol/ext-apps/app-bridge';
-import { useEffect, useRef, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
 import { extAppToolResultsMatch } from '../../shared/ext-app-tool-result.js';
 import { DEFAULT_EXT_APP_SANDBOX } from '../../shared/surface.js';
+import { submitAxInteractionFromClient } from '../state/intent-bridge';
+import { showToast } from '../state/attention-bridge';
 import {
   canvasTheme,
   collapseExpandedNode,
@@ -156,7 +158,42 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   const nodeId = node.id;
   const frameKey = getExtAppBridgeInitKey(node, retryKey);
   const iframeSandbox = resolveExtAppSandbox(null);
-  const iframeDocument = useIframeDocument(html ?? '', iframeSandbox);
+  // Phase 6 — opt-in ext-app AX bridge. When the node sets data.axCapabilities.enabled,
+  // inject window.PMX_AX into the app HTML and accept emits below (server re-validates).
+  const axCaps = node.data.axCapabilities as { enabled?: boolean } | undefined;
+  const axEnabled = axCaps?.enabled === true && typeof html === 'string' && html.length > 0;
+  const axToken = useMemo(() => `ax-${crypto.randomUUID()}`, []);
+  const axBridgeScript = axEnabled
+    ? `<script data-pmx-canvas-ax-bridge>window.PMX_AX={emit:function(t,p){window.parent.postMessage({source:'pmx-canvas-ax',token:${JSON.stringify(axToken)},nodeId:${JSON.stringify(nodeId)},interaction:{type:String(t),payload:p&&typeof p==='object'?p:{}}},'*');}};</script>`
+    : '';
+  const iframeDocument = useIframeDocument((html ?? '') + axBridgeScript, iframeSandbox);
+
+  useEffect(() => {
+    if (!axEnabled) return;
+    function onAxMessage(event: MessageEvent) {
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      const data = event.data as {
+        source?: string; token?: string; nodeId?: string;
+        interaction?: { type?: unknown; payload?: unknown };
+      } | null;
+      if (!data || data.source !== 'pmx-canvas-ax' || data.token !== axToken || data.nodeId !== nodeId) return;
+      const interaction = data.interaction;
+      if (!interaction || typeof interaction.type !== 'string') return;
+      void submitAxInteractionFromClient({
+        type: interaction.type,
+        sourceNodeId: nodeId,
+        sourceSurface: 'mcp-app',
+        ...(interaction.payload && typeof interaction.payload === 'object'
+          ? { payload: interaction.payload as Record<string, unknown> }
+          : {}),
+      }).then((res) => {
+        if (res.ok) showToast('context', 'AX interaction', interaction.type as string, [nodeId]);
+        else showToast('remove', 'AX interaction rejected', res.error ?? res.code ?? '', [nodeId]);
+      });
+    }
+    window.addEventListener('message', onAxMessage);
+    return () => window.removeEventListener('message', onAxMessage);
+  }, [axEnabled, axToken, nodeId]);
   const toMcpTheme = (theme: string): McpUiTheme => (theme === 'light' ? 'light' : 'dark');
   const isExpanded = expanded || expandedNodeId.value === nodeId;
 

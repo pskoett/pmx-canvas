@@ -5,6 +5,7 @@ import { buildCanvasAxContext } from './ax-context.js';
 import { applyAxInteraction, type AxInteractionInput, type AxInteractionPublicResult } from './ax-interaction.js';
 import type {
   PmxAxApprovalGate,
+  PmxAxCommandDescriptor,
   PmxAxContext,
   PmxAxElicitation,
   PmxAxEvent,
@@ -14,6 +15,7 @@ import type {
   PmxAxHostCapability,
   PmxAxMode,
   PmxAxModeRequest,
+  PmxAxPolicy,
   PmxAxReviewAnchorType,
   PmxAxReviewAnnotation,
   PmxAxReviewKind,
@@ -694,6 +696,29 @@ export class PmxCanvas extends EventEmitter {
     return modeRequest;
   }
 
+  getCommandRegistry(): PmxAxCommandDescriptor[] {
+    return canvasState.getCommandRegistry();
+  }
+
+  invokeCommand(name: string, args?: Record<string, unknown> | null, options?: { source?: PmxAxSource }): PmxAxEvent | null {
+    const event = canvasState.invokeCommand(name, args ?? null, { source: options?.source ?? 'sdk' });
+    if (event) emitPrimaryWorkbenchEvent('ax-event-created', { event });
+    return event;
+  }
+
+  getPolicy(): PmxAxPolicy {
+    return canvasState.getPolicy();
+  }
+
+  setPolicy(
+    patch: { tools?: Partial<PmxAxPolicy['tools']>; prompt?: Partial<PmxAxPolicy['prompt']> },
+    options?: { source?: PmxAxSource },
+  ): PmxAxPolicy {
+    const policy = canvasState.setPolicy(patch, { source: options?.source ?? 'sdk' });
+    emitPrimaryWorkbenchEvent('ax-state-changed', { policy });
+    return policy;
+  }
+
   fitView(options?: {
     width?: number;
     height?: number;
@@ -1178,6 +1203,7 @@ export { traceManager } from './trace-manager.js';
 export type {
   PmxAxApprovalGate,
   PmxAxApprovalStatus,
+  PmxAxCommandDescriptor,
   PmxAxContext,
   PmxAxEvent,
   PmxAxElicitation,
@@ -1190,6 +1216,7 @@ export type {
   PmxAxMode,
   PmxAxModeRequest,
   PmxAxModeRequestStatus,
+  PmxAxPolicy,
   PmxAxReviewAnchorType,
   PmxAxReviewAnnotation,
   PmxAxReviewKind,

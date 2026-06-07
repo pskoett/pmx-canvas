@@ -39,6 +39,7 @@ export type MutationOp =
   | 'respondElicitation'
   | 'requestMode'
   | 'resolveModeRequest'
+  | 'setPolicy'
   | 'batch'
   | 'viewport'
   | 'groupNodes'

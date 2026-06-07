@@ -10,6 +10,10 @@ export const schema = defineSchema(
           props: s.propsOf('catalog.components'),
           children: s.array(s.string()),
           visible: s.any(),
+          // Event→action bindings (on.press, on.change, …). Preserved through
+          // validation so spec authors can wire actions — including the ax.*
+          // handlers the viewer forwards to the canvas AX bridge.
+          on: s.any(),
         }),
       ),
     }),

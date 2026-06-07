@@ -13,7 +13,7 @@ export interface PmxAxFocusState {
 // ── New enums ──────────────────────────────────────────────────────
 export type PmxAxEventKind =
   | 'prompt' | 'assistant-message' | 'tool-start' | 'tool-result'
-  | 'failure' | 'approval' | 'steering';
+  | 'failure' | 'approval' | 'steering' | 'command';
 export type PmxAxEvidenceKind =
   | 'logs' | 'tool-result' | 'screenshot' | 'file' | 'diff' | 'test-output';
 export type PmxAxWorkItemStatus = 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled';
@@ -143,6 +143,7 @@ export interface PmxAxState {
   reviewAnnotations: PmxAxReviewAnnotation[];
   elicitations: PmxAxElicitation[];
   modeRequests: PmxAxModeRequest[];
+  policy: PmxAxPolicy;
 }
 
 export interface PmxAxPinnedContext {
@@ -170,6 +171,7 @@ export interface PmxAxContext {
   reviewAnnotations: PmxAxReviewAnnotation[];
   elicitations: PmxAxElicitation[];
   modeRequests: PmxAxModeRequest[];
+  policy: PmxAxPolicy;
   timeline: PmxAxTimelineSummary;
   host: PmxAxHostCapability | null;
 }
@@ -203,7 +205,69 @@ function normalizeNodeIds(value: unknown, validNodeIds?: Set<string>): string[] 
   return ids;
 }
 
-const AX_EVENT_KINDS = new Set<PmxAxEventKind>(['prompt', 'assistant-message', 'tool-start', 'tool-result', 'failure', 'approval', 'steering']);
+const AX_EVENT_KINDS = new Set<PmxAxEventKind>(['prompt', 'assistant-message', 'tool-start', 'tool-result', 'failure', 'approval', 'steering', 'command']);
+
+// ── Command registry (plan-004 Phase 5) ────────────────────────
+// Named, registry-gated PMX intents — NOT arbitrary execution. Invoking a command
+// records a timeline event a host/agent can observe and act on; unknown names are
+// rejected. Seeded with conservative built-ins; project-extensible later.
+export interface PmxAxCommandDescriptor {
+  name: string;
+  description: string;
+}
+
+export const AX_COMMAND_REGISTRY: Record<string, PmxAxCommandDescriptor> = {
+  'pmx.plan': { name: 'pmx.plan', description: 'Enter planning: outline the approach before executing.' },
+  'pmx.execute': { name: 'pmx.execute', description: 'Proceed from plan to execution.' },
+  'pmx.promote-context': { name: 'pmx.promote-context', description: 'Promote focused/pinned nodes into durable agent context.' },
+  'pmx.summarize': { name: 'pmx.summarize', description: 'Summarize the current canvas/work state.' },
+  'pmx.review': { name: 'pmx.review', description: 'Start a review pass over the focused nodes.' },
+};
+
+export function isAxCommand(name: unknown): name is string {
+  return typeof name === 'string' && Object.prototype.hasOwnProperty.call(AX_COMMAND_REGISTRY, name);
+}
+
+export function listAxCommands(): PmxAxCommandDescriptor[] {
+  return Object.values(AX_COMMAND_REGISTRY);
+}
+
+// ── Tool/prompt policy (plan-004 Phase 5) ──────────────────────
+// Declarative policy PMX stores and exposes; host adapters READ and enforce it.
+// PMX does not mutate host prompts or block tools itself. Default = empty (no
+// restrictions) — that is the conservative answer to "how much by default".
+export interface PmxAxPolicy {
+  tools: { allowed: string[]; excluded: string[]; approvalRequired: string[] };
+  prompt: { systemAppend: string | null; mode: string | null };
+}
+
+export function createEmptyAxPolicy(): PmxAxPolicy {
+  return {
+    tools: { allowed: [], excluded: [], approvalRequired: [] },
+    prompt: { systemAppend: null, mode: null },
+  };
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  return Array.isArray(value) ? value.filter((v): v is string => typeof v === 'string') : [];
+}
+
+export function normalizeAxPolicy(input: unknown): PmxAxPolicy {
+  if (!isRecord(input)) return createEmptyAxPolicy();
+  const tools = isRecord(input.tools) ? input.tools : {};
+  const prompt = isRecord(input.prompt) ? input.prompt : {};
+  return {
+    tools: {
+      allowed: normalizeStringArray(tools.allowed),
+      excluded: normalizeStringArray(tools.excluded),
+      approvalRequired: normalizeStringArray(tools.approvalRequired),
+    },
+    prompt: {
+      systemAppend: optionalString(prompt.systemAppend),
+      mode: optionalString(prompt.mode),
+    },
+  };
+}
 const AX_EVIDENCE_KINDS = new Set<PmxAxEvidenceKind>(['logs', 'tool-result', 'screenshot', 'file', 'diff', 'test-output']);
 const AX_WORK_STATUSES = new Set<PmxAxWorkItemStatus>(['todo', 'in-progress', 'blocked', 'done', 'cancelled']);
 const AX_APPROVAL_STATUSES = new Set<PmxAxApprovalStatus>(['pending', 'approved', 'rejected']);
@@ -356,6 +420,7 @@ export function createEmptyAxState(): PmxAxState {
     reviewAnnotations: [],
     elicitations: [],
     modeRequests: [],
+    policy: createEmptyAxPolicy(),
   };
 }
 
@@ -652,6 +717,7 @@ export function normalizeAxState(input: unknown, validNodeIds?: Set<string>): Pm
     modeRequests: Array.isArray(input.modeRequests)
       ? input.modeRequests.map((m) => normalizeAxModeRequest(m, validNodeIds)).filter((m): m is PmxAxModeRequest => m !== null)
       : [],
+    policy: normalizeAxPolicy(input.policy),
   };
 }
 
@@ -665,6 +731,7 @@ export function buildAxContext(input: {
   reviewAnnotations: PmxAxReviewAnnotation[];
   elicitations: PmxAxElicitation[];
   modeRequests: PmxAxModeRequest[];
+  policy: PmxAxPolicy;
   timeline: PmxAxTimelineSummary;
   host: PmxAxHostCapability | null;
 }): PmxAxContext {
@@ -685,6 +752,7 @@ export function buildAxContext(input: {
     reviewAnnotations: input.reviewAnnotations,
     elicitations: input.elicitations,
     modeRequests: input.modeRequests,
+    policy: input.policy,
     timeline: input.timeline,
     host: input.host,
   };

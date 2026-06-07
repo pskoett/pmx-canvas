@@ -1368,6 +1368,76 @@ describe('canvas server HTTP API', () => {
     expect(resolve.modeRequest.resolution).toBe('go');
   });
 
+  test('ax command: registry list + registry-gated invoke', async () => {
+    const list = await (await fetch(`${baseUrl}/api/canvas/ax/command`)).json() as { commands: Array<{ name: string }> };
+    expect(list.commands.some((c) => c.name === 'pmx.plan')).toBe(true);
+
+    const ok = await fetch(`${baseUrl}/api/canvas/ax/command`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'pmx.plan', args: { note: 'x' }, source: 'cli' }),
+    });
+    expect(ok.status).toBe(200);
+    const okBody = await ok.json() as { ok: boolean; event: { kind: string; data: { command: string } } };
+    expect(okBody.event.kind).toBe('command');
+    expect(okBody.event.data.command).toBe('pmx.plan');
+
+    const bad = await fetch(`${baseUrl}/api/canvas/ax/command`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'definitely-not-a-command' }),
+    });
+    expect(bad.status).toBe(400);
+  });
+
+  test('ax policy: defaults empty, merges on set, exposed in context', async () => {
+    const initial = await (await fetch(`${baseUrl}/api/canvas/ax/policy`)).json() as { policy: { tools: { excluded: string[] } } };
+    expect(initial.policy.tools.excluded).toEqual([]);
+
+    await fetch(`${baseUrl}/api/canvas/ax/policy`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tools: { excluded: ['shell', 'write'] }, prompt: { mode: 'concise' }, source: 'cli' }),
+    });
+    const set = await (await fetch(`${baseUrl}/api/canvas/ax/policy`)).json() as { policy: { tools: { excluded: string[] }; prompt: { mode: string } } };
+    expect(set.policy.tools.excluded).toEqual(['shell', 'write']);
+    expect(set.policy.prompt.mode).toBe('concise');
+
+    // merge: setting prompt does not wipe tools
+    await fetch(`${baseUrl}/api/canvas/ax/policy`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: { systemAppend: 'be terse' } }),
+    });
+    const merged = await (await fetch(`${baseUrl}/api/canvas/ax/policy`)).json() as { policy: { tools: { excluded: string[] }; prompt: { mode: string; systemAppend: string } } };
+    expect(merged.policy.tools.excluded).toEqual(['shell', 'write']);
+    expect(merged.policy.prompt.systemAppend).toBe('be terse');
+
+    const ctx = await (await fetch(`${baseUrl}/api/canvas/ax/context`)).json() as { policy?: { tools: { excluded: string[] } } };
+    expect(ctx.policy?.tools.excluded).toEqual(['shell', 'write']);
+  });
+
+  test('json-render viewer injects the AX bridge only when an axToken is supplied', async () => {
+    const created = await jsonRequest<{ id: string; url: string }>('/api/canvas/json-render', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'AX Bridge Board',
+        spec: {
+          root: 'copy',
+          elements: { copy: { type: 'Text', props: { text: 'bridge probe' }, children: [] } },
+        },
+      }),
+    });
+
+    // The viewer bundle *references* the bridge globals by name (buildAxHandlers
+    // reads them), so the identifiers always appear. The injection is gated on the
+    // token *value*: only present when both nodeId and axToken are supplied.
+    const withToken = await (await fetch(`${baseUrl}/api/canvas/json-render/view?nodeId=${created.id}&axToken=ax-probe`)).text();
+    expect(withToken).toContain('window.__PMX_CANVAS_AX_TOKEN__ = "ax-probe"');
+    expect(withToken).toContain(`window.__PMX_CANVAS_JSON_RENDER_NODE_ID__ = "${created.id}"`);
+
+    const withoutToken = await (await fetch(`${baseUrl}/api/canvas/json-render/view?nodeId=${created.id}`)).text();
+    expect(withoutToken).not.toContain('ax-probe');
+    expect(withoutToken).not.toContain('window.__PMX_CANVAS_AX_TOKEN__ = ');
+  });
+
   test('keeps ext-app model context separate from the replayed tool result', async () => {
     const nodeId = 'ext-app-context-replay';
     canvasState.addNode({

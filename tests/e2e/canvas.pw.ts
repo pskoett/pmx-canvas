@@ -1070,6 +1070,38 @@ test('html bridge: an opted-in html node emits an AX interaction via window.PMX_
   }).toBe(true);
 });
 
+test('json-render bridge: a spec action named ax.* emits an AX interaction via the viewer', async ({ page, request }) => {
+  // json-render is AX-enabled by default with ax.work.create in its ceiling. The
+  // viewer bundle wires spec actions named after AX types to a postMessage bridge;
+  // McpAppViewer validates (iframe source + nonce + node id) and submits server-side.
+  await request.post('/api/canvas/json-render', {
+    data: {
+      title: 'AX bridge json-render',
+      spec: {
+        root: 'btn',
+        elements: {
+          btn: {
+            type: 'Button',
+            props: { label: 'emit', variant: 'primary' },
+            on: { press: { action: 'ax.work.create', params: { title: 'from-jsonrender-bridge' } } },
+          },
+        },
+      },
+      x: 640, y: 260, width: 480, height: 320,
+    },
+  });
+  await page.goto('/workbench');
+  const node = page.locator('.canvas-node').filter({ hasText: 'AX bridge json-render' });
+  await expect(node).toHaveCount(1);
+  await node.frameLocator('iframe').getByRole('button', { name: 'emit' }).click();
+
+  await expect.poll(async () => {
+    const ax = await request.get('/api/canvas/ax');
+    const body = await ax.json() as { state?: { workItems?: Array<{ title: string }> } };
+    return (body.state?.workItems ?? []).some((w) => w.title === 'from-jsonrender-bridge');
+  }).toBe(true);
+});
+
 test('file node evidence control records AX evidence', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
     data: { type: 'file', content: 'console.log(1)', data: { path: '/tmp/evidence-file.ts' }, x: 640, y: 260 },

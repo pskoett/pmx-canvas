@@ -14,5 +14,7 @@ declare global {
         __PMX_CANVAS_JSON_RENDER_THEME__?: string;
         __PMX_CANVAS_JSON_RENDER_DISPLAY__?: string;
         __PMX_CANVAS_JSON_RENDER_DEVTOOLS__?: boolean;
+        __PMX_CANVAS_JSON_RENDER_NODE_ID__?: string;
+        __PMX_CANVAS_AX_TOKEN__?: string;
     }
 }

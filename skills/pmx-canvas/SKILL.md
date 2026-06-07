@@ -218,6 +218,9 @@ pmx-canvas spatial
   `ax review add|list` — canvas-bound AX state (work items, approval gates,
   review annotations) that rides snapshots and restore and is cleared by `clear`.
 - `ax host report|status` — report/read the host/session capability (own partition).
+- `ax command list|invoke`, `ax policy get|set` — list/invoke registry commands
+  (`pmx.plan`, `pmx.execute`, `pmx.promote-context`, `pmx.summarize`, `pmx.review`)
+  and read/patch the canvas-bound tool/prompt policy.
 - `copilot install-extension [--dry-run] [--yes]` — install the bundled GitHub
   Copilot adapter into a repo; the core stays host-agnostic.
 - `fit [id ...]` — set the server viewport to fit the whole canvas or selected nodes before screenshots or whole-board review
@@ -822,7 +825,7 @@ what the human has set up and what they're focusing on.
 | `canvas://code-graph` | Auto-detected file import dependencies (JS/TS, Python, Go, Rust) |
 | `canvas://ax` | Host-agnostic AX state: focus, work items, approval gates, review annotations, host capability |
 | `canvas://ax-context` | Agent-ready AX context: pinned context + current focus |
-| `canvas://ax-work` | Canvas-bound AX work: work items, approval gates, review annotations |
+| `canvas://ax-work` | Canvas-bound AX work: work items, approval gates, review annotations, elicitations, mode requests, and tool/prompt policy |
 | `canvas://ax-timeline` | Bounded AX timeline: recent agent events, evidence, and steering messages |
 | `canvas://ax-pending-steering` | Undelivered steering an MCP client can claim, act on, and mark delivered (adapterless delivery) |
 | `canvas://ax-delivery` | Steering delivery state (delivered flag) for diagnostics |
@@ -843,10 +846,15 @@ elicitation, or mode request. One envelope, many transports:
   clamped to the ceiling — a node can never escalate beyond its type's ceiling.
   `html` / `html-primitive`, `mcp-app`, and internal `prompt` / `response` nodes
   are **disabled by default** (opt-in).
-- **Transports:** native node controls and json-render actions call the endpoint
-  directly; sandboxed `html` nodes (when opted in) call `window.PMX_AX.emit(type,
-  payload)`, which the parent canvas validates before submitting. The server
-  re-validates capabilities regardless of transport.
+- **Transports:** native node controls call the endpoint directly. Sandboxed
+  surfaces emit via a nonce-tagged `postMessage` the parent canvas validates
+  before submitting: `html` / `html-primitive` nodes (when opted in) call
+  `window.PMX_AX.emit(type, payload)`; **json-render / graph** viewers forward a
+  spec action named after an AX type (e.g. `on.press → { action:
+  "ax.work.create", params }`, `sourceSurface: 'json-render'`); opted-in ext-app
+  **`mcp-app`** nodes get the same `window.PMX_AX.emit` injected
+  (`sourceSurface: 'mcp-app'`). The server re-validates capabilities regardless
+  of transport — bridges are convenience, not a trust boundary.
 - **Delivery:** steering can be claimed by adapterless MCP clients via
   `canvas://ax-pending-steering` / `canvas_claim_ax_delivery` and acknowledged
   with `canvas_mark_ax_delivery` (loop-safe — a consumer never receives steering
@@ -855,6 +863,16 @@ elicitation, or mode request. One envelope, many transports:
   (`canvas_request_elicitation` → `canvas_respond_elicitation`) or a workflow
   mode transition (`canvas_request_mode` → `canvas_resolve_mode`); both are
   canvas-bound and snapshotted.
+- **Commands:** invoke a registry command — `pmx.plan`, `pmx.execute`,
+  `pmx.promote-context`, `pmx.summarize`, `pmx.review` — via
+  `canvas_invoke_command` (HTTP `POST /api/canvas/ax/command`; CLI
+  `pmx-canvas ax command invoke`; envelope `ax.command.invoke`). Unknown names
+  are rejected; an invocation records an `agent-event` of kind `command`.
+- **Policy:** a canvas-bound, snapshotted tool/prompt policy
+  (`tools.allowed|excluded|approvalRequired`, `prompt.systemAppend|mode`) read
+  into `canvas://ax-context`. Patch it with `canvas_set_ax_policy` (HTTP
+  `GET|POST /api/canvas/ax/policy`; CLI `pmx-canvas ax policy get|set`); patches
+  merge and are normalized server-side.
 
 Interactions request PMX-AX primitives only — never arbitrary shell, tool, MCP,
 or host execution.

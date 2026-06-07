@@ -6,6 +6,7 @@ export declare const schema: import("@json-render/core").Schema<{
             props: import("@json-render/core").SchemaType<"propsOf", string>;
             children: import("@json-render/core").SchemaType<"array", import("@json-render/core").SchemaType<"string", unknown>>;
             visible: import("@json-render/core").SchemaType<"any", unknown>;
+            on: import("@json-render/core").SchemaType<"any", unknown>;
         }>>;
     }>;
     catalog: import("@json-render/core").SchemaType<"object", {
@@ -29,6 +30,7 @@ export declare const elementTreeSchema: import("@json-render/core").Schema<{
             props: import("@json-render/core").SchemaType<"propsOf", string>;
             children: import("@json-render/core").SchemaType<"array", import("@json-render/core").SchemaType<"string", unknown>>;
             visible: import("@json-render/core").SchemaType<"any", unknown>;
+            on: import("@json-render/core").SchemaType<"any", unknown>;
         }>>;
     }>;
     catalog: import("@json-render/core").SchemaType<"object", {

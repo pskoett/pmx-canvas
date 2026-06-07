@@ -40,6 +40,7 @@ function makeManager(node: CanvasNodeState | undefined) {
     setAxFocus: (nodeIds, o) => { rec('setAxFocus', nodeIds, o); return { nodeIds, primaryNodeId: nodeIds[0] ?? null, updatedAt: 't', source: o?.source ?? null }; },
     requestElicitation: (input, o) => { rec('requestElicitation', input, o); return { id: 'el1', prompt: input.prompt, fields: input.fields ?? [], status: 'pending', response: null, nodeIds: input.nodeIds ?? [], createdAt: 't', resolvedAt: null, source: o?.source ?? null }; },
     requestMode: (input, o) => { rec('requestMode', input, o); return { id: 'mo1', mode: input.mode, reason: input.reason ?? null, status: 'pending', nodeIds: input.nodeIds ?? [], createdAt: 't', resolvedAt: null, resolution: null, source: o?.source ?? null }; },
+    invokeCommand: (name, args, o) => { rec('invokeCommand', name, args, o); return name === 'pmx.plan' ? { id: 'cmd1', seq: 1, kind: 'command', summary: name, detail: null, nodeIds: [], data: { command: name }, createdAt: 't', source: o?.source ?? null } : null; },
   };
   return { manager, calls };
 }
@@ -173,6 +174,15 @@ describe('applyAxInteraction', () => {
     expect((work.result as { primitive: { nodeIds: string[] } }).primitive.nodeIds).toEqual(['html-1']);
   });
 
+  test('json-render viewer surface is scoped to its own node (author spec cannot target other nodes)', () => {
+    // json-render is enabled by default with ax.work.create; the viewer bridge is a
+    // sandboxed opaque-origin iframe, so caller-supplied nodeIds must clamp to source.
+    const { manager } = makeManager(makeNode('json-render'));
+    const work = applyAxInteraction(manager, { type: 'ax.work.create', sourceNodeId: 'json-render-1', sourceSurface: 'json-render', payload: { title: 'x', nodeIds: ['victim'] } }, 'browser');
+    expect(work.result.ok).toBe(true);
+    expect((work.result as { primitive: { nodeIds: string[] } }).primitive.nodeIds).toEqual(['json-render-1']);
+  });
+
   test('trusted surfaces may target explicit nodeIds', () => {
     const { manager, calls } = makeManager(makeNode('context'));
     applyAxInteraction(manager, { type: 'ax.focus.set', sourceNodeId: 'context-1', sourceSurface: 'native-node', payload: { nodeIds: ['a', 'b'] } }, 'browser');
@@ -185,12 +195,42 @@ describe('applyAxInteraction', () => {
       .toMatchObject({ ok: false, code: 'work-item-not-found', status: 404 });
   });
 
-  test('ax.command.invoke is clamped out of every ceiling (not grantable yet)', () => {
-    // No node type lists ax.command.invoke, and a per-node override is clamped to
-    // the ceiling, so it can never be emitted — surfaced as not-allowed.
-    const hm = makeManager(makeNode('html', { axCapabilities: { enabled: true, allowed: ['ax.command.invoke'] } }));
-    expect(applyAxInteraction(hm.manager, { type: 'ax.command.invoke', sourceNodeId: 'html-1', payload: {} }, 'api').result)
-      .toMatchObject({ ok: false, code: 'not-allowed' });
+  test('command invoke is registry-gated', () => {
+    // markdown grants ax.command.invoke; a registry name dispatches.
+    const ok = makeManager(makeNode('markdown'));
+    const r = applyAxInteraction(ok.manager, { type: 'ax.command.invoke', sourceNodeId: 'markdown-1', payload: { name: 'pmx.plan' } }, 'api');
+    expect(r.result.ok).toBe(true);
+    expect(ok.calls.some((c) => c.op === 'invokeCommand')).toBe(true);
+
+    // unknown command -> rejected (manager returns null for non-registry names).
+    const bad = makeManager(makeNode('markdown'));
+    expect(applyAxInteraction(bad.manager, { type: 'ax.command.invoke', sourceNodeId: 'markdown-1', payload: { name: 'rm-rf' } }, 'api').result)
+      .toMatchObject({ ok: false, code: 'unknown-command' });
+
+    // payload requires a name.
+    const np = makeManager(makeNode('markdown'));
+    expect(applyAxInteraction(np.manager, { type: 'ax.command.invoke', sourceNodeId: 'markdown-1', payload: {} }, 'api').result)
+      .toMatchObject({ ok: false, code: 'invalid-payload' });
+  });
+
+  test('opted-in mcp-app node emits a node-scoped interaction (Phase 6 bridge)', () => {
+    const { manager } = makeManager(makeNode('mcp-app', { axCapabilities: { enabled: true, allowed: ['ax.work.create'] } }));
+    const r = applyAxInteraction(manager, { type: 'ax.work.create', sourceNodeId: 'mcp-app-1', sourceSurface: 'mcp-app', payload: { title: 'from app', nodeIds: ['victim'] } }, 'browser');
+    expect(r.result.ok).toBe(true);
+    expect((r.result as { primitive: { nodeIds: string[] } }).primitive.nodeIds).toEqual(['mcp-app-1']);
+
+    // ax.elicitation.request is in the mcp-app ceiling (surfaces a human prompt) and
+    // is likewise node-scoped.
+    const elic = makeManager(makeNode('mcp-app', { axCapabilities: { enabled: true, allowed: ['ax.elicitation.request'] } }));
+    const er = applyAxInteraction(elic.manager, { type: 'ax.elicitation.request', sourceNodeId: 'mcp-app-1', sourceSurface: 'mcp-app', payload: { prompt: 'pick one', nodeIds: ['victim'] } }, 'browser');
+    expect(er.result.ok).toBe(true);
+    expect((er.result as { primitive: { nodeIds: string[] } }).primitive.nodeIds).toEqual(['mcp-app-1']);
+    expect(elic.calls.some((c) => c.op === 'requestElicitation')).toBe(true);
+
+    // disabled by default
+    const off = makeManager(makeNode('mcp-app'));
+    expect(applyAxInteraction(off.manager, { type: 'ax.work.create', sourceNodeId: 'mcp-app-1', sourceSurface: 'mcp-app', payload: { title: 'x' } }, 'browser').result)
+      .toMatchObject({ ok: false, code: 'ax-disabled' });
   });
 
   test('opt-in html node can emit an allowed interaction', () => {
