@@ -459,6 +459,7 @@ function normalizeSpec(spec: Record<string, unknown>): Record<string, unknown> {
       resolvedType !== element.type ||
       JSON.stringify(normalizedProps) !== JSON.stringify(rawProps) ||
       !('visible' in element) ||
+      !('on' in element) ||
       !Array.isArray(element.children) ||
       normalizedChildren.length !== element.children.length;
 
@@ -468,6 +469,10 @@ function normalizeSpec(spec: Record<string, unknown>): Record<string, unknown> {
           type: resolvedType,
           props: normalizedProps,
           visible: 'visible' in element ? element.visible : true,
+          // The schema requires `on` (event→action bindings); default to an
+          // empty bindings object when absent so specs without any actions
+          // still validate (most elements have no `on`). Mirrors `visible`.
+          on: 'on' in element ? element.on : {},
           children: normalizedChildren,
         }
       : rawElement;
@@ -491,6 +496,7 @@ function normalizeJsonRenderInput(spec: unknown): unknown {
       root: {
         ...specRecord,
         visible: 'visible' in specRecord ? specRecord.visible : true,
+        on: 'on' in specRecord ? specRecord.on : {},
         children: Array.isArray(specRecord.children)
           ? specRecord.children.filter((child: unknown) => typeof child === 'string')
           : [],

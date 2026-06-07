@@ -3,7 +3,7 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.30] - 2026-06-07
 
 ### Added
 
@@ -118,7 +118,9 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   spec-authored action bindings (`on.press`, `on.change`, …) were silently
   stripped before reaching the viewer and never fired. `on` is now retained,
   which both makes general json-render interactivity work and is what lets the
-  json-render → AX channel above dispatch its `ax.*` actions.
+  json-render → AX channel above dispatch its `ax.*` actions. `on` is optional —
+  normalization defaults it to an empty bindings object, so specs whose elements
+  have no event bindings still validate.
 
 - **Canvas iframes are promoted to their own compositing layer**
   (`transform: translateZ(0)` on `.html-node-frame` / `.mcp-app-frame`) to
@@ -1573,6 +1575,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.30]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.30
 [0.1.29]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.29
 [0.1.28]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.28
 [0.1.27]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.27

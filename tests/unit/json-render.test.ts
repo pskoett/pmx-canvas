@@ -12,6 +12,35 @@ describe('json-render validation', () => {
     expect(() => normalizeAndValidateJsonRenderSpec({})).toThrow('Missing root and elements in spec.');
   });
 
+  test('validates a spec whose elements have no `on` bindings (on is optional)', () => {
+    // Most elements have no event bindings. The schema requires `on`, so
+    // normalization must default it — a spec that omits `on` must still validate.
+    const spec = normalizeAndValidateJsonRenderSpec({
+      root: 'card',
+      elements: {
+        card: { type: 'Card', props: { title: 'No actions' }, children: ['t'] },
+        t: { type: 'Text', props: { text: 'plain' }, children: [] },
+      },
+    });
+    expect(spec.elements.card.on).toEqual({});
+    expect(spec.elements.t.on).toEqual({});
+  });
+
+  test('preserves an authored `on` binding through validation', () => {
+    const spec = normalizeAndValidateJsonRenderSpec({
+      root: 'card',
+      elements: {
+        card: {
+          type: 'Card',
+          props: { title: 'Actionable' },
+          on: { press: { action: 'ax.work.create', params: { title: 'X' } } },
+          children: [],
+        },
+      },
+    });
+    expect((spec.elements.card.on as Record<string, unknown>).press).toBeDefined();
+  });
+
   test('rejects an unknown $-keyed directive instead of rendering "[object Object]"', () => {
     expect(() =>
       normalizeAndValidateJsonRenderSpec({
