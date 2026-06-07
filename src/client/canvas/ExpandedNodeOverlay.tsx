@@ -8,6 +8,7 @@ import { StatusNode } from '../nodes/StatusNode';
 import { ImageNode } from '../nodes/ImageNode';
 import { WebpageNode } from '../nodes/WebpageNode';
 import { HtmlNode, shouldShowPresentationControls } from '../nodes/HtmlNode';
+import { canOpenAsSite, openNodeAsSite } from '../nodes/surface-url';
 import { PromptNode } from '../nodes/PromptNode';
 import { ResponseNode } from '../nodes/ResponseNode';
 import { TraceNode } from '../nodes/TraceNode';
@@ -300,6 +301,17 @@ export function ExpandedNodeOverlay() {
                 title="Copy content to clipboard"
               >
                 {copied ? 'Copied!' : 'Copy'}
+              </button>
+            )}
+
+            {canOpenAsSite(node) && (
+              <button
+                type="button"
+                class="expanded-action-btn"
+                onClick={() => openNodeAsSite(node)}
+                title="Open as a full-page site in a new tab"
+              >
+                Open as site
               </button>
             )}
 

@@ -236,6 +236,7 @@ describe('canvas server HTTP API', () => {
     const created = await jsonRequest<{
       ok: boolean;
       id: string;
+      nodeId: string;
       position: { x: number; y: number };
       size: { width: number; height: number };
     }>('/api/canvas/node', {
@@ -251,6 +252,8 @@ describe('canvas server HTTP API', () => {
     });
     expect(created.position).toEqual({ x: 320, y: 180 });
     expect(created.size).toEqual(MARKDOWN_NODE_DEFAULT_SIZE);
+    // HTTP/CLI node-create exposes both `id` and a `nodeId` alias.
+    expect(created.nodeId).toBe(created.id);
 
     const appNode = await jsonRequest<{ id: string; size: { width: number; height: number } }>('/api/canvas/node', {
       method: 'POST',
@@ -1076,6 +1079,104 @@ describe('canvas server HTTP API', () => {
     );
     expect(updatedNode).toBeTruthy();
   }, 30000);
+
+  test('surface route serves an html node as a themed standalone document', async () => {
+    canvasState.addNode({
+      id: 'surface-html', type: 'html',
+      position: { x: 0, y: 0 }, size: { width: 720, height: 640 },
+      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: { title: 'Doc', html: '<main>Surface body</main>' },
+    });
+    const res = await fetch(`${baseUrl}/api/canvas/surface/surface-html?theme=light`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts');
+    expect(res.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(res.headers.get('referrer-policy')).toBe('no-referrer');
+    const body = await res.text();
+    expect(body).toContain('Surface body');
+    expect(body).toContain('/canvas/surface-theme.css');
+    expect(body).toContain('data-theme="light"');
+
+    const meta = await fetch(`${baseUrl}/api/canvas/node/surface-html?includeBlobs=true`).then((r) => r.json()) as { surfaceUrl?: string };
+    expect(meta.surfaceUrl).toBe('/api/canvas/surface/surface-html');
+  });
+
+  test('surface route 404s for unknown node and non-openable types', async () => {
+    const missing = await fetch(`${baseUrl}/api/canvas/surface/does-not-exist`);
+    expect(missing.status).toBe(404);
+    canvasState.addNode({
+      id: 'surface-md', type: 'markdown',
+      position: { x: 0, y: 0 }, size: { width: 400, height: 300 },
+      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: { content: '# hi' },
+    });
+    const md = await fetch(`${baseUrl}/api/canvas/surface/surface-md`);
+    expect(md.status).toBe(404);
+  });
+
+  test('surface route redirects a webpage node to its external url', async () => {
+    canvasState.addNode({
+      id: 'surface-web', type: 'webpage',
+      position: { x: 0, y: 0 }, size: { width: 600, height: 400 },
+      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: { url: `${webpageOrigin}/article` },
+    });
+    const res = await fetch(`${baseUrl}/api/canvas/surface/surface-web`, { redirect: 'manual' });
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(`${webpageOrigin}/article`);
+  });
+
+  test('surface route redirects a web-artifact node to the artifact route', async () => {
+    canvasState.addNode({
+      id: 'surface-artifact', type: 'mcp-app',
+      position: { x: 0, y: 0 }, size: { width: 960, height: 720 },
+      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: { viewerType: 'web-artifact', path: '/tmp/does-not-matter.html', url: '/artifact?path=x' },
+    });
+    const res = await fetch(`${baseUrl}/api/canvas/surface/surface-artifact`, { redirect: 'manual' });
+    expect(res.status).toBe(302);
+    expect(res.headers.get('location')).toBe(`/artifact?path=${encodeURIComponent('/tmp/does-not-matter.html')}`);
+  });
+
+  test('surface route redirects a json-render node to the standalone viewer', async () => {
+    canvasState.addNode({
+      id: 'surface-jsonrender', type: 'json-render',
+      position: { x: 0, y: 0 }, size: { width: 600, height: 400 },
+      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: { viewerType: 'json-render', spec: { root: 'x', elements: {} } },
+    });
+    const res = await fetch(`${baseUrl}/api/canvas/surface/surface-jsonrender?theme=dark`, { redirect: 'manual' });
+    expect(res.status).toBe(302);
+    const location = res.headers.get('location') ?? '';
+    expect(location).toContain('/api/canvas/json-render/view');
+    expect(location).toContain('nodeId=surface-jsonrender');
+    expect(location).toContain('theme=dark');
+  });
+
+  test('surface route serves an ext-app node with the ext-app sandbox', async () => {
+    canvasState.addNode({
+      id: 'surface-extapp', type: 'mcp-app',
+      position: { x: 0, y: 0 }, size: { width: 960, height: 720 },
+      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: { mode: 'ext-app', html: '<!doctype html><html><head></head><body>ext app surface</body></html>' },
+    });
+    const res = await fetch(`${baseUrl}/api/canvas/surface/surface-extapp`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox');
+    expect(await res.text()).toContain('ext app surface');
+  });
+
+  test('surface route blocks unsafe redirect targets', async () => {
+    canvasState.addNode({
+      id: 'surface-bad-url', type: 'webpage',
+      position: { x: 0, y: 0 }, size: { width: 600, height: 400 },
+      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: { url: 'javascript:alert(1)' },
+    });
+    const res = await fetch(`${baseUrl}/api/canvas/surface/surface-bad-url`, { redirect: 'manual' });
+    expect(res.status).toBe(404);
+  });
 
   test('keeps ext-app model context separate from the replayed tool result', async () => {
     const nodeId = 'ext-app-context-replay';
@@ -1924,6 +2025,47 @@ describe('canvas server HTTP API', () => {
     expect(invalid.ok).toBe(false);
     expect(invalid.summary.collisions).toBeGreaterThanOrEqual(1);
     expect(invalid.collisions.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('batch supports the advertised node.remove operation', async () => {
+    const created = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Batch removable', content: 'x' }),
+    });
+    const batch = await jsonRequest<{ ok: boolean; results: Array<Record<string, unknown>> }>('/api/canvas/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operations: [{ op: 'node.remove', args: { id: created.id } }] }),
+    });
+    expect(batch.ok).toBe(true);
+    expect(batch.results[0]).toMatchObject({ ok: true, id: created.id, removed: true });
+    expect(canvasState.getNode(created.id)).toBeUndefined();
+  });
+
+  test('group/add preserves child positions when no childLayout is given', async () => {
+    const post = (body: Record<string, unknown>) =>
+      jsonRequest<{ id: string; ok?: boolean }>('/api/canvas/node', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+    const a = await post({ type: 'markdown', title: 'GA', content: 'a', x: 100, y: 100, width: 280, height: 180, strictSize: true });
+    const b = await post({ type: 'markdown', title: 'GB', content: 'b', x: 900, y: 600, width: 280, height: 180, strictSize: true });
+    const group = await jsonRequest<{ id: string }>('/api/canvas/group', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Frame', x: 50, y: 50, width: 1300, height: 900 }),
+    });
+    const added = await jsonRequest<{ ok: boolean }>('/api/canvas/group/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId: group.id, childIds: [a.id, b.id] }),
+    });
+    expect(added.ok).toBe(true);
+    // Grouping without an explicit layout must not auto-pack — positions stay.
+    expect(canvasState.getNode(a.id)!.position).toEqual({ x: 100, y: 100 });
+    expect(canvasState.getNode(b.id)!.position).toEqual({ x: 900, y: 600 });
   });
 
   test('batch operations support graph.add nodes for downstream refs', async () => {

@@ -998,7 +998,38 @@ test('renders html nodes from server state in the workbench', async ({ page, req
   const overlay = page.locator('.expanded-overlay-panel');
   await expect(overlay).toBeVisible();
   await expect(overlay.getByRole('button', { name: 'Present' })).toHaveCount(0);
+  await expect(overlay.getByRole('button', { name: 'Open as site' })).toHaveCount(1);
   await page.getByTitle('Close (Esc)').click();
+});
+
+test('opens an html node as a standalone site in a new tab', async ({ page, context, request }) => {
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'html',
+      title: 'Open As Site Target',
+      html: '<main><h1>Standalone surface render</h1></main>',
+      x: 640,
+      y: 260,
+      width: 520,
+      height: 360,
+    },
+  });
+
+  await page.goto('/workbench');
+  const htmlNode = page.locator('.canvas-node').filter({ hasText: 'Open As Site Target' });
+  await expect(htmlNode).toHaveCount(1);
+
+  const openButton = htmlNode.getByTitle('Open as site (new tab)');
+  await expect(openButton).toHaveCount(1);
+
+  const popupPromise = context.waitForEvent('page');
+  await openButton.click();
+  const popup = await popupPromise;
+
+  // Same stable surface URL the in-canvas iframe loads — one render path.
+  await expect(popup).toHaveURL(/\/api\/canvas\/surface\//);
+  await expect(popup.getByText('Standalone surface render')).toBeVisible();
+  await popup.close();
 });
 
 test('ledger nodes render content as split log lines without a label or literal newlines', async ({ page, request }) => {

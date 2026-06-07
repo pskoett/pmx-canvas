@@ -6,6 +6,7 @@ import {
   type CanvasNodeProvenance,
 } from './canvas-provenance.js';
 import { getCanvasNodeKind as getSharedCanvasNodeKind } from '../shared/canvas-node-kind.js';
+import { canOpenNodeAsSurface } from '../shared/surface.js';
 
 export interface SerializedCanvasNode extends CanvasNodeState {
   kind: string;
@@ -13,6 +14,7 @@ export interface SerializedCanvasNode extends CanvasNodeState {
   content: string | null;
   path: string | null;
   url: string | null;
+  surfaceUrl: string | null;
   provenance: CanvasNodeProvenance | null;
 }
 
@@ -101,6 +103,12 @@ export function getCanvasNodeContent(node: CanvasNodeState): string | null {
     ?? null;
 }
 
+export function getCanvasNodeSurfaceUrl(node: CanvasNodeState, data: Record<string, unknown>): string | null {
+  return canOpenNodeAsSurface(node.type, data)
+    ? `/api/canvas/surface/${encodeURIComponent(node.id)}`
+    : null;
+}
+
 export function serializeCanvasNode(node: CanvasNodeState): SerializedCanvasNode {
   const data = normalizeCanvasNodeData(node.type, node.data);
   const normalizedNode = { ...node, data };
@@ -112,6 +120,7 @@ export function serializeCanvasNode(node: CanvasNodeState): SerializedCanvasNode
     content: getCanvasNodeContent(normalizedNode),
     path: pickString(data.path),
     url: pickString(data.url),
+    surfaceUrl: getCanvasNodeSurfaceUrl(node, data),
     provenance: pickProvenance(data.provenance),
   };
 }

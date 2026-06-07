@@ -1,0 +1,142 @@
+/*
+ * surface-theme.css — canonical theme token layer for embedded HTML surfaces.
+ *
+ * This is the same token set HtmlNode used to inline via buildThemeStyleBlock(),
+ * but expressed as a static, same-origin stylesheet so the server can serve a
+ * node's HTML surface (/api/canvas/surface/:nodeId) as a real standalone
+ * document. Sandboxed (opaque-origin) surface documents can still load this
+ * same-origin stylesheet, and live theme switching works by toggling the
+ * <html data-theme="..."> attribute — every theme block lives here.
+ *
+ * Tokens are written as LITERAL values per theme (not var() indirection) so that
+ * authored HTML reading them via getComputedStyle().getPropertyValue('--color-*')
+ * gets a resolved color, matching the previous inlined-style behavior.
+ *
+ * Core --c-* values MUST stay in sync with src/client/theme/global.css, and each
+ * --color-* alias mirrors its core token. Both are guarded by
+ * tests/unit/surface-theme-tokens.test.ts — update them together.
+ */
+
+:root {
+  /* ── Core palette (dark · ink + cyan) ────────────────────── */
+  --c-bg: #081524;
+  --c-panel: #0f1d31;
+  --c-panel-soft: #0a1729;
+  --c-line: #1b2c44;
+  --c-text: #e6eef7;
+  --c-text-soft: #c7d3ea;
+  --c-muted: #8ea3bd;
+  --c-dim: #5c6b80;
+  --c-accent: #4BBCFF;
+  --c-ok: #2fd07f;
+  --c-warn: #f4c542;
+  --c-warn-alt: #FFB300;
+  --c-danger: #ff6a7f;
+  --c-purple: #b07aff;
+
+  /* Common aliases authored HTML might use. */
+  --color-bg: #081524;
+  --color-panel: #0f1d31;
+  --color-surface: #0a1729;
+  --color-border: #1b2c44;
+  --color-text: #e6eef7;
+  --color-text-primary: #e6eef7;
+  --color-text-secondary: #c7d3ea;
+  --color-text-muted: #8ea3bd;
+  --color-text-dim: #5c6b80;
+  --color-accent: #4BBCFF;
+  --color-success: #2fd07f;
+  --color-warning: #f4c542;
+  --color-danger: #ff6a7f;
+
+  --font: "IBM Plex Sans", "SF Pro Text", "Avenir Next", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", "SF Mono", "Fira Code", monospace;
+  --font-sans: "IBM Plex Sans", "SF Pro Text", "Avenir Next", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", "SF Mono", "Fira Code", monospace;
+
+  color-scheme: dark light;
+}
+
+:root[data-theme="light"] {
+  /* ── Core palette (light · paper + ink) ──────────────────── */
+  --c-bg: #F4EFE6;
+  --c-panel: #EFE7D4;
+  --c-panel-soft: #ECE4D0;
+  --c-line: #D6CBB4;
+  --c-text: #081524;
+  --c-text-soft: #3d4d63;
+  --c-muted: #5c6b80;
+  --c-dim: #8794a6;
+  --c-accent: #1A7ABF;
+  --c-ok: #1a9f55;
+  --c-warn: #c89b2a;
+  --c-warn-alt: #b8860b;
+  --c-danger: #d32f2f;
+  --c-purple: #7c4dff;
+
+  --color-bg: #F4EFE6;
+  --color-panel: #EFE7D4;
+  --color-surface: #ECE4D0;
+  --color-border: #D6CBB4;
+  --color-text: #081524;
+  --color-text-primary: #081524;
+  --color-text-secondary: #3d4d63;
+  --color-text-muted: #5c6b80;
+  --color-text-dim: #8794a6;
+  --color-accent: #1A7ABF;
+  --color-success: #1a9f55;
+  --color-warning: #c89b2a;
+  --color-danger: #d32f2f;
+}
+
+:root[data-theme="high-contrast"] {
+  /* ── Core palette (high-contrast) ────────────────────────── */
+  --c-bg: #000000;
+  --c-panel: #0a0a0a;
+  --c-panel-soft: #0a0a0a;
+  --c-line: #ffffff;
+  --c-text: #ffffff;
+  --c-text-soft: #dddddd;
+  --c-muted: #aaaaaa;
+  --c-dim: #888888;
+  --c-accent: #00ffff;
+  --c-ok: #00ff00;
+  --c-warn: #ffff00;
+  --c-warn-alt: #ffcc00;
+  --c-danger: #ff0000;
+  --c-purple: #e040fb;
+
+  --color-bg: #000000;
+  --color-panel: #0a0a0a;
+  --color-surface: #0a0a0a;
+  --color-border: #ffffff;
+  --color-text: #ffffff;
+  --color-text-primary: #ffffff;
+  --color-text-secondary: #dddddd;
+  --color-text-muted: #aaaaaa;
+  --color-text-dim: #888888;
+  --color-accent: #00ffff;
+  --color-success: #00ff00;
+  --color-warning: #ffff00;
+  --color-danger: #ff0000;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font-family: var(--font, system-ui, sans-serif);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+body {
+  padding: 16px;
+  box-sizing: border-box;
+}
+
+a {
+  color: var(--c-accent);
+}

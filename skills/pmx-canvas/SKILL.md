@@ -75,14 +75,19 @@ reference before using adapter-native features:
 - `references/codex-app-adapter.md` — Codex app native Browser + MCP adapter, AX context reading,
   focus labeling, and live-test checklist.
 
-Host-aware visibility rule:
-- If a native PMX Canvas adapter/panel is available and already represents the workbench (for example
-  the GitHub Copilot app `pmx-canvas` canvas extension, or Codex's in-app Browser opened to
-  `/workbench`), use that panel. Do **not** also open a separate browser panel to the same workbench;
-  it wastes space and confuses which surface is authoritative.
-- If no native adapter/panel is available (generic MCP client, shell-only agent, raw CLI harness,
-  or another agent harness without canvas support), open the normal PMX Canvas browser workbench first
-  so the human can see mutations as they happen. Use the server URL's `/workbench` route.
+Open the canvas first — always:
+The canvas is the shared human↔agent surface. **Before you create or mutate any nodes, make the
+workbench visible.** Do **not** assume the host opened it for you — some hosts (e.g. the Codex app)
+do not open it on their own. Take the action to open it yourself, whatever the host:
+- **Native adapter/panel available** (the GitHub Copilot app `pmx-canvas` canvas extension, or the
+  Codex in-app Browser): open/focus that panel to the server's `/workbench` route.
+- **Any other browser** (Chrome, Safari, Arc, Edge, …) **or a generic/CLI agent** with no native
+  panel: open the server's `/workbench` URL in a browser.
+
+Then reuse that **single** surface for the rest of the session — do **not** open a second panel to
+the same workbench (it wastes space and confuses which surface is authoritative). If you genuinely
+cannot open any browser (headless/CI), say so and proceed, but still print the `/workbench` URL so a
+human can open it.
 - External URLs in `mcp-app` nodes show the "Unverified domain" interstitial by design. Only
   same-origin `/api/canvas/frame-documents/<id>` URLs are auto-trusted. For external tools, use a
   bundled `web-artifact`, same-origin frame document, or set `data.trustedDomain: true` only when the
@@ -289,6 +294,24 @@ points from `from` to `to`, indicating sequence or data flow direction.
 **Style conventions:** Use `solid` for active/satisfied relationships, `dashed` for blocked or
 pending dependencies, and `dotted` for weak/optional relationships. Use `animated: true` to
 draw visual attention to critical paths.
+
+### Layout: spacing and groups
+
+Agents tend to pack boards too tightly. Give nodes room to breathe — readability beats density.
+
+- **Default spacing:** leave a clear gap between neighbors — roughly half a node's width
+  horizontally and half its height vertically. A 280×180 node reads well with ~360px between
+  column origins and ~260px between row origins.
+- **When nodes are connected by edges, space them further apart** so the edge line, its arrowhead,
+  and its label are clearly visible in the gap between nodes. Crowded nodes hide the flow — this is
+  the most common cause of an unreadable board.
+- **Inside a group, keep the same breathing room** (groups no longer auto-pack children, so the
+  spacing you set is what the human sees). Edges between grouped children especially need the gap.
+- **Size a group frame larger than its children's bounding box** so the group header — including the
+  node-count badge — stays visible and isn't hidden under the top-left child. For an explicit
+  (manual) group frame, add margin on every side (≈56px) plus room at the top for the header rather
+  than hugging the children. Auto-fit groups (created without an explicit width/height) already
+  reserve this margin.
 
 ### Colors (Semantic)
 
@@ -739,6 +762,28 @@ server's `ui://` resource as an iframe node on the canvas
 - When the human asks for a PowerPoint-like output, pitch deck, briefing, or presentation, use `kind: "presentation"` unless a bespoke raw HTML deck is required. Include `slides` with short titles, one idea per slide, optional `metrics`, `note` fields for speaker notes, and optional `theme: "canvas" | "midnight" | "paper" | "aurora"` or a custom theme object.
 - Read `htmlPrimitives` from `canvas_describe_schema` for the data shape and examples before constructing a payload
 - For payload patterns, export loops, and the primitive catalog, read `references/html-primitives.md` before creating dense or editable artifacts
+
+### Open as Site (standalone surfaces)
+
+Any renderable surface node can be opened full-page in its own browser tab — the same
+document it shows in the canvas, just without the node chrome. In the workbench, use the
+↗ **Open as site** button in the node title bar (or the expanded overlay).
+
+- Works for `html` / `html-primitive`, bundled `web-artifact`, `json-render` / `graph`,
+  `webpage`, and hosted ext-app `mcp-app` nodes.
+- The tab loads the node's stable surface URL, `/api/canvas/surface/<nodeId>`. The
+  in-canvas iframe loads the **exact same URL**, so there is one render path and no
+  separate "preview" version — what you see in the canvas is what opens. The URL reflects
+  current node state and survives a refresh.
+- Agents can read this URL from any node payload (`canvas_get_node` / `canvas_get_layout`)
+  as `surfaceUrl` — a reliable way to tell a human "open the artifact" without disturbing
+  the canvas.
+- Served HTML stays sandboxed (opaque origin via a `Content-Security-Policy: sandbox`
+  response header), so opening author code top-level cannot reach the canvas origin.
+- ext-app `mcp-app` nodes open their UI, but interactive tool-calls only work inside the
+  canvas (the host bridge has no peer in a bare tab). `webpage` and URL-backed `mcp-app`
+  nodes redirect to their external site.
+- This is additive — opening a site never evicts or replaces canvas nodes.
 
 ### Choosing the Right Visual Tier
 

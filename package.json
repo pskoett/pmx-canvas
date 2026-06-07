@@ -32,7 +32,7 @@
     "dev:demo": "bun run src/cli/index.ts --demo",
     "dev:portless": "portless run --name pmx --app-port 4313 bun run src/cli/index.ts --no-open --port=4313",
     "dev:portless:demo": "portless run --name pmx --app-port 4313 bun run src/cli/index.ts --no-open --port=4313 --demo",
-    "build:client": "bun build src/client/index.tsx --outdir dist/canvas --minify && cp src/client/theme/global.css dist/canvas/global.css",
+    "build:client": "bun build src/client/index.tsx --outdir dist/canvas --minify && cp src/client/theme/global.css dist/canvas/global.css && cp src/client/theme/surface-theme.css dist/canvas/surface-theme.css",
     "build:json-render": "bash scripts/build-json-render.sh",
     "build:types": "tsc -p tsconfig.types.json",
     "build": "bun run build:client && bun run build:json-render && bun run build:types",

@@ -48,6 +48,8 @@ import type {
   ListToolsResult,
 } from '@modelcontextprotocol/sdk/types.js';
 import { type CanvasAnnotation, type CanvasEdge, type CanvasLayout, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
+import { buildHtmlSurfaceDocument, HTML_SURFACE_SANDBOX, normalizeSurfaceTheme } from './html-surface.js';
+import { DEFAULT_EXT_APP_SANDBOX } from '../shared/surface.js';
 import { findCanvasExtAppNodeId as findCanvasExtAppNodeIdShared } from './ext-app-lookup.js';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
@@ -1376,6 +1378,102 @@ function handleFrameDocument(pathname: string): Response {
   });
 }
 
+// ── Node surfaces ("Open as site") ─────────────────────────────
+//
+// One stable, node-addressable URL — /api/canvas/surface/:nodeId — that serves
+// (or redirects to) the exact same rendered surface a node shows in the canvas.
+// The in-canvas html iframe points at this URL too, so there is one render path.
+//
+// Served document types (html / ext-app) carry the same opaque-origin posture as
+// frame documents: `Content-Security-Policy: sandbox <tokens>` (no
+// allow-same-origin) means author scripts cannot reach the PMX origin even when
+// the page is opened top-level in a browser tab. Other types redirect to the
+// route that already renders them standalone.
+
+function surfaceHtmlResponse(html: string, sandbox: string): Response {
+  return new Response(html, {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Content-Security-Policy': `sandbox ${sandbox}`,
+      'Referrer-Policy': 'no-referrer',
+      'X-Content-Type-Options': 'nosniff',
+    },
+  });
+}
+
+function surfaceRedirect(target: string): Response {
+  return new Response(null, { status: 302, headers: { Location: target, 'Cache-Control': 'no-store' } });
+}
+
+// Permit only absolute http(s) URLs and root-relative same-origin paths. Blocks
+// `javascript:`/`data:` and protocol-relative `//host` open-redirects.
+function isSafeSurfaceRedirect(target: string): boolean {
+  if (/^https?:\/\//i.test(target)) return true;
+  if (/^\/(?!\/)/.test(target)) return true;
+  return false;
+}
+
+function handleNodeSurface(pathname: string, url: URL): Response {
+  const nodeId = decodeURIComponent(pathname.slice('/api/canvas/surface/'.length));
+  if (!nodeId) return responseText('Missing node id', 400);
+  const node = canvasState.getNode(nodeId);
+  if (!node) return responseText('Node not found', 404);
+
+  const theme = normalizeSurfaceTheme(url.searchParams.get('theme'));
+
+  if (node.type === 'html') {
+    const html = typeof node.data.html === 'string'
+      ? node.data.html
+      : typeof node.data.content === 'string'
+        ? node.data.content
+        : '';
+    if (!html) return responseText('HTML node has no content', 404);
+    const present = url.searchParams.get('present') === '1';
+    const doc = buildHtmlSurfaceDocument(html, {
+      theme,
+      themeToken: url.searchParams.get('themeToken') ?? undefined,
+      presentation: present,
+      presentationExitToken: url.searchParams.get('presentToken') ?? undefined,
+    });
+    return surfaceHtmlResponse(doc, HTML_SURFACE_SANDBOX);
+  }
+
+  if (node.type === 'json-render' || node.type === 'graph') {
+    const params = new URLSearchParams({ nodeId, theme });
+    const display = url.searchParams.get('display');
+    if (display === 'expanded') params.set('display', 'expanded');
+    return surfaceRedirect(`/api/canvas/json-render/view?${params.toString()}`);
+  }
+
+  if (node.type === 'mcp-app') {
+    // Bundled web artifact — same standalone page the canvas iframe already loads.
+    if (node.data.viewerType === 'web-artifact' && typeof node.data.path === 'string' && node.data.path) {
+      return surfaceRedirect(`/artifact?path=${encodeURIComponent(node.data.path)}`);
+    }
+    // Hosted ext-app — serve the same prepared HTML the in-canvas frame receives.
+    // The app's host bridge has no peer in a standalone tab, so interactive
+    // tool-calls won't function there; the UI still renders.
+    if (node.data.mode === 'ext-app' && typeof node.data.html === 'string' && node.data.html) {
+      return surfaceHtmlResponse(node.data.html, DEFAULT_EXT_APP_SANDBOX);
+    }
+    // URL-backed viewer — hand off to its own origin.
+    if (typeof node.data.url === 'string' && isSafeSurfaceRedirect(node.data.url)) {
+      return surfaceRedirect(node.data.url);
+    }
+    return responseText('MCP app node has no openable surface', 404);
+  }
+
+  if (node.type === 'webpage') {
+    if (typeof node.data.url === 'string' && isSafeSurfaceRedirect(node.data.url)) {
+      return surfaceRedirect(node.data.url);
+    }
+    return responseText('Webpage node has no url', 404);
+  }
+
+  return responseText('Node type cannot be opened as a site', 404);
+}
+
 async function handleCanvasUpdate(req: Request): Promise<Response> {
   const body = await readJson(req);
   const updates = Array.isArray(body.updates) ? body.updates : [];
@@ -1542,6 +1640,9 @@ function buildNodeResponse(node: CanvasNodeState): Record<string, unknown> {
     ok: true,
     node: serialized,
     ...serialized,
+    // `nodeId` aliases `id` so HTTP/CLI node-create responses match the MCP
+    // createdNodePayload — agents using either key (or a cached schema) work.
+    nodeId: node.id,
   };
 }
 
@@ -4758,6 +4859,10 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname.startsWith('/api/canvas/frame-documents/') && req.method === 'GET') {
             return handleFrameDocument(url.pathname);
+          }
+
+          if (url.pathname.startsWith('/api/canvas/surface/') && req.method === 'GET') {
+            return handleNodeSurface(url.pathname, url);
           }
 
           if (url.pathname === '/' || url.pathname === '/workbench' || url.pathname === '/artifact') {

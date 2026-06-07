@@ -3,6 +3,70 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Open as site — standalone node surfaces.** Every renderable surface node can
+  now be opened full-page in its own browser tab via an ↗ "Open as site" button
+  (node title bar and expanded overlay), covering `html` / `html-primitive`,
+  bundled `web-artifact`, `json-render` / `graph`, `webpage`, and hosted ext-app
+  `mcp-app` nodes. A new stable route, `GET /api/canvas/surface/:nodeId`, serves
+  (or redirects to) the surface, and the in-canvas `html` iframe now loads that
+  **same URL** — one render path, no separate "preview" document, and the URL
+  reflects current node state and survives a refresh. Node payloads expose the
+  URL as `surfaceUrl` (`canvas_get_node` / `canvas_get_layout`) so agents can
+  point a human at "the artifact" without disturbing the canvas. Served HTML
+  keeps its opaque-origin posture (`Content-Security-Policy: sandbox`), so author
+  code opened top-level cannot reach the canvas origin. The html surface theme is
+  served from a new same-origin stylesheet (`/canvas/surface-theme.css`) and
+  live-switches via the existing theme bridge. ext-app surfaces render their UI
+  but, opened standalone, cannot run interactive tool-calls (no host bridge in a
+  bare tab); `webpage` / URL-backed `mcp-app` nodes redirect to their site.
+
+### Fixed
+
+- **Canvas iframes are promoted to their own compositing layer**
+  (`transform: translateZ(0)` on `.html-node-frame` / `.mcp-app-frame`) to
+  mitigate an intermittent blank-iframe glitch — an HTML/app node iframe in
+  the zoom/pan-transformed canvas (near the chrome's heavy backdrop-filter
+  blur and behind group frames) could occasionally paint blank until a
+  resize/zoom forced a repaint. Investigation ruled out a content/load issue
+  (the frame document served valid HTML) and a DOM-reorder/reload on grouping
+  (reproduced grouping single and multiple HTML nodes with the iframe keeping
+  its src and content); the remaining cause is a browser compositor paint
+  invalidation, which the dedicated GPU layer addresses.
+
+### Changed
+
+- **Group frames are roomier.** Auto-fit group frames now leave more margin
+  around their children (`GROUP_PAD` 40 → 56) so the group header and its
+  node-count badge stay visible instead of sitting under the top-left child.
+- **Skill guidance: open the canvas first, always.** The bundled
+  `pmx-canvas` skill now tells agents to open/focus the workbench themselves
+  before mutating nodes on **every** host (Codex in-app Browser, Copilot
+  panel, or any plain browser) rather than assuming the host opened it — some
+  hosts don't. Added layout guidance too: space nodes generously (more when
+  edges connect them and inside groups, so the edge flow is visible) and size
+  group frames larger than their children.
+
+### Fixed
+
+- **Group operations no longer auto-pack or repack children.** Grouping
+  existing nodes (`canvas_group_nodes` / `/api/canvas/group/add`) without
+  an explicit `childLayout` now preserves their positions (matching
+  `canvas_create_group` and the batch `group.add`), and moving or resizing
+  a grouped child re-fits the group frame **without** repacking siblings or
+  discarding the child's requested coordinates. Compaction is opt-in via an
+  explicit layout. (0.1.29 report Bug #32.)
+- **HTTP/CLI node-create responses now include the `nodeId` alias.** The
+  0.1.29 `id`/`nodeId` alias only reached the MCP responses; the
+  `/api/canvas/node` (and graph/json-render) responses used by the CLI now
+  expose both keys too. (0.1.29 report Bug #31.)
+- **`canvas_batch` now supports `node.remove`.** The operation is
+  implemented (and listed in the tool description) instead of being
+  rejected as unsupported. (0.1.29 report Bug #33.)
+
 ## [0.1.29] - 2026-06-06
 
 ### Changed

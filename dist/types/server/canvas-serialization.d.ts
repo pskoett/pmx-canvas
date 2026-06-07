@@ -6,6 +6,7 @@ export interface SerializedCanvasNode extends CanvasNodeState {
     content: string | null;
     path: string | null;
     url: string | null;
+    surfaceUrl: string | null;
     provenance: CanvasNodeProvenance | null;
 }
 export interface SerializedCanvasLayout extends Omit<CanvasLayout, 'nodes'> {
@@ -33,6 +34,7 @@ export interface CanvasAnnotationContextSummary {
 export declare function getCanvasNodeKind(node: CanvasNodeState, data: Record<string, unknown>): string;
 export declare function getCanvasNodeTitle(node: CanvasNodeState): string | null;
 export declare function getCanvasNodeContent(node: CanvasNodeState): string | null;
+export declare function getCanvasNodeSurfaceUrl(node: CanvasNodeState, data: Record<string, unknown>): string | null;
 export declare function serializeCanvasNode(node: CanvasNodeState): SerializedCanvasNode;
 export declare function serializeCanvasNodeForAgent(node: CanvasNodeState): SerializedCanvasNode;
 export declare function serializeCanvasNodeCompact(node: CanvasNodeState): SerializedCanvasNode;

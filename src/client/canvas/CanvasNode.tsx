@@ -25,6 +25,7 @@ import {
   viewport,
 } from '../state/canvas-store';
 import { removeNodeFromClient, updateNodeFromClient } from '../state/intent-bridge';
+import { canOpenAsSite, openNodeAsSite } from '../nodes/surface-url';
 import { getNodeIcon } from '../icons';
 import { EXPANDABLE_TYPES, TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
@@ -275,15 +276,18 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
           >
             {'\u2726'}
           </button>
-          {/* Open externally — only for URL-based MCP app nodes (not ext-apps which need a host bridge) */}
-          {(node.type === 'mcp-app' || node.type === 'webpage') && node.data.url && !node.data.mode && (
+          {/* Open as site — full-page standalone view of this node's surface,
+              served from /api/canvas/surface/:id (same document as the canvas
+              iframe). Covers html, web-artifact/ext-app/url mcp-apps,
+              json-render/graph, and webpage nodes. */}
+          {canOpenAsSite(node) && (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                window.open(node.data.url as string, '_blank', 'noopener');
+                openNodeAsSite(node);
               }}
-              title="Open in new tab"
+              title="Open as site (new tab)"
             >
               ↗
             </button>

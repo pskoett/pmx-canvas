@@ -3,6 +3,7 @@ import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { AppBridge, PostMessageTransport, buildAllowAttribute } from '@modelcontextprotocol/ext-apps/app-bridge';
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { extAppToolResultsMatch } from '../../shared/ext-app-tool-result.js';
+import { DEFAULT_EXT_APP_SANDBOX } from '../../shared/surface.js';
 import {
   canvasTheme,
   collapseExpandedNode,
@@ -20,7 +21,6 @@ type McpUiTheme = 'light' | 'dark';
 
 type ExtAppBridgeNotifications = Pick<AppBridge, 'sendToolInput' | 'sendToolResult'>;
 type DisplayMode = 'inline' | 'fullscreen' | 'pip';
-const DEFAULT_EXT_APP_SANDBOX = 'allow-scripts allow-popups allow-popups-to-escape-sandbox';
 
 interface ExtAppHostDimensionsTarget {
   clientWidth?: number;

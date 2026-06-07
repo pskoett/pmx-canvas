@@ -37,7 +37,9 @@ neighborhoods) and uses your layout to ground its next action.
 
 Files, web pages, screenshots, structured panels, charts, hand-drawn
 diagrams, embedded MCP Apps, and bundled web artifacts all live on the same
-surface. The reach of the canvas is the union of its
+surface. Any rich surface — an HTML node or a web artifact — can be **opened as
+a site**, full-page in its own browser tab with one click; the canvas and the
+tab render the same document. The reach of the canvas is the union of its
 [built-in node types](docs/node-types.md) and **whatever your agent's harness
 already has access to** — MCP servers, CLIs, file reads, web fetch, anything
 on its toolbelt.
