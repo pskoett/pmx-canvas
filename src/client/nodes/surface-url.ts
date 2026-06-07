@@ -21,6 +21,8 @@ export interface SurfaceUrlOptions {
   present?: boolean;
   presentToken?: string;
   v?: string;
+  /** Nonce authorizing iframe → parent AX emits (html bridge). */
+  axToken?: string;
 }
 
 /** Build the stable per-node surface URL (/api/canvas/surface/:id) the iframe and "Open as site" both use. */
@@ -31,6 +33,7 @@ export function nodeSurfaceUrl(nodeId: string, opts: SurfaceUrlOptions = {}): st
   if (opts.present) params.set('present', '1');
   if (opts.presentToken) params.set('presentToken', opts.presentToken);
   if (opts.v) params.set('v', opts.v);
+  if (opts.axToken) params.set('axToken', opts.axToken);
   return `/api/canvas/surface/${encodeURIComponent(nodeId)}?${params.toString()}`;
 }
 

@@ -29,6 +29,17 @@ type SetAxFocusResult = ReturnType<PmxCanvas['setAxFocus']>;
 type RecordAxEventInput = Parameters<PmxCanvas['recordAxEvent']>[0];
 type RecordAxEventResult = ReturnType<PmxCanvas['recordAxEvent']>;
 type SendSteeringResult = ReturnType<PmxCanvas['sendSteering']>;
+type SubmitAxInteractionInput = Parameters<PmxCanvas['submitAxInteraction']>[0];
+type SubmitAxInteractionResult = ReturnType<PmxCanvas['submitAxInteraction']>;
+type GetPendingSteeringResult = ReturnType<PmxCanvas['getPendingSteering']>;
+type ListElicitationsResult = ReturnType<PmxCanvas['listElicitations']>;
+type RequestElicitationInput = Parameters<PmxCanvas['requestElicitation']>[0];
+type RequestElicitationResult = ReturnType<PmxCanvas['requestElicitation']>;
+type RespondElicitationResult = ReturnType<PmxCanvas['respondElicitation']>;
+type ListModeRequestsResult = ReturnType<PmxCanvas['listModeRequests']>;
+type RequestModeInput = Parameters<PmxCanvas['requestMode']>[0];
+type RequestModeResult = ReturnType<PmxCanvas['requestMode']>;
+type ResolveModeRequestResult = ReturnType<PmxCanvas['resolveModeRequest']>;
 type GetAxTimelineQuery = Parameters<PmxCanvas['getAxTimeline']>[0];
 type GetAxTimelineResult = ReturnType<PmxCanvas['getAxTimeline']>;
 type AddWorkItemInput = Parameters<PmxCanvas['addWorkItem']>[0];
@@ -139,6 +150,29 @@ export interface CanvasAccess {
     reportHostCapability(input: unknown, options?: {
         source?: PmxAxSource;
     }): Promise<ReportHostCapabilityResult>;
+    submitAxInteraction(input: SubmitAxInteractionInput, options?: {
+        source?: PmxAxSource;
+    }): Promise<SubmitAxInteractionResult>;
+    getPendingSteering(options?: {
+        consumer?: string;
+        limit?: number;
+    }): Promise<GetPendingSteeringResult>;
+    markSteeringDelivered(id: string): Promise<boolean>;
+    listElicitations(): Promise<ListElicitationsResult>;
+    requestElicitation(input: RequestElicitationInput, options?: {
+        source?: PmxAxSource;
+    }): Promise<RequestElicitationResult>;
+    respondElicitation(id: string, response: Record<string, unknown>, options?: {
+        source?: PmxAxSource;
+    }): Promise<RespondElicitationResult>;
+    listModeRequests(): Promise<ListModeRequestsResult>;
+    requestMode(input: RequestModeInput, options?: {
+        source?: PmxAxSource;
+    }): Promise<RequestModeResult>;
+    resolveModeRequest(id: string, decision: 'approved' | 'rejected', options?: {
+        resolution?: string;
+        source?: PmxAxSource;
+    }): Promise<ResolveModeRequestResult>;
     clear(): Promise<void>;
     search(query: string): Promise<SearchResult>;
     undo(): Promise<UndoRedoResult>;

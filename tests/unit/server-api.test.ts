@@ -1163,7 +1163,9 @@ describe('canvas server HTTP API', () => {
     });
     const res = await fetch(`${baseUrl}/api/canvas/surface/surface-extapp`);
     expect(res.status).toBe(200);
-    expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts allow-popups allow-popups-to-escape-sandbox');
+    // Standalone ext-app surface is served with a tighter sandbox than the
+    // in-canvas iframe (no allow-popups-to-escape-sandbox) — untrusted top-level HTML.
+    expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts');
     expect(await res.text()).toContain('ext app surface');
   });
 
@@ -1176,6 +1178,194 @@ describe('canvas server HTTP API', () => {
     });
     const res = await fetch(`${baseUrl}/api/canvas/surface/surface-bad-url`, { redirect: 'manual' });
     expect(res.status).toBe(404);
+  });
+
+  test('surface route injects the AX bridge only for opted-in html nodes', async () => {
+    canvasState.addNode({
+      id: 'surf-ax-off', type: 'html',
+      position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: { html: '<main>x</main>' },
+    });
+    expect((await (await fetch(`${baseUrl}/api/canvas/surface/surf-ax-off`)).text()).includes('window.PMX_AX')).toBe(false);
+
+    canvasState.addNode({
+      id: 'surf-ax-on', type: 'html',
+      position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: { html: '<main>x</main>', axCapabilities: { enabled: true, allowed: ['ax.work.create'] } },
+    });
+    const on = await (await fetch(`${baseUrl}/api/canvas/surface/surf-ax-on?axToken=ax-test`)).text();
+    expect(on).toContain('window.PMX_AX');
+    expect(on).toContain('ax-test');
+  });
+
+  test('surface route falls back to content, 404s when html node is empty', async () => {
+    canvasState.addNode({
+      id: 'surf-content', type: 'html',
+      position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: { content: '<main>from content</main>' },
+    });
+    const c = await fetch(`${baseUrl}/api/canvas/surface/surf-content`);
+    expect(c.status).toBe(200);
+    expect(await c.text()).toContain('from content');
+
+    canvasState.addNode({
+      id: 'surf-empty', type: 'html',
+      position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: {},
+    });
+    expect((await fetch(`${baseUrl}/api/canvas/surface/surf-empty`)).status).toBe(404);
+  });
+
+  test('ax interaction creates a work item from an eligible node', async () => {
+    canvasState.addNode({
+      id: 'ax-status', type: 'status',
+      position: { x: 0, y: 0 }, size: { width: 300, height: 200 },
+      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: { title: 'Build' },
+    });
+    const res = await fetch(`${baseUrl}/api/canvas/ax/interaction`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'ax.work.create', sourceNodeId: 'ax-status', payload: { title: 'Ship it' }, source: 'cli' }),
+    });
+    expect(res.status).toBe(200);
+    const json = await res.json() as { ok: boolean; primitive?: { title: string; nodeIds: string[] } };
+    expect(json.ok).toBe(true);
+    expect(json.primitive?.title).toBe('Ship it');
+    expect(json.primitive?.nodeIds).toEqual(['ax-status']);
+    expect(canvasState.getAxState().workItems.some((w) => w.title === 'Ship it')).toBe(true);
+  });
+
+  test('ax interaction rejects a disallowed interaction type', async () => {
+    canvasState.addNode({
+      id: 'ax-file', type: 'file',
+      position: { x: 0, y: 0 }, size: { width: 300, height: 200 },
+      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: { path: '/tmp/x.ts' },
+    });
+    const res = await fetch(`${baseUrl}/api/canvas/ax/interaction`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'ax.steer', sourceNodeId: 'ax-file', payload: { message: 'go' } }),
+    });
+    expect(res.status).toBe(403);
+    expect(await res.json() as Record<string, unknown>).toMatchObject({ ok: false, code: 'not-allowed' });
+  });
+
+  test('ax interaction respects per-node opt-in for html nodes', async () => {
+    canvasState.addNode({
+      id: 'ax-html-off', type: 'html',
+      position: { x: 0, y: 0 }, size: { width: 300, height: 200 },
+      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: { html: '<main>x</main>' },
+    });
+    const off = await fetch(`${baseUrl}/api/canvas/ax/interaction`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'ax.work.create', sourceNodeId: 'ax-html-off', payload: { title: 'x' } }),
+    });
+    expect(off.status).toBe(403);
+    expect((await off.json() as { code: string }).code).toBe('ax-disabled');
+
+    canvasState.addNode({
+      id: 'ax-html-on', type: 'html',
+      position: { x: 0, y: 0 }, size: { width: 300, height: 200 },
+      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: { html: '<main>x</main>', axCapabilities: { enabled: true, allowed: ['ax.work.create'] } },
+    });
+    const on = await fetch(`${baseUrl}/api/canvas/ax/interaction`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'ax.work.create', sourceNodeId: 'ax-html-on', payload: { title: 'opted in' } }),
+    });
+    expect(on.status).toBe(200);
+    expect((await on.json() as { ok: boolean }).ok).toBe(true);
+  });
+
+  test('ax interaction rejects unknown node and invalid payload', async () => {
+    const unknown = await fetch(`${baseUrl}/api/canvas/ax/interaction`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'ax.work.create', sourceNodeId: 'nope', payload: { title: 'x' } }),
+    });
+    expect(unknown.status).toBe(404);
+    canvasState.addNode({
+      id: 'ax-status-2', type: 'status',
+      position: { x: 0, y: 0 }, size: { width: 300, height: 200 },
+      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: {},
+    });
+    const bad = await fetch(`${baseUrl}/api/canvas/ax/interaction`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'ax.work.create', sourceNodeId: 'ax-status-2', payload: {} }),
+    });
+    expect(bad.status).toBe(400);
+    expect((await bad.json() as { code: string }).code).toBe('invalid-payload');
+  });
+
+  test('ax delivery: pending query, loop prevention, and mark', async () => {
+    const steer = await fetch(`${baseUrl}/api/canvas/ax/steer`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'focus on the failing test', source: 'copilot' }),
+    });
+    const steering = (await steer.json() as { steering: { id: string } }).steering;
+
+    const seenByMcp = async () => {
+      const r = await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=mcp`);
+      const body = await r.json() as { pending: Array<{ id: string }> };
+      return body.pending.some((s) => s.id === steering.id);
+    };
+
+    // Visible to a different consumer...
+    expect(await seenByMcp()).toBe(true);
+    // ...but excluded for the originating consumer (loop prevention).
+    const copilotPending = await (await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot`)).json() as { pending: Array<{ id: string }> };
+    expect(copilotPending.pending.some((s) => s.id === steering.id)).toBe(false);
+
+    // Mark delivered, then it drops out of pending.
+    const mark = await (await fetch(`${baseUrl}/api/canvas/ax/delivery/${encodeURIComponent(steering.id)}/mark`, { method: 'POST' })).json() as { ok: boolean; delivered: boolean };
+    expect(mark.delivered).toBe(true);
+    expect(await seenByMcp()).toBe(false);
+  });
+
+  test('ax elicitation: request, list, respond lifecycle', async () => {
+    const req = await (await fetch(`${baseUrl}/api/canvas/ax/elicitation`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt: 'Who owns this?', fields: ['owner'], source: 'cli' }),
+    })).json() as { ok: boolean; elicitation: { id: string; status: string } };
+    expect(req.ok).toBe(true);
+    expect(req.elicitation.status).toBe('pending');
+
+    const list = await (await fetch(`${baseUrl}/api/canvas/ax/elicitation`)).json() as { elicitations: Array<{ id: string }> };
+    expect(list.elicitations.some((e) => e.id === req.elicitation.id)).toBe(true);
+
+    const respond = await (await fetch(`${baseUrl}/api/canvas/ax/elicitation/${encodeURIComponent(req.elicitation.id)}/respond`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ response: { owner: 'alice' } }),
+    })).json() as { ok: boolean; elicitation: { status: string; response: Record<string, unknown> } };
+    expect(respond.elicitation.status).toBe('answered');
+    expect(respond.elicitation.response).toEqual({ owner: 'alice' });
+
+    // answered → snapshotted in ax state
+    const ax = await (await fetch(`${baseUrl}/api/canvas/ax`)).json() as { state: { elicitations: Array<{ id: string; status: string }> } };
+    expect(ax.state.elicitations.find((e) => e.id === req.elicitation.id)?.status).toBe('answered');
+  });
+
+  test('ax mode: request and resolve lifecycle', async () => {
+    const req = await (await fetch(`${baseUrl}/api/canvas/ax/mode`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'execute', reason: 'plan approved', source: 'cli' }),
+    })).json() as { ok: boolean; modeRequest: { id: string; mode: string; status: string } };
+    expect(req.modeRequest.mode).toBe('execute');
+    expect(req.modeRequest.status).toBe('pending');
+
+    const bad = await fetch(`${baseUrl}/api/canvas/ax/mode`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'turbo' }),
+    });
+    expect(bad.status).toBe(400);
+
+    const resolve = await (await fetch(`${baseUrl}/api/canvas/ax/mode/${encodeURIComponent(req.modeRequest.id)}/resolve`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision: 'approved', resolution: 'go' }),
+    })).json() as { ok: boolean; modeRequest: { status: string; resolution: string } };
+    expect(resolve.modeRequest.status).toBe('approved');
+    expect(resolve.modeRequest.resolution).toBe('go');
   });
 
   test('keeps ext-app model context separate from the replayed tool result', async () => {

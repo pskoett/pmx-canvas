@@ -40,6 +40,17 @@ type SetAxFocusResult = ReturnType<PmxCanvas['setAxFocus']>;
 type RecordAxEventInput = Parameters<PmxCanvas['recordAxEvent']>[0];
 type RecordAxEventResult = ReturnType<PmxCanvas['recordAxEvent']>;
 type SendSteeringResult = ReturnType<PmxCanvas['sendSteering']>;
+type SubmitAxInteractionInput = Parameters<PmxCanvas['submitAxInteraction']>[0];
+type SubmitAxInteractionResult = ReturnType<PmxCanvas['submitAxInteraction']>;
+type GetPendingSteeringResult = ReturnType<PmxCanvas['getPendingSteering']>;
+type ListElicitationsResult = ReturnType<PmxCanvas['listElicitations']>;
+type RequestElicitationInput = Parameters<PmxCanvas['requestElicitation']>[0];
+type RequestElicitationResult = ReturnType<PmxCanvas['requestElicitation']>;
+type RespondElicitationResult = ReturnType<PmxCanvas['respondElicitation']>;
+type ListModeRequestsResult = ReturnType<PmxCanvas['listModeRequests']>;
+type RequestModeInput = Parameters<PmxCanvas['requestMode']>[0];
+type RequestModeResult = ReturnType<PmxCanvas['requestMode']>;
+type ResolveModeRequestResult = ReturnType<PmxCanvas['resolveModeRequest']>;
 type GetAxTimelineQuery = Parameters<PmxCanvas['getAxTimeline']>[0];
 type GetAxTimelineResult = ReturnType<PmxCanvas['getAxTimeline']>;
 type AddWorkItemInput = Parameters<PmxCanvas['addWorkItem']>[0];
@@ -166,6 +177,15 @@ export interface CanvasAccess {
   listReviewAnnotations(): Promise<ListReviewAnnotationsResult>;
   getHostCapability(): Promise<GetHostCapabilityResult>;
   reportHostCapability(input: unknown, options?: { source?: PmxAxSource }): Promise<ReportHostCapabilityResult>;
+  submitAxInteraction(input: SubmitAxInteractionInput, options?: { source?: PmxAxSource }): Promise<SubmitAxInteractionResult>;
+  getPendingSteering(options?: { consumer?: string; limit?: number }): Promise<GetPendingSteeringResult>;
+  markSteeringDelivered(id: string): Promise<boolean>;
+  listElicitations(): Promise<ListElicitationsResult>;
+  requestElicitation(input: RequestElicitationInput, options?: { source?: PmxAxSource }): Promise<RequestElicitationResult>;
+  respondElicitation(id: string, response: Record<string, unknown>, options?: { source?: PmxAxSource }): Promise<RespondElicitationResult>;
+  listModeRequests(): Promise<ListModeRequestsResult>;
+  requestMode(input: RequestModeInput, options?: { source?: PmxAxSource }): Promise<RequestModeResult>;
+  resolveModeRequest(id: string, decision: 'approved' | 'rejected', options?: { resolution?: string; source?: PmxAxSource }): Promise<ResolveModeRequestResult>;
   clear(): Promise<void>;
   search(query: string): Promise<SearchResult>;
   undo(): Promise<UndoRedoResult>;
@@ -327,6 +347,42 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async addWorkItem(input: AddWorkItemInput, options?: { source?: PmxAxSource }): Promise<AddWorkItemResult> {
     return this.canvas.addWorkItem(input, { source: options?.source ?? 'mcp' });
+  }
+
+  async submitAxInteraction(input: SubmitAxInteractionInput, options?: { source?: PmxAxSource }): Promise<SubmitAxInteractionResult> {
+    return this.canvas.submitAxInteraction(input, { source: options?.source ?? 'mcp' });
+  }
+
+  async getPendingSteering(options?: { consumer?: string; limit?: number }): Promise<GetPendingSteeringResult> {
+    return this.canvas.getPendingSteering(options);
+  }
+
+  async markSteeringDelivered(id: string): Promise<boolean> {
+    return this.canvas.markSteeringDelivered(id);
+  }
+
+  async listElicitations(): Promise<ListElicitationsResult> {
+    return this.canvas.listElicitations();
+  }
+
+  async requestElicitation(input: RequestElicitationInput, options?: { source?: PmxAxSource }): Promise<RequestElicitationResult> {
+    return this.canvas.requestElicitation(input, { source: options?.source ?? 'mcp' });
+  }
+
+  async respondElicitation(id: string, response: Record<string, unknown>, options?: { source?: PmxAxSource }): Promise<RespondElicitationResult> {
+    return this.canvas.respondElicitation(id, response, { source: options?.source ?? 'mcp' });
+  }
+
+  async listModeRequests(): Promise<ListModeRequestsResult> {
+    return this.canvas.listModeRequests();
+  }
+
+  async requestMode(input: RequestModeInput, options?: { source?: PmxAxSource }): Promise<RequestModeResult> {
+    return this.canvas.requestMode(input, { source: options?.source ?? 'mcp' });
+  }
+
+  async resolveModeRequest(id: string, decision: 'approved' | 'rejected', options?: { resolution?: string; source?: PmxAxSource }): Promise<ResolveModeRequestResult> {
+    return this.canvas.resolveModeRequest(id, decision, { ...(options ?? {}), source: options?.source ?? 'mcp' });
   }
 
   async updateWorkItem(id: string, patch: UpdateWorkItemPatch, options?: { source?: PmxAxSource }): Promise<UpdateWorkItemResult> {
@@ -788,6 +844,91 @@ class RemoteCanvasAccess implements CanvasAccess {
     });
     if (!response.workItem) throw new Error('Remote canvas did not return a work item.');
     return response.workItem;
+  }
+
+  async submitAxInteraction(input: SubmitAxInteractionInput, options?: { source?: PmxAxSource }): Promise<SubmitAxInteractionResult> {
+    // The interaction endpoint returns its structured outcome (ok/code/error) in
+    // the body for both accepted and rejected interactions, so read the body
+    // regardless of HTTP status rather than throwing on a denial.
+    const response = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/interaction`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...input, source: options?.source ?? 'mcp' }),
+    });
+    const body = await response.json().catch(() => null);
+    if (body && typeof body === 'object') return body as SubmitAxInteractionResult;
+    throw new Error(`Remote canvas interaction failed with HTTP ${response.status}`);
+  }
+
+  async getPendingSteering(options?: { consumer?: string; limit?: number }): Promise<GetPendingSteeringResult> {
+    const params = new URLSearchParams();
+    if (options?.consumer) params.set('consumer', options.consumer);
+    if (options?.limit) params.set('limit', String(options.limit));
+    const qs = params.toString();
+    const response = await this.requestJson<{ pending?: GetPendingSteeringResult }>(
+      'GET',
+      `/api/canvas/ax/delivery/pending${qs ? `?${qs}` : ''}`,
+    );
+    return response.pending ?? [];
+  }
+
+  async markSteeringDelivered(id: string): Promise<boolean> {
+    const response = await this.requestJson<{ delivered?: boolean }>(
+      'POST',
+      `/api/canvas/ax/delivery/${encodeURIComponent(id)}/mark`,
+      {},
+    );
+    return response.delivered ?? false;
+  }
+
+  async listElicitations(): Promise<ListElicitationsResult> {
+    const r = await this.requestJson<{ elicitations?: ListElicitationsResult }>('GET', '/api/canvas/ax/elicitation');
+    return r.elicitations ?? [];
+  }
+
+  async requestElicitation(input: RequestElicitationInput, options?: { source?: PmxAxSource }): Promise<RequestElicitationResult> {
+    const r = await this.requestJson<{ elicitation?: RequestElicitationResult }>('POST', '/api/canvas/ax/elicitation', {
+      ...input,
+      source: options?.source ?? 'mcp',
+    });
+    if (!r.elicitation) throw new Error('Remote canvas did not return an elicitation.');
+    return r.elicitation;
+  }
+
+  async respondElicitation(id: string, response: Record<string, unknown>, options?: { source?: PmxAxSource }): Promise<RespondElicitationResult> {
+    const res = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/elicitation/${encodeURIComponent(id)}/respond`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ response, source: options?.source ?? 'mcp' }),
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return (await res.json() as { elicitation?: RespondElicitationResult }).elicitation ?? null;
+  }
+
+  async listModeRequests(): Promise<ListModeRequestsResult> {
+    const r = await this.requestJson<{ modeRequests?: ListModeRequestsResult }>('GET', '/api/canvas/ax/mode');
+    return r.modeRequests ?? [];
+  }
+
+  async requestMode(input: RequestModeInput, options?: { source?: PmxAxSource }): Promise<RequestModeResult> {
+    const r = await this.requestJson<{ modeRequest?: RequestModeResult }>('POST', '/api/canvas/ax/mode', {
+      ...input,
+      source: options?.source ?? 'mcp',
+    });
+    if (!r.modeRequest) throw new Error('Remote canvas did not return a mode request.');
+    return r.modeRequest;
+  }
+
+  async resolveModeRequest(id: string, decision: 'approved' | 'rejected', options?: { resolution?: string; source?: PmxAxSource }): Promise<ResolveModeRequestResult> {
+    const res = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/mode/${encodeURIComponent(id)}/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision, ...(options?.resolution ? { resolution: options.resolution } : {}), source: options?.source ?? 'mcp' }),
+    });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return (await res.json() as { modeRequest?: ResolveModeRequestResult }).modeRequest ?? null;
   }
 
   async updateWorkItem(id: string, patch: UpdateWorkItemPatch, options?: { source?: PmxAxSource }): Promise<UpdateWorkItemResult> {

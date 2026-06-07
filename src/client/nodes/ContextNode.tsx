@@ -1,5 +1,6 @@
 import { openWorkbenchFile } from '../state/intent-bridge';
 import { TYPE_LABELS, type CanvasNodeState } from '../types';
+import { axNodeActionButtonStyle, runNodeAxInteraction } from './ax-node-actions';
 
 interface ContextCard {
   key?: string;
@@ -172,6 +173,22 @@ export function ContextNode({
         padding: expanded ? '8px 0' : undefined,
       }}
     >
+      {/* AX: focus the agent on this context node */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+        <button
+          type="button"
+          class="ax-node-action"
+          title="Set AX focus to this node"
+          style={axNodeActionButtonStyle}
+          onClick={(e) => {
+            e.stopPropagation();
+            void runNodeAxInteraction(node, 'ax.focus.set', undefined, 'Focus set');
+          }}
+        >
+          Set focus
+        </button>
+      </div>
+
       {tokenLimit !== null && tokenLimit > 0 && (
         <div style={{ marginBottom: '8px' }}>
           <div

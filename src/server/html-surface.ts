@@ -99,12 +99,45 @@ function injectIntoHead(html: string, content: string): string {
   return html;
 }
 
+/**
+ * Bridge that exposes `window.PMX_AX.emit(type, payload)` to author HTML. Calls
+ * post a nonce-tagged message to the parent canvas, which validates the nonce +
+ * node id and submits the interaction through the capability-gated endpoint. Only
+ * injected when the node's AX capabilities are enabled (opt-in for `html`), and
+ * the server re-validates every interaction — so this is a convenience surface,
+ * not a trust boundary.
+ */
+function buildAxBridge(axToken: string, nodeId: string): string {
+  const token = JSON.stringify(axToken);
+  const node = JSON.stringify(nodeId);
+  return `<script data-pmx-canvas-ax-bridge>
+const PMX_AX_TOKEN = ${token};
+const PMX_AX_NODE_ID = ${node};
+window.PMX_AX = {
+  emit(type, payload) {
+    window.parent.postMessage({
+      source: 'pmx-canvas-ax',
+      token: PMX_AX_TOKEN,
+      nodeId: PMX_AX_NODE_ID,
+      interaction: { type: String(type), payload: payload && typeof payload === 'object' ? payload : {} },
+    }, '*');
+  },
+};
+</script>`;
+}
+
 export interface HtmlSurfaceOptions {
   theme: SurfaceTheme;
   /** Client nonce that authorizes parent → iframe theme-update messages. */
   themeToken?: string;
   presentation?: boolean;
   presentationExitToken?: string;
+  /** Inject window.PMX_AX.emit (only when the node's AX capabilities are enabled). */
+  axBridge?: boolean;
+  /** Nonce authorizing iframe → parent AX emits; embedded in the bridge. */
+  axToken?: string;
+  /** Node id stamped on emitted interactions. */
+  nodeId?: string;
 }
 
 /**
@@ -118,7 +151,10 @@ export function buildHtmlSurfaceDocument(userHtml: string, options: HtmlSurfaceO
   const presentationBridge = options.presentation
     ? buildPresentationEscapeBridge(sanitizeToken(options.presentationExitToken))
     : '';
-  const injectedHeadContent = `${link}${themeBridge}${presentationBridge}`;
+  const axBridge = options.axBridge
+    ? buildAxBridge(sanitizeToken(options.axToken), sanitizeToken(options.nodeId))
+    : '';
+  const injectedHeadContent = `${link}${themeBridge}${presentationBridge}${axBridge}`;
   const presentationAttr = options.presentation ? ' data-pmx-presentation-mode="present"' : '';
   const trimmed = userHtml.trim();
   const isFullDoc = /<html[\s>]/i.test(trimmed);

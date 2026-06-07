@@ -122,6 +122,8 @@ export interface PmxAxState {
     workItems: PmxAxWorkItem[];
     approvalGates: PmxAxApprovalGate[];
     reviewAnnotations: PmxAxReviewAnnotation[];
+    elicitations: PmxAxElicitation[];
+    modeRequests: PmxAxModeRequest[];
 }
 export interface PmxAxPinnedContext {
     preamble: string;
@@ -144,12 +146,51 @@ export interface PmxAxContext {
     workItems: PmxAxWorkItem[];
     approvalGates: PmxAxApprovalGate[];
     reviewAnnotations: PmxAxReviewAnnotation[];
+    elicitations: PmxAxElicitation[];
+    modeRequests: PmxAxModeRequest[];
     timeline: PmxAxTimelineSummary;
     host: PmxAxHostCapability | null;
 }
 export declare function isAxEventKind(value: unknown): value is PmxAxEventKind;
 export declare function isAxEvidenceKind(value: unknown): value is PmxAxEvidenceKind;
 export declare function createEmptyAxFocusState(): PmxAxFocusState;
+export type PmxAxElicitationStatus = 'pending' | 'answered' | 'cancelled';
+export interface PmxAxElicitation {
+    id: string;
+    prompt: string;
+    fields: string[];
+    status: PmxAxElicitationStatus;
+    response: Record<string, unknown> | null;
+    nodeIds: string[];
+    createdAt: string;
+    resolvedAt: string | null;
+    source: PmxAxSource | null;
+}
+export declare function normalizeAxElicitation(input: unknown, validNodeIds?: Set<string>): PmxAxElicitation | null;
+export declare function createAxElicitation(input: {
+    prompt: string;
+    fields?: string[];
+    nodeIds?: string[];
+}, source: PmxAxSource | null, validNodeIds?: Set<string>): PmxAxElicitation;
+export type PmxAxMode = 'plan' | 'execute' | 'autonomous';
+export type PmxAxModeRequestStatus = 'pending' | 'approved' | 'rejected';
+export interface PmxAxModeRequest {
+    id: string;
+    mode: PmxAxMode;
+    reason: string | null;
+    status: PmxAxModeRequestStatus;
+    nodeIds: string[];
+    createdAt: string;
+    resolvedAt: string | null;
+    resolution: string | null;
+    source: PmxAxSource | null;
+}
+export declare function normalizeAxModeRequest(input: unknown, validNodeIds?: Set<string>): PmxAxModeRequest | null;
+export declare function createAxModeRequest(input: {
+    mode: PmxAxMode;
+    reason?: string | null;
+    nodeIds?: string[];
+}, source: PmxAxSource | null, validNodeIds?: Set<string>): PmxAxModeRequest;
 export declare function createEmptyAxState(): PmxAxState;
 export declare function createEmptyAxHostCapability(): PmxAxHostCapability;
 export declare function normalizeAxFocusState(input: unknown, validNodeIds?: Set<string>): PmxAxFocusState;
@@ -207,6 +248,8 @@ export declare function buildAxContext(input: {
     workItems: PmxAxWorkItem[];
     approvalGates: PmxAxApprovalGate[];
     reviewAnnotations: PmxAxReviewAnnotation[];
+    elicitations: PmxAxElicitation[];
+    modeRequests: PmxAxModeRequest[];
     timeline: PmxAxTimelineSummary;
     host: PmxAxHostCapability | null;
 }): PmxAxContext;

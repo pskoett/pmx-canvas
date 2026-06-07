@@ -275,6 +275,11 @@ function enqueueToast(entry: AttentionEntry): void {
   flushToastQueue();
 }
 
+/** Show a transient toast from arbitrary client code (e.g. AX action feedback). */
+export function showToast(tone: AttentionTone, title: string, detail = '', nodeIds: string[] = []): void {
+  enqueueToast(makeEntry(tone, title, detail, nodeIds));
+}
+
 function pulseNodes(nodeIds: string[]): void {
   cancelTimer(pulseTimer);
   pulseTimer = null;

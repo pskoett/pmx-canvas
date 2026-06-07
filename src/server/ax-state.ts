@@ -141,6 +141,8 @@ export interface PmxAxState {
   workItems: PmxAxWorkItem[];
   approvalGates: PmxAxApprovalGate[];
   reviewAnnotations: PmxAxReviewAnnotation[];
+  elicitations: PmxAxElicitation[];
+  modeRequests: PmxAxModeRequest[];
 }
 
 export interface PmxAxPinnedContext {
@@ -166,6 +168,8 @@ export interface PmxAxContext {
   workItems: PmxAxWorkItem[];
   approvalGates: PmxAxApprovalGate[];
   reviewAnnotations: PmxAxReviewAnnotation[];
+  elicitations: PmxAxElicitation[];
+  modeRequests: PmxAxModeRequest[];
   timeline: PmxAxTimelineSummary;
   host: PmxAxHostCapability | null;
 }
@@ -241,6 +245,108 @@ export function createEmptyAxFocusState(): PmxAxFocusState {
   };
 }
 
+// ── Elicitation (structured human input request) — plan-004 Phase 5 ──
+
+export type PmxAxElicitationStatus = 'pending' | 'answered' | 'cancelled';
+const AX_ELICITATION_STATUSES = new Set<PmxAxElicitationStatus>(['pending', 'answered', 'cancelled']);
+
+export interface PmxAxElicitation {
+  id: string;
+  prompt: string;
+  fields: string[];
+  status: PmxAxElicitationStatus;
+  response: Record<string, unknown> | null;
+  nodeIds: string[];
+  createdAt: string;
+  resolvedAt: string | null;
+  source: PmxAxSource | null;
+}
+
+export function normalizeAxElicitation(input: unknown, validNodeIds?: Set<string>): PmxAxElicitation | null {
+  if (!isRecord(input) || typeof input.id !== 'string') return null;
+  return {
+    id: input.id,
+    prompt: typeof input.prompt === 'string' ? input.prompt : '(input requested)',
+    fields: Array.isArray(input.fields) ? input.fields.filter((f): f is string => typeof f === 'string') : [],
+    status: AX_ELICITATION_STATUSES.has(input.status as PmxAxElicitationStatus) ? input.status as PmxAxElicitationStatus : 'pending',
+    response: isRecord(input.response) ? input.response : null,
+    nodeIds: normalizeNodeIds(input.nodeIds, validNodeIds),
+    createdAt: normalizeTimestamp(input.createdAt) ?? nowIso(),
+    resolvedAt: normalizeTimestamp(input.resolvedAt),
+    source: normalizeSource(input.source),
+  };
+}
+
+export function createAxElicitation(
+  input: { prompt: string; fields?: string[]; nodeIds?: string[] },
+  source: PmxAxSource | null,
+  validNodeIds?: Set<string>,
+): PmxAxElicitation {
+  return {
+    id: axId('elic'),
+    prompt: input.prompt,
+    fields: Array.isArray(input.fields) ? input.fields.filter((f) => typeof f === 'string') : [],
+    status: 'pending',
+    response: null,
+    nodeIds: normalizeNodeIds(input.nodeIds, validNodeIds),
+    createdAt: nowIso(),
+    resolvedAt: null,
+    source,
+  };
+}
+
+// ── Mode request (plan/execute/autonomous transition) — plan-004 Phase 5 ──
+
+export type PmxAxMode = 'plan' | 'execute' | 'autonomous';
+export type PmxAxModeRequestStatus = 'pending' | 'approved' | 'rejected';
+const AX_MODES = new Set<PmxAxMode>(['plan', 'execute', 'autonomous']);
+const AX_MODE_REQUEST_STATUSES = new Set<PmxAxModeRequestStatus>(['pending', 'approved', 'rejected']);
+
+export interface PmxAxModeRequest {
+  id: string;
+  mode: PmxAxMode;
+  reason: string | null;
+  status: PmxAxModeRequestStatus;
+  nodeIds: string[];
+  createdAt: string;
+  resolvedAt: string | null;
+  resolution: string | null;
+  source: PmxAxSource | null;
+}
+
+export function normalizeAxModeRequest(input: unknown, validNodeIds?: Set<string>): PmxAxModeRequest | null {
+  if (!isRecord(input) || typeof input.id !== 'string') return null;
+  return {
+    id: input.id,
+    mode: AX_MODES.has(input.mode as PmxAxMode) ? input.mode as PmxAxMode : 'execute',
+    reason: optionalString(input.reason),
+    status: AX_MODE_REQUEST_STATUSES.has(input.status as PmxAxModeRequestStatus) ? input.status as PmxAxModeRequestStatus : 'pending',
+    nodeIds: normalizeNodeIds(input.nodeIds, validNodeIds),
+    createdAt: normalizeTimestamp(input.createdAt) ?? nowIso(),
+    resolvedAt: normalizeTimestamp(input.resolvedAt),
+    resolution: optionalString(input.resolution),
+    source: normalizeSource(input.source),
+  };
+}
+
+export function createAxModeRequest(
+  input: { mode: PmxAxMode; reason?: string | null; nodeIds?: string[] },
+  source: PmxAxSource | null,
+  validNodeIds?: Set<string>,
+): PmxAxModeRequest {
+  return {
+    id: axId('mode'),
+    mode: input.mode,
+    reason: input.reason ?? null,
+    status: 'pending',
+    nodeIds: normalizeNodeIds(input.nodeIds, validNodeIds),
+    createdAt: nowIso(),
+    resolvedAt: null,
+    resolution: null,
+    source,
+  };
+}
+
 export function createEmptyAxState(): PmxAxState {
   return {
     version: 1,
@@ -248,6 +354,8 @@ export function createEmptyAxState(): PmxAxState {
     workItems: [],
     approvalGates: [],
     reviewAnnotations: [],
+    elicitations: [],
+    modeRequests: [],
   };
 }
 
@@ -538,6 +646,12 @@ export function normalizeAxState(input: unknown, validNodeIds?: Set<string>): Pm
     reviewAnnotations: Array.isArray(input.reviewAnnotations)
       ? input.reviewAnnotations.map((r) => normalizeAxReviewAnnotation(r, validNodeIds)).filter((r): r is PmxAxReviewAnnotation => r !== null)
       : [],
+    elicitations: Array.isArray(input.elicitations)
+      ? input.elicitations.map((e) => normalizeAxElicitation(e, validNodeIds)).filter((e): e is PmxAxElicitation => e !== null)
+      : [],
+    modeRequests: Array.isArray(input.modeRequests)
+      ? input.modeRequests.map((m) => normalizeAxModeRequest(m, validNodeIds)).filter((m): m is PmxAxModeRequest => m !== null)
+      : [],
   };
 }
 
@@ -549,6 +663,8 @@ export function buildAxContext(input: {
   workItems: PmxAxWorkItem[];
   approvalGates: PmxAxApprovalGate[];
   reviewAnnotations: PmxAxReviewAnnotation[];
+  elicitations: PmxAxElicitation[];
+  modeRequests: PmxAxModeRequest[];
   timeline: PmxAxTimelineSummary;
   host: PmxAxHostCapability | null;
 }): PmxAxContext {
@@ -567,6 +683,8 @@ export function buildAxContext(input: {
     workItems: input.workItems,
     approvalGates: input.approvalGates,
     reviewAnnotations: input.reviewAnnotations,
+    elicitations: input.elicitations,
+    modeRequests: input.modeRequests,
     timeline: input.timeline,
     host: input.host,
   };

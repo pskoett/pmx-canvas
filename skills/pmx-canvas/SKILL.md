@@ -824,7 +824,40 @@ what the human has set up and what they're focusing on.
 | `canvas://ax-context` | Agent-ready AX context: pinned context + current focus |
 | `canvas://ax-work` | Canvas-bound AX work: work items, approval gates, review annotations |
 | `canvas://ax-timeline` | Bounded AX timeline: recent agent events, evidence, and steering messages |
+| `canvas://ax-pending-steering` | Undelivered steering an MCP client can claim, act on, and mark delivered (adapterless delivery) |
+| `canvas://ax-delivery` | Steering delivery state (delivered flag) for diagnostics |
 | `canvas://skills` | Index of bundled agent skills shipped with the install. Each skill is also addressable as `canvas://skills/<name>` (e.g. `canvas://skills/web-artifacts-builder`) and returns the full SKILL.md. Read this resource first to discover companion workflows the canvas is built to support. |
+
+### Node AX Interactions (capability-gated)
+
+Eligible nodes can emit one normalized, validated AX interaction that maps onto an
+AX operation — work item, evidence, approval, review, focus, steering, event,
+elicitation, or mode request. One envelope, many transports:
+
+- **Endpoint:** `POST /api/canvas/ax/interaction` with
+  `{ type, sourceNodeId, payload }` (MCP: `canvas_ax_interaction`; CLI:
+  `pmx-canvas ax interaction`). Returns `{ ok, primitive }` or
+  `{ ok: false, code }` if the node type/metadata disallows the type.
+- **Capabilities:** each node type has a default capability set (a ceiling). A
+  node may opt in or narrow via `data.axCapabilities` (`{ enabled, allowed }`),
+  clamped to the ceiling — a node can never escalate beyond its type's ceiling.
+  `html` / `html-primitive`, `mcp-app`, and internal `prompt` / `response` nodes
+  are **disabled by default** (opt-in).
+- **Transports:** native node controls and json-render actions call the endpoint
+  directly; sandboxed `html` nodes (when opted in) call `window.PMX_AX.emit(type,
+  payload)`, which the parent canvas validates before submitting. The server
+  re-validates capabilities regardless of transport.
+- **Delivery:** steering can be claimed by adapterless MCP clients via
+  `canvas://ax-pending-steering` / `canvas_claim_ax_delivery` and acknowledged
+  with `canvas_mark_ax_delivery` (loop-safe — a consumer never receives steering
+  it originated).
+- **Elicitation / mode:** request structured human input
+  (`canvas_request_elicitation` → `canvas_respond_elicitation`) or a workflow
+  mode transition (`canvas_request_mode` → `canvas_resolve_mode`); both are
+  canvas-bound and snapshotted.
+
+Interactions request PMX-AX primitives only — never arbitrary shell, tool, MCP,
+or host execution.
 
 ### Reading Spatial Intent
 

@@ -49,7 +49,6 @@ import type {
 } from '@modelcontextprotocol/sdk/types.js';
 import { type CanvasAnnotation, type CanvasEdge, type CanvasLayout, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
 import { buildHtmlSurfaceDocument, HTML_SURFACE_SANDBOX, normalizeSurfaceTheme } from './html-surface.js';
-import { DEFAULT_EXT_APP_SANDBOX } from '../shared/surface.js';
 import { findCanvasExtAppNodeId as findCanvasExtAppNodeIdShared } from './ext-app-lookup.js';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
@@ -79,6 +78,7 @@ import {
 import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent-context.js';
 import { buildCanvasAxContext } from './ax-context.js';
+import { applyAxInteraction, resolveNodeAxCapabilities } from './ax-interaction.js';
 import { isAxEventKind, isAxEvidenceKind } from './ax-state.js';
 import type {
   PmxAxReviewAnchorType,
@@ -1430,11 +1430,15 @@ function handleNodeSurface(pathname: string, url: URL): Response {
         : '';
     if (!html) return responseText('HTML node has no content', 404);
     const present = url.searchParams.get('present') === '1';
+    const axCaps = resolveNodeAxCapabilities(node);
     const doc = buildHtmlSurfaceDocument(html, {
       theme,
       themeToken: url.searchParams.get('themeToken') ?? undefined,
       presentation: present,
       presentationExitToken: url.searchParams.get('presentToken') ?? undefined,
+      axBridge: axCaps.enabled && axCaps.allowed.length > 0,
+      axToken: url.searchParams.get('axToken') ?? undefined,
+      nodeId: node.id,
     });
     return surfaceHtmlResponse(doc, HTML_SURFACE_SANDBOX);
   }
@@ -1453,9 +1457,11 @@ function handleNodeSurface(pathname: string, url: URL): Response {
     }
     // Hosted ext-app — serve the same prepared HTML the in-canvas frame receives.
     // The app's host bridge has no peer in a standalone tab, so interactive
-    // tool-calls won't function there; the UI still renders.
+    // tool-calls won't function there; the UI still renders. Served TOP-LEVEL with
+    // a tighter sandbox than the in-canvas iframe (no allow-popups-to-escape-sandbox)
+    // since this is untrusted third-party HTML opened as its own page.
     if (node.data.mode === 'ext-app' && typeof node.data.html === 'string' && node.data.html) {
-      return surfaceHtmlResponse(node.data.html, DEFAULT_EXT_APP_SANDBOX);
+      return surfaceHtmlResponse(node.data.html, HTML_SURFACE_SANDBOX);
     }
     // URL-backed viewer — hand off to its own origin.
     if (typeof node.data.url === 'string' && isSafeSurfaceRedirect(node.data.url)) {
@@ -3814,6 +3820,107 @@ function handleGetAxContext(): Response {
   return responseJson(buildCanvasAxContext());
 }
 
+async function handleAxInteraction(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const { result, events } = applyAxInteraction(canvasState, body, normalizeAxSource(body.source, 'api'));
+  for (const e of events) {
+    broadcastWorkbenchEvent(e.event, {
+      ...e.payload,
+      sessionId: primaryWorkbenchSessionId,
+      timestamp: new Date().toISOString(),
+    });
+  }
+  return responseJson(result, result.ok ? 200 : result.status);
+}
+
+function handleAxDeliveryPending(url: URL): Response {
+  const consumer = url.searchParams.get('consumer') ?? undefined;
+  const limitRaw = Number(url.searchParams.get('limit') ?? '');
+  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : undefined;
+  const pending = canvasState.getPendingSteering({
+    ...(consumer ? { consumer } : {}),
+    ...(limit ? { limit } : {}),
+  });
+  return responseJson({ ok: true, pending });
+}
+
+function handleAxDeliveryMark(id: string): Response {
+  const delivered = canvasState.markSteeringDelivered(id);
+  if (delivered) {
+    broadcastWorkbenchEvent('ax-event-created', {
+      steeringDelivered: id,
+      sessionId: primaryWorkbenchSessionId,
+      timestamp: new Date().toISOString(),
+    });
+  }
+  return responseJson({ ok: true, delivered });
+}
+
+function handleAxElicitationList(): Response {
+  return responseJson({ ok: true, elicitations: canvasState.getElicitations() });
+}
+
+async function handleAxElicitationRequest(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  if (typeof body.prompt !== 'string' || !body.prompt.trim()) {
+    return responseJson({ ok: false, error: 'elicitation requires a prompt.' }, 400);
+  }
+  const elicitation = canvasState.requestElicitation(
+    {
+      prompt: body.prompt,
+      ...(Array.isArray(body.fields) ? { fields: body.fields.filter((f: unknown): f is string => typeof f === 'string') } : {}),
+      ...(Array.isArray(body.nodeIds) ? { nodeIds: normalizeAxNodeIds(body.nodeIds) } : {}),
+    },
+    { source: normalizeAxSource(body.source, 'api') },
+  );
+  broadcastWorkbenchEvent('ax-state-changed', { elicitation, sessionId: primaryWorkbenchSessionId, timestamp: new Date().toISOString() });
+  return responseJson({ ok: true, elicitation });
+}
+
+async function handleAxElicitationRespond(req: Request, id: string): Promise<Response> {
+  const body = await readJson(req);
+  const response = isRecord(body.response) ? body.response : {};
+  const elicitation = canvasState.respondElicitation(id, response, { source: normalizeAxSource(body.source, 'api') });
+  if (!elicitation) return responseJson({ ok: false, error: 'elicitation not found or already answered.' }, 404);
+  broadcastWorkbenchEvent('ax-state-changed', { elicitation, sessionId: primaryWorkbenchSessionId, timestamp: new Date().toISOString() });
+  return responseJson({ ok: true, elicitation });
+}
+
+function handleAxModeList(): Response {
+  return responseJson({ ok: true, modeRequests: canvasState.getModeRequests() });
+}
+
+async function handleAxModeRequest(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  if (body.mode !== 'plan' && body.mode !== 'execute' && body.mode !== 'autonomous') {
+    return responseJson({ ok: false, error: 'mode request requires mode plan|execute|autonomous.' }, 400);
+  }
+  const modeRequest = canvasState.requestMode(
+    {
+      mode: body.mode,
+      ...(typeof body.reason === 'string' ? { reason: body.reason } : {}),
+      ...(Array.isArray(body.nodeIds) ? { nodeIds: normalizeAxNodeIds(body.nodeIds) } : {}),
+    },
+    { source: normalizeAxSource(body.source, 'api') },
+  );
+  broadcastWorkbenchEvent('ax-state-changed', { modeRequest, sessionId: primaryWorkbenchSessionId, timestamp: new Date().toISOString() });
+  return responseJson({ ok: true, modeRequest });
+}
+
+async function handleAxModeResolve(req: Request, id: string): Promise<Response> {
+  const body = await readJson(req);
+  if (body.decision !== 'approved' && body.decision !== 'rejected') {
+    return responseJson({ ok: false, error: 'resolve requires decision approved or rejected.' }, 400);
+  }
+  const modeRequest = canvasState.resolveModeRequest(id, body.decision, {
+    ...(typeof body.resolution === 'string' ? { resolution: body.resolution } : {}),
+    source: normalizeAxSource(body.source, 'api'),
+  });
+  if (!modeRequest) return responseJson({ ok: false, error: 'mode request not found or already resolved.' }, 404);
+  broadcastWorkbenchEvent('ax-state-changed', { modeRequest, sessionId: primaryWorkbenchSessionId, timestamp: new Date().toISOString() });
+  return responseJson({ ok: true, modeRequest });
+}
+
 async function handleAxFocusUpdate(req: Request): Promise<Response> {
   const body = await readJson(req);
   const nodeIds = normalizeAxNodeIds(body.nodeIds);
@@ -5177,6 +5284,51 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/ax/host-capability' && req.method === 'PUT') {
             return handleAxHostCapabilityReport(req);
+          }
+
+          if (url.pathname === '/api/canvas/ax/interaction' && req.method === 'POST') {
+            return handleAxInteraction(req);
+          }
+
+          if (url.pathname === '/api/canvas/ax/delivery/pending' && req.method === 'GET') {
+            return handleAxDeliveryPending(url);
+          }
+
+          if (url.pathname.startsWith('/api/canvas/ax/delivery/') && url.pathname.endsWith('/mark') && req.method === 'POST') {
+            const deliveryId = decodeURIComponent(
+              url.pathname.slice('/api/canvas/ax/delivery/'.length, -'/mark'.length),
+            );
+            return handleAxDeliveryMark(deliveryId);
+          }
+
+          if (url.pathname === '/api/canvas/ax/elicitation' && req.method === 'GET') {
+            return handleAxElicitationList();
+          }
+
+          if (url.pathname === '/api/canvas/ax/elicitation' && req.method === 'POST') {
+            return handleAxElicitationRequest(req);
+          }
+
+          if (url.pathname.startsWith('/api/canvas/ax/elicitation/') && url.pathname.endsWith('/respond') && req.method === 'POST') {
+            const elicitationId = decodeURIComponent(
+              url.pathname.slice('/api/canvas/ax/elicitation/'.length, -'/respond'.length),
+            );
+            return handleAxElicitationRespond(req, elicitationId);
+          }
+
+          if (url.pathname === '/api/canvas/ax/mode' && req.method === 'GET') {
+            return handleAxModeList();
+          }
+
+          if (url.pathname === '/api/canvas/ax/mode' && req.method === 'POST') {
+            return handleAxModeRequest(req);
+          }
+
+          if (url.pathname.startsWith('/api/canvas/ax/mode/') && url.pathname.endsWith('/resolve') && req.method === 'POST') {
+            const modeId = decodeURIComponent(
+              url.pathname.slice('/api/canvas/ax/mode/'.length, -'/resolve'.length),
+            );
+            return handleAxModeResolve(req, modeId);
           }
 
           // Spatial context API

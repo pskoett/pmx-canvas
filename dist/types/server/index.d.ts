@@ -1,7 +1,8 @@
 import { EventEmitter } from 'node:events';
 import { canvasState } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.js';
-import type { PmxAxApprovalGate, PmxAxContext, PmxAxEvent, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxWorkItem, PmxAxWorkItemStatus } from './ax-state.js';
+import { type AxInteractionInput, type AxInteractionPublicResult } from './ax-interaction.js';
+import type { PmxAxApprovalGate, PmxAxContext, PmxAxElicitation, PmxAxEvent, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxMode, PmxAxModeRequest, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxWorkItem, PmxAxWorkItemStatus } from './ax-state.js';
 import type { AxTimelineQuery } from './canvas-db.js';
 import { searchNodes } from './spatial-analysis.js';
 import { diffLayouts } from './mutation-history.js';
@@ -140,6 +141,19 @@ export declare class PmxCanvas extends EventEmitter {
         source?: PmxAxSource;
     }): PmxAxSteeringMessage;
     markSteeringDelivered(id: string): boolean;
+    /** Undelivered steering for a consumer (loop-safe; excludes consumer-originated). */
+    getPendingSteering(options?: {
+        consumer?: string;
+        limit?: number;
+    }): PmxAxSteeringMessage[];
+    /**
+     * Submit a node-originated AX interaction (plan-004 Phase 1). Validates the
+     * envelope + node capabilities, maps the interaction onto the matching AX
+     * operation, and emits the outcome + state SSE events.
+     */
+    submitAxInteraction(input: AxInteractionInput, options?: {
+        source?: PmxAxSource;
+    }): AxInteractionPublicResult;
     getAxTimeline(query?: AxTimelineQuery): ReturnType<typeof canvasState.getAxTimeline>;
     listWorkItems(): PmxAxWorkItem[];
     addWorkItem(input: {
@@ -206,6 +220,29 @@ export declare class PmxCanvas extends EventEmitter {
     reportHostCapability(input: unknown, options?: {
         source?: PmxAxSource;
     }): PmxAxHostCapability;
+    listElicitations(): PmxAxElicitation[];
+    requestElicitation(input: {
+        prompt: string;
+        fields?: string[];
+        nodeIds?: string[];
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxElicitation;
+    respondElicitation(id: string, response: Record<string, unknown>, options?: {
+        source?: PmxAxSource;
+    }): PmxAxElicitation | null;
+    listModeRequests(): PmxAxModeRequest[];
+    requestMode(input: {
+        mode: PmxAxMode;
+        reason?: string | null;
+        nodeIds?: string[];
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxModeRequest;
+    resolveModeRequest(id: string, decision: 'approved' | 'rejected', options?: {
+        resolution?: string;
+        source?: PmxAxSource;
+    }): PmxAxModeRequest | null;
     fitView(options?: {
         width?: number;
         height?: number;
@@ -439,5 +476,5 @@ export type { WebArtifactBuildInput, WebArtifactBuildOutput, WebArtifactCanvasBu
 export type { GraphNodeInput, JsonRenderNodeInput, JsonRenderSpec } from '../json-render/server.js';
 export type { HtmlPrimitiveKind, HtmlPrimitiveDescriptor, HtmlPrimitiveInput, HtmlPrimitiveBuildResult } from './html-primitives.js';
 export { traceManager } from './trace-manager.js';
-export type { PmxAxApprovalGate, PmxAxApprovalStatus, PmxAxContext, PmxAxEvent, PmxAxEventKind, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxTimelineSummary, PmxAxWorkItem, PmxAxWorkItemStatus, } from './ax-state.js';
+export type { PmxAxApprovalGate, PmxAxApprovalStatus, PmxAxContext, PmxAxEvent, PmxAxElicitation, PmxAxElicitationStatus, PmxAxEventKind, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxMode, PmxAxModeRequest, PmxAxModeRequestStatus, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxTimelineSummary, PmxAxWorkItem, PmxAxWorkItemStatus, } from './ax-state.js';
 export type { AxTimelineQuery } from './canvas-db.js';

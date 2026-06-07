@@ -37,6 +37,8 @@ export function buildCanvasAxContext(): PmxAxContext {
     workItems: ax.workItems,
     approvalGates: ax.approvalGates,
     reviewAnnotations: ax.reviewAnnotations,
+    elicitations: ax.elicitations,
+    modeRequests: ax.modeRequests,
     timeline: canvasState.getAxTimelineSummary(),
     host: canvasState.getHostCapability(),
   });

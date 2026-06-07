@@ -236,6 +236,39 @@ export async function removeNodeFromClient(id: string): Promise<{ ok: boolean; r
   });
 }
 
+// ── PMX-AX node interactions ──────────────────────────────────
+
+export interface AxInteractionRequest {
+  type: string;
+  sourceNodeId: string;
+  payload?: Record<string, unknown>;
+  sourceSurface?: 'native-node' | 'json-render' | 'html-node' | 'mcp-app' | 'adapter';
+}
+
+export interface AxInteractionResponse {
+  ok: boolean;
+  type?: string;
+  sourceNodeId?: string;
+  primitive?: unknown;
+  status?: number;
+  code?: string;
+  error?: string;
+}
+
+/** Submit a capability-gated AX interaction from a native node control. */
+export async function submitAxInteractionFromClient(input: AxInteractionRequest): Promise<AxInteractionResponse> {
+  return requestJson<AxInteractionResponse>(
+    'submitAxInteractionFromClient',
+    '/api/canvas/ax/interaction',
+    { ok: false, code: 'request-failed', error: 'Request failed' },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ sourceSurface: 'native-node', ...input, source: 'browser' }),
+    },
+  );
+}
+
 /** Commit the current viewport to the authoritative server state. */
 export async function updateViewportFromClient(
   viewport: { x: number; y: number; scale: number },

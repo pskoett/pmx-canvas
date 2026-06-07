@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef } from 'preact/hooks';
 import { canvasTheme } from '../state/canvas-store';
+import { submitAxInteractionFromClient } from '../state/intent-bridge';
+import { showToast } from '../state/attention-bridge';
 import type { CanvasNodeState } from '../types';
 import { nodeSurfaceUrl, surfaceContentHash } from './surface-url';
 
@@ -17,7 +19,9 @@ export function HtmlNode({
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const theme = canvasTheme.value;
   // Stable per-mount nonce that authorizes parent → iframe theme-update messages.
-  const themeToken = useMemo(() => `theme-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`, []);
+  const themeToken = useMemo(() => `theme-${crypto.randomUUID()}`, []);
+  // Per-mount nonce authorizing iframe → parent AX emits (Phase 3 HTML bridge).
+  const axToken = useMemo(() => `ax-${crypto.randomUUID()}`, []);
   const html = typeof node.data.html === 'string'
     ? node.data.html
     : typeof node.data.content === 'string'
@@ -32,10 +36,41 @@ export function HtmlNode({
   // itself changes.
   const surfaceSrc = useMemo(
     () => (html
-      ? nodeSurfaceUrl(node.id, { theme, themeToken, present: presentation, presentToken: presentationExitToken, v })
+      ? nodeSurfaceUrl(node.id, { theme, themeToken, present: presentation, presentToken: presentationExitToken, v, axToken })
       : ''),
-    [html, presentation, presentationExitToken, themeToken, v, node.id],
+    [html, presentation, presentationExitToken, themeToken, v, node.id, axToken],
   );
+
+  // Phase 3 HTML bridge: receive window.PMX_AX.emit(...) messages from the
+  // sandboxed iframe, validate the nonce + node id, and submit the interaction
+  // through the capability-gated endpoint (the server re-validates capabilities).
+  useEffect(() => {
+    function onAxMessage(event: MessageEvent) {
+      // Bind to THIS node's own iframe (matches the ext-app bridge); the nonce +
+      // nodeId are a second gate, not the only one.
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      const data = event.data as {
+        source?: string; token?: string; nodeId?: string;
+        interaction?: { type?: unknown; payload?: unknown };
+      } | null;
+      if (!data || data.source !== 'pmx-canvas-ax' || data.token !== axToken || data.nodeId !== node.id) return;
+      const interaction = data.interaction;
+      if (!interaction || typeof interaction.type !== 'string') return;
+      void submitAxInteractionFromClient({
+        type: interaction.type,
+        sourceNodeId: node.id,
+        sourceSurface: 'html-node',
+        ...(interaction.payload && typeof interaction.payload === 'object'
+          ? { payload: interaction.payload as Record<string, unknown> }
+          : {}),
+      }).then((res) => {
+        if (res.ok) showToast('context', 'AX interaction', interaction.type as string, [node.id]);
+        else showToast('remove', 'AX interaction rejected', res.error ?? res.code ?? '', [node.id]);
+      });
+    }
+    window.addEventListener('message', onAxMessage);
+    return () => window.removeEventListener('message', onAxMessage);
+  }, [axToken, node.id]);
 
   useEffect(() => {
     iframeRef.current?.contentWindow?.postMessage({

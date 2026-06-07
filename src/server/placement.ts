@@ -7,7 +7,11 @@ import {
 
 export { findOpenCanvasPosition, type CanvasPlacementRect } from '../shared/placement.js';
 
-export const GROUP_PAD = 40;
+// Margin between a group frame and the children it contains. Kept generous so
+// the auto-fit frame stays visibly larger than its children — leaving room for
+// the node-count/type badge in the header that would otherwise sit under the
+// top-left child.
+export const GROUP_PAD = 56;
 export const GROUP_TITLEBAR_HEIGHT = 32;
 const GROUP_LAYOUT_GAP_X = 32;
 const GROUP_LAYOUT_GAP_Y = 32;

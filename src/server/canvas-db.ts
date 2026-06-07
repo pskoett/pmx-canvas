@@ -901,6 +901,26 @@ export function loadAxSteeringFromDB(db: Database, q: AxTimelineQuery & { onlyPe
     .filter((s): s is PmxAxSteeringMessage => s !== null);
 }
 
+export function loadPendingAxSteeringFromDB(
+  db: Database,
+  options: { consumer?: string; limit?: number } = {},
+): PmxAxSteeringMessage[] {
+  interface Row { seq: number; id: string; message: string; delivered: number; created_at: string; source: string | null }
+  // FIFO (oldest undelivered first); exclude the consumer's own steering in SQL
+  // so the LIMIT is applied AFTER loop-prevention, not before.
+  const limit = clampTimelineLimit(options.limit);
+  const rows = options.consumer
+    ? db.query<Row, [string, number]>(
+        'SELECT * FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?) ORDER BY seq ASC LIMIT ?',
+      ).all(options.consumer, limit)
+    : db.query<Row, [number]>(
+        'SELECT * FROM ax_steering WHERE delivered = 0 ORDER BY seq ASC LIMIT ?',
+      ).all(limit);
+  return rows
+    .map((r) => normalizeAxSteeringMessage({ ...r, createdAt: r.created_at, delivered: r.delivered === 1 }))
+    .filter((s): s is PmxAxSteeringMessage => s !== null);
+}
+
 function countRows(db: Database, table: 'ax_events' | 'ax_evidence' | 'ax_steering'): number {
   return Number(db.query<{ n: number }, []>(`SELECT COUNT(*) AS n FROM ${table}`).get()?.n ?? 0);
 }

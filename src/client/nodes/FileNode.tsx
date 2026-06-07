@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'preact/hooks';
 import { updateNodeData } from '../state/canvas-store';
 import { fetchFile, updateNodeFromClient } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
+import { runNodeAxInteraction } from './ax-node-actions';
 
 /** Guess a language label from a file extension for display. */
 function langFromPath(path: string): string {
@@ -170,6 +171,31 @@ export function FileNode({
             {new Date(updatedAt).toLocaleTimeString()}
           </span>
         )}
+        <button
+          type="button"
+          class="ax-node-action"
+          title="Mark this file as AX evidence"
+          onClick={(e) => {
+            e.stopPropagation();
+            void runNodeAxInteraction(
+              node,
+              'ax.evidence.add',
+              { kind: 'file', title: filePath.split('/').pop() || filePath, ref: filePath },
+              'Marked as evidence',
+            );
+          }}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: 'var(--c-muted)',
+            cursor: 'pointer',
+            padding: '2px 4px',
+            fontSize: '12px',
+            flexShrink: 0,
+          }}
+        >
+          ⊕
+        </button>
         <button
           type="button"
           onClick={handleReload}

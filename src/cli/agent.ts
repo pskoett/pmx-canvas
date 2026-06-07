@@ -1099,6 +1099,9 @@ const RESOURCE_SUBCOMMAND_HINTS: Record<string, Record<string, string>> = {
     work: 'Pick an action: pmx-canvas ax work add | update | list',
     approval: 'Pick an action: pmx-canvas ax approval request | resolve | list',
     review: 'Pick an action: pmx-canvas ax review add | list',
+    delivery: 'Pick an action: pmx-canvas ax delivery list | mark',
+    elicitation: 'Pick an action: pmx-canvas ax elicitation request | respond | list',
+    mode: 'Pick an action: pmx-canvas ax mode request | resolve | list',
   },
 };
 
@@ -1877,6 +1880,130 @@ cmd('ax steer', 'Send a steering message to the active agent session', [
   }
 
   output(await api('POST', '/api/canvas/ax/steer', { message, source: 'cli' }));
+});
+
+cmd('ax interaction', 'Submit a node-originated AX interaction (capability-gated)', [
+  'pmx-canvas ax interaction --type ax.work.create --node node-1 --payload \'{"title":"Wire auth"}\'',
+  'pmx-canvas ax interaction --type ax.focus.set --node node-2',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax interaction');
+
+  const type = getStringFlag(flags, 'type');
+  if (!type) die('Missing --type', 'pmx-canvas ax interaction --type <ax.*> --node <id> [--payload <json>]');
+  const sourceNodeId = getStringFlag(flags, 'node');
+  if (!sourceNodeId) die('Missing --node', 'pmx-canvas ax interaction --type <ax.*> --node <id>');
+
+  let payload: unknown;
+  const payloadRaw = getStringFlag(flags, 'payload');
+  if (payloadRaw) {
+    try {
+      payload = JSON.parse(payloadRaw);
+    } catch {
+      die('Invalid --payload JSON', 'pmx-canvas ax interaction --payload \'{"title":"..."}\'');
+    }
+  }
+
+  output(await api('POST', '/api/canvas/ax/interaction', {
+    type,
+    sourceNodeId,
+    ...(payload !== undefined ? { payload } : {}),
+    source: 'cli',
+  }));
+});
+
+cmd('ax delivery list', 'List pending AX steering for a consumer (loop-safe)', [
+  'pmx-canvas ax delivery list',
+  'pmx-canvas ax delivery list --consumer copilot --limit 20',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax delivery list');
+  const consumer = getStringFlag(flags, 'consumer');
+  const limit = optionalNumberFlag(flags, 'limit', 'pmx-canvas ax delivery list --limit <n>');
+  const params = new URLSearchParams();
+  if (consumer) params.set('consumer', consumer);
+  if (limit) params.set('limit', String(limit));
+  const qs = params.toString();
+  output(await api('GET', `/api/canvas/ax/delivery/pending${qs ? `?${qs}` : ''}`));
+});
+
+cmd('ax delivery mark', 'Mark an AX steering message as delivered', [
+  'pmx-canvas ax delivery mark <steering-id>',
+], async (args) => {
+  const { positional, flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax delivery mark');
+  const id = getStringFlag(flags, 'id') ?? positional[0];
+  if (!id) die('Missing steering id', 'pmx-canvas ax delivery mark <steering-id>');
+  output(await api('POST', `/api/canvas/ax/delivery/${encodeURIComponent(id)}/mark`, {}));
+});
+
+cmd('ax elicitation request', 'Request structured human input', [
+  'pmx-canvas ax elicitation request --prompt "Who owns this migration?"',
+  'pmx-canvas ax elicitation request --prompt "Pick a region" --fields region,owner',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax elicitation request');
+  const prompt = requireFlag(flags, 'prompt', 'pmx-canvas ax elicitation request --prompt <text>');
+  const fields = getStringFlag(flags, 'fields');
+  output(await api('POST', '/api/canvas/ax/elicitation', {
+    prompt,
+    ...(fields ? { fields: fields.split(',').map((f) => f.trim()).filter(Boolean) } : {}),
+    source: 'cli',
+  }));
+});
+
+cmd('ax elicitation respond', 'Answer a pending elicitation', [
+  'pmx-canvas ax elicitation respond <id> --response \'{"owner":"alice"}\'',
+], async (args) => {
+  const { positional, flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax elicitation respond');
+  const id = getStringFlag(flags, 'id') ?? positional[0];
+  if (!id) die('Missing elicitation id', 'pmx-canvas ax elicitation respond <id> --response <json>');
+  let response: unknown = {};
+  const raw = getStringFlag(flags, 'response');
+  if (raw) {
+    try { response = JSON.parse(raw); } catch { die('Invalid --response JSON', '--response \'{"k":"v"}\''); }
+  }
+  output(await api('POST', `/api/canvas/ax/elicitation/${encodeURIComponent(id)}/respond`, { response, source: 'cli' }));
+});
+
+cmd('ax elicitation list', 'List elicitations', ['pmx-canvas ax elicitation list'], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax elicitation list');
+  output(await api('GET', '/api/canvas/ax/elicitation'));
+});
+
+cmd('ax mode request', 'Request a workflow mode transition (plan/execute/autonomous)', [
+  'pmx-canvas ax mode request --mode execute --reason "plan approved"',
+], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax mode request');
+  const mode = requireFlag(flags, 'mode', 'pmx-canvas ax mode request --mode plan|execute|autonomous');
+  const reason = getStringFlag(flags, 'reason');
+  output(await api('POST', '/api/canvas/ax/mode', { mode, ...(reason ? { reason } : {}), source: 'cli' }));
+});
+
+cmd('ax mode resolve', 'Resolve a pending mode request', [
+  'pmx-canvas ax mode resolve <id> --decision approved',
+], async (args) => {
+  const { positional, flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax mode resolve');
+  const id = getStringFlag(flags, 'id') ?? positional[0];
+  if (!id) die('Missing mode request id', 'pmx-canvas ax mode resolve <id> --decision approved|rejected');
+  const decision = getStringFlag(flags, 'decision');
+  if (decision !== 'approved' && decision !== 'rejected') die('Invalid --decision', '--decision approved|rejected');
+  const resolution = getStringFlag(flags, 'resolution');
+  output(await api('POST', `/api/canvas/ax/mode/${encodeURIComponent(id)}/resolve`, {
+    decision,
+    ...(resolution ? { resolution } : {}),
+    source: 'cli',
+  }));
+});
+
+cmd('ax mode list', 'List mode requests', ['pmx-canvas ax mode list'], async (args) => {
+  const { flags } = parseFlags(args);
+  if (flags.help || flags.h) return showCommandHelp('ax mode list');
+  output(await api('GET', '/api/canvas/ax/mode'));
 });
 
 cmd('ax timeline', 'Read the bounded AX timeline (events, evidence, steering)', [

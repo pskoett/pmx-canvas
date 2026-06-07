@@ -10,7 +10,7 @@
  * Legacy `.pmx-canvas/state.json` is auto-migrated on first boot.
  */
 import { type PersistedCanvasState, type CanvasTheme, type AxTimelineQuery } from './canvas-db.js';
-import { type PmxAxFocusState, type PmxAxSource, type PmxAxState, type PmxAxWorkItem, type PmxAxWorkItemStatus, type PmxAxApprovalGate, type PmxAxReviewAnnotation, type PmxAxReviewKind, type PmxAxReviewSeverity, type PmxAxReviewStatus, type PmxAxReviewAnchorType, type PmxAxReviewRegion, type PmxAxEvent, type PmxAxEventKind, type PmxAxEvidence, type PmxAxEvidenceKind, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
+import { type PmxAxElicitation, type PmxAxModeRequest, type PmxAxMode, type PmxAxFocusState, type PmxAxSource, type PmxAxState, type PmxAxWorkItem, type PmxAxWorkItemStatus, type PmxAxApprovalGate, type PmxAxReviewAnnotation, type PmxAxReviewKind, type PmxAxReviewSeverity, type PmxAxReviewStatus, type PmxAxReviewAnchorType, type PmxAxReviewRegion, type PmxAxEvent, type PmxAxEventKind, type PmxAxEvidence, type PmxAxEvidenceKind, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
 export declare const PMX_CANVAS_DIR = ".pmx-canvas";
 export interface PersistedBlobRef {
     __pmxCanvasBlob: 'v1';
@@ -122,7 +122,7 @@ export interface CanvasNodeUpdate {
 }
 export type CanvasChangeType = 'pins' | 'nodes' | 'ax' | 'ax-timeline';
 export interface MutationRecordInfo {
-    operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
+    operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'requestElicitation' | 'respondElicitation' | 'requestMode' | 'resolveModeRequest' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
     description: string;
     forward: () => void;
     inverse: () => void;
@@ -316,6 +316,29 @@ declare class CanvasStateManager {
         source?: PmxAxSource;
     }): PmxAxReviewAnnotation | null;
     getHostCapability(): PmxAxHostCapability | null;
+    getElicitations(): PmxAxElicitation[];
+    requestElicitation(input: {
+        prompt: string;
+        fields?: string[];
+        nodeIds?: string[];
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxElicitation;
+    respondElicitation(id: string, response: Record<string, unknown>, options?: {
+        source?: PmxAxSource;
+    }): PmxAxElicitation | null;
+    getModeRequests(): PmxAxModeRequest[];
+    requestMode(input: {
+        mode: PmxAxMode;
+        reason?: string | null;
+        nodeIds?: string[];
+    }, options?: {
+        source?: PmxAxSource;
+    }): PmxAxModeRequest;
+    resolveModeRequest(id: string, decision: 'approved' | 'rejected', options?: {
+        resolution?: string;
+        source?: PmxAxSource;
+    }): PmxAxModeRequest | null;
     setHostCapability(input: unknown, _options?: {
         source?: PmxAxSource;
     }): PmxAxHostCapability;
@@ -346,6 +369,15 @@ declare class CanvasStateManager {
     getAxEvidence(q?: AxTimelineQuery): PmxAxEvidence[];
     getAxSteering(q?: AxTimelineQuery & {
         onlyPending?: boolean;
+    }): PmxAxSteeringMessage[];
+    /**
+     * Undelivered steering for a consumer (Phase 4 delivery). Excludes messages
+     * whose source equals the consumer to prevent delivery loops (e.g. Copilot
+     * should not be handed back steering it originated).
+     */
+    getPendingSteering(options?: {
+        consumer?: string;
+        limit?: number;
     }): PmxAxSteeringMessage[];
     getAxTimelineSummary(): PmxAxTimelineSummary;
     getAxTimeline(q?: AxTimelineQuery): {

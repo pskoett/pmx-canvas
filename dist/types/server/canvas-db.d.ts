@@ -49,6 +49,10 @@ export declare function loadAxEvidenceFromDB(db: Database, q?: AxTimelineQuery):
 export declare function loadAxSteeringFromDB(db: Database, q?: AxTimelineQuery & {
     onlyPending?: boolean;
 }): PmxAxSteeringMessage[];
+export declare function loadPendingAxSteeringFromDB(db: Database, options?: {
+    consumer?: string;
+    limit?: number;
+}): PmxAxSteeringMessage[];
 export declare function loadAxTimelineSummaryFromDB(db: Database): PmxAxTimelineSummary;
 export declare function upsertAxHostCapabilityToDB(db: Database, cap: PmxAxHostCapability): void;
 export declare function loadAxHostCapabilityFromDB(db: Database): PmxAxHostCapability | null;

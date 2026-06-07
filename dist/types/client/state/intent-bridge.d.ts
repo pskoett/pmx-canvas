@@ -111,6 +111,23 @@ export declare function removeNodeFromClient(id: string): Promise<{
     ok: boolean;
     removed?: string;
 }>;
+export interface AxInteractionRequest {
+    type: string;
+    sourceNodeId: string;
+    payload?: Record<string, unknown>;
+    sourceSurface?: 'native-node' | 'json-render' | 'html-node' | 'mcp-app' | 'adapter';
+}
+export interface AxInteractionResponse {
+    ok: boolean;
+    type?: string;
+    sourceNodeId?: string;
+    primitive?: unknown;
+    status?: number;
+    code?: string;
+    error?: string;
+}
+/** Submit a capability-gated AX interaction from a native node control. */
+export declare function submitAxInteractionFromClient(input: AxInteractionRequest): Promise<AxInteractionResponse>;
 /** Commit the current viewport to the authoritative server state. */
 export declare function updateViewportFromClient(viewport: {
     x: number;

@@ -36,6 +36,7 @@ import {
   loadAxEventsFromDB,
   loadAxEvidenceFromDB,
   loadAxSteeringFromDB,
+  loadPendingAxSteeringFromDB,
   loadAxTimelineSummaryFromDB,
   upsertAxHostCapabilityToDB,
   loadAxHostCapabilityFromDB,
@@ -63,6 +64,11 @@ import {
   createAxEvent,
   createAxEvidence,
   createAxSteeringMessage,
+  createAxElicitation,
+  createAxModeRequest,
+  type PmxAxElicitation,
+  type PmxAxModeRequest,
+  type PmxAxMode,
   type PmxAxFocusState,
   type PmxAxSource,
   type PmxAxState,
@@ -247,7 +253,7 @@ export interface CanvasNodeUpdate {
 export type CanvasChangeType = 'pins' | 'nodes' | 'ax' | 'ax-timeline';
 
 export interface MutationRecordInfo {
-  operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
+  operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'requestElicitation' | 'respondElicitation' | 'requestMode' | 'resolveModeRequest' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
   description: string;
   forward: () => void;
   inverse: () => void;
@@ -1366,11 +1372,11 @@ class CanvasStateManager {
     this.nodes.set(id, nextNode);
     const parentGroupId = existing.data.parentGroup as string | undefined;
     if (parentGroupId) {
-      if (patch.size) {
-        this.compactGroupChildren(parentGroupId);
-      } else {
-        this.recomputeParentGroupBounds(parentGroupId);
-      }
+      // Moving or resizing a grouped child re-fits the group frame but must NOT
+      // repack siblings — that would discard their explicit positions and the
+      // moved child's requested coordinates. Compaction is opt-in (group
+      // create/add with childLayout, or arrange).
+      this.recomputeParentGroupBounds(parentGroupId);
       this.reflowAllGroups();
     }
     this.scheduleSave();
@@ -1561,7 +1567,7 @@ class CanvasStateManager {
   applyUpdates(updates: CanvasNodeUpdate[], options: ApplyUpdatesOptions = {}): { applied: number; skipped: number } {
     let applied = 0;
     let skipped = 0;
-    const touchedParentGroups = new Map<string, { compact: boolean }>();
+    const touchedParentGroups = new Set<string>();
     const oldSnapshots = new Map<string, CanvasNodeState>();
     const appliedUpdates: CanvasNodeUpdate[] = [];
     const explicitPositionUpdateIds = new Set(
@@ -1615,19 +1621,17 @@ class CanvasStateManager {
       }));
       const parentGroupId = existing.data.parentGroup as string | undefined;
       if (parentGroupId) {
-        const entry = touchedParentGroups.get(parentGroupId) ?? { compact: false };
-        entry.compact = entry.compact || nextPatch.size !== undefined;
-        touchedParentGroups.set(parentGroupId, entry);
+        touchedParentGroups.add(parentGroupId);
       }
       applied++;
     }
 
-    for (const [groupId, entry] of touchedParentGroups) {
-      if (entry.compact) {
-        this.compactGroupChildren(groupId);
-      } else {
-        this.recomputeParentGroupBounds(groupId);
-      }
+    // Moving or resizing a grouped child re-fits the group frame, but must NOT
+    // repack siblings — that would discard their explicit positions and the
+    // moved child's requested coordinates. Compaction is opt-in, applied only
+    // through an explicit layout (group create/add with childLayout, or arrange).
+    for (const groupId of touchedParentGroups) {
+      this.recomputeParentGroupBounds(groupId);
     }
     if (touchedParentGroups.size > 0) this.reflowAllGroups();
 
@@ -1918,6 +1922,108 @@ class CanvasStateManager {
     return this._axHostCapability;
   }
 
+  getElicitations(): PmxAxElicitation[] {
+    return this.getAxState().elicitations;
+  }
+
+  requestElicitation(
+    input: { prompt: string; fields?: string[]; nodeIds?: string[] },
+    options: { source?: PmxAxSource } = {},
+  ): PmxAxElicitation {
+    const oldAxState = this.getAxState();
+    const elicitation = createAxElicitation(input, options.source ?? 'api', this.currentNodeIdSet());
+    this.applyAxState({ ...oldAxState, elicitations: [...oldAxState.elicitations, elicitation] });
+    const applied = this.getAxState();
+    this.scheduleSave();
+    this.notifyChange('ax');
+    this.recordMutation({
+      operationType: 'requestElicitation',
+      description: `Requested elicitation "${elicitation.prompt}"`,
+      forward: this.suppressed(() => { this.applyAxState(applied); this.scheduleSave(); this.notifyChange('ax'); }),
+      inverse: this.suppressed(() => { this.applyAxState(oldAxState); this.scheduleSave(); this.notifyChange('ax'); }),
+    });
+    return applied.elicitations.find((e) => e.id === elicitation.id) ?? elicitation;
+  }
+
+  respondElicitation(
+    id: string,
+    response: Record<string, unknown>,
+    options: { source?: PmxAxSource } = {},
+  ): PmxAxElicitation | null {
+    const oldAxState = this.getAxState();
+    const existing = oldAxState.elicitations.find((e) => e.id === id);
+    if (!existing || existing.status !== 'pending') return null;
+    const merged: PmxAxElicitation = {
+      ...existing,
+      status: 'answered',
+      response,
+      resolvedAt: new Date().toISOString(),
+      source: options.source ?? existing.source,
+    };
+    this.applyAxState({ ...oldAxState, elicitations: replaceById(oldAxState.elicitations, merged) });
+    const applied = this.getAxState();
+    this.scheduleSave();
+    this.notifyChange('ax');
+    this.recordMutation({
+      operationType: 'respondElicitation',
+      description: `Answered elicitation ${id}`,
+      forward: this.suppressed(() => { this.applyAxState(applied); this.scheduleSave(); this.notifyChange('ax'); }),
+      inverse: this.suppressed(() => { this.applyAxState(oldAxState); this.scheduleSave(); this.notifyChange('ax'); }),
+    });
+    return applied.elicitations.find((e) => e.id === id) ?? null;
+  }
+
+  getModeRequests(): PmxAxModeRequest[] {
+    return this.getAxState().modeRequests;
+  }
+
+  requestMode(
+    input: { mode: PmxAxMode; reason?: string | null; nodeIds?: string[] },
+    options: { source?: PmxAxSource } = {},
+  ): PmxAxModeRequest {
+    const oldAxState = this.getAxState();
+    const request = createAxModeRequest(input, options.source ?? 'api', this.currentNodeIdSet());
+    this.applyAxState({ ...oldAxState, modeRequests: [...oldAxState.modeRequests, request] });
+    const applied = this.getAxState();
+    this.scheduleSave();
+    this.notifyChange('ax');
+    this.recordMutation({
+      operationType: 'requestMode',
+      description: `Requested mode "${request.mode}"`,
+      forward: this.suppressed(() => { this.applyAxState(applied); this.scheduleSave(); this.notifyChange('ax'); }),
+      inverse: this.suppressed(() => { this.applyAxState(oldAxState); this.scheduleSave(); this.notifyChange('ax'); }),
+    });
+    return applied.modeRequests.find((m) => m.id === request.id) ?? request;
+  }
+
+  resolveModeRequest(
+    id: string,
+    decision: 'approved' | 'rejected',
+    options: { resolution?: string; source?: PmxAxSource } = {},
+  ): PmxAxModeRequest | null {
+    const oldAxState = this.getAxState();
+    const existing = oldAxState.modeRequests.find((m) => m.id === id);
+    if (!existing || existing.status !== 'pending') return null;
+    const merged: PmxAxModeRequest = {
+      ...existing,
+      status: decision,
+      resolvedAt: new Date().toISOString(),
+      resolution: options.resolution ?? null,
+      source: options.source ?? existing.source,
+    };
+    this.applyAxState({ ...oldAxState, modeRequests: replaceById(oldAxState.modeRequests, merged) });
+    const applied = this.getAxState();
+    this.scheduleSave();
+    this.notifyChange('ax');
+    this.recordMutation({
+      operationType: 'resolveModeRequest',
+      description: `Resolved mode request ${id} -> ${decision}`,
+      forward: this.suppressed(() => { this.applyAxState(applied); this.scheduleSave(); this.notifyChange('ax'); }),
+      inverse: this.suppressed(() => { this.applyAxState(oldAxState); this.scheduleSave(); this.notifyChange('ax'); }),
+    });
+    return applied.modeRequests.find((m) => m.id === id) ?? null;
+  }
+
   setHostCapability(input: unknown, _options: { source?: PmxAxSource } = {}): PmxAxHostCapability {
     const cap = normalizeAxHostCapability(
       isRecord(input)
@@ -2010,6 +2116,15 @@ class CanvasStateManager {
 
   getAxSteering(q: AxTimelineQuery & { onlyPending?: boolean } = {}): PmxAxSteeringMessage[] {
     return this._db ? loadAxSteeringFromDB(this._db, q) : [];
+  }
+
+  /**
+   * Undelivered steering for a consumer (Phase 4 delivery). Excludes messages
+   * whose source equals the consumer to prevent delivery loops (e.g. Copilot
+   * should not be handed back steering it originated).
+   */
+  getPendingSteering(options: { consumer?: string; limit?: number } = {}): PmxAxSteeringMessage[] {
+    return this._db ? loadPendingAxSteeringFromDB(this._db, options) : [];
   }
 
   getAxTimelineSummary(): PmxAxTimelineSummary {

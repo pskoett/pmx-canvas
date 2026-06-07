@@ -7,6 +7,67 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Added
 
+- **PMX-AX node interactions (plan-004 Phase 1).** A host-agnostic, capability-gated
+  interaction layer over the existing AX primitives. Eligible nodes emit one
+  normalized `PmxAxInteraction` envelope (`{ type, sourceNodeId, payload, ... }`)
+  that is validated against a per-node-type capability registry (with optional
+  per-node `data.axCapabilities` opt-in/narrowing, clamped to a server ceiling)
+  and mapped onto the matching AX operation — work item, evidence, approval,
+  review, focus, steering, or event. New `POST /api/canvas/ax/interaction`
+  endpoint plus full SDK (`PmxCanvas.submitAxInteraction`), CanvasAccess, MCP
+  (`canvas_ax_interaction`), and CLI (`pmx-canvas ax interaction`) coverage.
+  Interactions are sandbox/transport-agnostic (the same envelope will back native
+  nodes, json-render actions, the HTML bridge, MCP apps, and host adapters in
+  later phases); `html`/`html-primitive`, `mcp-app`, and internal `prompt`/`response`
+  nodes are disabled by default. Accepted and rejected interactions emit SSE
+  (`ax-interaction`) plus the underlying AX state event. PMX core still imports no
+  host SDK (guarded by `ax-parity.test.ts`).
+
+- **PMX-AX sandboxed HTML bridge (plan-004 Phase 3).** Opted-in `html` /
+  `html-primitive` nodes can emit AX interactions from inside the sandbox via
+  `window.PMX_AX.emit(type, payload)`. The server injects the bridge into the
+  surface document only when the node's AX capabilities are enabled; the bridge
+  posts a nonce-tagged message to the parent canvas, which validates the nonce +
+  node id and submits through the capability-gated endpoint (the server
+  re-validates, so the bridge is convenience, not a trust boundary). The iframe
+  sandbox stays `allow-scripts` only. (json-render action→AX mapping remains a
+  documented follow-up — the viewer needs a parent channel, same shape as this
+  bridge.)
+
+- **PMX-AX delivery semantics (plan-004 Phase 4).** Steering messages can be
+  claimed and acknowledged by adapterless consumers. New
+  `GET /api/canvas/ax/delivery/pending?consumer=` (loop-safe — excludes steering
+  the consumer itself originated) and `POST /api/canvas/ax/delivery/:id/mark`,
+  plus SDK/CanvasAccess (`getPendingSteering`, `markSteeringDelivered`), MCP tools
+  (`canvas_claim_ax_delivery`, `canvas_mark_ax_delivery`), MCP resources
+  (`canvas://ax-pending-steering`, `canvas://ax-delivery`), an MCP prompt
+  template (`pmx-current-context`) so MCP-aware clients can inject PMX context
+  without a host adapter, and CLI (`pmx-canvas ax delivery list|mark`).
+
+- **PMX-AX elicitation + mode-request primitives (plan-004 Phase 5).** Two new
+  canvas-bound, snapshotted AX primitives: `elicitation` (request structured
+  human input → respond) and `mode-request` (request a plan/execute/autonomous
+  transition → resolve). Full HTTP / SDK / CanvasAccess / MCP
+  (`canvas_request_elicitation`, `canvas_respond_elicitation`,
+  `canvas_request_mode`, `canvas_resolve_mode`) / CLI coverage, and both are
+  executable via the interaction envelope (`ax.elicitation.request`,
+  `ax.mode.request`). Command registry and tool/prompt policy primitives are
+  intentionally deferred pending the plan's open product questions (which
+  commands are first-class; how much prompt/system-message mutation PMX should
+  allow by default); the capability registry already reserves `mcp-app` (disabled
+  by default), so the MCP-app interaction bridge (Phase 6) is gated and
+  forward-compatible until that trust boundary is designed.
+
+- **PMX-AX native node controls (plan-004 Phase 2).** Inline AX controls on
+  native nodes that submit interactions through the browser: status nodes get a
+  "Track as work" button (→ `ax.work.create`), file nodes a "mark as evidence"
+  control (→ `ax.evidence.add`), and context nodes a "Set focus" button
+  (→ `ax.focus.set`). A client helper (`submitAxInteractionFromClient`) posts to
+  the interaction endpoint and surfaces the outcome as a transient toast.
+  (json-render action → AX mapping is deferred to the bridge-transport work: the
+  json-render viewer consumes actions internally and needs a viewer→parent
+  channel, the same shape as the HTML and MCP-app bridges.)
+
 - **Open as site — standalone node surfaces.** Every renderable surface node can
   now be opened full-page in its own browser tab via an ↗ "Open as site" button
   (node title bar and expanded overlay), covering `html` / `html-primitive`,

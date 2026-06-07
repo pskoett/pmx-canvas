@@ -1,6 +1,6 @@
 import { type CanvasPlacementRect } from '../shared/placement.js';
 export { findOpenCanvasPosition, type CanvasPlacementRect } from '../shared/placement.js';
-export declare const GROUP_PAD = 40;
+export declare const GROUP_PAD = 56;
 export declare const GROUP_TITLEBAR_HEIGHT = 32;
 /**
  * Compute bounding box for a group that should contain the given child rects.

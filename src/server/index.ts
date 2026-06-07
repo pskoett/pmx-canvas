@@ -2,14 +2,18 @@ import { EventEmitter } from 'node:events';
 import { canvasState, IMAGE_MIME_MAP } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
 import { buildCanvasAxContext } from './ax-context.js';
+import { applyAxInteraction, type AxInteractionInput, type AxInteractionPublicResult } from './ax-interaction.js';
 import type {
   PmxAxApprovalGate,
   PmxAxContext,
+  PmxAxElicitation,
   PmxAxEvent,
   PmxAxEvidence,
   PmxAxEvidenceKind,
   PmxAxFocusState,
   PmxAxHostCapability,
+  PmxAxMode,
+  PmxAxModeRequest,
   PmxAxReviewAnchorType,
   PmxAxReviewAnnotation,
   PmxAxReviewKind,
@@ -523,6 +527,22 @@ export class PmxCanvas extends EventEmitter {
     return ok;
   }
 
+  /** Undelivered steering for a consumer (loop-safe; excludes consumer-originated). */
+  getPendingSteering(options?: { consumer?: string; limit?: number }): PmxAxSteeringMessage[] {
+    return canvasState.getPendingSteering(options ?? {});
+  }
+
+  /**
+   * Submit a node-originated AX interaction (plan-004 Phase 1). Validates the
+   * envelope + node capabilities, maps the interaction onto the matching AX
+   * operation, and emits the outcome + state SSE events.
+   */
+  submitAxInteraction(input: AxInteractionInput, options?: { source?: PmxAxSource }): AxInteractionPublicResult {
+    const { result, events } = applyAxInteraction(canvasState, input, options?.source ?? 'sdk');
+    for (const e of events) emitPrimaryWorkbenchEvent(e.event, e.payload);
+    return result;
+  }
+
   getAxTimeline(query?: AxTimelineQuery): ReturnType<typeof canvasState.getAxTimeline> {
     return canvasState.getAxTimeline(query);
   }
@@ -626,6 +646,52 @@ export class PmxCanvas extends EventEmitter {
     const host = canvasState.setHostCapability(input, { source: options?.source ?? 'sdk' });
     emitPrimaryWorkbenchEvent('ax-state-changed', { host });
     return host;
+  }
+
+  listElicitations(): PmxAxElicitation[] {
+    return canvasState.getElicitations();
+  }
+
+  requestElicitation(
+    input: { prompt: string; fields?: string[]; nodeIds?: string[] },
+    options?: { source?: PmxAxSource },
+  ): PmxAxElicitation {
+    const elicitation = canvasState.requestElicitation(input, { source: options?.source ?? 'sdk' });
+    emitPrimaryWorkbenchEvent('ax-state-changed', { elicitation });
+    return elicitation;
+  }
+
+  respondElicitation(
+    id: string,
+    response: Record<string, unknown>,
+    options?: { source?: PmxAxSource },
+  ): PmxAxElicitation | null {
+    const elicitation = canvasState.respondElicitation(id, response, { source: options?.source ?? 'sdk' });
+    if (elicitation) emitPrimaryWorkbenchEvent('ax-state-changed', { elicitation });
+    return elicitation;
+  }
+
+  listModeRequests(): PmxAxModeRequest[] {
+    return canvasState.getModeRequests();
+  }
+
+  requestMode(
+    input: { mode: PmxAxMode; reason?: string | null; nodeIds?: string[] },
+    options?: { source?: PmxAxSource },
+  ): PmxAxModeRequest {
+    const modeRequest = canvasState.requestMode(input, { source: options?.source ?? 'sdk' });
+    emitPrimaryWorkbenchEvent('ax-state-changed', { modeRequest });
+    return modeRequest;
+  }
+
+  resolveModeRequest(
+    id: string,
+    decision: 'approved' | 'rejected',
+    options?: { resolution?: string; source?: PmxAxSource },
+  ): PmxAxModeRequest | null {
+    const modeRequest = canvasState.resolveModeRequest(id, decision, { ...(options ?? {}), source: options?.source ?? 'sdk' });
+    if (modeRequest) emitPrimaryWorkbenchEvent('ax-state-changed', { modeRequest });
+    return modeRequest;
   }
 
   fitView(options?: {
@@ -1114,11 +1180,16 @@ export type {
   PmxAxApprovalStatus,
   PmxAxContext,
   PmxAxEvent,
+  PmxAxElicitation,
+  PmxAxElicitationStatus,
   PmxAxEventKind,
   PmxAxEvidence,
   PmxAxEvidenceKind,
   PmxAxFocusState,
   PmxAxHostCapability,
+  PmxAxMode,
+  PmxAxModeRequest,
+  PmxAxModeRequestStatus,
   PmxAxReviewAnchorType,
   PmxAxReviewAnnotation,
   PmxAxReviewKind,

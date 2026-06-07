@@ -26,6 +26,12 @@ export interface HtmlSurfaceOptions {
     themeToken?: string;
     presentation?: boolean;
     presentationExitToken?: string;
+    /** Inject window.PMX_AX.emit (only when the node's AX capabilities are enabled). */
+    axBridge?: boolean;
+    /** Nonce authorizing iframe → parent AX emits; embedded in the bridge. */
+    axToken?: string;
+    /** Node id stamped on emitted interactions. */
+    nodeId?: string;
 }
 /**
  * Wrap author HTML into a complete, themed standalone document. Accepts either a

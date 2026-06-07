@@ -1467,6 +1467,10 @@ export function groupCanvasNodes(
 ): { ok: boolean } {
   return {
     ok: canvasState.groupNodes(groupId, childIds, {
+      // Preserve existing child positions unless an explicit layout is asked
+      // for — matching createCanvasGroup and the batch group.add path. Without
+      // this, grouping silently auto-packs the nodes into a grid.
+      preservePositions: options.childLayout === undefined,
       ...(options.childLayout ? { layout: options.childLayout } : {}),
     }),
   };
@@ -1834,6 +1838,13 @@ export async function executeCanvasBatch(
           canvasState.updateNode(id, patch);
           const updated = canvasState.getNode(id);
           result = { ok: true, ...(updated ? serializeCreatedNode(updated) : { id }) };
+          break;
+        }
+        case 'node.remove': {
+          const id = typeof args.id === 'string' ? args.id : '';
+          const { removed } = removeCanvasNode(id);
+          if (!removed) throw new Error(`Node "${id}" not found.`);
+          result = { ok: true, id, removed: true };
           break;
         }
         case 'graph.add': {

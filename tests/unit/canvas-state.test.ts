@@ -634,10 +634,10 @@ describe('canvas state manager', () => {
     ]);
 
     expect(bounds).toEqual({
-      x: 60,
-      y: 128,
-      width: 800,
-      height: 412,
+      x: 44,
+      y: 112,
+      width: 832,
+      height: 444,
     });
   });
 
@@ -662,16 +662,16 @@ describe('canvas state manager', () => {
     }));
 
     expect(canvasState.groupNodes(groupId, [child.id])).toBe(true);
-    expect(canvasState.getNode(groupId)?.position).toEqual({ x: 80, y: 88 });
-    expect(canvasState.getNode(groupId)?.size).toEqual({ width: 440, height: 312 });
+    expect(canvasState.getNode(groupId)?.position).toEqual({ x: 64, y: 72 });
+    expect(canvasState.getNode(groupId)?.size).toEqual({ width: 472, height: 344 });
 
     canvasState.updateNode(child.id, {
       position: { x: 220, y: 260 },
       size: { width: 500, height: 320 },
     });
 
-    expect(canvasState.getNode(groupId)?.position).toEqual({ x: 180, y: 188 });
-    expect(canvasState.getNode(groupId)?.size).toEqual({ width: 580, height: 432 });
+    expect(canvasState.getNode(groupId)?.position).toEqual({ x: 164, y: 172 });
+    expect(canvasState.getNode(groupId)?.size).toEqual({ width: 612, height: 464 });
   });
 
   test('batch updates recompute parent group bounds when a grouped child moves', () => {
@@ -695,8 +695,8 @@ describe('canvas state manager', () => {
     }));
 
     expect(canvasState.groupNodes(groupId, [child.id])).toBe(true);
-    expect(canvasState.getNode(groupId)?.position).toEqual({ x: 80, y: 88 });
-    expect(canvasState.getNode(groupId)?.size).toEqual({ width: 440, height: 312 });
+    expect(canvasState.getNode(groupId)?.position).toEqual({ x: 64, y: 72 });
+    expect(canvasState.getNode(groupId)?.size).toEqual({ width: 472, height: 344 });
 
     expect(canvasState.applyUpdates([{
       id: child.id,
@@ -704,8 +704,8 @@ describe('canvas state manager', () => {
       size: { width: 500, height: 320 },
     }])).toEqual({ applied: 1, skipped: 0 });
 
-    expect(canvasState.getNode(groupId)?.position).toEqual({ x: 180, y: 188 });
-    expect(canvasState.getNode(groupId)?.size).toEqual({ width: 580, height: 432 });
+    expect(canvasState.getNode(groupId)?.position).toEqual({ x: 164, y: 172 });
+    expect(canvasState.getNode(groupId)?.size).toEqual({ width: 612, height: 464 });
   });
 
   test('moving a group translates its child nodes', () => {
@@ -806,8 +806,8 @@ describe('canvas state manager', () => {
     expect(packedFirst.position).toEqual({ x: 40, y: 40 });
     expect(packedSecond.position).toEqual({ x: 472, y: 40 });
     expect(packedThird.position).toEqual({ x: 40, y: 392 });
-    expect(group.position).toEqual({ x: 0, y: -32 });
-    expect(group.size).toEqual({ width: 1012, height: 704 });
+    expect(group.position).toEqual({ x: -16, y: -48 });
+    expect(group.size).toEqual({ width: 1044, height: 736 });
   });
 
   test('grouping shifts a packed group clear of existing groups', () => {
@@ -887,10 +887,47 @@ describe('canvas state manager', () => {
     expect(canvasState.groupNodes('group-right', [first.id, second.id])).toBe(true);
 
     const groupRight = canvasState.getNode('group-right')!;
-    expect(groupRight.position).toEqual({ x: 888, y: -32 });
+    expect(groupRight.position).toEqual({ x: 888, y: -48 });
   });
 
-  test('growing grouped children repacks siblings to avoid node overlap', () => {
+  test('updating a grouped child moves only that child, not its siblings', () => {
+    const groupId = 'group-move-target';
+    canvasState.addNode(makeNode({
+      id: groupId,
+      type: 'group',
+      position: { x: 0, y: 0 },
+      size: { width: 100, height: 100 },
+      data: { title: 'Move group', children: [] },
+    }));
+    const positions: Record<string, { x: number; y: number }> = {
+      'mv-a': { x: 100, y: 100 },
+      'mv-b': { x: 500, y: 100 },
+      'mv-c': { x: 100, y: 420 },
+      'mv-d': { x: 500, y: 420 },
+    };
+    const ids = Object.keys(positions);
+    for (const id of ids) {
+      canvasState.addNode(makeNode({
+        id,
+        type: 'markdown',
+        position: positions[id],
+        size: { width: 280, height: 180 },
+        data: { title: id },
+      }));
+    }
+    expect(canvasState.groupNodes(groupId, ids, { preservePositions: true })).toBe(true);
+
+    // Move one child far away with a size in the patch (the 0.1.29 Repro B that
+    // used to repack every sibling and ignore the requested coordinates).
+    canvasState.updateNode('mv-a', { position: { x: 1000, y: 1000 }, size: { width: 280, height: 180 } });
+
+    expect(canvasState.getNode('mv-a')!.position).toEqual({ x: 1000, y: 1000 });
+    expect(canvasState.getNode('mv-b')!.position).toEqual({ x: 500, y: 100 });
+    expect(canvasState.getNode('mv-c')!.position).toEqual({ x: 100, y: 420 });
+    expect(canvasState.getNode('mv-d')!.position).toEqual({ x: 500, y: 420 });
+  });
+
+  test('growing grouped children preserves sibling positions (no auto-repack)', () => {
     const groupId = 'group-live';
     canvasState.addNode(makeNode({
       id: groupId,
@@ -951,25 +988,32 @@ describe('canvas state manager', () => {
       canvasState.addNode(node);
     }
 
+    const positionsBefore = new Map(
+      childIds.map((id) => {
+        const node = canvasState.getNode(id)!;
+        return [id, { x: node.position.x, y: node.position.y }];
+      }),
+    );
+
     canvasState.updateNode('context', { size: { width: 360, height: 600 } });
     canvasState.updateNode('trace-1', { size: { width: 340, height: 165 } });
     canvasState.updateNode('trace-2', { size: { width: 340, height: 165 } });
     canvasState.updateNode('trace-3', { size: { width: 340, height: 165 } });
 
-    const children = childIds
-      .map((id) => canvasState.getNode(id)!)
-      .map((node) => ({
-        id: node.id,
-        x: node.position.x,
-        y: node.position.y,
-        width: node.size.width,
-        height: node.size.height,
-      }));
+    // Resizing a grouped child must NOT repack siblings — the user owns the
+    // layout (Bug #32 / 0.1.29 report). Every child keeps its position.
+    for (const id of childIds) {
+      expect(canvasState.getNode(id)!.position).toEqual(positionsBefore.get(id)!);
+    }
 
-    for (let index = 0; index < children.length; index += 1) {
-      for (let otherIndex = index + 1; otherIndex < children.length; otherIndex += 1) {
-        expect(overlap(children[index], children[otherIndex])).toBe(false);
-      }
+    // The group frame still re-fits to contain its (now larger) children.
+    const group = canvasState.getNode(groupId)!;
+    for (const id of childIds) {
+      const child = canvasState.getNode(id)!;
+      expect(child.position.x).toBeGreaterThanOrEqual(group.position.x);
+      expect(child.position.y).toBeGreaterThanOrEqual(group.position.y);
+      expect(child.position.x + child.size.width).toBeLessThanOrEqual(group.position.x + group.size.width + 1);
+      expect(child.position.y + child.size.height).toBeLessThanOrEqual(group.position.y + group.size.height + 1);
     }
   });
 

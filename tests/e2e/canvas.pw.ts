@@ -1032,6 +1032,59 @@ test('opens an html node as a standalone site in a new tab', async ({ page, cont
   await popup.close();
 });
 
+test('status node "Track as work" creates an AX work item', async ({ page, request }) => {
+  await request.post('/api/canvas/node', {
+    data: { type: 'status', title: 'Build pipeline', x: 640, y: 260 },
+  });
+  await page.goto('/workbench');
+  const node = page.locator('.canvas-node').filter({ hasText: 'Build pipeline' });
+  await expect(node).toHaveCount(1);
+  await node.getByRole('button', { name: 'Track as work' }).click();
+
+  await expect.poll(async () => {
+    const ax = await request.get('/api/canvas/ax');
+    const body = await ax.json() as { state?: { workItems?: Array<{ title: string }> } };
+    return (body.state?.workItems ?? []).some((w) => w.title === 'Build pipeline');
+  }).toBe(true);
+});
+
+test('html bridge: an opted-in html node emits an AX interaction via window.PMX_AX', async ({ page, request }) => {
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'html',
+      title: 'AX bridge html',
+      html: '<main><h1>Bridge</h1><button onclick="window.PMX_AX.emit(\'ax.work.create\', { title: \'from-html-bridge\' })">emit</button></main>',
+      data: { axCapabilities: { enabled: true, allowed: ['ax.work.create'] } },
+      x: 640, y: 260, width: 520, height: 360,
+    },
+  });
+  await page.goto('/workbench');
+  const node = page.locator('.canvas-node').filter({ hasText: 'AX bridge html' });
+  await expect(node).toHaveCount(1);
+  await node.frameLocator('iframe').getByRole('button', { name: 'emit' }).click();
+
+  await expect.poll(async () => {
+    const ax = await request.get('/api/canvas/ax');
+    const body = await ax.json() as { state?: { workItems?: Array<{ title: string }> } };
+    return (body.state?.workItems ?? []).some((w) => w.title === 'from-html-bridge');
+  }).toBe(true);
+});
+
+test('file node evidence control records AX evidence', async ({ page, request }) => {
+  await request.post('/api/canvas/node', {
+    data: { type: 'file', content: 'console.log(1)', data: { path: '/tmp/evidence-file.ts' }, x: 640, y: 260 },
+  });
+  await page.goto('/workbench');
+  const node = page.locator('.canvas-node').filter({ hasText: 'evidence-file.ts' });
+  await expect(node).toHaveCount(1);
+  await node.getByTitle('Mark this file as AX evidence').click();
+
+  await expect.poll(async () => {
+    const tl = await request.get('/api/canvas/ax/timeline');
+    return JSON.stringify(await tl.json()).includes('evidence-file.ts');
+  }).toBe(true);
+});
+
 test('ledger nodes render content as split log lines without a label or literal newlines', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
     data: {

@@ -113,7 +113,7 @@ describe('canvas operations', () => {
     const validation = validateCanvasLayout(canvasState.getLayout());
     expect(validation.summary.containmentViolations).toBe(0);
     expect(canvasState.getNode('child-a')?.data.parentGroup).toBe('group-a');
-    expect(canvasState.getNode('group-a')?.position).toEqual({ x: 40, y: 80 });
+    expect(canvasState.getNode('group-a')?.position).toEqual({ x: 24, y: 64 });
     expect(canvasState.getNode('child-a')?.position).toEqual({ x: 80, y: 152 });
   });
 
@@ -153,11 +153,11 @@ describe('canvas operations', () => {
     const childA = canvasState.getNode('child-a');
     const childB = canvasState.getNode('child-b');
 
-    expect(group?.position).toEqual({ x: 40, y: 80 });
-    expect(childA?.position.x).toBe((group?.position.x ?? 0) + 40);
-    expect(childA?.position.y).toBe((group?.position.y ?? 0) + 72);
-    expect(childB?.position.x).toBe((group?.position.x ?? 0) + 40);
-    expect(childB?.position.y).toBe((group?.position.y ?? 0) + 372);
+    expect(group?.position).toEqual({ x: 24, y: 64 });
+    expect(childA?.position.x).toBe((group?.position.x ?? 0) + 56);
+    expect(childA?.position.y).toBe((group?.position.y ?? 0) + 88);
+    expect(childB?.position.x).toBe((group?.position.x ?? 0) + 56);
+    expect(childB?.position.y).toBe((group?.position.y ?? 0) + 388);
     expect(validateCanvasLayout(canvasState.getLayout()).summary.containmentViolations).toBe(0);
   });
 
@@ -187,7 +187,7 @@ describe('canvas operations', () => {
     arrangeCanvasNodes('grid');
     mutationHistory.undo();
 
-    expect(canvasState.getNode('group-a')?.position).toEqual({ x: 0, y: 168 });
+    expect(canvasState.getNode('group-a')?.position).toEqual({ x: -16, y: 152 });
     expect(canvasState.getNode('child-a')?.position).toEqual({ x: 40, y: 240 });
     expect(canvasState.getNode('child-b')?.position).toEqual({ x: 40, y: 540 });
     expect(validateCanvasLayout(canvasState.getLayout()).summary.containmentViolations).toBe(0);

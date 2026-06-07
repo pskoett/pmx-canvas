@@ -142,6 +142,38 @@ describe('AX neutral-primitive parity and host isolation', () => {
         cliCommand: "cmd('ax host report'",
         accessMethod: 'reportHostCapability(',
       },
+      {
+        label: 'node-interaction',
+        sdkMethod: 'submitAxInteraction(',
+        httpRoute: '/api/canvas/ax/interaction',
+        mcpTool: "'canvas_ax_interaction'",
+        cliCommand: "cmd('ax interaction'",
+        accessMethod: 'submitAxInteraction(',
+      },
+      {
+        label: 'steering-delivery',
+        sdkMethod: 'getPendingSteering(',
+        httpRoute: '/api/canvas/ax/delivery/',
+        mcpTool: "'canvas_claim_ax_delivery'",
+        cliCommand: "cmd('ax delivery list'",
+        accessMethod: 'getPendingSteering(',
+      },
+      {
+        label: 'elicitation',
+        sdkMethod: 'requestElicitation(',
+        httpRoute: '/api/canvas/ax/elicitation',
+        mcpTool: "'canvas_request_elicitation'",
+        cliCommand: "cmd('ax elicitation request'",
+        accessMethod: 'requestElicitation(',
+      },
+      {
+        label: 'mode-request',
+        sdkMethod: 'requestMode(',
+        httpRoute: '/api/canvas/ax/mode',
+        mcpTool: "'canvas_request_mode'",
+        cliCommand: "cmd('ax mode request'",
+        accessMethod: 'requestMode(',
+      },
     ];
 
     const missing: string[] = [];

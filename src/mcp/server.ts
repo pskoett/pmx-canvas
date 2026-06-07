@@ -25,6 +25,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { isAbsolute, relative, resolve } from 'node:path';
 import { z } from 'zod';
 import { canvasState, describeCanvasSchema, validateStructuredCanvasPayload } from '../server/index.js';
+import { AX_INTERACTION_TYPES } from '../server/ax-interaction.js';
 import { isHtmlPrimitiveKind } from '../server/html-primitives.js';
 import type { HtmlPrimitiveKind } from '../server/html-primitives.js';
 import { createCanvasAccess, refreshCanvasAccess, type CanvasAccess } from './canvas-access.js';
@@ -116,6 +117,8 @@ function sendCanvasResourceNotifications(type: 'nodes' | 'pins' | 'ax' | 'ax-tim
     if (type === 'ax-timeline') {
       server.server.sendResourceUpdated({ uri: 'canvas://ax-timeline' });
       server.server.sendResourceUpdated({ uri: 'canvas://ax-context' });
+      server.server.sendResourceUpdated({ uri: 'canvas://ax-pending-steering' });
+      server.server.sendResourceUpdated({ uri: 'canvas://ax-delivery' });
     }
     server.server.sendResourceUpdated({ uri: 'canvas://layout' });
     server.server.sendResourceUpdated({ uri: 'canvas://summary' });
@@ -1633,6 +1636,137 @@ export async function startMcpServer(): Promise<void> {
   );
 
   server.tool(
+    'canvas_ax_interaction',
+    'Submit a node-originated AX interaction: a capability-gated, validated event from an eligible node that maps onto an AX operation (work item, evidence, approval, review, focus, steering, event). Returns { ok: false, code } if the node type/metadata does not allow the interaction type or the payload is invalid.',
+    {
+      type: z.enum(AX_INTERACTION_TYPES).describe('Interaction type, e.g. ax.work.create, ax.evidence.add, ax.focus.set.'),
+      sourceNodeId: z.string().describe('The node emitting the interaction.'),
+      payload: z.record(z.string(), z.unknown()).optional().describe('Type-specific payload, e.g. {"title":"..."} for ax.work.create.'),
+      sourceSurface: z.enum(['native-node', 'json-render', 'html-node', 'mcp-app', 'adapter']).optional(),
+      correlationId: z.string().optional(),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
+        .optional()
+        .describe('Optional host/source label. Defaults to mcp.'),
+    },
+    async ({ type, sourceNodeId, payload, sourceSurface, correlationId, source }) => {
+      const c = await ensureCanvas();
+      const result = await c.submitAxInteraction(
+        {
+          type,
+          sourceNodeId,
+          ...(payload ? { payload } : {}),
+          ...(sourceSurface ? { sourceSurface } : {}),
+          ...(correlationId ? { correlationId } : {}),
+        },
+        { source: source ?? 'mcp' },
+      );
+      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+    },
+  );
+
+  server.tool(
+    'canvas_claim_ax_delivery',
+    'Claim pending PMX AX steering messages for a consumer (adapterless delivery). Returns undelivered steering, excluding messages the consumer itself originated (loop prevention). After acting on a message, call canvas_mark_ax_delivery.',
+    {
+      consumer: z.string().optional().describe('Consumer/source label to exclude from results (e.g. copilot, mcp).'),
+      limit: z.number().optional().describe('Max messages to return.'),
+    },
+    async ({ consumer, limit }) => {
+      const c = await ensureCanvas();
+      const pending = await c.getPendingSteering({
+        ...(consumer ? { consumer } : {}),
+        ...(typeof limit === 'number' ? { limit } : {}),
+      });
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, pending }) }] };
+    },
+  );
+
+  server.tool(
+    'canvas_mark_ax_delivery',
+    'Mark a PMX AX steering message as delivered so it is not handed out again.',
+    {
+      id: z.string().describe('The steering message id to mark delivered.'),
+    },
+    async ({ id }) => {
+      const c = await ensureCanvas();
+      const delivered = await c.markSteeringDelivered(id);
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, delivered }) }] };
+    },
+  );
+
+  server.tool(
+    'canvas_request_elicitation',
+    'Request structured human input (an elicitation): a pending question/form tied to nodes. Canvas-bound and snapshotted; exposed via canvas://ax-work. Answer it with canvas_respond_elicitation.',
+    {
+      prompt: z.string().describe('The question or instruction for the human.'),
+      fields: z.array(z.string()).optional().describe('Optional field names to request (a simple structured form).'),
+      nodeIds: z.array(z.string()).optional(),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']).optional(),
+    },
+    async ({ prompt, fields, nodeIds, source }) => {
+      const c = await ensureCanvas();
+      const elicitation = await c.requestElicitation(
+        { prompt, ...(fields ? { fields } : {}), ...(Array.isArray(nodeIds) ? { nodeIds } : {}) },
+        { source: source ?? 'mcp' },
+      );
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, elicitation }) }] };
+    },
+  );
+
+  server.tool(
+    'canvas_respond_elicitation',
+    'Answer a pending elicitation with a structured response.',
+    {
+      id: z.string().describe('The elicitation id.'),
+      response: z.record(z.string(), z.unknown()).describe('The structured answer.'),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']).optional(),
+    },
+    async ({ id, response, source }) => {
+      const c = await ensureCanvas();
+      const elicitation = await c.respondElicitation(id, response, { source: source ?? 'mcp' });
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: Boolean(elicitation), elicitation }) }] };
+    },
+  );
+
+  server.tool(
+    'canvas_request_mode',
+    'Request a workflow mode transition (plan/execute/autonomous): a pending mode request tied to nodes. Canvas-bound and snapshotted; exposed via canvas://ax-work. Resolve with canvas_resolve_mode.',
+    {
+      mode: z.enum(['plan', 'execute', 'autonomous']).describe('Requested target mode.'),
+      reason: z.string().optional(),
+      nodeIds: z.array(z.string()).optional(),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']).optional(),
+    },
+    async ({ mode, reason, nodeIds, source }) => {
+      const c = await ensureCanvas();
+      const modeRequest = await c.requestMode(
+        { mode, ...(typeof reason === 'string' ? { reason } : {}), ...(Array.isArray(nodeIds) ? { nodeIds } : {}) },
+        { source: source ?? 'mcp' },
+      );
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, modeRequest }) }] };
+    },
+  );
+
+  server.tool(
+    'canvas_resolve_mode',
+    'Resolve a pending mode request (approved or rejected).',
+    {
+      id: z.string(),
+      decision: z.enum(['approved', 'rejected']),
+      resolution: z.string().optional(),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']).optional(),
+    },
+    async ({ id, decision, resolution, source }) => {
+      const c = await ensureCanvas();
+      const modeRequest = await c.resolveModeRequest(id, decision, {
+        ...(typeof resolution === 'string' ? { resolution } : {}),
+        source: source ?? 'mcp',
+      });
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: Boolean(modeRequest), modeRequest }) }] };
+    },
+  );
+
+  server.tool(
     'canvas_fit_view',
     'Fit the canvas viewport to all nodes or a selected subset. Useful before screenshots and whole-board review.',
     {
@@ -2103,6 +2237,61 @@ export async function startMcpServer(): Promise<void> {
   );
 
   server.resource(
+    'ax-pending-steering',
+    'canvas://ax-pending-steering',
+    {
+      description:
+        'Undelivered PMX AX steering messages an MCP client can claim and act on without a host-native adapter. After delivering an instruction to your agent, mark it via canvas_mark_ax_delivery so it is not handed out again.',
+      mimeType: 'application/json',
+    },
+    async () => {
+      const c = await ensureCanvas();
+      const pending = await c.getPendingSteering();
+      return {
+        contents: [
+          { uri: 'canvas://ax-pending-steering', mimeType: 'application/json', text: JSON.stringify({ pending }, null, 2) },
+        ],
+      };
+    },
+  );
+
+  server.resource(
+    'ax-delivery',
+    'canvas://ax-delivery',
+    {
+      description:
+        'PMX AX steering delivery state: recent steering messages with their delivered flag, for delivery diagnostics.',
+      mimeType: 'application/json',
+    },
+    async () => {
+      const c = await ensureCanvas();
+      const timeline = await c.getAxTimeline();
+      return {
+        contents: [
+          { uri: 'canvas://ax-delivery', mimeType: 'application/json', text: JSON.stringify({ steering: timeline.steering }, null, 2) },
+        ],
+      };
+    },
+  );
+
+  server.prompt(
+    'pmx-current-context',
+    'Inject the current PMX Canvas AX context (pins, focus, work items, approvals, review, timeline) so an MCP-aware client can ground its next action without a host-native adapter.',
+    async () => {
+      const c = await ensureCanvas();
+      const context = await c.getAxContext();
+      return {
+        messages: [
+          {
+            role: 'user',
+            content: { type: 'text', text: `Current PMX Canvas context:\n\n${JSON.stringify(context, null, 2)}` },
+          },
+        ],
+      };
+    },
+  );
+
+  server.resource(
     'canvas-layout',
     'canvas://layout',
     {
@@ -2335,7 +2524,7 @@ export async function startMcpServer(): Promise<void> {
 
   server.tool(
     'canvas_batch',
-    'Run a non-atomic batch of canvas operations with optional assigned references. Use assign to name a result, then reference it later as "$name" for the created node id or "$name.id" for a specific result field. On failure, earlier successful operations remain applied and the response includes ok:false, failedIndex, error, results, and refs. Supports node.add, node.update, graph.add, edge.add, group.create, group.add, group.remove, pin.set/add/remove, snapshot.save, and arrange.',
+    'Run a non-atomic batch of canvas operations with optional assigned references. Use assign to name a result, then reference it later as "$name" for the created node id or "$name.id" for a specific result field. On failure, earlier successful operations remain applied and the response includes ok:false, failedIndex, error, results, and refs. Supports node.add, node.update, node.remove, graph.add, edge.add, group.create, group.add, group.remove, pin.set/add/remove, snapshot.save, and arrange.',
     {
       operations: z.array(z.object({
         op: z.string().describe('Operation name, e.g. "node.add" or "edge.add"'),
