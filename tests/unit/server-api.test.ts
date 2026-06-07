@@ -1097,9 +1097,24 @@ describe('canvas server HTTP API', () => {
     expect(body).toContain('Surface body');
     expect(body).toContain('/canvas/surface-theme.css');
     expect(body).toContain('data-theme="light"');
+    // The standalone tab title falls back to the node title (Bug #35) so the
+    // browser tab shows "Doc" instead of the raw surface URL.
+    expect(body).toContain('<title>Doc</title>');
 
     const meta = await fetch(`${baseUrl}/api/canvas/node/surface-html?includeBlobs=true`).then((r) => r.json()) as { surfaceUrl?: string };
     expect(meta.surfaceUrl).toBe('/api/canvas/surface/surface-html');
+  });
+
+  test('surface route falls back to the node id for the tab title when no node title is set', async () => {
+    canvasState.addNode({
+      id: 'surface-untitled', type: 'html',
+      position: { x: 0, y: 0 }, size: { width: 720, height: 640 },
+      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: { title: '   ', html: '<main>Body</main>' }, // whitespace-only → falls back to id
+    });
+    const res = await fetch(`${baseUrl}/api/canvas/surface/surface-untitled`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('<title>surface-untitled</title>');
   });
 
   test('surface route 404s for unknown node and non-openable types', async () => {

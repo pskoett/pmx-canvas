@@ -83,6 +83,18 @@ export declare function hasWorkbenchSubscribers(): boolean;
 export declare function setPrimaryWorkbenchCanvasPromptHandler(handler: PrimaryWorkbenchCanvasPromptHandler | null): void;
 export declare function buildMacBrowserOpenScript(appName: string, url: string): string;
 export declare function openUrlInExternalBrowser(url: string): boolean;
+/**
+ * Seed the docked status (left) + context (right) widgets so a freshly opened
+ * canvas shows them by default — the same nodes the agent-event path creates on
+ * demand (`status-main`, `context-main`), just present from the start.
+ *
+ * First-run only: we bail if the workspace canvas already has persisted state,
+ * so we never add them to a board with content, and — because first-run state is
+ * persisted on save — deleting or undocking them later is respected (they are
+ * not re-seeded). Create-if-missing keeps it idempotent if the agent path
+ * already made one. Returns true if anything was seeded.
+ */
+export declare function ensureDefaultDockedNodes(): boolean;
 export declare function emitPrimaryWorkbenchEvent(event: string, payload?: PrimaryWorkbenchEventPayload): void;
 export declare function consumePrimaryWorkbenchIntents(limit?: number): PrimaryWorkbenchIntent[];
 export declare function getPrimaryWorkbenchUrl(workspaceRoot?: string): string | null;

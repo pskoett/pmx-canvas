@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { runAgentCli } from './agent.js';
 import { createCanvas } from '../server/index.js';
 import { seedDemoCanvas } from '../server/demo.js';
+import { ensureDefaultDockedNodes } from '../server/server.js';
 
 const args = process.argv.slice(2);
 
@@ -599,7 +600,13 @@ Examples:
     process.exit(1);
   }
 
-  if (demo && canvas.getLayout().nodes.length === 0) seedDemoCanvas();
+  if (demo && canvas.getLayout().nodes.length === 0) {
+    seedDemoCanvas();
+  } else if (!demo) {
+    // First-run only: dock a status (left) + context (right) widget by default so
+    // a fresh canvas isn't empty. No-op once the workspace has saved state.
+    ensureDefaultDockedNodes();
+  }
 
   console.log(`\n  PMX Canvas running at http://localhost:${canvas.port}`);
   console.log(`  Health: http://localhost:${canvas.port}/health\n`);

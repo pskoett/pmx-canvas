@@ -4,6 +4,7 @@ import { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { loadStateFromDB } from '../../src/server/canvas-db.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
+import { ensureDefaultDockedNodes } from '../../src/server/server.ts';
 import { AX_TIMELINE_RETENTION } from '../../src/server/ax-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { computeGroupBounds, findOpenCanvasPosition } from '../../src/server/placement.ts';
@@ -35,6 +36,75 @@ describe('canvas state manager', () => {
 
   afterEach(() => {
     removeTestWorkspace(workspaceRoot);
+  });
+
+  test('context nodes default to a right-docked collapsed pill but can be undocked', () => {
+    // Create-time default: a context node added without a dock position docks
+    // right and starts collapsed (the menu-height pill).
+    canvasState.addNode(makeNode({ id: 'ctx', type: 'context' }));
+    const created = canvasState.getNode('ctx')!;
+    expect(created.dockPosition).toBe('right');
+    expect(created.collapsed).toBe(true);
+
+    // Undock is respected — the node is NOT silently re-forced back to the right
+    // dock on the next write (this is what makes "undock → normal node" work).
+    canvasState.updateNode('ctx', { dockPosition: null });
+    expect(canvasState.getNode('ctx')!.dockPosition).toBeNull();
+
+    // A later data-only update must not re-dock it either.
+    canvasState.updateNode('ctx', { data: { title: 'Notes' } });
+    expect(canvasState.getNode('ctx')!.dockPosition).toBeNull();
+
+    // An explicit dock position on create is preserved as-is.
+    canvasState.addNode(makeNode({ id: 'ctx-left', type: 'context', dockPosition: 'left' }));
+    expect(canvasState.getNode('ctx-left')!.dockPosition).toBe('left');
+  });
+
+  test('ensureDefaultDockedNodes seeds a docked status + context on a fresh canvas, idempotently', () => {
+    expect(canvasState.getLayout().nodes).toHaveLength(0);
+    expect(ensureDefaultDockedNodes()).toBe(true);
+    expect(canvasState.getNode('status-main')?.dockPosition).toBe('left');
+    expect(canvasState.getNode('context-main')?.dockPosition).toBe('right');
+    expect(canvasState.getNode('status-main')?.collapsed).toBe(true);
+    expect(canvasState.getNode('context-main')?.collapsed).toBe(true);
+    // Create-if-missing — a second call never duplicates the seeded widgets.
+    ensureDefaultDockedNodes();
+    expect(canvasState.getLayout().nodes.map((n) => n.id).sort()).toEqual([
+      'context-main',
+      'status-main',
+    ]);
+  });
+
+  test('ensureDefaultDockedNodes never seeds (or re-seeds) a canvas with persisted state', () => {
+    expect(ensureDefaultDockedNodes()).toBe(true); // fresh workspace → seeds
+    canvasState.flushToDisk(); // persist → state_populated flag set
+    expect(canvasState.hasPersistedState()).toBe(true);
+    // Deleting a seeded widget on a populated canvas must NOT bring it back.
+    canvasState.removeNode('context-main');
+    expect(ensureDefaultDockedNodes()).toBe(false);
+    expect(canvasState.getNode('context-main')).toBeUndefined();
+  });
+
+  test('undo of a context delete preserves a deliberately-undocked position', () => {
+    canvasState.onMutation((info) => {
+      mutationHistory.record({
+        description: info.description,
+        operationType: info.operationType,
+        forward: info.forward,
+        inverse: info.inverse,
+      });
+    });
+    // Create (auto-docks right) → undock → delete → undo must restore it undocked,
+    // not snap it back to the right dock (the create-time default must not fire on
+    // suppressed undo replay).
+    canvasState.addNode(makeNode({ id: 'ctx-undo', type: 'context' }));
+    expect(canvasState.getNode('ctx-undo')?.dockPosition).toBe('right');
+    canvasState.updateNode('ctx-undo', { dockPosition: null, collapsed: false });
+    canvasState.removeNode('ctx-undo');
+    mutationHistory.undo();
+    const restored = canvasState.getNode('ctx-undo')!;
+    expect(restored.dockPosition).toBeNull();
+    expect(restored.collapsed).toBe(false);
   });
 
   test('groups nodes, prunes removed children, and persists canvas state', async () => {

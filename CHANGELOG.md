@@ -3,6 +3,63 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Default docked status + context widgets.** A freshly opened canvas now shows
+  the agent's status widget docked at the left of the top menu and the context
+  widget docked at the right — flanking the toolbar as one continuous bar at the
+  same height. They are the same `status-main` / `context-main` nodes the
+  agent-event path already creates, just present from the start. Each collapsed
+  widget has an expand (▸) and an undock (⊙) control; undocking returns it to the
+  canvas as a normal node. Seeded **once on first run** (brand-new workspace
+  only) — never added to a canvas that already has content, and deleting or
+  undocking them is remembered (they are not re-seeded). `--demo` is unaffected
+  (it seeds the demo board instead).
+
+### Changed
+
+- **Collapsed docked widgets match the toolbar height.** The collapsed context
+  widget now renders inline in the top HUD row (mirroring the status widget)
+  instead of as a separate right-edge side-tab, and a shared `--hud-bar-height`
+  keeps the toolbar and both docked pills at an identical height.
+
+### Fixed
+
+- **Context nodes can be undocked.** Previously a `context` node was re-forced to
+  `dockPosition: 'right'` on every write, so it could never leave the dock. The
+  right-docked collapsed default is now applied at create time only; updates
+  (including undock → `dockPosition: null`) are respected.
+
+- **SDK node-response parity (report #31/#32).** `PmxCanvas.addNode`, `getNode`,
+  and `addHtmlNode` now return the fully serialized node enriched with a
+  `surfaceUrl` (for surface-eligible types) and a `nodeId` alias for `id`,
+  matching the HTTP/CLI `node`-create responses field-for-field. `addHtmlNode`
+  now returns the created node object instead of a bare id string (consistent
+  with `addNode`); read `.id` if you only need the identifier. The internal
+  `CanvasAccess` contract is unchanged (still returns a bare id).
+
+- **HTML "Open as site" tab title (report #35).** The standalone surface document
+  for an `html` node now carries a `<title>` (the node title) when the author
+  HTML does not already declare one, so the browser tab shows the node title
+  instead of falling back to the raw `/api/canvas/surface/<id>` URL. An
+  author-provided `<title>` is never overridden, and the injected title is
+  HTML-escaped.
+
+### Notes
+
+- **Report #33/#34/#36 — not reproduced.** #33 (elicitation/mode immediate
+  resolve) and #34 (delivery "claim" route) were already closed by the tester's
+  Codex retest as wrong-route repros. #36 (CLI emitting invalid JSON for html
+  primitives) does not reproduce: all 19 primitive kinds return valid JSON
+  through both `pmx-canvas html primitive add | jq` and raw `curl | jq`, with
+  zero unescaped control characters — the CLI re-serializes via `JSON.stringify`
+  and the server uses `Response.json`, both of which always escape U+0000–U+001F.
+  The full rendered HTML body is intentionally retained in the create response
+  (it is relied upon by consumers and renderer tests; agents wanting a compact
+  payload can use the MCP tool, which is already compact by default).
+
 ## [0.1.30] - 2026-06-07
 
 ### Added

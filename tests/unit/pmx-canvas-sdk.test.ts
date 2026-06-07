@@ -156,4 +156,40 @@ describe('PmxCanvas SDK surface', () => {
       await new Promise<void>((resolve) => blocker.close(() => resolve()));
     }
   });
+
+  test('node create/get responses include nodeId + surfaceUrl, mirroring HTTP/CLI', () => {
+    workspaceRoot = createTestWorkspace('pmx-canvas-sdk-parity-');
+    resetCanvasForTests(workspaceRoot);
+    const canvas = createCanvas({ port: 4791 });
+
+    // addNode: nodeId aliases id; a markdown node is not surface-eligible.
+    const md = canvas.addNode({ type: 'markdown', title: 'Note', content: 'hi' });
+    expect(md.nodeId).toBe(md.id);
+    expect(md.surfaceUrl).toBeNull();
+
+    // addHtmlNode now returns the node object (not a bare id string), with both
+    // the nodeId alias and a surfaceUrl pointing at the standalone surface.
+    const html = canvas.addHtmlNode({ html: '<h1>Hi</h1>', title: 'My HTML' });
+    expect(typeof html).toBe('object');
+    expect(html.id).toEqual(expect.any(String));
+    expect(html.nodeId).toBe(html.id);
+    expect(html.surfaceUrl).toBe(`/api/canvas/surface/${html.id}`);
+
+    // getNode mirrors the same enriched shape and preserves node data.
+    const got = canvas.getNode(html.id);
+    expect(got?.nodeId).toBe(html.id);
+    expect(got?.surfaceUrl).toBe(`/api/canvas/surface/${html.id}`);
+    expect(got?.data.title).toBe('My HTML');
+
+    // Parity holds for other surface-eligible types: getNode on a graph node
+    // exposes a surfaceUrl + nodeId (documented parity for html/json-render/graph).
+    const graph = canvas.addGraphNode({
+      title: 'G', graphType: 'line', data: [{ label: 'a', value: 1 }], xKey: 'label', yKey: 'value',
+    });
+    const graphNode = canvas.getNode(graph.id);
+    expect(graphNode?.nodeId).toBe(graph.id);
+    expect(graphNode?.surfaceUrl).toBe(`/api/canvas/surface/${graph.id}`);
+
+    expect(canvas.getNode('missing-node')).toBeUndefined();
+  });
 });

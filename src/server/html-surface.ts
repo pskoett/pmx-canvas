@@ -126,8 +126,19 @@ window.PMX_AX = {
 </script>`;
 }
 
+/** Escape a string for safe interpolation into element text (e.g. `<title>`). */
+function escapeSurfaceHtml(value: string): string {
+  return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
 export interface HtmlSurfaceOptions {
   theme: SurfaceTheme;
+  /**
+   * Tab/document title. Injected as `<title>` only when the author HTML does not
+   * already declare one, so a standalone "Open as site" tab shows the node title
+   * instead of falling back to the raw URL.
+   */
+  title?: string;
   /** Client nonce that authorizes parent → iframe theme-update messages. */
   themeToken?: string;
   presentation?: boolean;
@@ -158,13 +169,22 @@ export function buildHtmlSurfaceDocument(userHtml: string, options: HtmlSurfaceO
   const presentationAttr = options.presentation ? ' data-pmx-presentation-mode="present"' : '';
   const trimmed = userHtml.trim();
   const isFullDoc = /<html[\s>]/i.test(trimmed);
+  // Only supply a fallback <title> when the author HTML does not already set a
+  // DOCUMENT title. Strip inline <svg>/<math> first so a nested accessibility
+  // <title> (e.g. <svg><title>…</title></svg>) doesn't suppress the fallback.
+  const withoutNestedTitles = trimmed
+    .replace(/<svg[\s\S]*?<\/svg>/gi, '')
+    .replace(/<math[\s\S]*?<\/math>/gi, '');
+  const titleTag = options.title && !/<title[\s>]/i.test(withoutNestedTitles)
+    ? `<title>${escapeSurfaceHtml(options.title)}</title>`
+    : '';
   if (isFullDoc) {
     const withTheme = trimmed.replace(
       /<html([^>]*)>/i,
       `<html$1 data-pmx-canvas-theme="${options.theme}" data-theme="${options.theme}"${presentationAttr}>`,
     );
-    return injectIntoHead(withTheme, injectedHeadContent);
+    return injectIntoHead(withTheme, `${titleTag}${injectedHeadContent}`);
   }
   // Fragment — wrap in a full document.
-  return `<!doctype html><html data-pmx-canvas-theme="${options.theme}" data-theme="${options.theme}"${presentationAttr}><head><meta charset="utf-8">${injectedHeadContent}</head><body>${userHtml}</body></html>`;
+  return `<!doctype html><html data-pmx-canvas-theme="${options.theme}" data-theme="${options.theme}"${presentationAttr}><head><meta charset="utf-8">${titleTag}${injectedHeadContent}</head><body>${userHtml}</body></html>`;
 }

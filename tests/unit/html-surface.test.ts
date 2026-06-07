@@ -73,6 +73,54 @@ describe('buildHtmlSurfaceDocument', () => {
     expect(evil).not.toContain('a</script><x>');
   });
 
+  test('injects a fallback <title> for a fragment when given a title', () => {
+    const doc = buildHtmlSurfaceDocument('<main>Report</main>', { theme: 'dark', title: 'Quarterly Dashboard' });
+    expect(doc).toContain('<title>Quarterly Dashboard</title>');
+  });
+
+  test('injects a fallback <title> into a full document head when the author HTML has none', () => {
+    const doc = buildHtmlSurfaceDocument(
+      '<html><head><meta charset="utf-8"></head><body>full</body></html>',
+      { theme: 'dark', title: 'Full Doc Title' },
+    );
+    expect(doc).toContain('<title>Full Doc Title</title>');
+  });
+
+  test('injects a fallback <title> even when author HTML only has a nested SVG <title>', () => {
+    const fragment = buildHtmlSurfaceDocument('<svg><title>icon label</title><rect /></svg>', {
+      theme: 'dark',
+      title: 'Node Title',
+    });
+    expect(fragment).toContain('<title>Node Title</title>');
+    expect(fragment).toContain('<title>icon label</title>'); // nested svg title preserved
+
+    const fullDoc = buildHtmlSurfaceDocument(
+      '<html><head><meta charset="utf-8"></head><body><svg><title>icon</title></svg></body></html>',
+      { theme: 'dark', title: 'Doc Title' },
+    );
+    expect(fullDoc).toContain('<title>Doc Title</title>');
+  });
+
+  test('does not override an author-provided <title>', () => {
+    const doc = buildHtmlSurfaceDocument(
+      '<!doctype html><html><head><title>Author Title</title></head><body>x</body></html>',
+      { theme: 'dark', title: 'Node Title' },
+    );
+    expect(doc).toContain('<title>Author Title</title>');
+    expect(doc).not.toContain('<title>Node Title</title>');
+  });
+
+  test('omits a <title> when no title is provided', () => {
+    const doc = buildHtmlSurfaceDocument('<main>x</main>', { theme: 'dark' });
+    expect(doc).not.toContain('<title>');
+  });
+
+  test('escapes a title so it cannot break out of the <title> element', () => {
+    const doc = buildHtmlSurfaceDocument('<main>x</main>', { theme: 'dark', title: '<script>x</script> & Co' });
+    expect(doc).toContain('<title>&lt;script&gt;x&lt;/script&gt; &amp; Co</title>');
+    expect(doc).not.toContain('<title><script>x</script>');
+  });
+
   test('sanitizes caller tokens so they cannot break out of the inline script', () => {
     const doc = buildHtmlSurfaceDocument('<body>x</body>', {
       theme: 'dark',

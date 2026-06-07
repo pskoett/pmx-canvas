@@ -7,12 +7,22 @@ import type { AxTimelineQuery } from './canvas-db.js';
 import { searchNodes } from './spatial-analysis.js';
 import { diffLayouts } from './mutation-history.js';
 import { fitCanvasView, gcCanvasSnapshots, listCanvasSnapshots } from './canvas-operations.js';
+import { type SerializedCanvasNode } from './canvas-serialization.js';
 import type { HtmlPrimitiveKind } from './html-primitives.js';
 import { type WebArtifactBuildInput, type WebArtifactCanvasBuildResult } from './web-artifacts.js';
 import { type ExternalMcpTransportConfig } from './mcp-app-runtime.js';
 import { type DiagramPresetOpenInput } from './diagram-presets.js';
 import { type GraphNodeInput, type JsonRenderNodeInput, type JsonRenderSpec } from '../json-render/server.js';
 import type { CanvasAutomationWebViewOptions, CanvasAutomationWebViewStatus } from './server.js';
+/**
+ * Node object returned by the SDK's create/get methods. It is the fully
+ * serialized node (adds `surfaceUrl`, `kind`, `title`, `content`, …) plus a
+ * `nodeId` alias for `id`, so the SDK return shape matches the HTTP/CLI
+ * `node`-create responses field-for-field.
+ */
+export type SdkCanvasNode = SerializedCanvasNode & {
+    nodeId: string;
+};
 export declare class PmxCanvas extends EventEmitter {
     private _port;
     private _server;
@@ -54,7 +64,7 @@ export declare class PmxCanvas extends EventEmitter {
         width?: number;
         height?: number;
         strictSize?: boolean;
-    }): CanvasNodeState;
+    }): SdkCanvasNode;
     addWebpageNode(input: {
         title?: string;
         url: string;
@@ -262,7 +272,7 @@ export declare class PmxCanvas extends EventEmitter {
         nodeIds?: string[];
     }): ReturnType<typeof fitCanvasView>;
     getLayout(): CanvasLayout;
-    getNode(id: string): CanvasNodeState | undefined;
+    getNode(id: string): SdkCanvasNode | undefined;
     search(query: string): ReturnType<typeof searchNodes>;
     getSpatialContext(): import("./spatial-analysis.js").SpatialContext;
     undo(): Promise<{
@@ -435,7 +445,7 @@ export declare class PmxCanvas extends EventEmitter {
         width?: number;
         height?: number;
         strictSize?: boolean;
-    }): string;
+    }): SdkCanvasNode;
     addHtmlPrimitive(input: {
         kind: HtmlPrimitiveKind;
         title?: string;

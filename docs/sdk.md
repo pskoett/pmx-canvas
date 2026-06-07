@@ -15,7 +15,9 @@ import { createCanvas } from 'pmx-canvas';
 const canvas = createCanvas({ port: 4313 });
 await canvas.start({ open: true });
 
-// Add nodes — addNode returns the created node (with `.id`, geometry, and data)
+// Add nodes — addNode/getNode/addHtmlNode return the created node: `.id`
+// (plus a `.nodeId` alias), geometry, `.data`, and `.surfaceUrl` for
+// surface-eligible types (html, json-render, graph, …).
 const n1 = canvas.addNode({ type: 'markdown', title: 'Plan', content: '# Step 1\nDo the thing.' });
 const n2 = canvas.addNode({ type: 'status', title: 'Build', content: 'passing' });
 const n3 = canvas.addNode({ type: 'file', content: 'src/index.ts' });

@@ -56,6 +56,10 @@
   --mono: "IBM Plex Mono", "SF Mono", "Fira Code", monospace;
   --radius: 10px;
   --radius-sm: 6px;
+  /* Shared height for the top HUD row so the toolbar and the collapsed docked
+     status/context widgets that flank it line up to the same height. Matches the
+     toolbar's natural content height (icon buttons at 6px padding). */
+  --hud-bar-height: 44px;
 }
 
 :root[data-theme="light"] {
@@ -481,6 +485,8 @@ body,
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
+  min-height: var(--hud-bar-height);
+  box-sizing: border-box;
   background: var(--c-panel-glass);
   backdrop-filter: blur(12px);
   border: 1px solid var(--c-line);
@@ -1409,6 +1415,38 @@ html.is-node-resizing .ext-app-preview-catcher {
   max-width: 320px;
 }
 
+/* Collapsed docked widget = a single menu-height pill that flanks the toolbar.
+   Pinned to the same height as .canvas-toolbar so the top HUD row reads as one
+   continuous bar (status on the left, context on the right). */
+.docked-node--collapsed {
+  height: var(--hud-bar-height);
+  box-sizing: border-box;
+  justify-content: center;
+  width: auto;
+  /* Reset the base .docked-node min-width so the collapsed pill hugs its content
+     (badge + count + controls) instead of stretching to a 200px bar. */
+  min-width: 0;
+}
+.docked-node--collapsed .docked-node-header {
+  height: 100%;
+  padding: 0 10px;
+  border-bottom: none;
+}
+.docked-node-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  background: var(--c-accent);
+  color: var(--c-contrast-fg);
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
 .docked-node-header {
   display: flex;
   align-items: center;
@@ -1946,62 +1984,6 @@ html.is-node-resizing .ext-app-preview-catcher {
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 200px;
-}
-
-/* Context dock — collapsed pill mirrors Updates pill, sits above it */
-.context-dock-tab {
-  position: fixed;
-  top: 92px;
-  right: 0;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 12px 8px 14px;
-  background: color-mix(in srgb, var(--c-panel-glass) 96%, transparent);
-  backdrop-filter: blur(16px);
-  border: 1px solid color-mix(in srgb, var(--c-line) 82%, var(--c-accent) 18%);
-  border-right: 0;
-  border-radius: 14px 0 0 14px;
-  box-shadow: 0 12px 36px var(--c-shadow);
-  color: var(--c-text);
-  cursor: pointer;
-  font: inherit;
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  z-index: 60;
-}
-
-.context-dock-tab:hover {
-  border-color: color-mix(in srgb, var(--c-accent) 40%, var(--c-line) 60%);
-  color: var(--c-accent);
-}
-
-.context-dock-tab svg {
-  display: block;
-  color: var(--c-accent);
-  flex-shrink: 0;
-}
-
-.context-dock-tab-label {
-  white-space: nowrap;
-}
-
-.context-dock-tab-badge {
-  min-width: 18px;
-  height: 18px;
-  padding: 0 5px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 9px;
-  background: var(--c-accent);
-  color: var(--c-contrast-fg);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0;
-  text-transform: none;
 }
 
 /* Context dock — expanded panel anchored top-right edge.

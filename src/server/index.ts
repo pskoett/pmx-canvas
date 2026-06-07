@@ -74,6 +74,7 @@ import {
 } from './canvas-operations.js';
 import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
+import { serializeCanvasNode, type SerializedCanvasNode } from './canvas-serialization.js';
 import { buildHtmlPrimitive, getHtmlPrimitiveSemanticMetadata, isHtmlPrimitiveKind, listHtmlPrimitiveDescriptors } from './html-primitives.js';
 import type { HtmlPrimitiveKind } from './html-primitives.js';
 import {
@@ -123,6 +124,19 @@ import type {
   PrimaryWorkbenchCanvasPromptRequest,
   PrimaryWorkbenchIntent,
 } from './server.js';
+
+/**
+ * Node object returned by the SDK's create/get methods. It is the fully
+ * serialized node (adds `surfaceUrl`, `kind`, `title`, `content`, …) plus a
+ * `nodeId` alias for `id`, so the SDK return shape matches the HTTP/CLI
+ * `node`-create responses field-for-field.
+ */
+export type SdkCanvasNode = SerializedCanvasNode & { nodeId: string };
+
+/** Enrich a raw canvas node into the SDK return shape (surfaceUrl + nodeId). */
+function toSdkNode(node: CanvasNodeState): SdkCanvasNode {
+  return { ...serializeCanvasNode(node), nodeId: node.id };
+}
 
 export class PmxCanvas extends EventEmitter {
   private _port: number;
@@ -224,7 +238,7 @@ export class PmxCanvas extends EventEmitter {
     width?: number;
     height?: number;
     strictSize?: boolean;
-  }): CanvasNodeState {
+  }): SdkCanvasNode {
     if (input.type === 'webpage') {
       throw new Error('Use addWebpageNode for webpage nodes so page content is fetched and cached on the server.');
     }
@@ -241,7 +255,7 @@ export class PmxCanvas extends EventEmitter {
       });
       const groupNode = canvasState.getNode(groupId);
       if (!groupNode) throw new Error(`Group node "${groupId}" was not created.`);
-      return groupNode;
+      return toSdkNode(groupNode);
     }
     const { id, needsCodeGraphRecompute } = addCanvasNode({
       ...input,
@@ -277,7 +291,7 @@ export class PmxCanvas extends EventEmitter {
 
     const node = canvasState.getNode(id);
     if (!node) throw new Error(`Node "${id}" was not created.`);
-    return node;
+    return toSdkNode(node);
   }
 
   async addWebpageNode(input: {
@@ -735,8 +749,9 @@ export class PmxCanvas extends EventEmitter {
     return canvasState.getLayout();
   }
 
-  getNode(id: string): CanvasNodeState | undefined {
-    return canvasState.getNode(id);
+  getNode(id: string): SdkCanvasNode | undefined {
+    const node = canvasState.getNode(id);
+    return node ? toSdkNode(node) : undefined;
   }
 
   search(query: string): ReturnType<typeof searchNodes> {
@@ -1027,7 +1042,7 @@ export class PmxCanvas extends EventEmitter {
     width?: number;
     height?: number;
     strictSize?: boolean;
-  }): string {
+  }): SdkCanvasNode {
     const { id } = addCanvasNode({
       type: 'html',
       ...(typeof input.title === 'string' ? { title: input.title } : {}),
@@ -1050,7 +1065,9 @@ export class PmxCanvas extends EventEmitter {
       defaultHeight: 640,
     });
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    return id;
+    const node = canvasState.getNode(id);
+    if (!node) throw new Error(`HTML node "${id}" was not created.`);
+    return toSdkNode(node);
   }
 
   addHtmlPrimitive(input: {

@@ -271,7 +271,9 @@ class LocalCanvasAccess implements CanvasAccess {
   }
 
   async addHtmlNode(input: AddHtmlNodeInput): Promise<string> {
-    return this.canvas.addHtmlNode(input);
+    // PmxCanvas.addHtmlNode returns the created node; the CanvasAccess contract
+    // is a bare id string, so extract it (mirrors addNode above).
+    return this.canvas.addHtmlNode(input).id;
   }
 
   async addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult> {

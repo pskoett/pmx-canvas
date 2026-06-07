@@ -22,6 +22,12 @@ export declare const HTML_SURFACE_SANDBOX = "allow-scripts";
 export declare function normalizeSurfaceTheme(value: string | null | undefined): SurfaceTheme;
 export interface HtmlSurfaceOptions {
     theme: SurfaceTheme;
+    /**
+     * Tab/document title. Injected as `<title>` only when the author HTML does not
+     * already declare one, so a standalone "Open as site" tab shows the node title
+     * instead of falling back to the raw URL.
+     */
+    title?: string;
     /** Client nonce that authorizes parent → iframe theme-update messages. */
     themeToken?: string;
     presentation?: boolean;

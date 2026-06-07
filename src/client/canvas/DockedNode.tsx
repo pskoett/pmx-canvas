@@ -2,7 +2,7 @@ import { ContextNode } from '../nodes/ContextNode';
 import { LedgerNode } from '../nodes/LedgerNode';
 import { StatusNode } from '../nodes/StatusNode';
 import { StatusSummary } from '../nodes/StatusSummary';
-import { attentionHistoryOpen, closeAttentionHistory } from '../state/attention-store';
+import { closeAttentionHistory } from '../state/attention-store';
 import { getContextPinnedNodes, toggleCollapsed, undockNode } from '../state/canvas-store';
 import { TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
@@ -40,44 +40,44 @@ function ContextDockedNode({ node }: { node: CanvasNodeState }) {
     toggleCollapsed(node.id);
   };
 
-  // Hide the collapsed Context pill while the Updates side panel is open.
-  // Mutual exclusion guarantees both panels can't be expanded simultaneously,
-  // but the pill itself would otherwise sit beneath/beside the Updates panel
-  // at the same right edge — better to hide until Updates is closed.
-  if (collapsed && attentionHistoryOpen.value) return null;
-
   if (collapsed) {
+    // Collapsed = a menu-height pill in the right of the top HUD row, mirroring
+    // the docked status widget on the left so the bar reads as one continuous menu.
     return (
-      <button
-        type="button"
-        class="context-dock-tab"
-        data-docked-node="true"
-        onClick={expand}
-        aria-label={hasItems ? `Context — ${count} item${count === 1 ? '' : 's'}` : 'Context'}
-        title={hasItems ? `${count} item${count === 1 ? '' : 's'} in agent context` : 'Agent context'}
-      >
-        <svg
-          width="14"
-          height="14"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          aria-hidden="true"
-        >
-          <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
-          <line x1="1.5" y1="6" x2="14.5" y2="6" />
-          <circle cx="4" cy="4.25" r="0.6" fill="currentColor" stroke="none" />
-        </svg>
-        <span class="context-dock-tab-label">Context</span>
-        {hasItems && (
-          <span class="context-dock-tab-badge" aria-hidden="true">
-            {count > 99 ? '99+' : count}
-          </span>
-        )}
-      </button>
+      <div class="docked-node docked-node--collapsed" data-docked-node="true">
+        <div class="docked-node-header">
+          <span class="node-type-badge">Context</span>
+          {hasItems && (
+            <span class="docked-node-count" aria-hidden="true">
+              {count > 99 ? '99+' : count}
+            </span>
+          )}
+          <div class="docked-node-controls">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                expand();
+              }}
+              title={hasItems ? `${count} item${count === 1 ? '' : 's'} in agent context — expand` : 'Expand agent context'}
+              aria-label={hasItems ? `Context — ${count} item${count === 1 ? '' : 's'}` : 'Expand agent context'}
+            >
+              {'▸'}
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                undockNode(node.id);
+              }}
+              title="Undock to canvas"
+              aria-label="Undock to canvas"
+            >
+              {'⊙'}
+            </button>
+          </div>
+        </div>
+      </div>
     );
   }
 
@@ -130,7 +130,7 @@ export function DockedNode({ node }: { node: CanvasNodeState }) {
   }
 
   return (
-    <div class="docked-node" data-docked-node="true">
+    <div class={`docked-node${node.collapsed ? ' docked-node--collapsed' : ''}`} data-docked-node="true">
       <div class="docked-node-header">
         <span class="node-type-badge">{TYPE_LABELS[node.type] ?? node.type}</span>
         {node.type === 'status' && node.collapsed && <StatusSummary node={node} />}

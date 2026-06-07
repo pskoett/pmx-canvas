@@ -442,18 +442,14 @@ class CanvasStateManager {
   }
 
   private normalizeNode(node: CanvasNodeState): CanvasNodeState {
-    const normalized: CanvasNodeState = {
+    // Context nodes default to a right-docked, collapsed pill (see DockedNode.tsx),
+    // but that default is applied at CREATE time only — it must not be re-forced on
+    // every write, or the node could never be undocked. Undocking (dockPosition →
+    // null) is a deliberate user action and is respected here.
+    return {
       ...node,
       data: normalizeCanvasNodeData(node.type, node.data),
     };
-    // Context nodes are always docked to the right side as a pill/panel widget
-    // (see DockedNode.tsx). They start collapsed so the user sees the slim
-    // pill first; expanding reveals the full context overview panel.
-    if (normalized.type === 'context' && normalized.dockPosition !== 'right') {
-      normalized.dockPosition = 'right';
-      normalized.collapsed = true;
-    }
-    return normalized;
   }
 
   private nodeForRead(node: CanvasNodeState): CanvasNodeState {
@@ -930,6 +926,16 @@ class CanvasStateManager {
     return false;
   }
 
+  /**
+   * Whether this workspace's canvas DB already holds saved state. Used to gate
+   * brand-new-workspace seeding (e.g. the default docked status/context widgets)
+   * so we never add nodes to a canvas that already has content. Reflects the
+   * pre-run persisted flag until the next save.
+   */
+  hasPersistedState(): boolean {
+    return this._db ? isDbPopulated(this._db) : false;
+  }
+
   /** Debounced save — coalesces rapid mutations into a single write. */
   private scheduleSave(): void {
     if (!this._db) return;
@@ -1343,7 +1349,15 @@ class CanvasStateManager {
   }
 
   addNode(node: CanvasNodeState): void {
-    const cloned = structuredClone(this.normalizeNode(node));
+    // Context nodes default to a right-docked, collapsed pill when created without
+    // an explicit dock position. CREATE-time default only — once placed, updates
+    // (including undock → dockPosition null) are respected (see normalizeNode).
+    // Skip during suppressed replay (undo/redo re-add) so a deliberately-undocked
+    // context node is restored verbatim instead of being snapped back to the dock.
+    const seeded = node.type === 'context' && node.dockPosition == null && this._suppressRecordingDepth === 0
+      ? { ...node, dockPosition: 'right' as const, collapsed: true }
+      : node;
+    const cloned = structuredClone(this.normalizeNode(seeded));
     this.nodes.set(node.id, cloned);
     this.scheduleSave();
     this.notifyChange('nodes');

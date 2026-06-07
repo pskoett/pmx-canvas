@@ -1432,8 +1432,12 @@ function handleNodeSurface(pathname: string, url: URL): Response {
     if (!html) return responseText('HTML node has no content', 404);
     const present = url.searchParams.get('present') === '1';
     const axCaps = resolveNodeAxCapabilities(node);
+    const surfaceTitle = typeof node.data.title === 'string' && node.data.title.trim()
+      ? node.data.title
+      : node.id;
     const doc = buildHtmlSurfaceDocument(html, {
       theme,
+      title: surfaceTitle,
       themeToken: url.searchParams.get('themeToken') ?? undefined,
       presentation: present,
       presentationExitToken: url.searchParams.get('presentToken') ?? undefined,
@@ -4480,6 +4484,57 @@ function syncContextNodeToCanvasState(
   }
 
   canvasState.updateNode(id, { data: mergedData });
+}
+
+/**
+ * Seed the docked status (left) + context (right) widgets so a freshly opened
+ * canvas shows them by default — the same nodes the agent-event path creates on
+ * demand (`status-main`, `context-main`), just present from the start.
+ *
+ * First-run only: we bail if the workspace canvas already has persisted state,
+ * so we never add them to a board with content, and — because first-run state is
+ * persisted on save — deleting or undocking them later is respected (they are
+ * not re-seeded). Create-if-missing keeps it idempotent if the agent path
+ * already made one. Returns true if anything was seeded.
+ */
+export function ensureDefaultDockedNodes(): boolean {
+  if (canvasState.hasPersistedState()) return false;
+  let seeded = false;
+  // NOTE: these node specs mirror the agent-event create paths below
+  // (`canvas-status` for status-main, `syncContextNodeToCanvasState` for
+  // context-main) — keep geometry/dock defaults in sync if you change them.
+  if (!canvasState.getNode('status-main')) {
+    canvasState.addNode({
+      id: 'status-main',
+      type: 'status',
+      position: { x: 40, y: 80 },
+      size: { width: 300, height: 120 },
+      zIndex: 0,
+      collapsed: true,
+      pinned: false,
+      dockPosition: 'left',
+      data: { phase: 'idle', message: '', elapsed: 0 },
+    });
+    seeded = true;
+  }
+  if (!canvasState.getNode('context-main')) {
+    canvasState.addNode({
+      id: 'context-main',
+      type: 'context',
+      position: { x: 1130, y: 80 },
+      size: { width: 320, height: 400 },
+      zIndex: 1,
+      collapsed: true,
+      pinned: false,
+      dockPosition: 'right',
+      data: { cards: [], auxTabs: [] },
+    });
+    seeded = true;
+  }
+  if (seeded) {
+    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  }
+  return seeded;
 }
 
 // Maps responseNodeId -> thread prompt node ID for O(1) routing of response events
