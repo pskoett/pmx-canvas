@@ -48,7 +48,7 @@ import type {
   ListToolsResult,
 } from '@modelcontextprotocol/sdk/types.js';
 import { type CanvasAnnotation, type CanvasEdge, type CanvasLayout, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
-import { buildHtmlSurfaceDocument, HTML_SURFACE_SANDBOX, normalizeSurfaceTheme } from './html-surface.js';
+import { buildAxBridge, buildAxStateBridge, buildHtmlSurfaceDocument, HTML_SURFACE_SANDBOX, normalizeSurfaceTheme } from './html-surface.js';
 import { findCanvasExtAppNodeId as findCanvasExtAppNodeIdShared } from './ext-app-lookup.js';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
@@ -77,7 +77,7 @@ import {
 } from './canvas-serialization.js';
 import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent-context.js';
-import { buildCanvasAxContext } from './ax-context.js';
+import { buildCanvasAxContext, buildCanvasAxSurfaceSnapshot } from './ax-context.js';
 import { applyAxInteraction, resolveNodeAxCapabilities } from './ax-interaction.js';
 import { isAxEventKind, isAxEvidenceKind } from './ax-state.js';
 import type {
@@ -1432,6 +1432,7 @@ function handleNodeSurface(pathname: string, url: URL): Response {
     if (!html) return responseText('HTML node has no content', 404);
     const present = url.searchParams.get('present') === '1';
     const axCaps = resolveNodeAxCapabilities(node);
+    const axEnabled = axCaps.enabled && axCaps.allowed.length > 0;
     const surfaceTitle = typeof node.data.title === 'string' && node.data.title.trim()
       ? node.data.title
       : node.id;
@@ -1441,9 +1442,11 @@ function handleNodeSurface(pathname: string, url: URL): Response {
       themeToken: url.searchParams.get('themeToken') ?? undefined,
       presentation: present,
       presentationExitToken: url.searchParams.get('presentToken') ?? undefined,
-      axBridge: axCaps.enabled && axCaps.allowed.length > 0,
+      axBridge: axEnabled,
       axToken: url.searchParams.get('axToken') ?? undefined,
       nodeId: node.id,
+      // Seed the read-side bridge with the current AX state (only for AX surfaces).
+      ...(axEnabled ? { axState: buildCanvasAxSurfaceSnapshot() } : {}),
     });
     return surfaceHtmlResponse(doc, HTML_SURFACE_SANDBOX);
   }
@@ -2536,6 +2539,7 @@ async function handleJsonRenderView(url: URL): Promise<Response> {
     process.env.PMX_CANVAS_JSON_RENDER_DEVTOOLS === '1' &&
     url.searchParams.get('devtools') === '1';
   const axToken = url.searchParams.get('axToken');
+  const axEnabled = resolveNodeAxCapabilities(node).enabled;
   const html = await buildJsonRenderViewerHtml({
     title,
     spec,
@@ -2543,6 +2547,8 @@ async function handleJsonRenderView(url: URL): Promise<Response> {
     ...(url.searchParams.get('display') === 'expanded' ? { display: 'expanded' as const } : {}),
     ...(devtoolsEnabled ? { devtools: true } : {}),
     ...(axToken ? { nodeId, axToken } : {}),
+    // Seed the read-side AX state (only for AX-enabled nodes) so specs can bind /ax.
+    ...(axToken && axEnabled ? { axState: buildCanvasAxSurfaceSnapshot() } : {}),
   });
   return new Response(html, {
     headers: {
@@ -2600,7 +2606,27 @@ function handleArtifactView(url: URL): Response {
   }
 
   if (ext === '.html' || ext === '.htm') {
-    const content = readFileSync(safePath, 'utf-8');
+    let content = readFileSync(safePath, 'utf-8');
+    // AX bridge for web-artifacts (same opaque-origin postMessage bridge as html
+    // surfaces — a sandboxed artifact can't fetch the API directly). The viewer
+    // appends axToken + axNodeId only for AX-enabled artifacts; the server still
+    // re-validates every interaction.
+    const axToken = url.searchParams.get('axToken');
+    const axNodeId = url.searchParams.get('axNodeId');
+    if (axToken && axNodeId) {
+      const node = canvasState.getNode(axNodeId);
+      if (node && resolveNodeAxCapabilities(node).enabled) {
+        const safeToken = axToken.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80);
+        // Use the canonical node.id (server-generated [a-z0-9-]) rather than the raw
+        // query param so nothing untrusted reaches the inline bridge script.
+        const safeNodeId = node.id.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80);
+        const stateJson = JSON.stringify(buildCanvasAxSurfaceSnapshot()).replace(/</g, '\\u003c');
+        const bridge = `${buildAxBridge(safeToken, safeNodeId)}${buildAxStateBridge(safeToken, stateJson)}`;
+        content = content.includes('</head>')
+          ? content.replace('</head>', `${bridge}</head>`)
+          : `${bridge}${content}`;
+      }
+    }
     return new Response(content, {
       headers: {
         'Content-Type': 'text/html; charset=utf-8',
@@ -3825,6 +3851,30 @@ function handleGetAxState(): Response {
 
 function handleGetAxContext(): Response {
   return responseJson(buildCanvasAxContext());
+}
+
+// Compact AX state for surfaces (the same shape seeded into AX-enabled iframes).
+// The client fetches this and pushes it to surfaces over the ax-update channel.
+function handleGetAxSurfaceSnapshot(): Response {
+  return responseJson(buildCanvasAxSurfaceSnapshot());
+}
+
+// Open a node's surface in the user's real system browser (for hosts whose
+// embedded browser makes window.open('_blank') feel in-place, e.g. Codex).
+// Accepts ONLY { nodeId } and opens this server's own surface URL — never an
+// arbitrary URL — so it can't be used to launch external sites (no SSRF). Honors
+// the PMX_CANVAS_DISABLE_BROWSER_OPEN kill switch via openUrlInExternalBrowser.
+async function handleOpenExternalSurface(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  const nodeId = typeof body.nodeId === 'string' ? body.nodeId : '';
+  if (!nodeId) return responseJson({ ok: false, error: 'nodeId is required.' }, 400);
+  const node = canvasState.getNode(nodeId);
+  if (!node) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
+  const port = getCanvasServerPort();
+  if (!port) return responseJson({ ok: false, opened: false, error: 'Server port unavailable.' }, 503);
+  const surfacePath = `/api/canvas/surface/${encodeURIComponent(nodeId)}`;
+  const opened = openUrlInExternalBrowser(`http://localhost:${port}${surfacePath}`);
+  return responseJson({ ok: true, opened, url: surfacePath });
 }
 
 async function handleAxInteraction(req: Request): Promise<Response> {
@@ -5302,6 +5352,14 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/ax/context' && req.method === 'GET') {
             return handleGetAxContext();
+          }
+
+          if (url.pathname === '/api/canvas/ax/surface-snapshot' && req.method === 'GET') {
+            return handleGetAxSurfaceSnapshot();
+          }
+
+          if (url.pathname === '/api/canvas/open-external' && req.method === 'POST') {
+            return handleOpenExternalSurface(req);
           }
 
           if (url.pathname === '/api/canvas/ax/focus' && req.method === 'POST') {

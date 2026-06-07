@@ -8,8 +8,9 @@
  */
 
 import type { Spec } from '@json-render/core';
+import { useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
-import { defineRegistry, JSONUIProvider, Renderer } from '@json-render/react';
+import { defineRegistry, JSONUIProvider, Renderer, useStateBinding } from '@json-render/react';
 import { shadcnComponents } from '@json-render/shadcn';
 import { catalog } from '../catalog';
 import { chartComponents } from '../charts/components';
@@ -81,7 +82,28 @@ declare global {
     __PMX_CANVAS_JSON_RENDER_DEVTOOLS__?: boolean;
     __PMX_CANVAS_JSON_RENDER_NODE_ID__?: string;
     __PMX_CANVAS_AX_TOKEN__?: string;
+    __PMX_CANVAS_AX_STATE__?: unknown;
   }
+}
+
+// Read-side AX bridge for json-render: keeps the spec-bound `/ax` state live as
+// the parent canvas pushes nonce-validated `ax-update` messages, so a declarative
+// board ({ "$state": "/ax/workItems" }) reflects the work queue in real time.
+function AxStateSync() {
+  const [, setAx] = useStateBinding<unknown>('ax');
+  useEffect(() => {
+    const token = window.__PMX_CANVAS_AX_TOKEN__;
+    if (!token) return undefined;
+    function onMessage(event: MessageEvent) {
+      const m = event.data as { source?: string; type?: string; token?: string; state?: unknown } | null;
+      if (!m || m.source !== 'pmx-canvas-html-node' || m.type !== 'ax-update' || m.token !== token) return;
+      window.__PMX_CANVAS_AX_STATE__ = m.state;
+      setAx(m.state);
+    }
+    window.addEventListener('message', onMessage);
+    return () => window.removeEventListener('message', onMessage);
+  }, [setAx]);
+  return null;
 }
 
 // AX interaction types a json-render spec can bind actions to. When an action
@@ -149,14 +171,21 @@ function App() {
     );
   }
 
+  // Seed AX state under a reserved `/ax` key so specs can bind { "$state": "/ax/workItems" }.
+  const axState = window.__PMX_CANVAS_AX_STATE__;
+  const initialState = axState !== undefined && axState !== null
+    ? { ...(spec.state ?? {}), ax: axState }
+    : spec.state ?? undefined;
+
   return (
     <div style={{ minHeight: '100vh', padding: 16, boxSizing: 'border-box' }}>
       <JSONUIProvider
         registry={registry}
-        initialState={spec.state ?? undefined}
+        initialState={initialState}
         directives={pmxCanvasDirectives}
         handlers={buildAxHandlers()}
       >
+        <AxStateSync />
         <Renderer spec={spec} registry={registry} loading={false} />
         {window.__PMX_CANVAS_JSON_RENDER_DEVTOOLS__ ? (
           <JsonRenderDevtools position="right" />

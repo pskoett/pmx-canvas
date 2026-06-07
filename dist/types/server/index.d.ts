@@ -445,6 +445,12 @@ export declare class PmxCanvas extends EventEmitter {
         width?: number;
         height?: number;
         strictSize?: boolean;
+        /** Opt this html node into AX interactions (window.PMX_AX.emit). Clamped to
+         *  the html capability ceiling server-side; cannot escalate. */
+        axCapabilities?: {
+            enabled?: boolean;
+            allowed?: string[];
+        };
     }): SdkCanvasNode;
     addHtmlPrimitive(input: {
         kind: HtmlPrimitiveKind;

@@ -20,3 +20,10 @@ export declare function nodeSurfaceUrl(nodeId: string, opts?: SurfaceUrlOptions)
 export declare function canOpenAsSite(node: CanvasNodeState): boolean;
 /** Open the node's surface in a new browser tab. */
 export declare function openNodeAsSite(node: CanvasNodeState): void;
+/**
+ * Open the node's surface in the user's real SYSTEM browser via the server's OS
+ * launcher — for hosts (e.g. Codex) whose embedded browser makes a normal
+ * `_blank` tab feel in-place. Falls back to a normal new-tab open when the server
+ * can't launch (headless / PMX_CANVAS_DISABLE_BROWSER_OPEN).
+ */
+export declare function openNodeInSystemBrowser(node: CanvasNodeState): Promise<void>;

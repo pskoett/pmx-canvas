@@ -92,4 +92,5 @@ export declare function buildJsonRenderViewerHtml(options: {
     devtools?: boolean;
     nodeId?: string;
     axToken?: string;
+    axState?: unknown;
 }): Promise<string>;

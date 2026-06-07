@@ -1,4 +1,5 @@
 import { canvasTheme } from '../state/canvas-store';
+import { openNodeInSystemBrowserRequest } from '../state/intent-bridge';
 import { canOpenNodeAsSurface } from '../../shared/surface.js';
 import type { CanvasNodeState } from '../types';
 
@@ -45,4 +46,15 @@ export function canOpenAsSite(node: CanvasNodeState): boolean {
 /** Open the node's surface in a new browser tab. */
 export function openNodeAsSite(node: CanvasNodeState): void {
   window.open(nodeSurfaceUrl(node.id), '_blank', 'noopener');
+}
+
+/**
+ * Open the node's surface in the user's real SYSTEM browser via the server's OS
+ * launcher — for hosts (e.g. Codex) whose embedded browser makes a normal
+ * `_blank` tab feel in-place. Falls back to a normal new-tab open when the server
+ * can't launch (headless / PMX_CANVAS_DISABLE_BROWSER_OPEN).
+ */
+export async function openNodeInSystemBrowser(node: CanvasNodeState): Promise<void> {
+  const res = await openNodeInSystemBrowserRequest(node.id);
+  if (!res.opened) openNodeAsSite(node);
 }

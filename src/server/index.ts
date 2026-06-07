@@ -768,6 +768,9 @@ export class PmxCanvas extends EventEmitter {
     if (!entry) return { ok: false, description: 'Nothing to undo' };
     await syncCanvasRuntimeBackends();
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    // Undo can reverse an AX mutation (work item, focus, …); nudge AX surfaces to
+    // re-fetch so a live board reflects the reversal (debounced client-side).
+    emitPrimaryWorkbenchEvent('ax-state-changed', {});
     return { ok: true, description: `Undid: ${entry.description}` };
   }
 
@@ -776,6 +779,7 @@ export class PmxCanvas extends EventEmitter {
     if (!entry) return { ok: false, description: 'Nothing to redo' };
     await syncCanvasRuntimeBackends();
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    emitPrimaryWorkbenchEvent('ax-state-changed', {});
     return { ok: true, description: `Redid: ${entry.description}` };
   }
 
@@ -1042,6 +1046,9 @@ export class PmxCanvas extends EventEmitter {
     width?: number;
     height?: number;
     strictSize?: boolean;
+    /** Opt this html node into AX interactions (window.PMX_AX.emit). Clamped to
+     *  the html capability ceiling server-side; cannot escalate. */
+    axCapabilities?: { enabled?: boolean; allowed?: string[] };
   }): SdkCanvasNode {
     const { id } = addCanvasNode({
       type: 'html',
@@ -1055,6 +1062,7 @@ export class PmxCanvas extends EventEmitter {
         ...(Array.isArray(input.slideTitles) ? { slideTitles: input.slideTitles } : {}),
         ...(Array.isArray(input.embeddedNodeIds) ? { embeddedNodeIds: input.embeddedNodeIds } : {}),
         ...(Array.isArray(input.embeddedUrls) ? { embeddedUrls: input.embeddedUrls } : {}),
+        ...(input.axCapabilities ? { axCapabilities: input.axCapabilities } : {}),
       },
       ...(typeof input.x === 'number' ? { x: input.x } : {}),
       ...(typeof input.y === 'number' ? { y: input.y } : {}),

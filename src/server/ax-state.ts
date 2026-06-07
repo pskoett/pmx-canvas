@@ -636,7 +636,9 @@ export function createAxReviewAnnotation(
   source: PmxAxSource | null,
 ): PmxAxReviewAnnotation {
   const now = nowIso();
-  const anchorType = input.anchorType ?? 'node';
+  // Mirror addReviewAnnotation's context-aware default so a body-only annotation
+  // (no anchorType, no nodeId) becomes an unanchored note instead of a node anchor.
+  const anchorType = input.anchorType ?? (typeof input.nodeId === 'string' && input.nodeId ? 'node' : 'file');
   return {
     id: axId('rev'),
     kind: input.kind ?? 'comment',

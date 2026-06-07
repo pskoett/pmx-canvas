@@ -8,7 +8,7 @@ import { StatusNode } from '../nodes/StatusNode';
 import { ImageNode } from '../nodes/ImageNode';
 import { WebpageNode } from '../nodes/WebpageNode';
 import { HtmlNode, shouldShowPresentationControls } from '../nodes/HtmlNode';
-import { canOpenAsSite, openNodeAsSite } from '../nodes/surface-url';
+import { canOpenAsSite, openNodeAsSite, openNodeInSystemBrowser } from '../nodes/surface-url';
 import { PromptNode } from '../nodes/PromptNode';
 import { ResponseNode } from '../nodes/ResponseNode';
 import { TraceNode } from '../nodes/TraceNode';
@@ -312,6 +312,17 @@ export function ExpandedNodeOverlay() {
                 title="Open as a full-page site in a new tab"
               >
                 Open as site
+              </button>
+            )}
+
+            {canOpenAsSite(node) && (
+              <button
+                type="button"
+                class="expanded-action-btn"
+                onClick={() => void openNodeInSystemBrowser(node)}
+                title="Open in the system browser (e.g. Chrome) — useful when the host browser opens tabs in-place"
+              >
+                Open in system browser
               </button>
             )}
 

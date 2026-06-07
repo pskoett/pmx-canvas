@@ -1448,6 +1448,8 @@ cmd('node update', 'Update a node by ID', [
   'pmx-canvas node update <node-id> --spec-file ./dashboard.json',
   'pmx-canvas node update <graph-id> --data-file ./metrics.json --chart-height 420',
   'pmx-canvas node update <node-id> --pinned true',
+  'pmx-canvas node update <node-id> --dock-position right',
+  'pmx-canvas node update <node-id> --dock-position none   # undock back to the canvas',
   'pmx-canvas node update <node-id> --lock-arrange',
 ], async (args) => {
   const { positional, flags } = parseFlags(args);
@@ -1521,10 +1523,25 @@ cmd('node update', 'Update a node by ID', [
 
   if (pinned !== undefined) body.pinned = pinned;
 
+  // --dock-position left|right|none : dock a node into the top HUD or undock it.
+  // `none`/`null`/empty map to JS null (undock). Assigned with a !== undefined
+  // guard so the null survives JSON.stringify to the server (which accepts a
+  // top-level dockPosition: null). HTTP PATCH already supports this; this is the
+  // CLI path the report (#40) found missing.
+  const dockRaw = getStringFlag(flags, 'dock-position', 'dockPosition');
+  let dockPosition: 'left' | 'right' | null | undefined;
+  if (dockRaw !== undefined) {
+    const v = dockRaw.trim().toLowerCase();
+    if (v === 'left' || v === 'right') dockPosition = v;
+    else if (v === 'none' || v === 'null' || v === '') dockPosition = null;
+    else die(`Invalid --dock-position "${dockRaw}".`, 'Use left, right, or none (to undock).');
+  }
+  if (dockPosition !== undefined) body.dockPosition = dockPosition;
+
   if (Object.keys(body).length === 0) {
     die(
       'No updates specified',
-      'Use --title, --content, --x, --y, --width, --height, --strict-size, --pinned, trace fields, --lock-arrange, --unlock-arrange, or --stdin',
+      'Use --title, --content, --x, --y, --width, --height, --strict-size, --pinned, --dock-position, trace fields, --lock-arrange, --unlock-arrange, or --stdin',
     );
   }
 

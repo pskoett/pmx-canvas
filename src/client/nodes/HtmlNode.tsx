@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef } from 'preact/hooks';
-import { canvasTheme } from '../state/canvas-store';
+import { axSurfaceState, canvasTheme } from '../state/canvas-store';
 import { submitAxInteractionFromClient } from '../state/intent-bridge';
 import { showToast } from '../state/attention-bridge';
 import type { CanvasNodeState } from '../types';
@@ -82,6 +82,23 @@ export function HtmlNode({
     if (autoFocus) iframeRef.current?.focus();
   }, [theme, themeToken]);
 
+  // Read-side AX bridge: push live AX state into the surface so an AX-enabled
+  // board reflects the work queue / focus. Validated by the surface against axToken.
+  // Gate matches the server's bridge-injection gate (enabled && allowed not empty)
+  // so we never push state to a surface the server left without the bridge.
+  const axCaps = node.data.axCapabilities as { enabled?: boolean; allowed?: unknown } | undefined;
+  const axEnabled = axCaps?.enabled === true && (!Array.isArray(axCaps.allowed) || axCaps.allowed.length > 0);
+  const axStateValue = axSurfaceState.value;
+  useEffect(() => {
+    if (!axEnabled || axStateValue == null) return;
+    iframeRef.current?.contentWindow?.postMessage({
+      source: 'pmx-canvas-html-node',
+      type: 'ax-update',
+      token: axToken,
+      state: axStateValue,
+    }, '*');
+  }, [axEnabled, axStateValue, axToken]);
+
   useEffect(() => {
     if (!autoFocus) return;
     const id = window.setTimeout(() => iframeRef.current?.focus(), 0);
@@ -95,6 +112,14 @@ export function HtmlNode({
       token: themeToken,
       theme,
     }, '*');
+    if (axEnabled && axSurfaceState.value != null) {
+      iframeRef.current?.contentWindow?.postMessage({
+        source: 'pmx-canvas-html-node',
+        type: 'ax-update',
+        token: axToken,
+        state: axSurfaceState.value,
+      }, '*');
+    }
     if (autoFocus) iframeRef.current?.focus();
   };
 

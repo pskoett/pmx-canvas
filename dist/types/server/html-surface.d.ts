@@ -20,6 +20,24 @@ export declare const SURFACE_THEME_STYLESHEET = "/canvas/surface-theme.css";
 /** CSP sandbox tokens for an `html`/`html-primitive` surface — scripts only, opaque origin. */
 export declare const HTML_SURFACE_SANDBOX = "allow-scripts";
 export declare function normalizeSurfaceTheme(value: string | null | undefined): SurfaceTheme;
+/**
+ * Bridge that exposes `window.PMX_AX.emit(type, payload)` to author HTML. Calls
+ * post a nonce-tagged message to the parent canvas, which validates the nonce +
+ * node id and submits the interaction through the capability-gated endpoint. Only
+ * injected when the node's AX capabilities are enabled (opt-in for `html`), and
+ * the server re-validates every interaction — so this is a convenience surface,
+ * not a trust boundary.
+ */
+export declare function buildAxBridge(axToken: string, nodeId: string): string;
+/**
+ * Read-side bridge: seeds `window.PMX_AX.state` with a snapshot of the canvas AX
+ * state and keeps it live via nonce-validated `ax-update` messages from the parent
+ * canvas. Author HTML can read `window.PMX_AX.state` and subscribe to the
+ * `pmx-ax-update` CustomEvent to render a live work queue / focus. Injected only
+ * alongside the emit bridge (AX-enabled nodes). Read-only — no capability beyond
+ * the existing AX-enabled gate.
+ */
+export declare function buildAxStateBridge(axToken: string, snapshotJson: string): string;
 export interface HtmlSurfaceOptions {
     theme: SurfaceTheme;
     /**
@@ -38,6 +56,11 @@ export interface HtmlSurfaceOptions {
     axToken?: string;
     /** Node id stamped on emitted interactions. */
     nodeId?: string;
+    /**
+     * Initial AX state snapshot to seed `window.PMX_AX.state` (only used when
+     * axBridge is enabled). Kept live via parent → iframe `ax-update` messages.
+     */
+    axState?: unknown;
 }
 /**
  * Wrap author HTML into a complete, themed standalone document. Accepts either a

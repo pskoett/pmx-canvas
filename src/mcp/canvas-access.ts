@@ -685,6 +685,7 @@ class RemoteCanvasAccess implements CanvasAccess {
       slideTitles,
       embeddedNodeIds,
       embeddedUrls,
+      axCapabilities,
       ...rest
     } = input as AddHtmlNodeInput & {
       summary?: string;
@@ -694,6 +695,7 @@ class RemoteCanvasAccess implements CanvasAccess {
       slideTitles?: string[];
       embeddedNodeIds?: string[];
       embeddedUrls?: string[];
+      axCapabilities?: { enabled?: boolean; allowed?: string[] };
     };
     return await this.requestNodeId('POST', '/api/canvas/node', {
       type: 'html',
@@ -706,6 +708,7 @@ class RemoteCanvasAccess implements CanvasAccess {
         ...(Array.isArray(slideTitles) ? { slideTitles } : {}),
         ...(Array.isArray(embeddedNodeIds) ? { embeddedNodeIds } : {}),
         ...(Array.isArray(embeddedUrls) ? { embeddedUrls } : {}),
+        ...(axCapabilities ? { axCapabilities } : {}),
       },
     });
   }

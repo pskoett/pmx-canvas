@@ -500,6 +500,9 @@ export function applyAxInteraction(
       const p = payloadParsed.data as { body: string; kind?: PmxAxReviewKind; severity?: PmxAxReviewSeverity; anchorType?: PmxAxReviewAnchorType; nodeId?: string; file?: string; author?: string };
       // Sandboxed surfaces may only review their own node; trusted surfaces may
       // anchor to a file/region or another node.
+      // A node-interaction review carries a sourceNodeId, so it defaults to a node
+      // anchor on that source (see nodeId resolution below). Body-only/unanchored
+      // is the adapter/HTTP/MCP path (addReviewAnnotation's context-aware default).
       const anchorType: PmxAxReviewAnchorType = scoped ? 'node' : (p.anchorType ?? 'node');
       const reviewAnnotation = manager.addReviewAnnotation(
         {

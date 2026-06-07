@@ -9,6 +9,7 @@ export declare const sessionId: import("@preact/signals-core").Signal<string>;
 export declare const traceEnabled: import("@preact/signals-core").Signal<boolean>;
 export declare const canvasTheme: import("@preact/signals-core").Signal<string>;
 export declare const hasInitialServerLayout: import("@preact/signals-core").Signal<boolean>;
+export declare const axSurfaceState: import("@preact/signals-core").Signal<unknown>;
 export declare const expandedNodeId: import("@preact/signals-core").Signal<string | null>;
 export declare const pendingExpandedNodeCloseId: import("@preact/signals-core").Signal<string | null>;
 export declare const pendingConnection: import("@preact/signals-core").Signal<{

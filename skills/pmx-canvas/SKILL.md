@@ -770,7 +770,11 @@ server's `ui://` resource as an iframe node on the canvas
 
 Any renderable surface node can be opened full-page in its own browser tab — the same
 document it shows in the canvas, just without the node chrome. In the workbench, use the
-↗ **Open as site** button in the node title bar (or the expanded overlay).
+↗ **Open as site** button (new tab) or the ⤤ **Open in system browser** button in the
+node title bar (or the expanded overlay). "Open in system browser" launches the real OS
+browser via `POST /api/canvas/open-external` `{ nodeId }` (it opens only this server's own
+surface URL; falls back to a normal new tab when the server can't launch) — use it when
+the host's embedded browser (e.g. Codex) opens `_blank` tabs in-place.
 
 - Works for `html` / `html-primitive`, bundled `web-artifact`, `json-render` / `graph`,
   `webpage`, and hosted ext-app `mcp-app` nodes.
@@ -878,6 +882,97 @@ elicitation, or mode request. One envelope, many transports:
 
 Interactions request PMX-AX primitives only — never arbitrary shell, tool, MCP,
 or host execution.
+
+#### Where AX can be used — node capability matrix
+
+AX interactions are gated per node type. The lists below are each type's **ceiling**
+— `data.axCapabilities.allowed` can NARROW it, never escalate beyond it.
+
+**Enabled by default** (no opt-in needed — an agent/native control can emit straight away):
+
+| Node type | Allowed AX interaction types |
+|-----------|------------------------------|
+| `markdown` | `ax.steer`, `ax.work.create`, `ax.evidence.add`, `ax.command.invoke`, `ax.event.record` |
+| `context` | `ax.focus.set`, `ax.steer`, `ax.evidence.add`, `ax.command.invoke`, `ax.event.record` |
+| `status` | `ax.work.create`, `ax.work.update`, `ax.approval.request`, `ax.mode.request`, `ax.event.record` |
+| `file` | `ax.evidence.add`, `ax.review.add`, `ax.focus.set`, `ax.event.record` |
+| `json-render` | `ax.work.create`, `ax.work.update`, `ax.evidence.add`, `ax.elicitation.request`, `ax.event.record` |
+| `graph` | `ax.evidence.add`, `ax.focus.set`, `ax.event.record` |
+| `ledger` | `ax.evidence.add`, `ax.event.record` |
+| `trace` | `ax.evidence.add`, `ax.event.record` |
+| `image` | `ax.evidence.add`, `ax.review.add` |
+| `webpage` | `ax.evidence.add`, `ax.review.add`, `ax.focus.set`, `ax.event.record` |
+| `group` | `ax.focus.set`, `ax.work.create`, `ax.command.invoke`, `ax.event.record` |
+
+**Opt-in** — set `data.axCapabilities.enabled = true` (MCP: pass `axCapabilities` to
+`canvas_add_html_node` or `canvas_update_node`; HTTP: nest under `data`):
+
+| Node type | Allowed AX interaction types |
+|-----------|------------------------------|
+| `html` / `html-primitive` | the full set: `ax.work.create`, `ax.work.update`, `ax.steer`, `ax.approval.request`, `ax.review.add`, `ax.evidence.add`, `ax.focus.set`, `ax.elicitation.request`, `ax.mode.request`, `ax.command.invoke`, `ax.event.record` |
+| `mcp-app` (incl. **web-artifact**) | `ax.event.record`, `ax.evidence.add`, `ax.work.create`, `ax.work.update`, `ax.focus.set`, `ax.elicitation.request` |
+
+**Never (anchor-only):** internal `prompt` / `response` thread nodes — `ax.event.record`
+only, no human-facing emit.
+
+The 11 interaction types and what they create: `ax.work.create` / `ax.work.update`
+(work-queue items, status todo→in-progress→blocked→done→cancelled), `ax.evidence.add`
+(timeline evidence), `ax.review.add` (review annotation), `ax.focus.set` (agent focus
+pointer), `ax.steer` (a steering message delivered to the agent), `ax.approval.request`
+(approval gate), `ax.elicitation.request` (structured human input), `ax.mode.request`
+(plan/execute/autonomous transition), `ax.command.invoke` (registry command), and
+`ax.event.record` (diagnostic agent-event).
+
+#### Building an AX surface in the canvas (emit + reflect)
+
+AX surfaces are **composable** — you can build a live work board, review board, or
+inbox as a canvas node that BOTH emits AX interactions AND renders the current AX
+state. The read side mirrors the write side:
+
+- **Opt in** (html/mcp-app are off by default): create with
+  `canvas_add_html_node({ html, axCapabilities: { enabled: true, allowed: ["ax.work.create","ax.work.update"] } })`,
+  or flip an existing node on with
+  `canvas_update_node({ id, axCapabilities: { enabled: true, allowed: [...] } })`.
+  json-render / graph nodes are enabled by default.
+- **Emit (write):** in `html`, call `window.PMX_AX.emit("ax.work.create", { title })`;
+  in `json-render`, bind a control action named after the AX type
+  (`on: { press: { action: "ax.work.create", params: { title } } }`).
+- **Reflect (read):** the canvas seeds the surface with a compact AX snapshot at
+  load (the same shape as `GET /api/canvas/ax/surface-snapshot`) and live-updates it
+  as AX state changes. Works on all three authored surface types:
+  - `html` / `html-primitive`: read `window.PMX_AX.state` (`{ focus, workItems,
+    approvalGates, reviewAnnotations, elicitations, modeRequests, policy }`) and
+    subscribe to the `pmx-ax-update` event:
+    `window.addEventListener("pmx-ax-update", e => render(e.detail))`.
+  - `json-render` / `graph`: the snapshot is bound under `/ax`, so a spec reads
+    `{ "$state": "/ax/workItems" }` and it stays live as work items change.
+  - `web-artifact` (mcp-app): the same `window.PMX_AX.state` + `pmx-ax-update` bridge
+    is injected at the `/artifact` route once the node opts in — author the React app
+    against `window.PMX_AX`, not direct `fetch()` (the artifact iframe is sandboxed
+    opaque-origin, so it can't call the API directly).
+
+Minimal html work board (drop-in via `canvas_add_html_node`, `axCapabilities.enabled: true`):
+
+```html
+<button onclick="window.PMX_AX.emit('ax.work.create',{title:'New task'})">+ Task</button>
+<ul id="q"></ul>
+<script>
+  function render(s){ document.getElementById('q').innerHTML =
+    ((s&&s.workItems)||[]).map(w => '<li>['+w.status+'] '+w.title+'</li>').join(''); }
+  render(window.PMX_AX && window.PMX_AX.state);
+  window.addEventListener('pmx-ax-update', e => render(e.detail));
+</script>
+```
+
+This is the right home for a deliberate, interactive AX experience — not the
+native node buttons. Any agent (via MCP/SDK) can also create/update the same work
+items, and the board reflects them live.
+
+> Security note: an AX-enabled surface can READ the whole canvas AX board (all
+> work items, focus, approval gates, etc. — human review comment text is redacted),
+> while its EMITS are clamped to its own node. Under the single-workspace
+> local-trust model this is fine, but don't embed untrusted third-party scripts in
+> an AX-enabled surface.
 
 ### Reading Spatial Intent
 

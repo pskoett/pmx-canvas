@@ -126,6 +126,13 @@ export interface AxInteractionResponse {
     code?: string;
     error?: string;
 }
+/** Fetch the compact AX state snapshot pushed into AX-enabled surfaces. */
+export declare function fetchAxSurfaceState(): Promise<unknown>;
+/** Ask the server to open a node's surface in the system browser. */
+export declare function openNodeInSystemBrowserRequest(nodeId: string): Promise<{
+    ok: boolean;
+    opened: boolean;
+}>;
 /** Submit a capability-gated AX interaction from a native node control. */
 export declare function submitAxInteractionFromClient(input: AxInteractionRequest): Promise<AxInteractionResponse>;
 /** Commit the current viewport to the authoritative server state. */

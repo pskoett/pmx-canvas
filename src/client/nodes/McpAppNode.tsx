@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef } from 'preact/hooks';
 import type { CanvasNodeState } from '../types';
-import { canvasTheme } from '../state/canvas-store';
+import { axSurfaceState, canvasTheme } from '../state/canvas-store';
 import { submitAxInteractionFromClient } from '../state/intent-bridge';
 import { showToast } from '../state/attention-bridge';
 import { ExtAppFrame } from './ExtAppFrame';
 
-function withViewerParams(url: string, expanded: boolean, specVersion?: number, axToken?: string): string {
+function withViewerParams(url: string, expanded: boolean, specVersion?: number, axToken?: string, axNodeId?: string): string {
   if (!url) return url;
   try {
     const resolved = new URL(url, window.location.origin);
@@ -14,8 +14,11 @@ function withViewerParams(url: string, expanded: boolean, specVersion?: number, 
     // Streaming json-render nodes bump specVersion as patches accumulate; including
     // it in the src reloads the iframe so it re-reads the latest accumulated spec.
     if (typeof specVersion === 'number') resolved.searchParams.set('v', String(specVersion));
-    // AX bridge nonce for json-render/graph viewer nodes (Phase 6 follow-up).
+    // AX bridge nonce for json-render/graph + web-artifact viewer nodes.
     if (axToken) resolved.searchParams.set('axToken', axToken);
+    // The /artifact route needs the node id to inject the AX bridge (the json-render
+    // view route already gets nodeId from its own query param).
+    if (axNodeId) resolved.searchParams.set('axNodeId', axNodeId);
     return resolved.toString();
   } catch {
     return url;
@@ -43,9 +46,18 @@ export function McpAppNode({ node, expanded = false }: { node: CanvasNodeState; 
 
 function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boolean }) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  // json-render / graph viewers run the json-render bundle, which can forward
-  // spec actions named ax.* to us. Other viewers (web-artifact, hosted URLs) do not.
-  const isAxViewer = node.type === 'json-render' || node.type === 'graph';
+  // json-render / graph viewers run the json-render bundle, which forwards spec
+  // actions named ax.* to us. AX-enabled web-artifacts get the same emit+read
+  // bridge injected at the /artifact route. Hosted URL viewers do not.
+  const isWebArtifact = node.type === 'mcp-app' && node.data.viewerType === 'web-artifact';
+  const isJsonViewer = node.type === 'json-render' || node.type === 'graph';
+  const axFlag = (node.data.axCapabilities as { enabled?: boolean } | undefined)?.enabled;
+  // json-render/graph are AX-enabled by default (opt OUT with enabled:false, matching
+  // the server seed gate); web-artifacts opt IN. So an opted-out viewer is not treated
+  // as an AX viewer — no token, no emit, no read-state push.
+  const axOn = isWebArtifact ? axFlag === true : axFlag !== false;
+  const isAxViewer = (isJsonViewer || isWebArtifact) && axOn;
+  const axSurface: 'json-render' | 'mcp-app' = isWebArtifact ? 'mcp-app' : 'json-render';
   const axToken = useMemo(() => (isAxViewer ? `ax-${crypto.randomUUID()}` : ''), [isAxViewer]);
 
   // Receive AX emits forwarded by the json-render viewer; validate (bound to this
@@ -65,7 +77,7 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
       void submitAxInteractionFromClient({
         type: interaction.type,
         sourceNodeId: node.id,
-        sourceSurface: 'json-render',
+        sourceSurface: axSurface,
         ...(interaction.payload && typeof interaction.payload === 'object'
           ? { payload: interaction.payload as Record<string, unknown> }
           : {}),
@@ -78,8 +90,22 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
     return () => window.removeEventListener('message', onAxMessage);
   }, [isAxViewer, axToken, node.id]);
 
+  // Read-side: push live AX state into the json-render viewer so a spec bound to
+  // /ax reflects the work queue. Validated by the viewer against axToken.
+  const axStateValue = axSurfaceState.value;
+  const pushAxState = () => {
+    if (!isAxViewer || !axToken || axStateValue == null) return;
+    iframeRef.current?.contentWindow?.postMessage({
+      source: 'pmx-canvas-html-node',
+      type: 'ax-update',
+      token: axToken,
+      state: axStateValue,
+    }, '*');
+  };
+  useEffect(pushAxState, [isAxViewer, axToken, axStateValue]);
+
   const specVersion = typeof node.data.specVersion === 'number' ? node.data.specVersion : undefined;
-  const url = withViewerParams((node.data.url as string) || '', expanded, specVersion, axToken || undefined);
+  const url = withViewerParams((node.data.url as string) || '', expanded, specVersion, axToken || undefined, isAxViewer ? node.id : undefined);
   const sourceServer = (node.data.sourceServer as string) || '';
   const hostMode = (node.data.hostMode as string) || 'hosted';
   const fallbackReason = node.data.fallbackReason as string | undefined;
@@ -146,6 +172,7 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
         sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
         allow="clipboard-read; clipboard-write"
         loading="lazy"
+        onLoad={pushAxState}
         style={{ flex: 1, minHeight: 0, width: '100%' }}
         title={`MCP App: ${sourceServer}`}
       />

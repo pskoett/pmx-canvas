@@ -447,6 +447,10 @@ export async function startMcpServer(): Promise<void> {
       width: z.number().optional().describe('Width in pixels (default: 720).'),
       height: z.number().optional().describe('Height in pixels (default: 640).'),
       strictSize: z.boolean().optional().describe('Keep explicit width/height fixed; iframe scrolls overflow internally.'),
+      axCapabilities: z.object({
+        enabled: z.boolean().optional(),
+        allowed: z.array(z.string()).optional().describe('AX interaction types this node may emit (e.g. ax.work.create, ax.work.update, ax.steer, ax.focus.set, ax.evidence.add, ax.event.record). Clamped to the html capability ceiling server-side; cannot escalate.'),
+      }).optional().describe('Opt this html node into AX interactions so its sandboxed UI can emit ax.* via window.PMX_AX.emit(type, payload) (and reflect live AX state). html nodes are AX-disabled by default; set { enabled: true, allowed: [...] } to turn the bridge on. Build interactive boards (work queues, review boards, inboxes) this way.'),
       full: z.boolean().optional().describe('Return the full created node payload. Default false returns compact metadata.'),
       verbose: z.boolean().optional().describe('Alias for full:true.'),
     },
@@ -455,6 +459,7 @@ export async function startMcpServer(): Promise<void> {
       const id = await c.addHtmlNode({
         html: input.html,
         ...(typeof input.title === 'string' ? { title: input.title } : {}),
+        ...(input.axCapabilities ? { axCapabilities: input.axCapabilities } : {}),
         ...(typeof input.summary === 'string' ? { summary: input.summary } : {}),
         ...(typeof input.agentSummary === 'string' ? { agentSummary: input.agentSummary } : {}),
         ...(typeof input.description === 'string' ? { description: input.description } : {}),
@@ -1079,11 +1084,15 @@ export async function startMcpServer(): Promise<void> {
       dockPosition: z.enum(['left', 'right']).nullable().optional().describe('Dock the node to the left/right HUD column, or pass null to return it to the canvas'),
       pinned: z.boolean().optional().describe('Pin or unpin the node to exclude it from auto-arrange'),
       arrangeLocked: z.boolean().optional().describe('Prevent auto-arrange from moving this node. Pinned nodes are also skipped.'),
+      axCapabilities: z.object({
+        enabled: z.boolean().optional(),
+        allowed: z.array(z.string()).optional(),
+      }).optional().describe('Enable/disable AX interactions on an existing node (e.g. flip an html node on with { enabled: true, allowed: ["ax.work.create"] }). Merged into the node data; clamped to the node-type ceiling server-side.'),
       full: z.boolean().optional().describe('Return the full updated node payload. Default false returns compact metadata.'),
       verbose: z.boolean().optional().describe('Alias for full:true.'),
     },
     async (input) => {
-      const { id, title, content, x, y, width, height, spec, graphType, data, xKey, yKey, chartHeight, collapsed, dockPosition, pinned, arrangeLocked, toolName, category, status, duration, resultSummary, error } = input;
+      const { id, title, content, x, y, width, height, spec, graphType, data, xKey, yKey, chartHeight, collapsed, dockPosition, pinned, arrangeLocked, axCapabilities, toolName, category, status, duration, resultSummary, error } = input;
       const c = await ensureCanvas();
       const node = await c.getNode(id);
       if (!node) {
@@ -1124,6 +1133,19 @@ export async function startMcpServer(): Promise<void> {
       if (error !== undefined) patch.error = error;
       if (arrangeLocked !== undefined) {
         patch.arrangeLocked = arrangeLocked;
+      }
+      if (axCapabilities !== undefined) {
+        // A graph dataset update (`data` array) and an axCapabilities toggle collide
+        // on patch.data (array vs object) — reject rather than silently dropping the
+        // dataset. Otherwise merge into existing node data so enabling AX doesn't
+        // clobber html/spec/etc. The server re-clamps axCapabilities to the ceiling.
+        if (Array.isArray(patch.data)) {
+          return {
+            content: [{ type: 'text', text: 'Update the graph dataset and axCapabilities in separate canvas_update_node calls.' }],
+            isError: true,
+          };
+        }
+        patch.data = { ...(node.data as Record<string, unknown>), axCapabilities };
       }
       await c.updateNode(id, patch);
       const updated = await c.getNode(id);

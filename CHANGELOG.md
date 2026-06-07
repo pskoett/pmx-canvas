@@ -3,6 +3,62 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- **Composable AX surfaces (emit + reflect).** AX-enabled `html`, `json-render`,
+  and `web-artifact` nodes can now both EMIT AX interactions and RENDER live AX
+  state, so an agent (or human) can build an interactive work board / review board
+  / inbox as a canvas node. The canvas seeds each surface with a compact AX
+  snapshot and pushes live updates over the existing nonce-validated postMessage
+  channel: `html` exposes `window.PMX_AX.state` + a `pmx-ax-update` event;
+  `json-render` binds the snapshot under `/ax` (e.g. `{ "$state": "/ax/workItems" }`);
+  `web-artifact` gets the same `window.PMX_AX` bridge injected at the `/artifact`
+  route. New `GET /api/canvas/ax/surface-snapshot`. See the "Building an AX
+  surface" section in the pmx-canvas skill.
+- **AX opt-in via MCP/SDK (report #42).** `canvas_add_html_node` and
+  `canvas_update_node` accept an `axCapabilities` parameter ({ enabled, allowed })
+  so an agent can turn an html node into an AX surface without hand-crafting raw
+  HTTP — the previously-missing opt-in that made the (already-working) AX bridge
+  look broken. Clamped to the node-type ceiling server-side; cannot escalate.
+  (#42 was not a missing listener — the emit bridge + listeners already existed
+  and are e2e-verified.)
+- **Open in system browser.** A node-header / expanded-overlay "Open in system
+  browser" action (and `POST /api/canvas/open-external`) opens a node's surface in
+  the real OS browser via the existing launcher — for hosts (e.g. Codex) whose
+  embedded browser makes a normal new tab feel in-place. Accepts only `{ nodeId }`
+  (opens this server's own surface URL — no arbitrary-URL launch), honors
+  `PMX_CANVAS_DISABLE_BROWSER_OPEN`, and falls back to a normal new tab.
+
+### Changed
+
+- **Responsive top HUD (report #41).** The toolbar + docked status/context pills
+  now wrap instead of clipping in narrow embedding panels (e.g. the Copilot side
+  panel); low-value text (session id, zoom %, counts) is hidden below ~720px.
+
+### Fixed
+
+- **Body-only review annotations succeed (report #39).** `ax.review.add` /
+  `canvas_add_review_annotation` with only a `body` (no `anchorType`, no `nodeId`)
+  now creates an unanchored note instead of returning 400 — `anchorType` defaults
+  to a node anchor only when a usable `nodeId` is present. An explicit bad node
+  anchor still rejects.
+- **CLI can undock a node (report #40).** `pmx-canvas node update --dock-position
+  left|right|none` docks/undocks a node (`none` → `null`). The previous
+  `--data '{"dockPosition":null}'` never worked because `--data` is reserved for
+  graph datasets; the CLI had no path mapping it to the top-level field.
+
+### Removed
+
+- **Status node "Track as work" button.** Tracking a status signal as a work item
+  produced a thin, auto-titled item (often just "idle") with no visible effect on
+  the board and no proactive agent reaction — confusing UI for little value. The
+  underlying AX work-item primitive (`ax.work.create`) is unchanged and still
+  available to agents, the SDK/MCP/HTTP API, and authored AX surfaces
+  (json-render/HTML bridges) — the better home for a deliberate, in-canvas
+  work-item/steering experience.
+
 ## [0.1.31] - 2026-06-07
 
 ### Added

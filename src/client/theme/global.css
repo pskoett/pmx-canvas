@@ -457,13 +457,15 @@ body,
   font-weight: 600;
 }
 
-/* HUD layer — fixed row: [left-dock] [toolbar] [right-dock] */
+/* HUD layer — [left-dock] [toolbar] [right-dock]. Wraps onto multiple rows in a
+   narrow embedding panel (e.g. the Copilot side panel) instead of clipping. */
 .hud-layer {
   position: fixed;
   top: 12px;
   left: 12px;
   right: 12px;
   display: flex;
+  flex-wrap: wrap;
   align-items: flex-start;
   justify-content: center;
   gap: 8px;
@@ -476,22 +478,24 @@ body,
 .hud-left,
 .hud-right {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
 }
 
 /* Toolbar */
 .canvas-toolbar {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
   min-height: var(--hud-bar-height);
+  max-width: 100%;
   box-sizing: border-box;
   background: var(--c-panel-glass);
   backdrop-filter: blur(12px);
   border: 1px solid var(--c-line);
   border-radius: var(--radius);
-  flex-shrink: 0;
 }
 
 .toolbar-tooltip-anchor {
@@ -666,9 +670,11 @@ body,
 
 .toolbar-group {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
-  flex-shrink: 0;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .canvas-toolbar button svg {
@@ -689,6 +695,15 @@ body,
 
   .toolbar-tooltip-meta {
     gap: 8px;
+  }
+}
+
+/* Narrow embedding panels: drop low-value text from the HUD so the icon controls
+   fit in fewer rows. Buttons keep their aria-labels + tooltips, so nothing is
+   lost for a11y or discovery. */
+@media (max-width: 720px) {
+  .hud-collapsible-text {
+    display: none;
   }
 }
 

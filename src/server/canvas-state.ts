@@ -1888,7 +1888,12 @@ class CanvasStateManager {
     // normalizeAxForCurrentNodes after apply, yet still returned as a phantom
     // success object — false success / silent data loss. Reject instead so the
     // HTTP/MCP layers surface ok:false / 4xx.
-    const anchorType = input.anchorType ?? 'node';
+    // Context-aware default: only fall back to a node anchor when a usable nodeId
+    // is present; otherwise treat it as an unanchored (body-only) note so a
+    // `{ body }`-only annotation succeeds (anchorType is documented optional).
+    const anchorType = input.anchorType ?? (typeof input.nodeId === 'string' && input.nodeId ? 'node' : 'file');
+    // An EXPLICIT node anchor still requires a real nodeId — reject a phantom
+    // node-anchored review rather than silently dropping it post-apply.
     if (anchorType === 'node' && (typeof input.nodeId !== 'string' || !this.currentNodeIdSet().has(input.nodeId))) {
       return null;
     }

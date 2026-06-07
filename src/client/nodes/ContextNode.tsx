@@ -178,7 +178,7 @@ export function ContextNode({
         <button
           type="button"
           class="ax-node-action"
-          title="Set AX focus to this node"
+          title="Point the agent at this node — sets it as the agent's current AX focus so the agent pulls it into context to work on next (a one-click alternative to manually pinning)."
           style={axNodeActionButtonStyle}
           onClick={(e) => {
             e.stopPropagation();

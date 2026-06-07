@@ -943,6 +943,7 @@ export async function buildJsonRenderViewerHtml(options: {
   devtools?: boolean;
   nodeId?: string;
   axToken?: string;
+  axState?: unknown;
 }): Promise<string> {
   const sanitizeAxValue = (v?: string): string => (typeof v === 'string' ? v.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80) : '');
   try {
@@ -962,6 +963,8 @@ export async function buildJsonRenderViewerHtml(options: {
       ...(options.nodeId && options.axToken ? [
         `window.__PMX_CANVAS_JSON_RENDER_NODE_ID__ = ${JSON.stringify(sanitizeAxValue(options.nodeId))};`,
         `window.__PMX_CANVAS_AX_TOKEN__ = ${JSON.stringify(sanitizeAxValue(options.axToken))};`,
+        // Read-side AX state: seed for initial render + bound under /ax for specs.
+        `window.__PMX_CANVAS_AX_STATE__ = ${JSON.stringify(options.axState ?? null).replace(/</g, '\\u003c')};`,
       ] : []),
       jsBundle,
     ].join('\n');

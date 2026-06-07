@@ -107,22 +107,46 @@ function injectIntoHead(html: string, content: string): string {
  * the server re-validates every interaction — so this is a convenience surface,
  * not a trust boundary.
  */
-function buildAxBridge(axToken: string, nodeId: string): string {
+export function buildAxBridge(axToken: string, nodeId: string): string {
   const token = JSON.stringify(axToken);
   const node = JSON.stringify(nodeId);
   return `<script data-pmx-canvas-ax-bridge>
 const PMX_AX_TOKEN = ${token};
 const PMX_AX_NODE_ID = ${node};
-window.PMX_AX = {
-  emit(type, payload) {
-    window.parent.postMessage({
-      source: 'pmx-canvas-ax',
-      token: PMX_AX_TOKEN,
-      nodeId: PMX_AX_NODE_ID,
-      interaction: { type: String(type), payload: payload && typeof payload === 'object' ? payload : {} },
-    }, '*');
-  },
+window.PMX_AX = window.PMX_AX || {};
+window.PMX_AX.emit = function (type, payload) {
+  window.parent.postMessage({
+    source: 'pmx-canvas-ax',
+    token: PMX_AX_TOKEN,
+    nodeId: PMX_AX_NODE_ID,
+    interaction: { type: String(type), payload: payload && typeof payload === 'object' ? payload : {} },
+  }, '*');
 };
+</script>`;
+}
+
+/**
+ * Read-side bridge: seeds `window.PMX_AX.state` with a snapshot of the canvas AX
+ * state and keeps it live via nonce-validated `ax-update` messages from the parent
+ * canvas. Author HTML can read `window.PMX_AX.state` and subscribe to the
+ * `pmx-ax-update` CustomEvent to render a live work queue / focus. Injected only
+ * alongside the emit bridge (AX-enabled nodes). Read-only — no capability beyond
+ * the existing AX-enabled gate.
+ */
+export function buildAxStateBridge(axToken: string, snapshotJson: string): string {
+  const token = JSON.stringify(axToken);
+  return `<script data-pmx-canvas-ax-state-bridge>
+(function () {
+  const PMX_AX_STATE_TOKEN = ${token};
+  window.PMX_AX = window.PMX_AX || {};
+  window.PMX_AX.state = ${snapshotJson};
+  window.addEventListener('message', function (event) {
+    const m = event.data;
+    if (!m || m.source !== 'pmx-canvas-html-node' || m.type !== 'ax-update' || m.token !== PMX_AX_STATE_TOKEN) return;
+    window.PMX_AX.state = m.state;
+    try { window.dispatchEvent(new CustomEvent('pmx-ax-update', { detail: m.state })); } catch (e) {}
+  });
+})();
 </script>`;
 }
 
@@ -149,6 +173,11 @@ export interface HtmlSurfaceOptions {
   axToken?: string;
   /** Node id stamped on emitted interactions. */
   nodeId?: string;
+  /**
+   * Initial AX state snapshot to seed `window.PMX_AX.state` (only used when
+   * axBridge is enabled). Kept live via parent → iframe `ax-update` messages.
+   */
+  axState?: unknown;
 }
 
 /**
@@ -165,7 +194,15 @@ export function buildHtmlSurfaceDocument(userHtml: string, options: HtmlSurfaceO
   const axBridge = options.axBridge
     ? buildAxBridge(sanitizeToken(options.axToken), sanitizeToken(options.nodeId))
     : '';
-  const injectedHeadContent = `${link}${themeBridge}${presentationBridge}${axBridge}`;
+  // Read-side AX state bridge (seed + live push). `</` is escaped so a work-item
+  // title containing "</script>" can't break out of the inline script.
+  const axStateBridge = options.axBridge
+    ? buildAxStateBridge(
+        sanitizeToken(options.axToken),
+        options.axState !== undefined ? JSON.stringify(options.axState).replace(/</g, '\\u003c') : 'null',
+      )
+    : '';
+  const injectedHeadContent = `${link}${themeBridge}${presentationBridge}${axBridge}${axStateBridge}`;
   const presentationAttr = options.presentation ? ' data-pmx-presentation-mode="present"' : '';
   const trimmed = userHtml.trim();
   const isFullDoc = /<html[\s>]/i.test(trimmed);

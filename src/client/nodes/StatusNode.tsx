@@ -1,6 +1,5 @@
 import { PHASE_COLORS } from '../theme/tokens';
 import type { CanvasNodeState } from '../types';
-import { axNodeActionButtonStyle, runNodeAxInteraction } from './ax-node-actions';
 
 export function getStatusDisplayPhase(node: CanvasNodeState): string {
   const phase = typeof node.data.phase === 'string' && node.data.phase.trim().length > 0
@@ -95,25 +94,6 @@ export function StatusNode({ node }: { node: CanvasNodeState }) {
           {message}
         </div>
       )}
-
-      {/* AX: turn this status into a tracked work item */}
-      <button
-        type="button"
-        class="ax-node-action"
-        title="Create an AX work item tied to this node"
-        style={axNodeActionButtonStyle}
-        onClick={(e) => {
-          e.stopPropagation();
-          void runNodeAxInteraction(
-            node,
-            'ax.work.create',
-            { title: (node.data.title as string) || message || phase || 'Status update' },
-            'Tracked as work',
-          );
-        }}
-      >
-        Track as work
-      </button>
     </div>
   );
 }

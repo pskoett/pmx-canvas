@@ -323,6 +323,59 @@ describe('MCP parity with CLI', () => {
     expect(node.pinned).toBe(true);
   });
 
+  test('canvas_add_html_node + canvas_update_node opt a node into AX so it can emit interactions (#42)', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    const tools = await session.client.listTools();
+    expect(tools.tools.find((t) => t.name === 'canvas_add_html_node')?.inputSchema.properties).toHaveProperty('axCapabilities');
+    expect(tools.tools.find((t) => t.name === 'canvas_update_node')?.inputSchema.properties).toHaveProperty('axCapabilities');
+
+    // AX-enabled html node can emit ax.work.create.
+    const on = parseJsonText<{ id: string }>(await session.client.callTool({
+      name: 'canvas_add_html_node',
+      arguments: { title: 'AX board', html: '<button>x</button>', axCapabilities: { enabled: true, allowed: ['ax.work.create'] } },
+    }) as ToolResultShape);
+    const emitOn = parseJsonText<{ ok: boolean }>(await session.client.callTool({
+      name: 'canvas_ax_interaction',
+      arguments: { type: 'ax.work.create', sourceNodeId: on.id, payload: { title: 'from board' } },
+    }) as ToolResultShape);
+    expect(emitOn.ok).toBe(true);
+
+    // A default html node is AX-disabled — the emit is rejected (fails closed).
+    const off = parseJsonText<{ id: string }>(await session.client.callTool({
+      name: 'canvas_add_html_node',
+      arguments: { title: 'plain', html: '<p>x</p>' },
+    }) as ToolResultShape);
+    const blocked = parseJsonText<{ ok: boolean }>(await session.client.callTool({
+      name: 'canvas_ax_interaction',
+      arguments: { type: 'ax.work.create', sourceNodeId: off.id, payload: { title: 'nope' } },
+    }) as ToolResultShape);
+    expect(blocked.ok).toBe(false);
+
+    // Flipping it on via canvas_update_node (merged into data) makes it emit-capable.
+    await session.client.callTool({
+      name: 'canvas_update_node',
+      arguments: { id: off.id, axCapabilities: { enabled: true, allowed: ['ax.work.create'] } },
+    });
+    const emitAfter = parseJsonText<{ ok: boolean }>(await session.client.callTool({
+      name: 'canvas_ax_interaction',
+      arguments: { type: 'ax.work.create', sourceNodeId: off.id, payload: { title: 'now ok' } },
+    }) as ToolResultShape);
+    expect(emitAfter.ok).toBe(true);
+
+    // The axCapabilities merge must NOT clobber existing node data (html survives).
+    const fetched = parseJsonText<{ data?: { html?: string; axCapabilities?: { enabled?: boolean } } }>(await session.client.callTool({
+      name: 'canvas_get_node',
+      arguments: { id: off.id, full: true },
+    }) as ToolResultShape);
+    expect(fetched.data?.html).toBe('<p>x</p>');
+    expect(fetched.data?.axCapabilities?.enabled).toBe(true);
+  });
+
   test('canvas_add_node exposes and persists strictSize', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {

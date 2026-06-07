@@ -255,6 +255,25 @@ export interface AxInteractionResponse {
   error?: string;
 }
 
+/** Fetch the compact AX state snapshot pushed into AX-enabled surfaces. */
+export async function fetchAxSurfaceState(): Promise<unknown> {
+  return requestJson<unknown>('fetchAxSurfaceState', '/api/canvas/ax/surface-snapshot', null);
+}
+
+/** Ask the server to open a node's surface in the system browser. */
+export async function openNodeInSystemBrowserRequest(nodeId: string): Promise<{ ok: boolean; opened: boolean }> {
+  return requestJson<{ ok: boolean; opened: boolean }>(
+    'openNodeInSystemBrowserRequest',
+    '/api/canvas/open-external',
+    { ok: false, opened: false },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeId }),
+    },
+  );
+}
+
 /** Submit a capability-gated AX interaction from a native node control. */
 export async function submitAxInteractionFromClient(input: AxInteractionRequest): Promise<AxInteractionResponse> {
   return requestJson<AxInteractionResponse>(

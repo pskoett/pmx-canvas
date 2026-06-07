@@ -25,7 +25,7 @@ import {
   viewport,
 } from '../state/canvas-store';
 import { removeNodeFromClient, updateNodeFromClient } from '../state/intent-bridge';
-import { canOpenAsSite, openNodeAsSite } from '../nodes/surface-url';
+import { canOpenAsSite, openNodeAsSite, openNodeInSystemBrowser } from '../nodes/surface-url';
 import { getNodeIcon } from '../icons';
 import { EXPANDABLE_TYPES, TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
@@ -290,6 +290,21 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
               title="Open as site (new tab)"
             >
               ↗
+            </button>
+          )}
+          {/* Open in the real system browser (for hosts whose embedded browser
+              makes a normal new tab feel in-place, e.g. Codex). Falls back to a
+              new tab when the server can't launch the OS browser. */}
+          {canOpenAsSite(node) && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                void openNodeInSystemBrowser(node);
+              }}
+              title="Open in system browser"
+            >
+              ⤤
             </button>
           )}
           {/* Expand — opens node as full-viewport overlay for focused work */}

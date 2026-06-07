@@ -6,6 +6,7 @@ import {
   addEdge,
   addNode,
   applyServerCanvasLayout,
+  axSurfaceState,
   bringToFront,
   cancelViewportAnimation,
   canvasTheme,
@@ -24,6 +25,7 @@ import {
   updateNode,
   updateNodeData,
 } from './canvas-store';
+import { fetchAxSurfaceState } from './intent-bridge';
 import { invalidateTokenCache } from '../theme/tokens';
 import { resetAttentionBridge, syncAttentionFromSse } from './attention-bridge';
 
@@ -926,6 +928,19 @@ function handleContextPinsChanged(data: Record<string, unknown>): void {
   syncAttentionFromSse({ event: 'context-pins-changed', data });
 }
 
+// AX state changes arrive as per-primitive deltas; rather than reduce them, treat
+// the event as a "something changed" signal and re-fetch the full compact snapshot
+// (debounced). The snapshot feeds AX-enabled surfaces (HtmlNode/McpAppNode push it
+// into their iframes), so authored boards reflect the live work queue / focus.
+let axRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+function handleAxStateChanged(): void {
+  if (axRefreshTimer) clearTimeout(axRefreshTimer);
+  axRefreshTimer = setTimeout(() => {
+    axRefreshTimer = null;
+    void fetchAxSurfaceState().then((state) => { axSurfaceState.value = state; });
+  }, 150);
+}
+
 // ── SSE connection ────────────────────────────────────────────
 /** @internal — exported for testing */
 export const EVENT_HANDLERS: Record<string, (data: Record<string, unknown>) => void> = {
@@ -959,6 +974,8 @@ export const EVENT_HANDLERS: Record<string, (data: Record<string, unknown>) => v
   'canvas-response-start': handleCanvasResponseStart,
   'canvas-response-delta': handleCanvasResponseDelta,
   'canvas-response-complete': handleCanvasResponseComplete,
+  'ax-state-changed': handleAxStateChanged,
+  'ax-event-created': handleAxStateChanged,
 };
 
 export function connectSSE(): () => void {

@@ -3616,6 +3616,20 @@ describe('canvas server HTTP API', () => {
     );
     expect(review.reviewAnnotation.severity).toBe('error');
 
+    // #39: a body-only review annotation (no anchorType, no nodeId) succeeds as an
+    // unanchored note instead of 400ing — anchorType is documented optional.
+    const bodyOnly = await jsonRequest<{ ok: boolean; reviewAnnotation: { id: string; anchorType: string; nodeId: string | null } }>(
+      '/api/canvas/ax/review',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ body: 'general note, no anchor', source: 'api' }),
+      },
+    );
+    expect(bodyOnly.ok).toBe(true);
+    expect(bodyOnly.reviewAnnotation.anchorType).toBe('file');
+    expect(bodyOnly.reviewAnnotation.nodeId).toBeNull();
+
     const updated = await jsonRequest<{ ok: boolean; reviewAnnotation: { status: string } }>(
       `/api/canvas/ax/review/${review.reviewAnnotation.id}`,
       {
@@ -3639,6 +3653,53 @@ describe('canvas server HTTP API', () => {
 
     const read = await jsonRequest<{ ok: boolean; host: { host: string } | null }>('/api/canvas/ax/host-capability');
     expect(read.host?.host).toBe('copilot');
+  });
+
+  test('GET /api/canvas/ax/surface-snapshot returns the compact board with review text redacted', async () => {
+    const review = await jsonRequest<{ reviewAnnotation: { id: string } }>('/api/canvas/ax/review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body: 'secret human comment', author: 'alice', anchorType: 'file', file: 'x.ts', source: 'api' }),
+    });
+    const snap = await jsonRequest<{ reviewAnnotations: Array<Record<string, unknown>> }>('/api/canvas/ax/surface-snapshot');
+    for (const k of ['focus', 'workItems', 'approvalGates', 'reviewAnnotations', 'elicitations', 'modeRequests', 'policy']) {
+      expect(snap).toHaveProperty(k);
+    }
+    const entry = snap.reviewAnnotations.find((r) => r.id === review.reviewAnnotation.id);
+    expect(entry).toBeDefined();
+    // Free-text human fields are redacted from the surface snapshot.
+    expect(entry?.body).toBeUndefined();
+    expect(entry?.author).toBeUndefined();
+    expect(entry?.severity).toBeDefined();
+  });
+
+  test('POST /api/canvas/open-external opens a node surface and validates input', async () => {
+    const node = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'html', title: 'Openable', html: '<p>x</p>' }),
+    });
+    const ok = await jsonRequest<{ ok: boolean; opened: boolean; url: string }>('/api/canvas/open-external', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeId: node.id }),
+    });
+    expect(ok.ok).toBe(true);
+    expect(ok.url).toBe(`/api/canvas/surface/${node.id}`);
+    expect(typeof ok.opened).toBe('boolean'); // false under PMX_CANVAS_DISABLE_BROWSER_OPEN
+
+    const missing = await fetch(`${baseUrl}/api/canvas/open-external`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeId: 'does-not-exist' }),
+    });
+    expect(missing.status).toBe(404);
+    const noBody = await fetch(`${baseUrl}/api/canvas/open-external`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(noBody.status).toBe(400);
   });
 
   test('AX mutations emit ax-event-created and ax-state-changed SSE events', async () => {

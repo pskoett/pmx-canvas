@@ -18,6 +18,10 @@ export const sessionId = signal<string>('');
 export const traceEnabled = signal<boolean>(false);
 export const canvasTheme = signal<string>('dark');
 export const hasInitialServerLayout = signal<boolean>(false);
+// Compact AX state snapshot (work items, focus, …) mirrored from the server and
+// pushed into AX-enabled surfaces so authored boards can render the live queue.
+// Refreshed by the SSE bridge on ax-state-changed / ax-event-created.
+export const axSurfaceState = signal<unknown>(null);
 
 // ── Expanded (focus) node ─────────────────────────────────────
 // Only one node at a time can be in expanded/focus mode. When expanded, the

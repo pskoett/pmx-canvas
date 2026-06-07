@@ -167,7 +167,7 @@ function Toolbar({
         <ToolbarHint label="Canvas status" detail={hasSynced ? statusLabel : 'Syncing canvas from server'} align="start">
           <span class={`connection-dot ${status}`} aria-label={`Canvas status: ${statusTitle}`} />
         </ToolbarHint>
-        <span style={{ fontSize: '11px', color: 'var(--c-muted)' }}>
+        <span class="hud-collapsible-text" style={{ fontSize: '11px', color: 'var(--c-muted)' }}>
           {sessionId.value ? sessionId.value.slice(0, 12) : '…'}
         </span>
 
@@ -209,7 +209,7 @@ function Toolbar({
             <IconZoomOut />
           </button>
         </ToolbarHint>
-        <span style={{ fontSize: '10px', color: 'var(--c-dim)', minWidth: '36px', textAlign: 'center' }}>
+        <span class="hud-collapsible-text" style={{ fontSize: '10px', color: 'var(--c-dim)', minWidth: '36px', textAlign: 'center' }}>
           {Math.round(v.scale * 100)}%
         </span>
 
@@ -357,7 +357,7 @@ function Toolbar({
           </button>
         </ToolbarHint>
 
-        <span style={{ fontSize: '10px', color: 'var(--c-dim)' }}>{countsLabel}</span>
+        <span class="hud-collapsible-text" style={{ fontSize: '10px', color: 'var(--c-dim)' }}>{countsLabel}</span>
       </div>
     </div>
   );

@@ -1032,22 +1032,6 @@ test('opens an html node as a standalone site in a new tab', async ({ page, cont
   await popup.close();
 });
 
-test('status node "Track as work" creates an AX work item', async ({ page, request }) => {
-  await request.post('/api/canvas/node', {
-    data: { type: 'status', title: 'Build pipeline', x: 640, y: 260 },
-  });
-  await page.goto('/workbench');
-  const node = page.locator('.canvas-node').filter({ hasText: 'Build pipeline' });
-  await expect(node).toHaveCount(1);
-  await node.getByRole('button', { name: 'Track as work' }).click();
-
-  await expect.poll(async () => {
-    const ax = await request.get('/api/canvas/ax');
-    const body = await ax.json() as { state?: { workItems?: Array<{ title: string }> } };
-    return (body.state?.workItems ?? []).some((w) => w.title === 'Build pipeline');
-  }).toBe(true);
-});
-
 test('html bridge: an opted-in html node emits an AX interaction via window.PMX_AX', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
     data: {
@@ -1100,6 +1084,32 @@ test('json-render bridge: a spec action named ax.* emits an AX interaction via t
     const body = await ax.json() as { state?: { workItems?: Array<{ title: string }> } };
     return (body.state?.workItems ?? []).some((w) => w.title === 'from-jsonrender-bridge');
   }).toBe(true);
+});
+
+test('AX read path: an AX-enabled html board reflects live AX state (window.PMX_AX.state + pmx-ax-update)', async ({ page, request }) => {
+  // A board that renders the live work-item count from the read-side bridge.
+  const html = '<div id="c">init</div><script>'
+    + 'function r(s){document.getElementById("c").textContent="work:"+((s&&s.workItems)?s.workItems.length:0);}'
+    + 'r(window.PMX_AX&&window.PMX_AX.state);'
+    + 'window.addEventListener("pmx-ax-update",function(e){r(e.detail);});'
+    + '</script>';
+  const created = await request.post('/api/canvas/node', {
+    data: { type: 'html', title: 'AX read board', html, data: { axCapabilities: { enabled: true, allowed: ['ax.work.create'] } }, x: 640, y: 260, width: 480, height: 320 },
+  });
+  const nodeId = ((await created.json()) as { id: string }).id;
+
+  await page.goto('/workbench');
+  const node = page.locator('.canvas-node').filter({ hasText: 'AX read board' });
+  await expect(node).toHaveCount(1);
+  const frame = node.frameLocator('iframe');
+  // Seeded from the server-injected snapshot at load.
+  await expect(frame.locator('#c')).toHaveText('work:0');
+
+  // An external work-item create propagates live via SSE → client → iframe push.
+  await request.post('/api/canvas/ax/interaction', {
+    data: { type: 'ax.work.create', sourceNodeId: nodeId, payload: { title: 'Ship it' } },
+  });
+  await expect(frame.locator('#c')).toHaveText('work:1');
 });
 
 test('file node evidence control records AX evidence', async ({ page, request }) => {

@@ -398,12 +398,16 @@ describe('canvas state manager', () => {
     expect(canvasState.getReviewAnnotations()).toEqual([]);
   });
 
-  test('rejects node-anchored review annotations with a missing or unknown nodeId instead of false success', () => {
-    // Default anchorType is 'node'; a call with no nodeId must reject, not
-    // silently store nothing while returning a phantom success object.
-    expect(canvasState.addReviewAnnotation({ body: 'no anchor' }, { source: 'api' })).toBeNull();
+  test('defaults a body-only review annotation to an unanchored note, but rejects an explicit bad node anchor', () => {
+    // A body-only call (no anchorType, no nodeId) is a valid unanchored note —
+    // anchorType is documented optional, so it must NOT reject (#39).
+    const bodyOnly = canvasState.addReviewAnnotation({ body: 'no anchor' }, { source: 'api' });
+    expect(bodyOnly).not.toBeNull();
+    expect(bodyOnly?.anchorType).toBe('file');
+    expect(bodyOnly?.nodeId).toBeNull();
+    // An EXPLICIT node anchor with a missing/unknown nodeId must still reject —
+    // no phantom success / silent drop.
     expect(canvasState.addReviewAnnotation({ body: 'bad anchor', anchorType: 'node', nodeId: 'does-not-exist' }, { source: 'api' })).toBeNull();
-    expect(canvasState.getReviewAnnotations()).toEqual([]);
 
     // A file anchor needs no node, and a valid node anchor succeeds.
     const fileReview = canvasState.addReviewAnnotation({ body: 'file note', anchorType: 'file', file: 'src/x.ts' }, { source: 'api' });
@@ -412,7 +416,7 @@ describe('canvas state manager', () => {
     canvasState.addNode(anchorNode);
     const nodeReview = canvasState.addReviewAnnotation({ body: 'node note', anchorType: 'node', nodeId: anchorNode.id }, { source: 'api' });
     expect(nodeReview).not.toBeNull();
-    expect(canvasState.getReviewAnnotations().map((r) => r.id).sort()).toEqual([fileReview!.id, nodeReview!.id].sort());
+    expect(canvasState.getReviewAnnotations().map((r) => r.id).sort()).toEqual([bodyOnly!.id, fileReview!.id, nodeReview!.id].sort());
   });
 
   test('records the AX timeline in the DB but excludes it from snapshots', async () => {
