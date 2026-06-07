@@ -181,6 +181,61 @@ Validation: `/ax/event` requires a valid `kind` + `summary` (400 otherwise);
 and `PATCH /ax/review/:id` return 404 for unknown IDs; approval resolve returns
 404 if the gate is missing or already resolved.
 
+## AX interactions, delivery, elicitation, mode, commands & policy
+
+Node interactions are one normalized, capability-gated envelope that maps onto an
+AX operation. The server re-validates every interaction against the source node's
+effective capabilities and clamps sandboxed surfaces (`html-node`, `mcp-app`,
+`json-render`) to their own node.
+
+```bash
+# Node interaction — one envelope, validated + mapped to the matching AX op
+curl -X POST http://localhost:4313/api/canvas/ax/interaction \
+  -H "Content-Type: application/json" \
+  -d '{"type":"ax.work.create","sourceNodeId":"node-1","payload":{"title":"Wire auth"}}'
+
+# Delivery — claim pending steering for a consumer (loop-safe), then mark delivered
+curl "http://localhost:4313/api/canvas/ax/delivery/pending?consumer=copilot&limit=20"
+curl -X POST http://localhost:4313/api/canvas/ax/delivery/<steering-id>/mark \
+  -H "Content-Type: application/json" \
+  -d '{"consumer":"copilot"}'
+
+# Elicitation — request structured human input, then respond
+curl -X POST http://localhost:4313/api/canvas/ax/elicitation \
+  -H "Content-Type: application/json" \
+  -d '{"prompt":"Who owns this migration?","fields":["owner"],"source":"api"}'
+curl -X POST http://localhost:4313/api/canvas/ax/elicitation/<id>/respond \
+  -H "Content-Type: application/json" \
+  -d '{"response":{"owner":"alice"}}'
+curl http://localhost:4313/api/canvas/ax/elicitation
+
+# Mode — request a plan/execute/autonomous transition, then resolve
+curl -X POST http://localhost:4313/api/canvas/ax/mode \
+  -H "Content-Type: application/json" \
+  -d '{"mode":"plan","reason":"scope the change first","source":"api"}'
+curl -X POST http://localhost:4313/api/canvas/ax/mode/<id>/resolve \
+  -H "Content-Type: application/json" \
+  -d '{"decision":"approved"}'
+curl http://localhost:4313/api/canvas/ax/mode
+
+# Commands — list the registry, invoke a command (records a `command` agent-event)
+curl http://localhost:4313/api/canvas/ax/command
+curl -X POST http://localhost:4313/api/canvas/ax/command \
+  -H "Content-Type: application/json" \
+  -d '{"name":"pmx.plan","args":{"note":"draft a plan"},"source":"api"}'
+
+# Policy — read / patch the canvas-bound tool/prompt policy (patches merge)
+curl http://localhost:4313/api/canvas/ax/policy
+curl -X POST http://localhost:4313/api/canvas/ax/policy \
+  -H "Content-Type: application/json" \
+  -d '{"tools":{"excluded":["shell"]},"prompt":{"mode":"concise"},"source":"api"}'
+```
+
+Validation: `/ax/interaction` returns `{ ok: false, code }` (403 `ax-disabled` /
+`not-allowed`, 400 `invalid-payload` / `unknown-command`, 404 `unknown-node`);
+`/ax/command` rejects an unknown command name with 400; `/ax/elicitation/:id/respond`
+and `/ax/mode/:id/resolve` return 404 for unknown IDs.
+
 ## Diagrams (Excalidraw preset)
 
 ```bash

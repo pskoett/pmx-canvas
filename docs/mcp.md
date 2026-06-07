@@ -1,6 +1,6 @@
 # MCP reference
 
-PMX Canvas ships an MCP stdio server with **56 tools** + **12 core resources**,
+PMX Canvas ships an MCP stdio server with **65 tools** + **14 core resources**,
 plus per-skill resources at `canvas://skills/<name>`. The server emits
 `notifications/resources/updated` when canvas state changes — humans pin
 nodes in the browser, agents are notified immediately.
@@ -65,6 +65,15 @@ searchable and readable in pinned/spatial context.
 | `canvas_add_evidence` | Record an `evidence-item` on the timeline (logs/tool-result/screenshot/file/diff/test-output) |
 | `canvas_add_review_annotation` | Add a canvas-bound `review-annotation` (comment/finding) anchored to a node, file, or region |
 | `canvas_report_host_capability` | Report a host/session `host-capability` for diagnostics |
+| `canvas_ax_interaction` | Submit one capability-gated AX interaction envelope (`{ type, sourceNodeId, payload }`) that maps onto an AX operation; the server re-validates and clamps sandboxed surfaces to their own node |
+| `canvas_claim_ax_delivery` | Claim undelivered steering messages for an adapterless consumer (loop-safe — never returns steering the consumer originated) |
+| `canvas_mark_ax_delivery` | Mark a steering message delivered for a consumer |
+| `canvas_request_elicitation` | Request structured human input via a canvas-bound `elicitation` (pending) |
+| `canvas_respond_elicitation` | Respond to / resolve a pending elicitation |
+| `canvas_request_mode` | Request a workflow `mode-request` transition (plan/execute/autonomous) |
+| `canvas_resolve_mode` | Resolve a pending mode request |
+| `canvas_invoke_command` | Invoke a registry command (`pmx.plan`, `pmx.execute`, `pmx.promote-context`, `pmx.summarize`, `pmx.review`); records a `command` agent-event, unknown names rejected |
+| `canvas_set_ax_policy` | Patch the canvas-bound tool/prompt policy (`tools.allowed\|excluded\|approvalRequired`, `prompt.systemAppend\|mode`); patches merge and are normalized |
 | `canvas_pin_nodes` | Pin nodes to include in agent context |
 | `canvas_clear` | Clear all nodes and edges |
 | `canvas_snapshot` | Save current canvas as a named snapshot |
@@ -96,8 +105,10 @@ Individual bundled skills are also readable at `canvas://skills/<name>`.
 | `canvas://pinned-context` | Content of pinned nodes + nearby unpinned neighbors |
 | `canvas://ax` | PMX AX state: focus, work items, approval gates, review annotations |
 | `canvas://ax-context` | Agent-readable pinned and focused AX context, plus timeline summary and host capability |
-| `canvas://ax-work` | Canvas-bound AX work: work items, approval gates, review annotations |
+| `canvas://ax-work` | Canvas-bound AX work: work items, approval gates, review annotations, elicitations, mode requests, and tool/prompt policy |
 | `canvas://ax-timeline` | Bounded AX timeline: recent agent-events, evidence, and steering messages |
+| `canvas://ax-pending-steering` | Undelivered steering an adapterless MCP client can claim, act on, and mark delivered |
+| `canvas://ax-delivery` | Steering delivery state (delivered flag) for diagnostics |
 | `canvas://schema` | Running-server create schemas and json-render catalog metadata |
 | `canvas://layout` | Full canvas state (all nodes, edges, viewport) |
 | `canvas://summary` | Compact overview: counts, pinned titles, viewport |
@@ -105,6 +116,33 @@ Individual bundled skills are also readable at `canvas://skills/<name>`.
 | `canvas://history` | Mutation history timeline with undo/redo position |
 | `canvas://code-graph` | Auto-detected file dependency graph (JS/TS, Python, Go, Rust) |
 | `canvas://skills` | Index of bundled agent skills + per-skill content at `canvas://skills/<name>` |
+
+## Node interactions (capability-gated)
+
+Eligible nodes emit one normalized, validated interaction envelope
+(`{ type, sourceNodeId, payload, sourceSurface }`) via `canvas_ax_interaction`
+(HTTP `POST /api/canvas/ax/interaction`) that maps onto an AX operation — work
+item, evidence, approval, review, focus, steering, event, elicitation, mode, or
+command. The server is the single trust boundary and re-validates every
+interaction against the node's effective capabilities.
+
+- **Capabilities:** each node type has a default capability set (a ceiling). A
+  node may opt in or narrow via `data.axCapabilities` (`{ enabled, allowed }`),
+  clamped to the ceiling — a node can never escalate beyond its type's ceiling.
+  `html` / `html-primitive`, `mcp-app`, and internal `prompt` / `response` are
+  disabled by default.
+- **Scoping:** sandboxed/opaque-origin iframe surfaces (`html-node`, `mcp-app`,
+  `json-render`) are clamped to their own node — caller-supplied `nodeIds` are
+  forced to the source node. Trusted surfaces (`native-node`, `adapter`) may
+  target explicit nodeIds.
+- **Transports:** native node controls call the endpoint directly; sandboxed
+  `html` / `mcp-app` nodes call `window.PMX_AX.emit(type, payload)`; the
+  `json-render` / `graph` viewer forwards a spec action named after an AX type
+  (e.g. `on.press → { action: "ax.work.create", params }`). All postMessage
+  transports are nonce-validated by the parent canvas before submission.
+- **Commands:** `canvas_invoke_command` runs a registry command (`pmx.plan`,
+  `pmx.execute`, `pmx.promote-context`, `pmx.summarize`, `pmx.review`); unknown
+  names are rejected and a successful call records a `command` agent-event.
 
 ## Change notifications
 

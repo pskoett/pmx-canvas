@@ -106,6 +106,26 @@ canvas.addReviewAnnotation({ body: 'off-by-one', kind: 'finding', severity: 'err
 // Host/session capability (own table, survives clear)
 canvas.reportHostCapability({ host: 'copilot', canvas: true, sessionMessaging: true }, { source: 'sdk' });
 console.log(canvas.getHostCapability());
+
+// Node interactions — one capability-gated envelope; the server re-validates and
+// clamps sandboxed surfaces (html-node/mcp-app/json-render) to their own node.
+canvas.submitAxInteraction({ type: 'ax.work.create', sourceNodeId: n1, payload: { title: 'Wire auth' } });
+
+// Delivery — claim pending steering for a consumer (loop-safe), then acknowledge
+const pending = canvas.getPendingSteering({ consumer: 'copilot', limit: 20 });
+if (pending[0]) canvas.markSteeringDelivered(pending[0].id, { consumer: 'copilot' });
+
+// Elicitation + mode requests (canvas-bound, snapshotted)
+const elic = canvas.requestElicitation({ prompt: 'Who owns this?', fields: ['owner'] }, { source: 'sdk' });
+canvas.respondElicitation(elic.id, { owner: 'alice' });
+const mode = canvas.requestMode({ mode: 'execute', reason: 'plan approved' }, { source: 'sdk' });
+canvas.resolveModeRequest(mode.id, 'approved');
+
+// Command registry + tool/prompt policy
+console.log(canvas.getCommandRegistry());
+canvas.invokeCommand('pmx.plan', { note: 'draft a plan' }, { source: 'sdk' });
+canvas.setPolicy({ tools: { excluded: ['shell'] }, prompt: { mode: 'concise' } }, { source: 'sdk' });
+console.log(canvas.getPolicy());
 ```
 
 ## WebView automation

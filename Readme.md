@@ -67,14 +67,22 @@ canvas into a shared workspace between you and the agent:
 - **Steering messages & agent-event timeline** — send instructions to the
   active session, and read a normalized, bounded timeline of prompts, tool
   runs, evidence (logs/diffs/screenshots/test-output), and failures.
+- **Node interactions** — eligible nodes emit one capability-gated, validated
+  interaction envelope from native controls, the sandboxed HTML / MCP-app
+  bridges (`window.PMX_AX.emit`), or json-render spec actions. The server is the
+  single trust boundary and clamps sandboxed surfaces to their own node.
+- **Elicitations, mode requests, commands & policy** — request structured human
+  input, propose a plan/execute/autonomous mode transition, invoke registry
+  commands (`pmx.plan`, `pmx.review`, …), and read a tool/prompt policy.
 - **Host capability** — adapters report what the host can do, for diagnostics.
 
-Canvas-bound state (focus, work items, approvals, review annotations) rides
-canvas snapshots and restore; the timeline persists for continuity but is
-retention-bounded and never restored by a snapshot. Every primitive is reachable
-from MCP, the HTTP API, the SDK, and `pmx-canvas ax …`. The core never depends
-on any host SDK, so adapters (e.g. the GitHub Copilot app) map onto the same
-neutral surfaces without making PMX Canvas vendor-specific.
+Canvas-bound state (focus, work items, approvals, review annotations,
+elicitations, mode requests, policy) rides canvas snapshots and restore; the
+timeline persists for continuity but is retention-bounded and never restored by a
+snapshot. Every primitive is reachable from MCP, the HTTP API, the SDK, and
+`pmx-canvas ax …`. The core never depends on any host SDK, so adapters (e.g. the
+GitHub Copilot app) map onto the same neutral surfaces without making PMX Canvas
+vendor-specific.
 
 ### 05 / Save
 
@@ -87,8 +95,8 @@ the DB so SQLite WAL data is checkpointed into the file.
 
 ### 06 / Any agent
 
-Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (56 tools,
-12 resources, change notifications), the [CLI](docs/cli.md), the
+Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (65 tools,
+14 resources, change notifications), the [CLI](docs/cli.md), the
 [HTTP API](docs/http-api.md), or the [Bun SDK](docs/sdk.md). Works with
 Claude Code, GitHub Copilot CLI, Codex, Cursor, Windsurf, or any agent
 that can spawn an MCP stdio server, call a CLI, or hit an HTTP endpoint.
@@ -237,7 +245,7 @@ the agent can read `canvas://skills` and pull in companion skills
   the three-tier visual matrix (json-render → html → web-artifact)
 - **[CLI reference](docs/cli.md)** — full command surface, daemon mode,
   watch streams, WebView automation
-- **[MCP reference](docs/mcp.md)** — 56 tools, 12 resources, change
+- **[MCP reference](docs/mcp.md)** — 65 tools, 14 resources, change
   notifications, node-type routing
 - **[HTTP API](docs/http-api.md)** — REST endpoints, SSE, batch operations
 - **[Bun SDK](docs/sdk.md)** — `createCanvas()` for TypeScript on Bun

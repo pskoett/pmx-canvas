@@ -809,6 +809,8 @@ Use native `json-render` and `graph` nodes when the output should stay fully ins
 3. Use the repo-local `json-render-*` skills when you need help authoring or refining the spec itself
 4. Use `canvas_build_web_artifact` instead when the result needs a full custom React app rather than a schema-driven UI
 
+Spec elements support an `on` map (`on.press`, `on.change`, …) binding events to actions (`{ action, params }`) — built-in actions (`setState`, `pushState`, …) or, when named after an AX interaction type, a capability-gated AX emit. e.g. a Button with `on: { press: { action: 'ax.work.create', params: { title: '…' } } }` lets a human turn a panel control into a tracked work item; the viewer forwards it to the canvas, which validates and submits it server-side (clamped to the node's own id). See **Node AX Interactions** above.
+
 ## MCP Resources
 
 These resources give you read access to canvas intelligence. Read them to understand

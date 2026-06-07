@@ -157,6 +157,36 @@ pmx-canvas ax host report --host copilot --canvas --session-messaging
 pmx-canvas ax host status
 ```
 
+### AX interactions, delivery, elicitation, mode, commands & policy
+
+```bash
+# Node interaction — one capability-gated envelope (server re-validates + scopes)
+pmx-canvas ax interaction --type ax.work.create --node node-1 --payload '{"title":"Wire auth"}'
+
+# Delivery — claim pending steering for a consumer (loop-safe), then acknowledge
+pmx-canvas ax delivery list --consumer copilot --limit 20
+pmx-canvas ax delivery mark <steering-id>
+
+# Elicitation — request structured human input, then answer
+pmx-canvas ax elicitation request --prompt "Who owns this migration?" --fields owner
+pmx-canvas ax elicitation respond <id> --response '{"owner":"alice"}'
+pmx-canvas ax elicitation list
+
+# Mode — request a plan/execute/autonomous transition, then resolve
+pmx-canvas ax mode request --mode execute --reason "plan approved"
+pmx-canvas ax mode resolve <id> --decision approved
+pmx-canvas ax mode list
+
+# Commands — list the registry, invoke a registry-gated command
+pmx-canvas ax command list
+pmx-canvas ax command invoke pmx.plan
+pmx-canvas ax command invoke pmx.promote-context --args '{"nodeIds":["n1"]}'
+
+# Policy — read / patch the tool/prompt policy (stored by PMX, enforced by adapters)
+pmx-canvas ax policy get
+pmx-canvas ax policy set --excluded-tools shell,write --mode concise
+```
+
 ## Copilot adapter
 
 Install the bundled GitHub Copilot extension adapter into a repo. The adapter

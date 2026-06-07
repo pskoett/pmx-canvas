@@ -138,6 +138,32 @@ canvas_add_json_render_node({
 `outline`. Older saved specs using `label` or status variants such as
 `success`/`warning` are normalized during validation.
 
+Elements may carry an `on` map (`on.press`, `on.change`, …) binding events to
+actions (`{ action, params }`) — built-in actions (`setState`, `pushState`, …) or
+host-provided handlers. PMX wires AX handlers named after interaction types, so a
+spec action named `ax.*` becomes a capability-gated AX interaction:
+
+```ts
+canvas_add_json_render_node({
+  title: 'Approve plan',
+  spec: {
+    root: 'btn',
+    elements: {
+      btn: {
+        type: 'Button',
+        props: { label: 'Track as work', variant: 'primary' },
+        on: { press: { action: 'ax.work.create', params: { title: 'Ship the plan' } } },
+      },
+    },
+  },
+});
+```
+
+The viewer forwards the emit to the parent canvas, which validates it (iframe
+source + per-viewer nonce + node id) and submits it server-side; `json-render` /
+`graph` viewers are sandboxed surfaces, so caller-supplied `nodeIds` are clamped
+to the node's own id. See the [MCP reference](mcp.md#node-interactions-capability-gated).
+
 Use `canvas_describe_schema` / `canvas_validate_spec` to introspect the
 component catalog before building a spec.
 
