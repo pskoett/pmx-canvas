@@ -3,7 +3,7 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.1.31] - 2026-06-07
 
 ### Added
 
@@ -1632,6 +1632,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.31]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.31
 [0.1.30]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.30
 [0.1.29]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.29
 [0.1.28]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.28
