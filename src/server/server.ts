@@ -1051,16 +1051,25 @@ function rotatePrimaryWorkbenchSessionIfNeeded(): void {
   primaryWorkbenchSessionId = `pmx-${Date.now().toString(36)}`;
 }
 
-function readJson(req: Request): Promise<Record<string, unknown>> {
-  return req.json()
-    .then((value) => {
-      if (!value || typeof value !== 'object') return {};
-      return value as Record<string, unknown>;
-    })
-    .catch((error) => {
-      logWorkbenchWarning('readJson', error);
-      return {};
-    });
+async function readJson(req: Request): Promise<Record<string, unknown>> {
+  let text = '';
+  try {
+    text = await req.text();
+  } catch (error) {
+    logWorkbenchWarning('readJson', error);
+    return {};
+  }
+
+  if (!text.trim()) return {};
+
+  try {
+    const value = JSON.parse(text) as unknown;
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
+    return value as Record<string, unknown>;
+  } catch (error) {
+    logWorkbenchWarning('readJson', error);
+    return {};
+  }
 }
 
 function htmlEscape(value: string): string {

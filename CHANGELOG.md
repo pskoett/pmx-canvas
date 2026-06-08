@@ -5,6 +5,26 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.1.33] - 2026-06-08
+
+### Changed
+
+- **Edge creation echoes the full edge.** `POST /api/canvas/edge` now returns the
+  complete created edge — `from`, `to`, `type`, `style`, and `animated` alongside
+  `ok` and `id` — instead of just `{ ok, id }`. This mirrors how node creation
+  echoes the created node, so a client no longer has to re-read the layout to learn
+  the resolved edge shape. Additive on the HTTP response; the SDK `addEdge` still
+  returns the bare edge id.
+
+### Fixed
+
+- **Bodyless and malformed JSON `POST`s are handled cleanly.** `readJson` now
+  reads the raw request body and treats an empty/whitespace body as `{}` without
+  logging a spurious warning (e.g. `POST /api/canvas/fit` with no body), and
+  rejects a top-level JSON array (or any non-object) to `{}` instead of letting it
+  flow through as though it were an object. Endpoints that read optional fields
+  from the body keep working with or without a payload.
+
 ## [0.1.32] - 2026-06-07
 
 ### Added
@@ -1690,6 +1710,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.33]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.33
 [0.1.32]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.32
 [0.1.31]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.31
 [0.1.30]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.30

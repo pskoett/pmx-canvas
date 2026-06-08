@@ -3003,6 +3003,15 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ type: 'markdown', title: 'Fit B', x: 700, y: 500, width: 300, height: 200 }),
     });
 
+    const bodylessFit = await jsonRequest<{
+      ok: boolean;
+      nodeCount: number;
+    }>('/api/canvas/fit', {
+      method: 'POST',
+    });
+    expect(bodylessFit.ok).toBe(true);
+    expect(bodylessFit.nodeCount).toBe(2);
+
     const fitted = await jsonRequest<{
       ok: boolean;
       viewport: { x: number; y: number; scale: number };
@@ -3776,7 +3785,15 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ type: 'markdown', title: 'Styled edge B' }),
     });
 
-    const edge = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/edge', {
+    const edge = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      from: string;
+      to: string;
+      type: string;
+      style?: string;
+      animated?: boolean;
+    }>('/api/canvas/edge', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -3787,7 +3804,14 @@ describe('canvas server HTTP API', () => {
         animated: true,
       }),
     });
-    expect(edge.ok).toBe(true);
+    expect(edge).toMatchObject({
+      ok: true,
+      from: firstNode.id,
+      to: secondNode.id,
+      type: 'references',
+      style: 'dotted',
+      animated: true,
+    });
 
     const state = await jsonRequest<CanvasStateResponse & {
       edges: Array<{ id: string; type: string; style?: string; animated?: boolean }>;

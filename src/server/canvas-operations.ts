@@ -1363,7 +1363,7 @@ export function addCanvasEdge(input: {
   label?: string;
   style?: CanvasEdge['style'];
   animated?: boolean;
-}): { id: string; from: string; to: string } {
+}): CanvasEdge {
   const fromResult = resolveCanvasNode({
     ...(typeof input.from === 'string' ? { id: input.from } : {}),
     ...(typeof input.fromSearch === 'string' ? { search: input.fromSearch } : {}),
@@ -1393,7 +1393,7 @@ export function addCanvasEdge(input: {
   if (!added) {
     throw new Error('Duplicate or self-edge.');
   }
-  return { id, from: fromResult.node.id, to: toResult.node.id };
+  return edge;
 }
 
 export function removeCanvasEdge(id: string): { removed: boolean } {

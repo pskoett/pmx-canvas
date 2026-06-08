@@ -197,11 +197,7 @@ export declare function addCanvasEdge(input: {
     label?: string;
     style?: CanvasEdge['style'];
     animated?: boolean;
-}): {
-    id: string;
-    from: string;
-    to: string;
-};
+}): CanvasEdge;
 export declare function removeCanvasEdge(id: string): {
     removed: boolean;
 };
