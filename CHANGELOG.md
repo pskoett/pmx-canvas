@@ -5,6 +5,16 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **HTTP batch accepts a bare-array body again (report #49).** `POST /api/canvas/batch`
+  with a top-level `[ ... ]` array created nothing and returned `{ ok: true, results: [] }`
+  — the 0.1.33 `readJson` hardening (empty/whitespace/non-object → `{}`) also coerced
+  top-level arrays to `{}`, so the handler's bare-array branch was dead. Batch now reads
+  the body with an array-preserving variant, so both documented shapes work: the canonical
+  `{ "operations": [...] }` and a bare `[...]`. `readJson` is unchanged for every other
+  endpoint (still object-only), so the malformed-body robustness is preserved.
+
 ## [0.1.34] - 2026-06-08
 
 ### Added

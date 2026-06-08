@@ -1072,6 +1072,34 @@ async function readJson(req: Request): Promise<Record<string, unknown>> {
   }
 }
 
+/**
+ * Like {@link readJson}, but PRESERVES a top-level JSON array. For endpoints that
+ * accept either an object or a bare array (e.g. `/api/canvas/batch`, whose CLI
+ * help and handler both document a bare `[...]` form). readJson coerces arrays to
+ * `{}` so object-shaped handlers never crash on `body.field`; this variant keeps
+ * the array so the handler's array branch can run. Empty/whitespace/malformed
+ * bodies still resolve to `{}`.
+ */
+async function readJsonObjectOrArray(req: Request): Promise<Record<string, unknown> | unknown[]> {
+  let text = '';
+  try {
+    text = await req.text();
+  } catch (error) {
+    logWorkbenchWarning('readJson', error);
+    return {};
+  }
+  if (!text.trim()) return {};
+  try {
+    const value = JSON.parse(text) as unknown;
+    if (Array.isArray(value)) return value;
+    if (!value || typeof value !== 'object') return {};
+    return value as Record<string, unknown>;
+  } catch (error) {
+    logWorkbenchWarning('readJson', error);
+    return {};
+  }
+}
+
 function htmlEscape(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -2495,8 +2523,12 @@ async function handleCanvasAddGraph(req: Request): Promise<Response> {
 }
 
 async function handleCanvasBatch(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const operations = Array.isArray(body.operations) ? body.operations : Array.isArray(body) ? body : [];
+  // Accept both documented shapes: { operations: [...] } and a bare [...] array.
+  // Uses the array-preserving reader so the bare-array form isn't coerced to {}.
+  const body = await readJsonObjectOrArray(req);
+  const operations = Array.isArray(body)
+    ? body
+    : Array.isArray(body.operations) ? body.operations : [];
   const normalized = operations
     .filter((operation): operation is Record<string, unknown> => operation && typeof operation === 'object' && !Array.isArray(operation))
     .map((operation) => ({

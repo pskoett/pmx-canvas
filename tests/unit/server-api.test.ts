@@ -2340,6 +2340,24 @@ describe('canvas server HTTP API', () => {
     expect(invalid.collisions.length).toBeGreaterThanOrEqual(1);
   });
 
+  test('batch accepts a bare-array body, not just { operations } (#49)', async () => {
+    const before = (await jsonRequest<CanvasStateResponse>('/api/canvas/state')).nodes.length;
+    // The documented bare-array form must create nodes (readJson previously coerced
+    // top-level arrays to {} → ok:true with 0 results and nothing created).
+    const batch = await jsonRequest<{ ok: boolean; results: Array<Record<string, unknown>> }>('/api/canvas/batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify([
+        { op: 'node.add', args: { type: 'markdown', title: 'Bare A', x: 1200, y: 1200 } },
+        { op: 'node.add', args: { type: 'markdown', title: 'Bare B', x: 1500, y: 1200 } },
+      ]),
+    });
+    expect(batch.ok).toBe(true);
+    expect(batch.results).toHaveLength(2);
+    const after = (await jsonRequest<CanvasStateResponse>('/api/canvas/state')).nodes.length;
+    expect(after).toBe(before + 2);
+  });
+
   test('batch supports the advertised node.remove operation', async () => {
     const created = await jsonRequest<{ id: string }>('/api/canvas/node', {
       method: 'POST',
