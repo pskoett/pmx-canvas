@@ -5,6 +5,30 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- **Adapterless agents see browser-originated AX activity (report #43).**
+  `canvas://ax-pending-steering` and `canvas_claim_ax_delivery` now return a
+  `pendingActivity` digest alongside `pending` steering: open canvas-bound items
+  awaiting the agent — open work items and pending approval gates / elicitations /
+  mode requests, typically created by the human in the browser. Every AX mutation
+  already fires `ax-state-changed` (so MCP clients that subscribe are pushed
+  `canvas://ax-work` live); `pendingActivity` closes the gap for clients that
+  **poll** the delivery surface instead. Loop-safe (a consumer never sees items it
+  originated) and read-only there — resolve each via its own tool
+  (`canvas_resolve_approval` / `canvas_respond_elicitation` / `canvas_resolve_mode`
+  / `canvas_update_work_item`), not `canvas_mark_ax_delivery` (that stays
+  steering-only).
+
+### Changed
+
+- **`POST /api/canvas/graph` accepts `heightPx` / `nodeHeight` for the node frame
+  height.** `height` sets the chart's plot height; the node frame previously only
+  honored `nodeHeight` / `size.height`, so a caller passing `height`/`heightPx`
+  expecting the node to resize got the default. `heightPx` is now an alias for the
+  node frame height (matching the SDK input field), removing the silent surprise.
+  (With content-fit the node grows to the chart regardless; this is a DX fix.)
+
 ### Fixed
 
 - **Nodes grow to fit their content — graph clipping (report #48).** Iframe-backed

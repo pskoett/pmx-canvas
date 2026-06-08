@@ -200,6 +200,56 @@ function wantsFullPayload(input: { full?: boolean; verbose?: boolean; includeDat
   return input.full === true || input.verbose === true || input.includeData === true;
 }
 
+interface PendingAxActivityItem {
+  kind: 'work-item' | 'approval-gate' | 'elicitation' | 'mode-request';
+  id: string;
+  title: string;
+  status: string;
+  nodeIds: string[];
+  source: string | null;
+}
+
+const OPEN_AX_WORK_STATUSES = new Set(['todo', 'in-progress', 'blocked']);
+
+/**
+ * Open, agent-actionable canvas-bound AX items (open work items + pending approval
+ * gates / elicitations / mode requests). Unlike steering (a directive routed through
+ * the claim/ack delivery queue), these are STATE the human curates in the browser —
+ * they fire `ax-state-changed` (so resource-subscribers are pushed canvas://ax-work),
+ * but an adapterless client that only POLLS the delivery surface never saw them.
+ * Surfacing this digest there closes report #43 without conflating state with steering.
+ * Optionally excludes items the consumer itself originated (loop prevention), mirroring
+ * getPendingSteering.
+ */
+function buildPendingAxActivity(
+  state: Awaited<ReturnType<CanvasAccess['getAxState']>>,
+  consumer?: string,
+): PendingAxActivityItem[] {
+  const notMine = (source: string | null) => !consumer || source !== consumer;
+  const out: PendingAxActivityItem[] = [];
+  for (const w of state.workItems ?? []) {
+    if (OPEN_AX_WORK_STATUSES.has(w.status) && notMine(w.source)) {
+      out.push({ kind: 'work-item', id: w.id, title: w.title, status: w.status, nodeIds: w.nodeIds ?? [], source: w.source });
+    }
+  }
+  for (const g of state.approvalGates ?? []) {
+    if (g.status === 'pending' && notMine(g.source)) {
+      out.push({ kind: 'approval-gate', id: g.id, title: g.title, status: g.status, nodeIds: g.nodeIds ?? [], source: g.source });
+    }
+  }
+  for (const e of state.elicitations ?? []) {
+    if (e.status === 'pending' && notMine(e.source)) {
+      out.push({ kind: 'elicitation', id: e.id, title: e.prompt, status: e.status, nodeIds: e.nodeIds ?? [], source: e.source });
+    }
+  }
+  for (const m of state.modeRequests ?? []) {
+    if (m.status === 'pending' && notMine(m.source)) {
+      out.push({ kind: 'mode-request', id: m.id, title: m.reason ? `${m.mode}: ${m.reason}` : `mode: ${m.mode}`, status: m.status, nodeIds: m.nodeIds ?? [], source: m.source });
+    }
+  }
+  return out;
+}
+
 function compactNodePayload(node: Awaited<ReturnType<CanvasAccess['getNode']>>): Record<string, unknown> | null {
   if (!node) return null;
   const serialized = serializeCanvasNode(node);
@@ -1688,10 +1738,10 @@ export async function startMcpServer(): Promise<void> {
 
   server.tool(
     'canvas_claim_ax_delivery',
-    'Claim pending PMX AX steering messages for a consumer (adapterless delivery). Returns undelivered steering, excluding messages the consumer itself originated (loop prevention). After acting on a message, call canvas_mark_ax_delivery.',
+    'Claim pending PMX AX deliveries for a consumer (adapterless delivery). Returns `pending` undelivered steering (mark each with canvas_mark_ax_delivery after acting) AND `pendingActivity`: open canvas-bound AX items awaiting the agent (open work items, pending approval gates / elicitations / mode requests) — typically created by the human in the browser. Both exclude items the consumer itself originated (loop prevention). pendingActivity is read-only here: resolve each via its own tool (canvas_resolve_approval / canvas_respond_elicitation / canvas_resolve_mode / canvas_update_work_item), not canvas_mark_ax_delivery.',
     {
       consumer: z.string().optional().describe('Consumer/source label to exclude from results (e.g. copilot, mcp).'),
-      limit: z.number().optional().describe('Max messages to return.'),
+      limit: z.number().optional().describe('Max steering messages to return.'),
     },
     async ({ consumer, limit }) => {
       const c = await ensureCanvas();
@@ -1699,7 +1749,8 @@ export async function startMcpServer(): Promise<void> {
         ...(consumer ? { consumer } : {}),
         ...(typeof limit === 'number' ? { limit } : {}),
       });
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, pending }) }] };
+      const pendingActivity = buildPendingAxActivity(await c.getAxState(), consumer);
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, pending, pendingActivity }) }] };
     },
   );
 
@@ -2304,15 +2355,16 @@ export async function startMcpServer(): Promise<void> {
     'canvas://ax-pending-steering',
     {
       description:
-        'Undelivered PMX AX steering messages an MCP client can claim and act on without a host-native adapter. After delivering an instruction to your agent, mark it via canvas_mark_ax_delivery so it is not handed out again.',
+        'Adapterless AX delivery surface. `pending`: undelivered steering messages to claim and act on, then mark via canvas_mark_ax_delivery. `pendingActivity`: open canvas-bound AX items awaiting the agent (open work items, pending approval gates / elicitations / mode requests) — usually created by the human in the browser; these fire ax-state-changed (resource-subscribers are also pushed canvas://ax-work). Resolve pendingActivity via its own tool, not canvas_mark_ax_delivery. Use canvas_claim_ax_delivery for the loop-safe, consumer-scoped view.',
       mimeType: 'application/json',
     },
     async () => {
       const c = await ensureCanvas();
-      const pending = await c.getPendingSteering();
+      const [pending, state] = await Promise.all([c.getPendingSteering(), c.getAxState()]);
+      const pendingActivity = buildPendingAxActivity(state);
       return {
         contents: [
-          { uri: 'canvas://ax-pending-steering', mimeType: 'application/json', text: JSON.stringify({ pending }, null, 2) },
+          { uri: 'canvas://ax-pending-steering', mimeType: 'application/json', text: JSON.stringify({ pending, pendingActivity }, null, 2) },
         ],
       };
     },

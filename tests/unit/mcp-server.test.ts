@@ -199,6 +199,42 @@ describe('MCP parity with CLI', () => {
     }
   });
 
+  test('claim_ax_delivery surfaces browser-originated pending activity, loop-safe (#43)', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    // A human creates an open work item in the browser (source: 'browser').
+    const work = parseJsonText<{ workItem: { id: string } }>(
+      await session.client.callTool({
+        name: 'canvas_add_work_item',
+        arguments: { title: 'Review the export', status: 'todo', source: 'browser' },
+      }) as ToolResultShape,
+    );
+
+    // An adapterless agent polling the delivery surface now discovers it (not just steering).
+    const claim = parseJsonText<{ pendingActivity: Array<{ kind: string; id: string; source: string }> }>(
+      await session.client.callTool({
+        name: 'canvas_claim_ax_delivery',
+        arguments: { consumer: 'copilot' },
+      }) as ToolResultShape,
+    );
+    const seen = claim.pendingActivity.find((a) => a.id === work.workItem.id);
+    expect(seen?.kind).toBe('work-item');
+    expect(seen?.source).toBe('browser');
+
+    // Loop-safety: the originating consumer does not get its own item handed back.
+    const ownClaim = parseJsonText<{ pendingActivity: Array<{ id: string }> }>(
+      await session.client.callTool({
+        name: 'canvas_claim_ax_delivery',
+        arguments: { consumer: 'browser' },
+      }) as ToolResultShape,
+    );
+    expect(ownClaim.pendingActivity.find((a) => a.id === work.workItem.id)).toBeUndefined();
+  });
+
   test('AX timeline and canvas-bound tools round-trip over MCP with the mcp source default', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {

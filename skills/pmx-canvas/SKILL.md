@@ -833,7 +833,7 @@ what the human has set up and what they're focusing on.
 | `canvas://ax-context` | Agent-ready AX context: pinned context + current focus |
 | `canvas://ax-work` | Canvas-bound AX work: work items, approval gates, review annotations, elicitations, mode requests, and tool/prompt policy |
 | `canvas://ax-timeline` | Bounded AX timeline: recent agent events, evidence, and steering messages |
-| `canvas://ax-pending-steering` | Undelivered steering an MCP client can claim, act on, and mark delivered (adapterless delivery) |
+| `canvas://ax-pending-steering` | Adapterless delivery: `pending` steering to claim + mark delivered, and `pendingActivity` (open work items / pending approvals / elicitations / mode requests awaiting the agent) |
 | `canvas://ax-delivery` | Steering delivery state (delivered flag) for diagnostics |
 | `canvas://skills` | Index of bundled agent skills shipped with the install. Each skill is also addressable as `canvas://skills/<name>` (e.g. `canvas://skills/web-artifacts-builder`) and returns the full SKILL.md. Read this resource first to discover companion workflows the canvas is built to support. |
 
@@ -861,10 +861,22 @@ elicitation, or mode request. One envelope, many transports:
   **`mcp-app`** nodes get the same `window.PMX_AX.emit` injected
   (`sourceSurface: 'mcp-app'`). The server re-validates capabilities regardless
   of transport — bridges are convenience, not a trust boundary.
-- **Delivery:** steering can be claimed by adapterless MCP clients via
-  `canvas://ax-pending-steering` / `canvas_claim_ax_delivery` and acknowledged
-  with `canvas_mark_ax_delivery` (loop-safe — a consumer never receives steering
-  it originated).
+- **Delivery (adapterless):** `canvas://ax-pending-steering` /
+  `canvas_claim_ax_delivery` return two things, both loop-safe (a consumer never
+  receives items it originated):
+  - `pending` — undelivered **steering** (directives). Act, then acknowledge with
+    `canvas_mark_ax_delivery`.
+  - `pendingActivity` — open canvas-bound items **awaiting the agent** (open work
+    items, pending approval gates / elicitations / mode requests), usually created
+    by the human in the browser. These are **state, not steering**: don't
+    `canvas_mark_ax_delivery` them — resolve each via its own tool
+    (`canvas_resolve_approval` / `canvas_respond_elicitation` /
+    `canvas_resolve_mode` / `canvas_update_work_item`).
+  - **Contract:** every AX mutation fires `ax-state-changed`, so MCP clients that
+    **subscribe** to resources are pushed `canvas://ax-work` / `canvas://ax-context`
+    live. Clients that **poll** instead should poll `canvas_claim_ax_delivery` —
+    `pendingActivity` is how non-steering browser changes reach them. Only steering
+    flows through the claim/ack queue.
 - **Elicitation / mode:** request structured human input
   (`canvas_request_elicitation` → `canvas_respond_elicitation`) or a workflow
   mode transition (`canvas_request_mode` → `canvas_resolve_mode`); both are

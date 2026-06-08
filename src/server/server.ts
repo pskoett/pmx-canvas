@@ -2424,7 +2424,14 @@ async function handleCanvasAddGraph(req: Request): Promise<Response> {
     const x = pickFiniteNumber(body, 'x') ?? (position ? pickFiniteNumber(position, 'x') : undefined);
     const y = pickFiniteNumber(body, 'y') ?? (position ? pickFiniteNumber(position, 'y') : undefined);
     const width = pickPositiveNumber(body, 'width') ?? (size ? pickPositiveNumber(size, 'width') : undefined);
-    const nodeHeight = pickPositiveNumber(body, 'nodeHeight') ?? (size ? pickPositiveNumber(size, 'height') : undefined);
+    // Node FRAME height. `body.height` is the CHART plot height (passed through as
+    // `input.height` below), so the node frame accepts `nodeHeight` / `heightPx` /
+    // `size.height` as aliases — `heightPx` matches createCanvasGraphNode's own input
+    // field, the natural thing a caller reaches for. (With content-fit the node grows
+    // to the chart anyway; this just removes the silent "height ignored" surprise.)
+    const nodeHeight = pickPositiveNumber(body, 'nodeHeight')
+      ?? pickPositiveNumber(body, 'heightPx')
+      ?? (size ? pickPositiveNumber(size, 'height') : undefined);
     const showLegend = typeof body.showLegend === 'boolean' ? body.showLegend : undefined;
     const showLabels = typeof body.showLabels === 'boolean' ? body.showLabels : undefined;
     const colorBy =

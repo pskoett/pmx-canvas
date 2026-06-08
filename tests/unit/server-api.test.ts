@@ -294,6 +294,24 @@ describe('canvas server HTTP API', () => {
     expect(layout.edges).toEqual([]);
   });
 
+  test('graph create accepts heightPx / nodeHeight as node-frame-height aliases (#48 follow-up)', async () => {
+    const base = { graphType: 'bar', data: [{ label: 'A', value: 1 }], xKey: 'label', yKey: 'value' };
+    const viaHeightPx = await jsonRequest<{ id: string; size: { height: number } }>('/api/canvas/graph', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...base, title: 'PX', heightPx: 320 }),
+    });
+    expect(viaHeightPx.size.height).toBe(320);
+    const viaNodeHeight = await jsonRequest<{ id: string; size: { height: number } }>('/api/canvas/graph', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ...base, title: 'NH', nodeHeight: 280 }),
+    });
+    expect(viaNodeHeight.size.height).toBe(280);
+    await jsonRequest<{ ok: boolean }>(`/api/canvas/node/${viaHeightPx.id}`, { method: 'DELETE' });
+    await jsonRequest<{ ok: boolean }>(`/api/canvas/node/${viaNodeHeight.id}`, { method: 'DELETE' });
+  });
+
   test('persists data.userResized through PATCH so content-fit stays off after reconcile (#48 review)', async () => {
     const graph = await jsonRequest<{ id: string }>('/api/canvas/graph', {
       method: 'POST',
