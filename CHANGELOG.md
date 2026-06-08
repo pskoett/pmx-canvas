@@ -5,6 +5,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.1.35] - 2026-06-08
+
 ### Fixed
 
 - **HTTP batch accepts a bare-array body again (report #49).** `POST /api/canvas/batch`
@@ -1773,6 +1775,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.35]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.35
 [0.1.34]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.34
 [0.1.33]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.33
 [0.1.32]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.32
