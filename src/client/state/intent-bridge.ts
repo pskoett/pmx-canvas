@@ -261,7 +261,7 @@ export async function fetchAxSurfaceState(): Promise<unknown> {
 }
 
 /** Ask the server to open a node's surface in the system browser. */
-export async function openNodeInSystemBrowserRequest(nodeId: string): Promise<{ ok: boolean; opened: boolean }> {
+export async function openNodeInSystemBrowserRequest(nodeId: string, url?: string): Promise<{ ok: boolean; opened: boolean }> {
   return requestJson<{ ok: boolean; opened: boolean }>(
     'openNodeInSystemBrowserRequest',
     '/api/canvas/open-external',
@@ -269,7 +269,7 @@ export async function openNodeInSystemBrowserRequest(nodeId: string): Promise<{ 
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ nodeId }),
+      body: JSON.stringify({ nodeId, url }),
     },
   );
 }

@@ -999,10 +999,11 @@ test('renders html nodes from server state in the workbench', async ({ page, req
   await expect(overlay).toBeVisible();
   await expect(overlay.getByRole('button', { name: 'Present' })).toHaveCount(0);
   await expect(overlay.getByRole('button', { name: 'Open as site' })).toHaveCount(1);
+  await expect(overlay.getByRole('button', { name: 'Open in system browser' })).toHaveCount(0);
   await page.getByTitle('Close (Esc)').click();
 });
 
-test('opens an html node as a standalone site in a new tab', async ({ page, context, request }) => {
+test('opens an html node as a standalone site with the current theme', async ({ page, context, request }) => {
   await request.post('/api/canvas/node', {
     data: {
       type: 'html',
@@ -1015,19 +1016,25 @@ test('opens an html node as a standalone site in a new tab', async ({ page, cont
     },
   });
 
+  await request.post('/api/canvas/theme', {
+    data: { theme: 'light' },
+  });
+
   await page.goto('/workbench');
   const htmlNode = page.locator('.canvas-node').filter({ hasText: 'Open As Site Target' });
   await expect(htmlNode).toHaveCount(1);
 
-  const openButton = htmlNode.getByTitle('Open as site (new tab)');
+  const openButton = htmlNode.locator('.node-controls button[title="Open as site"]');
   await expect(openButton).toHaveCount(1);
+  await expect(htmlNode.getByTitle('Open in system browser')).toHaveCount(0);
 
   const popupPromise = context.waitForEvent('page');
   await openButton.click();
   const popup = await popupPromise;
 
   // Same stable surface URL the in-canvas iframe loads — one render path.
-  await expect(popup).toHaveURL(/\/api\/canvas\/surface\//);
+  await expect(popup).toHaveURL(/\/api\/canvas\/surface\/.*theme=light/);
+  await expect(popup.locator('html')).toHaveAttribute('data-theme', 'light');
   await expect(popup.getByText('Standalone surface render')).toBeVisible();
   await popup.close();
 });
@@ -1773,7 +1780,10 @@ test('iframe-backed graph and json-render nodes avoid the sandbox escape warning
   ).toEqual([]);
 });
 
-test('graph nodes keep explicit visual frame size after expand and close', async ({ page, request }) => {
+test('graph nodes content-fit to a stable size across expand and close', async ({ page, request }) => {
+  // Created at nodeHeight 380, but the chart + title need more than that — content-fit
+  // grows the node (grow-only) so nothing clips ("nodes = size of content"). Width is
+  // the stable lever (stays 480); the explicit nodeHeight is a floor, not a cap.
   const createResponse = await request.post('/api/canvas/graph', {
     data: {
       title: 'Stable graph frame',
@@ -1792,6 +1802,10 @@ test('graph nodes keep explicit visual frame size after expand and close', async
     },
   });
   const created = await createResponse.json() as { id: string };
+  const fetchSize = async () => {
+    const response = await request.get(`/api/canvas/node/${created.id}`);
+    return (await response.json() as { size: { width: number; height: number } }).size;
+  };
 
   await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
   await page.goto('/workbench');
@@ -1800,25 +1814,29 @@ test('graph nodes keep explicit visual frame size after expand and close', async
   await expect(graphNode).toHaveCount(1);
   await expect(graphNode.frameLocator('iframe').locator('.recharts-responsive-container')).toBeVisible();
 
+  // Content-fit grows the height past the requested floor; width stays explicit.
+  await expect.poll(fetchSize).toMatchObject({ width: 480 });
+  await expect.poll(async () => (await fetchSize()).height).toBeGreaterThan(380);
+  const fit = await fetchSize();
   const before = await graphNode.boundingBox();
-  expect(before?.width).toBeCloseTo(480, 1);
-  expect(before?.height).toBeCloseTo(380, 1);
+  expect(before?.width).toBeCloseTo(480, 0);
+  expect(before?.height).toBeCloseTo(fit.height, 0);
 
   await graphNode.getByTitle('Expand (focus mode)').click();
   await expect(page.locator('.expanded-overlay-panel')).toBeVisible();
   await page.getByTitle('Close (Esc)').click();
   await expect(page.locator('.expanded-overlay-panel')).toHaveCount(0);
 
+  // Returns to the same content-fit size — stable, no drift on re-fit (grow-only +
+  // a stable intrinsic chart height converge to the same value).
+  await expect.poll(async () => {
+    const size = await fetchSize();
+    return `${size.width}x${size.height}`;
+  }).toBe(`480x${fit.height}`);
   await expect.poll(async () => {
     const box = await graphNode.boundingBox();
     return box ? `${Math.round(box.width)}x${Math.round(box.height)}` : '';
-  }).toBe('480x380');
-
-  await expect.poll(async () => {
-    const response = await request.get(`/api/canvas/node/${created.id}`);
-    const node = await response.json() as { size: { width: number; height: number } };
-    return `${node.size.width}x${node.size.height}`;
-  }).toBe('480x380');
+  }).toBe(`480x${Math.round(fit.height)}`);
 });
 
 test('expanded graph nodes stretch chart content to the overlay frame', async ({ page, request }) => {

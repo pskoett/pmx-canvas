@@ -129,7 +129,7 @@ export interface AxInteractionResponse {
 /** Fetch the compact AX state snapshot pushed into AX-enabled surfaces. */
 export declare function fetchAxSurfaceState(): Promise<unknown>;
 /** Ask the server to open a node's surface in the system browser. */
-export declare function openNodeInSystemBrowserRequest(nodeId: string): Promise<{
+export declare function openNodeInSystemBrowserRequest(nodeId: string, url?: string): Promise<{
     ok: boolean;
     opened: boolean;
 }>;

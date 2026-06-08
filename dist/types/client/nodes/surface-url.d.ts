@@ -20,12 +20,9 @@ export interface SurfaceUrlOptions {
 export declare function nodeSurfaceUrl(nodeId: string, opts?: SurfaceUrlOptions): string;
 /** Whether a node can be opened as a standalone site (shared with the server). */
 export declare function canOpenAsSite(node: CanvasNodeState): boolean;
-/** Open the node's surface in a new browser tab. */
-export declare function openNodeAsSite(node: CanvasNodeState): void;
 /**
- * Open the node's surface in the user's real SYSTEM browser via the server's OS
- * launcher — for hosts (e.g. Codex) whose embedded browser makes a normal
- * `_blank` tab feel in-place. Falls back to a normal new-tab open when the server
- * can't launch (headless / PMX_CANVAS_DISABLE_BROWSER_OPEN).
+ * Open the node's standalone surface in the user's system browser. Falls back to
+ * `window.open` when the server cannot launch a browser, preserving in-browser tests
+ * and headless/disabled-browser environments.
  */
-export declare function openNodeInSystemBrowser(node: CanvasNodeState): Promise<void>;
+export declare function openNodeAsSite(node: CanvasNodeState): Promise<void>;

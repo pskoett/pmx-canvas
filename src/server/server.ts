@@ -3892,9 +3892,10 @@ function handleGetAxSurfaceSnapshot(): Response {
 
 // Open a node's surface in the user's real system browser (for hosts whose
 // embedded browser makes window.open('_blank') feel in-place, e.g. Codex).
-// Accepts ONLY { nodeId } and opens this server's own surface URL — never an
-// arbitrary URL — so it can't be used to launch external sites (no SSRF). Honors
-// the PMX_CANVAS_DISABLE_BROWSER_OPEN kill switch via openUrlInExternalBrowser.
+// Accepts ONLY { nodeId, url? } and opens this server's own surface URL — never
+// an arbitrary URL — so it can't be used to launch external sites (no SSRF).
+// The optional URL is limited to the same node surface route so callers can keep
+// safe presentation query params like the current theme.
 async function handleOpenExternalSurface(req: Request): Promise<Response> {
   const body = await readJson(req);
   const nodeId = typeof body.nodeId === 'string' ? body.nodeId : '';
@@ -3903,7 +3904,14 @@ async function handleOpenExternalSurface(req: Request): Promise<Response> {
   if (!node) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
   const port = getCanvasServerPort();
   if (!port) return responseJson({ ok: false, opened: false, error: 'Server port unavailable.' }, 503);
-  const surfacePath = `/api/canvas/surface/${encodeURIComponent(nodeId)}`;
+  const defaultSurfacePath = `/api/canvas/surface/${encodeURIComponent(nodeId)}`;
+  const rawUrl = typeof body.url === 'string' ? body.url : defaultSurfacePath;
+  const parsedUrl = new URL(rawUrl, `http://localhost:${port}`);
+  if (parsedUrl.origin !== `http://localhost:${port}` || parsedUrl.pathname !== defaultSurfacePath) {
+    return responseJson({ ok: false, error: 'url must target the requested node surface.' }, 400);
+  }
+  const theme = normalizeSurfaceTheme(parsedUrl.searchParams.get('theme'));
+  const surfacePath = `${defaultSurfacePath}?theme=${encodeURIComponent(theme)}`;
   const opened = openUrlInExternalBrowser(`http://localhost:${port}${surfacePath}`);
   return responseJson({ ok: true, opened, url: surfacePath });
 }

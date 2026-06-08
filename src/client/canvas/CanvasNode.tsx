@@ -25,7 +25,7 @@ import {
   viewport,
 } from '../state/canvas-store';
 import { removeNodeFromClient, updateNodeFromClient } from '../state/intent-bridge';
-import { canOpenAsSite, openNodeAsSite, openNodeInSystemBrowser } from '../nodes/surface-url';
+import { canOpenAsSite, openNodeAsSite } from '../nodes/surface-url';
 import { getNodeIcon } from '../icons';
 import { EXPANDABLE_TYPES, TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
@@ -287,33 +287,18 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
           </button>
           {/* Open as site — full-page standalone view of this node's surface,
               served from /api/canvas/surface/:id (same document as the canvas
-              iframe). Covers html, web-artifact/ext-app/url mcp-apps,
-              json-render/graph, and webpage nodes. */}
+              iframe). Opens via the system browser so embedded hosts do not trap
+              it in their own webview. */}
           {canOpenAsSite(node) && (
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                openNodeAsSite(node);
+                void openNodeAsSite(node);
               }}
-              title="Open as site (new tab)"
+              title="Open as site"
             >
               ↗
-            </button>
-          )}
-          {/* Open in the real system browser (for hosts whose embedded browser
-              makes a normal new tab feel in-place, e.g. Codex). Falls back to a
-              new tab when the server can't launch the OS browser. */}
-          {canOpenAsSite(node) && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                void openNodeInSystemBrowser(node);
-              }}
-              title="Open in system browser"
-            >
-              ⤤
             </button>
           )}
           {/* Expand — opens node as full-viewport overlay for focused work */}

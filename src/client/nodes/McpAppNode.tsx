@@ -75,7 +75,9 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
   // Content-fit: grow the node to the viewer's natural height (charts render
   // intrinsic via fit=content). Gated by shouldContentFitIframeNode (json-render /
   // graph / web-artifact, unless strictSize / user-resized / docked / collapsed).
-  const contentFit = shouldContentFitIframeNode(node);
+  // NEVER in the expanded overlay — there the chart must stretch to fill the large
+  // overlay frame (fill-down), not sit at its intrinsic in-canvas height.
+  const contentFit = shouldContentFitIframeNode(node) && !expanded;
   const frameToken = useMemo(() => (contentFit ? `frame-${crypto.randomUUID()}` : ''), [contentFit]);
   useIframeContentHeight(node, iframeRef, frameToken);
 

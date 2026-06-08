@@ -3726,14 +3726,22 @@ describe('canvas server HTTP API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'html', title: 'Openable', html: '<p>x</p>' }),
     });
+    const surfaceUrl = `/api/canvas/surface/${node.id}`;
     const ok = await jsonRequest<{ ok: boolean; opened: boolean; url: string }>('/api/canvas/open-external', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeId: node.id, url: `${surfaceUrl}?theme=light` }),
+    });
+    expect(ok.ok).toBe(true);
+    expect(ok.url).toBe(`${surfaceUrl}?theme=light`);
+    expect(typeof ok.opened).toBe('boolean'); // false under PMX_CANVAS_DISABLE_BROWSER_OPEN
+
+    const defaultTheme = await jsonRequest<{ ok: boolean; url: string }>('/api/canvas/open-external', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ nodeId: node.id }),
     });
-    expect(ok.ok).toBe(true);
-    expect(ok.url).toBe(`/api/canvas/surface/${node.id}`);
-    expect(typeof ok.opened).toBe('boolean'); // false under PMX_CANVAS_DISABLE_BROWSER_OPEN
+    expect(defaultTheme.url).toBe(`${surfaceUrl}?theme=dark`);
 
     const missing = await fetch(`${baseUrl}/api/canvas/open-external`, {
       method: 'POST',
@@ -3747,6 +3755,13 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({}),
     });
     expect(noBody.status).toBe(400);
+
+    const wrongNodeUrl = await fetch(`${baseUrl}/api/canvas/open-external`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeId: node.id, url: '/api/canvas/surface/other?theme=light' }),
+    });
+    expect(wrongNodeUrl.status).toBe(400);
   });
 
   test('AX mutations emit ax-event-created and ax-state-changed SSE events', async () => {

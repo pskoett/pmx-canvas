@@ -45,7 +45,8 @@ export function HtmlNode({
   );
 
   // Grow the node to fit the surface's reported content height (grow-only, gated).
-  useIframeContentHeight(node, iframeRef, frameToken);
+  // Never in the expanded overlay — there the surface fills the large overlay frame.
+  useIframeContentHeight(node, iframeRef, expanded ? '' : frameToken);
 
   // Phase 3 HTML bridge: receive window.PMX_AX.emit(...) messages from the
   // sandboxed iframe, validate the nonce + node id, and submit the interaction
