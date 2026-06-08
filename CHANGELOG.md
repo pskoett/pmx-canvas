@@ -5,6 +5,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.1.34] - 2026-06-08
+
 ### Added
 
 - **Adapterless agents see browser-originated AX activity (report #43).**
@@ -28,6 +30,14 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   expecting the node to resize got the default. `heightPx` is now an alias for the
   node frame height (matching the SDK input field), removing the silent surprise.
   (With content-fit the node grows to the chart regardless; this is a DX fix.)
+- **"Open as site" opens in the system browser.** A node's "Open as site" action
+  (the header `↗` and the expanded-overlay button) now opens the standalone surface
+  in the real OS browser via `POST /api/canvas/open-external`, replacing the
+  separate "Open in system browser" button (one action instead of two). The
+  endpoint accepts an optional `{ url }` limited to the node's own surface route
+  (origin + pathname checked, `400` otherwise) so a caller can preserve safe
+  presentation params like the current theme without any SSRF risk; it still falls
+  back to a normal new browser tab when the OS launch is unavailable.
 
 ### Fixed
 
@@ -1753,6 +1763,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.1.34]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.34
 [0.1.33]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.33
 [0.1.32]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.32
 [0.1.31]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.31
