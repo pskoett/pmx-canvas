@@ -86,7 +86,16 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     updateNode(id, { size: { width, height } });
   }, []);
 
-  const handleResizeEnd = useCallback(() => persistLayout(), []);
+  const handleResizeEnd = useCallback(() => {
+    // A manual resize is explicit user intent — stop auto/content-fit from
+    // overriding it (see isAutoSizeExempt in auto-fit.ts). Persist the flag to the
+    // server (mirrors the rename path below) so it survives layout reconciles,
+    // undo/redo, and snapshots — a client-only flag is wiped by the next
+    // canvas-layout-update broadcast. persistLayout() persists the new size.
+    updateNodeData(node.id, { userResized: true });
+    void updateNodeFromClient(node.id, { data: { userResized: true } });
+    persistLayout();
+  }, [node.id]);
 
   const startResize = useNodeResize({
     nodeId: node.id,

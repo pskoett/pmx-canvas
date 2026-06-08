@@ -13,6 +13,8 @@ export interface SurfaceUrlOptions {
     v?: string;
     /** Nonce authorizing iframe → parent AX emits (html bridge). */
     axToken?: string;
+    /** Nonce for the content-height reporter (node grows to fit content). */
+    frameToken?: string;
 }
 /** Build the stable per-node surface URL (/api/canvas/surface/:id) the iframe and "Open as site" both use. */
 export declare function nodeSurfaceUrl(nodeId: string, opts?: SurfaceUrlOptions): string;

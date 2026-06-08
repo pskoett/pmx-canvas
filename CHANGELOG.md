@@ -5,6 +5,25 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Nodes grow to fit their content — graph clipping (report #48).** Iframe-backed
+  surfaces (graph, json-render, html/html-primitive, web-artifact) now report their
+  natural content height to the parent over a nonce-validated `content-height`
+  postMessage bridge, and the node **grows** to fit it. This fixes graphs created at
+  a small height (e.g. 300px in an embedded panel) rendering with the chart cut off
+  at the bottom — the node now sizes to the chart (title + plot + axes + labels).
+  - **Grow-only & gated:** a node only ever grows (never shrinks), so it can't
+    clip and — being monotonic with a dead-band — can't oscillate (the old
+    Tufte-chart flicker is structurally impossible). Skipped for `strictSize`,
+    user-resized, docked, collapsed, and group nodes, and for unbounded/scrolling
+    surfaces (presentation decks, hosted ext-apps, URL/webpage viewers).
+  - Charts render at their **intrinsic** height when the node is auto-fitting (so
+    the reported height is stable and the node converges in one step); they still
+    fill the frame down for fixed-size (strictSize / user-resized) nodes.
+  - Iframe surfaces grow up to ~1400px before scrolling (text nodes keep the ~600px
+    cap). A manual resize marks the node `userResized` and turns content-fit off.
+
 ## [0.1.33] - 2026-06-08
 
 ### Changed

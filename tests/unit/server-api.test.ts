@@ -294,6 +294,26 @@ describe('canvas server HTTP API', () => {
     expect(layout.edges).toEqual([]);
   });
 
+  test('persists data.userResized through PATCH so content-fit stays off after reconcile (#48 review)', async () => {
+    const graph = await jsonRequest<{ id: string }>('/api/canvas/graph', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'G', graphType: 'bar', data: [{ label: 'A', value: 1 }], xKey: 'label', yKey: 'value' }),
+    });
+    // A manual resize round-trips userResized as a data merge (mirrors the client).
+    await jsonRequest<{ ok: boolean }>(`/api/canvas/node/${graph.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ data: { userResized: true } }),
+    });
+    const state = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    const node = state.nodes.find((n) => n.id === graph.id);
+    // The flag survives in node.data so the next layout reconcile won't re-enable
+    // content-fit and undo the user's manual size.
+    expect(node?.data.userResized).toBe(true);
+    await jsonRequest<{ ok: boolean }>(`/api/canvas/node/${graph.id}`, { method: 'DELETE' });
+  });
+
   test('supports annotation create and delete through HTTP', async () => {
     const created = await jsonRequest<{
       ok: boolean;

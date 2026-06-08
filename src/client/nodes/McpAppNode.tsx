@@ -1,11 +1,21 @@
 import { useEffect, useMemo, useRef } from 'preact/hooks';
 import type { CanvasNodeState } from '../types';
 import { axSurfaceState, canvasTheme } from '../state/canvas-store';
+import { shouldContentFitIframeNode } from '../canvas/auto-fit';
 import { submitAxInteractionFromClient } from '../state/intent-bridge';
 import { showToast } from '../state/attention-bridge';
 import { ExtAppFrame } from './ExtAppFrame';
+import { useIframeContentHeight } from './use-iframe-content-height';
 
-function withViewerParams(url: string, expanded: boolean, specVersion?: number, axToken?: string, axNodeId?: string): string {
+function withViewerParams(
+  url: string,
+  expanded: boolean,
+  specVersion?: number,
+  axToken?: string,
+  axNodeId?: string,
+  frameToken?: string,
+  fitContent?: boolean,
+): string {
   if (!url) return url;
   try {
     const resolved = new URL(url, window.location.origin);
@@ -16,9 +26,12 @@ function withViewerParams(url: string, expanded: boolean, specVersion?: number, 
     if (typeof specVersion === 'number') resolved.searchParams.set('v', String(specVersion));
     // AX bridge nonce for json-render/graph + web-artifact viewer nodes.
     if (axToken) resolved.searchParams.set('axToken', axToken);
-    // The /artifact route needs the node id to inject the AX bridge (the json-render
-    // view route already gets nodeId from its own query param).
+    // The /artifact route needs the node id to inject the AX/content bridges (the
+    // json-render view route already gets nodeId from its own query param).
     if (axNodeId) resolved.searchParams.set('axNodeId', axNodeId);
+    // Content-fit: report natural height (charts render intrinsic) so the node grows.
+    if (frameToken) resolved.searchParams.set('frameToken', frameToken);
+    if (fitContent) resolved.searchParams.set('fit', 'content');
     return resolved.toString();
   } catch {
     return url;
@@ -59,6 +72,12 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
   const isAxViewer = (isJsonViewer || isWebArtifact) && axOn;
   const axSurface: 'json-render' | 'mcp-app' = isWebArtifact ? 'mcp-app' : 'json-render';
   const axToken = useMemo(() => (isAxViewer ? `ax-${crypto.randomUUID()}` : ''), [isAxViewer]);
+  // Content-fit: grow the node to the viewer's natural height (charts render
+  // intrinsic via fit=content). Gated by shouldContentFitIframeNode (json-render /
+  // graph / web-artifact, unless strictSize / user-resized / docked / collapsed).
+  const contentFit = shouldContentFitIframeNode(node);
+  const frameToken = useMemo(() => (contentFit ? `frame-${crypto.randomUUID()}` : ''), [contentFit]);
+  useIframeContentHeight(node, iframeRef, frameToken);
 
   // Receive AX emits forwarded by the json-render viewer; validate (bound to this
   // node's iframe + nonce + node id) and submit through the capability-gated
@@ -105,7 +124,15 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
   useEffect(pushAxState, [isAxViewer, axToken, axStateValue]);
 
   const specVersion = typeof node.data.specVersion === 'number' ? node.data.specVersion : undefined;
-  const url = withViewerParams((node.data.url as string) || '', expanded, specVersion, axToken || undefined, isAxViewer ? node.id : undefined);
+  const url = withViewerParams(
+    (node.data.url as string) || '',
+    expanded,
+    specVersion,
+    axToken || undefined,
+    isAxViewer ? node.id : undefined,
+    frameToken || undefined,
+    contentFit,
+  );
   const sourceServer = (node.data.sourceServer as string) || '';
   const hostMode = (node.data.hostMode as string) || 'hosted';
   const fallbackReason = node.data.fallbackReason as string | undefined;

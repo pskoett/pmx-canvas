@@ -5,6 +5,7 @@ import { buildAppHtml } from '@json-render/mcp/build-app-html';
 import { applySpecPatch, parseSpecStreamLine, type Spec, type SpecStreamLine } from '@json-render/core';
 import { allComponentDefinitions, catalog, validateShadcnElementProps, type JsonRenderIssue } from './catalog.js';
 import { findUnknownDirectiveKey, isDynamicPropValue } from './directives.js';
+import { contentHeightReporterTag } from '../shared/content-height-reporter.js';
 
 export interface JsonRenderSpec {
   root: string;
@@ -944,6 +945,12 @@ export async function buildJsonRenderViewerHtml(options: {
   nodeId?: string;
   axToken?: string;
   axState?: unknown;
+  /** Nonce for the content-height reporter so the node can grow to fit the chart. */
+  frameToken?: string;
+  /** When true, charts render at their natural (intrinsic) height instead of
+   *  filling the viewport down — so the reported scrollHeight is stable and the
+   *  node grows to it. Off for strictSize / user-resized nodes (they fill-down). */
+  fitContent?: boolean;
 }): Promise<string> {
   const sanitizeAxValue = (v?: string): string => (typeof v === 'string' ? v.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80) : '');
   try {
@@ -966,13 +973,18 @@ export async function buildJsonRenderViewerHtml(options: {
         // Read-side AX state: seed for initial render + bound under /ax for specs.
         `window.__PMX_CANVAS_AX_STATE__ = ${JSON.stringify(options.axState ?? null).replace(/</g, '\\u003c')};`,
       ] : []),
+      ...(options.fitContent ? ['window.__PMX_CANVAS_FIT_CONTENT__ = true;'] : []),
       jsBundle,
     ].join('\n');
+    // Content-height reporter: posts the viewer's natural scrollHeight so the
+    // parent node grows to fit (the #48 graph-clipping fix). Shared with the html
+    // surface (src/shared, no src/server import) so the two stay identical.
+    const heightReporter = options.frameToken ? contentHeightReporterTag(options.frameToken) : '';
     return buildAppHtml({
       title: options.title,
       css: cssBundle,
       js: escapeInlineScriptSource(boot),
-      head: '<meta name="color-scheme" content="light dark" />',
+      head: `<meta name="color-scheme" content="light dark" />${heightReporter}`,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

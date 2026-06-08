@@ -155,9 +155,19 @@ export function useChartFrameHeight(explicitHeight: number | null | undefined, f
     };
   }, [explicitHeight]);
 
+  // Content-fit mode (node grows to fit, set by the viewer when fit=content): the
+  // chart takes its INTRINSIC height — explicit, or the fallback — independent of
+  // the node/viewport height. That makes the document's scrollHeight stable so the
+  // node can grow to it once and converge (no fill-down feedback loop). When NOT in
+  // content-fit (strictSize / user-resized nodes), it fills the frame down as before.
+  const fitContent = typeof window !== 'undefined'
+    && (window as { __PMX_CANVAS_FIT_CONTENT__?: boolean }).__PMX_CANVAS_FIT_CONTENT__ === true;
+  const height = fitContent
+    ? (typeof explicitHeight === 'number' ? explicitHeight : fallbackHeight)
+    : (typeof explicitHeight === 'number' ? Math.min(explicitHeight, autoHeight) : autoHeight);
   return {
     frameRef,
-    height: typeof explicitHeight === 'number' ? Math.min(explicitHeight, autoHeight) : autoHeight,
+    height,
     width: autoWidth,
   };
 }

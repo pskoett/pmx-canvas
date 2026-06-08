@@ -93,4 +93,10 @@ export declare function buildJsonRenderViewerHtml(options: {
     nodeId?: string;
     axToken?: string;
     axState?: unknown;
+    /** Nonce for the content-height reporter so the node can grow to fit the chart. */
+    frameToken?: string;
+    /** When true, charts render at their natural (intrinsic) height instead of
+     *  filling the viewport down — so the reported scrollHeight is stable and the
+     *  node grows to it. Off for strictSize / user-resized nodes (they fill-down). */
+    fitContent?: boolean;
 }): Promise<string>;

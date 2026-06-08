@@ -15,6 +15,8 @@
  * postMessage required.
  */
 
+import { contentHeightReporterTag } from '../shared/content-height-reporter.js';
+
 export type SurfaceTheme = 'dark' | 'light' | 'high-contrast';
 
 /** Path the surface document links for its theme tokens (served from dist/canvas). */
@@ -150,6 +152,16 @@ export function buildAxStateBridge(axToken: string, snapshotJson: string): strin
 </script>`;
 }
 
+/**
+ * Reports the surface's natural content height to the parent canvas so the node
+ * can GROW to fit it (the fix for iframe nodes the parent can't measure — graph,
+ * json-render, html, web-artifact). Thin wrapper over the shared reporter so this
+ * and the json-render injection site stay byte-identical (no drift).
+ */
+export function buildContentHeightReporter(frameToken: string): string {
+  return contentHeightReporterTag(frameToken);
+}
+
 /** Escape a string for safe interpolation into element text (e.g. `<title>`). */
 function escapeSurfaceHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -178,6 +190,8 @@ export interface HtmlSurfaceOptions {
    * axBridge is enabled). Kept live via parent → iframe `ax-update` messages.
    */
   axState?: unknown;
+  /** Nonce for the content-height reporter (lets the node grow to fit content). */
+  contentHeightToken?: string;
 }
 
 /**
@@ -202,7 +216,10 @@ export function buildHtmlSurfaceDocument(userHtml: string, options: HtmlSurfaceO
         options.axState !== undefined ? JSON.stringify(options.axState).replace(/</g, '\\u003c') : 'null',
       )
     : '';
-  const injectedHeadContent = `${link}${themeBridge}${presentationBridge}${axBridge}${axStateBridge}`;
+  const contentHeightBridge = options.contentHeightToken
+    ? buildContentHeightReporter(sanitizeToken(options.contentHeightToken))
+    : '';
+  const injectedHeadContent = `${link}${themeBridge}${presentationBridge}${axBridge}${axStateBridge}${contentHeightBridge}`;
   const presentationAttr = options.presentation ? ' data-pmx-presentation-mode="present"' : '';
   const trimmed = userHtml.trim();
   const isFullDoc = /<html[\s>]/i.test(trimmed);

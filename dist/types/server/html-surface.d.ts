@@ -38,6 +38,13 @@ export declare function buildAxBridge(axToken: string, nodeId: string): string;
  * the existing AX-enabled gate.
  */
 export declare function buildAxStateBridge(axToken: string, snapshotJson: string): string;
+/**
+ * Reports the surface's natural content height to the parent canvas so the node
+ * can GROW to fit it (the fix for iframe nodes the parent can't measure — graph,
+ * json-render, html, web-artifact). Thin wrapper over the shared reporter so this
+ * and the json-render injection site stay byte-identical (no drift).
+ */
+export declare function buildContentHeightReporter(frameToken: string): string;
 export interface HtmlSurfaceOptions {
     theme: SurfaceTheme;
     /**
@@ -61,6 +68,8 @@ export interface HtmlSurfaceOptions {
      * axBridge is enabled). Kept live via parent → iframe `ax-update` messages.
      */
     axState?: unknown;
+    /** Nonce for the content-height reporter (lets the node grow to fit content). */
+    contentHeightToken?: string;
 }
 /**
  * Wrap author HTML into a complete, themed standalone document. Accepts either a

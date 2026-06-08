@@ -48,7 +48,7 @@ import type {
   ListToolsResult,
 } from '@modelcontextprotocol/sdk/types.js';
 import { type CanvasAnnotation, type CanvasEdge, type CanvasLayout, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
-import { buildAxBridge, buildAxStateBridge, buildHtmlSurfaceDocument, HTML_SURFACE_SANDBOX, normalizeSurfaceTheme } from './html-surface.js';
+import { buildAxBridge, buildAxStateBridge, buildContentHeightReporter, buildHtmlSurfaceDocument, HTML_SURFACE_SANDBOX, normalizeSurfaceTheme } from './html-surface.js';
 import { findCanvasExtAppNodeId as findCanvasExtAppNodeIdShared } from './ext-app-lookup.js';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
@@ -1456,6 +1456,8 @@ function handleNodeSurface(pathname: string, url: URL): Response {
       nodeId: node.id,
       // Seed the read-side bridge with the current AX state (only for AX surfaces).
       ...(axEnabled ? { axState: buildCanvasAxSurfaceSnapshot() } : {}),
+      // Content-height reporter nonce (lets an html node grow to fit its content).
+      ...(url.searchParams.get('frameToken') ? { contentHeightToken: url.searchParams.get('frameToken') as string } : {}),
     });
     return surfaceHtmlResponse(doc, HTML_SURFACE_SANDBOX);
   }
@@ -2549,6 +2551,8 @@ async function handleJsonRenderView(url: URL): Promise<Response> {
     url.searchParams.get('devtools') === '1';
   const axToken = url.searchParams.get('axToken');
   const axEnabled = resolveNodeAxCapabilities(node).enabled;
+  const frameToken = url.searchParams.get('frameToken');
+  const fitContent = url.searchParams.get('fit') === 'content';
   const html = await buildJsonRenderViewerHtml({
     title,
     spec,
@@ -2558,6 +2562,9 @@ async function handleJsonRenderView(url: URL): Promise<Response> {
     ...(axToken ? { nodeId, axToken } : {}),
     // Seed the read-side AX state (only for AX-enabled nodes) so specs can bind /ax.
     ...(axToken && axEnabled ? { axState: buildCanvasAxSurfaceSnapshot() } : {}),
+    // Content-fit: report natural height (charts render intrinsic) so the node grows.
+    ...(frameToken ? { frameToken } : {}),
+    ...(fitContent ? { fitContent: true } : {}),
   });
   return new Response(html, {
     headers: {
@@ -2635,6 +2642,14 @@ function handleArtifactView(url: URL): Response {
           ? content.replace('</head>', `${bridge}</head>`)
           : `${bridge}${content}`;
       }
+    }
+    // Content-height reporter so a web-artifact node grows to fit its app (#48).
+    const frameToken = url.searchParams.get('frameToken');
+    if (frameToken) {
+      const reporter = buildContentHeightReporter(frameToken.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80));
+      content = content.includes('</head>')
+        ? content.replace('</head>', `${reporter}</head>`)
+        : `${reporter}${content}`;
     }
     return new Response(content, {
       headers: {

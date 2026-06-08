@@ -4,6 +4,7 @@ import { submitAxInteractionFromClient } from '../state/intent-bridge';
 import { showToast } from '../state/attention-bridge';
 import type { CanvasNodeState } from '../types';
 import { nodeSurfaceUrl, surfaceContentHash } from './surface-url';
+import { useIframeContentHeight } from './use-iframe-content-height';
 
 export function shouldShowPresentationControls(node: CanvasNodeState): boolean {
   return node.type === 'html' && node.data.presentation === true;
@@ -22,6 +23,8 @@ export function HtmlNode({
   const themeToken = useMemo(() => `theme-${crypto.randomUUID()}`, []);
   // Per-mount nonce authorizing iframe → parent AX emits (Phase 3 HTML bridge).
   const axToken = useMemo(() => `ax-${crypto.randomUUID()}`, []);
+  // Per-mount nonce for the content-height reporter (node grows to fit content).
+  const frameToken = useMemo(() => `frame-${crypto.randomUUID()}`, []);
   const html = typeof node.data.html === 'string'
     ? node.data.html
     : typeof node.data.content === 'string'
@@ -36,10 +39,13 @@ export function HtmlNode({
   // itself changes.
   const surfaceSrc = useMemo(
     () => (html
-      ? nodeSurfaceUrl(node.id, { theme, themeToken, present: presentation, presentToken: presentationExitToken, v, axToken })
+      ? nodeSurfaceUrl(node.id, { theme, themeToken, present: presentation, presentToken: presentationExitToken, v, axToken, frameToken })
       : ''),
-    [html, presentation, presentationExitToken, themeToken, v, node.id, axToken],
+    [html, presentation, presentationExitToken, themeToken, v, node.id, axToken, frameToken],
   );
+
+  // Grow the node to fit the surface's reported content height (grow-only, gated).
+  useIframeContentHeight(node, iframeRef, frameToken);
 
   // Phase 3 HTML bridge: receive window.PMX_AX.emit(...) messages from the
   // sandboxed iframe, validate the nonce + node id, and submit the interaction
