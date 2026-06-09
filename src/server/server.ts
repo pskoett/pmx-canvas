@@ -78,9 +78,11 @@ import {
 import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent-context.js';
 import { buildCanvasAxContext, buildCanvasAxSurfaceSnapshot } from './ax-context.js';
-import { applyAxInteraction, resolveNodeAxCapabilities } from './ax-interaction.js';
-import { isAxEventKind, isAxEvidenceKind } from './ax-state.js';
+import { applyAxInteraction, resolveNodeAxCapabilities, normalizeNodeAxCapabilities } from './ax-interaction.js';
+import { isAxEventKind, isAxEvidenceKind, isAxActivityKind } from './ax-state.js';
+import { waitForAxResolution, AX_WAIT_MAX_MS } from './ax-wait.js';
 import type {
+  PmxAxEvidenceKind,
   PmxAxPolicy,
   PmxAxReviewAnchorType,
   PmxAxReviewKind,
@@ -88,6 +90,7 @@ import type {
   PmxAxReviewSeverity,
   PmxAxReviewStatus,
   PmxAxSource,
+  PmxAxWorkItemStatus,
 } from './ax-state.js';
 import { normalizeCanvasTheme, type CanvasTheme } from './canvas-db.js';
 import { validateLocalImageFile } from './image-source.js';
@@ -1758,7 +1761,15 @@ async function createCanvasWebpageNode(body: Record<string, unknown>): Promise<R
 async function handleCanvasAddNode(req: Request): Promise<Response> {
   const body = await readJson(req);
   const queryType = new URL(req.url).searchParams.get('type');
-  const type = typeof body.type === 'string' ? body.type : queryType || 'markdown';
+  // Report #50: require a resolvable type rather than silently defaulting to a
+  // markdown node — an empty / type-less body created a phantom node before.
+  const type = typeof body.type === 'string' ? body.type : (queryType || '');
+  if (!type) {
+    return responseJson({
+      ok: false,
+      error: `node creation requires a 'type' — pass it in the JSON body ({ "type": "markdown", ... }) or as a ?type= query param. Valid types: ${[...VALID_NODE_TYPES].join(', ')} (json-render / graph / web-artifact have dedicated endpoints).`,
+    }, 400);
+  }
 
   if (!VALID_NODE_TYPES.has(type)) {
     if (type === 'json-render') {
@@ -1824,8 +1835,11 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
   const content = type === 'image' && typeof body.path === 'string' && typeof body.content !== 'string'
     ? body.path
     : body.content;
-  // For html nodes, accept top-level `html` field and merge into data so callers
-  // can POST { type: 'html', title, html } without nesting under `data`.
+  // For html nodes, accept top-level `html` AND `axCapabilities` and merge into data
+  // so callers can POST { type: 'html', title, html, axCapabilities } without nesting
+  // under `data` (report #53 — transport parity with MCP canvas_add_html_node). A
+  // top-level value overrides the same key under `data` (mirrors the `html` precedence).
+  const topAxCapabilities = type === 'html' ? normalizeNodeAxCapabilities(body.axCapabilities) : null;
   const htmlMergedData = type === 'html'
     ? {
         ...(extraData ?? {}),
@@ -1837,6 +1851,7 @@ async function handleCanvasAddNode(req: Request): Promise<Response> {
         ...(Array.isArray(body.slideTitles) ? { slideTitles: body.slideTitles } : {}),
         ...(Array.isArray(body.embeddedNodeIds) ? { embeddedNodeIds: body.embeddedNodeIds } : {}),
         ...(Array.isArray(body.embeddedUrls) ? { embeddedUrls: body.embeddedUrls } : {}),
+        ...(topAxCapabilities ? { axCapabilities: topAxCapabilities } : {}),
       }
     : extraData;
   let added: ReturnType<typeof addCanvasNode>;
@@ -2105,7 +2120,8 @@ async function handleCanvasUpdateNode(nodeId: string, req: Request): Promise<Res
     body.data ||
     typeof body.arrangeLocked === 'boolean' ||
     typeof body.strictSize === 'boolean' ||
-    (existing.type === 'trace' && hasTraceNodeDataFields(body))
+    (existing.type === 'trace' && hasTraceNodeDataFields(body)) ||
+    (existing.type === 'html' && (body.html !== undefined || body.axCapabilities !== undefined))
   ) {
     const data = { ...existing.data };
     if (body.title !== undefined) {
@@ -2120,6 +2136,18 @@ async function handleCanvasUpdateNode(nodeId: string, req: Request): Promise<Res
     // Merge extra data fields (for status, context, ledger, trace nodes)
     if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) {
       Object.assign(data, body.data as Record<string, unknown>);
+    }
+    // Report #53: for html nodes, accept top-level `html` / `axCapabilities` on PATCH
+    // too (top-level overrides the `data.*` merge above — matches POST + MCP parity).
+    if (existing.type === 'html') {
+      if (body.html !== undefined) {
+        if (typeof body.html !== 'string') {
+          return responseJson({ ok: false, error: 'HTML node field "html" must be a string.' }, 400);
+        }
+        data.html = resolveHtmlContent(body.html);
+      }
+      const patchAxCapabilities = normalizeNodeAxCapabilities(body.axCapabilities);
+      if (patchAxCapabilities) data.axCapabilities = patchAxCapabilities;
     }
     if (existing.type === 'webpage') {
       const nextUrl = typeof body.url === 'string'
@@ -3912,8 +3940,132 @@ function handleGetAxState(): Response {
   return responseJson({ ok: true, state: canvasState.getAxState() });
 }
 
-function handleGetAxContext(): Response {
-  return responseJson(buildCanvasAxContext());
+function handleGetAxContext(url: URL): Response {
+  // Optional ?consumer= filters the compact `delivery` lead block (loop-safe — a
+  // consumer never sees steering/activity it originated), so a host adapter can
+  // inject its own un-truncated pending block per turn (report #54 hardening).
+  const consumer = url.searchParams.get('consumer') ?? undefined;
+  return responseJson(buildCanvasAxContext(consumer));
+}
+
+// Clamp ?waitMs= to [0, AX_WAIT_MAX_MS]. 0 (or absent/NaN) = a plain single read.
+function parseAxWaitMs(url: URL): number {
+  const raw = Number(url.searchParams.get('waitMs') ?? '');
+  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, AX_WAIT_MAX_MS) : 0;
+}
+
+function isReviewSeverity(v: unknown): v is PmxAxReviewSeverity {
+  return v === 'info' || v === 'warning' || v === 'error';
+}
+function isReviewKind(v: unknown): v is PmxAxReviewKind {
+  return v === 'comment' || v === 'finding';
+}
+function isReviewAnchor(v: unknown): v is PmxAxReviewAnchorType {
+  return v === 'node' || v === 'file' || v === 'region';
+}
+
+// Validate untrusted activity `reactions` from an HTTP body into the typed override
+// shape ingestActivity expects. `false` suppresses a default reaction; an object
+// overrides its fields (invalid fields are dropped, not stored raw).
+function normalizeActivityReactions(input: Record<string, unknown>): {
+  workItem?: false | { status?: PmxAxWorkItemStatus; detail?: string | null };
+  evidence?: false | { kind?: PmxAxEvidenceKind; body?: string | null };
+  review?: false | { severity?: PmxAxReviewSeverity; kind?: PmxAxReviewKind; anchorType?: PmxAxReviewAnchorType; nodeId?: string | null };
+} {
+  const out: ReturnType<typeof normalizeActivityReactions> = {};
+  if (input.workItem === false) out.workItem = false;
+  else if (isRecord(input.workItem)) {
+    const status = normalizeAxWorkItemStatus(input.workItem.status);
+    out.workItem = {
+      ...(status ? { status } : {}),
+      ...(typeof input.workItem.detail === 'string' ? { detail: input.workItem.detail } : {}),
+    };
+  }
+  if (input.evidence === false) out.evidence = false;
+  else if (isRecord(input.evidence)) {
+    out.evidence = {
+      ...(isAxEvidenceKind(input.evidence.kind) ? { kind: input.evidence.kind } : {}),
+      ...(typeof input.evidence.body === 'string' ? { body: input.evidence.body } : {}),
+    };
+  }
+  if (input.review === false) out.review = false;
+  else if (isRecord(input.review)) {
+    out.review = {
+      ...(isReviewSeverity(input.review.severity) ? { severity: input.review.severity } : {}),
+      ...(isReviewKind(input.review.kind) ? { kind: input.review.kind } : {}),
+      ...(isReviewAnchor(input.review.anchorType) ? { anchorType: input.review.anchorType } : {}),
+      ...(typeof input.review.nodeId === 'string' ? { nodeId: input.review.nodeId } : {}),
+    };
+  }
+  return out;
+}
+
+// Report primitive A: ingest a harness-forwarded agent activity; the board auto-reacts.
+async function handleAxActivityIngest(req: Request): Promise<Response> {
+  const body = await readJson(req);
+  if (!isAxActivityKind(body.kind)) {
+    return responseJson({ ok: false, error: "activity requires a valid 'kind': one of tool-start, tool-result, failure, error, session-start, session-end, command, note." }, 400);
+  }
+  if (typeof body.title !== 'string' || !body.title.trim()) {
+    return responseJson({ ok: false, error: 'activity requires a title.' }, 400);
+  }
+  const result = canvasState.ingestActivity(
+    {
+      kind: body.kind,
+      title: body.title,
+      ...(typeof body.summary === 'string' ? { summary: body.summary } : {}),
+      ...(body.outcome === 'success' || body.outcome === 'failure' ? { outcome: body.outcome } : {}),
+      ...(typeof body.ref === 'string' ? { ref: body.ref } : {}),
+      ...(Array.isArray(body.nodeIds) ? { nodeIds: normalizeAxNodeIds(body.nodeIds) } : {}),
+      ...(isRecord(body.data) ? { data: body.data } : {}),
+      ...(isRecord(body.reactions) ? { reactions: normalizeActivityReactions(body.reactions) } : {}),
+    },
+    { source: normalizeAxSource(body.source, 'api') },
+  );
+  const meta = { sessionId: primaryWorkbenchSessionId, timestamp: new Date().toISOString() };
+  broadcastWorkbenchEvent('ax-event-created', { event: result.event, ...meta });
+  if (result.workItem) broadcastWorkbenchEvent('ax-state-changed', { workItem: result.workItem, ...meta });
+  if (result.evidence) broadcastWorkbenchEvent('ax-event-created', { evidence: result.evidence, ...meta });
+  if (result.review) broadcastWorkbenchEvent('ax-state-changed', { reviewAnnotation: result.review, ...meta });
+  return responseJson({ ok: true, ...result });
+}
+
+// Report primitive D: single-item read of a gate, with optional ?waitMs= long-poll
+// that resolves when the human resolves it in the browser (gates that actually gate).
+async function handleAxApprovalGet(url: URL, id: string, req: Request): Promise<Response> {
+  const waitMs = parseAxWaitMs(url);
+  const { value, pending } = await waitForAxResolution({
+    read: () => canvasState.getApproval(id),
+    isResolved: (g) => g.status !== 'pending',
+    timeoutMs: waitMs,
+    signal: req.signal,
+  });
+  if (!value) return responseJson({ ok: false, error: 'approval gate not found.' }, 404);
+  return responseJson({ ok: true, approvalGate: value, pending });
+}
+
+async function handleAxElicitationGet(url: URL, id: string, req: Request): Promise<Response> {
+  const waitMs = parseAxWaitMs(url);
+  const { value, pending } = await waitForAxResolution({
+    read: () => canvasState.getElicitation(id),
+    isResolved: (e) => e.status !== 'pending',
+    timeoutMs: waitMs,
+    signal: req.signal,
+  });
+  if (!value) return responseJson({ ok: false, error: 'elicitation not found.' }, 404);
+  return responseJson({ ok: true, elicitation: value, pending });
+}
+
+async function handleAxModeGet(url: URL, id: string, req: Request): Promise<Response> {
+  const waitMs = parseAxWaitMs(url);
+  const { value, pending } = await waitForAxResolution({
+    read: () => canvasState.getModeRequest(id),
+    isResolved: (m) => m.status !== 'pending',
+    timeoutMs: waitMs,
+    signal: req.signal,
+  });
+  if (!value) return responseJson({ ok: false, error: 'mode request not found.' }, 404);
+  return responseJson({ ok: true, modeRequest: value, pending });
 }
 
 // Compact AX state for surfaces (the same shape seeded into AX-enabled iframes).
@@ -4172,6 +4324,11 @@ async function handleAxWorkAdd(req: Request): Promise<Response> {
   if (typeof body.title !== 'string' || !body.title.trim()) {
     return responseJson({ ok: false, error: 'work item requires a title.' }, 400);
   }
+  // Report #56: reject an unknown status (e.g. "in_progress") instead of silently
+  // dropping it — the accepted tokens use hyphens.
+  if (body.status !== undefined && !normalizeAxWorkItemStatus(body.status)) {
+    return responseJson({ ok: false, error: `invalid work item status "${String(body.status)}"; expected one of: todo, in-progress, blocked, done, cancelled.` }, 400);
+  }
   const status = normalizeAxWorkItemStatus(body.status);
   const workItem = canvasState.addWorkItem(
     {
@@ -4192,6 +4349,10 @@ async function handleAxWorkAdd(req: Request): Promise<Response> {
 
 async function handleAxWorkUpdate(req: Request, id: string): Promise<Response> {
   const body = await readJson(req);
+  // Report #56: reject an unknown status instead of returning ok:true + no-op.
+  if (body.status !== undefined && !normalizeAxWorkItemStatus(body.status)) {
+    return responseJson({ ok: false, error: `invalid work item status "${String(body.status)}"; expected one of: todo, in-progress, blocked, done, cancelled.` }, 400);
+  }
   const status = normalizeAxWorkItemStatus(body.status);
   const workItem = canvasState.updateWorkItem(
     id,
@@ -5422,7 +5583,11 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           }
 
           if (url.pathname === '/api/canvas/ax/context' && req.method === 'GET') {
-            return handleGetAxContext();
+            return handleGetAxContext(url);
+          }
+
+          if (url.pathname === '/api/canvas/ax/activity' && req.method === 'POST') {
+            return handleAxActivityIngest(req);
           }
 
           if (url.pathname === '/api/canvas/ax/surface-snapshot' && req.method === 'GET') {
@@ -5475,6 +5640,11 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
               url.pathname.slice('/api/canvas/ax/approval/'.length, -'/resolve'.length),
             );
             return handleAxApprovalResolve(req, approvalId);
+          }
+
+          if (url.pathname.startsWith('/api/canvas/ax/approval/') && !url.pathname.endsWith('/resolve') && req.method === 'GET') {
+            const approvalId = decodeURIComponent(url.pathname.slice('/api/canvas/ax/approval/'.length));
+            return handleAxApprovalGet(url, approvalId, req);
           }
 
           if (url.pathname === '/api/canvas/ax/evidence' && req.method === 'POST') {
@@ -5532,6 +5702,11 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleAxElicitationRespond(req, elicitationId);
           }
 
+          if (url.pathname.startsWith('/api/canvas/ax/elicitation/') && !url.pathname.endsWith('/respond') && req.method === 'GET') {
+            const elicitationId = decodeURIComponent(url.pathname.slice('/api/canvas/ax/elicitation/'.length));
+            return handleAxElicitationGet(url, elicitationId, req);
+          }
+
           if (url.pathname === '/api/canvas/ax/mode' && req.method === 'GET') {
             return handleAxModeList();
           }
@@ -5545,6 +5720,11 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
               url.pathname.slice('/api/canvas/ax/mode/'.length, -'/resolve'.length),
             );
             return handleAxModeResolve(req, modeId);
+          }
+
+          if (url.pathname.startsWith('/api/canvas/ax/mode/') && !url.pathname.endsWith('/resolve') && req.method === 'GET') {
+            const modeId = decodeURIComponent(url.pathname.slice('/api/canvas/ax/mode/'.length));
+            return handleAxModeGet(url, modeId, req);
           }
 
           if (url.pathname === '/api/canvas/ax/command' && req.method === 'GET') {

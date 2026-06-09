@@ -3720,6 +3720,187 @@ describe('canvas server HTTP API', () => {
     expect(read.host?.host).toBe('copilot');
   });
 
+  test('#50: POST /api/canvas/node requires a resolvable type', async () => {
+    const empty = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '',
+    });
+    expect(empty.status).toBe(400);
+    expect((await empty.json() as { error: string }).error).toContain("requires a 'type'");
+    expect(canvasState.getLayout().nodes).toHaveLength(0);
+
+    // ?type= query still resolves the type (no body needed).
+    const viaQuery = await jsonRequest<{ ok: boolean; type: string }>('/api/canvas/node?type=markdown', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    });
+    expect(viaQuery.ok).toBe(true);
+  });
+
+  test('#53: HTTP accepts top-level html + axCapabilities on POST add AND PATCH update', async () => {
+    const created = await jsonRequest<{ ok: boolean; id: string; data: Record<string, unknown> }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'html', title: 'AX html', html: '<p>one</p>', axCapabilities: { enabled: true, allowed: ['ax.steer'] } }),
+    });
+    expect(created.data.html).toBe('<p>one</p>');
+    expect((created.data.axCapabilities as { enabled?: boolean }).enabled).toBe(true);
+
+    const patched = await jsonRequest<{ ok: boolean; data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ html: '<p>two</p>', axCapabilities: { enabled: false } }),
+    });
+    expect(patched.data.html).toBe('<p>two</p>');
+    expect((patched.data.axCapabilities as { enabled?: boolean }).enabled).toBe(false);
+  });
+
+  test('#56: AX work endpoints reject an unknown status with 400 (add + update)', async () => {
+    const badCreate = await fetch(`${baseUrl}/api/canvas/ax/work`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'x', status: 'in_progress' }),
+    });
+    expect(badCreate.status).toBe(400);
+    expect((await badCreate.json() as { error: string }).error).toContain('in-progress');
+
+    const created = await jsonRequest<{ workItem: { id: string; status: string } }>('/api/canvas/ax/work', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'valid', status: 'in-progress' }),
+    });
+    expect(created.workItem.status).toBe('in-progress');
+
+    const badPatch = await fetch(`${baseUrl}/api/canvas/ax/work/${created.workItem.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'in_progress' }),
+    });
+    expect(badPatch.status).toBe(400);
+    // The item is unchanged (not silently no-op'd to ok:true).
+    const ax = await (await fetch(`${baseUrl}/api/canvas/ax`)).json() as { state: { workItems: Array<{ id: string; status: string }> } };
+    expect(ax.state.workItems.find((w) => w.id === created.workItem.id)?.status).toBe('in-progress');
+  });
+
+  test('primitive A: activity ingestion applies kind-driven reactions, overridable', async () => {
+    const node = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'activity node' }),
+    });
+
+    // failure → work item (blocked) + review (finding/error, node-anchored) + evidence (logs)
+    const failure = await jsonRequest<{
+      ok: boolean;
+      event: { kind: string; data: { activityKind?: string } | null };
+      workItem: { status: string } | null;
+      evidence: { kind: string } | null;
+      review: { kind: string; severity: string; anchorType: string; nodeId: string | null } | null;
+    }>('/api/canvas/ax/activity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'failure', title: 'tsc failed', summary: 'type error in x.ts', nodeIds: [node.id], source: 'api' }),
+    });
+    expect(failure.workItem?.status).toBe('blocked');
+    expect(failure.review?.severity).toBe('error');
+    expect(failure.review?.nodeId).toBe(node.id);
+    expect(failure.evidence?.kind).toBe('logs');
+    expect(failure.event.data?.activityKind).toBe('failure');
+
+    // tool-result + success → evidence only (no work item / review)
+    const success = await jsonRequest<{ workItem: unknown; review: unknown; evidence: { kind: string } | null }>('/api/canvas/ax/activity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'tool-result', title: 'tests passed', outcome: 'success', source: 'api' }),
+    });
+    expect(success.evidence?.kind).toBe('tool-result');
+    expect(success.workItem).toBeNull();
+    expect(success.review).toBeNull();
+
+    // reactions overrides: suppress the work item + review on a failure
+    const suppressed = await jsonRequest<{ workItem: unknown; review: unknown; evidence: unknown }>('/api/canvas/ax/activity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'failure', title: 'noisy', reactions: { workItem: false, review: false }, source: 'api' }),
+    });
+    expect(suppressed.workItem).toBeNull();
+    expect(suppressed.review).toBeNull();
+    expect(suppressed.evidence).not.toBeNull();
+
+    // invalid kind → 400
+    const bad = await fetch(`${baseUrl}/api/canvas/ax/activity`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'nope', title: 'x' }),
+    });
+    expect(bad.status).toBe(400);
+
+    // Caller data cannot clobber the canonical activityKind/outcome on the event.
+    const clobber = await jsonRequest<{ event: { data: { activityKind?: string; outcome?: string } | null } }>('/api/canvas/ax/activity', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'failure', title: 'spoofed', outcome: 'failure', data: { activityKind: 'note', outcome: 'success' }, source: 'api' }),
+    });
+    expect(clobber.event.data?.activityKind).toBe('failure');
+    expect(clobber.event.data?.outcome).toBe('failure');
+  });
+
+  test('primitive D: single-item gate GET reads immediately and long-polls until resolved', async () => {
+    const gate = await jsonRequest<{ approvalGate: { id: string } }>('/api/canvas/ax/approval', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Deploy', action: 'deploy', source: 'api' }),
+    });
+    const id = gate.approvalGate.id;
+
+    // Immediate read (no waitMs): still pending.
+    const now = await jsonRequest<{ ok: boolean; approvalGate: { status: string }; pending: boolean }>(`/api/canvas/ax/approval/${id}`);
+    expect(now.approvalGate.status).toBe('pending');
+    expect(now.pending).toBe(true);
+
+    // Long-poll resolves when the gate is resolved mid-wait.
+    const waitPromise = fetch(`${baseUrl}/api/canvas/ax/approval/${id}?waitMs=5000`).then((r) => r.json()) as Promise<{ approvalGate: { status: string }; pending: boolean }>;
+    await new Promise((resolve) => setTimeout(resolve, 60));
+    await fetch(`${baseUrl}/api/canvas/ax/approval/${id}/resolve`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ decision: 'approved', source: 'api' }),
+    });
+    const waited = await waitPromise;
+    expect(waited.approvalGate.status).toBe('approved');
+    expect(waited.pending).toBe(false);
+
+    // Unknown id → 404.
+    const missing = await fetch(`${baseUrl}/api/canvas/ax/approval/does-not-exist`);
+    expect(missing.status).toBe(404);
+  });
+
+  test('B+C: ax/context exposes a loop-safe delivery lead block', async () => {
+    await fetch(`${baseUrl}/api/canvas/ax/work`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'human task', status: 'todo', source: 'browser' }),
+    });
+    await fetch(`${baseUrl}/api/canvas/ax/steer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'focus on auth', source: 'browser' }),
+    });
+
+    type Delivery = { delivery: { pendingSteering: Array<{ source: string | null }>; pendingActivity: Array<{ kind: string }> } };
+    const unfiltered = await jsonRequest<Delivery>('/api/canvas/ax/context');
+    expect(unfiltered.delivery.pendingActivity.some((a) => a.kind === 'work-item')).toBe(true);
+    expect(unfiltered.delivery.pendingSteering.some((s) => s.source === 'browser')).toBe(true);
+
+    // The browser consumer never sees its own steering/activity (loop-safety). Work
+    // items are canvas-bound (cleared each test), so the only one is mine → filtered out.
+    const filtered = await jsonRequest<Delivery>('/api/canvas/ax/context?consumer=browser');
+    expect(filtered.delivery.pendingActivity).toHaveLength(0);
+    expect(filtered.delivery.pendingSteering.every((s) => s.source !== 'browser')).toBe(true);
+  });
+
   test('GET /api/canvas/ax/surface-snapshot returns the compact board with review text redacted', async () => {
     const review = await jsonRequest<{ reviewAnnotation: { id: string } }>('/api/canvas/ax/review', {
       method: 'POST',

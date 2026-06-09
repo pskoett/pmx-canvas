@@ -5,6 +5,55 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- **Activity ingestion closes the AX loop (report primitive A).** New
+  `POST /api/canvas/ax/activity` + `canvas_ingest_activity` MCP tool let a harness
+  forward the agent's real tool/session events; the board auto-reacts with
+  kind-driven, overridable defaults — `failure`/`error` (or `outcome:"failure"`) →
+  a blocked work item + a review finding + a `logs` evidence item; `tool-result` +
+  `outcome:"success"` → a `tool-result` evidence item; everything else (tool-start,
+  `session-start`/`session-end`, command, note) records a timeline event only. A
+  reaction set to `false` suppresses it; an object overrides its fields. AX is now
+  bidirectional (agent → board *and* work → board), no longer one-directional.
+- **Blocking gates (report primitive D).** Single-item `GET /api/canvas/ax/{approval
+  |elicitation|mode}/<id>` returns the primitive (404 if unknown) and accepts an
+  optional `?waitMs=` long-poll that resolves the moment the human resolves the gate
+  in the browser (or times out, ≤120000ms). New `canvas_await_approval` /
+  `canvas_await_elicitation` / `canvas_await_mode` MCP tools block the same way, so an
+  agent can request a gate and *wait* for the decision instead of polling. Gates that
+  actually gate.
+- **Context delivery lead block (report #54 hardening, harness-neutral).**
+  `GET /api/canvas/ax/context` (and `canvas://ax-context`) now include a compact
+  `delivery: { pendingSteering, pendingActivity }` block, with an optional
+  `?consumer=` filter (loop-safe — a consumer never sees what it originated). A host
+  adapter can inject this small, un-truncated block per turn so steering survives the
+  full-context char clip on a busy board.
+- **AX host-adapter contract.** New `docs/ax-host-adapter-contract.md` documents the
+  harness-neutral interface (pull-context / deliver-steer / ingest-activity /
+  await-gate / mirror-log), what PMX owns vs. what each adapter implements, and the
+  steering lifecycle + gating conditions.
+
+### Fixed
+
+- **`window.PMX_AX.emit` now confirms (report #55).** Emit returns a Promise that
+  resolves with the interaction result once the parent acks it (and fires a
+  `pmx-ax-ack` event / `window.PMX_AX.on('ack', cb)`), so a surface button can
+  self-confirm (`queued ✓`) instead of looking like "nothing happened". Falls back to
+  an `ax-ack-timeout` result after 10s so `await emit()` never hangs.
+- **HTTP node creation requires a `type` (report #50).** `POST /api/canvas/node` with
+  an empty / type-less body now returns `400` (with the valid-type list) instead of
+  silently creating a phantom markdown node. The `?type=` query param still resolves it.
+- **HTTP accepts top-level `html` / `axCapabilities` on html nodes (report #53).** Both
+  `POST /api/canvas/node` and `PATCH /api/canvas/node/<id>` now accept these fields at
+  the top level (previously dropped on update, and `axCapabilities` dropped on add) —
+  transport parity with `canvas_add_html_node` / `canvas_update_node`. `data.*` nesting
+  still works.
+- **`POST`/`PATCH /api/canvas/ax/work` reject an unknown status (report #56).** Sending
+  `status: "in_progress"` (underscore) now returns `400` with the valid enum instead of
+  `ok:true` + a silent no-op. Accepted tokens: `todo`, `in-progress`, `blocked`, `done`,
+  `cancelled`.
+
 ## [0.1.35] - 2026-06-08
 
 ### Fixed

@@ -108,22 +108,60 @@ function injectIntoHead(html: string, content: string): string {
  * injected when the node's AX capabilities are enabled (opt-in for `html`), and
  * the server re-validates every interaction — so this is a convenience surface,
  * not a trust boundary.
+ *
+ * `emit` returns a Promise that resolves with the interaction result once the
+ * parent acks it (report #55 — built-in confirmation so a click no longer looks
+ * like "nothing happened"). Authors can also `window.PMX_AX.on('ack', cb)` or
+ * listen for the `pmx-ax-ack` CustomEvent. Resolves with an `ax-ack-timeout`
+ * result after 10s if no ack arrives (e.g. an older parent), so `await emit()`
+ * never hangs.
  */
 export function buildAxBridge(axToken: string, nodeId: string): string {
   const token = JSON.stringify(axToken);
   const node = JSON.stringify(nodeId);
   return `<script data-pmx-canvas-ax-bridge>
-const PMX_AX_TOKEN = ${token};
-const PMX_AX_NODE_ID = ${node};
-window.PMX_AX = window.PMX_AX || {};
-window.PMX_AX.emit = function (type, payload) {
-  window.parent.postMessage({
-    source: 'pmx-canvas-ax',
-    token: PMX_AX_TOKEN,
-    nodeId: PMX_AX_NODE_ID,
-    interaction: { type: String(type), payload: payload && typeof payload === 'object' ? payload : {} },
-  }, '*');
-};
+(function () {
+  const PMX_AX_TOKEN = ${token};
+  const PMX_AX_NODE_ID = ${node};
+  window.PMX_AX = window.PMX_AX || {};
+  const pending = new Map();
+  const ackListeners = [];
+  let seq = 0;
+  window.PMX_AX.emit = function (type, payload) {
+    seq += 1;
+    const correlationId = PMX_AX_NODE_ID + '-' + seq + '-' + (Date.now ? Date.now() : 0);
+    window.parent.postMessage({
+      source: 'pmx-canvas-ax',
+      token: PMX_AX_TOKEN,
+      nodeId: PMX_AX_NODE_ID,
+      correlationId: correlationId,
+      interaction: { type: String(type), payload: payload && typeof payload === 'object' ? payload : {} },
+    }, '*');
+    return new Promise(function (resolve) {
+      const timer = setTimeout(function () {
+        pending.delete(correlationId);
+        // Match the real reject shape ({ ok:false, status, code:string, error }) so a
+        // surface inspecting r.code/r.status sees a consistent type on timeout vs reject.
+        resolve({ ok: false, status: 504, code: 'ax-ack-timeout', error: 'ax-ack-timeout' });
+      }, 10000);
+      pending.set(correlationId, function (result) { clearTimeout(timer); resolve(result); });
+    });
+  };
+  window.PMX_AX.on = function (eventType, cb) {
+    if (eventType === 'ack' && typeof cb === 'function') ackListeners.push(cb);
+  };
+  window.addEventListener('message', function (event) {
+    const m = event.data;
+    if (!m || m.source !== 'pmx-canvas-ax-ack' || m.token !== PMX_AX_TOKEN) return;
+    const result = m.result || { ok: false };
+    const resolver = m.correlationId ? pending.get(m.correlationId) : undefined;
+    if (resolver) { pending.delete(m.correlationId); resolver(result); }
+    for (let i = 0; i < ackListeners.length; i += 1) {
+      try { ackListeners[i](result, m.interaction || null); } catch (e) {}
+    }
+    try { window.dispatchEvent(new CustomEvent('pmx-ax-ack', { detail: { result: result, interaction: m.interaction || null } })); } catch (e) {}
+  });
+})();
 </script>`;
 }
 

@@ -1061,6 +1061,58 @@ test('html bridge: an opted-in html node emits an AX interaction via window.PMX_
   }).toBe(true);
 });
 
+test('html bridge: window.PMX_AX.emit resolves with the result so the surface can self-confirm (#55)', async ({ page, request }) => {
+  // The surface awaits emit() and flips a status label on the ack — the built-in
+  // confirmation that fixes "clicks look like nothing happened".
+  const html = '<main><button onclick="go()">emit</button><span id="st">idle</span>'
+    + '<script>async function go(){var r=await window.PMX_AX.emit("ax.work.create",{title:"ack-confirmed"});'
+    + 'document.getElementById("st").textContent=r&&r.ok?"queued OK":"failed";}</script></main>';
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'html',
+      title: 'AX ack html',
+      html,
+      data: { axCapabilities: { enabled: true, allowed: ['ax.work.create'] } },
+      x: 640, y: 260, width: 520, height: 360,
+    },
+  });
+  await page.goto('/workbench');
+  const node = page.locator('.canvas-node').filter({ hasText: 'AX ack html' });
+  await expect(node).toHaveCount(1);
+  const frame = node.frameLocator('iframe');
+  await frame.getByRole('button', { name: 'emit' }).click();
+  // The promise resolved with { ok: true } via the parent's ack postMessage.
+  await expect(frame.locator('#st')).toHaveText('queued OK');
+});
+
+test('ext-app bridge: window.PMX_AX.emit resolves with the result so the app can self-confirm (#55)', async ({ page, request }) => {
+  const html = '<main><button onclick="go()">emit</button><span id="st">idle</span>'
+    + '<script>async function go(){var r=await window.PMX_AX.emit("ax.work.create",{title:"ack-confirmed-ext-app"});'
+    + 'document.getElementById("st").textContent=r&&r.ok?"queued OK":"failed";}</script></main>';
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'mcp-app',
+      title: 'AX ack ext app',
+      data: {
+        mode: 'ext-app',
+        html,
+        axCapabilities: { enabled: true, allowed: ['ax.work.create'] },
+        sessionStatus: 'ready',
+      },
+      x: 640, y: 260, width: 520, height: 360,
+    },
+  });
+  await page.goto('/workbench');
+  const node = page.locator('.canvas-node').filter({ hasText: 'AX ack ext app' });
+  await expect(node).toHaveCount(1);
+  await node.getByLabel('Open full view to edit').click();
+  const expandedNode = page.locator('.expanded-overlay-panel').filter({ hasText: 'AX ack ext app' });
+  await expect(expandedNode).toHaveCount(1);
+  const frame = expandedNode.frameLocator('iframe');
+  await frame.getByRole('button', { name: 'emit' }).click();
+  await expect(frame.locator('#st')).toHaveText('queued OK');
+});
+
 test('json-render bridge: a spec action named ax.* emits an AX interaction via the viewer', async ({ page, request }) => {
   // json-render is AX-enabled by default with ax.work.create in its ceiling. The
   // viewer bundle wires spec actions named after AX types to a postMessage bridge;

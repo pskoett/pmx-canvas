@@ -70,6 +70,8 @@ import {
   listAxCommands,
   AX_COMMAND_REGISTRY,
   normalizeAxPolicy,
+  mapAxActivityKindToEventKind,
+  type PmxAxActivityKind,
   type PmxAxElicitation,
   type PmxAxModeRequest,
   type PmxAxMode,
@@ -334,13 +336,25 @@ class CanvasStateManager {
   // ── Change listeners (for MCP resource notifications) ──────
   private _changeListeners: ((type: CanvasChangeType) => void)[] = [];
 
-  /** Register a listener for state changes. Used by MCP server to emit resource notifications. */
-  onChange(cb: (type: CanvasChangeType) => void): void {
+  /**
+   * Register a listener for state changes. Used by MCP server to emit resource
+   * notifications and by the blocking-wait endpoints to await an AX transition.
+   * Returns a disposer that unregisters the listener (callers that don't need it
+   * — e.g. the long-lived MCP subscription — may ignore the return value).
+   */
+  onChange(cb: (type: CanvasChangeType) => void): () => void {
     this._changeListeners.push(cb);
+    return () => {
+      const i = this._changeListeners.indexOf(cb);
+      if (i >= 0) this._changeListeners.splice(i, 1);
+    };
   }
 
   private notifyChange(type: CanvasChangeType): void {
-    for (const cb of this._changeListeners) {
+    // Iterate a snapshot: a listener (e.g. a blocking-wait via onChange) may dispose
+    // itself synchronously here, and splicing the live array mid-iteration would skip
+    // the next listener for this notification.
+    for (const cb of [...this._changeListeners]) {
       try {
         cb(type);
       } catch (error) {
@@ -2049,6 +2063,19 @@ class CanvasStateManager {
     return applied.modeRequests.find((m) => m.id === id) ?? null;
   }
 
+  // ── Single-item AX readers (canvas-bound; for the blocking-wait endpoints) ──
+  getApproval(id: string): PmxAxApprovalGate | null {
+    return this.getAxState().approvalGates.find((g) => g.id === id) ?? null;
+  }
+
+  getElicitation(id: string): PmxAxElicitation | null {
+    return this.getAxState().elicitations.find((e) => e.id === id) ?? null;
+  }
+
+  getModeRequest(id: string): PmxAxModeRequest | null {
+    return this.getAxState().modeRequests.find((m) => m.id === id) ?? null;
+  }
+
   getCommandRegistry(): PmxAxCommandDescriptor[] {
     return listAxCommands();
   }
@@ -2169,6 +2196,107 @@ class CanvasStateManager {
       logCanvasStateWarning('mark steering delivered failed', error, { id });
       return false;
     }
+  }
+
+  /**
+   * Ingest a normalized agent activity (a tool/session event a harness forwards)
+   * and apply kind-driven board reactions, so the agent's real work flows back into
+   * the board without it remembering to push each item (report primitive A — makes
+   * AX bidirectional). Always records a timeline event; then, unless the caller
+   * overrides/suppresses via `reactions`, applies defaults by kind/outcome:
+   *   • failure | error | outcome==='failure' → work item (blocked) + review
+   *     (finding/error, anchored to a valid nodeId else the `ref` file) + evidence (logs)
+   *   • tool-result + outcome==='success'      → evidence (tool-result)
+   *   • everything else (tool-start, session-*, command, note) → event only
+   * A reaction value of `false` suppresses it; an object overrides its fields/forces it on.
+   */
+  ingestActivity(
+    input: {
+      kind: PmxAxActivityKind;
+      title: string;
+      summary?: string | null;
+      outcome?: 'success' | 'failure';
+      ref?: string | null;
+      nodeIds?: string[];
+      data?: Record<string, unknown> | null;
+      reactions?: {
+        workItem?: false | { status?: PmxAxWorkItemStatus; detail?: string | null };
+        evidence?: false | { kind?: PmxAxEvidenceKind; body?: string | null };
+        review?: false | { severity?: PmxAxReviewSeverity; kind?: PmxAxReviewKind; anchorType?: PmxAxReviewAnchorType; nodeId?: string | null };
+      };
+    },
+    options: { source?: PmxAxSource } = {},
+  ): { event: PmxAxEvent; workItem: PmxAxWorkItem | null; evidence: PmxAxEvidence | null; review: PmxAxReviewAnnotation | null } {
+    const source = options.source ?? 'api';
+    const summary = input.summary ?? input.title;
+    const isFailure = input.kind === 'failure' || input.kind === 'error' || input.outcome === 'failure';
+    const isToolSuccess = input.kind === 'tool-result' && input.outcome === 'success';
+    const nodeIds = input.nodeIds ?? [];
+    const anchorNodeId = nodeIds.find((n) => this.nodes.has(n)) ?? null;
+
+    // (1) Always record the activity on the timeline (precise kind on data.activityKind).
+    const event = this.recordAxEvent(
+      {
+        kind: mapAxActivityKindToEventKind(input.kind),
+        summary: input.title,
+        detail: input.summary ?? null,
+        nodeIds,
+        // Caller data first so the canonical fields always win — a malformed/hostile
+        // payload can't overwrite activityKind/outcome/ref (which the docstring +
+        // reaction logic treat as authoritative).
+        data: {
+          ...(input.data ?? {}),
+          activityKind: input.kind,
+          ...(input.outcome ? { outcome: input.outcome } : {}),
+          ...(input.ref ? { ref: input.ref } : {}),
+        },
+      },
+      { source },
+    );
+
+    // (2) Resolve reactions: kind-driven defaults, overridable per call.
+    const r = input.reactions ?? {};
+    const wantWorkItem = r.workItem === false ? null : (r.workItem ?? (isFailure ? {} : null));
+    const wantEvidence = r.evidence === false
+      ? null
+      : (r.evidence ?? (isFailure ? { kind: 'logs' as PmxAxEvidenceKind } : isToolSuccess ? { kind: 'tool-result' as PmxAxEvidenceKind } : null));
+    const wantReview = r.review === false ? null : (r.review ?? (isFailure ? {} : null));
+
+    let workItem: PmxAxWorkItem | null = null;
+    if (wantWorkItem) {
+      workItem = this.addWorkItem(
+        { title: input.title, status: wantWorkItem.status ?? 'blocked', detail: wantWorkItem.detail ?? summary, nodeIds },
+        { source },
+      );
+    }
+
+    let evidence: PmxAxEvidence | null = null;
+    if (wantEvidence) {
+      evidence = this.addEvidence(
+        { kind: wantEvidence.kind ?? 'logs', title: input.title, body: wantEvidence.body ?? input.summary ?? null, ref: input.ref ?? null, nodeIds },
+        { source },
+      );
+    }
+
+    let review: PmxAxReviewAnnotation | null = null;
+    if (wantReview) {
+      const reviewNodeId = wantReview.nodeId ?? anchorNodeId;
+      // addReviewAnnotation returns null on a bad node anchor — that just skips the
+      // review; it never fails the whole ingest (the event + other reactions stand).
+      review = this.addReviewAnnotation(
+        {
+          body: summary,
+          kind: wantReview.kind ?? 'finding',
+          severity: wantReview.severity ?? 'error',
+          ...(wantReview.anchorType ? { anchorType: wantReview.anchorType } : {}),
+          ...(reviewNodeId ? { nodeId: reviewNodeId } : {}),
+          ...(input.ref ? { file: input.ref } : {}),
+        },
+        { source },
+      );
+    }
+
+    return { event, workItem, evidence, review };
   }
 
   getAxEvents(q: AxTimelineQuery = {}): PmxAxEvent[] {

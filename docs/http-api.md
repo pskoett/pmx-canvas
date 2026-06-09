@@ -46,7 +46,17 @@ curl -X POST http://localhost:4313/api/canvas/node \
 curl -X POST http://localhost:4313/api/canvas/node \
   -H "Content-Type: application/json" \
   -d '{"type":"html-primitive","kind":"choice-grid","title":"Options","data":{"items":[{"title":"Small patch","summary":"Least disruption."}]}}'
+
+# Opt an html node into AX. Top-level `html` AND `axCapabilities` are accepted on
+# POST add and PATCH update (and may also be nested under `data`).
+curl -X POST http://localhost:4313/api/canvas/node \
+  -H "Content-Type: application/json" \
+  -d '{"type":"html","title":"AX board","html":"<p>steering board</p>","axCapabilities":{"enabled":true,"allowed":["ax.steer"]}}'
 ```
+
+A node creation request must resolve a `type` — pass it in the body (`{ "type":
+... }`) or as a `?type=` query param. An empty / type-less body returns `400`
+rather than silently creating a markdown node.
 
 ## Edges
 
@@ -177,7 +187,9 @@ curl http://localhost:4313/api/canvas/ax/host-capability
 
 Validation: `/ax/event` requires a valid `kind` + `summary` (400 otherwise);
 `/ax/evidence` requires `kind` + `title`; `/ax/steer`, `/ax/work`,
-`/ax/approval`, `/ax/review` require their primary field; `PATCH /ax/work/:id`
+`/ax/approval`, `/ax/review` require their primary field; `POST`/`PATCH /ax/work`
+reject an unknown `status` with 400 (the tokens are `todo`, `in-progress`,
+`blocked`, `done`, `cancelled` — hyphens, not underscores); `PATCH /ax/work/:id`
 and `PATCH /ax/review/:id` return 404 for unknown IDs; approval resolve returns
 404 if the gate is missing or already resolved.
 
@@ -218,6 +230,24 @@ curl -X POST http://localhost:4313/api/canvas/ax/mode/<id>/resolve \
   -d '{"decision":"approved"}'
 curl http://localhost:4313/api/canvas/ax/mode
 
+# Activity ingestion — forward an agent tool/session event; the board auto-reacts
+# (kind-driven, overridable: failure → work item + review + evidence; tool-result
+# + outcome:"success" → evidence). Set a reaction to false to suppress it.
+curl -X POST http://localhost:4313/api/canvas/ax/activity \
+  -H "Content-Type: application/json" \
+  -d '{"kind":"failure","title":"tsc failed","summary":"type error in x.ts","nodeIds":["node-1"],"source":"api"}'
+
+# Blocking gate read — read one gate, or long-poll with ?waitMs until the human
+# resolves it in the browser (gates that actually gate). Returns { <primitive>, pending }.
+curl "http://localhost:4313/api/canvas/ax/approval/<id>"                 # immediate read
+curl "http://localhost:4313/api/canvas/ax/approval/<id>?waitMs=30000"    # blocks ≤30s / until resolved
+curl "http://localhost:4313/api/canvas/ax/elicitation/<id>?waitMs=30000"
+curl "http://localhost:4313/api/canvas/ax/mode/<id>?waitMs=30000"
+
+# Context — optional ?consumer= filters the compact, loop-safe `delivery` lead block
+# (undelivered steering + open work/approvals it can act on) for per-turn injection.
+curl "http://localhost:4313/api/canvas/ax/context?consumer=copilot"
+
 # Commands — list the registry, invoke a command (records a `command` agent-event)
 curl http://localhost:4313/api/canvas/ax/command
 curl -X POST http://localhost:4313/api/canvas/ax/command \
@@ -234,7 +264,9 @@ curl -X POST http://localhost:4313/api/canvas/ax/policy \
 Validation: `/ax/interaction` returns `{ ok: false, code }` (403 `ax-disabled` /
 `not-allowed`, 400 `invalid-payload` / `unknown-command`, 404 `unknown-node`);
 `/ax/command` rejects an unknown command name with 400; `/ax/elicitation/:id/respond`
-and `/ax/mode/:id/resolve` return 404 for unknown IDs.
+and `/ax/mode/:id/resolve` return 404 for unknown IDs; `/ax/activity` requires a
+valid `kind` + `title` (400 otherwise); the single-item gate GETs return 404 for
+unknown IDs and clamp `?waitMs` to ≤120000.
 
 ## Diagrams (Excalidraw preset)
 

@@ -843,6 +843,12 @@ Eligible nodes can emit one normalized, validated AX interaction that maps onto 
 AX operation — work item, evidence, approval, review, focus, steering, event,
 elicitation, or mode request. One envelope, many transports:
 
+This is the **agent-native nodes** model: existing canvas node types become
+interactive agent controls when their AX capabilities allow it. Do not describe
+this as a separate node type; it is a capability layer on top of markdown,
+status, HTML, json-render, graph, web-artifact, MCP app, and other supported
+nodes.
+
 - **Endpoint:** `POST /api/canvas/ax/interaction` with
   `{ type, sourceNodeId, payload }` (MCP: `canvas_ax_interaction`; CLI:
   `pmx-canvas ax interaction`). Returns `{ ok, primitive }` or
@@ -857,10 +863,12 @@ elicitation, or mode request. One envelope, many transports:
   before submitting: `html` / `html-primitive` nodes (when opted in) call
   `window.PMX_AX.emit(type, payload)`; **json-render / graph** viewers forward a
   spec action named after an AX type (e.g. `on.press → { action:
-  "ax.work.create", params }`, `sourceSurface: 'json-render'`); opted-in ext-app
-  **`mcp-app`** nodes get the same `window.PMX_AX.emit` injected
-  (`sourceSurface: 'mcp-app'`). The server re-validates capabilities regardless
-  of transport — bridges are convenience, not a trust boundary.
+  "ax.work.create", params }`, `sourceSurface: 'json-render'`); web-artifact
+  **`mcp-app`** nodes use the same parent bridge; external MCP app frames
+  (`mode: "ext-app"`) can emit through an injected `window.PMX_AX.emit` with
+  Promise acknowledgements, but do not get the read-state bridge. The server
+  re-validates capabilities regardless of transport — bridges are convenience,
+  not a trust boundary.
 - **Delivery (adapterless):** `canvas://ax-pending-steering` /
   `canvas_claim_ax_delivery` return two things, both loop-safe (a consumer never
   receives items it originated):
@@ -877,6 +885,26 @@ elicitation, or mode request. One envelope, many transports:
     live. Clients that **poll** instead should poll `canvas_claim_ax_delivery` —
     `pendingActivity` is how non-steering browser changes reach them. Only steering
     flows through the claim/ack queue.
+  - **Steering is gated, not pushed.** A surface button that emits `ax.steer`
+    enqueues a steer — it does NOT wake the agent. With a prompt-injecting host
+    adapter (e.g. Copilot), it reaches the next turn only when (1) the **pin/focus
+    gate is open** (something pinned or focused — so keep a steering board pinned, or
+    have its button also emit `ax.focus.set` on itself), (2) a **human message** fires
+    the turn, and (3) the agent **acts then acks** (`canvas_mark_ax_delivery`), or the
+    steer re-injects every gated turn. `GET /api/canvas/ax/context?consumer=<id>` adds
+    a compact, loop-safe `delivery: { pendingSteering, pendingActivity }` lead block an
+    adapter can inject un-truncated, so steering survives the full-context char clip.
+- **Activity ingestion (bidirectional board):** a host adapter forwards the agent's
+  tool/session events with `canvas_ingest_activity` (HTTP `POST /api/canvas/ax/activity`)
+  and the board auto-reacts — `failure`/`error` (or `outcome:"failure"`) → a blocked
+  work item + a review finding + `logs` evidence; `tool-result` + `outcome:"success"` →
+  `tool-result` evidence; everything else records a timeline event only. Override or
+  suppress per call via `reactions` (`{ workItem: false }`, `{ review: { severity } }`, …).
+- **Blocking gates (gates that actually gate):** after requesting an approval /
+  elicitation / mode, `canvas_await_approval` / `canvas_await_elicitation` /
+  `canvas_await_mode` (HTTP `GET /api/canvas/ax/<kind>/<id>?waitMs=`) BLOCK until the
+  human resolves it in the browser or the timeout elapses (`timeoutMs` 0 = immediate
+  read; ≤120000). Use this to pause real work on a human decision instead of polling.
 - **Elicitation / mode:** request structured human input
   (`canvas_request_elicitation` → `canvas_respond_elicitation`) or a workflow
   mode transition (`canvas_request_mode` → `canvas_resolve_mode`); both are
@@ -916,8 +944,10 @@ AX interactions are gated per node type. The lists below are each type's **ceili
 | `webpage` | `ax.evidence.add`, `ax.review.add`, `ax.focus.set`, `ax.event.record` |
 | `group` | `ax.focus.set`, `ax.work.create`, `ax.command.invoke`, `ax.event.record` |
 
-**Opt-in** — set `data.axCapabilities.enabled = true` (MCP: pass `axCapabilities` to
-`canvas_add_html_node` or `canvas_update_node`; HTTP: nest under `data`):
+**Opt-in** — set `axCapabilities.enabled = true` (MCP: pass `axCapabilities` to
+`canvas_add_html_node` / `canvas_update_node`. HTTP: `axCapabilities` **and** the
+`html` body are accepted **top-level on both `POST /api/canvas/node` and
+`PATCH /api/canvas/node/<id>`**, or nested under `data` — both work, top-level wins):
 
 | Node type | Allowed AX interaction types |
 |-----------|------------------------------|
@@ -928,7 +958,9 @@ AX interactions are gated per node type. The lists below are each type's **ceili
 only, no human-facing emit.
 
 The 11 interaction types and what they create: `ax.work.create` / `ax.work.update`
-(work-queue items, status todo→in-progress→blocked→done→cancelled), `ax.evidence.add`
+(work-queue items; status is exactly one of `todo`, `in-progress`, `blocked`, `done`,
+`cancelled` — **hyphens, not underscores**; `POST`/`PATCH /api/canvas/ax/work` reject an
+unknown token like `in_progress` with `400`), `ax.evidence.add`
 (timeline evidence), `ax.review.add` (review annotation), `ax.focus.set` (agent focus
 pointer), `ax.steer` (a steering message delivered to the agent), `ax.approval.request`
 (approval gate), `ax.elicitation.request` (structured human input), `ax.mode.request`
@@ -949,6 +981,12 @@ state. The read side mirrors the write side:
 - **Emit (write):** in `html`, call `window.PMX_AX.emit("ax.work.create", { title })`;
   in `json-render`, bind a control action named after the AX type
   (`on: { press: { action: "ax.work.create", params: { title } } }`).
+- **Confirm (#55):** for `html` / `html-primitive` and PMX_AX-enabled `mcp-app`
+  surfaces, `emit` returns a Promise that resolves with the result once the
+  canvas acks it, so a button can self-confirm: `const r = await
+  window.PMX_AX.emit(...); if (r.ok) showQueued();`. You can also
+  `window.PMX_AX.on('ack', cb)` or listen for the `pmx-ax-ack` event. (Falls back
+  to an `ax-ack-timeout` result after 10s, so `await` never hangs.)
 - **Reflect (read):** the canvas seeds the surface with a compact AX snapshot at
   load (the same shape as `GET /api/canvas/ax/surface-snapshot`) and live-updates it
   as AX state changes. Works on all three authored surface types:
@@ -966,11 +1004,15 @@ state. The read side mirrors the write side:
 Minimal html work board (drop-in via `canvas_add_html_node`, `axCapabilities.enabled: true`):
 
 ```html
-<button onclick="window.PMX_AX.emit('ax.work.create',{title:'New task'})">+ Task</button>
+<button id="add">+ Task</button> <span id="ok"></span>
 <ul id="q"></ul>
 <script>
   function render(s){ document.getElementById('q').innerHTML =
     ((s&&s.workItems)||[]).map(w => '<li>['+w.status+'] '+w.title+'</li>').join(''); }
+  document.getElementById('add').onclick = async () => {
+    const r = await window.PMX_AX.emit('ax.work.create',{title:'New task'});
+    document.getElementById('ok').textContent = r && r.ok ? 'queued ✓' : 'failed';   // #55 self-confirm
+  };
   render(window.PMX_AX && window.PMX_AX.state);
   window.addEventListener('pmx-ax-update', e => render(e.detail));
 </script>

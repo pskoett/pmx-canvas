@@ -26,6 +26,7 @@ import { isAbsolute, relative, resolve } from 'node:path';
 import { z } from 'zod';
 import { canvasState, describeCanvasSchema, validateStructuredCanvasPayload } from '../server/index.js';
 import { AX_INTERACTION_TYPES } from '../server/ax-interaction.js';
+import { buildPendingAxActivity } from '../server/ax-state.js';
 import { isHtmlPrimitiveKind } from '../server/html-primitives.js';
 import type { HtmlPrimitiveKind } from '../server/html-primitives.js';
 import { createCanvasAccess, refreshCanvasAccess, type CanvasAccess } from './canvas-access.js';
@@ -198,56 +199,6 @@ function encodeBase64(bytes: Uint8Array): string {
 
 function wantsFullPayload(input: { full?: boolean; verbose?: boolean; includeData?: boolean } = {}): boolean {
   return input.full === true || input.verbose === true || input.includeData === true;
-}
-
-interface PendingAxActivityItem {
-  kind: 'work-item' | 'approval-gate' | 'elicitation' | 'mode-request';
-  id: string;
-  title: string;
-  status: string;
-  nodeIds: string[];
-  source: string | null;
-}
-
-const OPEN_AX_WORK_STATUSES = new Set(['todo', 'in-progress', 'blocked']);
-
-/**
- * Open, agent-actionable canvas-bound AX items (open work items + pending approval
- * gates / elicitations / mode requests). Unlike steering (a directive routed through
- * the claim/ack delivery queue), these are STATE the human curates in the browser —
- * they fire `ax-state-changed` (so resource-subscribers are pushed canvas://ax-work),
- * but an adapterless client that only POLLS the delivery surface never saw them.
- * Surfacing this digest there closes report #43 without conflating state with steering.
- * Optionally excludes items the consumer itself originated (loop prevention), mirroring
- * getPendingSteering.
- */
-function buildPendingAxActivity(
-  state: Awaited<ReturnType<CanvasAccess['getAxState']>>,
-  consumer?: string,
-): PendingAxActivityItem[] {
-  const notMine = (source: string | null) => !consumer || source !== consumer;
-  const out: PendingAxActivityItem[] = [];
-  for (const w of state.workItems ?? []) {
-    if (OPEN_AX_WORK_STATUSES.has(w.status) && notMine(w.source)) {
-      out.push({ kind: 'work-item', id: w.id, title: w.title, status: w.status, nodeIds: w.nodeIds ?? [], source: w.source });
-    }
-  }
-  for (const g of state.approvalGates ?? []) {
-    if (g.status === 'pending' && notMine(g.source)) {
-      out.push({ kind: 'approval-gate', id: g.id, title: g.title, status: g.status, nodeIds: g.nodeIds ?? [], source: g.source });
-    }
-  }
-  for (const e of state.elicitations ?? []) {
-    if (e.status === 'pending' && notMine(e.source)) {
-      out.push({ kind: 'elicitation', id: e.id, title: e.prompt, status: e.status, nodeIds: e.nodeIds ?? [], source: e.source });
-    }
-  }
-  for (const m of state.modeRequests ?? []) {
-    if (m.status === 'pending' && notMine(m.source)) {
-      out.push({ kind: 'mode-request', id: m.id, title: m.reason ? `${m.mode}: ${m.reason}` : `mode: ${m.mode}`, status: m.status, nodeIds: m.nodeIds ?? [], source: m.source });
-    }
-  }
-  return out;
 }
 
 function compactNodePayload(node: Awaited<ReturnType<CanvasAccess['getNode']>>): Record<string, unknown> | null {
@@ -1361,7 +1312,7 @@ export async function startMcpServer(): Promise<void> {
       const c = await ensureCanvas();
       const state = await c.getAxState();
       const host = await c.getHostCapability();
-      const context = includeContext === false ? undefined : await c.getAxContext();
+      const context = includeContext === false ? undefined : await c.getAxContext({ consumer: 'mcp' });
       return {
         content: [
           {
@@ -1840,6 +1791,96 @@ export async function startMcpServer(): Promise<void> {
   );
 
   server.tool(
+    'canvas_ingest_activity',
+    'Ingest a normalized agent activity (a tool/session event your harness forwards) so the board reacts automatically — primitive A, makes AX bidirectional. Always records a timeline event; kind-driven default reactions (overridable per call via `reactions`): failure/error → work item (blocked) + review finding + evidence (logs); tool-result + outcome:"success" → evidence (tool-result); everything else (tool-start, session-*, command, note) → event only. Set any reaction to false to suppress it, or to an object to override its fields. Returns { event, workItem, evidence, review }.',
+    {
+      kind: z.enum(['tool-start', 'tool-result', 'failure', 'error', 'session-start', 'session-end', 'command', 'note']),
+      title: z.string(),
+      summary: z.string().optional(),
+      outcome: z.enum(['success', 'failure']).optional(),
+      ref: z.string().optional().describe('A file path, URL, or commit the activity refers to (used as the review file anchor for failures).'),
+      nodeIds: z.array(z.string()).optional(),
+      data: z.record(z.string(), z.unknown()).optional(),
+      reactions: z.object({
+        workItem: z.union([z.literal(false), z.object({
+          status: z.enum(['todo', 'in-progress', 'blocked', 'done', 'cancelled']).optional(),
+          detail: z.string().nullable().optional(),
+        })]).optional(),
+        evidence: z.union([z.literal(false), z.object({
+          kind: z.enum(['logs', 'tool-result', 'screenshot', 'file', 'diff', 'test-output']).optional(),
+          body: z.string().nullable().optional(),
+        })]).optional(),
+        review: z.union([z.literal(false), z.object({
+          severity: z.enum(['info', 'warning', 'error']).optional(),
+          kind: z.enum(['comment', 'finding']).optional(),
+          anchorType: z.enum(['node', 'file', 'region']).optional(),
+          nodeId: z.string().nullable().optional(),
+        })]).optional(),
+      }).optional().describe('Override or suppress the kind-driven default reactions.'),
+      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']).optional(),
+    },
+    async ({ kind, title, summary, outcome, ref, nodeIds, data, reactions, source }) => {
+      const c = await ensureCanvas();
+      const result = await c.ingestActivity(
+        {
+          kind,
+          title,
+          ...(summary !== undefined ? { summary } : {}),
+          ...(outcome !== undefined ? { outcome } : {}),
+          ...(ref !== undefined ? { ref } : {}),
+          ...(nodeIds !== undefined ? { nodeIds } : {}),
+          ...(data !== undefined ? { data } : {}),
+          ...(reactions !== undefined ? { reactions } : {}),
+        },
+        { source: source ?? 'mcp' },
+      );
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, ...result }) }] };
+    },
+  );
+
+  server.tool(
+    'canvas_await_approval',
+    'Block until an approval gate resolves (the human approves/rejects it in the browser) or the timeout elapses — primitive D, gates that actually gate. timeoutMs 0 = read immediately without waiting. Returns { approvalGate, pending } (pending=true → still unresolved after the wait).',
+    {
+      id: z.string(),
+      timeoutMs: z.number().int().min(0).max(120000).optional().describe('Max ms to block (default 30000; 0 = immediate read; capped at 120000).'),
+    },
+    async ({ id, timeoutMs }) => {
+      const c = await ensureCanvas();
+      const result = await c.awaitApproval(id, timeoutMs !== undefined ? { timeoutMs } : {});
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: result.approvalGate !== null, ...result }) }] };
+    },
+  );
+
+  server.tool(
+    'canvas_await_elicitation',
+    'Block until an elicitation is answered (the human responds in the browser) or the timeout elapses — primitive D. timeoutMs 0 = read immediately. Returns { elicitation, pending }.',
+    {
+      id: z.string(),
+      timeoutMs: z.number().int().min(0).max(120000).optional().describe('Max ms to block (default 30000; 0 = immediate read; capped at 120000).'),
+    },
+    async ({ id, timeoutMs }) => {
+      const c = await ensureCanvas();
+      const result = await c.awaitElicitation(id, timeoutMs !== undefined ? { timeoutMs } : {});
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: result.elicitation !== null, ...result }) }] };
+    },
+  );
+
+  server.tool(
+    'canvas_await_mode',
+    'Block until a mode request resolves (approved/rejected in the browser) or the timeout elapses — primitive D. timeoutMs 0 = read immediately. Returns { modeRequest, pending }.',
+    {
+      id: z.string(),
+      timeoutMs: z.number().int().min(0).max(120000).optional().describe('Max ms to block (default 30000; 0 = immediate read; capped at 120000).'),
+    },
+    async ({ id, timeoutMs }) => {
+      const c = await ensureCanvas();
+      const result = await c.awaitMode(id, timeoutMs !== undefined ? { timeoutMs } : {});
+      return { content: [{ type: 'text', text: JSON.stringify({ ok: result.modeRequest !== null, ...result }) }] };
+    },
+  );
+
+  server.tool(
     'canvas_invoke_command',
     'Invoke a registry-gated PMX command intent (pmx.plan | pmx.execute | pmx.promote-context | pmx.summarize | pmx.review). Records a timeline event a host/agent can observe — NOT arbitrary execution; unknown names are rejected.',
     {
@@ -2283,7 +2324,7 @@ export async function startMcpServer(): Promise<void> {
     },
     async () => {
       const c = await ensureCanvas();
-      const context = await c.getAxContext();
+      const context = await c.getAxContext({ consumer: 'mcp' });
       return {
         contents: [
           {
@@ -2394,7 +2435,7 @@ export async function startMcpServer(): Promise<void> {
     'Inject the current PMX Canvas AX context (pins, focus, work items, approvals, review, timeline) so an MCP-aware client can ground its next action without a host-native adapter.',
     async () => {
       const c = await ensureCanvas();
-      const context = await c.getAxContext();
+      const context = await c.getAxContext({ consumer: 'mcp' });
       return {
         messages: [
           {

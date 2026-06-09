@@ -86,9 +86,23 @@ against `canvas_set_ax_focus`.
 Codex agents should treat PMX AX context as host-native working context:
 
 - `canvas://pinned-context` is the explicit human-curated node set.
-- `canvas://ax-context` combines pins, focus, and surface metadata.
+- `canvas://ax-context` combines pins, focus, and surface metadata, plus a compact
+  loop-safe `delivery: { pendingSteering, pendingActivity }` lead block
+  (`GET /api/canvas/ax/context?consumer=codex` filters out Codex-originated items).
 - `canvas_get_ax` returns both persisted AX state and agent-ready context.
 - Focus is a current attention target, not a command to ignore the rest of the repository.
+
+The adapterless MCP+Browser path is poll-based: there is no automatic prompt injection,
+so a board click does not wake the current turn. Codex agents poll
+`canvas_claim_ax_delivery` (steering + `pendingActivity`) and act/ack explicitly. The
+loop-closing surfaces work over MCP today even without a dedicated extension:
+
+- **Self-report work** with `canvas_ingest_activity` (the board auto-reacts: a failed
+  tool → a blocked work item + review + evidence). Automatic forwarding of Codex's own
+  tool hooks would need a Codex adapter; manual ingestion works now.
+- **Block on a decision** with `canvas_await_approval` / `canvas_await_elicitation` /
+  `canvas_await_mode` (they long-poll PMX until the human resolves the gate in the
+  Browser or the timeout elapses) instead of looping on `canvas_get_ax`.
 
 ## Live-Test Checklist
 

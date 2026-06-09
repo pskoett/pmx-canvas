@@ -97,6 +97,66 @@ export function resolveExtAppSandbox(value: unknown): string {
     : DEFAULT_EXT_APP_SANDBOX;
 }
 
+export function buildExtAppAxBridgeScript(axToken: string, nodeId: string): string {
+  return `<script data-pmx-canvas-ax-bridge>
+(function () {
+  const PMX_AX_TOKEN = ${JSON.stringify(axToken)};
+  const PMX_AX_NODE_ID = ${JSON.stringify(nodeId)};
+  window.PMX_AX = window.PMX_AX || {};
+  const pending = new Map();
+  const ackListeners = [];
+  let seq = 0;
+  window.PMX_AX.emit = function (type, payload) {
+    seq += 1;
+    const correlationId = PMX_AX_NODE_ID + '-' + seq + '-' + (Date.now ? Date.now() : 0);
+    return new Promise(function (resolve) {
+      const timer = setTimeout(function () {
+        pending.delete(correlationId);
+        resolve({ ok: false, status: 504, code: 'ax-ack-timeout', error: 'ax-ack-timeout' });
+      }, 10000);
+      pending.set(correlationId, function (result) { clearTimeout(timer); resolve(result); });
+      window.parent.postMessage({
+        source: 'pmx-canvas-ax',
+        token: PMX_AX_TOKEN,
+        nodeId: PMX_AX_NODE_ID,
+        correlationId: correlationId,
+        interaction: { type: String(type), payload: payload && typeof payload === 'object' ? payload : {} },
+      }, '*');
+    });
+  };
+  window.PMX_AX.on = function (eventType, cb) {
+    if (eventType === 'ack' && typeof cb === 'function') ackListeners.push(cb);
+  };
+  window.addEventListener('message', function (event) {
+    const m = event.data;
+    if (!m || m.source !== 'pmx-canvas-ax-ack' || m.token !== PMX_AX_TOKEN) return;
+    const result = m.result || { ok: false };
+    const resolver = m.correlationId ? pending.get(m.correlationId) : undefined;
+    if (resolver) { pending.delete(m.correlationId); resolver(result); }
+    for (let i = 0; i < ackListeners.length; i += 1) {
+      try { ackListeners[i](result, m.interaction || null); } catch (e) {}
+    }
+    try { window.dispatchEvent(new CustomEvent('pmx-ax-ack', { detail: { result: result, interaction: m.interaction || null } })); } catch (e) {}
+  });
+})();
+</script>`;
+}
+
+export function injectExtAppAxBridgeScript(html: string, axBridgeScript: string): string {
+  if (!axBridgeScript) return html;
+  const headMatch = /<head\b[^>]*>/i.exec(html);
+  if (headMatch?.index !== undefined) {
+    const insertAt = headMatch.index + headMatch[0].length;
+    return `${html.slice(0, insertAt)}${axBridgeScript}${html.slice(insertAt)}`;
+  }
+  const bodyMatch = /<body\b[^>]*>/i.exec(html);
+  if (bodyMatch?.index !== undefined) {
+    const insertAt = bodyMatch.index + bodyMatch[0].length;
+    return `${html.slice(0, insertAt)}${axBridgeScript}${html.slice(insertAt)}`;
+  }
+  return `${axBridgeScript}${html}`;
+}
+
 function positiveDimension(value: number, fallback: number): number {
   if (Number.isFinite(value) && value > 0) return Math.round(value);
   if (Number.isFinite(fallback) && fallback > 0) return Math.round(fallback);
@@ -164,31 +224,39 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   const axEnabled = axCaps?.enabled === true && typeof html === 'string' && html.length > 0;
   const axToken = useMemo(() => `ax-${crypto.randomUUID()}`, []);
   const axBridgeScript = axEnabled
-    ? `<script data-pmx-canvas-ax-bridge>window.PMX_AX={emit:function(t,p){window.parent.postMessage({source:'pmx-canvas-ax',token:${JSON.stringify(axToken)},nodeId:${JSON.stringify(nodeId)},interaction:{type:String(t),payload:p&&typeof p==='object'?p:{}}},'*');}};</script>`
+    ? buildExtAppAxBridgeScript(axToken, nodeId)
     : '';
-  const iframeDocument = useIframeDocument((html ?? '') + axBridgeScript, iframeSandbox);
+  const iframeDocument = useIframeDocument(injectExtAppAxBridgeScript(html ?? '', axBridgeScript), iframeSandbox);
 
   useEffect(() => {
     if (!axEnabled) return;
     function onAxMessage(event: MessageEvent) {
       if (event.source !== iframeRef.current?.contentWindow) return;
       const data = event.data as {
-        source?: string; token?: string; nodeId?: string;
+        source?: string; token?: string; nodeId?: string; correlationId?: string;
         interaction?: { type?: unknown; payload?: unknown };
       } | null;
       if (!data || data.source !== 'pmx-canvas-ax' || data.token !== axToken || data.nodeId !== nodeId) return;
       const interaction = data.interaction;
       if (!interaction || typeof interaction.type !== 'string') return;
+      const interactionType = interaction.type;
       void submitAxInteractionFromClient({
-        type: interaction.type,
+        type: interactionType,
         sourceNodeId: nodeId,
         sourceSurface: 'mcp-app',
         ...(interaction.payload && typeof interaction.payload === 'object'
           ? { payload: interaction.payload as Record<string, unknown> }
           : {}),
       }).then((res) => {
-        if (res.ok) showToast('context', 'AX interaction', interaction.type as string, [nodeId]);
+        if (res.ok) showToast('context', 'AX interaction', interactionType, [nodeId]);
         else showToast('remove', 'AX interaction rejected', res.error ?? res.code ?? '', [nodeId]);
+        iframeRef.current?.contentWindow?.postMessage({
+          source: 'pmx-canvas-ax-ack',
+          token: axToken,
+          ...(data.correlationId ? { correlationId: data.correlationId } : {}),
+          interaction: { type: interactionType },
+          result: res,
+        }, '*');
       });
     }
     window.addEventListener('message', onAxMessage);

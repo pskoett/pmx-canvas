@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import {
+  buildExtAppAxBridgeScript,
   getExtAppBridgeInitKey,
+  injectExtAppAxBridgeScript,
   resolveExtAppContainerDimensions,
   resolveExtAppDisplayModeRequest,
   resolveExtAppInlineFrameHeight,
@@ -50,6 +52,28 @@ describe('ExtAppFrame sandbox handling', () => {
 
   test('preserves a non-empty sandbox override for sandbox proxy resources', () => {
     expect(resolveExtAppSandbox(' allow-scripts allow-forms ')).toBe('allow-scripts allow-forms');
+  });
+});
+
+describe('ExtAppFrame AX bridge', () => {
+  test('injects a Promise-returning emit bridge with ack correlation', () => {
+    const script = buildExtAppAxBridgeScript('ax-token', 'node-1');
+
+    expect(script).toContain('window.PMX_AX.emit = function');
+    expect(script).toContain('return new Promise');
+    expect(script).toContain('correlationId');
+    expect(script).toContain("m.source !== 'pmx-canvas-ax-ack'");
+    expect(script).toContain('pmx-ax-ack');
+    expect(script).toContain('ax-ack-timeout');
+  });
+
+  test('places the bridge before authored body content so early clicks can self-confirm', () => {
+    const script = buildExtAppAxBridgeScript('ax-token', 'node-1');
+    const html = '<!doctype html><html><head><title>App</title></head><body><button>emit</button></body></html>';
+    const injected = injectExtAppAxBridgeScript(html, script);
+
+    expect(injected.indexOf('data-pmx-canvas-ax-bridge')).toBeGreaterThan(injected.indexOf('<head>'));
+    expect(injected.indexOf('data-pmx-canvas-ax-bridge')).toBeLessThan(injected.indexOf('<body>'));
   });
 });
 

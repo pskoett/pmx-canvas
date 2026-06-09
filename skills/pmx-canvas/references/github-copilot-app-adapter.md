@@ -48,6 +48,37 @@ panel.
 - Reads `/api/canvas/ax/context` and injects pinned/focused context from
   `onUserPromptSubmitted`.
 - Exposes adapter actions for status, AX context refresh, AX focus, and explicit session steering.
+
+### Agent behavior — steering is gated, not pushed
+
+`onUserPromptSubmitted` injects the whole `/api/canvas/ax/context` (pins, focus, work
+items, approval gates, and `timeline.pendingSteering`) as hidden context — but only
+when the **pin/focus gate is open** (`pinned.count > 0 || focus.nodeIds.length > 0`),
+and it is clipped to a char budget. Three consequences the adapter/agent must honor:
+
+1. A steering board must **stay pinned** (or its button must also emit `ax.focus.set`
+   on the board node) to hold the gate open.
+2. A sandbox button click does **not** wake a turn — a human message does. The click
+   only enqueues the steer.
+3. The agent must **act on injected `pendingSteering` / `pendingActivity` and then ack**
+   (`canvas_mark_ax_delivery`), or it re-injects every gated turn.
+
+To be robust to the char clip, prefer injecting the compact loop-safe lead block from
+`GET /api/canvas/ax/context?consumer=copilot` (`delivery.pendingSteering` +
+`delivery.pendingActivity`) **above** the full dump.
+
+### Closing the loop (optional, recommended)
+
+- **Forward tool/session hooks** (`onPreToolUse` / `onPostToolUse` /
+  `onPostToolUseFailure` / `onSessionStart` / `onSessionEnd` / `onErrorOccurred`) to
+  `POST /api/canvas/ax/activity` (`canvas_ingest_activity`) so the board reflects the
+  agent's real work automatically (a failed tool → a blocked work item + review +
+  evidence).
+- **Await gates** with `canvas_await_approval` / `canvas_await_elicitation` /
+  `canvas_await_mode` (or surface a native modal and await the PMX result) so an
+  approval gate actually blocks the agent until the human resolves it.
+
+See [`docs/ax-host-adapter-contract.md`](../../../docs/ax-host-adapter-contract.md).
 - Keeps all persistent PMX state in `.pmx-canvas/canvas.db`; the extension does not own canvas
   state.
 

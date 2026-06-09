@@ -10,7 +10,7 @@
  * Legacy `.pmx-canvas/state.json` is auto-migrated on first boot.
  */
 import { type PersistedCanvasState, type CanvasTheme, type AxTimelineQuery } from './canvas-db.js';
-import { type PmxAxElicitation, type PmxAxModeRequest, type PmxAxMode, type PmxAxCommandDescriptor, type PmxAxPolicy, type PmxAxFocusState, type PmxAxSource, type PmxAxState, type PmxAxWorkItem, type PmxAxWorkItemStatus, type PmxAxApprovalGate, type PmxAxReviewAnnotation, type PmxAxReviewKind, type PmxAxReviewSeverity, type PmxAxReviewStatus, type PmxAxReviewAnchorType, type PmxAxReviewRegion, type PmxAxEvent, type PmxAxEventKind, type PmxAxEvidence, type PmxAxEvidenceKind, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
+import { type PmxAxActivityKind, type PmxAxElicitation, type PmxAxModeRequest, type PmxAxMode, type PmxAxCommandDescriptor, type PmxAxPolicy, type PmxAxFocusState, type PmxAxSource, type PmxAxState, type PmxAxWorkItem, type PmxAxWorkItemStatus, type PmxAxApprovalGate, type PmxAxReviewAnnotation, type PmxAxReviewKind, type PmxAxReviewSeverity, type PmxAxReviewStatus, type PmxAxReviewAnchorType, type PmxAxReviewRegion, type PmxAxEvent, type PmxAxEventKind, type PmxAxEvidence, type PmxAxEvidenceKind, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
 export declare const PMX_CANVAS_DIR = ".pmx-canvas";
 export interface PersistedBlobRef {
     __pmxCanvasBlob: 'v1';
@@ -146,8 +146,13 @@ declare class CanvasStateManager {
     private _axHostCapability;
     private _workspaceRoot;
     private _changeListeners;
-    /** Register a listener for state changes. Used by MCP server to emit resource notifications. */
-    onChange(cb: (type: CanvasChangeType) => void): void;
+    /**
+     * Register a listener for state changes. Used by MCP server to emit resource
+     * notifications and by the blocking-wait endpoints to await an AX transition.
+     * Returns a disposer that unregisters the listener (callers that don't need it
+     * — e.g. the long-lived MCP subscription — may ignore the return value).
+     */
+    onChange(cb: (type: CanvasChangeType) => void): () => void;
     private notifyChange;
     private _mutationRecorder;
     private _suppressRecordingDepth;
@@ -346,6 +351,9 @@ declare class CanvasStateManager {
         resolution?: string;
         source?: PmxAxSource;
     }): PmxAxModeRequest | null;
+    getApproval(id: string): PmxAxApprovalGate | null;
+    getElicitation(id: string): PmxAxElicitation | null;
+    getModeRequest(id: string): PmxAxModeRequest | null;
     getCommandRegistry(): PmxAxCommandDescriptor[];
     /** Invoke a registry-gated PMX command intent — records a timeline event (no execution). */
     invokeCommand(name: string, args?: Record<string, unknown> | null, options?: {
@@ -385,6 +393,50 @@ declare class CanvasStateManager {
         source?: PmxAxSource;
     }): PmxAxSteeringMessage;
     markSteeringDelivered(id: string): boolean;
+    /**
+     * Ingest a normalized agent activity (a tool/session event a harness forwards)
+     * and apply kind-driven board reactions, so the agent's real work flows back into
+     * the board without it remembering to push each item (report primitive A — makes
+     * AX bidirectional). Always records a timeline event; then, unless the caller
+     * overrides/suppresses via `reactions`, applies defaults by kind/outcome:
+     *   • failure | error | outcome==='failure' → work item (blocked) + review
+     *     (finding/error, anchored to a valid nodeId else the `ref` file) + evidence (logs)
+     *   • tool-result + outcome==='success'      → evidence (tool-result)
+     *   • everything else (tool-start, session-*, command, note) → event only
+     * A reaction value of `false` suppresses it; an object overrides its fields/forces it on.
+     */
+    ingestActivity(input: {
+        kind: PmxAxActivityKind;
+        title: string;
+        summary?: string | null;
+        outcome?: 'success' | 'failure';
+        ref?: string | null;
+        nodeIds?: string[];
+        data?: Record<string, unknown> | null;
+        reactions?: {
+            workItem?: false | {
+                status?: PmxAxWorkItemStatus;
+                detail?: string | null;
+            };
+            evidence?: false | {
+                kind?: PmxAxEvidenceKind;
+                body?: string | null;
+            };
+            review?: false | {
+                severity?: PmxAxReviewSeverity;
+                kind?: PmxAxReviewKind;
+                anchorType?: PmxAxReviewAnchorType;
+                nodeId?: string | null;
+            };
+        };
+    }, options?: {
+        source?: PmxAxSource;
+    }): {
+        event: PmxAxEvent;
+        workItem: PmxAxWorkItem | null;
+        evidence: PmxAxEvidence | null;
+        review: PmxAxReviewAnnotation | null;
+    };
     getAxEvents(q?: AxTimelineQuery): PmxAxEvent[];
     getAxEvidence(q?: AxTimelineQuery): PmxAxEvidence[];
     getAxSteering(q?: AxTimelineQuery & {

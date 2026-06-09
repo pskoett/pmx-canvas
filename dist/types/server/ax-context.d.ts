@@ -23,4 +23,4 @@ export interface PmxAxSurfaceSnapshot {
  */
 export declare function buildCanvasAxSurfaceSnapshot(): PmxAxSurfaceSnapshot;
 export declare function buildCanvasAxPinnedContext(): PmxAxPinnedContext;
-export declare function buildCanvasAxContext(): PmxAxContext;
+export declare function buildCanvasAxContext(consumer?: string): PmxAxContext;

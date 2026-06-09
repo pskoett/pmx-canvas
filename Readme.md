@@ -61,6 +61,10 @@ immediately — an explicit, low-noise control over what the agent sees next.
 On top of pins, a host-agnostic **AX (agent-experience) layer** turns the
 canvas into a shared workspace between you and the agent:
 
+- **Agent-native nodes** — create markdown, status, HTML, json-render, graph,
+  web-artifact, or MCP app nodes that can act as interactive controls for the
+  agent. A node can focus context, create or update work, add evidence, request
+  input or approval, or send steering without leaving the board.
 - **Focus** — promote nodes into the agent's active context without moving the viewport.
 - **Work items & approval gates** — track visible tasks tied to nodes, and gate
   high-impact actions behind a human `pending → approved/rejected` decision.
@@ -75,6 +79,12 @@ canvas into a shared workspace between you and the agent:
   input, propose a plan/execute/autonomous mode transition, invoke registry
   commands (`pmx.plan`, `pmx.review`, …), and read a tool/prompt policy.
 - **Host capability** — adapters report what the host can do, for diagnostics.
+
+Recent additions in this layer: agent-native nodes can now complete the full
+AX loop; agent tool/session activity can flow back into the board as work,
+evidence, and findings; approval, input, and mode gates can wait for a human
+decision instead of polling; and AX-enabled HTML/web-artifact or MCP app
+controls can show an in-surface confirmation after an action is accepted.
 
 Canvas-bound state (focus, work items, approvals, review annotations,
 elicitations, mode requests, policy) rides canvas snapshots and restore; the
@@ -95,7 +105,7 @@ the DB so SQLite WAL data is checkpointed into the file.
 
 ### 06 / Any agent
 
-Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (65 tools,
+Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (69 tools,
 14 resources, change notifications), the [CLI](docs/cli.md), the
 [HTTP API](docs/http-api.md), or the [Bun SDK](docs/sdk.md). Works with
 Claude Code, GitHub Copilot CLI, Codex, Cursor, Windsurf, or any agent
@@ -245,9 +255,11 @@ the agent can read `canvas://skills` and pull in companion skills
   the three-tier visual matrix (json-render → html → web-artifact)
 - **[CLI reference](docs/cli.md)** — full command surface, daemon mode,
   watch streams, WebView automation
-- **[MCP reference](docs/mcp.md)** — 65 tools, 14 resources, change
+- **[MCP reference](docs/mcp.md)** — 69 tools, 14 resources, change
   notifications, node-type routing
 - **[HTTP API](docs/http-api.md)** — REST endpoints, SSE, batch operations
+- **[AX host-adapter contract](docs/ax-host-adapter-contract.md)** — how native
+  host adapters connect context, steering, activity, and human gates
 - **[Bun SDK](docs/sdk.md)** — `createCanvas()` for TypeScript on Bun
 - **[Release process](docs/RELEASE.md)** — maintainer-only
 

@@ -1,6 +1,6 @@
 # MCP reference
 
-PMX Canvas ships an MCP stdio server with **65 tools** + **14 core resources**,
+PMX Canvas ships an MCP stdio server with **69 tools** + **14 core resources**,
 plus per-skill resources at `canvas://skills/<name>`. The server emits
 `notifications/resources/updated` when canvas state changes — humans pin
 nodes in the browser, agents are notified immediately.
@@ -72,6 +72,10 @@ searchable and readable in pinned/spatial context.
 | `canvas_respond_elicitation` | Respond to / resolve a pending elicitation |
 | `canvas_request_mode` | Request a workflow `mode-request` transition (plan/execute/autonomous) |
 | `canvas_resolve_mode` | Resolve a pending mode request |
+| `canvas_ingest_activity` | Ingest a harness-forwarded agent activity (tool/session event); the board auto-reacts with kind-driven, overridable defaults (failure → work item + review + evidence; `tool-result`+success → evidence). Makes AX bidirectional |
+| `canvas_await_approval` | Block until an approval gate resolves (human approves/rejects in the browser) or the timeout elapses (`timeoutMs` 0 = immediate read). Gates that actually gate |
+| `canvas_await_elicitation` | Block until an elicitation is answered or the timeout elapses |
+| `canvas_await_mode` | Block until a mode request resolves or the timeout elapses |
 | `canvas_invoke_command` | Invoke a registry command (`pmx.plan`, `pmx.execute`, `pmx.promote-context`, `pmx.summarize`, `pmx.review`); records a `command` agent-event, unknown names rejected |
 | `canvas_set_ax_policy` | Patch the canvas-bound tool/prompt policy (`tools.allowed\|excluded\|approvalRequired`, `prompt.systemAppend\|mode`); patches merge and are normalized |
 | `canvas_pin_nodes` | Pin nodes to include in agent context |

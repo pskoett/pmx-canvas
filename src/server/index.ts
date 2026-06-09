@@ -3,7 +3,9 @@ import { canvasState, IMAGE_MIME_MAP } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
 import { buildCanvasAxContext } from './ax-context.js';
 import { applyAxInteraction, type AxInteractionInput, type AxInteractionPublicResult } from './ax-interaction.js';
+import { waitForAxResolution } from './ax-wait.js';
 import type {
+  PmxAxActivityKind,
   PmxAxApprovalGate,
   PmxAxCommandDescriptor,
   PmxAxContext,
@@ -512,8 +514,8 @@ export class PmxCanvas extends EventEmitter {
     return canvasState.getAxState();
   }
 
-  getAxContext(): PmxAxContext {
-    return buildCanvasAxContext();
+  getAxContext(options?: { consumer?: string }): PmxAxContext {
+    return buildCanvasAxContext(options?.consumer);
   }
 
   setAxFocus(nodeIds: string[], options?: { source?: PmxAxSource }): PmxAxFocusState {
@@ -708,6 +710,84 @@ export class PmxCanvas extends EventEmitter {
     const modeRequest = canvasState.resolveModeRequest(id, decision, { ...(options ?? {}), source: options?.source ?? 'sdk' });
     if (modeRequest) emitPrimaryWorkbenchEvent('ax-state-changed', { modeRequest });
     return modeRequest;
+  }
+
+  // ── Activity ingestion (primitive A — bidirectional board) ────────
+  ingestActivity(
+    input: {
+      kind: PmxAxActivityKind;
+      title: string;
+      summary?: string | null;
+      outcome?: 'success' | 'failure';
+      ref?: string | null;
+      nodeIds?: string[];
+      data?: Record<string, unknown> | null;
+      reactions?: {
+        workItem?: false | { status?: PmxAxWorkItemStatus; detail?: string | null };
+        evidence?: false | { kind?: PmxAxEvidenceKind; body?: string | null };
+        review?: false | { severity?: PmxAxReviewSeverity; kind?: PmxAxReviewKind; anchorType?: PmxAxReviewAnchorType; nodeId?: string | null };
+      };
+    },
+    options?: { source?: PmxAxSource },
+  ): { event: PmxAxEvent; workItem: PmxAxWorkItem | null; evidence: PmxAxEvidence | null; review: PmxAxReviewAnnotation | null } {
+    const result = canvasState.ingestActivity(input, { source: options?.source ?? 'sdk' });
+    emitPrimaryWorkbenchEvent('ax-event-created', { event: result.event });
+    if (result.workItem) emitPrimaryWorkbenchEvent('ax-state-changed', { workItem: result.workItem });
+    if (result.evidence) emitPrimaryWorkbenchEvent('ax-event-created', { evidence: result.evidence });
+    if (result.review) emitPrimaryWorkbenchEvent('ax-state-changed', { reviewAnnotation: result.review });
+    return result;
+  }
+
+  // ── Single-item readers + blocking waits (primitive D — gates that gate) ──
+  getApproval(id: string): PmxAxApprovalGate | null {
+    return canvasState.getApproval(id);
+  }
+
+  getElicitation(id: string): PmxAxElicitation | null {
+    return canvasState.getElicitation(id);
+  }
+
+  getModeRequest(id: string): PmxAxModeRequest | null {
+    return canvasState.getModeRequest(id);
+  }
+
+  async awaitApproval(
+    id: string,
+    options?: { timeoutMs?: number; signal?: AbortSignal },
+  ): Promise<{ approvalGate: PmxAxApprovalGate | null; pending: boolean }> {
+    const { value, pending } = await waitForAxResolution<PmxAxApprovalGate>({
+      read: () => canvasState.getApproval(id),
+      isResolved: (g) => g.status !== 'pending',
+      timeoutMs: options?.timeoutMs ?? 30000,
+      ...(options?.signal ? { signal: options.signal } : {}),
+    });
+    return { approvalGate: value, pending };
+  }
+
+  async awaitElicitation(
+    id: string,
+    options?: { timeoutMs?: number; signal?: AbortSignal },
+  ): Promise<{ elicitation: PmxAxElicitation | null; pending: boolean }> {
+    const { value, pending } = await waitForAxResolution<PmxAxElicitation>({
+      read: () => canvasState.getElicitation(id),
+      isResolved: (e) => e.status !== 'pending',
+      timeoutMs: options?.timeoutMs ?? 30000,
+      ...(options?.signal ? { signal: options.signal } : {}),
+    });
+    return { elicitation: value, pending };
+  }
+
+  async awaitMode(
+    id: string,
+    options?: { timeoutMs?: number; signal?: AbortSignal },
+  ): Promise<{ modeRequest: PmxAxModeRequest | null; pending: boolean }> {
+    const { value, pending } = await waitForAxResolution<PmxAxModeRequest>({
+      read: () => canvasState.getModeRequest(id),
+      isResolved: (m) => m.status !== 'pending',
+      timeoutMs: options?.timeoutMs ?? 30000,
+      ...(options?.signal ? { signal: options.signal } : {}),
+    });
+    return { modeRequest: value, pending };
   }
 
   getCommandRegistry(): PmxAxCommandDescriptor[] {

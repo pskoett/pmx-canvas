@@ -16,6 +16,8 @@ export declare function resolveExtAppDisplayModeRequest(requestedMode: DisplayMo
 };
 export declare function sendExtAppBootstrapState(bridge: ExtAppBridgeNotifications, toolInput: Record<string, unknown>, toolResult: CallToolResult | undefined): Promise<void>;
 export declare function resolveExtAppSandbox(value: unknown): string;
+export declare function buildExtAppAxBridgeScript(axToken: string, nodeId: string): string;
+export declare function injectExtAppAxBridgeScript(html: string, axBridgeScript: string): string;
 export declare function resolveExtAppContainerDimensions(target: ExtAppHostDimensionsTarget | null | undefined, fallback: {
     width: number;
     height: number;

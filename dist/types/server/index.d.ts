@@ -2,7 +2,7 @@ import { EventEmitter } from 'node:events';
 import { canvasState } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.js';
 import { type AxInteractionInput, type AxInteractionPublicResult } from './ax-interaction.js';
-import type { PmxAxApprovalGate, PmxAxCommandDescriptor, PmxAxContext, PmxAxElicitation, PmxAxEvent, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxMode, PmxAxModeRequest, PmxAxPolicy, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxWorkItem, PmxAxWorkItemStatus } from './ax-state.js';
+import type { PmxAxActivityKind, PmxAxApprovalGate, PmxAxCommandDescriptor, PmxAxContext, PmxAxElicitation, PmxAxEvent, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxMode, PmxAxModeRequest, PmxAxPolicy, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxWorkItem, PmxAxWorkItemStatus } from './ax-state.js';
 import type { AxTimelineQuery } from './canvas-db.js';
 import { searchNodes } from './spatial-analysis.js';
 import { diffLayouts } from './mutation-history.js';
@@ -134,7 +134,9 @@ export declare class PmxCanvas extends EventEmitter {
         panned: boolean;
     } | null;
     getAxState(): PmxAxState;
-    getAxContext(): PmxAxContext;
+    getAxContext(options?: {
+        consumer?: string;
+    }): PmxAxContext;
     setAxFocus(nodeIds: string[], options?: {
         source?: PmxAxSource;
     }): PmxAxFocusState;
@@ -253,6 +255,62 @@ export declare class PmxCanvas extends EventEmitter {
         resolution?: string;
         source?: PmxAxSource;
     }): PmxAxModeRequest | null;
+    ingestActivity(input: {
+        kind: PmxAxActivityKind;
+        title: string;
+        summary?: string | null;
+        outcome?: 'success' | 'failure';
+        ref?: string | null;
+        nodeIds?: string[];
+        data?: Record<string, unknown> | null;
+        reactions?: {
+            workItem?: false | {
+                status?: PmxAxWorkItemStatus;
+                detail?: string | null;
+            };
+            evidence?: false | {
+                kind?: PmxAxEvidenceKind;
+                body?: string | null;
+            };
+            review?: false | {
+                severity?: PmxAxReviewSeverity;
+                kind?: PmxAxReviewKind;
+                anchorType?: PmxAxReviewAnchorType;
+                nodeId?: string | null;
+            };
+        };
+    }, options?: {
+        source?: PmxAxSource;
+    }): {
+        event: PmxAxEvent;
+        workItem: PmxAxWorkItem | null;
+        evidence: PmxAxEvidence | null;
+        review: PmxAxReviewAnnotation | null;
+    };
+    getApproval(id: string): PmxAxApprovalGate | null;
+    getElicitation(id: string): PmxAxElicitation | null;
+    getModeRequest(id: string): PmxAxModeRequest | null;
+    awaitApproval(id: string, options?: {
+        timeoutMs?: number;
+        signal?: AbortSignal;
+    }): Promise<{
+        approvalGate: PmxAxApprovalGate | null;
+        pending: boolean;
+    }>;
+    awaitElicitation(id: string, options?: {
+        timeoutMs?: number;
+        signal?: AbortSignal;
+    }): Promise<{
+        elicitation: PmxAxElicitation | null;
+        pending: boolean;
+    }>;
+    awaitMode(id: string, options?: {
+        timeoutMs?: number;
+        signal?: AbortSignal;
+    }): Promise<{
+        modeRequest: PmxAxModeRequest | null;
+        pending: boolean;
+    }>;
     getCommandRegistry(): PmxAxCommandDescriptor[];
     invokeCommand(name: string, args?: Record<string, unknown> | null, options?: {
         source?: PmxAxSource;

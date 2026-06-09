@@ -40,6 +40,11 @@ type ListModeRequestsResult = ReturnType<PmxCanvas['listModeRequests']>;
 type RequestModeInput = Parameters<PmxCanvas['requestMode']>[0];
 type RequestModeResult = ReturnType<PmxCanvas['requestMode']>;
 type ResolveModeRequestResult = ReturnType<PmxCanvas['resolveModeRequest']>;
+type IngestActivityInput = Parameters<PmxCanvas['ingestActivity']>[0];
+type IngestActivityResult = ReturnType<PmxCanvas['ingestActivity']>;
+type AwaitApprovalResult = Awaited<ReturnType<PmxCanvas['awaitApproval']>>;
+type AwaitElicitationResult = Awaited<ReturnType<PmxCanvas['awaitElicitation']>>;
+type AwaitModeResult = Awaited<ReturnType<PmxCanvas['awaitMode']>>;
 type GetCommandRegistryResult = ReturnType<PmxCanvas['getCommandRegistry']>;
 type InvokeCommandResult = ReturnType<PmxCanvas['invokeCommand']>;
 type GetPolicyResult = ReturnType<PmxCanvas['getPolicy']>;
@@ -115,7 +120,9 @@ export interface CanvasAccess {
     }): Promise<FocusNodeResult>;
     fitView(options?: FitViewOptions): Promise<FitViewResult>;
     getAxState(): Promise<AxStateResult>;
-    getAxContext(): Promise<AxContextResult>;
+    getAxContext(options?: {
+        consumer?: string;
+    }): Promise<AxContextResult>;
     setAxFocus(nodeIds: string[], options?: {
         source?: PmxAxSource;
     }): Promise<SetAxFocusResult>;
@@ -178,6 +185,18 @@ export interface CanvasAccess {
         resolution?: string;
         source?: PmxAxSource;
     }): Promise<ResolveModeRequestResult>;
+    ingestActivity(input: IngestActivityInput, options?: {
+        source?: PmxAxSource;
+    }): Promise<IngestActivityResult>;
+    awaitApproval(id: string, options?: {
+        timeoutMs?: number;
+    }): Promise<AwaitApprovalResult>;
+    awaitElicitation(id: string, options?: {
+        timeoutMs?: number;
+    }): Promise<AwaitElicitationResult>;
+    awaitMode(id: string, options?: {
+        timeoutMs?: number;
+    }): Promise<AwaitModeResult>;
     getCommandRegistry(): Promise<GetCommandRegistryResult>;
     invokeCommand(name: string, args?: Record<string, unknown> | null, options?: {
         source?: PmxAxSource;

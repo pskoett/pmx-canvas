@@ -157,6 +157,22 @@ export interface PmxAxFocusContext extends PmxAxFocusState {
   nodes: AgentContextNode[];
 }
 
+// ── Pending agent-actionable digest (open canvas-bound items) ──────
+export interface PendingAxActivityItem {
+  kind: 'work-item' | 'approval-gate' | 'elicitation' | 'mode-request';
+  id: string;
+  title: string;
+  status: string;
+  nodeIds: string[];
+  source: PmxAxSource | null;
+}
+
+// ── Delivery lead block (compact, un-truncated; for per-turn injection) ──
+export interface PmxAxDeliveryContext {
+  pendingSteering: PmxAxSteeringMessage[];
+  pendingActivity: PendingAxActivityItem[];
+}
+
 export interface PmxAxContext {
   version: 1;
   generatedAt: string;
@@ -164,6 +180,10 @@ export interface PmxAxContext {
     nodeCount: number;
     edgeCount: number;
   };
+  // Compact, loop-safe lead block of what's awaiting the agent right now
+  // (undelivered steering + open work/approvals/elicitations/mode requests).
+  // Sits ABOVE the full dump so a host adapter can inject it un-truncated.
+  delivery: PmxAxDeliveryContext;
   pinned: PmxAxPinnedContext;
   focus: PmxAxFocusContext;
   workItems: PmxAxWorkItem[];
@@ -174,6 +194,44 @@ export interface PmxAxContext {
   policy: PmxAxPolicy;
   timeline: PmxAxTimelineSummary;
   host: PmxAxHostCapability | null;
+}
+
+const OPEN_AX_WORK_STATUSES = new Set<PmxAxWorkItemStatus>(['todo', 'in-progress', 'blocked']);
+
+/**
+ * Open, agent-actionable canvas-bound AX items (open work items + pending approval
+ * gates / elicitations / mode requests). Unlike steering (a directive routed through
+ * the claim/ack delivery queue), these are STATE the human curates in the browser —
+ * they fire `ax-state-changed` (so resource-subscribers are pushed canvas://ax-work),
+ * but an adapterless client that only POLLS the delivery surface never saw them.
+ * Optionally excludes items the consumer itself originated (loop prevention),
+ * mirroring getPendingSteering. Shared by the MCP delivery surface and the HTTP
+ * context lead block so the digest never drifts between the two.
+ */
+export function buildPendingAxActivity(state: PmxAxState, consumer?: string): PendingAxActivityItem[] {
+  const notMine = (source: PmxAxSource | null) => !consumer || source !== consumer;
+  const out: PendingAxActivityItem[] = [];
+  for (const w of state.workItems) {
+    if (OPEN_AX_WORK_STATUSES.has(w.status) && notMine(w.source)) {
+      out.push({ kind: 'work-item', id: w.id, title: w.title, status: w.status, nodeIds: w.nodeIds, source: w.source });
+    }
+  }
+  for (const g of state.approvalGates) {
+    if (g.status === 'pending' && notMine(g.source)) {
+      out.push({ kind: 'approval-gate', id: g.id, title: g.title, status: g.status, nodeIds: g.nodeIds, source: g.source });
+    }
+  }
+  for (const e of state.elicitations) {
+    if (e.status === 'pending' && notMine(e.source)) {
+      out.push({ kind: 'elicitation', id: e.id, title: e.prompt, status: e.status, nodeIds: e.nodeIds, source: e.source });
+    }
+  }
+  for (const m of state.modeRequests) {
+    if (m.status === 'pending' && notMine(m.source)) {
+      out.push({ kind: 'mode-request', id: m.id, title: m.reason ? `${m.mode}: ${m.reason}` : `mode: ${m.mode}`, status: m.status, nodeIds: m.nodeIds, source: m.source });
+    }
+  }
+  return out;
 }
 
 const AX_SOURCES = new Set<PmxAxSource>(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']);
@@ -206,6 +264,33 @@ function normalizeNodeIds(value: unknown, validNodeIds?: Set<string>): string[] 
 }
 
 const AX_EVENT_KINDS = new Set<PmxAxEventKind>(['prompt', 'assistant-message', 'tool-start', 'tool-result', 'failure', 'approval', 'steering', 'command']);
+
+// ── Activity ingestion (harness-forwarded tool/session events) ─────
+// A normalized activity the agent's harness forwards; the board auto-reacts.
+// The precise activity kind is preserved on the recorded event's `data.activityKind`;
+// only the (coarser) timeline event kind is constrained to PmxAxEventKind.
+export type PmxAxActivityKind =
+  | 'tool-start' | 'tool-result' | 'failure' | 'error'
+  | 'session-start' | 'session-end' | 'command' | 'note';
+const AX_ACTIVITY_KINDS = new Set<PmxAxActivityKind>([
+  'tool-start', 'tool-result', 'failure', 'error', 'session-start', 'session-end', 'command', 'note',
+]);
+const ACTIVITY_TO_EVENT_KIND: Record<PmxAxActivityKind, PmxAxEventKind> = {
+  'tool-start': 'tool-start',
+  'tool-result': 'tool-result',
+  'failure': 'failure',
+  'error': 'failure',
+  'session-start': 'assistant-message',
+  'session-end': 'assistant-message',
+  'command': 'command',
+  'note': 'assistant-message',
+};
+export function isAxActivityKind(value: unknown): value is PmxAxActivityKind {
+  return typeof value === 'string' && AX_ACTIVITY_KINDS.has(value as PmxAxActivityKind);
+}
+export function mapAxActivityKindToEventKind(kind: PmxAxActivityKind): PmxAxEventKind {
+  return ACTIVITY_TO_EVENT_KIND[kind];
+}
 
 // ── Command registry (plan-004 Phase 5) ────────────────────────
 // Named, registry-gated PMX intents — NOT arbitrary execution. Invoking a command
@@ -725,6 +810,7 @@ export function normalizeAxState(input: unknown, validNodeIds?: Set<string>): Pm
 
 export function buildAxContext(input: {
   layout: CanvasLayout;
+  delivery: PmxAxDeliveryContext;
   pinned: PmxAxPinnedContext;
   focus: PmxAxFocusState;
   focusNodes: AgentContextNode[];
@@ -744,6 +830,7 @@ export function buildAxContext(input: {
       nodeCount: input.layout.nodes.length,
       edgeCount: input.layout.edges.length,
     },
+    delivery: input.delivery,
     pinned: input.pinned,
     focus: {
       ...input.focus,

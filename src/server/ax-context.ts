@@ -1,6 +1,8 @@
 import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent-context.js';
 import {
   buildAxContext,
+  buildPendingAxActivity,
+  AX_CONTEXT_STEERING_LIMIT,
   type PmxAxContext,
   type PmxAxPinnedContext,
   type PmxAxWorkItem,
@@ -71,7 +73,7 @@ export function buildCanvasAxPinnedContext(): PmxAxPinnedContext {
   };
 }
 
-export function buildCanvasAxContext(): PmxAxContext {
+export function buildCanvasAxContext(consumer?: string): PmxAxContext {
   const layout = canvasState.getLayout();
   const ax = canvasState.getAxState();
   const focusNodes = ax.focus.nodeIds
@@ -79,6 +81,10 @@ export function buildCanvasAxContext(): PmxAxContext {
     .filter((node): node is CanvasNodeState => node !== undefined);
   return buildAxContext({
     layout,
+    delivery: {
+      pendingSteering: canvasState.getPendingSteering({ consumer, limit: AX_CONTEXT_STEERING_LIMIT }),
+      pendingActivity: buildPendingAxActivity(ax, consumer),
+    },
     pinned: buildCanvasAxPinnedContext(),
     focus: ax.focus,
     focusNodes: serializeNodes(focusNodes),

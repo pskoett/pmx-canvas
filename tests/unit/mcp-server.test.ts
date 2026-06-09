@@ -151,6 +151,10 @@ describe('MCP parity with CLI', () => {
       'canvas_add_evidence',
       'canvas_add_review_annotation',
       'canvas_report_host_capability',
+      'canvas_ingest_activity',
+      'canvas_await_approval',
+      'canvas_await_elicitation',
+      'canvas_await_mode',
       'canvas_fit_view',
       'canvas_clear',
       'canvas_search',
@@ -233,6 +237,109 @@ describe('MCP parity with CLI', () => {
       }) as ToolResultShape,
     );
     expect(ownClaim.pendingActivity.find((a) => a.id === work.workItem.id)).toBeUndefined();
+
+    // canvas_get_ax includes full state, but its compact delivery lead block is
+    // filtered for the MCP consumer so an MCP client is not handed back its own work.
+    const ownWork = parseJsonText<{ workItem: { id: string } }>(
+      await session.client.callTool({
+        name: 'canvas_add_work_item',
+        arguments: { title: 'MCP-originated task', status: 'todo' },
+      }) as ToolResultShape,
+    );
+    await session.client.callTool({
+      name: 'canvas_send_steering',
+      arguments: { message: 'MCP-originated steer' },
+    });
+
+    const ax = parseJsonText<{
+      context: {
+        delivery: {
+          pendingActivity: Array<{ id: string; source: string | null }>;
+          pendingSteering: Array<{ message: string; source: string | null }>;
+        };
+      };
+      state: { workItems: Array<{ id: string }> };
+    }>(
+      await session.client.callTool({
+        name: 'canvas_get_ax',
+        arguments: {},
+      }) as ToolResultShape,
+    );
+    expect(ax.state.workItems.find((a) => a.id === ownWork.workItem.id)).toBeDefined();
+    expect(ax.context.delivery.pendingActivity.find((a) => a.id === ownWork.workItem.id)).toBeUndefined();
+    expect(ax.context.delivery.pendingActivity.find((a) => a.id === work.workItem.id)).toBeDefined();
+    expect(ax.context.delivery.pendingSteering.some((s) => s.source === 'mcp')).toBe(false);
+  });
+
+  test('canvas_ingest_activity reacts to a failure; canvas_await_approval reads + blocks (#A/#D)', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await session.transport.close();
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    // Primitive A: a forwarded failure auto-reacts (work item + review + evidence).
+    const ingested = parseJsonText<{
+      ok: boolean;
+      workItem: { status: string } | null;
+      review: { severity: string } | null;
+      evidence: { kind: string } | null;
+    }>(
+      await session.client.callTool({
+        name: 'canvas_ingest_activity',
+        arguments: { kind: 'failure', title: 'build failed', summary: 'tsc error', source: 'copilot' },
+      }) as ToolResultShape,
+    );
+    expect(ingested.workItem?.status).toBe('blocked');
+    expect(ingested.review?.severity).toBe('error');
+    expect(ingested.evidence?.kind).toBe('logs');
+
+    // Primitive D: a pending gate read immediately is still pending.
+    const gate = parseJsonText<{ approvalGate: { id: string } }>(
+      await session.client.callTool({
+        name: 'canvas_request_approval',
+        arguments: { title: 'Deploy', action: 'deploy', source: 'mcp' },
+      }) as ToolResultShape,
+    );
+    const immediate = parseJsonText<{ approvalGate: { status: string } | null; pending: boolean }>(
+      await session.client.callTool({
+        name: 'canvas_await_approval',
+        arguments: { id: gate.approvalGate.id, timeoutMs: 0 },
+      }) as ToolResultShape,
+    );
+    expect(immediate.pending).toBe(true);
+
+    // A short wait on a still-pending gate times out as pending (no resolution arrives).
+    const timedOut = parseJsonText<{ pending: boolean }>(
+      await session.client.callTool({
+        name: 'canvas_await_approval',
+        arguments: { id: gate.approvalGate.id, timeoutMs: 150 },
+      }) as ToolResultShape,
+    );
+    expect(timedOut.pending).toBe(true);
+
+    // After resolving, the await reflects the resolution.
+    await session.client.callTool({
+      name: 'canvas_resolve_approval',
+      arguments: { id: gate.approvalGate.id, decision: 'approved', source: 'mcp' },
+    });
+    const resolved = parseJsonText<{ approvalGate: { status: string } | null; pending: boolean }>(
+      await session.client.callTool({
+        name: 'canvas_await_approval',
+        arguments: { id: gate.approvalGate.id, timeoutMs: 0 },
+      }) as ToolResultShape,
+    );
+    expect(resolved.approvalGate?.status).toBe('approved');
+    expect(resolved.pending).toBe(false);
+
+    // Unknown id → approvalGate null.
+    const missing = parseJsonText<{ approvalGate: unknown; ok: boolean }>(
+      await session.client.callTool({
+        name: 'canvas_await_approval',
+        arguments: { id: 'nope', timeoutMs: 0 },
+      }) as ToolResultShape,
+    );
+    expect(missing.approvalGate).toBeNull();
   });
 
   test('AX timeline and canvas-bound tools round-trip over MCP with the mcp source default', async () => {

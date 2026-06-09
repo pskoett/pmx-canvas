@@ -121,6 +121,9 @@ function buildAxHandlers(): Record<string, (params: Record<string, unknown>) => 
   const token = window.__PMX_CANVAS_AX_TOKEN__;
   const handlers: Record<string, (params: Record<string, unknown>) => void> = {};
   if (!nodeId || !token) return handlers;
+  // Declarative json-render boards are reflect-only: a spec action is fire-and-forget
+  // and confirmation arrives as a live `pmx-ax-update` (the work item appears). There
+  // is no JS surface for a Promise-style ack here, so we don't stamp a correlationId.
   for (const type of AX_INTERACTION_HANDLER_NAMES) {
     handlers[type] = (params: Record<string, unknown>) => {
       window.parent.postMessage({

@@ -135,6 +135,18 @@ export interface PmxAxPinnedContext {
 export interface PmxAxFocusContext extends PmxAxFocusState {
     nodes: AgentContextNode[];
 }
+export interface PendingAxActivityItem {
+    kind: 'work-item' | 'approval-gate' | 'elicitation' | 'mode-request';
+    id: string;
+    title: string;
+    status: string;
+    nodeIds: string[];
+    source: PmxAxSource | null;
+}
+export interface PmxAxDeliveryContext {
+    pendingSteering: PmxAxSteeringMessage[];
+    pendingActivity: PendingAxActivityItem[];
+}
 export interface PmxAxContext {
     version: 1;
     generatedAt: string;
@@ -142,6 +154,7 @@ export interface PmxAxContext {
         nodeCount: number;
         edgeCount: number;
     };
+    delivery: PmxAxDeliveryContext;
     pinned: PmxAxPinnedContext;
     focus: PmxAxFocusContext;
     workItems: PmxAxWorkItem[];
@@ -153,6 +166,20 @@ export interface PmxAxContext {
     timeline: PmxAxTimelineSummary;
     host: PmxAxHostCapability | null;
 }
+/**
+ * Open, agent-actionable canvas-bound AX items (open work items + pending approval
+ * gates / elicitations / mode requests). Unlike steering (a directive routed through
+ * the claim/ack delivery queue), these are STATE the human curates in the browser —
+ * they fire `ax-state-changed` (so resource-subscribers are pushed canvas://ax-work),
+ * but an adapterless client that only POLLS the delivery surface never saw them.
+ * Optionally excludes items the consumer itself originated (loop prevention),
+ * mirroring getPendingSteering. Shared by the MCP delivery surface and the HTTP
+ * context lead block so the digest never drifts between the two.
+ */
+export declare function buildPendingAxActivity(state: PmxAxState, consumer?: string): PendingAxActivityItem[];
+export type PmxAxActivityKind = 'tool-start' | 'tool-result' | 'failure' | 'error' | 'session-start' | 'session-end' | 'command' | 'note';
+export declare function isAxActivityKind(value: unknown): value is PmxAxActivityKind;
+export declare function mapAxActivityKindToEventKind(kind: PmxAxActivityKind): PmxAxEventKind;
 export interface PmxAxCommandDescriptor {
     name: string;
     description: string;
@@ -264,6 +291,7 @@ export declare function createAxSteeringMessage(message: string, source: PmxAxSo
 export declare function normalizeAxState(input: unknown, validNodeIds?: Set<string>): PmxAxState;
 export declare function buildAxContext(input: {
     layout: CanvasLayout;
+    delivery: PmxAxDeliveryContext;
     pinned: PmxAxPinnedContext;
     focus: PmxAxFocusState;
     focusNodes: AgentContextNode[];

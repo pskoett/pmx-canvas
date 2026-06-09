@@ -27,6 +27,13 @@ export declare function normalizeSurfaceTheme(value: string | null | undefined):
  * injected when the node's AX capabilities are enabled (opt-in for `html`), and
  * the server re-validates every interaction — so this is a convenience surface,
  * not a trust boundary.
+ *
+ * `emit` returns a Promise that resolves with the interaction result once the
+ * parent acks it (report #55 — built-in confirmation so a click no longer looks
+ * like "nothing happened"). Authors can also `window.PMX_AX.on('ack', cb)` or
+ * listen for the `pmx-ax-ack` CustomEvent. Resolves with an `ax-ack-timeout`
+ * result after 10s if no ack arrives (e.g. an older parent), so `await emit()`
+ * never hangs.
  */
 export declare function buildAxBridge(axToken: string, nodeId: string): string;
 /**

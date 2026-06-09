@@ -57,22 +57,31 @@ export function HtmlNode({
       // nodeId are a second gate, not the only one.
       if (event.source !== iframeRef.current?.contentWindow) return;
       const data = event.data as {
-        source?: string; token?: string; nodeId?: string;
+        source?: string; token?: string; nodeId?: string; correlationId?: string;
         interaction?: { type?: unknown; payload?: unknown };
       } | null;
       if (!data || data.source !== 'pmx-canvas-ax' || data.token !== axToken || data.nodeId !== node.id) return;
       const interaction = data.interaction;
       if (!interaction || typeof interaction.type !== 'string') return;
+      const interactionType = interaction.type;
       void submitAxInteractionFromClient({
-        type: interaction.type,
+        type: interactionType,
         sourceNodeId: node.id,
         sourceSurface: 'html-node',
         ...(interaction.payload && typeof interaction.payload === 'object'
           ? { payload: interaction.payload as Record<string, unknown> }
           : {}),
       }).then((res) => {
-        if (res.ok) showToast('context', 'AX interaction', interaction.type as string, [node.id]);
+        if (res.ok) showToast('context', 'AX interaction', interactionType, [node.id]);
         else showToast('remove', 'AX interaction rejected', res.error ?? res.code ?? '', [node.id]);
+        // Report #55: ack back to the surface so it can self-confirm (e.g. "queued ✓").
+        iframeRef.current?.contentWindow?.postMessage({
+          source: 'pmx-canvas-ax-ack',
+          token: axToken,
+          ...(data.correlationId ? { correlationId: data.correlationId } : {}),
+          interaction: { type: interactionType },
+          result: res,
+        }, '*');
       });
     }
     window.addEventListener('message', onAxMessage);
