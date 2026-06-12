@@ -29,6 +29,16 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   carry the standard sessionId/timestamp envelope like every other mutation.
   HTTP paths, wire shapes, and MCP tool names are unchanged.
 
+- **Pins, search, history, undo/redo, and snapshots migrated to the operation
+  registry (plan-005 slice 3).** Same unification class as earlier slices:
+  pin updates are now computed server-side authoritatively; undo/redo over
+  local MCP now use the HTTP emit set; restore/delete/diff on a missing
+  snapshot now return the same error on every surface; percent-encoded
+  snapshot ids now work on DELETE. POST `/api/canvas/context-pins` honors an
+  optional `mode` field (`set`/`add`/`remove`, default `set`). Plain-text
+  legacy snapshot error bodies became the standard `{ ok:false, error }`
+  envelope. HTTP paths, wire shapes, and MCP tool names are unchanged.
+
 ### Fixed
 
 - **json-render and graph viewer iframes crashed at mount (blank iframes).**

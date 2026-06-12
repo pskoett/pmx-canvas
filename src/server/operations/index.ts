@@ -7,8 +7,17 @@ import { nodeOperations } from './ops/nodes.js';
 import { edgeOperations } from './ops/edges.js';
 import { viewportOperations } from './ops/viewport.js';
 import { groupOperations } from './ops/groups.js';
+import { queryOperations } from './ops/query.js';
+import { snapshotOperations } from './ops/snapshots.js';
 
-for (const op of [...nodeOperations, ...edgeOperations, ...viewportOperations, ...groupOperations]) {
+for (const op of [
+  ...nodeOperations,
+  ...edgeOperations,
+  ...viewportOperations,
+  ...groupOperations,
+  ...queryOperations,
+  ...snapshotOperations,
+]) {
   registerOperation(op);
 }
 

@@ -6,7 +6,6 @@ import {
   type CanvasEdge,
   type CanvasLayout,
   type CanvasNodeState,
-  type CanvasSnapshot,
   type PmxCanvas,
 } from '../server/index.js';
 import type { PmxAxSource } from '../server/ax-state.js';
@@ -76,18 +75,9 @@ type UpdateReviewAnnotationResult = ReturnType<PmxCanvas['updateReviewAnnotation
 type ListReviewAnnotationsResult = ReturnType<PmxCanvas['listReviewAnnotations']>;
 type GetHostCapabilityResult = ReturnType<PmxCanvas['getHostCapability']>;
 type ReportHostCapabilityResult = ReturnType<PmxCanvas['reportHostCapability']>;
-type SearchResult = ReturnType<PmxCanvas['search']>;
-type UndoRedoResult = Awaited<ReturnType<PmxCanvas['undo']>>;
 type HistoryResult = ReturnType<PmxCanvas['getHistory']>;
-type SetContextPinsResult = ReturnType<PmxCanvas['setContextPins']>;
 type RunBatchInput = Parameters<PmxCanvas['runBatch']>[0];
 type RunBatchResult = Awaited<ReturnType<PmxCanvas['runBatch']>>;
-type SnapshotListOptions = Parameters<PmxCanvas['listSnapshots']>[0];
-type SnapshotList = ReturnType<PmxCanvas['listSnapshots']>;
-type DeleteSnapshotResult = ReturnType<PmxCanvas['deleteSnapshot']>;
-type GcSnapshotsOptions = Parameters<PmxCanvas['gcSnapshots']>[0];
-type GcSnapshotsResult = ReturnType<PmxCanvas['gcSnapshots']>;
-type DiffSnapshotResult = ReturnType<PmxCanvas['diffSnapshot']>;
 type CodeGraphResult = ReturnType<PmxCanvas['getCodeGraph']>;
 type ValidationResult = ReturnType<PmxCanvas['validate']>;
 type WebArtifactInput = Parameters<PmxCanvas['buildWebArtifact']>[0];
@@ -115,14 +105,6 @@ interface JsonRenderNodeResponse extends NodeResponse {
 interface GraphNodeResponse extends NodeResponse {
   url: string;
   spec: AddGraphNodeResult['spec'];
-}
-
-interface SearchResponse {
-  results?: SearchResult;
-}
-
-interface SnapshotSaveResponse {
-  snapshot?: CanvasSnapshot;
 }
 
 interface WebViewEnvelope {
@@ -189,19 +171,9 @@ export interface CanvasAccess {
   invokeCommand(name: string, args?: Record<string, unknown> | null, options?: { source?: PmxAxSource }): Promise<InvokeCommandResult>;
   getPolicy(): Promise<GetPolicyResult>;
   setPolicy(patch: SetPolicyInput, options?: { source?: PmxAxSource }): Promise<SetPolicyResult>;
-  search(query: string): Promise<SearchResult>;
-  undo(): Promise<UndoRedoResult>;
-  redo(): Promise<UndoRedoResult>;
   getHistory(): Promise<HistoryResult>;
-  setContextPins(nodeIds: string[], mode?: 'set' | 'add' | 'remove'): Promise<SetContextPinsResult>;
   getPinnedNodeIds(): Promise<string[]>;
   runBatch(operations: RunBatchInput): Promise<RunBatchResult>;
-  listSnapshots(options?: SnapshotListOptions): Promise<SnapshotList>;
-  saveSnapshot(name: string): Promise<CanvasSnapshot | null>;
-  restoreSnapshot(id: string): Promise<{ ok: boolean }>;
-  deleteSnapshot(id: string): Promise<DeleteSnapshotResult>;
-  gcSnapshots(options?: GcSnapshotsOptions): Promise<GcSnapshotsResult>;
-  diffSnapshot(idOrName: string): Promise<DiffSnapshotResult>;
   getCodeGraph(): Promise<CodeGraphResult>;
   validate(): Promise<ValidationResult>;
   getAutomationWebViewStatus(): Promise<AutomationWebViewStatus>;
@@ -423,24 +395,8 @@ class LocalCanvasAccess implements CanvasAccess {
     return this.canvas.reportHostCapability(input, { source: options?.source ?? 'mcp' });
   }
 
-  async search(query: string): Promise<SearchResult> {
-    return this.canvas.search(query);
-  }
-
-  async undo(): Promise<UndoRedoResult> {
-    return await this.canvas.undo();
-  }
-
-  async redo(): Promise<UndoRedoResult> {
-    return await this.canvas.redo();
-  }
-
   async getHistory(): Promise<HistoryResult> {
     return this.canvas.getHistory();
-  }
-
-  async setContextPins(nodeIds: string[], mode: 'set' | 'add' | 'remove' = 'set'): Promise<SetContextPinsResult> {
-    return this.canvas.setContextPins(nodeIds, mode);
   }
 
   async getPinnedNodeIds(): Promise<string[]> {
@@ -449,30 +405,6 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async runBatch(operations: RunBatchInput): Promise<RunBatchResult> {
     return await this.canvas.runBatch(operations);
-  }
-
-  async listSnapshots(options?: SnapshotListOptions): Promise<SnapshotList> {
-    return this.canvas.listSnapshots(options);
-  }
-
-  async saveSnapshot(name: string): Promise<CanvasSnapshot | null> {
-    return this.canvas.saveSnapshot(name);
-  }
-
-  async restoreSnapshot(id: string): Promise<{ ok: boolean }> {
-    return await this.canvas.restoreSnapshot(id);
-  }
-
-  async deleteSnapshot(id: string): Promise<DeleteSnapshotResult> {
-    return this.canvas.deleteSnapshot(id);
-  }
-
-  async gcSnapshots(options?: GcSnapshotsOptions): Promise<GcSnapshotsResult> {
-    return this.canvas.gcSnapshots(options);
-  }
-
-  async diffSnapshot(idOrName: string): Promise<DiffSnapshotResult> {
-    return this.canvas.diffSnapshot(idOrName);
   }
 
   async getCodeGraph(): Promise<CodeGraphResult> {
@@ -701,19 +633,6 @@ class RemoteCanvasAccess implements CanvasAccess {
   async removeAnnotation(id: string): Promise<boolean> {
     const response = await this.requestJson<{ ok?: boolean }>('DELETE', `/api/canvas/annotation/${encodeURIComponent(id)}`);
     return response.ok === true;
-  }
-
-  async search(query: string): Promise<SearchResult> {
-    const response = await this.requestJson<SearchResponse>('GET', `/api/canvas/search?q=${encodeURIComponent(query)}`);
-    return response.results ?? [];
-  }
-
-  async undo(): Promise<UndoRedoResult> {
-    return await this.requestJson<UndoRedoResult>('POST', '/api/canvas/undo', {});
-  }
-
-  async redo(): Promise<UndoRedoResult> {
-    return await this.requestJson<UndoRedoResult>('POST', '/api/canvas/redo', {});
   }
 
   async getHistory(): Promise<HistoryResult> {
@@ -1027,18 +946,6 @@ class RemoteCanvasAccess implements CanvasAccess {
     return response.host;
   }
 
-  async setContextPins(nodeIds: string[], mode: 'set' | 'add' | 'remove' = 'set'): Promise<SetContextPinsResult> {
-    const existing = mode === 'set' ? [] : await this.getPinnedNodeIds();
-    const requested = new Set(nodeIds);
-    const next = mode === 'set'
-      ? nodeIds
-      : mode === 'add'
-        ? [...new Set([...existing, ...nodeIds])]
-        : existing.filter((id) => !requested.has(id));
-    const response = await this.requestJson<{ count?: number }>('POST', '/api/canvas/context-pins', { nodeIds: next });
-    return { count: response.count ?? next.length, nodeIds: next };
-  }
-
   async getPinnedNodeIds(): Promise<string[]> {
     const response = await this.requestJson<{ nodeIds?: string[] }>('GET', '/api/canvas/pinned-context');
     return Array.isArray(response.nodeIds) ? response.nodeIds : [];
@@ -1046,38 +953,6 @@ class RemoteCanvasAccess implements CanvasAccess {
 
   async runBatch(operations: RunBatchInput): Promise<RunBatchResult> {
     return await this.requestJson<RunBatchResult>('POST', '/api/canvas/batch', { operations });
-  }
-
-  async listSnapshots(options?: SnapshotListOptions): Promise<SnapshotList> {
-    const params = new URLSearchParams();
-    if (typeof options?.limit === 'number') params.set('limit', String(options.limit));
-    if (options?.query) params.set('q', options.query);
-    if (options?.before) params.set('before', options.before);
-    if (options?.after) params.set('after', options.after);
-    if (options?.all) params.set('all', 'true');
-    const query = params.size > 0 ? `?${params.toString()}` : '';
-    return await this.requestJson<SnapshotList>('GET', `/api/canvas/snapshots${query}`);
-  }
-
-  async saveSnapshot(name: string): Promise<CanvasSnapshot | null> {
-    const response = await this.requestJson<SnapshotSaveResponse>('POST', '/api/canvas/snapshots', { name });
-    return response.snapshot ?? null;
-  }
-
-  async restoreSnapshot(id: string): Promise<{ ok: boolean }> {
-    return await this.requestJson<{ ok: boolean }>('POST', `/api/canvas/snapshots/${encodeURIComponent(id)}`, {});
-  }
-
-  async deleteSnapshot(id: string): Promise<DeleteSnapshotResult> {
-    return await this.requestJson<DeleteSnapshotResult>('DELETE', `/api/canvas/snapshots/${encodeURIComponent(id)}`);
-  }
-
-  async gcSnapshots(options?: GcSnapshotsOptions): Promise<GcSnapshotsResult> {
-    return await this.requestJson<GcSnapshotsResult>('POST', '/api/canvas/snapshots/gc', options ?? {});
-  }
-
-  async diffSnapshot(idOrName: string): Promise<DiffSnapshotResult> {
-    return await this.requestJson<DiffSnapshotResult>('GET', `/api/canvas/snapshots/${encodeURIComponent(idOrName)}/diff`);
   }
 
   async getCodeGraph(): Promise<CodeGraphResult> {

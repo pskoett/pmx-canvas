@@ -159,9 +159,9 @@ async function api(
   return json;
 }
 
-// Operation-registry invoker (plan-005): node CRUD, layout reads, and edge
-// commands build their HTTP request from the shared route table instead of
-// hand-written paths.
+// Operation-registry invoker (plan-005): node CRUD, layout reads, edge,
+// pin/search/history/undo/redo, and snapshot commands build their HTTP request
+// from the shared route table instead of hand-written paths.
 // Error handling mirrors api(): operation failures and connection failures
 // die with the same JSON error shape.
 async function invokeOperation(name: string, input: Record<string, unknown>): Promise<unknown> {
@@ -1665,7 +1665,7 @@ cmd('search', 'Search nodes by title or content', [
   const query = positional[0] || (typeof flags.query === 'string' ? flags.query : '');
   if (!query) die('Missing search query', 'pmx-canvas search "query"');
 
-  const result = await api('GET', `/api/canvas/search?q=${encodeURIComponent(query)}`);
+  const result = await invokeOperation('search', { q: query });
   output(result);
 });
 
@@ -1836,14 +1836,14 @@ cmd('pin', 'Manage context pins', [
   }
 
   if (flags.clear) {
-    const result = await api('POST', '/api/canvas/context-pins', { nodeIds: [] });
+    const result = await invokeOperation('pin.set', { nodeIds: [] });
     output(result);
     return;
   }
 
   // --set: positional args are node IDs
   if (positional.length > 0 || flags.set) {
-    const result = await api('POST', '/api/canvas/context-pins', { nodeIds: positional });
+    const result = await invokeOperation('pin.set', { nodeIds: positional });
     output(result);
     return;
   }
@@ -2335,7 +2335,7 @@ cmd('undo', 'Undo the last canvas mutation', [
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('undo');
 
-  const result = await api('POST', '/api/canvas/undo');
+  const result = await invokeOperation('canvas.undo', {});
   output(result);
 });
 
@@ -2346,7 +2346,7 @@ cmd('redo', 'Redo the last undone mutation', [
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('redo');
 
-  const result = await api('POST', '/api/canvas/redo');
+  const result = await invokeOperation('canvas.redo', {});
   output(result);
 });
 
@@ -2359,7 +2359,7 @@ cmd('history', 'Show canvas mutation history', [
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('history');
 
-  const result = await api('GET', '/api/canvas/history') as Record<string, unknown>;
+  const result = await invokeOperation('history.get', {}) as Record<string, unknown>;
   if (flags.summary) {
     output(summarizeHistoryResult(result));
     return;
@@ -2380,7 +2380,7 @@ cmd('snapshot save', 'Save a named snapshot of the current canvas', [
   if (flags.help || flags.h) return showCommandHelp('snapshot save');
 
   const name = requireFlag(flags, 'name', 'pmx-canvas snapshot save --name "my-snapshot"');
-  const result = await api('POST', '/api/canvas/snapshots', { name });
+  const result = await invokeOperation('snapshot.save', { name });
   output(result);
 });
 
@@ -2394,17 +2394,17 @@ cmd('snapshot list', 'List saved snapshots', [
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('snapshot list');
 
-  const params = new URLSearchParams();
   const limit = optionalNumberFlag(flags, 'limit', 'Use a positive integer, e.g. --limit 50');
   const query = getStringFlag(flags, 'query', 'q');
   const before = getStringFlag(flags, 'before');
   const after = getStringFlag(flags, 'after');
-  if (limit !== undefined) params.set('limit', String(limit));
-  if (query) params.set('q', query);
-  if (before) params.set('before', before);
-  if (after) params.set('after', after);
-  if (flags.all) params.set('all', 'true');
-  const result = await api('GET', `/api/canvas/snapshots${params.size > 0 ? `?${params.toString()}` : ''}`);
+  const result = await invokeOperation('snapshot.list', {
+    ...(limit !== undefined ? { limit } : {}),
+    ...(query ? { q: query } : {}),
+    ...(before ? { before } : {}),
+    ...(after ? { after } : {}),
+    ...(flags.all ? { all: true } : {}),
+  });
   output(result);
 });
 
@@ -2421,7 +2421,7 @@ cmd('snapshot gc', 'Delete old snapshots, keeping the newest N', [
   if (!dryRun && !flags.yes) {
     die('Destructive operation requires --yes flag', 'Preview with: pmx-canvas snapshot gc --keep 20 --dry-run');
   }
-  const result = await api('POST', '/api/canvas/snapshots/gc', {
+  const result = await invokeOperation('snapshot.gc', {
     ...(keep !== undefined ? { keep } : {}),
     dryRun,
   });
@@ -2438,7 +2438,7 @@ cmd('snapshot restore', 'Restore canvas from a snapshot', [
   const id = positional[0];
   if (!id) die('Missing snapshot ID or name', 'pmx-canvas snapshot restore <snapshot-id-or-name>');
 
-  const result = await api('POST', `/api/canvas/snapshots/${encodeURIComponent(id)}`);
+  const result = await invokeOperation('snapshot.restore', { id });
   output(result);
 });
 
@@ -2452,7 +2452,7 @@ cmd('snapshot delete', 'Delete a saved snapshot', [
   const id = positional[0];
   if (!id) die('Missing snapshot ID', 'pmx-canvas snapshot delete <snapshot-id>');
 
-  const result = await api('DELETE', `/api/canvas/snapshots/${encodeURIComponent(id)}`);
+  const result = await invokeOperation('snapshot.delete', { id });
   output(result);
 });
 
@@ -2460,7 +2460,7 @@ async function runSnapshotDiff(args: string[]): Promise<void> {
   const { positional, flags } = parseFlags(args);
   const snapshot = positional[0];
   if (!snapshot) die('Missing snapshot ID or name', 'pmx-canvas snapshot diff <snapshot-id-or-name>');
-  const result = await api('GET', `/api/canvas/snapshots/${encodeURIComponent(snapshot)}/diff`);
+  const result = await invokeOperation('snapshot.diff', { id: snapshot });
   output(result);
 }
 

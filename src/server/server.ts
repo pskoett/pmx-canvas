@@ -65,12 +65,8 @@ import {
   type ExternalMcpTransportConfig,
 } from './mcp-app-runtime.js';
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
-import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
-import { diffLayouts, formatDiff, mutationHistory } from './mutation-history.js';
-import {
-  buildCanvasSummary,
-  summarizeCanvasAnnotation,
-} from './canvas-serialization.js';
+import { mutationHistory } from './mutation-history.js';
+import { summarizeCanvasAnnotation } from './canvas-serialization.js';
 import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent-context.js';
 import { buildCanvasAxContext, buildCanvasAxSurfaceSnapshot } from './ax-context.js';
@@ -96,17 +92,11 @@ import {
   createCanvasGraphNode,
   createCanvasJsonRenderNode,
   createCanvasStreamingJsonRenderNode,
-  deleteCanvasSnapshot,
   executeCanvasBatch,
-  gcCanvasSnapshots,
-  listCanvasSnapshots,
   refreshCanvasWebpageNode,
-  restoreCanvasSnapshot,
-  saveCanvasSnapshot,
   primeCanvasRuntimeBackends,
   setCanvasLayoutUpdateEmitter,
   syncCanvasRuntimeBackends,
-  setCanvasContextPins,
 } from './canvas-operations.js';
 import { dispatchOperationRoute, setOperationEventEmitter } from './operations/index.js';
 import {
@@ -1987,13 +1977,6 @@ function responseText(text: string, status = 400): Response {
   });
 }
 
-function parsePositiveIntegerParam(value: string | null): number | undefined {
-  if (!value) return undefined;
-  const parsed = Number(value);
-  if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
-  return Math.floor(parsed);
-}
-
 function handleArtifactView(url: URL): Response {
   const pathLike = url.searchParams.get('path') ?? '';
   const safePath = resolveWorkspaceArtifactPath(pathLike);
@@ -3180,43 +3163,6 @@ async function handleCanvasPrompt(req: Request): Promise<Response> {
   }
 
   return responseJson({ ok: true, nodeId });
-}
-
-async function handleSnapshotSave(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const name = typeof body.name === 'string' ? body.name.trim() : '';
-  if (!name) return responseText('Missing snapshot name', 400);
-  const snapshot = saveCanvasSnapshot(name);
-  if (!snapshot) return responseText('Failed to save snapshot', 500);
-  return responseJson({ ok: true, id: snapshot.id, snapshot });
-}
-
-async function handleSnapshotGc(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const keepValue = body.keep;
-  const keep = typeof keepValue === 'number'
-    ? keepValue
-    : typeof keepValue === 'string'
-      ? Number(keepValue)
-      : undefined;
-  const dryRun = body.dryRun === true || body['dry-run'] === true;
-  return responseJson(gcCanvasSnapshots({ keep, dryRun }));
-}
-
-async function handleContextPinsUpdate(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const MAX_PINS = 20;
-  const nodeIds = Array.isArray(body.nodeIds)
-    ? (body.nodeIds.filter((id: unknown) => typeof id === 'string') as string[]).slice(0, MAX_PINS)
-    : [];
-  const result = setCanvasContextPins(nodeIds, 'set');
-  broadcastWorkbenchEvent('context-pins-changed', {
-    count: result.count,
-    nodeIds: result.nodeIds,
-    sessionId: primaryWorkbenchSessionId,
-    timestamp: new Date().toISOString(),
-  });
-  return responseJson({ ok: true, count: result.count });
 }
 
 function handleGetPinnedContext(): Response {
@@ -4725,10 +4671,6 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             if (operationResponse) return operationResponse;
           }
 
-          if (url.pathname === '/api/canvas/summary' && req.method === 'GET') {
-            return responseJson(buildCanvasSummary());
-          }
-
           if (url.pathname === '/api/canvas/theme' && req.method === 'GET') {
             return responseJson({ ok: true, theme: canvasState.theme });
           }
@@ -4785,62 +4727,6 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname.startsWith('/api/canvas/image/') && req.method === 'GET') {
             return await handleCanvasImage(url.pathname);
-          }
-
-          // Snapshot API
-          if (url.pathname === '/api/canvas/snapshots' && req.method === 'GET') {
-            return responseJson(listCanvasSnapshots({
-              limit: parsePositiveIntegerParam(url.searchParams.get('limit')),
-              query: url.searchParams.get('q') ?? url.searchParams.get('query') ?? undefined,
-              before: url.searchParams.get('before') ?? undefined,
-              after: url.searchParams.get('after') ?? undefined,
-              all: url.searchParams.get('all') === 'true',
-            }));
-          }
-
-          if (url.pathname === '/api/canvas/snapshots' && req.method === 'POST') {
-            return handleSnapshotSave(req);
-          }
-
-          if (url.pathname === '/api/canvas/snapshots/gc' && req.method === 'POST') {
-            return handleSnapshotGc(req);
-          }
-
-          if (url.pathname === '/api/canvas/snapshots/diff' && req.method === 'GET') {
-            const name = url.searchParams.get('name') ?? url.searchParams.get('id') ?? '';
-            if (!name.trim()) return responseJson({ ok: false, error: 'Missing snapshot name or id.' }, 400);
-            const snapshot = canvasState.getSnapshotData(name);
-            if (!snapshot) return responseJson({ ok: false, error: `Snapshot "${name}" not found.` }, 404);
-            const diff = diffLayouts(snapshot.name, snapshot, canvasState.getLayout());
-            return responseJson({ ok: true, text: formatDiff(diff), diff });
-          }
-
-          if (url.pathname.startsWith('/api/canvas/snapshots/') && url.pathname.endsWith('/diff') && req.method === 'GET') {
-            const id = decodeURIComponent(url.pathname.slice('/api/canvas/snapshots/'.length, -'/diff'.length));
-            const snapshot = canvasState.getSnapshotData(id);
-            if (!snapshot) return responseJson({ ok: false, error: `Snapshot "${id}" not found.` }, 404);
-            const diff = diffLayouts(snapshot.name, snapshot, canvasState.getLayout());
-            return responseJson({ ok: true, text: formatDiff(diff), diff });
-          }
-
-          if (url.pathname.startsWith('/api/canvas/snapshots/') && req.method === 'POST') {
-            const id = decodeURIComponent(url.pathname.slice('/api/canvas/snapshots/'.length));
-            const result = await restoreCanvasSnapshot(id);
-            if (!result.ok) return responseText('Snapshot not found', 404);
-            broadcastWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-            return responseJson({ ok: true });
-          }
-
-          if (url.pathname.startsWith('/api/canvas/snapshots/') && req.method === 'DELETE') {
-            const id = url.pathname.split('/').pop() ?? '';
-            const result = deleteCanvasSnapshot(id);
-            if (!result.ok) return responseText('Snapshot not found', 404);
-            return responseJson({ ok: true });
-          }
-
-          // Context pins API
-          if (url.pathname === '/api/canvas/context-pins' && req.method === 'POST') {
-            return handleContextPinsUpdate(req);
           }
 
           if (url.pathname === '/api/canvas/pinned-context' && req.method === 'GET') {
@@ -5016,23 +4902,6 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleAxPolicySet(req);
           }
 
-          // Spatial context API
-          if (url.pathname === '/api/canvas/spatial-context' && req.method === 'GET') {
-            const layout = canvasState.getLayout();
-            const spatial = buildSpatialContext(layout.nodes, layout.edges, canvasState.contextPinnedNodeIds, layout.annotations);
-            return responseJson(spatial);
-          }
-
-          // Search API
-          if (url.pathname === '/api/canvas/search' && req.method === 'GET') {
-            const q = url.searchParams.get('q') ?? '';
-            if (!q.trim()) {
-              return responseJson({ results: [], query: q });
-            }
-            const results = searchNodes(canvasState.getLayout().nodes, q);
-            return responseJson({ results, query: q });
-          }
-
           // Code graph API
           if (url.pathname === '/api/canvas/code-graph' && req.method === 'GET') {
             const summary = buildCodeGraphSummary();
@@ -5053,34 +4922,6 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/prompt' && req.method === 'POST') {
             return handleCanvasPrompt(req);
-          }
-
-          // Undo/Redo/History API
-          if (url.pathname === '/api/canvas/undo' && req.method === 'POST') {
-            const entry = mutationHistory.undo();
-            if (!entry) return responseJson({ ok: false, description: 'Nothing to undo' });
-            await syncCanvasRuntimeBackends();
-            emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
-            emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-            return responseJson({ ok: true, description: `Undid: ${entry.description}` });
-          }
-
-          if (url.pathname === '/api/canvas/redo' && req.method === 'POST') {
-            const entry = mutationHistory.redo();
-            if (!entry) return responseJson({ ok: false, description: 'Nothing to redo' });
-            await syncCanvasRuntimeBackends();
-            emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
-            emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-            return responseJson({ ok: true, description: `Redid: ${entry.description}` });
-          }
-
-          if (url.pathname === '/api/canvas/history' && req.method === 'GET') {
-            return responseJson({
-              text: mutationHistory.toHumanReadable(),
-              entries: mutationHistory.getSummaries(),
-              canUndo: mutationHistory.canUndo(),
-              canRedo: mutationHistory.canRedo(),
-            });
           }
 
           if (url.pathname === '/api/canvas/validate' && req.method === 'GET') {
