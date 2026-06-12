@@ -47,7 +47,7 @@ import type {
   ListResourceTemplatesResult,
   ListToolsResult,
 } from '@modelcontextprotocol/sdk/types.js';
-import { type CanvasAnnotation, type CanvasEdge, type CanvasLayout, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
+import { type CanvasAnnotation, type CanvasLayout, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
 import { buildAxBridge, buildAxStateBridge, buildContentHeightReporter, buildHtmlSurfaceDocument, HTML_SURFACE_SANDBOX, normalizeSurfaceTheme } from './html-surface.js';
 import { findCanvasExtAppNodeId as findCanvasExtAppNodeIdShared } from './ext-app-lookup.js';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
@@ -91,30 +91,22 @@ import type {
 import { normalizeCanvasTheme, type CanvasTheme } from './canvas-db.js';
 import { validateLocalImageFile } from './image-source.js';
 import {
-  addCanvasEdge,
   applyCanvasNodeUpdates,
   appendCanvasJsonRenderStream,
-  arrangeCanvasNodes,
-  clearCanvas,
   createCanvasGraphNode,
-  createCanvasGroup,
   createCanvasJsonRenderNode,
   createCanvasStreamingJsonRenderNode,
   deleteCanvasSnapshot,
   executeCanvasBatch,
-  fitCanvasView,
   gcCanvasSnapshots,
-  groupCanvasNodes,
   listCanvasSnapshots,
   refreshCanvasWebpageNode,
-  removeCanvasEdge,
   restoreCanvasSnapshot,
   saveCanvasSnapshot,
   primeCanvasRuntimeBackends,
   setCanvasLayoutUpdateEmitter,
   syncCanvasRuntimeBackends,
   setCanvasContextPins,
-  ungroupCanvasNodes,
 } from './canvas-operations.js';
 import { dispatchOperationRoute, setOperationEventEmitter } from './operations/index.js';
 import {
@@ -1554,116 +1546,6 @@ async function handleCanvasImage(pathname: string): Promise<Response> {
   });
 }
 
-// ── Group operations ─────────────────────────────────────────
-async function handleCanvasCreateGroup(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const title = typeof body.title === 'string' ? body.title : 'Group';
-  const childIds = Array.isArray(body.childIds) ? body.childIds.filter((id: unknown) => typeof id === 'string') : [];
-  const color = typeof body.color === 'string' ? body.color : undefined;
-  const x = typeof body.x === 'number' ? body.x : undefined;
-  const y = typeof body.y === 'number' ? body.y : undefined;
-  const width = typeof body.width === 'number' ? body.width : undefined;
-  const height = typeof body.height === 'number' ? body.height : undefined;
-  const childLayout =
-    body.childLayout === 'grid' || body.childLayout === 'column' || body.childLayout === 'flow'
-      ? body.childLayout
-      : undefined;
-  if (childIds.length > 0) {
-    const missingChildIds = childIds.filter((id) => !canvasState.getNode(id));
-    if (missingChildIds.length > 0) {
-      return responseJson({
-        ok: false,
-        error: `Cannot create group: missing child node ID${missingChildIds.length === 1 ? '' : 's'}: ${missingChildIds.join(', ')}.`,
-      }, 400);
-    }
-  }
-
-  const { node } = createCanvasGroup({ title, childIds, color, x, y, width, height, ...(childLayout ? { childLayout } : {}) });
-
-  broadcastWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson(buildNodeResponse(node));
-}
-
-async function handleCanvasGroupNodes(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const groupId = body.groupId as string;
-  const childIds = Array.isArray(body.childIds) ? body.childIds.filter((id: unknown) => typeof id === 'string') : [];
-  const childLayout =
-    body.childLayout === 'grid' || body.childLayout === 'column' || body.childLayout === 'flow'
-      ? body.childLayout
-      : undefined;
-  if (!groupId || childIds.length === 0) {
-    return responseJson({ ok: false, error: 'Missing groupId or childIds.' }, 400);
-  }
-  const { ok } = groupCanvasNodes(groupId, childIds, childLayout ? { childLayout } : {});
-  if (!ok) return responseJson({ ok: false, error: 'Group not found or no valid children.' }, 400);
-  broadcastWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson({ ok: true, groupId });
-}
-
-async function handleCanvasUngroupNodes(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const groupId = body.groupId as string;
-  if (!groupId) return responseJson({ ok: false, error: 'Missing groupId.' }, 400);
-  const { ok } = ungroupCanvasNodes(groupId);
-  if (!ok) return responseJson({ ok: false, error: 'Group not found or empty.' }, 400);
-  broadcastWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson({ ok: true, groupId });
-}
-
-const VALID_EDGE_TYPES = new Set(['relation', 'depends-on', 'flow', 'references']);
-const VALID_EDGE_STYLES = new Set(['solid', 'dashed', 'dotted']);
-
-async function handleCanvasAddEdge(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const type = body.type as string;
-  const style = typeof body.style === 'string' ? body.style : undefined;
-
-  if (
-    !type ||
-    (!body.from && !body.fromSearch) ||
-    (!body.to && !body.toSearch)
-  ) {
-    return responseJson({ ok: false, error: 'Missing required fields: type plus from/fromSearch and to/toSearch.' }, 400);
-  }
-  if (!VALID_EDGE_TYPES.has(type)) {
-    return responseJson({ ok: false, error: `Invalid edge type: "${type}".` }, 400);
-  }
-  if (style && !VALID_EDGE_STYLES.has(style)) {
-    return responseJson({ ok: false, error: `Invalid edge style: "${style}". Use solid, dashed, or dotted.` }, 400);
-  }
-  try {
-    const result = addCanvasEdge({
-      ...(typeof body.from === 'string' ? { from: body.from } : {}),
-      ...(typeof body.to === 'string' ? { to: body.to } : {}),
-      ...(typeof body.fromSearch === 'string' ? { fromSearch: body.fromSearch } : {}),
-      ...(typeof body.toSearch === 'string' ? { toSearch: body.toSearch } : {}),
-      type: type as CanvasEdge['type'],
-      ...(body.label ? { label: String(body.label) } : {}),
-      ...(style ? { style: style as CanvasEdge['style'] } : {}),
-      ...(body.animated !== undefined ? { animated: Boolean(body.animated) } : {}),
-    });
-    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    return responseJson({ ok: true, ...result });
-  } catch (error) {
-    return responseJson({ ok: false, error: error instanceof Error ? error.message : 'Duplicate or self-edge.' }, 400);
-  }
-}
-
-async function handleCanvasRemoveEdge(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const edgeId = body.edge_id as string;
-  if (!edgeId) {
-    return responseJson({ ok: false, error: 'Missing edge_id.' }, 400);
-  }
-  const { removed } = removeCanvasEdge(edgeId);
-  if (!removed) {
-    return responseJson({ ok: false, error: `Edge "${edgeId}" not found.` }, 404);
-  }
-  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson({ ok: true, removed: edgeId });
-}
-
 async function handleCanvasRefreshWebpageNode(nodeId: string, req: Request): Promise<Response> {
   const existing = canvasState.getNode(nodeId);
   if (!existing || existing.type !== 'webpage') {
@@ -1684,66 +1566,6 @@ async function handleCanvasRefreshWebpageNode(nodeId: string, req: Request): Pro
   const result = await refreshCanvasWebpageNode(nodeId, { ...(url ? { url } : {}) });
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   return responseJson(result, result.ok ? 200 : 400);
-}
-
-// ── Arrange nodes ───────────────────────────────────────────
-async function handleCanvasArrange(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const layout = typeof body.layout === 'string' ? body.layout : 'grid';
-  if (!['grid', 'column', 'flow'].includes(layout)) {
-    return responseJson({ ok: false, error: `Invalid layout: "${layout}". Use: grid, column, flow` }, 400);
-  }
-  const result = arrangeCanvasNodes(layout as 'grid' | 'column' | 'flow');
-  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  const validation = validateCanvasLayout(canvasState.getLayout());
-  return responseJson({
-    ok: validation.ok,
-    arranged: result.arranged,
-    layout: result.layout,
-    ...(validation.ok ? {} : { validation, collisions: validation.summary.collisions }),
-  });
-}
-
-// ── Focus on node ───────────────────────────────────────────
-async function handleCanvasFocus(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const nodeId = body.id as string;
-  if (!nodeId) return responseJson({ ok: false, error: 'Missing id.' }, 400);
-  const node = canvasState.getNode(nodeId);
-  if (!node) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
-  const noPan = body.noPan === true;
-  if (!noPan) {
-    canvasState.setViewport({ x: node.position.x - 100, y: node.position.y - 100 });
-  } else {
-    const maxZ = canvasState.getLayout().nodes.reduce((max, layoutNode) => Math.max(max, layoutNode.zIndex), 0);
-    canvasState.updateNode(nodeId, { zIndex: maxZ + 1 });
-  }
-  const focus = canvasState.setAxFocus([nodeId], { source: 'api', recordHistory: false });
-  broadcastWorkbenchEvent('ax-state-changed', {
-    focus,
-    sessionId: primaryWorkbenchSessionId,
-    timestamp: new Date().toISOString(),
-  });
-  emitPrimaryWorkbenchEvent('canvas-focus-node', { nodeId, noPan });
-  if (!noPan) emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
-  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson({ ok: true, focused: nodeId, panned: !noPan, axFocus: focus });
-}
-
-async function handleCanvasFit(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const nodeIds = Array.isArray(body.nodeIds)
-    ? body.nodeIds.filter((id): id is string => typeof id === 'string')
-    : undefined;
-  const result = fitCanvasView({
-    ...(typeof body.width === 'number' ? { width: body.width } : {}),
-    ...(typeof body.height === 'number' ? { height: body.height } : {}),
-    ...(typeof body.padding === 'number' ? { padding: body.padding } : {}),
-    ...(typeof body.maxScale === 'number' ? { maxScale: body.maxScale } : {}),
-    ...(nodeIds ? { nodeIds } : {}),
-  });
-  emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: result.viewport });
-  return responseJson(result);
 }
 
 async function handleCanvasBuildWebArtifact(req: Request): Promise<Response> {
@@ -4965,14 +4787,6 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return await handleCanvasImage(url.pathname);
           }
 
-          if (url.pathname === '/api/canvas/edge' && req.method === 'POST') {
-            return handleCanvasAddEdge(req);
-          }
-
-          if (url.pathname === '/api/canvas/edge' && req.method === 'DELETE') {
-            return handleCanvasRemoveEdge(req);
-          }
-
           // Snapshot API
           if (url.pathname === '/api/canvas/snapshots' && req.method === 'GET') {
             return responseJson(listCanvasSnapshots({
@@ -5217,41 +5031,6 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             }
             const results = searchNodes(canvasState.getLayout().nodes, q);
             return responseJson({ results, query: q });
-          }
-
-          // Group API
-          if (url.pathname === '/api/canvas/group' && req.method === 'POST') {
-            return handleCanvasCreateGroup(req);
-          }
-
-          if (url.pathname === '/api/canvas/group/add' && req.method === 'POST') {
-            return handleCanvasGroupNodes(req);
-          }
-
-          if (url.pathname === '/api/canvas/group/ungroup' && req.method === 'POST') {
-            return handleCanvasUngroupNodes(req);
-          }
-
-          // Arrange / Focus / Clear API (for agent CLI)
-          if (url.pathname === '/api/canvas/arrange' && req.method === 'POST') {
-            return handleCanvasArrange(req);
-          }
-
-          if (url.pathname === '/api/canvas/focus' && req.method === 'POST') {
-            return handleCanvasFocus(req);
-          }
-
-          if (url.pathname === '/api/canvas/fit' && req.method === 'POST') {
-            return handleCanvasFit(req);
-          }
-
-          if (url.pathname === '/api/canvas/clear' && req.method === 'POST') {
-            for (const node of canvasState.getLayout().nodes) {
-              closeNodeAppSession(node);
-            }
-            clearCanvas();
-            emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-            return responseJson({ ok: true });
           }
 
           // Code graph API

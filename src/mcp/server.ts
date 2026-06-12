@@ -977,117 +977,6 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
-  // ── canvas_add_edge ────────────────────────────────────────────
-  server.tool(
-    'canvas_add_edge',
-    'Add an edge (connection) between two nodes. Edge types: flow (sequential), depends-on (dependency), relation (general), references (cross-reference).',
-    {
-      from: z.string().optional().describe('Source node ID'),
-      to: z.string().optional().describe('Target node ID'),
-      fromSearch: z.string().optional().describe('Resolve the source node by exact or fuzzy title/content search'),
-      toSearch: z.string().optional().describe('Resolve the target node by exact or fuzzy title/content search'),
-      type: z.enum(['flow', 'depends-on', 'relation', 'references']).describe('Edge type'),
-      label: z.string().optional().describe('Edge label text'),
-      style: z.enum(['solid', 'dashed', 'dotted']).optional().describe('Optional edge stroke style'),
-      animated: z.boolean().optional().describe('Animate the edge stroke'),
-    },
-    async (input) => {
-      const c = await ensureCanvas();
-      if (!input.from && !input.fromSearch) {
-        return {
-          content: [{ type: 'text', text: 'Provide either "from" or "fromSearch".' }],
-          isError: true,
-        };
-      }
-      if (!input.to && !input.toSearch) {
-        return {
-          content: [{ type: 'text', text: 'Provide either "to" or "toSearch".' }],
-          isError: true,
-        };
-      }
-      try {
-        const id = await c.addEdge(input);
-        const edge = (await c.getLayout()).edges.find((entry) => entry.id === id);
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify(edge ? { id, from: edge.from, to: edge.to, type: edge.type, label: edge.label, style: edge.style, animated: edge.animated } : { id }, null, 2),
-          }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
-          isError: true,
-        };
-      }
-    },
-  );
-
-  // ── canvas_remove_edge ─────────────────────────────────────────
-  server.tool(
-    'canvas_remove_edge',
-    'Remove an edge from the canvas.',
-    { id: z.string().describe('Edge ID to remove') },
-    async ({ id }) => {
-      const c = await ensureCanvas();
-      await c.removeEdge(id);
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, removed: id }) }],
-      };
-    },
-  );
-
-  // ── canvas_arrange ─────────────────────────────────────────────
-  server.tool(
-    'canvas_arrange',
-    'Auto-arrange all nodes on the canvas. Layouts: grid (default), column (vertical stack), flow (horizontal row).',
-    {
-      layout: z.enum(['grid', 'column', 'flow']).optional().describe('Arrangement layout (default: grid)'),
-    },
-    async ({ layout }) => {
-      const c = await ensureCanvas();
-      await c.arrange(layout ?? 'grid');
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, layout: layout ?? 'grid' }) }],
-      };
-    },
-  );
-
-  // ── canvas_focus_node ──────────────────────────────────────────
-  server.tool(
-    'canvas_focus_node',
-    'Bring a node into focus. By default the viewport pans so the node is centered. Pass noPan=true to raise/select the node without moving the human\'s camera (useful when reacting to background events without disrupting the human\'s current view).',
-    {
-      id: z.string().describe('Node ID to focus on'),
-      noPan: z
-        .boolean()
-        .optional()
-        .describe('If true, raise/select the node without panning the viewport. Default false.'),
-    },
-    async ({ id, noPan }) => {
-      const c = await ensureCanvas();
-      const result = await c.focusNode(id, { ...(noPan === true ? { noPan: true } : {}) });
-      if (!result) {
-        return {
-          content: [
-            {
-              type: 'text',
-              text: JSON.stringify({ ok: false, error: `Node "${id}" not found.` }),
-            },
-          ],
-        };
-      }
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({ ok: true, focused: result.focused, panned: result.panned }),
-          },
-        ],
-      };
-    },
-  );
-
   // ── AX context and focus ───────────────────────────────────────
   server.tool(
     'canvas_get_ax',
@@ -1698,45 +1587,6 @@ export async function startMcpServer(): Promise<void> {
       const c = await ensureCanvas();
       const policy = await c.setPolicy({ ...(tools ? { tools } : {}), ...(prompt ? { prompt } : {}) }, { source: source ?? 'mcp' });
       return { content: [{ type: 'text', text: JSON.stringify({ ok: true, policy }) }] };
-    },
-  );
-
-  server.tool(
-    'canvas_fit_view',
-    'Fit the canvas viewport to all nodes or a selected subset. Useful before screenshots and whole-board review.',
-    {
-      width: z.number().optional().describe('Viewport width used for fit math (default 1440)'),
-      height: z.number().optional().describe('Viewport height used for fit math (default 900)'),
-      padding: z.number().optional().describe('World-space padding around fitted nodes (default 60)'),
-      maxScale: z.number().optional().describe('Maximum zoom scale (default 1)'),
-      nodeIds: z.array(z.string()).optional().describe('Optional node IDs to fit instead of the whole canvas'),
-    },
-    async (input) => {
-      const c = await ensureCanvas();
-      const result = await c.fitView({
-        ...(typeof input.width === 'number' ? { width: input.width } : {}),
-        ...(typeof input.height === 'number' ? { height: input.height } : {}),
-        ...(typeof input.padding === 'number' ? { padding: input.padding } : {}),
-        ...(typeof input.maxScale === 'number' ? { maxScale: input.maxScale } : {}),
-        ...(Array.isArray(input.nodeIds) ? { nodeIds: input.nodeIds } : {}),
-      });
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-      };
-    },
-  );
-
-  // ── canvas_clear ───────────────────────────────────────────────
-  server.tool(
-    'canvas_clear',
-    'Remove all nodes and edges from the canvas. Use with caution.',
-    {},
-    async () => {
-      const c = await ensureCanvas();
-      await c.clear();
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, cleared: true }) }],
-      };
     },
   );
 
@@ -2421,50 +2271,6 @@ export async function startMcpServer(): Promise<void> {
     );
   }
 
-  // ── canvas_create_group ──────────────────────────────────────
-  server.tool(
-    'canvas_create_group',
-    'Create a group (frame) on the canvas that visually contains other nodes. Groups are spatial containers — they communicate "these nodes belong together." If childIds are provided, grouping preserves child positions by default; pass childLayout to auto-pack them. You can also provide an explicit frame (x/y/width/height) and auto-arrange children inside it.',
-    {
-      title: z.string().optional().describe('Group title (default: "Group")'),
-      childIds: z.array(z.string()).optional().describe('Node IDs to include in the group. Group auto-sizes to fit them.'),
-      color: z.string().optional().describe('Group accent color (CSS color string, e.g. "#4a9eff")'),
-      x: z.number().optional().describe('X position (auto-computed from children if omitted)'),
-      y: z.number().optional().describe('Y position (auto-computed from children if omitted)'),
-      width: z.number().optional().describe('Width (auto-computed from children if omitted)'),
-      height: z.number().optional().describe('Height (auto-computed from children if omitted)'),
-      childLayout: z.enum(['grid', 'column', 'flow']).optional().describe('Optional child auto-layout. Omit to preserve current child positions.'),
-      full: z.boolean().optional().describe('Return the full created group payload. Default false returns compact metadata.'),
-      verbose: z.boolean().optional().describe('Alias for full:true.'),
-    },
-    async (input) => {
-      const c = await ensureCanvas();
-      const id = await c.createGroup(input);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(await createdNodePayload(c, id, input), null, 2) }],
-      };
-    },
-  );
-
-  // ── canvas_group_nodes ──────────────────────────────────────
-  server.tool(
-    'canvas_group_nodes',
-    'Add nodes to an existing group. The nodes will be visually contained within the group frame.',
-    {
-      groupId: z.string().describe('The group node ID'),
-      childIds: z.array(z.string()).describe('Node IDs to add to the group'),
-      childLayout: z.enum(['grid', 'column', 'flow']).optional().describe('Optional child layout to apply while grouping'),
-    },
-    async ({ groupId, childIds, childLayout }) => {
-      const c = await ensureCanvas();
-      const ok = await c.groupNodes(groupId, childIds, childLayout ? { childLayout } : undefined);
-      if (!ok) {
-        return { content: [{ type: 'text', text: 'Group not found or no valid children.' }], isError: true };
-      }
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, groupId }) }] };
-    },
-  );
-
   server.tool(
     'canvas_batch',
     'Run a non-atomic batch of canvas operations with optional assigned references. Use assign to name a result, then reference it later as "$name" for the created node id or "$name.id" for a specific result field. On failure, earlier successful operations remain applied and the response includes ok:false, failedIndex, error, results, and refs. Supports node.add, node.update, node.remove, graph.add, edge.add, group.create, group.add, group.remove, pin.set/add/remove, snapshot.save, and arrange.',
@@ -2497,23 +2303,6 @@ export async function startMcpServer(): Promise<void> {
       return {
         content: [{ type: 'text', text: JSON.stringify(await c.validate(), null, 2) }],
       };
-    },
-  );
-
-  // ── canvas_ungroup ──────────────────────────────────────────
-  server.tool(
-    'canvas_ungroup',
-    'Remove all children from a group, releasing them as independent nodes. The group node itself remains (delete it separately with canvas_remove_node if desired).',
-    {
-      groupId: z.string().describe('The group node ID to ungroup'),
-    },
-    async ({ groupId }) => {
-      const c = await ensureCanvas();
-      const ok = await c.ungroupNodes(groupId);
-      if (!ok) {
-        return { content: [{ type: 'text', text: 'Group not found or already empty.' }], isError: true };
-      }
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, groupId }) }] };
     },
   );
 

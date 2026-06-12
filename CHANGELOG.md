@@ -19,6 +19,16 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   `axCapabilities`, group `children`), erasing long-standing cross-surface
   drift. Wire shapes and MCP tool names are unchanged.
 
+- **Edges, arrange/focus/fit/clear, and groups migrated to the operation
+  registry (plan-005 slice 2).** Same unification class as slice 1:
+  `canvas_remove_edge` over local MCP access now errors on a missing edge
+  (remote already did); `canvas_create_group` over local access now rejects
+  missing child ids (HTTP already did); `canvas_focus_node` on a missing node
+  now returns a proper MCP error result; `canvas_ungroup` failure text is now
+  the HTTP message `Group not found or empty.`. Group and focus SSE frames now
+  carry the standard sessionId/timestamp envelope like every other mutation.
+  HTTP paths, wire shapes, and MCP tool names are unchanged.
+
 ## [0.1.36] - 2026-06-09
 
 ### Added

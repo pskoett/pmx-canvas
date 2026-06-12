@@ -159,8 +159,9 @@ async function api(
   return json;
 }
 
-// Operation-registry invoker (plan-005): node CRUD + layout reads build their
-// HTTP request from the shared route table instead of hand-written paths.
+// Operation-registry invoker (plan-005): node CRUD, layout reads, and edge
+// commands build their HTTP request from the shared route table instead of
+// hand-written paths.
 // Error handling mirrors api(): operation failures and connection failures
 // die with the same JSON error shape.
 async function invokeOperation(name: string, input: Record<string, unknown>): Promise<unknown> {
@@ -1624,7 +1625,7 @@ cmd('edge add', 'Add an edge between two nodes', [
   if (typeof flags.style === 'string') body.style = flags.style;
   if (flags.animated) body.animated = true;
 
-  const result = await api('POST', '/api/canvas/edge', body);
+  const result = await invokeOperation('edge.add', body);
   output(result);
 });
 
@@ -1649,7 +1650,7 @@ cmd('edge remove', 'Remove an edge by ID', [
   const id = positional[0];
   if (!id) die('Missing edge ID', 'pmx-canvas edge remove <edge-id>');
 
-  const result = await api('DELETE', '/api/canvas/edge', { edge_id: id });
+  const result = await invokeOperation('edge.remove', { edge_id: id });
   output(result);
 });
 

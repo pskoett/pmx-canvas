@@ -4,8 +4,11 @@
  */
 import { registerOperation } from './registry.js';
 import { nodeOperations } from './ops/nodes.js';
+import { edgeOperations } from './ops/edges.js';
+import { viewportOperations } from './ops/viewport.js';
+import { groupOperations } from './ops/groups.js';
 
-for (const op of nodeOperations) {
+for (const op of [...nodeOperations, ...edgeOperations, ...viewportOperations, ...groupOperations]) {
   registerOperation(op);
 }
 

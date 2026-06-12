@@ -29,13 +29,6 @@ type AddHtmlPrimitiveInput = Parameters<PmxCanvas['addHtmlPrimitive']>[0];
 type AddHtmlPrimitiveResult = ReturnType<PmxCanvas['addHtmlPrimitive']>;
 type AddGraphNodeInput = Parameters<PmxCanvas['addGraphNode']>[0];
 type AddGraphNodeResult = ReturnType<PmxCanvas['addGraphNode']>;
-type AddEdgeInput = Parameters<PmxCanvas['addEdge']>[0];
-type CreateGroupInput = Parameters<PmxCanvas['createGroup']>[0];
-type GroupNodesOptions = Parameters<PmxCanvas['groupNodes']>[2];
-type ArrangeLayout = Parameters<PmxCanvas['arrange']>[0];
-type FocusNodeResult = ReturnType<PmxCanvas['focusNode']>;
-type FitViewOptions = Parameters<PmxCanvas['fitView']>[0];
-type FitViewResult = ReturnType<PmxCanvas['fitView']>;
 type AxStateResult = ReturnType<PmxCanvas['getAxState']>;
 type AxContextResult = ReturnType<PmxCanvas['getAxContext']>;
 type SetAxFocusResult = ReturnType<PmxCanvas['setAxFocus']>;
@@ -161,14 +154,6 @@ export interface CanvasAccess {
   addGraphNode(input: AddGraphNodeInput): Promise<AddGraphNodeResult>;
   buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult>;
   removeAnnotation(id: string): Promise<boolean>;
-  addEdge(input: AddEdgeInput): Promise<string>;
-  removeEdge(id: string): Promise<void>;
-  createGroup(input: CreateGroupInput): Promise<string>;
-  groupNodes(groupId: string, childIds: string[], options?: GroupNodesOptions): Promise<boolean>;
-  ungroupNodes(groupId: string): Promise<boolean>;
-  arrange(layout?: ArrangeLayout): Promise<void>;
-  focusNode(id: string, options?: { noPan?: boolean }): Promise<FocusNodeResult>;
-  fitView(options?: FitViewOptions): Promise<FitViewResult>;
   getAxState(): Promise<AxStateResult>;
   getAxContext(options?: { consumer?: string }): Promise<AxContextResult>;
   setAxFocus(nodeIds: string[], options?: { source?: PmxAxSource }): Promise<SetAxFocusResult>;
@@ -204,7 +189,6 @@ export interface CanvasAccess {
   invokeCommand(name: string, args?: Record<string, unknown> | null, options?: { source?: PmxAxSource }): Promise<InvokeCommandResult>;
   getPolicy(): Promise<GetPolicyResult>;
   setPolicy(patch: SetPolicyInput, options?: { source?: PmxAxSource }): Promise<SetPolicyResult>;
-  clear(): Promise<void>;
   search(query: string): Promise<SearchResult>;
   undo(): Promise<UndoRedoResult>;
   redo(): Promise<UndoRedoResult>;
@@ -294,38 +278,6 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async removeAnnotation(id: string): Promise<boolean> {
     return this.canvas.removeAnnotation(id);
-  }
-
-  async addEdge(input: AddEdgeInput): Promise<string> {
-    return this.canvas.addEdge(input);
-  }
-
-  async removeEdge(id: string): Promise<void> {
-    this.canvas.removeEdge(id);
-  }
-
-  async createGroup(input: CreateGroupInput): Promise<string> {
-    return this.canvas.createGroup(input);
-  }
-
-  async groupNodes(groupId: string, childIds: string[], options?: GroupNodesOptions): Promise<boolean> {
-    return this.canvas.groupNodes(groupId, childIds, options);
-  }
-
-  async ungroupNodes(groupId: string): Promise<boolean> {
-    return this.canvas.ungroupNodes(groupId);
-  }
-
-  async arrange(layout?: ArrangeLayout): Promise<void> {
-    this.canvas.arrange(layout);
-  }
-
-  async focusNode(id: string, options?: { noPan?: boolean }): Promise<FocusNodeResult> {
-    return this.canvas.focusNode(id, options);
-  }
-
-  async fitView(options?: FitViewOptions): Promise<FitViewResult> {
-    return this.canvas.fitView(options);
   }
 
   async getAxState(): Promise<AxStateResult> {
@@ -469,10 +421,6 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async reportHostCapability(input: unknown, options?: { source?: PmxAxSource }): Promise<ReportHostCapabilityResult> {
     return this.canvas.reportHostCapability(input, { source: options?.source ?? 'mcp' });
-  }
-
-  async clear(): Promise<void> {
-    this.canvas.clear();
   }
 
   async search(query: string): Promise<SearchResult> {
@@ -753,58 +701,6 @@ class RemoteCanvasAccess implements CanvasAccess {
   async removeAnnotation(id: string): Promise<boolean> {
     const response = await this.requestJson<{ ok?: boolean }>('DELETE', `/api/canvas/annotation/${encodeURIComponent(id)}`);
     return response.ok === true;
-  }
-
-  async addEdge(input: AddEdgeInput): Promise<string> {
-    const response = await this.requestJson<{ id?: string }>('POST', '/api/canvas/edge', input);
-    if (!response.id) throw new Error('Canvas edge response did not include an edge id.');
-    return response.id;
-  }
-
-  async removeEdge(id: string): Promise<void> {
-    await this.requestJson<unknown>('DELETE', '/api/canvas/edge', { edge_id: id });
-  }
-
-  async createGroup(input: CreateGroupInput): Promise<string> {
-    return await this.requestNodeId('POST', '/api/canvas/group', input);
-  }
-
-  async groupNodes(groupId: string, childIds: string[], options?: GroupNodesOptions): Promise<boolean> {
-    const response = await this.requestJson<{ ok?: boolean }>('POST', '/api/canvas/group/add', {
-      groupId,
-      childIds,
-      ...(options?.childLayout ? { childLayout: options.childLayout } : {}),
-    });
-    return response.ok === true;
-  }
-
-  async ungroupNodes(groupId: string): Promise<boolean> {
-    const response = await this.requestJson<{ ok?: boolean }>('POST', '/api/canvas/group/ungroup', { groupId });
-    return response.ok === true;
-  }
-
-  async arrange(layout?: ArrangeLayout): Promise<void> {
-    await this.requestJson<unknown>('POST', '/api/canvas/arrange', { ...(layout ? { layout } : {}) });
-  }
-
-  async focusNode(id: string, options?: { noPan?: boolean }): Promise<FocusNodeResult> {
-    const response = await fetch(`${this.remoteBaseUrl}/api/canvas/focus`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id, ...(options?.noPan === true ? { noPan: true } : {}) }),
-    });
-    if (response.status === 404) return null;
-    const parsed = await response.json() as { focused?: string; panned?: boolean };
-    if (!response.ok || typeof parsed.focused !== 'string' || typeof parsed.panned !== 'boolean') return null;
-    return { focused: parsed.focused, panned: parsed.panned };
-  }
-
-  async fitView(options?: FitViewOptions): Promise<FitViewResult> {
-    return await this.requestJson<FitViewResult>('POST', '/api/canvas/fit', options ?? {});
-  }
-
-  async clear(): Promise<void> {
-    await this.requestJson<unknown>('POST', '/api/canvas/clear', {});
   }
 
   async search(query: string): Promise<SearchResult> {
