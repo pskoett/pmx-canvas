@@ -580,7 +580,7 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
 
   // ── Pinned asymmetries (current legacy behavior — change deliberately) ────
 
-  test('ASYMMETRY: removing a missing node — HTTP 404s, daemon-backed MCP errors, local MCP silently succeeds', async () => {
+  test('removing a missing node errors on every surface (HTTP 404, daemon MCP, local MCP)', async () => {
     // HTTP: DELETE on a missing id is a hard 404 with { ok: false, error }.
     const httpResponse = await fetch(`${baseUrl}/api/canvas/node/node-that-never-existed`, { method: 'DELETE' });
     expect(httpResponse.status).toBe(404);
@@ -594,11 +594,10 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     expect(remoteResult.isError).toBe(true);
     expect(textOf(remoteResult)).toContain('not found');
 
-    // MCP via local access (no daemon): PmxCanvas.removeNode returns void and
-    // swallows the miss, so the tool reports { ok: true, removed: id } even
-    // though nothing existed. This is the CURRENT legacy behavior — the
-    // operation-registry refactor may want to unify it with the 404 path,
-    // but doing so is an observable behavior change for local MCP clients.
+    // MCP via local access (no daemon): plan-005 slice 1 deliberately unified
+    // the old silent local success with the 404 path — node.remove on a
+    // missing id now errors on ALL surfaces (see docs/plans/plan-005 and the
+    // CHANGELOG note).
     const localWorkspace = createTestWorkspace('pmx-canvas-op-parity-local-mcp-');
     const localPort = await getAvailablePort();
     const localEnv: Record<string, string> = {};
@@ -623,11 +622,8 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
         name: 'canvas_remove_node',
         arguments: { id: 'node-that-never-existed' },
       }) as ToolResultShape;
-      expect(localResult.isError).not.toBe(true);
-      expect(parseJsonText<{ ok: boolean; removed: string }>(localResult)).toEqual({
-        ok: true,
-        removed: 'node-that-never-existed',
-      });
+      expect(localResult.isError).toBe(true);
+      expect(textOf(localResult)).toContain('not found');
     } finally {
       await localTransport.close();
       rmSync(localWorkspace, { recursive: true, force: true });

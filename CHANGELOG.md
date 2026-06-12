@@ -5,6 +5,20 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Removing a missing node now errors on every surface (plan-005 slice 1).**
+  Node CRUD + layout reads (`node.add` / `node.get` / `node.update` /
+  `node.remove` / `layout.get`) are defined once in a new operation registry
+  (`src/server/operations/`) shared by HTTP, MCP, CLI, and the SDK. As part of
+  the unification, `canvas_remove_node` over local (in-process) MCP access and
+  `PmxCanvas.removeNode` no longer silently succeed on an unknown node id —
+  they now report the same `Node "<id>" not found.` error the HTTP DELETE
+  already returned (404). The SDK's `updateNode` also gained the HTTP superset
+  patch semantics (webpage `titleSource`/`url`, html top-level `html` /
+  `axCapabilities`, group `children`), erasing long-standing cross-surface
+  drift. Wire shapes and MCP tool names are unchanged.
+
 ## [0.1.36] - 2026-06-09
 
 ### Added

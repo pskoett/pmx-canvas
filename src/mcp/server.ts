@@ -29,6 +29,7 @@ import { AX_INTERACTION_TYPES } from '../server/ax-interaction.js';
 import { buildPendingAxActivity } from '../server/ax-state.js';
 import { isHtmlPrimitiveKind } from '../server/html-primitives.js';
 import type { HtmlPrimitiveKind } from '../server/html-primitives.js';
+import { registerOperationTools } from '../server/operations/index.js';
 import { createCanvasAccess, refreshCanvasAccess, type CanvasAccess } from './canvas-access.js';
 import { serializeNodeForAgentContext } from '../server/agent-context.js';
 import { wrapCanvasAutomationScript } from '../server/server.js';
@@ -321,113 +322,12 @@ export async function startMcpServer(): Promise<void> {
   });
   resourceNotificationServer = server;
 
-  // ── canvas_get_layout ──────────────────────────────────────────
-  server.tool(
-    'canvas_get_layout',
-    'Get the canvas layout. Defaults to a compact agent-safe projection; pass full:true for full node data.',
-    {
-      full: z.boolean().optional().describe('Return the full layout including node data. Default false keeps responses compact.'),
-      verbose: z.boolean().optional().describe('Alias for full:true.'),
-    },
-    async (input) => {
-      const c = await ensureCanvas();
-      const layout = await c.getLayout();
-      const payload = wantsFullPayload(input)
-        ? agentSafeFullLayoutPayload(layout)
-        : compactLayoutPayload(layout, await c.getPinnedNodeIds());
-      return {
-        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-      };
-    },
-  );
-
-  // ── canvas_get_node ────────────────────────────────────────────
-  server.tool(
-    'canvas_get_node',
-    'Get a single node by ID. Defaults to compact metadata; pass full:true to include full data/tool results.',
-    {
-      id: z.string().describe('The node ID to retrieve'),
-      full: z.boolean().optional().describe('Include full node data, including mcp-app tool results. Default false.'),
-      verbose: z.boolean().optional().describe('Alias for full:true.'),
-    },
-    async (input) => {
-      const c = await ensureCanvas();
-      const node = await c.getNode(input.id);
-      if (!node) {
-        return {
-          content: [{ type: 'text', text: `Node "${input.id}" not found.` }],
-          isError: true,
-        };
-      }
-      const payload = wantsFullPayload(input) ? serializeCanvasNodeForAgent(node) : compactNodePayload(node);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-      };
-    },
-  );
-
-  // ── canvas_add_node ────────────────────────────────────────────
-  server.tool(
-    'canvas_add_node',
-    'Add a basic node to the canvas. Returns the created node with normalized title/content and rendered geometry. Supported here: markdown, status, context, ledger, trace, file, image, webpage, mcp-app, html, group. Dedicated node tools: json-render -> canvas_add_json_render_node, graph -> canvas_add_graph_node, web-artifact -> canvas_build_web_artifact, external apps -> canvas_open_mcp_app, html (preferred) -> canvas_add_html_node, groups -> canvas_create_group. Call canvas_describe_schema for the full nodeTypeRouting table.',
-    {
-      type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'webpage', 'mcp-app', 'html', 'group'])
-        .describe('Node type (prefer canvas_create_group for groups)'),
-      title: z.string().optional().describe('Node title'),
-      content: z.string().optional().describe('Node content (markdown for markdown nodes, file path for file nodes, image path/URL/data-URI for image nodes, URL for webpage nodes)'),
-      path: z.string().optional().describe('Compatibility alias for image node content. Prefer content for image paths.'),
-      url: z.string().optional().describe('Canonical webpage URL field for webpage nodes. Overrides content when both are provided.'),
-      x: z.number().optional().describe('X position (auto-placed if omitted)'),
-      y: z.number().optional().describe('Y position (auto-placed if omitted)'),
-      width: z.number().optional().describe('Width in pixels (default: 720)'),
-      height: z.number().optional().describe('Height in pixels (default: 600)'),
-      strictSize: z.boolean().optional().describe('Keep explicit width/height fixed and scroll overflowing content instead of browser auto-fitting'),
-      children: z.array(z.string()).optional().describe('Group-only alias for childIds. Node IDs to include in a generic group node.'),
-      childIds: z.array(z.string()).optional().describe('Group-only field. Node IDs to include in a generic group node. Prefer canvas_create_group for groups.'),
-      childLayout: z.enum(['grid', 'column', 'flow']).optional().describe('Group-only optional layout for grouped children.'),
-      color: z.string().optional().describe('Group-only frame accent color.'),
-      toolName: z.string().optional().describe('Trace node tool or operation label'),
-      category: z.string().optional().describe('Trace node category: mcp, file, subagent, or other'),
-      status: z.string().optional().describe('Trace node status: running, success, or failed'),
-      duration: z.string().optional().describe('Trace node duration badge text'),
-      resultSummary: z.string().optional().describe('Trace node result summary'),
-      error: z.string().optional().describe('Trace node error message'),
-      full: z.boolean().optional().describe('Return the full created node payload. Default false returns compact metadata.'),
-      verbose: z.boolean().optional().describe('Alias for full:true.'),
-    },
-    async (input) => {
-      const c = await ensureCanvas();
-      if (input.type === 'webpage') {
-        const url = input.url ?? input.content;
-        if (!url) {
-          return {
-            content: [{ type: 'text', text: 'Webpage nodes require a page URL via "url" (preferred) or "content".' }],
-            isError: true,
-          };
-        }
-        const result = await c.addWebpageNode({
-          ...(typeof input.title === 'string' ? { title: input.title } : {}),
-          url,
-          ...(typeof input.x === 'number' ? { x: input.x } : {}),
-          ...(typeof input.y === 'number' ? { y: input.y } : {}),
-          ...(typeof input.width === 'number' ? { width: input.width } : {}),
-          ...(typeof input.height === 'number' ? { height: input.height } : {}),
-          ...(input.strictSize === true ? { strictSize: true } : {}),
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result) }],
-          ...(result.ok ? {} : { isError: true }),
-        };
-      }
-      const nodeInput = input.type === 'image' && input.path && !input.content
-        ? { ...input, content: input.path }
-        : input;
-      const id = await c.addNode(nodeInput);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(await createdNodePayload(c, id, input), null, 2) }],
-      };
-    },
-  );
+  // ── Operation-registry tools (plan-005) ────────────────────────
+  // canvas_get_layout / canvas_get_node / canvas_add_node /
+  // canvas_update_node / canvas_remove_node are registered from the shared
+  // operation registry. Tool names and compact/full payload behavior are
+  // frozen (tests/unit/mcp-tool-freeze.test.ts, operation-parity.test.ts).
+  registerOperationTools(server, ensureCanvas);
 
   // ── canvas_add_html_node ────────────────────────────────────────
   server.tool(
@@ -1054,119 +954,6 @@ export async function startMcpServer(): Promise<void> {
           isError: true,
         };
       }
-    },
-  );
-
-  // ── canvas_update_node ─────────────────────────────────────────
-  server.tool(
-    'canvas_update_node',
-    'Update an existing node. You can change its content, title, position, size, dock placement, or data.',
-    {
-      id: z.string().describe('Node ID to update'),
-      title: z.string().optional().describe('New title'),
-      content: z.string().optional().describe('New content'),
-      x: z.number().optional().describe('New X position'),
-      y: z.number().optional().describe('New Y position'),
-      width: z.number().optional().describe('New width'),
-      height: z.number().optional().describe('New height'),
-      spec: z.record(z.string(), z.unknown()).optional().describe('New json-render spec, or a graph payload with graphType/data for graph nodes'),
-      graphType: z.string().optional().describe('Graph type when updating a graph node'),
-      data: z.array(z.record(z.string(), z.unknown())).optional().describe('Graph dataset when updating a graph node'),
-      xKey: z.string().optional().describe('Graph x/category key'),
-      yKey: z.string().optional().describe('Graph y/value key'),
-      chartHeight: z.number().optional().describe('Graph chart content height, distinct from node height'),
-      toolName: z.string().optional().describe('Trace node tool or operation label'),
-      category: z.string().optional().describe('Trace node category: mcp, file, subagent, or other'),
-      status: z.string().optional().describe('Trace node status: running, success, or failed'),
-      duration: z.string().optional().describe('Trace node duration badge text'),
-      resultSummary: z.string().optional().describe('Trace node result summary'),
-      error: z.string().optional().describe('Trace node error message'),
-      collapsed: z.boolean().optional().describe('Collapse or expand the node'),
-      dockPosition: z.enum(['left', 'right']).nullable().optional().describe('Dock the node to the left/right HUD column, or pass null to return it to the canvas'),
-      pinned: z.boolean().optional().describe('Pin or unpin the node to exclude it from auto-arrange'),
-      arrangeLocked: z.boolean().optional().describe('Prevent auto-arrange from moving this node. Pinned nodes are also skipped.'),
-      axCapabilities: z.object({
-        enabled: z.boolean().optional(),
-        allowed: z.array(z.string()).optional(),
-      }).optional().describe('Enable/disable AX interactions on an existing node (e.g. flip an html node on with { enabled: true, allowed: ["ax.work.create"] }). Merged into the node data; clamped to the node-type ceiling server-side.'),
-      full: z.boolean().optional().describe('Return the full updated node payload. Default false returns compact metadata.'),
-      verbose: z.boolean().optional().describe('Alias for full:true.'),
-    },
-    async (input) => {
-      const { id, title, content, x, y, width, height, spec, graphType, data, xKey, yKey, chartHeight, collapsed, dockPosition, pinned, arrangeLocked, axCapabilities, toolName, category, status, duration, resultSummary, error } = input;
-      const c = await ensureCanvas();
-      const node = await c.getNode(id);
-      if (!node) {
-        return {
-          content: [{ type: 'text', text: `Node "${id}" not found.` }],
-          isError: true,
-        };
-      }
-      const patch: Record<string, unknown> = {};
-      if (x !== undefined || y !== undefined) {
-        patch.position = { x: x ?? node.position.x, y: y ?? node.position.y };
-      }
-      if (width !== undefined || height !== undefined) {
-        patch.size = { width: width ?? node.size.width, height: height ?? node.size.height };
-      }
-      if (collapsed !== undefined) {
-        patch.collapsed = collapsed;
-      }
-      if (dockPosition !== undefined) {
-        patch.dockPosition = dockPosition;
-      }
-      if (pinned !== undefined) {
-        patch.pinned = pinned;
-      }
-      if (title !== undefined) patch.title = title;
-      if (content !== undefined) patch.content = content;
-      if (spec !== undefined) patch.spec = spec;
-      if (graphType !== undefined) patch.graphType = graphType;
-      if (data !== undefined) patch.data = data;
-      if (xKey !== undefined) patch.xKey = xKey;
-      if (yKey !== undefined) patch.yKey = yKey;
-      if (chartHeight !== undefined) patch.chartHeight = chartHeight;
-      if (toolName !== undefined) patch.toolName = toolName;
-      if (category !== undefined) patch.category = category;
-      if (status !== undefined) patch.status = status;
-      if (duration !== undefined) patch.duration = duration;
-      if (resultSummary !== undefined) patch.resultSummary = resultSummary;
-      if (error !== undefined) patch.error = error;
-      if (arrangeLocked !== undefined) {
-        patch.arrangeLocked = arrangeLocked;
-      }
-      if (axCapabilities !== undefined) {
-        // A graph dataset update (`data` array) and an axCapabilities toggle collide
-        // on patch.data (array vs object) — reject rather than silently dropping the
-        // dataset. Otherwise merge into existing node data so enabling AX doesn't
-        // clobber html/spec/etc. The server re-clamps axCapabilities to the ceiling.
-        if (Array.isArray(patch.data)) {
-          return {
-            content: [{ type: 'text', text: 'Update the graph dataset and axCapabilities in separate canvas_update_node calls.' }],
-            isError: true,
-          };
-        }
-        patch.data = { ...(node.data as Record<string, unknown>), axCapabilities };
-      }
-      await c.updateNode(id, patch);
-      const updated = await c.getNode(id);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(updated ? await createdNodePayload(c, id, input) : { ok: true, id }, null, 2) }],
-      };
-    },
-  );
-
-  // ── canvas_remove_node ─────────────────────────────────────────
-  server.tool(
-    'canvas_remove_node',
-    'Remove a node from the canvas. Also removes all edges connected to it.',
-    { id: z.string().describe('Node ID to remove') },
-    async ({ id }) => {
-      const c = await ensureCanvas();
-      await c.removeNode(id);
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, removed: id }) }],
-      };
     },
   );
 

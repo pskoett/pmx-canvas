@@ -42,17 +42,12 @@ import {
   addCanvasEdge,
   appendCanvasJsonRenderStream,
   createCanvasStreamingJsonRenderNode,
-  MARKDOWN_NODE_DEFAULT_SIZE,
-  MCP_APP_NODE_DEFAULT_SIZE,
-  IMAGE_NODE_DEFAULT_SIZE,
-  LEDGER_NODE_DEFAULT_SIZE,
   applyCanvasNodeUpdates,
   arrangeCanvasNodes,
   clearCanvas,
   createCanvasGraphNode,
   createCanvasGroup,
   createCanvasJsonRenderNode,
-  buildStructuredNodeUpdate,
   fitCanvasView,
   deleteCanvasSnapshot,
   executeCanvasBatch,
@@ -60,7 +55,6 @@ import {
   groupCanvasNodes,
   listCanvasSnapshots,
   refreshCanvasWebpageNode,
-  removeCanvasNode,
   removeCanvasEdge,
   resolveHtmlContent,
   restoreCanvasSnapshot,
@@ -69,11 +63,13 @@ import {
   syncCanvasRuntimeBackends,
   setCanvasContextPins,
   ungroupCanvasNodes,
-  validateCanvasNodePatch,
-  hasStructuredNodeUpdateFields,
-  hasTraceNodeDataFields,
-  mergeTraceNodeDataFields,
 } from './canvas-operations.js';
+import {
+  buildNodePatch,
+  createBasicCanvasNode,
+  removeNodeCore,
+  setGroupChildrenFromApi,
+} from './operations/ops/nodes.js';
 import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
 import { serializeCanvasNode, type SerializedCanvasNode } from './canvas-serialization.js';
@@ -259,29 +255,9 @@ export class PmxCanvas extends EventEmitter {
       if (!groupNode) throw new Error(`Group node "${groupId}" was not created.`);
       return toSdkNode(groupNode);
     }
-    const { id, needsCodeGraphRecompute } = addCanvasNode({
-      ...input,
-      defaultWidth: input.type === 'markdown'
-        ? MARKDOWN_NODE_DEFAULT_SIZE.width
-        : input.type === 'mcp-app'
-          ? MCP_APP_NODE_DEFAULT_SIZE.width
-          : input.type === 'image'
-            ? IMAGE_NODE_DEFAULT_SIZE.width
-            : input.type === 'ledger'
-              ? LEDGER_NODE_DEFAULT_SIZE.width
-              : 360,
-      defaultHeight: input.type === 'markdown'
-        ? MARKDOWN_NODE_DEFAULT_SIZE.height
-        : input.type === 'mcp-app'
-          ? MCP_APP_NODE_DEFAULT_SIZE.height
-          : input.type === 'image'
-            ? IMAGE_NODE_DEFAULT_SIZE.height
-            : input.type === 'ledger'
-              ? LEDGER_NODE_DEFAULT_SIZE.height
-              : 200,
-      fileMode: 'path',
-      ...(input.strictSize ? { strictSize: true } : {}),
-    });
+    // Thin wrapper over the shared operation core (plan-005); the SDK keeps
+    // fileMode 'path' as an explicit visible parameter instead of forked code.
+    const { node, needsCodeGraphRecompute } = createBasicCanvasNode(input, { fileMode: 'path' });
 
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
 
@@ -291,8 +267,6 @@ export class PmxCanvas extends EventEmitter {
       });
     }
 
-    const node = canvasState.getNode(id);
-    if (!node) throw new Error(`Node "${id}" was not created.`);
     return toSdkNode(node);
   }
 
@@ -339,58 +313,18 @@ export class PmxCanvas extends EventEmitter {
   updateNode(id: string, patch: Partial<CanvasNodeState> & Record<string, unknown>): void {
     const existing = canvasState.getNode(id);
     if (!existing) return;
-    const resolvedPatch: Partial<CanvasNodeState> = {};
-    if (patch.position) resolvedPatch.position = patch.position;
-    if (patch.size) resolvedPatch.size = patch.size;
-    if (patch.collapsed !== undefined) resolvedPatch.collapsed = patch.collapsed;
-    if (patch.pinned !== undefined) resolvedPatch.pinned = patch.pinned;
-    if (patch.dockPosition !== undefined) resolvedPatch.dockPosition = patch.dockPosition;
-
-    if (hasStructuredNodeUpdateFields(patch)) {
-      resolvedPatch.data = buildStructuredNodeUpdate(existing, patch).data;
-    } else if (
-      patch.data !== undefined ||
-      patch.title !== undefined ||
-      patch.content !== undefined ||
-      typeof patch.arrangeLocked === 'boolean' ||
-      typeof patch.strictSize === 'boolean' ||
-      (existing.type === 'trace' && hasTraceNodeDataFields(patch))
-    ) {
-      const nextData = {
-        ...existing.data,
-        ...(patch.data && typeof patch.data === 'object' && !Array.isArray(patch.data) ? patch.data : {}),
-        ...(typeof patch.title === 'string' ? { title: patch.title } : {}),
-        ...(typeof patch.content === 'string' ? { content: patch.content } : {}),
-        ...(typeof patch.arrangeLocked === 'boolean' ? { arrangeLocked: patch.arrangeLocked } : {}),
-        ...(typeof patch.strictSize === 'boolean' ? { strictSize: patch.strictSize } : {}),
-      };
-      resolvedPatch.data = existing.type === 'trace'
-        ? mergeTraceNodeDataFields(nextData, patch)
-        : nextData;
-    }
-
-    const error = validateCanvasNodePatch({
-      ...(resolvedPatch.position ? { position: resolvedPatch.position } : {}),
-      ...(resolvedPatch.size ? { size: resolvedPatch.size } : {}),
-    });
-    if (error) {
-      throw new Error(error);
-    }
+    // Thin wrapper over the shared patch core (plan-005): the SDK now carries
+    // the same superset semantics as HTTP/MCP (webpage titleSource/url, html
+    // top-level fields, axCapabilities merge, group children).
+    const { patch: resolvedPatch, groupChildIds } = buildNodePatch(existing, patch);
     canvasState.updateNode(id, resolvedPatch);
+    if (groupChildIds !== undefined) setGroupChildrenFromApi(id, groupChildIds);
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   }
 
+  /** Remove a node. Missing id throws (plan-005 unifies this across surfaces). */
   removeNode(id: string): void {
-    const existing = canvasState.getNode(id);
-    const appSessionId =
-      existing?.type === 'mcp-app' && typeof existing.data.appSessionId === 'string'
-        ? existing.data.appSessionId
-        : null;
-    if (appSessionId) {
-      closeMcpAppSession(appSessionId);
-    }
-    const { removed, needsCodeGraphRecompute } = removeCanvasNode(id);
-    if (!removed) return;
+    const { needsCodeGraphRecompute } = removeNodeCore(id);
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
 
     if (needsCodeGraphRecompute) {

@@ -10,9 +10,12 @@ import {
   type PmxCanvas,
 } from '../server/index.js';
 import type { PmxAxSource } from '../server/ax-state.js';
+import {
+  HttpOperationInvoker,
+  LocalOperationInvoker,
+  type OperationInvoker,
+} from '../server/operations/index.js';
 
-type AddNodeInput = Parameters<PmxCanvas['addNode']>[0];
-type AddWebpageNodeInput = Parameters<PmxCanvas['addWebpageNode']>[0];
 type RefreshWebpageNodeResult = Awaited<ReturnType<PmxCanvas['refreshWebpageNode']>>;
 type OpenMcpAppInput = Parameters<PmxCanvas['openMcpApp']>[0];
 type OpenMcpAppResult = Awaited<ReturnType<PmxCanvas['openMcpApp']>>;
@@ -26,7 +29,6 @@ type AddHtmlPrimitiveInput = Parameters<PmxCanvas['addHtmlPrimitive']>[0];
 type AddHtmlPrimitiveResult = ReturnType<PmxCanvas['addHtmlPrimitive']>;
 type AddGraphNodeInput = Parameters<PmxCanvas['addGraphNode']>[0];
 type AddGraphNodeResult = ReturnType<PmxCanvas['addGraphNode']>;
-type UpdateNodePatch = Parameters<PmxCanvas['updateNode']>[1];
 type AddEdgeInput = Parameters<PmxCanvas['addEdge']>[0];
 type CreateGroupInput = Parameters<PmxCanvas['createGroup']>[0];
 type GroupNodesOptions = Parameters<PmxCanvas['groupNodes']>[2];
@@ -145,10 +147,10 @@ interface WebViewEvaluateEnvelope {
 export interface CanvasAccess {
   readonly port: number;
   readonly remoteBaseUrl: string | null;
+  /** Operation-registry invoker (plan-005): local in-process or HTTP, matching the access mode. */
+  invoker(): OperationInvoker;
   getLayout(): Promise<CanvasLayout>;
   getNode(id: string): Promise<CanvasNodeState | undefined>;
-  addNode(input: AddNodeInput): Promise<string>;
-  addWebpageNode(input: AddWebpageNodeInput): Promise<Awaited<ReturnType<PmxCanvas['addWebpageNode']>>>;
   refreshWebpageNode(id: string, url?: string): Promise<RefreshWebpageNodeResult>;
   openMcpApp(input: OpenMcpAppInput): Promise<OpenMcpAppResult>;
   addDiagram(input: AddDiagramInput): Promise<OpenMcpAppResult>;
@@ -158,8 +160,6 @@ export interface CanvasAccess {
   addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult>;
   addGraphNode(input: AddGraphNodeInput): Promise<AddGraphNodeResult>;
   buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult>;
-  updateNode(id: string, patch: UpdateNodePatch): Promise<void>;
-  removeNode(id: string): Promise<void>;
   removeAnnotation(id: string): Promise<boolean>;
   addEdge(input: AddEdgeInput): Promise<string>;
   removeEdge(id: string): Promise<void>;
@@ -230,6 +230,7 @@ export interface CanvasAccess {
 
 class LocalCanvasAccess implements CanvasAccess {
   readonly remoteBaseUrl = null;
+  private readonly operationInvoker = new LocalOperationInvoker();
 
   constructor(
     private readonly canvas: PmxCanvas,
@@ -241,22 +242,16 @@ class LocalCanvasAccess implements CanvasAccess {
     return this.canvas.port;
   }
 
+  invoker(): OperationInvoker {
+    return this.operationInvoker;
+  }
+
   async getLayout(): Promise<CanvasLayout> {
     return this.canvas.getLayout();
   }
 
   async getNode(id: string): Promise<CanvasNodeState | undefined> {
     return this.canvas.getNode(id);
-  }
-
-  async addNode(input: AddNodeInput): Promise<string> {
-    // PmxCanvas.addNode returns the created node; the CanvasAccess contract
-    // (shared with the remote proxy + MCP) stays id-only.
-    return this.canvas.addNode(input).id;
-  }
-
-  async addWebpageNode(input: AddWebpageNodeInput): Promise<Awaited<ReturnType<PmxCanvas['addWebpageNode']>>> {
-    return await this.canvas.addWebpageNode(input);
   }
 
   async refreshWebpageNode(id: string, url?: string): Promise<RefreshWebpageNodeResult> {
@@ -295,14 +290,6 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult> {
     return await this.canvas.buildWebArtifact(input);
-  }
-
-  async updateNode(id: string, patch: UpdateNodePatch): Promise<void> {
-    this.canvas.updateNode(id, patch);
-  }
-
-  async removeNode(id: string): Promise<void> {
-    this.canvas.removeNode(id);
   }
 
   async removeAnnotation(id: string): Promise<boolean> {
@@ -576,11 +563,17 @@ class LocalCanvasAccess implements CanvasAccess {
 class RemoteCanvasAccess implements CanvasAccess {
   readonly remoteBaseUrl: string;
   readonly port: number;
+  private readonly operationInvoker: HttpOperationInvoker;
 
   constructor(baseUrl: string) {
     this.remoteBaseUrl = baseUrl.replace(/\/$/, '');
     const parsed = new URL(this.remoteBaseUrl);
     this.port = Number(parsed.port || '80');
+    this.operationInvoker = new HttpOperationInvoker(this.remoteBaseUrl);
+  }
+
+  invoker(): OperationInvoker {
+    return this.operationInvoker;
   }
 
   private async requestJson<T>(method: string, path: string, body?: unknown): Promise<T> {
@@ -644,17 +637,6 @@ class RemoteCanvasAccess implements CanvasAccess {
       throw new Error(error);
     }
     return parsed as CanvasNodeState;
-  }
-
-  async addNode(input: AddNodeInput): Promise<string> {
-    return await this.requestNodeId('POST', '/api/canvas/node', input);
-  }
-
-  async addWebpageNode(input: AddWebpageNodeInput): Promise<Awaited<ReturnType<PmxCanvas['addWebpageNode']>>> {
-    return await this.requestJson<Awaited<ReturnType<PmxCanvas['addWebpageNode']>>>('POST', '/api/canvas/node', {
-      type: 'webpage',
-      ...input,
-    });
   }
 
   async refreshWebpageNode(id: string, url?: string): Promise<RefreshWebpageNodeResult> {
@@ -766,14 +748,6 @@ class RemoteCanvasAccess implements CanvasAccess {
 
   async buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult> {
     return await this.requestJson<WebArtifactResult>('POST', '/api/canvas/web-artifact', input);
-  }
-
-  async updateNode(id: string, patch: UpdateNodePatch): Promise<void> {
-    await this.requestJson<unknown>('PATCH', `/api/canvas/node/${encodeURIComponent(id)}`, patch);
-  }
-
-  async removeNode(id: string): Promise<void> {
-    await this.requestJson<unknown>('DELETE', `/api/canvas/node/${encodeURIComponent(id)}`);
   }
 
   async removeAnnotation(id: string): Promise<boolean> {

@@ -15,6 +15,7 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { openUrlInExternalBrowser, wrapCanvasAutomationScript } from '../server/server.js';
+import { HttpOperationInvoker, OperationError } from '../server/operations/index.js';
 import { DEFAULT_EXCALIDRAW_ELEMENTS } from '../server/diagram-presets.js';
 import {
   ALL_SEMANTIC_WATCH_EVENT_TYPES,
@@ -156,6 +157,25 @@ async function api(
     );
   }
   return json;
+}
+
+// Operation-registry invoker (plan-005): node CRUD + layout reads build their
+// HTTP request from the shared route table instead of hand-written paths.
+// Error handling mirrors api(): operation failures and connection failures
+// die with the same JSON error shape.
+async function invokeOperation(name: string, input: Record<string, unknown>): Promise<unknown> {
+  const base = getBaseUrl();
+  try {
+    return await new HttpOperationInvoker(base).invoke(name, input);
+  } catch (error) {
+    if (error instanceof OperationError) {
+      die(error.message);
+    }
+    die(
+      `Cannot connect to pmx-canvas at ${base}: ${error instanceof Error ? error.message : String(error)}`,
+      `Start the server first: pmx-canvas --no-open`,
+    );
+  }
 }
 
 // ── Flag parsing ─────────────────────────────────────────────
@@ -1179,13 +1199,13 @@ cmd('node add', 'Add a node to the canvas', [
   }
 
   if (type === 'html-primitive') {
-    const result = await api('POST', '/api/canvas/node', await buildHtmlPrimitiveRequestBody(flags));
+    const result = await invokeOperation('node.add', await buildHtmlPrimitiveRequestBody(flags));
     output(result);
     return;
   }
 
   if (type === 'html' && getStringFlag(flags, 'primitive', 'kind')) {
-    const result = await api('POST', '/api/canvas/node', await buildHtmlPrimitiveRequestBody(flags));
+    const result = await invokeOperation('node.add', await buildHtmlPrimitiveRequestBody(flags));
     output(result);
     return;
   }
@@ -1245,7 +1265,7 @@ cmd('node add', 'Add a node to the canvas', [
     }
   }
 
-  const result = await api('POST', '/api/canvas/node', body);
+  const result = await invokeOperation('node.add', body);
   output(result);
 });
 
@@ -1383,7 +1403,7 @@ cmd('node list', 'List all nodes on the canvas', [
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('node list');
 
-  const layout = (await api('GET', '/api/canvas/state')) as { nodes: Array<Record<string, unknown>> };
+  const layout = (await invokeOperation('layout.get', {})) as { nodes: Array<Record<string, unknown>> };
   let nodes = layout.nodes;
 
   if (flags.type && flags.type !== true) {
@@ -1414,7 +1434,7 @@ cmd('node get', 'Get a node by ID', [
   const id = positional[0];
   if (!id) die('Missing node ID', 'pmx-canvas node get <node-id>');
 
-  const result = await api('GET', `/api/canvas/node/${encodeURIComponent(id)}`) as Record<string, unknown>;
+  const result = await invokeOperation('node.get', { id }) as Record<string, unknown>;
   const requestedFields = collectRequestedFields(args, flags);
   if (requestedFields.length > 0) {
     const picked = Object.fromEntries(requestedFields.map((field) => [field, resolveNodeFieldValue(result, field)]));
@@ -1496,7 +1516,7 @@ cmd('node update', 'Update a node by ID', [
   }
 
   if (x !== undefined || y !== undefined || width !== undefined || frameHeight !== undefined || arrangeLocked !== undefined) {
-    const existing = await api('GET', `/api/canvas/node/${encodeURIComponent(id)}`) as {
+    const existing = await invokeOperation('node.get', { id }) as {
       position: { x: number; y: number };
       size: { width: number; height: number };
       data: Record<string, unknown>;
@@ -1545,7 +1565,7 @@ cmd('node update', 'Update a node by ID', [
     );
   }
 
-  const result = await api('PATCH', `/api/canvas/node/${encodeURIComponent(id)}`, body);
+  const result = await invokeOperation('node.update', { id, ...body });
   output(result);
 });
 
@@ -1560,7 +1580,7 @@ cmd('node remove', 'Remove a node from the canvas', [
   const id = positional[0];
   if (!id) die('Missing node ID', 'pmx-canvas node remove <node-id>');
 
-  const result = await api('DELETE', `/api/canvas/node/${encodeURIComponent(id)}`);
+  const result = await invokeOperation('node.remove', { id });
   output(result);
 });
 

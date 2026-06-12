@@ -69,16 +69,12 @@ import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
 import { diffLayouts, formatDiff, mutationHistory } from './mutation-history.js';
 import {
   buildCanvasSummary,
-  serializeCanvasLayout,
-  serializeCanvasLayoutWithBlobSummaries,
-  serializeCanvasNode,
-  serializeCanvasNodeWithBlobSummaries,
   summarizeCanvasAnnotation,
 } from './canvas-serialization.js';
 import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent-context.js';
 import { buildCanvasAxContext, buildCanvasAxSurfaceSnapshot } from './ax-context.js';
-import { applyAxInteraction, resolveNodeAxCapabilities, normalizeNodeAxCapabilities } from './ax-interaction.js';
+import { applyAxInteraction, resolveNodeAxCapabilities } from './ax-interaction.js';
 import { isAxEventKind, isAxEvidenceKind, isAxActivityKind } from './ax-state.js';
 import { waitForAxResolution, AX_WAIT_MAX_MS } from './ax-wait.js';
 import type {
@@ -95,15 +91,9 @@ import type {
 import { normalizeCanvasTheme, type CanvasTheme } from './canvas-db.js';
 import { validateLocalImageFile } from './image-source.js';
 import {
-  addCanvasNode,
   addCanvasEdge,
-  MARKDOWN_NODE_DEFAULT_SIZE,
-  MCP_APP_NODE_DEFAULT_SIZE,
-  IMAGE_NODE_DEFAULT_SIZE,
-  LEDGER_NODE_DEFAULT_SIZE,
   applyCanvasNodeUpdates,
   appendCanvasJsonRenderStream,
-  buildStructuredNodeUpdate,
   arrangeCanvasNodes,
   clearCanvas,
   createCanvasGraphNode,
@@ -117,25 +107,24 @@ import {
   groupCanvasNodes,
   listCanvasSnapshots,
   refreshCanvasWebpageNode,
-  removeCanvasNode,
   removeCanvasEdge,
-  resolveHtmlContent,
   restoreCanvasSnapshot,
   saveCanvasSnapshot,
-  scheduleCodeGraphRecompute,
   primeCanvasRuntimeBackends,
   setCanvasLayoutUpdateEmitter,
   syncCanvasRuntimeBackends,
   setCanvasContextPins,
   ungroupCanvasNodes,
-  validateCanvasNodePatch,
-  hasStructuredNodeUpdateFields,
-  hasTraceNodeDataFields,
-  mergeTraceNodeDataFields,
 } from './canvas-operations.js';
+import { dispatchOperationRoute, setOperationEventEmitter } from './operations/index.js';
+import {
+  buildNodeResponse,
+  closeNodeAppSession,
+  nodeAppSessionId,
+  resolveCreateGeometry,
+} from './operations/ops/nodes.js';
 import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
-import { buildHtmlPrimitive, getHtmlPrimitiveSemanticMetadata, isHtmlPrimitiveKind } from './html-primitives.js';
 import {
   EXCALIDRAW_READ_CHECKPOINT_TOOL,
   EXCALIDRAW_SAVE_CHECKPOINT_TOOL,
@@ -152,7 +141,6 @@ import {
   buildJsonRenderViewerHtml,
 } from '../json-render/server.js';
 import {
-  WEBPAGE_NODE_DEFAULT_SIZE,
   normalizeWebpageUrl,
 } from './webpage-node.js';
 import type { JsonRenderSpec } from '../json-render/server.js';
@@ -171,6 +159,14 @@ const textEncoder = new TextEncoder();
 let primaryWorkbenchAutoOpenEnabled = true;
 const initialCanvasThemeSetting = normalizeCanvasTheme(process.env.PMX_CANVAS_THEME);
 let lastWorkbenchContextCardsEnvelope: Record<string, unknown> | null = null;
+
+// Operation-registry SSE wiring (plan-005): the registry never imports this
+// module — the workbench event emitter is injected here, mirroring the
+// setCanvasLayoutUpdateEmitter pattern. Wired at module top level so local
+// (in-process) MCP/SDK invocations emit even without startCanvasServer().
+setOperationEventEmitter((event, payload) => {
+  emitPrimaryWorkbenchEvent(event, payload);
+});
 
 function normalizeGraphViewerSpec(
   node: { type: string; data: Record<string, unknown> },
@@ -733,139 +729,10 @@ function pickPositiveNumber(record: Record<string, unknown>, key: string): numbe
   return value !== undefined && value > 0 ? value : undefined;
 }
 
-function normalizeGeometryInput(body: Record<string, unknown>): {
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  position?: { x?: number; y?: number };
-  size?: { width?: number; height?: number };
-} {
-  const position = getRecord(body.position);
-  const size = getRecord(body.size);
-  return {
-    ...(pickFiniteNumber(body, 'x') !== undefined ? { x: pickFiniteNumber(body, 'x') } : {}),
-    ...(pickFiniteNumber(body, 'y') !== undefined ? { y: pickFiniteNumber(body, 'y') } : {}),
-    ...(pickFiniteNumber(body, 'width') !== undefined ? { width: pickFiniteNumber(body, 'width') } : {}),
-    ...(pickFiniteNumber(body, 'height') !== undefined ? { height: pickFiniteNumber(body, 'height') } : {}),
-    ...(position ? {
-      position: {
-        ...(pickFiniteNumber(position, 'x') !== undefined ? { x: pickFiniteNumber(position, 'x') } : {}),
-        ...(pickFiniteNumber(position, 'y') !== undefined ? { y: pickFiniteNumber(position, 'y') } : {}),
-      },
-    } : {}),
-    ...(size ? {
-      size: {
-        ...(pickFiniteNumber(size, 'width') !== undefined ? { width: pickFiniteNumber(size, 'width') } : {}),
-        ...(pickFiniteNumber(size, 'height') !== undefined ? { height: pickFiniteNumber(size, 'height') } : {}),
-      },
-    } : {}),
-  };
-}
-
-function resolveCreateGeometry(body: Record<string, unknown>): {
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-} {
-  const geometry = normalizeGeometryInput(body);
-  const x = geometry.x ?? geometry.position?.x;
-  const y = geometry.y ?? geometry.position?.y;
-  const width = geometry.width ?? geometry.size?.width;
-  const height = geometry.height ?? geometry.size?.height;
-  return {
-    ...(x !== undefined ? { x } : {}),
-    ...(y !== undefined ? { y } : {}),
-    ...(width !== undefined ? { width } : {}),
-    ...(height !== undefined ? { height } : {}),
-  };
-}
-
-function resolvePatchGeometry(
-  body: Record<string, unknown>,
-  existing: CanvasNodeState,
-): {
-  position?: { x: number; y: number };
-  size?: { width: number; height: number };
-} {
-  const geometry = normalizeGeometryInput(body);
-  const x = geometry.x ?? geometry.position?.x;
-  const y = geometry.y ?? geometry.position?.y;
-  const width = geometry.width ?? geometry.size?.width;
-  const height = geometry.height ?? geometry.size?.height;
-  return {
-    ...(x !== undefined || y !== undefined
-      ? { position: { x: x ?? existing.position.x, y: y ?? existing.position.y } }
-      : {}),
-    ...(width !== undefined || height !== undefined
-      ? { size: { width: width ?? existing.size.width, height: height ?? existing.size.height } }
-      : {}),
-  };
-}
-
 function parseGraphPayloadData(value: unknown): Array<Record<string, unknown>> | null {
   if (!Array.isArray(value)) return null;
   if (value.some((item) => !isRecord(item))) return null;
   return value as Array<Record<string, unknown>>;
-}
-
-type StringListField = { value?: string[]; error?: string };
-
-function parseStringListField(field: string, value: unknown): StringListField {
-  if (value === undefined) return {};
-  if (!Array.isArray(value)) return { error: `"${field}" must be an array of node IDs.` };
-  const invalid = value.find((item) => typeof item !== 'string' || item.trim().length === 0);
-  if (invalid !== undefined) return { error: `"${field}" must contain only non-empty node IDs.` };
-  return { value };
-}
-
-function pickGroupChildIds(body: Record<string, unknown>): StringListField {
-  if ('children' in body) return parseStringListField('children', body.children);
-  if ('childIds' in body) return parseStringListField('childIds', body.childIds);
-  const data = isRecord(body.data) ? body.data : undefined;
-  return data && 'children' in data ? parseStringListField('data.children', data.children) : {};
-}
-
-function validateGroupChildIds(groupId: string, childIds: string[]): string | null {
-  const missingChildIds = childIds.filter((id) => !canvasState.getNode(id));
-  if (missingChildIds.length > 0) {
-    return `Missing child node ID${missingChildIds.length === 1 ? '' : 's'}: ${missingChildIds.join(', ')}.`;
-  }
-  const invalidChildIds = childIds.filter((id) => {
-    const node = canvasState.getNode(id);
-    return id === groupId || node?.type === 'group';
-  });
-  if (invalidChildIds.length > 0) {
-    return `Invalid group child ID${invalidChildIds.length === 1 ? '' : 's'}: ${invalidChildIds.join(', ')}.`;
-  }
-  return null;
-}
-
-function setGroupChildrenFromApi(groupId: string, childIds: string[]): boolean {
-  const group = canvasState.getNode(groupId);
-  if (!group || group.type !== 'group') return false;
-
-  const dataChildIds = Array.isArray(group.data.children)
-    ? group.data.children.filter((id): id is string => typeof id === 'string')
-    : [];
-  const parentBackrefIds = canvasState.getLayout().nodes
-    .filter((node) => node.id !== groupId && node.data.parentGroup === groupId)
-    .map((node) => node.id);
-  const currentChildIds = [...new Set([...dataChildIds, ...parentBackrefIds])];
-  if (currentChildIds.length > 0) {
-    if (currentChildIds.length !== dataChildIds.length || currentChildIds.some((id) => !dataChildIds.includes(id))) {
-      canvasState.updateNode(groupId, { data: { ...group.data, children: currentChildIds } });
-    }
-    canvasState.ungroupNodes(groupId);
-  }
-  if (childIds.length === 0) return true;
-
-  const latestGroup = canvasState.getNode(groupId);
-  return canvasState.groupNodes(groupId, childIds, {
-    preservePositions: true,
-    keepGroupFrame: latestGroup?.data.frameMode === 'manual',
-  });
 }
 
 function getExtAppNodeCheckpointId(node: CanvasNodeState): string {
@@ -1687,274 +1554,6 @@ async function handleCanvasImage(pathname: string): Promise<Response> {
   });
 }
 
-// ── Add node from client ─────────────────────────────────────
-const VALID_NODE_TYPES = new Set(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'mcp-app', 'webpage', 'html', 'group']);
-
-function buildNodeResponse(node: CanvasNodeState): Record<string, unknown> {
-  const serialized = serializeCanvasNode(node);
-  return {
-    ok: true,
-    node: serialized,
-    ...serialized,
-    // `nodeId` aliases `id` so HTTP/CLI node-create responses match the MCP
-    // createdNodePayload — agents using either key (or a cached schema) work.
-    nodeId: node.id,
-  };
-}
-
-function withContextPinReadState(node: CanvasNodeState): CanvasNodeState {
-  return {
-    ...node,
-    pinned: node.pinned || canvasState.contextPinnedNodeIds.has(node.id),
-  };
-}
-
-function withContextPinLayoutReadState(layout: CanvasLayout): CanvasLayout {
-  return {
-    ...layout,
-    nodes: layout.nodes.map(withContextPinReadState),
-  };
-}
-
-async function createCanvasWebpageNode(body: Record<string, unknown>): Promise<Response> {
-  const rawUrl = typeof body.url === 'string' && body.url.trim().length > 0
-    ? body.url
-    : typeof body.content === 'string'
-      ? body.content
-      : '';
-
-  let normalizedUrl: string;
-  try {
-    normalizedUrl = normalizeWebpageUrl(rawUrl);
-  } catch (error) {
-    return responseJson({ ok: false, error: error instanceof Error ? error.message : 'Invalid webpage URL.' }, 400);
-  }
-
-  const extraData = body.data && typeof body.data === 'object' && !Array.isArray(body.data)
-    ? body.data as Record<string, unknown>
-    : undefined;
-  const geometry = resolveCreateGeometry(body);
-  const { id, node } = addCanvasNode({
-    type: 'webpage',
-    ...(typeof body.title === 'string' ? { title: body.title } : {}),
-    content: normalizedUrl,
-    ...(extraData ? { data: extraData } : {}),
-    ...(body.strictSize === true ? { strictSize: true } : {}),
-    ...geometry,
-    ...(geometry.width === undefined ? { width: WEBPAGE_NODE_DEFAULT_SIZE.width } : {}),
-    ...(geometry.height === undefined ? { height: WEBPAGE_NODE_DEFAULT_SIZE.height } : {}),
-  });
-
-  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  const refreshed = await refreshCanvasWebpageNode(id);
-  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  const created = canvasState.getNode(id) ?? node;
-  return responseJson({
-    ...buildNodeResponse(created),
-    fetch: refreshed.ok
-      ? { ok: true }
-      : { ok: false, error: refreshed.error ?? 'Failed to fetch webpage content.' },
-    ...(refreshed.ok ? {} : { error: refreshed.error }),
-  });
-}
-
-async function handleCanvasAddNode(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const queryType = new URL(req.url).searchParams.get('type');
-  // Report #50: require a resolvable type rather than silently defaulting to a
-  // markdown node — an empty / type-less body created a phantom node before.
-  const type = typeof body.type === 'string' ? body.type : (queryType || '');
-  if (!type) {
-    return responseJson({
-      ok: false,
-      error: `node creation requires a 'type' — pass it in the JSON body ({ "type": "markdown", ... }) or as a ?type= query param. Valid types: ${[...VALID_NODE_TYPES].join(', ')} (json-render / graph / web-artifact have dedicated endpoints).`,
-    }, 400);
-  }
-
-  if (!VALID_NODE_TYPES.has(type)) {
-    if (type === 'json-render') {
-      return responseJson({
-        ok: false,
-        error: 'Node type "json-render" is created via POST /api/canvas/json-render. See /api/canvas/schema for the required spec shape.',
-      }, 400);
-    }
-    if (type === 'graph') {
-      return responseJson({
-        ok: false,
-        error: 'Node type "graph" is created via POST /api/canvas/graph. See /api/canvas/schema for graphType + data fields.',
-      }, 400);
-    }
-    if (type === 'web-artifact') {
-      return responseJson({
-        ok: false,
-        error: 'Node type "web-artifact" is created via POST /api/canvas/web-artifact with appTsx + title.',
-      }, 400);
-    }
-    if (type === 'html-primitive') {
-      return createCanvasHtmlPrimitiveNode(body);
-    }
-    return responseJson({ ok: false, error: `Invalid node type: "${type}".` }, 400);
-  }
-
-  if (type === 'webpage') {
-    return createCanvasWebpageNode(body);
-  }
-
-  if (type === 'html' && (typeof body.primitive === 'string' || typeof body.kind === 'string')) {
-    return createCanvasHtmlPrimitiveNode(body);
-  }
-
-  if (type === 'group') {
-    const geometry = resolveCreateGeometry(body);
-    const childList = pickGroupChildIds(body);
-    if (childList.error) return responseJson({ ok: false, error: `Cannot create group: ${childList.error}` }, 400);
-    const childIds = childList.value ?? [];
-    const childError = validateGroupChildIds('', childIds);
-    if (childError) return responseJson({ ok: false, error: `Cannot create group: ${childError}` }, 400);
-    const { node } = createCanvasGroup({
-      ...(typeof body.title === 'string' ? { title: body.title } : {}),
-      childIds,
-      ...(typeof body.color === 'string' ? { color: body.color } : {}),
-      ...geometry,
-    });
-    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    return responseJson(buildNodeResponse(node));
-  }
-
-  const extraData = body.data && typeof body.data === 'object' && !Array.isArray(body.data)
-    ? body.data as Record<string, unknown>
-    : undefined;
-  if (type === 'html') {
-    if ('html' in body && typeof body.html !== 'string') {
-      return responseJson({ ok: false, error: 'HTML node field "html" must be a string.' }, 400);
-    }
-    if (extraData && 'html' in extraData && typeof extraData.html !== 'string') {
-      return responseJson({ ok: false, error: 'HTML node field "data.html" must be a string.' }, 400);
-    }
-  }
-  const content = type === 'image' && typeof body.path === 'string' && typeof body.content !== 'string'
-    ? body.path
-    : body.content;
-  // For html nodes, accept top-level `html` AND `axCapabilities` and merge into data
-  // so callers can POST { type: 'html', title, html, axCapabilities } without nesting
-  // under `data` (report #53 — transport parity with MCP canvas_add_html_node). A
-  // top-level value overrides the same key under `data` (mirrors the `html` precedence).
-  const topAxCapabilities = type === 'html' ? normalizeNodeAxCapabilities(body.axCapabilities) : null;
-  const htmlMergedData = type === 'html'
-    ? {
-        ...(extraData ?? {}),
-        ...(typeof body.html === 'string' ? { html: resolveHtmlContent(body.html) } : {}),
-        ...(typeof body.summary === 'string' ? { summary: body.summary } : {}),
-        ...(typeof body.agentSummary === 'string' ? { agentSummary: body.agentSummary } : {}),
-        ...(typeof body.description === 'string' ? { description: body.description } : {}),
-        ...(body.presentation === true ? { presentation: true } : {}),
-        ...(Array.isArray(body.slideTitles) ? { slideTitles: body.slideTitles } : {}),
-        ...(Array.isArray(body.embeddedNodeIds) ? { embeddedNodeIds: body.embeddedNodeIds } : {}),
-        ...(Array.isArray(body.embeddedUrls) ? { embeddedUrls: body.embeddedUrls } : {}),
-        ...(topAxCapabilities ? { axCapabilities: topAxCapabilities } : {}),
-      }
-    : extraData;
-  let added: ReturnType<typeof addCanvasNode>;
-  const geometry = resolveCreateGeometry(body);
-  try {
-    added = addCanvasNode({
-      type: type as CanvasNodeState['type'],
-      ...(typeof body.title === 'string' ? { title: body.title } : {}),
-      ...(typeof content === 'string' ? { content } : {}),
-      ...(htmlMergedData && Object.keys(htmlMergedData).length > 0 ? { data: htmlMergedData } : {}),
-      ...(type === 'trace' && typeof body.toolName === 'string' ? { toolName: body.toolName } : {}),
-      ...(type === 'trace' && typeof body.category === 'string' ? { category: body.category } : {}),
-      ...(type === 'trace' && typeof body.status === 'string' ? { status: body.status } : {}),
-      ...(type === 'trace' && typeof body.duration === 'string' ? { duration: body.duration } : {}),
-      ...(type === 'trace' && typeof body.resultSummary === 'string' ? { resultSummary: body.resultSummary } : {}),
-      ...(type === 'trace' && typeof body.error === 'string' ? { error: body.error } : {}),
-      ...(body.strictSize === true ? { strictSize: true } : {}),
-      ...geometry,
-      defaultWidth: type === 'html'
-        ? 720
-        : type === 'markdown'
-          ? MARKDOWN_NODE_DEFAULT_SIZE.width
-          : type === 'mcp-app'
-            ? MCP_APP_NODE_DEFAULT_SIZE.width
-            : type === 'image'
-              ? IMAGE_NODE_DEFAULT_SIZE.width
-              : type === 'ledger'
-                ? LEDGER_NODE_DEFAULT_SIZE.width
-                : 360,
-      defaultHeight: type === 'html'
-        ? 640
-        : type === 'markdown'
-          ? MARKDOWN_NODE_DEFAULT_SIZE.height
-          : type === 'mcp-app'
-            ? MCP_APP_NODE_DEFAULT_SIZE.height
-            : type === 'image'
-              ? IMAGE_NODE_DEFAULT_SIZE.height
-              : type === 'ledger'
-                ? LEDGER_NODE_DEFAULT_SIZE.height
-                : 200,
-      fileMode: 'auto',
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return responseJson({ ok: false, error: message }, 400);
-  }
-  const { node, needsCodeGraphRecompute } = added;
-
-  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  if (needsCodeGraphRecompute) {
-    scheduleCodeGraphRecompute(() => {
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    });
-  }
-  return responseJson(buildNodeResponse(node));
-}
-
-function createCanvasHtmlPrimitiveNode(body: Record<string, unknown>): Response {
-  const rawKind = typeof body.primitive === 'string' ? body.primitive : body.kind;
-  if (typeof rawKind !== 'string' || !isHtmlPrimitiveKind(rawKind)) {
-    return responseJson({ ok: false, error: `Unknown HTML primitive: ${String(rawKind)}.` }, 400);
-  }
-  const data = isRecord(body.data) ? body.data : {};
-  let built: ReturnType<typeof buildHtmlPrimitive>;
-  try {
-    built = buildHtmlPrimitive({
-      kind: rawKind,
-      ...(typeof body.title === 'string' ? { title: body.title } : {}),
-      data,
-    });
-  } catch (error) {
-    return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
-  }
-  const geometry = resolveCreateGeometry(body);
-  const { node } = addCanvasNode({
-    type: 'html',
-    title: built.title,
-    data: {
-      html: built.html,
-      htmlPrimitive: built.kind,
-      primitiveData: built.data,
-      description: built.summary,
-      agentSummary: typeof data.agentSummary === 'string' ? data.agentSummary : built.summary,
-      ...(typeof data.summary === 'string' ? { summary: data.summary } : {}),
-      ...getHtmlPrimitiveSemanticMetadata(built.data),
-    },
-    ...(body.strictSize === true ? { strictSize: true } : {}),
-    ...geometry,
-    defaultWidth: built.defaultSize.width,
-    defaultHeight: built.defaultSize.height,
-  });
-  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson({
-    ...buildNodeResponse(node),
-    primitive: {
-      kind: built.kind,
-      title: built.title,
-      htmlBytes: Buffer.byteLength(built.html, 'utf-8'),
-      defaultSize: built.defaultSize,
-    },
-  });
-}
-
 // ── Group operations ─────────────────────────────────────────
 async function handleCanvasCreateGroup(req: Request): Promise<Response> {
   const body = await readJson(req);
@@ -2085,100 +1684,6 @@ async function handleCanvasRefreshWebpageNode(nodeId: string, req: Request): Pro
   const result = await refreshCanvasWebpageNode(nodeId, { ...(url ? { url } : {}) });
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   return responseJson(result, result.ok ? 200 : 400);
-}
-
-// ── Individual node update (PATCH) ──────────────────────────
-async function handleCanvasUpdateNode(nodeId: string, req: Request): Promise<Response> {
-  const existing = canvasState.getNode(nodeId);
-  if (!existing) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
-  const body = await readJson(req);
-  if (existing.type === 'webpage' && body.refresh === true) {
-    return handleCanvasRefreshWebpageNode(nodeId, req);
-  }
-  const groupChildList = existing.type === 'group' ? pickGroupChildIds(body) : {};
-  if (groupChildList.error) return responseJson({ ok: false, error: `Cannot update group: ${groupChildList.error}` }, 400);
-  const groupChildIds = groupChildList.value;
-  if (groupChildIds !== undefined) {
-    const childError = validateGroupChildIds(nodeId, groupChildIds);
-    if (childError) return responseJson({ ok: false, error: `Cannot update group: ${childError}` }, 400);
-  }
-  const patch: Record<string, unknown> = resolvePatchGeometry(body, existing);
-  if (body.collapsed !== undefined) patch.collapsed = body.collapsed;
-  if (body.pinned !== undefined) patch.pinned = Boolean(body.pinned);
-  if (body.dockPosition === null || body.dockPosition === 'left' || body.dockPosition === 'right') {
-    patch.dockPosition = body.dockPosition;
-  }
-  if (hasStructuredNodeUpdateFields(body)) {
-    try {
-      patch.data = buildStructuredNodeUpdate(existing, body).data;
-    } catch (error) {
-      return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
-    }
-  } else if (
-    body.title !== undefined ||
-    body.content !== undefined ||
-    body.data ||
-    typeof body.arrangeLocked === 'boolean' ||
-    typeof body.strictSize === 'boolean' ||
-    (existing.type === 'trace' && hasTraceNodeDataFields(body)) ||
-    (existing.type === 'html' && (body.html !== undefined || body.axCapabilities !== undefined))
-  ) {
-    const data = { ...existing.data };
-    if (body.title !== undefined) {
-      data.title = String(body.title);
-      if (existing.type === 'webpage') {
-        data.titleSource = 'user';
-      }
-    }
-    if (body.content !== undefined) data.content = String(body.content);
-    if (typeof body.arrangeLocked === 'boolean') data.arrangeLocked = body.arrangeLocked;
-    if (typeof body.strictSize === 'boolean') data.strictSize = body.strictSize;
-    // Merge extra data fields (for status, context, ledger, trace nodes)
-    if (body.data && typeof body.data === 'object' && !Array.isArray(body.data)) {
-      Object.assign(data, body.data as Record<string, unknown>);
-    }
-    // Report #53: for html nodes, accept top-level `html` / `axCapabilities` on PATCH
-    // too (top-level overrides the `data.*` merge above — matches POST + MCP parity).
-    if (existing.type === 'html') {
-      if (body.html !== undefined) {
-        if (typeof body.html !== 'string') {
-          return responseJson({ ok: false, error: 'HTML node field "html" must be a string.' }, 400);
-        }
-        data.html = resolveHtmlContent(body.html);
-      }
-      const patchAxCapabilities = normalizeNodeAxCapabilities(body.axCapabilities);
-      if (patchAxCapabilities) data.axCapabilities = patchAxCapabilities;
-    }
-    if (existing.type === 'webpage') {
-      const nextUrl = typeof body.url === 'string'
-        ? body.url
-        : typeof (body.data as Record<string, unknown> | undefined)?.url === 'string'
-          ? (body.data as Record<string, unknown>).url as string
-          : undefined;
-      if (typeof nextUrl === 'string' && nextUrl.trim().length > 0) {
-        try {
-          data.url = normalizeWebpageUrl(nextUrl);
-        } catch (error) {
-          return responseJson({ ok: false, error: error instanceof Error ? error.message : 'Invalid webpage URL.' }, 400);
-        }
-      }
-    }
-    patch.data = existing.type === 'trace'
-      ? mergeTraceNodeDataFields(data, body)
-      : data;
-  }
-  const error = validateCanvasNodePatch({
-    ...(patch.position ? { position: patch.position as { x: number; y: number } } : {}),
-    ...(patch.size ? { size: patch.size as { width: number; height: number } } : {}),
-  });
-  if (error) return responseJson({ ok: false, error }, 400);
-  canvasState.updateNode(nodeId, patch as Partial<CanvasNodeState>);
-  if (groupChildIds !== undefined && !setGroupChildrenFromApi(nodeId, groupChildIds)) {
-    return responseJson({ ok: false, error: `Group "${nodeId}" not found.` }, 404);
-  }
-  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  const updated = canvasState.getNode(nodeId);
-  return responseJson(updated ? buildNodeResponse(updated) : { ok: true, id: nodeId });
 }
 
 // ── Arrange nodes ───────────────────────────────────────────
@@ -2857,17 +2362,6 @@ function handleRead(pathLike: string): Response {
 
 function randomExtAppToolCallId(): string {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function nodeAppSessionId(node: CanvasNodeState | undefined): string | null {
-  if (!node || node.type !== 'mcp-app') return null;
-  const sessionId = node.data.appSessionId;
-  return typeof sessionId === 'string' && sessionId.trim().length > 0 ? sessionId : null;
-}
-
-function closeNodeAppSession(node: CanvasNodeState | undefined): void {
-  const sessionId = nodeAppSessionId(node);
-  if (sessionId) closeMcpAppSession(sessionId);
 }
 
 function normalizeStringRecord(value: unknown): Record<string, string> | undefined {
@@ -5402,12 +4896,11 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleRender(req);
           }
 
-          // Canvas state API
-          if (url.pathname === '/api/canvas/state' && req.method === 'GET') {
-            const includeBlobs = url.searchParams.get('includeBlobs') === 'true';
-            return responseJson(includeBlobs
-              ? serializeCanvasLayout(canvasState.getLayout())
-              : serializeCanvasLayoutWithBlobSummaries(withContextPinLayoutReadState(canvasState.getLayoutForPersistence())));
+          // Operation registry routes (plan-005): registered operations are
+          // dispatched here; a null return falls through to the legacy routes.
+          if (url.pathname.startsWith('/api/canvas/')) {
+            const operationResponse = await dispatchOperationRoute(req, url);
+            if (operationResponse) return operationResponse;
           }
 
           if (url.pathname === '/api/canvas/summary' && req.method === 'GET') {
@@ -5450,10 +4943,6 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleCanvasRemoveAnnotation(url.pathname.slice('/api/canvas/annotation/'.length));
           }
 
-          if (url.pathname === '/api/canvas/node' && req.method === 'POST') {
-            return handleCanvasAddNode(req);
-          }
-
           if (url.pathname === '/api/canvas/mcp-app/open' && req.method === 'POST') {
             return handleCanvasOpenMcpApp(req);
           }
@@ -5470,36 +4959,6 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           if (url.pathname.startsWith('/api/canvas/node/') && url.pathname.endsWith('/refresh') && req.method === 'POST') {
             const nodeId = url.pathname.slice('/api/canvas/node/'.length, -'/refresh'.length);
             return handleCanvasRefreshWebpageNode(nodeId, req);
-          }
-
-          if (url.pathname.startsWith('/api/canvas/node/') && req.method === 'GET') {
-            const nodeId = decodeURIComponent(url.pathname.slice('/api/canvas/node/'.length));
-            const includeBlobs = url.searchParams.get('includeBlobs') === 'true';
-            const node = includeBlobs ? canvasState.getNode(nodeId) : canvasState.getNodeForPersistence(nodeId);
-            if (!node) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
-            const responseNode = withContextPinReadState(node);
-            return responseJson(includeBlobs
-              ? serializeCanvasNode(responseNode)
-              : serializeCanvasNodeWithBlobSummaries(responseNode));
-          }
-
-          if (url.pathname.startsWith('/api/canvas/node/') && req.method === 'PATCH') {
-            const nodeId = url.pathname.slice('/api/canvas/node/'.length);
-            return handleCanvasUpdateNode(nodeId, req);
-          }
-
-          if (url.pathname.startsWith('/api/canvas/node/') && req.method === 'DELETE') {
-            const nodeId = url.pathname.slice('/api/canvas/node/'.length);
-            closeNodeAppSession(canvasState.getNode(nodeId));
-            const result = removeCanvasNode(nodeId);
-            if (!result.removed) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
-            emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-            if (result.needsCodeGraphRecompute) {
-              scheduleCodeGraphRecompute(() => {
-                emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-              });
-            }
-            return responseJson({ ok: true, removed: nodeId });
           }
 
           if (url.pathname.startsWith('/api/canvas/image/') && req.method === 'GET') {
