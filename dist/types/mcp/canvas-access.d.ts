@@ -1,7 +1,6 @@
 import { type CanvasLayout, type CanvasNodeState, type CanvasSnapshot, type PmxCanvas } from '../server/index.js';
 import type { PmxAxSource } from '../server/ax-state.js';
-type AddNodeInput = Parameters<PmxCanvas['addNode']>[0];
-type AddWebpageNodeInput = Parameters<PmxCanvas['addWebpageNode']>[0];
+import { type OperationInvoker } from '../server/operations/index.js';
 type RefreshWebpageNodeResult = Awaited<ReturnType<PmxCanvas['refreshWebpageNode']>>;
 type OpenMcpAppInput = Parameters<PmxCanvas['openMcpApp']>[0];
 type OpenMcpAppResult = Awaited<ReturnType<PmxCanvas['openMcpApp']>>;
@@ -15,14 +14,6 @@ type AddHtmlPrimitiveInput = Parameters<PmxCanvas['addHtmlPrimitive']>[0];
 type AddHtmlPrimitiveResult = ReturnType<PmxCanvas['addHtmlPrimitive']>;
 type AddGraphNodeInput = Parameters<PmxCanvas['addGraphNode']>[0];
 type AddGraphNodeResult = ReturnType<PmxCanvas['addGraphNode']>;
-type UpdateNodePatch = Parameters<PmxCanvas['updateNode']>[1];
-type AddEdgeInput = Parameters<PmxCanvas['addEdge']>[0];
-type CreateGroupInput = Parameters<PmxCanvas['createGroup']>[0];
-type GroupNodesOptions = Parameters<PmxCanvas['groupNodes']>[2];
-type ArrangeLayout = Parameters<PmxCanvas['arrange']>[0];
-type FocusNodeResult = ReturnType<PmxCanvas['focusNode']>;
-type FitViewOptions = Parameters<PmxCanvas['fitView']>[0];
-type FitViewResult = ReturnType<PmxCanvas['fitView']>;
 type AxStateResult = ReturnType<PmxCanvas['getAxState']>;
 type AxContextResult = ReturnType<PmxCanvas['getAxContext']>;
 type SetAxFocusResult = ReturnType<PmxCanvas['setAxFocus']>;
@@ -93,10 +84,10 @@ type AutomationScreenshotOptions = Parameters<PmxCanvas['screenshotAutomationWeb
 export interface CanvasAccess {
     readonly port: number;
     readonly remoteBaseUrl: string | null;
+    /** Operation-registry invoker (plan-005): local in-process or HTTP, matching the access mode. */
+    invoker(): OperationInvoker;
     getLayout(): Promise<CanvasLayout>;
     getNode(id: string): Promise<CanvasNodeState | undefined>;
-    addNode(input: AddNodeInput): Promise<string>;
-    addWebpageNode(input: AddWebpageNodeInput): Promise<Awaited<ReturnType<PmxCanvas['addWebpageNode']>>>;
     refreshWebpageNode(id: string, url?: string): Promise<RefreshWebpageNodeResult>;
     openMcpApp(input: OpenMcpAppInput): Promise<OpenMcpAppResult>;
     addDiagram(input: AddDiagramInput): Promise<OpenMcpAppResult>;
@@ -106,19 +97,7 @@ export interface CanvasAccess {
     addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult>;
     addGraphNode(input: AddGraphNodeInput): Promise<AddGraphNodeResult>;
     buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult>;
-    updateNode(id: string, patch: UpdateNodePatch): Promise<void>;
-    removeNode(id: string): Promise<void>;
     removeAnnotation(id: string): Promise<boolean>;
-    addEdge(input: AddEdgeInput): Promise<string>;
-    removeEdge(id: string): Promise<void>;
-    createGroup(input: CreateGroupInput): Promise<string>;
-    groupNodes(groupId: string, childIds: string[], options?: GroupNodesOptions): Promise<boolean>;
-    ungroupNodes(groupId: string): Promise<boolean>;
-    arrange(layout?: ArrangeLayout): Promise<void>;
-    focusNode(id: string, options?: {
-        noPan?: boolean;
-    }): Promise<FocusNodeResult>;
-    fitView(options?: FitViewOptions): Promise<FitViewResult>;
     getAxState(): Promise<AxStateResult>;
     getAxContext(options?: {
         consumer?: string;
@@ -205,7 +184,6 @@ export interface CanvasAccess {
     setPolicy(patch: SetPolicyInput, options?: {
         source?: PmxAxSource;
     }): Promise<SetPolicyResult>;
-    clear(): Promise<void>;
     search(query: string): Promise<SearchResult>;
     undo(): Promise<UndoRedoResult>;
     redo(): Promise<UndoRedoResult>;

@@ -29,6 +29,17 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   carry the standard sessionId/timestamp envelope like every other mutation.
   HTTP paths, wire shapes, and MCP tool names are unchanged.
 
+### Fixed
+
+- **json-render and graph viewer iframes crashed at mount (blank iframes).**
+  Bun 1.3.14 ignores the `NODE_ENV` define for JSX dev/prod selection when a
+  tsconfig is in scope, so the viewer bundle shipped the dev JSX transform
+  (`jsxDEV`) against production React, which exports it as `undefined`. Every
+  json-render/graph iframe failed with `TypeError: t is not a function`.
+  `scripts/build-json-render.sh` now passes `--production` to `bun build`,
+  forcing the production JSX transform. Caught by the restored Playwright e2e
+  gate (8 tests had been failing silently on main).
+
 ## [0.1.36] - 2026-06-09
 
 ### Added
