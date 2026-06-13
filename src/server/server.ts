@@ -2939,10 +2939,6 @@ function normalizeAxSource(value: unknown, fallback: PmxAxSource): PmxAxSource {
     : fallback;
 }
 
-function handleGetAxState(): Response {
-  return responseJson({ ok: true, state: canvasState.getAxState() });
-}
-
 function handleGetAxContext(url: URL): Response {
   // Optional ?consumer= filters the compact `delivery` lead block (loop-safe — a
   // consumer never sees steering/activity it originated), so a host adapter can
@@ -3221,29 +3217,6 @@ async function handleAxCommandInvoke(req: Request): Promise<Response> {
 
 function handleAxPolicyGet(): Response {
   return responseJson({ ok: true, policy: canvasState.getPolicy() });
-}
-
-async function handleAxPolicySet(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const patch: { tools?: Partial<PmxAxPolicy['tools']>; prompt?: Partial<PmxAxPolicy['prompt']> } = {};
-  if (isRecord(body.tools)) patch.tools = body.tools as Partial<PmxAxPolicy['tools']>;
-  if (isRecord(body.prompt)) patch.prompt = body.prompt as Partial<PmxAxPolicy['prompt']>;
-  const policy = canvasState.setPolicy(patch, { source: normalizeAxSource(body.source, 'api') });
-  broadcastWorkbenchEvent('ax-state-changed', { policy, sessionId: primaryWorkbenchSessionId, timestamp: new Date().toISOString() });
-  return responseJson({ ok: true, policy });
-}
-
-async function handleAxFocusUpdate(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const nodeIds = normalizeAxNodeIds(body.nodeIds);
-  const source = normalizeAxSource(body.source, 'api');
-  const focus = canvasState.setAxFocus(nodeIds, { source });
-  broadcastWorkbenchEvent('ax-state-changed', {
-    focus,
-    sessionId: primaryWorkbenchSessionId,
-    timestamp: new Date().toISOString(),
-  });
-  return responseJson({ ok: true, focus });
 }
 
 async function handleAxStatePatch(req: Request): Promise<Response> {
@@ -3537,17 +3510,6 @@ async function handleAxReviewUpdate(req: Request, id: string): Promise<Response>
 
 function handleAxHostCapabilityGet(): Response {
   return responseJson({ ok: true, host: canvasState.getHostCapability() });
-}
-
-async function handleAxHostCapabilityReport(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const host = canvasState.setHostCapability(body, { source: normalizeAxSource(body.source, 'api') });
-  broadcastWorkbenchEvent('ax-state-changed', {
-    host,
-    sessionId: primaryWorkbenchSessionId,
-    timestamp: new Date().toISOString(),
-  });
-  return responseJson({ ok: true, host });
 }
 
 // ── Port resolution ───────────────────────────────────────────
@@ -4466,9 +4428,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleGetPinnedContext();
           }
 
-          if (url.pathname === '/api/canvas/ax' && req.method === 'GET') {
-            return handleGetAxState();
-          }
+          // GET /api/canvas/ax migrated to the operation registry (plan-007 Slice B.1).
 
           if (url.pathname === '/api/canvas/ax' && req.method === 'PATCH') {
             return handleAxStatePatch(req);
@@ -4490,9 +4450,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleOpenExternalSurface(req);
           }
 
-          if (url.pathname === '/api/canvas/ax/focus' && req.method === 'POST') {
-            return handleAxFocusUpdate(req);
-          }
+          // POST /api/canvas/ax/focus migrated to the operation registry (plan-007 Slice B.1).
 
           if (url.pathname === '/api/canvas/ax/event' && req.method === 'POST') {
             return handleAxEventAdd(req);
@@ -4560,9 +4518,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleAxHostCapabilityGet();
           }
 
-          if (url.pathname === '/api/canvas/ax/host-capability' && req.method === 'PUT') {
-            return handleAxHostCapabilityReport(req);
-          }
+          // PUT /api/canvas/ax/host-capability migrated to the operation registry (plan-007 Slice B.1).
 
           if (url.pathname === '/api/canvas/ax/interaction' && req.method === 'POST') {
             return handleAxInteraction(req);
@@ -4631,9 +4587,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleAxPolicyGet();
           }
 
-          if (url.pathname === '/api/canvas/ax/policy' && req.method === 'POST') {
-            return handleAxPolicySet(req);
-          }
+          // POST /api/canvas/ax/policy migrated to the operation registry (plan-007 Slice B.1).
 
           // Code graph API
           if (url.pathname === '/api/canvas/code-graph' && req.method === 'GET') {

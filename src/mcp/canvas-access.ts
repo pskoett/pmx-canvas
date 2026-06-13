@@ -24,7 +24,6 @@ type AddHtmlPrimitiveInput = Parameters<PmxCanvas['addHtmlPrimitive']>[0];
 type AddHtmlPrimitiveResult = ReturnType<PmxCanvas['addHtmlPrimitive']>;
 type AxStateResult = ReturnType<PmxCanvas['getAxState']>;
 type AxContextResult = ReturnType<PmxCanvas['getAxContext']>;
-type SetAxFocusResult = ReturnType<PmxCanvas['setAxFocus']>;
 type RecordAxEventInput = Parameters<PmxCanvas['recordAxEvent']>[0];
 type RecordAxEventResult = ReturnType<PmxCanvas['recordAxEvent']>;
 type SendSteeringResult = ReturnType<PmxCanvas['sendSteering']>;
@@ -47,8 +46,6 @@ type AwaitModeResult = Awaited<ReturnType<PmxCanvas['awaitMode']>>;
 type GetCommandRegistryResult = ReturnType<PmxCanvas['getCommandRegistry']>;
 type InvokeCommandResult = ReturnType<PmxCanvas['invokeCommand']>;
 type GetPolicyResult = ReturnType<PmxCanvas['getPolicy']>;
-type SetPolicyInput = Parameters<PmxCanvas['setPolicy']>[0];
-type SetPolicyResult = ReturnType<PmxCanvas['setPolicy']>;
 type GetAxTimelineQuery = Parameters<PmxCanvas['getAxTimeline']>[0];
 type GetAxTimelineResult = ReturnType<PmxCanvas['getAxTimeline']>;
 type AddWorkItemInput = Parameters<PmxCanvas['addWorkItem']>[0];
@@ -67,8 +64,6 @@ type AddReviewAnnotationResult = ReturnType<PmxCanvas['addReviewAnnotation']>;
 type UpdateReviewAnnotationPatch = Parameters<PmxCanvas['updateReviewAnnotation']>[1];
 type UpdateReviewAnnotationResult = ReturnType<PmxCanvas['updateReviewAnnotation']>;
 type ListReviewAnnotationsResult = ReturnType<PmxCanvas['listReviewAnnotations']>;
-type GetHostCapabilityResult = ReturnType<PmxCanvas['getHostCapability']>;
-type ReportHostCapabilityResult = ReturnType<PmxCanvas['reportHostCapability']>;
 type HistoryResult = ReturnType<PmxCanvas['getHistory']>;
 type RunBatchInput = Parameters<PmxCanvas['runBatch']>[0];
 type RunBatchResult = Awaited<ReturnType<PmxCanvas['runBatch']>>;
@@ -119,7 +114,6 @@ export interface CanvasAccess {
   removeAnnotation(id: string): Promise<boolean>;
   getAxState(): Promise<AxStateResult>;
   getAxContext(options?: { consumer?: string }): Promise<AxContextResult>;
-  setAxFocus(nodeIds: string[], options?: { source?: PmxAxSource }): Promise<SetAxFocusResult>;
   recordAxEvent(input: RecordAxEventInput, options?: { source?: PmxAxSource }): Promise<RecordAxEventResult>;
   sendSteering(message: string, options?: { source?: PmxAxSource }): Promise<SendSteeringResult>;
   getAxTimeline(query?: GetAxTimelineQuery): Promise<GetAxTimelineResult>;
@@ -133,8 +127,6 @@ export interface CanvasAccess {
   addReviewAnnotation(input: AddReviewAnnotationInput, options?: { source?: PmxAxSource }): Promise<AddReviewAnnotationResult>;
   updateReviewAnnotation(id: string, patch: UpdateReviewAnnotationPatch, options?: { source?: PmxAxSource }): Promise<UpdateReviewAnnotationResult>;
   listReviewAnnotations(): Promise<ListReviewAnnotationsResult>;
-  getHostCapability(): Promise<GetHostCapabilityResult>;
-  reportHostCapability(input: unknown, options?: { source?: PmxAxSource }): Promise<ReportHostCapabilityResult>;
   submitAxInteraction(input: SubmitAxInteractionInput, options?: { source?: PmxAxSource }): Promise<SubmitAxInteractionResult>;
   getPendingSteering(options?: { consumer?: string; limit?: number }): Promise<GetPendingSteeringResult>;
   markSteeringDelivered(id: string): Promise<boolean>;
@@ -151,7 +143,6 @@ export interface CanvasAccess {
   getCommandRegistry(): Promise<GetCommandRegistryResult>;
   invokeCommand(name: string, args?: Record<string, unknown> | null, options?: { source?: PmxAxSource }): Promise<InvokeCommandResult>;
   getPolicy(): Promise<GetPolicyResult>;
-  setPolicy(patch: SetPolicyInput, options?: { source?: PmxAxSource }): Promise<SetPolicyResult>;
   getHistory(): Promise<HistoryResult>;
   getPinnedNodeIds(): Promise<string[]>;
   runBatch(operations: RunBatchInput): Promise<RunBatchResult>;
@@ -227,10 +218,6 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async getAxContext(options?: { consumer?: string }): Promise<AxContextResult> {
     return this.canvas.getAxContext(options);
-  }
-
-  async setAxFocus(nodeIds: string[], options?: { source?: PmxAxSource }): Promise<SetAxFocusResult> {
-    return this.canvas.setAxFocus(nodeIds, { source: options?.source ?? 'mcp' });
   }
 
   async recordAxEvent(input: RecordAxEventInput, options?: { source?: PmxAxSource }): Promise<RecordAxEventResult> {
@@ -313,10 +300,6 @@ class LocalCanvasAccess implements CanvasAccess {
     return this.canvas.getPolicy();
   }
 
-  async setPolicy(patch: SetPolicyInput, options?: { source?: PmxAxSource }): Promise<SetPolicyResult> {
-    return this.canvas.setPolicy(patch, { source: options?.source ?? 'mcp' });
-  }
-
   async updateWorkItem(id: string, patch: UpdateWorkItemPatch, options?: { source?: PmxAxSource }): Promise<UpdateWorkItemResult> {
     return this.canvas.updateWorkItem(id, patch, { source: options?.source ?? 'mcp' });
   }
@@ -354,14 +337,6 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async listReviewAnnotations(): Promise<ListReviewAnnotationsResult> {
     return this.canvas.listReviewAnnotations();
-  }
-
-  async getHostCapability(): Promise<GetHostCapabilityResult> {
-    return this.canvas.getHostCapability();
-  }
-
-  async reportHostCapability(input: unknown, options?: { source?: PmxAxSource }): Promise<ReportHostCapabilityResult> {
-    return this.canvas.reportHostCapability(input, { source: options?.source ?? 'mcp' });
   }
 
   async getHistory(): Promise<HistoryResult> {
@@ -579,15 +554,6 @@ class RemoteCanvasAccess implements CanvasAccess {
     return await this.requestJson<AxContextResult>('GET', `/api/canvas/ax/context${qs}`);
   }
 
-  async setAxFocus(nodeIds: string[], options?: { source?: PmxAxSource }): Promise<SetAxFocusResult> {
-    const response = await this.requestJson<{ focus?: SetAxFocusResult }>('POST', '/api/canvas/ax/focus', {
-      nodeIds,
-      source: options?.source ?? 'mcp',
-    });
-    if (!response.focus) throw new Error('Remote canvas did not return AX focus.');
-    return response.focus;
-  }
-
   async recordAxEvent(input: RecordAxEventInput, options?: { source?: PmxAxSource }): Promise<RecordAxEventResult> {
     const response = await this.requestJson<{ event?: RecordAxEventResult }>('POST', '/api/canvas/ax/event', {
       ...input,
@@ -768,15 +734,6 @@ class RemoteCanvasAccess implements CanvasAccess {
     return r.policy;
   }
 
-  async setPolicy(patch: SetPolicyInput, options?: { source?: PmxAxSource }): Promise<SetPolicyResult> {
-    const r = await this.requestJson<{ policy?: SetPolicyResult }>('POST', '/api/canvas/ax/policy', {
-      ...patch,
-      source: options?.source ?? 'mcp',
-    });
-    if (!r.policy) throw new Error('Remote canvas did not return a policy.');
-    return r.policy;
-  }
-
   async updateWorkItem(id: string, patch: UpdateWorkItemPatch, options?: { source?: PmxAxSource }): Promise<UpdateWorkItemResult> {
     const response = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/work/${encodeURIComponent(id)}`, {
       method: 'PATCH',
@@ -858,21 +815,6 @@ class RemoteCanvasAccess implements CanvasAccess {
   async listReviewAnnotations(): Promise<ListReviewAnnotationsResult> {
     const response = await this.requestJson<{ reviewAnnotations?: ListReviewAnnotationsResult }>('GET', '/api/canvas/ax/review');
     return response.reviewAnnotations ?? [];
-  }
-
-  async getHostCapability(): Promise<GetHostCapabilityResult> {
-    const response = await this.requestJson<{ host?: GetHostCapabilityResult }>('GET', '/api/canvas/ax/host-capability');
-    return response.host ?? null;
-  }
-
-  async reportHostCapability(input: unknown, options?: { source?: PmxAxSource }): Promise<ReportHostCapabilityResult> {
-    const body = input !== null && typeof input === 'object' && !Array.isArray(input) ? { ...input } : {};
-    const response = await this.requestJson<{ host?: ReportHostCapabilityResult }>('PUT', '/api/canvas/ax/host-capability', {
-      ...body,
-      source: options?.source ?? 'mcp',
-    });
-    if (!response.host) throw new Error('Remote canvas did not return host capability.');
-    return response.host;
   }
 
   async getPinnedNodeIds(): Promise<string[]> {

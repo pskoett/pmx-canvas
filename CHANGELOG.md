@@ -42,6 +42,18 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   human and a resuming agent can see the change. The note is append-only (not
   rolled back on undo, not duplicated on redo). See `docs/ax-state-contract.md`.
 
+- **AX state ops migrated to the operation registry (plan-007 Slice B, wave 1).**
+  `canvas_get_ax`, `canvas_set_ax_focus`, `canvas_set_ax_policy`, and
+  `canvas_report_host_capability` are now defined once in
+  `src/server/operations/ops/ax-state.ts` and shared by HTTP, MCP, and the SDK
+  (legacy hand-written handlers + tools + CanvasAccess methods deleted). Tool
+  names, MCP result shapes, SSE frames (`ax-state-changed`), and `source`
+  defaulting are unchanged. One deliberate HTTP expansion: `GET /api/canvas/ax`
+  now returns `{ ok, state, host, context }` (previously `{ ok, state }`) — the
+  registry serves one wire body that the remote-MCP invoker also consumes, so the
+  `canvas_get_ax` aggregate is preserved across local and remote MCP. Additive;
+  existing clients that read `state` are unaffected.
+
 - **Removing a missing node now errors on every surface (plan-005 slice 1).**
   Node CRUD + layout reads (`node.add` / `node.get` / `node.update` /
   `node.remove` / `layout.get`) are defined once in a new operation registry

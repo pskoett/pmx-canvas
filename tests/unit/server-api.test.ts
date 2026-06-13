@@ -3784,6 +3784,20 @@ describe('canvas server HTTP API', () => {
     expect(ax.state.workItems.find((w) => w.id === created.workItem.id)?.status).toBe('in-progress');
   });
 
+  test('GET /api/canvas/ax returns the aggregate { ok, state, host, context } (plan-007 B.1)', async () => {
+    // The registry ax.get op serves one wire body that the remote-MCP invoker
+    // also consumes, so the HTTP route now carries the full aggregate (host +
+    // context), not just state. Pin it so the expansion is not silently reverted.
+    const ax = await jsonRequest<{ ok: boolean; state: unknown; host: unknown; context?: unknown }>('/api/canvas/ax');
+    expect(ax.ok).toBe(true);
+    expect(ax).toHaveProperty('state');
+    expect(ax).toHaveProperty('host');
+    expect(ax).toHaveProperty('context');
+    // includeContext=false drops the context block.
+    const slim = await jsonRequest<{ context?: unknown }>('/api/canvas/ax?includeContext=false');
+    expect(slim).not.toHaveProperty('context');
+  });
+
   test('primitive A: activity ingestion applies kind-driven reactions, overridable', async () => {
     const node = await jsonRequest<{ id: string }>('/api/canvas/node', {
       method: 'POST',

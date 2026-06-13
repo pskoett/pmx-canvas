@@ -10,6 +10,7 @@ import { groupOperations } from './ops/groups.js';
 import { queryOperations } from './ops/query.js';
 import { snapshotOperations } from './ops/snapshots.js';
 import { jsonRenderOperations } from './ops/json-render.js';
+import { axStateOperations } from './ops/ax-state.js';
 
 for (const op of [
   ...nodeOperations,
@@ -19,6 +20,7 @@ for (const op of [
   ...queryOperations,
   ...snapshotOperations,
   ...jsonRenderOperations,
+  ...axStateOperations,
 ]) {
   registerOperation(op);
 }

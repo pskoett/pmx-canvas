@@ -31,6 +31,13 @@ function readFile(relPath: string): string {
   return readFileSync(join(repoRoot, relPath), 'utf-8');
 }
 
+/** Concatenate every source file under a directory (for registry op lookups). */
+function readDir(relPath: string): string {
+  return walkFiles(join(repoRoot, relPath))
+    .map((file) => readFileSync(file, 'utf-8'))
+    .join('\n');
+}
+
 describe('AX neutral-primitive parity and host isolation', () => {
   test('no core source imports @github/copilot-sdk', () => {
     const offenders: string[] = [];
@@ -47,13 +54,24 @@ describe('AX neutral-primitive parity and host isolation', () => {
 
   test('every AX operation is wired across SDK, HTTP, MCP, CLI, and CanvasAccess', () => {
     const sdk = readFile('src/server/index.ts');
-    const httpServer = readFile('src/server/server.ts');
-    const mcp = readFile('src/mcp/server.ts');
+    // As AX ops migrate into the operation registry (plan-007 Slice B), the HTTP
+    // route + MCP tool literals move from server.ts / mcp/server.ts into
+    // src/server/operations/ops/ax-*.ts, and the per-op CanvasAccess method is
+    // deleted (the invoker replaces it — that is the registry's whole point). So
+    // the HTTP/MCP corpus includes the registry op files, and a `migrated` op
+    // skips the now-removed CanvasAccess-method assertion (its single definition
+    // site is the registry op, verified by the HTTP/MCP checks + the mcp-tool
+    // freeze + operation-parity suites).
+    const opsRegistry = readDir('src/server/operations/ops');
+    const httpServer = readFile('src/server/server.ts') + opsRegistry;
+    const mcp = readFile('src/mcp/server.ts') + opsRegistry;
     const cli = readFile('src/cli/agent.ts');
     const access = readFile('src/mcp/canvas-access.ts');
 
     // Each AX operation: the SDK method name, the HTTP route fragment, the MCP
     // tool name, the CLI command registration, and the CanvasAccess method.
+    // `migrated: true` marks ops that now live in the operation registry — their
+    // CanvasAccess method has been deleted by design.
     const ops: Array<{
       label: string;
       sdkMethod: string;
@@ -61,6 +79,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
       mcpTool: string;
       cliCommand: string;
       accessMethod: string;
+      migrated?: boolean;
     }> = [
       {
         label: 'agent-event',
@@ -141,6 +160,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
         mcpTool: "'canvas_report_host_capability'",
         cliCommand: "cmd('ax host report'",
         accessMethod: 'reportHostCapability(',
+        migrated: true,
       },
       {
         label: 'node-interaction',
@@ -189,6 +209,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
         mcpTool: "'canvas_set_ax_policy'",
         cliCommand: "cmd('ax policy set'",
         accessMethod: 'setPolicy(',
+        migrated: true,
       },
     ];
 
@@ -198,7 +219,11 @@ describe('AX neutral-primitive parity and host isolation', () => {
       if (!httpServer.includes(op.httpRoute)) missing.push(`${op.label}: HTTP ${op.httpRoute}`);
       if (!mcp.includes(op.mcpTool)) missing.push(`${op.label}: MCP ${op.mcpTool}`);
       if (!cli.includes(op.cliCommand)) missing.push(`${op.label}: CLI ${op.cliCommand}`);
-      if (!access.includes(op.accessMethod)) missing.push(`${op.label}: CanvasAccess ${op.accessMethod}`);
+      // Migrated ops have one definition site (the registry op) — their legacy
+      // per-surface CanvasAccess method is deleted by design.
+      if (!op.migrated && !access.includes(op.accessMethod)) {
+        missing.push(`${op.label}: CanvasAccess ${op.accessMethod}`);
+      }
     }
     expect(missing).toEqual([]);
   });
