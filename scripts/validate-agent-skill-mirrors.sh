@@ -36,8 +36,15 @@ for root in "${ROOTS[@]}"; do
 done
 
 if [ "${#EXISTING_ROOTS[@]}" -lt 1 ]; then
-  echo "No skills roots found to validate." >&2
-  exit 1
+  # No mirror trees are committed in this checkout — `.agents/` and `.opencode/`
+  # are gitignored (see .gitignore) and `.claude/` is typically excluded by a
+  # global gitignore, so a clean CI checkout has none of them. There is nothing
+  # to compare, so skip gracefully rather than failing: this script guards drift
+  # only between trees that ARE present (e.g. local dev), exactly as the
+  # per-root skip above intends. Hard-failing here turned the normal CI state
+  # (all roots absent) into a false-negative failure.
+  echo "No skills roots present in this checkout; nothing to validate (skipping)." >&2
+  exit 0
 fi
 
 list_files() {
