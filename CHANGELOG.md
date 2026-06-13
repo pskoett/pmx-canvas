@@ -5,6 +5,67 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Changed
+
+- **Removing a missing node now errors on every surface (plan-005 slice 1).**
+  Node CRUD + layout reads (`node.add` / `node.get` / `node.update` /
+  `node.remove` / `layout.get`) are defined once in a new operation registry
+  (`src/server/operations/`) shared by HTTP, MCP, CLI, and the SDK. As part of
+  the unification, `canvas_remove_node` over local (in-process) MCP access and
+  `PmxCanvas.removeNode` no longer silently succeed on an unknown node id —
+  they now report the same `Node "<id>" not found.` error the HTTP DELETE
+  already returned (404). The SDK's `updateNode` also gained the HTTP superset
+  patch semantics (webpage `titleSource`/`url`, html top-level `html` /
+  `axCapabilities`, group `children`), erasing long-standing cross-surface
+  drift. Wire shapes and MCP tool names are unchanged.
+
+- **Edges, arrange/focus/fit/clear, and groups migrated to the operation
+  registry (plan-005 slice 2).** Same unification class as slice 1:
+  `canvas_remove_edge` over local MCP access now errors on a missing edge
+  (remote already did); `canvas_create_group` over local access now rejects
+  missing child ids (HTTP already did); `canvas_focus_node` on a missing node
+  now returns a proper MCP error result; `canvas_ungroup` failure text is now
+  the HTTP message `Group not found or empty.`. Group and focus SSE frames now
+  carry the standard sessionId/timestamp envelope like every other mutation.
+  HTTP paths, wire shapes, and MCP tool names are unchanged.
+
+- **Pins, search, history, undo/redo, and snapshots migrated to the operation
+  registry (plan-005 slice 3).** Same unification class as earlier slices:
+  pin updates are now computed server-side authoritatively; undo/redo over
+  local MCP now use the HTTP emit set; restore/delete/diff on a missing
+  snapshot now return the same error on every surface; percent-encoded
+  snapshot ids now work on DELETE. POST `/api/canvas/context-pins` honors an
+  optional `mode` field (`set`/`add`/`remove`, default `set`). Plain-text
+  legacy snapshot error bodies became the standard `{ ok:false, error }`
+  envelope. HTTP paths, wire shapes, and MCP tool names are unchanged.
+
+- **json-render, graph, streaming, schema, and spec-validation migrated to the
+  operation registry (plan-005 slice 4 / migration item 6).** `jsonrender.add`,
+  `jsonrender.stream`, `graph.add`, `schema.describe`, and `spec.validate` are
+  now defined once and shared by HTTP, MCP, CLI, and the SDK. The frame-height
+  alias triangle (`heightPx` from the SDK, `nodeHeight` over HTTP/MCP, `height`
+  for chart content, plus `size.height`) is absorbed into one schema with a
+  legacy-exact resolution order (`nodeHeight ?? heightPx ?? size.height`). The
+  CLI `node add --type json-render`/`--type graph` and `graph add` commands now
+  route through the registry invoker instead of hand-written `fetch` paths, and
+  the SDK's `streamJsonRenderNode` shares the create-or-append core with the op
+  handler. `spec.validate`'s graph branch now honors the full graph payload
+  surface (previously the HTTP handler silently dropped fields the MCP tool and
+  graph-create route honored). The spec-validation error body keeps its exact
+  `{ ok, error, type }` shape. HTTP paths, wire shapes, and MCP tool names are
+  unchanged.
+
+### Fixed
+
+- **json-render and graph viewer iframes crashed at mount (blank iframes).**
+  Bun 1.3.14 ignores the `NODE_ENV` define for JSX dev/prod selection when a
+  tsconfig is in scope, so the viewer bundle shipped the dev JSX transform
+  (`jsxDEV`) against production React, which exports it as `undefined`. Every
+  json-render/graph iframe failed with `TypeError: t is not a function`.
+  `scripts/build-json-render.sh` now passes `--production` to `bun build`,
+  forcing the production JSX transform. Caught by the restored Playwright e2e
+  gate (8 tests had been failing silently on main).
+
 ## [0.1.36] - 2026-06-09
 
 ### Added

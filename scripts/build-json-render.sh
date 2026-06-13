@@ -70,6 +70,12 @@ command = [
     "--outdir",
     "dist/json-render",
     "--minify",
+    # Force the production JSX transform. When a tsconfig.json is in scope,
+    # Bun (>= 1.3.x) ignores the NODE_ENV define for JSX dev/prod selection and
+    # emits jsxDEV calls — which are undefined in prod-mode React, so the viewer
+    # crashes at runtime with "t is not a function". --production also sets
+    # NODE_ENV=production and enables minification.
+    "--production",
     # Ship prod-mode React and let isProduction() fold the @json-render devtools
     # panel out of the bundle (the panel is also runtime-gated by the
     # __PMX_CANVAS_JSON_RENDER_DEVTOOLS__ global, so it never mounts by default).

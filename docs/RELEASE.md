@@ -35,6 +35,11 @@ bun run release:smoke       # packs + boots from a clean dir
 bun run pack:dry-run        # confirms the tarball shape
 ```
 
+`bun run test:web-canvas` invokes Playwright through
+`scripts/run-playwright.sh`, which runs the Playwright CLI under Node —
+do not call `bun x playwright test` directly; it fails before test
+discovery with a `.esm.preflight` loader error (ERR-20260508-001).
+
 `bun run test:e2e-cli` starts a local server in a fresh temp workspace
 and exercises the CLI flows from
 [`docs/evals/e2e-cli-coverage.md`](evals/e2e-cli-coverage.md).

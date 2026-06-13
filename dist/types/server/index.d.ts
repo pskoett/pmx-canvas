@@ -88,6 +88,7 @@ export declare class PmxCanvas extends EventEmitter {
         error?: string;
     }>;
     updateNode(id: string, patch: Partial<CanvasNodeState> & Record<string, unknown>): void;
+    /** Remove a node. Missing id throws (plan-005 unifies this across surfaces). */
     removeNode(id: string): void;
     addEdge(input: {
         from?: string;
