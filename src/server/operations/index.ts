@@ -9,6 +9,7 @@ import { viewportOperations } from './ops/viewport.js';
 import { groupOperations } from './ops/groups.js';
 import { queryOperations } from './ops/query.js';
 import { snapshotOperations } from './ops/snapshots.js';
+import { jsonRenderOperations } from './ops/json-render.js';
 
 for (const op of [
   ...nodeOperations,
@@ -17,6 +18,7 @@ for (const op of [
   ...groupOperations,
   ...queryOperations,
   ...snapshotOperations,
+  ...jsonRenderOperations,
 ]) {
   registerOperation(op);
 }

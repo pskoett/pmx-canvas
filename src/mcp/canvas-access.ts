@@ -19,15 +19,9 @@ type RefreshWebpageNodeResult = Awaited<ReturnType<PmxCanvas['refreshWebpageNode
 type OpenMcpAppInput = Parameters<PmxCanvas['openMcpApp']>[0];
 type OpenMcpAppResult = Awaited<ReturnType<PmxCanvas['openMcpApp']>>;
 type AddDiagramInput = Parameters<PmxCanvas['addDiagram']>[0];
-type AddJsonRenderNodeInput = Parameters<PmxCanvas['addJsonRenderNode']>[0];
-type AddJsonRenderNodeResult = ReturnType<PmxCanvas['addJsonRenderNode']>;
-type StreamJsonRenderNodeInput = Parameters<PmxCanvas['streamJsonRenderNode']>[0];
-type StreamJsonRenderNodeResult = ReturnType<PmxCanvas['streamJsonRenderNode']>;
 type AddHtmlNodeInput = Parameters<PmxCanvas['addHtmlNode']>[0];
 type AddHtmlPrimitiveInput = Parameters<PmxCanvas['addHtmlPrimitive']>[0];
 type AddHtmlPrimitiveResult = ReturnType<PmxCanvas['addHtmlPrimitive']>;
-type AddGraphNodeInput = Parameters<PmxCanvas['addGraphNode']>[0];
-type AddGraphNodeResult = ReturnType<PmxCanvas['addGraphNode']>;
 type AxStateResult = ReturnType<PmxCanvas['getAxState']>;
 type AxContextResult = ReturnType<PmxCanvas['getAxContext']>;
 type SetAxFocusResult = ReturnType<PmxCanvas['setAxFocus']>;
@@ -97,16 +91,6 @@ interface NodeResponse {
   node?: { id?: string };
 }
 
-interface JsonRenderNodeResponse extends NodeResponse {
-  url: string;
-  spec: AddJsonRenderNodeResult['spec'];
-}
-
-interface GraphNodeResponse extends NodeResponse {
-  url: string;
-  spec: AddGraphNodeResult['spec'];
-}
-
 interface WebViewEnvelope {
   webview?: AutomationWebViewStatus;
 }
@@ -129,11 +113,8 @@ export interface CanvasAccess {
   refreshWebpageNode(id: string, url?: string): Promise<RefreshWebpageNodeResult>;
   openMcpApp(input: OpenMcpAppInput): Promise<OpenMcpAppResult>;
   addDiagram(input: AddDiagramInput): Promise<OpenMcpAppResult>;
-  addJsonRenderNode(input: AddJsonRenderNodeInput): Promise<AddJsonRenderNodeResult>;
-  streamJsonRenderNode(input: StreamJsonRenderNodeInput): Promise<StreamJsonRenderNodeResult>;
   addHtmlNode(input: AddHtmlNodeInput): Promise<string>;
   addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult>;
-  addGraphNode(input: AddGraphNodeInput): Promise<AddGraphNodeResult>;
   buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult>;
   removeAnnotation(id: string): Promise<boolean>;
   getAxState(): Promise<AxStateResult>;
@@ -222,14 +203,6 @@ class LocalCanvasAccess implements CanvasAccess {
     return await this.canvas.addDiagram(input);
   }
 
-  async addJsonRenderNode(input: AddJsonRenderNodeInput): Promise<AddJsonRenderNodeResult> {
-    return this.canvas.addJsonRenderNode(input);
-  }
-
-  async streamJsonRenderNode(input: StreamJsonRenderNodeInput): Promise<StreamJsonRenderNodeResult> {
-    return this.canvas.streamJsonRenderNode(input);
-  }
-
   async addHtmlNode(input: AddHtmlNodeInput): Promise<string> {
     // PmxCanvas.addHtmlNode returns the created node; the CanvasAccess contract
     // is a bare id string, so extract it (mirrors addNode above).
@@ -238,10 +211,6 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult> {
     return this.canvas.addHtmlPrimitive(input);
-  }
-
-  async addGraphNode(input: AddGraphNodeInput): Promise<AddGraphNodeResult> {
-    return this.canvas.addGraphNode(input);
   }
 
   async buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult> {
@@ -533,36 +502,6 @@ class RemoteCanvasAccess implements CanvasAccess {
     return await this.requestJson<OpenMcpAppResult>('POST', '/api/canvas/diagram', input);
   }
 
-  async addJsonRenderNode(input: AddJsonRenderNodeInput): Promise<AddJsonRenderNodeResult> {
-    const response = await this.requestJson<JsonRenderNodeResponse>('POST', '/api/canvas/json-render', input);
-    const id = typeof response.id === 'string' ? response.id : response.node?.id;
-    if (!id) throw new Error('json-render response did not include a node id.');
-    return { id, url: response.url, spec: response.spec };
-  }
-
-  async streamJsonRenderNode(input: StreamJsonRenderNodeInput): Promise<StreamJsonRenderNodeResult> {
-    const response = await this.requestJson<{
-      id?: string;
-      url?: string;
-      applied?: number;
-      skipped?: number;
-      specVersion?: number;
-      elementCount?: number;
-      streamStatus?: 'open' | 'closed';
-    }>('POST', '/api/canvas/json-render/stream', input);
-    const id = typeof response.id === 'string' ? response.id : undefined;
-    if (!id) throw new Error('json-render stream response did not include a node id.');
-    return {
-      id,
-      url: response.url ?? '',
-      applied: response.applied ?? 0,
-      skipped: response.skipped ?? 0,
-      specVersion: response.specVersion ?? 0,
-      elementCount: response.elementCount ?? 0,
-      streamStatus: response.streamStatus ?? 'open',
-    };
-  }
-
   async addHtmlNode(input: AddHtmlNodeInput): Promise<string> {
     const {
       summary,
@@ -614,16 +553,6 @@ class RemoteCanvasAccess implements CanvasAccess {
       title: response.primitive?.title ?? input.title ?? input.kind,
       htmlBytes: response.primitive?.htmlBytes ?? 0,
     };
-  }
-
-  async addGraphNode(input: AddGraphNodeInput): Promise<AddGraphNodeResult> {
-    const response = await this.requestJson<GraphNodeResponse>('POST', '/api/canvas/graph', {
-      ...input,
-      ...(typeof input.heightPx === 'number' ? { nodeHeight: input.heightPx } : {}),
-    });
-    const id = typeof response.id === 'string' ? response.id : response.node?.id;
-    if (!id) throw new Error('graph response did not include a node id.');
-    return { id, url: response.url, spec: response.spec };
   }
 
   async buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult> {

@@ -39,6 +39,22 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   legacy snapshot error bodies became the standard `{ ok:false, error }`
   envelope. HTTP paths, wire shapes, and MCP tool names are unchanged.
 
+- **json-render, graph, streaming, schema, and spec-validation migrated to the
+  operation registry (plan-005 slice 4 / migration item 6).** `jsonrender.add`,
+  `jsonrender.stream`, `graph.add`, `schema.describe`, and `spec.validate` are
+  now defined once and shared by HTTP, MCP, CLI, and the SDK. The frame-height
+  alias triangle (`heightPx` from the SDK, `nodeHeight` over HTTP/MCP, `height`
+  for chart content, plus `size.height`) is absorbed into one schema with a
+  legacy-exact resolution order (`nodeHeight ?? heightPx ?? size.height`). The
+  CLI `node add --type json-render`/`--type graph` and `graph add` commands now
+  route through the registry invoker instead of hand-written `fetch` paths, and
+  the SDK's `streamJsonRenderNode` shares the create-or-append core with the op
+  handler. `spec.validate`'s graph branch now honors the full graph payload
+  surface (previously the HTTP handler silently dropped fields the MCP tool and
+  graph-create route honored). The spec-validation error body keeps its exact
+  `{ ok, error, type }` shape. HTTP paths, wire shapes, and MCP tool names are
+  unchanged.
+
 ### Fixed
 
 - **json-render and graph viewer iframes crashed at mount (blank iframes).**

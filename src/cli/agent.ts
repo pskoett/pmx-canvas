@@ -1183,13 +1183,13 @@ cmd('node add', 'Add a node to the canvas', [
   const type = (flags.type as string) || 'markdown';
 
   if (type === 'json-render') {
-    const result = await api('POST', '/api/canvas/json-render', await buildJsonRenderRequestBody(flags));
+    const result = await invokeOperation('jsonrender.add', await buildJsonRenderRequestBody(flags));
     output(result);
     return;
   }
 
   if (type === 'graph') {
-    const result = await api('POST', '/api/canvas/graph', await buildGraphRequestBody(flags));
+    const result = await invokeOperation('graph.add', await buildGraphRequestBody(flags));
     output(result);
     return;
   }
@@ -1331,7 +1331,7 @@ cmd('graph add', 'Add a graph node to the canvas', [
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('graph add');
 
-  const result = await api('POST', '/api/canvas/graph', await buildGraphRequestBody(flags));
+  const result = await invokeOperation('graph.add', await buildGraphRequestBody(flags));
   output(result);
 });
 

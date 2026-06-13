@@ -88,10 +88,6 @@ import { normalizeCanvasTheme, type CanvasTheme } from './canvas-db.js';
 import { validateLocalImageFile } from './image-source.js';
 import {
   applyCanvasNodeUpdates,
-  appendCanvasJsonRenderStream,
-  createCanvasGraphNode,
-  createCanvasJsonRenderNode,
-  createCanvasStreamingJsonRenderNode,
   executeCanvasBatch,
   refreshCanvasWebpageNode,
   primeCanvasRuntimeBackends,
@@ -100,13 +96,10 @@ import {
 } from './canvas-operations.js';
 import { dispatchOperationRoute, setOperationEventEmitter } from './operations/index.js';
 import {
-  buildNodeResponse,
   closeNodeAppSession,
   nodeAppSessionId,
-  resolveCreateGeometry,
 } from './operations/ops/nodes.js';
 import { validateCanvasLayout } from './canvas-validation.js';
-import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
 import {
   EXCALIDRAW_READ_CHECKPOINT_TOOL,
   EXCALIDRAW_SAVE_CHECKPOINT_TOOL,
@@ -695,26 +688,6 @@ function shouldReplayAppToolResult(toolName: string, result: CallToolResult): bo
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function pickFiniteNumber(record: Record<string, unknown>, key: string): number | undefined {
-  const value = record[key];
-  return typeof value === 'number' && Number.isFinite(value) ? value : undefined;
-}
-
-function getRecord(value: unknown): Record<string, unknown> | undefined {
-  return isRecord(value) ? value : undefined;
-}
-
-function pickPositiveNumber(record: Record<string, unknown>, key: string): number | undefined {
-  const value = pickFiniteNumber(record, key);
-  return value !== undefined && value > 0 ? value : undefined;
-}
-
-function parseGraphPayloadData(value: unknown): Array<Record<string, unknown>> | null {
-  if (!Array.isArray(value)) return null;
-  if (value.some((item) => !isRecord(item))) return null;
-  return value as Array<Record<string, unknown>>;
 }
 
 function getExtAppNodeCheckpointId(node: CanvasNodeState): string {
@@ -1629,238 +1602,6 @@ async function handleCanvasBuildWebArtifact(req: Request): Promise<Response> {
         stderr: result.stderr,
       } : {}),
     });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return responseJson({ ok: false, error: message }, 400);
-  }
-}
-
-function handleCanvasDescribeSchema(): Response {
-  return responseJson(describeCanvasSchema());
-}
-
-async function handleCanvasValidateSpec(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const rawType = typeof body.type === 'string' ? body.type.trim() : '';
-  if (rawType !== 'json-render' && rawType !== 'graph' && rawType !== 'html-primitive') {
-    return responseJson({ ok: false, error: 'Validation type must be "json-render", "graph", or "html-primitive".' }, 400);
-  }
-
-  try {
-    if (rawType === 'json-render') {
-      const rawSpec =
-        body.spec && typeof body.spec === 'object' && !Array.isArray(body.spec)
-          ? body.spec
-          : body;
-      return responseJson(validateStructuredCanvasPayload({
-        type: 'json-render',
-        spec: rawSpec,
-      }));
-    }
-
-    if (rawType === 'html-primitive') {
-      const kind = typeof body.kind === 'string'
-        ? body.kind
-        : typeof body.primitive === 'string'
-          ? body.primitive
-          : '';
-      const data = isRecord(body.data) ? body.data : {};
-      return responseJson(validateStructuredCanvasPayload({
-        type: 'html-primitive',
-        primitive: {
-          kind,
-          ...(typeof body.title === 'string' ? { title: body.title } : {}),
-          data,
-        },
-      }));
-    }
-
-    const data = parseGraphPayloadData(body.data);
-    if (!data) {
-      return responseJson({ ok: false, error: 'Graph validation requires a data array.' }, 400);
-    }
-
-    const aggregate =
-      body.aggregate === 'sum' || body.aggregate === 'count' || body.aggregate === 'avg'
-        ? body.aggregate
-        : undefined;
-
-    return responseJson(validateStructuredCanvasPayload({
-      type: 'graph',
-      graph: {
-        title: typeof body.title === 'string' && body.title.trim() ? body.title.trim() : 'Graph',
-        graphType: typeof body.graphType === 'string'
-          ? body.graphType
-          : typeof body.typeName === 'string'
-            ? body.typeName
-            : 'line',
-        data,
-        ...(typeof body.xKey === 'string' ? { xKey: body.xKey } : {}),
-        ...(typeof body.yKey === 'string' ? { yKey: body.yKey } : {}),
-        ...(typeof body.zKey === 'string' ? { zKey: body.zKey } : {}),
-        ...(typeof body.nameKey === 'string' ? { nameKey: body.nameKey } : {}),
-        ...(typeof body.valueKey === 'string' ? { valueKey: body.valueKey } : {}),
-        ...(typeof body.axisKey === 'string' ? { axisKey: body.axisKey } : {}),
-        ...(Array.isArray(body.metrics)
-          ? { metrics: body.metrics.filter((m: unknown): m is string => typeof m === 'string') }
-          : {}),
-        ...(Array.isArray(body.series)
-          ? { series: body.series.filter((s: unknown): s is string => typeof s === 'string') }
-          : {}),
-        ...(typeof body.barKey === 'string' ? { barKey: body.barKey } : {}),
-        ...(typeof body.lineKey === 'string' ? { lineKey: body.lineKey } : {}),
-        ...(aggregate ? { aggregate } : {}),
-        ...(typeof body.color === 'string' ? { color: body.color } : {}),
-        ...(typeof body.barColor === 'string' ? { barColor: body.barColor } : {}),
-        ...(typeof body.lineColor === 'string' ? { lineColor: body.lineColor } : {}),
-        ...(typeof body.height === 'number' ? { height: body.height } : {}),
-      },
-    }));
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return responseJson({ ok: false, error: message, type: rawType }, 400);
-  }
-}
-
-async function handleCanvasAddJsonRender(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const title = typeof body.title === 'string' ? body.title.trim() : '';
-  const rawSpec =
-    body.spec && typeof body.spec === 'object' && !Array.isArray(body.spec) ? body.spec : body;
-  const geometry = resolveCreateGeometry(body);
-
-  try {
-    const result = createCanvasJsonRenderNode({
-      ...(title ? { title } : {}),
-      spec: rawSpec,
-      ...(body.strictSize === true ? { strictSize: true } : {}),
-      ...geometry,
-    });
-    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    return responseJson({ ...buildNodeResponse(result.node), url: result.url, spec: result.spec });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return responseJson({ ok: false, error: message }, 400);
-  }
-}
-
-async function handleJsonRenderStream(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const patches = Array.isArray(body.patches) ? body.patches : [];
-  const done = body.done === true;
-  const geometry = resolveCreateGeometry(body);
-  try {
-    let nodeId = typeof body.nodeId === 'string' && body.nodeId ? body.nodeId : undefined;
-    let url = '';
-    if (!nodeId) {
-      const created = createCanvasStreamingJsonRenderNode({
-        ...(typeof body.title === 'string' ? { title: body.title } : {}),
-        ...(body.strictSize === true ? { strictSize: true } : {}),
-        ...geometry,
-      });
-      nodeId = created.id;
-      url = created.url;
-    }
-    const result = appendCanvasJsonRenderStream(nodeId, patches, done);
-    if (!result.ok) return responseJson({ ok: false, error: result.error }, 400);
-    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    const node = canvasState.getNode(nodeId);
-    return responseJson({ id: nodeId, url: url || String(node?.data.url ?? ''), ...result });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return responseJson({ ok: false, error: message }, 400);
-  }
-}
-
-async function handleCanvasAddGraph(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : 'Graph';
-  const graphType = typeof body.graphType === 'string' ? body.graphType : typeof body.type === 'string' ? body.type : 'line';
-  const data = parseGraphPayloadData(body.data);
-  if (!data) {
-    return responseJson({ ok: false, error: 'Missing required field: data.' }, 400);
-  }
-
-  try {
-    const aggregate =
-      body.aggregate === 'sum' || body.aggregate === 'count' || body.aggregate === 'avg'
-        ? body.aggregate
-        : undefined;
-    const metrics = Array.isArray(body.metrics)
-      ? body.metrics.filter((m: unknown): m is string => typeof m === 'string')
-      : null;
-    const series = Array.isArray(body.series)
-      ? body.series.filter((s: unknown): s is string => typeof s === 'string')
-      : null;
-    const position = getRecord(body.position);
-    const size = getRecord(body.size);
-    const x = pickFiniteNumber(body, 'x') ?? (position ? pickFiniteNumber(position, 'x') : undefined);
-    const y = pickFiniteNumber(body, 'y') ?? (position ? pickFiniteNumber(position, 'y') : undefined);
-    const width = pickPositiveNumber(body, 'width') ?? (size ? pickPositiveNumber(size, 'width') : undefined);
-    // Node FRAME height. `body.height` is the CHART plot height (passed through as
-    // `input.height` below), so the node frame accepts `nodeHeight` / `heightPx` /
-    // `size.height` as aliases — `heightPx` matches createCanvasGraphNode's own input
-    // field, the natural thing a caller reaches for. (With content-fit the node grows
-    // to the chart anyway; this just removes the silent "height ignored" surprise.)
-    const nodeHeight = pickPositiveNumber(body, 'nodeHeight')
-      ?? pickPositiveNumber(body, 'heightPx')
-      ?? (size ? pickPositiveNumber(size, 'height') : undefined);
-    const showLegend = typeof body.showLegend === 'boolean' ? body.showLegend : undefined;
-    const showLabels = typeof body.showLabels === 'boolean' ? body.showLabels : undefined;
-    const colorBy =
-      body.colorBy === 'series' || body.colorBy === 'category' || body.colorBy === 'value' || body.colorBy === 'none'
-        ? body.colorBy
-        : undefined;
-    const highlight =
-      typeof body.highlight === 'number' || body.highlight === 'max' || body.highlight === 'min' || body.highlight === null
-        ? body.highlight
-        : undefined;
-    const sort =
-      body.sort === 'asc' || body.sort === 'desc' || body.sort === 'none' ? body.sort : undefined;
-    const result = createCanvasGraphNode({
-      title,
-      graphType,
-      data,
-      ...(typeof body.xKey === 'string' ? { xKey: body.xKey } : {}),
-      ...(typeof body.yKey === 'string' ? { yKey: body.yKey } : {}),
-      ...(typeof body.zKey === 'string' ? { zKey: body.zKey } : {}),
-      ...(typeof body.nameKey === 'string' ? { nameKey: body.nameKey } : {}),
-      ...(typeof body.valueKey === 'string' ? { valueKey: body.valueKey } : {}),
-      ...(typeof body.axisKey === 'string' ? { axisKey: body.axisKey } : {}),
-      ...(metrics ? { metrics } : {}),
-      ...(series ? { series } : {}),
-      ...(typeof body.barKey === 'string' ? { barKey: body.barKey } : {}),
-      ...(typeof body.lineKey === 'string' ? { lineKey: body.lineKey } : {}),
-      ...(aggregate ? { aggregate } : {}),
-      ...(typeof body.color === 'string' ? { color: body.color } : {}),
-      ...(colorBy ? { colorBy } : {}),
-      ...(highlight !== undefined ? { highlight } : {}),
-      ...(typeof body.barColor === 'string' ? { barColor: body.barColor } : {}),
-      ...(typeof body.lineColor === 'string' ? { lineColor: body.lineColor } : {}),
-      ...(typeof body.labelKey === 'string' ? { labelKey: body.labelKey } : {}),
-      ...(typeof body.targetKey === 'string' ? { targetKey: body.targetKey } : {}),
-      ...(typeof body.rangesKey === 'string' ? { rangesKey: body.rangesKey } : {}),
-      ...(typeof body.beforeKey === 'string' ? { beforeKey: body.beforeKey } : {}),
-      ...(typeof body.afterKey === 'string' ? { afterKey: body.afterKey } : {}),
-      ...(typeof body.beforeLabel === 'string' ? { beforeLabel: body.beforeLabel } : {}),
-      ...(typeof body.afterLabel === 'string' ? { afterLabel: body.afterLabel } : {}),
-      ...(sort ? { sort } : {}),
-      ...(typeof body.fill === 'boolean' ? { fill: body.fill } : {}),
-      ...(typeof body.showEndDot === 'boolean' ? { showEndDot: body.showEndDot } : {}),
-      ...(typeof body.showMinMax === 'boolean' ? { showMinMax: body.showMinMax } : {}),
-      ...(typeof body.showValue === 'boolean' ? { showValue: body.showValue } : {}),
-      ...(typeof body.colorByDirection === 'boolean' ? { colorByDirection: body.colorByDirection } : {}),
-      ...(typeof body.height === 'number' ? { height: body.height } : {}),
-      ...(showLegend !== undefined ? { showLegend } : {}),
-      ...(showLabels !== undefined ? { showLabels } : {}),
-      ...(body.strictSize === true ? { strictSize: true } : {}),
-      ...(x !== undefined ? { x } : {}),
-      ...(y !== undefined ? { y } : {}),
-      ...(width !== undefined ? { width } : {}),
-      ...(nodeHeight !== undefined ? { heightPx: nodeHeight } : {}),
-    });
-    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    return responseJson({ ...buildNodeResponse(result.node), url: result.url, spec: result.spec });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     return responseJson({ ok: false, error: message }, 400);
@@ -4683,14 +4424,6 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleCanvasUpdate(req);
           }
 
-          if (url.pathname === '/api/canvas/schema' && req.method === 'GET') {
-            return handleCanvasDescribeSchema();
-          }
-
-          if (url.pathname === '/api/canvas/schema/validate' && req.method === 'POST') {
-            return handleCanvasValidateSpec(req);
-          }
-
           if (url.pathname === '/api/canvas/batch' && req.method === 'POST') {
             return handleCanvasBatch(req);
           }
@@ -4906,18 +4639,6 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           if (url.pathname === '/api/canvas/code-graph' && req.method === 'GET') {
             const summary = buildCodeGraphSummary();
             return responseJson(summary);
-          }
-
-          if (url.pathname === '/api/canvas/json-render' && req.method === 'POST') {
-            return handleCanvasAddJsonRender(req);
-          }
-
-          if (url.pathname === '/api/canvas/json-render/stream' && req.method === 'POST') {
-            return handleJsonRenderStream(req);
-          }
-
-          if (url.pathname === '/api/canvas/graph' && req.method === 'POST') {
-            return handleCanvasAddGraph(req);
           }
 
           if (url.pathname === '/api/canvas/prompt' && req.method === 'POST') {
