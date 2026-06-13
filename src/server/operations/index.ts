@@ -11,6 +11,7 @@ import { queryOperations } from './ops/query.js';
 import { snapshotOperations } from './ops/snapshots.js';
 import { jsonRenderOperations } from './ops/json-render.js';
 import { axStateOperations } from './ops/ax-state.js';
+import { axWorkOperations } from './ops/ax-work.js';
 
 for (const op of [
   ...nodeOperations,
@@ -21,6 +22,7 @@ for (const op of [
   ...snapshotOperations,
   ...jsonRenderOperations,
   ...axStateOperations,
+  ...axWorkOperations,
 ]) {
   registerOperation(op);
 }

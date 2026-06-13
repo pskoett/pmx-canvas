@@ -31,13 +31,7 @@ type SubmitAxInteractionInput = Parameters<PmxCanvas['submitAxInteraction']>[0];
 type SubmitAxInteractionResult = ReturnType<PmxCanvas['submitAxInteraction']>;
 type GetPendingSteeringResult = ReturnType<PmxCanvas['getPendingSteering']>;
 type ListElicitationsResult = ReturnType<PmxCanvas['listElicitations']>;
-type RequestElicitationInput = Parameters<PmxCanvas['requestElicitation']>[0];
-type RequestElicitationResult = ReturnType<PmxCanvas['requestElicitation']>;
-type RespondElicitationResult = ReturnType<PmxCanvas['respondElicitation']>;
 type ListModeRequestsResult = ReturnType<PmxCanvas['listModeRequests']>;
-type RequestModeInput = Parameters<PmxCanvas['requestMode']>[0];
-type RequestModeResult = ReturnType<PmxCanvas['requestMode']>;
-type ResolveModeRequestResult = ReturnType<PmxCanvas['resolveModeRequest']>;
 type IngestActivityInput = Parameters<PmxCanvas['ingestActivity']>[0];
 type IngestActivityResult = ReturnType<PmxCanvas['ingestActivity']>;
 type AwaitApprovalResult = Awaited<ReturnType<PmxCanvas['awaitApproval']>>;
@@ -48,21 +42,10 @@ type InvokeCommandResult = ReturnType<PmxCanvas['invokeCommand']>;
 type GetPolicyResult = ReturnType<PmxCanvas['getPolicy']>;
 type GetAxTimelineQuery = Parameters<PmxCanvas['getAxTimeline']>[0];
 type GetAxTimelineResult = ReturnType<PmxCanvas['getAxTimeline']>;
-type AddWorkItemInput = Parameters<PmxCanvas['addWorkItem']>[0];
-type AddWorkItemResult = ReturnType<PmxCanvas['addWorkItem']>;
-type UpdateWorkItemPatch = Parameters<PmxCanvas['updateWorkItem']>[1];
-type UpdateWorkItemResult = ReturnType<PmxCanvas['updateWorkItem']>;
 type ListWorkItemsResult = ReturnType<PmxCanvas['listWorkItems']>;
-type RequestApprovalInput = Parameters<PmxCanvas['requestApproval']>[0];
-type RequestApprovalResult = ReturnType<PmxCanvas['requestApproval']>;
-type ResolveApprovalResult = ReturnType<PmxCanvas['resolveApproval']>;
 type ListApprovalGatesResult = ReturnType<PmxCanvas['listApprovalGates']>;
 type AddEvidenceInput = Parameters<PmxCanvas['addEvidence']>[0];
 type AddEvidenceResult = ReturnType<PmxCanvas['addEvidence']>;
-type AddReviewAnnotationInput = Parameters<PmxCanvas['addReviewAnnotation']>[0];
-type AddReviewAnnotationResult = ReturnType<PmxCanvas['addReviewAnnotation']>;
-type UpdateReviewAnnotationPatch = Parameters<PmxCanvas['updateReviewAnnotation']>[1];
-type UpdateReviewAnnotationResult = ReturnType<PmxCanvas['updateReviewAnnotation']>;
 type ListReviewAnnotationsResult = ReturnType<PmxCanvas['listReviewAnnotations']>;
 type HistoryResult = ReturnType<PmxCanvas['getHistory']>;
 type RunBatchInput = Parameters<PmxCanvas['runBatch']>[0];
@@ -117,25 +100,15 @@ export interface CanvasAccess {
   recordAxEvent(input: RecordAxEventInput, options?: { source?: PmxAxSource }): Promise<RecordAxEventResult>;
   sendSteering(message: string, options?: { source?: PmxAxSource }): Promise<SendSteeringResult>;
   getAxTimeline(query?: GetAxTimelineQuery): Promise<GetAxTimelineResult>;
-  addWorkItem(input: AddWorkItemInput, options?: { source?: PmxAxSource }): Promise<AddWorkItemResult>;
-  updateWorkItem(id: string, patch: UpdateWorkItemPatch, options?: { source?: PmxAxSource }): Promise<UpdateWorkItemResult>;
   listWorkItems(): Promise<ListWorkItemsResult>;
-  requestApproval(input: RequestApprovalInput, options?: { source?: PmxAxSource }): Promise<RequestApprovalResult>;
-  resolveApproval(id: string, decision: 'approved' | 'rejected', options?: { resolution?: string; source?: PmxAxSource }): Promise<ResolveApprovalResult>;
   listApprovalGates(): Promise<ListApprovalGatesResult>;
   addEvidence(input: AddEvidenceInput, options?: { source?: PmxAxSource }): Promise<AddEvidenceResult>;
-  addReviewAnnotation(input: AddReviewAnnotationInput, options?: { source?: PmxAxSource }): Promise<AddReviewAnnotationResult>;
-  updateReviewAnnotation(id: string, patch: UpdateReviewAnnotationPatch, options?: { source?: PmxAxSource }): Promise<UpdateReviewAnnotationResult>;
   listReviewAnnotations(): Promise<ListReviewAnnotationsResult>;
   submitAxInteraction(input: SubmitAxInteractionInput, options?: { source?: PmxAxSource }): Promise<SubmitAxInteractionResult>;
   getPendingSteering(options?: { consumer?: string; limit?: number }): Promise<GetPendingSteeringResult>;
   markSteeringDelivered(id: string): Promise<boolean>;
   listElicitations(): Promise<ListElicitationsResult>;
-  requestElicitation(input: RequestElicitationInput, options?: { source?: PmxAxSource }): Promise<RequestElicitationResult>;
-  respondElicitation(id: string, response: Record<string, unknown>, options?: { source?: PmxAxSource }): Promise<RespondElicitationResult>;
   listModeRequests(): Promise<ListModeRequestsResult>;
-  requestMode(input: RequestModeInput, options?: { source?: PmxAxSource }): Promise<RequestModeResult>;
-  resolveModeRequest(id: string, decision: 'approved' | 'rejected', options?: { resolution?: string; source?: PmxAxSource }): Promise<ResolveModeRequestResult>;
   ingestActivity(input: IngestActivityInput, options?: { source?: PmxAxSource }): Promise<IngestActivityResult>;
   awaitApproval(id: string, options?: { timeoutMs?: number }): Promise<AwaitApprovalResult>;
   awaitElicitation(id: string, options?: { timeoutMs?: number }): Promise<AwaitElicitationResult>;
@@ -232,10 +205,6 @@ class LocalCanvasAccess implements CanvasAccess {
     return this.canvas.getAxTimeline(query);
   }
 
-  async addWorkItem(input: AddWorkItemInput, options?: { source?: PmxAxSource }): Promise<AddWorkItemResult> {
-    return this.canvas.addWorkItem(input, { source: options?.source ?? 'mcp' });
-  }
-
   async submitAxInteraction(input: SubmitAxInteractionInput, options?: { source?: PmxAxSource }): Promise<SubmitAxInteractionResult> {
     return this.canvas.submitAxInteraction(input, { source: options?.source ?? 'mcp' });
   }
@@ -252,24 +221,8 @@ class LocalCanvasAccess implements CanvasAccess {
     return this.canvas.listElicitations();
   }
 
-  async requestElicitation(input: RequestElicitationInput, options?: { source?: PmxAxSource }): Promise<RequestElicitationResult> {
-    return this.canvas.requestElicitation(input, { source: options?.source ?? 'mcp' });
-  }
-
-  async respondElicitation(id: string, response: Record<string, unknown>, options?: { source?: PmxAxSource }): Promise<RespondElicitationResult> {
-    return this.canvas.respondElicitation(id, response, { source: options?.source ?? 'mcp' });
-  }
-
   async listModeRequests(): Promise<ListModeRequestsResult> {
     return this.canvas.listModeRequests();
-  }
-
-  async requestMode(input: RequestModeInput, options?: { source?: PmxAxSource }): Promise<RequestModeResult> {
-    return this.canvas.requestMode(input, { source: options?.source ?? 'mcp' });
-  }
-
-  async resolveModeRequest(id: string, decision: 'approved' | 'rejected', options?: { resolution?: string; source?: PmxAxSource }): Promise<ResolveModeRequestResult> {
-    return this.canvas.resolveModeRequest(id, decision, { ...(options ?? {}), source: options?.source ?? 'mcp' });
   }
 
   async ingestActivity(input: IngestActivityInput, options?: { source?: PmxAxSource }): Promise<IngestActivityResult> {
@@ -300,23 +253,8 @@ class LocalCanvasAccess implements CanvasAccess {
     return this.canvas.getPolicy();
   }
 
-  async updateWorkItem(id: string, patch: UpdateWorkItemPatch, options?: { source?: PmxAxSource }): Promise<UpdateWorkItemResult> {
-    return this.canvas.updateWorkItem(id, patch, { source: options?.source ?? 'mcp' });
-  }
-
   async listWorkItems(): Promise<ListWorkItemsResult> {
     return this.canvas.listWorkItems();
-  }
-
-  async requestApproval(input: RequestApprovalInput, options?: { source?: PmxAxSource }): Promise<RequestApprovalResult> {
-    return this.canvas.requestApproval(input, { source: options?.source ?? 'mcp' });
-  }
-
-  async resolveApproval(id: string, decision: 'approved' | 'rejected', options?: { resolution?: string; source?: PmxAxSource }): Promise<ResolveApprovalResult> {
-    return this.canvas.resolveApproval(id, decision, {
-      ...(options?.resolution !== undefined ? { resolution: options.resolution } : {}),
-      source: options?.source ?? 'mcp',
-    });
   }
 
   async listApprovalGates(): Promise<ListApprovalGatesResult> {
@@ -325,14 +263,6 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async addEvidence(input: AddEvidenceInput, options?: { source?: PmxAxSource }): Promise<AddEvidenceResult> {
     return this.canvas.addEvidence(input, { source: options?.source ?? 'mcp' });
-  }
-
-  async addReviewAnnotation(input: AddReviewAnnotationInput, options?: { source?: PmxAxSource }): Promise<AddReviewAnnotationResult> {
-    return this.canvas.addReviewAnnotation(input, { source: options?.source ?? 'mcp' });
-  }
-
-  async updateReviewAnnotation(id: string, patch: UpdateReviewAnnotationPatch, options?: { source?: PmxAxSource }): Promise<UpdateReviewAnnotationResult> {
-    return this.canvas.updateReviewAnnotation(id, patch, { source: options?.source ?? 'mcp' });
   }
 
   async listReviewAnnotations(): Promise<ListReviewAnnotationsResult> {
@@ -577,15 +507,6 @@ class RemoteCanvasAccess implements CanvasAccess {
     return await this.requestJson<GetAxTimelineResult>('GET', `/api/canvas/ax/timeline${qs}`);
   }
 
-  async addWorkItem(input: AddWorkItemInput, options?: { source?: PmxAxSource }): Promise<AddWorkItemResult> {
-    const response = await this.requestJson<{ workItem?: AddWorkItemResult }>('POST', '/api/canvas/ax/work', {
-      ...input,
-      source: options?.source ?? 'mcp',
-    });
-    if (!response.workItem) throw new Error('Remote canvas did not return a work item.');
-    return response.workItem;
-  }
-
   async submitAxInteraction(input: SubmitAxInteractionInput, options?: { source?: PmxAxSource }): Promise<SubmitAxInteractionResult> {
     // The interaction endpoint returns its structured outcome (ok/code/error) in
     // the body for both accepted and rejected interactions, so read the body
@@ -626,49 +547,9 @@ class RemoteCanvasAccess implements CanvasAccess {
     return r.elicitations ?? [];
   }
 
-  async requestElicitation(input: RequestElicitationInput, options?: { source?: PmxAxSource }): Promise<RequestElicitationResult> {
-    const r = await this.requestJson<{ elicitation?: RequestElicitationResult }>('POST', '/api/canvas/ax/elicitation', {
-      ...input,
-      source: options?.source ?? 'mcp',
-    });
-    if (!r.elicitation) throw new Error('Remote canvas did not return an elicitation.');
-    return r.elicitation;
-  }
-
-  async respondElicitation(id: string, response: Record<string, unknown>, options?: { source?: PmxAxSource }): Promise<RespondElicitationResult> {
-    const res = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/elicitation/${encodeURIComponent(id)}/respond`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ response, source: options?.source ?? 'mcp' }),
-    });
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return (await res.json() as { elicitation?: RespondElicitationResult }).elicitation ?? null;
-  }
-
   async listModeRequests(): Promise<ListModeRequestsResult> {
     const r = await this.requestJson<{ modeRequests?: ListModeRequestsResult }>('GET', '/api/canvas/ax/mode');
     return r.modeRequests ?? [];
-  }
-
-  async requestMode(input: RequestModeInput, options?: { source?: PmxAxSource }): Promise<RequestModeResult> {
-    const r = await this.requestJson<{ modeRequest?: RequestModeResult }>('POST', '/api/canvas/ax/mode', {
-      ...input,
-      source: options?.source ?? 'mcp',
-    });
-    if (!r.modeRequest) throw new Error('Remote canvas did not return a mode request.');
-    return r.modeRequest;
-  }
-
-  async resolveModeRequest(id: string, decision: 'approved' | 'rejected', options?: { resolution?: string; source?: PmxAxSource }): Promise<ResolveModeRequestResult> {
-    const res = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/mode/${encodeURIComponent(id)}/resolve`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decision, ...(options?.resolution ? { resolution: options.resolution } : {}), source: options?.source ?? 'mcp' }),
-    });
-    if (res.status === 404) return null;
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return (await res.json() as { modeRequest?: ResolveModeRequestResult }).modeRequest ?? null;
   }
 
   async ingestActivity(input: IngestActivityInput, options?: { source?: PmxAxSource }): Promise<IngestActivityResult> {
@@ -734,44 +615,9 @@ class RemoteCanvasAccess implements CanvasAccess {
     return r.policy;
   }
 
-  async updateWorkItem(id: string, patch: UpdateWorkItemPatch, options?: { source?: PmxAxSource }): Promise<UpdateWorkItemResult> {
-    const response = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/work/${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...patch, source: options?.source ?? 'mcp' }),
-    });
-    if (response.status === 404) return null;
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return (await response.json() as { workItem?: AddWorkItemResult }).workItem ?? null;
-  }
-
   async listWorkItems(): Promise<ListWorkItemsResult> {
     const response = await this.requestJson<{ workItems?: ListWorkItemsResult }>('GET', '/api/canvas/ax/work');
     return response.workItems ?? [];
-  }
-
-  async requestApproval(input: RequestApprovalInput, options?: { source?: PmxAxSource }): Promise<RequestApprovalResult> {
-    const response = await this.requestJson<{ approvalGate?: RequestApprovalResult }>('POST', '/api/canvas/ax/approval', {
-      ...input,
-      source: options?.source ?? 'mcp',
-    });
-    if (!response.approvalGate) throw new Error('Remote canvas did not return an approval gate.');
-    return response.approvalGate;
-  }
-
-  async resolveApproval(id: string, decision: 'approved' | 'rejected', options?: { resolution?: string; source?: PmxAxSource }): Promise<ResolveApprovalResult> {
-    const response = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/approval/${encodeURIComponent(id)}/resolve`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        decision,
-        ...(options?.resolution !== undefined ? { resolution: options.resolution } : {}),
-        source: options?.source ?? 'mcp',
-      }),
-    });
-    if (response.status === 404) return null;
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return (await response.json() as { approvalGate?: RequestApprovalResult }).approvalGate ?? null;
   }
 
   async listApprovalGates(): Promise<ListApprovalGatesResult> {
@@ -786,30 +632,6 @@ class RemoteCanvasAccess implements CanvasAccess {
     });
     if (!response.evidence) throw new Error('Remote canvas did not return an evidence item.');
     return response.evidence;
-  }
-
-  async addReviewAnnotation(input: AddReviewAnnotationInput, options?: { source?: PmxAxSource }): Promise<AddReviewAnnotationResult> {
-    const response = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/review`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...input, source: options?.source ?? 'mcp' }),
-    });
-    // 400 = validation rejection (e.g. node-anchored review with an unknown
-    // nodeId); mirror the local path and return null rather than throwing.
-    if (response.status === 400) return null;
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return (await response.json() as { reviewAnnotation?: AddReviewAnnotationResult }).reviewAnnotation ?? null;
-  }
-
-  async updateReviewAnnotation(id: string, patch: UpdateReviewAnnotationPatch, options?: { source?: PmxAxSource }): Promise<UpdateReviewAnnotationResult> {
-    const response = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/review/${encodeURIComponent(id)}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...patch, source: options?.source ?? 'mcp' }),
-    });
-    if (response.status === 404) return null;
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return (await response.json() as { reviewAnnotation?: AddReviewAnnotationResult }).reviewAnnotation ?? null;
   }
 
   async listReviewAnnotations(): Promise<ListReviewAnnotationsResult> {

@@ -54,6 +54,21 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   `canvas_get_ax` aggregate is preserved across local and remote MCP. Additive;
   existing clients that read `state` are unaffected.
 
+- **AX work / review / gate ops migrated to the operation registry (plan-007
+  Slice B, wave 2).** `canvas_add_work_item`, `canvas_update_work_item`,
+  `canvas_add_review_annotation`, `canvas_request_approval`,
+  `canvas_resolve_approval`, `canvas_request_elicitation`,
+  `canvas_respond_elicitation`, `canvas_request_mode`, `canvas_resolve_mode`
+  (plus the HTTP-only review-annotation update) are now defined once in
+  `src/server/operations/ops/ax-work.ts` (legacy handlers + tools + CanvasAccess
+  methods deleted). Tool names, success wire shapes, denial bodies (and their
+  404/400 status codes), SSE frames, and `source` defaulting are unchanged.
+  Cross-surface unification (same class as plan-005 slices 1–4): the
+  `update`/`resolve`/`respond` MCP tools previously returned a success-shaped
+  `{ ok:false, <item>:null }` on a missing/already-resolved target; they now
+  surface the HTTP 404 as an MCP `isError` result with the same message —
+  success shapes are unchanged.
+
 - **Removing a missing node now errors on every surface (plan-005 slice 1).**
   Node CRUD + layout reads (`node.add` / `node.get` / `node.update` /
   `node.remove` / `layout.get`) are defined once in a new operation registry

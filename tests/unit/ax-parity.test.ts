@@ -112,6 +112,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
         mcpTool: "'canvas_add_work_item'",
         cliCommand: "cmd('ax work add'",
         accessMethod: 'addWorkItem(',
+        migrated: true,
       },
       {
         label: 'work-item-update',
@@ -120,6 +121,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
         mcpTool: "'canvas_update_work_item'",
         cliCommand: "cmd('ax work update'",
         accessMethod: 'updateWorkItem(',
+        migrated: true,
       },
       {
         label: 'approval-request',
@@ -128,6 +130,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
         mcpTool: "'canvas_request_approval'",
         cliCommand: "cmd('ax approval request'",
         accessMethod: 'requestApproval(',
+        migrated: true,
       },
       {
         label: 'approval-resolve',
@@ -136,6 +139,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
         mcpTool: "'canvas_resolve_approval'",
         cliCommand: "cmd('ax approval resolve'",
         accessMethod: 'resolveApproval(',
+        migrated: true,
       },
       {
         label: 'evidence-item',
@@ -152,6 +156,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
         mcpTool: "'canvas_add_review_annotation'",
         cliCommand: "cmd('ax review add'",
         accessMethod: 'addReviewAnnotation(',
+        migrated: true,
       },
       {
         label: 'host-capability',
@@ -185,6 +190,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
         mcpTool: "'canvas_request_elicitation'",
         cliCommand: "cmd('ax elicitation request'",
         accessMethod: 'requestElicitation(',
+        migrated: true,
       },
       {
         label: 'mode-request',
@@ -193,6 +199,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
         mcpTool: "'canvas_request_mode'",
         cliCommand: "cmd('ax mode request'",
         accessMethod: 'requestMode(',
+        migrated: true,
       },
       {
         label: 'command',

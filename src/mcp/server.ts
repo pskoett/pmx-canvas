@@ -711,121 +711,9 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
-  server.tool(
-    'canvas_add_work_item',
-    'Add a canvas-bound AX work item: a visible task/plan/status tied to nodes and agent work. Work items participate in snapshots and are exposed via canvas://ax-work.',
-    {
-      title: z.string().describe('Short title of the work item.'),
-      status: z.enum(['todo', 'in-progress', 'blocked', 'done', 'cancelled'])
-        .optional()
-        .describe('Work item status. Defaults to todo.'),
-      detail: z.string().optional().describe('Optional longer description.'),
-      nodeIds: z.array(z.string()).optional().describe('Optional node IDs this work item is tied to.'),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
-        .optional()
-        .describe('Optional host/source label. Defaults to mcp.'),
-    },
-    async ({ title, status, detail, nodeIds, source }) => {
-      const c = await ensureCanvas();
-      const workItem = await c.addWorkItem(
-        {
-          title,
-          ...(status ? { status } : {}),
-          ...(typeof detail === 'string' ? { detail } : {}),
-          ...(Array.isArray(nodeIds) ? { nodeIds } : {}),
-        },
-        { source: source ?? 'mcp' },
-      );
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, workItem }) }],
-      };
-    },
-  );
-
-  server.tool(
-    'canvas_update_work_item',
-    'Update a canvas-bound AX work item by ID (title/status/detail/nodeIds). Returns null if the work item does not exist.',
-    {
-      id: z.string().describe('Work item ID to update.'),
-      title: z.string().optional().describe('New title.'),
-      status: z.enum(['todo', 'in-progress', 'blocked', 'done', 'cancelled'])
-        .optional()
-        .describe('New status.'),
-      detail: z.string().optional().describe('New detail text.'),
-      nodeIds: z.array(z.string()).optional().describe('Replacement node IDs.'),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
-        .optional()
-        .describe('Optional host/source label. Defaults to mcp.'),
-    },
-    async ({ id, title, status, detail, nodeIds, source }) => {
-      const c = await ensureCanvas();
-      const workItem = await c.updateWorkItem(
-        id,
-        {
-          ...(typeof title === 'string' ? { title } : {}),
-          ...(status ? { status } : {}),
-          ...(typeof detail === 'string' ? { detail } : {}),
-          ...(Array.isArray(nodeIds) ? { nodeIds } : {}),
-        },
-        { source: source ?? 'mcp' },
-      );
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: workItem !== null, workItem }) }],
-      };
-    },
-  );
-
-  server.tool(
-    'canvas_request_approval',
-    'Request human approval before a high-impact AX action: creates a pending approval gate tied to nodes. Canvas-bound and snapshotted; exposed via canvas://ax-work.',
-    {
-      title: z.string().describe('Short title of what needs approval.'),
-      detail: z.string().optional().describe('Optional explanation of the action and its impact.'),
-      action: z.string().optional().describe('Optional machine-readable action identifier the approval gates.'),
-      nodeIds: z.array(z.string()).optional().describe('Optional node IDs this approval relates to.'),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
-        .optional()
-        .describe('Optional host/source label. Defaults to mcp.'),
-    },
-    async ({ title, detail, action, nodeIds, source }) => {
-      const c = await ensureCanvas();
-      const approvalGate = await c.requestApproval(
-        {
-          title,
-          ...(typeof detail === 'string' ? { detail } : {}),
-          ...(typeof action === 'string' ? { action } : {}),
-          ...(Array.isArray(nodeIds) ? { nodeIds } : {}),
-        },
-        { source: source ?? 'mcp' },
-      );
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, approvalGate }) }],
-      };
-    },
-  );
-
-  server.tool(
-    'canvas_resolve_approval',
-    'Resolve a pending approval gate by ID with approved or rejected. Returns null if the gate does not exist or is already resolved.',
-    {
-      id: z.string().describe('Approval gate ID to resolve.'),
-      decision: z.enum(['approved', 'rejected']).describe('Approval decision.'),
-      resolution: z.string().optional().describe('Optional human-readable resolution note.'),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
-        .optional()
-        .describe('Optional host/source label. Defaults to mcp.'),
-    },
-    async ({ id, decision, resolution, source }) => {
-      const c = await ensureCanvas();
-      const approvalGate = await c.resolveApproval(id, decision, {
-        ...(typeof resolution === 'string' ? { resolution } : {}),
-        source: source ?? 'mcp',
-      });
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: approvalGate !== null, approvalGate }) }],
-      };
-    },
-  );
+  // canvas_add_work_item / canvas_update_work_item / canvas_request_approval /
+  // canvas_resolve_approval migrated to the operation registry (plan-007 Slice B
+  // wave 2): src/server/operations/ops/ax-work.ts.
 
   server.tool(
     'canvas_add_evidence',
@@ -861,52 +749,8 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
-  server.tool(
-    'canvas_add_review_annotation',
-    'Add a canvas-bound review annotation: a comment or finding anchored to a node, file, or region. Review annotations participate in snapshots and are exposed via canvas://ax-work.',
-    {
-      body: z.string().describe('Annotation body text.'),
-      kind: z.enum(['comment', 'finding']).optional().describe('Annotation kind. Default comment.'),
-      severity: z.enum(['info', 'warning', 'error']).optional().describe('Severity. Default info.'),
-      anchorType: z.enum(['node', 'file', 'region']).optional().describe('Anchor type. Default node.'),
-      nodeId: z.string().optional().describe('Node ID when anchorType is node.'),
-      file: z.string().optional().describe('File path when anchorType is file.'),
-      region: z.object({
-        line: z.number().optional(),
-        endLine: z.number().optional(),
-        label: z.string().optional(),
-      }).optional().describe('Region descriptor when anchorType is region.'),
-      author: z.string().optional().describe('Optional author label.'),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
-        .optional()
-        .describe('Optional host/source label. Defaults to mcp.'),
-    },
-    async ({ body, kind, severity, anchorType, nodeId, file, region, author, source }) => {
-      const c = await ensureCanvas();
-      const reviewAnnotation = await c.addReviewAnnotation(
-        {
-          body,
-          ...(kind ? { kind } : {}),
-          ...(severity ? { severity } : {}),
-          ...(anchorType ? { anchorType } : {}),
-          ...(typeof nodeId === 'string' ? { nodeId } : {}),
-          ...(typeof file === 'string' ? { file } : {}),
-          ...(region ? { region } : {}),
-          ...(typeof author === 'string' ? { author } : {}),
-        },
-        { source: source ?? 'mcp' },
-      );
-      if (!reviewAnnotation) {
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'node-anchored review annotation requires a nodeId that exists on the canvas.' }) }],
-          isError: true,
-        };
-      }
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, reviewAnnotation }) }],
-      };
-    },
-  );
+  // canvas_add_review_annotation migrated to the operation registry (plan-007
+  // Slice B wave 2): src/server/operations/ops/ax-work.ts.
 
   // canvas_report_host_capability migrated to the operation registry
   // (plan-007 Slice B.1): src/server/operations/ops/ax-state.ts.
@@ -971,77 +815,9 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
-  server.tool(
-    'canvas_request_elicitation',
-    'Request structured human input (an elicitation): a pending question/form tied to nodes. Canvas-bound and snapshotted; exposed via canvas://ax-work. Answer it with canvas_respond_elicitation.',
-    {
-      prompt: z.string().describe('The question or instruction for the human.'),
-      fields: z.array(z.string()).optional().describe('Optional field names to request (a simple structured form).'),
-      nodeIds: z.array(z.string()).optional(),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']).optional(),
-    },
-    async ({ prompt, fields, nodeIds, source }) => {
-      const c = await ensureCanvas();
-      const elicitation = await c.requestElicitation(
-        { prompt, ...(fields ? { fields } : {}), ...(Array.isArray(nodeIds) ? { nodeIds } : {}) },
-        { source: source ?? 'mcp' },
-      );
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, elicitation }) }] };
-    },
-  );
-
-  server.tool(
-    'canvas_respond_elicitation',
-    'Answer a pending elicitation with a structured response.',
-    {
-      id: z.string().describe('The elicitation id.'),
-      response: z.record(z.string(), z.unknown()).describe('The structured answer.'),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']).optional(),
-    },
-    async ({ id, response, source }) => {
-      const c = await ensureCanvas();
-      const elicitation = await c.respondElicitation(id, response, { source: source ?? 'mcp' });
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: Boolean(elicitation), elicitation }) }] };
-    },
-  );
-
-  server.tool(
-    'canvas_request_mode',
-    'Request a workflow mode transition (plan/execute/autonomous): a pending mode request tied to nodes. Canvas-bound and snapshotted; exposed via canvas://ax-work. Resolve with canvas_resolve_mode.',
-    {
-      mode: z.enum(['plan', 'execute', 'autonomous']).describe('Requested target mode.'),
-      reason: z.string().optional(),
-      nodeIds: z.array(z.string()).optional(),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']).optional(),
-    },
-    async ({ mode, reason, nodeIds, source }) => {
-      const c = await ensureCanvas();
-      const modeRequest = await c.requestMode(
-        { mode, ...(typeof reason === 'string' ? { reason } : {}), ...(Array.isArray(nodeIds) ? { nodeIds } : {}) },
-        { source: source ?? 'mcp' },
-      );
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, modeRequest }) }] };
-    },
-  );
-
-  server.tool(
-    'canvas_resolve_mode',
-    'Resolve a pending mode request (approved or rejected).',
-    {
-      id: z.string(),
-      decision: z.enum(['approved', 'rejected']),
-      resolution: z.string().optional(),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']).optional(),
-    },
-    async ({ id, decision, resolution, source }) => {
-      const c = await ensureCanvas();
-      const modeRequest = await c.resolveModeRequest(id, decision, {
-        ...(typeof resolution === 'string' ? { resolution } : {}),
-        source: source ?? 'mcp',
-      });
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: Boolean(modeRequest), modeRequest }) }] };
-    },
-  );
+  // canvas_request_elicitation / canvas_respond_elicitation / canvas_request_mode /
+  // canvas_resolve_mode migrated to the operation registry (plan-007 Slice B
+  // wave 2): src/server/operations/ops/ax-work.ts.
 
   server.tool(
     'canvas_ingest_activity',

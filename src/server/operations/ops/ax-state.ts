@@ -24,24 +24,10 @@
 import { z } from 'zod';
 import { canvasState } from '../../canvas-state.js';
 import { buildCanvasAxContext } from '../../ax-context.js';
-import type { PmxAxPolicy, PmxAxSource } from '../../ax-state.js';
+import type { PmxAxPolicy } from '../../ax-state.js';
 import { defineOperation, type Operation } from '../types.js';
 import { isRecord } from './nodes.js';
-
-const AX_SOURCES = ['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'] as const;
-
-// Replicated from server.ts (operations/ must not import server.ts): an absent
-// or unrecognized source falls back to the per-surface default.
-function normalizeAxSource(value: unknown, fallback: PmxAxSource): PmxAxSource {
-  return (AX_SOURCES as readonly string[]).includes(value as string)
-    ? (value as PmxAxSource)
-    : fallback;
-}
-
-function normalizeAxNodeIds(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((id): id is string => typeof id === 'string');
-}
+import { normalizeAxNodeIds, normalizeAxSource } from './ax-shared.js';
 
 // ── ax.get (canvas_get_ax) ────────────────────────────────────
 
