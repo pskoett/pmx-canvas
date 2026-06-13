@@ -29,17 +29,6 @@ import {
   isDbPopulated,
   checkpointCanvasDb,
   finalizeCanvasDbForClose,
-  appendAxEventToDB,
-  appendAxEvidenceToDB,
-  appendAxSteeringToDB,
-  markAxSteeringDeliveredInDB,
-  loadAxEventsFromDB,
-  loadAxEvidenceFromDB,
-  loadAxSteeringFromDB,
-  loadPendingAxSteeringFromDB,
-  loadAxTimelineSummaryFromDB,
-  upsertAxHostCapabilityToDB,
-  loadAxHostCapabilityFromDB,
   type PersistedCanvasState,
   type CanvasTheme,
   type AxTimelineQuery,
@@ -55,22 +44,6 @@ import {
 } from './placement.js';
 import {
   createEmptyAxState,
-  createEmptyAxHostCapability,
-  normalizeAxState,
-  normalizeAxHostCapability,
-  createAxWorkItem,
-  createAxApprovalGate,
-  createAxReviewAnnotation,
-  createAxEvent,
-  createAxEvidence,
-  createAxSteeringMessage,
-  createAxElicitation,
-  createAxModeRequest,
-  isAxCommand,
-  listAxCommands,
-  AX_COMMAND_REGISTRY,
-  normalizeAxPolicy,
-  mapAxActivityKindToEventKind,
   type PmxAxActivityKind,
   type PmxAxElicitation,
   type PmxAxModeRequest,
@@ -97,6 +70,7 @@ import {
   type PmxAxHostCapability,
   type PmxAxTimelineSummary,
 } from './ax-state.js';
+import { AxStateManager } from './ax-state-manager.js';
 
 function logCanvasStateWarning(action: string, error: unknown, details?: Record<string, unknown>): void {
   console.warn(`[canvas-state] ${action}`, { error, ...(details ?? {}) });
@@ -329,9 +303,20 @@ class CanvasStateManager {
   private _viewport: ViewportState = { x: 0, y: 0, scale: 1 };
   private _theme: CanvasTheme = 'dark';
   private _contextPinnedNodeIds = new Set<string>();
-  private _axState: PmxAxState = createEmptyAxState();
-  private _axHostCapability: PmxAxHostCapability | null = null;
   private _workspaceRoot = process.cwd();
+
+  // ── AX state (canvas-bound + timeline + host partitions) ──────────
+  // Extracted into a dedicated manager (plan-007 Slice A). CanvasStateManager
+  // holds it and delegates its public AX methods so the SDK/HTTP/MCP surface is
+  // byte-stable; the manager receives the host hooks it needs as injected deps.
+  private readonly ax = new AxStateManager({
+    getNodeIds: () => this.currentNodeIdSet(),
+    getDb: () => this._db,
+    scheduleSave: () => this.scheduleSave(),
+    notifyChange: (type) => this.notifyChange(type),
+    recordMutation: (info) => this.recordMutation(info),
+    suppressed: (fn) => this.suppressed(fn),
+  });
 
   // ── Change listeners (for MCP resource notifications) ──────
   private _changeListeners: ((type: CanvasChangeType) => void)[] = [];
@@ -394,14 +379,6 @@ class CanvasStateManager {
 
   private currentNodeIdSet(): Set<string> {
     return new Set(this.nodes.keys());
-  }
-
-  private normalizeAxForCurrentNodes(state: unknown): PmxAxState {
-    return normalizeAxState(state, this.currentNodeIdSet());
-  }
-
-  private applyAxState(state: PmxAxState): void {
-    this._axState = this.normalizeAxForCurrentNodes(state);
   }
 
   private applyResolvedGroupBounds(
@@ -899,13 +876,7 @@ class CanvasStateManager {
   /** Load canvas state from SQLite (or legacy JSON fallback). Call once on server startup. */
   loadFromDisk(options: LoadFromDiskOptions = {}): boolean {
     // Host capability lives in its own table (not snapshotted / not in PmxAxState).
-    if (this._db) {
-      try {
-        this._axHostCapability = loadAxHostCapabilityFromDB(this._db);
-      } catch (error) {
-        logCanvasStateWarning('load host capability failed', error, {});
-      }
-    }
+    this.ax.loadHostCapabilityFromDb();
     // Try SQLite first (only if DB has been populated)
     if (this._db && isDbPopulated(this._db)) {
       try {
@@ -1029,7 +1000,7 @@ class CanvasStateManager {
     this.edges.clear();
     this.annotations.clear();
     this._contextPinnedNodeIds.clear();
-    this._axState = createEmptyAxState();
+    this.ax.resetCanvasBound();
 
     this._viewport = {
       x: state.viewport?.x ?? 0,
@@ -1060,7 +1031,7 @@ class CanvasStateManager {
         if (this.nodes.has(pinId)) this._contextPinnedNodeIds.add(pinId);
       }
     }
-    this._axState = this.normalizeAxForCurrentNodes(state.ax);
+    this.ax.applyPersistedAx(state.ax);
   }
 
   private readResolvedSnapshot(idOrName: string): {
@@ -1456,11 +1427,41 @@ class CanvasStateManager {
     this.nodes.delete(id);
     this.removeEdgesForNode(id);
     this._contextPinnedNodeIds.delete(id);
-    this.applyAxState(this._axState);
+    // Re-normalize canvas-bound AX against the surviving node set. This strips the
+    // dangling node ref from work items / approval gates / elicitations / mode
+    // requests (re-anchored) and drops node-anchored review annotations (removed).
+    // Previously SILENT — now audited (plan-007 Slice A): if the deleted node
+    // orphaned anything, record one `note` timeline event so the human and a
+    // resuming agent can see the work that changed instead of it changing quietly.
+    const orphaned = this.ax.revalidateAfterNodeRemoval(id);
     this.scheduleSave();
     this.notifyChange('nodes');
     this.notifyChange('pins');
     this.notifyChange('ax');
+    // Only record the audit note on a real (user-initiated) deletion. Undo/redo
+    // replay removeNode inside `suppressed()` (_suppressRecordingDepth > 0); the
+    // original deletion already recorded the note, so replaying must NOT append a
+    // duplicate (the timeline is append-only). `revalidateAfterNodeRemoval` above
+    // still runs unconditionally — only the timeline note is gated.
+    const affected = orphaned.reanchoredIds.length > 0 || orphaned.removedReviewIds.length > 0 || orphaned.reanchoredFocus;
+    if (existing && this._suppressRecordingDepth === 0 && affected) {
+      const title = (existing.data.title as string) ?? id;
+      const focusNote = orphaned.reanchoredFocus ? ' (focus anchor cleared)' : '';
+      this.recordAxEvent(
+        {
+          kind: 'note',
+          summary: `Node "${title}" deleted — re-anchored ${orphaned.reanchoredIds.length} AX item(s), removed ${orphaned.removedReviewIds.length} node-anchored review annotation(s).${focusNote}`,
+          data: {
+            systemEvent: 'ax-node-orphan',
+            removedNodeId: id,
+            reanchoredIds: orphaned.reanchoredIds,
+            removedReviewIds: orphaned.removedReviewIds,
+            reanchoredFocus: orphaned.reanchoredFocus,
+          },
+        },
+        { source: 'system' },
+      );
+    }
     if (cloned) {
       this.recordMutation({
         operationType: 'removeNode',
@@ -1469,7 +1470,7 @@ class CanvasStateManager {
         inverse: this.suppressed(() => {
           this.addNode(structuredClone(cloned));
           for (const edge of connectedEdges) this.addEdge(structuredClone(edge));
-          this.applyAxState(oldAxState);
+          this.ax.applyPersistedAx(oldAxState);
           this.scheduleSave();
           this.notifyChange('ax');
         }),
@@ -1728,73 +1729,35 @@ class CanvasStateManager {
     return new Set(this._contextPinnedNodeIds);
   }
 
+  // ── AX state delegation (canvas-bound + timeline + host) ──────────
+  // All AX state lives in `this.ax` (AxStateManager); these are byte-stable
+  // delegations so SDK/HTTP/MCP keep calling canvasState.<method>(...) unchanged.
   getAxState(): PmxAxState {
-    return structuredClone(this.normalizeAxForCurrentNodes(this._axState));
+    return this.ax.getAxState();
   }
 
   getAxFocus(): PmxAxFocusState {
-    return this.getAxState().focus;
+    return this.ax.getAxFocus();
   }
 
   setAxFocus(nodeIds: string[], options: { source?: PmxAxSource; recordHistory?: boolean } = {}): PmxAxFocusState {
-    const oldAxState = this.getAxState();
-    const nextAxState: PmxAxState = {
-      ...oldAxState,
-      focus: {
-        nodeIds,
-        primaryNodeId: nodeIds[0] ?? null,
-        updatedAt: new Date().toISOString(),
-        source: options.source ?? 'api',
-      },
-    };
-    this.applyAxState(nextAxState);
-    const appliedAxState = this.getAxState();
-    this.scheduleSave();
-    this.notifyChange('ax');
-    if (options.recordHistory === false) return appliedAxState.focus;
-    this.recordMutation({
-      operationType: 'setAxFocus',
-      description: `Set AX focus (${appliedAxState.focus.nodeIds.length} nodes)`,
-      forward: this.suppressed(() => {
-        this.applyAxState(appliedAxState);
-        this.scheduleSave();
-        this.notifyChange('ax');
-      }),
-      inverse: this.suppressed(() => {
-        this.applyAxState(oldAxState);
-        this.scheduleSave();
-        this.notifyChange('ax');
-      }),
-    });
-    return appliedAxState.focus;
+    return this.ax.setAxFocus(nodeIds, options);
   }
 
   clearAxFocus(): PmxAxFocusState {
-    return this.setAxFocus([], { source: 'system' });
+    return this.ax.clearAxFocus();
   }
 
   // ── Work items (canvas-bound; snapshotted via getAxState blob) ────
   getWorkItems(): PmxAxWorkItem[] {
-    return this.getAxState().workItems;
+    return this.ax.getWorkItems();
   }
 
   addWorkItem(
     input: { title: string; status?: PmxAxWorkItemStatus; detail?: string | null; nodeIds?: string[] },
     options: { source?: PmxAxSource } = {},
   ): PmxAxWorkItem {
-    const oldAxState = this.getAxState();
-    const item = createAxWorkItem(input, options.source ?? 'api', this.currentNodeIdSet());
-    this.applyAxState({ ...oldAxState, workItems: [...oldAxState.workItems, item] });
-    const applied = this.getAxState();
-    this.scheduleSave();
-    this.notifyChange('ax');
-    this.recordMutation({
-      operationType: 'addWorkItem',
-      description: `Added work item "${item.title}"`,
-      forward: this.suppressed(() => { this.applyAxState(applied); this.scheduleSave(); this.notifyChange('ax'); }),
-      inverse: this.suppressed(() => { this.applyAxState(oldAxState); this.scheduleSave(); this.notifyChange('ax'); }),
-    });
-    return applied.workItems.find((w) => w.id === item.id) ?? item;
+    return this.ax.addWorkItem(input, options);
   }
 
   updateWorkItem(
@@ -1802,53 +1765,19 @@ class CanvasStateManager {
     patch: { title?: string; status?: PmxAxWorkItemStatus; detail?: string | null; nodeIds?: string[] },
     options: { source?: PmxAxSource } = {},
   ): PmxAxWorkItem | null {
-    const oldAxState = this.getAxState();
-    const existing = oldAxState.workItems.find((w) => w.id === id);
-    if (!existing) return null;
-    const merged: PmxAxWorkItem = {
-      ...existing,
-      ...(patch.title !== undefined ? { title: patch.title } : {}),
-      ...(patch.status !== undefined ? { status: patch.status } : {}),
-      ...(patch.detail !== undefined ? { detail: patch.detail } : {}),
-      ...(patch.nodeIds !== undefined ? { nodeIds: patch.nodeIds.filter((n) => this.nodes.has(n)) } : {}),
-      updatedAt: new Date().toISOString(),
-      source: options.source ?? existing.source,
-    };
-    this.applyAxState({ ...oldAxState, workItems: replaceById(oldAxState.workItems, merged) });
-    const applied = this.getAxState();
-    this.scheduleSave();
-    this.notifyChange('ax');
-    this.recordMutation({
-      operationType: 'updateWorkItem',
-      description: `Updated work item ${id}`,
-      forward: this.suppressed(() => { this.applyAxState(applied); this.scheduleSave(); this.notifyChange('ax'); }),
-      inverse: this.suppressed(() => { this.applyAxState(oldAxState); this.scheduleSave(); this.notifyChange('ax'); }),
-    });
-    return applied.workItems.find((w) => w.id === id) ?? null;
+    return this.ax.updateWorkItem(id, patch, options);
   }
 
   // ── Approval gates (canvas-bound) ─────────────────────────────────
   getApprovalGates(): PmxAxApprovalGate[] {
-    return this.getAxState().approvalGates;
+    return this.ax.getApprovalGates();
   }
 
   requestApproval(
     input: { title: string; detail?: string | null; action?: string | null; nodeIds?: string[] },
     options: { source?: PmxAxSource } = {},
   ): PmxAxApprovalGate {
-    const oldAxState = this.getAxState();
-    const gate = createAxApprovalGate(input, options.source ?? 'api', this.currentNodeIdSet());
-    this.applyAxState({ ...oldAxState, approvalGates: [...oldAxState.approvalGates, gate] });
-    const applied = this.getAxState();
-    this.scheduleSave();
-    this.notifyChange('ax');
-    this.recordMutation({
-      operationType: 'requestApproval',
-      description: `Requested approval "${gate.title}"`,
-      forward: this.suppressed(() => { this.applyAxState(applied); this.scheduleSave(); this.notifyChange('ax'); }),
-      inverse: this.suppressed(() => { this.applyAxState(oldAxState); this.scheduleSave(); this.notifyChange('ax'); }),
-    });
-    return applied.approvalGates.find((g) => g.id === gate.id) ?? gate;
+    return this.ax.requestApproval(input, options);
   }
 
   resolveApproval(
@@ -1856,32 +1785,12 @@ class CanvasStateManager {
     decision: 'approved' | 'rejected',
     options: { resolution?: string; source?: PmxAxSource } = {},
   ): PmxAxApprovalGate | null {
-    const oldAxState = this.getAxState();
-    const gate = oldAxState.approvalGates.find((g) => g.id === id);
-    if (!gate || gate.status !== 'pending') return null;
-    const resolved: PmxAxApprovalGate = {
-      ...gate,
-      status: decision,
-      resolvedAt: new Date().toISOString(),
-      resolution: options.resolution ?? null,
-      source: options.source ?? gate.source,
-    };
-    this.applyAxState({ ...oldAxState, approvalGates: replaceById(oldAxState.approvalGates, resolved) });
-    const applied = this.getAxState();
-    this.scheduleSave();
-    this.notifyChange('ax');
-    this.recordMutation({
-      operationType: 'resolveApproval',
-      description: `Resolved approval ${id} -> ${decision}`,
-      forward: this.suppressed(() => { this.applyAxState(applied); this.scheduleSave(); this.notifyChange('ax'); }),
-      inverse: this.suppressed(() => { this.applyAxState(oldAxState); this.scheduleSave(); this.notifyChange('ax'); }),
-    });
-    return applied.approvalGates.find((g) => g.id === id) ?? null;
+    return this.ax.resolveApproval(id, decision, options);
   }
 
   // ── Review annotations (canvas-bound) ─────────────────────────────
   getReviewAnnotations(): PmxAxReviewAnnotation[] {
-    return this.getAxState().reviewAnnotations;
+    return this.ax.getReviewAnnotations();
   }
 
   addReviewAnnotation(
@@ -1897,33 +1806,7 @@ class CanvasStateManager {
     },
     options: { source?: PmxAxSource } = {},
   ): PmxAxReviewAnnotation | null {
-    // Validate the node anchor up front. A node-anchored review whose nodeId is
-    // missing or unknown would otherwise be silently dropped by
-    // normalizeAxForCurrentNodes after apply, yet still returned as a phantom
-    // success object — false success / silent data loss. Reject instead so the
-    // HTTP/MCP layers surface ok:false / 4xx.
-    // Context-aware default: only fall back to a node anchor when a usable nodeId
-    // is present; otherwise treat it as an unanchored (body-only) note so a
-    // `{ body }`-only annotation succeeds (anchorType is documented optional).
-    const anchorType = input.anchorType ?? (typeof input.nodeId === 'string' && input.nodeId ? 'node' : 'file');
-    // An EXPLICIT node anchor still requires a real nodeId — reject a phantom
-    // node-anchored review rather than silently dropping it post-apply.
-    if (anchorType === 'node' && (typeof input.nodeId !== 'string' || !this.currentNodeIdSet().has(input.nodeId))) {
-      return null;
-    }
-    const oldAxState = this.getAxState();
-    const annotation = createAxReviewAnnotation(input, options.source ?? 'api');
-    this.applyAxState({ ...oldAxState, reviewAnnotations: [...oldAxState.reviewAnnotations, annotation] });
-    const applied = this.getAxState();
-    this.scheduleSave();
-    this.notifyChange('ax');
-    this.recordMutation({
-      operationType: 'addReviewAnnotation',
-      description: `Added review ${annotation.kind} (${annotation.severity})`,
-      forward: this.suppressed(() => { this.applyAxState(applied); this.scheduleSave(); this.notifyChange('ax'); }),
-      inverse: this.suppressed(() => { this.applyAxState(oldAxState); this.scheduleSave(); this.notifyChange('ax'); }),
-    });
-    return applied.reviewAnnotations.find((r) => r.id === annotation.id) ?? annotation;
+    return this.ax.addReviewAnnotation(input, options);
   }
 
   updateReviewAnnotation(
@@ -1931,57 +1814,23 @@ class CanvasStateManager {
     patch: { body?: string; status?: PmxAxReviewStatus; severity?: PmxAxReviewSeverity; kind?: PmxAxReviewKind },
     options: { source?: PmxAxSource } = {},
   ): PmxAxReviewAnnotation | null {
-    const oldAxState = this.getAxState();
-    const existing = oldAxState.reviewAnnotations.find((r) => r.id === id);
-    if (!existing) return null;
-    const merged: PmxAxReviewAnnotation = {
-      ...existing,
-      ...(patch.body !== undefined ? { body: patch.body } : {}),
-      ...(patch.status !== undefined ? { status: patch.status } : {}),
-      ...(patch.severity !== undefined ? { severity: patch.severity } : {}),
-      ...(patch.kind !== undefined ? { kind: patch.kind } : {}),
-      updatedAt: new Date().toISOString(),
-      source: options.source ?? existing.source,
-    };
-    this.applyAxState({ ...oldAxState, reviewAnnotations: replaceById(oldAxState.reviewAnnotations, merged) });
-    const applied = this.getAxState();
-    this.scheduleSave();
-    this.notifyChange('ax');
-    this.recordMutation({
-      operationType: 'updateReviewAnnotation',
-      description: `Updated review ${id}`,
-      forward: this.suppressed(() => { this.applyAxState(applied); this.scheduleSave(); this.notifyChange('ax'); }),
-      inverse: this.suppressed(() => { this.applyAxState(oldAxState); this.scheduleSave(); this.notifyChange('ax'); }),
-    });
-    return applied.reviewAnnotations.find((r) => r.id === id) ?? null;
+    return this.ax.updateReviewAnnotation(id, patch, options);
   }
 
   // ── Host capability (own table; reported by adapters) ─────────────
   getHostCapability(): PmxAxHostCapability | null {
-    return this._axHostCapability;
+    return this.ax.getHostCapability();
   }
 
   getElicitations(): PmxAxElicitation[] {
-    return this.getAxState().elicitations;
+    return this.ax.getElicitations();
   }
 
   requestElicitation(
     input: { prompt: string; fields?: string[]; nodeIds?: string[] },
     options: { source?: PmxAxSource } = {},
   ): PmxAxElicitation {
-    const oldAxState = this.getAxState();
-    const elicitation = createAxElicitation(input, options.source ?? 'api', this.currentNodeIdSet());
-    this.applyAxState({ ...oldAxState, elicitations: [...oldAxState.elicitations, elicitation] });
-    const applied = this.getAxState();
-    this.scheduleSave();
-    this.notifyChange('ax');
-    this.recordMutation({
-      operationType: 'requestElicitation',
-      description: `Requested elicitation "${elicitation.prompt}"`,
-      forward: this.suppressed(() => { this.applyAxState(applied); this.scheduleSave(); this.notifyChange('ax'); }),
-      inverse: this.suppressed(() => { this.applyAxState(oldAxState); this.scheduleSave(); this.notifyChange('ax'); }),
-    });
-    return applied.elicitations.find((e) => e.id === elicitation.id) ?? elicitation;
+    return this.ax.requestElicitation(input, options);
   }
 
   respondElicitation(
@@ -1989,50 +1838,18 @@ class CanvasStateManager {
     response: Record<string, unknown>,
     options: { source?: PmxAxSource } = {},
   ): PmxAxElicitation | null {
-    const oldAxState = this.getAxState();
-    const existing = oldAxState.elicitations.find((e) => e.id === id);
-    if (!existing || existing.status !== 'pending') return null;
-    const merged: PmxAxElicitation = {
-      ...existing,
-      status: 'answered',
-      response,
-      resolvedAt: new Date().toISOString(),
-      source: options.source ?? existing.source,
-    };
-    this.applyAxState({ ...oldAxState, elicitations: replaceById(oldAxState.elicitations, merged) });
-    const applied = this.getAxState();
-    this.scheduleSave();
-    this.notifyChange('ax');
-    this.recordMutation({
-      operationType: 'respondElicitation',
-      description: `Answered elicitation ${id}`,
-      forward: this.suppressed(() => { this.applyAxState(applied); this.scheduleSave(); this.notifyChange('ax'); }),
-      inverse: this.suppressed(() => { this.applyAxState(oldAxState); this.scheduleSave(); this.notifyChange('ax'); }),
-    });
-    return applied.elicitations.find((e) => e.id === id) ?? null;
+    return this.ax.respondElicitation(id, response, options);
   }
 
   getModeRequests(): PmxAxModeRequest[] {
-    return this.getAxState().modeRequests;
+    return this.ax.getModeRequests();
   }
 
   requestMode(
     input: { mode: PmxAxMode; reason?: string | null; nodeIds?: string[] },
     options: { source?: PmxAxSource } = {},
   ): PmxAxModeRequest {
-    const oldAxState = this.getAxState();
-    const request = createAxModeRequest(input, options.source ?? 'api', this.currentNodeIdSet());
-    this.applyAxState({ ...oldAxState, modeRequests: [...oldAxState.modeRequests, request] });
-    const applied = this.getAxState();
-    this.scheduleSave();
-    this.notifyChange('ax');
-    this.recordMutation({
-      operationType: 'requestMode',
-      description: `Requested mode "${request.mode}"`,
-      forward: this.suppressed(() => { this.applyAxState(applied); this.scheduleSave(); this.notifyChange('ax'); }),
-      inverse: this.suppressed(() => { this.applyAxState(oldAxState); this.scheduleSave(); this.notifyChange('ax'); }),
-    });
-    return applied.modeRequests.find((m) => m.id === request.id) ?? request;
+    return this.ax.requestMode(input, options);
   }
 
   resolveModeRequest(
@@ -2040,98 +1857,45 @@ class CanvasStateManager {
     decision: 'approved' | 'rejected',
     options: { resolution?: string; source?: PmxAxSource } = {},
   ): PmxAxModeRequest | null {
-    const oldAxState = this.getAxState();
-    const existing = oldAxState.modeRequests.find((m) => m.id === id);
-    if (!existing || existing.status !== 'pending') return null;
-    const merged: PmxAxModeRequest = {
-      ...existing,
-      status: decision,
-      resolvedAt: new Date().toISOString(),
-      resolution: options.resolution ?? null,
-      source: options.source ?? existing.source,
-    };
-    this.applyAxState({ ...oldAxState, modeRequests: replaceById(oldAxState.modeRequests, merged) });
-    const applied = this.getAxState();
-    this.scheduleSave();
-    this.notifyChange('ax');
-    this.recordMutation({
-      operationType: 'resolveModeRequest',
-      description: `Resolved mode request ${id} -> ${decision}`,
-      forward: this.suppressed(() => { this.applyAxState(applied); this.scheduleSave(); this.notifyChange('ax'); }),
-      inverse: this.suppressed(() => { this.applyAxState(oldAxState); this.scheduleSave(); this.notifyChange('ax'); }),
-    });
-    return applied.modeRequests.find((m) => m.id === id) ?? null;
+    return this.ax.resolveModeRequest(id, decision, options);
   }
 
   // ── Single-item AX readers (canvas-bound; for the blocking-wait endpoints) ──
   getApproval(id: string): PmxAxApprovalGate | null {
-    return this.getAxState().approvalGates.find((g) => g.id === id) ?? null;
+    return this.ax.getApproval(id);
   }
 
   getElicitation(id: string): PmxAxElicitation | null {
-    return this.getAxState().elicitations.find((e) => e.id === id) ?? null;
+    return this.ax.getElicitation(id);
   }
 
   getModeRequest(id: string): PmxAxModeRequest | null {
-    return this.getAxState().modeRequests.find((m) => m.id === id) ?? null;
+    return this.ax.getModeRequest(id);
   }
 
   getCommandRegistry(): PmxAxCommandDescriptor[] {
-    return listAxCommands();
+    return this.ax.getCommandRegistry();
   }
 
   /** Invoke a registry-gated PMX command intent — records a timeline event (no execution). */
   invokeCommand(name: string, args: Record<string, unknown> | null = null, options: { source?: PmxAxSource } = {}): PmxAxEvent | null {
-    if (!isAxCommand(name)) return null;
-    return this.recordAxEvent(
-      { kind: 'command', summary: name, detail: AX_COMMAND_REGISTRY[name].description, data: { command: name, ...(args ? { args } : {}) } },
-      options,
-    );
+    return this.ax.invokeCommand(name, args, options);
   }
 
   getPolicy(): PmxAxPolicy {
-    return this.getAxState().policy;
+    return this.ax.getPolicy();
   }
 
   /** Merge a declarative tool/prompt policy patch (canvas-bound, snapshotted). */
   setPolicy(
     patch: { tools?: Partial<PmxAxPolicy['tools']>; prompt?: Partial<PmxAxPolicy['prompt']> },
-    _options: { source?: PmxAxSource } = {},
+    options: { source?: PmxAxSource } = {},
   ): PmxAxPolicy {
-    const oldAxState = this.getAxState();
-    const merged = normalizeAxPolicy({
-      tools: { ...oldAxState.policy.tools, ...(patch.tools ?? {}) },
-      prompt: { ...oldAxState.policy.prompt, ...(patch.prompt ?? {}) },
-    });
-    this.applyAxState({ ...oldAxState, policy: merged });
-    const applied = this.getAxState();
-    this.scheduleSave();
-    this.notifyChange('ax');
-    this.recordMutation({
-      operationType: 'setPolicy',
-      description: 'Updated AX policy',
-      forward: this.suppressed(() => { this.applyAxState(applied); this.scheduleSave(); this.notifyChange('ax'); }),
-      inverse: this.suppressed(() => { this.applyAxState(oldAxState); this.scheduleSave(); this.notifyChange('ax'); }),
-    });
-    return applied.policy;
+    return this.ax.setPolicy(patch, options);
   }
 
-  setHostCapability(input: unknown, _options: { source?: PmxAxSource } = {}): PmxAxHostCapability {
-    const cap = normalizeAxHostCapability(
-      isRecord(input)
-        ? { ...input, reportedAt: new Date().toISOString() }
-        : { reportedAt: new Date().toISOString() },
-    ) ?? createEmptyAxHostCapability();
-    this._axHostCapability = cap;
-    if (this._db) {
-      try {
-        upsertAxHostCapabilityToDB(this._db, cap);
-      } catch (error) {
-        logCanvasStateWarning('save host capability failed', error, {});
-      }
-    }
-    this.notifyChange('ax');
-    return cap;
+  setHostCapability(input: unknown, options: { source?: PmxAxSource } = {}): PmxAxHostCapability {
+    return this.ax.setHostCapability(input, options);
   }
 
   // ── Timeline (DB-direct; NOT in _axState; NOT history-recorded) ───
@@ -2139,77 +1903,24 @@ class CanvasStateManager {
     input: { kind: PmxAxEventKind; summary: string; detail?: string | null; nodeIds?: string[]; data?: Record<string, unknown> | null },
     options: { source?: PmxAxSource } = {},
   ): PmxAxEvent {
-    const draft = createAxEvent(input, options.source ?? 'api');
-    if (this._db) {
-      try {
-        const ev = appendAxEventToDB(this._db, draft);
-        this.notifyChange('ax-timeline');
-        return ev;
-      } catch (error) {
-        logCanvasStateWarning('record ax event failed', error, { id: draft.id });
-      }
-    }
-    this.notifyChange('ax-timeline');
-    return { ...draft, seq: 0 };
+    return this.ax.recordAxEvent(input, options);
   }
 
   addEvidence(
     input: { kind: PmxAxEvidenceKind; title: string; body?: string | null; ref?: string | null; nodeIds?: string[]; data?: Record<string, unknown> | null },
     options: { source?: PmxAxSource } = {},
   ): PmxAxEvidence {
-    const draft = createAxEvidence(input, options.source ?? 'api');
-    if (this._db) {
-      try {
-        const ev = appendAxEvidenceToDB(this._db, draft);
-        this.notifyChange('ax-timeline');
-        return ev;
-      } catch (error) {
-        logCanvasStateWarning('add evidence failed', error, { id: draft.id });
-      }
-    }
-    this.notifyChange('ax-timeline');
-    return { ...draft, seq: 0 };
+    return this.ax.addEvidence(input, options);
   }
 
   recordSteeringMessage(message: string, options: { source?: PmxAxSource } = {}): PmxAxSteeringMessage {
-    const draft = createAxSteeringMessage(message, options.source ?? 'api');
-    if (this._db) {
-      try {
-        const s = appendAxSteeringToDB(this._db, draft);
-        this.notifyChange('ax-timeline');
-        return s;
-      } catch (error) {
-        logCanvasStateWarning('record steering failed', error, { id: draft.id });
-      }
-    }
-    this.notifyChange('ax-timeline');
-    return { ...draft, seq: 0 };
+    return this.ax.recordSteeringMessage(message, options);
   }
 
   markSteeringDelivered(id: string): boolean {
-    if (!this._db) return false;
-    try {
-      const ok = markAxSteeringDeliveredInDB(this._db, id);
-      if (ok) this.notifyChange('ax-timeline');
-      return ok;
-    } catch (error) {
-      logCanvasStateWarning('mark steering delivered failed', error, { id });
-      return false;
-    }
+    return this.ax.markSteeringDelivered(id);
   }
 
-  /**
-   * Ingest a normalized agent activity (a tool/session event a harness forwards)
-   * and apply kind-driven board reactions, so the agent's real work flows back into
-   * the board without it remembering to push each item (report primitive A — makes
-   * AX bidirectional). Always records a timeline event; then, unless the caller
-   * overrides/suppresses via `reactions`, applies defaults by kind/outcome:
-   *   • failure | error | outcome==='failure' → work item (blocked) + review
-   *     (finding/error, anchored to a valid nodeId else the `ref` file) + evidence (logs)
-   *   • tool-result + outcome==='success'      → evidence (tool-result)
-   *   • everything else (tool-start, session-*, command, note) → event only
-   * A reaction value of `false` suppresses it; an object overrides its fields/forces it on.
-   */
   ingestActivity(
     input: {
       kind: PmxAxActivityKind;
@@ -2227,112 +1938,31 @@ class CanvasStateManager {
     },
     options: { source?: PmxAxSource } = {},
   ): { event: PmxAxEvent; workItem: PmxAxWorkItem | null; evidence: PmxAxEvidence | null; review: PmxAxReviewAnnotation | null } {
-    const source = options.source ?? 'api';
-    const summary = input.summary ?? input.title;
-    const isFailure = input.kind === 'failure' || input.kind === 'error' || input.outcome === 'failure';
-    const isToolSuccess = input.kind === 'tool-result' && input.outcome === 'success';
-    const nodeIds = input.nodeIds ?? [];
-    const anchorNodeId = nodeIds.find((n) => this.nodes.has(n)) ?? null;
-
-    // (1) Always record the activity on the timeline (precise kind on data.activityKind).
-    const event = this.recordAxEvent(
-      {
-        kind: mapAxActivityKindToEventKind(input.kind),
-        summary: input.title,
-        detail: input.summary ?? null,
-        nodeIds,
-        // Caller data first so the canonical fields always win — a malformed/hostile
-        // payload can't overwrite activityKind/outcome/ref (which the docstring +
-        // reaction logic treat as authoritative).
-        data: {
-          ...(input.data ?? {}),
-          activityKind: input.kind,
-          ...(input.outcome ? { outcome: input.outcome } : {}),
-          ...(input.ref ? { ref: input.ref } : {}),
-        },
-      },
-      { source },
-    );
-
-    // (2) Resolve reactions: kind-driven defaults, overridable per call.
-    const r = input.reactions ?? {};
-    const wantWorkItem = r.workItem === false ? null : (r.workItem ?? (isFailure ? {} : null));
-    const wantEvidence = r.evidence === false
-      ? null
-      : (r.evidence ?? (isFailure ? { kind: 'logs' as PmxAxEvidenceKind } : isToolSuccess ? { kind: 'tool-result' as PmxAxEvidenceKind } : null));
-    const wantReview = r.review === false ? null : (r.review ?? (isFailure ? {} : null));
-
-    let workItem: PmxAxWorkItem | null = null;
-    if (wantWorkItem) {
-      workItem = this.addWorkItem(
-        { title: input.title, status: wantWorkItem.status ?? 'blocked', detail: wantWorkItem.detail ?? summary, nodeIds },
-        { source },
-      );
-    }
-
-    let evidence: PmxAxEvidence | null = null;
-    if (wantEvidence) {
-      evidence = this.addEvidence(
-        { kind: wantEvidence.kind ?? 'logs', title: input.title, body: wantEvidence.body ?? input.summary ?? null, ref: input.ref ?? null, nodeIds },
-        { source },
-      );
-    }
-
-    let review: PmxAxReviewAnnotation | null = null;
-    if (wantReview) {
-      const reviewNodeId = wantReview.nodeId ?? anchorNodeId;
-      // addReviewAnnotation returns null on a bad node anchor — that just skips the
-      // review; it never fails the whole ingest (the event + other reactions stand).
-      review = this.addReviewAnnotation(
-        {
-          body: summary,
-          kind: wantReview.kind ?? 'finding',
-          severity: wantReview.severity ?? 'error',
-          ...(wantReview.anchorType ? { anchorType: wantReview.anchorType } : {}),
-          ...(reviewNodeId ? { nodeId: reviewNodeId } : {}),
-          ...(input.ref ? { file: input.ref } : {}),
-        },
-        { source },
-      );
-    }
-
-    return { event, workItem, evidence, review };
+    return this.ax.ingestActivity(input, options);
   }
 
   getAxEvents(q: AxTimelineQuery = {}): PmxAxEvent[] {
-    return this._db ? loadAxEventsFromDB(this._db, q) : [];
+    return this.ax.getAxEvents(q);
   }
 
   getAxEvidence(q: AxTimelineQuery = {}): PmxAxEvidence[] {
-    return this._db ? loadAxEvidenceFromDB(this._db, q) : [];
+    return this.ax.getAxEvidence(q);
   }
 
   getAxSteering(q: AxTimelineQuery & { onlyPending?: boolean } = {}): PmxAxSteeringMessage[] {
-    return this._db ? loadAxSteeringFromDB(this._db, q) : [];
+    return this.ax.getAxSteering(q);
   }
 
-  /**
-   * Undelivered steering for a consumer (Phase 4 delivery). Excludes messages
-   * whose source equals the consumer to prevent delivery loops (e.g. Copilot
-   * should not be handed back steering it originated).
-   */
   getPendingSteering(options: { consumer?: string; limit?: number } = {}): PmxAxSteeringMessage[] {
-    return this._db ? loadPendingAxSteeringFromDB(this._db, options) : [];
+    return this.ax.getPendingSteering(options);
   }
 
   getAxTimelineSummary(): PmxAxTimelineSummary {
-    return this._db
-      ? loadAxTimelineSummaryFromDB(this._db)
-      : { recentEvents: [], recentEvidence: [], pendingSteering: [], counts: { events: 0, evidence: 0, steering: 0 } };
+    return this.ax.getAxTimelineSummary();
   }
 
   getAxTimeline(q: AxTimelineQuery = {}): { events: PmxAxEvent[]; evidence: PmxAxEvidence[]; steering: PmxAxSteeringMessage[]; summary: PmxAxTimelineSummary } {
-    return {
-      events: this.getAxEvents(q),
-      evidence: this.getAxEvidence(q),
-      steering: this.getAxSteering(q),
-      summary: this.getAxTimelineSummary(),
-    };
+    return this.ax.getAxTimeline(q);
   }
 
   setContextPins(nodeIds: string[]): void {
@@ -2469,7 +2099,7 @@ class CanvasStateManager {
     // Clears canvas-bound AX state (focus, work items, approvals, review annotations).
     // Timeline tables (ax_events/ax_evidence/ax_steering) and host capability are
     // deliberately retained per the AX state-partition policy.
-    this._axState = createEmptyAxState();
+    this.ax.resetCanvasBound();
     this._viewport = { x: 0, y: 0, scale: 1 };
     this.scheduleSave();
     this.notifyChange('nodes');
@@ -2484,7 +2114,7 @@ class CanvasStateManager {
         for (const e of oldEdges) this.addEdge(structuredClone(e));
         for (const annotation of oldAnnotations) this.addAnnotation(structuredClone(annotation));
         this.setContextPins(oldPins);
-        this.applyAxState(oldAxState);
+        this.ax.applyPersistedAx(oldAxState);
         this.setViewport(oldViewport);
         this.notifyChange('ax');
       }),

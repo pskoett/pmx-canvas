@@ -13,7 +13,7 @@ export interface PmxAxFocusState {
 // ── New enums ──────────────────────────────────────────────────────
 export type PmxAxEventKind =
   | 'prompt' | 'assistant-message' | 'tool-start' | 'tool-result'
-  | 'failure' | 'approval' | 'steering' | 'command';
+  | 'failure' | 'approval' | 'steering' | 'command' | 'note';
 export type PmxAxEvidenceKind =
   | 'logs' | 'tool-result' | 'screenshot' | 'file' | 'diff' | 'test-output';
 export type PmxAxWorkItemStatus = 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled';
@@ -263,7 +263,7 @@ function normalizeNodeIds(value: unknown, validNodeIds?: Set<string>): string[] 
   return ids;
 }
 
-const AX_EVENT_KINDS = new Set<PmxAxEventKind>(['prompt', 'assistant-message', 'tool-start', 'tool-result', 'failure', 'approval', 'steering', 'command']);
+const AX_EVENT_KINDS = new Set<PmxAxEventKind>(['prompt', 'assistant-message', 'tool-start', 'tool-result', 'failure', 'approval', 'steering', 'command', 'note']);
 
 // ── Activity ingestion (harness-forwarded tool/session events) ─────
 // A normalized activity the agent's harness forwards; the board auto-reacts.

@@ -7,6 +7,13 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Added
 
+- **AX state isolated into `AxStateManager` (plan-007 Slice A).** The canvas-bound
+  AX state, its mutators/readers, and the timeline-direct ops moved out of the
+  2,498-line `CanvasStateManager` into `src/server/ax-state-manager.ts`;
+  `CanvasStateManager` delegates, so the public surface (SDK/HTTP/MCP) is
+  unchanged. The three-partition snapshot-vs-audit contract is now documented
+  authoritatively in `docs/ax-state-contract.md`.
+
 - **Composite MCP tools (plan-006 MCP tool consolidation, wave 1).** Seven
   action-discriminated tools fold the single-purpose tools behind a clear
   `action` enum: `canvas_node` (add/get/update/remove), `canvas_render`
@@ -25,6 +32,15 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   waves as the AX / side-channel registry slices complete.
 
 ### Changed
+
+- **Deleting a node no longer silently re-anchors AX work (plan-007 Slice A).**
+  Node deletion already re-normalized canvas-bound AX state (work items / approval
+  gates / elicitations / mode requests keep the item but lose the dangling node
+  ref; node-anchored review annotations are dropped) — but did so silently. It now
+  records exactly one auditable timeline event (`kind:'note'`, `source:'system'`,
+  `data.systemEvent:'ax-node-orphan'`) naming what was re-anchored/removed, so the
+  human and a resuming agent can see the change. The note is append-only (not
+  rolled back on undo, not duplicated on redo). See `docs/ax-state-contract.md`.
 
 - **Removing a missing node now errors on every surface (plan-005 slice 1).**
   Node CRUD + layout reads (`node.add` / `node.get` / `node.update` /
