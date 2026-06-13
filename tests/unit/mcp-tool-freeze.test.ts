@@ -3,9 +3,17 @@
 //
 // Pre-refactor safety net for the operation-registry refactor: the literal
 // lists below were generated from a real listTools/listResources call against
-// the current MCP server and freeze the public MCP surface — 69 tools and 14
-// fixed resource URIs. Per-skill resources (canvas://skills/<name>) track the
-// skills/ directory contents and are intentionally NOT frozen by name.
+// the current MCP server and freeze the public MCP surface. Per-skill resources
+// (canvas://skills/<name>) track the skills/ directory contents and are
+// intentionally NOT frozen by name.
+//
+// plan-006 (MCP tool consolidation) grows this list ADDITIVELY: 69 legacy tools
+// + 7 action-discriminated composites (canvas_node, canvas_render, canvas_edge,
+// canvas_group, canvas_history, canvas_view, canvas_query) = 76. The
+// canvas_snapshot composite is deferred to v0.3 (its name is still held by the
+// legacy save-snapshot tool). Legacy single-purpose tools are removed (and this
+// list shrinks to the survivors) in v0.3 per docs/api-stability.md — both edits
+// are deliberate.
 import { afterAll, describe, expect, test } from 'bun:test';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
@@ -39,6 +47,7 @@ const FROZEN_TOOL_NAMES = [
   'canvas_delete_snapshot',
   'canvas_describe_schema',
   'canvas_diff',
+  'canvas_edge',
   'canvas_evaluate',
   'canvas_fit_view',
   'canvas_focus_node',
@@ -47,19 +56,24 @@ const FROZEN_TOOL_NAMES = [
   'canvas_get_ax_timeline',
   'canvas_get_layout',
   'canvas_get_node',
+  'canvas_group',
   'canvas_group_nodes',
+  'canvas_history',
   'canvas_ingest_activity',
   'canvas_invoke_command',
   'canvas_list_snapshots',
   'canvas_mark_ax_delivery',
+  'canvas_node',
   'canvas_open_mcp_app',
   'canvas_pin_nodes',
+  'canvas_query',
   'canvas_record_ax_event',
   'canvas_redo',
   'canvas_refresh_webpage_node',
   'canvas_remove_annotation',
   'canvas_remove_edge',
   'canvas_remove_node',
+  'canvas_render',
   'canvas_report_host_capability',
   'canvas_request_approval',
   'canvas_request_elicitation',
@@ -82,6 +96,7 @@ const FROZEN_TOOL_NAMES = [
   'canvas_update_work_item',
   'canvas_validate',
   'canvas_validate_spec',
+  'canvas_view',
   'canvas_webview_start',
   'canvas_webview_status',
   'canvas_webview_stop',
@@ -160,11 +175,11 @@ async function createMcpSession(): Promise<Client> {
 }
 
 describe('MCP public surface freeze', () => {
-  test('the sorted tool-name list matches the frozen 69-tool list exactly', async () => {
+  test('the sorted tool-name list matches the frozen 76-tool list exactly', async () => {
     const client = await createMcpSession();
     const tools = await client.listTools();
     const sortedNames = tools.tools.map((tool) => tool.name).sort();
-    expect(FROZEN_TOOL_NAMES).toHaveLength(69);
+    expect(FROZEN_TOOL_NAMES).toHaveLength(76);
     expect(sortedNames).toEqual(FROZEN_TOOL_NAMES);
   }, 30000);
 

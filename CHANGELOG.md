@@ -5,6 +5,25 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- **Composite MCP tools (plan-006 MCP tool consolidation, wave 1).** Seven
+  action-discriminated tools fold the single-purpose tools behind a clear
+  `action` enum: `canvas_node` (add/get/update/remove), `canvas_render`
+  (describe-schema/validate/add-json-render/stream-json-render/add-graph),
+  `canvas_edge` (add/remove), `canvas_group` (create/add/ungroup),
+  `canvas_history` (undo/redo), `canvas_view` (arrange/focus/fit/clear), and
+  `canvas_query` (search/layout). Each action dispatches to the same registered
+  operation as its standalone tool — reusing that op's input mapping and result
+  formatting — so behavior is byte-identical (proven by
+  `tests/unit/mcp-composites.test.ts`). Additive: the legacy single-purpose
+  tools keep working and are removed in v0.3 per `docs/api-stability.md`. The
+  public MCP surface grows from 69 to 76 tools (deliberate; see
+  `tests/unit/mcp-tool-freeze.test.ts`). Composites/actions whose targets are
+  not yet registry-backed (`canvas_snapshot`, and the `refresh` /
+  `add-primitive` / `remove-annotation` / board-validation actions) land in later
+  waves as the AX / side-channel registry slices complete.
+
 ### Changed
 
 - **Removing a missing node now errors on every surface (plan-005 slice 1).**
@@ -54,6 +73,20 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   graph-create route honored). The spec-validation error body keeps its exact
   `{ ok, error, type }` shape. HTTP paths, wire shapes, and MCP tool names are
   unchanged.
+
+### Deprecated
+
+- **Single-purpose MCP tools superseded by wave-1 composites.** The standalone
+  tools folded by the composites above (`canvas_add_node`, `canvas_get_node`,
+  `canvas_update_node`, `canvas_remove_node`, `canvas_add_edge`,
+  `canvas_remove_edge`, `canvas_arrange`, `canvas_focus_node`, `canvas_fit_view`,
+  `canvas_clear`, `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup`,
+  `canvas_undo`, `canvas_redo`, `canvas_search`, `canvas_get_layout`,
+  `canvas_add_json_render_node`, `canvas_stream_json_render_node`,
+  `canvas_add_graph_node`, `canvas_describe_schema`, `canvas_validate_spec`) now
+  carry a `Deprecated: use canvas_x with action "y".` prefix on their tool
+  description (derived automatically from the composite definitions). They keep
+  working through v0.2 and are removed in v0.3 per `docs/api-stability.md`.
 
 ### Fixed
 

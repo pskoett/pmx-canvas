@@ -29,7 +29,7 @@ import { AX_INTERACTION_TYPES } from '../server/ax-interaction.js';
 import { buildPendingAxActivity } from '../server/ax-state.js';
 import { isHtmlPrimitiveKind } from '../server/html-primitives.js';
 import type { HtmlPrimitiveKind } from '../server/html-primitives.js';
-import { registerOperationTools } from '../server/operations/index.js';
+import { registerOperationTools, registerCompositeTools } from '../server/operations/index.js';
 import { createCanvasAccess, refreshCanvasAccess, type CanvasAccess } from './canvas-access.js';
 import { serializeNodeForAgentContext } from '../server/agent-context.js';
 import { wrapCanvasAutomationScript } from '../server/server.js';
@@ -301,6 +301,16 @@ export async function startMcpServer(): Promise<void> {
   // operation registry. Tool names and compact/full payload behavior are
   // frozen (tests/unit/mcp-tool-freeze.test.ts, operation-parity.test.ts).
   registerOperationTools(server, ensureCanvas);
+
+  // ── Composite (action-discriminated) tools (plan-006) ───────────
+  // Consolidate single-purpose tools into action-routed composites
+  // (canvas_node, canvas_render, canvas_edge, canvas_group, canvas_history,
+  // canvas_view, canvas_query). Each action dispatches to the same registered
+  // operation as its standalone tool, so behavior is identical. Additive in
+  // v0.2 (legacy tools still registered below); legacy removed in v0.3 per
+  // docs/api-stability.md. (canvas_snapshot composite is deferred to v0.3 — its
+  // name is still held by the legacy save-snapshot tool.)
+  registerCompositeTools(server, ensureCanvas);
 
   // ── canvas_add_html_node ────────────────────────────────────────
   server.tool(
