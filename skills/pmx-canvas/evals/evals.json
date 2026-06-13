@@ -93,7 +93,7 @@
       "assertions": [
         {
           "name": "reads-pinned-context",
-          "description": "Reads the canvas://pinned-context MCP resource (not just canvas_get_layout)",
+          "description": "Reads the canvas://pinned-context MCP resource (not just canvas_query action:layout)",
           "type": "output_check"
         },
         {
@@ -135,7 +135,7 @@
       "id": 6,
       "name": "status-dashboard-updates",
       "prompt": "I'm running a deployment pipeline. Create a dashboard on the canvas showing: Build (passing), Unit Tests (running), Integration Tests (queued), Deploy to Staging (queued). Then update it - unit tests just passed and integration tests are now running.",
-      "expected_output": "Creates status nodes with semantic colors, arranges as grid dashboard, then updates nodes in place using canvas_update_node (not delete+recreate) to reflect new state.",
+      "expected_output": "Creates status nodes with semantic colors, arranges as grid dashboard, then updates nodes in place using canvas_node action:update (not delete+recreate) to reflect new state.",
       "assertions": [
         {
           "name": "initial-dashboard",
@@ -144,7 +144,7 @@
         },
         {
           "name": "updates-in-place",
-          "description": "Uses canvas_update_node to change status (not remove+add)",
+          "description": "Uses canvas_node action:update to change status (not remove+add)",
           "type": "output_check"
         },
         {

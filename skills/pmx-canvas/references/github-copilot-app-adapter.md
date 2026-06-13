@@ -61,7 +61,7 @@ and it is clipped to a char budget. Three consequences the adapter/agent must ho
 2. A sandbox button click does **not** wake a turn — a human message does. The click
    only enqueues the steer.
 3. The agent must **act on injected `pendingSteering` / `pendingActivity` and then ack**
-   (`canvas_mark_ax_delivery`), or it re-injects every gated turn.
+   (`canvas_ax_delivery { action: "mark" }`), or it re-injects every gated turn.
 
 To be robust to the char clip, prefer injecting the compact loop-safe lead block from
 `GET /api/canvas/ax/context?consumer=copilot` (`delivery.pendingSteering` +
@@ -74,9 +74,8 @@ To be robust to the char clip, prefer injecting the compact loop-safe lead block
   `POST /api/canvas/ax/activity` (`canvas_ingest_activity`) so the board reflects the
   agent's real work automatically (a failed tool → a blocked work item + review +
   evidence).
-- **Await gates** with `canvas_await_approval` / `canvas_await_elicitation` /
-  `canvas_await_mode` (or surface a native modal and await the PMX result) so an
-  approval gate actually blocks the agent until the human resolves it.
+- **Await gates** with `canvas_ax_gate { kind, action: "await", id }` (or surface a native modal
+  and await the PMX result) so an approval gate actually blocks the agent until the human resolves it.
 
 See [`docs/ax-host-adapter-contract.md`](../../../docs/ax-host-adapter-contract.md).
 - Keeps all persistent PMX state in `.pmx-canvas/canvas.db`; the extension does not own canvas
@@ -158,5 +157,5 @@ global instruction to ignore the rest of the repository.
 For non-Copilot agents, use the same core primitives directly:
 
 - HTTP: `/api/canvas/ax`, `/api/canvas/ax/context`, `/api/canvas/ax/focus`
-- MCP: `canvas://ax`, `canvas://ax-context`, `canvas_get_ax`, `canvas_set_ax_focus`
+- MCP: `canvas://ax`, `canvas://ax-context`, `canvas_ax_state { action: "get" }`, `canvas_ax_state { action: "set-focus" }`
 - CLI: `pmx-canvas ax status|context|focus`
