@@ -88,6 +88,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
         mcpTool: "'canvas_record_ax_event'",
         cliCommand: "cmd('ax event add'",
         accessMethod: 'recordAxEvent(',
+        migrated: true,
       },
       {
         label: 'steering-message',
@@ -96,6 +97,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
         mcpTool: "'canvas_send_steering'",
         cliCommand: "cmd('ax steer'",
         accessMethod: 'sendSteering(',
+        migrated: true,
       },
       {
         label: 'timeline-read',
@@ -104,6 +106,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
         mcpTool: "'canvas_get_ax_timeline'",
         cliCommand: "cmd('ax timeline'",
         accessMethod: 'getAxTimeline(',
+        migrated: true,
       },
       {
         label: 'work-item-add',
@@ -148,6 +151,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
         mcpTool: "'canvas_add_evidence'",
         cliCommand: "cmd('ax evidence add'",
         accessMethod: 'addEvidence(',
+        migrated: true,
       },
       {
         label: 'review-annotation',
@@ -182,6 +186,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
         mcpTool: "'canvas_claim_ax_delivery'",
         cliCommand: "cmd('ax delivery list'",
         accessMethod: 'getPendingSteering(',
+        migrated: true,
       },
       {
         label: 'elicitation',
@@ -208,6 +213,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
         mcpTool: "'canvas_invoke_command'",
         cliCommand: "cmd('ax command invoke'",
         accessMethod: 'invokeCommand(',
+        migrated: true,
       },
       {
         label: 'policy',

@@ -69,6 +69,29 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   surface the HTTP 404 as an MCP `isError` result with the same message —
   success shapes are unchanged.
 
+- **AX timeline / delivery / command ops migrated to the operation registry
+  (plan-007 Slice B, wave 3).** `canvas_record_ax_event`, `canvas_add_evidence`,
+  `canvas_send_steering`, `canvas_get_ax_timeline`, `canvas_claim_ax_delivery`,
+  `canvas_mark_ax_delivery`, and `canvas_invoke_command` are now defined once in
+  `src/server/operations/ops/ax-timeline.ts` (legacy handlers + tools +
+  CanvasAccess methods deleted). Tool names, success wire shapes (`{ ok, event }`,
+  `{ ok, evidence }`, `{ ok, steering }`, the timeline aggregate, `{ ok, delivered }`),
+  the timeline SSE frame (`ax-event-created`, distinct from the wave-1/2
+  `ax-state-changed`), the `delivery.mark` `{ steeringDelivered }` frame (emitted
+  only when a message is actually marked), the loop-safe consumer scoping of
+  `canvas_claim_ax_delivery` (steering + `pendingActivity` both filtered), the
+  command allowlist (unknown name → 400 `Unknown command "…"`), and `source`
+  defaulting are unchanged. Two deliberate unifications: (1) `GET
+  /api/canvas/ax/delivery/pending` now returns `{ ok, pending, pendingActivity }`
+  (previously `{ ok, pending }`) so the one wire body matches the
+  `canvas_claim_ax_delivery` aggregate across local and remote MCP — additive,
+  existing clients reading `pending` are unaffected; (2) `canvas_invoke_command`
+  on an unknown name previously returned a success-shaped `{ ok:false, event:null }`
+  over MCP and now surfaces the HTTP 400 as an MCP `isError` (same class as the
+  wave-2 resolve/respond unification). The legacy `GET /api/canvas/ax/command`
+  registry list, `canvas_ingest_activity`, and `canvas_ax_interaction` remain on
+  the standalone surface (deferred to later waves).
+
 - **Removing a missing node now errors on every surface (plan-005 slice 1).**
   Node CRUD + layout reads (`node.add` / `node.get` / `node.update` /
   `node.remove` / `layout.get`) are defined once in a new operation registry

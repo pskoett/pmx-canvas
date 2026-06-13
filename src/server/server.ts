@@ -71,7 +71,7 @@ import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent-context.js';
 import { buildCanvasAxContext, buildCanvasAxSurfaceSnapshot } from './ax-context.js';
 import { applyAxInteraction, resolveNodeAxCapabilities } from './ax-interaction.js';
-import { isAxEventKind, isAxEvidenceKind, isAxActivityKind } from './ax-state.js';
+import { isAxEvidenceKind, isAxActivityKind } from './ax-state.js';
 import { waitForAxResolution, AX_WAIT_MAX_MS } from './ax-wait.js';
 import type {
   PmxAxEvidenceKind,
@@ -3110,28 +3110,8 @@ async function handleAxInteraction(req: Request): Promise<Response> {
   return responseJson(result, result.ok ? 200 : result.status);
 }
 
-function handleAxDeliveryPending(url: URL): Response {
-  const consumer = url.searchParams.get('consumer') ?? undefined;
-  const limitRaw = Number(url.searchParams.get('limit') ?? '');
-  const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : undefined;
-  const pending = canvasState.getPendingSteering({
-    ...(consumer ? { consumer } : {}),
-    ...(limit ? { limit } : {}),
-  });
-  return responseJson({ ok: true, pending });
-}
-
-function handleAxDeliveryMark(id: string): Response {
-  const delivered = canvasState.markSteeringDelivered(id);
-  if (delivered) {
-    broadcastWorkbenchEvent('ax-event-created', {
-      steeringDelivered: id,
-      sessionId: primaryWorkbenchSessionId,
-      timestamp: new Date().toISOString(),
-    });
-  }
-  return responseJson({ ok: true, delivered });
-}
+// handleAxDeliveryPending / handleAxDeliveryMark migrated to the operation
+// registry (plan-007 Slice B wave 3): src/server/operations/ops/ax-timeline.ts.
 
 function handleAxElicitationList(): Response {
   return responseJson({ ok: true, elicitations: canvasState.getElicitations() });
@@ -3151,16 +3131,8 @@ function handleAxCommandList(): Response {
   return responseJson({ ok: true, commands: canvasState.getCommandRegistry() });
 }
 
-async function handleAxCommandInvoke(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (typeof body.name !== 'string') {
-    return responseJson({ ok: false, error: 'command requires a name.' }, 400);
-  }
-  const event = canvasState.invokeCommand(body.name, isRecord(body.args) ? body.args : null, { source: normalizeAxSource(body.source, 'api') });
-  if (!event) return responseJson({ ok: false, error: `Unknown command "${body.name}".` }, 400);
-  broadcastWorkbenchEvent('ax-event-created', { event, sessionId: primaryWorkbenchSessionId, timestamp: new Date().toISOString() });
-  return responseJson({ ok: true, event });
-}
+// handleAxCommandInvoke migrated to the operation registry (plan-007 Slice B
+// wave 3): src/server/operations/ops/ax-timeline.ts.
 
 function handleAxPolicyGet(): Response {
   return responseJson({ ok: true, policy: canvasState.getPolicy() });
@@ -3183,52 +3155,8 @@ async function handleAxStatePatch(req: Request): Promise<Response> {
   return responseJson({ ok: true, state: canvasState.getAxState() });
 }
 
-async function handleAxEventAdd(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (!isAxEventKind(body.kind) || typeof body.summary !== 'string') {
-    return responseJson({ ok: false, error: 'event requires kind and summary.' }, 400);
-  }
-  const event = canvasState.recordAxEvent(
-    {
-      kind: body.kind,
-      summary: body.summary,
-      detail: typeof body.detail === 'string' ? body.detail : null,
-      nodeIds: normalizeAxNodeIds(body.nodeIds),
-      data: isRecord(body.data) ? body.data : null,
-    },
-    { source: normalizeAxSource(body.source, 'api') },
-  );
-  broadcastWorkbenchEvent('ax-event-created', {
-    event,
-    sessionId: primaryWorkbenchSessionId,
-    timestamp: new Date().toISOString(),
-  });
-  return responseJson({ ok: true, event });
-}
-
-async function handleAxSteer(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (typeof body.message !== 'string' || !body.message.trim()) {
-    return responseJson({ ok: false, error: 'steer requires a non-empty message.' }, 400);
-  }
-  const steering = canvasState.recordSteeringMessage(body.message, {
-    source: normalizeAxSource(body.source, 'api'),
-  });
-  broadcastWorkbenchEvent('ax-event-created', {
-    steering,
-    sessionId: primaryWorkbenchSessionId,
-    timestamp: new Date().toISOString(),
-  });
-  return responseJson({ ok: true, steering });
-}
-
-function handleAxTimelineGet(url: URL): Response {
-  const limit = Number(url.searchParams.get('limit') ?? '');
-  return responseJson({
-    ok: true,
-    ...canvasState.getAxTimeline(Number.isFinite(limit) && limit > 0 ? { limit } : {}),
-  });
-}
+// handleAxEventAdd / handleAxSteer / handleAxTimelineGet migrated to the
+// operation registry (plan-007 Slice B wave 3): src/server/operations/ops/ax-timeline.ts.
 
 const AX_WORK_STATUSES = new Set(['todo', 'in-progress', 'blocked', 'done', 'cancelled']);
 
@@ -3252,29 +3180,8 @@ function handleAxApprovalList(): Response {
 // handleAxApprovalRequest / handleAxApprovalResolve migrated to the operation
 // registry (plan-007 Slice B wave 2): src/server/operations/ops/ax-work.ts.
 
-async function handleAxEvidenceAdd(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (!isAxEvidenceKind(body.kind) || typeof body.title !== 'string' || !body.title.trim()) {
-    return responseJson({ ok: false, error: 'evidence requires kind and title.' }, 400);
-  }
-  const evidence = canvasState.addEvidence(
-    {
-      kind: body.kind,
-      title: body.title,
-      body: typeof body.body === 'string' ? body.body : null,
-      ref: typeof body.ref === 'string' ? body.ref : null,
-      nodeIds: normalizeAxNodeIds(body.nodeIds),
-      data: isRecord(body.data) ? body.data : null,
-    },
-    { source: normalizeAxSource(body.source, 'api') },
-  );
-  broadcastWorkbenchEvent('ax-event-created', {
-    evidence,
-    sessionId: primaryWorkbenchSessionId,
-    timestamp: new Date().toISOString(),
-  });
-  return responseJson({ ok: true, evidence });
-}
+// handleAxEvidenceAdd migrated to the operation registry (plan-007 Slice B
+// wave 3): src/server/operations/ops/ax-timeline.ts.
 
 // The AX review normalize helpers + their constant sets moved with the
 // migrated handlers (plan-007 Slice B wave 2): src/server/operations/ops/ax-work.ts.
@@ -4230,17 +4137,9 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           // POST /api/canvas/ax/focus migrated to the operation registry (plan-007 Slice B.1).
 
-          if (url.pathname === '/api/canvas/ax/event' && req.method === 'POST') {
-            return handleAxEventAdd(req);
-          }
-
-          if (url.pathname === '/api/canvas/ax/steer' && req.method === 'POST') {
-            return handleAxSteer(req);
-          }
-
-          if (url.pathname === '/api/canvas/ax/timeline' && req.method === 'GET') {
-            return handleAxTimelineGet(url);
-          }
+          // POST /api/canvas/ax/event + POST /api/canvas/ax/steer + GET
+          // /api/canvas/ax/timeline migrated to the operation registry
+          // (plan-007 Slice B wave 3): src/server/operations/ops/ax-timeline.ts.
 
           if (url.pathname === '/api/canvas/ax/work' && req.method === 'GET') {
             return handleAxWorkList();
@@ -4261,9 +4160,8 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleAxApprovalGet(url, approvalId, req);
           }
 
-          if (url.pathname === '/api/canvas/ax/evidence' && req.method === 'POST') {
-            return handleAxEvidenceAdd(req);
-          }
+          // POST /api/canvas/ax/evidence migrated to the operation registry
+          // (plan-007 Slice B wave 3): src/server/operations/ops/ax-timeline.ts.
 
           if (url.pathname === '/api/canvas/ax/review' && req.method === 'GET') {
             return handleAxReviewList();
@@ -4282,16 +4180,9 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleAxInteraction(req);
           }
 
-          if (url.pathname === '/api/canvas/ax/delivery/pending' && req.method === 'GET') {
-            return handleAxDeliveryPending(url);
-          }
-
-          if (url.pathname.startsWith('/api/canvas/ax/delivery/') && url.pathname.endsWith('/mark') && req.method === 'POST') {
-            const deliveryId = decodeURIComponent(
-              url.pathname.slice('/api/canvas/ax/delivery/'.length, -'/mark'.length),
-            );
-            return handleAxDeliveryMark(deliveryId);
-          }
+          // GET /api/canvas/ax/delivery/pending + POST /api/canvas/ax/delivery/:id/mark
+          // migrated to the operation registry (plan-007 Slice B wave 3):
+          // src/server/operations/ops/ax-timeline.ts.
 
           if (url.pathname === '/api/canvas/ax/elicitation' && req.method === 'GET') {
             return handleAxElicitationList();
@@ -4321,9 +4212,8 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleAxCommandList();
           }
 
-          if (url.pathname === '/api/canvas/ax/command' && req.method === 'POST') {
-            return handleAxCommandInvoke(req);
-          }
+          // POST /api/canvas/ax/command migrated to the operation registry
+          // (plan-007 Slice B wave 3): src/server/operations/ops/ax-timeline.ts.
 
           if (url.pathname === '/api/canvas/ax/policy' && req.method === 'GET') {
             return handleAxPolicyGet();

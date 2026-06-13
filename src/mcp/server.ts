@@ -629,125 +629,16 @@ export async function startMcpServer(): Promise<void> {
   // canvas_get_ax + canvas_set_ax_focus migrated to the operation registry
   // (plan-007 Slice B.1): src/server/operations/ops/ax-state.ts.
 
-  server.tool(
-    'canvas_record_ax_event',
-    'Record a normalized AX timeline event (prompt/assistant-message/tool-start/tool-result/failure/approval/steering). Timeline events persist for diagnostics and continuity but are not restored by snapshots.',
-    {
-      kind: z.enum(['prompt', 'assistant-message', 'tool-start', 'tool-result', 'failure', 'approval', 'steering'])
-        .describe('Normalized event kind.'),
-      summary: z.string().describe('Short human-readable summary of the event.'),
-      detail: z.string().optional().describe('Optional longer detail or payload text.'),
-      nodeIds: z.array(z.string()).optional().describe('Optional node IDs this event relates to.'),
-      data: z.record(z.string(), z.unknown()).optional().describe('Optional structured data payload.'),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
-        .optional()
-        .describe('Optional host/source label. Defaults to mcp.'),
-    },
-    async ({ kind, summary, detail, nodeIds, data, source }) => {
-      const c = await ensureCanvas();
-      const event = await c.recordAxEvent(
-        {
-          kind,
-          summary,
-          ...(typeof detail === 'string' ? { detail } : {}),
-          ...(Array.isArray(nodeIds) ? { nodeIds } : {}),
-          ...(data ? { data } : {}),
-        },
-        { source: source ?? 'mcp' },
-      );
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({ ok: true, event }),
-          },
-        ],
-      };
-    },
-  );
-
-  server.tool(
-    'canvas_send_steering',
-    'Record a steering message: a user instruction from the surface to the active agent session. Persisted on the AX timeline and exposed via canvas://ax-timeline.',
-    {
-      message: z.string().describe('The steering instruction to deliver to the active agent session.'),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
-        .optional()
-        .describe('Optional host/source label. Defaults to mcp.'),
-    },
-    async ({ message, source }) => {
-      const c = await ensureCanvas();
-      const steering = await c.sendSteering(message, { source: source ?? 'mcp' });
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({ ok: true, steering }),
-          },
-        ],
-      };
-    },
-  );
-
-  server.tool(
-    'canvas_get_ax_timeline',
-    'Read the bounded AX timeline: recent agent-events, evidence, and steering messages plus counts. Use this for diagnostics and session continuity.',
-    {
-      limit: z.number().optional().describe('Max rows per timeline table (default 50, max 200).'),
-    },
-    async ({ limit }) => {
-      const c = await ensureCanvas();
-      const timeline = await c.getAxTimeline(
-        typeof limit === 'number' && limit > 0 ? { limit } : undefined,
-      );
-      return {
-        content: [
-          {
-            type: 'text',
-            text: JSON.stringify({ ok: true, ...timeline }),
-          },
-        ],
-      };
-    },
-  );
+  // canvas_record_ax_event / canvas_send_steering / canvas_get_ax_timeline
+  // migrated to the operation registry (plan-007 Slice B wave 3):
+  // src/server/operations/ops/ax-timeline.ts.
 
   // canvas_add_work_item / canvas_update_work_item / canvas_request_approval /
   // canvas_resolve_approval migrated to the operation registry (plan-007 Slice B
   // wave 2): src/server/operations/ops/ax-work.ts.
 
-  server.tool(
-    'canvas_add_evidence',
-    'Record an AX evidence item (logs/tool-result/screenshot/file/diff/test-output) on the timeline. Evidence persists for diagnostics and continuity but is not restored by snapshots; exposed via canvas://ax-timeline.',
-    {
-      kind: z.enum(['logs', 'tool-result', 'screenshot', 'file', 'diff', 'test-output'])
-        .describe('Evidence kind.'),
-      title: z.string().describe('Short human-readable title for the evidence.'),
-      body: z.string().optional().describe('Optional inline body/content.'),
-      ref: z.string().optional().describe('Optional reference (path, URL, or external locator).'),
-      nodeIds: z.array(z.string()).optional().describe('Optional node IDs this evidence relates to.'),
-      data: z.record(z.string(), z.unknown()).optional().describe('Optional structured data payload.'),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
-        .optional()
-        .describe('Optional host/source label. Defaults to mcp.'),
-    },
-    async ({ kind, title, body, ref, nodeIds, data, source }) => {
-      const c = await ensureCanvas();
-      const evidence = await c.addEvidence(
-        {
-          kind,
-          title,
-          ...(typeof body === 'string' ? { body } : {}),
-          ...(typeof ref === 'string' ? { ref } : {}),
-          ...(Array.isArray(nodeIds) ? { nodeIds } : {}),
-          ...(data ? { data } : {}),
-        },
-        { source: source ?? 'mcp' },
-      );
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, evidence }) }],
-      };
-    },
-  );
+  // canvas_add_evidence migrated to the operation registry (plan-007 Slice B
+  // wave 3): src/server/operations/ops/ax-timeline.ts.
 
   // canvas_add_review_annotation migrated to the operation registry (plan-007
   // Slice B wave 2): src/server/operations/ops/ax-work.ts.
@@ -784,36 +675,8 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
-  server.tool(
-    'canvas_claim_ax_delivery',
-    'Claim pending PMX AX deliveries for a consumer (adapterless delivery). Returns `pending` undelivered steering (mark each with canvas_mark_ax_delivery after acting) AND `pendingActivity`: open canvas-bound AX items awaiting the agent (open work items, pending approval gates / elicitations / mode requests) — typically created by the human in the browser. Both exclude items the consumer itself originated (loop prevention). pendingActivity is read-only here: resolve each via its own tool (canvas_resolve_approval / canvas_respond_elicitation / canvas_resolve_mode / canvas_update_work_item), not canvas_mark_ax_delivery.',
-    {
-      consumer: z.string().optional().describe('Consumer/source label to exclude from results (e.g. copilot, mcp).'),
-      limit: z.number().optional().describe('Max steering messages to return.'),
-    },
-    async ({ consumer, limit }) => {
-      const c = await ensureCanvas();
-      const pending = await c.getPendingSteering({
-        ...(consumer ? { consumer } : {}),
-        ...(typeof limit === 'number' ? { limit } : {}),
-      });
-      const pendingActivity = buildPendingAxActivity(await c.getAxState(), consumer);
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, pending, pendingActivity }) }] };
-    },
-  );
-
-  server.tool(
-    'canvas_mark_ax_delivery',
-    'Mark a PMX AX steering message as delivered so it is not handed out again.',
-    {
-      id: z.string().describe('The steering message id to mark delivered.'),
-    },
-    async ({ id }) => {
-      const c = await ensureCanvas();
-      const delivered = await c.markSteeringDelivered(id);
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, delivered }) }] };
-    },
-  );
+  // canvas_claim_ax_delivery / canvas_mark_ax_delivery migrated to the operation
+  // registry (plan-007 Slice B wave 3): src/server/operations/ops/ax-timeline.ts.
 
   // canvas_request_elicitation / canvas_respond_elicitation / canvas_request_mode /
   // canvas_resolve_mode migrated to the operation registry (plan-007 Slice B
@@ -909,20 +772,8 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
-  server.tool(
-    'canvas_invoke_command',
-    'Invoke a registry-gated PMX command intent (pmx.plan | pmx.execute | pmx.promote-context | pmx.summarize | pmx.review). Records a timeline event a host/agent can observe — NOT arbitrary execution; unknown names are rejected.',
-    {
-      name: z.string().describe('A command name from the PMX command registry.'),
-      args: z.record(z.string(), z.unknown()).optional(),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']).optional(),
-    },
-    async ({ name, args, source }) => {
-      const c = await ensureCanvas();
-      const event = await c.invokeCommand(name, args ?? null, { source: source ?? 'mcp' });
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: Boolean(event), event }) }] };
-    },
-  );
+  // canvas_invoke_command migrated to the operation registry (plan-007 Slice B
+  // wave 3): src/server/operations/ops/ax-timeline.ts.
 
   // canvas_set_ax_policy migrated to the operation registry
   // (plan-007 Slice B.1): src/server/operations/ops/ax-state.ts.

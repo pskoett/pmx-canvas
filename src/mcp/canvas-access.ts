@@ -24,9 +24,6 @@ type AddHtmlPrimitiveInput = Parameters<PmxCanvas['addHtmlPrimitive']>[0];
 type AddHtmlPrimitiveResult = ReturnType<PmxCanvas['addHtmlPrimitive']>;
 type AxStateResult = ReturnType<PmxCanvas['getAxState']>;
 type AxContextResult = ReturnType<PmxCanvas['getAxContext']>;
-type RecordAxEventInput = Parameters<PmxCanvas['recordAxEvent']>[0];
-type RecordAxEventResult = ReturnType<PmxCanvas['recordAxEvent']>;
-type SendSteeringResult = ReturnType<PmxCanvas['sendSteering']>;
 type SubmitAxInteractionInput = Parameters<PmxCanvas['submitAxInteraction']>[0];
 type SubmitAxInteractionResult = ReturnType<PmxCanvas['submitAxInteraction']>;
 type GetPendingSteeringResult = ReturnType<PmxCanvas['getPendingSteering']>;
@@ -37,15 +34,11 @@ type IngestActivityResult = ReturnType<PmxCanvas['ingestActivity']>;
 type AwaitApprovalResult = Awaited<ReturnType<PmxCanvas['awaitApproval']>>;
 type AwaitElicitationResult = Awaited<ReturnType<PmxCanvas['awaitElicitation']>>;
 type AwaitModeResult = Awaited<ReturnType<PmxCanvas['awaitMode']>>;
-type GetCommandRegistryResult = ReturnType<PmxCanvas['getCommandRegistry']>;
-type InvokeCommandResult = ReturnType<PmxCanvas['invokeCommand']>;
 type GetPolicyResult = ReturnType<PmxCanvas['getPolicy']>;
 type GetAxTimelineQuery = Parameters<PmxCanvas['getAxTimeline']>[0];
 type GetAxTimelineResult = ReturnType<PmxCanvas['getAxTimeline']>;
 type ListWorkItemsResult = ReturnType<PmxCanvas['listWorkItems']>;
 type ListApprovalGatesResult = ReturnType<PmxCanvas['listApprovalGates']>;
-type AddEvidenceInput = Parameters<PmxCanvas['addEvidence']>[0];
-type AddEvidenceResult = ReturnType<PmxCanvas['addEvidence']>;
 type ListReviewAnnotationsResult = ReturnType<PmxCanvas['listReviewAnnotations']>;
 type HistoryResult = ReturnType<PmxCanvas['getHistory']>;
 type RunBatchInput = Parameters<PmxCanvas['runBatch']>[0];
@@ -97,24 +90,18 @@ export interface CanvasAccess {
   removeAnnotation(id: string): Promise<boolean>;
   getAxState(): Promise<AxStateResult>;
   getAxContext(options?: { consumer?: string }): Promise<AxContextResult>;
-  recordAxEvent(input: RecordAxEventInput, options?: { source?: PmxAxSource }): Promise<RecordAxEventResult>;
-  sendSteering(message: string, options?: { source?: PmxAxSource }): Promise<SendSteeringResult>;
   getAxTimeline(query?: GetAxTimelineQuery): Promise<GetAxTimelineResult>;
   listWorkItems(): Promise<ListWorkItemsResult>;
   listApprovalGates(): Promise<ListApprovalGatesResult>;
-  addEvidence(input: AddEvidenceInput, options?: { source?: PmxAxSource }): Promise<AddEvidenceResult>;
   listReviewAnnotations(): Promise<ListReviewAnnotationsResult>;
   submitAxInteraction(input: SubmitAxInteractionInput, options?: { source?: PmxAxSource }): Promise<SubmitAxInteractionResult>;
   getPendingSteering(options?: { consumer?: string; limit?: number }): Promise<GetPendingSteeringResult>;
-  markSteeringDelivered(id: string): Promise<boolean>;
   listElicitations(): Promise<ListElicitationsResult>;
   listModeRequests(): Promise<ListModeRequestsResult>;
   ingestActivity(input: IngestActivityInput, options?: { source?: PmxAxSource }): Promise<IngestActivityResult>;
   awaitApproval(id: string, options?: { timeoutMs?: number }): Promise<AwaitApprovalResult>;
   awaitElicitation(id: string, options?: { timeoutMs?: number }): Promise<AwaitElicitationResult>;
   awaitMode(id: string, options?: { timeoutMs?: number }): Promise<AwaitModeResult>;
-  getCommandRegistry(): Promise<GetCommandRegistryResult>;
-  invokeCommand(name: string, args?: Record<string, unknown> | null, options?: { source?: PmxAxSource }): Promise<InvokeCommandResult>;
   getPolicy(): Promise<GetPolicyResult>;
   getHistory(): Promise<HistoryResult>;
   getPinnedNodeIds(): Promise<string[]>;
@@ -193,14 +180,6 @@ class LocalCanvasAccess implements CanvasAccess {
     return this.canvas.getAxContext(options);
   }
 
-  async recordAxEvent(input: RecordAxEventInput, options?: { source?: PmxAxSource }): Promise<RecordAxEventResult> {
-    return this.canvas.recordAxEvent(input, { source: options?.source ?? 'mcp' });
-  }
-
-  async sendSteering(message: string, options?: { source?: PmxAxSource }): Promise<SendSteeringResult> {
-    return this.canvas.sendSteering(message, { source: options?.source ?? 'mcp' });
-  }
-
   async getAxTimeline(query?: GetAxTimelineQuery): Promise<GetAxTimelineResult> {
     return this.canvas.getAxTimeline(query);
   }
@@ -211,10 +190,6 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async getPendingSteering(options?: { consumer?: string; limit?: number }): Promise<GetPendingSteeringResult> {
     return this.canvas.getPendingSteering(options);
-  }
-
-  async markSteeringDelivered(id: string): Promise<boolean> {
-    return this.canvas.markSteeringDelivered(id);
   }
 
   async listElicitations(): Promise<ListElicitationsResult> {
@@ -241,14 +216,6 @@ class LocalCanvasAccess implements CanvasAccess {
     return this.canvas.awaitMode(id, options);
   }
 
-  async getCommandRegistry(): Promise<GetCommandRegistryResult> {
-    return this.canvas.getCommandRegistry();
-  }
-
-  async invokeCommand(name: string, args?: Record<string, unknown> | null, options?: { source?: PmxAxSource }): Promise<InvokeCommandResult> {
-    return this.canvas.invokeCommand(name, args ?? null, { source: options?.source ?? 'mcp' });
-  }
-
   async getPolicy(): Promise<GetPolicyResult> {
     return this.canvas.getPolicy();
   }
@@ -259,10 +226,6 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async listApprovalGates(): Promise<ListApprovalGatesResult> {
     return this.canvas.listApprovalGates();
-  }
-
-  async addEvidence(input: AddEvidenceInput, options?: { source?: PmxAxSource }): Promise<AddEvidenceResult> {
-    return this.canvas.addEvidence(input, { source: options?.source ?? 'mcp' });
   }
 
   async listReviewAnnotations(): Promise<ListReviewAnnotationsResult> {
@@ -484,24 +447,6 @@ class RemoteCanvasAccess implements CanvasAccess {
     return await this.requestJson<AxContextResult>('GET', `/api/canvas/ax/context${qs}`);
   }
 
-  async recordAxEvent(input: RecordAxEventInput, options?: { source?: PmxAxSource }): Promise<RecordAxEventResult> {
-    const response = await this.requestJson<{ event?: RecordAxEventResult }>('POST', '/api/canvas/ax/event', {
-      ...input,
-      source: options?.source ?? 'mcp',
-    });
-    if (!response.event) throw new Error('Remote canvas did not return an AX event.');
-    return response.event;
-  }
-
-  async sendSteering(message: string, options?: { source?: PmxAxSource }): Promise<SendSteeringResult> {
-    const response = await this.requestJson<{ steering?: SendSteeringResult }>('POST', '/api/canvas/ax/steer', {
-      message,
-      source: options?.source ?? 'mcp',
-    });
-    if (!response.steering) throw new Error('Remote canvas did not return a steering message.');
-    return response.steering;
-  }
-
   async getAxTimeline(query?: GetAxTimelineQuery): Promise<GetAxTimelineResult> {
     const qs = query?.limit ? `?limit=${query.limit}` : '';
     return await this.requestJson<GetAxTimelineResult>('GET', `/api/canvas/ax/timeline${qs}`);
@@ -531,15 +476,6 @@ class RemoteCanvasAccess implements CanvasAccess {
       `/api/canvas/ax/delivery/pending${qs ? `?${qs}` : ''}`,
     );
     return response.pending ?? [];
-  }
-
-  async markSteeringDelivered(id: string): Promise<boolean> {
-    const response = await this.requestJson<{ delivered?: boolean }>(
-      'POST',
-      `/api/canvas/ax/delivery/${encodeURIComponent(id)}/mark`,
-      {},
-    );
-    return response.delivered ?? false;
   }
 
   async listElicitations(): Promise<ListElicitationsResult> {
@@ -595,20 +531,6 @@ class RemoteCanvasAccess implements CanvasAccess {
     return { modeRequest: body.modeRequest ?? null, pending: body.pending ?? false };
   }
 
-  async getCommandRegistry(): Promise<GetCommandRegistryResult> {
-    const r = await this.requestJson<{ commands?: GetCommandRegistryResult }>('GET', '/api/canvas/ax/command');
-    return r.commands ?? [];
-  }
-
-  async invokeCommand(name: string, args?: Record<string, unknown> | null, options?: { source?: PmxAxSource }): Promise<InvokeCommandResult> {
-    const r = await this.requestJson<{ event?: InvokeCommandResult }>('POST', '/api/canvas/ax/command', {
-      name,
-      ...(args ? { args } : {}),
-      source: options?.source ?? 'mcp',
-    });
-    return r.event ?? null;
-  }
-
   async getPolicy(): Promise<GetPolicyResult> {
     const r = await this.requestJson<{ policy?: GetPolicyResult }>('GET', '/api/canvas/ax/policy');
     if (!r.policy) throw new Error('Remote canvas did not return a policy.');
@@ -623,15 +545,6 @@ class RemoteCanvasAccess implements CanvasAccess {
   async listApprovalGates(): Promise<ListApprovalGatesResult> {
     const response = await this.requestJson<{ approvalGates?: ListApprovalGatesResult }>('GET', '/api/canvas/ax/approval');
     return response.approvalGates ?? [];
-  }
-
-  async addEvidence(input: AddEvidenceInput, options?: { source?: PmxAxSource }): Promise<AddEvidenceResult> {
-    const response = await this.requestJson<{ evidence?: AddEvidenceResult }>('POST', '/api/canvas/ax/evidence', {
-      ...input,
-      source: options?.source ?? 'mcp',
-    });
-    if (!response.evidence) throw new Error('Remote canvas did not return an evidence item.');
-    return response.evidence;
   }
 
   async listReviewAnnotations(): Promise<ListReviewAnnotationsResult> {
