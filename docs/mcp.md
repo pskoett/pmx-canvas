@@ -1,16 +1,17 @@
 # MCP reference
 
-PMX Canvas ships an MCP stdio server with **76 tools** + **14 core resources**,
+PMX Canvas ships an MCP stdio server with **81 tools** + **14 core resources**,
 plus per-skill resources at `canvas://skills/<name>`. The server emits
 `notifications/resources/updated` when canvas state changes — humans pin
 nodes in the browser, agents are notified immediately.
 
-> **Consolidation in progress (plan-006).** The 76 tools are 7 action-discriminated
+> **Consolidation in progress (plan-006).** The 81 tools are 12 action-discriminated
 > **composites** (recommended — see below) plus 69 legacy single-purpose tools.
-> The composites fold the legacy tools behind an `action` enum; each action
-> dispatches to the same operation, so behavior is identical. Folded legacy tools
-> are marked `Deprecated:` in their descriptions and are removed in v0.3 per
-> [`api-stability.md`](api-stability.md). **Prefer the composites.**
+> The composites fold the legacy tools behind an `action` (and, for `canvas_ax_gate`,
+> a `kind`) enum; each action dispatches to the same operation, so behavior is
+> identical. Folded legacy tools are marked `Deprecated:` in their descriptions and
+> are removed in v0.3 per [`api-stability.md`](api-stability.md). **Prefer the
+> composites.**
 
 ## Connect
 
@@ -43,10 +44,21 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_history` | `undo` · `redo` | `canvas_undo`, `canvas_redo` |
 | `canvas_view` | `arrange` · `focus` · `fit` · `clear` | `canvas_arrange`, `canvas_focus_node`, `canvas_fit_view`, `canvas_clear` |
 | `canvas_query` | `search` · `layout` | `canvas_search`, `canvas_get_layout` |
+| `canvas_ax_state` | `get` · `set-focus` · `set-policy` · `report-capability` | `canvas_get_ax`, `canvas_set_ax_focus`, `canvas_set_ax_policy`, `canvas_report_host_capability` |
+| `canvas_ax_work` | `add` · `update` · `annotate` | `canvas_add_work_item`, `canvas_update_work_item`, `canvas_add_review_annotation` |
+| `canvas_ax_gate` | `request` · `resolve` · `await` × kind `approval` \| `elicitation` \| `mode` | `canvas_request_approval`, `canvas_resolve_approval`, `canvas_await_approval`, `canvas_request_elicitation`, `canvas_respond_elicitation`, `canvas_await_elicitation`, `canvas_request_mode`, `canvas_resolve_mode`, `canvas_await_mode` (9 → 1) |
+| `canvas_ax_timeline` | `read` · `record-event` · `add-evidence` · `send-steering` | `canvas_get_ax_timeline`, `canvas_record_ax_event`, `canvas_add_evidence`, `canvas_send_steering` |
+| `canvas_ax_delivery` | `claim` · `mark` | `canvas_claim_ax_delivery`, `canvas_mark_ax_delivery` |
 
 Field names match the underlying operation (e.g. `canvas_view { action: "focus", id }`,
-`canvas_group { action: "create", childIds }`). Later waves fold the remaining
-domains (AX, snapshots, side-channels) as their registry slices land.
+`canvas_group { action: "create", childIds }`). `canvas_ax_gate` has two discriminators:
+`{ kind, action }` — e.g. `{ kind: "approval", action: "request", title }`,
+`{ kind: "elicitation", action: "resolve", id, response }`,
+`{ kind: "mode", action: "await", id, timeoutMs }`. (The approval machine-readable
+action identifier is passed as `approvalAction`, since `action` is the lifecycle
+discriminator.) `canvas_ax_interaction`, `canvas_ingest_activity`, and
+`canvas_invoke_command` stay standalone (trust-boundary / firehose / execution-intent
+tools). Snapshots fold as their registry slice lands.
 
 ## Tools (legacy single-purpose)
 

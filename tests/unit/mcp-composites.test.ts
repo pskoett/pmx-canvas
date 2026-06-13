@@ -202,3 +202,205 @@ describe('MCP composite tools (plan-006)', () => {
     expect(textOf(result).toLowerCase()).toContain('action');
   }, 30000);
 });
+
+// ── AX composites (plan-007 Slice C) ──────────────────────────────────────────
+// Each AX composite action dispatches to the same registry op as its legacy
+// standalone tool (reusing buildInput/formatResult), so a composite action is
+// byte-identical to the standalone tool. Head-to-head equality where it is a read;
+// behavior assertions where it mutates.
+describe('MCP AX composite tools (plan-007 Slice C)', () => {
+  test('canvas_ax_state get/set-focus/set-policy/report-capability match standalone tools', async () => {
+    const client = await createMcpSession();
+    const node = parseJsonText<{ id: string }>(
+      await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'AX state' }),
+    );
+
+    // Head-to-head read parity: composite `get` === standalone canvas_get_ax.
+    // includeContext:false drops the agent context block, whose `generatedAt`
+    // timestamp differs by ms between two separate calls (the bodies are
+    // byte-identical by construction — same op, same buildInput — apart from it).
+    const getComposite = parseJsonText(await call(client, 'canvas_ax_state', { action: 'get', includeContext: false }));
+    const getStandalone = parseJsonText(await call(client, 'canvas_get_ax', { includeContext: false }));
+    expect(getComposite).toEqual(getStandalone);
+
+    // set-focus → ax.focus.set; the focus field reflects the node.
+    const focus = parseJsonText<{ ok?: boolean; focus?: { nodeIds?: string[] } }>(
+      await call(client, 'canvas_ax_state', { action: 'set-focus', nodeIds: [node.id] }),
+    );
+    expect(focus.ok).toBe(true);
+    expect(focus.focus?.nodeIds).toEqual([node.id]);
+
+    // set-policy → ax.policy.set; patch merges into the policy.
+    const policy = parseJsonText<{ ok?: boolean; policy?: { tools?: { allowed?: string[] } } }>(
+      await call(client, 'canvas_ax_state', { action: 'set-policy', tools: { allowed: ['pmx.plan'] } }),
+    );
+    expect(policy.ok).toBe(true);
+    expect(policy.policy?.tools?.allowed).toContain('pmx.plan');
+
+    // report-capability → ax.host-capability.report.
+    const cap = parseJsonText<{ ok?: boolean; host?: { host?: string } }>(
+      await call(client, 'canvas_ax_state', { action: 'report-capability', host: 'codex', tools: true }),
+    );
+    expect(cap.ok).toBe(true);
+    expect(cap.host?.host).toBe('codex');
+  }, 30000);
+
+  test('canvas_ax_work add/update/annotate match standalone tools', async () => {
+    const client = await createMcpSession();
+    const node = parseJsonText<{ id: string }>(
+      await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Reviewable' }),
+    );
+
+    const added = parseJsonText<{ ok?: boolean; workItem?: { id: string; status?: string } }>(
+      await call(client, 'canvas_ax_work', { action: 'add', title: 'Build it', status: 'todo' }),
+    );
+    expect(added.ok).toBe(true);
+    expect(added.workItem?.id).toBeTruthy();
+
+    const updated = parseJsonText<{ ok?: boolean; workItem?: { status?: string } }>(
+      await call(client, 'canvas_ax_work', { action: 'update', id: added.workItem!.id, status: 'done' }),
+    );
+    expect(updated.ok).toBe(true);
+    expect(updated.workItem?.status).toBe('done');
+
+    const annotated = parseJsonText<{ ok?: boolean; reviewAnnotation?: { id: string } }>(
+      await call(client, 'canvas_ax_work', {
+        action: 'annotate',
+        body: 'Looks good',
+        kind: 'comment',
+        anchorType: 'node',
+        nodeId: node.id,
+      }),
+    );
+    expect(annotated.ok).toBe(true);
+    expect(annotated.reviewAnnotation?.id).toBeTruthy();
+  }, 30000);
+
+  test('canvas_ax_timeline read/record-event/add-evidence/send-steering match standalone tools', async () => {
+    const client = await createMcpSession();
+
+    const event = parseJsonText<{ ok?: boolean; event?: { kind?: string } }>(
+      await call(client, 'canvas_ax_timeline', { action: 'record-event', kind: 'tool-start', summary: 'started' }),
+    );
+    expect(event.ok).toBe(true);
+    expect(event.event?.kind).toBe('tool-start');
+
+    const evidence = parseJsonText<{ ok?: boolean; evidence?: { kind?: string } }>(
+      await call(client, 'canvas_ax_timeline', { action: 'add-evidence', kind: 'logs', title: 'run.log' }),
+    );
+    expect(evidence.ok).toBe(true);
+    expect(evidence.evidence?.kind).toBe('logs');
+
+    const steering = parseJsonText<{ ok?: boolean; steering?: { message?: string } }>(
+      await call(client, 'canvas_ax_timeline', { action: 'send-steering', message: 'focus on tests' }),
+    );
+    expect(steering.ok).toBe(true);
+    expect(steering.steering?.message).toBe('focus on tests');
+
+    // Head-to-head read parity: composite `read` === standalone canvas_get_ax_timeline.
+    const readComposite = parseJsonText(await call(client, 'canvas_ax_timeline', { action: 'read' }));
+    const readStandalone = parseJsonText(await call(client, 'canvas_get_ax_timeline', {}));
+    expect(readComposite).toEqual(readStandalone);
+  }, 30000);
+
+  test('canvas_ax_delivery claim/mark match standalone tools', async () => {
+    const client = await createMcpSession();
+    // Steering originated by `browser` so the `mcp` consumer can claim it (loop-safe).
+    const steering = parseJsonText<{ steering?: { id: string } }>(
+      await call(client, 'canvas_ax_timeline', { action: 'send-steering', message: 'do the thing', source: 'browser' }),
+    );
+    const steeringId = steering.steering!.id;
+
+    // Head-to-head read parity: composite `claim` === standalone canvas_claim_ax_delivery.
+    const claimComposite = parseJsonText(await call(client, 'canvas_ax_delivery', { action: 'claim', consumer: 'mcp' }));
+    const claimStandalone = parseJsonText(await call(client, 'canvas_claim_ax_delivery', { consumer: 'mcp' }));
+    expect(claimComposite).toEqual(claimStandalone);
+
+    const marked = parseJsonText<{ ok?: boolean; delivered?: boolean }>(
+      await call(client, 'canvas_ax_delivery', { action: 'mark', id: steeringId }),
+    );
+    expect(marked.ok).toBe(true);
+    expect(marked.delivered).toBe(true);
+  }, 30000);
+
+  test('canvas_ax_gate folds approval request → resolve (kind × action)', async () => {
+    const client = await createMcpSession();
+    const requested = parseJsonText<{ ok?: boolean; approvalGate?: { id: string; status?: string; action?: string } }>(
+      await call(client, 'canvas_ax_gate', {
+        kind: 'approval',
+        action: 'request',
+        title: 'Deploy to prod',
+        // approvalAction is the namespaced machine-readable identifier — it must
+        // NOT collide with the `action` lifecycle discriminator.
+        approvalAction: 'deploy',
+      }),
+    );
+    expect(requested.ok).toBe(true);
+    expect(requested.approvalGate?.status).toBe('pending');
+    // The remapped approvalAction round-trips to the op's `action` field.
+    expect(requested.approvalGate?.action).toBe('deploy');
+
+    const resolved = parseJsonText<{ ok?: boolean; approvalGate?: { status?: string } }>(
+      await call(client, 'canvas_ax_gate', {
+        kind: 'approval',
+        action: 'resolve',
+        id: requested.approvalGate!.id,
+        decision: 'approved',
+      }),
+    );
+    expect(resolved.ok).toBe(true);
+    expect(resolved.approvalGate?.status).toBe('approved');
+  }, 30000);
+
+  test('canvas_ax_gate folds elicitation request → resolve (resolve → respond op)', async () => {
+    const client = await createMcpSession();
+    const requested = parseJsonText<{ ok?: boolean; elicitation?: { id: string; status?: string } }>(
+      await call(client, 'canvas_ax_gate', { kind: 'elicitation', action: 'request', prompt: 'Pick a branch' }),
+    );
+    expect(requested.ok).toBe(true);
+    expect(requested.elicitation?.status).toBe('pending');
+
+    // resolve for elicitation routes to ax.elicitation.respond (carries `response`).
+    const resolved = parseJsonText<{ ok?: boolean; elicitation?: { status?: string } }>(
+      await call(client, 'canvas_ax_gate', {
+        kind: 'elicitation',
+        action: 'resolve',
+        id: requested.elicitation!.id,
+        response: { branch: 'main' },
+      }),
+    );
+    expect(resolved.ok).toBe(true);
+    expect(resolved.elicitation?.status).not.toBe('pending');
+  }, 30000);
+
+  test('canvas_ax_gate folds mode request and an immediate await read', async () => {
+    const client = await createMcpSession();
+    const requested = parseJsonText<{ ok?: boolean; modeRequest?: { id: string; status?: string } }>(
+      await call(client, 'canvas_ax_gate', { kind: 'mode', action: 'request', mode: 'plan' }),
+    );
+    expect(requested.ok).toBe(true);
+    expect(requested.modeRequest?.status).toBe('pending');
+
+    // await (action → ax.mode.get) with timeoutMs 0 is an immediate read; the
+    // gate is still pending, so pending=true and the composite read === standalone.
+    const awaitComposite = parseJsonText<{ pending?: boolean }>(
+      await call(client, 'canvas_ax_gate', { kind: 'mode', action: 'await', id: requested.modeRequest!.id, timeoutMs: 0 }),
+    );
+    const awaitStandalone = parseJsonText(
+      await call(client, 'canvas_await_mode', { id: requested.modeRequest!.id, timeoutMs: 0 }),
+    );
+    expect(awaitComposite.pending).toBe(true);
+    expect(awaitComposite).toEqual(awaitStandalone);
+  }, 30000);
+
+  test('canvas_ax_gate rejects an invalid kind/action combo loudly', async () => {
+    const client = await createMcpSession();
+    // Invalid kind: the `kind` enum rejects it at the schema layer.
+    const badKind = await call(client, 'canvas_ax_gate', { kind: 'nonsense', action: 'request' });
+    expect(badKind.isError).toBe(true);
+
+    // Invalid action: the `action` enum rejects it at the schema layer.
+    const badAction = await call(client, 'canvas_ax_gate', { kind: 'approval', action: 'frobnicate' });
+    expect(badAction.isError).toBe(true);
+  }, 30000);
+});
