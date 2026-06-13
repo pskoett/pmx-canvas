@@ -92,6 +92,32 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   registry list, `canvas_ingest_activity`, and `canvas_ax_interaction` remain on
   the standalone surface (deferred to later waves).
 
+- **AX long-poll gate reads migrated to the operation registry (plan-007 Slice
+  B, wave 4).** `canvas_await_approval`, `canvas_await_elicitation`, and
+  `canvas_await_mode` (the report primitive D "gates that actually gate" reads,
+  HTTP `GET /api/canvas/ax/{approval,elicitation,mode}/:id`) are now defined once
+  in `src/server/operations/ops/ax-await.ts` (legacy MCP tools, HTTP single-read
+  handlers, and the orphaned CanvasAccess `await*` methods deleted; the public
+  SDK `PmxCanvas.await*` methods stay). The async handler performs the wait via
+  `waitForAxResolution` (`status !== 'pending'` resolution predicate for all
+  three, matching the legacy HTTP + SDK). `timeoutMs` is normalized to one field
+  the handler reads: HTTP parses `?waitMs` (absent/non-positive ⇒ 0 = immediate
+  read), MCP defaults an omitted `timeoutMs` to 30000; both clamp to
+  [0, 120000]. Tool names, the `{ <gate>, pending }` success shapes, and the
+  HTTP 404 status on a missing gate are unchanged. Two documented behavior
+  changes, both the plan's accepted long-poll tradeoff: (1) the HTTP handler no
+  longer aborts the wait on client disconnect — the registry handler has no
+  access to the `Request`, so the wait runs to its (≤120s, subscription-based,
+  cheap) timeout instead of honoring `req.signal`; resolution detection,
+  timeout, and the `{ value, pending }` result are otherwise identical. (2) The
+  HTTP missing-gate body changed from `{ ok:false, error:"<gate> not found." }`
+  to `{ ok:false, <gate>:null, pending:false }` (status stays 404) so one wire
+  body serves both surfaces; the in-process (Local) MCP path still round-trips
+  the success-shaped `{ <gate>:null }` JSON exactly as before. (Over a remote
+  MCP transport — untested for these reads — an await-on-missing now surfaces as
+  an `isError` rather than the legacy `{ <gate>:null }`, since the generic
+  HTTP invoker throws on 404.)
+
 - **Removing a missing node now errors on every surface (plan-005 slice 1).**
   Node CRUD + layout reads (`node.add` / `node.get` / `node.update` /
   `node.remove` / `layout.get`) are defined once in a new operation registry

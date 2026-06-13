@@ -730,47 +730,9 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
-  server.tool(
-    'canvas_await_approval',
-    'Block until an approval gate resolves (the human approves/rejects it in the browser) or the timeout elapses — primitive D, gates that actually gate. timeoutMs 0 = read immediately without waiting. Returns { approvalGate, pending } (pending=true → still unresolved after the wait).',
-    {
-      id: z.string(),
-      timeoutMs: z.number().int().min(0).max(120000).optional().describe('Max ms to block (default 30000; 0 = immediate read; capped at 120000).'),
-    },
-    async ({ id, timeoutMs }) => {
-      const c = await ensureCanvas();
-      const result = await c.awaitApproval(id, timeoutMs !== undefined ? { timeoutMs } : {});
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: result.approvalGate !== null, ...result }) }] };
-    },
-  );
-
-  server.tool(
-    'canvas_await_elicitation',
-    'Block until an elicitation is answered (the human responds in the browser) or the timeout elapses — primitive D. timeoutMs 0 = read immediately. Returns { elicitation, pending }.',
-    {
-      id: z.string(),
-      timeoutMs: z.number().int().min(0).max(120000).optional().describe('Max ms to block (default 30000; 0 = immediate read; capped at 120000).'),
-    },
-    async ({ id, timeoutMs }) => {
-      const c = await ensureCanvas();
-      const result = await c.awaitElicitation(id, timeoutMs !== undefined ? { timeoutMs } : {});
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: result.elicitation !== null, ...result }) }] };
-    },
-  );
-
-  server.tool(
-    'canvas_await_mode',
-    'Block until a mode request resolves (approved/rejected in the browser) or the timeout elapses — primitive D. timeoutMs 0 = read immediately. Returns { modeRequest, pending }.',
-    {
-      id: z.string(),
-      timeoutMs: z.number().int().min(0).max(120000).optional().describe('Max ms to block (default 30000; 0 = immediate read; capped at 120000).'),
-    },
-    async ({ id, timeoutMs }) => {
-      const c = await ensureCanvas();
-      const result = await c.awaitMode(id, timeoutMs !== undefined ? { timeoutMs } : {});
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: result.modeRequest !== null, ...result }) }] };
-    },
-  );
+  // canvas_await_approval / canvas_await_elicitation / canvas_await_mode migrated
+  // to the operation registry (plan-007 Slice B wave 4):
+  // src/server/operations/ops/ax-await.ts.
 
   // canvas_invoke_command migrated to the operation registry (plan-007 Slice B
   // wave 3): src/server/operations/ops/ax-timeline.ts.

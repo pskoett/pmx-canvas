@@ -31,9 +31,6 @@ type ListElicitationsResult = ReturnType<PmxCanvas['listElicitations']>;
 type ListModeRequestsResult = ReturnType<PmxCanvas['listModeRequests']>;
 type IngestActivityInput = Parameters<PmxCanvas['ingestActivity']>[0];
 type IngestActivityResult = ReturnType<PmxCanvas['ingestActivity']>;
-type AwaitApprovalResult = Awaited<ReturnType<PmxCanvas['awaitApproval']>>;
-type AwaitElicitationResult = Awaited<ReturnType<PmxCanvas['awaitElicitation']>>;
-type AwaitModeResult = Awaited<ReturnType<PmxCanvas['awaitMode']>>;
 type GetPolicyResult = ReturnType<PmxCanvas['getPolicy']>;
 type GetAxTimelineQuery = Parameters<PmxCanvas['getAxTimeline']>[0];
 type GetAxTimelineResult = ReturnType<PmxCanvas['getAxTimeline']>;
@@ -99,9 +96,6 @@ export interface CanvasAccess {
   listElicitations(): Promise<ListElicitationsResult>;
   listModeRequests(): Promise<ListModeRequestsResult>;
   ingestActivity(input: IngestActivityInput, options?: { source?: PmxAxSource }): Promise<IngestActivityResult>;
-  awaitApproval(id: string, options?: { timeoutMs?: number }): Promise<AwaitApprovalResult>;
-  awaitElicitation(id: string, options?: { timeoutMs?: number }): Promise<AwaitElicitationResult>;
-  awaitMode(id: string, options?: { timeoutMs?: number }): Promise<AwaitModeResult>;
   getPolicy(): Promise<GetPolicyResult>;
   getHistory(): Promise<HistoryResult>;
   getPinnedNodeIds(): Promise<string[]>;
@@ -202,18 +196,6 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async ingestActivity(input: IngestActivityInput, options?: { source?: PmxAxSource }): Promise<IngestActivityResult> {
     return this.canvas.ingestActivity(input, { source: options?.source ?? 'mcp' });
-  }
-
-  async awaitApproval(id: string, options?: { timeoutMs?: number }): Promise<AwaitApprovalResult> {
-    return this.canvas.awaitApproval(id, options);
-  }
-
-  async awaitElicitation(id: string, options?: { timeoutMs?: number }): Promise<AwaitElicitationResult> {
-    return this.canvas.awaitElicitation(id, options);
-  }
-
-  async awaitMode(id: string, options?: { timeoutMs?: number }): Promise<AwaitModeResult> {
-    return this.canvas.awaitMode(id, options);
   }
 
   async getPolicy(): Promise<GetPolicyResult> {
@@ -493,42 +475,6 @@ class RemoteCanvasAccess implements CanvasAccess {
       ...input,
       source: options?.source ?? 'mcp',
     });
-  }
-
-  async awaitApproval(id: string, options?: { timeoutMs?: number }): Promise<AwaitApprovalResult> {
-    // Mirror PmxCanvas's `?? 30000` default so the remote transport blocks like the
-    // local one (an omitted timeout must still long-poll). Explicit 0 = immediate read.
-    const ms = options?.timeoutMs ?? 30000;
-    const qs = ms > 0 ? `?waitMs=${ms}` : '';
-    const res = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/approval/${encodeURIComponent(id)}${qs}`);
-    if (res.status === 404) return { approvalGate: null, pending: false };
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const body = await res.json() as { approvalGate?: AwaitApprovalResult['approvalGate']; pending?: boolean };
-    return { approvalGate: body.approvalGate ?? null, pending: body.pending ?? false };
-  }
-
-  async awaitElicitation(id: string, options?: { timeoutMs?: number }): Promise<AwaitElicitationResult> {
-    // Mirror PmxCanvas's `?? 30000` default so the remote transport blocks like the
-    // local one (an omitted timeout must still long-poll). Explicit 0 = immediate read.
-    const ms = options?.timeoutMs ?? 30000;
-    const qs = ms > 0 ? `?waitMs=${ms}` : '';
-    const res = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/elicitation/${encodeURIComponent(id)}${qs}`);
-    if (res.status === 404) return { elicitation: null, pending: false };
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const body = await res.json() as { elicitation?: AwaitElicitationResult['elicitation']; pending?: boolean };
-    return { elicitation: body.elicitation ?? null, pending: body.pending ?? false };
-  }
-
-  async awaitMode(id: string, options?: { timeoutMs?: number }): Promise<AwaitModeResult> {
-    // Mirror PmxCanvas's `?? 30000` default so the remote transport blocks like the
-    // local one (an omitted timeout must still long-poll). Explicit 0 = immediate read.
-    const ms = options?.timeoutMs ?? 30000;
-    const qs = ms > 0 ? `?waitMs=${ms}` : '';
-    const res = await fetch(`${this.remoteBaseUrl}/api/canvas/ax/mode/${encodeURIComponent(id)}${qs}`);
-    if (res.status === 404) return { modeRequest: null, pending: false };
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const body = await res.json() as { modeRequest?: AwaitModeResult['modeRequest']; pending?: boolean };
-    return { modeRequest: body.modeRequest ?? null, pending: body.pending ?? false };
   }
 
   async getPolicy(): Promise<GetPolicyResult> {

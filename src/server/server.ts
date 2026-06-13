@@ -72,7 +72,6 @@ import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent
 import { buildCanvasAxContext, buildCanvasAxSurfaceSnapshot } from './ax-context.js';
 import { applyAxInteraction, resolveNodeAxCapabilities } from './ax-interaction.js';
 import { isAxEvidenceKind, isAxActivityKind } from './ax-state.js';
-import { waitForAxResolution, AX_WAIT_MAX_MS } from './ax-wait.js';
 import type {
   PmxAxEvidenceKind,
   PmxAxPolicy,
@@ -2945,12 +2944,6 @@ function handleGetAxContext(url: URL): Response {
   return responseJson(buildCanvasAxContext(consumer));
 }
 
-// Clamp ?waitMs= to [0, AX_WAIT_MAX_MS]. 0 (or absent/NaN) = a plain single read.
-function parseAxWaitMs(url: URL): number {
-  const raw = Number(url.searchParams.get('waitMs') ?? '');
-  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, AX_WAIT_MAX_MS) : 0;
-}
-
 function isReviewSeverity(v: unknown): v is PmxAxReviewSeverity {
   return v === 'info' || v === 'warning' || v === 'error';
 }
@@ -3027,43 +3020,10 @@ async function handleAxActivityIngest(req: Request): Promise<Response> {
   return responseJson({ ok: true, ...result });
 }
 
-// Report primitive D: single-item read of a gate, with optional ?waitMs= long-poll
-// that resolves when the human resolves it in the browser (gates that actually gate).
-async function handleAxApprovalGet(url: URL, id: string, req: Request): Promise<Response> {
-  const waitMs = parseAxWaitMs(url);
-  const { value, pending } = await waitForAxResolution({
-    read: () => canvasState.getApproval(id),
-    isResolved: (g) => g.status !== 'pending',
-    timeoutMs: waitMs,
-    signal: req.signal,
-  });
-  if (!value) return responseJson({ ok: false, error: 'approval gate not found.' }, 404);
-  return responseJson({ ok: true, approvalGate: value, pending });
-}
-
-async function handleAxElicitationGet(url: URL, id: string, req: Request): Promise<Response> {
-  const waitMs = parseAxWaitMs(url);
-  const { value, pending } = await waitForAxResolution({
-    read: () => canvasState.getElicitation(id),
-    isResolved: (e) => e.status !== 'pending',
-    timeoutMs: waitMs,
-    signal: req.signal,
-  });
-  if (!value) return responseJson({ ok: false, error: 'elicitation not found.' }, 404);
-  return responseJson({ ok: true, elicitation: value, pending });
-}
-
-async function handleAxModeGet(url: URL, id: string, req: Request): Promise<Response> {
-  const waitMs = parseAxWaitMs(url);
-  const { value, pending } = await waitForAxResolution({
-    read: () => canvasState.getModeRequest(id),
-    isResolved: (m) => m.status !== 'pending',
-    timeoutMs: waitMs,
-    signal: req.signal,
-  });
-  if (!value) return responseJson({ ok: false, error: 'mode request not found.' }, 404);
-  return responseJson({ ok: true, modeRequest: value, pending });
-}
+// Report primitive D single-item gate reads (GET /api/canvas/ax/{approval,
+// elicitation,mode}/:id) with the optional ?waitMs= long-poll migrated to the
+// operation registry (plan-007 Slice B wave 4):
+// src/server/operations/ops/ax-await.ts.
 
 // Compact AX state for surfaces (the same shape seeded into AX-enabled iframes).
 // The client fetches this and pushes it to surfaces over the ax-update channel.
@@ -4155,10 +4115,8 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           // POST /api/canvas/ax/approval + POST /api/canvas/ax/approval/:id/resolve
           // migrated to the operation registry (plan-007 Slice B wave 2).
 
-          if (url.pathname.startsWith('/api/canvas/ax/approval/') && !url.pathname.endsWith('/resolve') && req.method === 'GET') {
-            const approvalId = decodeURIComponent(url.pathname.slice('/api/canvas/ax/approval/'.length));
-            return handleAxApprovalGet(url, approvalId, req);
-          }
+          // GET /api/canvas/ax/approval/:id (single-item read + ?waitMs long-poll)
+          // migrated to the operation registry (plan-007 Slice B wave 4).
 
           // POST /api/canvas/ax/evidence migrated to the operation registry
           // (plan-007 Slice B wave 3): src/server/operations/ops/ax-timeline.ts.
@@ -4191,10 +4149,8 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           // POST /api/canvas/ax/elicitation + POST /api/canvas/ax/elicitation/:id/respond
           // migrated to the operation registry (plan-007 Slice B wave 2).
 
-          if (url.pathname.startsWith('/api/canvas/ax/elicitation/') && !url.pathname.endsWith('/respond') && req.method === 'GET') {
-            const elicitationId = decodeURIComponent(url.pathname.slice('/api/canvas/ax/elicitation/'.length));
-            return handleAxElicitationGet(url, elicitationId, req);
-          }
+          // GET /api/canvas/ax/elicitation/:id (single-item read + ?waitMs long-poll)
+          // migrated to the operation registry (plan-007 Slice B wave 4).
 
           if (url.pathname === '/api/canvas/ax/mode' && req.method === 'GET') {
             return handleAxModeList();
@@ -4203,10 +4159,8 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           // POST /api/canvas/ax/mode + POST /api/canvas/ax/mode/:id/resolve migrated
           // to the operation registry (plan-007 Slice B wave 2).
 
-          if (url.pathname.startsWith('/api/canvas/ax/mode/') && !url.pathname.endsWith('/resolve') && req.method === 'GET') {
-            const modeId = decodeURIComponent(url.pathname.slice('/api/canvas/ax/mode/'.length));
-            return handleAxModeGet(url, modeId, req);
-          }
+          // GET /api/canvas/ax/mode/:id (single-item read + ?waitMs long-poll)
+          // migrated to the operation registry (plan-007 Slice B wave 4).
 
           if (url.pathname === '/api/canvas/ax/command' && req.method === 'GET') {
             return handleAxCommandList();
