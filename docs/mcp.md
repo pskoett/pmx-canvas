@@ -1,9 +1,16 @@
 # MCP reference
 
-PMX Canvas ships an MCP stdio server with **69 tools** + **14 core resources**,
+PMX Canvas ships an MCP stdio server with **76 tools** + **14 core resources**,
 plus per-skill resources at `canvas://skills/<name>`. The server emits
 `notifications/resources/updated` when canvas state changes — humans pin
 nodes in the browser, agents are notified immediately.
+
+> **Consolidation in progress (plan-006).** The 76 tools are 7 action-discriminated
+> **composites** (recommended — see below) plus 69 legacy single-purpose tools.
+> The composites fold the legacy tools behind an `action` enum; each action
+> dispatches to the same operation, so behavior is identical. Folded legacy tools
+> are marked `Deprecated:` in their descriptions and are removed in v0.3 per
+> [`api-stability.md`](api-stability.md). **Prefer the composites.**
 
 ## Connect
 
@@ -22,7 +29,26 @@ Add to your agent's MCP config:
 
 The canvas auto-starts on first tool call.
 
-## Tools
+## Composite tools (recommended)
+
+Action-discriminated tools that consolidate the single-purpose tools. Each maps
+its `action` to the same operation the legacy tool used, so results are identical.
+
+| Composite | `action` values | Replaces |
+|-----------|-----------------|----------|
+| `canvas_node` | `add` · `get` · `update` · `remove` | `canvas_add_node`, `canvas_get_node`, `canvas_update_node`, `canvas_remove_node` |
+| `canvas_render` | `describe-schema` · `validate` · `add-json-render` · `stream-json-render` · `add-graph` | `canvas_describe_schema`, `canvas_validate_spec`, `canvas_add_json_render_node`, `canvas_stream_json_render_node`, `canvas_add_graph_node` |
+| `canvas_edge` | `add` · `remove` | `canvas_add_edge`, `canvas_remove_edge` |
+| `canvas_group` | `create` · `add` · `ungroup` | `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup` |
+| `canvas_history` | `undo` · `redo` | `canvas_undo`, `canvas_redo` |
+| `canvas_view` | `arrange` · `focus` · `fit` · `clear` | `canvas_arrange`, `canvas_focus_node`, `canvas_fit_view`, `canvas_clear` |
+| `canvas_query` | `search` · `layout` | `canvas_search`, `canvas_get_layout` |
+
+Field names match the underlying operation (e.g. `canvas_view { action: "focus", id }`,
+`canvas_group { action: "create", childIds }`). Later waves fold the remaining
+domains (AX, snapshots, side-channels) as their registry slices land.
+
+## Tools (legacy single-purpose)
 
 | Tool | Description |
 |------|-------------|
