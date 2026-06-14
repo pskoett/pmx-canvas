@@ -7,7 +7,7 @@ export interface PmxAxFocusState {
     updatedAt: string | null;
     source: PmxAxSource | null;
 }
-export type PmxAxEventKind = 'prompt' | 'assistant-message' | 'tool-start' | 'tool-result' | 'failure' | 'approval' | 'steering' | 'command';
+export type PmxAxEventKind = 'prompt' | 'assistant-message' | 'tool-start' | 'tool-result' | 'failure' | 'approval' | 'steering' | 'command' | 'note';
 export type PmxAxEvidenceKind = 'logs' | 'tool-result' | 'screenshot' | 'file' | 'diff' | 'test-output';
 export type PmxAxWorkItemStatus = 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled';
 export type PmxAxApprovalStatus = 'pending' | 'approved' | 'rejected';

@@ -7,6 +7,13 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Added
 
+- **AX state isolated into `AxStateManager` (plan-007 Slice A).** The canvas-bound
+  AX state, its mutators/readers, and the timeline-direct ops moved out of the
+  2,498-line `CanvasStateManager` into `src/server/ax-state-manager.ts`;
+  `CanvasStateManager` delegates, so the public surface (SDK/HTTP/MCP) is
+  unchanged. The three-partition snapshot-vs-audit contract is now documented
+  authoritatively in `docs/ax-state-contract.md`.
+
 - **Composite MCP tools (plan-006 MCP tool consolidation, wave 1).** Seven
   action-discriminated tools fold the single-purpose tools behind a clear
   `action` enum: `canvas_node` (add/get/update/remove), `canvas_render`
@@ -24,7 +31,109 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   `add-primitive` / `remove-annotation` / board-validation actions) land in later
   waves as the AX / side-channel registry slices complete.
 
+- **AX composite MCP tools (plan-006 MCP tool consolidation, wave 2 / plan-007
+  Slice C).** Five action-discriminated tools fold the 22 legacy AX tools behind
+  clear enums: `canvas_ax_state` (get/set-focus/set-policy/report-capability),
+  `canvas_ax_work` (add/update/annotate), `canvas_ax_timeline`
+  (read/record-event/add-evidence/send-steering), `canvas_ax_delivery`
+  (claim/mark), and `canvas_ax_gate` — which folds **9 gate tools into 1** via two
+  discriminators `{ kind: approval|elicitation|mode, action: request|resolve|await }`
+  so the request/resolve/await lifecycle finally reads as one tool. Each action
+  dispatches to the same registered AX operation as its standalone tool — reusing
+  that op's input mapping and result formatting — so behavior is byte-identical
+  (proven by `tests/unit/mcp-composites.test.ts`). `canvas_ax_interaction`,
+  `canvas_ingest_activity`, and `canvas_invoke_command` deliberately stay
+  standalone (trust-boundary / firehose / execution-intent tools). Additive: the
+  legacy AX tools keep working and are removed in v0.3 per `docs/api-stability.md`.
+  The public MCP surface grows from 76 to 81 tools (deliberate; see
+  `tests/unit/mcp-tool-freeze.test.ts`).
+
 ### Changed
+
+- **Deleting a node no longer silently re-anchors AX work (plan-007 Slice A).**
+  Node deletion already re-normalized canvas-bound AX state (work items / approval
+  gates / elicitations / mode requests keep the item but lose the dangling node
+  ref; node-anchored review annotations are dropped) — but did so silently. It now
+  records exactly one auditable timeline event (`kind:'note'`, `source:'system'`,
+  `data.systemEvent:'ax-node-orphan'`) naming what was re-anchored/removed, so the
+  human and a resuming agent can see the change. The note is append-only (not
+  rolled back on undo, not duplicated on redo). See `docs/ax-state-contract.md`.
+
+- **AX state ops migrated to the operation registry (plan-007 Slice B, wave 1).**
+  `canvas_get_ax`, `canvas_set_ax_focus`, `canvas_set_ax_policy`, and
+  `canvas_report_host_capability` are now defined once in
+  `src/server/operations/ops/ax-state.ts` and shared by HTTP, MCP, and the SDK
+  (legacy hand-written handlers + tools + CanvasAccess methods deleted). Tool
+  names, MCP result shapes, SSE frames (`ax-state-changed`), and `source`
+  defaulting are unchanged. One deliberate HTTP expansion: `GET /api/canvas/ax`
+  now returns `{ ok, state, host, context }` (previously `{ ok, state }`) — the
+  registry serves one wire body that the remote-MCP invoker also consumes, so the
+  `canvas_get_ax` aggregate is preserved across local and remote MCP. Additive;
+  existing clients that read `state` are unaffected.
+
+- **AX work / review / gate ops migrated to the operation registry (plan-007
+  Slice B, wave 2).** `canvas_add_work_item`, `canvas_update_work_item`,
+  `canvas_add_review_annotation`, `canvas_request_approval`,
+  `canvas_resolve_approval`, `canvas_request_elicitation`,
+  `canvas_respond_elicitation`, `canvas_request_mode`, `canvas_resolve_mode`
+  (plus the HTTP-only review-annotation update) are now defined once in
+  `src/server/operations/ops/ax-work.ts` (legacy handlers + tools + CanvasAccess
+  methods deleted). Tool names, success wire shapes, denial bodies (and their
+  404/400 status codes), SSE frames, and `source` defaulting are unchanged.
+  Cross-surface unification (same class as plan-005 slices 1–4): the
+  `update`/`resolve`/`respond` MCP tools previously returned a success-shaped
+  `{ ok:false, <item>:null }` on a missing/already-resolved target; they now
+  surface the HTTP 404 as an MCP `isError` result with the same message —
+  success shapes are unchanged.
+
+- **AX timeline / delivery / command ops migrated to the operation registry
+  (plan-007 Slice B, wave 3).** `canvas_record_ax_event`, `canvas_add_evidence`,
+  `canvas_send_steering`, `canvas_get_ax_timeline`, `canvas_claim_ax_delivery`,
+  `canvas_mark_ax_delivery`, and `canvas_invoke_command` are now defined once in
+  `src/server/operations/ops/ax-timeline.ts` (legacy handlers + tools +
+  CanvasAccess methods deleted). Tool names, success wire shapes (`{ ok, event }`,
+  `{ ok, evidence }`, `{ ok, steering }`, the timeline aggregate, `{ ok, delivered }`),
+  the timeline SSE frame (`ax-event-created`, distinct from the wave-1/2
+  `ax-state-changed`), the `delivery.mark` `{ steeringDelivered }` frame (emitted
+  only when a message is actually marked), the loop-safe consumer scoping of
+  `canvas_claim_ax_delivery` (steering + `pendingActivity` both filtered), the
+  command allowlist (unknown name → 400 `Unknown command "…"`), and `source`
+  defaulting are unchanged. Two deliberate unifications: (1) `GET
+  /api/canvas/ax/delivery/pending` now returns `{ ok, pending, pendingActivity }`
+  (previously `{ ok, pending }`) so the one wire body matches the
+  `canvas_claim_ax_delivery` aggregate across local and remote MCP — additive,
+  existing clients reading `pending` are unaffected; (2) `canvas_invoke_command`
+  on an unknown name previously returned a success-shaped `{ ok:false, event:null }`
+  over MCP and now surfaces the HTTP 400 as an MCP `isError` (same class as the
+  wave-2 resolve/respond unification). The legacy `GET /api/canvas/ax/command`
+  registry list, `canvas_ingest_activity`, and `canvas_ax_interaction` remain on
+  the standalone surface (deferred to later waves).
+
+- **AX long-poll gate reads migrated to the operation registry (plan-007 Slice
+  B, wave 4).** `canvas_await_approval`, `canvas_await_elicitation`, and
+  `canvas_await_mode` (the report primitive D "gates that actually gate" reads,
+  HTTP `GET /api/canvas/ax/{approval,elicitation,mode}/:id`) are now defined once
+  in `src/server/operations/ops/ax-await.ts` (legacy MCP tools, HTTP single-read
+  handlers, and the orphaned CanvasAccess `await*` methods deleted; the public
+  SDK `PmxCanvas.await*` methods stay). The async handler performs the wait via
+  `waitForAxResolution` (`status !== 'pending'` resolution predicate for all
+  three, matching the legacy HTTP + SDK). `timeoutMs` is normalized to one field
+  the handler reads: HTTP parses `?waitMs` (absent/non-positive ⇒ 0 = immediate
+  read), MCP defaults an omitted `timeoutMs` to 30000; both clamp to
+  [0, 120000]. Tool names, the `{ <gate>, pending }` success shapes, and the
+  HTTP 404 status on a missing gate are unchanged. Two documented behavior
+  changes, both the plan's accepted long-poll tradeoff: (1) the HTTP handler no
+  longer aborts the wait on client disconnect — the registry handler has no
+  access to the `Request`, so the wait runs to its (≤120s, subscription-based,
+  cheap) timeout instead of honoring `req.signal`; resolution detection,
+  timeout, and the `{ value, pending }` result are otherwise identical. (2) The
+  HTTP missing-gate body changed from `{ ok:false, error:"<gate> not found." }`
+  to `{ ok:false, <gate>:null, pending:false }` (status stays 404) so one wire
+  body serves both surfaces; the in-process (Local) MCP path still round-trips
+  the success-shaped `{ <gate>:null }` JSON exactly as before. (Over a remote
+  MCP transport — untested for these reads — an await-on-missing now surfaces as
+  an `isError` rather than the legacy `{ <gate>:null }`, since the generic
+  HTTP invoker throws on 404.)
 
 - **Removing a missing node now errors on every surface (plan-005 slice 1).**
   Node CRUD + layout reads (`node.add` / `node.get` / `node.update` /
@@ -87,6 +196,21 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   carry a `Deprecated: use canvas_x with action "y".` prefix on their tool
   description (derived automatically from the composite definitions). They keep
   working through v0.2 and are removed in v0.3 per `docs/api-stability.md`.
+
+- **Legacy AX MCP tools superseded by the AX composites (wave 2).** The 22
+  standalone AX tools folded by the composites above now carry a `Deprecated: use
+  canvas_x …` prefix on their tool description (derived automatically from the
+  composite definitions): `canvas_get_ax`, `canvas_set_ax_focus`,
+  `canvas_set_ax_policy`, `canvas_report_host_capability` → `canvas_ax_state`;
+  `canvas_add_work_item`, `canvas_update_work_item`, `canvas_add_review_annotation`
+  → `canvas_ax_work`; `canvas_request_approval`, `canvas_resolve_approval`,
+  `canvas_await_approval`, `canvas_request_elicitation`,
+  `canvas_respond_elicitation`, `canvas_await_elicitation`, `canvas_request_mode`,
+  `canvas_resolve_mode`, `canvas_await_mode` → `canvas_ax_gate` (with kind/action);
+  `canvas_get_ax_timeline`, `canvas_record_ax_event`, `canvas_add_evidence`,
+  `canvas_send_steering` → `canvas_ax_timeline`; `canvas_claim_ax_delivery`,
+  `canvas_mark_ax_delivery` → `canvas_ax_delivery`. They keep working through v0.2
+  and are removed in v0.3 per `docs/api-stability.md`.
 
 ### Fixed
 

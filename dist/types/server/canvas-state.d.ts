@@ -142,9 +142,8 @@ declare class CanvasStateManager {
     private _viewport;
     private _theme;
     private _contextPinnedNodeIds;
-    private _axState;
-    private _axHostCapability;
     private _workspaceRoot;
+    private readonly ax;
     private _changeListeners;
     /**
      * Register a listener for state changes. Used by MCP server to emit resource
@@ -164,8 +163,6 @@ declare class CanvasStateManager {
     private suppressed;
     private recordMutation;
     private currentNodeIdSet;
-    private normalizeAxForCurrentNodes;
-    private applyAxState;
     private applyResolvedGroupBounds;
     private getGroupSnapshot;
     private normalizeNode;
@@ -364,10 +361,10 @@ declare class CanvasStateManager {
     setPolicy(patch: {
         tools?: Partial<PmxAxPolicy['tools']>;
         prompt?: Partial<PmxAxPolicy['prompt']>;
-    }, _options?: {
+    }, options?: {
         source?: PmxAxSource;
     }): PmxAxPolicy;
-    setHostCapability(input: unknown, _options?: {
+    setHostCapability(input: unknown, options?: {
         source?: PmxAxSource;
     }): PmxAxHostCapability;
     recordAxEvent(input: {
@@ -393,18 +390,6 @@ declare class CanvasStateManager {
         source?: PmxAxSource;
     }): PmxAxSteeringMessage;
     markSteeringDelivered(id: string): boolean;
-    /**
-     * Ingest a normalized agent activity (a tool/session event a harness forwards)
-     * and apply kind-driven board reactions, so the agent's real work flows back into
-     * the board without it remembering to push each item (report primitive A — makes
-     * AX bidirectional). Always records a timeline event; then, unless the caller
-     * overrides/suppresses via `reactions`, applies defaults by kind/outcome:
-     *   • failure | error | outcome==='failure' → work item (blocked) + review
-     *     (finding/error, anchored to a valid nodeId else the `ref` file) + evidence (logs)
-     *   • tool-result + outcome==='success'      → evidence (tool-result)
-     *   • everything else (tool-start, session-*, command, note) → event only
-     * A reaction value of `false` suppresses it; an object overrides its fields/forces it on.
-     */
     ingestActivity(input: {
         kind: PmxAxActivityKind;
         title: string;
@@ -442,11 +427,6 @@ declare class CanvasStateManager {
     getAxSteering(q?: AxTimelineQuery & {
         onlyPending?: boolean;
     }): PmxAxSteeringMessage[];
-    /**
-     * Undelivered steering for a consumer (Phase 4 delivery). Excludes messages
-     * whose source equals the consumer to prevent delivery loops (e.g. Copilot
-     * should not be handed back steering it originated).
-     */
     getPendingSteering(options?: {
         consumer?: string;
         limit?: number;

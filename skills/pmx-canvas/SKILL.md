@@ -276,7 +276,7 @@ The CLI targets `http://localhost:4313` by default. Override with `PMX_CANVAS_UR
 | `graph` | Native chart panel | Line, bar, pie, area, scatter, radar, stacked-bar, composed, plus Tufte primitives (sparkline, dot-plot, bullet, slopegraph) rendered inside the canvas |
 | `html` | Sandboxed HTML+JS document | Self-contained HTML with optional inline `<script>` and CDN imports rendered in a sandbox-restricted iframe; canvas theme tokens are auto-injected |
 | `group` | Spatial container/frame | Visually group related nodes together |
-| `prompt` | Prompt thread root | Canvas-native prompt entry points for agent conversations. **Internal type — surfaces in `canvas://layout` for thread rendering but is not created via the public `canvas_add_node` API. Don't try to add one directly.** |
+| `prompt` | Prompt thread root | Canvas-native prompt entry points for agent conversations. **Internal type — surfaces in `canvas://layout` for thread rendering but is not created via the public `canvas_node { action: "add" }` API. Don't try to add one directly.** |
 | `response` | Prompt reply / streamed answer | Agent responses linked to prompt threads. **Same internal-only restriction as `prompt`.** |
 
 ### Edge Types
@@ -328,56 +328,100 @@ Use color consistently to convey meaning:
 
 ## MCP Tools Reference
 
+PMX Canvas exposes **~21 composable tools**: 12 action-discriminated **composites** (the
+recommended surface) plus a set of first-class standalones. The composites fold the older
+single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) discriminator —
+**field names are unchanged**; only the tool name + the `action`/`kind` selector differ.
+
+> **Legacy single-purpose tools are Deprecated.** The old names (`canvas_add_node`,
+> `canvas_update_node`, `canvas_request_approval`, `canvas_add_work_item`, …) still work but are
+> marked `Deprecated:` and are **removed in v0.3**. Prefer the composites. The authoritative
+> legacy→composite mapping table lives in [`docs/mcp.md`](../../docs/mcp.md) — this skill does not
+> re-enumerate the deprecated names.
+
+### The 12 composites
+
+| Composite | `action` values | What it does |
+|-----------|-----------------|--------------|
+| `canvas_node` | `add` · `get` · `update` · `remove` | Create / read / mutate / delete a node |
+| `canvas_render` | `describe-schema` · `validate` · `add-json-render` · `stream-json-render` · `add-graph` | Schema introspection, dry-run validation, and native json-render / graph node creation |
+| `canvas_edge` | `add` · `remove` | Connect / disconnect nodes |
+| `canvas_group` | `create` · `add` · `ungroup` | Manage spatial group containers |
+| `canvas_history` | `undo` · `redo` | Time travel through the mutation ring buffer |
+| `canvas_view` | `arrange` · `focus` · `fit` · `clear` | Auto-arrange, pan-to-node, fit viewport, clear the board |
+| `canvas_query` | `search` · `layout` | Find nodes by keyword, or read full canvas state |
+| `canvas_ax_state` | `get` · `set-focus` · `set-policy` · `report-capability` | Read AX state; set AX focus; patch tool/prompt policy; report host capability |
+| `canvas_ax_work` | `add` · `update` · `annotate` | Canvas-bound work items + review annotations |
+| `canvas_ax_gate` | `request` · `resolve` · `await` × `kind` `approval` \| `elicitation` \| `mode` | The human-decision gate machine (request → await → resolve) |
+| `canvas_ax_timeline` | `read` · `record-event` · `add-evidence` · `send-steering` | The bounded AX diagnostics timeline |
+| `canvas_ax_delivery` | `claim` · `mark` | Adapterless steering delivery (claim → act → mark) |
+
+Call shape examples: `canvas_node { action: "add", type, title }`,
+`canvas_view { action: "focus", id }`, `canvas_group { action: "create", childIds }`,
+`canvas_render { action: "add-graph", graphType, data }`,
+`canvas_query { action: "search", query }`,
+`canvas_ax_work { action: "update", id, status }`.
+
+`canvas_ax_gate` takes **two** discriminators, `{ kind, action }` — e.g.
+`{ kind: "approval", action: "request", title }`,
+`{ kind: "elicitation", action: "resolve", id, response }`,
+`{ kind: "mode", action: "await", id, timeoutMs }`. (The approval machine-readable action
+identifier is passed as `approvalAction`, since `action` is the lifecycle discriminator.)
+
+### Standalones (first-class — not deprecated)
+
+These stay separate by design (trust-boundary, firehose, execution-intent, or not-yet-consolidated
+surfaces): `canvas_batch`, `canvas_pin_nodes`, `canvas_screenshot`, `canvas_build_web_artifact`,
+`canvas_open_mcp_app`, `canvas_add_diagram`, `canvas_add_html_node`, `canvas_add_html_primitive`,
+`canvas_refresh_webpage_node`, `canvas_remove_annotation`, `canvas_ax_interaction`,
+`canvas_ingest_activity`, `canvas_invoke_command`, the WebView tools
+(`canvas_webview_start` / `canvas_webview_status` / `canvas_webview_stop`, `canvas_resize`,
+`canvas_evaluate`), and the snapshot tools (`canvas_snapshot`, `canvas_list_snapshots`,
+`canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`, `canvas_diff` — a
+`canvas_snapshot` composite is deferred to v0.3).
+
 ### Node Operations
 
-MCP node-type routing:
+MCP node-type routing — which tool creates which node category:
 
-| Node category | MCP creation tool |
+| Node category | MCP creation call |
 |---------------|-------------------|
-| Basic nodes (`markdown`, `status`, `context`, `ledger`, `trace`, `file`, `image`, `webpage`) | `canvas_add_node` |
-| `json-render` | `canvas_add_json_render_node` |
-| `graph` | `canvas_add_graph_node` |
-| `html-primitive` | `canvas_add_html_primitive` |
-| `html` | `canvas_add_html_node` |
-| `web-artifact` | `canvas_build_web_artifact` |
-| `external-app` / tool-backed `mcp-app` | `canvas_open_mcp_app` |
-| `group` | `canvas_create_group` |
+| Basic nodes (`markdown`, `status`, `context`, `ledger`, `trace`, `file`, `image`, `webpage`) | `canvas_node { action: "add" }` |
+| `json-render` | `canvas_render { action: "add-json-render" }` |
+| `graph` | `canvas_render { action: "add-graph" }` |
+| `html-primitive` | `canvas_add_html_primitive` (standalone) |
+| `html` | `canvas_add_html_node` (standalone) |
+| `web-artifact` | `canvas_build_web_artifact` (standalone) |
+| `external-app` / tool-backed `mcp-app` | `canvas_open_mcp_app` (standalone) |
+| `group` | `canvas_group { action: "create" }` |
 
-If a node type is rejected by `canvas_add_node`, call `canvas_describe_schema` and read
-`mcp.nodeTypeRouting`; do not keep retrying the generic tool.
+If a node type is rejected by `canvas_node { action: "add" }`, call
+`canvas_render { action: "describe-schema" }` and read `mcp.nodeTypeRouting`; do not keep
+retrying the generic add.
 
-**`canvas_add_node`** — Add a node to the canvas
+**`canvas_node { action: "add", … }`** — Add a node to the canvas
 - `type` (required): basic node type only; structured/app/group nodes use the routing table above
 - `title`: short, scannable title
-- `content`: for most types, this is markdown text. For `file` type, pass the **file path**
-  (e.g., `"src/auth/login.ts"`) — the server auto-loads the file content and watches for changes.
-  For `image` type, pass a file path, URL, or data URI.
+- `content`: markdown text for most types. For `file`, pass the **file path** (e.g. `"src/auth/login.ts"`) —
+  the server auto-loads + watches it. For `image`, pass a file path, URL, or data URI.
 - `path`: compatibility alias for image paths only; prefer `content` for new image calls
-- `x`, `y`: position (auto-placed if omitted — prefer omitting for auto-layout)
-- `width`, `height`: dimensions (sensible defaults provided)
-- `color`: semantic color
-- `metadata`: arbitrary JSON
+- `x`, `y`: position (prefer omitting for auto-layout); `width`, `height`: dimensions (sensible defaults); `color`: semantic color; `metadata`: arbitrary JSON
 - Returns: `{ id: "<node-id>" }` — capture this ID for edges and groups
 
-**`canvas_update_node`** — Update an existing node
-- `id` (required): node to update
-- Any of: `title`, `content`, `x`, `y`, `width`, `height`, `collapsed`, `arrangeLocked`, `data`
-- For `json-render`, pass `spec` to update the rendered spec in place while preserving node ID, edges, pins, and position
-- For `graph`, pass graph fields such as `graphType`, `data`, `xKey`, `yKey`, `color`, and `chartHeight` to rebuild the chart in place; use `height`/`nodeHeight` for frame geometry and `chartHeight` for chart content in CLI flows
-- Use to update status nodes as work progresses
+**`canvas_node { action: "update", id, … }`** — Update an existing node in place (preferred over
+delete+recreate; preserves edges, pins, position)
+- `id` (required), plus any of: `title`, `content`, `x`, `y`, `width`, `height`, `collapsed`, `arrangeLocked`, `data`
+- For `json-render`, pass `spec` to update the rendered spec in place
+- For `graph`, pass graph fields (`graphType`, `data`, `xKey`, `yKey`, `color`, `chartHeight`) to rebuild the chart; `height`/`nodeHeight` set frame geometry, `chartHeight` the chart content
 
-**`canvas_remove_node`** — Remove a node and all its connected edges
-- `id` (required): node to remove
-- Clean up nodes that are no longer relevant
+**`canvas_node { action: "remove", id }`** — Remove a node and all its connected edges. Clean up nodes that are no longer relevant.
 
-**`canvas_remove_annotation`** — Remove a human-drawn annotation
-- `id` (required): annotation to remove
-- Use when context gives you the annotation ID; use WebView first if you need to identify a mark by shape or location.
+**`canvas_node { action: "get", id }`** — Get a single node's full data by `id`.
 
-**`canvas_get_node`** — Get a single node's full data
-- `id` (required): node to retrieve
+**`canvas_remove_annotation`** (standalone) — Remove a human-drawn annotation by `id`. Use when
+context gives you the annotation ID; use WebView first if you need to identify a mark by shape or location.
 
-**`canvas_refresh_webpage_node`** — Re-fetch the URL stored on a `webpage` node
+**`canvas_refresh_webpage_node`** (standalone) — Re-fetch the URL stored on a `webpage` node
 - `id` (required): webpage node to refresh
 - Optional `url`: replace the stored URL before refreshing (use when the human moved the page)
 - Returns the refreshed node with updated `pageTitle` and cached extracted text
@@ -386,7 +430,7 @@ If a node type is rejected by `canvas_add_node`, call `canvas_describe_schema` a
 
   ```typescript
   // Add the page once
-  canvas_add_node({ type: 'webpage', url: 'https://example.com/docs' })
+  canvas_node({ action: 'add', type: 'webpage', url: 'https://example.com/docs' })
   // → returns { id: 'node-abc' }
 
   // …later, after the human reopens the canvas…
@@ -394,7 +438,7 @@ If a node type is rejected by `canvas_add_node`, call `canvas_describe_schema` a
   // → re-fetches the URL, updates pageTitle + extracted text, keeps the node ID and position
   ```
 
-**`canvas_add_json_render_node`** — Add a native json-render node
+**`canvas_render { action: "add-json-render", … }`** — Add a native json-render node
 - Required: `spec`; `title` is optional and inferred from the root element when omitted
 - Prefer a complete json-render object with `root`, `elements`, and optional `state`
 - Legacy bare component specs like `{ type: "Badge", props: {...} }` are accepted and wrapped into a one-element document for compatibility
@@ -403,18 +447,16 @@ If a node type is rejected by `canvas_add_node`, call `canvas_describe_schema` a
   `outline`. Legacy `props.label` and status variants (`success`, `info`, `warning`, `error`,
   `danger`) are normalized for saved-spec compatibility.
 
-**`canvas_stream_json_render_node`** — Build a json-render node progressively (live)
-- Omit `nodeId` on the first call to create a new streaming node — it returns the node `id`
-- Pass that same `nodeId` on later calls to append more `patches`; set `done: true` on the final call
-- `patches` are SpecStream JSON-Patch ops applied server-side (the canvas accumulates the spec):
-  `{ "op": "add", "path": "/elements/card", "value": { "type": "Card", "props": { "title": "Live" }, "children": [] } }`,
-  `{ "op": "replace", "path": "/root", "value": "card" }`,
-  `{ "op": "add", "path": "/elements/card/children/-", "value": "row1" }`
-- Build incrementally: set `/root`, add container elements, then append child element ids and elements
-- Each call re-renders the live node; partial specs render what they can. Use for dashboards/reports
-  that should fill in as you generate them rather than appearing all at once.
+**`canvas_render { action: "stream-json-render", … }`** — Build a json-render node progressively (live)
+- Omit `nodeId` on the first call to create a streaming node (returns its `id`); reuse that `nodeId`
+  on later calls to append `patches`; set `done: true` on the final call.
+- `patches` are SpecStream JSON-Patch ops applied server-side (the canvas accumulates the spec), e.g.
+  `{ "op": "add", "path": "/elements/card", "value": { … } }`, `{ "op": "replace", "path": "/root", "value": "card" }`.
+- Build incrementally: set `/root`, add container elements, then append child element ids/elements.
+  Each call re-renders; partial specs render what they can. Use for dashboards/reports that fill in
+  as you generate them rather than appearing all at once.
 
-**`canvas_add_graph_node`** — Add a native graph/chart node
+**`canvas_render { action: "add-graph", … }`** — Add a native graph/chart node
 - Required: `graphType`, `data`
 - Supports `line`, `bar`, `pie`, `area`, `scatter`, `radar`, `stacked-bar`, `composed`,
   and the Tufte primitives `sparkline`, `dot-plot`, `bullet`, `slopegraph` (aliases accepted)
@@ -444,7 +486,7 @@ the `tufte-viz` skill (`skills/tufte-viz/SKILL.md`). Key rules:
 - For more than ~4 overlapping series, build small multiples (several small graph nodes on a shared
   scale, arranged in a grid/group) instead of one multi-color chart.
 
-**`canvas_build_web_artifact`** — Build and optionally open a bundled web artifact
+**`canvas_build_web_artifact`** (standalone) — Build and optionally open a bundled web artifact
 - Required: `title`, `appTsx` (source string contents, not a file path)
 - CLI `--app-file` reads a file before calling the same build path; MCP callers must pass the source contents
 - Cold builds commonly take 45-60 seconds; use a long client timeout such as 300000 ms or more
@@ -454,88 +496,60 @@ ID extraction for mixed tool responses:
 - Most add-style tools return a flat `id`; web artifacts return `id` plus `nodeId`; snapshots return `id` plus nested `snapshot.id`.
 - Defensive extractor: `const getId = (r) => r.id ?? r.nodeId ?? r.snapshot?.id;`
 
-**`canvas_open_mcp_app`** — Open a tool-backed external MCP app node
+**`canvas_open_mcp_app`** (standalone) — Open a tool-backed external MCP app node
 - Required: `toolName`, `transport`
 - `transport` is either `{ type: "stdio", command, args?, cwd?, env? }` or `{ type: "http", url, headers? }`
 - This is lower-level than `pmx-canvas external-app add --kind excalidraw`; use `canvas_add_diagram` for the built-in Excalidraw preset
 
-**`canvas_pin_nodes`** — Set, add, or remove pinned context nodes
-- Use `{ nodeIds: [...] }`; the field is `nodeIds`, not `ids`
+**`canvas_pin_nodes`** (standalone) — Set, add, or remove pinned context nodes. Use `{ nodeIds: [...] }` — the field is `nodeIds`, not `ids`.
 
-**`canvas_diff`** — Compare current canvas state with a saved snapshot
-- Requires `{ snapshot: "<snapshot-id-or-name>" }`; there is no implicit previous-snapshot default
+**`canvas_diff`** (standalone) — Compare current canvas state with a saved snapshot. Requires `{ snapshot: "<snapshot-id-or-name>" }`; there is no implicit previous-snapshot default.
 
-**`canvas_describe_schema`** — Inspect the running server's create schemas and canonical examples
-- Use this before generating structured payloads when you need the authoritative current shape
-- Read `mcp.nodeTypeRouting` to choose the right MCP creation tool for each node category
+**`canvas_render { action: "describe-schema" }`** — Inspect the running server's create schemas and
+canonical examples. Use before generating structured payloads when you need the authoritative current
+shape; read `mcp.nodeTypeRouting` to choose the right creation call for each node category.
 
-**`canvas_validate_spec`** — Validate a json-render spec or graph payload without creating a node
-- Returns the normalized json-render spec the server would accept
-- Use this when you want a dry run before creating a `json-render` or `graph` node
+**`canvas_render { action: "validate", … }`** — Dry-run a json-render spec or graph payload without
+creating a node. Returns the normalized json-render spec the server would accept.
 
-**`canvas_fit_view`** — Fit viewport to all nodes or selected nodes
-- Optional: `width`, `height`, `padding`, `maxScale`, `nodeIds`
-- Use before screenshot workflows or whole-board review so the server viewport matches the intended camera
+**`canvas_view { action: "fit", … }`** — Fit viewport to all nodes or selected nodes; optional
+`width`, `height`, `padding`, `maxScale`, `nodeIds`. Use before screenshot/whole-board review so the
+server viewport matches the intended camera.
 
-**Batch graph creation**
-- Use `graph.add` inside `canvas_batch` / `pmx-canvas batch` when you need a graph node as part of
-  a larger one-shot build.
-- It accepts the same shape as `canvas_add_graph_node`: `graphType`, `data`, optional `title`,
-  `xKey`, `yKey`, `zKey`, `nameKey`, `valueKey`, `axisKey`, `metrics`, `series`, `barKey`,
-  `lineKey`, `aggregate`, `color`, `barColor`, `lineColor`, `height`, `x`, `y`, `width`, and
-  `nodeHeight`.
-- In batch/MCP/HTTP payloads, `height` is chart content height and `nodeHeight` is the canvas frame height.
+**Batch graph creation** — Use the `graph.add` op inside `canvas_batch` / `pmx-canvas batch` for a
+graph node in a larger one-shot build. It takes the same shape as `canvas_render { action: "add-graph" }`.
+In batch/MCP/HTTP payloads, `height` is chart content height and `nodeHeight` is the canvas frame height.
 
 ### Edge Operations
 
-**`canvas_add_edge`** — Connect two nodes
+**`canvas_edge { action: "add", … }`** — Connect two nodes
 - `from`, `to` (required): source and target node IDs
 - `fromSearch`, `toSearch`: optional search-based selectors when you do not have IDs. Each search
   query must resolve to exactly one node or the edge creation fails with an ambiguity error.
 - `type`: `flow`, `depends-on`, `relation`, or `references` (default: `relation`)
-- `label`: descriptive relationship label
-- `style`: `solid`, `dashed`, or `dotted`
-- `animated`: boolean for visual emphasis
-
-**`canvas_remove_edge`** — Remove a connection
-- `id` (required): edge to remove
+- `label`: descriptive relationship label; `style`: `solid`/`dashed`/`dotted`; `animated`: visual emphasis
+- `canvas_edge { action: "remove", id }` removes a connection by edge `id`.
 
 ### Layout & Navigation
 
-**`canvas_get_layout`** — Get full canvas state (all nodes, edges, viewport)
-- Use to understand current canvas state before making changes
-
-**`canvas_arrange`** — Auto-arrange all nodes
-- `layout`: `grid` (default), `column`, or `flow`
-- Use `grid` for dashboards and architecture overviews, `column` for vertical lists, `flow`
-  for horizontal sequences and dependency chains
-- Call after adding multiple nodes
-- For tiered/layered layouts (e.g., gateway → services → data stores), use `canvas_update_node`
-  with explicit `x`/`y` coordinates after auto-arrange to fine-tune the topology
-
-**`canvas_focus_node`** — Pan viewport to center on a specific node
-- `id` (required): node to focus
-- Good for drawing the human's attention
-- Avoid focusing every node in a batch. Focus only the final result or use CLI `focus --no-pan`
-  when the goal is selection/raising without camera movement.
+- **`canvas_query { action: "layout" }`** — full canvas state (nodes, edges, viewport). Read before mutating.
+- **`canvas_view { action: "arrange", layout }`** — auto-arrange all nodes; `layout` is `grid` (default,
+  dashboards/overviews), `column` (vertical lists), or `flow` (horizontal sequences / dependency chains).
+  Call once after a batch of adds. For tiered/layered layouts, fine-tune with explicit `x`/`y` via
+  `canvas_node { action: "update" }` after arranging.
+- **`canvas_view { action: "focus", id }`** — pan the viewport to a node. Don't focus every node in a
+  batch — focus only the final result, or use CLI `focus --no-pan` to select/raise without moving the camera.
 
 ### Groups
 
-**`canvas_create_group`** — Create a visual container
-- `title`: group label
-- `childIds`: array of node IDs to include
-- `color`: group border/background color
-- Auto-sizes to fit children
-
-**`canvas_group_nodes`** — Add nodes to an existing group
-- `groupId`, `childIds` (required)
-
-**`canvas_ungroup`** — Release children from a group
-- `groupId` (required): group to dissolve
+- **`canvas_group { action: "create", … }`** — visual container; `title`, `childIds` (node IDs), `color`. Auto-sizes to fit children.
+- **`canvas_group { action: "add", groupId, childIds }`** — add nodes to an existing group.
+- **`canvas_group { action: "ungroup", groupId }`** — release all children from a group.
 
 ### Group Layout Guidance
 
-Use groups as spacious semantic regions, not as tight containers.
+Use groups as spacious semantic regions, not as tight containers. (Group calls below use
+`canvas_group { action: "create" | "add" | "ungroup" }`.)
 
 - Size the child nodes first, especially `graph`, `json-render`, `mcp-app`, image, and webpage
   nodes whose rendered content may need more height than their visible title suggests.
@@ -548,7 +562,7 @@ Use groups as spacious semantic regions, not as tight containers.
   tight groups make the canvas harder to read than no groups.
 - Keep edges local to a group where possible. Long cross-board edges can look like they come from
   nowhere; use a nearby bridge/context node or split the relationship into shorter labeled edges.
-- After grouping, verify the result in `canvas_get_layout` or the browser: child nodes should be
+- After grouping, verify the result in `canvas_query { action: "layout" }` or the browser: child nodes should be
   fully inside the group with padding, visible nodes should not overlap, and group headers should
   not cover content.
 - If a group makes important content less visible, enlarge the group, split it into clearer
@@ -558,8 +572,8 @@ Use groups as spacious semantic regions, not as tight containers.
 
 Use groups as named comparison areas, not just visual boxes.
 
-- Create the comparison frame first with `canvas_create_group` or `pmx-canvas group create`, then
-  add charts, artifacts, and diagrams into that area deliberately.
+- Create the comparison frame first with `canvas_group { action: "create" }` or
+  `pmx-canvas group create`, then add charts, artifacts, and diagrams into that area deliberately.
 - Prefer graph nodes for fast capability demos and side-by-side comparisons. They are lightweight,
   validate quickly, and are easier to regenerate.
 - Prefer web artifacts when the board needs a richer narrative UI, custom interaction, or a more
@@ -588,42 +602,31 @@ Current product caveats for grouped comparison boards:
 
 ### Search & Discovery
 
-**`canvas_search`** — Find nodes by title or content keywords
-- `query` (required): search text
-- Returns matches with relevance ranking and content snippets
-- Use instead of parsing full layout when looking for specific nodes
+**`canvas_query { action: "search", query }`** — Find nodes by title or content keywords. Returns
+ranked matches with content snippets. Use instead of parsing the full layout to locate specific nodes.
 
 ### Context Pinning
 
-**`canvas_pin_nodes`** — Manage pinned context
-- `nodeIds` (required): array of node IDs
-- `mode`: `set` (replace all pins), `add` (add to pins), `remove` (remove from pins)
-- Pinned nodes are the primary human-to-agent communication channel
-- When a human pins nodes in the browser, they're telling you "pay attention to these"
-- Best default pin set for agent collaboration: one intent-setting markdown node plus 1-3 concrete
-  output nodes
-- Graph, file, and markdown pins usually carry richer usable context than `mcp-app` pins
-- Artifact and Excalidraw pins still matter as intent signals, but pair them with a markdown or
-  graph pin when you want the agent to understand what is inside the app, not just that it matters
+**`canvas_pin_nodes`** (standalone) — Manage pinned context: `nodeIds` (required) plus `mode`
+(`set` replaces all pins, `add`, `remove`).
+- Pinned nodes are the primary human-to-agent communication channel — when a human pins in the
+  browser, they're saying "pay attention to these."
+- Best default pin set: one intent-setting markdown node plus 1-3 concrete output nodes.
+- Graph, file, and markdown pins carry richer usable context than `mcp-app` pins. Artifact and
+  Excalidraw pins still matter as intent signals, but pair them with a markdown or graph pin so the
+  agent understands what is inside the app, not just that it matters.
 
 ### History & Snapshots
 
-**`canvas_undo`** — Undo the last canvas mutation
-**`canvas_redo`** — Redo the last undone mutation
-**`canvas_snapshot`** — Save a named snapshot to disk
-- `name` (required): descriptive snapshot name (e.g., "before-refactor")
-- Returns `{ ok, id, snapshot }`; the flat `id` is an alias for `snapshot.id`
-**`canvas_restore`** — Restore canvas from a saved snapshot
-- `id`: snapshot to restore
-**`canvas_diff`** — Compare current canvas against a saved snapshot
-- Shows added, removed, and modified nodes/edges
-- Useful for reviewing what changed during a work session
+- **`canvas_history { action: "undo" }`** / **`canvas_history { action: "redo" }`** — step the mutation ring buffer.
+- **`canvas_snapshot`** (standalone) — save a named snapshot; `name` required. Returns `{ ok, id, snapshot }` (flat `id` aliases `snapshot.id`).
+- **`canvas_restore`** (standalone) — restore from a snapshot `id`.
+- **`canvas_diff`** (standalone) — compare current canvas against a saved snapshot (added/removed/modified nodes & edges).
 
 ### Canvas Management
 
-**`canvas_clear`** — Remove all nodes and edges
-- **Always call `canvas_snapshot` first** to save a backup before clearing
-- This is irreversible without a prior snapshot
+**`canvas_view { action: "clear" }`** — Remove all nodes and edges. **Always `canvas_snapshot` first** —
+this is irreversible without a prior snapshot.
 
 ### Browser Automation (WebView)
 
@@ -670,7 +673,7 @@ Useful workbench selectors:
   the eraser toolbar button; agents can remove a known annotation ID with
   `canvas_remove_annotation`.
 - Canvas chrome: `.hud-layer`, `.canvas-toolbar`, `.connection-dot`, `.canvas-bootstrap-card`
-- Nodes do not expose stable `data-node-id` attributes. Use `canvas_get_layout`, `canvas_search`, or MCP resource data for exact node IDs.
+- Nodes do not expose stable `data-node-id` attributes. Use `canvas_query` (`layout` / `search`) or MCP resource data for exact node IDs.
 
 Async script example:
 
@@ -748,7 +751,7 @@ server's `ui://` resource as an iframe node on the canvas
 
 ### HTML Nodes (Sandboxed iframe)
 
-**`canvas_add_html_node`** — Add a normal self-contained HTML document rendered in a sandboxed iframe
+**`canvas_add_html_node`** (standalone) — Add a normal self-contained HTML document rendered in a sandboxed iframe
 - Required: `html` (full document or fragment; inline `<script>` and CDN `<script src="...">` are allowed). If `html` is a bare path to an existing local `.html`/`.htm` file, the server reads that file's contents; otherwise it is treated as raw HTML.
 - Optional: `title`, `summary`, `agentSummary`, `presentation`, `slideTitles`, `embeddedNodeIds`, `embeddedUrls`, `x`, `y`, `width` (default 720), `height` (default 640), `strictSize`
 - Iframe sandbox is `allow-scripts` only — no same-origin access, no top-navigation, no forms
@@ -758,12 +761,11 @@ server's `ui://` resource as an iframe node on the canvas
 - Only presentation-marked HTML nodes expose a browser `Present` button. Use it when the HTML is a deck, briefing, or fullscreen review surface; the PMX shell owns the fullscreen overlay and exits via `Esc` or `Exit presentation`.
 - PMX stores a semantic sidecar (`agentSummary`, `contentSummary`, embedded references) so HTML nodes remain understandable in search, pinned context, and spatial context
 
-**`canvas_add_html_primitive`** — Generate a reusable HTML communication primitive as a sandboxed `html` node
-- Required: `kind`; run `canvas_describe_schema` and read `htmlPrimitives` for the current catalog
+**`canvas_add_html_primitive`** (standalone) — Generate a reusable HTML communication primitive as a sandboxed `html` node
+- Required: `kind`; run `canvas_render { action: "describe-schema" }` and read `htmlPrimitives` for the current catalog
 - Optional: `title`, `data`, `x`, `y`, `width`, `height`, `strictSize`
 - Use when markdown would be too dense and a structured visual artifact is clearer: tradeoff grids, implementation plans, PR reviews, module maps, design sheets, explainers, reports, and lightweight human-editable boards/editors
 - When the human asks for a PowerPoint-like output, pitch deck, briefing, or presentation, use `kind: "presentation"` unless a bespoke raw HTML deck is required. Include `slides` with short titles, one idea per slide, optional `metrics`, `note` fields for speaker notes, and optional `theme: "canvas" | "midnight" | "paper" | "aurora"` or a custom theme object.
-- Read `htmlPrimitives` from `canvas_describe_schema` for the data shape and examples before constructing a payload
 - For payload patterns, export loops, and the primitive catalog, read `references/html-primitives.md` before creating dense or editable artifacts
 
 ### Open as Site (standalone surfaces)
@@ -782,9 +784,9 @@ the host's embedded browser (e.g. Codex) opens `_blank` tabs in-place.
   in-canvas iframe loads the **exact same URL**, so there is one render path and no
   separate "preview" version — what you see in the canvas is what opens. The URL reflects
   current node state and survives a refresh.
-- Agents can read this URL from any node payload (`canvas_get_node` / `canvas_get_layout`)
-  as `surfaceUrl` — a reliable way to tell a human "open the artifact" without disturbing
-  the canvas.
+- Agents can read this URL from any node payload (`canvas_node { action: "get" }` /
+  `canvas_query { action: "layout" }`) as `surfaceUrl` — a reliable way to tell a human
+  "open the artifact" without disturbing the canvas.
 - Served HTML stays sandboxed (opaque origin via a `Content-Security-Policy: sandbox`
   response header), so opening author code top-level cannot reach the canvas origin.
 - ext-app `mcp-app` nodes open their UI, but interactive tool-calls only work inside the
@@ -798,7 +800,7 @@ When the output is more than markdown, pick the lightest tier that fits:
 
 | Tier | Tool | Build cost | When to pick it |
 |------|------|------------|-----------------|
-| Declarative UI | `canvas_add_json_render_node` / `canvas_add_graph_node` | None | Schema-driven dashboards, forms, charts; agent-friendly to read back via `canvas_get_node` |
+| Declarative UI | `canvas_render` (`add-json-render` / `add-graph`) | None | Schema-driven dashboards, forms, charts; agent-friendly to read back via `canvas_node { action: "get" }` |
 | Generated HTML primitive | `canvas_add_html_primitive` | None | Reusable communication artifacts such as choices, plans, reviews, maps, reports, presentations/decks, and lightweight editors |
 | Sandboxed HTML+JS | `canvas_add_html_node` | None | Self-contained HTML with inline JS or CDN scripts; one-off visualizations or report views |
 | Hosted MCP app | `canvas_open_mcp_app` / `canvas_add_diagram` | None | Interactive editors backed by an external MCP server (e.g. Excalidraw) |
@@ -808,8 +810,8 @@ When the output is more than markdown, pick the lightest tier that fits:
 
 Use native `json-render` and `graph` nodes when the output should stay fully inside PMX Canvas:
 
-1. Use `canvas_add_json_render_node` for dashboards, forms, summaries, and interactive UI panels
-2. Use `canvas_add_graph_node` for charts and trend visualizations
+1. Use `canvas_render { action: "add-json-render" }` for dashboards, forms, summaries, and interactive UI panels
+2. Use `canvas_render { action: "add-graph" }` for charts and trend visualizations
 3. Use the repo-local `json-render-*` skills when you need help authoring or refining the spec itself
 4. Use `canvas_build_web_artifact` instead when the result needs a full custom React app rather than a schema-driven UI
 
@@ -870,19 +872,21 @@ nodes.
   re-validates capabilities regardless of transport — bridges are convenience,
   not a trust boundary.
 - **Delivery (adapterless):** `canvas://ax-pending-steering` /
-  `canvas_claim_ax_delivery` return two things, both loop-safe (a consumer never
+  `canvas_ax_delivery { action: "claim" }` return two things, both loop-safe (a consumer never
   receives items it originated):
   - `pending` — undelivered **steering** (directives). Act, then acknowledge with
-    `canvas_mark_ax_delivery`.
+    `canvas_ax_delivery { action: "mark" }`.
   - `pendingActivity` — open canvas-bound items **awaiting the agent** (open work
     items, pending approval gates / elicitations / mode requests), usually created
     by the human in the browser. These are **state, not steering**: don't
-    `canvas_mark_ax_delivery` them — resolve each via its own tool
-    (`canvas_resolve_approval` / `canvas_respond_elicitation` /
-    `canvas_resolve_mode` / `canvas_update_work_item`).
+    `canvas_ax_delivery { action: "mark" }` them — resolve each via its gate/work call
+    (`canvas_ax_gate { kind: "approval", action: "resolve" }` /
+    `canvas_ax_gate { kind: "elicitation", action: "resolve" }` /
+    `canvas_ax_gate { kind: "mode", action: "resolve" }` /
+    `canvas_ax_work { action: "update" }`).
   - **Contract:** every AX mutation fires `ax-state-changed`, so MCP clients that
     **subscribe** to resources are pushed `canvas://ax-work` / `canvas://ax-context`
-    live. Clients that **poll** instead should poll `canvas_claim_ax_delivery` —
+    live. Clients that **poll** instead should poll `canvas_ax_delivery { action: "claim" }` —
     `pendingActivity` is how non-steering browser changes reach them. Only steering
     flows through the claim/ack queue.
   - **Steering is gated, not pushed.** A surface button that emits `ax.steer`
@@ -890,34 +894,36 @@ nodes.
     adapter (e.g. Copilot), it reaches the next turn only when (1) the **pin/focus
     gate is open** (something pinned or focused — so keep a steering board pinned, or
     have its button also emit `ax.focus.set` on itself), (2) a **human message** fires
-    the turn, and (3) the agent **acts then acks** (`canvas_mark_ax_delivery`), or the
-    steer re-injects every gated turn. `GET /api/canvas/ax/context?consumer=<id>` adds
+    the turn, and (3) the agent **acts then acks** (`canvas_ax_delivery { action: "mark" }`),
+    or the steer re-injects every gated turn. `GET /api/canvas/ax/context?consumer=<id>` adds
     a compact, loop-safe `delivery: { pendingSteering, pendingActivity }` lead block an
     adapter can inject un-truncated, so steering survives the full-context char clip.
 - **Activity ingestion (bidirectional board):** a host adapter forwards the agent's
-  tool/session events with `canvas_ingest_activity` (HTTP `POST /api/canvas/ax/activity`)
+  tool/session events with `canvas_ingest_activity` (standalone; HTTP `POST /api/canvas/ax/activity`)
   and the board auto-reacts — `failure`/`error` (or `outcome:"failure"`) → a blocked
   work item + a review finding + `logs` evidence; `tool-result` + `outcome:"success"` →
   `tool-result` evidence; everything else records a timeline event only. Override or
   suppress per call via `reactions` (`{ workItem: false }`, `{ review: { severity } }`, …).
-- **Blocking gates (gates that actually gate):** after requesting an approval /
-  elicitation / mode, `canvas_await_approval` / `canvas_await_elicitation` /
-  `canvas_await_mode` (HTTP `GET /api/canvas/ax/<kind>/<id>?waitMs=`) BLOCK until the
-  human resolves it in the browser or the timeout elapses (`timeoutMs` 0 = immediate
-  read; ≤120000). Use this to pause real work on a human decision instead of polling.
+- **Blocking gates (gates that actually gate):** `canvas_ax_gate` is the request →
+  await → resolve machine. After `{ action: "request" }`, call
+  `canvas_ax_gate { kind, action: "await", id, timeoutMs }` (HTTP
+  `GET /api/canvas/ax/<kind>/<id>?waitMs=`) to BLOCK until the human resolves it in the
+  browser or the timeout elapses (`timeoutMs` 0 = immediate read; ≤120000). Use this to
+  pause real work on a human decision instead of polling.
 - **Elicitation / mode:** request structured human input
-  (`canvas_request_elicitation` → `canvas_respond_elicitation`) or a workflow
-  mode transition (`canvas_request_mode` → `canvas_resolve_mode`); both are
-  canvas-bound and snapshotted.
+  (`canvas_ax_gate { kind: "elicitation", action: "request" }` →
+  `canvas_ax_gate { kind: "elicitation", action: "resolve" }`) or a workflow
+  mode transition (`canvas_ax_gate { kind: "mode", action: "request" }` →
+  `canvas_ax_gate { kind: "mode", action: "resolve" }`); both are canvas-bound and snapshotted.
 - **Commands:** invoke a registry command — `pmx.plan`, `pmx.execute`,
   `pmx.promote-context`, `pmx.summarize`, `pmx.review` — via
-  `canvas_invoke_command` (HTTP `POST /api/canvas/ax/command`; CLI
+  `canvas_invoke_command` (standalone; HTTP `POST /api/canvas/ax/command`; CLI
   `pmx-canvas ax command invoke`; envelope `ax.command.invoke`). Unknown names
   are rejected; an invocation records an `agent-event` of kind `command`.
 - **Policy:** a canvas-bound, snapshotted tool/prompt policy
   (`tools.allowed|excluded|approvalRequired`, `prompt.systemAppend|mode`) read
-  into `canvas://ax-context`. Patch it with `canvas_set_ax_policy` (HTTP
-  `GET|POST /api/canvas/ax/policy`; CLI `pmx-canvas ax policy get|set`); patches
+  into `canvas://ax-context`. Patch it with `canvas_ax_state { action: "set-policy" }`
+  (HTTP `GET|POST /api/canvas/ax/policy`; CLI `pmx-canvas ax policy get|set`); patches
   merge and are normalized server-side.
 
 Interactions request PMX-AX primitives only — never arbitrary shell, tool, MCP,
@@ -945,7 +951,7 @@ AX interactions are gated per node type. The lists below are each type's **ceili
 | `group` | `ax.focus.set`, `ax.work.create`, `ax.command.invoke`, `ax.event.record` |
 
 **Opt-in** — set `axCapabilities.enabled = true` (MCP: pass `axCapabilities` to
-`canvas_add_html_node` / `canvas_update_node`. HTTP: `axCapabilities` **and** the
+`canvas_add_html_node` / `canvas_node { action: "update" }`. HTTP: `axCapabilities` **and** the
 `html` body are accepted **top-level on both `POST /api/canvas/node` and
 `PATCH /api/canvas/node/<id>`**, or nested under `data` — both work, top-level wins):
 
@@ -976,7 +982,7 @@ state. The read side mirrors the write side:
 - **Opt in** (html/mcp-app are off by default): create with
   `canvas_add_html_node({ html, axCapabilities: { enabled: true, allowed: ["ax.work.create","ax.work.update"] } })`,
   or flip an existing node on with
-  `canvas_update_node({ id, axCapabilities: { enabled: true, allowed: [...] } })`.
+  `canvas_node({ action: "update", id, axCapabilities: { enabled: true, allowed: [...] } })`.
   json-render / graph nodes are enabled by default.
 - **Emit (write):** in `html`, call `window.PMX_AX.emit("ax.work.create", { title })`;
   in `json-render`, bind a control action named after the AX type
@@ -1154,10 +1160,10 @@ Show system components and how they interact:
 
 1. Create `markdown` nodes for each service/component (include port, tech stack in content)
 2. Use `flow` edges for data flow, `depends-on` for dependencies — always label edges
-3. Group related services with `canvas_create_group` (e.g., "Application Services", "Data Layer")
+3. Group related services with `canvas_group { action: "create" }` (e.g., "Application Services", "Data Layer")
 4. Use colors: green for healthy, yellow for degraded, red for down
 5. Arrange with `grid` layout initially
-6. For tiered architectures, fine-tune with explicit `x`/`y` via `canvas_update_node` to show
+6. For tiered architectures, fine-tune with explicit `x`/`y` via `canvas_node { action: "update" }` to show
    layers (e.g., gateway at top, services in middle, data stores at bottom)
 7. Connect pipeline stages with `flow` edges where applicable
 
@@ -1169,7 +1175,7 @@ Track work items and their relationships:
 2. Color-code: green=done, yellow=in-progress, red=blocked, gray=queued, blue=ready/available
 3. Connect with `depends-on` edges — use `dashed` style for blocked dependencies, `solid` for
    satisfied ones
-4. Update status nodes as work progresses using `canvas_update_node`
+4. Update status nodes as work progresses using `canvas_node { action: "update" }`
 5. Arrange with `flow` layout to show the dependency chain left-to-right
 6. Group related tasks if the plan has distinct phases
 
@@ -1182,7 +1188,7 @@ Understand a codebase by visualizing file relationships:
    don't need to manually add import-based edges. You can still add manual edges for
    conceptual relationships beyond imports (e.g., "middleware validates using jwt")
 3. Read `canvas://code-graph` for dependency analysis: central files, isolated files
-4. Group related files with `canvas_create_group` (e.g., "Auth Module", "API Routes")
+4. Group related files with `canvas_group { action: "create" }` (e.g., "Auth Module", "API Routes")
 5. Pin important files so the human sees them highlighted
 6. Arrange with `grid` layout after adding files
 
@@ -1204,8 +1210,8 @@ Monitor ongoing processes:
 1. Create `status` nodes for each metric/process
 2. Use semantic colors: green=passing, yellow=running, red=failing, gray=queued
 3. Connect sequential pipeline stages with `flow` edges (label: "then", "triggers")
-4. Update nodes in-place as state changes using `canvas_update_node` — never delete and recreate,
-   as that loses position and edges
+4. Update nodes in-place as state changes using `canvas_node { action: "update" }` — never delete
+   and recreate, as that loses position and edges
 5. Arrange with `grid` layout
 6. The human sees real-time updates via SSE
 
@@ -1223,7 +1229,7 @@ Show two states side by side for the human to compare:
 When the human wants to explore a different approach without losing current work:
 
 1. **First**, save the current state: `canvas_snapshot` with a descriptive name
-2. **Then** clear: `canvas_clear` (never clear without snapshotting first)
+2. **Then** clear: `canvas_view { action: "clear" }` (never clear without snapshotting first)
 3. Set up the new workspace with initial nodes
 4. Tell the human the snapshot name and that `canvas_restore` can bring everything back
 
@@ -1237,17 +1243,17 @@ When the human wants to explore a different approach without losing current work
 3. **Label every edge.** Unlabeled edges lose meaning. "depends on", "calls", "blocks"
    are all more useful than a bare arrow.
 
-4. **Auto-arrange after batch adds.** When adding multiple nodes, call `canvas_arrange`
-   once at the end, not after each node.
+4. **Auto-arrange after batch adds.** When adding multiple nodes, call
+   `canvas_view { action: "arrange" }` once at the end, not after each node.
 
-5. **Update in place.** Use `canvas_update_node` to change status, content, or color.
-   Don't delete and recreate — that loses position and edges.
+5. **Update in place.** Use `canvas_node { action: "update" }` to change status, content, or
+   color. Don't delete and recreate — that loses position and edges.
 
 6. **Clean up.** Remove nodes that are no longer relevant. A cluttered canvas is worse
    than no canvas.
 
-7. **Read before writing.** Check `canvas://layout` or `canvas_get_layout` before adding
-   nodes to avoid duplicates and understand the current state.
+7. **Read before writing.** Check `canvas://layout` or `canvas_query { action: "layout" }` before
+   adding nodes to avoid duplicates and understand the current state.
 
 8. **Use pinning.** When you want the human to focus on specific nodes, pin them.
    When the human pins nodes, read `canvas://pinned-context` to see what they care about.

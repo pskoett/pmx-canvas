@@ -8,12 +8,14 @@
 // intentionally NOT frozen by name.
 //
 // plan-006 (MCP tool consolidation) grows this list ADDITIVELY: 69 legacy tools
-// + 7 action-discriminated composites (canvas_node, canvas_render, canvas_edge,
-// canvas_group, canvas_history, canvas_view, canvas_query) = 76. The
-// canvas_snapshot composite is deferred to v0.3 (its name is still held by the
-// legacy save-snapshot tool). Legacy single-purpose tools are removed (and this
-// list shrinks to the survivors) in v0.3 per docs/api-stability.md — both edits
-// are deliberate.
+// + 7 wave-1 action-discriminated composites (canvas_node, canvas_render,
+// canvas_edge, canvas_group, canvas_history, canvas_view, canvas_query) + 5 AX
+// composites (plan-007 Slice C: canvas_ax_state, canvas_ax_work, canvas_ax_gate,
+// canvas_ax_timeline, canvas_ax_delivery — canvas_ax_gate alone folds 9 gate
+// tools) = 81. The canvas_snapshot composite is deferred to v0.3 (its name is
+// still held by the legacy save-snapshot tool). Legacy single-purpose tools are
+// removed (and this list shrinks to the survivors) in v0.3 per
+// docs/api-stability.md — both edits are deliberate.
 import { afterAll, describe, expect, test } from 'bun:test';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
@@ -38,7 +40,12 @@ const FROZEN_TOOL_NAMES = [
   'canvas_await_approval',
   'canvas_await_elicitation',
   'canvas_await_mode',
+  'canvas_ax_delivery',
+  'canvas_ax_gate',
   'canvas_ax_interaction',
+  'canvas_ax_state',
+  'canvas_ax_timeline',
+  'canvas_ax_work',
   'canvas_batch',
   'canvas_build_web_artifact',
   'canvas_claim_ax_delivery',
@@ -175,11 +182,11 @@ async function createMcpSession(): Promise<Client> {
 }
 
 describe('MCP public surface freeze', () => {
-  test('the sorted tool-name list matches the frozen 76-tool list exactly', async () => {
+  test('the sorted tool-name list matches the frozen 81-tool list exactly', async () => {
     const client = await createMcpSession();
     const tools = await client.listTools();
     const sortedNames = tools.tools.map((tool) => tool.name).sort();
-    expect(FROZEN_TOOL_NAMES).toHaveLength(76);
+    expect(FROZEN_TOOL_NAMES).toHaveLength(81);
     expect(sortedNames).toEqual(FROZEN_TOOL_NAMES);
   }, 30000);
 
