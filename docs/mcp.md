@@ -210,10 +210,10 @@ MCP for tools/resources and the in-app Browser for the live `/workbench` view.
 No separate PMX renderer is needed. Prefer MCP over the CLI for Codex-native
 operation; keep the CLI for fallback scripts and manual debugging.
 
-Use `canvas://ax-context` or `canvas_get_ax` to read pinned/focused context.
-When Codex-hosted steering sets the current attention target, call
-`canvas_set_ax_focus` with `source: "codex"` so the AX state records where the
-focus came from. The full workflow lives in
+Use `canvas://ax-context` or `canvas_ax_state { action: "get" }` to read
+pinned/focused context. When Codex-hosted steering sets the current attention
+target, call `canvas_ax_state { action: "set-focus", source: "codex" }` so the
+AX state records where the focus came from. The full workflow lives in
 `skills/pmx-canvas/references/codex-app-adapter.md`.
 
 ## Annotation Visibility

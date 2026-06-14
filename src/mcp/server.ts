@@ -305,11 +305,11 @@ export async function startMcpServer(): Promise<void> {
   // ── Composite (action-discriminated) tools (plan-006) ───────────
   // Consolidate single-purpose tools into action-routed composites
   // (canvas_node, canvas_render, canvas_edge, canvas_group, canvas_history,
-  // canvas_view, canvas_query). Each action dispatches to the same registered
-  // operation as its standalone tool, so behavior is identical. Additive in
-  // v0.2 (legacy tools still registered below); legacy removed in v0.3 per
-  // docs/api-stability.md. (canvas_snapshot composite is deferred to v0.3 — its
-  // name is still held by the legacy save-snapshot tool.)
+  // canvas_view, canvas_query, plus the AX composites). Each action dispatches
+  // to the same registered operation as its standalone tool, so behavior is
+  // identical. Additive in v0.2 (legacy tools still registered below); legacy
+  // removed in v0.3 per docs/api-stability.md. (canvas_snapshot composite is
+  // deferred to v0.3 — its name is still held by the legacy save-snapshot tool.)
   registerCompositeTools(server, ensureCanvas);
 
   // ── canvas_add_html_node ────────────────────────────────────────

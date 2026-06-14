@@ -2822,7 +2822,7 @@ exit 2
     expect(reference).toContain('Codex in-app Browser');
     expect(reference).toContain('pmx-canvas --mcp');
     expect(reference).toContain('canvas://ax-context');
-    expect(reference).toContain('canvas_set_ax_focus');
+    expect(reference).toContain('canvas_ax_state { action: "set-focus"');
     expect(reference).toContain('source: "codex"');
   });
 
