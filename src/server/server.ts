@@ -91,6 +91,7 @@ import {
   syncCanvasRuntimeBackends,
 } from './canvas-operations.js';
 import { dispatchOperationRoute, setOperationEventEmitter } from './operations/index.js';
+import { setWebviewRunner } from './operations/webview-runner.js';
 import {
   closeNodeAppSession,
   nodeAppSessionId,
@@ -136,6 +137,44 @@ let lastWorkbenchContextCardsEnvelope: Record<string, unknown> | null = null;
 // (in-process) MCP/SDK invocations emit even without startCanvasServer().
 setOperationEventEmitter((event, payload) => {
   emitPrimaryWorkbenchEvent(event, payload);
+});
+
+// Webview-runner wiring (plan-008 Wave 3): the webview ops never import this
+// module — the Bun.WebView automation runner is injected here, mirroring the
+// setOperationEventEmitter pattern. The closures call the real automation
+// functions (declared below, hoisted) so a webview op resolves to the same
+// machinery the legacy hand-written tools/routes used. `screenshot` stays out —
+// it returns binary and remains the standalone canvas_screenshot tool.
+setWebviewRunner({
+  status: () => getCanvasAutomationWebViewStatus(),
+  start: async (options) => {
+    const url = currentWorkbenchUrl();
+    if (!url) {
+      // Mirrors the legacy 503 "server not running" branch: no URL → not a
+      // start failure but a precondition error. Surface it through the
+      // error-shaped result so the op can map it to the same 503 wire body
+      // (no webview field, matching the legacy handler).
+      return {
+        ok: false as const,
+        serverNotRunning: true as const,
+        error: 'Canvas server is not running.',
+      };
+    }
+    try {
+      const webview = await startCanvasAutomationWebView(url, options);
+      return { ok: true as const, webview };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : String(error),
+        // 500-vs-501 is read off webview.supported (the status), so no separate field.
+        webview: getCanvasAutomationWebViewStatus(),
+      };
+    }
+  },
+  stop: () => stopCanvasAutomationWebView(),
+  resize: (width, height) => resizeCanvasAutomationWebView(width, height),
+  evaluate: (expression) => evaluateCanvasAutomationWebView(expression),
 });
 
 function normalizeGraphViewerSpec(
@@ -2253,118 +2292,13 @@ function handleWorkbenchState(): Response {
   });
 }
 
-function parseCanvasAutomationWebViewRequestBody(
-  body: Record<string, unknown>,
-): CanvasAutomationWebViewOptions {
-  const backendValue = typeof body.backend === 'string' ? body.backend.trim() : '';
-  const backend =
-    backendValue === 'chrome' || backendValue === 'webkit'
-      ? backendValue
-      : undefined;
-
-  const width = typeof body.width === 'number' ? body.width : undefined;
-  const height = typeof body.height === 'number' ? body.height : undefined;
-  const chromePath = typeof body.chromePath === 'string' ? body.chromePath : undefined;
-  const dataStoreDir = typeof body.dataStoreDir === 'string' ? body.dataStoreDir : undefined;
-  const chromeArgv = Array.isArray(body.chromeArgv)
-    ? body.chromeArgv.filter((value): value is string => typeof value === 'string')
-    : undefined;
-
-  return {
-    ...(backend ? { backend } : {}),
-    ...(width !== undefined ? { width } : {}),
-    ...(height !== undefined ? { height } : {}),
-    ...(chromePath ? { chromePath } : {}),
-    ...(chromeArgv ? { chromeArgv } : {}),
-    ...(dataStoreDir ? { dataStoreDir } : {}),
-  };
-}
-
+// Webview status / start / stop / evaluate / resize HTTP routes migrated to the
+// operation registry (plan-008 Wave 3): src/server/operations/ops/webview.ts,
+// dispatched in the fetch handler. The screenshot route + handler below stay
+// hand-written (binary response). `currentWorkbenchUrl` is still used by the
+// injected webview runner's start closure (see setWebviewRunner above).
 function currentWorkbenchUrl(): string | null {
   return server && typeof server.port === 'number' ? `${loopbackBaseUrl(server.port)}/workbench` : null;
-}
-
-function handleWorkbenchWebViewStatus(): Response {
-  return responseJson(getCanvasAutomationWebViewStatus());
-}
-
-async function handleWorkbenchWebViewStart(req: Request): Promise<Response> {
-  const url = currentWorkbenchUrl();
-  if (!url) {
-    return responseJson({ ok: false, error: 'Canvas server is not running.' }, 503);
-  }
-
-  const body = await readJson(req);
-  const options = parseCanvasAutomationWebViewRequestBody(body);
-
-  try {
-    const webview = await startCanvasAutomationWebView(url, options);
-    return responseJson({ ok: true, webview });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const status = hasCanvasAutomationWebViewSupport() ? 500 : 501;
-    return responseJson({
-      ok: false,
-      error: message,
-      webview: getCanvasAutomationWebViewStatus(),
-    }, status);
-  }
-}
-
-async function handleWorkbenchWebViewStop(): Promise<Response> {
-  try {
-    const stopped = await stopCanvasAutomationWebView();
-    return responseJson({
-      ok: true,
-      stopped,
-      webview: getCanvasAutomationWebViewStatus(),
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return responseJson({
-      ok: false,
-      error: message,
-      webview: getCanvasAutomationWebViewStatus(),
-    }, 500);
-  }
-}
-
-async function handleWorkbenchWebViewEvaluate(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const expression = typeof body.expression === 'string' ? body.expression.trim() : '';
-  const script = typeof body.script === 'string' ? body.script.trim() : '';
-  if ((expression ? 1 : 0) + (script ? 1 : 0) !== 1) {
-    return responseJson({
-      ok: false,
-      error: 'Pass exactly one of "expression" (single JS expression) or "script" (multi-statement body, wrapped in an async IIFE).',
-    }, 400);
-  }
-  const source = script ? wrapCanvasAutomationScript(script) : expression;
-
-  try {
-    const value = await evaluateCanvasAutomationWebView(source);
-    return responseJson({ ok: true, value });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return responseJson({ ok: false, error: message, webview: getCanvasAutomationWebViewStatus() }, 400);
-  }
-}
-
-async function handleWorkbenchWebViewResize(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const width = typeof body.width === 'number' ? body.width : NaN;
-  const height = typeof body.height === 'number' ? body.height : NaN;
-  if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
-    return responseJson({ ok: false, error: 'Missing required positive numeric fields: width, height.' }, 400);
-  }
-
-  try {
-    const webview = await resizeCanvasAutomationWebView(width, height);
-    return responseJson({ ok: true, webview });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return responseJson({ ok: false, error: message, webview: getCanvasAutomationWebViewStatus() }, 400);
-  }
 }
 
 async function handleWorkbenchWebViewScreenshot(req: Request): Promise<Response> {
@@ -3917,28 +3851,18 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleWorkbenchIntent(req);
           }
 
-          if (url.pathname === '/api/workbench/webview' && req.method === 'GET') {
-            return handleWorkbenchWebViewStatus();
-          }
-
-          if (url.pathname === '/api/workbench/webview/start' && req.method === 'POST') {
-            return handleWorkbenchWebViewStart(req);
-          }
-
-          if (url.pathname === '/api/workbench/webview/evaluate' && req.method === 'POST') {
-            return handleWorkbenchWebViewEvaluate(req);
-          }
-
-          if (url.pathname === '/api/workbench/webview/resize' && req.method === 'POST') {
-            return handleWorkbenchWebViewResize(req);
+          // Webview automation routes (plan-008 Wave 3): status / start /
+          // evaluate / resize / stop are now registered operations served by the
+          // registry. A null return falls through (e.g. the screenshot route
+          // below, which stays hand-written — it returns a binary image, not a
+          // JSON wire body).
+          if (url.pathname.startsWith('/api/workbench/webview')) {
+            const webviewResponse = await dispatchOperationRoute(req, url);
+            if (webviewResponse) return webviewResponse;
           }
 
           if (url.pathname === '/api/workbench/webview/screenshot' && req.method === 'POST') {
             return handleWorkbenchWebViewScreenshot(req);
-          }
-
-          if (url.pathname === '/api/workbench/webview' && req.method === 'DELETE') {
-            return handleWorkbenchWebViewStop();
           }
 
           if (url.pathname === '/api/file/save' && req.method === 'POST') {

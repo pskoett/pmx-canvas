@@ -1,11 +1,11 @@
 # MCP reference
 
-PMX Canvas ships an MCP stdio server with **81 tools** + **14 core resources**,
+PMX Canvas ships an MCP stdio server with **82 tools** + **14 core resources**,
 plus per-skill resources at `canvas://skills/<name>`. The server emits
 `notifications/resources/updated` when canvas state changes — humans pin
 nodes in the browser, agents are notified immediately.
 
-> **Consolidation in progress (plan-006).** The 81 tools are 12 action-discriminated
+> **Consolidation in progress (plan-006/008).** The 82 tools are 13 action-discriminated
 > **composites** (recommended — see below) plus 69 legacy single-purpose tools.
 > The composites fold the legacy tools behind an `action` (and, for `canvas_ax_gate`,
 > a `kind`) enum; each action dispatches to the same operation, so behavior is
@@ -44,6 +44,7 @@ its `action` to the same operation the legacy tool used, so results are identica
 | `canvas_history` | `undo` · `redo` | `canvas_undo`, `canvas_redo` |
 | `canvas_view` | `arrange` · `focus` · `fit` · `clear` | `canvas_arrange`, `canvas_focus_node`, `canvas_fit_view`, `canvas_clear` |
 | `canvas_query` | `search` · `layout` | `canvas_search`, `canvas_get_layout` |
+| `canvas_webview` | `status` · `start` · `stop` · `resize` · `evaluate` | `canvas_webview_status`, `canvas_webview_start`, `canvas_webview_stop`, `canvas_resize`, `canvas_evaluate` |
 | `canvas_ax_state` | `get` · `set-focus` · `set-policy` · `report-capability` | `canvas_get_ax`, `canvas_set_ax_focus`, `canvas_set_ax_policy`, `canvas_report_host_capability` |
 | `canvas_ax_work` | `add` · `update` · `annotate` | `canvas_add_work_item`, `canvas_update_work_item`, `canvas_add_review_annotation` |
 | `canvas_ax_gate` | `request` · `resolve` · `await` × kind `approval` \| `elicitation` \| `mode` | `canvas_request_approval`, `canvas_resolve_approval`, `canvas_await_approval`, `canvas_request_elicitation`, `canvas_respond_elicitation`, `canvas_await_elicitation`, `canvas_request_mode`, `canvas_resolve_mode`, `canvas_await_mode` (9 → 1) |
@@ -58,7 +59,9 @@ Field names match the underlying operation (e.g. `canvas_view { action: "focus",
 action identifier is passed as `approvalAction`, since `action` is the lifecycle
 discriminator.) `canvas_ax_interaction`, `canvas_ingest_activity`, and
 `canvas_invoke_command` stay standalone (trust-boundary / firehose / execution-intent
-tools). Snapshots fold as their registry slice lands.
+tools). `canvas_screenshot` also stays standalone — it returns a binary image payload
+the composite/registry JSON wire shape does not model. Snapshots fold as their registry
+slice lands.
 
 ## Tools (legacy single-purpose)
 

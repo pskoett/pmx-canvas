@@ -48,6 +48,26 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   The public MCP surface grows from 76 to 81 tools (deliberate; see
   `tests/unit/mcp-tool-freeze.test.ts`).
 
+- **`canvas_webview` composite + the 5 webview ops migrated to the operation
+  registry via runner injection (plan-008 Wave 3).** The five browser-automation
+  tools (`canvas_webview_status`, `canvas_webview_start`, `canvas_webview_stop`,
+  `canvas_resize`, `canvas_evaluate`) are now defined once in
+  `src/server/operations/ops/webview.ts` and shared by HTTP, MCP, and the SDK.
+  The Bun.WebView machinery lives in `server.ts` (which `operations/` must not
+  import), so the runner is **injected** — `src/server/operations/webview-runner.ts`
+  declares a `WebviewRunner` interface + `setWebviewRunner`/`getWebviewRunner`,
+  and `server.ts` wires the real automation functions at module load, exactly
+  mirroring the `setOperationEventEmitter` SSE-emitter injection. The new
+  `canvas_webview` composite folds the five tools behind a `status` / `start` /
+  `stop` / `resize` / `evaluate` action enum; each action dispatches to the same
+  op, so behavior is byte-identical (proven by `tests/unit/mcp-composites.test.ts`).
+  Wire shapes, MCP result shapes, and the `canvas_evaluate` arbitrary-eval trust
+  posture are unchanged. `canvas_screenshot` is deliberately **not** folded — it
+  returns a binary image payload the registry JSON wire shape does not model — and
+  stays a standalone hand-written tool (its `POST /api/workbench/webview/screenshot`
+  route also stays hand-written). The public MCP surface grows from 81 to 82 tools
+  (deliberate; see `tests/unit/mcp-tool-freeze.test.ts`).
+
 ### Changed
 
 - **Board validation and annotation removal migrated to the operation registry
@@ -223,6 +243,17 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   `validate`; `canvas_remove_annotation` → `canvas_view` action
   `remove-annotation`. They keep working through v0.2 and are removed in v0.3 per
   `docs/api-stability.md`.
+
+- **The 5 webview MCP tools superseded by the `canvas_webview` composite
+  (plan-008 Wave 3).** `canvas_webview_status`, `canvas_webview_start`,
+  `canvas_webview_stop`, `canvas_resize`, and `canvas_evaluate` now carry a
+  `Deprecated: use canvas_webview with action "y".` prefix on their tool
+  description (derived automatically from the composite definition):
+  `canvas_webview_status` → action `status`; `canvas_webview_start` → `start`;
+  `canvas_webview_stop` → `stop`; `canvas_resize` → `resize`; `canvas_evaluate`
+  → `evaluate`. They keep working through v0.2 (now registry-served) and are
+  removed in v0.3 per `docs/api-stability.md`. `canvas_screenshot` is NOT
+  deprecated — it stays standalone (binary payload).
 
 - **Single-purpose MCP tools superseded by wave-1 composites.** The standalone
   tools folded by the composites above (`canvas_add_node`, `canvas_get_node`,

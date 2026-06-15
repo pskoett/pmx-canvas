@@ -12,10 +12,12 @@
 // canvas_edge, canvas_group, canvas_history, canvas_view, canvas_query) + 5 AX
 // composites (plan-007 Slice C: canvas_ax_state, canvas_ax_work, canvas_ax_gate,
 // canvas_ax_timeline, canvas_ax_delivery — canvas_ax_gate alone folds 9 gate
-// tools) = 81. The canvas_snapshot composite is deferred to v0.3 (its name is
-// still held by the legacy save-snapshot tool). Legacy single-purpose tools are
-// removed (and this list shrinks to the survivors) in v0.3 per
-// docs/api-stability.md — both edits are deliberate.
+// tools) = 81, then + canvas_webview (plan-008 Wave 3: folds the 5 webview tools
+// via runner injection; canvas_screenshot stays standalone — binary payload) =
+// 82. The canvas_snapshot composite is deferred to v0.3 (its name is still held
+// by the legacy save-snapshot tool). Legacy single-purpose tools are removed
+// (and this list shrinks to the survivors) in v0.3 per docs/api-stability.md —
+// both edits are deliberate.
 import { afterAll, describe, expect, test } from 'bun:test';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
@@ -104,6 +106,7 @@ const FROZEN_TOOL_NAMES = [
   'canvas_validate',
   'canvas_validate_spec',
   'canvas_view',
+  'canvas_webview',
   'canvas_webview_start',
   'canvas_webview_status',
   'canvas_webview_stop',
@@ -182,11 +185,11 @@ async function createMcpSession(): Promise<Client> {
 }
 
 describe('MCP public surface freeze', () => {
-  test('the sorted tool-name list matches the frozen 81-tool list exactly', async () => {
+  test('the sorted tool-name list matches the frozen 82-tool list exactly', async () => {
     const client = await createMcpSession();
     const tools = await client.listTools();
     const sortedNames = tools.tools.map((tool) => tool.name).sort();
-    expect(FROZEN_TOOL_NAMES).toHaveLength(81);
+    expect(FROZEN_TOOL_NAMES).toHaveLength(82);
     expect(sortedNames).toEqual(FROZEN_TOOL_NAMES);
   }, 30000);
 

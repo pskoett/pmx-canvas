@@ -43,9 +43,11 @@ type RunBatchResult = Awaited<ReturnType<PmxCanvas['runBatch']>>;
 type CodeGraphResult = ReturnType<PmxCanvas['getCodeGraph']>;
 type WebArtifactInput = Parameters<PmxCanvas['buildWebArtifact']>[0];
 type WebArtifactResult = Awaited<ReturnType<PmxCanvas['buildWebArtifact']>>;
-type AutomationWebViewOptions = Parameters<PmxCanvas['startAutomationWebView']>[0];
-type AutomationWebViewStatus = Awaited<ReturnType<PmxCanvas['startAutomationWebView']>>;
-type AutomationEvaluateResult = Awaited<ReturnType<PmxCanvas['evaluateAutomationWebView']>>;
+// canvas_screenshot (the only webview tool still hand-written) needs the status
+// + screenshot accessors; the other four webview methods (start/stop/evaluate/
+// resize) migrated to the operation registry (plan-008 Wave 3) and were removed
+// from CanvasAccess.
+type AutomationWebViewStatus = Awaited<ReturnType<PmxCanvas['getAutomationWebViewStatus']>>;
 type AutomationScreenshotOptions = Parameters<PmxCanvas['screenshotAutomationWebView']>[0];
 
 interface HealthResponse {
@@ -56,18 +58,6 @@ interface HealthResponse {
 interface NodeResponse {
   id?: string;
   node?: { id?: string };
-}
-
-interface WebViewEnvelope {
-  webview?: AutomationWebViewStatus;
-}
-
-interface WebViewStopEnvelope extends WebViewEnvelope {
-  stopped?: boolean;
-}
-
-interface WebViewEvaluateEnvelope {
-  value?: AutomationEvaluateResult;
 }
 
 export interface CanvasAccess {
@@ -99,11 +89,9 @@ export interface CanvasAccess {
   getPinnedNodeIds(): Promise<string[]>;
   runBatch(operations: RunBatchInput): Promise<RunBatchResult>;
   getCodeGraph(): Promise<CodeGraphResult>;
+  // canvas_screenshot (still hand-written — binary payload) is the only webview
+  // tool left on CanvasAccess; it needs the status + screenshot accessors.
   getAutomationWebViewStatus(): Promise<AutomationWebViewStatus>;
-  startAutomationWebView(options?: AutomationWebViewOptions): Promise<AutomationWebViewStatus>;
-  stopAutomationWebView(): Promise<boolean>;
-  evaluateAutomationWebView(expression: string): Promise<AutomationEvaluateResult>;
-  resizeAutomationWebView(width: number, height: number): Promise<AutomationWebViewStatus>;
   screenshotAutomationWebView(options?: AutomationScreenshotOptions): Promise<Uint8Array>;
 }
 
@@ -225,22 +213,6 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async getAutomationWebViewStatus(): Promise<AutomationWebViewStatus> {
     return this.canvas.getAutomationWebViewStatus();
-  }
-
-  async startAutomationWebView(options: AutomationWebViewOptions = {}): Promise<AutomationWebViewStatus> {
-    return await this.canvas.startAutomationWebView(options);
-  }
-
-  async stopAutomationWebView(): Promise<boolean> {
-    return await this.canvas.stopAutomationWebView();
-  }
-
-  async evaluateAutomationWebView(expression: string): Promise<AutomationEvaluateResult> {
-    return await this.canvas.evaluateAutomationWebView(expression);
-  }
-
-  async resizeAutomationWebView(width: number, height: number): Promise<AutomationWebViewStatus> {
-    return await this.canvas.resizeAutomationWebView(width, height);
   }
 
   async screenshotAutomationWebView(options: AutomationScreenshotOptions = {}): Promise<Uint8Array> {
@@ -498,28 +470,6 @@ class RemoteCanvasAccess implements CanvasAccess {
 
   async getAutomationWebViewStatus(): Promise<AutomationWebViewStatus> {
     return await this.requestJson<AutomationWebViewStatus>('GET', '/api/workbench/webview');
-  }
-
-  async startAutomationWebView(options: AutomationWebViewOptions = {}): Promise<AutomationWebViewStatus> {
-    const response = await this.requestJson<WebViewEnvelope>('POST', '/api/workbench/webview/start', options);
-    if (!response.webview) throw new Error('WebView start response did not include status.');
-    return response.webview;
-  }
-
-  async stopAutomationWebView(): Promise<boolean> {
-    const response = await this.requestJson<WebViewStopEnvelope>('DELETE', '/api/workbench/webview');
-    return response.stopped === true;
-  }
-
-  async evaluateAutomationWebView(expression: string): Promise<AutomationEvaluateResult> {
-    const response = await this.requestJson<WebViewEvaluateEnvelope>('POST', '/api/workbench/webview/evaluate', { expression });
-    return response.value as AutomationEvaluateResult;
-  }
-
-  async resizeAutomationWebView(width: number, height: number): Promise<AutomationWebViewStatus> {
-    const response = await this.requestJson<WebViewEnvelope>('POST', '/api/workbench/webview/resize', { width, height });
-    if (!response.webview) throw new Error('WebView resize response did not include status.');
-    return response.webview;
   }
 
   async screenshotAutomationWebView(options: AutomationScreenshotOptions = {}): Promise<Uint8Array> {

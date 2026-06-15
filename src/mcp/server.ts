@@ -32,7 +32,6 @@ import type { HtmlPrimitiveKind } from '../server/html-primitives.js';
 import { registerOperationTools, registerCompositeTools } from '../server/operations/index.js';
 import { createCanvasAccess, refreshCanvasAccess, type CanvasAccess } from './canvas-access.js';
 import { serializeNodeForAgentContext } from '../server/agent-context.js';
-import { wrapCanvasAutomationScript } from '../server/server.js';
 import { buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
 import {
   getCanvasNodeTitle,
@@ -701,139 +700,11 @@ export async function startMcpServer(): Promise<void> {
   // canvas_set_ax_policy migrated to the operation registry
   // (plan-007 Slice B.1): src/server/operations/ops/ax-state.ts.
 
-  // ── canvas_webview_status ─────────────────────────────────────
-  server.tool(
-    'canvas_webview_status',
-    'Get the current Bun.WebView automation status for the PMX Canvas workbench. Returns whether Bun.WebView is supported, whether an automation session is active, backend, viewport size, and the current workbench URL if active.',
-    {},
-    async () => {
-      const c = await ensureCanvas();
-      return {
-        content: [{ type: 'text', text: JSON.stringify(await c.getAutomationWebViewStatus(), null, 2) }],
-      };
-    },
-  );
-
-  // ── canvas_webview_start ──────────────────────────────────────
-  server.tool(
-    'canvas_webview_start',
-    'Start or replace the headless Bun.WebView automation session for the current PMX Canvas workbench. Use this before screenshot, evaluate, or resize when no automation session is active.',
-    {
-      backend: z.enum(['chrome', 'webkit']).optional()
-        .describe('Automation backend. Default: webkit on macOS, chrome elsewhere.'),
-      width: z.number().optional().describe('Viewport width in pixels (default: 1280)'),
-      height: z.number().optional().describe('Viewport height in pixels (default: 800)'),
-      chromePath: z.string().optional().describe('Optional Chrome/Chromium executable path'),
-      chromeArgv: z.array(z.string()).optional().describe('Optional extra Chrome launch args'),
-      dataStoreDir: z.string().optional().describe('Optional persistent data store directory'),
-    },
-    async ({ backend, width, height, chromePath, chromeArgv, dataStoreDir }) => {
-      const c = await ensureCanvas();
-      try {
-        const status = await c.startAutomationWebView({
-          ...(backend ? { backend } : {}),
-          ...(typeof width === 'number' ? { width } : {}),
-          ...(typeof height === 'number' ? { height } : {}),
-          ...(typeof chromePath === 'string' ? { chromePath } : {}),
-          ...(Array.isArray(chromeArgv) ? { chromeArgv } : {}),
-          ...(typeof dataStoreDir === 'string' ? { dataStoreDir: safeWorkspacePath(dataStoreDir) } : {}),
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(status, null, 2) }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
-          isError: true,
-        };
-      }
-    },
-  );
-
-  // ── canvas_webview_stop ───────────────────────────────────────
-  server.tool(
-    'canvas_webview_stop',
-    'Stop the current Bun.WebView automation session if one is active.',
-    {},
-    async () => {
-      const c = await ensureCanvas();
-      try {
-        const stopped = await c.stopAutomationWebView();
-        const webview = await c.getAutomationWebViewStatus();
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              ok: true,
-              stopped,
-              webview,
-            }, null, 2),
-          }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
-          isError: true,
-        };
-      }
-    },
-  );
-
-  // ── canvas_evaluate ───────────────────────────────────────────
-  server.tool(
-    'canvas_evaluate',
-    'Evaluate JavaScript in the active Bun.WebView automation session for the workbench page. Use this to inspect rendered browser state. Requires an active automation session started via canvas_webview_start.',
-    {
-      expression: z.string().optional().describe('JavaScript expression to evaluate in the page context'),
-      script: z.string().optional().describe('Multi-statement JavaScript body. The MCP server wraps it in an async IIFE and evaluates the resolved return value.'),
-    },
-    async ({ expression, script }) => {
-      const c = await ensureCanvas();
-      if ((expression ? 1 : 0) + (script ? 1 : 0) !== 1) {
-        return {
-          content: [{ type: 'text', text: 'Pass exactly one of "expression" or "script".' }],
-          isError: true,
-        };
-      }
-
-      const source = script ? wrapCanvasAutomationScript(script) : expression!;
-      try {
-        const value = await c.evaluateAutomationWebView(source);
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ value }, null, 2) }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
-          isError: true,
-        };
-      }
-    },
-  );
-
-  // ── canvas_resize ─────────────────────────────────────────────
-  server.tool(
-    'canvas_resize',
-    'Resize the active Bun.WebView automation viewport. Requires an active automation session started via canvas_webview_start.',
-    {
-      width: z.number().describe('Viewport width in pixels'),
-      height: z.number().describe('Viewport height in pixels'),
-    },
-    async ({ width, height }) => {
-      const c = await ensureCanvas();
-      try {
-        const status = await c.resizeAutomationWebView(width, height);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(status, null, 2) }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
-          isError: true,
-        };
-      }
-    },
-  );
+  // canvas_webview_status / canvas_webview_start / canvas_webview_stop /
+  // canvas_evaluate / canvas_resize migrated to the operation registry
+  // (plan-008 Wave 3): src/server/operations/ops/webview.ts (via the injected
+  // webview runner). canvas_screenshot stays hand-written below — it returns a
+  // binary image payload, which the registry's JSON wire shape does not model.
 
   // ── canvas_screenshot ─────────────────────────────────────────
   server.tool(

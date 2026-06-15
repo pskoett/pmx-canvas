@@ -17,6 +17,7 @@ import { axWorkOperations } from './ops/ax-work.js';
 import { axTimelineOperations } from './ops/ax-timeline.js';
 import { axAwaitOperations } from './ops/ax-await.js';
 import { batchOperations } from './ops/batch.js';
+import { webviewOperations } from './ops/webview.js';
 
 for (const op of [
   ...nodeOperations,
@@ -33,6 +34,7 @@ for (const op of [
   ...axTimelineOperations,
   ...axAwaitOperations,
   ...batchOperations,
+  ...webviewOperations,
 ]) {
   registerOperation(op);
 }

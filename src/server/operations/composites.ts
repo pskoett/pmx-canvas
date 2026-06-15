@@ -16,10 +16,12 @@
  *
  * Still deferred (their legacy standalone tools keep working; see plan-008):
  * the `refresh` / `add-primitive` / `add-html` folds (would need a per-action
- * input-injection mechanism), and the `canvas_webview` / `canvas_app` /
- * `canvas_snapshot` composites (server.ts-coupled webview, poor-fit side-channel
- * apps, and the v0.3 name collision respectively). The action enums are
- * forward-compatible: adding an action later is additive.
+ * input-injection mechanism), and the `canvas_app` / `canvas_snapshot`
+ * composites (poor-fit side-channel apps, and the v0.3 name collision
+ * respectively). The action enums are forward-compatible: adding an action later
+ * is additive. (`canvas_webview` shipped in plan-008 Wave 3 via runner
+ * injection; `canvas_screenshot` stays standalone — it returns a binary image
+ * payload the composite/registry JSON wire shape does not model.)
  *
  * Not shipped here: the `canvas_snapshot` composite (plan-006 #7). Its target
  * name is ALREADY a legacy standalone tool (the save-snapshot tool, op
@@ -216,6 +218,19 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
       search: 'search',
       layout: 'layout.get',
       validate: 'validate.get',
+    },
+  },
+  {
+    toolName: 'canvas_webview',
+    description:
+      'Drive the headless Bun.WebView automation session for the workbench. Action "status" reads automation status (supported, active, backend, viewport, url); "start" starts/replaces the session (backend chrome|webkit, width, height, chromePath, chromeArgv, dataStoreDir); "stop" stops the active session; "resize" sets the viewport (width, height required); "evaluate" runs JavaScript in the page (pass exactly one of expression or script; script is wrapped in an async IIFE). Capturing a screenshot is NOT folded here — use the standalone canvas_screenshot tool (it returns a binary image payload).',
+    actionSummary: 'status | start | stop | resize | evaluate',
+    actions: {
+      status: 'webview.status',
+      start: 'webview.start',
+      stop: 'webview.stop',
+      resize: 'webview.resize',
+      evaluate: 'webview.evaluate',
     },
   },
   // ── AX composites (plan-007 Slice C / plan-006 §11–15) ───────────

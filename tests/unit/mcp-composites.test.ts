@@ -262,6 +262,103 @@ describe('MCP composite tools (plan-006)', () => {
     expect((await call(client, 'canvas_node', { action: 'get', id: node.id })).isError ?? false).toBe(false);
   }, 30000);
 
+  // ── canvas_webview (plan-008 Wave 3) ──────────────────────────────────────
+  // Each webview composite action dispatches to the same registry op (and the
+  // same injected runner) as its legacy standalone tool, reusing the op's
+  // buildInput/formatResult — so a composite action is byte-identical to the
+  // standalone tool. `status` is the safe head-to-head read. start/stop/resize/
+  // evaluate are environment-gated: with no browser available the runner throws
+  // (or start fails); the composite must surface the SAME outcome as the
+  // standalone tool. canvas_screenshot is NOT folded (binary payload).
+  test('canvas_webview status matches canvas_webview_status (head-to-head read)', async () => {
+    const { client } = await createMcpSession();
+
+    const composite = parseJsonText<{ supported?: boolean; active?: boolean; headlessOnly?: boolean }>(
+      await call(client, 'canvas_webview', { action: 'status' }),
+    );
+    const standalone = parseJsonText(await call(client, 'canvas_webview_status', {}));
+    expect(composite).toEqual(standalone);
+    // The status carries the automation shape (not a generic ok).
+    expect(composite.headlessOnly).toBe(true);
+    expect(composite.active).toBe(false);
+  }, 30000);
+
+  test('canvas_webview evaluate/resize dispatch and error identically to the standalone tools when no session is active', async () => {
+    const { client } = await createMcpSession();
+
+    // evaluate with no active session: both the composite and standalone tool
+    // dispatch to webview.evaluate → the runner throws "not active". Same isError
+    // + same message.
+    const evalComposite = await call(client, 'canvas_webview', {
+      action: 'evaluate',
+      script: 'const value = 2 + 2; return value;',
+    });
+    const evalStandalone = await call(client, 'canvas_evaluate', {
+      script: 'const value = 2 + 2; return value;',
+    });
+    expect(evalComposite.isError).toBe(true);
+    expect(evalStandalone.isError).toBe(true);
+    expect(textOf(evalComposite)).toBe(textOf(evalStandalone));
+    expect(textOf(evalComposite)).toContain('automation WebView');
+
+    // The "exactly one of expression/script" validation is preserved on the
+    // composite action (legacy canvas_evaluate message), thrown before dispatch.
+    const evalBoth = await call(client, 'canvas_webview', {
+      action: 'evaluate',
+      expression: 'document.title',
+      script: 'return 1;',
+    });
+    expect(evalBoth.isError).toBe(true);
+    expect(textOf(evalBoth)).toContain('exactly one');
+
+    // resize with no active session: both dispatch to webview.resize → "not
+    // active". Same isError + same message.
+    const resizeComposite = await call(client, 'canvas_webview', { action: 'resize', width: 1024, height: 768 });
+    const resizeStandalone = await call(client, 'canvas_resize', { width: 1024, height: 768 });
+    expect(resizeComposite.isError).toBe(true);
+    expect(resizeStandalone.isError).toBe(true);
+    expect(textOf(resizeComposite)).toBe(textOf(resizeStandalone));
+  }, 30000);
+
+  test('canvas_webview start/stop dispatch with the same outcome shape as the standalone tools', async () => {
+    const { client } = await createMcpSession();
+
+    // start is environment-gated: it succeeds only when a webview backend
+    // (Chrome/WebKit) is available. The composite must produce the SAME
+    // error-ness as the standalone tool regardless of environment.
+    const startComposite = await call(client, 'canvas_webview', { action: 'start', width: 800, height: 600 });
+    const startStandalone = await call(client, 'canvas_webview_start', { width: 800, height: 600 });
+    expect(Boolean(startComposite.isError)).toBe(Boolean(startStandalone.isError));
+    if (startComposite.isError) {
+      // No browser available: identical bare-message isError results.
+      expect(textOf(startComposite)).toBe(textOf(startStandalone));
+    } else {
+      // A browser is available: the composite start reports the active webview
+      // status (same shape as the standalone canvas_webview_start).
+      expect(parseJsonText<{ active?: boolean }>(startComposite).active).toBe(true);
+      expect(parseJsonText<{ active?: boolean }>(startStandalone).active).toBe(true);
+    }
+
+    // stop dispatches to webview.stop and reports { ok, stopped, webview }; it is
+    // stateful (the first stop consumes any active session), so assert the shape +
+    // a stopped session, not head-to-head equality of the stateful `stopped` flag.
+    const stopComposite = parseJsonText<{ ok?: boolean; stopped?: boolean; webview?: { active?: boolean } }>(
+      await call(client, 'canvas_webview', { action: 'stop' }),
+    );
+    expect(stopComposite.ok).toBe(true);
+    expect(typeof stopComposite.stopped).toBe('boolean');
+    expect(stopComposite.webview?.active).toBe(false);
+
+    // A second stop (now nothing active) is a safe no-op via either surface, and
+    // the two surfaces agree once no session is active.
+    const stopComposite2 = parseJsonText<{ ok?: boolean; stopped?: boolean }>(
+      await call(client, 'canvas_webview', { action: 'stop' }),
+    );
+    const stopStandalone2 = parseJsonText(await call(client, 'canvas_webview_stop', {}));
+    expect(stopComposite2).toEqual(stopStandalone2);
+    expect(stopComposite2.stopped).toBe(false);
+  }, 30000);
+
   test('an unknown action is a loud error, not a silent no-op', async () => {
     const { client } = await createMcpSession();
     const result = await call(client, 'canvas_node', { action: 'frobnicate', id: 'x' });
