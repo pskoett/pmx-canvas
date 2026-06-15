@@ -8,6 +8,8 @@ import { edgeOperations } from './ops/edges.js';
 import { viewportOperations } from './ops/viewport.js';
 import { groupOperations } from './ops/groups.js';
 import { queryOperations } from './ops/query.js';
+import { validateOperations } from './ops/validate.js';
+import { annotationOperations } from './ops/annotation.js';
 import { snapshotOperations } from './ops/snapshots.js';
 import { jsonRenderOperations } from './ops/json-render.js';
 import { axStateOperations } from './ops/ax-state.js';
@@ -21,6 +23,8 @@ for (const op of [
   ...viewportOperations,
   ...groupOperations,
   ...queryOperations,
+  ...validateOperations,
+  ...annotationOperations,
   ...snapshotOperations,
   ...jsonRenderOperations,
   ...axStateOperations,

@@ -41,7 +41,6 @@ type HistoryResult = ReturnType<PmxCanvas['getHistory']>;
 type RunBatchInput = Parameters<PmxCanvas['runBatch']>[0];
 type RunBatchResult = Awaited<ReturnType<PmxCanvas['runBatch']>>;
 type CodeGraphResult = ReturnType<PmxCanvas['getCodeGraph']>;
-type ValidationResult = ReturnType<PmxCanvas['validate']>;
 type WebArtifactInput = Parameters<PmxCanvas['buildWebArtifact']>[0];
 type WebArtifactResult = Awaited<ReturnType<PmxCanvas['buildWebArtifact']>>;
 type AutomationWebViewOptions = Parameters<PmxCanvas['startAutomationWebView']>[0];
@@ -84,7 +83,6 @@ export interface CanvasAccess {
   addHtmlNode(input: AddHtmlNodeInput): Promise<string>;
   addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult>;
   buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult>;
-  removeAnnotation(id: string): Promise<boolean>;
   getAxState(): Promise<AxStateResult>;
   getAxContext(options?: { consumer?: string }): Promise<AxContextResult>;
   getAxTimeline(query?: GetAxTimelineQuery): Promise<GetAxTimelineResult>;
@@ -101,7 +99,6 @@ export interface CanvasAccess {
   getPinnedNodeIds(): Promise<string[]>;
   runBatch(operations: RunBatchInput): Promise<RunBatchResult>;
   getCodeGraph(): Promise<CodeGraphResult>;
-  validate(): Promise<ValidationResult>;
   getAutomationWebViewStatus(): Promise<AutomationWebViewStatus>;
   startAutomationWebView(options?: AutomationWebViewOptions): Promise<AutomationWebViewStatus>;
   stopAutomationWebView(): Promise<boolean>;
@@ -160,10 +157,6 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult> {
     return await this.canvas.buildWebArtifact(input);
-  }
-
-  async removeAnnotation(id: string): Promise<boolean> {
-    return this.canvas.removeAnnotation(id);
   }
 
   async getAxState(): Promise<AxStateResult> {
@@ -228,10 +221,6 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async getCodeGraph(): Promise<CodeGraphResult> {
     return this.canvas.getCodeGraph();
-  }
-
-  async validate(): Promise<ValidationResult> {
-    return this.canvas.validate();
   }
 
   async getAutomationWebViewStatus(): Promise<AutomationWebViewStatus> {
@@ -409,11 +398,6 @@ class RemoteCanvasAccess implements CanvasAccess {
     return await this.requestJson<WebArtifactResult>('POST', '/api/canvas/web-artifact', input);
   }
 
-  async removeAnnotation(id: string): Promise<boolean> {
-    const response = await this.requestJson<{ ok?: boolean }>('DELETE', `/api/canvas/annotation/${encodeURIComponent(id)}`);
-    return response.ok === true;
-  }
-
   async getHistory(): Promise<HistoryResult> {
     return await this.requestJson<HistoryResult>('GET', '/api/canvas/history');
   }
@@ -510,10 +494,6 @@ class RemoteCanvasAccess implements CanvasAccess {
   async getCodeGraph(): Promise<CodeGraphResult> {
     const summary = await this.requestJson<CodeGraphResult['summary']>('GET', '/api/canvas/code-graph');
     return { text: JSON.stringify(summary, null, 2), summary };
-  }
-
-  async validate(): Promise<ValidationResult> {
-    return await this.requestJson<ValidationResult>('GET', '/api/canvas/validate');
   }
 
   async getAutomationWebViewStatus(): Promise<AutomationWebViewStatus> {

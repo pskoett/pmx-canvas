@@ -96,7 +96,6 @@ import {
   closeNodeAppSession,
   nodeAppSessionId,
 } from './operations/ops/nodes.js';
-import { validateCanvasLayout } from './canvas-validation.js';
 import {
   EXCALIDRAW_READ_CHECKPOINT_TOOL,
   EXCALIDRAW_SAVE_CHECKPOINT_TOOL,
@@ -1462,14 +1461,6 @@ async function handleCanvasAddAnnotation(req: Request): Promise<Response> {
   return responseJson({ ok: true, annotation: summarizeCanvasAnnotation(annotation) });
 }
 
-function handleCanvasRemoveAnnotation(id: string): Response {
-  const decodedId = decodeURIComponent(id);
-  const removed = canvasState.removeAnnotation(decodedId);
-  if (!removed) return responseJson({ ok: false, error: `Annotation "${decodedId}" not found.` }, 404);
-  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson({ ok: true, removed: decodedId });
-}
-
 // ── Serve image file for image nodes ─────────────────────────
 async function handleCanvasImage(pathname: string): Promise<Response> {
   const nodeId = pathname.replace('/api/canvas/image/', '');
@@ -1624,10 +1615,6 @@ async function handleCanvasBatch(req: Request): Promise<Response> {
   const result = await executeCanvasBatch(normalized);
   emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   return responseJson(result, result.ok ? 200 : 400);
-}
-
-function handleCanvasValidate(): Response {
-  return responseJson(validateCanvasLayout(canvasState.getLayout()));
 }
 
 async function handleCanvasThemeUpdate(req: Request): Promise<Response> {
@@ -4043,10 +4030,6 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleCanvasAddAnnotation(req);
           }
 
-          if (url.pathname.startsWith('/api/canvas/annotation/') && req.method === 'DELETE') {
-            return handleCanvasRemoveAnnotation(url.pathname.slice('/api/canvas/annotation/'.length));
-          }
-
           if (url.pathname === '/api/canvas/mcp-app/open' && req.method === 'POST') {
             return handleCanvasOpenMcpApp(req);
           }
@@ -4183,10 +4166,6 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/prompt' && req.method === 'POST') {
             return handleCanvasPrompt(req);
-          }
-
-          if (url.pathname === '/api/canvas/validate' && req.method === 'GET') {
-            return handleCanvasValidate();
           }
 
           if (url.pathname === '/api/ext-app/call-tool' && req.method === 'POST') {

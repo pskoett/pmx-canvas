@@ -50,6 +50,20 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Changed
 
+- **Board validation and annotation removal migrated to the operation registry
+  (plan-008 Wave 1).** `canvas_validate` (board validation, a pure read) and
+  `canvas_remove_annotation` (DELETE-by-id) are now defined once in
+  `src/server/operations/ops/validate.ts` and
+  `src/server/operations/ops/annotation.ts`, shared by HTTP, MCP, and the CLI
+  (legacy hand-written handlers + routes + MCP tool blocks + the orphaned
+  `CanvasAccess.validate` / `CanvasAccess.removeAnnotation` methods deleted; the
+  SDK `PmxCanvas.validate()` / `removeAnnotation()` stay public). Tool names,
+  HTTP routes (`GET /api/canvas/validate`, `DELETE /api/canvas/annotation/:id`),
+  the 404 denial body, MCP result shapes, and the `canvas-layout-update` SSE
+  frame are unchanged. Two new composite actions land additively:
+  `canvas_query` gains `validate` (→ `validate.get`) and `canvas_view` gains
+  `remove-annotation` (→ `annotation.remove`).
+
 - **Deleting a node no longer silently re-anchors AX work (plan-007 Slice A).**
   Node deletion already re-normalized canvas-bound AX state (work items / approval
   gates / elicitations / mode requests keep the item but lose the dangling node
@@ -184,6 +198,14 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   unchanged.
 
 ### Deprecated
+
+- **`canvas_validate` and `canvas_remove_annotation` superseded by composite
+  actions (plan-008 Wave 1).** Both tools now carry a `Deprecated: use canvas_x
+  with action "y".` prefix on their tool description (derived automatically from
+  the composite definitions): `canvas_validate` → `canvas_query` action
+  `validate`; `canvas_remove_annotation` → `canvas_view` action
+  `remove-annotation`. They keep working through v0.2 and are removed in v0.3 per
+  `docs/api-stability.md`.
 
 - **Single-purpose MCP tools superseded by wave-1 composites.** The standalone
   tools folded by the composites above (`canvas_add_node`, `canvas_get_node`,

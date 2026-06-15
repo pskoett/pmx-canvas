@@ -605,25 +605,8 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
-  // ── canvas_remove_annotation ─────────────────────────────────────
-  server.tool(
-    'canvas_remove_annotation',
-    'Remove a human-drawn canvas annotation by ID.',
-    { id: z.string().describe('Annotation ID to remove') },
-    async ({ id }) => {
-      const c = await ensureCanvas();
-      const removed = await c.removeAnnotation(id);
-      if (!removed) {
-        return {
-          content: [{ type: 'text', text: `Annotation "${id}" not found.` }],
-          isError: true,
-        };
-      }
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, removed: id }) }],
-      };
-    },
-  );
+  // canvas_remove_annotation migrated to the operation registry (plan-008
+  // Wave 1): src/server/operations/ops/annotation.ts.
 
   // ── AX context and focus ───────────────────────────────────────
   // canvas_get_ax + canvas_set_ax_focus migrated to the operation registry
@@ -1374,17 +1357,8 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
-  server.tool(
-    'canvas_validate',
-    'Validate the current canvas layout. Distinguishes true node collisions from expected group-child containment and reports missing edge endpoints.',
-    {},
-    async () => {
-      const c = await ensureCanvas();
-      return {
-        content: [{ type: 'text', text: JSON.stringify(await c.validate(), null, 2) }],
-      };
-    },
-  );
+  // canvas_validate migrated to the operation registry (plan-008 Wave 1):
+  // src/server/operations/ops/validate.ts.
 
   // Connect via stdio
   const transport = new StdioServerTransport();

@@ -40,7 +40,7 @@ function parseJsonText<T>(result: ToolResultShape): T {
 
 const sessions: Array<{ transport: StdioClientTransport; workspaceRoot: string }> = [];
 
-async function createMcpSession(): Promise<Client> {
+async function createMcpSession(): Promise<{ client: Client; port: number }> {
   const workspaceRoot = createTestWorkspace('pmx-canvas-mcp-composites-');
   const port = await getAvailablePort();
   const transport = new StdioClientTransport({
@@ -53,11 +53,32 @@ async function createMcpSession(): Promise<Client> {
   const client = new Client({ name: 'pmx-canvas-mcp-composites-test', version: '0.1.0' }, { capabilities: {} });
   await client.connect(transport);
   sessions.push({ transport, workspaceRoot });
-  return client;
+  return { client, port };
 }
 
 async function call(client: Client, name: string, args: Record<string, unknown>): Promise<ToolResultShape> {
   return (await client.callTool({ name, arguments: args })) as ToolResultShape;
+}
+
+/**
+ * Resolve the HTTP base URL of the in-process canvas server the MCP session
+ * started. It binds the requested port, but may fall back if taken — probe a
+ * small window from `port` upward until /health answers.
+ */
+async function resolveBaseUrl(port: number): Promise<string> {
+  for (let attempt = 0; attempt < 40; attempt++) {
+    for (let offset = 0; offset < 8; offset++) {
+      const baseUrl = `http://127.0.0.1:${port + offset}`;
+      try {
+        const response = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(300) });
+        if (response.ok) return baseUrl;
+      } catch {
+        // server not up yet on this candidate — keep probing.
+      }
+    }
+    await new Promise((r) => setTimeout(r, 100));
+  }
+  throw new Error('Canvas server did not become reachable.');
 }
 
 afterEach(async () => {
@@ -71,7 +92,7 @@ afterEach(async () => {
 
 describe('MCP composite tools (plan-006)', () => {
   test('canvas_node folds add/get/update/remove and matches canvas_get_node', async () => {
-    const client = await createMcpSession();
+    const { client } = await createMcpSession();
 
     const added = parseJsonText<{ id: string }>(
       await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Composite', content: '# Hi' }),
@@ -97,7 +118,7 @@ describe('MCP composite tools (plan-006)', () => {
   }, 30000);
 
   test('canvas_query search/layout match canvas_search/canvas_get_layout', async () => {
-    const client = await createMcpSession();
+    const { client } = await createMcpSession();
     await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Findable', content: 'needle' });
 
     const searchComposite = parseJsonText(await call(client, 'canvas_query', { action: 'search', query: 'Findable' }));
@@ -109,8 +130,56 @@ describe('MCP composite tools (plan-006)', () => {
     expect(layoutComposite).toEqual(layoutStandalone);
   }, 30000);
 
+  test('canvas_query validate matches canvas_validate', async () => {
+    const { client } = await createMcpSession();
+    await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Validatable', content: 'x' });
+
+    // Head-to-head read parity: composite `validate` === standalone canvas_validate.
+    const validateComposite = parseJsonText<{ ok?: boolean; summary?: { nodes?: number } }>(
+      await call(client, 'canvas_query', { action: 'validate' }),
+    );
+    const validateStandalone = parseJsonText(await call(client, 'canvas_validate', {}));
+    expect(validateComposite).toEqual(validateStandalone);
+    // The result carries the validation shape (a board summary), not a generic ok.
+    expect(validateComposite.summary?.nodes).toBeGreaterThanOrEqual(1);
+  }, 30000);
+
+  test('canvas_view remove-annotation removes a drawn annotation; a missing id is a loud error', async () => {
+    const { client, port } = await createMcpSession();
+    // A tool call triggers ensureCanvas(), which starts the in-process canvas
+    // HTTP server (lazily — not at connect time).
+    await call(client, 'canvas_query', { action: 'layout' });
+    // Seed a freehand annotation through the now-running public HTTP API (no MCP
+    // tool draws annotations — humans do, in the browser).
+    const baseUrl = await resolveBaseUrl(port);
+    const annotationId = 'ann-composite-test';
+    const created = await fetch(`${baseUrl}/api/canvas/annotation`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ id: annotationId, type: 'freehand', points: [{ x: 0, y: 0 }, { x: 10, y: 10 }] }),
+    });
+    expect((await created.json() as { ok?: boolean }).ok).toBe(true);
+
+    const removed = parseJsonText<{ ok?: boolean; removed?: string }>(
+      await call(client, 'canvas_view', { action: 'remove-annotation', id: annotationId }),
+    );
+    expect(removed.ok).toBe(true);
+    expect(removed.removed).toBe(annotationId);
+
+    // A non-existent id is a loud error (404 OperationError → isError tool result).
+    const missing = await call(client, 'canvas_view', { action: 'remove-annotation', id: 'does-not-exist' });
+    expect(missing.isError).toBe(true);
+    expect(textOf(missing)).toContain('not found');
+
+    // An OMITTED id is a 400, not a misleading 404 — the composite widens `id` to
+    // optional (node.focus also contributes it), so the handler guards it.
+    const noId = await call(client, 'canvas_view', { action: 'remove-annotation' });
+    expect(noId.isError).toBe(true);
+    expect(textOf(noId)).toContain('Missing id');
+  }, 30000);
+
   test('canvas_render describe-schema/validate/add-graph match standalone tools', async () => {
-    const client = await createMcpSession();
+    const { client } = await createMcpSession();
 
     const schemaComposite = parseJsonText(await call(client, 'canvas_render', { action: 'describe-schema' }));
     const schemaStandalone = parseJsonText(await call(client, 'canvas_describe_schema', {}));
@@ -143,7 +212,7 @@ describe('MCP composite tools (plan-006)', () => {
   }, 30000);
 
   test('canvas_edge folds add/remove', async () => {
-    const client = await createMcpSession();
+    const { client } = await createMcpSession();
     const a = parseJsonText<{ id: string }>(await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'A' }));
     const b = parseJsonText<{ id: string }>(await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'B' }));
 
@@ -162,7 +231,7 @@ describe('MCP composite tools (plan-006)', () => {
   }, 30000);
 
   test('canvas_group create/ungroup and canvas_view focus/fit/arrange', async () => {
-    const client = await createMcpSession();
+    const { client } = await createMcpSession();
     const node = parseJsonText<{ id: string }>(await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Grouped' }));
 
     const group = parseJsonText<{ id?: string; groupId?: string }>(
@@ -181,7 +250,7 @@ describe('MCP composite tools (plan-006)', () => {
   }, 30000);
 
   test('canvas_history undo/redo reverse the last mutation', async () => {
-    const client = await createMcpSession();
+    const { client } = await createMcpSession();
     const node = parseJsonText<{ id: string }>(await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Undoable' }));
 
     expect((await call(client, 'canvas_history', { action: 'undo' })).isError ?? false).toBe(false);
@@ -194,7 +263,7 @@ describe('MCP composite tools (plan-006)', () => {
   }, 30000);
 
   test('an unknown action is a loud error, not a silent no-op', async () => {
-    const client = await createMcpSession();
+    const { client } = await createMcpSession();
     const result = await call(client, 'canvas_node', { action: 'frobnicate', id: 'x' });
     // The derived `action` enum rejects unknown actions loudly at the schema
     // validation layer (before dispatch) — never a silent no-op.
@@ -210,7 +279,7 @@ describe('MCP composite tools (plan-006)', () => {
 // behavior assertions where it mutates.
 describe('MCP AX composite tools (plan-007 Slice C)', () => {
   test('canvas_ax_state get/set-focus/set-policy/report-capability match standalone tools', async () => {
-    const client = await createMcpSession();
+    const { client } = await createMcpSession();
     const node = parseJsonText<{ id: string }>(
       await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'AX state' }),
     );
@@ -246,7 +315,7 @@ describe('MCP AX composite tools (plan-007 Slice C)', () => {
   }, 30000);
 
   test('canvas_ax_work add/update/annotate match standalone tools', async () => {
-    const client = await createMcpSession();
+    const { client } = await createMcpSession();
     const node = parseJsonText<{ id: string }>(
       await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Reviewable' }),
     );
@@ -277,7 +346,7 @@ describe('MCP AX composite tools (plan-007 Slice C)', () => {
   }, 30000);
 
   test('canvas_ax_timeline read/record-event/add-evidence/send-steering match standalone tools', async () => {
-    const client = await createMcpSession();
+    const { client } = await createMcpSession();
 
     const event = parseJsonText<{ ok?: boolean; event?: { kind?: string } }>(
       await call(client, 'canvas_ax_timeline', { action: 'record-event', kind: 'tool-start', summary: 'started' }),
@@ -304,7 +373,7 @@ describe('MCP AX composite tools (plan-007 Slice C)', () => {
   }, 30000);
 
   test('canvas_ax_delivery claim/mark match standalone tools', async () => {
-    const client = await createMcpSession();
+    const { client } = await createMcpSession();
     // Steering originated by `browser` so the `mcp` consumer can claim it (loop-safe).
     const steering = parseJsonText<{ steering?: { id: string } }>(
       await call(client, 'canvas_ax_timeline', { action: 'send-steering', message: 'do the thing', source: 'browser' }),
@@ -324,7 +393,7 @@ describe('MCP AX composite tools (plan-007 Slice C)', () => {
   }, 30000);
 
   test('canvas_ax_gate folds approval request → resolve (kind × action)', async () => {
-    const client = await createMcpSession();
+    const { client } = await createMcpSession();
     const requested = parseJsonText<{ ok?: boolean; approvalGate?: { id: string; status?: string; action?: string } }>(
       await call(client, 'canvas_ax_gate', {
         kind: 'approval',
@@ -353,7 +422,7 @@ describe('MCP AX composite tools (plan-007 Slice C)', () => {
   }, 30000);
 
   test('canvas_ax_gate folds elicitation request → resolve (resolve → respond op)', async () => {
-    const client = await createMcpSession();
+    const { client } = await createMcpSession();
     const requested = parseJsonText<{ ok?: boolean; elicitation?: { id: string; status?: string } }>(
       await call(client, 'canvas_ax_gate', { kind: 'elicitation', action: 'request', prompt: 'Pick a branch' }),
     );
@@ -374,7 +443,7 @@ describe('MCP AX composite tools (plan-007 Slice C)', () => {
   }, 30000);
 
   test('canvas_ax_gate folds mode request and an immediate await read', async () => {
-    const client = await createMcpSession();
+    const { client } = await createMcpSession();
     const requested = parseJsonText<{ ok?: boolean; modeRequest?: { id: string; status?: string } }>(
       await call(client, 'canvas_ax_gate', { kind: 'mode', action: 'request', mode: 'plan' }),
     );
@@ -394,7 +463,7 @@ describe('MCP AX composite tools (plan-007 Slice C)', () => {
   }, 30000);
 
   test('canvas_ax_gate rejects an invalid kind/action combo loudly', async () => {
-    const client = await createMcpSession();
+    const { client } = await createMcpSession();
     // Invalid kind: the `kind` enum rejects it at the schema layer.
     const badKind = await call(client, 'canvas_ax_gate', { kind: 'nonsense', action: 'request' });
     expect(badKind.isError).toBe(true);
