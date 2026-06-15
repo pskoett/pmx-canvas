@@ -64,6 +64,23 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   `canvas_query` gains `validate` (→ `validate.get`) and `canvas_view` gains
   `remove-annotation` (→ `annotation.remove`).
 
+- **Batch migrated to the `canvas.batch` registry meta-op (plan-008 Wave 2 —
+  the last and highest-risk registry slice).** `canvas_batch` now dispatches
+  each entry through the shared `executeOperation` path (defined once in
+  `src/server/operations/ops/batch.ts`) instead of a hand-written ~290-line
+  switch in `canvas-operations.ts`, which is deleted along with its
+  `resolveBatchRefs` / `serializeCreatedNode` helpers, the
+  `handleCanvasBatch` HTTP handler + route, and the standalone `canvas_batch`
+  MCP tool block. `executeOperation` gained an internal, depth-counted
+  emit-suppression (`runWithSuppressedEmits`) so the meta-op runs every entry
+  with per-entry SSE frames suppressed and then emits exactly ONE final
+  `canvas-layout-update` — preserving the single-final-frame behavior. The
+  `canvas_batch` tool name, the `{ operations:[...] }` and bare-`[...]` body
+  shapes, per-entry result shapes, and the `{ ok, results, refs, failedIndex?,
+  error? }` envelope are unchanged; per-entry ops record their own undo/redo
+  history as before. The SDK `PmxCanvas.runBatch` stays public and delegates to
+  the meta-op.
+
 - **Deleting a node no longer silently re-anchors AX work (plan-007 Slice A).**
   Node deletion already re-normalized canvas-bound AX state (work items / approval
   gates / elicitations / mode requests keep the item but lose the dangling node

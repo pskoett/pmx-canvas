@@ -16,6 +16,7 @@ import { axStateOperations } from './ops/ax-state.js';
 import { axWorkOperations } from './ops/ax-work.js';
 import { axTimelineOperations } from './ops/ax-timeline.js';
 import { axAwaitOperations } from './ops/ax-await.js';
+import { batchOperations } from './ops/batch.js';
 
 for (const op of [
   ...nodeOperations,
@@ -31,6 +32,7 @@ for (const op of [
   ...axWorkOperations,
   ...axTimelineOperations,
   ...axAwaitOperations,
+  ...batchOperations,
 ]) {
   registerOperation(op);
 }
@@ -43,6 +45,7 @@ export {
   setOperationEventEmitter,
 } from './registry.js';
 export { dispatchOperationRoute } from './http.js';
+export { runCanvasBatchOperation, type BatchEnvelope } from './ops/batch.js';
 export { LocalOperationInvoker, HttpOperationInvoker, type OperationInvoker } from './invoker.js';
 export { registerOperationTools, registerCompositeTools, type OperationToolHost } from './mcp.js';
 export { compositeToolDefinitions, type CompositeToolDefinition } from './composites.js';

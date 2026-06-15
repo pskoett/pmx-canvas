@@ -37,8 +37,26 @@ export function setOperationEventEmitter(emitter: OperationEventEmitter | null):
   operationEventEmitter = emitter;
 }
 
+// Depth-counted emit suppression (mirrors canvasState._suppressRecordingDepth).
+// While > 0, emitOperationEvent is a no-op so a meta-op (canvas.batch) can run
+// many sub-ops without producing per-entry SSE frames, then emit ONE final
+// layout frame itself. Both the `mutates` auto-emit and `ctx.emit` route through
+// emitOperationEvent, so this covers both. Re-entrant-safe via the depth counter.
+let suppressEmitDepth = 0;
+
 function emitOperationEvent(event: string, payload: Record<string, unknown> = {}): void {
+  if (suppressEmitDepth > 0) return;
   operationEventEmitter?.(event, payload);
+}
+
+/** Run `fn` with all operation SSE emits suppressed; restores depth on finally. */
+export async function runWithSuppressedEmits<T>(fn: () => Promise<T>): Promise<T> {
+  suppressEmitDepth++;
+  try {
+    return await fn();
+  } finally {
+    suppressEmitDepth--;
+  }
 }
 
 const operationContext: OperationContext = { emit: emitOperationEvent };

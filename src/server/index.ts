@@ -48,7 +48,6 @@ import {
   createCanvasJsonRenderNode,
   fitCanvasView,
   deleteCanvasSnapshot,
-  executeCanvasBatch,
   gcCanvasSnapshots,
   groupCanvasNodes,
   listCanvasSnapshots,
@@ -69,6 +68,7 @@ import {
   setGroupChildrenFromApi,
 } from './operations/ops/nodes.js';
 import { streamJsonRenderCore } from './operations/ops/json-render.js';
+import { runCanvasBatchOperation } from './operations/index.js';
 import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
 import { serializeCanvasNode, type SerializedCanvasNode } from './canvas-serialization.js';
@@ -883,9 +883,11 @@ export class PmxCanvas extends EventEmitter {
   }
 
   async runBatch(operations: Array<{ op: string; assign?: string; args?: Record<string, unknown> }>) {
-    const result = await executeCanvasBatch(operations);
-    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    return result;
+    // Delegates to the canvas.batch registry meta-op (plan-008 Wave 2). The op
+    // emits the single final canvas-layout-update itself (via the registry
+    // emitter, which server.ts wires to emitPrimaryWorkbenchEvent) — do NOT
+    // emit again here or the frame would fire twice.
+    return await runCanvasBatchOperation(operations);
   }
 
   async buildWebArtifact(

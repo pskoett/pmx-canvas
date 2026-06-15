@@ -85,7 +85,6 @@ import { normalizeCanvasTheme, type CanvasTheme } from './canvas-db.js';
 import { validateLocalImageFile } from './image-source.js';
 import {
   applyCanvasNodeUpdates,
-  executeCanvasBatch,
   refreshCanvasWebpageNode,
   primeCanvasRuntimeBackends,
   setCanvasLayoutUpdateEmitter,
@@ -893,34 +892,6 @@ async function readJson(req: Request): Promise<Record<string, unknown>> {
   }
 }
 
-/**
- * Like {@link readJson}, but PRESERVES a top-level JSON array. For endpoints that
- * accept either an object or a bare array (e.g. `/api/canvas/batch`, whose CLI
- * help and handler both document a bare `[...]` form). readJson coerces arrays to
- * `{}` so object-shaped handlers never crash on `body.field`; this variant keeps
- * the array so the handler's array branch can run. Empty/whitespace/malformed
- * bodies still resolve to `{}`.
- */
-async function readJsonObjectOrArray(req: Request): Promise<Record<string, unknown> | unknown[]> {
-  let text = '';
-  try {
-    text = await req.text();
-  } catch (error) {
-    logWorkbenchWarning('readJson', error);
-    return {};
-  }
-  if (!text.trim()) return {};
-  try {
-    const value = JSON.parse(text) as unknown;
-    if (Array.isArray(value)) return value;
-    if (!value || typeof value !== 'object') return {};
-    return value as Record<string, unknown>;
-  } catch (error) {
-    logWorkbenchWarning('readJson', error);
-    return {};
-  }
-}
-
 function htmlEscape(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -1594,27 +1565,6 @@ async function handleCanvasBuildWebArtifact(req: Request): Promise<Response> {
     const message = error instanceof Error ? error.message : String(error);
     return responseJson({ ok: false, error: message }, 400);
   }
-}
-
-async function handleCanvasBatch(req: Request): Promise<Response> {
-  // Accept both documented shapes: { operations: [...] } and a bare [...] array.
-  // Uses the array-preserving reader so the bare-array form isn't coerced to {}.
-  const body = await readJsonObjectOrArray(req);
-  const operations = Array.isArray(body)
-    ? body
-    : Array.isArray(body.operations) ? body.operations : [];
-  const normalized = operations
-    .filter((operation): operation is Record<string, unknown> => operation && typeof operation === 'object' && !Array.isArray(operation))
-    .map((operation) => ({
-      op: String(operation.op ?? ''),
-      ...(typeof operation.assign === 'string' ? { assign: operation.assign } : {}),
-      args: operation.args && typeof operation.args === 'object' && !Array.isArray(operation.args)
-        ? operation.args as Record<string, unknown>
-        : {},
-    }));
-  const result = await executeCanvasBatch(normalized);
-  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson(result, result.ok ? 200 : 400);
 }
 
 async function handleCanvasThemeUpdate(req: Request): Promise<Response> {
@@ -4018,9 +3968,8 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleCanvasUpdate(req);
           }
 
-          if (url.pathname === '/api/canvas/batch' && req.method === 'POST') {
-            return handleCanvasBatch(req);
-          }
+          // POST /api/canvas/batch migrated to the operation registry
+          // (plan-008 Wave 2): src/server/operations/ops/batch.ts.
 
           if (url.pathname === '/api/canvas/viewport' && req.method === 'POST') {
             return handleCanvasViewport(req);

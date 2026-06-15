@@ -232,28 +232,6 @@ function agentSafeFullLayoutPayload(layout: Awaited<ReturnType<CanvasAccess['get
   };
 }
 
-function compactBatchValue(value: unknown): unknown {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
-  const record = value as Record<string, unknown>;
-  const nodeLike = typeof record.id === 'string' && typeof record.type === 'string';
-  const compact: Record<string, unknown> = {};
-  for (const key of ['ok', 'id', 'type', 'kind', 'title', 'content', 'position', 'size', 'fetch', 'error', 'from', 'to', 'groupId', 'nodeIds', 'snapshot', 'arranged', 'layout']) {
-    if (record[key] !== undefined) compact[key] = record[key];
-  }
-  if (nodeLike) return compact;
-  return record;
-}
-
-function compactBatchResult(result: { ok: boolean; results: Array<Record<string, unknown>>; refs: Record<string, unknown>; failedIndex?: number; error?: string }): Record<string, unknown> {
-  return {
-    ok: result.ok,
-    ...(result.failedIndex !== undefined ? { failedIndex: result.failedIndex } : {}),
-    ...(result.error ? { error: result.error } : {}),
-    results: result.results.map((entry) => compactBatchValue(entry)),
-    refs: Object.fromEntries(Object.entries(result.refs).map(([key, value]) => [key, compactBatchValue(value)])),
-  };
-}
-
 async function createdNodePayload(c: CanvasAccess, id: string, options: { full?: boolean; verbose?: boolean; includeData?: boolean } = {}): Promise<Record<string, unknown>> {
   // Expose both `id` and a `nodeId` alias on every node-create response so
   // agents using either key (or a cached schema) work — matching the
@@ -1334,29 +1312,8 @@ export async function startMcpServer(): Promise<void> {
     );
   }
 
-  server.tool(
-    'canvas_batch',
-    'Run a non-atomic batch of canvas operations with optional assigned references. Use assign to name a result, then reference it later as "$name" for the created node id or "$name.id" for a specific result field. On failure, earlier successful operations remain applied and the response includes ok:false, failedIndex, error, results, and refs. Supports node.add, node.update, node.remove, graph.add, edge.add, group.create, group.add, group.remove, pin.set/add/remove, snapshot.save, and arrange.',
-    {
-      operations: z.array(z.object({
-        op: z.string().describe('Operation name, e.g. "node.add" or "edge.add"'),
-        assign: z.string().optional().describe('Optional reference name for later operations'),
-        args: z.record(z.string(), z.unknown()).optional().describe('Operation arguments'),
-      })).describe('Ordered array of batch operations'),
-      full: z.boolean().optional().describe('Return full batch operation results. Default false compacts node-like payloads.'),
-      verbose: z.boolean().optional().describe('Alias for full:true.'),
-    },
-    async (input) => {
-      const c = await ensureCanvas();
-      const result = await c.runBatch(input.operations);
-      const payload = wantsFullPayload(input) ? result : compactBatchResult(result);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-        ...(result.ok ? {} : { isError: true }),
-      };
-    },
-  );
-
+  // canvas_batch migrated to the operation registry (plan-008 Wave 2):
+  // src/server/operations/ops/batch.ts.
   // canvas_validate migrated to the operation registry (plan-008 Wave 1):
   // src/server/operations/ops/validate.ts.
 

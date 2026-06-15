@@ -539,6 +539,66 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     }
   });
 
+  test('SSE: a canvas_batch of N mutating ops emits exactly ONE canvas-layout-update (plan-008 Wave 2)', async () => {
+    const sse = await connectSse(baseUrl);
+    try {
+      expect(await sse.waitForCount('canvas-layout-update', 1)).toBe(true);
+      await Bun.sleep(150);
+      const baseline = sse.count('canvas-layout-update');
+      // Three mutating entries: the registry suppresses per-entry emits during
+      // the batch loop and the meta-op fires ONE final frame — not one-per-entry.
+      const res = await jsonRequest<{ ok: boolean; results: unknown[] }>('/api/canvas/batch', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          operations: [
+            { op: 'node.add', args: { type: 'markdown', title: 'batch frame 1' } },
+            { op: 'node.add', args: { type: 'markdown', title: 'batch frame 2' } },
+            { op: 'node.add', args: { type: 'markdown', title: 'batch frame 3' } },
+          ],
+        }),
+      });
+      expect(res.ok).toBe(true);
+      expect(res.results).toHaveLength(3);
+      expect(await sse.waitForCount('canvas-layout-update', baseline + 1)).toBe(true);
+      // Exactly one frame for the whole batch — confirm no late/per-entry frames.
+      await Bun.sleep(300);
+      expect(sse.count('canvas-layout-update')).toBe(baseline + 1);
+    } finally {
+      sse.close();
+    }
+  });
+
+  test('canvas_batch records per-entry history — one undo reverses the last entry only', async () => {
+    const batch = await jsonRequest<{ ok: boolean; results: Array<{ id?: string }> }>('/api/canvas/batch', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        operations: [
+          { op: 'node.add', args: { type: 'markdown', title: 'batch-hist-1' } },
+          { op: 'node.add', args: { type: 'markdown', title: 'batch-hist-2' } },
+        ],
+      }),
+    });
+    expect(batch.ok).toBe(true);
+    const titles = async (): Promise<string[]> => {
+      const layout = await jsonRequest<{ nodes: Array<{ title?: string }> }>('/api/canvas/state');
+      return layout.nodes.map((n) => n.title ?? '');
+    };
+    expect(await titles()).toEqual(expect.arrayContaining(['batch-hist-1', 'batch-hist-2']));
+
+    // Each batch entry recorded its own history entry (the op handlers record via
+    // canvasState.onMutation, independent of emit suppression). So one undo
+    // reverses only the LAST entry, not the whole batch.
+    await jsonRequest('/api/canvas/undo', { method: 'POST' });
+    const afterUndo = await titles();
+    expect(afterUndo).toContain('batch-hist-1');
+    expect(afterUndo).not.toContain('batch-hist-2');
+
+    await jsonRequest('/api/canvas/redo', { method: 'POST' });
+    expect(await titles()).toEqual(expect.arrayContaining(['batch-hist-1', 'batch-hist-2']));
+  });
+
   test('HTTP mutations tolerate unknown extra body keys (ignored, not persisted)', async () => {
     // POST with junk keys: 2xx, node created, junk does not land on the node.
     const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
