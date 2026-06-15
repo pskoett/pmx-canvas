@@ -60,9 +60,7 @@ import {
   listMcpAppResources,
   listMcpAppResourceTemplates,
   listMcpAppTools,
-  openMcpApp,
   readMcpAppResource,
-  type ExternalMcpTransportConfig,
 } from './mcp-app-runtime.js';
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { mutationHistory } from './mutation-history.js';
@@ -100,14 +98,12 @@ import {
   EXCALIDRAW_READ_CHECKPOINT_TOOL,
   EXCALIDRAW_SAVE_CHECKPOINT_TOOL,
   buildExcalidrawCheckpointId,
-  buildExcalidrawOpenMcpAppInput,
   buildExcalidrawRestoreCheckpointToolInput,
   ensureExcalidrawCheckpointId,
   getExcalidrawCheckpointIdFromToolResult,
   isExcalidrawCreateView,
 } from './diagram-presets.js';
 import { traceManager } from './trace-manager.js';
-import { buildWebArtifactOnCanvas, resolveWorkspacePath } from './web-artifacts.js';
 import {
   buildJsonRenderViewerHtml,
 } from '../json-render/server.js';
@@ -1529,82 +1525,8 @@ async function handleCanvasRefreshWebpageNode(nodeId: string, req: Request): Pro
   return responseJson(result, result.ok ? 200 : 400);
 }
 
-async function handleCanvasBuildWebArtifact(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const title = typeof body.title === 'string' ? body.title.trim() : '';
-  const appTsx = typeof body.appTsx === 'string' ? body.appTsx : '';
-  if (!title || !appTsx) {
-    return responseJson({ ok: false, error: 'Missing required fields: title, appTsx.' }, 400);
-  }
-
-  const files: Record<string, string> = {};
-  if (body.files && typeof body.files === 'object' && !Array.isArray(body.files)) {
-    for (const [pathKey, value] of Object.entries(body.files as Record<string, unknown>)) {
-      if (typeof value === 'string') files[pathKey] = value;
-    }
-  }
-
-  try {
-    const result = await buildWebArtifactOnCanvas({
-      title,
-      appTsx,
-      ...(typeof body.indexCss === 'string' ? { indexCss: body.indexCss } : {}),
-      ...(typeof body.mainTsx === 'string' ? { mainTsx: body.mainTsx } : {}),
-      ...(typeof body.indexHtml === 'string' ? { indexHtml: body.indexHtml } : {}),
-      ...(Object.keys(files).length > 0 ? { files } : {}),
-      ...(typeof body.projectPath === 'string'
-        ? { projectPath: resolveWorkspacePath(body.projectPath, activeWorkspaceRoot) }
-        : {}),
-      ...(typeof body.outputPath === 'string'
-        ? { outputPath: resolveWorkspacePath(body.outputPath, activeWorkspaceRoot) }
-        : {}),
-      // Script-path overrides are honored only when contained inside the
-      // workspace (enforced by resolveTrustedScriptPath in
-      // executeWebArtifactBuild), so they cannot point at an arbitrary host
-      // script for bash execution.
-      ...(typeof body.initScriptPath === 'string'
-        ? { initScriptPath: body.initScriptPath }
-        : {}),
-      ...(typeof body.bundleScriptPath === 'string'
-        ? { bundleScriptPath: body.bundleScriptPath }
-        : {}),
-      ...(Array.isArray(body.deps)
-        ? { deps: body.deps.filter((dep): dep is string => typeof dep === 'string') }
-        : {}),
-      ...(typeof body.timeoutMs === 'number' ? { timeoutMs: body.timeoutMs } : {}),
-      ...(typeof body.openInCanvas === 'boolean' ? { openInCanvas: body.openInCanvas } : {}),
-    });
-
-    return responseJson({
-      ok: true,
-      path: result.filePath,
-      bytes: result.fileSize,
-      projectPath: result.projectPath,
-      openedInCanvas: result.openedInCanvas,
-      startedAt: result.startedAt,
-      completedAt: result.completedAt,
-      durationMs: result.durationMs,
-      timeoutMs: result.timeoutMs,
-      // `id` is the canvas node id alias used by every other add-style
-      // response. It is only present when a canvas node was actually
-      // created (i.e. openInCanvas was not explicitly disabled). When
-      // there is no canvas node, the alias is intentionally omitted so
-      // consumers can `'id' in response` to detect the build-only case.
-      ...(typeof result.nodeId === 'string' ? { id: result.nodeId } : {}),
-      nodeId: result.nodeId,
-      url: result.url,
-      metadata: result.metadata,
-      logs: result.logs,
-      ...(body.includeLogs === true ? {
-        stdout: result.stdout,
-        stderr: result.stderr,
-      } : {}),
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return responseJson({ ok: false, error: message }, 400);
-  }
-}
+// handleCanvasBuildWebArtifact migrated to the operation registry
+// (plan-008 Wave 4): src/server/operations/ops/app.ts (webartifact.build).
 
 async function handleCanvasThemeUpdate(req: Request): Promise<Response> {
   const body = await readJson(req);
@@ -1876,218 +1798,6 @@ function handleRead(pathLike: string): Response {
     title: basename(safePath),
     content,
     updatedAt: new Date(stat.mtimeMs).toISOString(),
-  });
-}
-
-function randomExtAppToolCallId(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function normalizeStringRecord(value: unknown): Record<string, string> | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
-  const entries = Object.entries(value)
-    .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-    .map(([key, text]) => [key, text.trim()] as const)
-    .filter(([, text]) => text.length > 0);
-  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
-}
-
-function parseExternalMcpTransportConfig(body: Record<string, unknown>): ExternalMcpTransportConfig | null {
-  const transport = body.transport;
-  if (!transport || typeof transport !== 'object' || Array.isArray(transport)) return null;
-  const transportRecord = transport as Record<string, unknown>;
-
-  const type = typeof transportRecord.type === 'string' ? transportRecord.type : '';
-  if (type === 'http') {
-    const url = typeof transportRecord.url === 'string' ? transportRecord.url.trim() : '';
-    if (!url) return null;
-    const headers = normalizeStringRecord(transportRecord.headers);
-    return {
-      type: 'http',
-      url,
-      ...(headers ? { headers } : {}),
-    };
-  }
-
-  if (type === 'stdio') {
-    const command = typeof transportRecord.command === 'string' ? transportRecord.command.trim() : '';
-    if (!command) return null;
-    const env = normalizeStringRecord(transportRecord.env);
-    return {
-      type: 'stdio',
-      command,
-      ...(Array.isArray(transportRecord.args)
-        ? { args: transportRecord.args.filter((value: unknown): value is string => typeof value === 'string') }
-        : {}),
-      ...(typeof transportRecord.cwd === 'string' && transportRecord.cwd.trim().length > 0 ? { cwd: transportRecord.cwd } : {}),
-      ...(env ? { env } : {}),
-    };
-  }
-
-  return null;
-}
-
-interface RunAndEmitOpenMcpAppParams {
-  transport: ExternalMcpTransportConfig;
-  toolName: string;
-  toolArguments?: Record<string, unknown>;
-  nodeId?: string;
-  serverName?: string;
-  title?: string;
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  timeoutMs?: number;
-}
-
-async function runAndEmitOpenMcpApp(params: RunAndEmitOpenMcpAppParams): Promise<Response> {
-  try {
-    const targetNode = params.nodeId ? canvasState.getNode(params.nodeId) : undefined;
-    if (params.nodeId && !targetNode) {
-      return responseJson({ ok: false, error: `Node "${params.nodeId}" not found.` }, 404);
-    }
-    if (targetNode && (targetNode.type !== 'mcp-app' || targetNode.data.mode !== 'ext-app')) {
-      return responseJson({ ok: false, error: `Node "${params.nodeId}" is not an external app node.` }, 400);
-    }
-
-    const opened = await openMcpApp({
-      transport: params.transport,
-      toolName: params.toolName,
-      ...(params.toolArguments ? { toolArguments: params.toolArguments } : {}),
-      ...(params.serverName ? { serverName: params.serverName } : {}),
-      ...(typeof params.timeoutMs === 'number' ? { timeoutMs: params.timeoutMs } : {}),
-    });
-
-    const toolCallId = randomExtAppToolCallId();
-    if (params.nodeId) closeNodeAppSession(targetNode);
-    const nodeIdSeed = params.nodeId ?? (toolCallId.startsWith('ext-app-') ? toolCallId : `ext-app-${toolCallId}`);
-    const toolResult = isExcalidrawCreateView(opened.serverName, opened.toolName)
-      ? ensureExcalidrawCheckpointId(opened.toolResult, nodeIdSeed)
-      : opened.toolResult;
-    const nodeTitle = params.title
-      ?? (typeof targetNode?.data.title === 'string' ? targetNode.data.title : undefined)
-      ?? opened.tool.title
-      ?? opened.tool.name;
-
-    emitPrimaryWorkbenchEvent('ext-app-open', {
-      toolCallId,
-      nodeId: nodeIdSeed,
-      title: nodeTitle,
-      html: opened.html,
-      toolInput: opened.toolInput,
-      serverName: opened.serverName,
-      toolName: opened.toolName,
-      appSessionId: opened.sessionId,
-      transportConfig: params.transport,
-      resourceUri: opened.resourceUri,
-      toolDefinition: opened.tool,
-      sessionStatus: 'ready',
-      sessionError: null,
-      ...(opened.resourceMeta ? { resourceMeta: opened.resourceMeta } : {}),
-      ...(typeof params.x === 'number' ? { x: params.x } : {}),
-      ...(typeof params.y === 'number' ? { y: params.y } : {}),
-      ...(typeof params.width === 'number' ? { width: params.width } : {}),
-      ...(typeof params.height === 'number' ? { height: params.height } : {}),
-    });
-    emitPrimaryWorkbenchEvent('ext-app-result', {
-      toolCallId,
-      nodeId: nodeIdSeed,
-      serverName: opened.serverName,
-      toolName: opened.toolName,
-      success: toolResult.isError !== true,
-      result: toolResult,
-    });
-    const nodeId = params.nodeId ?? findCanvasExtAppNodeId(toolCallId);
-
-    return responseJson({
-      ok: true,
-      ...(nodeId ? { id: nodeId } : {}),
-      nodeId,
-      toolCallId,
-      sessionId: opened.sessionId,
-      resourceUri: opened.resourceUri,
-      serverName: opened.serverName,
-      toolName: opened.toolName,
-    });
-  } catch (error) {
-    return responseJson({
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    }, 400);
-  }
-}
-
-async function handleCanvasOpenMcpApp(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const transport = parseExternalMcpTransportConfig(body);
-  const toolName = typeof body.toolName === 'string' ? body.toolName.trim() : '';
-  if (!transport || !toolName) {
-    return responseJson({ ok: false, error: 'Missing valid transport or toolName.' }, 400);
-  }
-
-  const toolArguments =
-    body.toolArguments && typeof body.toolArguments === 'object' && !Array.isArray(body.toolArguments)
-      ? body.toolArguments as Record<string, unknown>
-      : undefined;
-
-  const requestedTitle = typeof body.title === 'string' && body.title.trim().length > 0
-    ? body.title.trim()
-    : undefined;
-  const requestedServerName = typeof body.serverName === 'string' && body.serverName.trim().length > 0
-    ? body.serverName.trim()
-    : undefined;
-  const requestedNodeId = typeof body.nodeId === 'string' && body.nodeId.trim().length > 0
-    ? body.nodeId.trim()
-    : undefined;
-
-  return runAndEmitOpenMcpApp({
-    transport,
-    toolName,
-    ...(toolArguments ? { toolArguments } : {}),
-    ...(requestedNodeId ? { nodeId: requestedNodeId } : {}),
-    ...(requestedServerName ? { serverName: requestedServerName } : {}),
-    ...(requestedTitle ? { title: requestedTitle } : {}),
-    ...(typeof body.x === 'number' ? { x: body.x } : {}),
-    ...(typeof body.y === 'number' ? { y: body.y } : {}),
-    ...(typeof body.width === 'number' ? { width: body.width } : {}),
-    ...(typeof body.height === 'number' ? { height: body.height } : {}),
-    ...(typeof body.timeoutMs === 'number' ? { timeoutMs: body.timeoutMs } : {}),
-  });
-}
-
-async function handleCanvasAddDiagram(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  let built;
-  try {
-    built = buildExcalidrawOpenMcpAppInput({
-      elements: body.elements,
-      ...(typeof body.nodeId === 'string' ? { nodeId: body.nodeId } : {}),
-      ...(typeof body.title === 'string' ? { title: body.title } : {}),
-      ...(typeof body.x === 'number' ? { x: body.x } : {}),
-      ...(typeof body.y === 'number' ? { y: body.y } : {}),
-      ...(typeof body.width === 'number' ? { width: body.width } : {}),
-      ...(typeof body.height === 'number' ? { height: body.height } : {}),
-      ...(typeof body.timeoutMs === 'number' ? { timeoutMs: body.timeoutMs } : {}),
-    });
-  } catch (error) {
-    return responseJson({
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    }, 400);
-  }
-  return runAndEmitOpenMcpApp({
-    transport: built.transport,
-    toolName: built.toolName,
-    toolArguments: built.toolArguments,
-    serverName: built.serverName,
-    ...(built.nodeId ? { nodeId: built.nodeId } : {}),
-    ...(built.title ? { title: built.title } : {}),
-    ...(typeof built.x === 'number' ? { x: built.x } : {}),
-    ...(typeof built.y === 'number' ? { y: built.y } : {}),
-    ...(typeof built.width === 'number' ? { width: built.width } : {}),
-    ...(typeof built.height === 'number' ? { height: built.height } : {}),
-    ...(typeof built.timeoutMs === 'number' ? { timeoutMs: built.timeoutMs } : {}),
   });
 }
 
@@ -3903,17 +3613,9 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleCanvasAddAnnotation(req);
           }
 
-          if (url.pathname === '/api/canvas/mcp-app/open' && req.method === 'POST') {
-            return handleCanvasOpenMcpApp(req);
-          }
-
-          if (url.pathname === '/api/canvas/diagram' && req.method === 'POST') {
-            return handleCanvasAddDiagram(req);
-          }
-
-          if (url.pathname === '/api/canvas/web-artifact' && req.method === 'POST') {
-            return handleCanvasBuildWebArtifact(req);
-          }
+          // POST /api/canvas/mcp-app/open, /api/canvas/diagram, and
+          // /api/canvas/web-artifact migrated to the operation registry
+          // (plan-008 Wave 4): src/server/operations/ops/app.ts.
 
           // Individual node GET/PATCH/DELETE
           if (url.pathname.startsWith('/api/canvas/node/') && url.pathname.endsWith('/refresh') && req.method === 'POST') {

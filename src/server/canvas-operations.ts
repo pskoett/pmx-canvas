@@ -52,7 +52,7 @@ export function setCanvasLayoutUpdateEmitter(emitter: (() => void) | null): void
   canvasLayoutUpdateEmitter = emitter;
 }
 
-function emitCanvasLayoutUpdate(): void {
+export function emitCanvasLayoutUpdate(): void {
   canvasLayoutUpdateEmitter?.();
 }
 

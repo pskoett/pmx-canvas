@@ -16,9 +16,11 @@ import {
 } from '../server/operations/index.js';
 
 type RefreshWebpageNodeResult = Awaited<ReturnType<PmxCanvas['refreshWebpageNode']>>;
-type OpenMcpAppInput = Parameters<PmxCanvas['openMcpApp']>[0];
-type OpenMcpAppResult = Awaited<ReturnType<PmxCanvas['openMcpApp']>>;
-type AddDiagramInput = Parameters<PmxCanvas['addDiagram']>[0];
+// openMcpApp / addDiagram / buildWebArtifact CanvasAccess methods + their type
+// aliases removed with the standalone MCP tools (plan-008 Wave 4): those tools
+// migrated to the operation registry (mcpapp.open / diagram.open /
+// webartifact.build) and the composite/registry tools dispatch via the invoker,
+// not CanvasAccess. The public SDK PmxCanvas methods are unchanged.
 type AddHtmlNodeInput = Parameters<PmxCanvas['addHtmlNode']>[0];
 type AddHtmlPrimitiveInput = Parameters<PmxCanvas['addHtmlPrimitive']>[0];
 type AddHtmlPrimitiveResult = ReturnType<PmxCanvas['addHtmlPrimitive']>;
@@ -41,8 +43,6 @@ type HistoryResult = ReturnType<PmxCanvas['getHistory']>;
 type RunBatchInput = Parameters<PmxCanvas['runBatch']>[0];
 type RunBatchResult = Awaited<ReturnType<PmxCanvas['runBatch']>>;
 type CodeGraphResult = ReturnType<PmxCanvas['getCodeGraph']>;
-type WebArtifactInput = Parameters<PmxCanvas['buildWebArtifact']>[0];
-type WebArtifactResult = Awaited<ReturnType<PmxCanvas['buildWebArtifact']>>;
 // canvas_screenshot (the only webview tool still hand-written) needs the status
 // + screenshot accessors; the other four webview methods (start/stop/evaluate/
 // resize) migrated to the operation registry (plan-008 Wave 3) and were removed
@@ -68,11 +68,8 @@ export interface CanvasAccess {
   getLayout(): Promise<CanvasLayout>;
   getNode(id: string): Promise<CanvasNodeState | undefined>;
   refreshWebpageNode(id: string, url?: string): Promise<RefreshWebpageNodeResult>;
-  openMcpApp(input: OpenMcpAppInput): Promise<OpenMcpAppResult>;
-  addDiagram(input: AddDiagramInput): Promise<OpenMcpAppResult>;
   addHtmlNode(input: AddHtmlNodeInput): Promise<string>;
   addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult>;
-  buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult>;
   getAxState(): Promise<AxStateResult>;
   getAxContext(options?: { consumer?: string }): Promise<AxContextResult>;
   getAxTimeline(query?: GetAxTimelineQuery): Promise<GetAxTimelineResult>;
@@ -125,14 +122,6 @@ class LocalCanvasAccess implements CanvasAccess {
     return await this.canvas.refreshWebpageNode(id, url);
   }
 
-  async openMcpApp(input: OpenMcpAppInput): Promise<OpenMcpAppResult> {
-    return await this.canvas.openMcpApp(input);
-  }
-
-  async addDiagram(input: AddDiagramInput): Promise<OpenMcpAppResult> {
-    return await this.canvas.addDiagram(input);
-  }
-
   async addHtmlNode(input: AddHtmlNodeInput): Promise<string> {
     // PmxCanvas.addHtmlNode returns the created node; the CanvasAccess contract
     // is a bare id string, so extract it (mirrors addNode above).
@@ -141,10 +130,6 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult> {
     return this.canvas.addHtmlPrimitive(input);
-  }
-
-  async buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult> {
-    return await this.canvas.buildWebArtifact(input);
   }
 
   async getAxState(): Promise<AxStateResult> {
@@ -305,14 +290,6 @@ class RemoteCanvasAccess implements CanvasAccess {
     });
   }
 
-  async openMcpApp(input: OpenMcpAppInput): Promise<OpenMcpAppResult> {
-    return await this.requestJson<OpenMcpAppResult>('POST', '/api/canvas/mcp-app/open', input);
-  }
-
-  async addDiagram(input: AddDiagramInput): Promise<OpenMcpAppResult> {
-    return await this.requestJson<OpenMcpAppResult>('POST', '/api/canvas/diagram', input);
-  }
-
   async addHtmlNode(input: AddHtmlNodeInput): Promise<string> {
     const {
       summary,
@@ -364,10 +341,6 @@ class RemoteCanvasAccess implements CanvasAccess {
       title: response.primitive?.title ?? input.title ?? input.kind,
       htmlBytes: response.primitive?.htmlBytes ?? 0,
     };
-  }
-
-  async buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult> {
-    return await this.requestJson<WebArtifactResult>('POST', '/api/canvas/web-artifact', input);
   }
 
   async getHistory(): Promise<HistoryResult> {

@@ -49,6 +49,14 @@ function emitOperationEvent(event: string, payload: Record<string, unknown> = {}
   operationEventEmitter?.(event, payload);
 }
 
+/** True while operation SSE emits are being suppressed (inside a meta-op such as
+ * canvas.batch). Ops whose effect depends on a live SSE emit firing — e.g.
+ * mcpapp.open, whose canvas node is created as a side-effect of `ext-app-open` —
+ * use this to reject loudly instead of silently no-op'ing in a suppressed run. */
+export function isEmitSuppressed(): boolean {
+  return suppressEmitDepth > 0;
+}
+
 /** Run `fn` with all operation SSE emits suppressed; restores depth on finally. */
 export async function runWithSuppressedEmits<T>(fn: () => Promise<T>): Promise<T> {
   suppressEmitDepth++;

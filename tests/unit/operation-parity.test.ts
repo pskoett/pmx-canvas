@@ -599,6 +599,29 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     expect(await titles()).toEqual(expect.arrayContaining(['batch-hist-1', 'batch-hist-2']));
   });
 
+  test('canvas_batch rejects mcpapp.open loudly (SSE-suppressed node creation) — no silent broken node / leaked session', async () => {
+    // mcpapp.open creates its node from the ext-app-open SSE event, which the
+    // batch suppresses. The op guards isEmitSuppressed() and throws BEFORE
+    // opening any external session, so the batch fails at that entry instead of
+    // returning a null nodeId with a leaked session (plan-008 Wave 4).
+    const res = await jsonRequest<{ ok: boolean; failedIndex?: number; error?: string; results: unknown[] }>(
+      '/api/canvas/batch',
+      {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          operations: [
+            { op: 'mcpapp.open', args: { transport: { type: 'stdio', command: 'echo' }, toolName: 'noop' } },
+          ],
+        }),
+      },
+    );
+    expect(res.ok).toBe(false);
+    expect(res.failedIndex).toBe(0);
+    expect(res.error).toContain('canvas_batch');
+    expect(res.results).toHaveLength(0);
+  });
+
   test('HTTP mutations tolerate unknown extra body keys (ignored, not persisted)', async () => {
     // POST with junk keys: 2xx, node created, junk does not land on the node.
     const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {

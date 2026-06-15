@@ -68,6 +68,30 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   route also stays hand-written). The public MCP surface grows from 81 to 82 tools
   (deliberate; see `tests/unit/mcp-tool-freeze.test.ts`).
 
+- **`canvas_app` composite + the 3 external / built-content tools migrated to the
+  operation registry (plan-008 Wave 4).** `canvas_open_mcp_app`,
+  `canvas_add_diagram`, and `canvas_build_web_artifact` are now defined once in
+  `src/server/operations/ops/app.ts` (ops `mcpapp.open`, `diagram.open`,
+  `webartifact.build`) and shared by HTTP, MCP, and the SDK. They were previously
+  deferred as "poor fits" (stateful external session + custom SSE; long-running
+  build), but they migrate cleanly: `executeOperation` is async (the long-running
+  build fits — the "long-running" caveat is about MCP-client timeouts, not registry
+  fit), and their runtimes are server-independent **domain modules**
+  (`mcp-app-runtime.ts`, `diagram-presets.ts`, `web-artifacts.ts`), not `server.ts`
+  — so the op handlers call them directly, no runner injection. To keep
+  `web-artifacts.ts` server-independent its one `emitPrimaryWorkbenchEvent` call
+  was switched to the already-injected `emitCanvasLayoutUpdate` (canvas-operations'
+  `setCanvasLayoutUpdateEmitter`, wired by `server.ts`). The three ops are
+  `mutates:false`: `mcpapp.open` / `diagram.open` emit `ext-app-open` +
+  `ext-app-result` via `ctx.emit` (byte-identical to the legacy events, fired
+  once); `webartifact.build`'s node creation emits its own `canvas-layout-update`
+  from inside `web-artifacts.ts`. The new `canvas_app` composite folds the three
+  behind an `open-mcp-app` / `diagram` / `build-artifact` action enum; each action
+  dispatches to the same op, so behavior is byte-identical (proven by
+  `tests/unit/mcp-composites.test.ts`). Wire shapes and MCP result shapes are
+  unchanged. The public MCP surface grows from 82 to 83 tools (deliberate; see
+  `tests/unit/mcp-tool-freeze.test.ts`).
+
 ### Changed
 
 - **Board validation and annotation removal migrated to the operation registry
@@ -254,6 +278,15 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   → `evaluate`. They keep working through v0.2 (now registry-served) and are
   removed in v0.3 per `docs/api-stability.md`. `canvas_screenshot` is NOT
   deprecated — it stays standalone (binary payload).
+
+- **The 3 external / built-content MCP tools superseded by the `canvas_app`
+  composite (plan-008 Wave 4).** `canvas_open_mcp_app`, `canvas_add_diagram`, and
+  `canvas_build_web_artifact` now carry a `Deprecated: use canvas_app with action
+  "y".` prefix on their tool description (derived automatically from the composite
+  definition): `canvas_open_mcp_app` → action `open-mcp-app`; `canvas_add_diagram`
+  → `diagram`; `canvas_build_web_artifact` → `build-artifact`. They keep working
+  through v0.2 (now registry-served) and are removed in v0.3 per
+  `docs/api-stability.md`.
 
 - **Single-purpose MCP tools superseded by wave-1 composites.** The standalone
   tools folded by the composites above (`canvas_add_node`, `canvas_get_node`,

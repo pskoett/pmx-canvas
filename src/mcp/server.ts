@@ -22,7 +22,6 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { isAbsolute, relative, resolve } from 'node:path';
 import { z } from 'zod';
 import { canvasState, describeCanvasSchema } from '../server/index.js';
 import { AX_INTERACTION_TYPES } from '../server/ax-interaction.js';
@@ -56,24 +55,9 @@ function structuredSchemaDescription(): string {
     .join(', ');
 }
 
-function workspaceRoot(): string {
-  return resolve(process.cwd());
-}
-
-function isPathInside(base: string, candidate: string): boolean {
-  const rel = relative(base, candidate);
-  if (rel === '') return true;
-  return !rel.startsWith('..') && rel !== '..' && !isAbsolute(rel);
-}
-
-function safeWorkspacePath(pathLike: string): string {
-  const workspace = workspaceRoot();
-  const resolved = resolve(workspace, pathLike);
-  if (!isPathInside(workspace, resolved)) {
-    throw new Error(`Path "${pathLike}" resolves outside workspace.`);
-  }
-  return resolved;
-}
+// workspaceRoot / isPathInside / safeWorkspacePath removed with the
+// canvas_build_web_artifact MCP tool (plan-008 Wave 4). The webartifact.build op
+// sandboxes projectPath/outputPath via web-artifacts.ts resolveWorkspacePath.
 
 async function ensureCanvas(): Promise<CanvasAccess> {
   if (!canvas) {
@@ -380,109 +364,9 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
-  server.tool(
-    'canvas_open_mcp_app',
-    'Connect to an external MCP server that declares a ui:// app resource, call the specified tool, and open the resulting MCP App inside a canvas mcp-app node. This is a full external-MCP transport call, not the CLI kind shortcut; use canvas_add_diagram for the built-in Excalidraw preset.',
-    {
-      toolName: z.string().describe('Tool name on the external MCP server'),
-      serverName: z.string().optional().describe('Optional display name for the external MCP server'),
-      toolArguments: z.record(z.string(), z.unknown()).optional().describe('Arguments passed to the external tool call'),
-      nodeId: z.string().optional().describe('Existing mcp-app node ID to update in place instead of creating a new node.'),
-      title: z.string().optional().describe('Optional canvas node title override'),
-      x: z.number().optional().describe('X position (auto-placed if omitted)'),
-      y: z.number().optional().describe('Y position (auto-placed if omitted)'),
-      width: z.number().optional().describe('Width in pixels (default: 720)'),
-      height: z.number().optional().describe('Height in pixels (default: 500)'),
-      timeoutMs: z.number().optional().describe('Optional MCP request timeout in milliseconds for cold external app servers'),
-      transport: z.union([
-        z.object({
-          type: z.literal('stdio'),
-          command: z.string().describe('Executable used to start the external MCP server'),
-          args: z.array(z.string()).optional().describe('Arguments for the executable'),
-          cwd: z.string().optional().describe('Optional working directory'),
-          env: z.record(z.string(), z.string()).optional().describe('Optional environment overrides'),
-        }),
-        z.object({
-          type: z.literal('http'),
-          url: z.string().describe('Streamable HTTP MCP endpoint URL'),
-          headers: z.record(z.string(), z.string()).optional().describe('Optional HTTP headers'),
-        }),
-      ]).describe('How PMX Canvas should connect to the external MCP server'),
-    },
-    async (input) => {
-      const c = await ensureCanvas();
-      try {
-        const result = await c.openMcpApp({
-          transport: input.transport,
-          toolName: input.toolName,
-          ...(typeof input.serverName === 'string' ? { serverName: input.serverName } : {}),
-          ...(input.toolArguments ? { toolArguments: input.toolArguments } : {}),
-          ...(typeof input.nodeId === 'string' ? { nodeId: input.nodeId } : {}),
-          ...(typeof input.title === 'string' ? { title: input.title } : {}),
-          ...(typeof input.x === 'number' ? { x: input.x } : {}),
-          ...(typeof input.y === 'number' ? { y: input.y } : {}),
-          ...(typeof input.width === 'number' ? { width: input.width } : {}),
-          ...(typeof input.height === 'number' ? { height: input.height } : {}),
-          ...(typeof input.timeoutMs === 'number' ? { timeoutMs: input.timeoutMs } : {}),
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
-          isError: true,
-        };
-      }
-    },
-  );
-
-  server.tool(
-    'canvas_add_diagram',
-    'Draw a hand-drawn diagram on the canvas via the hosted Excalidraw MCP app. Pass an array of Excalidraw elements (rectangles, ellipses, diamonds, arrows, text). The diagram opens inside an mcp-app node that supports fullscreen editing. For other MCP apps, use canvas_open_mcp_app.',
-    {
-      elements: z.union([
-        z.string().describe('JSON array string of Excalidraw elements'),
-        z.array(z.record(z.string(), z.unknown())).describe('Array of Excalidraw elements'),
-      ]).describe('Excalidraw elements to render. See https://github.com/excalidraw/excalidraw-mcp for the element format.'),
-      nodeId: z.string().optional().describe('Existing Excalidraw mcp-app node ID to update in place instead of creating a new node.'),
-      title: z.string().optional().describe('Optional canvas node title override'),
-      x: z.number().optional().describe('X position (auto-placed if omitted)'),
-      y: z.number().optional().describe('Y position (auto-placed if omitted)'),
-      width: z.number().optional().describe('Width in pixels (default: 720)'),
-      height: z.number().optional().describe('Height in pixels (default: 500)'),
-      timeoutMs: z.number().optional().describe('Optional MCP request timeout in milliseconds for Excalidraw cold starts. Client-side MCP hosts may still enforce their own total request timeout.'),
-    },
-    async (input, extra) => {
-      const c = await ensureCanvas();
-      try {
-        const result = await c.addDiagram({
-          elements: input.elements,
-          ...(typeof input.nodeId === 'string' ? { nodeId: input.nodeId } : {}),
-          ...(typeof input.title === 'string' ? { title: input.title } : {}),
-          ...(typeof input.x === 'number' ? { x: input.x } : {}),
-          ...(typeof input.y === 'number' ? { y: input.y } : {}),
-          ...(typeof input.width === 'number' ? { width: input.width } : {}),
-          ...(typeof input.height === 'number' ? { height: input.height } : {}),
-          ...(typeof input.timeoutMs === 'number' ? { timeoutMs: input.timeoutMs } : {}),
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (error) {
-        if (extra.signal.aborted) {
-          return {
-            content: [{ type: 'text', text: 'canvas_add_diagram was cancelled by the MCP client before Excalidraw finished. Retry with a higher client request timeout and pass timeoutMs to PMX Canvas for the downstream Excalidraw call.' }],
-            isError: true,
-          };
-        }
-        return {
-          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
-          isError: true,
-        };
-      }
-    },
-  );
+  // canvas_open_mcp_app + canvas_add_diagram migrated to the operation registry
+  // (plan-008 Wave 4): src/server/operations/ops/app.ts (mcpapp.open /
+  // diagram.open). Folded into the canvas_app composite.
 
   server.tool(
     'canvas_refresh_webpage_node',
@@ -501,86 +385,9 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
-  // ── canvas_build_web_artifact ───────────────────────────────
-  server.tool(
-    'canvas_build_web_artifact',
-    'Build a bundled single-file HTML web artifact from React/Tailwind source files using the bundled web-artifacts-builder skill scripts. MCP callers pass source content in appTsx (the CLI app-file flag reads a file before calling this path). Builds can exceed default 60s MCP client timeouts on cold workspaces; set a long client timeout or retry with the same projectPath/outputPath if the client times out. Optionally opens the generated artifact as an embedded node on the canvas. Read canvas://skills/web-artifacts-builder for the full workflow, stack, and anti-slop design guidelines before calling.',
-    {
-      title: z.string().describe('Artifact title used for default project and output paths'),
-      appTsx: z.string().describe('Contents for src/App.tsx'),
-      indexCss: z.string().optional().describe('Optional contents for src/index.css'),
-      mainTsx: z.string().optional().describe('Optional contents for src/main.tsx'),
-      indexHtml: z.string().optional().describe('Optional contents for index.html'),
-      files: z.record(z.string(), z.string()).optional().describe('Optional map of additional project-relative file paths to file contents'),
-      deps: z.array(z.string()).optional().describe('Optional npm dependencies to install before bundling (e.g. ["recharts", "framer-motion@^11"]). Validated against npm-name format; flags and shell metacharacters are rejected.'),
-      projectPath: z.string().optional().describe('Optional workspace-relative reusable project path. Defaults to .pmx-canvas/artifacts/.web-artifacts/<slug>'),
-      outputPath: z.string().optional().describe('Optional workspace-relative HTML output path. Defaults to .pmx-canvas/artifacts/<slug>.html'),
-      openInCanvas: z.boolean().optional().describe('Open the generated artifact in canvas after build (default true)'),
-      includeLogs: z.boolean().optional().describe('Include raw build stdout/stderr in the response (default false)'),
-      initScriptPath: z.string().optional().describe('Optional script path override for tests/debugging. Must resolve inside the workspace.'),
-      bundleScriptPath: z.string().optional().describe('Optional script path override for tests/debugging. Must resolve inside the workspace.'),
-      timeoutMs: z.number().optional().describe('Optional timeout in milliseconds for init and bundle commands'),
-    },
-    async (input) => {
-      const c = await ensureCanvas();
-      try {
-        const result = await c.buildWebArtifact({
-          title: input.title,
-          appTsx: input.appTsx,
-          ...(typeof input.indexCss === 'string' ? { indexCss: input.indexCss } : {}),
-          ...(typeof input.mainTsx === 'string' ? { mainTsx: input.mainTsx } : {}),
-          ...(typeof input.indexHtml === 'string' ? { indexHtml: input.indexHtml } : {}),
-          ...(input.files ? { files: input.files } : {}),
-          ...(Array.isArray(input.deps) ? { deps: input.deps } : {}),
-          ...(typeof input.projectPath === 'string'
-            ? { projectPath: safeWorkspacePath(input.projectPath) }
-            : {}),
-          ...(typeof input.outputPath === 'string'
-            ? { outputPath: safeWorkspacePath(input.outputPath) }
-            : {}),
-          ...(typeof input.initScriptPath === 'string'
-            ? { initScriptPath: input.initScriptPath }
-            : {}),
-          ...(typeof input.bundleScriptPath === 'string'
-            ? { bundleScriptPath: input.bundleScriptPath }
-            : {}),
-          ...(typeof input.timeoutMs === 'number' ? { timeoutMs: input.timeoutMs } : {}),
-          ...(typeof input.openInCanvas === 'boolean' ? { openInCanvas: input.openInCanvas } : {}),
-        });
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              path: result.filePath,
-              bytes: result.fileSize,
-              projectPath: result.projectPath,
-              openedInCanvas: result.openedInCanvas,
-              startedAt: result.startedAt,
-              completedAt: result.completedAt,
-              durationMs: result.durationMs,
-              timeoutMs: result.timeoutMs,
-              // `id` only present when a canvas node was actually created.
-              // See the matching block in src/server/server.ts handleCanvasBuildWebArtifact.
-              ...(typeof result.nodeId === 'string' ? { id: result.nodeId } : {}),
-              nodeId: result.nodeId,
-              url: result.url,
-              metadata: result.metadata,
-              logs: result.logs,
-              ...(input.includeLogs === true ? {
-                stdout: result.stdout,
-                stderr: result.stderr,
-              } : {}),
-            }, null, 2),
-          }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
-          isError: true,
-        };
-      }
-    },
-  );
+  // canvas_build_web_artifact migrated to the operation registry (plan-008
+  // Wave 4): src/server/operations/ops/app.ts (webartifact.build). Folded into
+  // the canvas_app composite.
 
   // canvas_remove_annotation migrated to the operation registry (plan-008
   // Wave 1): src/server/operations/ops/annotation.ts.

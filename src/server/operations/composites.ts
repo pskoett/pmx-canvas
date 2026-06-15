@@ -16,12 +16,12 @@
  *
  * Still deferred (their legacy standalone tools keep working; see plan-008):
  * the `refresh` / `add-primitive` / `add-html` folds (would need a per-action
- * input-injection mechanism), and the `canvas_app` / `canvas_snapshot`
- * composites (poor-fit side-channel apps, and the v0.3 name collision
- * respectively). The action enums are forward-compatible: adding an action later
- * is additive. (`canvas_webview` shipped in plan-008 Wave 3 via runner
- * injection; `canvas_screenshot` stays standalone — it returns a binary image
- * payload the composite/registry JSON wire shape does not model.)
+ * input-injection mechanism), and the `canvas_snapshot` composite (the v0.3 name
+ * collision). The action enums are forward-compatible: adding an action later is
+ * additive. (`canvas_webview` shipped in plan-008 Wave 3 via runner injection;
+ * `canvas_app` shipped in Wave 4 — open-mcp-app / diagram / build-artifact;
+ * `canvas_screenshot` stays standalone — it returns a binary image payload the
+ * composite/registry JSON wire shape does not model.)
  *
  * Not shipped here: the `canvas_snapshot` composite (plan-006 #7). Its target
  * name is ALREADY a legacy standalone tool (the save-snapshot tool, op
@@ -143,7 +143,7 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
     toolName: 'canvas_node',
     description:
-      'Create, read, update, or remove a canvas node. One tool for node CRUD: action "add" creates a node (requires type — markdown, status, context, ledger, trace, file, image, webpage, html, group, etc.); "get" reads one node by id; "update" patches an existing node (title, content, position, size, data); "remove" deletes a node by id. For spec-driven content (json-render, graph) use canvas_render; for external/built apps use the current legacy tools: canvas_open_mcp_app, canvas_add_diagram, or canvas_build_web_artifact.',
+      'Create, read, update, or remove a canvas node. One tool for node CRUD: action "add" creates a node (requires type — markdown, status, context, ledger, trace, file, image, webpage, html, group, etc.); "get" reads one node by id; "update" patches an existing node (title, content, position, size, data); "remove" deletes a node by id. For spec-driven content (json-render, graph) use canvas_render; for external/built apps use canvas_app (actions: open-mcp-app, diagram, build-artifact).',
     actionSummary: 'add | get | update | remove',
     actions: {
       add: 'node.add',
@@ -218,6 +218,17 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
       search: 'search',
       layout: 'layout.get',
       validate: 'validate.get',
+    },
+  },
+  {
+    toolName: 'canvas_app',
+    description:
+      'Open external / built-content apps on the canvas. Action "open-mcp-app" connects to an external MCP server that declares a ui:// app resource, calls a tool, and opens the result inside an mcp-app node (full transport call — pass transport + toolName); "diagram" draws a hand-drawn diagram via the hosted Excalidraw preset (pass elements); "build-artifact" bundles a single-file HTML web artifact from React/Tailwind source (title + appTsx) and optionally opens it on the canvas. build-artifact can be long-running (minutes) on cold workspaces — set a long client timeout.',
+    actionSummary: 'open-mcp-app | diagram | build-artifact',
+    actions: {
+      'open-mcp-app': 'mcpapp.open',
+      diagram: 'diagram.open',
+      'build-artifact': 'webartifact.build',
     },
   },
   {

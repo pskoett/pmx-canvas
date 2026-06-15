@@ -13,8 +13,8 @@ import {
 import { basename, delimiter, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { ensureArtifactsDir, getWorkspaceRoot } from './artifact-paths.js';
 import { canvasState, type CanvasNodeState } from './canvas-state.js';
+import { emitCanvasLayoutUpdate } from './canvas-operations.js';
 import { findOpenCanvasPosition } from './placement.js';
-import { emitPrimaryWorkbenchEvent } from './server.js';
 
 const BUNDLED_WEB_ARTIFACT_SCRIPTS_DIR = join(import.meta.dir, 'web-artifacts', 'scripts');
 const LEGACY_SKILL_WEB_ARTIFACT_SCRIPTS_DIR = join(
@@ -633,7 +633,11 @@ export function openWebArtifactInCanvas(input: {
   };
 
   canvasState.addNode(node);
-  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  // Emit the canvas-layout-update via the injected emitter (canvas-operations'
+  // setCanvasLayoutUpdateEmitter, wired by server.ts to emitPrimaryWorkbenchEvent).
+  // This keeps web-artifacts.ts server-independent so the registry op
+  // (operations/ops/app.ts) can import it without pulling in server.ts.
+  emitCanvasLayoutUpdate();
   return { nodeId: id, url };
 }
 

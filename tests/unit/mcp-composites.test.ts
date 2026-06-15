@@ -14,6 +14,7 @@ interface TextContentItem { type: string; text?: string }
 interface ToolResultShape { content?: TextContentItem[]; isError?: boolean }
 
 const mcpServerPath = fileURLToPath(new URL('../../src/mcp/server.ts', import.meta.url));
+const fixtureMcpAppServerPath = fileURLToPath(new URL('../fixtures/mcp-app-fixture.ts', import.meta.url));
 
 async function getAvailablePort(): Promise<number> {
   return await new Promise((resolve, reject) => {
@@ -40,7 +41,7 @@ function parseJsonText<T>(result: ToolResultShape): T {
 
 const sessions: Array<{ transport: StdioClientTransport; workspaceRoot: string }> = [];
 
-async function createMcpSession(): Promise<{ client: Client; port: number }> {
+async function createMcpSession(): Promise<{ client: Client; port: number; workspaceRoot: string }> {
   const workspaceRoot = createTestWorkspace('pmx-canvas-mcp-composites-');
   const port = await getAvailablePort();
   const transport = new StdioClientTransport({
@@ -53,7 +54,7 @@ async function createMcpSession(): Promise<{ client: Client; port: number }> {
   const client = new Client({ name: 'pmx-canvas-mcp-composites-test', version: '0.1.0' }, { capabilities: {} });
   await client.connect(transport);
   sessions.push({ transport, workspaceRoot });
-  return { client, port };
+  return { client, port, workspaceRoot };
 }
 
 async function call(client: Client, name: string, args: Record<string, unknown>): Promise<ToolResultShape> {
@@ -357,6 +358,102 @@ describe('MCP composite tools (plan-006)', () => {
     const stopStandalone2 = parseJsonText(await call(client, 'canvas_webview_stop', {}));
     expect(stopComposite2).toEqual(stopStandalone2);
     expect(stopComposite2.stopped).toBe(false);
+  }, 30000);
+
+  // ── canvas_app (plan-008 Wave 4) ──────────────────────────────────────────
+  // open-mcp-app / diagram / build-artifact dispatch to the same registry ops
+  // (mcpapp.open / diagram.open / webartifact.build) as their legacy standalone
+  // tools (canvas_open_mcp_app / canvas_add_diagram / canvas_build_web_artifact),
+  // reusing each op's formatResult — so a composite action is byte-identical to
+  // the standalone tool. open-mcp-app is exercised against the stdio mcp-app
+  // fixture (the same fixture mcp-server.test.ts uses). build-artifact is a real
+  // pnpm/bundle build (minutes, network) — too heavy for a unit test — so its
+  // DISPATCH parity is asserted via the cheap validation-error path (both
+  // surfaces reject a missing appTsx with the same op error), not a full build.
+  test('canvas_app open-mcp-app dispatches to mcpapp.open and matches canvas_open_mcp_app', async () => {
+    const { client, workspaceRoot } = await createMcpSession();
+
+    const transport = {
+      type: 'stdio' as const,
+      command: 'bun',
+      args: ['run', fixtureMcpAppServerPath],
+      cwd: workspaceRoot,
+    };
+
+    // Composite open-mcp-app opens a real ui:// MCP App node via the fixture —
+    // same shape as the standalone canvas_open_mcp_app result.
+    const viaComposite = parseJsonText<{
+      ok: boolean;
+      id?: string;
+      nodeId: string | null;
+      toolCallId: string;
+      sessionId: string;
+      resourceUri: string;
+    }>(await call(client, 'canvas_app', {
+      action: 'open-mcp-app',
+      toolName: 'show_counter',
+      toolArguments: { initial: 2 },
+      transport,
+    }));
+    expect(viaComposite.ok).toBe(true);
+    expect(typeof viaComposite.nodeId).toBe('string');
+    expect(viaComposite.id).toBe(viaComposite.nodeId);
+    expect(viaComposite.resourceUri).toBe('ui://fixture/counter.html');
+    expect(viaComposite.sessionId).toContain('mcp-app-session');
+
+    // The standalone tool (now registry-served) dispatches to the same op and
+    // returns the same shape (the toolCallId/sessionId/nodeId differ per call —
+    // each open is a fresh session — so assert structural parity, not equality).
+    const viaStandalone = parseJsonText<{
+      ok: boolean;
+      id?: string;
+      nodeId: string | null;
+      resourceUri: string;
+      sessionId: string;
+    }>(await call(client, 'canvas_open_mcp_app', {
+      toolName: 'show_counter',
+      toolArguments: { initial: 3 },
+      transport,
+    }));
+    expect(viaStandalone.ok).toBe(viaComposite.ok);
+    expect(typeof viaStandalone.nodeId).toBe(typeof viaComposite.nodeId);
+    expect(viaStandalone.id).toBe(viaStandalone.nodeId);
+    expect(viaStandalone.resourceUri).toBe(viaComposite.resourceUri);
+  }, 30000);
+
+  test('canvas_app diagram dispatches to diagram.open (preset-parse-error parity, no live Excalidraw)', async () => {
+    const { client } = await createMcpSession();
+
+    // diagram.open builds the Excalidraw input via buildExcalidrawOpenMcpAppInput,
+    // which parses `elements` BEFORE any (network) call to the hosted Excalidraw
+    // MCP app. A non-empty-string-but-invalid-JSON `elements` fails that parse
+    // deterministically — a cheap way to prove dispatch parity without depending
+    // on a reachable Excalidraw server (the live path is heavy + network). Both
+    // surfaces dispatch to the same op → identical isError + message.
+    const args = { elements: '{not json' };
+    const viaComposite = await call(client, 'canvas_app', { action: 'diagram', ...args });
+    const viaStandalone = await call(client, 'canvas_add_diagram', args);
+    expect(viaComposite.isError).toBe(true);
+    expect(viaStandalone.isError).toBe(true);
+    expect(textOf(viaComposite)).toBe(textOf(viaStandalone));
+    expect(textOf(viaComposite)).toContain('diagram.elements');
+  }, 30000);
+
+  test('canvas_app build-artifact dispatches to webartifact.build (workspace-escape parity, no full build)', async () => {
+    const { client } = await createMcpSession();
+
+    // An out-of-workspace projectPath is rejected by the op handler's
+    // resolveWorkspacePath BEFORE any pnpm/bundle work — a cheap way to prove
+    // dispatch parity without a multi-minute build. title + appTsx are present so
+    // both surfaces pass schema validation and reach the same op handler, which
+    // throws the SAME workspace-escape error (isError + identical message).
+    const args = { title: 'Escape', appTsx: 'export default () => null;', projectPath: '../escape' };
+    const viaComposite = await call(client, 'canvas_app', { action: 'build-artifact', ...args });
+    const viaStandalone = await call(client, 'canvas_build_web_artifact', args);
+    expect(viaComposite.isError).toBe(true);
+    expect(viaStandalone.isError).toBe(true);
+    expect(textOf(viaComposite)).toBe(textOf(viaStandalone));
+    expect(textOf(viaComposite)).toContain('outside workspace');
   }, 30000);
 
   test('an unknown action is a loud error, not a silent no-op', async () => {
