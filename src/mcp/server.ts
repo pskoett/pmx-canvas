@@ -276,7 +276,7 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_add_html_node ────────────────────────────────────────
   server.tool(
     'canvas_add_html_node',
-    'Add a normal html node: a self-contained HTML document (with optional inline <script> and CDN <script src="...">) rendered inside a sandboxed iframe (sandbox="allow-scripts"). This is the default HTML surface for reports, widgets, and bespoke visualizations. Presentation mode is opt-in: only pass presentation:true when the user explicitly asks for a deck/fullscreen presentation, or use canvas_add_html_primitive with kind="presentation". The iframe inherits live canvas theme tokens via injected CSS custom properties (both --c-* and common --color-* aliases) so authored HTML using var(--color-text-secondary), var(--color-bg), etc. renders cohesively. No same-origin access; no top-navigation; no forms. For declarative-only views with zero JS, prefer canvas_add_json_render_node. For React + shadcn + routing or multi-component apps, use canvas_build_web_artifact.',
+    'Deprecated: use canvas_node with action "add" and type:"html". Add a normal html node: a self-contained HTML document (with optional inline <script> and CDN <script src="...">) rendered inside a sandboxed iframe (sandbox="allow-scripts"). This is the default HTML surface for reports, widgets, and bespoke visualizations. Presentation mode is opt-in: only pass presentation:true when the user explicitly asks for a deck/fullscreen presentation, or use canvas_add_html_primitive with kind="presentation". The iframe inherits live canvas theme tokens via injected CSS custom properties (both --c-* and common --color-* aliases) so authored HTML using var(--color-text-secondary), var(--color-bg), etc. renders cohesively. No same-origin access; no top-navigation; no forms. For declarative-only views with zero JS, prefer canvas_add_json_render_node. For React + shadcn + routing or multi-component apps, use canvas_build_web_artifact.',
     {
       html: z.string().describe('HTML document or fragment. Full <html>...</html> documents are passed through with theme styles injected into <head>; bare fragments are wrapped in a minimal document. Inline <script> and remote CDN <script src="..."> are allowed. If this is a bare path to an existing local .html/.htm file, the file contents are read and used as the HTML.'),
       title: z.string().optional().describe('Node title shown in the canvas titlebar.'),
@@ -326,7 +326,7 @@ export async function startMcpServer(): Promise<void> {
 
   server.tool(
     'canvas_add_html_primitive',
-    'Create a reusable HTML communication primitive as a normal sandboxed html node. Use this instead of long markdown for side-by-side choices, implementation plans, PR review sheets, module maps, design sheets, component galleries, flowcharts, explainers, status reports, and throwaway editors with export/copy paths. Use kind="presentation" only when the user explicitly asks for a PowerPoint-like deck, pitch, briefing, workshop walkthrough, or fullscreen story.',
+    'Deprecated: use canvas_node with action "add", type:"html", primitive:"<kind>" (and data). Create a reusable HTML communication primitive as a normal sandboxed html node. Use this instead of long markdown for side-by-side choices, implementation plans, PR review sheets, module maps, design sheets, component galleries, flowcharts, explainers, status reports, and throwaway editors with export/copy paths. Use kind="presentation" only when the user explicitly asks for a PowerPoint-like deck, pitch, briefing, workshop walkthrough, or fullscreen story.',
     {
       kind: htmlPrimitiveKindSchema.describe('Primitive kind. Call canvas_describe_schema and read htmlPrimitives for data shapes and examples.'),
       title: z.string().optional().describe('Node title shown in the canvas titlebar.'),
@@ -370,7 +370,7 @@ export async function startMcpServer(): Promise<void> {
 
   server.tool(
     'canvas_refresh_webpage_node',
-    'Refresh a webpage node from its persisted URL so the server re-fetches and caches the latest page text and metadata.',
+    'Deprecated: use canvas_node with action "update" and refresh:true. Refresh a webpage node from its persisted URL so the server re-fetches and caches the latest page text and metadata.',
     {
       id: z.string().describe('Webpage node ID to refresh'),
       url: z.string().optional().describe('Optional replacement URL before refresh'),

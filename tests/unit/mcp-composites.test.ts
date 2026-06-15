@@ -456,6 +456,136 @@ describe('MCP composite tools (plan-006)', () => {
     expect(textOf(viaComposite)).toContain('outside workspace');
   }, 30000);
 
+  // ── canvas_node folds the 3 deferred html/webpage tools (plan-008 Wave 5) ──
+  // node.add (type:"html", primitive:"<kind>") and node.update (refresh:true)
+  // already absorb canvas_add_html_node / canvas_add_html_primitive /
+  // canvas_refresh_webpage_node via plain params — no new action or per-action
+  // input-injection mechanism is needed. These prove canvas_node achieves the
+  // SAME result as each standalone tool.
+  test('canvas_node add type:"html" matches canvas_add_html_node', async () => {
+    const { client } = await createMcpSession();
+    const htmlArgs = {
+      html: '<h1>Deck</h1>',
+      title: 'A Deck',
+      presentation: true,
+      slideTitles: ['One', 'Two'],
+      embeddedNodeIds: ['n-embed-1', 'n-embed-2'],
+      embeddedUrls: ['https://example.com/a'],
+      axCapabilities: { enabled: true, allowed: ['ax.work.create'] },
+    };
+
+    // Both adds return the compact create payload { node: { id, type, title }, id }.
+    const viaComposite = parseJsonText<{ id?: string; node?: { type?: string; title?: string } }>(
+      await call(client, 'canvas_node', { action: 'add', type: 'html', ...htmlArgs }),
+    );
+    const viaStandalone = parseJsonText<{ id?: string; node?: { type?: string; title?: string } }>(
+      await call(client, 'canvas_add_html_node', htmlArgs),
+    );
+    // Same node type + title; ids differ per call (each add is a fresh node).
+    expect(viaComposite.node?.type).toBe('html');
+    expect(viaComposite.node?.type).toBe(viaStandalone.node?.type);
+    expect(viaComposite.node?.title).toBe(viaStandalone.node?.title);
+    expect(viaComposite.node?.title).toBe('A Deck');
+    expect(viaComposite.id).toBeTruthy();
+
+    // The rich html fields land on the created node's data — read the full node
+    // back and confirm end-to-end parity of every documented param the standalone
+    // tool accepts (presentation, slideTitles, embeddedNodeIds/Urls, axCapabilities
+    // — the last only reachable because Wave 5 advertised it in nodeAddShape).
+    type HtmlData = {
+      presentation?: boolean;
+      slideTitles?: string[];
+      html?: string;
+      embeddedNodeIds?: string[];
+      embeddedUrls?: string[];
+      axCapabilities?: { enabled?: boolean; allowed?: string[] };
+    };
+    const compositeNode = parseJsonText<{ data?: HtmlData }>(
+      await call(client, 'canvas_node', { action: 'get', id: viaComposite.id, full: true }),
+    );
+    const standaloneNode = parseJsonText<{ data?: HtmlData }>(
+      await call(client, 'canvas_node', { action: 'get', id: viaStandalone.id, full: true }),
+    );
+    expect(compositeNode.data?.presentation).toBe(true);
+    expect(compositeNode.data?.presentation).toBe(standaloneNode.data?.presentation);
+    expect(compositeNode.data?.slideTitles).toEqual(standaloneNode.data?.slideTitles);
+    expect(compositeNode.data?.slideTitles).toEqual(['One', 'Two']);
+    expect(compositeNode.data?.html).toBe(standaloneNode.data?.html);
+    expect(compositeNode.data?.html).toBe('<h1>Deck</h1>');
+    expect(compositeNode.data?.embeddedNodeIds).toEqual(standaloneNode.data?.embeddedNodeIds);
+    expect(compositeNode.data?.embeddedNodeIds).toEqual(['n-embed-1', 'n-embed-2']);
+    expect(compositeNode.data?.embeddedUrls).toEqual(standaloneNode.data?.embeddedUrls);
+    // axCapabilities: the AX bridge config must survive the composite path
+    // identically (would silently drop if the field were not advertised).
+    expect(compositeNode.data?.axCapabilities).toEqual(standaloneNode.data?.axCapabilities);
+    expect(compositeNode.data?.axCapabilities?.allowed).toEqual(['ax.work.create']);
+  }, 30000);
+
+  test('canvas_node add type:"html" primitive:"<kind>" matches canvas_add_html_primitive', async () => {
+    const { client } = await createMcpSession();
+    // A real HtmlPrimitiveKind (see src/server/html-primitives.ts HTML_PRIMITIVE_KINDS).
+    const kind = 'choice-grid';
+    const data = {
+      options: [
+        { title: 'Option A', summary: 'first' },
+        { title: 'Option B', summary: 'second' },
+      ],
+    };
+
+    // Composite passes the kind via `primitive` (node.add routes type:"html" +
+    // primitive → createHtmlPrimitiveNode); the standalone tool passes `kind`.
+    // strictSize is the one primitive-specific param beyond kind/title/data.
+    const viaComposite = parseJsonText<{ id?: string; node?: { type?: string } }>(
+      await call(client, 'canvas_node', { action: 'add', type: 'html', primitive: kind, data, strictSize: true }),
+    );
+    const viaStandalone = parseJsonText<{ id?: string; node?: { type?: string }; primitive?: { kind?: string } }>(
+      await call(client, 'canvas_add_html_primitive', { kind, data, strictSize: true }),
+    );
+    expect(viaComposite.id).toBeTruthy();
+    expect(viaComposite.node?.type).toBe('html');
+    expect(viaComposite.node?.type).toBe(viaStandalone.node?.type);
+    // The standalone tool surfaces the built primitive kind explicitly.
+    expect(viaStandalone.primitive?.kind).toBe(kind);
+
+    // Confirm the created node carries the htmlPrimitive marker (type:"html",
+    // htmlPrimitive === kind) + strictSize on both surfaces — the canonical proof.
+    const compositeNode = parseJsonText<{ type?: string; data?: { htmlPrimitive?: string; strictSize?: boolean } }>(
+      await call(client, 'canvas_node', { action: 'get', id: viaComposite.id, full: true }),
+    );
+    const standaloneNode = parseJsonText<{ type?: string; data?: { htmlPrimitive?: string; strictSize?: boolean } }>(
+      await call(client, 'canvas_node', { action: 'get', id: viaStandalone.id, full: true }),
+    );
+    expect(compositeNode.type).toBe('html');
+    expect(compositeNode.data?.htmlPrimitive).toBe(kind);
+    expect(compositeNode.data?.htmlPrimitive).toBe(standaloneNode.data?.htmlPrimitive);
+    expect(compositeNode.data?.strictSize).toBe(true);
+    expect(compositeNode.data?.strictSize).toBe(standaloneNode.data?.strictSize);
+  }, 30000);
+
+  test('canvas_node update refresh:true matches canvas_refresh_webpage_node (incl. the failure path)', async () => {
+    const { client } = await createMcpSession();
+    // A connection-refused address fails fast and deterministically (no DNS, no
+    // network egress). createWebpageNode adds the node BEFORE the fetch, so the
+    // node is created (id returned) even though the initial fetch fails — we can
+    // then exercise the REFRESH failure path on both surfaces.
+    const refusedUrl = 'http://127.0.0.1:1';
+    const created = parseJsonText<{ id?: string; nodeId?: string }>(
+      await call(client, 'canvas_node', { action: 'add', type: 'webpage', url: refusedUrl, title: 'refresh-fail' }),
+    );
+    const id = created.id ?? created.nodeId;
+    expect(id).toBeTruthy();
+
+    // Refresh re-fetches the refused URL → ok:false on both surfaces. The composite
+    // path must surface isError (not a false ok:true) — this is the Wave 5
+    // node.update formatResult fix that lets us deprecate the standalone tool.
+    const viaComposite = await call(client, 'canvas_node', { action: 'update', id, refresh: true });
+    const viaStandalone = await call(client, 'canvas_refresh_webpage_node', { id });
+
+    expect(viaComposite.isError).toBe(true);
+    expect(viaStandalone.isError).toBe(true);
+    expect(parseJsonText<{ ok?: boolean }>(viaComposite).ok).toBe(false);
+    expect(parseJsonText<{ ok?: boolean }>(viaStandalone).ok).toBe(false);
+  }, 30000);
   test('an unknown action is a loud error, not a silent no-op', async () => {
     const { client } = await createMcpSession();
     const result = await call(client, 'canvas_node', { action: 'frobnicate', id: 'x' });

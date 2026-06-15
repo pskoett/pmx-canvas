@@ -4790,7 +4790,9 @@ describe('canvas server HTTP API', () => {
       'json-render': 'canvas_add_json_render_node',
       graph: 'canvas_add_graph_node',
       'web-artifact': 'canvas_build_web_artifact',
-      'html-primitive': 'canvas_add_html_primitive',
+      // plan-008 Wave 5: html/html-primitive routing now points at canvas_node.
+      html: 'canvas_node (action:"add", type:"html")',
+      'html-primitive': 'canvas_node (action:"add", type:"html", primitive:"<kind>")',
       'external-app': 'canvas_open_mcp_app',
       group: 'canvas_create_group',
     });

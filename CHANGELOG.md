@@ -288,6 +288,28 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   through v0.2 (now registry-served) and are removed in v0.3 per
   `docs/api-stability.md`.
 
+- **The 3 HTML/webpage MCP tools superseded by `canvas_node` (plan-008 Wave 5 — the
+  final fold).** `canvas_add_html_node` → `canvas_node` with `action: "add"` and
+  `type: "html"`; `canvas_add_html_primitive` → `canvas_node` with `action: "add"`,
+  `type: "html"`, `primitive: "<kind>"` (and `data`); `canvas_refresh_webpage_node`
+  → `canvas_node` with `action: "update"` and `refresh: true`. All three now carry a
+  `Deprecated: use canvas_node …` prefix on their tool description. **No new action,
+  composite mechanism, op, or SDK change was needed** — the earlier plan-008 verdict
+  that a fold required a per-action input-injection mechanism was wrong:
+  `node.add` already routes `type:"html"` + `primitive|kind` → `createHtmlPrimitiveNode`
+  and merges the top-level html fields (`summary`/`agentSummary`/`description`/
+  `presentation`/`slideTitles`/`embeddedNodeIds`/`embeddedUrls`) into the node data,
+  and `node.update` already routes `refresh:true` → `refreshCanvasWebpageNode`. Two
+  small correctness fixes made the fold sound: (a) `axCapabilities` is now **advertised**
+  in `node.add`'s schema (it previously only passed through `z.looseObject`, so
+  schema-guided agents migrating off `canvas_add_html_node` would silently drop the
+  AX-bridge config); (b) `node.update`'s `formatResult` now surfaces a FAILED webpage
+  refresh as `isError` + `{ ok:false, error }` (it previously masked it as a false
+  `{ ok:true }` over the MCP-default local invoker — a live bug), matching the HTTP
+  400 and the legacy tool. Parity (incl. the refresh failure path) is proven by
+  `tests/unit/mcp-composites.test.ts`. All three keep working through v0.2 and are
+  removed in v0.3 per `docs/api-stability.md`.
+
 - **Single-purpose MCP tools superseded by wave-1 composites.** The standalone
   tools folded by the composites above (`canvas_add_node`, `canvas_get_node`,
   `canvas_update_node`, `canvas_remove_node`, `canvas_add_edge`,

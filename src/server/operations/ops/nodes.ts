@@ -684,6 +684,7 @@ const nodeAddShape = {
   slideTitles: z.unknown().optional().describe('Agent-readable slide titles for presentation HTML.'),
   embeddedNodeIds: z.unknown().optional().describe('Canvas node IDs embedded or represented by this HTML surface.'),
   embeddedUrls: z.unknown().optional().describe('URLs embedded or represented by this HTML surface.'),
+  axCapabilities: z.unknown().optional().describe('Opt an html node into AX interactions. Merged into node data for html nodes; clamped to the node-type ceiling server-side.'),
   position: z.unknown().optional().describe('Geometry alias: { x, y } object form.'),
   size: z.unknown().optional().describe('Geometry alias: { width, height } object form.'),
 };
@@ -712,6 +713,10 @@ const nodeAddOperation = defineOperation<z.infer<typeof nodeAddSchema>, NodeAddR
         .describe('Node type (prefer canvas_create_group for groups)'),
       children: z.array(z.string()).optional().describe('Group-only alias for childIds. Node IDs to include in a generic group node.'),
       childIds: z.array(z.string()).optional().describe('Group-only field. Node IDs to include in a generic group node. Prefer canvas_create_group for groups.'),
+      axCapabilities: z.object({
+        enabled: z.boolean().optional(),
+        allowed: z.array(z.string()).optional(),
+      }).optional().describe('Opt an html node into AX interactions (e.g. { enabled: true, allowed: ["ax.work.create"] }) so its sandboxed UI can emit ax.* via window.PMX_AX.emit. html nodes are AX-disabled by default; merged into node data, clamped to the node-type ceiling server-side.'),
       ...fullVerboseShape,
     },
     buildInput: (input) => {
@@ -911,8 +916,21 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
     formatResult: (result, input) => {
       const body = isRecord(result) ? result : {};
       const node = body.node as CanvasNodeState | undefined;
-      const payload = node ? createdNodePayloadFromNode(node, input) : { ok: true, id: input.id };
-      return { content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }] };
+      if (node) {
+        const payload = createdNodePayloadFromNode(node, input);
+        return { content: [{ type: 'text' as const, text: JSON.stringify(payload, null, 2) }] };
+      }
+      // No `node` field: a webpage-refresh result ({ ok, id, fetch?, error? }) or
+      // the node-vanished fallback. Pass the body through verbatim and surface a
+      // FAILED refresh as isError — matching the HTTP 400 status mapping above and
+      // the legacy canvas_refresh_webpage_node tool. Without this, a failed
+      // refresh via canvas_node { action:'update', refresh:true } leaked back as a
+      // false { ok:true } over the local invoker (no isError).
+      const payload = body.ok !== undefined ? body : { ok: true, id: input.id };
+      return {
+        content: [{ type: 'text' as const, text: JSON.stringify(payload) }],
+        ...(payload.ok === false ? { isError: true } : {}),
+      };
     },
   },
   handler: async (input) => {

@@ -16,9 +16,12 @@
 // via runner injection; canvas_screenshot stays standalone — binary payload) =
 // 82, then + canvas_app (plan-008 Wave 4: folds canvas_open_mcp_app,
 // canvas_add_diagram, canvas_build_web_artifact — migrated to the registry as
-// mcpapp.open / diagram.open / webartifact.build) = 83. The canvas_snapshot
-// composite is deferred to v0.3 (its name is still held by the legacy
-// save-snapshot tool). Legacy single-purpose tools are removed (and this list
+// mcpapp.open / diagram.open / webartifact.build) = 83. plan-008 Wave 5 is
+// deprecate-only (no new tool, count stays 83): canvas_add_html_node /
+// canvas_add_html_primitive / canvas_refresh_webpage_node carry "Deprecated: use
+// canvas_node …" prefixes steering to existing canvas_node add/update params. The
+// canvas_snapshot composite is deferred to v0.3 (its name is still held by the
+// legacy save-snapshot tool). Legacy single-purpose tools are removed (and this list
 // shrinks to the survivors) in v0.3 per docs/api-stability.md — both edits are
 // deliberate.
 import { afterAll, describe, expect, test } from 'bun:test';

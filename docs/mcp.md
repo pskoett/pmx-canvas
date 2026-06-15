@@ -37,7 +37,7 @@ its `action` to the same operation the legacy tool used, so results are identica
 
 | Composite | `action` values | Replaces |
 |-----------|-----------------|----------|
-| `canvas_node` | `add` · `get` · `update` · `remove` | `canvas_add_node`, `canvas_get_node`, `canvas_update_node`, `canvas_remove_node` |
+| `canvas_node` | `add` · `get` · `update` · `remove` | `canvas_add_node`, `canvas_get_node`, `canvas_update_node`, `canvas_remove_node`, `canvas_add_html_node` (`add` + `type:"html"`), `canvas_add_html_primitive` (`add` + `type:"html"`, `primitive:"<kind>"`), `canvas_refresh_webpage_node` (`update` + `refresh:true`) |
 | `canvas_render` | `describe-schema` · `validate` · `add-json-render` · `stream-json-render` · `add-graph` | `canvas_describe_schema`, `canvas_validate_spec`, `canvas_add_json_render_node`, `canvas_stream_json_render_node`, `canvas_add_graph_node` |
 | `canvas_edge` | `add` · `remove` | `canvas_add_edge`, `canvas_remove_edge` |
 | `canvas_group` | `create` · `add` · `ungroup` | `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup` |
@@ -65,21 +65,24 @@ discriminator.) `canvas_app` folds the external / built-content tools:
 timeout). `canvas_ax_interaction`, `canvas_ingest_activity`, and
 `canvas_invoke_command` stay standalone (trust-boundary / firehose / execution-intent
 tools). `canvas_screenshot` also stays standalone — it returns a binary image payload
-the composite/registry JSON wire shape does not model. Snapshots fold as their registry
-slice lands.
+the composite/registry JSON wire shape does not model. (Wave 5 folded
+`canvas_refresh_webpage_node` → `canvas_node { action: "update", refresh: true }` after
+fixing `node.update`'s `formatResult` to surface a FAILED refresh as `isError` +
+`{ ok:false, error }` instead of masking it as a false `{ ok:true }`.) Snapshots
+fold as their registry slice lands.
 
 ## Tools (legacy single-purpose)
 
 | Tool | Description |
 |------|-------------|
 | `canvas_add_node` | Add a node (markdown, status, context, file, webpage, html, etc.) |
-| `canvas_add_html_node` | Create an `html` node from a self-contained HTML/JS document (sandboxed iframe) |
-| `canvas_add_html_primitive` | Create a reusable generated HTML communication primitive as a sandboxed `html` node |
+| `canvas_add_html_node` | **Deprecated** → `canvas_node { action: "add", type: "html" }`. Create an `html` node from a self-contained HTML/JS document (sandboxed iframe) |
+| `canvas_add_html_primitive` | **Deprecated** → `canvas_node { action: "add", type: "html", primitive: "<kind>" }`. Create a reusable generated HTML communication primitive as a sandboxed `html` node |
 | `canvas_add_diagram` | Hand-drawn diagram via the hosted Excalidraw MCP App (preset alias for `canvas_open_mcp_app`) |
 | `canvas_open_mcp_app` | Open any [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps) server's `ui://` resource as an iframe node |
 | `canvas_describe_schema` | Describe the running server's create schemas, examples, json-render catalog, and HTML primitive catalog |
 | `canvas_validate_spec` | Validate a json-render spec, graph payload, or HTML primitive payload without creating a node |
-| `canvas_refresh_webpage_node` | Re-fetch and update a webpage node from its stored URL |
+| `canvas_refresh_webpage_node` | **Deprecated** → `canvas_node { action: "update", refresh: true }`. Re-fetch and update a webpage node from its stored URL |
 | `canvas_add_json_render_node` | Create a native json-render node from a validated spec |
 | `canvas_stream_json_render_node` | Progressively build a json-render node from SpecStream JSON-Patch ops (live/streaming panels) |
 | `canvas_add_graph_node` | Create a native graph node (line, bar, pie, area, scatter, radar, stacked-bar, composed, sparkline, dot-plot, bullet, slopegraph) |
@@ -247,8 +250,8 @@ in doubt:
 
 - `json-render` → `canvas_add_json_render_node`
 - `graph` → `canvas_add_graph_node`
-- `html-primitive` → `canvas_add_html_primitive`
-- `html` → `canvas_add_html_node`
+- `html-primitive` → `canvas_node { action: "add", type: "html", primitive: "<kind>" }` (or the deprecated `canvas_add_html_primitive`)
+- `html` → `canvas_node { action: "add", type: "html" }` (or the deprecated `canvas_add_html_node`)
 - `web-artifact` → `canvas_build_web_artifact`
 - `mcp-app` → `canvas_open_mcp_app`
 - `group` → `canvas_create_group`
