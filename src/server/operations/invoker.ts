@@ -76,6 +76,7 @@ export class HttpOperationInvoker implements OperationInvoker {
       }
     }
     if (!response.ok) {
+      if (route.errorBodyAsResult) return parsed;
       const message = parsed !== null && typeof parsed === 'object' && 'error' in parsed
         ? String((parsed as { error?: unknown }).error)
         : `HTTP ${response.status}`;

@@ -28,6 +28,7 @@ import {
   serializeCanvasNode,
   serializeCanvasNodeCompact,
 } from '../../canvas-serialization.js';
+import { addCanvasNode } from '../../canvas-operations.js';
 import { executeOperation, runWithSuppressedEmits } from '../registry.js';
 import { defineOperation, type Operation, type OperationContext } from '../types.js';
 import { readJsonValue } from '../http.js';
@@ -46,6 +47,22 @@ export interface BatchEnvelope {
   failedIndex?: number;
   error?: string;
 }
+
+const SUPPORTED_BATCH_OPS = new Set([
+  'node.add',
+  'node.update',
+  'node.remove',
+  'graph.add',
+  'edge.add',
+  'group.create',
+  'group.add',
+  'group.remove',
+  'pin.set',
+  'pin.add',
+  'pin.remove',
+  'snapshot.save',
+  'arrange',
+]);
 
 /**
  * Resolve `$ref` / `$ref.path` placeholders in batch args against the running
@@ -100,11 +117,38 @@ function resolveDispatch(op: string, args: Record<string, unknown>): { name: str
 }
 
 // Ops that create/return a node and whose batch entry is the compact node payload
-// + op-specific extras (url/spec/fetch). The legacy switch had no json-render case
-// (json-render wasn't batchable), but the registry dispatch now accepts any
-// registered op, so jsonrender.add is batchable too — shape it like graph.add
-// (both produce a node + url + spec) for a consistent entry.
-const NODE_PRODUCING_OPS = new Set(['node.add', 'node.update', 'group.create', 'graph.add', 'jsonrender.add']);
+// + op-specific extras (url/spec/fetch). Keep this to the legacy batch allowlist;
+// accepting arbitrary registered node-producing ops would expand the batch
+// contract and can bypass the single-final-SSE invariant.
+const NODE_PRODUCING_OPS = new Set(['node.add', 'node.update', 'group.create', 'graph.add']);
+
+function isInternalBatchNodeType(type: string): type is 'prompt' | 'response' {
+  return type === 'prompt' || type === 'response';
+}
+
+function createInternalBatchNode(args: Record<string, unknown>): Record<string, unknown> {
+  const type = typeof args.type === 'string' ? args.type : '';
+  if (!isInternalBatchNodeType(type)) {
+    throw new Error(`Unsupported internal canvas_batch node type "${type}".`);
+  }
+
+  const data = isRecord(args.data) ? args.data : {};
+  const created = addCanvasNode({
+    type,
+    ...(typeof args.title === 'string' ? { title: args.title } : {}),
+    ...(typeof args.content === 'string' ? { content: args.content } : {}),
+    ...(Object.keys(data).length > 0 ? { data } : {}),
+    ...(typeof args.x === 'number' ? { x: args.x } : {}),
+    ...(typeof args.y === 'number' ? { y: args.y } : {}),
+    ...(typeof args.width === 'number' ? { width: args.width } : {}),
+    ...(typeof args.height === 'number' ? { height: args.height } : {}),
+    ...(args.strictSize === true ? { strictSize: true } : {}),
+    defaultWidth: 360,
+    defaultHeight: 200,
+  });
+
+  return { ok: true, ...serializeCanvasNodeCompact(created.node) };
+}
 
 /**
  * Re-shape an `executeOperation` result into the byte-identical legacy batch
@@ -178,6 +222,23 @@ async function runBatch(operations: BatchEntry[]): Promise<BatchEnvelope> {
       return { ok: false, failedIndex: index, error: `Operation ${index} has invalid args.`, results, refs };
     }
     try {
+      if (!SUPPORTED_BATCH_OPS.has(operation.op)) {
+        return {
+          ok: false,
+          failedIndex: index,
+          error: `Unsupported canvas_batch operation "${operation.op}".`,
+          results,
+          refs,
+        };
+      }
+      if (operation.op === 'node.add' && typeof args.type === 'string' && isInternalBatchNodeType(args.type)) {
+        const result = createInternalBatchNode(args);
+        results.push(result);
+        if (typeof operation.assign === 'string' && operation.assign.trim().length > 0) {
+          refs[operation.assign] = result;
+        }
+        continue;
+      }
       const dispatch = resolveDispatch(operation.op, args);
       const raw = await executeOperation(dispatch.name, dispatch.args);
       const result = shapeBatchEntry(operation.op, raw);
@@ -254,6 +315,10 @@ const batchOperation = defineOperation<z.infer<typeof batchSchema>, BatchEnvelop
   http: {
     method: 'POST',
     path: '/api/canvas/batch',
+    status: (result) => (isRecord(result) && result.ok === false ? 400 : 200),
+    // Remote MCP callers still need the structured partial-failure envelope so
+    // the canvas_batch formatter can return JSON with isError=true.
+    errorBodyAsResult: true,
     // Preserve BOTH documented body shapes: { operations:[...] } and a bare
     // [...] array (the array-preserving reader never coerces — see plan-005).
     readInput: async (req) => {

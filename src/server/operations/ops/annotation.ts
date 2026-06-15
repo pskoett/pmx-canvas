@@ -4,10 +4,10 @@
  * DELETE-by-id of a human-drawn canvas annotation. mutates: true → the registry
  * auto-emits one canvas-layout-update after success, matching the legacy
  * handleCanvasRemoveAnnotation handler (which emitted the layout update only on a
- * successful removal). A missing id is a 404 OperationError carrying the EXACT
- * legacy message; HTTP renders it as { ok:false, error } (byte-identical to the
- * legacy handler) and MCP renders it as an isError tool result with the bare
- * message text (byte-identical to the legacy canvas_remove_annotation tool).
+ * successful removal). A non-existent id is a 404 OperationError carrying the
+ * exact legacy message; an omitted id is a 400 so composite callers get a loud
+ * input error instead of a misleading "not found". HTTP renders errors as
+ * { ok:false, error } and MCP renders them as isError tool results.
  *
  * This module must never import server.ts or index.ts.
  */

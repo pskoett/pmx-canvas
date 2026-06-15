@@ -599,27 +599,97 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     expect(await titles()).toEqual(expect.arrayContaining(['batch-hist-1', 'batch-hist-2']));
   });
 
-  test('canvas_batch rejects mcpapp.open loudly (SSE-suppressed node creation) — no silent broken node / leaked session', async () => {
+  test('canvas_batch preserves legacy prompt/response node seeding without widening node.add', async () => {
+    const batch = await jsonRequest<{
+      ok: boolean;
+      results: Array<{ id?: string; type?: string; title?: string; content?: string | null }>;
+    }>('/api/canvas/batch', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        operations: [
+          {
+            op: 'node.add',
+            args: {
+              type: 'prompt',
+              title: 'Batch prompt renderer',
+              data: { text: 'Prompt body' },
+              width: 420,
+              height: 260,
+            },
+          },
+          {
+            op: 'node.add',
+            args: {
+              type: 'response',
+              title: 'Batch response renderer',
+              data: { content: 'Response body', status: 'complete' },
+              width: 420,
+              height: 260,
+            },
+          },
+        ],
+      }),
+    });
+
+    expect(batch.ok).toBe(true);
+    expect(batch.results.map((entry) => entry.type)).toEqual(['prompt', 'response']);
+    expect(batch.results[0]?.content).toBe('Prompt body');
+    expect(batch.results[1]?.content).toBe('Response body');
+
+    const standalone = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'prompt', title: 'Standalone prompt still rejected' }),
+    });
+    expect(standalone.status).toBe(400);
+  });
+
+  test('canvas_batch rejects unsupported registry ops with HTTP 400 — no broad side-effect batching', async () => {
     // mcpapp.open creates its node from the ext-app-open SSE event, which the
-    // batch suppresses. The op guards isEmitSuppressed() and throws BEFORE
-    // opening any external session, so the batch fails at that entry instead of
-    // returning a null nodeId with a leaked session (plan-008 Wave 4).
-    const res = await jsonRequest<{ ok: boolean; failedIndex?: number; error?: string; results: unknown[] }>(
-      '/api/canvas/batch',
-      {
+    // batch suppresses; webartifact.build emits through the canvas-operations
+    // emitter, outside registry suppression. Batch intentionally preserves the
+    // legacy allowlist instead of accepting every registered op.
+    for (const op of ['mcpapp.open', 'webartifact.build']) {
+      const response = await fetch(`${baseUrl}/api/canvas/batch`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           operations: [
-            { op: 'mcpapp.open', args: { transport: { type: 'stdio', command: 'echo' }, toolName: 'noop' } },
+            {
+              op,
+              args: op === 'mcpapp.open'
+                ? { transport: { type: 'stdio', command: 'echo' }, toolName: 'noop' }
+                : { title: 'batch artifact', appTsx: 'export default function App(){return null}' },
+            },
           ],
         }),
+      });
+      expect(response.status).toBe(400);
+      const res = await response.json() as { ok: boolean; failedIndex?: number; error?: string; results: unknown[] };
+      expect(res.ok).toBe(false);
+      expect(res.failedIndex).toBe(0);
+      expect(res.error).toContain(`Unsupported canvas_batch operation "${op}"`);
+      expect(res.results).toHaveLength(0);
+    }
+
+    const mcpFailed = await mcpClient.callTool({
+      name: 'canvas_batch',
+      arguments: {
+        operations: [
+          {
+            op: 'webartifact.build',
+            args: { title: 'batch artifact', appTsx: 'export default function App(){return null}' },
+          },
+        ],
       },
-    );
-    expect(res.ok).toBe(false);
-    expect(res.failedIndex).toBe(0);
-    expect(res.error).toContain('canvas_batch');
-    expect(res.results).toHaveLength(0);
+    }) as ToolResultShape;
+    expect(mcpFailed.isError).toBe(true);
+    const mcpBody = parseJsonText<{ ok: boolean; failedIndex?: number; error?: string; results: unknown[] }>(mcpFailed);
+    expect(mcpBody.ok).toBe(false);
+    expect(mcpBody.failedIndex).toBe(0);
+    expect(mcpBody.error).toContain('Unsupported canvas_batch operation "webartifact.build"');
+    expect(mcpBody.results).toHaveLength(0);
   });
 
   test('HTTP mutations tolerate unknown extra body keys (ignored, not persisted)', async () => {
