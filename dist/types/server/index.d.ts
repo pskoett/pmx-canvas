@@ -7,6 +7,7 @@ import type { AxTimelineQuery } from './canvas-db.js';
 import { searchNodes } from './spatial-analysis.js';
 import { diffLayouts } from './mutation-history.js';
 import { fitCanvasView, gcCanvasSnapshots, listCanvasSnapshots } from './canvas-operations.js';
+import { type OpenMcpAppCoreResult } from './operations/index.js';
 import { type SerializedCanvasNode } from './canvas-serialization.js';
 import type { HtmlPrimitiveKind } from './html-primitives.js';
 import { type WebArtifactBuildInput, type WebArtifactCanvasBuildResult } from './web-artifacts.js';
@@ -388,7 +389,6 @@ export declare class PmxCanvas extends EventEmitter {
         summary: import("./code-graph.js").CodeGraphSummary;
     };
     validate(): import("./canvas-validation.js").CanvasValidationResult;
-    private findCanvasExtAppNodeId;
     describeSchema(): {
         ok: true;
         source: "running-server";
@@ -424,6 +424,7 @@ export declare class PmxCanvas extends EventEmitter {
     }>): Promise<import("./operations/index.js").BatchEnvelope>;
     buildWebArtifact(input: WebArtifactBuildInput & {
         openInCanvas?: boolean;
+        includeLogs?: boolean;
     }): Promise<WebArtifactCanvasBuildResult>;
     openMcpApp(input: {
         transport: ExternalMcpTransportConfig;
@@ -437,22 +438,8 @@ export declare class PmxCanvas extends EventEmitter {
         width?: number;
         height?: number;
         timeoutMs?: number;
-    }): Promise<{
-        ok: true;
-        id?: string;
-        nodeId: string | null;
-        toolCallId: string;
-        sessionId: string;
-        resourceUri: string;
-    }>;
-    addDiagram(input: DiagramPresetOpenInput): Promise<{
-        ok: true;
-        id?: string;
-        nodeId: string | null;
-        toolCallId: string;
-        sessionId: string;
-        resourceUri: string;
-    }>;
+    }): Promise<OpenMcpAppCoreResult>;
+    addDiagram(input: DiagramPresetOpenInput): Promise<OpenMcpAppCoreResult>;
     addJsonRenderNode(input: JsonRenderNodeInput): {
         id: string;
         url: string;

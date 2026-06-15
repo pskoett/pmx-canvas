@@ -3,6 +3,7 @@ import { type GraphNodeInput, type JsonRenderNodeInput, type JsonRenderSpec } fr
 export type CanvasArrangeMode = 'grid' | 'column' | 'flow';
 export type CanvasPinMode = 'set' | 'add' | 'remove';
 export declare function setCanvasLayoutUpdateEmitter(emitter: (() => void) | null): void;
+export declare function emitCanvasLayoutUpdate(): void;
 export interface CanvasFitViewOptions {
     width?: number;
     height?: number;

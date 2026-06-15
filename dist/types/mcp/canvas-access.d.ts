@@ -2,9 +2,6 @@ import { type CanvasLayout, type CanvasNodeState, type PmxCanvas } from '../serv
 import type { PmxAxSource } from '../server/ax-state.js';
 import { type OperationInvoker } from '../server/operations/index.js';
 type RefreshWebpageNodeResult = Awaited<ReturnType<PmxCanvas['refreshWebpageNode']>>;
-type OpenMcpAppInput = Parameters<PmxCanvas['openMcpApp']>[0];
-type OpenMcpAppResult = Awaited<ReturnType<PmxCanvas['openMcpApp']>>;
-type AddDiagramInput = Parameters<PmxCanvas['addDiagram']>[0];
 type AddHtmlNodeInput = Parameters<PmxCanvas['addHtmlNode']>[0];
 type AddHtmlPrimitiveInput = Parameters<PmxCanvas['addHtmlPrimitive']>[0];
 type AddHtmlPrimitiveResult = ReturnType<PmxCanvas['addHtmlPrimitive']>;
@@ -27,11 +24,7 @@ type HistoryResult = ReturnType<PmxCanvas['getHistory']>;
 type RunBatchInput = Parameters<PmxCanvas['runBatch']>[0];
 type RunBatchResult = Awaited<ReturnType<PmxCanvas['runBatch']>>;
 type CodeGraphResult = ReturnType<PmxCanvas['getCodeGraph']>;
-type WebArtifactInput = Parameters<PmxCanvas['buildWebArtifact']>[0];
-type WebArtifactResult = Awaited<ReturnType<PmxCanvas['buildWebArtifact']>>;
-type AutomationWebViewOptions = Parameters<PmxCanvas['startAutomationWebView']>[0];
-type AutomationWebViewStatus = Awaited<ReturnType<PmxCanvas['startAutomationWebView']>>;
-type AutomationEvaluateResult = Awaited<ReturnType<PmxCanvas['evaluateAutomationWebView']>>;
+type AutomationWebViewStatus = Awaited<ReturnType<PmxCanvas['getAutomationWebViewStatus']>>;
 type AutomationScreenshotOptions = Parameters<PmxCanvas['screenshotAutomationWebView']>[0];
 export interface CanvasAccess {
     readonly port: number;
@@ -41,11 +34,8 @@ export interface CanvasAccess {
     getLayout(): Promise<CanvasLayout>;
     getNode(id: string): Promise<CanvasNodeState | undefined>;
     refreshWebpageNode(id: string, url?: string): Promise<RefreshWebpageNodeResult>;
-    openMcpApp(input: OpenMcpAppInput): Promise<OpenMcpAppResult>;
-    addDiagram(input: AddDiagramInput): Promise<OpenMcpAppResult>;
     addHtmlNode(input: AddHtmlNodeInput): Promise<string>;
     addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult>;
-    buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult>;
     getAxState(): Promise<AxStateResult>;
     getAxContext(options?: {
         consumer?: string;
@@ -72,10 +62,6 @@ export interface CanvasAccess {
     runBatch(operations: RunBatchInput): Promise<RunBatchResult>;
     getCodeGraph(): Promise<CodeGraphResult>;
     getAutomationWebViewStatus(): Promise<AutomationWebViewStatus>;
-    startAutomationWebView(options?: AutomationWebViewOptions): Promise<AutomationWebViewStatus>;
-    stopAutomationWebView(): Promise<boolean>;
-    evaluateAutomationWebView(expression: string): Promise<AutomationEvaluateResult>;
-    resizeAutomationWebView(width: number, height: number): Promise<AutomationWebViewStatus>;
     screenshotAutomationWebView(options?: AutomationScreenshotOptions): Promise<Uint8Array>;
 }
 export declare function refreshCanvasAccess(access: CanvasAccess): Promise<CanvasAccess>;
