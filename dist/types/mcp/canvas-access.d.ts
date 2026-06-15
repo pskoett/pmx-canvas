@@ -27,7 +27,6 @@ type HistoryResult = ReturnType<PmxCanvas['getHistory']>;
 type RunBatchInput = Parameters<PmxCanvas['runBatch']>[0];
 type RunBatchResult = Awaited<ReturnType<PmxCanvas['runBatch']>>;
 type CodeGraphResult = ReturnType<PmxCanvas['getCodeGraph']>;
-type ValidationResult = ReturnType<PmxCanvas['validate']>;
 type WebArtifactInput = Parameters<PmxCanvas['buildWebArtifact']>[0];
 type WebArtifactResult = Awaited<ReturnType<PmxCanvas['buildWebArtifact']>>;
 type AutomationWebViewOptions = Parameters<PmxCanvas['startAutomationWebView']>[0];
@@ -47,7 +46,6 @@ export interface CanvasAccess {
     addHtmlNode(input: AddHtmlNodeInput): Promise<string>;
     addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult>;
     buildWebArtifact(input: WebArtifactInput): Promise<WebArtifactResult>;
-    removeAnnotation(id: string): Promise<boolean>;
     getAxState(): Promise<AxStateResult>;
     getAxContext(options?: {
         consumer?: string;
@@ -73,7 +71,6 @@ export interface CanvasAccess {
     getPinnedNodeIds(): Promise<string[]>;
     runBatch(operations: RunBatchInput): Promise<RunBatchResult>;
     getCodeGraph(): Promise<CodeGraphResult>;
-    validate(): Promise<ValidationResult>;
     getAutomationWebViewStatus(): Promise<AutomationWebViewStatus>;
     startAutomationWebView(options?: AutomationWebViewOptions): Promise<AutomationWebViewStatus>;
     stopAutomationWebView(): Promise<boolean>;

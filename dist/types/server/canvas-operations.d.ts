@@ -82,11 +82,6 @@ interface CanvasCreateGroupInput {
     color?: string;
     childLayout?: CanvasArrangeMode;
 }
-export interface CanvasBatchOperation {
-    op: string;
-    assign?: string;
-    args?: Record<string, unknown>;
-}
 interface CanvasNodeLookupInput {
     id?: string;
     search?: string;
@@ -262,11 +257,4 @@ export declare function createCanvasGraphNode(input: GraphNodeInput): {
     node: CanvasNodeState;
 };
 export declare function fitCanvasView(options?: CanvasFitViewOptions): CanvasFitViewResult;
-export declare function executeCanvasBatch(operations: CanvasBatchOperation[]): Promise<{
-    ok: boolean;
-    results: Array<Record<string, unknown>>;
-    refs: Record<string, unknown>;
-    failedIndex?: number;
-    error?: string;
-}>;
 export {};

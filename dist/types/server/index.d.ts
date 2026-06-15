@@ -421,13 +421,7 @@ export declare class PmxCanvas extends EventEmitter {
         op: string;
         assign?: string;
         args?: Record<string, unknown>;
-    }>): Promise<{
-        ok: boolean;
-        results: Array<Record<string, unknown>>;
-        refs: Record<string, unknown>;
-        failedIndex?: number;
-        error?: string;
-    }>;
+    }>): Promise<import("./operations/index.js").BatchEnvelope>;
     buildWebArtifact(input: WebArtifactBuildInput & {
         openInCanvas?: boolean;
     }): Promise<WebArtifactCanvasBuildResult>;

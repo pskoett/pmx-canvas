@@ -11,13 +11,15 @@
  *
  * Migration (docs/api-stability.md + plan-006): composites land ADDITIVELY in
  * v0.2 alongside the legacy single-purpose tools (the tool surface grows, then
- * shrinks when the legacy tools are removed in v0.3). This file ships the
- * composites whose every action maps to a registry-backed operation TODAY
- * (plan-005 slices 1–4). Actions that would dispatch to a not-yet-migrated
- * operation (`refresh`, `add-primitive`, `remove-annotation`, board validation)
- * are intentionally omitted for now — their legacy standalone tools remain —
- * and fold in once the AX / side-channel registry slices (plan-005 items 7–8) land.
- * The action enums are forward-compatible: adding an action later is additive.
+ * shrinks when the legacy tools are removed in v0.3). Every action here maps to a
+ * registry-backed operation (plan-005 slices 1–7 + plan-008 Wave 1).
+ *
+ * Still deferred (their legacy standalone tools keep working; see plan-008):
+ * the `refresh` / `add-primitive` / `add-html` folds (would need a per-action
+ * input-injection mechanism), and the `canvas_webview` / `canvas_app` /
+ * `canvas_snapshot` composites (server.ts-coupled webview, poor-fit side-channel
+ * apps, and the v0.3 name collision respectively). The action enums are
+ * forward-compatible: adding an action later is additive.
  *
  * Not shipped here: the `canvas_snapshot` composite (plan-006 #7). Its target
  * name is ALREADY a legacy standalone tool (the save-snapshot tool, op
