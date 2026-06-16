@@ -58,6 +58,25 @@ function wrapScript(script: string): string {
   return `(async () => {\n${script}\n})()`;
 }
 
+/**
+ * Run an injected automation-runner call, converting a runtime failure (e.g. no
+ * active session, or a page-side eval error) into the legacy
+ * `400 { ok:false, error, webview }` contract. Without this the plain Error the
+ * runner throws would escape dispatchOperationRoute (which only maps OperationError)
+ * and surface as Bun's default 500 HTML error overlay — a wire regression that also
+ * discloses the server source path. Mirrors the legacy resize/evaluate try/catch.
+ */
+async function runWebviewTask<T>(task: () => Promise<T> | T): Promise<T> {
+  try {
+    return await task();
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    let webview: WebviewStatus | undefined;
+    try { webview = getWebviewRunner().status(); } catch { /* runner not wired */ }
+    throw new OperationError(message, 400, webview ? { webview } : undefined);
+  }
+}
+
 function statusText(status: WebviewStatus): { content: [{ type: 'text'; text: string }] } {
   return { content: [{ type: 'text' as const, text: JSON.stringify(status, null, 2) }] };
 }
@@ -247,7 +266,7 @@ const resizeOperation = defineOperation<z.infer<typeof resizeSchema>, WebviewSta
     if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
       throw new OperationError('Missing required positive numeric fields: width, height.');
     }
-    return getWebviewRunner().resize(width, height);
+    return runWebviewTask(() => getWebviewRunner().resize(width, height));
   },
   // HTTP wire body matches the legacy handler: { ok:true, webview }.
   serialize: (output) => ({ ok: true, webview: output }),
@@ -304,7 +323,7 @@ const evaluateOperation = defineOperation<z.infer<typeof evaluateSchema>, { valu
       );
     }
     const source = script ? wrapScript(script) : expression;
-    const value = await getWebviewRunner().evaluate(source);
+    const value = await runWebviewTask(() => getWebviewRunner().evaluate(source));
     return { value };
   },
   // HTTP wire body matches the legacy handler: { ok:true, value }.

@@ -5,6 +5,42 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-16
+
+### Breaking
+
+Per [`docs/api-stability.md`](docs/api-stability.md), v0.2.0 is the first minor
+allowed to change public-surface behavior, and every such change is collected here.
+All are **cross-surface unifications** — a surface that silently diverged from the
+others is brought into line, never a new restriction invented for this release. The
+detailed per-slice rationale is under **Changed**. MCP tool *names* + input *schemas*,
+HTTP routes + documented success shapes, and CLI flags are all unchanged (frozen by
+`tests/unit/mcp-tool-freeze.test.ts`).
+
+- **SDK `PmxCanvas.removeNode(id)` now throws `Node "<id>" not found.` on an unknown
+  id** instead of silently succeeding — matching the HTTP `DELETE` (already 404) and
+  local MCP `canvas_remove_node`. Idempotent-delete callers must guard or catch.
+- **Local (in-process) MCP error surfacing now matches HTTP for missing targets:**
+  `canvas_remove_node`, `canvas_remove_edge`, `canvas_create_group` (missing child ids),
+  `canvas_focus_node`, and `canvas_ungroup` now return an MCP error result (were silent
+  success / a different message).
+- **MCP `*_resolve` / `*_respond` / `update_work_item` / review `update` /
+  `invoke_command` now return an `isError` result** (not a success-shaped
+  `{ ok:false, <item>:null }`) when the target is missing, already resolved, or an
+  unknown command. Success shapes are unchanged.
+- **AX blocking-gate await over a *remote* MCP transport** surfaces a missing gate as an
+  `isError` rather than `{ <gate>:null }` (the in-process path is unchanged). The HTTP
+  single-gate read keeps its 404 status but its missing-gate body changed to
+  `{ ok:false, <gate>:null, pending:false }`, and it no longer aborts the long-poll on
+  client disconnect (it runs to its ≤120 s timeout).
+- **`canvas_batch` entries now inherit each operation's validation** (they dispatch
+  through the same registry op as the standalone tools): a `node.add` with no `type`
+  fails the batch (was a silent markdown node), an empty-name `snapshot.save` fails the
+  batch (was `ok:true`), and `node.add type:"html-primitive"` now succeeds (was a
+  batch-only rejection). A batched `node.update` now applies the full HTTP superset
+  (webpage `refresh`, top-level `html`, group `children`). The
+  `{ ok, results, refs, failedIndex?, error? }` envelope itself is unchanged.
+
 ### Added
 
 - **AX state isolated into `AxStateManager` (plan-007 Slice A).** The canvas-bound
@@ -258,6 +294,20 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   `{ ok, error, type }` shape. HTTP paths, wire shapes, and MCP tool names are
   unchanged.
 
+- **Smaller consolidation behavior changes (surfaced by the v0.2.0 release review,
+  documented here for completeness).** Beyond the slice entries above, the unification
+  also changed a few smaller behaviors: (1) `PmxCanvas.addNode({ type:"html" })` and
+  `canvas_add_node { type:"html" }` *without* an explicit size now default to **720×640**
+  (was 360×200 on those two surfaces — their size ladder lacked an html case; this
+  converges to the documented html default and the dedicated `canvas_add_html_node`).
+  (2) The HTTP `POST /api/canvas/mcp-app/open` and `/api/canvas/diagram` success bodies no
+  longer echo `serverName` / `toolName` (both are caller-supplied inputs and remain on the
+  `ext-app-open` / `ext-app-result` SSE frames; the MCP results were never affected).
+  (3) `webview start`'s `dataStoreDir` is now workspace-sandboxed on the HTTP surface too
+  (out-of-workspace → 400), matching the MCP tool. (4) The batch unsupported-operation
+  error text is now `Unsupported canvas_batch operation "<op>".`. None of these change a
+  frozen tool name, input schema, or documented success response shape.
+
 ### Deprecated
 
 - **`canvas_validate` and `canvas_remove_annotation` superseded by composite
@@ -338,6 +388,21 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   and are removed in v0.3 per `docs/api-stability.md`.
 
 ### Fixed
+
+- **Webview `evaluate` / `resize` runtime failures return the legacy `400` JSON, not a
+  `500` HTML overlay (v0.2.0 release-review fix).** During the registry migration these
+  ops let the automation runner's plain `Error` (e.g. "no active session") escape
+  `dispatchOperationRoute` (which maps only `OperationError`); with no `Bun.serve`
+  request-level boundary, Bun rendered its dev error overlay — HTTP `500 text/html`
+  disclosing the absolute server source path. The handlers now convert runner failures to
+  the legacy `400 { ok:false, error, webview }` contract, the dispatcher returns a clean
+  JSON `500` for any other unexpected throw, and a `Bun.serve` `error()` boundary
+  guarantees no route can ever render the overlay. Covered by a new no-session regression
+  test.
+- **In-place mcp-app / diagram update preserves the node's existing title (v0.2.0
+  release-review fix).** Re-opening an existing `mcp-app` node in place *without* a
+  `title` no longer resets the node title to the external tool's name — the
+  `ext-app-open` title fallback restores the legacy `targetNode.data.title` step.
 
 - **json-render and graph viewer iframes crashed at mount (blank iframes).**
   Bun 1.3.14 ignores the `NODE_ENV` define for JSX dev/prod selection when a
@@ -2169,6 +2234,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.2.0]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.0
 [0.1.36]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.36
 [0.1.35]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.35
 [0.1.34]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.34

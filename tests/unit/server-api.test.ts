@@ -4240,6 +4240,35 @@ describe('canvas server HTTP API', () => {
     expect(stopped.webview.active).toBe(false);
   }, 15000);
 
+  test('webview evaluate/resize with no active session fail as 400 JSON, not a 500 HTML overlay', async () => {
+    // Regression for the v0.2.0 registry refactor: the resize/evaluate op handlers
+    // call the injected runner, which throws a PLAIN Error when no automation
+    // session is active. That throw must be converted to the legacy
+    // 400 { ok:false, error, webview } contract — NOT escape to Bun's default 500
+    // text/html dev overlay (which discloses the absolute server source path).
+    await fetch(`${baseUrl}/api/workbench/webview`, { method: 'DELETE' }); // ensure stopped
+
+    for (const [path, body] of [
+      ['/api/workbench/webview/evaluate', { expression: 'document.title' }],
+      ['/api/workbench/webview/resize', { width: 1024, height: 768 }],
+    ] as const) {
+      const res = await fetch(`${baseUrl}${path}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      expect(res.status).toBe(400);
+      expect(res.headers.get('content-type') ?? '').toContain('application/json');
+      const failed = await res.json() as { ok: boolean; error: string; webview?: { active?: boolean } };
+      expect(failed.ok).toBe(false);
+      expect(failed.error.length).toBeGreaterThan(0);
+      // Never leak a server filesystem path / stack frame in the error body.
+      expect(failed.error).not.toContain('src/server');
+      expect(failed.error).not.toContain(process.cwd());
+      expect(failed.webview?.active).toBe(false);
+    }
+  });
+
   test('supports WebView evaluate, resize, and screenshot endpoints', async () => {
     const requestedBackend =
       process.platform === 'darwin'

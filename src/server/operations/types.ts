@@ -17,11 +17,15 @@ export type OperationErrorStatus = 400 | 404 | 409;
 /** Operation failure that maps to an HTTP status + `{ ok:false, error }` body and MCP `isError`. */
 export class OperationError extends Error {
   readonly status: OperationErrorStatus;
+  /** Extra fields merged into the HTTP `{ ok:false, error }` body (e.g. the legacy
+   *  webview-failure `webview` status snapshot). Omit for the plain envelope. */
+  readonly details?: Record<string, unknown>;
 
-  constructor(message: string, status: OperationErrorStatus = 400) {
+  constructor(message: string, status: OperationErrorStatus = 400, details?: Record<string, unknown>) {
     super(message);
     this.name = 'OperationError';
     this.status = status;
+    if (details) this.details = details;
   }
 }
 

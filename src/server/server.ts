@@ -3501,6 +3501,15 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
         hostname: DEFAULT_HOST,
         port: portCandidate,
         idleTimeout: 0,
+        // Last-resort boundary: any throw that escapes the fetch handler must NOT
+        // render Bun's default dev error overlay (HTTP 500 text/html disclosing the
+        // absolute server source path + stack). Return a clean JSON 500 and log the
+        // real error server-side only. Operation dispatch has its own catch
+        // (operations/http.ts); this covers the hand-written routes too.
+        error(error) {
+          logWorkbenchWarning('serverFetch', error);
+          return responseJson({ ok: false, error: 'Internal server error.' }, 500);
+        },
         async fetch(req) {
           const url = new URL(req.url);
 

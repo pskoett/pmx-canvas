@@ -127,7 +127,10 @@ export async function openMcpAppCore(
   ctx.emit('ext-app-open', {
     toolCallId,
     nodeId: nodeIdSeed,
-    title: input.title ?? opened.tool.title ?? opened.tool.name,
+    // Preserve an existing in-place node's title when no override is given (legacy
+    // runAndEmitOpenMcpApp fallback order) — otherwise an in-place update with no
+    // `title` would reset the node title to the external tool's name.
+    title: input.title ?? (targetNode?.data.title as string | undefined) ?? opened.tool.title ?? opened.tool.name,
     html: opened.html,
     toolInput: opened.toolInput,
     serverName: opened.serverName,

@@ -88,9 +88,15 @@ export async function dispatchOperationRoute(req: Request, url: URL): Promise<Re
       return responseJson(result, route.status ? route.status(result) : 200);
     } catch (error) {
       if (error instanceof OperationError) {
-        return responseJson({ ok: false, error: error.message }, error.status);
+        return responseJson({ ok: false, error: error.message, ...(error.details ?? {}) }, error.status);
       }
-      throw error;
+      // An unexpected (non-OperationError) throw from a handler MUST NOT escape the
+      // dispatcher: Bun.serve has no per-request boundary, so an escaped throw renders
+      // its dev error overlay (HTTP 500 text/html leaking the absolute server source
+      // path + stack). Return a clean JSON 500 with a generic message instead (the
+      // real error is logged server-side, never echoed to the client).
+      console.error(`[operation] unhandled error dispatching ${op.name}:`, error);
+      return responseJson({ ok: false, error: 'Internal error processing the request.' }, 500);
     }
   }
   return null;

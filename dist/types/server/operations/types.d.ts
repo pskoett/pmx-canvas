@@ -15,7 +15,10 @@ export type OperationErrorStatus = 400 | 404 | 409;
 /** Operation failure that maps to an HTTP status + `{ ok:false, error }` body and MCP `isError`. */
 export declare class OperationError extends Error {
     readonly status: OperationErrorStatus;
-    constructor(message: string, status?: OperationErrorStatus);
+    /** Extra fields merged into the HTTP `{ ok:false, error }` body (e.g. the legacy
+     *  webview-failure `webview` status snapshot). Omit for the plain envelope. */
+    readonly details?: Record<string, unknown>;
+    constructor(message: string, status?: OperationErrorStatus, details?: Record<string, unknown>);
 }
 export interface OperationContext {
     /** Emit a workbench SSE event (e.g. extra `canvas-layout-update` frames, focus, viewport). */
