@@ -48,7 +48,82 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   The public MCP surface grows from 76 to 81 tools (deliberate; see
   `tests/unit/mcp-tool-freeze.test.ts`).
 
+- **`canvas_webview` composite + the 5 webview ops migrated to the operation
+  registry via runner injection (plan-008 Wave 3).** The five browser-automation
+  tools (`canvas_webview_status`, `canvas_webview_start`, `canvas_webview_stop`,
+  `canvas_resize`, `canvas_evaluate`) are now defined once in
+  `src/server/operations/ops/webview.ts` and shared by HTTP, MCP, and the SDK.
+  The Bun.WebView machinery lives in `server.ts` (which `operations/` must not
+  import), so the runner is **injected** — `src/server/operations/webview-runner.ts`
+  declares a `WebviewRunner` interface + `setWebviewRunner`/`getWebviewRunner`,
+  and `server.ts` wires the real automation functions at module load, exactly
+  mirroring the `setOperationEventEmitter` SSE-emitter injection. The new
+  `canvas_webview` composite folds the five tools behind a `status` / `start` /
+  `stop` / `resize` / `evaluate` action enum; each action dispatches to the same
+  op, so behavior is byte-identical (proven by `tests/unit/mcp-composites.test.ts`).
+  Wire shapes, MCP result shapes, and the `canvas_evaluate` arbitrary-eval trust
+  posture are unchanged. `canvas_screenshot` is deliberately **not** folded — it
+  returns a binary image payload the registry JSON wire shape does not model — and
+  stays a standalone hand-written tool (its `POST /api/workbench/webview/screenshot`
+  route also stays hand-written). The public MCP surface grows from 81 to 82 tools
+  (deliberate; see `tests/unit/mcp-tool-freeze.test.ts`).
+
+- **`canvas_app` composite + the 3 external / built-content tools migrated to the
+  operation registry (plan-008 Wave 4).** `canvas_open_mcp_app`,
+  `canvas_add_diagram`, and `canvas_build_web_artifact` are now defined once in
+  `src/server/operations/ops/app.ts` (ops `mcpapp.open`, `diagram.open`,
+  `webartifact.build`) and shared by HTTP, MCP, and the SDK. They were previously
+  deferred as "poor fits" (stateful external session + custom SSE; long-running
+  build), but they migrate cleanly: `executeOperation` is async (the long-running
+  build fits — the "long-running" caveat is about MCP-client timeouts, not registry
+  fit), and their runtimes are server-independent **domain modules**
+  (`mcp-app-runtime.ts`, `diagram-presets.ts`, `web-artifacts.ts`), not `server.ts`
+  — so the op handlers call them directly, no runner injection. To keep
+  `web-artifacts.ts` server-independent its one `emitPrimaryWorkbenchEvent` call
+  was switched to the already-injected `emitCanvasLayoutUpdate` (canvas-operations'
+  `setCanvasLayoutUpdateEmitter`, wired by `server.ts`). The three ops are
+  `mutates:false`: `mcpapp.open` / `diagram.open` emit `ext-app-open` +
+  `ext-app-result` via `ctx.emit` (byte-identical to the legacy events, fired
+  once); `webartifact.build`'s node creation emits its own `canvas-layout-update`
+  from inside `web-artifacts.ts`. The new `canvas_app` composite folds the three
+  behind an `open-mcp-app` / `diagram` / `build-artifact` action enum; each action
+  dispatches to the same op, so behavior is byte-identical (proven by
+  `tests/unit/mcp-composites.test.ts`). Wire shapes and MCP result shapes are
+  unchanged. The public MCP surface grows from 82 to 83 tools (deliberate; see
+  `tests/unit/mcp-tool-freeze.test.ts`).
+
 ### Changed
+
+- **Board validation and annotation removal migrated to the operation registry
+  (plan-008 Wave 1).** `canvas_validate` (board validation, a pure read) and
+  `canvas_remove_annotation` (DELETE-by-id) are now defined once in
+  `src/server/operations/ops/validate.ts` and
+  `src/server/operations/ops/annotation.ts`, shared by HTTP, MCP, and the CLI
+  (legacy hand-written handlers + routes + MCP tool blocks + the orphaned
+  `CanvasAccess.validate` / `CanvasAccess.removeAnnotation` methods deleted; the
+  SDK `PmxCanvas.validate()` / `removeAnnotation()` stay public). Tool names,
+  HTTP routes (`GET /api/canvas/validate`, `DELETE /api/canvas/annotation/:id`),
+  the 404 denial body, MCP result shapes, and the `canvas-layout-update` SSE
+  frame are unchanged. Two new composite actions land additively:
+  `canvas_query` gains `validate` (→ `validate.get`) and `canvas_view` gains
+  `remove-annotation` (→ `annotation.remove`).
+
+- **Batch migrated to the `canvas.batch` registry meta-op (plan-008 Wave 2 —
+  the last and highest-risk registry slice).** `canvas_batch` now dispatches
+  each entry through the shared `executeOperation` path (defined once in
+  `src/server/operations/ops/batch.ts`) instead of a hand-written ~290-line
+  switch in `canvas-operations.ts`, which is deleted along with its
+  `resolveBatchRefs` / `serializeCreatedNode` helpers, the
+  `handleCanvasBatch` HTTP handler + route, and the standalone `canvas_batch`
+  MCP tool block. `executeOperation` gained an internal, depth-counted
+  emit-suppression (`runWithSuppressedEmits`) so the meta-op runs every entry
+  with per-entry SSE frames suppressed and then emits exactly ONE final
+  `canvas-layout-update` — preserving the single-final-frame behavior. The
+  `canvas_batch` tool name, the `{ operations:[...] }` and bare-`[...]` body
+  shapes, per-entry result shapes, and the `{ ok, results, refs, failedIndex?,
+  error? }` envelope are unchanged; per-entry ops record their own undo/redo
+  history as before. The SDK `PmxCanvas.runBatch` stays public and delegates to
+  the meta-op.
 
 - **Deleting a node no longer silently re-anchors AX work (plan-007 Slice A).**
   Node deletion already re-normalized canvas-bound AX state (work items / approval
@@ -184,6 +259,56 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   unchanged.
 
 ### Deprecated
+
+- **`canvas_validate` and `canvas_remove_annotation` superseded by composite
+  actions (plan-008 Wave 1).** Both tools now carry a `Deprecated: use canvas_x
+  with action "y".` prefix on their tool description (derived automatically from
+  the composite definitions): `canvas_validate` → `canvas_query` action
+  `validate`; `canvas_remove_annotation` → `canvas_view` action
+  `remove-annotation`. They keep working through v0.2 and are removed in v0.3 per
+  `docs/api-stability.md`.
+
+- **The 5 webview MCP tools superseded by the `canvas_webview` composite
+  (plan-008 Wave 3).** `canvas_webview_status`, `canvas_webview_start`,
+  `canvas_webview_stop`, `canvas_resize`, and `canvas_evaluate` now carry a
+  `Deprecated: use canvas_webview with action "y".` prefix on their tool
+  description (derived automatically from the composite definition):
+  `canvas_webview_status` → action `status`; `canvas_webview_start` → `start`;
+  `canvas_webview_stop` → `stop`; `canvas_resize` → `resize`; `canvas_evaluate`
+  → `evaluate`. They keep working through v0.2 (now registry-served) and are
+  removed in v0.3 per `docs/api-stability.md`. `canvas_screenshot` is NOT
+  deprecated — it stays standalone (binary payload).
+
+- **The 3 external / built-content MCP tools superseded by the `canvas_app`
+  composite (plan-008 Wave 4).** `canvas_open_mcp_app`, `canvas_add_diagram`, and
+  `canvas_build_web_artifact` now carry a `Deprecated: use canvas_app with action
+  "y".` prefix on their tool description (derived automatically from the composite
+  definition): `canvas_open_mcp_app` → action `open-mcp-app`; `canvas_add_diagram`
+  → `diagram`; `canvas_build_web_artifact` → `build-artifact`. They keep working
+  through v0.2 (now registry-served) and are removed in v0.3 per
+  `docs/api-stability.md`.
+
+- **The 3 HTML/webpage MCP tools superseded by `canvas_node` (plan-008 Wave 5 — the
+  final fold).** `canvas_add_html_node` → `canvas_node` with `action: "add"` and
+  `type: "html"`; `canvas_add_html_primitive` → `canvas_node` with `action: "add"`,
+  `type: "html"`, `primitive: "<kind>"` (and `data`); `canvas_refresh_webpage_node`
+  → `canvas_node` with `action: "update"` and `refresh: true`. All three now carry a
+  `Deprecated: use canvas_node …` prefix on their tool description. **No new action,
+  composite mechanism, op, or SDK change was needed** — the earlier plan-008 verdict
+  that a fold required a per-action input-injection mechanism was wrong:
+  `node.add` already routes `type:"html"` + `primitive|kind` → `createHtmlPrimitiveNode`
+  and merges the top-level html fields (`summary`/`agentSummary`/`description`/
+  `presentation`/`slideTitles`/`embeddedNodeIds`/`embeddedUrls`) into the node data,
+  and `node.update` already routes `refresh:true` → `refreshCanvasWebpageNode`. Two
+  small correctness fixes made the fold sound: (a) `axCapabilities` is now **advertised**
+  in `node.add`'s schema (it previously only passed through `z.looseObject`, so
+  schema-guided agents migrating off `canvas_add_html_node` would silently drop the
+  AX-bridge config); (b) `node.update`'s `formatResult` now surfaces a FAILED webpage
+  refresh as `isError` + `{ ok:false, error }` (it previously masked it as a false
+  `{ ok:true }` over the MCP-default local invoker — a live bug), matching the HTTP
+  400 and the legacy tool. Parity (incl. the refresh failure path) is proven by
+  `tests/unit/mcp-composites.test.ts`. All three keep working through v0.2 and are
+  removed in v0.3 per `docs/api-stability.md`.
 
 - **Single-purpose MCP tools superseded by wave-1 composites.** The standalone
   tools folded by the composites above (`canvas_add_node`, `canvas_get_node`,

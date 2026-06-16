@@ -33,6 +33,12 @@ export interface OperationHttpRoute {
     readInput?: (req: Request, params: Record<string, string>, url: URL) => Promise<Record<string, unknown>> | Record<string, unknown>;
     /** HTTP status for a successful result. Defaults to 200. */
     status?: (result: unknown) => number;
+    /**
+     * Return parsed non-2xx JSON bodies to operation callers instead of throwing.
+     * Use only for operations whose MCP contract formats structured failure bodies
+     * itself (for example canvas.batch partial failures).
+     */
+    errorBodyAsResult?: boolean;
 }
 /** Host capabilities available to MCP result formatters. */
 export interface OperationMcpToolHost {

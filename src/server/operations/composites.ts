@@ -11,13 +11,20 @@
  *
  * Migration (docs/api-stability.md + plan-006): composites land ADDITIVELY in
  * v0.2 alongside the legacy single-purpose tools (the tool surface grows, then
- * shrinks when the legacy tools are removed in v0.3). This file ships the
- * composites whose every action maps to a registry-backed operation TODAY
- * (plan-005 slices 1–4). Actions that would dispatch to a not-yet-migrated
- * operation (`refresh`, `add-primitive`, `remove-annotation`, board validation)
- * are intentionally omitted for now — their legacy standalone tools remain —
- * and fold in once the AX / side-channel registry slices (plan-005 items 7–8) land.
- * The action enums are forward-compatible: adding an action later is additive.
+ * shrinks when the legacy tools are removed in v0.3). Every action here maps to a
+ * registry-backed operation (plan-005 slices 1–7 + plan-008 Wave 1).
+ *
+ * Still deferred (its legacy standalone tool keeps working; see plan-008): the
+ * `canvas_snapshot` composite (the v0.3 name collision). The action enums are
+ * forward-compatible: adding an action later is additive. (`canvas_webview`
+ * shipped in plan-008 Wave 3 via runner injection; `canvas_app` shipped in Wave 4
+ * — open-mcp-app / diagram / build-artifact. Wave 5 folded the last three legacy
+ * tools deprecate-only — NO per-action input-injection mechanism was needed:
+ * `canvas_add_html_node` / `canvas_add_html_primitive` → `canvas_node` action
+ * "add" (type:"html" [+ primitive]); `canvas_refresh_webpage_node` → `canvas_node`
+ * action "update" (refresh:true). `canvas_screenshot` stays standalone — it
+ * returns a binary image payload the composite/registry JSON wire shape does not
+ * model.)
  *
  * Not shipped here: the `canvas_snapshot` composite (plan-006 #7). Its target
  * name is ALREADY a legacy standalone tool (the save-snapshot tool, op
@@ -139,7 +146,7 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
     toolName: 'canvas_node',
     description:
-      'Create, read, update, or remove a canvas node. One tool for node CRUD: action "add" creates a node (requires type — markdown, status, context, ledger, trace, file, image, webpage, html, group, etc.); "get" reads one node by id; "update" patches an existing node (title, content, position, size, data); "remove" deletes a node by id. For spec-driven content (json-render, graph) use canvas_render; for external/built apps use the current legacy tools: canvas_open_mcp_app, canvas_add_diagram, or canvas_build_web_artifact.',
+      'Create, read, update, or remove a canvas node. One tool for node CRUD: action "add" creates a node (requires type — markdown, status, context, ledger, trace, file, image, webpage, html, group, etc.); "get" reads one node by id; "update" patches an existing node (title, content, position, size, data); "remove" deletes a node by id. For spec-driven content (json-render, graph) use canvas_render; for external/built apps use canvas_app (actions: open-mcp-app, diagram, build-artifact).',
     actionSummary: 'add | get | update | remove',
     actions: {
       add: 'node.add',
@@ -195,23 +202,49 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
     toolName: 'canvas_view',
     description:
-      'Canvas viewport and layout control. Action "arrange" auto-lays-out nodes (grid/columns/etc.); "focus" pans/zooms the viewport to a node; "fit" zooms to fit all nodes in view; "clear" removes every node and edge from the canvas.',
-    actionSummary: 'arrange | focus | fit | clear',
+      'Canvas viewport and layout control. Action "arrange" auto-lays-out nodes (grid/columns/etc.); "focus" pans/zooms the viewport to a node; "fit" zooms to fit all nodes in view; "clear" removes every node and edge from the canvas; "remove-annotation" deletes a human-drawn annotation by id.',
+    actionSummary: 'arrange | focus | fit | clear | remove-annotation',
     actions: {
       arrange: 'arrange',
       focus: 'node.focus',
       fit: 'view.fit',
       clear: 'canvas.clear',
+      'remove-annotation': 'annotation.remove',
     },
   },
   {
     toolName: 'canvas_query',
     description:
-      'Read the board cheapest-first. Action "search" finds nodes by title/content keywords (prefer this before reading the full layout); "layout" returns the full node/edge layout. Use search to locate, then layout or canvas_node get for detail.',
-    actionSummary: 'search | layout',
+      'Read the board cheapest-first. Action "search" finds nodes by title/content keywords (prefer this before reading the full layout); "layout" returns the full node/edge layout; "validate" checks the board for node collisions, group-containment issues, and missing edge endpoints. Use search to locate, then layout or canvas_node get for detail.',
+    actionSummary: 'search | layout | validate',
     actions: {
       search: 'search',
       layout: 'layout.get',
+      validate: 'validate.get',
+    },
+  },
+  {
+    toolName: 'canvas_app',
+    description:
+      'Open external / built-content apps on the canvas. Action "open-mcp-app" connects to an external MCP server that declares a ui:// app resource, calls a tool, and opens the result inside an mcp-app node (full transport call — pass transport + toolName); "diagram" draws a hand-drawn diagram via the hosted Excalidraw preset (pass elements); "build-artifact" bundles a single-file HTML web artifact from React/Tailwind source (title + appTsx) and optionally opens it on the canvas. build-artifact can be long-running (minutes) on cold workspaces — set a long client timeout.',
+    actionSummary: 'open-mcp-app | diagram | build-artifact',
+    actions: {
+      'open-mcp-app': 'mcpapp.open',
+      diagram: 'diagram.open',
+      'build-artifact': 'webartifact.build',
+    },
+  },
+  {
+    toolName: 'canvas_webview',
+    description:
+      'Drive the headless Bun.WebView automation session for the workbench. Action "status" reads automation status (supported, active, backend, viewport, url); "start" starts/replaces the session (backend chrome|webkit, width, height, chromePath, chromeArgv, dataStoreDir); "stop" stops the active session; "resize" sets the viewport (width, height required); "evaluate" runs JavaScript in the page (pass exactly one of expression or script; script is wrapped in an async IIFE). Capturing a screenshot is NOT folded here — use the standalone canvas_screenshot tool (it returns a binary image payload).',
+    actionSummary: 'status | start | stop | resize | evaluate',
+    actions: {
+      status: 'webview.status',
+      start: 'webview.start',
+      stop: 'webview.stop',
+      resize: 'webview.resize',
+      evaluate: 'webview.evaluate',
     },
   },
   // ── AX composites (plan-007 Slice C / plan-006 §11–15) ───────────

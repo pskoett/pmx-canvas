@@ -60,9 +60,7 @@ import {
   listMcpAppResources,
   listMcpAppResourceTemplates,
   listMcpAppTools,
-  openMcpApp,
   readMcpAppResource,
-  type ExternalMcpTransportConfig,
 } from './mcp-app-runtime.js';
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { mutationHistory } from './mutation-history.js';
@@ -85,30 +83,27 @@ import { normalizeCanvasTheme, type CanvasTheme } from './canvas-db.js';
 import { validateLocalImageFile } from './image-source.js';
 import {
   applyCanvasNodeUpdates,
-  executeCanvasBatch,
   refreshCanvasWebpageNode,
   primeCanvasRuntimeBackends,
   setCanvasLayoutUpdateEmitter,
   syncCanvasRuntimeBackends,
 } from './canvas-operations.js';
 import { dispatchOperationRoute, setOperationEventEmitter } from './operations/index.js';
+import { setWebviewRunner } from './operations/webview-runner.js';
 import {
   closeNodeAppSession,
   nodeAppSessionId,
 } from './operations/ops/nodes.js';
-import { validateCanvasLayout } from './canvas-validation.js';
 import {
   EXCALIDRAW_READ_CHECKPOINT_TOOL,
   EXCALIDRAW_SAVE_CHECKPOINT_TOOL,
   buildExcalidrawCheckpointId,
-  buildExcalidrawOpenMcpAppInput,
   buildExcalidrawRestoreCheckpointToolInput,
   ensureExcalidrawCheckpointId,
   getExcalidrawCheckpointIdFromToolResult,
   isExcalidrawCreateView,
 } from './diagram-presets.js';
 import { traceManager } from './trace-manager.js';
-import { buildWebArtifactOnCanvas, resolveWorkspacePath } from './web-artifacts.js';
 import {
   buildJsonRenderViewerHtml,
 } from '../json-render/server.js';
@@ -138,6 +133,44 @@ let lastWorkbenchContextCardsEnvelope: Record<string, unknown> | null = null;
 // (in-process) MCP/SDK invocations emit even without startCanvasServer().
 setOperationEventEmitter((event, payload) => {
   emitPrimaryWorkbenchEvent(event, payload);
+});
+
+// Webview-runner wiring (plan-008 Wave 3): the webview ops never import this
+// module — the Bun.WebView automation runner is injected here, mirroring the
+// setOperationEventEmitter pattern. The closures call the real automation
+// functions (declared below, hoisted) so a webview op resolves to the same
+// machinery the legacy hand-written tools/routes used. `screenshot` stays out —
+// it returns binary and remains the standalone canvas_screenshot tool.
+setWebviewRunner({
+  status: () => getCanvasAutomationWebViewStatus(),
+  start: async (options) => {
+    const url = currentWorkbenchUrl();
+    if (!url) {
+      // Mirrors the legacy 503 "server not running" branch: no URL → not a
+      // start failure but a precondition error. Surface it through the
+      // error-shaped result so the op can map it to the same 503 wire body
+      // (no webview field, matching the legacy handler).
+      return {
+        ok: false as const,
+        serverNotRunning: true as const,
+        error: 'Canvas server is not running.',
+      };
+    }
+    try {
+      const webview = await startCanvasAutomationWebView(url, options);
+      return { ok: true as const, webview };
+    } catch (error) {
+      return {
+        ok: false as const,
+        error: error instanceof Error ? error.message : String(error),
+        // 500-vs-501 is read off webview.supported (the status), so no separate field.
+        webview: getCanvasAutomationWebViewStatus(),
+      };
+    }
+  },
+  stop: () => stopCanvasAutomationWebView(),
+  resize: (width, height) => resizeCanvasAutomationWebView(width, height),
+  evaluate: (expression) => evaluateCanvasAutomationWebView(expression),
 });
 
 function normalizeGraphViewerSpec(
@@ -894,34 +927,6 @@ async function readJson(req: Request): Promise<Record<string, unknown>> {
   }
 }
 
-/**
- * Like {@link readJson}, but PRESERVES a top-level JSON array. For endpoints that
- * accept either an object or a bare array (e.g. `/api/canvas/batch`, whose CLI
- * help and handler both document a bare `[...]` form). readJson coerces arrays to
- * `{}` so object-shaped handlers never crash on `body.field`; this variant keeps
- * the array so the handler's array branch can run. Empty/whitespace/malformed
- * bodies still resolve to `{}`.
- */
-async function readJsonObjectOrArray(req: Request): Promise<Record<string, unknown> | unknown[]> {
-  let text = '';
-  try {
-    text = await req.text();
-  } catch (error) {
-    logWorkbenchWarning('readJson', error);
-    return {};
-  }
-  if (!text.trim()) return {};
-  try {
-    const value = JSON.parse(text) as unknown;
-    if (Array.isArray(value)) return value;
-    if (!value || typeof value !== 'object') return {};
-    return value as Record<string, unknown>;
-  } catch (error) {
-    logWorkbenchWarning('readJson', error);
-    return {};
-  }
-}
-
 function htmlEscape(value: string): string {
   return value
     .replaceAll('&', '&amp;')
@@ -1462,14 +1467,6 @@ async function handleCanvasAddAnnotation(req: Request): Promise<Response> {
   return responseJson({ ok: true, annotation: summarizeCanvasAnnotation(annotation) });
 }
 
-function handleCanvasRemoveAnnotation(id: string): Response {
-  const decodedId = decodeURIComponent(id);
-  const removed = canvasState.removeAnnotation(decodedId);
-  if (!removed) return responseJson({ ok: false, error: `Annotation "${decodedId}" not found.` }, 404);
-  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson({ ok: true, removed: decodedId });
-}
-
 // ── Serve image file for image nodes ─────────────────────────
 async function handleCanvasImage(pathname: string): Promise<Response> {
   const nodeId = pathname.replace('/api/canvas/image/', '');
@@ -1528,107 +1525,8 @@ async function handleCanvasRefreshWebpageNode(nodeId: string, req: Request): Pro
   return responseJson(result, result.ok ? 200 : 400);
 }
 
-async function handleCanvasBuildWebArtifact(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const title = typeof body.title === 'string' ? body.title.trim() : '';
-  const appTsx = typeof body.appTsx === 'string' ? body.appTsx : '';
-  if (!title || !appTsx) {
-    return responseJson({ ok: false, error: 'Missing required fields: title, appTsx.' }, 400);
-  }
-
-  const files: Record<string, string> = {};
-  if (body.files && typeof body.files === 'object' && !Array.isArray(body.files)) {
-    for (const [pathKey, value] of Object.entries(body.files as Record<string, unknown>)) {
-      if (typeof value === 'string') files[pathKey] = value;
-    }
-  }
-
-  try {
-    const result = await buildWebArtifactOnCanvas({
-      title,
-      appTsx,
-      ...(typeof body.indexCss === 'string' ? { indexCss: body.indexCss } : {}),
-      ...(typeof body.mainTsx === 'string' ? { mainTsx: body.mainTsx } : {}),
-      ...(typeof body.indexHtml === 'string' ? { indexHtml: body.indexHtml } : {}),
-      ...(Object.keys(files).length > 0 ? { files } : {}),
-      ...(typeof body.projectPath === 'string'
-        ? { projectPath: resolveWorkspacePath(body.projectPath, activeWorkspaceRoot) }
-        : {}),
-      ...(typeof body.outputPath === 'string'
-        ? { outputPath: resolveWorkspacePath(body.outputPath, activeWorkspaceRoot) }
-        : {}),
-      // Script-path overrides are honored only when contained inside the
-      // workspace (enforced by resolveTrustedScriptPath in
-      // executeWebArtifactBuild), so they cannot point at an arbitrary host
-      // script for bash execution.
-      ...(typeof body.initScriptPath === 'string'
-        ? { initScriptPath: body.initScriptPath }
-        : {}),
-      ...(typeof body.bundleScriptPath === 'string'
-        ? { bundleScriptPath: body.bundleScriptPath }
-        : {}),
-      ...(Array.isArray(body.deps)
-        ? { deps: body.deps.filter((dep): dep is string => typeof dep === 'string') }
-        : {}),
-      ...(typeof body.timeoutMs === 'number' ? { timeoutMs: body.timeoutMs } : {}),
-      ...(typeof body.openInCanvas === 'boolean' ? { openInCanvas: body.openInCanvas } : {}),
-    });
-
-    return responseJson({
-      ok: true,
-      path: result.filePath,
-      bytes: result.fileSize,
-      projectPath: result.projectPath,
-      openedInCanvas: result.openedInCanvas,
-      startedAt: result.startedAt,
-      completedAt: result.completedAt,
-      durationMs: result.durationMs,
-      timeoutMs: result.timeoutMs,
-      // `id` is the canvas node id alias used by every other add-style
-      // response. It is only present when a canvas node was actually
-      // created (i.e. openInCanvas was not explicitly disabled). When
-      // there is no canvas node, the alias is intentionally omitted so
-      // consumers can `'id' in response` to detect the build-only case.
-      ...(typeof result.nodeId === 'string' ? { id: result.nodeId } : {}),
-      nodeId: result.nodeId,
-      url: result.url,
-      metadata: result.metadata,
-      logs: result.logs,
-      ...(body.includeLogs === true ? {
-        stdout: result.stdout,
-        stderr: result.stderr,
-      } : {}),
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return responseJson({ ok: false, error: message }, 400);
-  }
-}
-
-async function handleCanvasBatch(req: Request): Promise<Response> {
-  // Accept both documented shapes: { operations: [...] } and a bare [...] array.
-  // Uses the array-preserving reader so the bare-array form isn't coerced to {}.
-  const body = await readJsonObjectOrArray(req);
-  const operations = Array.isArray(body)
-    ? body
-    : Array.isArray(body.operations) ? body.operations : [];
-  const normalized = operations
-    .filter((operation): operation is Record<string, unknown> => operation && typeof operation === 'object' && !Array.isArray(operation))
-    .map((operation) => ({
-      op: String(operation.op ?? ''),
-      ...(typeof operation.assign === 'string' ? { assign: operation.assign } : {}),
-      args: operation.args && typeof operation.args === 'object' && !Array.isArray(operation.args)
-        ? operation.args as Record<string, unknown>
-        : {},
-    }));
-  const result = await executeCanvasBatch(normalized);
-  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson(result, result.ok ? 200 : 400);
-}
-
-function handleCanvasValidate(): Response {
-  return responseJson(validateCanvasLayout(canvasState.getLayout()));
-}
+// handleCanvasBuildWebArtifact migrated to the operation registry
+// (plan-008 Wave 4): src/server/operations/ops/app.ts (webartifact.build).
 
 async function handleCanvasThemeUpdate(req: Request): Promise<Response> {
   const body = await readJson(req);
@@ -1903,218 +1801,6 @@ function handleRead(pathLike: string): Response {
   });
 }
 
-function randomExtAppToolCallId(): string {
-  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function normalizeStringRecord(value: unknown): Record<string, string> | undefined {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
-  const entries = Object.entries(value)
-    .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
-    .map(([key, text]) => [key, text.trim()] as const)
-    .filter(([, text]) => text.length > 0);
-  return entries.length > 0 ? Object.fromEntries(entries) : undefined;
-}
-
-function parseExternalMcpTransportConfig(body: Record<string, unknown>): ExternalMcpTransportConfig | null {
-  const transport = body.transport;
-  if (!transport || typeof transport !== 'object' || Array.isArray(transport)) return null;
-  const transportRecord = transport as Record<string, unknown>;
-
-  const type = typeof transportRecord.type === 'string' ? transportRecord.type : '';
-  if (type === 'http') {
-    const url = typeof transportRecord.url === 'string' ? transportRecord.url.trim() : '';
-    if (!url) return null;
-    const headers = normalizeStringRecord(transportRecord.headers);
-    return {
-      type: 'http',
-      url,
-      ...(headers ? { headers } : {}),
-    };
-  }
-
-  if (type === 'stdio') {
-    const command = typeof transportRecord.command === 'string' ? transportRecord.command.trim() : '';
-    if (!command) return null;
-    const env = normalizeStringRecord(transportRecord.env);
-    return {
-      type: 'stdio',
-      command,
-      ...(Array.isArray(transportRecord.args)
-        ? { args: transportRecord.args.filter((value: unknown): value is string => typeof value === 'string') }
-        : {}),
-      ...(typeof transportRecord.cwd === 'string' && transportRecord.cwd.trim().length > 0 ? { cwd: transportRecord.cwd } : {}),
-      ...(env ? { env } : {}),
-    };
-  }
-
-  return null;
-}
-
-interface RunAndEmitOpenMcpAppParams {
-  transport: ExternalMcpTransportConfig;
-  toolName: string;
-  toolArguments?: Record<string, unknown>;
-  nodeId?: string;
-  serverName?: string;
-  title?: string;
-  x?: number;
-  y?: number;
-  width?: number;
-  height?: number;
-  timeoutMs?: number;
-}
-
-async function runAndEmitOpenMcpApp(params: RunAndEmitOpenMcpAppParams): Promise<Response> {
-  try {
-    const targetNode = params.nodeId ? canvasState.getNode(params.nodeId) : undefined;
-    if (params.nodeId && !targetNode) {
-      return responseJson({ ok: false, error: `Node "${params.nodeId}" not found.` }, 404);
-    }
-    if (targetNode && (targetNode.type !== 'mcp-app' || targetNode.data.mode !== 'ext-app')) {
-      return responseJson({ ok: false, error: `Node "${params.nodeId}" is not an external app node.` }, 400);
-    }
-
-    const opened = await openMcpApp({
-      transport: params.transport,
-      toolName: params.toolName,
-      ...(params.toolArguments ? { toolArguments: params.toolArguments } : {}),
-      ...(params.serverName ? { serverName: params.serverName } : {}),
-      ...(typeof params.timeoutMs === 'number' ? { timeoutMs: params.timeoutMs } : {}),
-    });
-
-    const toolCallId = randomExtAppToolCallId();
-    if (params.nodeId) closeNodeAppSession(targetNode);
-    const nodeIdSeed = params.nodeId ?? (toolCallId.startsWith('ext-app-') ? toolCallId : `ext-app-${toolCallId}`);
-    const toolResult = isExcalidrawCreateView(opened.serverName, opened.toolName)
-      ? ensureExcalidrawCheckpointId(opened.toolResult, nodeIdSeed)
-      : opened.toolResult;
-    const nodeTitle = params.title
-      ?? (typeof targetNode?.data.title === 'string' ? targetNode.data.title : undefined)
-      ?? opened.tool.title
-      ?? opened.tool.name;
-
-    emitPrimaryWorkbenchEvent('ext-app-open', {
-      toolCallId,
-      nodeId: nodeIdSeed,
-      title: nodeTitle,
-      html: opened.html,
-      toolInput: opened.toolInput,
-      serverName: opened.serverName,
-      toolName: opened.toolName,
-      appSessionId: opened.sessionId,
-      transportConfig: params.transport,
-      resourceUri: opened.resourceUri,
-      toolDefinition: opened.tool,
-      sessionStatus: 'ready',
-      sessionError: null,
-      ...(opened.resourceMeta ? { resourceMeta: opened.resourceMeta } : {}),
-      ...(typeof params.x === 'number' ? { x: params.x } : {}),
-      ...(typeof params.y === 'number' ? { y: params.y } : {}),
-      ...(typeof params.width === 'number' ? { width: params.width } : {}),
-      ...(typeof params.height === 'number' ? { height: params.height } : {}),
-    });
-    emitPrimaryWorkbenchEvent('ext-app-result', {
-      toolCallId,
-      nodeId: nodeIdSeed,
-      serverName: opened.serverName,
-      toolName: opened.toolName,
-      success: toolResult.isError !== true,
-      result: toolResult,
-    });
-    const nodeId = params.nodeId ?? findCanvasExtAppNodeId(toolCallId);
-
-    return responseJson({
-      ok: true,
-      ...(nodeId ? { id: nodeId } : {}),
-      nodeId,
-      toolCallId,
-      sessionId: opened.sessionId,
-      resourceUri: opened.resourceUri,
-      serverName: opened.serverName,
-      toolName: opened.toolName,
-    });
-  } catch (error) {
-    return responseJson({
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    }, 400);
-  }
-}
-
-async function handleCanvasOpenMcpApp(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const transport = parseExternalMcpTransportConfig(body);
-  const toolName = typeof body.toolName === 'string' ? body.toolName.trim() : '';
-  if (!transport || !toolName) {
-    return responseJson({ ok: false, error: 'Missing valid transport or toolName.' }, 400);
-  }
-
-  const toolArguments =
-    body.toolArguments && typeof body.toolArguments === 'object' && !Array.isArray(body.toolArguments)
-      ? body.toolArguments as Record<string, unknown>
-      : undefined;
-
-  const requestedTitle = typeof body.title === 'string' && body.title.trim().length > 0
-    ? body.title.trim()
-    : undefined;
-  const requestedServerName = typeof body.serverName === 'string' && body.serverName.trim().length > 0
-    ? body.serverName.trim()
-    : undefined;
-  const requestedNodeId = typeof body.nodeId === 'string' && body.nodeId.trim().length > 0
-    ? body.nodeId.trim()
-    : undefined;
-
-  return runAndEmitOpenMcpApp({
-    transport,
-    toolName,
-    ...(toolArguments ? { toolArguments } : {}),
-    ...(requestedNodeId ? { nodeId: requestedNodeId } : {}),
-    ...(requestedServerName ? { serverName: requestedServerName } : {}),
-    ...(requestedTitle ? { title: requestedTitle } : {}),
-    ...(typeof body.x === 'number' ? { x: body.x } : {}),
-    ...(typeof body.y === 'number' ? { y: body.y } : {}),
-    ...(typeof body.width === 'number' ? { width: body.width } : {}),
-    ...(typeof body.height === 'number' ? { height: body.height } : {}),
-    ...(typeof body.timeoutMs === 'number' ? { timeoutMs: body.timeoutMs } : {}),
-  });
-}
-
-async function handleCanvasAddDiagram(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  let built;
-  try {
-    built = buildExcalidrawOpenMcpAppInput({
-      elements: body.elements,
-      ...(typeof body.nodeId === 'string' ? { nodeId: body.nodeId } : {}),
-      ...(typeof body.title === 'string' ? { title: body.title } : {}),
-      ...(typeof body.x === 'number' ? { x: body.x } : {}),
-      ...(typeof body.y === 'number' ? { y: body.y } : {}),
-      ...(typeof body.width === 'number' ? { width: body.width } : {}),
-      ...(typeof body.height === 'number' ? { height: body.height } : {}),
-      ...(typeof body.timeoutMs === 'number' ? { timeoutMs: body.timeoutMs } : {}),
-    });
-  } catch (error) {
-    return responseJson({
-      ok: false,
-      error: error instanceof Error ? error.message : String(error),
-    }, 400);
-  }
-  return runAndEmitOpenMcpApp({
-    transport: built.transport,
-    toolName: built.toolName,
-    toolArguments: built.toolArguments,
-    serverName: built.serverName,
-    ...(built.nodeId ? { nodeId: built.nodeId } : {}),
-    ...(built.title ? { title: built.title } : {}),
-    ...(typeof built.x === 'number' ? { x: built.x } : {}),
-    ...(typeof built.y === 'number' ? { y: built.y } : {}),
-    ...(typeof built.width === 'number' ? { width: built.width } : {}),
-    ...(typeof built.height === 'number' ? { height: built.height } : {}),
-    ...(typeof built.timeoutMs === 'number' ? { timeoutMs: built.timeoutMs } : {}),
-  });
-}
-
 async function handleExtAppCallTool(req: Request): Promise<Response> {
   const body = await readJson(req);
   const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
@@ -2316,118 +2002,13 @@ function handleWorkbenchState(): Response {
   });
 }
 
-function parseCanvasAutomationWebViewRequestBody(
-  body: Record<string, unknown>,
-): CanvasAutomationWebViewOptions {
-  const backendValue = typeof body.backend === 'string' ? body.backend.trim() : '';
-  const backend =
-    backendValue === 'chrome' || backendValue === 'webkit'
-      ? backendValue
-      : undefined;
-
-  const width = typeof body.width === 'number' ? body.width : undefined;
-  const height = typeof body.height === 'number' ? body.height : undefined;
-  const chromePath = typeof body.chromePath === 'string' ? body.chromePath : undefined;
-  const dataStoreDir = typeof body.dataStoreDir === 'string' ? body.dataStoreDir : undefined;
-  const chromeArgv = Array.isArray(body.chromeArgv)
-    ? body.chromeArgv.filter((value): value is string => typeof value === 'string')
-    : undefined;
-
-  return {
-    ...(backend ? { backend } : {}),
-    ...(width !== undefined ? { width } : {}),
-    ...(height !== undefined ? { height } : {}),
-    ...(chromePath ? { chromePath } : {}),
-    ...(chromeArgv ? { chromeArgv } : {}),
-    ...(dataStoreDir ? { dataStoreDir } : {}),
-  };
-}
-
+// Webview status / start / stop / evaluate / resize HTTP routes migrated to the
+// operation registry (plan-008 Wave 3): src/server/operations/ops/webview.ts,
+// dispatched in the fetch handler. The screenshot route + handler below stay
+// hand-written (binary response). `currentWorkbenchUrl` is still used by the
+// injected webview runner's start closure (see setWebviewRunner above).
 function currentWorkbenchUrl(): string | null {
   return server && typeof server.port === 'number' ? `${loopbackBaseUrl(server.port)}/workbench` : null;
-}
-
-function handleWorkbenchWebViewStatus(): Response {
-  return responseJson(getCanvasAutomationWebViewStatus());
-}
-
-async function handleWorkbenchWebViewStart(req: Request): Promise<Response> {
-  const url = currentWorkbenchUrl();
-  if (!url) {
-    return responseJson({ ok: false, error: 'Canvas server is not running.' }, 503);
-  }
-
-  const body = await readJson(req);
-  const options = parseCanvasAutomationWebViewRequestBody(body);
-
-  try {
-    const webview = await startCanvasAutomationWebView(url, options);
-    return responseJson({ ok: true, webview });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const status = hasCanvasAutomationWebViewSupport() ? 500 : 501;
-    return responseJson({
-      ok: false,
-      error: message,
-      webview: getCanvasAutomationWebViewStatus(),
-    }, status);
-  }
-}
-
-async function handleWorkbenchWebViewStop(): Promise<Response> {
-  try {
-    const stopped = await stopCanvasAutomationWebView();
-    return responseJson({
-      ok: true,
-      stopped,
-      webview: getCanvasAutomationWebViewStatus(),
-    });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return responseJson({
-      ok: false,
-      error: message,
-      webview: getCanvasAutomationWebViewStatus(),
-    }, 500);
-  }
-}
-
-async function handleWorkbenchWebViewEvaluate(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const expression = typeof body.expression === 'string' ? body.expression.trim() : '';
-  const script = typeof body.script === 'string' ? body.script.trim() : '';
-  if ((expression ? 1 : 0) + (script ? 1 : 0) !== 1) {
-    return responseJson({
-      ok: false,
-      error: 'Pass exactly one of "expression" (single JS expression) or "script" (multi-statement body, wrapped in an async IIFE).',
-    }, 400);
-  }
-  const source = script ? wrapCanvasAutomationScript(script) : expression;
-
-  try {
-    const value = await evaluateCanvasAutomationWebView(source);
-    return responseJson({ ok: true, value });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return responseJson({ ok: false, error: message, webview: getCanvasAutomationWebViewStatus() }, 400);
-  }
-}
-
-async function handleWorkbenchWebViewResize(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  const width = typeof body.width === 'number' ? body.width : NaN;
-  const height = typeof body.height === 'number' ? body.height : NaN;
-  if (!Number.isFinite(width) || width <= 0 || !Number.isFinite(height) || height <= 0) {
-    return responseJson({ ok: false, error: 'Missing required positive numeric fields: width, height.' }, 400);
-  }
-
-  try {
-    const webview = await resizeCanvasAutomationWebView(width, height);
-    return responseJson({ ok: true, webview });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return responseJson({ ok: false, error: message, webview: getCanvasAutomationWebViewStatus() }, 400);
-  }
 }
 
 async function handleWorkbenchWebViewScreenshot(req: Request): Promise<Response> {
@@ -3980,28 +3561,18 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleWorkbenchIntent(req);
           }
 
-          if (url.pathname === '/api/workbench/webview' && req.method === 'GET') {
-            return handleWorkbenchWebViewStatus();
-          }
-
-          if (url.pathname === '/api/workbench/webview/start' && req.method === 'POST') {
-            return handleWorkbenchWebViewStart(req);
-          }
-
-          if (url.pathname === '/api/workbench/webview/evaluate' && req.method === 'POST') {
-            return handleWorkbenchWebViewEvaluate(req);
-          }
-
-          if (url.pathname === '/api/workbench/webview/resize' && req.method === 'POST') {
-            return handleWorkbenchWebViewResize(req);
+          // Webview automation routes (plan-008 Wave 3): status / start /
+          // evaluate / resize / stop are now registered operations served by the
+          // registry. A null return falls through (e.g. the screenshot route
+          // below, which stays hand-written — it returns a binary image, not a
+          // JSON wire body).
+          if (url.pathname.startsWith('/api/workbench/webview')) {
+            const webviewResponse = await dispatchOperationRoute(req, url);
+            if (webviewResponse) return webviewResponse;
           }
 
           if (url.pathname === '/api/workbench/webview/screenshot' && req.method === 'POST') {
             return handleWorkbenchWebViewScreenshot(req);
-          }
-
-          if (url.pathname === '/api/workbench/webview' && req.method === 'DELETE') {
-            return handleWorkbenchWebViewStop();
           }
 
           if (url.pathname === '/api/file/save' && req.method === 'POST') {
@@ -4031,9 +3602,8 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleCanvasUpdate(req);
           }
 
-          if (url.pathname === '/api/canvas/batch' && req.method === 'POST') {
-            return handleCanvasBatch(req);
-          }
+          // POST /api/canvas/batch migrated to the operation registry
+          // (plan-008 Wave 2): src/server/operations/ops/batch.ts.
 
           if (url.pathname === '/api/canvas/viewport' && req.method === 'POST') {
             return handleCanvasViewport(req);
@@ -4043,21 +3613,9 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleCanvasAddAnnotation(req);
           }
 
-          if (url.pathname.startsWith('/api/canvas/annotation/') && req.method === 'DELETE') {
-            return handleCanvasRemoveAnnotation(url.pathname.slice('/api/canvas/annotation/'.length));
-          }
-
-          if (url.pathname === '/api/canvas/mcp-app/open' && req.method === 'POST') {
-            return handleCanvasOpenMcpApp(req);
-          }
-
-          if (url.pathname === '/api/canvas/diagram' && req.method === 'POST') {
-            return handleCanvasAddDiagram(req);
-          }
-
-          if (url.pathname === '/api/canvas/web-artifact' && req.method === 'POST') {
-            return handleCanvasBuildWebArtifact(req);
-          }
+          // POST /api/canvas/mcp-app/open, /api/canvas/diagram, and
+          // /api/canvas/web-artifact migrated to the operation registry
+          // (plan-008 Wave 4): src/server/operations/ops/app.ts.
 
           // Individual node GET/PATCH/DELETE
           if (url.pathname.startsWith('/api/canvas/node/') && url.pathname.endsWith('/refresh') && req.method === 'POST') {
@@ -4183,10 +3741,6 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/prompt' && req.method === 'POST') {
             return handleCanvasPrompt(req);
-          }
-
-          if (url.pathname === '/api/canvas/validate' && req.method === 'GET') {
-            return handleCanvasValidate();
           }
 
           if (url.pathname === '/api/ext-app/call-tool' && req.method === 'POST') {

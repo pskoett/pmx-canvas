@@ -3,6 +3,7 @@ import { type GraphNodeInput, type JsonRenderNodeInput, type JsonRenderSpec } fr
 export type CanvasArrangeMode = 'grid' | 'column' | 'flow';
 export type CanvasPinMode = 'set' | 'add' | 'remove';
 export declare function setCanvasLayoutUpdateEmitter(emitter: (() => void) | null): void;
+export declare function emitCanvasLayoutUpdate(): void;
 export interface CanvasFitViewOptions {
     width?: number;
     height?: number;
@@ -81,11 +82,6 @@ interface CanvasCreateGroupInput {
     height?: number;
     color?: string;
     childLayout?: CanvasArrangeMode;
-}
-export interface CanvasBatchOperation {
-    op: string;
-    assign?: string;
-    args?: Record<string, unknown>;
 }
 interface CanvasNodeLookupInput {
     id?: string;
@@ -262,11 +258,4 @@ export declare function createCanvasGraphNode(input: GraphNodeInput): {
     node: CanvasNodeState;
 };
 export declare function fitCanvasView(options?: CanvasFitViewOptions): CanvasFitViewResult;
-export declare function executeCanvasBatch(operations: CanvasBatchOperation[]): Promise<{
-    ok: boolean;
-    results: Array<Record<string, unknown>>;
-    refs: Record<string, unknown>;
-    failedIndex?: number;
-    error?: string;
-}>;
 export {};

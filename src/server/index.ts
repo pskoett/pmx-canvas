@@ -31,7 +31,6 @@ import type {
   PmxAxWorkItemStatus,
 } from './ax-state.js';
 import type { AxTimelineQuery } from './canvas-db.js';
-import { findCanvasExtAppNodeId } from './ext-app-lookup.js';
 import { onFileNodeChanged } from './file-watcher.js';
 import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
 import { searchNodes, buildSpatialContext } from './spatial-analysis.js';
@@ -48,7 +47,6 @@ import {
   createCanvasJsonRenderNode,
   fitCanvasView,
   deleteCanvasSnapshot,
-  executeCanvasBatch,
   gcCanvasSnapshots,
   groupCanvasNodes,
   listCanvasSnapshots,
@@ -69,6 +67,11 @@ import {
   setGroupChildrenFromApi,
 } from './operations/ops/nodes.js';
 import { streamJsonRenderCore } from './operations/ops/json-render.js';
+import {
+  executeOperation,
+  runCanvasBatchOperation,
+  type OpenMcpAppCoreResult,
+} from './operations/index.js';
 import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
 import { serializeCanvasNode, type SerializedCanvasNode } from './canvas-serialization.js';
@@ -81,13 +84,9 @@ import {
 } from './web-artifacts.js';
 import {
   closeMcpAppSession,
-  openMcpApp as openExternalMcpApp,
   type ExternalMcpTransportConfig,
 } from './mcp-app-runtime.js';
 import {
-  buildExcalidrawOpenMcpAppInput,
-  ensureExcalidrawCheckpointId,
-  isExcalidrawCreateView,
   type DiagramPresetOpenInput,
 } from './diagram-presets.js';
 import {
@@ -863,13 +862,6 @@ export class PmxCanvas extends EventEmitter {
     return validateCanvasLayout(canvasState.getLayout());
   }
 
-  private findCanvasExtAppNodeId(toolCallId: string): string | null {
-    return findCanvasExtAppNodeId(toolCallId, {
-      getNode: (id) => canvasState.getNode(id),
-      listNodes: () => canvasState.getLayout().nodes,
-    });
-  }
-
   describeSchema() {
     return describeCanvasSchema();
   }
@@ -883,14 +875,22 @@ export class PmxCanvas extends EventEmitter {
   }
 
   async runBatch(operations: Array<{ op: string; assign?: string; args?: Record<string, unknown> }>) {
-    const result = await executeCanvasBatch(operations);
-    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    return result;
+    // Delegates to the canvas.batch registry meta-op (plan-008 Wave 2). The op
+    // emits the single final canvas-layout-update itself (via the registry
+    // emitter, which server.ts wires to emitPrimaryWorkbenchEvent) — do NOT
+    // emit again here or the frame would fire twice.
+    return await runCanvasBatchOperation(operations);
   }
 
   async buildWebArtifact(
-    input: WebArtifactBuildInput & { openInCanvas?: boolean },
+    input: WebArtifactBuildInput & { openInCanvas?: boolean; includeLogs?: boolean },
   ): Promise<WebArtifactCanvasBuildResult> {
+    // The registry's webartifact.build op wraps buildWebArtifactOnCanvas and
+    // returns a wire ENVELOPE (path/bytes/…); the SDK's documented return is the
+    // full WebArtifactCanvasBuildResult, so the SDK calls the build runtime
+    // directly here (the op core is the same buildWebArtifactOnCanvas; the node
+    // creation emits its own canvas-layout-update). The op and the SDK share the
+    // single build runtime — no behavior divergence.
     return buildWebArtifactOnCanvas(input);
   }
 
@@ -906,75 +906,21 @@ export class PmxCanvas extends EventEmitter {
     width?: number;
     height?: number;
     timeoutMs?: number;
-  }): Promise<{ ok: true; id?: string; nodeId: string | null; toolCallId: string; sessionId: string; resourceUri: string }> {
-    const targetNode = input.nodeId ? canvasState.getNode(input.nodeId) : undefined;
-    if (input.nodeId && !targetNode) {
-      throw new Error(`Node "${input.nodeId}" not found.`);
-    }
-    if (targetNode && (targetNode.type !== 'mcp-app' || targetNode.data.mode !== 'ext-app')) {
-      throw new Error(`Node "${input.nodeId}" is not an external app node.`);
-    }
-
-    const opened = await openExternalMcpApp({
-      transport: input.transport,
-      toolName: input.toolName,
-      ...(input.toolArguments ? { toolArguments: input.toolArguments } : {}),
-      ...(input.serverName ? { serverName: input.serverName } : {}),
-      ...(typeof input.timeoutMs === 'number' ? { timeoutMs: input.timeoutMs } : {}),
-    });
-    const toolCallId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-    const previousSessionId = targetNode?.data.appSessionId;
-    if (typeof previousSessionId === 'string' && previousSessionId.trim().length > 0) {
-      closeMcpAppSession(previousSessionId);
-    }
-    const nodeIdSeed = input.nodeId ?? `ext-app-${toolCallId}`;
-    const toolResult = isExcalidrawCreateView(opened.serverName, opened.toolName)
-      ? ensureExcalidrawCheckpointId(opened.toolResult, nodeIdSeed)
-      : opened.toolResult;
-    emitPrimaryWorkbenchEvent('ext-app-open', {
-      toolCallId,
-      nodeId: nodeIdSeed,
-      title: input.title ?? opened.tool.title ?? opened.tool.name,
-      html: opened.html,
-      toolInput: opened.toolInput,
-      serverName: opened.serverName,
-      toolName: opened.toolName,
-      appSessionId: opened.sessionId,
-      transportConfig: input.transport,
-      resourceUri: opened.resourceUri,
-      toolDefinition: opened.tool,
-      sessionStatus: 'ready',
-      sessionError: null,
-      ...(opened.resourceMeta ? { resourceMeta: opened.resourceMeta } : {}),
-      ...(typeof input.x === 'number' ? { x: input.x } : {}),
-      ...(typeof input.y === 'number' ? { y: input.y } : {}),
-      ...(typeof input.width === 'number' ? { width: input.width } : {}),
-      ...(typeof input.height === 'number' ? { height: input.height } : {}),
-    });
-    emitPrimaryWorkbenchEvent('ext-app-result', {
-      toolCallId,
-      nodeId: nodeIdSeed,
-      serverName: opened.serverName,
-      toolName: opened.toolName,
-      success: toolResult.isError !== true,
-      result: toolResult,
-    });
-    const nodeId = input.nodeId ?? this.findCanvasExtAppNodeId(toolCallId);
-    return {
-      ok: true,
-      ...(nodeId ? { id: nodeId } : {}),
-      nodeId,
-      toolCallId,
-      sessionId: opened.sessionId,
-      resourceUri: opened.resourceUri,
-    };
+  }): Promise<OpenMcpAppCoreResult> {
+    // Delegate to the mcpapp.open registry op (plan-008 Wave 4). The op handler
+    // is the relocated legacy body (toolCallId, openExternalMcpApp, prior-session
+    // close, ext-app-open + ext-app-result via ctx.emit → the registry emitter
+    // wired to emitPrimaryWorkbenchEvent). mutates:false, so the registry adds no
+    // canvas-layout-update; the two ext-app-* frames fire exactly once.
+    return await executeOperation('mcpapp.open', input) as OpenMcpAppCoreResult;
   }
 
   async addDiagram(
     input: DiagramPresetOpenInput,
-  ): Promise<{ ok: true; id?: string; nodeId: string | null; toolCallId: string; sessionId: string; resourceUri: string }> {
-    const built = buildExcalidrawOpenMcpAppInput(input);
-    return this.openMcpApp(built);
+  ): Promise<OpenMcpAppCoreResult> {
+    // Delegate to the diagram.open registry op, which builds the Excalidraw
+    // OpenMcpApp input and dispatches to the shared open core (one ext-app-* pair).
+    return await executeOperation('diagram.open', input) as OpenMcpAppCoreResult;
   }
 
   addJsonRenderNode(

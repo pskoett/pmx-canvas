@@ -244,7 +244,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     kind: 'node',
     description: 'Sandboxed iframe node rendered from inline HTML.',
     endpoint: '/api/canvas/node',
-    mcpTool: 'canvas_add_html_node',
+    mcpTool: 'canvas_node (action:"add", type:"html")',
     fields: [
       { name: 'html', type: 'string', required: false, description: 'HTML document or fragment rendered in the sandboxed iframe.', aliases: ['content', 'stdin'] },
       { name: 'summary', type: 'string', required: false, description: 'Explicit agent-readable summary. If omitted, PMX derives one from visible HTML text.' },
@@ -281,7 +281,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     kind: 'virtual-node',
     description: 'Reusable sandboxed HTML communication primitive rendered as an html node.',
     endpoint: '/api/canvas/node',
-    mcpTool: 'canvas_add_html_primitive',
+    mcpTool: 'canvas_node (action:"add", type:"html", primitive:"<kind>")',
     fields: [
       { name: 'kind', type: 'HtmlPrimitiveKind', required: true, description: 'Primitive kind. See top-level htmlPrimitives for the supported catalog.' },
       { name: 'data', type: 'record<string, unknown>', required: false, description: 'Primitive-specific JSON object payload.' },

@@ -11,13 +11,20 @@
  *
  * Migration (docs/api-stability.md + plan-006): composites land ADDITIVELY in
  * v0.2 alongside the legacy single-purpose tools (the tool surface grows, then
- * shrinks when the legacy tools are removed in v0.3). This file ships the
- * composites whose every action maps to a registry-backed operation TODAY
- * (plan-005 slices 1–4). Actions that would dispatch to a not-yet-migrated
- * operation (`refresh`, `add-primitive`, `remove-annotation`, board validation)
- * are intentionally omitted for now — their legacy standalone tools remain —
- * and fold in once the AX / side-channel registry slices (plan-005 items 7–8) land.
- * The action enums are forward-compatible: adding an action later is additive.
+ * shrinks when the legacy tools are removed in v0.3). Every action here maps to a
+ * registry-backed operation (plan-005 slices 1–7 + plan-008 Wave 1).
+ *
+ * Still deferred (its legacy standalone tool keeps working; see plan-008): the
+ * `canvas_snapshot` composite (the v0.3 name collision). The action enums are
+ * forward-compatible: adding an action later is additive. (`canvas_webview`
+ * shipped in plan-008 Wave 3 via runner injection; `canvas_app` shipped in Wave 4
+ * — open-mcp-app / diagram / build-artifact. Wave 5 folded the last three legacy
+ * tools deprecate-only — NO per-action input-injection mechanism was needed:
+ * `canvas_add_html_node` / `canvas_add_html_primitive` → `canvas_node` action
+ * "add" (type:"html" [+ primitive]); `canvas_refresh_webpage_node` → `canvas_node`
+ * action "update" (refresh:true). `canvas_screenshot` stays standalone — it
+ * returns a binary image payload the composite/registry JSON wire shape does not
+ * model.)
  *
  * Not shipped here: the `canvas_snapshot` composite (plan-006 #7). Its target
  * name is ALREADY a legacy standalone tool (the save-snapshot tool, op

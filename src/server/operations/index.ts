@@ -8,12 +8,17 @@ import { edgeOperations } from './ops/edges.js';
 import { viewportOperations } from './ops/viewport.js';
 import { groupOperations } from './ops/groups.js';
 import { queryOperations } from './ops/query.js';
+import { validateOperations } from './ops/validate.js';
+import { annotationOperations } from './ops/annotation.js';
 import { snapshotOperations } from './ops/snapshots.js';
 import { jsonRenderOperations } from './ops/json-render.js';
 import { axStateOperations } from './ops/ax-state.js';
 import { axWorkOperations } from './ops/ax-work.js';
 import { axTimelineOperations } from './ops/ax-timeline.js';
 import { axAwaitOperations } from './ops/ax-await.js';
+import { batchOperations } from './ops/batch.js';
+import { webviewOperations } from './ops/webview.js';
+import { appOperations } from './ops/app.js';
 
 for (const op of [
   ...nodeOperations,
@@ -21,12 +26,17 @@ for (const op of [
   ...viewportOperations,
   ...groupOperations,
   ...queryOperations,
+  ...validateOperations,
+  ...annotationOperations,
   ...snapshotOperations,
   ...jsonRenderOperations,
   ...axStateOperations,
   ...axWorkOperations,
   ...axTimelineOperations,
   ...axAwaitOperations,
+  ...batchOperations,
+  ...webviewOperations,
+  ...appOperations,
 ]) {
   registerOperation(op);
 }
@@ -39,6 +49,9 @@ export {
   setOperationEventEmitter,
 } from './registry.js';
 export { dispatchOperationRoute } from './http.js';
+export { runCanvasBatchOperation, type BatchEnvelope } from './ops/batch.js';
+// OpenMcpAppCoreResult is the SDK's cast target for executeOperation('mcpapp.open').
+export { type OpenMcpAppCoreResult } from './ops/app.js';
 export { LocalOperationInvoker, HttpOperationInvoker, type OperationInvoker } from './invoker.js';
 export { registerOperationTools, registerCompositeTools, type OperationToolHost } from './mcp.js';
 export { compositeToolDefinitions, type CompositeToolDefinition } from './composites.js';

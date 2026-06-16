@@ -22,7 +22,6 @@
 
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
-import { isAbsolute, relative, resolve } from 'node:path';
 import { z } from 'zod';
 import { canvasState, describeCanvasSchema } from '../server/index.js';
 import { AX_INTERACTION_TYPES } from '../server/ax-interaction.js';
@@ -32,7 +31,6 @@ import type { HtmlPrimitiveKind } from '../server/html-primitives.js';
 import { registerOperationTools, registerCompositeTools } from '../server/operations/index.js';
 import { createCanvasAccess, refreshCanvasAccess, type CanvasAccess } from './canvas-access.js';
 import { serializeNodeForAgentContext } from '../server/agent-context.js';
-import { wrapCanvasAutomationScript } from '../server/server.js';
 import { buildSpatialContext, findNeighborhoods } from '../server/spatial-analysis.js';
 import {
   getCanvasNodeTitle,
@@ -57,24 +55,9 @@ function structuredSchemaDescription(): string {
     .join(', ');
 }
 
-function workspaceRoot(): string {
-  return resolve(process.cwd());
-}
-
-function isPathInside(base: string, candidate: string): boolean {
-  const rel = relative(base, candidate);
-  if (rel === '') return true;
-  return !rel.startsWith('..') && rel !== '..' && !isAbsolute(rel);
-}
-
-function safeWorkspacePath(pathLike: string): string {
-  const workspace = workspaceRoot();
-  const resolved = resolve(workspace, pathLike);
-  if (!isPathInside(workspace, resolved)) {
-    throw new Error(`Path "${pathLike}" resolves outside workspace.`);
-  }
-  return resolved;
-}
+// workspaceRoot / isPathInside / safeWorkspacePath removed with the
+// canvas_build_web_artifact MCP tool (plan-008 Wave 4). The webartifact.build op
+// sandboxes projectPath/outputPath via web-artifacts.ts resolveWorkspacePath.
 
 async function ensureCanvas(): Promise<CanvasAccess> {
   if (!canvas) {
@@ -232,28 +215,6 @@ function agentSafeFullLayoutPayload(layout: Awaited<ReturnType<CanvasAccess['get
   };
 }
 
-function compactBatchValue(value: unknown): unknown {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
-  const record = value as Record<string, unknown>;
-  const nodeLike = typeof record.id === 'string' && typeof record.type === 'string';
-  const compact: Record<string, unknown> = {};
-  for (const key of ['ok', 'id', 'type', 'kind', 'title', 'content', 'position', 'size', 'fetch', 'error', 'from', 'to', 'groupId', 'nodeIds', 'snapshot', 'arranged', 'layout']) {
-    if (record[key] !== undefined) compact[key] = record[key];
-  }
-  if (nodeLike) return compact;
-  return record;
-}
-
-function compactBatchResult(result: { ok: boolean; results: Array<Record<string, unknown>>; refs: Record<string, unknown>; failedIndex?: number; error?: string }): Record<string, unknown> {
-  return {
-    ok: result.ok,
-    ...(result.failedIndex !== undefined ? { failedIndex: result.failedIndex } : {}),
-    ...(result.error ? { error: result.error } : {}),
-    results: result.results.map((entry) => compactBatchValue(entry)),
-    refs: Object.fromEntries(Object.entries(result.refs).map(([key, value]) => [key, compactBatchValue(value)])),
-  };
-}
-
 async function createdNodePayload(c: CanvasAccess, id: string, options: { full?: boolean; verbose?: boolean; includeData?: boolean } = {}): Promise<Record<string, unknown>> {
   // Expose both `id` and a `nodeId` alias on every node-create response so
   // agents using either key (or a cached schema) work — matching the
@@ -315,7 +276,7 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_add_html_node ────────────────────────────────────────
   server.tool(
     'canvas_add_html_node',
-    'Add a normal html node: a self-contained HTML document (with optional inline <script> and CDN <script src="...">) rendered inside a sandboxed iframe (sandbox="allow-scripts"). This is the default HTML surface for reports, widgets, and bespoke visualizations. Presentation mode is opt-in: only pass presentation:true when the user explicitly asks for a deck/fullscreen presentation, or use canvas_add_html_primitive with kind="presentation". The iframe inherits live canvas theme tokens via injected CSS custom properties (both --c-* and common --color-* aliases) so authored HTML using var(--color-text-secondary), var(--color-bg), etc. renders cohesively. No same-origin access; no top-navigation; no forms. For declarative-only views with zero JS, prefer canvas_add_json_render_node. For React + shadcn + routing or multi-component apps, use canvas_build_web_artifact.',
+    'Deprecated: use canvas_node with action "add" and type:"html". Add a normal html node: a self-contained HTML document (with optional inline <script> and CDN <script src="...">) rendered inside a sandboxed iframe (sandbox="allow-scripts"). This is the default HTML surface for reports, widgets, and bespoke visualizations. Presentation mode is opt-in: only pass presentation:true when the user explicitly asks for a deck/fullscreen presentation, or use canvas_add_html_primitive with kind="presentation". The iframe inherits live canvas theme tokens via injected CSS custom properties (both --c-* and common --color-* aliases) so authored HTML using var(--color-text-secondary), var(--color-bg), etc. renders cohesively. No same-origin access; no top-navigation; no forms. For declarative-only views with zero JS, prefer canvas_add_json_render_node. For React + shadcn + routing or multi-component apps, use canvas_build_web_artifact.',
     {
       html: z.string().describe('HTML document or fragment. Full <html>...</html> documents are passed through with theme styles injected into <head>; bare fragments are wrapped in a minimal document. Inline <script> and remote CDN <script src="..."> are allowed. If this is a bare path to an existing local .html/.htm file, the file contents are read and used as the HTML.'),
       title: z.string().optional().describe('Node title shown in the canvas titlebar.'),
@@ -365,7 +326,7 @@ export async function startMcpServer(): Promise<void> {
 
   server.tool(
     'canvas_add_html_primitive',
-    'Create a reusable HTML communication primitive as a normal sandboxed html node. Use this instead of long markdown for side-by-side choices, implementation plans, PR review sheets, module maps, design sheets, component galleries, flowcharts, explainers, status reports, and throwaway editors with export/copy paths. Use kind="presentation" only when the user explicitly asks for a PowerPoint-like deck, pitch, briefing, workshop walkthrough, or fullscreen story.',
+    'Deprecated: use canvas_node with action "add", type:"html", primitive:"<kind>" (and data). Create a reusable HTML communication primitive as a normal sandboxed html node. Use this instead of long markdown for side-by-side choices, implementation plans, PR review sheets, module maps, design sheets, component galleries, flowcharts, explainers, status reports, and throwaway editors with export/copy paths. Use kind="presentation" only when the user explicitly asks for a PowerPoint-like deck, pitch, briefing, workshop walkthrough, or fullscreen story.',
     {
       kind: htmlPrimitiveKindSchema.describe('Primitive kind. Call canvas_describe_schema and read htmlPrimitives for data shapes and examples.'),
       title: z.string().optional().describe('Node title shown in the canvas titlebar.'),
@@ -403,113 +364,13 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
-  server.tool(
-    'canvas_open_mcp_app',
-    'Connect to an external MCP server that declares a ui:// app resource, call the specified tool, and open the resulting MCP App inside a canvas mcp-app node. This is a full external-MCP transport call, not the CLI kind shortcut; use canvas_add_diagram for the built-in Excalidraw preset.',
-    {
-      toolName: z.string().describe('Tool name on the external MCP server'),
-      serverName: z.string().optional().describe('Optional display name for the external MCP server'),
-      toolArguments: z.record(z.string(), z.unknown()).optional().describe('Arguments passed to the external tool call'),
-      nodeId: z.string().optional().describe('Existing mcp-app node ID to update in place instead of creating a new node.'),
-      title: z.string().optional().describe('Optional canvas node title override'),
-      x: z.number().optional().describe('X position (auto-placed if omitted)'),
-      y: z.number().optional().describe('Y position (auto-placed if omitted)'),
-      width: z.number().optional().describe('Width in pixels (default: 720)'),
-      height: z.number().optional().describe('Height in pixels (default: 500)'),
-      timeoutMs: z.number().optional().describe('Optional MCP request timeout in milliseconds for cold external app servers'),
-      transport: z.union([
-        z.object({
-          type: z.literal('stdio'),
-          command: z.string().describe('Executable used to start the external MCP server'),
-          args: z.array(z.string()).optional().describe('Arguments for the executable'),
-          cwd: z.string().optional().describe('Optional working directory'),
-          env: z.record(z.string(), z.string()).optional().describe('Optional environment overrides'),
-        }),
-        z.object({
-          type: z.literal('http'),
-          url: z.string().describe('Streamable HTTP MCP endpoint URL'),
-          headers: z.record(z.string(), z.string()).optional().describe('Optional HTTP headers'),
-        }),
-      ]).describe('How PMX Canvas should connect to the external MCP server'),
-    },
-    async (input) => {
-      const c = await ensureCanvas();
-      try {
-        const result = await c.openMcpApp({
-          transport: input.transport,
-          toolName: input.toolName,
-          ...(typeof input.serverName === 'string' ? { serverName: input.serverName } : {}),
-          ...(input.toolArguments ? { toolArguments: input.toolArguments } : {}),
-          ...(typeof input.nodeId === 'string' ? { nodeId: input.nodeId } : {}),
-          ...(typeof input.title === 'string' ? { title: input.title } : {}),
-          ...(typeof input.x === 'number' ? { x: input.x } : {}),
-          ...(typeof input.y === 'number' ? { y: input.y } : {}),
-          ...(typeof input.width === 'number' ? { width: input.width } : {}),
-          ...(typeof input.height === 'number' ? { height: input.height } : {}),
-          ...(typeof input.timeoutMs === 'number' ? { timeoutMs: input.timeoutMs } : {}),
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
-          isError: true,
-        };
-      }
-    },
-  );
-
-  server.tool(
-    'canvas_add_diagram',
-    'Draw a hand-drawn diagram on the canvas via the hosted Excalidraw MCP app. Pass an array of Excalidraw elements (rectangles, ellipses, diamonds, arrows, text). The diagram opens inside an mcp-app node that supports fullscreen editing. For other MCP apps, use canvas_open_mcp_app.',
-    {
-      elements: z.union([
-        z.string().describe('JSON array string of Excalidraw elements'),
-        z.array(z.record(z.string(), z.unknown())).describe('Array of Excalidraw elements'),
-      ]).describe('Excalidraw elements to render. See https://github.com/excalidraw/excalidraw-mcp for the element format.'),
-      nodeId: z.string().optional().describe('Existing Excalidraw mcp-app node ID to update in place instead of creating a new node.'),
-      title: z.string().optional().describe('Optional canvas node title override'),
-      x: z.number().optional().describe('X position (auto-placed if omitted)'),
-      y: z.number().optional().describe('Y position (auto-placed if omitted)'),
-      width: z.number().optional().describe('Width in pixels (default: 720)'),
-      height: z.number().optional().describe('Height in pixels (default: 500)'),
-      timeoutMs: z.number().optional().describe('Optional MCP request timeout in milliseconds for Excalidraw cold starts. Client-side MCP hosts may still enforce their own total request timeout.'),
-    },
-    async (input, extra) => {
-      const c = await ensureCanvas();
-      try {
-        const result = await c.addDiagram({
-          elements: input.elements,
-          ...(typeof input.nodeId === 'string' ? { nodeId: input.nodeId } : {}),
-          ...(typeof input.title === 'string' ? { title: input.title } : {}),
-          ...(typeof input.x === 'number' ? { x: input.x } : {}),
-          ...(typeof input.y === 'number' ? { y: input.y } : {}),
-          ...(typeof input.width === 'number' ? { width: input.width } : {}),
-          ...(typeof input.height === 'number' ? { height: input.height } : {}),
-          ...(typeof input.timeoutMs === 'number' ? { timeoutMs: input.timeoutMs } : {}),
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
-        };
-      } catch (error) {
-        if (extra.signal.aborted) {
-          return {
-            content: [{ type: 'text', text: 'canvas_add_diagram was cancelled by the MCP client before Excalidraw finished. Retry with a higher client request timeout and pass timeoutMs to PMX Canvas for the downstream Excalidraw call.' }],
-            isError: true,
-          };
-        }
-        return {
-          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
-          isError: true,
-        };
-      }
-    },
-  );
+  // canvas_open_mcp_app + canvas_add_diagram migrated to the operation registry
+  // (plan-008 Wave 4): src/server/operations/ops/app.ts (mcpapp.open /
+  // diagram.open). Folded into the canvas_app composite.
 
   server.tool(
     'canvas_refresh_webpage_node',
-    'Refresh a webpage node from its persisted URL so the server re-fetches and caches the latest page text and metadata.',
+    'Deprecated: use canvas_node with action "update" and refresh:true. Refresh a webpage node from its persisted URL so the server re-fetches and caches the latest page text and metadata.',
     {
       id: z.string().describe('Webpage node ID to refresh'),
       url: z.string().optional().describe('Optional replacement URL before refresh'),
@@ -524,106 +385,12 @@ export async function startMcpServer(): Promise<void> {
     },
   );
 
-  // ── canvas_build_web_artifact ───────────────────────────────
-  server.tool(
-    'canvas_build_web_artifact',
-    'Build a bundled single-file HTML web artifact from React/Tailwind source files using the bundled web-artifacts-builder skill scripts. MCP callers pass source content in appTsx (the CLI app-file flag reads a file before calling this path). Builds can exceed default 60s MCP client timeouts on cold workspaces; set a long client timeout or retry with the same projectPath/outputPath if the client times out. Optionally opens the generated artifact as an embedded node on the canvas. Read canvas://skills/web-artifacts-builder for the full workflow, stack, and anti-slop design guidelines before calling.',
-    {
-      title: z.string().describe('Artifact title used for default project and output paths'),
-      appTsx: z.string().describe('Contents for src/App.tsx'),
-      indexCss: z.string().optional().describe('Optional contents for src/index.css'),
-      mainTsx: z.string().optional().describe('Optional contents for src/main.tsx'),
-      indexHtml: z.string().optional().describe('Optional contents for index.html'),
-      files: z.record(z.string(), z.string()).optional().describe('Optional map of additional project-relative file paths to file contents'),
-      deps: z.array(z.string()).optional().describe('Optional npm dependencies to install before bundling (e.g. ["recharts", "framer-motion@^11"]). Validated against npm-name format; flags and shell metacharacters are rejected.'),
-      projectPath: z.string().optional().describe('Optional workspace-relative reusable project path. Defaults to .pmx-canvas/artifacts/.web-artifacts/<slug>'),
-      outputPath: z.string().optional().describe('Optional workspace-relative HTML output path. Defaults to .pmx-canvas/artifacts/<slug>.html'),
-      openInCanvas: z.boolean().optional().describe('Open the generated artifact in canvas after build (default true)'),
-      includeLogs: z.boolean().optional().describe('Include raw build stdout/stderr in the response (default false)'),
-      initScriptPath: z.string().optional().describe('Optional script path override for tests/debugging. Must resolve inside the workspace.'),
-      bundleScriptPath: z.string().optional().describe('Optional script path override for tests/debugging. Must resolve inside the workspace.'),
-      timeoutMs: z.number().optional().describe('Optional timeout in milliseconds for init and bundle commands'),
-    },
-    async (input) => {
-      const c = await ensureCanvas();
-      try {
-        const result = await c.buildWebArtifact({
-          title: input.title,
-          appTsx: input.appTsx,
-          ...(typeof input.indexCss === 'string' ? { indexCss: input.indexCss } : {}),
-          ...(typeof input.mainTsx === 'string' ? { mainTsx: input.mainTsx } : {}),
-          ...(typeof input.indexHtml === 'string' ? { indexHtml: input.indexHtml } : {}),
-          ...(input.files ? { files: input.files } : {}),
-          ...(Array.isArray(input.deps) ? { deps: input.deps } : {}),
-          ...(typeof input.projectPath === 'string'
-            ? { projectPath: safeWorkspacePath(input.projectPath) }
-            : {}),
-          ...(typeof input.outputPath === 'string'
-            ? { outputPath: safeWorkspacePath(input.outputPath) }
-            : {}),
-          ...(typeof input.initScriptPath === 'string'
-            ? { initScriptPath: input.initScriptPath }
-            : {}),
-          ...(typeof input.bundleScriptPath === 'string'
-            ? { bundleScriptPath: input.bundleScriptPath }
-            : {}),
-          ...(typeof input.timeoutMs === 'number' ? { timeoutMs: input.timeoutMs } : {}),
-          ...(typeof input.openInCanvas === 'boolean' ? { openInCanvas: input.openInCanvas } : {}),
-        });
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              path: result.filePath,
-              bytes: result.fileSize,
-              projectPath: result.projectPath,
-              openedInCanvas: result.openedInCanvas,
-              startedAt: result.startedAt,
-              completedAt: result.completedAt,
-              durationMs: result.durationMs,
-              timeoutMs: result.timeoutMs,
-              // `id` only present when a canvas node was actually created.
-              // See the matching block in src/server/server.ts handleCanvasBuildWebArtifact.
-              ...(typeof result.nodeId === 'string' ? { id: result.nodeId } : {}),
-              nodeId: result.nodeId,
-              url: result.url,
-              metadata: result.metadata,
-              logs: result.logs,
-              ...(input.includeLogs === true ? {
-                stdout: result.stdout,
-                stderr: result.stderr,
-              } : {}),
-            }, null, 2),
-          }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
-          isError: true,
-        };
-      }
-    },
-  );
+  // canvas_build_web_artifact migrated to the operation registry (plan-008
+  // Wave 4): src/server/operations/ops/app.ts (webartifact.build). Folded into
+  // the canvas_app composite.
 
-  // ── canvas_remove_annotation ─────────────────────────────────────
-  server.tool(
-    'canvas_remove_annotation',
-    'Remove a human-drawn canvas annotation by ID.',
-    { id: z.string().describe('Annotation ID to remove') },
-    async ({ id }) => {
-      const c = await ensureCanvas();
-      const removed = await c.removeAnnotation(id);
-      if (!removed) {
-        return {
-          content: [{ type: 'text', text: `Annotation "${id}" not found.` }],
-          isError: true,
-        };
-      }
-      return {
-        content: [{ type: 'text', text: JSON.stringify({ ok: true, removed: id }) }],
-      };
-    },
-  );
+  // canvas_remove_annotation migrated to the operation registry (plan-008
+  // Wave 1): src/server/operations/ops/annotation.ts.
 
   // ── AX context and focus ───────────────────────────────────────
   // canvas_get_ax + canvas_set_ax_focus migrated to the operation registry
@@ -740,139 +507,11 @@ export async function startMcpServer(): Promise<void> {
   // canvas_set_ax_policy migrated to the operation registry
   // (plan-007 Slice B.1): src/server/operations/ops/ax-state.ts.
 
-  // ── canvas_webview_status ─────────────────────────────────────
-  server.tool(
-    'canvas_webview_status',
-    'Get the current Bun.WebView automation status for the PMX Canvas workbench. Returns whether Bun.WebView is supported, whether an automation session is active, backend, viewport size, and the current workbench URL if active.',
-    {},
-    async () => {
-      const c = await ensureCanvas();
-      return {
-        content: [{ type: 'text', text: JSON.stringify(await c.getAutomationWebViewStatus(), null, 2) }],
-      };
-    },
-  );
-
-  // ── canvas_webview_start ──────────────────────────────────────
-  server.tool(
-    'canvas_webview_start',
-    'Start or replace the headless Bun.WebView automation session for the current PMX Canvas workbench. Use this before screenshot, evaluate, or resize when no automation session is active.',
-    {
-      backend: z.enum(['chrome', 'webkit']).optional()
-        .describe('Automation backend. Default: webkit on macOS, chrome elsewhere.'),
-      width: z.number().optional().describe('Viewport width in pixels (default: 1280)'),
-      height: z.number().optional().describe('Viewport height in pixels (default: 800)'),
-      chromePath: z.string().optional().describe('Optional Chrome/Chromium executable path'),
-      chromeArgv: z.array(z.string()).optional().describe('Optional extra Chrome launch args'),
-      dataStoreDir: z.string().optional().describe('Optional persistent data store directory'),
-    },
-    async ({ backend, width, height, chromePath, chromeArgv, dataStoreDir }) => {
-      const c = await ensureCanvas();
-      try {
-        const status = await c.startAutomationWebView({
-          ...(backend ? { backend } : {}),
-          ...(typeof width === 'number' ? { width } : {}),
-          ...(typeof height === 'number' ? { height } : {}),
-          ...(typeof chromePath === 'string' ? { chromePath } : {}),
-          ...(Array.isArray(chromeArgv) ? { chromeArgv } : {}),
-          ...(typeof dataStoreDir === 'string' ? { dataStoreDir: safeWorkspacePath(dataStoreDir) } : {}),
-        });
-        return {
-          content: [{ type: 'text', text: JSON.stringify(status, null, 2) }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
-          isError: true,
-        };
-      }
-    },
-  );
-
-  // ── canvas_webview_stop ───────────────────────────────────────
-  server.tool(
-    'canvas_webview_stop',
-    'Stop the current Bun.WebView automation session if one is active.',
-    {},
-    async () => {
-      const c = await ensureCanvas();
-      try {
-        const stopped = await c.stopAutomationWebView();
-        const webview = await c.getAutomationWebViewStatus();
-        return {
-          content: [{
-            type: 'text',
-            text: JSON.stringify({
-              ok: true,
-              stopped,
-              webview,
-            }, null, 2),
-          }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
-          isError: true,
-        };
-      }
-    },
-  );
-
-  // ── canvas_evaluate ───────────────────────────────────────────
-  server.tool(
-    'canvas_evaluate',
-    'Evaluate JavaScript in the active Bun.WebView automation session for the workbench page. Use this to inspect rendered browser state. Requires an active automation session started via canvas_webview_start.',
-    {
-      expression: z.string().optional().describe('JavaScript expression to evaluate in the page context'),
-      script: z.string().optional().describe('Multi-statement JavaScript body. The MCP server wraps it in an async IIFE and evaluates the resolved return value.'),
-    },
-    async ({ expression, script }) => {
-      const c = await ensureCanvas();
-      if ((expression ? 1 : 0) + (script ? 1 : 0) !== 1) {
-        return {
-          content: [{ type: 'text', text: 'Pass exactly one of "expression" or "script".' }],
-          isError: true,
-        };
-      }
-
-      const source = script ? wrapCanvasAutomationScript(script) : expression!;
-      try {
-        const value = await c.evaluateAutomationWebView(source);
-        return {
-          content: [{ type: 'text', text: JSON.stringify({ value }, null, 2) }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
-          isError: true,
-        };
-      }
-    },
-  );
-
-  // ── canvas_resize ─────────────────────────────────────────────
-  server.tool(
-    'canvas_resize',
-    'Resize the active Bun.WebView automation viewport. Requires an active automation session started via canvas_webview_start.',
-    {
-      width: z.number().describe('Viewport width in pixels'),
-      height: z.number().describe('Viewport height in pixels'),
-    },
-    async ({ width, height }) => {
-      const c = await ensureCanvas();
-      try {
-        const status = await c.resizeAutomationWebView(width, height);
-        return {
-          content: [{ type: 'text', text: JSON.stringify(status, null, 2) }],
-        };
-      } catch (error) {
-        return {
-          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
-          isError: true,
-        };
-      }
-    },
-  );
+  // canvas_webview_status / canvas_webview_start / canvas_webview_stop /
+  // canvas_evaluate / canvas_resize migrated to the operation registry
+  // (plan-008 Wave 3): src/server/operations/ops/webview.ts (via the injected
+  // webview runner). canvas_screenshot stays hand-written below — it returns a
+  // binary image payload, which the registry's JSON wire shape does not model.
 
   // ── canvas_screenshot ─────────────────────────────────────────
   server.tool(
@@ -1351,40 +990,10 @@ export async function startMcpServer(): Promise<void> {
     );
   }
 
-  server.tool(
-    'canvas_batch',
-    'Run a non-atomic batch of canvas operations with optional assigned references. Use assign to name a result, then reference it later as "$name" for the created node id or "$name.id" for a specific result field. On failure, earlier successful operations remain applied and the response includes ok:false, failedIndex, error, results, and refs. Supports node.add, node.update, node.remove, graph.add, edge.add, group.create, group.add, group.remove, pin.set/add/remove, snapshot.save, and arrange.',
-    {
-      operations: z.array(z.object({
-        op: z.string().describe('Operation name, e.g. "node.add" or "edge.add"'),
-        assign: z.string().optional().describe('Optional reference name for later operations'),
-        args: z.record(z.string(), z.unknown()).optional().describe('Operation arguments'),
-      })).describe('Ordered array of batch operations'),
-      full: z.boolean().optional().describe('Return full batch operation results. Default false compacts node-like payloads.'),
-      verbose: z.boolean().optional().describe('Alias for full:true.'),
-    },
-    async (input) => {
-      const c = await ensureCanvas();
-      const result = await c.runBatch(input.operations);
-      const payload = wantsFullPayload(input) ? result : compactBatchResult(result);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
-        ...(result.ok ? {} : { isError: true }),
-      };
-    },
-  );
-
-  server.tool(
-    'canvas_validate',
-    'Validate the current canvas layout. Distinguishes true node collisions from expected group-child containment and reports missing edge endpoints.',
-    {},
-    async () => {
-      const c = await ensureCanvas();
-      return {
-        content: [{ type: 'text', text: JSON.stringify(await c.validate(), null, 2) }],
-      };
-    },
-  );
+  // canvas_batch migrated to the operation registry (plan-008 Wave 2):
+  // src/server/operations/ops/batch.ts.
+  // canvas_validate migrated to the operation registry (plan-008 Wave 1):
+  // src/server/operations/ops/validate.ts.
 
   // Connect via stdio
   const transport = new StdioServerTransport();

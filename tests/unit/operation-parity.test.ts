@@ -539,6 +539,159 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     }
   });
 
+  test('SSE: a canvas_batch of N mutating ops emits exactly ONE canvas-layout-update (plan-008 Wave 2)', async () => {
+    const sse = await connectSse(baseUrl);
+    try {
+      expect(await sse.waitForCount('canvas-layout-update', 1)).toBe(true);
+      await Bun.sleep(150);
+      const baseline = sse.count('canvas-layout-update');
+      // Three mutating entries: the registry suppresses per-entry emits during
+      // the batch loop and the meta-op fires ONE final frame — not one-per-entry.
+      const res = await jsonRequest<{ ok: boolean; results: unknown[] }>('/api/canvas/batch', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          operations: [
+            { op: 'node.add', args: { type: 'markdown', title: 'batch frame 1' } },
+            { op: 'node.add', args: { type: 'markdown', title: 'batch frame 2' } },
+            { op: 'node.add', args: { type: 'markdown', title: 'batch frame 3' } },
+          ],
+        }),
+      });
+      expect(res.ok).toBe(true);
+      expect(res.results).toHaveLength(3);
+      expect(await sse.waitForCount('canvas-layout-update', baseline + 1)).toBe(true);
+      // Exactly one frame for the whole batch — confirm no late/per-entry frames.
+      await Bun.sleep(300);
+      expect(sse.count('canvas-layout-update')).toBe(baseline + 1);
+    } finally {
+      sse.close();
+    }
+  });
+
+  test('canvas_batch records per-entry history — one undo reverses the last entry only', async () => {
+    const batch = await jsonRequest<{ ok: boolean; results: Array<{ id?: string }> }>('/api/canvas/batch', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        operations: [
+          { op: 'node.add', args: { type: 'markdown', title: 'batch-hist-1' } },
+          { op: 'node.add', args: { type: 'markdown', title: 'batch-hist-2' } },
+        ],
+      }),
+    });
+    expect(batch.ok).toBe(true);
+    const titles = async (): Promise<string[]> => {
+      const layout = await jsonRequest<{ nodes: Array<{ title?: string }> }>('/api/canvas/state');
+      return layout.nodes.map((n) => n.title ?? '');
+    };
+    expect(await titles()).toEqual(expect.arrayContaining(['batch-hist-1', 'batch-hist-2']));
+
+    // Each batch entry recorded its own history entry (the op handlers record via
+    // canvasState.onMutation, independent of emit suppression). So one undo
+    // reverses only the LAST entry, not the whole batch.
+    await jsonRequest('/api/canvas/undo', { method: 'POST' });
+    const afterUndo = await titles();
+    expect(afterUndo).toContain('batch-hist-1');
+    expect(afterUndo).not.toContain('batch-hist-2');
+
+    await jsonRequest('/api/canvas/redo', { method: 'POST' });
+    expect(await titles()).toEqual(expect.arrayContaining(['batch-hist-1', 'batch-hist-2']));
+  });
+
+  test('canvas_batch preserves legacy prompt/response node seeding without widening node.add', async () => {
+    const batch = await jsonRequest<{
+      ok: boolean;
+      results: Array<{ id?: string; type?: string; title?: string; content?: string | null }>;
+    }>('/api/canvas/batch', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        operations: [
+          {
+            op: 'node.add',
+            args: {
+              type: 'prompt',
+              title: 'Batch prompt renderer',
+              data: { text: 'Prompt body' },
+              width: 420,
+              height: 260,
+            },
+          },
+          {
+            op: 'node.add',
+            args: {
+              type: 'response',
+              title: 'Batch response renderer',
+              data: { content: 'Response body', status: 'complete' },
+              width: 420,
+              height: 260,
+            },
+          },
+        ],
+      }),
+    });
+
+    expect(batch.ok).toBe(true);
+    expect(batch.results.map((entry) => entry.type)).toEqual(['prompt', 'response']);
+    expect(batch.results[0]?.content).toBe('Prompt body');
+    expect(batch.results[1]?.content).toBe('Response body');
+
+    const standalone = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ type: 'prompt', title: 'Standalone prompt still rejected' }),
+    });
+    expect(standalone.status).toBe(400);
+  });
+
+  test('canvas_batch rejects unsupported registry ops with HTTP 400 — no broad side-effect batching', async () => {
+    // mcpapp.open creates its node from the ext-app-open SSE event, which the
+    // batch suppresses; webartifact.build emits through the canvas-operations
+    // emitter, outside registry suppression. Batch intentionally preserves the
+    // legacy allowlist instead of accepting every registered op.
+    for (const op of ['mcpapp.open', 'webartifact.build']) {
+      const response = await fetch(`${baseUrl}/api/canvas/batch`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          operations: [
+            {
+              op,
+              args: op === 'mcpapp.open'
+                ? { transport: { type: 'stdio', command: 'echo' }, toolName: 'noop' }
+                : { title: 'batch artifact', appTsx: 'export default function App(){return null}' },
+            },
+          ],
+        }),
+      });
+      expect(response.status).toBe(400);
+      const res = await response.json() as { ok: boolean; failedIndex?: number; error?: string; results: unknown[] };
+      expect(res.ok).toBe(false);
+      expect(res.failedIndex).toBe(0);
+      expect(res.error).toContain(`Unsupported canvas_batch operation "${op}"`);
+      expect(res.results).toHaveLength(0);
+    }
+
+    const mcpFailed = await mcpClient.callTool({
+      name: 'canvas_batch',
+      arguments: {
+        operations: [
+          {
+            op: 'webartifact.build',
+            args: { title: 'batch artifact', appTsx: 'export default function App(){return null}' },
+          },
+        ],
+      },
+    }) as ToolResultShape;
+    expect(mcpFailed.isError).toBe(true);
+    const mcpBody = parseJsonText<{ ok: boolean; failedIndex?: number; error?: string; results: unknown[] }>(mcpFailed);
+    expect(mcpBody.ok).toBe(false);
+    expect(mcpBody.failedIndex).toBe(0);
+    expect(mcpBody.error).toContain('Unsupported canvas_batch operation "webartifact.build"');
+    expect(mcpBody.results).toHaveLength(0);
+  });
+
   test('HTTP mutations tolerate unknown extra body keys (ignored, not persisted)', async () => {
     // POST with junk keys: 2xx, node created, junk does not land on the node.
     const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
