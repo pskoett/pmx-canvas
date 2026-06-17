@@ -889,15 +889,23 @@ nodes.
     live. Clients that **poll** instead should poll `canvas_ax_delivery { action: "claim" }` —
     `pendingActivity` is how non-steering browser changes reach them. Only steering
     flows through the claim/ack queue.
-  - **Steering is gated, not pushed.** A surface button that emits `ax.steer`
-    enqueues a steer — it does NOT wake the agent. With a prompt-injecting host
-    adapter (e.g. Copilot), it reaches the next turn only when (1) the **pin/focus
-    gate is open** (something pinned or focused — so keep a steering board pinned, or
-    have its button also emit `ax.focus.set` on itself), (2) a **human message** fires
-    the turn, and (3) the agent **acts then acks** (`canvas_ax_delivery { action: "mark" }`),
-    or the steer re-injects every gated turn. `GET /api/canvas/ax/context?consumer=<id>` adds
-    a compact, loop-safe `delivery: { pendingSteering, pendingActivity }` lead block an
-    adapter can inject un-truncated, so steering survives the full-context char clip.
+  - **Steering is gated, not pushed (and does NOT wake the agent).** A surface button
+    that emits `ax.steer` *records/queues* a steer (the `ok:true` emit ack means
+    "recorded", not "the agent woke") — it does NOT interrupt or notify the active
+    session. With a prompt-injecting host adapter (e.g. Copilot), it reaches the next
+    turn only when (1) the **pin/focus gate is open** (something pinned or focused — so
+    keep a steering board pinned, or have its button also emit `ax.focus.set` on
+    itself), (2) a **human message** fires the turn, and (3) the agent **acts then acks**
+    (`canvas_ax_delivery { action: "mark" }`), or the steer re-injects every gated turn.
+    Immediate wake (turning a queued steer into a visible turn) is **host-adapter-owned**
+    — the adapter must drain `canvas_ax_delivery { action: "claim" }` and call its native
+    send. So a steering button should label itself honestly ("queued for the agent's next
+    turn"), never imply it steers the agent *now*. `GET /api/canvas/ax/context?consumer=<id>`
+    adds a compact, loop-safe `delivery: { pendingSteering, totalPending, omittedPending,
+    pendingActivity }` lead block an adapter injects un-truncated; `pendingSteering` is
+    **newest-first** (most recent first), capped at 10, so a fresh steer is visible even
+    behind a backlog, and the counts say how many more to drain from the FIFO
+    `canvas_ax_delivery { action: "claim" }` queue (which stays oldest-first).
 - **Activity ingestion (bidirectional board):** a host adapter forwards the agent's
   tool/session events with `canvas_ingest_activity` (standalone; HTTP `POST /api/canvas/ax/activity`)
   and the board auto-reacts — `failure`/`error` (or `outcome:"failure"`) → a blocked
@@ -1027,6 +1035,20 @@ Minimal html work board (drop-in via `canvas_add_html_node`, `axCapabilities.ena
 This is the right home for a deliberate, interactive AX experience — not the
 native node buttons. Any agent (via MCP/SDK) can also create/update the same work
 items, and the board reflects them live.
+
+> **Authoring an AX HTML node? Use the blessed, copy-paste-safe recipe in
+> [`references/ax-html-control-surface.md`](references/ax-html-control-surface.md)**
+> and avoid the common footguns:
+> - **The iframe is sandboxed opaque-origin** (no `allow-same-origin`): `localStorage`,
+>   `sessionStorage`, and cookies **throw** and will halt your startup script, making the
+>   node look inert. Keep state in plain JS variables / `window.PMX_AX.state`, or wrap any
+>   storage access in `try/catch`.
+> - **`window.PMX_AX.emit` is async — `await` it** (or use `.then`/`window.PMX_AX.on('ack')`);
+>   don't read a result synchronously. It's injected only when the node is opted in
+>   (`axCapabilities.enabled = true`).
+> - **`ax.steer` is recorded, not delivered** — a successful emit means the steer is
+>   *queued for the agent's next turn*, not that the agent woke (see "Steering is gated").
+>   Label steering buttons accordingly.
 
 > Security note: an AX-enabled surface can READ the whole canvas AX board (all
 > work items, focus, approval gates, etc. — human review comment text is redacted),

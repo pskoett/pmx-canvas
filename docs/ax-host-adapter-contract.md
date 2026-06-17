@@ -42,7 +42,25 @@ message; it does **not** wake the agent. It reaches the next turn only when:
 
 The `delivery` lead block (`GET /api/canvas/ax/context?consumer=<id>`) is the
 robustness hedge: it's compact and sits above the full dump, so an adapter can inject
-it un-truncated even on a busy board where the full context is clipped.
+it un-truncated even on a busy board where the full context is clipped. Its
+`pendingSteering` is **newest-first** (most recent at index 0), capped at 10, so a
+*fresh* steer is always visible even behind a long backlog of old unacked steers
+(report #57); `delivery.totalPending` / `delivery.omittedPending` tell the agent how
+many more are queued so it can drain the FIFO `…/delivery/pending` endpoint when the
+count is non-zero. **Adapters should read `delivery.pendingSteering`** (this compact,
+count-bearing block), not `timeline.pendingSteering`.
+
+### Canvas-origin steering does not wake the agent by itself (#59)
+
+Recording a browser-origin `ax.steer` (and the `ok:true` ack a surface button gets —
+report #55) means the steer is **queued on the timeline**, not delivered into a live
+agent turn. PMX deliberately does not import a host SDK, so the *wake* — turning a
+queued steer into a visible turn — is **adapter-owned**: a cooperating host adapter
+must drain `…/delivery/pending?consumer=<id>` and call its native send (e.g.
+`copilotSession.send`), then `…/delivery/<id>/mark` it. Until an adapter wires that,
+canvas-origin steering is delivered on the next human turn, not pushed. A steering
+surface should therefore label its button honestly ("queued for the agent's next
+turn"), never imply it interrupts the agent now.
 
 ## The two primitives that close the loop
 

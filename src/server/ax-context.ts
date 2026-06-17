@@ -79,10 +79,17 @@ export function buildCanvasAxContext(consumer?: string): PmxAxContext {
   const focusNodes = ax.focus.nodeIds
     .map((id) => canvasState.getNode(id))
     .filter((node): node is CanvasNodeState => node !== undefined);
+  // Report #57: surface the NEWEST undelivered steering (so a fresh steer is visible
+  // even behind a long backlog) + counts so the agent can detect an omitted backlog.
+  // The FIFO claim/ack queue (getPendingSteering) stays oldest-first for processing.
+  const pendingSteering = canvasState.getPendingSteeringForContext({ consumer, limit: AX_CONTEXT_STEERING_LIMIT });
+  const totalPending = canvasState.getPendingSteeringCount(consumer);
   return buildAxContext({
     layout,
     delivery: {
-      pendingSteering: canvasState.getPendingSteering({ consumer, limit: AX_CONTEXT_STEERING_LIMIT }),
+      pendingSteering,
+      totalPending,
+      omittedPending: Math.max(0, totalPending - pendingSteering.length),
       pendingActivity: buildPendingAxActivity(ax, consumer),
     },
     pinned: buildCanvasAxPinnedContext(),

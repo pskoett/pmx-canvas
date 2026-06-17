@@ -921,6 +921,41 @@ export function loadPendingAxSteeringFromDB(
     .filter((s): s is PmxAxSteeringMessage => s !== null);
 }
 
+/**
+ * NEWEST undelivered steering first (report #57) for the compact AX context lead
+ * block — so a fresh steer is visible even behind a long backlog. Loop-safe: excludes
+ * the consumer's own steering in SQL so the LIMIT applies after loop-prevention.
+ * Distinct from loadPendingAxSteeringFromDB (FIFO oldest-first) which the claim/ack
+ * delivery queue uses for ordered processing.
+ */
+export function loadNewestPendingAxSteeringFromDB(
+  db: Database,
+  options: { consumer?: string; limit?: number } = {},
+): PmxAxSteeringMessage[] {
+  interface Row { seq: number; id: string; message: string; delivered: number; created_at: string; source: string | null }
+  const limit = clampTimelineLimit(options.limit);
+  const rows = options.consumer
+    ? db.query<Row, [string, number]>(
+        'SELECT * FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?) ORDER BY seq DESC LIMIT ?',
+      ).all(options.consumer, limit)
+    : db.query<Row, [number]>(
+        'SELECT * FROM ax_steering WHERE delivered = 0 ORDER BY seq DESC LIMIT ?',
+      ).all(limit);
+  return rows
+    .map((r) => normalizeAxSteeringMessage({ ...r, createdAt: r.created_at, delivered: r.delivered === 1 }))
+    .filter((s): s is PmxAxSteeringMessage => s !== null);
+}
+
+/** Total undelivered steering for a consumer (loop-safe — excludes the consumer's own). */
+export function countPendingAxSteeringFromDB(db: Database, consumer?: string): number {
+  const n = consumer
+    ? db.query<{ n: number }, [string]>(
+        'SELECT COUNT(*) AS n FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?)',
+      ).get(consumer)?.n
+    : db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM ax_steering WHERE delivered = 0').get()?.n;
+  return Number(n ?? 0);
+}
+
 function countRows(db: Database, table: 'ax_events' | 'ax_evidence' | 'ax_steering'): number {
   return Number(db.query<{ n: number }, []>(`SELECT COUNT(*) AS n FROM ${table}`).get()?.n ?? 0);
 }

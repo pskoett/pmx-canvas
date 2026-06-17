@@ -53,6 +53,19 @@ export declare function loadPendingAxSteeringFromDB(db: Database, options?: {
     consumer?: string;
     limit?: number;
 }): PmxAxSteeringMessage[];
+/**
+ * NEWEST undelivered steering first (report #57) for the compact AX context lead
+ * block — so a fresh steer is visible even behind a long backlog. Loop-safe: excludes
+ * the consumer's own steering in SQL so the LIMIT applies after loop-prevention.
+ * Distinct from loadPendingAxSteeringFromDB (FIFO oldest-first) which the claim/ack
+ * delivery queue uses for ordered processing.
+ */
+export declare function loadNewestPendingAxSteeringFromDB(db: Database, options?: {
+    consumer?: string;
+    limit?: number;
+}): PmxAxSteeringMessage[];
+/** Total undelivered steering for a consumer (loop-safe — excludes the consumer's own). */
+export declare function countPendingAxSteeringFromDB(db: Database, consumer?: string): number;
 export declare function loadAxTimelineSummaryFromDB(db: Database): PmxAxTimelineSummary;
 export declare function upsertAxHostCapabilityToDB(db: Database, cap: PmxAxHostCapability): void;
 export declare function loadAxHostCapabilityFromDB(db: Database): PmxAxHostCapability | null;

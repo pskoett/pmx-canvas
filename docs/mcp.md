@@ -157,7 +157,7 @@ Individual bundled skills are also readable at `canvas://skills/<name>`.
 |----------|-------------|
 | `canvas://pinned-context` | Content of pinned nodes + nearby unpinned neighbors |
 | `canvas://ax` | PMX AX state: focus, work items, approval gates, review annotations |
-| `canvas://ax-context` | Agent-readable pinned and focused AX context, plus timeline summary and host capability |
+| `canvas://ax-context` | Agent-readable pinned and focused AX context, plus a compact `delivery` lead block (`pendingSteering` newest-first + `totalPending`/`omittedPending` counts), timeline summary, and host capability |
 | `canvas://ax-work` | Canvas-bound AX work: work items, approval gates, review annotations, elicitations, mode requests, and tool/prompt policy |
 | `canvas://ax-timeline` | Bounded AX timeline: recent agent-events, evidence, and steering messages |
 | `canvas://ax-pending-steering` | Undelivered steering an adapterless MCP client can claim, act on, and mark delivered |

@@ -246,6 +246,10 @@ curl "http://localhost:4313/api/canvas/ax/mode/<id>?waitMs=30000"
 
 # Context — optional ?consumer= filters the compact, loop-safe `delivery` lead block
 # (undelivered steering + open work/approvals it can act on) for per-turn injection.
+# `delivery.pendingSteering` is NEWEST-first (most recent first), capped at 10, so a
+# fresh steer is visible even behind a backlog; `delivery.totalPending` /
+# `delivery.omittedPending` report how many more are queued. Drain the full FIFO
+# (oldest-first) backlog via /api/canvas/ax/delivery/pending when omittedPending > 0.
 curl "http://localhost:4313/api/canvas/ax/context?consumer=copilot"
 
 # Commands — list the registry, invoke a command (records a `command` agent-event)

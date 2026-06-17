@@ -1957,6 +1957,14 @@ class CanvasStateManager {
     return this.ax.getPendingSteering(options);
   }
 
+  getPendingSteeringForContext(options: { consumer?: string; limit?: number } = {}): PmxAxSteeringMessage[] {
+    return this.ax.getPendingSteeringForContext(options);
+  }
+
+  getPendingSteeringCount(consumer?: string): number {
+    return this.ax.getPendingSteeringCount(consumer);
+  }
+
   getAxTimelineSummary(): PmxAxTimelineSummary {
     return this.ax.getAxTimelineSummary();
   }

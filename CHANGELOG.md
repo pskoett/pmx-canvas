@@ -5,6 +5,43 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-06-17
+
+### Fixed
+
+- **Compact AX context surfaces the NEWEST steering first (report #57).** The
+  `delivery.pendingSteering` lead block on `GET /api/canvas/ax/context` /
+  `canvas://ax-context` returned the OLDEST 10 undelivered steers, so on a long-lived
+  board a fresh steer was buried behind old unacked ones and never appeared in the
+  compact block. It now returns the **newest** undelivered steering first (capped at
+  10), so a fresh steer is always visible. The FIFO claim/ack delivery queue
+  (`/api/canvas/ax/delivery/pending`, `canvas_ax_delivery { action: "claim" }`) is
+  unchanged — still oldest-first for ordered processing.
+
+### Added
+
+- **AX context delivery backlog counts (report #57).** `delivery` now includes
+  `totalPending` (undelivered steering for the consumer, loop-safe) and `omittedPending`
+  (`= totalPending − pendingSteering.length`), so an agent can tell the compact block
+  omitted a backlog and drain the full FIFO queue when `omittedPending > 0`. Additive,
+  non-breaking.
+- **Blessed AX HTML Control Surface recipe (report #60).** New
+  `skills/pmx-canvas/references/ax-html-control-surface.md` (linked from `SKILL.md`): a
+  copy-paste-safe template (awaited `emit` + live ack display + `pmx-ax-update`
+  reflection) plus the three footguns that make a hand-rolled AX node look inert — the
+  sandboxed opaque-origin iframe throws on `localStorage`/`sessionStorage`/cookies,
+  `emit` must be awaited, and `ax.steer` is recorded (queued), not delivered.
+
+### Docs
+
+- **Canvas-origin steering does not wake the active agent by itself (report #59).** The
+  host-adapter contract, `SKILL.md`, and the GitHub Copilot adapter reference now state
+  plainly that a browser-origin `ax.steer` (and its `ok:true` emit ack) is *queued*, not
+  pushed into the live session; the wake is host-adapter-owned (drain
+  `canvas_ax_delivery { action: "claim" }` → native send → `mark`), and a steering button
+  must be labeled "queued for the agent's next turn." Adapters should read steering from
+  the compact `delivery.pendingSteering` block, not `timeline.pendingSteering`.
+
 ## [0.2.0] - 2026-06-16
 
 ### Breaking
@@ -2234,6 +2271,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.2.1]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.1
 [0.2.0]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.0
 [0.1.36]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.36
 [0.1.35]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.35

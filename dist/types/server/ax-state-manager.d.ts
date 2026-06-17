@@ -245,6 +245,17 @@ export declare class AxStateManager {
         consumer?: string;
         limit?: number;
     }): PmxAxSteeringMessage[];
+    /**
+     * NEWEST undelivered steering first, for the compact AX context lead block (report
+     * #57) — so a fresh steer is visible even behind a long backlog. Loop-safe like
+     * getPendingSteering, but ordered DESC instead of the FIFO ASC delivery queue.
+     */
+    getPendingSteeringForContext(options?: {
+        consumer?: string;
+        limit?: number;
+    }): PmxAxSteeringMessage[];
+    /** Total undelivered steering for a consumer (loop-safe), for the context backlog counts. */
+    getPendingSteeringCount(consumer?: string): number;
     getAxTimelineSummary(): PmxAxTimelineSummary;
     getAxTimeline(q?: AxTimelineQuery): {
         events: PmxAxEvent[];

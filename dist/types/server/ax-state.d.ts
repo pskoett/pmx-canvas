@@ -145,6 +145,8 @@ export interface PendingAxActivityItem {
 }
 export interface PmxAxDeliveryContext {
     pendingSteering: PmxAxSteeringMessage[];
+    totalPending: number;
+    omittedPending: number;
     pendingActivity: PendingAxActivityItem[];
 }
 export interface PmxAxContext {

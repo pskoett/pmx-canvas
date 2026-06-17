@@ -3915,6 +3915,38 @@ describe('canvas server HTTP API', () => {
     expect(filtered.delivery.pendingSteering.every((s) => s.source !== 'browser')).toBe(true);
   });
 
+  test('#57: compact context surfaces NEWEST steering first + backlog counts; FIFO delivery stays oldest-first', async () => {
+    const tag = `s57-${Date.now()}`;
+    const n = 13; // > AX_CONTEXT_STEERING_LIMIT (10) so the compact block must omit some
+    for (let i = 0; i < n; i += 1) {
+      await fetch(`${baseUrl}/api/canvas/ax/steer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: `${tag}-${i}`, source: 'api' }),
+      });
+    }
+
+    // Compact context (consumer=copilot does NOT filter source:'api' steers).
+    type Ctx = { delivery: { pendingSteering: Array<{ message: string }>; totalPending: number; omittedPending: number } };
+    const ctx = await jsonRequest<Ctx>('/api/canvas/ax/context?consumer=copilot');
+    const ps = ctx.delivery.pendingSteering;
+    expect(ps).toHaveLength(10);                       // capped at the context limit
+    expect(ps[0].message).toBe(`${tag}-${n - 1}`);     // NEWEST steer is first (was the bug)
+    expect(ps[9].message).toBe(`${tag}-${n - 10}`);    // descending by recency
+    expect(ctx.delivery.totalPending).toBeGreaterThanOrEqual(n);
+    expect(ctx.delivery.omittedPending).toBe(ctx.delivery.totalPending - ps.length);
+    expect(ctx.delivery.omittedPending).toBeGreaterThan(0); // backlog is signalled, not hidden
+
+    // The FIFO claim/ack delivery queue is unchanged: oldest-first, no count fields.
+    const fifo = await (await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot&limit=80`)).json() as {
+      pending: Array<{ message: string }>; totalPending?: number;
+    };
+    const mine = fifo.pending.filter((s) => s.message.startsWith(tag)).map((s) => s.message);
+    expect(mine[0]).toBe(`${tag}-0`);                  // oldest of mine first (FIFO)
+    expect(mine[mine.length - 1]).toBe(`${tag}-${n - 1}`);
+    expect(fifo.totalPending).toBeUndefined();         // delivery shape NOT changed
+  });
+
   test('GET /api/canvas/ax/surface-snapshot returns the compact board with review text redacted', async () => {
     const review = await jsonRequest<{ reviewAnnotation: { id: string } }>('/api/canvas/ax/review', {
       method: 'POST',

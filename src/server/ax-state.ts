@@ -168,8 +168,16 @@ export interface PendingAxActivityItem {
 }
 
 // ── Delivery lead block (compact, un-truncated; for per-turn injection) ──
+// `pendingSteering` here is NEWEST-first (most recent at index 0), capped at
+// AX_CONTEXT_STEERING_LIMIT, so a fresh steer is always visible even behind a long
+// backlog (report #57). This is "what's new?" awareness — distinct from the FIFO
+// claim/ack delivery queue (`/api/canvas/ax/delivery/pending`, getPendingSteering),
+// which stays OLDEST-first for ordered processing. The counts let an agent detect a
+// backlog the compact block omits.
 export interface PmxAxDeliveryContext {
   pendingSteering: PmxAxSteeringMessage[];
+  totalPending: number;
+  omittedPending: number;
   pendingActivity: PendingAxActivityItem[];
 }
 

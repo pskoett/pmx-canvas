@@ -52,20 +52,36 @@ panel.
 ### Agent behavior — steering is gated, not pushed
 
 `onUserPromptSubmitted` injects the whole `/api/canvas/ax/context` (pins, focus, work
-items, approval gates, and `timeline.pendingSteering`) as hidden context — but only
-when the **pin/focus gate is open** (`pinned.count > 0 || focus.nodeIds.length > 0`),
-and it is clipped to a char budget. Three consequences the adapter/agent must honor:
+items, approval gates, and the compact `delivery` lead block) as hidden context — but
+only when the **pin/focus gate is open** (`pinned.count > 0 || focus.nodeIds.length > 0`),
+and it is clipped to a char budget. Read steering from **`delivery.pendingSteering`**
+(the compact, count-bearing block — newest-first, capped at 10), not the full
+`timeline.pendingSteering`. Three consequences the adapter/agent must honor:
 
 1. A steering board must **stay pinned** (or its button must also emit `ax.focus.set`
    on the board node) to hold the gate open.
 2. A sandbox button click does **not** wake a turn — a human message does. The click
    only enqueues the steer.
-3. The agent must **act on injected `pendingSteering` / `pendingActivity` and then ack**
-   (`canvas_ax_delivery { action: "mark" }`), or it re-injects every gated turn.
+3. The agent must **act on injected `delivery.pendingSteering` / `pendingActivity` and
+   then ack** (`canvas_ax_delivery { action: "mark" }`), or it re-injects every gated turn.
 
-To be robust to the char clip, prefer injecting the compact loop-safe lead block from
+To be robust to the char clip, prefer injecting that compact loop-safe lead block from
 `GET /api/canvas/ax/context?consumer=copilot` (`delivery.pendingSteering` +
-`delivery.pendingActivity`) **above** the full dump.
+`delivery.totalPending` / `delivery.omittedPending` + `delivery.pendingActivity`)
+**above** the full dump. When `omittedPending > 0`, drain the full FIFO backlog from
+`canvas_ax_delivery { action: "claim", consumer: "copilot" }` (oldest-first).
+
+#### Waking the agent from a canvas steer (#59) — adapter-owned
+
+Recording a browser-origin `ax.steer` does **not** wake the active session by itself
+(report #59); PMX only queues it (the `ok:true` emit ack = "recorded", not "delivered").
+To make a canvas **Steer** button actually create a visible turn, the adapter must, on
+its own cadence (e.g. an SSE subscription or poll), **drain**
+`canvas_ax_delivery { action: "claim", consumer: "copilot" }`, call the host's native
+send (`copilotSession.send` / the working `send_instruction` path) with each steer, then
+`canvas_ax_delivery { action: "mark" }` it (loop-safe). This wake is intentionally
+host-owned — PMX never imports the host SDK. Until the adapter wires it, a steering
+button must be labeled "queued for the agent's next turn", not "steer now".
 
 ### Closing the loop (optional, recommended)
 
