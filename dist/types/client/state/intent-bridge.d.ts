@@ -3,16 +3,15 @@ export declare function sendIntent(type: string, payload?: Record<string, unknow
     ok: boolean;
 }>;
 /**
- * Veto a forming ghost intent: post a steering "don't" to the active agent
- * session BEFORE the mutation lands, then clear the ghost. Best-effort — a
- * dropped request just leaves the ghost to expire on its own TTL.
+ * Veto a forming ghost intent at the mutation gate, then queue steering for the
+ * active agent session only when the server accepted the veto.
  */
 export declare function vetoGhostIntent(intent: {
     id: string;
     kind: string;
     label?: string;
     reason?: string;
-}): Promise<void>;
+}): Promise<boolean>;
 /** Fetch rendered markdown HTML from the server. */
 export declare function renderMarkdown(markdown: string): Promise<string>;
 /** Fetch file content from the server. */

@@ -25,6 +25,7 @@ function pickChildLayout(value: unknown): 'grid' | 'column' | 'flow' | undefined
 // ── group.create ──────────────────────────────────────────────
 
 const groupCreateShape = {
+  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
   title: z.string().optional().catch(undefined).describe('Group title (default: "Group")'),
   childIds: z.unknown().optional().describe('Node IDs to include in the group. Group auto-sizes to fit them.'),
   color: z.string().optional().catch(undefined).describe('Group accent color (CSS color string, e.g. "#4a9eff")'),
@@ -90,6 +91,7 @@ const groupCreateOperation = defineOperation<z.infer<typeof groupCreateSchema>, 
 // ── group.add ─────────────────────────────────────────────────
 
 const groupAddShape = {
+  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
   groupId: z.string().optional().catch(undefined).describe('The group node ID'),
   childIds: z.unknown().optional().describe('Node IDs to add to the group'),
   childLayout: z.enum(['grid', 'column', 'flow']).optional().catch(undefined).describe('Optional child layout to apply while grouping'),
@@ -136,6 +138,7 @@ const groupAddOperation = defineOperation<z.infer<typeof groupAddSchema>, Record
 // ── group.remove (ungroup) ────────────────────────────────────
 
 const groupRemoveShape = {
+  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
   groupId: z.string().optional().catch(undefined).describe('The group node ID to ungroup'),
 };
 

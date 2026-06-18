@@ -31,6 +31,7 @@ export declare class PmxCanvas extends EventEmitter {
     constructor(options?: {
         port?: number;
     });
+    private runIntentCommit;
     start(options?: {
         open?: boolean;
         automationWebView?: boolean | CanvasAutomationWebViewOptions;
@@ -48,6 +49,7 @@ export declare class PmxCanvas extends EventEmitter {
      * or keep the whole node — both work. (Previously returned a bare id string.)
      */
     addNode(input: {
+        intentId?: string;
         type: CanvasNodeState['type'];
         title?: string;
         content?: string;
@@ -68,6 +70,7 @@ export declare class PmxCanvas extends EventEmitter {
         strictSize?: boolean;
     }): SdkCanvasNode;
     addWebpageNode(input: {
+        intentId?: string;
         title?: string;
         url: string;
         x?: number;
@@ -91,8 +94,11 @@ export declare class PmxCanvas extends EventEmitter {
     }>;
     updateNode(id: string, patch: Partial<CanvasNodeState> & Record<string, unknown>): void;
     /** Remove a node. Missing id throws (plan-005 unifies this across surfaces). */
-    removeNode(id: string): void;
+    removeNode(id: string, options?: {
+        intentId?: string;
+    }): void;
     addEdge(input: {
+        intentId?: string;
         from?: string;
         to?: string;
         fromSearch?: string;
@@ -113,6 +119,7 @@ export declare class PmxCanvas extends EventEmitter {
      * If childIds are provided, the group auto-sizes to contain them with padding.
      */
     createGroup(input: {
+        intentId?: string;
         title?: string;
         childIds?: string[];
         x?: number;
@@ -125,9 +132,12 @@ export declare class PmxCanvas extends EventEmitter {
     /** Add nodes to an existing group. */
     groupNodes(groupId: string, childIds: string[], options?: {
         childLayout?: 'grid' | 'column' | 'flow';
+        intentId?: string;
     }): boolean;
     /** Remove all children from a group (the group node remains). */
-    ungroupNodes(groupId: string): boolean;
+    ungroupNodes(groupId: string, options?: {
+        intentId?: string;
+    }): boolean;
     clear(): void;
     arrange(layout?: 'grid' | 'column' | 'flow'): void;
     focusNode(id: string, options?: {
@@ -453,7 +463,9 @@ export declare class PmxCanvas extends EventEmitter {
         timeoutMs?: number;
     }): Promise<OpenMcpAppCoreResult>;
     addDiagram(input: DiagramPresetOpenInput): Promise<OpenMcpAppCoreResult>;
-    addJsonRenderNode(input: JsonRenderNodeInput): {
+    addJsonRenderNode(input: JsonRenderNodeInput & {
+        intentId?: string;
+    }): {
         id: string;
         url: string;
         spec: JsonRenderSpec;
@@ -465,6 +477,7 @@ export declare class PmxCanvas extends EventEmitter {
      * reloads the viewer as the specVersion bumps.
      */
     streamJsonRenderNode(input: {
+        intentId?: string;
         nodeId?: string;
         title?: string;
         patches?: unknown[];
@@ -484,6 +497,7 @@ export declare class PmxCanvas extends EventEmitter {
         streamStatus: 'open' | 'closed';
     };
     addHtmlNode(input: {
+        intentId?: string;
         html: string;
         title?: string;
         summary?: string;
@@ -506,6 +520,7 @@ export declare class PmxCanvas extends EventEmitter {
         };
     }): SdkCanvasNode;
     addHtmlPrimitive(input: {
+        intentId?: string;
         kind: HtmlPrimitiveKind;
         title?: string;
         data?: Record<string, unknown>;
@@ -520,7 +535,9 @@ export declare class PmxCanvas extends EventEmitter {
         title: string;
         htmlBytes: number;
     };
-    addGraphNode(input: GraphNodeInput): {
+    addGraphNode(input: GraphNodeInput & {
+        intentId?: string;
+    }): {
         id: string;
         url: string;
         spec: JsonRenderSpec;

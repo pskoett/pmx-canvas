@@ -1,7 +1,9 @@
-import { type PmxAxIntent } from '../shared/ax-intent.js';
+import { type PmxAxIntent, type PmxAxIntentKind } from '../shared/ax-intent.js';
 type IntentEmitter = (event: string, payload: Record<string, unknown>) => void;
 export declare class IntentRegistry {
     private readonly intents;
+    private readonly vetoedIntentIds;
+    private readonly committingIntentIds;
     private emit;
     private sweepTimer;
     /** Inject the workbench SSE emitter (server.ts wires this at module load). */
@@ -20,8 +22,19 @@ export declare class IntentRegistry {
         settledNodeId?: string;
         vetoed?: boolean;
     }): boolean;
+    /**
+     * Gate one real mutation behind a live, non-vetoed intent. The claim is
+     * synchronous: once this method has accepted the intent, a later veto cannot
+     * race in between the check and the mutation.
+     */
+    beginCommit(id: string, allowedKinds: readonly PmxAxIntentKind[]): PmxAxIntent;
+    completeCommit(id: string, settledNodeId?: string): void;
+    abortCommit(id: string): void;
+    runCommit<T>(id: string, allowedKinds: readonly PmxAxIntentKind[], mutate: () => T | Promise<T>, settledNodeId: (result: T, intent: PmxAxIntent) => string | undefined): Promise<T>;
     /** Drop every live intent without per-id SSE (used on hard resets). */
     reset(): void;
+    private rememberVeto;
+    private pruneVetoTombstones;
     private evictOverflow;
     private sweep;
     private ensureSweeper;

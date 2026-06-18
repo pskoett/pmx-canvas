@@ -2174,6 +2174,16 @@ function handleWorkbenchEvents(req: Request): Response {
           timestamp: new Date().toISOString(),
         }),
       );
+      for (const intent of intentRegistry.list()) {
+        controller.enqueue(
+          toSseFrame('ax-intent', {
+            intent,
+            reason: 'connect-snapshot',
+            sessionId: primaryWorkbenchSessionId,
+            timestamp: new Date().toISOString(),
+          }),
+        );
+      }
       pingTimer = setInterval(() => {
         try {
           controller.enqueue(
@@ -3809,6 +3819,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 }
 
 export function stopCanvasServer(): void {
+  intentRegistry.reset();
   canvasState.close();
   closeAllMcpAppSessions();
   setCanvasLayoutUpdateEmitter(null);

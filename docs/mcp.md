@@ -61,12 +61,14 @@ veto it — before the mutation lands.
 
 - `signal` — register an intent: `kind` (`create` \| `move` \| `connect` \| `remove` \| `edit`) plus the anchor it renders against (`position` for create/move, `nodeId` for move/edit/remove, `edge` for connect). Optional `label`, `reason`, `confidence` (0..1 → ghost opacity), `seq` (staged-batch ordering), `ttlMs` (default ~8s), and a stable `id` to update/clear later.
 - `update` — patch a live intent by `id` (position/label/reason/confidence/ttlMs).
-- `clear` — dissolve it; pass `settledNodeId` once the real node has landed to trigger the settle morph.
+- `clear` — abandon/dissolve it explicitly. Normal linked mutations settle automatically.
 
 Intents are **ephemeral presence**: never persisted, never snapshotted, never in
 `canvas_get_layout`, and auto-expiring. They ride their own SSE channel
-(`ax-intent` / `ax-intent-clear`). Best practice — narrate your next move:
-`signal` → mutate → `clear` with `settledNodeId`. Also reachable over HTTP:
+(`ax-intent` / `ax-intent-clear`) and replay to reconnecting browsers while still
+live. Best practice — narrate your next move: `signal` → mutate with the returned
+`intent.id` as `intentId`. A vetoed or expired linked mutation is rejected, and a
+successful mutation settles the ghost automatically. Also reachable over HTTP:
 `POST/PATCH/DELETE /api/canvas/ax/intent[/:id]`.
 
 Field names match the underlying operation (e.g. `canvas_view { action: "focus", id }`,

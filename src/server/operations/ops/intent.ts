@@ -16,6 +16,7 @@
 import { z } from 'zod';
 import { INTENT_EDGE_TYPES, INTENT_KINDS } from '../../../shared/ax-intent.js';
 import { intentRegistry } from '../../intent-registry.js';
+import { readJsonValue } from '../http.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 
 const positionShape = z.object({ x: z.number(), y: z.number() });
@@ -98,7 +99,21 @@ const intentClearOperation = defineOperation<z.infer<typeof intentClearSchema>, 
   mutates: false,
   input: intentClearSchema,
   inputShape: intentClearShape,
-  http: { method: 'DELETE', path: '/api/canvas/ax/intent/:id' },
+  http: {
+    method: 'DELETE',
+    path: '/api/canvas/ax/intent/:id',
+    readInput: async (req, params, url) => {
+      const query: Record<string, string> = {};
+      url.searchParams.forEach((value, key) => {
+        query[key] = value;
+      });
+      const body = await readJsonValue(req);
+      const record = body !== null && typeof body === 'object' && !Array.isArray(body)
+        ? body as Record<string, unknown>
+        : {};
+      return { ...query, ...record, ...params };
+    },
+  },
   handler: (input) => {
     const id = typeof input.id === 'string' ? input.id : '';
     if (!id) throw new OperationError('intent clear requires an id.');

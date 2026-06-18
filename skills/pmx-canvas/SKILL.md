@@ -376,16 +376,21 @@ faint placeholder forms where you're about to act — the human sees the next mo
 coming and can veto it mid-thought. Intents are ephemeral presence: never
 persisted, auto-expiring (~8s), never in `canvas_query layout`.
 
-Narrate → mutate → settle:
+Narrate → linked mutation → automatic settle:
 1. `canvas_intent { action: "signal", kind: "create", position: { x, y }, nodeType: "markdown", label: "Add evidence", reason: "capturing the failing test", confidence: 0.8 }` → returns `intent.id`.
-2. Make the real move (`canvas_node { action: "add", ... }`).
-3. `canvas_intent { action: "clear", id, settledNodeId: <newNodeId> }` → the ghost settles into the node.
+2. Make the real move and pass that id: `canvas_node { action: "add", intentId: <intent.id>, ... }`.
+3. PMX rejects the mutation if the intent was vetoed or expired; otherwise the
+   successful mutation settles the ghost into the resulting node automatically.
+
+Use `canvas_intent { action: "clear", id }` only when abandoning a plan without
+performing the linked mutation.
 
 Per kind, pass the anchor it renders against: `position` for `create`/`move`,
 `nodeId` for `move`/`edit`/`remove`, `edge: { from, to, type }` for `connect`. The
 payoff is **legibility** — `reason` is shown beneath the ghost. For a planned
 batch, signal all intents up front (with `seq` for ordering), then commit them one
-by one so the human watches the layout wireframe in before it fills.
+by one with the corresponding `intentId` so the human watches the layout wireframe
+in before it fills.
 
 ### Standalones (first-class — not deprecated)
 

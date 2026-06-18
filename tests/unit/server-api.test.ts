@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { canvasState, type PersistedBlobRef } from '../../src/server/canvas-state.ts';
 import { MARKDOWN_NODE_DEFAULT_SIZE, MCP_APP_NODE_DEFAULT_SIZE } from '../../src/server/canvas-operations.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
+import { intentRegistry } from '../../src/server/intent-registry.ts';
 import { emitPrimaryWorkbenchEvent, startCanvasServer, stopCanvasServer, wrapCanvasAutomationScript } from '../../src/server/server.ts';
 import {
   createFakeWebArtifactScripts,
@@ -78,6 +79,40 @@ async function waitForNode(
     await Bun.sleep(delayMs);
   }
   return null;
+}
+
+async function readSseEvent(
+  baseUrl: string,
+  eventName: string,
+  timeoutMs = 3000,
+): Promise<Record<string, unknown>> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(`${baseUrl}/api/workbench/events`, { signal: controller.signal });
+    if (!response.ok || !response.body) throw new Error('Failed to connect to workbench SSE.');
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      let frameEnd = buffer.indexOf('\n\n');
+      while (frameEnd !== -1) {
+        const frame = buffer.slice(0, frameEnd);
+        buffer = buffer.slice(frameEnd + 2);
+        const event = frame.match(/^event: (.+)$/m)?.[1];
+        const data = frame.match(/^data: (.+)$/m)?.[1];
+        if (event === eventName && data) return JSON.parse(data) as Record<string, unknown>;
+        frameEnd = buffer.indexOf('\n\n');
+      }
+    }
+    throw new Error(`SSE event "${eventName}" was not received.`);
+  } finally {
+    clearTimeout(timeout);
+    controller.abort();
+  }
 }
 
 const fixtureMcpAppServerPath = fileURLToPath(new URL('../fixtures/mcp-app-fixture.ts', import.meta.url));
@@ -189,12 +224,113 @@ describe('canvas server HTTP API', () => {
   });
 
   beforeEach(() => {
+    intentRegistry.reset();
     canvasState.withSuppressedRecording(() => {
       canvasState.clear();
       canvasState.setTheme('dark');
     });
     canvasState.clearAllSnapshots();
     mutationHistory.reset();
+  });
+
+  test('ghost veto metadata blocks linked mutation and live intents replay on connect', async () => {
+    const signalled = await jsonRequest<{ intent: { id: string } }>('/api/canvas/ax/intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: 'http-veto',
+        kind: 'create',
+        position: { x: 120, y: 160 },
+      }),
+    });
+    expect(signalled.intent.id).toBe('http-veto');
+
+    const replay = await readSseEvent(baseUrl, 'ax-intent');
+    expect(replay.intent).toMatchObject({ id: 'http-veto', kind: 'create' });
+
+    const vetoed = await jsonRequest<{ cleared: boolean }>('/api/canvas/ax/intent/http-veto', {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vetoed: true }),
+    });
+    expect(vetoed.cleared).toBe(true);
+
+    const blocked = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        intentId: 'http-veto',
+        type: 'markdown',
+        title: 'Must not be created',
+      }),
+    });
+    expect(blocked.status).toBe(409);
+    expect(await blocked.json()).toMatchObject({ ok: false, error: 'Intent "http-veto" was vetoed.' });
+    expect(canvasState.getLayout().nodes.some((node) => node.data.title === 'Must not be created')).toBe(false);
+
+    await jsonRequest('/api/canvas/ax/intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: 'http-commit',
+        kind: 'create',
+        position: { x: 240, y: 200 },
+      }),
+    });
+    const committed = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        intentId: 'http-commit',
+        type: 'markdown',
+        title: 'Committed node',
+        x: 240,
+        y: 200,
+      }),
+    });
+    expect(canvasState.getNode(committed.id)?.data.title).toBe('Committed node');
+    expect(intentRegistry.list().some((intent) => intent.id === 'http-commit')).toBe(false);
+
+    const blankIntent = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        intentId: ' ',
+        type: 'markdown',
+        title: 'Blank intent must not bypass gating',
+      }),
+    });
+    expect(blankIntent.status).toBe(400);
+    expect(canvasState.getLayout().nodes.some((node) => node.data.title === 'Blank intent must not bypass gating')).toBe(false);
+
+    const streamed = await jsonRequest<{ id: string }>('/api/canvas/json-render/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Existing stream',
+        patches: [],
+      }),
+    });
+    await jsonRequest('/api/canvas/ax/intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: 'wrong-stream-kind',
+        kind: 'create',
+        position: { x: 0, y: 0 },
+      }),
+    });
+    const wrongStreamKind = await fetch(`${baseUrl}/api/canvas/json-render/stream`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        intentId: 'wrong-stream-kind',
+        nodeId: streamed.id,
+        patches: [],
+      }),
+    });
+    expect(wrongStreamKind.status).toBe(409);
+    expect(intentRegistry.list().some((intent) => intent.id === 'wrong-stream-kind')).toBe(true);
   });
 
   test('wraps WebView script bodies in an async IIFE', async () => {

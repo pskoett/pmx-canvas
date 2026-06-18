@@ -16,6 +16,7 @@ const VALID_EDGE_STYLES = new Set(['solid', 'dashed', 'dotted']);
 // ── edge.add ──────────────────────────────────────────────────
 
 const edgeAddShape = {
+  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
   from: z.string().optional().catch(undefined).describe('Source node ID'),
   to: z.string().optional().catch(undefined).describe('Target node ID'),
   fromSearch: z.string().optional().catch(undefined).describe('Resolve the source node by exact or fuzzy title/content search'),

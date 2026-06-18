@@ -89,6 +89,7 @@ function structuredNodeToolResult(result: unknown): { content: Array<{ type: 'te
 // ── jsonrender.add ────────────────────────────────────────────
 
 const jsonRenderAddShape = {
+  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
   title: z.string().optional().catch(undefined).describe('Optional node title. If omitted, PMX Canvas infers one from the root element.'),
   spec: z.unknown().describe('json-render spec. Prefer a complete {root, elements, state?} document; a single bare component object is accepted for legacy callers.'),
   x: z.number().optional().catch(undefined).describe('Optional X position'),
@@ -193,6 +194,7 @@ export function streamJsonRenderCore(input: StreamJsonRenderInput): StreamJsonRe
 }
 
 const jsonRenderStreamShape = {
+  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
   nodeId: z.string().optional().catch(undefined).describe('Existing streaming node id to append to; omit to create a new streaming node'),
   title: z.string().optional().catch(undefined).describe('Title when creating a new streaming node'),
   patches: z.unknown().optional().describe('SpecStream patches to apply this call: JSON-Patch objects ({op,path,value}) or raw JSONL patch lines'),
@@ -277,6 +279,7 @@ const jsonRenderStreamOperation = defineOperation<
 // ── graph.add ─────────────────────────────────────────────────
 
 const graphAddShape = {
+  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
   title: z.string().optional().catch(undefined).describe('Optional node title'),
   graphType: z.string().optional().catch(undefined).describe('Graph type: line, bar, pie, area, scatter, radar, stacked-bar (or "stack"), composed (or "combo"), sparkline, dot-plot (or "dot"), bullet, slopegraph (or "slope")'),
   data: z.unknown().optional().describe('Array of chart data objects'),

@@ -653,6 +653,7 @@ function createGroupNode(body: Record<string, unknown>): NodeAddResult {
 }
 
 const nodeAddShape = {
+  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
   type: z.string().optional().catch(undefined).describe('Node type (prefer canvas_create_group for groups)'),
   title: z.string().optional().catch(undefined).describe('Node title'),
   content: z.string().optional().catch(undefined).describe('Node content (markdown for markdown nodes, file path for file nodes, image path/URL/data-URI for image nodes, URL for webpage nodes)'),
@@ -834,6 +835,7 @@ const nodeGetOperation = defineOperation<z.infer<typeof nodeGetSchema>, Serializ
 
 const nodeUpdateShape = {
   id: z.string().describe('Node ID to update'),
+  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
   title: z.unknown().optional().describe('New title'),
   content: z.unknown().optional().describe('New content'),
   x: z.number().optional().catch(undefined).describe('New X position'),
@@ -965,6 +967,7 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
 
 const nodeRemoveShape = {
   id: z.string().describe('Node ID to remove'),
+  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
 };
 
 const nodeRemoveSchema = z.looseObject(nodeRemoveShape);

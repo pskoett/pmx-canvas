@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { createServer } from 'node:net';
 import { createCanvas } from '../../src/server/index.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
+import { intentRegistry } from '../../src/server/intent-registry.ts';
 import { stopCanvasServer } from '../../src/server/server.ts';
 import {
   createTestWorkspace,
@@ -13,6 +14,7 @@ describe('PmxCanvas SDK surface', () => {
   let workspaceRoot = '';
 
   afterEach(() => {
+    intentRegistry.reset();
     if (workspaceRoot) {
       resetCanvasForTests(workspaceRoot);
       removeTestWorkspace(workspaceRoot);
@@ -191,5 +193,50 @@ describe('PmxCanvas SDK surface', () => {
     expect(graphNode?.surfaceUrl).toBe(`/api/canvas/surface/${graph.id}`);
 
     expect(canvas.getNode('missing-node')).toBeUndefined();
+  });
+
+  test('linked SDK mutations settle only after a successful mutation', () => {
+    workspaceRoot = createTestWorkspace('pmx-canvas-sdk-intent-');
+    resetCanvasForTests(workspaceRoot);
+    const canvas = createCanvas({ port: 4792 });
+
+    intentRegistry.signal({
+      id: 'sdk-create',
+      kind: 'create',
+      position: { x: 100, y: 120 },
+    });
+    const created = canvas.addNode({
+      intentId: 'sdk-create',
+      type: 'markdown',
+      title: 'Intent-backed SDK node',
+      x: 100,
+      y: 120,
+    });
+    expect(canvas.getNode(created.id)?.data.title).toBe('Intent-backed SDK node');
+    expect(intentRegistry.list().some((intent) => intent.id === 'sdk-create')).toBe(false);
+
+    intentRegistry.signal({
+      id: 'sdk-missing-edit',
+      kind: 'edit',
+      nodeId: 'missing-node',
+    });
+    expect(() => canvas.updateNode('missing-node', {
+      intentId: 'sdk-missing-edit',
+      title: 'Must not settle',
+    })).toThrow('Node "missing-node" not found.');
+    expect(intentRegistry.list().some((intent) => intent.id === 'sdk-missing-edit')).toBe(true);
+
+    intentRegistry.signal({
+      id: 'sdk-veto',
+      kind: 'create',
+      position: { x: 200, y: 220 },
+    });
+    expect(intentRegistry.clear('sdk-veto', { vetoed: true })).toBe(true);
+    expect(() => canvas.addNode({
+      intentId: 'sdk-veto',
+      type: 'markdown',
+      title: 'Must not exist',
+    })).toThrow(/was vetoed/);
+    expect(canvasState.getLayout().nodes.some((node) => node.data.title === 'Must not exist')).toBe(false);
   });
 });

@@ -1,7 +1,6 @@
 import { useEffect } from 'preact/hooks';
 import { nodes } from '../state/canvas-store';
 import {
-  dissolveIntent,
   hoveredIntentId,
   intents,
   type ClientIntent,
@@ -95,19 +94,20 @@ function GhostInfo({ intent }: { intent: ClientIntent }) {
         )}
         <span class="intent-chip-label">{label}</span>
         {confidencePct && <span class="intent-confidence">{confidencePct}</span>}
-        <button
-          type="button"
-          class="intent-veto"
-          title="Veto this move (Esc)"
-          aria-label="Veto this move"
-          onClick={(e) => {
-            e.stopPropagation();
-            dissolveIntent(intent.id);
-            void vetoGhostIntent(intent);
-          }}
-        >
-          ✕
-        </button>
+        {intent.phase === 'forming' && (
+          <button
+            type="button"
+            class="intent-veto"
+            title="Veto this move (Esc)"
+            aria-label="Veto this move"
+            onClick={(e) => {
+              e.stopPropagation();
+              void vetoGhostIntent(intent);
+            }}
+          >
+            ✕
+          </button>
+        )}
       </div>
       {intent.reason && <div class="intent-reason">{intent.reason}</div>}
     </div>
@@ -120,6 +120,7 @@ function GhostBox({ intent, rect }: { intent: ClientIntent; rect: Rect }) {
   return (
     <div
       class={`intent-ghost intent-ghost-box is-${intent.phase}`}
+      data-intent-id={intent.id}
       style={{
         left: `${rect.left}px`,
         top: `${rect.top}px`,
@@ -143,6 +144,7 @@ function GhostOverlay({ intent, rect, variant }: { intent: ClientIntent; rect: R
   return (
     <div
       class={`intent-ghost intent-ghost-${variant} is-${intent.phase}`}
+      data-intent-id={intent.id}
       style={{
         left: `${rect.left}px`,
         top: `${rect.top}px`,
@@ -158,27 +160,30 @@ function GhostOverlay({ intent, rect, variant }: { intent: ClientIntent; rect: R
 }
 
 function renderGhost(intent: ClientIntent) {
+  const settledRect = intent.phase === 'settling'
+    ? getNodeRect(intent.settledNodeId)
+    : null;
   switch (intent.kind) {
     case 'create': {
       if (!intent.position) return null;
       const size = (intent.nodeType && GHOST_SIZE[intent.nodeType]) || DEFAULT_GHOST_SIZE;
-      const rect: Rect = { left: intent.position.x, top: intent.position.y, ...size };
+      const rect: Rect = settledRect ?? { left: intent.position.x, top: intent.position.y, ...size };
       return <GhostBox key={intent.id} intent={intent} rect={rect} />;
     }
     case 'move': {
       if (!intent.position) return null;
       const source = getNodeRect(intent.nodeId);
       const size = source ?? DEFAULT_GHOST_SIZE;
-      const rect: Rect = { left: intent.position.x, top: intent.position.y, width: size.width, height: size.height };
+      const rect: Rect = settledRect ?? { left: intent.position.x, top: intent.position.y, width: size.width, height: size.height };
       return <GhostBox key={intent.id} intent={intent} rect={rect} />;
     }
     case 'remove': {
-      const rect = getNodeRect(intent.nodeId);
+      const rect = settledRect ?? getNodeRect(intent.nodeId);
       if (!rect) return null;
       return <GhostOverlay key={intent.id} intent={intent} rect={rect} variant="remove" />;
     }
     case 'edit': {
-      const rect = getNodeRect(intent.nodeId);
+      const rect = settledRect ?? getNodeRect(intent.nodeId);
       if (!rect) return null;
       return <GhostOverlay key={intent.id} intent={intent} rect={rect} variant="edit" />;
     }
@@ -194,6 +199,7 @@ function renderGhost(intent: ClientIntent) {
         <div
           key={intent.id}
           class={`intent-ghost intent-ghost-connect is-${intent.phase}`}
+          data-intent-id={intent.id}
           style={{ left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, opacity: ghostOpacity(intent) }}
         >
           <GhostInfo intent={intent} />
@@ -215,10 +221,9 @@ export function IntentLayer() {
       const id = hoveredIntentId.value;
       if (!id) return;
       const intent = intents.value.get(id);
-      if (!intent) return;
+      if (!intent || intent.phase !== 'forming') return;
       e.stopImmediatePropagation();
       e.preventDefault();
-      dissolveIntent(intent.id);
       void vetoGhostIntent(intent);
     }
     window.addEventListener('keydown', onKeyDown, true);

@@ -2370,3 +2370,119 @@ test('authoritative viewport updates from the server override browser startup st
     });
   }).toContain('matrix(1.5, 0, 0, 1.5, 120, -80)');
 });
+
+test('ghost intents are interactive, reconnect-safe, vetoable, and settle into linked mutations', async ({ page, request }) => {
+  await page.goto('/workbench');
+
+  await request.post('/api/canvas/ax/intent', {
+    data: {
+      id: 'e2e-veto-intent',
+      kind: 'create',
+      position: { x: 160, y: 140 },
+      nodeType: 'markdown',
+      label: 'Blocked note',
+      reason: 'prove veto enforcement',
+      ttlMs: 60_000,
+    },
+  });
+
+  const vetoGhost = page.locator('[data-intent-id="e2e-veto-intent"]');
+  const vetoButton = vetoGhost.getByRole('button', { name: 'Veto this move' });
+  await expect(vetoButton).toBeVisible();
+  expect(await vetoButton.evaluate((button) => {
+    const rect = button.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+    return hit === button || button.contains(hit);
+  })).toBe(true);
+
+  await vetoButton.click();
+  await expect(vetoGhost).toHaveCount(0);
+  await expect.poll(async () => {
+    const response = await request.get('/api/canvas/ax/timeline?limit=20');
+    const timeline = await response.json() as {
+      summary?: { pendingSteering?: Array<{ message?: string }> };
+    };
+    return timeline.summary?.pendingSteering?.some((item) => item.message?.includes('Blocked note')) ?? false;
+  }).toBe(true);
+
+  const blockedMutation = await request.post('/api/canvas/node', {
+    data: {
+      intentId: 'e2e-veto-intent',
+      type: 'markdown',
+      title: 'Must not exist',
+    },
+  });
+  expect(blockedMutation.status()).toBe(409);
+  expect(await blockedMutation.json()).toMatchObject({
+    ok: false,
+    error: 'Intent "e2e-veto-intent" was vetoed.',
+  });
+
+  await request.post('/api/canvas/ax/intent', {
+    data: {
+      id: 'e2e-settle-intent',
+      kind: 'create',
+      position: { x: 100, y: 100 },
+      nodeType: 'markdown',
+      label: 'Reconnect and settle',
+      ttlMs: 60_000,
+    },
+  });
+  const settleGhost = page.locator('[data-intent-id="e2e-settle-intent"]');
+  await expect(settleGhost).toBeVisible();
+
+  await page.reload();
+  await expect(settleGhost).toBeVisible();
+
+  const settleObservation = page.evaluate(() => new Promise<{
+    positionDelta: number;
+    sizeDelta: number;
+  }>((resolve) => {
+    let bestPositionDelta = Number.POSITIVE_INFINITY;
+    let bestSizeDelta = Number.POSITIVE_INFINITY;
+    const startedAt = Date.now();
+    const sample = () => {
+      const ghost = document.querySelector('[data-intent-id="e2e-settle-intent"].is-settling');
+      const node = Array.from(document.querySelectorAll('.canvas-node')).find(
+        (candidate) => candidate.querySelector('.node-title')?.textContent === 'Settled through intent',
+      );
+      if (ghost && node) {
+        const ghostRect = ghost.getBoundingClientRect();
+        const nodeRect = node.getBoundingClientRect();
+        bestPositionDelta = Math.min(
+          bestPositionDelta,
+          Math.abs(ghostRect.x - nodeRect.x) + Math.abs(ghostRect.y - nodeRect.y),
+        );
+        bestSizeDelta = Math.min(
+          bestSizeDelta,
+          Math.abs(ghostRect.width - nodeRect.width) + Math.abs(ghostRect.height - nodeRect.height),
+        );
+      }
+      if ((!ghost && Number.isFinite(bestPositionDelta)) || Date.now() - startedAt > 1000) {
+        resolve({ positionDelta: bestPositionDelta, sizeDelta: bestSizeDelta });
+        return;
+      }
+      requestAnimationFrame(sample);
+    };
+    requestAnimationFrame(sample);
+  }));
+
+  const committed = await request.post('/api/canvas/node', {
+    data: {
+      intentId: 'e2e-settle-intent',
+      type: 'markdown',
+      title: 'Settled through intent',
+      content: 'The ghost should morph here.',
+      x: 640,
+      y: 380,
+      width: 420,
+      height: 260,
+    },
+  });
+  expect(committed.ok()).toBe(true);
+
+  const observed = await settleObservation;
+  expect(observed.positionDelta).toBeLessThan(16);
+  expect(observed.sizeDelta).toBeLessThan(24);
+  await expect(settleGhost).toHaveCount(0);
+});

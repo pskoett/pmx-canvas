@@ -8,6 +8,8 @@
  * `mutates: true` is the single source; extra events go through `ctx.emit`.
  */
 import { canvasState } from '../canvas-state.js';
+import { intentRegistry } from '../intent-registry.js';
+import type { PmxAxIntent, PmxAxIntentKind } from '../../shared/ax-intent.js';
 import { OperationError, type Operation, type OperationContext } from './types.js';
 
 const operations = new Map<string, Operation>();
@@ -69,11 +71,74 @@ export async function runWithSuppressedEmits<T>(fn: () => Promise<T>): Promise<T
 
 const operationContext: OperationContext = { emit: emitOperationEvent };
 
+const INTENT_KINDS_BY_OPERATION: Record<string, readonly PmxAxIntentKind[]> = {
+  'node.add': ['create'],
+  'jsonrender.add': ['create'],
+  'graph.add': ['create'],
+  'group.create': ['create'],
+  'node.update': ['move', 'edit'],
+  'group.add': ['edit'],
+  'group.remove': ['edit'],
+  'edge.add': ['connect'],
+  'node.remove': ['remove'],
+};
+
+function linkedIntentId(rawInput: unknown): string | undefined {
+  if (!rawInput || typeof rawInput !== 'object' || Array.isArray(rawInput)) return undefined;
+  const record = rawInput as Record<string, unknown>;
+  if (record.intentId === undefined) return undefined;
+  if (typeof record.intentId !== 'string' || record.intentId.trim().length === 0) {
+    throw new OperationError('intentId must be a non-empty string.');
+  }
+  return record.intentId;
+}
+
+function allowedIntentKinds(name: string, rawInput: unknown): readonly PmxAxIntentKind[] | undefined {
+  if (name === 'jsonrender.stream') {
+    const input = rawInput && typeof rawInput === 'object' && !Array.isArray(rawInput)
+      ? rawInput as Record<string, unknown>
+      : {};
+    return typeof input.nodeId === 'string' && input.nodeId.length > 0 ? ['edit'] : ['create'];
+  }
+  return INTENT_KINDS_BY_OPERATION[name];
+}
+
+function settledNodeId(result: unknown, intent: PmxAxIntent): string | undefined {
+  if (intent.kind === 'connect' || intent.kind === 'remove') return undefined;
+  if (!result || typeof result !== 'object' || Array.isArray(result)) return undefined;
+  const record = result as Record<string, unknown>;
+  if (typeof record.nodeId === 'string') return record.nodeId;
+  if (record.node && typeof record.node === 'object' && !Array.isArray(record.node)) {
+    const id = (record.node as Record<string, unknown>).id;
+    if (typeof id === 'string') return id;
+  }
+  if (typeof record.groupId === 'string') return record.groupId;
+  return typeof record.id === 'string' ? record.id : undefined;
+}
+
 export async function executeOperation(name: string, rawInput: unknown): Promise<unknown> {
   const op = getOperation(name);
-  const result = await op.execute(rawInput, operationContext);
-  if (op.mutates) {
-    emitOperationEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  const intentId = linkedIntentId(rawInput);
+  const allowedKinds = intentId ? allowedIntentKinds(name, rawInput) : undefined;
+  if (intentId && !allowedKinds) {
+    throw new OperationError(`Operation "${name}" cannot be committed through a ghost intent.`);
   }
+  if (intentId) {
+    return intentRegistry.runCommit(
+      intentId,
+      allowedKinds!,
+      async () => {
+        const result = await op.execute(rawInput, operationContext);
+        if (op.mutates) {
+          emitOperationEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+        }
+        return result;
+      },
+      settledNodeId,
+    );
+  }
+
+  const result = await op.execute(rawInput, operationContext);
+  if (op.mutates) emitOperationEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   return result;
 }

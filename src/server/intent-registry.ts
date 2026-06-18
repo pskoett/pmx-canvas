@@ -27,6 +27,7 @@ import {
 import { OperationError } from './operations/types.js';
 
 type IntentEmitter = (event: string, payload: Record<string, unknown>) => void;
+const MAX_VETO_TOMBSTONES = 128;
 
 const positionSchema = z.object({ x: z.number().finite(), y: z.number().finite() });
 
@@ -101,6 +102,8 @@ function nextIntentId(): string {
 
 export class IntentRegistry {
   private readonly intents = new Map<string, PmxAxIntent>();
+  private readonly vetoedIntentIds = new Map<string, number>();
+  private readonly committingIntentIds = new Set<string>();
   private emit: IntentEmitter = () => {};
   private sweepTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -121,6 +124,13 @@ export class IntentRegistry {
     const now = Date.now();
     const ttl = typeof input.ttlMs === 'number' ? input.ttlMs : DEFAULT_INTENT_TTL_MS;
     const id = input.id && this.intents.has(input.id) ? input.id : input.id ?? nextIntentId();
+    this.pruneVetoTombstones();
+    if (this.vetoedIntentIds.has(id)) {
+      throw new OperationError(`Intent "${id}" was vetoed. Use a new id for a revised intent.`, 409);
+    }
+    if (this.committingIntentIds.has(id)) {
+      throw new OperationError(`Intent "${id}" is already committing.`, 409);
+    }
     const existing = this.intents.get(id);
 
     const intent: PmxAxIntent = {
@@ -148,6 +158,9 @@ export class IntentRegistry {
 
   /** Patch a live intent (position/label/reason/confidence/seq) and bump its TTL. */
   update(id: string, raw: unknown): PmxAxIntent {
+    if (this.committingIntentIds.has(id)) {
+      throw new OperationError(`Intent "${id}" is already committing.`, 409);
+    }
     const existing = this.intents.get(id);
     if (!existing) throw new OperationError(`No live intent "${id}".`, 404);
     const patch = parseOrThrow(intentUpdateSchema, raw, 'intent update');
@@ -175,7 +188,9 @@ export class IntentRegistry {
    * dissolves. Returns true when an intent was actually removed.
    */
   clear(id: string, opts: { settledNodeId?: string; vetoed?: boolean } = {}): boolean {
+    if (this.committingIntentIds.has(id)) return false;
     if (!this.intents.delete(id)) return false;
+    if (opts.vetoed) this.rememberVeto(id);
     this.emit('ax-intent-clear', {
       id,
       ...(opts.settledNodeId ? { nodeId: opts.settledNodeId, settled: true } : {}),
@@ -185,16 +200,94 @@ export class IntentRegistry {
     return true;
   }
 
+  /**
+   * Gate one real mutation behind a live, non-vetoed intent. The claim is
+   * synchronous: once this method has accepted the intent, a later veto cannot
+   * race in between the check and the mutation.
+   */
+  beginCommit(id: string, allowedKinds: readonly PmxAxIntentKind[]): PmxAxIntent {
+    this.pruneVetoTombstones();
+    if (this.committingIntentIds.has(id)) {
+      throw new OperationError(`Intent "${id}" is already committing.`, 409);
+    }
+    if (this.vetoedIntentIds.has(id)) {
+      throw new OperationError(`Intent "${id}" was vetoed.`, 409);
+    }
+    const intent = this.intents.get(id);
+    if (!intent) {
+      throw new OperationError(`No live intent "${id}" to commit.`, 409);
+    }
+    if (!allowedKinds.includes(intent.kind)) {
+      throw new OperationError(
+        `Intent "${id}" has kind "${intent.kind}", which cannot commit this mutation.`,
+        409,
+      );
+    }
+    this.committingIntentIds.add(id);
+    return intent;
+  }
+
+  completeCommit(id: string, settledNodeId?: string): void {
+    this.committingIntentIds.delete(id);
+    this.clear(id, { ...(settledNodeId ? { settledNodeId } : {}) });
+  }
+
+  abortCommit(id: string): void {
+    this.committingIntentIds.delete(id);
+  }
+
+  async runCommit<T>(
+    id: string,
+    allowedKinds: readonly PmxAxIntentKind[],
+    mutate: () => T | Promise<T>,
+    settledNodeId: (result: T, intent: PmxAxIntent) => string | undefined,
+  ): Promise<T> {
+    const intent = this.beginCommit(id, allowedKinds);
+    try {
+      const result = await mutate();
+      this.completeCommit(id, settledNodeId(result, intent));
+      return result;
+    } catch (error) {
+      this.abortCommit(id);
+      throw error;
+    }
+  }
+
   /** Drop every live intent without per-id SSE (used on hard resets). */
   reset(): void {
     this.intents.clear();
+    this.vetoedIntentIds.clear();
+    this.committingIntentIds.clear();
     this.maybeStopSweeper();
+  }
+
+  private rememberVeto(id: string): void {
+    this.vetoedIntentIds.delete(id);
+    this.vetoedIntentIds.set(id, Date.now() + MAX_INTENT_TTL_MS);
+    while (this.vetoedIntentIds.size > MAX_VETO_TOMBSTONES) {
+      const oldest = this.vetoedIntentIds.keys().next().value as string | undefined;
+      if (!oldest) break;
+      this.vetoedIntentIds.delete(oldest);
+    }
+  }
+
+  private pruneVetoTombstones(): void {
+    const now = Date.now();
+    for (const [id, expiresAt] of this.vetoedIntentIds) {
+      if (expiresAt <= now) this.vetoedIntentIds.delete(id);
+    }
   }
 
   private evictOverflow(): void {
     while (this.intents.size > MAX_LIVE_INTENTS) {
       // Map preserves insertion order; the first key is the oldest live intent.
-      const oldest = this.intents.keys().next().value as string | undefined;
+      let oldest: string | undefined;
+      for (const id of this.intents.keys()) {
+        if (!this.committingIntentIds.has(id)) {
+          oldest = id;
+          break;
+        }
+      }
       if (!oldest) break;
       this.intents.delete(oldest);
       this.emit('ax-intent-clear', { id: oldest, evicted: true });
@@ -204,7 +297,7 @@ export class IntentRegistry {
   private sweep(): void {
     const now = Date.now();
     for (const [id, intent] of this.intents) {
-      if (intent.expiresAt <= now) {
+      if (!this.committingIntentIds.has(id) && intent.expiresAt <= now) {
         this.intents.delete(id);
         this.emit('ax-intent-clear', { id, expired: true });
       }

@@ -3491,18 +3491,19 @@ button.welcome-hint:hover {
    The layer sits above nodes so remove/edit overlays read on top of their
    target, but is pointer-transparent except the info card + veto control. */
 .intent-layer {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  /* Above nodes (whose z-index grows via bring-to-front) so remove/edit ghosts
-     read on top of their target; pointer-transparent except the info + veto. */
-  z-index: 100000;
+  display: contents;
 }
 
 .intent-ghost {
   position: absolute;
   pointer-events: none;
-  transition: opacity 180ms ease;
+  z-index: 100000;
+  transition:
+    left 480ms ease,
+    top 480ms ease,
+    width 480ms ease,
+    height 480ms ease,
+    opacity 180ms ease;
 }
 
 /* create / move destination — a dashed ghost node */
@@ -3512,7 +3513,7 @@ button.welcome-hint:hover {
   background: var(--c-accent-10);
   box-shadow: 0 0 0 1px var(--c-accent-10), 0 6px 22px var(--c-accent-10);
   animation: intent-breathe 2.1s ease-in-out infinite;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .intent-ghost-titlebar {
@@ -3562,7 +3563,7 @@ button.welcome-hint:hover {
   border: 1.5px dashed var(--c-accent);
   border-radius: 10px;
   background: var(--c-accent-10);
-  overflow: hidden;
+  overflow: visible;
 }
 
 .intent-edit-bar {
@@ -3688,6 +3689,10 @@ button.welcome-hint:hover {
   fill: none;
 }
 
+.intent-line-layer {
+  z-index: 99999;
+}
+
 .intent-edge {
   stroke-width: 2;
   stroke-dasharray: 6 5;
@@ -3735,6 +3740,7 @@ button.welcome-hint:hover {
 }
 
 /* keep ghosts calm while a node is being dragged */
-html.is-node-dragging .intent-layer {
+html.is-node-dragging .intent-ghost,
+html.is-node-dragging .intent-line-layer {
   opacity: 0.5;
 }

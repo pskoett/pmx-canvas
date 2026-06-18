@@ -92,6 +92,95 @@ describe('IntentRegistry', () => {
     expect(registry.clear('ghost-that-never-was')).toBe(false);
   });
 
+  test('a vetoed intent cannot commit a linked mutation', async () => {
+    registry.signal({ id: 'veto-me', kind: 'create', position: { x: 0, y: 0 } });
+    expect(registry.clear('veto-me', { vetoed: true })).toBe(true);
+
+    expect(() => registry.signal({
+      id: 'veto-me',
+      kind: 'create',
+      position: { x: 10, y: 10 },
+    })).toThrow(/Use a new id for a revised intent/);
+    await expect(
+      registry.runCommit(
+        'veto-me',
+        ['create'],
+        () => ({ nodeId: 'should-not-exist' }),
+        (result) => result.nodeId,
+      ),
+    ).rejects.toThrow(/was vetoed/);
+  });
+
+  test('a committing intent rejects a late veto and settles after mutation', async () => {
+    registry.signal({ id: 'commit-me', kind: 'create', position: { x: 0, y: 0 } });
+    let releaseMutation: (() => void) | null = null;
+    const mutationGate = new Promise<void>((resolve) => {
+      releaseMutation = resolve;
+    });
+
+    frames.length = 0;
+    const commit = registry.runCommit(
+      'commit-me',
+      ['create'],
+      async () => {
+        await mutationGate;
+        return { nodeId: 'node-committed' };
+      },
+      (result) => result.nodeId,
+    );
+
+    await Bun.sleep(0);
+    expect(registry.clear('commit-me', { vetoed: true })).toBe(false);
+    releaseMutation?.();
+    await expect(commit).resolves.toEqual({ nodeId: 'node-committed' });
+    expect(frames.at(-1)).toMatchObject({
+      event: 'ax-intent-clear',
+      payload: { id: 'commit-me', nodeId: 'node-committed', settled: true },
+    });
+  });
+
+  test('an intent can back only one in-flight mutation', async () => {
+    registry.signal({ id: 'single-commit', kind: 'create', position: { x: 0, y: 0 } });
+    let releaseMutation: (() => void) | null = null;
+    const mutationGate = new Promise<void>((resolve) => {
+      releaseMutation = resolve;
+    });
+    const firstCommit = registry.runCommit(
+      'single-commit',
+      ['create'],
+      async () => {
+        await mutationGate;
+        return { nodeId: 'node-first' };
+      },
+      (result) => result.nodeId,
+    );
+
+    await expect(
+      registry.runCommit(
+        'single-commit',
+        ['create'],
+        () => ({ nodeId: 'node-second' }),
+        (result) => result.nodeId,
+      ),
+    ).rejects.toThrow(/already committing/);
+
+    releaseMutation?.();
+    await expect(firstCommit).resolves.toEqual({ nodeId: 'node-first' });
+  });
+
+  test('a linked mutation must match the signalled intent kind', async () => {
+    registry.signal({ id: 'wrong-kind', kind: 'remove', nodeId: 'node-1' });
+    await expect(
+      registry.runCommit(
+        'wrong-kind',
+        ['create'],
+        () => ({ nodeId: 'node-2' }),
+        (result) => result.nodeId,
+      ),
+    ).rejects.toThrow(/cannot commit this mutation/);
+    expect(registry.list().some((intent) => intent.id === 'wrong-kind')).toBe(true);
+  });
+
   test('the live-intent cap evicts the oldest and emits an evicted frame', () => {
     for (let i = 0; i < MAX_LIVE_INTENTS; i++) {
       registry.signal({ id: `i${i}`, kind: 'create', position: { x: i, y: i } });
