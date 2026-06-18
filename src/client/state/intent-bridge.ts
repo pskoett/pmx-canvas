@@ -55,6 +55,31 @@ export async function sendIntent(
   });
 }
 
+/**
+ * Veto a forming ghost intent: post a steering "don't" to the active agent
+ * session BEFORE the mutation lands, then clear the ghost. Best-effort — a
+ * dropped request just leaves the ghost to expire on its own TTL.
+ */
+export async function vetoGhostIntent(intent: {
+  id: string;
+  kind: string;
+  label?: string;
+  reason?: string;
+}): Promise<void> {
+  const what = intent.label?.trim() || `${intent.kind} intent`;
+  const message = `Veto: do not ${what}${intent.reason ? ` — ${intent.reason}` : ''}.`;
+  await requestBestEffort('vetoGhostSteering', '/api/canvas/ax/steer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, source: 'browser' }),
+  });
+  await requestBestEffort('vetoGhostIntent', `/api/canvas/ax/intent/${encodeURIComponent(intent.id)}`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ vetoed: true }),
+  });
+}
+
 /** Fetch rendered markdown HTML from the server. */
 export async function renderMarkdown(markdown: string): Promise<string> {
   const data = await requestJson<{ html?: string }>('renderMarkdown', '/api/render', {}, {

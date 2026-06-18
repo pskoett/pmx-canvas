@@ -796,4 +796,43 @@ describe('MCP AX composite tools (plan-007 Slice C)', () => {
     const badAction = await call(client, 'canvas_ax_gate', { kind: 'approval', action: 'frobnicate' });
     expect(badAction.isError).toBe(true);
   }, 30000);
+
+  test('canvas_intent folds signal/update/clear over the ephemeral intent registry', async () => {
+    const { client } = await createMcpSession();
+
+    const signalled = parseJsonText<{ ok?: boolean; intent?: { id: string; kind: string } }>(
+      await call(client, 'canvas_intent', {
+        action: 'signal',
+        kind: 'create',
+        position: { x: 120, y: 80 },
+        nodeType: 'markdown',
+        label: 'Add evidence',
+        reason: 'capturing the failing test',
+        confidence: 0.8,
+      }),
+    );
+    expect(signalled.ok).toBe(true);
+    expect(signalled.intent?.kind).toBe('create');
+    const intentId = signalled.intent!.id;
+
+    const updated = parseJsonText<{ ok?: boolean; intent?: { label?: string } }>(
+      await call(client, 'canvas_intent', { action: 'update', id: intentId, label: 'Add evidence node' }),
+    );
+    expect(updated.ok).toBe(true);
+    expect(updated.intent?.label).toBe('Add evidence node');
+
+    const cleared = parseJsonText<{ ok?: boolean; cleared?: boolean }>(
+      await call(client, 'canvas_intent', { action: 'clear', id: intentId, settledNodeId: 'md-1' }),
+    );
+    expect(cleared.ok).toBe(true);
+    expect(cleared.cleared).toBe(true);
+
+    // A create intent missing its position is a loud validation error.
+    const bad = await call(client, 'canvas_intent', { action: 'signal', kind: 'create' });
+    expect(bad.isError).toBe(true);
+
+    // Intents are presence-only: they never enter the canvas layout.
+    const layout = parseJsonText<{ nodes?: unknown[] }>(await call(client, 'canvas_query', { action: 'layout' }));
+    expect(layout.nodes ?? []).toHaveLength(0);
+  }, 30000);
 });

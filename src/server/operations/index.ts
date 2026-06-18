@@ -19,6 +19,7 @@ import { axAwaitOperations } from './ops/ax-await.js';
 import { batchOperations } from './ops/batch.js';
 import { webviewOperations } from './ops/webview.js';
 import { appOperations } from './ops/app.js';
+import { intentOperations } from './ops/intent.js';
 
 for (const op of [
   ...nodeOperations,
@@ -37,6 +38,7 @@ for (const op of [
   ...batchOperations,
   ...webviewOperations,
   ...appOperations,
+  ...intentOperations,
 ]) {
   registerOperation(op);
 }

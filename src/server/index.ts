@@ -3,6 +3,8 @@ import { canvasState, IMAGE_MIME_MAP } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
 import { buildCanvasAxContext } from './ax-context.js';
 import { applyAxInteraction, type AxInteractionInput, type AxInteractionPublicResult } from './ax-interaction.js';
+import { intentRegistry } from './intent-registry.js';
+import type { PmxAxIntent } from '../shared/ax-intent.js';
 import { waitForAxResolution } from './ax-wait.js';
 import type {
   PmxAxActivityKind,
@@ -475,6 +477,24 @@ export class PmxCanvas extends EventEmitter {
     const ok = canvasState.markSteeringDelivered(id);
     if (ok) emitPrimaryWorkbenchEvent('ax-event-created', { steeringDelivered: id });
     return ok;
+  }
+
+  /**
+   * Ghost Cursor of Intent — announce a spatial move before making it. The ghost
+   * is ephemeral presence (auto-expiring, never snapshotted); the registry emits
+   * the `ax-intent` SSE frame so the browser paints a pre-commit placeholder.
+   */
+  signalIntent(input: Record<string, unknown>): PmxAxIntent {
+    return intentRegistry.signal({ source: 'sdk', ...input });
+  }
+
+  updateIntent(id: string, patch: Record<string, unknown>): PmxAxIntent {
+    return intentRegistry.update(id, patch);
+  }
+
+  /** Dissolve a ghost; pass `settledNodeId` once the real node has landed. */
+  clearIntent(id: string, options?: { settledNodeId?: string; vetoed?: boolean }): boolean {
+    return intentRegistry.clear(id, options ?? {});
   }
 
   /** Undelivered steering for a consumer (loop-safe; excludes consumer-originated). */

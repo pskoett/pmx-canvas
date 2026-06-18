@@ -317,6 +317,17 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
       mark: 'ax.delivery.mark',
     },
   },
+  {
+    toolName: 'canvas_intent',
+    description:
+      'Ghost Cursor of Intent — announce the spatial move you are ABOUT to make so the canvas paints a faint pre-commit placeholder (legibility: the human sees the next move forming, and can veto it). Action "signal" registers an intent (kind create|move|connect|remove|edit; pass position for create/move, nodeId for move/edit/remove, edge for connect; optional label, reason, confidence 0..1, seq, ttlMs, and a stable id to update/clear later); "update" patches a live intent by id (position/label/reason/confidence/ttlMs); "clear" dissolves it — pass settledNodeId when the real node has landed to trigger the settle morph. Intents are ephemeral presence: never persisted, never snapshotted, auto-expire (~8s). Best practice: narrate your next move — signal → mutate → clear with settledNodeId.',
+    actionSummary: 'signal | update | clear',
+    actions: {
+      signal: 'intent.signal',
+      update: 'intent.update',
+      clear: 'intent.clear',
+    },
+  },
 ];
 
 /**

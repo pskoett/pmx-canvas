@@ -89,6 +89,7 @@ import {
   syncCanvasRuntimeBackends,
 } from './canvas-operations.js';
 import { dispatchOperationRoute, setOperationEventEmitter } from './operations/index.js';
+import { intentRegistry } from './intent-registry.js';
 import { setWebviewRunner } from './operations/webview-runner.js';
 import {
   closeNodeAppSession,
@@ -132,6 +133,15 @@ let lastWorkbenchContextCardsEnvelope: Record<string, unknown> | null = null;
 // setCanvasLayoutUpdateEmitter pattern. Wired at module top level so local
 // (in-process) MCP/SDK invocations emit even without startCanvasServer().
 setOperationEventEmitter((event, payload) => {
+  emitPrimaryWorkbenchEvent(event, payload);
+});
+
+// Ghost Cursor of Intent SSE wiring: the IntentRegistry never imports this
+// module — its `ax-intent` / `ax-intent-clear` frames (including the autonomous
+// TTL-expiry sweeper) are emitted through the injected workbench emitter, same
+// pattern as setOperationEventEmitter. Wired at module top level so in-process
+// MCP/SDK intent signals reach the browser without startCanvasServer().
+intentRegistry.setEmitter((event, payload) => {
   emitPrimaryWorkbenchEvent(event, payload);
 });
 

@@ -23,7 +23,9 @@
 // canvas_snapshot composite is deferred to v0.3 (its name is still held by the
 // legacy save-snapshot tool). Legacy single-purpose tools are removed (and this list
 // shrinks to the survivors) in v0.3 per docs/api-stability.md — both edits are
-// deliberate.
+// deliberate. Ghost Cursor of Intent adds the canvas_intent composite (signal /
+// update / clear of ephemeral pre-commit intents) = 84; its member ops (intent.*)
+// have no standalone MCP tool, so only the composite name is added.
 import { afterAll, describe, expect, test } from 'bun:test';
 import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
@@ -76,6 +78,7 @@ const FROZEN_TOOL_NAMES = [
   'canvas_group_nodes',
   'canvas_history',
   'canvas_ingest_activity',
+  'canvas_intent',
   'canvas_invoke_command',
   'canvas_list_snapshots',
   'canvas_mark_ax_delivery',
@@ -196,7 +199,7 @@ describe('MCP public surface freeze', () => {
     const client = await createMcpSession();
     const tools = await client.listTools();
     const sortedNames = tools.tools.map((tool) => tool.name).sort();
-    expect(FROZEN_TOOL_NAMES).toHaveLength(83);
+    expect(FROZEN_TOOL_NAMES).toHaveLength(84);
     expect(sortedNames).toEqual(FROZEN_TOOL_NAMES);
   }, 30000);
 

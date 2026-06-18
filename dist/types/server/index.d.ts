@@ -2,6 +2,7 @@ import { EventEmitter } from 'node:events';
 import { canvasState } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.js';
 import { type AxInteractionInput, type AxInteractionPublicResult } from './ax-interaction.js';
+import type { PmxAxIntent } from '../shared/ax-intent.js';
 import type { PmxAxActivityKind, PmxAxApprovalGate, PmxAxCommandDescriptor, PmxAxContext, PmxAxElicitation, PmxAxEvent, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxHostCapability, PmxAxMode, PmxAxModeRequest, PmxAxPolicy, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxReviewStatus, PmxAxSource, PmxAxState, PmxAxSteeringMessage, PmxAxWorkItem, PmxAxWorkItemStatus } from './ax-state.js';
 import type { AxTimelineQuery } from './canvas-db.js';
 import { searchNodes } from './spatial-analysis.js';
@@ -155,6 +156,18 @@ export declare class PmxCanvas extends EventEmitter {
         source?: PmxAxSource;
     }): PmxAxSteeringMessage;
     markSteeringDelivered(id: string): boolean;
+    /**
+     * Ghost Cursor of Intent — announce a spatial move before making it. The ghost
+     * is ephemeral presence (auto-expiring, never snapshotted); the registry emits
+     * the `ax-intent` SSE frame so the browser paints a pre-commit placeholder.
+     */
+    signalIntent(input: Record<string, unknown>): PmxAxIntent;
+    updateIntent(id: string, patch: Record<string, unknown>): PmxAxIntent;
+    /** Dissolve a ghost; pass `settledNodeId` once the real node has landed. */
+    clearIntent(id: string, options?: {
+        settledNodeId?: string;
+        vetoed?: boolean;
+    }): boolean;
     /** Undelivered steering for a consumer (loop-safe; excludes consumer-originated). */
     getPendingSteering(options?: {
         consumer?: string;

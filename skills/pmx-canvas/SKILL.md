@@ -339,7 +339,7 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 > legacy→composite mapping table lives in [`docs/mcp.md`](../../docs/mcp.md) — this skill does not
 > re-enumerate the deprecated names.
 
-### The 12 composites
+### The 13 composites
 
 | Composite | `action` values | What it does |
 |-----------|-----------------|--------------|
@@ -355,6 +355,7 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 | `canvas_ax_gate` | `request` · `resolve` · `await` × `kind` `approval` \| `elicitation` \| `mode` | The human-decision gate machine (request → await → resolve) |
 | `canvas_ax_timeline` | `read` · `record-event` · `add-evidence` · `send-steering` | The bounded AX diagnostics timeline |
 | `canvas_ax_delivery` | `claim` · `mark` | Adapterless steering delivery (claim → act → mark) |
+| `canvas_intent` | `signal` · `update` · `clear` | Ghost Cursor of Intent — announce a move before making it |
 
 Call shape examples: `canvas_node { action: "add", type, title }`,
 `canvas_view { action: "focus", id }`, `canvas_group { action: "create", childIds }`,
@@ -367,6 +368,24 @@ Call shape examples: `canvas_node { action: "add", type, title }`,
 `{ kind: "elicitation", action: "resolve", id, response }`,
 `{ kind: "mode", action: "await", id, timeoutMs }`. (The approval machine-readable action
 identifier is passed as `approvalAction`, since `action` is the lifecycle discriminator.)
+
+#### Narrate your next move with `canvas_intent` (Ghost Cursor of Intent)
+
+Before you create/move/connect/edit/remove on the canvas, **signal the move** so a
+faint placeholder forms where you're about to act — the human sees the next move
+coming and can veto it mid-thought. Intents are ephemeral presence: never
+persisted, auto-expiring (~8s), never in `canvas_query layout`.
+
+Narrate → mutate → settle:
+1. `canvas_intent { action: "signal", kind: "create", position: { x, y }, nodeType: "markdown", label: "Add evidence", reason: "capturing the failing test", confidence: 0.8 }` → returns `intent.id`.
+2. Make the real move (`canvas_node { action: "add", ... }`).
+3. `canvas_intent { action: "clear", id, settledNodeId: <newNodeId> }` → the ghost settles into the node.
+
+Per kind, pass the anchor it renders against: `position` for `create`/`move`,
+`nodeId` for `move`/`edit`/`remove`, `edge: { from, to, type }` for `connect`. The
+payoff is **legibility** — `reason` is shown beneath the ghost. For a planned
+batch, signal all intents up front (with `seq` for ordering), then commit them one
+by one so the human watches the layout wireframe in before it fills.
 
 ### Standalones (first-class — not deprecated)
 

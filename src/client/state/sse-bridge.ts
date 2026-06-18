@@ -28,6 +28,8 @@ import {
 import { fetchAxSurfaceState } from './intent-bridge';
 import { invalidateTokenCache } from '../theme/tokens';
 import { resetAttentionBridge, syncAttentionFromSse } from './attention-bridge';
+import { dissolveIntent, resetIntents, settleIntent, upsertIntent } from './intent-store';
+import type { PmxAxIntent } from '../../shared/ax-intent.js';
 
 let eventSource: EventSource | null = null;
 let savedLayout: Map<string, Partial<CanvasNodeState>> | null = null;
@@ -941,6 +943,23 @@ function handleAxStateChanged(): void {
   }, 150);
 }
 
+// ── Ghost Cursor of Intent ────────────────────────────────────
+function handleAxIntent(data: Record<string, unknown>): void {
+  const intent = data.intent as PmxAxIntent | undefined;
+  if (!intent || typeof intent.id !== 'string' || typeof intent.kind !== 'string') return;
+  upsertIntent(intent);
+}
+
+function handleAxIntentClear(data: Record<string, unknown>): void {
+  const id = typeof data.id === 'string' ? data.id : '';
+  if (!id) return;
+  if (data.settled === true) {
+    settleIntent(id, typeof data.nodeId === 'string' ? data.nodeId : undefined);
+  } else {
+    dissolveIntent(id);
+  }
+}
+
 // ── SSE connection ────────────────────────────────────────────
 /** @internal — exported for testing */
 export const EVENT_HANDLERS: Record<string, (data: Record<string, unknown>) => void> = {
@@ -976,6 +995,8 @@ export const EVENT_HANDLERS: Record<string, (data: Record<string, unknown>) => v
   'canvas-response-complete': handleCanvasResponseComplete,
   'ax-state-changed': handleAxStateChanged,
   'ax-event-created': handleAxStateChanged,
+  'ax-intent': handleAxIntent,
+  'ax-intent-clear': handleAxIntentClear,
 };
 
 export function connectSSE(): () => void {
@@ -983,6 +1004,7 @@ export function connectSSE(): () => void {
   ensureStatusNode();
   hasInitialServerLayout.value = false;
   resetAttentionBridge();
+  resetIntents();
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;

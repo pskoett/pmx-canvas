@@ -3484,3 +3484,257 @@ button.welcome-hint:hover {
 .image-node-zoom-reset:hover {
   background: var(--c-surface-hover);
 }
+
+/* ── Ghost Cursor of Intent ─────────────────────────────────────
+   Pre-commit presence: faint placeholders for the move the agent is about to
+   make. Lives inside the canvas world transform (positions are world coords).
+   The layer sits above nodes so remove/edit overlays read on top of their
+   target, but is pointer-transparent except the info card + veto control. */
+.intent-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  /* Above nodes (whose z-index grows via bring-to-front) so remove/edit ghosts
+     read on top of their target; pointer-transparent except the info + veto. */
+  z-index: 100000;
+}
+
+.intent-ghost {
+  position: absolute;
+  pointer-events: none;
+  transition: opacity 180ms ease;
+}
+
+/* create / move destination — a dashed ghost node */
+.intent-ghost-box {
+  border: 1.5px dashed var(--c-accent);
+  border-radius: 10px;
+  background: var(--c-accent-10);
+  box-shadow: 0 0 0 1px var(--c-accent-10), 0 6px 22px var(--c-accent-10);
+  animation: intent-breathe 2.1s ease-in-out infinite;
+  overflow: hidden;
+}
+
+.intent-ghost-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  color: var(--c-accent);
+}
+
+.intent-ghost-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--c-accent);
+}
+
+.intent-ghost-badge {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  color: var(--c-accent);
+  opacity: 0.85;
+}
+
+@keyframes intent-breathe {
+  0%, 100% { box-shadow: 0 0 0 1px var(--c-accent-10), 0 6px 22px var(--c-accent-10); }
+  50%      { box-shadow: 0 0 0 1px var(--c-accent-25), 0 8px 30px var(--c-accent-25); }
+}
+
+/* remove — a red crosshatch tombstone over the target */
+.intent-ghost-remove {
+  border: 1.5px dashed var(--c-danger);
+  border-radius: 10px;
+  background-color: color-mix(in srgb, var(--c-danger) 8%, transparent);
+  background-image: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--c-danger) 22%, transparent) 0,
+    color-mix(in srgb, var(--c-danger) 22%, transparent) 2px,
+    transparent 2px,
+    transparent 9px
+  );
+}
+
+/* edit — a shimmer bar over the target */
+.intent-ghost-edit {
+  border: 1.5px dashed var(--c-accent);
+  border-radius: 10px;
+  background: var(--c-accent-10);
+  overflow: hidden;
+}
+
+.intent-edit-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 3px;
+  width: 100%;
+  background: linear-gradient(90deg, transparent, var(--c-accent), transparent);
+  animation: response-stream-pulse 1.5s ease-in-out infinite;
+}
+
+/* connect — info card anchored at the bezier midpoint */
+.intent-ghost-connect {
+  display: flex;
+  justify-content: center;
+}
+
+/* the info treatment: label + confidence chip, reason, seq, veto */
+.intent-info {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  pointer-events: auto;
+  max-width: 280px;
+}
+
+.intent-ghost-connect .intent-info {
+  position: static;
+  margin-top: 0;
+  align-items: center;
+}
+
+.intent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  padding: 3px 6px 3px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--c-panel-glass) 96%, transparent);
+  backdrop-filter: blur(10px);
+  border: 1px solid var(--c-accent-25);
+  box-shadow: 0 4px 14px var(--c-shadow);
+  color: var(--c-text);
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.intent-seq {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: var(--c-accent);
+  color: var(--c-bg);
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.intent-chip-icon {
+  display: inline-flex;
+  align-items: center;
+  color: var(--c-accent);
+}
+
+.intent-chip-label {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 180px;
+}
+
+.intent-confidence {
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  color: var(--c-muted);
+}
+
+.intent-veto {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  margin-left: 2px;
+  padding: 0;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--c-muted);
+  font-size: 11px;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.intent-veto:hover {
+  background: color-mix(in srgb, var(--c-danger) 18%, transparent);
+  color: var(--c-danger);
+}
+
+.intent-reason {
+  align-self: flex-start;
+  padding: 3px 8px;
+  border-radius: 7px;
+  background: color-mix(in srgb, var(--c-panel-glass) 92%, transparent);
+  border: 1px solid var(--c-line);
+  color: var(--c-muted);
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+/* connect bezier + move trail (SVG) */
+.intent-line-layer path {
+  fill: none;
+}
+
+.intent-edge {
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+  animation: intent-dash 0.9s linear infinite;
+}
+
+.intent-edge.type-flow { stroke: var(--c-accent); }
+.intent-edge.type-depends-on { stroke: var(--c-warn); }
+.intent-edge.type-relation { stroke: var(--c-muted); }
+.intent-edge.type-references { stroke: var(--c-dim); }
+
+.intent-trail {
+  stroke: var(--c-accent);
+  stroke-width: 2;
+  stroke-dasharray: 5 5;
+  animation: intent-dash 0.9s linear infinite;
+}
+
+.intent-arrow-head {
+  fill: var(--c-accent);
+}
+
+@keyframes intent-dash {
+  to { stroke-dashoffset: -22; }
+}
+
+/* settle — the ghost becomes real, then clears */
+.intent-ghost.is-settling {
+  animation: intent-settle 480ms ease forwards;
+}
+
+@keyframes intent-settle {
+  0%   { transform: scale(1); }
+  45%  { transform: scale(1.04); border-style: solid; opacity: 1; }
+  100% { transform: scale(1); opacity: 0; }
+}
+
+/* dissolve — abandoned / vetoed / expired */
+.intent-ghost.is-dissolving {
+  animation: intent-dissolve 320ms ease forwards;
+}
+
+@keyframes intent-dissolve {
+  to { transform: scale(0.96); opacity: 0; filter: blur(2px); }
+}
+
+/* keep ghosts calm while a node is being dragged */
+html.is-node-dragging .intent-layer {
+  opacity: 0.5;
+}

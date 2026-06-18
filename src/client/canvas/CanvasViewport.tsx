@@ -31,6 +31,7 @@ import {
 import { createEdgeFromClient, createNodeFromClient } from '../state/intent-bridge';
 import type { CanvasAnnotation, CanvasNodeState } from '../types';
 import { FocusFieldLayer } from './FocusFieldLayer';
+import { IntentLayer } from './IntentLayer';
 import { CanvasNode } from './CanvasNode';
 import { EdgeLayer } from './EdgeLayer';
 import { AnnotationLayer } from './AnnotationLayer';
@@ -772,6 +773,7 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu, annotat
         }}
       >
         <FocusFieldLayer />
+        <IntentLayer />
         <EdgeLayer nodes={nodes} edges={edges} />
         <AnnotationLayer annotations={Array.from(annotations.value.values())} />
         {draftAnnotation && draftAnnotation.points.length >= 2 && <AnnotationLayer annotations={[draftAnnotation]} />}
