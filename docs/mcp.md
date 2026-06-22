@@ -1,11 +1,11 @@
 # MCP reference
 
-PMX Canvas ships an MCP stdio server with **83 tools** + **14 core resources**,
+PMX Canvas ships an MCP stdio server with **84 tools** + **14 core resources**,
 plus per-skill resources at `canvas://skills/<name>`. The server emits
 `notifications/resources/updated` when canvas state changes — humans pin
 nodes in the browser, agents are notified immediately.
 
-> **Consolidation in progress (plan-006/008).** The 83 tools are 14 action-discriminated
+> **Consolidation in progress (plan-006/008).** The 84 tools are 15 action-discriminated
 > **composites** (recommended — see below) plus 69 legacy single-purpose tools.
 > The composites fold the legacy tools behind an `action` (and, for `canvas_ax_gate`,
 > a `kind`) enum; each action dispatches to the same operation, so behavior is

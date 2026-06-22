@@ -946,7 +946,16 @@ function handleAxStateChanged(): void {
 // ── Ghost Cursor of Intent ────────────────────────────────────
 function handleAxIntent(data: Record<string, unknown>): void {
   const intent = data.intent as PmxAxIntent | undefined;
-  if (!intent || typeof intent.id !== 'string' || typeof intent.kind !== 'string') return;
+  // Require a numeric `expiresAt`: the client-side TTL prune backstop
+  // (intent-store) compares `expiresAt <= now`, so a frame missing it would never
+  // be pruned if its `clear` frame were dropped. The server always sets it, so this
+  // only rejects a malformed frame — keeping the backstop's guarantee real.
+  if (
+    !intent
+    || typeof intent.id !== 'string'
+    || typeof intent.kind !== 'string'
+    || typeof intent.expiresAt !== 'number'
+  ) return;
   upsertIntent(intent);
 }
 

@@ -196,7 +196,7 @@ package in a clean temp consumer instead of the repo dev path.
 
 ## MCP Server
 
-83 tools: 14 action-discriminated composites (`canvas_node`, `canvas_render`, `canvas_edge`, `canvas_group`, `canvas_history`, `canvas_view`, `canvas_query`, `canvas_webview`, `canvas_app`, `canvas_ax_state`, `canvas_ax_work`, `canvas_ax_gate`, `canvas_ax_timeline`, `canvas_ax_delivery`) plus 69 legacy single-purpose tools during the v0.2 overlap window. Prefer composites for new MCP calls; see `docs/mcp.md` for the authoritative tool list and legacy replacements.
+84 tools: 15 action-discriminated composites (`canvas_node`, `canvas_render`, `canvas_edge`, `canvas_group`, `canvas_history`, `canvas_view`, `canvas_query`, `canvas_webview`, `canvas_app`, `canvas_ax_state`, `canvas_ax_work`, `canvas_ax_gate`, `canvas_ax_timeline`, `canvas_ax_delivery`, `canvas_intent`) plus 69 legacy single-purpose tools during the v0.2 overlap window. Prefer composites for new MCP calls; see `docs/mcp.md` for the authoritative tool list and legacy replacements. `canvas_intent` (Ghost Cursor of Intent) is composite-only — its `intent.signal`/`intent.update`/`intent.clear` ops have no standalone legacy tool.
 
 `canvas_add_diagram` (also the `diagram` action of `canvas_app`) is a thin preset in `src/server/diagram-presets.ts` that proxies to the hosted [Excalidraw MCP app](https://github.com/excalidraw/excalidraw-mcp) (`https://mcp.excalidraw.com/mcp`). For any other MCP Apps server, use `canvas_app` action `open-mcp-app` (or the `canvas_open_mcp_app` tool directly).
 

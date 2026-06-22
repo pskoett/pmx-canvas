@@ -5,6 +5,37 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.2.2] - 2026-06-22
+
+### Added
+
+- **Ghost Cursor of Intent — a pre-commit presence layer.** An agent can announce the
+  spatial move it is *about* to make, so the canvas paints a faint, dashed "ghost"
+  placeholder *before* the real mutation lands — modeled on a multiplayer cursor
+  (ephemeral presence, never canvas state). An intent describes one of five moves
+  (`create` / `move` / `connect` / `remove` / `edit`) at a spatial anchor, with an
+  optional `label`, `reason` (why the agent wants it), `confidence` (0–1, drives ghost
+  opacity), and `seq` (staged-batch ordering). The human watching the browser can
+  **veto** a forming ghost (✕ on the ghost or Esc while hovered) before it happens — a
+  veto dissolves the ghost, queues a steering message back to the agent, and *poisons
+  that intent id* so the linked mutation is rejected. When the agent runs the real
+  mutation **linked** to the intent (by passing the returned `intent.id` as
+  `intentId`), the ghost **settles** into the real node automatically. Ghosts are never
+  persisted, never snapshotted, never in `canvas_get_layout`; they auto-expire (~8 s
+  default, 60 s max) and are count-capped (12 live, oldest evicted).
+  - **New MCP tool `canvas_intent`** (composite-only): `signal` (register/replace an
+    intent → `{ ok, intent }`), `update` (patch a live intent + reset its TTL), `clear`
+    (dissolve a ghost; `vetoed:true` for a human veto, `settledNodeId` to morph it into a
+    real node). The public MCP surface grows from 83 to 84 tools (15 composites).
+  - **New optional `intentId`** on the mutation tools/ops (`canvas_node`, `canvas_edge`,
+    `canvas_group`, `canvas_render`) and the matching SDK methods — passing it links the
+    mutation to a live ghost so it settles on success and is rejected if vetoed/expired.
+    Omitting it (every prior caller) is byte-identical to before.
+  - **New HTTP routes** `POST /api/canvas/ax/intent`, `PATCH`/`DELETE
+    /api/canvas/ax/intent/:id`; **new SSE frames** `ax-intent` / `ax-intent-clear`
+    (replayed to reconnecting browsers); **new SDK methods** `signalIntent` /
+    `updateIntent` / `clearIntent`. Purely additive — no existing behavior changes.
+
 ### Fixed
 
 - **Daemon status reports its workspace identity.** `pmx-canvas serve status` now returns the
@@ -2325,6 +2356,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.2.2]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.2
 [0.2.1]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.1
 [0.2.0]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.0
 [0.1.36]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.1.36
