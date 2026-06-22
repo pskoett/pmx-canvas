@@ -118,6 +118,11 @@ export function useChartFrameHeight(explicitHeight: number | null | undefined, f
   const [autoHeight, setAutoHeight] = useState(fallbackHeight);
   const [autoWidth, setAutoWidth] = useState(0);
 
+  // Standalone "Open as site" tab (#65): fill the full browser viewport — there is no
+  // card chrome below the chart, so drop the ~44px reserve and use a larger floor.
+  const isSite = typeof window !== 'undefined'
+    && (window as { __PMX_CANVAS_JSON_RENDER_DISPLAY__?: string }).__PMX_CANVAS_JSON_RENDER_DISPLAY__ === 'site';
+
   useEffect(() => {
     const frame = frameRef.current;
     if (!frame) return;
@@ -136,7 +141,11 @@ export function useChartFrameHeight(explicitHeight: number | null | undefined, f
       // across node sizes). rect.top already accounts for everything above. With
       // too small a reserve a filled chart spills ~17px past the viewport and the
       // iframe document shows a needless scrollbar.
-      const available = Math.max(220, Math.round(window.innerHeight - rect.top - 44));
+      // Keep the ~44px reserve in BOTH modes — it covers the chart frame's own
+      // non-plot chrome (title + .pmx-chart padding), which exists in site mode too.
+      // Dropping it pushed the frame past the viewport and reintroduced a scrollbar.
+      // Site mode differs only in the floor (300 vs 220) and the fill selection below.
+      const available = Math.max(isSite ? 300 : 220, Math.round(window.innerHeight - rect.top - 44));
       const nextWidth = Math.round(rect.width);
       // Dead-band: ignore sub-threshold churn so a stray re-measure (e.g. a
       // scrollbar toggling) can't ping-pong state and repaint.
@@ -162,9 +171,14 @@ export function useChartFrameHeight(explicitHeight: number | null | undefined, f
   // content-fit (strictSize / user-resized nodes), it fills the frame down as before.
   const fitContent = typeof window !== 'undefined'
     && (window as { __PMX_CANVAS_FIT_CONTENT__?: boolean }).__PMX_CANVAS_FIT_CONTENT__ === true;
-  const height = fitContent
-    ? (typeof explicitHeight === 'number' ? explicitHeight : fallbackHeight)
-    : (typeof explicitHeight === 'number' ? Math.min(explicitHeight, autoHeight) : autoHeight);
+  // Site mode (#65): fill the viewport (autoHeight), ignoring an explicit/configured
+  // chart height that would otherwise cap it to a shallow card. Content-fit is off in
+  // site mode (the server skips it), so site never takes the intrinsic-height branch.
+  const height = isSite
+    ? autoHeight
+    : fitContent
+      ? (typeof explicitHeight === 'number' ? explicitHeight : fallbackHeight)
+      : (typeof explicitHeight === 'number' ? Math.min(explicitHeight, autoHeight) : autoHeight);
   return {
     frameRef,
     height,

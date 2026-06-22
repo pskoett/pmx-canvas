@@ -19,8 +19,12 @@ export function canOpenNodeAsSurface(type: string, data: Record<string, unknown>
     case 'graph':
       return true;
     case 'mcp-app':
+      // Hosted ext-app nodes (e.g. Excalidraw) are a LIVE MCP-app shell that needs the
+      // in-canvas AppBridge host to render; a standalone browser tab has no host, so
+      // "Open as site" only produced a broken `-32601` page (report #61). Those apps
+      // open externally through their own app, not PMX. Only a bundled web-artifact
+      // (static) or a real url-backed viewer can open as a standalone site.
       return (data.viewerType === 'web-artifact' && typeof data.path === 'string' && data.path.length > 0)
-        || (data.mode === 'ext-app' && typeof data.html === 'string' && data.html.length > 0)
         || (typeof data.url === 'string' && data.url.length > 0);
     case 'webpage':
       return typeof data.url === 'string' && data.url.length > 0;

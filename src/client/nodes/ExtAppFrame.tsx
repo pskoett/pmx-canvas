@@ -643,29 +643,38 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     if (iframeRef.current) {
       iframeRef.current.style.height = '100%';
     }
-    if (!bridge || !bridgeReadyRef.current) return;
-    bridge.setHostContext?.({
-      theme: toMcpTheme(canvasTheme.value),
-      platform: 'web',
-      containerDimensions: resolveExtAppContainerDimensions(iframeRef.current, {
-        width: node.size.width,
-        height: maxHeight,
-      }),
-      displayMode: isExpanded ? 'fullscreen' : 'inline',
-      locale: navigator.language,
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+    if (!bridge || !bridgeReadyRef.current) return undefined;
+    // Measure + send AFTER the expand/collapse overlay has laid out (double rAF).
+    // Measuring synchronously here reads the iframe at its OLD inline size, so an app
+    // like Excalidraw reflows bound text against stale dimensions and clips the start
+    // of labels in expanded mode (report #62). A double rAF lands after layout+paint so
+    // resolveExtAppContainerDimensions reads the real expanded frame.
+    let raf1: number | null = null;
+    let raf2: number | null = null;
+    raf1 = requestAnimationFrame(() => {
+      raf1 = null;
+      raf2 = requestAnimationFrame(() => {
+        raf2 = null;
+        if (!bridgeReadyRef.current) return;
+        const hostContext = {
+          theme: toMcpTheme(canvasTheme.value),
+          platform: 'web' as const,
+          containerDimensions: resolveExtAppContainerDimensions(iframeRef.current, {
+            width: node.size.width,
+            height: maxHeight,
+          }),
+          displayMode: isExpanded ? ('fullscreen' as const) : ('inline' as const),
+          locale: navigator.language,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        };
+        bridge.setHostContext?.(hostContext);
+        void bridge.sendHostContextChange?.(hostContext);
+      });
     });
-    void bridge.sendHostContextChange?.({
-      theme: toMcpTheme(canvasTheme.value),
-      platform: 'web',
-      containerDimensions: resolveExtAppContainerDimensions(iframeRef.current, {
-        width: node.size.width,
-        height: maxHeight,
-      }),
-      displayMode: isExpanded ? 'fullscreen' : 'inline',
-      locale: navigator.language,
-      timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-    });
+    return () => {
+      if (raf1 !== null) cancelAnimationFrame(raf1);
+      if (raf2 !== null) cancelAnimationFrame(raf2);
+    };
   }, [isExpanded, maxHeight]);
 
   // Loading state — HTML not yet fetched

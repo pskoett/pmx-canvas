@@ -192,6 +192,7 @@ function normalizeGraphViewerSpec(
   const graphConfig = node.data.graphConfig;
   if (
     display !== 'expanded' &&
+    display !== 'site' &&
     graphConfig &&
     typeof graphConfig === 'object' &&
     typeof (graphConfig as Record<string, unknown>).height === 'number'
@@ -1329,8 +1330,11 @@ function handleNodeSurface(pathname: string, url: URL): Response {
 
   if (node.type === 'json-render' || node.type === 'graph') {
     const params = new URLSearchParams({ nodeId, theme });
+    // "Open as site" is a standalone browser tab, so the viewer should fill the
+    // viewport (report #65) — distinct from the in-canvas expand overlay, which hits
+    // the viewer route directly with display=expanded.
     const display = url.searchParams.get('display');
-    if (display === 'expanded') params.set('display', 'expanded');
+    params.set('display', display === 'expanded' ? 'expanded' : 'site');
     return surfaceRedirect(`/api/canvas/json-render/view?${params.toString()}`);
   }
 
@@ -1339,19 +1343,16 @@ function handleNodeSurface(pathname: string, url: URL): Response {
     if (node.data.viewerType === 'web-artifact' && typeof node.data.path === 'string' && node.data.path) {
       return surfaceRedirect(`/artifact?path=${encodeURIComponent(node.data.path)}`);
     }
-    // Hosted ext-app — serve the same prepared HTML the in-canvas frame receives.
-    // The app's host bridge has no peer in a standalone tab, so interactive
-    // tool-calls won't function there; the UI still renders. Served TOP-LEVEL with
-    // a tighter sandbox than the in-canvas iframe (no allow-popups-to-escape-sandbox)
-    // since this is untrusted third-party HTML opened as its own page.
-    if (node.data.mode === 'ext-app' && typeof node.data.html === 'string' && node.data.html) {
-      return surfaceHtmlResponse(node.data.html, HTML_SURFACE_SANDBOX);
-    }
     // URL-backed viewer — hand off to its own origin.
     if (typeof node.data.url === 'string' && isSafeSurfaceRedirect(node.data.url)) {
       return surfaceRedirect(node.data.url);
     }
-    return responseText('MCP app node has no openable surface', 404);
+    // Hosted ext-app (e.g. Excalidraw) is a LIVE MCP-app shell that only renders with
+    // the in-canvas AppBridge host; served to a standalone tab it errored with
+    // `-32601` (report #61). It is intentionally NOT openable as a site — open such
+    // apps externally through their own app, or view them in the canvas. (Kept in sync
+    // with canOpenNodeAsSurface in src/shared/surface.ts, which hides the UI control.)
+    return responseText('This MCP app renders in the canvas and cannot be opened as a standalone site.', 404);
   }
 
   if (node.type === 'webpage') {
@@ -1582,12 +1583,18 @@ async function handleJsonRenderView(url: URL): Promise<Response> {
   const axToken = url.searchParams.get('axToken');
   const axEnabled = resolveNodeAxCapabilities(node).enabled;
   const frameToken = url.searchParams.get('frameToken');
-  const fitContent = url.searchParams.get('fit') === 'content';
+  const displayParam = url.searchParams.get('display');
+  const display = displayParam === 'expanded' ? 'expanded' as const
+    : displayParam === 'site' ? 'site' as const
+    : undefined;
+  // A standalone "site" tab fills the viewport; content-fit (grow-to-content for the
+  // in-canvas iframe) would fight that, so it's ignored in site mode (#65).
+  const fitContent = url.searchParams.get('fit') === 'content' && display !== 'site';
   const html = await buildJsonRenderViewerHtml({
     title,
     spec,
     ...(theme ? { theme } : {}),
-    ...(url.searchParams.get('display') === 'expanded' ? { display: 'expanded' as const } : {}),
+    ...(display ? { display } : {}),
     ...(devtoolsEnabled ? { devtools: true } : {}),
     ...(axToken ? { nodeId, axToken } : {}),
     // Seed the read-side AX state (only for AX-enabled nodes) so specs can bind /ax.

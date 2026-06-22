@@ -1113,6 +1113,63 @@ test('ext-app bridge: window.PMX_AX.emit resolves with the result so the app can
   await expect(frame.locator('#st')).toHaveText('queued OK');
 });
 
+test('#61: hosted ext-app nodes are not openable as a standalone site', async ({ page, request }) => {
+  const created = await request.post('/api/canvas/node', {
+    data: {
+      type: 'mcp-app',
+      title: 'Ext app no open-as-site',
+      data: { mode: 'ext-app', html: '<main><h1>Hosted App</h1></main>', sessionStatus: 'ready' },
+      x: 360, y: 200, width: 480, height: 320,
+    },
+  });
+  const id = (await created.json() as { id: string }).id;
+  expect(id).toBeTruthy();
+
+  // Server: the standalone surface route refuses cleanly (404), instead of serving
+  // the live MCP-app shell that errored with `-32601` (report #61).
+  const surface = await request.get(`/api/canvas/surface/${id}`, { maxRedirects: 0 });
+  expect(surface.status()).toBe(404);
+
+  // Client: the node shows NO "Open as site" control.
+  await page.goto('/workbench');
+  const node = page.locator('.canvas-node').filter({ hasText: 'Ext app no open-as-site' });
+  await expect(node).toHaveCount(1);
+  await expect(node.getByTitle('Open as site')).toHaveCount(0);
+});
+
+test('#63: node context menu pins to the human-curated context set (primary "Pin as context")', async ({ page, request }) => {
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Ctx pin target', content: '# pin me', x: 360, y: 220 },
+  });
+  await page.goto('/workbench');
+  const node = page.locator('.canvas-node').filter({ hasText: 'Ctx pin target' });
+  await expect(node).toHaveCount(1);
+
+  await node.locator('.node-titlebar').click({ button: 'right' });
+  const menu = page.locator('.context-menu');
+  await expect(menu.locator('.context-menu-item').filter({ hasText: 'Pin as context' })).toBeVisible();
+  // The arrange-lock item is renamed off the word "Pin" so it no longer collides.
+  await expect(menu.locator('.context-menu-item').filter({ hasText: 'Lock position' })).toBeVisible();
+
+  await menu.locator('.context-menu-item').filter({ hasText: 'Pin as context' }).click();
+  // The node's context-pin indicator becomes active (same signal that drives the count).
+  await expect(node.locator('.ctx-pin-btn.ctx-pin-active')).toBeVisible();
+});
+
+test('#64: status nodes expose the standard remove (×) control', async ({ page, request }) => {
+  await request.post('/api/canvas/node', {
+    data: { type: 'status', title: 'Removable status', data: { title: 'Removable status', status: 'success', message: 'done' }, x: 360, y: 220 },
+  });
+  await page.goto('/workbench');
+  const node = page.locator('.canvas-node').filter({ hasText: 'Removable status' });
+  await expect(node).toHaveCount(1);
+
+  const closeBtn = node.locator('.node-titlebar').getByTitle('Close');
+  await expect(closeBtn).toBeVisible();
+  await closeBtn.click();
+  await expect(node).toHaveCount(0);
+});
+
 test('json-render bridge: a spec action named ax.* emits an AX interaction via the viewer', async ({ page, request }) => {
   // json-render is AX-enabled by default with ax.work.create in its ceiling. The
   // viewer bundle wires spec actions named after AX types to a postMessage bridge;
@@ -1501,7 +1558,7 @@ test('MCP App node resize corner stays above iframe preview overlays', async ({ 
   }).toBe(true);
 });
 
-test('MCP App fullscreen edits persist after closing and reopening the app', async ({ page, request }) => {
+test('MCP App fullscreen dimensions settle after layout and edits persist (#62)', async ({ page, request }) => {
   const fixturePath = fileURLToPath(new URL('../fixtures/mcp-app-fixture.ts', import.meta.url));
 
   await page.goto('/workbench');
@@ -1555,6 +1612,22 @@ test('MCP App fullscreen edits persist after closing and reopening the app', asy
   await openFullscreenEditor();
   const frame = panel.frameLocator('iframe');
   await expect(frame.getByText('No saved edit')).toBeVisible();
+  // #62: expansion must deliver the post-layout fullscreen dimensions, not the
+  // stale inline frame size that caused hosted apps to clip reflowed text.
+  await expect.poll(async () => {
+    const iframeBox = await panel.locator('iframe').boundingBox();
+    const reported = await frame.locator('#host-dimensions').evaluate((element) => ({
+      width: Number(element.getAttribute('data-width')),
+      height: Number(element.getAttribute('data-height')),
+    }));
+    if (!iframeBox) return Number.POSITIVE_INFINITY;
+    return Math.max(
+      Math.abs(reported.width - iframeBox.width),
+      Math.abs(reported.height - iframeBox.height),
+    );
+  }).toBeLessThan(4);
+  const reportedFullscreenHeight = Number(await frame.locator('#host-dimensions').getAttribute('data-height'));
+  expect(reportedFullscreenHeight).toBeGreaterThan(600);
   await frame.getByRole('button', { name: 'Add Manual Edit' }).click();
   await expect(frame.getByText('Saved manual edit')).toBeVisible();
 
@@ -1945,6 +2018,50 @@ test('expanded graph nodes stretch chart content to the overlay frame', async ({
   expect(chartMetrics.surfaceHeight).toBeLessThanOrEqual(chartMetrics.viewportHeight);
 });
 
+test('#65: standalone graph surfaces fill and resize with the browser viewport', async ({ page, request }) => {
+  const createResponse = await request.post('/api/canvas/graph', {
+    data: {
+      title: 'Standalone graph fill guard',
+      graphType: 'bar',
+      data: [
+        { label: 'Small', value: 24 },
+        { label: 'Large', value: 91 },
+      ],
+      xKey: 'label',
+      yKey: 'value',
+      width: 480,
+      nodeHeight: 380,
+      height: 240,
+    },
+  });
+  const created = await createResponse.json() as { id: string };
+
+  await page.setViewportSize({ width: 1100, height: 780 });
+  await page.goto(`/api/canvas/surface/${created.id}`);
+  const chart = page.locator('.recharts-surface');
+  await expect(chart).toBeVisible();
+
+  const readMetrics = () => chart.evaluate((surface) => {
+    const rect = surface.getBoundingClientRect();
+    return {
+      surfaceHeight: rect.height,
+      viewportHeight: window.innerHeight,
+      scrollHeight: document.documentElement.scrollHeight,
+    };
+  });
+
+  await expect.poll(async () => (await readMetrics()).surfaceHeight).toBeGreaterThan(520);
+  const large = await readMetrics();
+  expect(large.surfaceHeight).toBeGreaterThan(large.viewportHeight * 0.7);
+  expect(large.scrollHeight).toBeLessThanOrEqual(large.viewportHeight + 1);
+
+  await page.setViewportSize({ width: 900, height: 600 });
+  await expect.poll(async () => (await readMetrics()).surfaceHeight).toBeLessThan(large.surfaceHeight - 100);
+  const small = await readMetrics();
+  expect(small.surfaceHeight).toBeGreaterThan(small.viewportHeight * 0.7);
+  expect(small.scrollHeight).toBeLessThanOrEqual(small.viewportHeight + 1);
+});
+
 test('compact graph charts keep plotted content inside the iframe viewport', async ({ page, request }) => {
   const createResponse = await request.post('/api/canvas/graph', {
     data: {
@@ -2028,7 +2145,9 @@ test('ordinary node pin updates the authoritative canvas state', async ({ page, 
   await expect(note).toHaveCount(1);
 
   await note.click({ button: 'right' });
-  await page.locator('.context-menu-item').filter({ hasText: 'Pin (exclude from auto-arrange)' }).click();
+  // The arrange-lock item was renamed off the word "Pin" (report #63) to disambiguate
+  // it from context pinning; it still toggles node.pinned (now also persisted).
+  await page.locator('.context-menu-item').filter({ hasText: 'Lock position' }).click();
 
   await expect(note).toHaveClass(/pinned/);
   await expect.poll(async () => {

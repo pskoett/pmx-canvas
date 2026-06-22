@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -559,12 +559,14 @@ describe('agent CLI webview commands', () => {
       ok: boolean;
       running: boolean;
       responsive: boolean;
+      workspace: string | null;
       pid: number | null;
       pidRunning: boolean;
     };
     expect(statusPayload.ok).toBe(true);
     expect(statusPayload.running).toBe(true);
     expect(statusPayload.responsive).toBe(true);
+    expect(statusPayload.workspace).toBe(realpathSync(workspaceRoot));
     expect(statusPayload.pid).toBe(started.pid);
     expect(statusPayload.pidRunning).toBe(true);
 

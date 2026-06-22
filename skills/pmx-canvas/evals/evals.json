@@ -181,6 +181,205 @@
           "type": "output_check"
         }
       ]
+    },
+    {
+      "id": 8,
+      "name": "workspace-identity-preflight",
+      "prompt": "Attach to the running PMX canvas and add a status node for our deploy. There's already a daemon on port 4313.",
+      "expected_output": "Before mutating, reads GET /health (or serve status) and confirms the returned workspace matches the intended workspace root; refuses to mutate a mismatched/stale listener and starts an isolated server on an explicit --port instead.",
+      "assertions": [
+        {
+          "name": "reads-health",
+          "description": "Reads /health or serve status before any mutation",
+          "type": "output_check"
+        },
+        {
+          "name": "checks-workspace",
+          "description": "Compares the returned workspace to the intended workspace root",
+          "type": "output_check"
+        },
+        {
+          "name": "handles-mismatch",
+          "description": "On workspace mismatch or responsive+pidRunning:false, does NOT mutate; isolates via explicit --port and re-checks /health",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "current-composite-routing",
+      "prompt": "Create a markdown note, a bar chart, and an Excalidraw diagram on the canvas.",
+      "expected_output": "Uses current composites: canvas_node {action:add} for markdown, canvas_render {action:add-graph} for the chart, canvas_app {action:diagram} for Excalidraw. Avoids deprecated single-purpose tools (canvas_add_node/canvas_add_diagram/canvas_build_web_artifact/canvas_open_mcp_app).",
+      "assertions": [
+        {
+          "name": "uses-canvas-node",
+          "description": "Creates the markdown node via canvas_node {action:add}",
+          "type": "output_check"
+        },
+        {
+          "name": "uses-canvas-render",
+          "description": "Creates the chart via canvas_render {action:add-graph}",
+          "type": "output_check"
+        },
+        {
+          "name": "uses-canvas-app",
+          "description": "Creates the Excalidraw diagram via canvas_app {action:diagram}",
+          "type": "output_check"
+        },
+        {
+          "name": "avoids-deprecated",
+          "description": "Does not call deprecated standalones (canvas_add_node/canvas_add_diagram/etc.)",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "existing-board-extension",
+      "prompt": "Add two more findings to the investigation board that's already on the canvas.",
+      "expected_output": "Searches the existing board first, snapshots before extending, adds new nodes without duplicating existing titles, and validates the final layout for collisions.",
+      "assertions": [
+        {
+          "name": "searches-first",
+          "description": "Searches existing nodes (canvas_query {action:search}) before adding",
+          "type": "output_check"
+        },
+        {
+          "name": "snapshots-before",
+          "description": "Snapshots before extending the board",
+          "type": "output_check"
+        },
+        {
+          "name": "no-duplicates",
+          "description": "Adds new nodes without duplicating existing node titles",
+          "type": "output_check"
+        },
+        {
+          "name": "validates-layout",
+          "description": "Runs canvas_query {action:validate} (or arrange+validate) on the result",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "context-pin-workflow",
+      "prompt": "Pin the auth design node so I (the agent) keep it in context, then confirm it's pinned.",
+      "expected_output": "Pins via a verified path (canvas_pin_nodes, the CLI pin, or browser/right-click 'Pin as context'), then reads canvas://pinned-context to confirm; does not claim a broken UI action succeeded.",
+      "assertions": [
+        {
+          "name": "pins-via-verified-path",
+          "description": "Pins via canvas_pin_nodes / CLI pin / 'Pin as context' — not an unverified action",
+          "type": "output_check"
+        },
+        {
+          "name": "reads-pinned-context",
+          "description": "Reads canvas://pinned-context (or canvas_ax_state) to confirm the pin",
+          "type": "output_check"
+        },
+        {
+          "name": "confirms-count",
+          "description": "Confirms the pin is reflected (context count / pinned set) rather than assuming success",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "status-node-cleanup",
+      "prompt": "Remove the obsolete 'Deploy: pending' status node from the board.",
+      "expected_output": "Removes the status node via canvas_node {action:remove} (status nodes are removable like any other type) and verifies removal; undo remains available.",
+      "assertions": [
+        {
+          "name": "removes-status-node",
+          "description": "Removes the status node via canvas_node {action:remove}",
+          "type": "output_check"
+        },
+        {
+          "name": "verifies-removal",
+          "description": "Verifies the node is gone from the layout",
+          "type": "output_check"
+        },
+        {
+          "name": "preserves-undo",
+          "description": "Notes/relies on undo (canvas_history) remaining available",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "ax-html-control-surface",
+      "prompt": "Build an AX control surface as an HTML node with a button that creates a work item and a button that steers me.",
+      "expected_output": "Creates an opted-in html node (axCapabilities.enabled) using the blessed recipe: awaits window.PMX_AX.emit, reflects live state via pmx-ax-update, avoids sandbox-blocked localStorage, and labels the steer button as queued for the next turn (not immediate wake).",
+      "assertions": [
+        {
+          "name": "opts-in-ax",
+          "description": "Creates the html node with axCapabilities.enabled = true",
+          "type": "output_check"
+        },
+        {
+          "name": "awaits-emit",
+          "description": "Uses window.PMX_AX.emit with await (not fire-and-forget)",
+          "type": "output_check"
+        },
+        {
+          "name": "sandbox-safe",
+          "description": "Avoids localStorage/sessionStorage/cookies in the sandboxed iframe",
+          "type": "output_check"
+        },
+        {
+          "name": "labels-steer-queued",
+          "description": "Labels steering as queued for the next turn, not immediate agent wake",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "ax-delivery-lifecycle",
+      "prompt": "There are pending steering messages from the board. Pick them up and act on them.",
+      "expected_output": "Reads compact context (newest-first pendingSteering + totalPending/omittedPending) and/or claims via canvas_ax_delivery {action:claim}; acts, then marks delivered. Understands direct delivery stays FIFO oldest-first.",
+      "assertions": [
+        {
+          "name": "reads-newest-first",
+          "description": "Uses compact context (newest-first + counts) or canvas_ax_delivery claim to find fresh steering",
+          "type": "output_check"
+        },
+        {
+          "name": "acts-then-marks",
+          "description": "Acts on the steering then marks it delivered (canvas_ax_delivery {action:mark})",
+          "type": "output_check"
+        },
+        {
+          "name": "understands-fifo",
+          "description": "Recognizes the direct delivery queue is FIFO oldest-first, distinct from compact context",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "name": "final-cleanup-and-validate",
+      "prompt": "We're done with the test board. Clean up the temporary nodes and leave the canvas as we found it.",
+      "expected_output": "Removes retry/test fixtures, runs canvas_query {action:validate} to confirm no accidental collisions/dangling edges, and restores the baseline snapshot.",
+      "assertions": [
+        {
+          "name": "removes-fixtures",
+          "description": "Removes the temporary/retry fixture nodes",
+          "type": "output_check"
+        },
+        {
+          "name": "validates-final",
+          "description": "Validates the final layout (canvas_query {action:validate})",
+          "type": "output_check"
+        },
+        {
+          "name": "restores-baseline",
+          "description": "Restores the baseline snapshot to leave the canvas as found",
+          "type": "output_check"
+        }
+      ]
     }
   ]
 }

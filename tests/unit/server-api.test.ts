@@ -1341,21 +1341,41 @@ describe('canvas server HTTP API', () => {
     expect(location).toContain('/api/canvas/json-render/view');
     expect(location).toContain('nodeId=surface-jsonrender');
     expect(location).toContain('theme=dark');
+    // #65: "Open as site" is a standalone tab → display=site (fills the viewport).
+    expect(location).toContain('display=site');
   });
 
-  test('surface route serves an ext-app node with the ext-app sandbox', async () => {
+  test('#65: the standalone viewer renders in full-viewport (site) mode', async () => {
+    canvasState.addNode({
+      id: 'surface-graph-65', type: 'graph',
+      position: { x: 0, y: 0 }, size: { width: 760, height: 520 },
+      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      data: {
+        viewerType: 'graph',
+        graphConfig: { graphType: 'bar', height: 320 },
+        spec: { root: 'chart', elements: { chart: { type: 'BarChart', props: { height: 320, data: [] } } } },
+      },
+    });
+    // The viewer page opened in site mode injects the display flag the renderer reads
+    // to fill the browser viewport instead of the in-canvas card height.
+    const view = await fetch(`${baseUrl}/api/canvas/json-render/view?nodeId=surface-graph-65&display=site`);
+    expect(view.status).toBe(200);
+    const html = await view.text();
+    expect(html).toContain('__PMX_CANVAS_JSON_RENDER_DISPLAY__ = "site"');
+  });
+
+  test('surface route 404s a hosted ext-app node — it is not openable as a standalone site (#61)', async () => {
     canvasState.addNode({
       id: 'surface-extapp', type: 'mcp-app',
       position: { x: 0, y: 0 }, size: { width: 960, height: 720 },
       zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
       data: { mode: 'ext-app', html: '<!doctype html><html><head></head><body>ext app surface</body></html>' },
     });
-    const res = await fetch(`${baseUrl}/api/canvas/surface/surface-extapp`);
-    expect(res.status).toBe(200);
-    // Standalone ext-app surface is served with a tighter sandbox than the
-    // in-canvas iframe (no allow-popups-to-escape-sandbox) — untrusted top-level HTML.
-    expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts');
-    expect(await res.text()).toContain('ext app surface');
+    // A hosted ext-app is a live MCP-app shell needing the in-canvas AppBridge host; a
+    // standalone tab has no host, so it errored with `-32601`. It now refuses cleanly
+    // instead of serving the broken live-app HTML (#61).
+    const res = await fetch(`${baseUrl}/api/canvas/surface/surface-extapp`, { redirect: 'manual' });
+    expect(res.status).toBe(404);
   });
 
   test('surface route blocks unsafe redirect targets', async () => {

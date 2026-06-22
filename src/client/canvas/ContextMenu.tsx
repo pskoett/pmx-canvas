@@ -8,6 +8,7 @@ import {
   focusNode,
   nodes,
   pendingConnection,
+  persistLayout,
   removeNode,
   toggleCollapsed,
   toggleContextPin,
@@ -424,21 +425,27 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
     action: () => toggleCollapsed(node.id),
   });
 
-  // Pin/Unpin
+  // Context pin — add/remove from the human-curated agent context (report #63).
+  // This is the PRIMARY "pin" in PMX's model ("pin nodes to curate context"); it
+  // matches the SelectionBar's "Pin as context" and updates the context count + the
+  // node's ctx-pin indicator. Listed first so the obvious "Pin" verb maps to context.
+  const isCtxPinned = contextPinnedNodeIds.value.has(node.id);
   items.push({
-    label: node.pinned ? 'Unpin' : 'Pin (exclude from auto-arrange)',
+    label: isCtxPinned ? 'Unpin from context' : 'Pin as context',
+    action: () => toggleContextPin(node.id),
+  });
+
+  // Position lock — a distinct, secondary feature (exclude from auto-arrange). Renamed
+  // off the word "Pin" so it no longer collides with context pinning (report #63), and
+  // now persists like every other layout mutation.
+  items.push({
+    label: node.pinned ? 'Unlock position' : 'Lock position (no auto-arrange)',
     action: () => {
       const pinned = !node.pinned;
       updateNode(node.id, { pinned });
       void updateNodeFromClient(node.id, { pinned });
+      persistLayout();
     },
-  });
-
-  // Context pin — add/remove from persistent agent context
-  const isCtxPinned = contextPinnedNodeIds.value.has(node.id);
-  items.push({
-    label: isCtxPinned ? 'Remove from context' : 'Add to context',
-    action: () => toggleContextPin(node.id),
   });
 
   // ── Edge connection ──
@@ -586,16 +593,15 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
     }
   }
 
-  if (node.type !== 'status') {
-    items.push({ separator: true });
-    items.push({
-      label: 'Close',
-      action: () => {
-        removeNode(node.id);
-        void removeNodeFromClient(node.id);
-      },
-    });
-  }
+  // Report #64: status nodes are removable like any other node type.
+  items.push({ separator: true });
+  items.push({
+    label: 'Close',
+    action: () => {
+      removeNode(node.id);
+      void removeNodeFromClient(node.id);
+    },
+  });
 
   return items;
 }

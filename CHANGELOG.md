@@ -5,6 +5,60 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- **Daemon status reports its workspace identity.** `pmx-canvas serve status` now returns the
+  canonical `workspace` from the live `/health` response, so agents can safely verify that a
+  responsive listener belongs to the intended project before mutating its board.
+- **Status nodes can be removed (report #64).** Status nodes now show the standard ×
+  remove control in their title bar (and a "Close" context-menu item) like every other
+  node type, with the same undo/history behavior — they were previously the only node
+  type with no removal control, so temporary/test status nodes accumulated with no way
+  to dismiss them from the node UI.
+- **Right-click "Pin" now pins to the agent context set (report #63).** The node
+  context menu offered the niche arrange-lock as the obvious "Pin"/"Unpin" item while
+  the primary human→agent context pin was buried under "Add to context", so clicking
+  "Pin" appeared to do nothing. The menu now lists **"Pin as context" / "Unpin from
+  context"** first (matching the SelectionBar wording; drives the context count +
+  indicator), and the arrange-lock item is renamed **"Lock position (no auto-arrange)"**
+  and now persists like other layout mutations.
+- **Hosted MCP-app nodes no longer offer a broken "Open as site" (report #61).** A
+  hosted ext-app (e.g. Excalidraw) is a live MCP-app shell that only renders with the
+  in-canvas AppBridge host; opening it as a standalone browser tab produced
+  `MCP error -32601: Method not found`. Such apps are no longer openable as a PMX site
+  (the control is hidden and the surface route returns a clean 404) — open them
+  externally through their own app, or view them in the canvas. Bundled web-artifacts
+  and url-backed viewers still open as a site.
+- **Expanded MCP-app nodes no longer clip text (report #62).** The expand/collapse
+  host-context update measured the iframe synchronously, before the expanded overlay had
+  laid out, so an app like Excalidraw reflowed bound text against the stale inline size
+  and clipped the start of labels. The measurement + host-context send now wait for
+  layout (double rAF, mirroring the post-ready nudge) so the app gets the real expanded
+  dimensions.
+- **Graph / json-render "Open as site" fills the browser viewport (report #65).** The
+  standalone viewer reused the in-canvas card height, so a graph opened as a site sat in
+  a shallow band at the top of a large window. The "Open as site" surface now serves the
+  viewer in a `display=site` mode that fills the viewport (flex `100dvh`, chart height
+  measured from the full window, resize-responsive) — distinct from the in-canvas
+  content-fit grow and the expanded-overlay fill, neither of which changes.
+
+### Docs
+
+- **Bundled skill audit fixes (skill-audit 2026-06-22).** `skills/pmx-canvas/SKILL.md`:
+  added a mandatory **workspace-identity preflight** (read `/health`, match
+  `workspace`, treat `responsive:true`+`pidRunning:false` as a stale listener,
+  isolate with an explicit `--port`) so an agent never mutates another project's canvas
+  via a leftover port-4313 daemon; a short **Quick Operating Path** front-door; corrected
+  the **MCP composite map to the current 15** (added `canvas_app` + `canvas_webview`,
+  `canvas_query validate`, `canvas_node`-creates-html/primitive) and reclassified the
+  folded standalones as deprecated→composite (removed in v0.3); and a **Known limitations
+  & host differences** section reflecting the #61–#65 fixes plus the remaining Codex
+  sandboxed-iframe automation limit. The eval suite grew from 7 to 15 cases (workspace
+  mismatch, current composites, board extension, verified pinning, status cleanup, AX
+  control surface, AX delivery, final cleanup/validate). The top-level skill is now a
+  224-line operational guide; the complete long-form manual lives in
+  `references/full-reference.md`.
+
 ## [0.2.1] - 2026-06-17
 
 ### Fixed

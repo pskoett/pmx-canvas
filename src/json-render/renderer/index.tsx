@@ -180,8 +180,15 @@ function App() {
     ? { ...(spec.state ?? {}), ax: axState }
     : spec.state ?? undefined;
 
+  // Standalone "Open as site" tab (#65): fill the browser viewport instead of the
+  // in-canvas card height. The chart child flex-grows; useChartFrameHeight measures
+  // the full viewport in this mode. Embedded/expanded keep the padded min-height box.
+  const isSite = window.__PMX_CANVAS_JSON_RENDER_DISPLAY__ === 'site';
+  const containerStyle = isSite
+    ? { display: 'flex', flexDirection: 'column' as const, height: '100dvh', minHeight: '100dvh', padding: 0, boxSizing: 'border-box' as const }
+    : { minHeight: '100vh', padding: 16, boxSizing: 'border-box' as const };
   return (
-    <div style={{ minHeight: '100vh', padding: 16, boxSizing: 'border-box' }}>
+    <div style={containerStyle}>
       <JSONUIProvider
         registry={registry}
         initialState={initialState}
@@ -189,7 +196,9 @@ function App() {
         handlers={buildAxHandlers()}
       >
         <AxStateSync />
-        <Renderer spec={spec} registry={registry} loading={false} />
+        <div style={isSite ? { flex: 1, minHeight: 0 } : undefined}>
+          <Renderer spec={spec} registry={registry} loading={false} />
+        </div>
         {window.__PMX_CANVAS_JSON_RENDER_DEVTOOLS__ ? (
           <JsonRenderDevtools position="right" />
         ) : null}

@@ -123,13 +123,16 @@ const html = `<!doctype html>
 
       const render = (value) => {
         currentCount = value ?? currentCount;
+        const hostWidth = Math.round(hostContext?.containerDimensions?.width ?? 0);
+        const hostHeight = Math.round(hostContext?.containerDimensions?.height ?? 0);
+        const dimensions = '<output hidden id="host-dimensions" data-width="' + hostWidth + '" data-height="' + hostHeight + '">' + hostWidth + 'x' + hostHeight + '</output>';
         if (!editorEnabled || !hostContext || hostContext.displayMode !== 'fullscreen') {
-          document.body.innerHTML = '<main><section class="card"><div>Fixture Counter</div><div id="count" class="count">' + String(currentCount) + '</div><button id="increment" type="button">Increment</button></section></main>';
+          document.body.innerHTML = '<main><section class="card"><div>Fixture Counter</div>' + dimensions + '<div id="count" class="count">' + String(currentCount) + '</div><button id="increment" type="button">Increment</button></section></main>';
           document.getElementById('increment').addEventListener('click', increment);
           return;
         }
 
-        document.body.innerHTML = '<main class="editor"><section class="editor-card"><h1>Fixture Editor</h1><p id="saved-note">' + (note || 'No saved edit') + '</p><button id="edit-note" type="button">Add Manual Edit</button></section></main>';
+        document.body.innerHTML = '<main class="editor"><section class="editor-card"><h1>Fixture Editor</h1>' + dimensions + '<p id="saved-note">' + (note || 'No saved edit') + '</p><button id="edit-note" type="button">Add Manual Edit</button></section></main>';
         document.getElementById('edit-note').addEventListener('click', saveManualEdit);
       };
 

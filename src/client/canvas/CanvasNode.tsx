@@ -324,19 +324,19 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
           >
             {node.collapsed ? '▸' : '▾'}
           </button>
-          {node.type !== 'status' && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                removeNode(node.id);
-                void removeNodeFromClient(node.id);
-              }}
-              title="Close"
-            >
-              ×
-            </button>
-          )}
+          {/* Report #64: status nodes get the same remove control as every other
+              node type (backend removal + undo/history handle status uniformly). */}
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              removeNode(node.id);
+              void removeNodeFromClient(node.id);
+            }}
+            title="Close"
+          >
+            ×
+          </button>
         </div>
       </div>
       {!node.collapsed && (

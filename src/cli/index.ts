@@ -122,13 +122,28 @@ function removePidFile(path: string): void {
   }
 }
 
-async function isHealthy(url: string): Promise<boolean> {
+interface HealthStatus {
+  responsive: boolean;
+  workspace: string | null;
+}
+
+async function readHealthStatus(url: string): Promise<HealthStatus> {
   try {
     const response = await fetch(url);
-    return response.ok;
+    if (!response.ok) return { responsive: false, workspace: null };
+    const payload = await response.json().catch(() => null) as unknown;
+    const workspace = payload && typeof payload === 'object' && 'workspace' in payload
+      && typeof payload.workspace === 'string'
+      ? payload.workspace
+      : null;
+    return { responsive: true, workspace };
   } catch {
-    return false;
+    return { responsive: false, workspace: null };
   }
+}
+
+async function isHealthy(url: string): Promise<boolean> {
+  return (await readHealthStatus(url)).responsive;
 }
 
 function readLogTail(path: string, maxLines = 20): string | null {
@@ -254,7 +269,8 @@ async function showServeStatus(options: {
   const url = `http://localhost:${options.port}/workbench`;
   const pid = readPidFile(options.pidFile);
   const pidRunning = pid ? isProcessRunning(pid) : false;
-  const responsive = await isHealthy(healthUrl);
+  const health = await readHealthStatus(healthUrl);
+  const responsive = health.responsive;
   const running = responsive || pidRunning;
   if (!running && existsSync(options.pidFile) && !pidRunning) {
     removePidFile(options.pidFile);
@@ -265,6 +281,7 @@ async function showServeStatus(options: {
     daemon: true,
     running,
     responsive,
+    workspace: health.workspace,
     pid,
     pidRunning,
     url,
