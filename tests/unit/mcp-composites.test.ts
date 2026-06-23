@@ -331,8 +331,9 @@ describe('MCP composite tools (plan-006)', () => {
     const startStandalone = await call(client, 'canvas_webview_start', { width: 800, height: 600 });
     expect(Boolean(startComposite.isError)).toBe(Boolean(startStandalone.isError));
     if (startComposite.isError) {
-      // No browser available: identical bare-message isError results.
+      // No browser available: identical structured JSON error results.
       expect(textOf(startComposite)).toBe(textOf(startStandalone));
+      expect(parseJsonText<{ ok?: boolean }>(startComposite).ok).toBe(false);
     } else {
       // A browser is available: the composite start reports the active webview
       // status (same shape as the standalone canvas_webview_start).

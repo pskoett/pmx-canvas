@@ -147,6 +147,7 @@ const startOperation = defineOperation<z.infer<typeof startSchema>, WebviewStart
   http: {
     method: 'POST',
     path: '/api/workbench/webview/start',
+    errorBodyAsResult: true,
     // Mirror the legacy handler status codes from the SERIALIZED wire body
     // (`status` receives the serialized result): 200 ok; 503 server-not-running
     // ({ ok:false, error } — no webview); else 501 when the runtime is
@@ -173,14 +174,24 @@ const startOperation = defineOperation<z.infer<typeof startSchema>, WebviewStart
     },
     // dataStoreDir is sandboxed to the workspace in buildStartOptions (both the
     // MCP and HTTP surfaces), so no MCP-only buildInput is needed.
-    // formatResult receives the SERIALIZED wire body. Legacy
-    // canvas_webview_start: on success JSON-stringifies the webview status; on
-    // failure surfaces a bare-message isError result.
+    // formatResult receives the SERIALIZED wire body. On success JSON-stringifies the
+    // webview status. On failure return parseable JSON ({ ok:false, error, webview })
+    // — NOT a bare message string — so MCP clients can reliably tell a failure/timeout
+    // apart from valid tool content instead of choking on non-JSON text (report #66).
+    // isError still flags the tool-call failure. (The legacy tool returned a bare
+    // message here; the composite + standalone now share this structured shape.)
     formatResult: (result) => {
       const body = result as { ok?: boolean; webview?: WebviewStatus; error?: string };
       if (body.ok && body.webview) return statusText(body.webview);
       return {
-        content: [{ type: 'text' as const, text: body.error ?? 'WebView start failed.' }],
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({
+            ok: false,
+            error: body.error ?? 'WebView start failed.',
+            ...(body.webview ? { webview: body.webview } : {}),
+          }, null, 2),
+        }],
         isError: true,
       };
     },

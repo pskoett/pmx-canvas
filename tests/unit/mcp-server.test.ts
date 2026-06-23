@@ -688,6 +688,74 @@ describe('MCP parity with CLI', () => {
     expect(httpLayout.nodes.some((node) => node.id === addedByMcp.id)).toBe(true);
   });
 
+  test('preserves structured webview start failures through a daemon-backed MCP session', async () => {
+    const workspaceRoot = createTestWorkspace('pmx-canvas-mcp-webview-failure-');
+    const timeoutMessage =
+      'Timed out after 5000ms while starting the workbench automation WebView. Bun.WebView may be unavailable in this environment.';
+    const webview = {
+      supported: true,
+      active: false,
+      headlessOnly: true,
+      url: null,
+      backend: null,
+      width: null,
+      height: null,
+      dataStoreDir: null,
+      startedAt: null,
+      lastError: timeoutMessage,
+    };
+    const daemon = Bun.serve({
+      port: 0,
+      hostname: '127.0.0.1',
+      fetch(request) {
+        const url = new URL(request.url);
+        if (url.pathname === '/health') {
+          return Response.json({ ok: true, workspace: workspaceRoot });
+        }
+        if (url.pathname === '/api/workbench/webview/start' && request.method === 'POST') {
+          return Response.json(
+            { ok: false, error: timeoutMessage, webview },
+            { status: 500 },
+          );
+        }
+        if (url.pathname === '/api/workbench/events') {
+          return new Response(null, { status: 204 });
+        }
+        return Response.json({ ok: false, error: 'Not found.' }, { status: 404 });
+      },
+    });
+    const session = await createMcpSessionForWorkspace(workspaceRoot, daemon.port, {
+      PMX_CANVAS_URL: `http://127.0.0.1:${daemon.port}`,
+    });
+    cleanup.push(async () => {
+      await session.transport.close();
+      await daemon.stop(true);
+      removeTestWorkspace(workspaceRoot);
+    });
+
+    const composite = await session.client.callTool({
+      name: 'canvas_webview',
+      arguments: { action: 'start' },
+    }) as ToolResultShape;
+    const standalone = await session.client.callTool({
+      name: 'canvas_webview_start',
+      arguments: {},
+    }) as ToolResultShape;
+
+    expect(composite.isError).toBe(true);
+    expect(standalone.isError).toBe(true);
+    expect(textOf(composite)).toBe(textOf(standalone));
+    expect(parseJsonText<{
+      ok: boolean;
+      error: string;
+      webview?: { supported?: boolean };
+    }>(composite)).toMatchObject({
+      ok: false,
+      error: timeoutMessage,
+      webview: { supported: true },
+    });
+  }, 30000);
+
   test('promotes local MCP access when a configured daemon becomes healthy later', async () => {
     const workspaceRoot = createTestWorkspace('pmx-canvas-mcp-promote-');
     const localPort = await getAvailablePort();

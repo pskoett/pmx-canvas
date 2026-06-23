@@ -6,6 +6,9 @@
       "name": "investigation-board",
       "prompt": "I'm debugging a memory leak in our Node.js API. The /api/users endpoint is leaking memory on every request. I found a suspicious closure in src/handlers/users.ts that captures the entire request object, and the heap snapshot shows growing EventEmitter listeners. Can you set up an investigation board on the canvas so I can see the full picture?",
       "expected_output": "Creates multiple nodes (bug description, code file, heap findings, hypothesis) connected with edges, arranged in a tree layout. Uses appropriate node types (markdown for findings, file for source, status for investigation progress).",
+      "files": [
+        "evals/fixtures/investigation-board/src/handlers/users.ts"
+      ],
       "assertions": [
         {
           "name": "creates-multiple-nodes",
@@ -93,7 +96,7 @@
       "assertions": [
         {
           "name": "reads-pinned-context",
-          "description": "Reads the canvas://pinned-context MCP resource (not just canvas_query action:layout)",
+          "description": "Reads the curated pin set via canvas://pinned-context — or the host-equivalent (canvas_ax_state / the HTTP pinned-context endpoint) where a direct resource tool is unavailable — not just canvas_query action:layout",
           "type": "output_check"
         },
         {
@@ -113,6 +116,12 @@
       "name": "code-exploration-files",
       "prompt": "I'm trying to understand how the authentication flow works in this project. Can you put the relevant auth files on the canvas so I can see how they connect? The main files are src/auth/login.ts, src/auth/middleware.ts, src/auth/jwt.ts, and src/routes/auth.ts.",
       "expected_output": "Creates file nodes for each mentioned file (content auto-loads), relies on code graph to auto-detect import dependencies, groups auth files together, and reads canvas://code-graph for dependency analysis.",
+      "files": [
+        "evals/fixtures/code-exploration/src/auth/jwt.ts",
+        "evals/fixtures/code-exploration/src/auth/login.ts",
+        "evals/fixtures/code-exploration/src/auth/middleware.ts",
+        "evals/fixtures/code-exploration/src/routes/auth.ts"
+      ],
       "assertions": [
         {
           "name": "uses-file-nodes",
@@ -377,6 +386,52 @@
         {
           "name": "restores-baseline",
           "description": "Restores the baseline snapshot to leave the canvas as found",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "name": "ghost-cursor-intent",
+      "prompt": "Add an 'Auth design' status node to the review area. Before adding it, signal what you're about to do so I can veto it if I disagree, then make the change.",
+      "expected_output": "Signals a create intent first with canvas_intent {action:signal, kind:\"create\", position, nodeType:\"status\", label, reason, confidence}, then creates the 'Auth design' node at that position with canvas_node {action:\"add\", type:\"status\", x, y, intentId}. Understands that a vetoed intent rejects its linked mutation. Does not silently mutate without signalling when steering would help.",
+      "assertions": [
+        {
+          "name": "signals-intent-first",
+          "description": "Calls canvas_intent {action:signal} with label/reason and a confidence in [0,1] before the visible mutation",
+          "type": "output_check"
+        },
+        {
+          "name": "links-mutation-to-intent",
+          "description": "Passes the returned intentId on canvas_node {action:add, type:\"status\", x, y, intentId} so the ghost settles into the real node",
+          "type": "output_check"
+        },
+        {
+          "name": "respects-veto",
+          "description": "Understands a vetoed intent rejects its linked mutation (\"Intent <id> was vetoed\") rather than treating signal as cosmetic, and clears/updates intent appropriately",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "name": "standalone-surface-open-as-site",
+      "prompt": "Open the bar-chart graph node as a standalone full-page site for a screenshot, and also try to open the Excalidraw diagram node the same way. Tell me the correct surface URL for each.",
+      "expected_output": "For the graph/json-render node, uses the stable surface URL /api/canvas/surface/<id> which redirects to the full-viewport display=site viewer (reads surfaceUrl from the node, does not fabricate a path). Recognizes the hosted Excalidraw/ext-app node is NOT an open-as-site target (its surface route returns a clean 404 — it renders only with the in-canvas host bridge) and does not claim a standalone tab will work. Notes that some host browsers (e.g. the Codex in-app single-tab browser) don't deliver live-resize events, so a system browser is recommended for separate full-page viewing.",
+      "assertions": [
+        {
+          "name": "graph-site-surface-url",
+          "description": "Gives the graph node's /api/canvas/surface/<id> URL (which redirects to display=site, full viewport) from the node payload rather than fabricating one",
+          "type": "output_check"
+        },
+        {
+          "name": "extapp-not-open-as-site",
+          "description": "States the hosted Excalidraw/ext-app node is not an open-as-site target (clean 404; renders in-canvas only) instead of claiming a standalone tab works",
+          "type": "output_check"
+        },
+        {
+          "name": "host-browser-caveat",
+          "description": "Recommends a system browser for separate full-page viewing and/or notes single-tab host browsers may not reflow on live resize",
           "type": "output_check"
         }
       ]

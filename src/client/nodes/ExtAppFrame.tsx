@@ -799,7 +799,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
             minHeight: 0,
             border: 'none',
             background: 'var(--c-panel)',
-            pointerEvents: isExpanded ? 'auto' : 'none',
+            pointerEvents: isExpanded && status !== 'loading' ? 'auto' : 'none',
           }}
           title={`Ext App: ${toolName}`}
         />

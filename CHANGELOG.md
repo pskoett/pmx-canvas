@@ -5,6 +5,38 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.2.3] - 2026-06-23
+
+### Fixed
+
+- **`canvas_webview` `start` now returns parseable JSON on failure (report #66).** A start
+  failure (e.g. the Bun.WebView startup timeout in a headless host) surfaced the bare error
+  message as the MCP tool text, so a client expecting JSON choked with
+  `Unexpected token 'T', "Timed out "... is not valid JSON`. The failure path now returns
+  `{ ok:false, error, webview }` (still flagged `isError:true`), so callers can reliably
+  distinguish a failure/timeout from valid content.
+  The composite and the legacy `canvas_webview_start` share the fix.
+- **Expanded ext-app clicks now wait for bridge readiness.** The iframe no longer accepts input
+  while reconnecting, preventing the first interaction from being lost during a frame remount.
+
+### Docs
+
+- **Documented #67 (standalone graph/json-render live-resize) as a host-browser limitation.** The
+  `display=site` chart reflows correctly on a live window resize in a normal browser (added an
+  e2e regression that resizes a loaded standalone surface in both directions and asserts the SVG
+  tracks the viewport with no horizontal overflow). The report's stale-until-reload behavior was
+  observed only in the Codex single-tab in-app browser, which does not deliver live-resize events
+  to the page (both width *and* height froze) — no canvas code can supply a resize signal the host
+  never sends. Skill **Known Limitations** + the Open-as-Site reference now recommend a system
+  browser for separate full-page viewing.
+- **Skill eval suite 15 → 17, plus fixtures and a portability fix (report skill-audit addendum).**
+  Added a Ghost Cursor eval (`canvas_intent` signal → linked-settle → veto rejection) and a
+  standalone-surface eval (`display=site` URL, ext-app-not-open-as-site, host-resize caveat).
+  Bundled real fixture source files under `evals/fixtures/` for the investigation-board and
+  code-exploration evals (which referenced files that did not exist, so a real run failed on
+  missing fixtures rather than skill quality), and relaxed the pinned-context eval to accept the
+  host-equivalent read path (`canvas_ax_state` / HTTP) like the context-pin eval.
+
 ## [0.2.2] - 2026-06-22
 
 ### Added
@@ -2356,6 +2388,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.2.3]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.3
 [0.2.2]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.2
 [0.2.1]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.1
 [0.2.0]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.0

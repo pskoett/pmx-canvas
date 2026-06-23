@@ -901,6 +901,10 @@ the host's embedded browser (e.g. Codex) opens `_blank` tabs in-place.
   site"); view/edit them in the canvas, or open them externally through their own app
   (report #61). Only bundled `web-artifact` apps (redirect to `/artifact`) and URL-backed
   `mcp-app` / `webpage` viewers redirect to their external site.
+- `graph` / `json-render` nodes redirect to the full-viewport `display=site` viewer; the chart
+  fills the window and reflows on a live resize in a normal browser. Single-tab host browsers
+  that don't deliver live-resize events (e.g. the Codex in-app browser) can leave a resized chart
+  stale until reload — recommend a system browser for separate full-page viewing (report #67).
 - This is additive — opening a site never evicts or replaces canvas nodes.
 
 ### Choosing the Right Visual Tier

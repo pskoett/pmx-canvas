@@ -191,7 +191,10 @@ Prefer `canvas_query { action: "search" }` over parsing the full layout.
 - Hosted MCP-app/ext-app nodes such as Excalidraw require the in-canvas host bridge and are not
   standalone **Open as site** targets. URL-backed viewers and bundled web artifacts remain
   openable.
-- Graph and json-render standalone surfaces use `display=site` and fill the browser viewport.
+- Graph and json-render standalone surfaces use `display=site` and fill the browser viewport, and
+  reflow on a live window resize in a normal browser. Some single-tab host browsers (e.g. the
+  Codex in-app browser) don't deliver live-resize events, so a resized standalone chart can look
+  stale until reload — use a system browser for separate full-page viewing.
 - Some hosts cannot automate inside sandboxed workbench iframes. Verify those interactions in a
   system browser or through server-side AX state.
 - `pmx-canvas screenshot` requires an active WebView. Start it with

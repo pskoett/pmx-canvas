@@ -2062,6 +2062,63 @@ test('#65: standalone graph surfaces fill and resize with the browser viewport',
   expect(small.scrollHeight).toBeLessThanOrEqual(small.viewportHeight + 1);
 });
 
+test('#67: standalone graph surface reflows chart width on live resize without reload', async ({ page, request }) => {
+  const createResponse = await request.post('/api/canvas/graph', {
+    data: {
+      title: 'Standalone graph resize guard',
+      graphType: 'bar',
+      data: [
+        { label: 'Alpha', value: 24 },
+        { label: 'Beta', value: 91 },
+        { label: 'Gamma', value: 57 },
+      ],
+      xKey: 'label',
+      yKey: 'value',
+      width: 480,
+      nodeHeight: 380,
+      height: 240,
+    },
+  });
+  const created = await createResponse.json() as { id: string };
+
+  // Surface route redirects a graph node to the standalone display=site viewer.
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await page.goto(`/api/canvas/surface/${created.id}`);
+  const chart = page.locator('.recharts-surface');
+  await expect(chart).toBeVisible();
+
+  const readMetrics = () => chart.evaluate((surface) => {
+    const rect = surface.getBoundingClientRect();
+    return {
+      svgWidth: rect.width,
+      viewportWidth: window.innerWidth,
+      scrollWidth: document.documentElement.scrollWidth,
+    };
+  });
+
+  // Initial 1280-wide load: chart fills the viewport, no horizontal overflow.
+  await expect.poll(async () => (await readMetrics()).svgWidth).toBeGreaterThan(900);
+  const wide = await readMetrics();
+  expect(wide.scrollWidth).toBeLessThanOrEqual(wide.viewportWidth + 1);
+
+  // Shrink the LIVE tab (no reload): the chart must recompute narrower, and the
+  // document must not gain horizontal overflow from a stale wide SVG (#67).
+  await page.setViewportSize({ width: 900, height: 600 });
+  await expect.poll(async () => (await readMetrics()).svgWidth, { timeout: 5000 })
+    .toBeLessThan(wide.svgWidth - 100);
+  const narrow = await readMetrics();
+  expect(narrow.svgWidth).toBeLessThanOrEqual(narrow.viewportWidth);
+  expect(narrow.scrollWidth).toBeLessThanOrEqual(narrow.viewportWidth + 1);
+
+  // Grow the LIVE tab back: the chart must recompute wider again (the failure
+  // reproduced in both directions, so guard both).
+  await page.setViewportSize({ width: 1280, height: 720 });
+  await expect.poll(async () => (await readMetrics()).svgWidth, { timeout: 5000 })
+    .toBeGreaterThan(narrow.svgWidth + 100);
+  const regrown = await readMetrics();
+  expect(regrown.scrollWidth).toBeLessThanOrEqual(regrown.viewportWidth + 1);
+});
+
 test('compact graph charts keep plotted content inside the iframe viewport', async ({ page, request }) => {
   const createResponse = await request.post('/api/canvas/graph', {
     data: {
