@@ -27,8 +27,12 @@ Humans curate agent context by pinning nodes; agents read that curation through
    nodes. Read the full layout only when necessary.
 4. **Snapshot before destructive changes.** Use `canvas_snapshot` before clear, restore, or a major
    reorganization.
-5. **Signal substantial spatial changes.** Use `canvas_intent { action: "signal", ... }` before a
-   visible create, move, connect, remove, or edit when human steering would be useful.
+5. **Show intent with the Ghost Cursor — by default.** Signal with
+   `canvas_intent { action: "signal", ... }` before every meaningful create, move, connect, remove,
+   or edit, then pass the returned `intent.id` as `intentId` on the mutation so the ghost settles
+   into the result. Use it as much as possible to make your next move and your work visible: the
+   human watches intent form and can veto mid-thought. Skip it only for trivial in-place tweaks or
+   high-frequency batch churn.
 6. **Mutate through current composites.** Prefer the 15 composite MCP tools below.
 7. **Arrange and validate.** After batch changes, use `canvas_view { action: "arrange" }` when
    appropriate and always finish with `canvas_query { action: "validate" }`.

@@ -249,6 +249,16 @@ function optionalNumberFlag(flags: Record<string, string | true>, name: string, 
   return Math.floor(parsed);
 }
 
+/**
+ * AX `source` for a CLI-originated action. Defaults to `cli`, but honors an
+ * explicit `--source <label>` so an adapterless agent using the CLI as a fallback
+ * transport (e.g. `--source codex`) attributes its actions correctly — keeping
+ * loop-safety (a consumer never gets back its own steering) accurate (report #69).
+ */
+function resolveAxSource(flags: Record<string, string | true>): string {
+  return getStringFlag(flags, 'source') ?? 'cli';
+}
+
 function optionalFiniteFlag(flags: Record<string, string | true>, name: string, hint: string): number | undefined {
   const val = flags[name];
   if (!val || val === true) return undefined;
@@ -1884,7 +1894,7 @@ cmd('ax focus', 'Set or clear PMX AX focus without moving the viewport', [
     die('Missing node ID', 'pmx-canvas ax focus <node-id> [more-node-ids]');
   }
 
-  output(await api('POST', '/api/canvas/ax/focus', { nodeIds, source: 'cli' }));
+  output(await api('POST', '/api/canvas/ax/focus', { nodeIds, source: resolveAxSource(flags) }));
 });
 
 cmd('ax event add', 'Record a normalized AX timeline event', [
@@ -1903,7 +1913,7 @@ cmd('ax event add', 'Record a normalized AX timeline event', [
     summary,
     ...(detail ? { detail } : {}),
     ...(positional.length > 0 ? { nodeIds: positional } : {}),
-    source: 'cli',
+    source: resolveAxSource(flags),
   }));
 });
 
@@ -1919,7 +1929,7 @@ cmd('ax steer', 'Send a steering message to the active agent session', [
     die('Missing steering message', 'pmx-canvas ax steer <message>');
   }
 
-  output(await api('POST', '/api/canvas/ax/steer', { message, source: 'cli' }));
+  output(await api('POST', '/api/canvas/ax/steer', { message, source: resolveAxSource(flags) }));
 });
 
 cmd('ax interaction', 'Submit a node-originated AX interaction (capability-gated)', [
@@ -1948,21 +1958,27 @@ cmd('ax interaction', 'Submit a node-originated AX interaction (capability-gated
     type,
     sourceNodeId,
     ...(payload !== undefined ? { payload } : {}),
-    source: 'cli',
+    source: resolveAxSource(flags),
   }));
 });
 
 cmd('ax delivery list', 'List pending AX steering for a consumer (loop-safe)', [
   'pmx-canvas ax delivery list',
   'pmx-canvas ax delivery list --consumer copilot --limit 20',
+  'pmx-canvas ax delivery list --order newest   # latest browser steering first (#68)',
 ], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax delivery list');
   const consumer = getStringFlag(flags, 'consumer');
   const limit = optionalNumberFlag(flags, 'limit', 'pmx-canvas ax delivery list --limit <n>');
+  const order = getStringFlag(flags, 'order');
+  if (order !== undefined && order !== 'newest' && order !== 'oldest') {
+    die('Invalid --order', 'pmx-canvas ax delivery list --order newest|oldest');
+  }
   const params = new URLSearchParams();
   if (consumer) params.set('consumer', consumer);
   if (limit) params.set('limit', String(limit));
+  if (order) params.set('order', order);
   const qs = params.toString();
   output(await api('GET', `/api/canvas/ax/delivery/pending${qs ? `?${qs}` : ''}`));
 });
@@ -1988,7 +2004,7 @@ cmd('ax elicitation request', 'Request structured human input', [
   output(await api('POST', '/api/canvas/ax/elicitation', {
     prompt,
     ...(fields ? { fields: fields.split(',').map((f) => f.trim()).filter(Boolean) } : {}),
-    source: 'cli',
+    source: resolveAxSource(flags),
   }));
 });
 
@@ -2004,7 +2020,7 @@ cmd('ax elicitation respond', 'Answer a pending elicitation', [
   if (raw) {
     try { response = JSON.parse(raw); } catch { die('Invalid --response JSON', '--response \'{"k":"v"}\''); }
   }
-  output(await api('POST', `/api/canvas/ax/elicitation/${encodeURIComponent(id)}/respond`, { response, source: 'cli' }));
+  output(await api('POST', `/api/canvas/ax/elicitation/${encodeURIComponent(id)}/respond`, { response, source: resolveAxSource(flags) }));
 });
 
 cmd('ax elicitation list', 'List elicitations', ['pmx-canvas ax elicitation list'], async (args) => {
@@ -2020,7 +2036,7 @@ cmd('ax mode request', 'Request a workflow mode transition (plan/execute/autonom
   if (flags.help || flags.h) return showCommandHelp('ax mode request');
   const mode = requireFlag(flags, 'mode', 'pmx-canvas ax mode request --mode plan|execute|autonomous');
   const reason = getStringFlag(flags, 'reason');
-  output(await api('POST', '/api/canvas/ax/mode', { mode, ...(reason ? { reason } : {}), source: 'cli' }));
+  output(await api('POST', '/api/canvas/ax/mode', { mode, ...(reason ? { reason } : {}), source: resolveAxSource(flags) }));
 });
 
 cmd('ax mode resolve', 'Resolve a pending mode request', [
@@ -2036,7 +2052,7 @@ cmd('ax mode resolve', 'Resolve a pending mode request', [
   output(await api('POST', `/api/canvas/ax/mode/${encodeURIComponent(id)}/resolve`, {
     decision,
     ...(resolution ? { resolution } : {}),
-    source: 'cli',
+    source: resolveAxSource(flags),
   }));
 });
 
@@ -2065,7 +2081,7 @@ cmd('ax command invoke', 'Invoke a registry-gated PMX command intent', [
   if (raw) {
     try { cmdArgs = JSON.parse(raw); } catch { die('Invalid --args JSON', '--args \'{"k":"v"}\''); }
   }
-  output(await api('POST', '/api/canvas/ax/command', { name, ...(cmdArgs !== undefined ? { args: cmdArgs } : {}), source: 'cli' }));
+  output(await api('POST', '/api/canvas/ax/command', { name, ...(cmdArgs !== undefined ? { args: cmdArgs } : {}), source: resolveAxSource(flags) }));
 });
 
 cmd('ax policy get', 'Show the current declarative AX policy', ['pmx-canvas ax policy get'], async (args) => {
@@ -2091,7 +2107,7 @@ cmd('ax policy set', 'Set the declarative AX policy (stored by PMX, enforced by 
   const prompt = (mode || systemAppend)
     ? { ...(mode ? { mode } : {}), ...(systemAppend ? { systemAppend } : {}) }
     : undefined;
-  output(await api('POST', '/api/canvas/ax/policy', { ...(tools ? { tools } : {}), ...(prompt ? { prompt } : {}), source: 'cli' }));
+  output(await api('POST', '/api/canvas/ax/policy', { ...(tools ? { tools } : {}), ...(prompt ? { prompt } : {}), source: resolveAxSource(flags) }));
 });
 
 cmd('ax timeline', 'Read the bounded AX timeline (events, evidence, steering)', [
@@ -2121,7 +2137,7 @@ cmd('ax work add', 'Add a canvas-bound AX work item', [
     ...(status ? { status } : {}),
     ...(detail ? { detail } : {}),
     ...(positional.length > 0 ? { nodeIds: positional } : {}),
-    source: 'cli',
+    source: resolveAxSource(flags),
   }));
 });
 
@@ -2143,7 +2159,7 @@ cmd('ax work update', 'Update a canvas-bound AX work item by ID', [
     ...(status ? { status } : {}),
     ...(detail ? { detail } : {}),
     ...(positional.length > 1 ? { nodeIds: positional.slice(1) } : {}),
-    source: 'cli',
+    source: resolveAxSource(flags),
   }));
 });
 
@@ -2172,7 +2188,7 @@ cmd('ax approval request', 'Request a canvas-bound AX approval gate', [
     ...(detail ? { detail } : {}),
     ...(action ? { action } : {}),
     ...(positional.length > 0 ? { nodeIds: positional } : {}),
-    source: 'cli',
+    source: resolveAxSource(flags),
   }));
 });
 
@@ -2194,7 +2210,7 @@ cmd('ax approval resolve', 'Resolve a pending AX approval gate by ID', [
   output(await api('POST', `/api/canvas/ax/approval/${encodeURIComponent(id)}/resolve`, {
     decision,
     ...(resolution ? { resolution } : {}),
-    source: 'cli',
+    source: resolveAxSource(flags),
   }));
 });
 
@@ -2225,7 +2241,7 @@ cmd('ax evidence add', 'Record an AX evidence item on the timeline', [
     ...(body ? { body } : {}),
     ...(ref ? { ref } : {}),
     ...(positional.length > 0 ? { nodeIds: positional } : {}),
-    source: 'cli',
+    source: resolveAxSource(flags),
   }));
 });
 
@@ -2252,7 +2268,7 @@ cmd('ax review add', 'Add a canvas-bound AX review annotation', [
     ...(nodeId ? { nodeId } : {}),
     ...(file ? { file } : {}),
     ...(author ? { author } : {}),
-    source: 'cli',
+    source: resolveAxSource(flags),
   }));
 });
 
@@ -2283,7 +2299,7 @@ cmd('ax host report', 'Report host/session capability to the canvas', [
     permissions: flags.permissions === true,
     files: flags.files === true,
     uiPrompts: flags['ui-prompts'] === true,
-    source: 'cli',
+    source: resolveAxSource(flags),
   }));
 });
 

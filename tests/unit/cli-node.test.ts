@@ -110,6 +110,32 @@ describe('agent CLI node commands', () => {
     expect(updated.size).toEqual({ width: 640, height: 200 });
   });
 
+  test('ax focus --source honors the flag and defaults to cli (report #69)', async () => {
+    const created = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Focus target', x: 100, y: 100 }),
+    });
+    type AxBody = { state: { focus: { source: string | null } } };
+
+    const log = mock(() => {});
+    const originalLog = console.log;
+    console.log = log;
+    try {
+      // #69: --source codex must persist as the focus source (was hardcoded 'cli').
+      await runAgentCli(['ax', 'focus', created.id, '--source', 'codex']);
+      const withSource = await jsonRequest<AxBody>('/api/canvas/ax');
+      expect(withSource.state.focus.source).toBe('codex');
+
+      // Without --source, the CLI default stays 'cli'.
+      await runAgentCli(['ax', 'focus', created.id]);
+      const noSource = await jsonRequest<AxBody>('/api/canvas/ax');
+      expect(noSource.state.focus.source).toBe('cli');
+    } finally {
+      console.log = originalLog;
+    }
+  });
+
   test('node add returns rendered geometry for immediate layout scripting', async () => {
     const log = mock(() => {});
     const originalLog = console.log;

@@ -5,6 +5,35 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.2.4] - 2026-06-24
+
+### Fixed
+
+- **`canvas_ax_delivery` claim can surface the newest steering first (report #68).** The
+  delivery claim (`canvas_claim_ax_delivery` / `GET /api/canvas/ax/delivery/pending` / CLI
+  `ax delivery list`) defaults to oldest-first FIFO for ordered processing, but on a
+  long-lived board with stale undelivered steering an agent claiming with a small `limit`
+  could process old leftovers and miss the human's latest in-canvas action. A new `order`
+  parameter (`"oldest"` default, `"newest"`) lets an adapter claim newest-first so a fresh
+  browser-originated steer is never buried behind the backlog. Additive — the default FIFO
+  order, wire shape, and the compact `canvas://ax-context` newest-first lead block are all
+  unchanged.
+- **CLI `ax` commands honor `--source` (report #69).** `pmx-canvas ax focus … --source codex`
+  (and the other `ax` subcommands that record a source — `steer`, `event add`, `interaction`,
+  `work`, `approval`, `review`, `evidence`, `elicitation`, `mode`, `command`, `policy`) now
+  persist the given source instead of always recording `cli`, so an adapterless agent using
+  the CLI as a fallback transport attributes its actions correctly (keeping AX loop-safety
+  accurate). The flag defaults to `cli` when omitted — unchanged for existing usage.
+
+### Docs
+
+- **Ghost Cursor skill guidance: default-on, with concrete use/skip + settle scope.** The
+  bundled `pmx-canvas` skill now frames proactive `canvas_intent` signalling as the default
+  before meaningful spatial mutations, with explicit use-vs-skip lists and a one-ghost-per-
+  human-meaningful-move rule for batches. It also documents that linked settle is scoped to
+  node / edge / group mutations — `canvas_app` (diagram / mcp-app) and `canvas_webview`
+  reject an `intentId` (HTTP 400), so signal a ghost, then clear it and open without one.
+
 ## [0.2.3] - 2026-06-23
 
 ### Fixed
@@ -2388,6 +2417,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.2.4]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.4
 [0.2.3]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.3
 [0.2.2]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.2
 [0.2.1]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.1

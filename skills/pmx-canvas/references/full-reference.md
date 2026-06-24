@@ -75,8 +75,8 @@ section below.
    you need the full board.
 4. **Snapshot before destructive work** — `canvas_snapshot { name }` before clear/major
    reorg; restore if needed.
-5. **Signal then mutate** — optionally `canvas_intent { action: "signal", … }` to telegraph the
-   move, then create with the right composite: `canvas_node` (markdown/status/file/webpage/html
+5. **Signal then mutate (default behavior)** — signal with `canvas_intent { action: "signal", … }`
+   to telegraph the move before nearly every mutation, then create with the right composite: `canvas_node` (markdown/status/file/webpage/html
    incl. primitives), `canvas_render` (json-render/graph), `canvas_app` (mcp-app/diagram/
    web-artifact). Prefer composites — the legacy single-purpose tools are deprecated (removed in
    v0.3).
@@ -441,6 +441,10 @@ identifier is passed as `approvalAction`, since `action` is the lifecycle discri
 
 #### Narrate your next move with `canvas_intent` (Ghost Cursor of Intent)
 
+**Use the Ghost Cursor as much as possible** — it is the primary way to make your intent and your
+work visible on a shared board. Default to signaling before you act; skip it only for trivial
+in-place tweaks or high-frequency batch churn.
+
 Before you create/move/connect/edit/remove on the canvas, **signal the move** so a
 faint placeholder forms where you're about to act — the human sees the next move
 coming and can veto it mid-thought. Intents are ephemeral presence: never
@@ -455,12 +459,25 @@ Narrate → linked mutation → automatic settle:
 Use `canvas_intent { action: "clear", id }` only when abandoning a plan without
 performing the linked mutation.
 
+**Linked settle is scoped to node, edge, and group mutations** (`canvas_node`,
+`canvas_edge`, `canvas_group` and their ops). `canvas_app` opens (diagram /
+mcp-app) and `canvas_webview` do **not** accept an `intentId` and reject it with a
+400 — to telegraph one of those, signal a ghost, then `clear` it (or let it
+expire) and run the open *without* an `intentId`.
+
 Per kind, pass the anchor it renders against: `position` for `create`/`move`,
 `nodeId` for `move`/`edit`/`remove`, `edge: { from, to, type }` for `connect`. The
-payoff is **legibility** — `reason` is shown beneath the ghost. For a planned
-batch, signal all intents up front (with `seq` for ordering), then commit them one
-by one with the corresponding `intentId` so the human watches the layout wireframe
-in before it fills.
+payoff is **legibility** — `reason` is shown beneath the ghost.
+
+**When to use vs skip.** Signal for adds, removes, and moves of visible nodes;
+connecting nodes; creating groups; layout reorganizations; meaningful title/content
+edits; destructive actions (clear/restore/remove); and creating
+artifact/report/dashboard nodes. Skip for tiny metadata fixes, API-only pin/unpin
+verification, deterministic report-node refreshes the human just asked for,
+post-restore cleanup, and bulk fixture churn. **For batch work, signal one ghost
+per human-meaningful move, not one per low-level op** — e.g. one "lay out the
+investigation board" intent, then run the batch with that linked `intentId` (use
+`seq` to order staged previews) so the human watches the wireframe before it fills.
 
 ### Standalones (first-class — not deprecated)
 

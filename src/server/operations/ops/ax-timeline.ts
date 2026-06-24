@@ -250,6 +250,7 @@ const axTimelineGetOperation = defineOperation<z.infer<typeof axTimelineGetSchem
 const axDeliveryPendingShape = {
   consumer: z.unknown().optional().describe('Consumer/source label to exclude from results (e.g. copilot, mcp).'),
   limit: z.unknown().optional().describe('Max steering messages to return.'),
+  order: z.unknown().optional().describe('"oldest" (FIFO, default) or "newest" first.'),
 };
 
 const axDeliveryPendingSchema = z.looseObject(axDeliveryPendingShape);
@@ -265,10 +266,11 @@ const axDeliveryPendingOperation = defineOperation<z.infer<typeof axDeliveryPend
   },
   mcp: {
     toolName: 'canvas_claim_ax_delivery',
-    description: 'Claim pending PMX AX deliveries for a consumer (adapterless delivery). Returns `pending` undelivered steering (mark each with canvas_mark_ax_delivery after acting) AND `pendingActivity`: open canvas-bound AX items awaiting the agent (open work items, pending approval gates / elicitations / mode requests) — typically created by the human in the browser. Both exclude items the consumer itself originated (loop prevention). pendingActivity is read-only here: resolve each via its own tool (canvas_resolve_approval / canvas_respond_elicitation / canvas_resolve_mode / canvas_update_work_item), not canvas_mark_ax_delivery.',
+    description: 'Claim pending PMX AX deliveries for a consumer (adapterless delivery). Returns `pending` undelivered steering (mark each with canvas_mark_ax_delivery after acting) AND `pendingActivity`: open canvas-bound AX items awaiting the agent (open work items, pending approval gates / elicitations / mode requests) — typically created by the human in the browser. Both exclude items the consumer itself originated (loop prevention). `pending` defaults to oldest-first (FIFO, for ordered processing); pass `order:"newest"` to surface the human\'s LATEST in-canvas steering first when a small `limit` would otherwise bury it behind a stale backlog (report #68). pendingActivity is read-only here: resolve each via its own tool (canvas_resolve_approval / canvas_respond_elicitation / canvas_resolve_mode / canvas_update_work_item), not canvas_mark_ax_delivery.',
     extraShape: {
       consumer: z.string().optional().describe('Consumer/source label to exclude from results (e.g. copilot, mcp).'),
       limit: z.number().optional().describe('Max steering messages to return.'),
+      order: z.enum(['newest', 'oldest']).optional().describe('Order of returned steering: "oldest" (FIFO, default) for ordered processing, or "newest" first to see the latest browser action when limited.'),
     },
     // `consumer` is a loop-safety scope, not a source label — never defaulted.
     formatResult: axJsonResult,
@@ -277,10 +279,15 @@ const axDeliveryPendingOperation = defineOperation<z.infer<typeof axDeliveryPend
     const consumer = typeof input.consumer === 'string' ? input.consumer : undefined;
     const limitRaw = Number(input.limit ?? '');
     const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : undefined;
-    const pending = canvasState.getPendingSteering({
-      ...(consumer ? { consumer } : {}),
-      ...(limit ? { limit } : {}),
-    });
+    // #68: default FIFO (oldest-first) for ordered processing; `order:"newest"`
+    // surfaces the latest browser-originated steering first so a small `limit`
+    // can't bury the human's current action behind stale undelivered rows. Both
+    // queries apply the same loop-safe consumer filter before the limit.
+    const newest = input.order === 'newest';
+    const scope = { ...(consumer ? { consumer } : {}), ...(limit ? { limit } : {}) };
+    const pending = newest
+      ? canvasState.getPendingSteeringForContext(scope)
+      : canvasState.getPendingSteering(scope);
     // The MCP tool aggregated pendingActivity; one wire body now serves it over
     // HTTP too (documented broadening). Loop-safe: consumer scopes both queries.
     const pendingActivity = buildPendingAxActivity(canvasState.getAxState(), consumer);

@@ -4103,6 +4103,36 @@ describe('canvas server HTTP API', () => {
     expect(fifo.totalPending).toBeUndefined();         // delivery shape NOT changed
   });
 
+  test('#68: delivery claim accepts order=newest to surface the latest steering first; default stays oldest-first FIFO', async () => {
+    const tag = `s68-${Date.now()}`;
+    const n = 8;
+    for (let i = 0; i < n; i += 1) {
+      await fetch(`${baseUrl}/api/canvas/ax/steer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: `${tag}-${i}`, source: 'api' }),
+      });
+    }
+    type Pending = { pending: Array<{ message: string }> };
+    const mineOf = (p: Pending) => p.pending.filter((s) => s.message.startsWith(tag)).map((s) => s.message);
+
+    // order=newest reverses MY steers vs the default FIFO oldest-first (large limit
+    // so other tests' steers don't truncate mine out).
+    const newest = await (await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot&order=newest&limit=200`)).json() as Pending;
+    const oldest = await (await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot&order=oldest&limit=200`)).json() as Pending;
+    expect(mineOf(newest)[0]).toBe(`${tag}-${n - 1}`);  // newest-first
+    expect(mineOf(oldest)[0]).toBe(`${tag}-0`);          // oldest-first (default behavior)
+    expect(mineOf(newest)).toEqual([...mineOf(oldest)].reverse());
+
+    // The crux of #68: with a SMALL limit, order=newest surfaces the human's
+    // latest action (mine were created last → globally newest), instead of burying
+    // it behind the stale backlog the default FIFO returns.
+    const smallNewest = await (await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot&order=newest&limit=3`)).json() as Pending;
+    expect(smallNewest.pending[0].message).toBe(`${tag}-${n - 1}`);
+    const smallDefault = await (await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot&limit=3`)).json() as Pending;
+    expect(smallDefault.pending.some((s) => s.message === `${tag}-${n - 1}`)).toBe(false); // latest buried by the backlog
+  });
+
   test('GET /api/canvas/ax/surface-snapshot returns the compact board with review text redacted', async () => {
     const review = await jsonRequest<{ reviewAnnotation: { id: string } }>('/api/canvas/ax/review', {
       method: 'POST',

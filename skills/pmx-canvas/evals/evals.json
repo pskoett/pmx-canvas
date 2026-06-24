@@ -394,7 +394,7 @@
       "id": 16,
       "name": "ghost-cursor-intent",
       "prompt": "Add an 'Auth design' status node to the review area. Before adding it, signal what you're about to do so I can veto it if I disagree, then make the change.",
-      "expected_output": "Signals a create intent first with canvas_intent {action:signal, kind:\"create\", position, nodeType:\"status\", label, reason, confidence}, then creates the 'Auth design' node at that position with canvas_node {action:\"add\", type:\"status\", x, y, intentId}. Understands that a vetoed intent rejects its linked mutation. Does not silently mutate without signalling when steering would help.",
+      "expected_output": "Signals a create intent first with canvas_intent {action:signal, kind:\"create\", position, nodeType:\"status\", label, reason, confidence}, then creates the 'Auth design' node at that position with canvas_node {action:\"add\", type:\"status\", x, y, intentId}. Understands that a vetoed intent rejects its linked mutation. Treats signalling intent as the default before visible mutations rather than an optional step, and does not silently mutate.",
       "assertions": [
         {
           "name": "signals-intent-first",
