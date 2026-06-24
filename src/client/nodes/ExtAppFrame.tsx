@@ -45,6 +45,19 @@ async function postJson<T>(url: string, body: Record<string, unknown>): Promise<
   return json.result as T;
 }
 
+/**
+ * Finding F (0.2.4): detect a WebKit-only host — Safari or a WKWebView (e.g. the
+ * GitHub Copilot app's embedded panel). Blink engines (Chrome / Chromium / Edge /
+ * the Codex browser, all of which carry a Chrome/Chromium/CriOS/Edg token) and
+ * Android WebView are excluded, as is Gecko (no `AppleWebKit`). Used to gate the
+ * one-time ext-app iframe repaint remount to the only engine that exhibits the
+ * present-at-load black-tile paint race, so the remount is a strict no-op
+ * everywhere we can test (Chrome / Codex / Playwright).
+ */
+export function isWebKitOnlyHost(userAgent: string): boolean {
+  return /AppleWebKit/.test(userAgent) && !/Chrome|Chromium|CriOS|Edg|Android/.test(userAgent);
+}
+
 export function getExtAppBridgeInitKey(node: CanvasNodeState, retryKey: number): string {
   const html = typeof node.data.html === 'string' ? node.data.html : '';
   const serverName = typeof node.data.serverName === 'string' ? node.data.serverName : '';
@@ -194,6 +207,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   const toolResultSendingRef = useRef<Promise<void> | null>(null);
   const bridgeReadyRef = useRef(false);
   const themeUnsubRef = useRef<(() => void) | null>(null);
+  const webkitRepaintDoneRef = useRef(false);
   const [status, setStatus] = useState<'loading' | 'ready' | 'done'>('loading');
   const [error, setError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
@@ -262,6 +276,29 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     window.addEventListener('message', onAxMessage);
     return () => window.removeEventListener('message', onAxMessage);
   }, [axEnabled, axToken, nodeId]);
+
+  // Finding F (0.2.4): in a WebKit host panel (e.g. the GitHub Copilot app's
+  // WKWebView), the doubly-nested ext-app iframe (workbench iframe → mcp-app.html
+  // iframe) can lose the initial-paint race during board hydration and come up as a
+  // black tile for nodes already present at panel-load — clean in Blink (Chrome /
+  // Codex / our Playwright e2e) and clean for nodes created live after hydration.
+  // The deterministic recovery is an iframe remount (exactly what expand+close, and
+  // the error-retry button, already do). Replicate that recovery ONCE, on mount, in
+  // WebKit-only — gated on the engine so it is a strict no-op in Blink and cannot
+  // regress the engine we test against. Inline board instance only (the one that
+  // loads black); the expanded overlay already remounts on open.
+  useEffect(() => {
+    if (expanded || webkitRepaintDoneRef.current) return;
+    if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
+    if (!isWebKitOnlyHost(navigator.userAgent)) return;
+    webkitRepaintDoneRef.current = true;
+    // Let the initial hydration burst settle, then force one remount so the nested
+    // iframe repaints (mirrors the post-hydration expand+close recovery).
+    const timer = window.setTimeout(() => setRetryKey((k) => k + 1), 250);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const toMcpTheme = (theme: string): McpUiTheme => (theme === 'light' ? 'light' : 'dark');
   const isExpanded = expanded || expandedNodeId.value === nodeId;
 

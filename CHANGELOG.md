@@ -5,6 +5,37 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.2.5] - 2026-06-24
+
+### Fixed
+
+- **A vetoed-via-`update` intent now blocks its linked settle (report #C, 0.2.4).**
+  `canvas_intent { action: "update", vetoed: true }` dissolved the ghost visually but did not
+  record the veto, so a subsequently linked `canvas_node` settle still landed — only
+  `action: "clear"` was authoritative. `IntentRegistry.update` now treats `vetoed: true` as a veto
+  (poisons the intent id + emits the `ax-intent-clear` dissolve), so a later linked commit is
+  rejected with `Intent "<id>" was vetoed`, matching `clear { vetoed: true }`. Applies across
+  HTTP, MCP (`canvas_intent`), and the SDK (`updateIntent`); `vetoed` is now an advertised field
+  on the update op.
+- **Mitigated the WebKit ext-app black-tile paint race on board load (report Finding F, 0.2.4).**
+  A hosted ext-app (Excalidraw) node already on the board when a WebKit host panel loads (e.g. the
+  GitHub Copilot app's WKWebView) could come up as a black tile — a host paint race on the
+  doubly-nested iframe, healthy server-side, clean in Chrome / the Codex browser / on live-created
+  nodes. `ExtAppFrame` now forces one iframe remount on mount **only under a WebKit-only host**
+  (Safari/WKWebView; Blink — Chrome/Edge/Codex — and Gecko are a strict no-op), replicating the
+  deterministic expand+close recovery so present-at-load nodes repaint without manual interaction.
+  Expand-then-close or a normal browser remains the fallback; the durable fix is upstream in the
+  host panel.
+
+### Docs
+
+- **Corrected the `canvas_webview status` field names in the reference (report Finding D, 0.2.4).**
+  The status response is `{ supported, active, headlessOnly, url, backend, width, height,
+  dataStoreDir, startedAt, lastError }` — the viewport size is `width` / `height`, not
+  `viewportWidth` / `viewportHeight`.
+- **Added a WebKit ext-app black-tile host caveat to the skill** so agents don't misdiagnose a
+  healthy app session as a broken node (Finding F).
+
 ## [0.2.4] - 2026-06-24
 
 ### Fixed
@@ -2417,6 +2448,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.2.5]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.5
 [0.2.4]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.4
 [0.2.3]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.3
 [0.2.2]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.2

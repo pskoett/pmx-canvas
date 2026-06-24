@@ -8,6 +8,16 @@ interface ExtAppHostDimensionsTarget {
     clientHeight?: number;
     getBoundingClientRect(): Pick<DOMRectReadOnly, 'width' | 'height'>;
 }
+/**
+ * Finding F (0.2.4): detect a WebKit-only host — Safari or a WKWebView (e.g. the
+ * GitHub Copilot app's embedded panel). Blink engines (Chrome / Chromium / Edge /
+ * the Codex browser, all of which carry a Chrome/Chromium/CriOS/Edg token) and
+ * Android WebView are excluded, as is Gecko (no `AppleWebKit`). Used to gate the
+ * one-time ext-app iframe repaint remount to the only engine that exhibits the
+ * present-at-load black-tile paint race, so the remount is a strict no-op
+ * everywhere we can test (Chrome / Codex / Playwright).
+ */
+export declare function isWebKitOnlyHost(userAgent: string): boolean;
 export declare function getExtAppBridgeInitKey(node: CanvasNodeState, retryKey: number): string;
 export declare function resolveExtAppDisplayModeRequest(requestedMode: DisplayMode, isExpanded: boolean): {
     nextMode: DisplayMode;

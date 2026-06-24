@@ -60,6 +60,7 @@ const intentUpdateSchema = z.looseObject({
   confidence: z.number().min(0).max(1).optional(),
   seq: z.number().int().min(0).max(9999).optional(),
   ttlMs: z.number().positive().max(MAX_INTENT_TTL_MS).optional(),
+  vetoed: z.boolean().optional(),
 });
 
 function parseOrThrow<T>(schema: z.ZodType<T>, raw: unknown, label: string): T {
@@ -165,6 +166,21 @@ export class IntentRegistry {
     if (!existing) throw new OperationError(`No live intent "${id}".`, 404);
     const patch = parseOrThrow(intentUpdateSchema, raw, 'intent update');
     const now = Date.now();
+
+    // A vetoed update is a veto, not a patch: poison the id and dissolve the ghost
+    // so a later linked settle (beginCommit) is rejected — for a live, non-committing
+    // intent the same authoritative outcome as clear({ vetoed:true }). (A committing
+    // intent is already gated above with a 409, so the commit wins the race.) Without
+    // this, vetoed-via-update only dissolved the ghost visually while the linked
+    // mutation still landed (#C, 0.2.4).
+    if (patch.vetoed === true) {
+      this.rememberVeto(id);
+      this.intents.delete(id);
+      this.emit('ax-intent-clear', { id, vetoed: true });
+      this.maybeStopSweeper();
+      return { ...existing, expiresAt: now };
+    }
+
     const ttl = typeof patch.ttlMs === 'number' ? patch.ttlMs : DEFAULT_INTENT_TTL_MS;
 
     const intent: PmxAxIntent = {

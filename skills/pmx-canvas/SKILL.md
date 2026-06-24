@@ -195,6 +195,13 @@ Prefer `canvas_query { action: "search" }` over parsing the full layout.
 - Hosted MCP-app/ext-app nodes such as Excalidraw require the in-canvas host bridge and are not
   standalone **Open as site** targets. URL-backed viewers and bundled web artifacts remain
   openable.
+- A hosted ext-app (Excalidraw) node that is already on the board when a **WebKit** host panel
+  loads (e.g. the GitHub Copilot app's embedded WKWebView) can render as a black tile — a host
+  paint race on the nested iframe, not a broken node (the session is healthy and `sessionStatus`
+  is `ready`; it renders fine in Chrome, the Codex browser, and for nodes created live after the
+  panel hydrates). The canvas auto-remounts the iframe once on load under WebKit to force a
+  repaint; if a tile is still black, expand-then-close it (forces a remount) or open the workbench
+  in a normal browser. Do not diagnose a healthy app session as a broken node.
 - Graph and json-render standalone surfaces use `display=site` and fill the browser viewport, and
   reflow on a live window resize in a normal browser. Some single-tab host browsers (e.g. the
   Codex in-app browser) don't deliver live-resize events, so a resized standalone chart can look

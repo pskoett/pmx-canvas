@@ -66,6 +66,7 @@ const intentUpdateShape = {
   confidence: z.number().optional().describe('0..1 → ghost opacity/solidity.'),
   seq: z.number().optional().describe('New ordering hint.'),
   ttlMs: z.number().optional().describe('Reset the TTL to this many ms from now.'),
+  vetoed: z.boolean().optional().describe('Veto the intent: dissolves the ghost AND poisons the id so a later linked settle is rejected (same as clear { vetoed:true }).'),
 };
 
 const intentUpdateSchema = z.looseObject(intentUpdateShape);

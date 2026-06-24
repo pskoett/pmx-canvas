@@ -764,7 +764,8 @@ tools below operate on the live canvas state.
 > "evaluate" | "resize" }` respectively. Field names are unchanged.
 
 **`canvas_webview_status`** — Inspect the current automation session
-- Returns `{ supported, active, backend, viewportWidth, viewportHeight, url, lastError }`
+- Returns `{ supported, active, headlessOnly, url, backend, width, height, dataStoreDir, startedAt, lastError }`
+  (the viewport size is `width` / `height`, not `viewportWidth` / `viewportHeight`)
 - Call before `start` to check whether a session is already alive
 
 **`canvas_webview_start`** — Start (or replace) the automation session

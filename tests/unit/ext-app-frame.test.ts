@@ -3,6 +3,7 @@ import {
   buildExtAppAxBridgeScript,
   getExtAppBridgeInitKey,
   injectExtAppAxBridgeScript,
+  isWebKitOnlyHost,
   resolveExtAppContainerDimensions,
   resolveExtAppDisplayModeRequest,
   resolveExtAppInlineFrameHeight,
@@ -10,6 +11,35 @@ import {
   shouldApplyExtAppSizeChange,
 } from '../../src/client/nodes/ExtAppFrame.tsx';
 import type { CanvasNodeState } from '../../src/client/types.ts';
+
+describe('ExtAppFrame WebKit-host gate (Finding F)', () => {
+  // Real WebKit-only hosts (Safari / WKWebView, e.g. the Copilot panel) → remount on.
+  const webkitOnly = [
+    // Safari 17 (macOS)
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15',
+    // WKWebView (no Safari/Chrome token — common for an embedded app panel)
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)',
+    // iOS Safari
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1',
+  ];
+  // Blink + Gecko (Chrome / Edge / Codex browser / Chrome-on-iOS / Android WebView /
+  // Firefox) → must be a strict no-op (these paint eagerly and are what we test).
+  const notWebkitOnly = [
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36 Edg/124.0.0.0',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/124.0.0.0 Mobile/15E148 Safari/604.1',
+    'Mozilla/5.0 (Linux; Android 14) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/124.0.0.0 Mobile Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:125.0) Gecko/20100101 Firefox/125.0',
+  ];
+
+  test('matches Safari / WKWebView only', () => {
+    for (const ua of webkitOnly) expect(isWebKitOnlyHost(ua)).toBe(true);
+  });
+
+  test('is a no-op for Blink (Chrome/Edge/Codex/Android) and Gecko', () => {
+    for (const ua of notWebkitOnly) expect(isWebKitOnlyHost(ua)).toBe(false);
+  });
+});
 
 describe('ExtAppFrame display mode requests', () => {
   test('expands into focus mode instead of resizing the backing node', () => {

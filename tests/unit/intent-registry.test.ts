@@ -92,6 +92,25 @@ describe('IntentRegistry', () => {
     expect(registry.clear('ghost-that-never-was')).toBe(false);
   });
 
+  test('update with vetoed:true dissolves the ghost AND blocks a linked settle (#C)', async () => {
+    registry.signal({ id: 'veto-via-update', kind: 'create', position: { x: 0, y: 0 } });
+    frames.length = 0;
+    // A vetoed update is a veto, not a patch: same authoritative outcome as
+    // clear({ vetoed:true }) — dissolve + poison so the linked settle is rejected.
+    registry.update('veto-via-update', { vetoed: true });
+    expect(frames[0]!.event).toBe('ax-intent-clear');
+    expect(frames[0]!.payload).toMatchObject({ id: 'veto-via-update', vetoed: true });
+    expect(registry.list()).toHaveLength(0);
+    await expect(
+      registry.runCommit(
+        'veto-via-update',
+        ['create'],
+        () => ({ nodeId: 'should-not-exist' }),
+        (result) => result.nodeId,
+      ),
+    ).rejects.toThrow(/was vetoed/);
+  });
+
   test('a vetoed intent cannot commit a linked mutation', async () => {
     registry.signal({ id: 'veto-me', kind: 'create', position: { x: 0, y: 0 } });
     expect(registry.clear('veto-me', { vetoed: true })).toBe(true);
@@ -137,6 +156,39 @@ describe('IntentRegistry', () => {
       event: 'ax-intent-clear',
       payload: { id: 'commit-me', nodeId: 'node-committed', settled: true },
     });
+  });
+
+  test('a committing intent rejects a late veto-via-update and still settles (#C race-safety)', async () => {
+    registry.signal({ id: 'commit-vu', kind: 'create', position: { x: 0, y: 0 } });
+    let releaseMutation: (() => void) | null = null;
+    const mutationGate = new Promise<void>((resolve) => {
+      releaseMutation = resolve;
+    });
+
+    frames.length = 0;
+    const commit = registry.runCommit(
+      'commit-vu',
+      ['create'],
+      async () => {
+        await mutationGate;
+        return { nodeId: 'node-committed' };
+      },
+      (result) => result.nodeId,
+    );
+
+    await Bun.sleep(0);
+    // update{vetoed} loses the race to an in-flight commit: the committing guard runs
+    // BEFORE the veto branch, so it throws "already committing" instead of poisoning —
+    // the commit wins and the ghost SETTLES (never dissolves), matching clear's no-op.
+    expect(() => registry.update('commit-vu', { vetoed: true })).toThrow(/already committing/);
+    releaseMutation?.();
+    await expect(commit).resolves.toEqual({ nodeId: 'node-committed' });
+    expect(frames.at(-1)).toMatchObject({
+      event: 'ax-intent-clear',
+      payload: { id: 'commit-vu', nodeId: 'node-committed', settled: true },
+    });
+    // The lost veto poisoned nothing — the id is reusable for a fresh intent.
+    expect(() => registry.signal({ id: 'commit-vu', kind: 'create', position: { x: 1, y: 1 } })).not.toThrow();
   });
 
   test('an intent can back only one in-flight mutation', async () => {
