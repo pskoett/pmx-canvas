@@ -106,7 +106,7 @@ Every mistake is a learning opportunity. Log it, learn from it, prevent it.
 
 6. **Context pins are the bridge between human and agent.** The human pins nodes in the browser, the agent reads `canvas://pinned-context`. This is the primary communication channel from human spatial curation to agent context. Preserve this flow.
 
-7. **No HTTP server port assumptions.** Default port is 4313 but can be changed via `--port` or `PMX_WEB_CANVAS_PORT` for server startup. `PMX_CANVAS_PORT` is only the agent CLI's client-side default target port. The server tries fallback ports if the preferred one is taken.
+7. **No HTTP server port assumptions.** Default port is 4313 but can be changed via `--port` or `PMX_WEB_CANVAS_PORT` for server startup. `PMX_CANVAS_PORT` is only the agent CLI's client-side default target port. The server tries fallback ports if the preferred one is taken. **`PMX_CANVAS_WORKSPACE_ROOT`** pins the workspace root for both the MCP same-workspace lookup and the daemon `startCanvasServer` binds, overriding the launch `cwd` — set it when a host spawns `--mcp` from an incidental dir (e.g. `~/.copilot`) so the canvas targets the real project. When the preferred port is held by a *different*-workspace daemon, the MCP server now attaches to it (inherits its workspace) instead of silently splitting to a fallback port; use `PMX_CANVAS_ALLOW_WORKSPACE_SPLIT=1` to force a separate canvas.
 
 ## Tech Stack
 

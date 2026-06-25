@@ -1,5 +1,6 @@
 import { realpathSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { homedir } from 'node:os';
+import { basename, dirname, resolve } from 'node:path';
 import {
   createCanvas,
   canvasState,
@@ -526,24 +527,126 @@ export async function refreshCanvasAccess(access: CanvasAccess): Promise<CanvasA
   return remoteBaseUrl ? new RemoteCanvasAccess(remoteBaseUrl) : access;
 }
 
+/**
+ * Finding I (0.2.6): decide whether to ATTACH to the daemon already holding the
+ * preferred port instead of spawning a split daemon on a fallback port. True only
+ * when the split is not opted in AND the preferred port is held by a healthy canvas
+ * daemon that reports a workspace (i.e. a real different-workspace daemon, the
+ * "wrong-workspace split" trap — not a free port or a non-canvas occupant). Pure +
+ * exported for deterministic testing.
+ */
+export function shouldAttachToExistingDaemon(
+  occupant: { ok?: boolean; workspace?: unknown } | null,
+  allowSplit: boolean,
+): boolean {
+  return !allowSplit && occupant?.ok === true && typeof occupant.workspace === 'string' && occupant.workspace.length > 0;
+}
+
+/**
+ * Finding I (0.2.6, first-binder gap): true when the launch cwd looks like a
+ * host/agent config dir rather than a project root — the home dir itself, or a
+ * dot-prefixed DIRECT child of home (e.g. `~/.copilot`, `~/.codex`, `~/.claude`,
+ * `~/.config`). POSITIVE-signal ONLY — never "absence of project markers", because
+ * the MCP/SDK test harness runs from bare `mkdtemp` temp dirs (under `os.tmpdir()`,
+ * never under home) that a marker-absence heuristic would misflag. Both sides are
+ * canonicalized (realpath) so a symlinked home matches. Pure + exported for tests;
+ * FS-safe (defaults to false on any error).
+ */
+export function looksLikeIncidentalCwd(cwd: string): boolean {
+  let home: string;
+  try {
+    home = canonicalWorkspacePath(homedir());
+  } catch {
+    return false;
+  }
+  if (!home || home === '/') return false;
+  const canonical = canonicalWorkspacePath(cwd);
+  if (canonical === home) return true;
+  // A dot-prefixed direct child of home: ~/.copilot, ~/.codex, ~/.claude, ~/.config …
+  return dirname(canonical) === home && basename(canonical).startsWith('.');
+}
+
 export async function createCanvasAccess(): Promise<CanvasAccess> {
-  const workspaceRoot = resolve(process.cwd());
+  // PMX_CANVAS_WORKSPACE_ROOT (Finding I escape hatch): an explicit project root the
+  // host can pass so the MCP server keys off it instead of an incidental launch cwd
+  // (e.g. ~/.copilot). When set, it overrides process.cwd() for the whole acquisition
+  // and suppresses the incidental-cwd guard below (the operator stated intent).
+  const override = process.env.PMX_CANVAS_WORKSPACE_ROOT?.trim();
+  const explicitRoot = Boolean(override);
+  const workspaceRoot = explicitRoot ? resolve(override as string) : resolve(process.cwd());
   const port = targetPort();
   const remoteBaseUrl = await findExistingCanvasServer(workspaceRoot, port);
   if (remoteBaseUrl) return new RemoteCanvasAccess(remoteBaseUrl);
 
-  // No same-workspace server to attach to. Allow a port fallback so a daemon
-  // already holding the preferred port (e.g. one serving a *different*
-  // workspace) doesn't crash this MCP/SDK session with EADDRINUSE — start our
-  // own canvas on a free port instead, and explain how to share one if intended.
+  // No SAME-workspace server to attach to. The preferred port may still be held by
+  // a healthy canvas daemon serving a DIFFERENT workspace. The old behavior silently
+  // started our own canvas on a FALLBACK port adopting this process's launch cwd as
+  // the workspace — but the open workbench panel renders the PREFERRED port and never
+  // shows that fallback, so MCP writes land on a phantom workspace nobody sees (report
+  // Finding I, the "wrong-workspace daemon split"; the launch cwd is often incidental,
+  // e.g. the host spawns `--mcp` from ~/.copilot). Default to the safer behavior:
+  // ATTACH to the existing preferred-port daemon (inherit its workspace) so writes are
+  // visible where the human is looking. Opt back into a separate canvas with
+  // PMX_CANVAS_ALLOW_WORKSPACE_SPLIT=1 or by pinning a distinct PMX_CANVAS_PORT.
+  // An explicit PMX_CANVAS_WORKSPACE_ROOT is an operator statement of intent and WINS:
+  // skip the heuristic attach so the pinned root is honored (it binds its own daemon —
+  // on a fallback port if the preferred port is foreign-held) rather than silently
+  // inheriting the foreign daemon's workspace. So the pin is genuinely deterministic.
+  const occupantBaseUrl = `http://127.0.0.1:${port}`;
+  const allowSplit = process.env.PMX_CANVAS_ALLOW_WORKSPACE_SPLIT === '1';
+  if (!explicitRoot) {
+    const occupant = await readHealth(occupantBaseUrl);
+    if (occupant && shouldAttachToExistingDaemon(occupant, allowSplit)) {
+      // stderr only — stdout is the MCP stdio JSON-RPC channel.
+      process.stderr.write(
+        `[pmx-canvas] port ${port} is serving a different workspace (${occupant.workspace}); this ` +
+          `MCP server launched from ${workspaceRoot}. Attaching to that canvas so writes are visible ` +
+          `in the open workbench instead of splitting to a hidden fallback port. For a SEPARATE canvas, ` +
+          `set PMX_CANVAS_PORT to a free port or PMX_CANVAS_ALLOW_WORKSPACE_SPLIT=1.\n`,
+      );
+      return new RemoteCanvasAccess(occupantBaseUrl);
+    }
+  }
+
+  // First-binder gap (Finding I): the attach branch above only fires when the
+  // preferred port is HELD. If it is FREE (or a non-canvas occupant) AND this process
+  // launched from an incidental host/agent config dir (e.g. ~/.copilot), binding the
+  // preferred port here would adopt that incidental cwd as the workspace — a canvas the
+  // human's project panel would never render. Don't silently do that.
+  if (!allowSplit && !explicitRoot && looksLikeIncidentalCwd(workspaceRoot)) {
+    // Race-tolerant: a real daemon may have appeared on the preferred port since the
+    // first probe. Attach to ANY healthy canvas now there (inherit its workspace)
+    // rather than inventing a phantom workspace under the incidental launch dir.
+    const racedOccupant = await readHealth(occupantBaseUrl);
+    if (racedOccupant?.ok === true) {
+      process.stderr.write(
+        `[pmx-canvas] launch cwd ${workspaceRoot} looks like a host config dir; attaching to the ` +
+          `canvas now on port ${port}.\n`,
+      );
+      return new RemoteCanvasAccess(occupantBaseUrl);
+    }
+    // Still free: bind it anyway (the agent always gets a working canvas) but warn
+    // loudly so a wrong-workspace canvas is diagnosed, not silent. stderr only.
+    process.stderr.write(
+      `[pmx-canvas] launch cwd ${workspaceRoot} looks like a host/agent config dir, not a project ` +
+        `root. This canvas will persist under it and may not be visible in a workbench opened for ` +
+        `your project. Set PMX_CANVAS_WORKSPACE_ROOT=/abs/project to target it, PMX_CANVAS_URL to ` +
+        `attach to a running daemon, or PMX_CANVAS_ALLOW_WORKSPACE_SPLIT=1 / PMX_CANVAS_PORT=<free ` +
+        `port> for a deliberate separate canvas.\n`,
+    );
+  }
+
+  // Either the split is opted in, the root is explicit, the cwd is a real project, or
+  // the preferred port is genuinely free / not a canvas daemon. Allow a port fallback
+  // so a non-canvas occupant doesn't crash this session with EADDRINUSE — start our
+  // own canvas and explain how to share one.
   const canvas = createCanvas({ port });
   await canvas.start({ open: true, allowPortFallback: true });
   const boundPort = canvas.port;
   if (boundPort !== port) {
-    const occupant = await readHealth(`http://127.0.0.1:${port}`);
+    const occupant = await readHealth(occupantBaseUrl);
     const occupantWorkspace =
       typeof occupant?.workspace === 'string' ? ` (serving ${occupant.workspace})` : '';
-    // stderr only — stdout is the MCP stdio JSON-RPC channel.
     process.stderr.write(
       `[pmx-canvas] preferred port ${port} was in use${occupantWorkspace}; ` +
         `started this canvas on port ${boundPort} instead. To share one canvas, run the daemon ` +

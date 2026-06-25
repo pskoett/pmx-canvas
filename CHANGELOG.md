@@ -5,6 +5,51 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.2.7] - 2026-06-25
+
+### Fixed
+
+- **Ghost Cursor of Intent is no longer hidden behind the welcome card on an empty board (report
+  Finding J).** The intent ghost lives inside the zoom/pan world transform (its own stacking
+  context), so its high z-index could not lift it above the `.welcome-card`, which is a sibling
+  outside the transform. The welcome card is now suppressed while a ghost intent is live
+  (`intents.value.size > 0`), so a `canvas_intent` signal on a fresh board is visible immediately;
+  the card returns when the intent clears/settles and the board is still empty. Verified by
+  screenshot in the WebKit backend.
+- **MCP `--mcp` no longer silently splits to (or silently adopts) a wrong workspace — structural
+  fix (report Finding I).** The GitHub Copilot adapter spawns `pmx-canvas --mcp` from an incidental
+  cwd (e.g. `~/.copilot`); the old code then either split to a hidden fallback port (when the
+  preferred port was held) or adopted that incidental cwd as the workspace (when the port was free),
+  so writes landed on a canvas the project panel never renders. Now, in `createCanvasAccess`:
+  - **Port held by a different-workspace daemon →** the MCP server **attaches** to it (inherits its
+    workspace) so writes are visible where the panel renders, instead of splitting.
+  - **Free port + incidental launch cwd (`~/.copilot`-shaped) →** it still binds (the agent always
+    gets a working canvas) but emits a loud, actionable stderr warning instead of silently adopting
+    the cwd; a race-tolerant re-probe first attaches to any daemon that appeared on the port.
+  - **`PMX_CANVAS_WORKSPACE_ROOT=<abs project root>`** (new) pins the workspace for both the lookup
+    and the bound daemon (`startCanvasServer` honors it), overriding the launch cwd — the deterministic
+    host fix. `PMX_CANVAS_ALLOW_WORKSPACE_SPLIT=1` (or a distinct `PMX_CANVAS_PORT`) forces a separate
+    canvas. The incidental detector is **positive-signal only** (home dir / dot-child of home), so the
+    `mkdtemp` temp dirs the test suite runs from are never misflagged — startup behavior is
+    byte-identical for real projects and tests.
+  Verified on the real `--mcp` stdio path: port-held → attach (no fallback); incidental + free →
+  bind-but-warn (no split); `PMX_CANVAS_WORKSPACE_ROOT` → binds the project root (no warning); real
+  project → binds (no warning). Pure `shouldAttachToExistingDaemon` + `looksLikeIncidentalCwd`
+  helpers are unit-tested.
+
+### Docs
+
+- **Clarified the `color` contract: renderer color vs persisted metadata (report Finding H).** A
+  top-level `color` is a renderer parameter only for `group` (frame accent) and `graph` nodes; on
+  `markdown` / `status` / `context` it is dropped, and while an arbitrary `data.color` posted under
+  `data` persists like any `data.*` metadata, it is not read as a render color for basic node types.
+  The reference now states this renderer-vs-storage distinction so docs/schema/runtime agree.
+- **Made the WebView automation timeout error actionable (report Finding G).** The chrome backend is
+  known-flaky on some hosts (Bun.WebView), reproduced in both the Copilot and Codex hosts; the webkit
+  backend (the macOS default) works. The timeout error now points to `start --backend webkit` and the
+  already-configurable `PMX_CANVAS_WEBVIEW_TIMEOUT_MS` instead of a dead-end "may be unavailable".
+  Not a PMX regression — no canvas source touches the WebView/automation path.
+
 ## [0.2.6] - 2026-06-25
 
 ### Fixed
@@ -2488,6 +2533,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.2.7]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.7
 [0.2.6]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.6
 [0.2.5]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.5
 [0.2.4]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.4

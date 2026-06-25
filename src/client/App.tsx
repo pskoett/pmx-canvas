@@ -38,6 +38,7 @@ import {
   walkGraph,
 } from './state/canvas-store';
 import { connectSSE } from './state/sse-bridge';
+import { intents } from './state/intent-store';
 import { saveCanvasTheme } from './state/intent-bridge';
 import {
   IconArrange,
@@ -556,7 +557,7 @@ export function App() {
         annotationMode={annotationTool !== null}
         annotationTool={annotationTool}
       />
-      {hasInitialLayout && allNodes.filter((n) => !n.dockPosition).length === 0 && (
+      {hasInitialLayout && allNodes.filter((n) => !n.dockPosition).length === 0 && intents.value.size === 0 && (
         <WelcomeCard onOpenPalette={() => setPaletteOpen(true)} />
       )}
       {selectedNodeIds.value.size > 0 && <SelectionBar />}

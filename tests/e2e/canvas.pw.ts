@@ -415,6 +415,33 @@ test('creates a markdown note from the canvas background', async ({ page, reques
   }).toBe(1);
 });
 
+test('#J: the welcome card yields to a live ghost intent so the cursor is visible on an empty board', async ({ page, request }) => {
+  await page.goto('/workbench');
+  // Empty board → the welcome card is shown.
+  await expect(page.locator('.welcome-card')).toBeVisible();
+
+  // A ghost intent on the empty board must be visible, not occluded by the card
+  // (Finding J): the card is suppressed while a ghost is animating.
+  await request.post('/api/canvas/ax/intent', {
+    data: {
+      id: 'e2e-j-ghost',
+      kind: 'create',
+      position: { x: 400, y: 300 },
+      label: 'Add status dashboard',
+      reason: 'about to scaffold',
+      confidence: 0.8,
+      ttlMs: 60000,
+    },
+  });
+  await expect(page.locator('[data-intent-id="e2e-j-ghost"]')).toBeVisible();
+  await expect(page.locator('.welcome-card')).toBeHidden();
+
+  // Clearing the intent on a still-empty board restores the welcome card.
+  await request.delete('/api/canvas/ax/intent/e2e-j-ghost', { data: {} });
+  await expect(page.locator('[data-intent-id="e2e-j-ghost"]')).toHaveCount(0);
+  await expect(page.locator('.welcome-card')).toBeVisible();
+});
+
 test('canvas background context menu exposes user-creatable nodes', async ({ page, request }) => {
   await page.goto('/workbench');
 

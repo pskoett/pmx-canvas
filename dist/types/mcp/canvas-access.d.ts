@@ -65,5 +65,28 @@ export interface CanvasAccess {
     screenshotAutomationWebView(options?: AutomationScreenshotOptions): Promise<Uint8Array>;
 }
 export declare function refreshCanvasAccess(access: CanvasAccess): Promise<CanvasAccess>;
+/**
+ * Finding I (0.2.6): decide whether to ATTACH to the daemon already holding the
+ * preferred port instead of spawning a split daemon on a fallback port. True only
+ * when the split is not opted in AND the preferred port is held by a healthy canvas
+ * daemon that reports a workspace (i.e. a real different-workspace daemon, the
+ * "wrong-workspace split" trap — not a free port or a non-canvas occupant). Pure +
+ * exported for deterministic testing.
+ */
+export declare function shouldAttachToExistingDaemon(occupant: {
+    ok?: boolean;
+    workspace?: unknown;
+} | null, allowSplit: boolean): boolean;
+/**
+ * Finding I (0.2.6, first-binder gap): true when the launch cwd looks like a
+ * host/agent config dir rather than a project root — the home dir itself, or a
+ * dot-prefixed DIRECT child of home (e.g. `~/.copilot`, `~/.codex`, `~/.claude`,
+ * `~/.config`). POSITIVE-signal ONLY — never "absence of project markers", because
+ * the MCP/SDK test harness runs from bare `mkdtemp` temp dirs (under `os.tmpdir()`,
+ * never under home) that a marker-absence heuristic would misflag. Both sides are
+ * canonicalized (realpath) so a symlinked home matches. Pure + exported for tests;
+ * FS-safe (defaults to false on any error).
+ */
+export declare function looksLikeIncidentalCwd(cwd: string): boolean;
 export declare function createCanvasAccess(): Promise<CanvasAccess>;
 export {};

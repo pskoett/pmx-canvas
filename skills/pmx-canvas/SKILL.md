@@ -58,15 +58,17 @@ Both surfaces report `workspace`. It must match the intended workspace root.
 - Target that port and re-check `/health`.
 - `PMX_CANVAS_PORT` is the agent CLI target; the server's startup port is controlled by `--port`
   or `PMX_WEB_CANVAS_PORT`.
-- **MCP transport caveat (wrong-workspace split).** An MCP server (`pmx-canvas --mcp`) holds its own
-  in-memory canvas and, if its preferred port is already taken by a *different* workspace's daemon,
-  binds the next free port adopting **its own launch `cwd`** as the workspace — so its writes land on
-  a daemon the browser panel never renders (it self-reports this fallback on stderr). Before trusting
-  MCP-written state, confirm the MCP server's workspace matches the panel's (`/health` on both ports)
-  and that no stray higher-numbered listener exists. The durable fix is to launch the MCP server with
-  `cwd=<project>` or `PMX_CANVAS_PORT=<panel-port>`. The CLI's query/mutation commands are a thin HTTP
-  client and never start a server of their own (only `serve` / `--mcp` spawn a process), so prefer
-  those CLI commands for watcher/automation loops until the launch config is pinned.
+- **MCP transport workspace resolution.** An MCP server (`pmx-canvas --mcp`) holds its own in-memory
+  canvas. To avoid the old "wrong-workspace split" (a `--mcp` launched from an incidental dir, e.g.
+  `~/.copilot`, silently binding a fallback port the panel never renders): when the preferred port is
+  held by a healthy daemon serving a *different* workspace, the MCP server now **attaches** to it
+  (inherits its workspace) so writes are visible where the panel renders; and if it launched from an
+  incidental host/agent config dir on a *free* port, it still binds but emits a loud stderr warning
+  instead of silently adopting that cwd. To pin the intended workspace deterministically set
+  **`PMX_CANVAS_WORKSPACE_ROOT=<abs project root>`** (recommended for host adapters); for a genuinely
+  separate canvas set `PMX_CANVAS_ALLOW_WORKSPACE_SPLIT=1` or a distinct `PMX_CANVAS_PORT`. The CLI's
+  query/mutation commands are a thin HTTP client and never start a server of their own (only `serve` /
+  `--mcp` spawn a process).
 
 ## Choose the Smallest Useful Node Type
 

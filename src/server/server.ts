@@ -422,7 +422,10 @@ async function withCanvasAutomationWebViewTimeout<T>(task: Promise<T>, action: s
           reject(
             new Error(
               `Timed out after ${getCanvasAutomationWebViewTimeoutMs()}ms while ${action}. ` +
-                'Bun.WebView may be unavailable in this environment.',
+                'The Bun.WebView backend may be slow to launch or unavailable in this environment ' +
+                '(the chrome backend is known-flaky on some hosts). On macOS prefer the webkit ' +
+                'backend (start --backend webkit), or raise PMX_CANVAS_WEBVIEW_TIMEOUT_MS for a ' +
+                'slow-but-available backend.',
             ),
           );
         }, getCanvasAutomationWebViewTimeoutMs());
@@ -3482,7 +3485,12 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
     return typeof server.port === 'number' ? loopbackBaseUrl(server.port) : null;
   }
 
-  const workspaceRoot = options.workspaceRoot ?? process.cwd();
+  // An explicit `options.workspaceRoot` wins. Otherwise honor PMX_CANVAS_WORKSPACE_ROOT
+  // (Finding I escape hatch) before falling back to the launch cwd, so a host that
+  // spawns from an incidental dir (e.g. ~/.copilot) can still pin the real project root
+  // for the daemon it binds — not just for the MCP same-workspace lookup.
+  const envWorkspaceRoot = process.env.PMX_CANVAS_WORKSPACE_ROOT?.trim();
+  const workspaceRoot = options.workspaceRoot ?? (envWorkspaceRoot ? resolve(envWorkspaceRoot) : process.cwd());
   activeWorkspaceRoot = normalizeWorkspaceRoot(workspaceRoot);
   if (options.autoOpenBrowser !== undefined) {
     primaryWorkbenchAutoOpenEnabled = options.autoOpenBrowser;

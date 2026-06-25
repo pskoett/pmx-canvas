@@ -157,10 +157,10 @@ file, sends SIGTERM, and cleans up on exit.
 
 ### Verify workspace identity BEFORE mutating (required)
 
-> **"Start once, reuse always" has one hard exception: never reuse a listener that belongs to
-> another workspace.** A healthy, responsive server on the default port `4313` can be serving a
-> *different project's* canvas (a leftover daemon, or another repo's session). Mutating it would
-> corrupt the wrong board. Always preflight:
+> **"Start once, reuse always" has one hard exception for direct CLI/HTTP work: never mutate a
+> listener that belongs to another workspace.** A healthy, responsive server on the default port
+> `4313` can be serving a *different project's* canvas (a leftover daemon, or another repo's
+> session). Mutating it directly would corrupt the wrong board. Always preflight:
 
 1. **Read `GET /health`** (or `pmx-canvas serve status`). Both return a top-level
    `workspace` field. **`workspace` MUST equal your intended workspace root**
@@ -172,7 +172,13 @@ file, sends SIGTERM, and cleans up on exit.
    `pmx-canvas serve --daemon --no-open --port=<free-port>` — and target that port. (`PMX_CANVAS_PORT`
    alone may still attach to an existing `4313` listener; prefer an explicit `--port`.) Then
    **re-read `/health`** to confirm the workspace now matches.
-4. **After any version upgrade**, run a behavior canary (e.g. a batch `node.add` with no `type`
+4. **MCP transport exception:** `pmx-canvas --mcp` launched from an incidental host dir may attach to
+   the healthy daemon already on the preferred port when no explicit workspace root is set, so writes
+   land in the visible workbench instead of a hidden fallback workspace. Host adapters should set
+   `PMX_CANVAS_WORKSPACE_ROOT=<abs project root>` for deterministic targeting; set
+   `PMX_CANVAS_ALLOW_WORKSPACE_SPLIT=1` or a distinct `PMX_CANVAS_PORT` only when a separate canvas is
+   intentional.
+5. **After any version upgrade**, run a behavior canary (e.g. a batch `node.add` with no `type`
    must return `400`) to confirm the listener is the version you expect, not a stale old daemon.
 
 ## Browser Workflows
@@ -386,10 +392,12 @@ Agents tend to pack boards too tightly. Give nodes room to breathe — readabili
 
 ### Colors (Semantic)
 
-A `color` parameter is honored only for **group** nodes (frame accent) and **graph** nodes
-(series/accent color). It is **not** a parameter for `markdown` / `status` / `context` nodes — a
-top-level `color` on those is silently ignored over both HTTP and the CLI (report Finding H). Their
-meaning comes from the node **type** and value instead: a `status` node colors its indicator from its
+A `color` parameter is honored as a **renderer** color only for **group** nodes (frame accent) and
+**graph** nodes (series/accent color). It is **not** a renderer parameter for `markdown` / `status` /
+`context` nodes: a top-level `color` on those is dropped on both HTTP and the CLI, and while an
+arbitrary `data.color` you POST under `data` persists like any other `data.*` metadata, it is **not**
+read as a render color for basic node types (report Finding H — renderer-semantic, not raw-storage,
+contract). Their meaning comes from the node **type** and value instead: a `status` node colors its indicator from its
 **phase** (`idle`/`running`/`planning`/`thinking`/`drafting`/`tooling`/`review`/`waiting-approval`/
 `waiting` — e.g. `review` → green, `running` → accent; an unrecognized phase renders gray), and a
 `trace` node from its `status` field (`success` → green, `failed` → red, `running` → accent). To
