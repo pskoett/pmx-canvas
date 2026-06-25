@@ -58,6 +58,15 @@ Both surfaces report `workspace`. It must match the intended workspace root.
 - Target that port and re-check `/health`.
 - `PMX_CANVAS_PORT` is the agent CLI target; the server's startup port is controlled by `--port`
   or `PMX_WEB_CANVAS_PORT`.
+- **MCP transport caveat (wrong-workspace split).** An MCP server (`pmx-canvas --mcp`) holds its own
+  in-memory canvas and, if its preferred port is already taken by a *different* workspace's daemon,
+  binds the next free port adopting **its own launch `cwd`** as the workspace — so its writes land on
+  a daemon the browser panel never renders (it self-reports this fallback on stderr). Before trusting
+  MCP-written state, confirm the MCP server's workspace matches the panel's (`/health` on both ports)
+  and that no stray higher-numbered listener exists. The durable fix is to launch the MCP server with
+  `cwd=<project>` or `PMX_CANVAS_PORT=<panel-port>`. The CLI's query/mutation commands are a thin HTTP
+  client and never start a server of their own (only `serve` / `--mcp` spawn a process), so prefer
+  those CLI commands for watcher/automation loops until the launch config is pinned.
 
 ## Choose the Smallest Useful Node Type
 
@@ -197,11 +206,15 @@ Prefer `canvas_query { action: "search" }` over parsing the full layout.
   openable.
 - A hosted ext-app (Excalidraw) node that is already on the board when a **WebKit** host panel
   loads (e.g. the GitHub Copilot app's embedded WKWebView) can render as a black tile — a host
-  paint race on the nested iframe, not a broken node (the session is healthy and `sessionStatus`
-  is `ready`; it renders fine in Chrome, the Codex browser, and for nodes created live after the
-  panel hydrates). The canvas auto-remounts the iframe once on load under WebKit to force a
-  repaint; if a tile is still black, expand-then-close it (forces a remount) or open the workbench
-  in a normal browser. Do not diagnose a healthy app session as a broken node.
+  compositor paint race on the nested iframe, **not** a broken node (the session is healthy and
+  `sessionStatus` is `ready`; it renders fine in Chrome, the Codex browser, and for nodes created
+  live after the panel hydrates). The canvas forces a one-time post-boot repaint remount under
+  WebKit, which reliably repaints a **single** present-at-load
+  ext-app — but a board with **several** ext-apps present at WebKit panel-load can still black out
+  (the simultaneous cold-hydration burst overwhelms the WebKit compositor). Recovery is
+  deterministic: **expand-then-close** any black tile (forces a fresh mount in the fullscreen
+  overlay, which always paints), or open the workbench in a normal browser (Chrome). Do not
+  diagnose a healthy app session as a broken node; the durable fix is upstream in the host panel.
 - Graph and json-render standalone surfaces use `display=site` and fill the browser viewport, and
   reflow on a live window resize in a normal browser. Some single-tab host browsers (e.g. the
   Codex in-app browser) don't deliver live-resize events, so a resized standalone chart can look

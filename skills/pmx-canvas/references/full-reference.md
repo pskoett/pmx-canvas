@@ -386,7 +386,16 @@ Agents tend to pack boards too tightly. Give nodes room to breathe — readabili
 
 ### Colors (Semantic)
 
-Use color consistently to convey meaning:
+A `color` parameter is honored only for **group** nodes (frame accent) and **graph** nodes
+(series/accent color). It is **not** a parameter for `markdown` / `status` / `context` nodes — a
+top-level `color` on those is silently ignored over both HTTP and the CLI (report Finding H). Their
+meaning comes from the node **type** and value instead: a `status` node colors its indicator from its
+**phase** (`idle`/`running`/`planning`/`thinking`/`drafting`/`tooling`/`review`/`waiting-approval`/
+`waiting` — e.g. `review` → green, `running` → accent; an unrecognized phase renders gray), and a
+`trace` node from its `status` field (`success` → green, `failed` → red, `running` → accent). To
+color an arbitrary region, group the nodes and set the group's `color`.
+
+When you do set a color (group/graph), use this palette consistently to convey meaning:
 - **Green** (`#22c55e`) — success, done, healthy
 - **Yellow** (`#eab308`) — in progress, warning, attention needed
 - **Red** (`#ef4444`) — error, blocked, failing
@@ -523,7 +532,7 @@ retrying the generic add.
 - `content`: markdown text for most types. For `file`, pass the **file path** (e.g. `"src/auth/login.ts"`) —
   the server auto-loads + watches it. For `image`, pass a file path, URL, or data URI.
 - `path`: compatibility alias for image paths only; prefer `content` for new image calls
-- `x`, `y`: position (prefer omitting for auto-layout); `width`, `height`: dimensions (sensible defaults); `color`: semantic color; `metadata`: arbitrary JSON
+- `x`, `y`: position (prefer omitting for auto-layout); `width`, `height`: dimensions (sensible defaults); `metadata`: arbitrary JSON. (`color` applies to **group**/**graph** nodes only — it is ignored on basic node types; see Colors (Semantic).)
 - Returns: `{ id: "<node-id>" }` — capture this ID for edges and groups
 
 **`canvas_node { action: "update", id, … }`** — Update an existing node in place (preferred over

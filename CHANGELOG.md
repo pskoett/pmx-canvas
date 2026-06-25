@@ -5,6 +5,46 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+## [0.2.6] - 2026-06-25
+
+### Fixed
+
+- **WebKit ext-app black tile — single-app cold hydration now repaints (report Finding F, 0.2.5
+  reopened).** Reproduced locally for the first time in Bun's headless `webkit` WebView (A/B/A:
+  a node painted live, then black after a `webview stop`/`start` so it was present at cold load).
+  The mcp-app shell loads blank and the app draws its content *after* load (over the bridge); under
+  a cold-hydration burst WebKit fails to composite that late draw, so the layer stays black (clean
+  in Blink, and clean for a node created live into an idle panel). A parent-side transform/src nudge
+  does not repair a black layer — only a full remount (new iframe + bridge re-init, what expand+close
+  does) does, and only when it lands in an idle moment. Replaced the 0.2.4 fire-on-mount remount with
+  a post-boot (`ready` for empty apps, `done` after replayed tool output for restored apps),
+  **serialized** WebKit-only remount so each ext-app repaints into a progressively-quieter panel,
+  with the one-shot timer cleared only on unmount. This reliably repaints a **single**
+  present-at-load ext-app (verified by screenshot). A board with **several** ext-apps present at
+  WebKit panel-load can still black out (the simultaneous compositing burst is a host limit) —
+  expand-then-close or Chrome remains the fallback, and the skill caveat states this accurately.
+  Strict no-op in Blink/Gecko
+  (Chrome/Codex/Playwright unaffected). (The `.mcp-app-frame` GPU-layer class was evaluated and
+  rejected: its `translateZ(0)` stacking context breaks the AX emit→ack round-trip in the expanded
+  ext-app overlay.)
+
+### Docs
+
+- **Aligned the `color` contract to the runtime (report Finding H, 0.2.5).** `color` is honored only
+  on **group** (frame accent) and **graph** nodes; a top-level `color` on `markdown` / `status` /
+  `context` is ignored over both HTTP and CLI. The reference no longer implies basic nodes take a
+  `color` param — their meaning comes from node type/value (a `status` node color-codes from its
+  content). Group the nodes and color the group to tint a region.
+- **Added an MCP wrong-workspace-split caveat to Workspace Safety (report Finding I).** An
+  `pmx-canvas --mcp` server binds a fallback port adopting its own launch `cwd` as the workspace if
+  its preferred port is taken by another workspace, so its writes land on a daemon the panel never
+  renders. Verify the MCP server's workspace before trusting its state; pin `cwd=<project>` or
+  `PMX_CANVAS_PORT`, or prefer the CLI's query/mutation commands (which never spawn a server) for
+  automation loops.
+- **Finding G (chrome WebView `start` timeout) is environment-specific, not a 0.2.5 regression.** No
+  0.2.5 source touched the WebView/automation path; the chrome backend starts cleanly locally and in
+  the Codex retest. It timed out only in the Copilot-hosted pass — track as a host/environment issue.
+
 ## [0.2.5] - 2026-06-24
 
 ### Fixed
@@ -2448,6 +2488,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.2.6]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.6
 [0.2.5]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.5
 [0.2.4]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.4
 [0.2.3]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.3

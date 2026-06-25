@@ -4,10 +4,12 @@ import {
   getExtAppBridgeInitKey,
   injectExtAppAxBridgeScript,
   isWebKitOnlyHost,
+  nextWebkitRepaintSlot,
   resolveExtAppContainerDimensions,
   resolveExtAppDisplayModeRequest,
   resolveExtAppInlineFrameHeight,
   resolveExtAppSandbox,
+  shouldScheduleWebKitRepaint,
   shouldApplyExtAppSizeChange,
 } from '../../src/client/nodes/ExtAppFrame.tsx';
 import type { CanvasNodeState } from '../../src/client/types.ts';
@@ -38,6 +40,23 @@ describe('ExtAppFrame WebKit-host gate (Finding F)', () => {
 
   test('is a no-op for Blink (Chrome/Edge/Codex/Android) and Gecko', () => {
     for (const ua of notWebkitOnly) expect(isWebKitOnlyHost(ua)).toBe(false);
+  });
+
+  test('serializes repaint slots so concurrent ext-apps stagger (not re-burst)', () => {
+    // Consecutive ext-apps mounting in the same burst get strictly increasing slots,
+    // which the effect turns into an increasing remount delay (one repaint at a time).
+    const a = nextWebkitRepaintSlot();
+    const b = nextWebkitRepaintSlot();
+    const c = nextWebkitRepaintSlot();
+    expect(b).toBe(a + 1);
+    expect(c).toBe(b + 1);
+  });
+
+  test('waits for replayed tool output before scheduling the repaint remount', () => {
+    expect(shouldScheduleWebKitRepaint('loading', false)).toBe(false);
+    expect(shouldScheduleWebKitRepaint('ready', false)).toBe(true);
+    expect(shouldScheduleWebKitRepaint('ready', true)).toBe(false);
+    expect(shouldScheduleWebKitRepaint('done', true)).toBe(true);
   });
 });
 
