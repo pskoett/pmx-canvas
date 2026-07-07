@@ -1,8 +1,9 @@
 #!/usr/bin/env bun
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, openSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { showServeStatus, startDaemonMode, stopServeDaemon } from './daemon.js';
 import { runAgentCli } from './agent.js';
 import { createCanvas } from '../server/index.js';
 import { seedDemoCanvas } from '../server/demo.js';
@@ -86,306 +87,6 @@ function stripOption(argv: string[], name: string): string[] {
   return stripped;
 }
 
-function outputJson(data: unknown): void {
-  console.log(JSON.stringify(data, null, 2));
-}
-
-function readPidFile(path: string): number | null {
-  try {
-    if (!existsSync(path)) return null;
-    const raw = readFileSync(path, 'utf-8').trim();
-    if (!raw) return null;
-    const pid = Number(raw);
-    return Number.isInteger(pid) && pid > 0 ? pid : null;
-  } catch {
-    return null;
-  }
-}
-
-function isProcessRunning(pid: number): boolean {
-  try {
-    process.kill(pid, 0);
-    return true;
-  } catch (error) {
-    if (error && typeof error === 'object' && 'code' in error) {
-      return (error as NodeJS.ErrnoException).code === 'EPERM';
-    }
-    return false;
-  }
-}
-
-function removePidFile(path: string): void {
-  try {
-    rmSync(path, { force: true });
-  } catch {
-    // Ignore cleanup failures for stale pid files.
-  }
-}
-
-interface HealthStatus {
-  responsive: boolean;
-  workspace: string | null;
-}
-
-async function readHealthStatus(url: string): Promise<HealthStatus> {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) return { responsive: false, workspace: null };
-    const payload = await response.json().catch(() => null) as unknown;
-    const workspace = payload && typeof payload === 'object' && 'workspace' in payload
-      && typeof payload.workspace === 'string'
-      ? payload.workspace
-      : null;
-    return { responsive: true, workspace };
-  } catch {
-    return { responsive: false, workspace: null };
-  }
-}
-
-async function isHealthy(url: string): Promise<boolean> {
-  return (await readHealthStatus(url)).responsive;
-}
-
-function readLogTail(path: string, maxLines = 20): string | null {
-  try {
-    if (!existsSync(path)) return null;
-    const lines = readFileSync(path, 'utf-8').trim().split('\n');
-    return lines.slice(-maxLines).join('\n') || null;
-  } catch {
-    return null;
-  }
-}
-
-async function waitForHealth(
-  healthUrl: string,
-  timeoutMs: number,
-  getExitMessage: () => string | null,
-): Promise<{ ok: true } | { ok: false; reason: string }> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (await isHealthy(healthUrl)) {
-      return { ok: true };
-    }
-    const exitMessage = getExitMessage();
-    if (exitMessage) {
-      return { ok: false, reason: exitMessage };
-    }
-    await Bun.sleep(250);
-  }
-  return { ok: false, reason: `Timed out waiting for ${healthUrl}` };
-}
-
-async function waitForShutdown(
-  healthUrl: string,
-  timeoutMs: number,
-  pid: number | null,
-): Promise<boolean> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const responsive = await isHealthy(healthUrl);
-    const alive = pid ? isProcessRunning(pid) : false;
-    if (!responsive && !alive) {
-      return true;
-    }
-    await Bun.sleep(250);
-  }
-  return false;
-}
-
-async function startDaemonMode(options: {
-  port: number;
-  baseArgs: string[];
-  logFile: string;
-  pidFile: string;
-  waitMs: number;
-}): Promise<void> {
-  const healthUrl = `http://localhost:${options.port}/health`;
-  const workbenchUrl = `http://localhost:${options.port}/workbench`;
-  const existingPid = readPidFile(options.pidFile);
-
-  if (await isHealthy(healthUrl)) {
-    outputJson({
-      ok: true,
-      daemon: true,
-      alreadyRunning: true,
-      pid: existingPid,
-      url: workbenchUrl,
-      healthUrl,
-      logFile: options.logFile,
-      pidFile: options.pidFile,
-    });
-    process.exit(0);
-  }
-
-  mkdirSync(dirname(options.logFile), { recursive: true });
-  const logFd = openSync(options.logFile, 'a');
-  const childArgs = options.baseArgs.includes('--no-open')
-    ? options.baseArgs
-    : [...options.baseArgs, '--no-open'];
-  const child = spawn(process.execPath, ['run', fileURLToPath(import.meta.url), ...childArgs], {
-    cwd: process.cwd(),
-    detached: true,
-    env: process.env,
-    stdio: ['ignore', logFd, logFd],
-  });
-
-  let exitMessage: string | null = null;
-  child.once('exit', (code, signal) => {
-    exitMessage = signal
-      ? `Daemon exited via signal ${signal}`
-      : `Daemon exited with code ${code ?? 'unknown'}`;
-  });
-  child.unref();
-
-  const health = await waitForHealth(healthUrl, options.waitMs, () => exitMessage);
-  if (!health.ok) {
-    const logTail = readLogTail(options.logFile);
-    const details = logTail ? `${health.reason}\n\nRecent log output:\n${logTail}` : health.reason;
-    console.error(details);
-    process.exit(1);
-  }
-
-  mkdirSync(dirname(options.pidFile), { recursive: true });
-  writeFileSync(options.pidFile, `${child.pid}\n`, 'utf-8');
-
-  outputJson({
-    ok: true,
-    daemon: true,
-    pid: child.pid,
-    url: workbenchUrl,
-    healthUrl,
-    logFile: options.logFile,
-    pidFile: options.pidFile,
-  });
-  process.exit(0);
-}
-
-async function showServeStatus(options: {
-  port: number;
-  logFile: string;
-  pidFile: string;
-}): Promise<void> {
-  const healthUrl = `http://localhost:${options.port}/health`;
-  const url = `http://localhost:${options.port}/workbench`;
-  const pid = readPidFile(options.pidFile);
-  const pidRunning = pid ? isProcessRunning(pid) : false;
-  const health = await readHealthStatus(healthUrl);
-  const responsive = health.responsive;
-  const running = responsive || pidRunning;
-  if (!running && existsSync(options.pidFile) && !pidRunning) {
-    removePidFile(options.pidFile);
-  }
-
-  outputJson({
-    ok: true,
-    daemon: true,
-    running,
-    responsive,
-    workspace: health.workspace,
-    pid,
-    pidRunning,
-    url,
-    healthUrl,
-    logFile: options.logFile,
-    pidFile: options.pidFile,
-    pidFileExists: existsSync(options.pidFile),
-  });
-  process.exit(0);
-}
-
-async function stopServeDaemon(options: {
-  port: number;
-  logFile: string;
-  pidFile: string;
-  waitMs: number;
-}): Promise<void> {
-  const healthUrl = `http://localhost:${options.port}/health`;
-  const url = `http://localhost:${options.port}/workbench`;
-  const pid = readPidFile(options.pidFile);
-  const responsive = await isHealthy(healthUrl);
-
-  if (!pid) {
-    if (!responsive) {
-      removePidFile(options.pidFile);
-      outputJson({
-        ok: true,
-        daemon: true,
-        stopped: false,
-        running: false,
-        reason: 'No running daemon found.',
-        url,
-        healthUrl,
-        logFile: options.logFile,
-        pidFile: options.pidFile,
-      });
-      process.exit(0);
-    }
-
-    outputJson({
-      ok: false,
-      daemon: true,
-      error: `Server on port ${options.port} is responsive, but no pid file was found at ${options.pidFile}.`,
-      hint: 'Restart with `pmx-canvas serve --daemon` or provide the correct --pid-file.',
-      url,
-      healthUrl,
-      logFile: options.logFile,
-      pidFile: options.pidFile,
-    });
-    process.exit(1);
-  }
-
-  if (!isProcessRunning(pid)) {
-    removePidFile(options.pidFile);
-    outputJson({
-      ok: true,
-      daemon: true,
-      stopped: false,
-      running: responsive,
-      reason: `Removed stale pid file for ${pid}.`,
-      pid,
-      url,
-      healthUrl,
-      logFile: options.logFile,
-      pidFile: options.pidFile,
-    });
-    process.exit(0);
-  }
-
-  process.kill(pid, 'SIGTERM');
-  const stopped = await waitForShutdown(healthUrl, options.waitMs, pid);
-  const stillResponsive = await isHealthy(healthUrl);
-  const pidRunning = isProcessRunning(pid);
-  if (stopped || (!stillResponsive && !pidRunning)) {
-    removePidFile(options.pidFile);
-    outputJson({
-      ok: true,
-      daemon: true,
-      stopped: true,
-      pid,
-      url,
-      healthUrl,
-      logFile: options.logFile,
-      pidFile: options.pidFile,
-    });
-    process.exit(0);
-  }
-
-  outputJson({
-    ok: false,
-    daemon: true,
-    stopped: false,
-    error: `Timed out waiting for daemon ${pid} to stop.`,
-    pid,
-    responsive: stillResponsive,
-    pidRunning,
-    url,
-    healthUrl,
-    logFile: options.logFile,
-    pidFile: options.pidFile,
-  });
-  process.exit(1);
-}
-
 function runMcpServerProcess(): Promise<void> {
   return new Promise((resolvePromise, rejectPromise) => {
     const child = spawn(process.execPath, ['run', mcpServerEntry], {
@@ -430,6 +131,7 @@ Usage:
       port,
       logFile: daemonLogFile,
       pidFile: daemonPidFile,
+      entry: fileURLToPath(import.meta.url),
     });
   } else {
     await stopServeDaemon({
@@ -437,6 +139,7 @@ Usage:
       logFile: daemonLogFile,
       pidFile: daemonPidFile,
       waitMs: daemonWaitMs,
+      entry: fileURLToPath(import.meta.url),
     });
   }
 }
@@ -594,6 +297,7 @@ Examples:
       logFile: daemonLogFile,
       pidFile: daemonPidFile,
       waitMs: daemonWaitMs,
+      entry: fileURLToPath(import.meta.url),
     });
   }
 

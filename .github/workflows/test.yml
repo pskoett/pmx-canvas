@@ -22,6 +22,19 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      # dist/types is committed and tsc output is deterministic, so a byte
+      # check is reliable. The dist/canvas and dist/json-render bundles are
+      # deliberately NOT checked: bundler output varies across bun versions,
+      # so a byte-diff gate on them would flake (plan-009 M1 tracks bundles).
+      - name: dist/types staleness check
+        run: |
+          bun run build:types
+          if [ -n "$(git status --porcelain dist/types)" ]; then
+            git status --porcelain dist/types
+            echo "::error::dist/types is stale — run 'bun run build:types' and commit the result."
+            exit 1
+          fi
+
       - name: Validate agent skill mirrors
         run: bun run validate:agent-skills
 

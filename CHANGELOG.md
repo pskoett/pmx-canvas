@@ -14,6 +14,13 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - `DELETE /api/canvas/ax/intent/:id?vetoed=true` now works: the query-string
   form of `vetoed` is coerced to a boolean (literal `true`/`false` only; other
   values are still rejected with 400).
+- `serve --daemon` lifecycle is now race- and orphan-free: the pid file is
+  created as a lock before the child spawns and records the pid immediately,
+  a failed startup kills the child instead of leaving it orphaned, and a
+  liveness check guards against recycled pids.
+- `serve --daemon` no longer reports "already running" when the port is held
+  by a daemon for a different workspace (or another application) — it refuses
+  with the owner's workspace named and a hint to pick another port.
 
 ## [0.3.0] - 2026-07-07
 
