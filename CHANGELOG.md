@@ -3,7 +3,7 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.1] - 2026-07-07
 
 ### Fixed
 
@@ -21,6 +21,9 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - `serve --daemon` no longer reports "already running" when the port is held
   by a daemon for a different workspace (or another application) — it refuses
   with the owner's workspace named and a hint to pick another port.
+- `serve status` no longer deletes a concurrent `serve --daemon`'s in-progress
+  spawn lock, closing a race that could otherwise let two daemons start on the
+  same port.
 
 ### Changed
 
@@ -2675,6 +2678,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.3.1]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.3.1
 [0.3.0]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.3.0
 [0.2.7]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.7
 [0.2.6]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.6

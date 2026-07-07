@@ -201,6 +201,23 @@ export function acquireDaemonLock(pidFile: string, entryNeedle: string): LockRes
   return { ok: false, holderPid: readPidFile(pidFile), reason: 'starting' };
 }
 
+/**
+ * True when the pid file is a concurrent starter's spawn lock: an EMPTY file
+ * (acquireDaemonLock creates it before writing the child pid) younger than
+ * LOCK_FRESH_MS. `serve status` must NOT delete such a file — clearing it
+ * mid-spawn would defeat the spawn lock and let a racing starter double-spawn.
+ * Mirrors the fresh-lock protection acquireDaemonLock applies. A stat failure
+ * biases toward preserving the lock.
+ */
+export function isFreshEmptyLock(pidFile: string): boolean {
+  if (!existsSync(pidFile) || readPidFile(pidFile) !== null) return false;
+  try {
+    return Date.now() - statSync(pidFile).mtimeMs < LOCK_FRESH_MS;
+  } catch {
+    return true;
+  }
+}
+
 export interface DaemonPaths {
   port: number;
   logFile: string;
@@ -326,7 +343,9 @@ export async function showServeStatus(options: DaemonPaths & { entry: string }):
   const health = await readHealthStatus(healthUrl);
   const responsive = health.responsive;
   const running = responsive || pidRunning;
-  if (!running && existsSync(options.pidFile) && !pidRunning) {
+  // Clean up a stale pid file, but never a concurrent starter's fresh empty
+  // spawn lock (that would let a racing `serve --daemon` double-spawn).
+  if (!running && existsSync(options.pidFile) && !pidRunning && !isFreshEmptyLock(options.pidFile)) {
     removePidFile(options.pidFile);
   }
 

@@ -46,6 +46,15 @@ export type LockResult = {
  * mid-spawn ('starting'); anything stale is reclaimed once.
  */
 export declare function acquireDaemonLock(pidFile: string, entryNeedle: string): LockResult;
+/**
+ * True when the pid file is a concurrent starter's spawn lock: an EMPTY file
+ * (acquireDaemonLock creates it before writing the child pid) younger than
+ * LOCK_FRESH_MS. `serve status` must NOT delete such a file — clearing it
+ * mid-spawn would defeat the spawn lock and let a racing starter double-spawn.
+ * Mirrors the fresh-lock protection acquireDaemonLock applies. A stat failure
+ * biases toward preserving the lock.
+ */
+export declare function isFreshEmptyLock(pidFile: string): boolean;
 export interface DaemonPaths {
     port: number;
     logFile: string;

@@ -6,6 +6,7 @@ import { join, resolve } from 'node:path';
 import {
   acquireDaemonLock,
   classifyPrecheck,
+  isFreshEmptyLock,
   isOwnDaemonProcess,
   processCommandMatches,
   readPidFile,
@@ -132,5 +133,31 @@ describe('acquireDaemonLock', () => {
     const staleTime = new Date(Date.now() - 60_000);
     utimesSync(path, staleTime, staleTime);
     expect(acquireDaemonLock(path, 'bun').ok).toBe(true);
+  });
+});
+
+describe('isFreshEmptyLock', () => {
+  test('a missing file is not a fresh lock', () => {
+    expect(isFreshEmptyLock(join(tmpdir(), 'pmx-daemon-test-absent.pid'))).toBe(false);
+  });
+
+  test('a fresh empty file is a concurrent starter lock — must be preserved', () => {
+    const path = tempPidFile();
+    writeFileSync(path, '');
+    expect(isFreshEmptyLock(path)).toBe(true);
+  });
+
+  test('a stale empty file is not a fresh lock — safe to reclaim', () => {
+    const path = tempPidFile();
+    writeFileSync(path, '');
+    const staleTime = new Date(Date.now() - 60_000);
+    utimesSync(path, staleTime, staleTime);
+    expect(isFreshEmptyLock(path)).toBe(false);
+  });
+
+  test('a file holding a pid is not an empty lock — status may clean it up', () => {
+    const path = tempPidFile();
+    writeFileSync(path, `${exitedPid()}\n`);
+    expect(isFreshEmptyLock(path)).toBe(false);
   });
 });
