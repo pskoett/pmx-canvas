@@ -10,7 +10,9 @@ messages. Just opt the node in and use `window.PMX_AX`.
 
 ```js
 // MCP / SDK
-canvas_add_html_node({
+canvas_node({
+  action: "add",
+  type: "html",
   title: "AX Control Room",
   html: "<!-- see below -->",
   axCapabilities: { enabled: true, allowed: ["ax.work.create", "ax.steer"] },

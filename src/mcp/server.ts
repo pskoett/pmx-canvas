@@ -20,14 +20,15 @@
  * ```
  */
 
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { canvasState, describeCanvasSchema } from '../server/index.js';
 import { AX_INTERACTION_TYPES } from '../server/ax-interaction.js';
 import { buildPendingAxActivity } from '../server/ax-state.js';
-import { isHtmlPrimitiveKind } from '../server/html-primitives.js';
-import type { HtmlPrimitiveKind } from '../server/html-primitives.js';
 import { registerOperationTools, registerCompositeTools } from '../server/operations/index.js';
 import { createCanvasAccess, refreshCanvasAccess, type CanvasAccess } from './canvas-access.js';
 import { serializeNodeForAgentContext } from '../server/agent-context.js';
@@ -36,7 +37,6 @@ import {
   getCanvasNodeTitle,
   serializeCanvasLayoutForAgent,
   serializeCanvasNode,
-  serializeCanvasNodeForAgent,
   summarizeCanvasAnnotationForContext,
 } from '../server/canvas-serialization.js';
 import { listBundledSkills, readBundledSkill } from '../server/bundled-skills.js';
@@ -46,7 +46,18 @@ let resourceNotificationServer: McpServer | null = null;
 let localResourceNotificationsStarted = false;
 let remoteResourceNotificationsBaseUrl: string | null = null;
 
-const htmlPrimitiveKindSchema = z.string().refine(isHtmlPrimitiveKind, 'Unknown HTML primitive kind');
+// Resolved from the sibling package.json so it stays accurate through bunx,
+// global npm installs, and repo-local runs (no hard-coded string, no build
+// step required) — same mechanism as --version in src/cli/index.ts.
+function readPackageVersion(): string {
+  try {
+    const pkgPath = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'package.json');
+    const pkg = JSON.parse(readFileSync(pkgPath, 'utf-8')) as { version?: string };
+    return pkg.version ?? 'unknown';
+  } catch {
+    return 'unknown';
+  }
+}
 
 function structuredSchemaDescription(): string {
   const routing = describeCanvasSchema().mcp.nodeTypeRouting;
@@ -54,10 +65,6 @@ function structuredSchemaDescription(): string {
     .map(([type, tool]) => `${type}: ${tool}`)
     .join(', ');
 }
-
-// workspaceRoot / isPathInside / safeWorkspacePath removed with the
-// canvas_build_web_artifact MCP tool (plan-008 Wave 4). The webartifact.build op
-// sandboxes projectPath/outputPath via web-artifacts.ts resolveWorkspacePath.
 
 async function ensureCanvas(): Promise<CanvasAccess> {
   if (!canvas) {
@@ -215,19 +222,6 @@ function agentSafeFullLayoutPayload(layout: Awaited<ReturnType<CanvasAccess['get
   };
 }
 
-async function createdNodePayload(c: CanvasAccess, id: string, options: { full?: boolean; verbose?: boolean; includeData?: boolean } = {}): Promise<Record<string, unknown>> {
-  // Expose both `id` and a `nodeId` alias on every node-create response so
-  // agents using either key (or a cached schema) work — matching the
-  // external-app / web-artifact responses that already return both.
-  const node = await c.getNode(id);
-  if (!node) return { ok: true, id, nodeId: id };
-  if (!wantsFullPayload(options)) {
-    return { ok: true, node: compactNodePayload(node), id, nodeId: id };
-  }
-  const serialized = serializeCanvasNodeForAgent(node);
-  return { ok: true, node: serialized, ...serialized, nodeId: node.id };
-}
-
 function buildSummaryFromLayout(layout: Awaited<ReturnType<CanvasAccess['getLayout']>>, pinnedIds: string[]): Record<string, unknown> {
   const pinned = new Set(pinnedIds);
   const nodesByType: Record<string, number> = {};
@@ -252,15 +246,19 @@ function buildSummaryFromLayout(layout: Awaited<ReturnType<CanvasAccess['getLayo
 export async function startMcpServer(): Promise<void> {
   const server = new McpServer({
     name: 'pmx-canvas',
-    version: '0.1.0',
+    version: readPackageVersion(),
   });
   resourceNotificationServer = server;
 
   // ── Operation-registry tools (plan-005) ────────────────────────
-  // canvas_get_layout / canvas_get_node / canvas_add_node /
-  // canvas_update_node / canvas_remove_node are registered from the shared
-  // operation registry. Tool names and compact/full payload behavior are
-  // frozen (tests/unit/mcp-tool-freeze.test.ts, operation-parity.test.ts).
+  // Standalone tools are registered from the shared operation registry for
+  // every op not folded into a composite (registerOperationTools skips
+  // composite-folded ops — see compositeFoldedOpNames in composites.ts).
+  // canvas_get_layout / canvas_get_node / canvas_add_node / canvas_update_node /
+  // canvas_remove_node were folded into canvas_query / canvas_node and removed
+  // as standalone tools in v0.3.0; they remain reachable via their composite
+  // and canvas_batch. Remaining standalone tool names and compact/full payload
+  // behavior are frozen (tests/unit/mcp-tool-freeze.test.ts, operation-parity.test.ts).
   registerOperationTools(server, ensureCanvas);
 
   // ── Composite (action-discriminated) tools (plan-006) ───────────
@@ -268,150 +266,11 @@ export async function startMcpServer(): Promise<void> {
   // (canvas_node, canvas_render, canvas_edge, canvas_group, canvas_history,
   // canvas_view, canvas_query, plus the AX composites). Each action dispatches
   // to the same registered operation as its standalone tool, so behavior is
-  // identical. Additive in v0.2 (legacy tools still registered below); legacy
-  // removed in v0.3 per docs/api-stability.md. (canvas_snapshot composite is
-  // deferred to v0.3 — its name is still held by the legacy save-snapshot tool.)
+  // identical. The legacy single-purpose tools these composites replace are
+  // removed as of v0.3.0 per docs/api-stability.md. (canvas_snapshot composite
+  // is deferred to v0.4 — its name is still held by the legacy save-snapshot
+  // tool; the 6 snapshot standalones are deprecated in v0.3.0 and fold into it.)
   registerCompositeTools(server, ensureCanvas);
-
-  // ── canvas_add_html_node ────────────────────────────────────────
-  server.tool(
-    'canvas_add_html_node',
-    'Deprecated: use canvas_node with action "add" and type:"html". Add a normal html node: a self-contained HTML document (with optional inline <script> and CDN <script src="...">) rendered inside a sandboxed iframe (sandbox="allow-scripts"). This is the default HTML surface for reports, widgets, and bespoke visualizations. Presentation mode is opt-in: only pass presentation:true when the user explicitly asks for a deck/fullscreen presentation, or use canvas_add_html_primitive with kind="presentation". The iframe inherits live canvas theme tokens via injected CSS custom properties (both --c-* and common --color-* aliases) so authored HTML using var(--color-text-secondary), var(--color-bg), etc. renders cohesively. No same-origin access; no top-navigation; no forms. For declarative-only views with zero JS, prefer canvas_add_json_render_node. For React + shadcn + routing or multi-component apps, use canvas_build_web_artifact.',
-    {
-      html: z.string().describe('HTML document or fragment. Full <html>...</html> documents are passed through with theme styles injected into <head>; bare fragments are wrapped in a minimal document. Inline <script> and remote CDN <script src="..."> are allowed. If this is a bare path to an existing local .html/.htm file, the file contents are read and used as the HTML.'),
-      title: z.string().optional().describe('Node title shown in the canvas titlebar.'),
-      summary: z.string().optional().describe('Agent-readable semantic summary for this HTML node. If omitted, PMX derives one from visible HTML text.'),
-      agentSummary: z.string().optional().describe('Explicit agent-readable summary. Alias for summary with higher priority when both are provided.'),
-      description: z.string().optional().describe('Short description included in search and pinned/spatial context.'),
-      presentation: z.boolean().optional().describe('Marks this HTML surface as a fullscreen presentation/deck. Omit unless the user explicitly requested presentation mode.'),
-      slideTitles: z.array(z.string()).optional().describe('Agent-readable slide titles for presentation HTML.'),
-      embeddedNodeIds: z.array(z.string()).optional().describe('Canvas node IDs embedded or represented by this HTML surface.'),
-      embeddedUrls: z.array(z.string()).optional().describe('URLs embedded or represented by this HTML surface.'),
-      x: z.number().optional().describe('X position (auto-placed if omitted).'),
-      y: z.number().optional().describe('Y position (auto-placed if omitted).'),
-      width: z.number().optional().describe('Width in pixels (default: 720).'),
-      height: z.number().optional().describe('Height in pixels (default: 640).'),
-      strictSize: z.boolean().optional().describe('Keep explicit width/height fixed; iframe scrolls overflow internally.'),
-      axCapabilities: z.object({
-        enabled: z.boolean().optional(),
-        allowed: z.array(z.string()).optional().describe('AX interaction types this node may emit (e.g. ax.work.create, ax.work.update, ax.steer, ax.focus.set, ax.evidence.add, ax.event.record). Clamped to the html capability ceiling server-side; cannot escalate.'),
-      }).optional().describe('Opt this html node into AX interactions so its sandboxed UI can emit ax.* via window.PMX_AX.emit(type, payload) (and reflect live AX state). html nodes are AX-disabled by default; set { enabled: true, allowed: [...] } to turn the bridge on. Build interactive boards (work queues, review boards, inboxes) this way.'),
-      full: z.boolean().optional().describe('Return the full created node payload. Default false returns compact metadata.'),
-      verbose: z.boolean().optional().describe('Alias for full:true.'),
-    },
-    async (input) => {
-      const c = await ensureCanvas();
-      const id = await c.addHtmlNode({
-        html: input.html,
-        ...(typeof input.title === 'string' ? { title: input.title } : {}),
-        ...(input.axCapabilities ? { axCapabilities: input.axCapabilities } : {}),
-        ...(typeof input.summary === 'string' ? { summary: input.summary } : {}),
-        ...(typeof input.agentSummary === 'string' ? { agentSummary: input.agentSummary } : {}),
-        ...(typeof input.description === 'string' ? { description: input.description } : {}),
-        ...(input.presentation === true ? { presentation: true } : {}),
-        ...(Array.isArray(input.slideTitles) ? { slideTitles: input.slideTitles } : {}),
-        ...(Array.isArray(input.embeddedNodeIds) ? { embeddedNodeIds: input.embeddedNodeIds } : {}),
-        ...(Array.isArray(input.embeddedUrls) ? { embeddedUrls: input.embeddedUrls } : {}),
-        ...(typeof input.x === 'number' ? { x: input.x } : {}),
-        ...(typeof input.y === 'number' ? { y: input.y } : {}),
-        ...(typeof input.width === 'number' ? { width: input.width } : {}),
-        ...(typeof input.height === 'number' ? { height: input.height } : {}),
-        ...(input.strictSize === true ? { strictSize: true } : {}),
-      });
-      return {
-        content: [{ type: 'text', text: JSON.stringify(await createdNodePayload(c, id, input), null, 2) }],
-      };
-    },
-  );
-
-  server.tool(
-    'canvas_add_html_primitive',
-    'Deprecated: use canvas_node with action "add", type:"html", primitive:"<kind>" (and data). Create a reusable HTML communication primitive as a normal sandboxed html node. Use this instead of long markdown for side-by-side choices, implementation plans, PR review sheets, module maps, design sheets, component galleries, flowcharts, explainers, status reports, and throwaway editors with export/copy paths. Use kind="presentation" only when the user explicitly asks for a PowerPoint-like deck, pitch, briefing, workshop walkthrough, or fullscreen story.',
-    {
-      kind: htmlPrimitiveKindSchema.describe('Primitive kind. Call canvas_describe_schema and read htmlPrimitives for data shapes and examples.'),
-      title: z.string().optional().describe('Node title shown in the canvas titlebar.'),
-      data: z.record(z.string(), z.unknown()).optional().describe('Primitive-specific data payload. For kind="presentation", data may include theme:"canvas"|"midnight"|"paper"|"aurora" or a custom color object. See canvas_describe_schema.htmlPrimitives for each shape.'),
-      x: z.number().optional().describe('X position (auto-placed if omitted).'),
-      y: z.number().optional().describe('Y position (auto-placed if omitted).'),
-      width: z.number().optional().describe('Width in pixels (defaults per primitive).'),
-      height: z.number().optional().describe('Height in pixels (defaults per primitive).'),
-      strictSize: z.boolean().optional().describe('Keep explicit width/height fixed; iframe scrolls overflow internally.'),
-      full: z.boolean().optional().describe('Return the full created node payload. Default false returns compact metadata.'),
-      verbose: z.boolean().optional().describe('Alias for full:true.'),
-    },
-    async (input) => {
-      const c = await ensureCanvas();
-      const kind = input.kind as HtmlPrimitiveKind;
-      const result = await c.addHtmlPrimitive({
-        kind,
-        ...(typeof input.title === 'string' ? { title: input.title } : {}),
-        ...(input.data ? { data: input.data } : {}),
-        ...(typeof input.x === 'number' ? { x: input.x } : {}),
-        ...(typeof input.y === 'number' ? { y: input.y } : {}),
-        ...(typeof input.width === 'number' ? { width: input.width } : {}),
-        ...(typeof input.height === 'number' ? { height: input.height } : {}),
-        ...(input.strictSize === true ? { strictSize: true } : {}),
-      });
-      return {
-        content: [{
-          type: 'text',
-          text: JSON.stringify({
-            ...(await createdNodePayload(c, result.id, input)),
-            primitive: { kind: result.kind, title: result.title, htmlBytes: result.htmlBytes },
-          }, null, 2),
-        }],
-      };
-    },
-  );
-
-  // canvas_open_mcp_app + canvas_add_diagram migrated to the operation registry
-  // (plan-008 Wave 4): src/server/operations/ops/app.ts (mcpapp.open /
-  // diagram.open). Folded into the canvas_app composite.
-
-  server.tool(
-    'canvas_refresh_webpage_node',
-    'Deprecated: use canvas_node with action "update" and refresh:true. Refresh a webpage node from its persisted URL so the server re-fetches and caches the latest page text and metadata.',
-    {
-      id: z.string().describe('Webpage node ID to refresh'),
-      url: z.string().optional().describe('Optional replacement URL before refresh'),
-    },
-    async ({ id, url }) => {
-      const c = await ensureCanvas();
-      const result = await c.refreshWebpageNode(id, url);
-      return {
-        content: [{ type: 'text', text: JSON.stringify(result) }],
-        ...(result.ok ? {} : { isError: true }),
-      };
-    },
-  );
-
-  // canvas_build_web_artifact migrated to the operation registry (plan-008
-  // Wave 4): src/server/operations/ops/app.ts (webartifact.build). Folded into
-  // the canvas_app composite.
-
-  // canvas_remove_annotation migrated to the operation registry (plan-008
-  // Wave 1): src/server/operations/ops/annotation.ts.
-
-  // ── AX context and focus ───────────────────────────────────────
-  // canvas_get_ax + canvas_set_ax_focus migrated to the operation registry
-  // (plan-007 Slice B.1): src/server/operations/ops/ax-state.ts.
-
-  // canvas_record_ax_event / canvas_send_steering / canvas_get_ax_timeline
-  // migrated to the operation registry (plan-007 Slice B wave 3):
-  // src/server/operations/ops/ax-timeline.ts.
-
-  // canvas_add_work_item / canvas_update_work_item / canvas_request_approval /
-  // canvas_resolve_approval migrated to the operation registry (plan-007 Slice B
-  // wave 2): src/server/operations/ops/ax-work.ts.
-
-  // canvas_add_evidence migrated to the operation registry (plan-007 Slice B
-  // wave 3): src/server/operations/ops/ax-timeline.ts.
-
-  // canvas_add_review_annotation migrated to the operation registry (plan-007
-  // Slice B wave 2): src/server/operations/ops/ax-work.ts.
-
-  // canvas_report_host_capability migrated to the operation registry
-  // (plan-007 Slice B.1): src/server/operations/ops/ax-state.ts.
 
   server.tool(
     'canvas_ax_interaction',
@@ -427,18 +286,25 @@ export async function startMcpServer(): Promise<void> {
         .describe('Optional host/source label. Defaults to mcp.'),
     },
     async ({ type, sourceNodeId, payload, sourceSurface, correlationId, source }) => {
-      const c = await ensureCanvas();
-      const result = await c.submitAxInteraction(
-        {
-          type,
-          sourceNodeId,
-          ...(payload ? { payload } : {}),
-          ...(sourceSurface ? { sourceSurface } : {}),
-          ...(correlationId ? { correlationId } : {}),
-        },
-        { source: source ?? 'mcp' },
-      );
-      return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+      try {
+        const c = await ensureCanvas();
+        const result = await c.submitAxInteraction(
+          {
+            type,
+            sourceNodeId,
+            ...(payload ? { payload } : {}),
+            ...(sourceSurface ? { sourceSurface } : {}),
+            ...(correlationId ? { correlationId } : {}),
+          },
+          { source: source ?? 'mcp' },
+        );
+        return { content: [{ type: 'text', text: JSON.stringify(result) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+          isError: true,
+        };
+      }
     },
   );
 
@@ -479,21 +345,28 @@ export async function startMcpServer(): Promise<void> {
       source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']).optional(),
     },
     async ({ kind, title, summary, outcome, ref, nodeIds, data, reactions, source }) => {
-      const c = await ensureCanvas();
-      const result = await c.ingestActivity(
-        {
-          kind,
-          title,
-          ...(summary !== undefined ? { summary } : {}),
-          ...(outcome !== undefined ? { outcome } : {}),
-          ...(ref !== undefined ? { ref } : {}),
-          ...(nodeIds !== undefined ? { nodeIds } : {}),
-          ...(data !== undefined ? { data } : {}),
-          ...(reactions !== undefined ? { reactions } : {}),
-        },
-        { source: source ?? 'mcp' },
-      );
-      return { content: [{ type: 'text', text: JSON.stringify({ ok: true, ...result }) }] };
+      try {
+        const c = await ensureCanvas();
+        const result = await c.ingestActivity(
+          {
+            kind,
+            title,
+            ...(summary !== undefined ? { summary } : {}),
+            ...(outcome !== undefined ? { outcome } : {}),
+            ...(ref !== undefined ? { ref } : {}),
+            ...(nodeIds !== undefined ? { nodeIds } : {}),
+            ...(data !== undefined ? { data } : {}),
+            ...(reactions !== undefined ? { reactions } : {}),
+          },
+          { source: source ?? 'mcp' },
+        );
+        return { content: [{ type: 'text', text: JSON.stringify({ ok: true, ...result }) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text', text: error instanceof Error ? error.message : String(error) }],
+          isError: true,
+        };
+      }
     },
   );
 
@@ -516,7 +389,7 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas_screenshot ─────────────────────────────────────────
   server.tool(
     'canvas_screenshot',
-    'Capture a screenshot from the active Bun.WebView automation session. Returns both an MCP image payload and JSON metadata. Requires an active automation session started via canvas_webview_start.',
+    'Capture a screenshot from the active Bun.WebView automation session. Returns both an MCP image payload and JSON metadata. Requires an active automation session started via canvas_webview with action "start".',
     {
       format: z.enum(['png', 'jpeg', 'webp']).optional().describe('Screenshot format (default depends on Bun; png recommended)'),
       quality: z.number().optional().describe('Optional quality for lossy formats'),
@@ -752,7 +625,7 @@ export async function startMcpServer(): Promise<void> {
     'canvas://ax-pending-steering',
     {
       description:
-        'Adapterless AX delivery surface. `pending`: undelivered steering messages to claim and act on, then mark via canvas_mark_ax_delivery. `pendingActivity`: open canvas-bound AX items awaiting the agent (open work items, pending approval gates / elicitations / mode requests) — usually created by the human in the browser; these fire ax-state-changed (resource-subscribers are also pushed canvas://ax-work). Resolve pendingActivity via its own tool, not canvas_mark_ax_delivery. Use canvas_claim_ax_delivery for the loop-safe, consumer-scoped view.',
+        'Adapterless AX delivery surface. `pending`: undelivered steering messages to claim and act on, then mark via canvas_ax_delivery { action: "mark" }. `pendingActivity`: open canvas-bound AX items awaiting the agent (open work items, pending approval gates / elicitations / mode requests) — usually created by the human in the browser; these fire ax-state-changed (resource-subscribers are also pushed canvas://ax-work). Resolve pendingActivity via its own tool, not the delivery mark action. Use canvas_ax_delivery { action: "claim" } for the loop-safe, consumer-scoped view.',
       mimeType: 'application/json',
     },
     async () => {
@@ -931,8 +804,8 @@ export async function startMcpServer(): Promise<void> {
   // ── canvas://skills ────────────────────────────────────────
   // Discoverability for the skill prompts bundled with the npm package
   // (skills/<name>/SKILL.md). Before 0.1.2 these files shipped but were
-  // invisible to agents — calling canvas_build_web_artifact without the
-  // companion `web-artifacts-builder` skill led to predictable misuse.
+  // invisible to agents — building web artifacts without the companion
+  // `web-artifacts-builder` skill led to predictable misuse.
   // The index lists every bundled skill with its frontmatter description;
   // individual skills are served verbatim at canvas://skills/<name>.
   server.resource(
@@ -943,7 +816,7 @@ export async function startMcpServer(): Promise<void> {
         'Index of agent skills bundled with this PMX Canvas install. Lists name, ' +
         'description, and per-skill URI (canvas://skills/<name>). Read a specific ' +
         'skill for workflow guidance — notably web-artifacts-builder for ' +
-        'canvas_build_web_artifact, and pmx-canvas for the broader workbench.',
+        'canvas_app { action: "build-artifact" }, and pmx-canvas for the broader workbench.',
       mimeType: 'application/json',
     },
     async () => {

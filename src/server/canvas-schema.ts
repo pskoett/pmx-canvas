@@ -80,7 +80,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     kind: 'node',
     description: 'Freeform markdown note.',
     endpoint: '/api/canvas/node',
-    mcpTool: 'canvas_add_node',
+    mcpTool: 'canvas_node (action:"add")',
     fields: [
       { name: 'title', type: 'string', required: false, description: 'Optional node title.' },
       { name: 'content', type: 'string', required: false, description: 'Markdown body.' },
@@ -104,7 +104,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     kind: 'node',
     description: 'Compact status indicator.',
     endpoint: '/api/canvas/node',
-    mcpTool: 'canvas_add_node',
+    mcpTool: 'canvas_node (action:"add")',
     fields: [
       { name: 'title', type: 'string', required: false, description: 'Status label.' },
       { name: 'content', type: 'string', required: false, description: 'Rendered status text.' },
@@ -120,7 +120,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     kind: 'node',
     description: 'Agent context card container.',
     endpoint: '/api/canvas/node',
-    mcpTool: 'canvas_add_node',
+    mcpTool: 'canvas_node (action:"add")',
     fields: [
       { name: 'title', type: 'string', required: false, description: 'Optional title override.' },
       { name: 'content', type: 'string', required: false, description: 'Optional context body.' },
@@ -136,7 +136,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     kind: 'node',
     description: 'Structured ledger/log node.',
     endpoint: '/api/canvas/node',
-    mcpTool: 'canvas_add_node',
+    mcpTool: 'canvas_node (action:"add")',
     fields: [
       { name: 'title', type: 'string', required: false, description: 'Optional title.' },
       { name: 'content', type: 'string', required: false, description: 'Ledger body text.' },
@@ -152,7 +152,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     kind: 'node',
     description: 'Execution trace viewer.',
     endpoint: '/api/canvas/node',
-    mcpTool: 'canvas_add_node',
+    mcpTool: 'canvas_node (action:"add")',
     fields: [
       { name: 'title', type: 'string', required: false, description: 'Optional title.' },
       { name: 'content', type: 'string', required: false, description: 'Trace summary.' },
@@ -175,7 +175,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     kind: 'node',
     description: 'Workspace file viewer.',
     endpoint: '/api/canvas/node',
-    mcpTool: 'canvas_add_node',
+    mcpTool: 'canvas_node (action:"add")',
     fields: [
       { name: 'content', type: 'string', required: true, description: 'Workspace-relative or absolute file path.' },
       { name: 'title', type: 'string', required: false, description: 'Optional title override.' },
@@ -193,7 +193,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     kind: 'node',
     description: 'Image node backed by a path, URL, or data URI.',
     endpoint: '/api/canvas/node',
-    mcpTool: 'canvas_add_node',
+    mcpTool: 'canvas_node (action:"add")',
     fields: [
       { name: 'content', type: 'string', required: true, description: 'Image path, URL, or data URI.', aliases: ['path'] },
       { name: 'title', type: 'string', required: false, description: 'Optional title override.' },
@@ -219,7 +219,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     kind: 'node',
     description: 'Persisted webpage snapshot with server-side fetch and refresh.',
     endpoint: '/api/canvas/node',
-    mcpTool: 'canvas_add_node',
+    mcpTool: 'canvas_node (action:"add")',
     fields: [
       { name: 'url', type: 'string', required: true, description: 'HTTP(S) URL to fetch and cache.', aliases: ['content'] },
       { name: 'title', type: 'string', required: false, description: 'Optional title override.' },
@@ -314,7 +314,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     kind: 'node',
     description: 'Hosted iframe/app node.',
     endpoint: '/api/canvas/node',
-    mcpTool: 'canvas_open_mcp_app',
+    mcpTool: 'canvas_app (action:"open-mcp-app")',
     fields: [
       { name: 'title', type: 'string', required: false, description: 'App title.' },
       { name: 'content', type: 'string', required: false, description: 'Optional inline content.' },
@@ -333,7 +333,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     kind: 'virtual-node',
     description: 'Tool-backed hosted app opened from an external MCP server, such as Excalidraw.',
     endpoint: '/api/canvas/mcp-app/open',
-    mcpTool: 'canvas_open_mcp_app',
+    mcpTool: 'canvas_app (action:"open-mcp-app")',
     fields: [
       { name: 'toolName', type: 'string', required: true, description: 'Tool name on the external MCP server.' },
       { name: 'transport', type: '{ type: "stdio", command, args? } | { type: "http", url, headers? }', required: true, description: 'External MCP transport definition.' },
@@ -347,8 +347,8 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
       title: 'Excalidraw Diagram',
     },
     notes: [
-      'For Excalidraw specifically, prefer canvas_add_diagram because it fills in the built-in transport, toolName, and checkpoint wiring.',
-      'The CLI convenience command `external-app add --kind excalidraw` maps to this built-in Excalidraw preset; MCP canvas_open_mcp_app is the lower-level transport form.',
+      'For Excalidraw specifically, prefer canvas_app (action:"diagram") because it fills in the built-in transport, toolName, and checkpoint wiring.',
+      'The CLI convenience command `external-app add --kind excalidraw` maps to this built-in Excalidraw preset; MCP canvas_app (action:"open-mcp-app") is the lower-level transport form.',
     ],
   },
   {
@@ -356,7 +356,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     kind: 'node',
     description: 'Canvas group frame.',
     endpoint: '/api/canvas/group',
-    mcpTool: 'canvas_create_group',
+    mcpTool: 'canvas_group (action:"create")',
     fields: [
       { name: 'title', type: 'string', required: false, description: 'Group title.' },
       { name: 'childIds', type: 'string[]', required: false, description: 'Initial child node IDs.' },
@@ -373,7 +373,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     kind: 'virtual-node',
     description: 'Native structured UI panel rendered from a validated json-render spec.',
     endpoint: '/api/canvas/json-render',
-    mcpTool: 'canvas_add_json_render_node',
+    mcpTool: 'canvas_render (action:"add-json-render")',
     fields: [
       { name: 'title', type: 'string', required: false, description: 'Optional rendered node title; inferred from the root element when omitted.' },
       { name: 'spec', type: 'JsonRenderSpec | JsonRenderElement', required: true, description: 'Complete {root, elements} json-render spec, or a legacy single bare component object with a type field.' },
@@ -406,7 +406,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     kind: 'virtual-node',
     description: 'Native chart node backed by the json-render chart catalog.',
     endpoint: '/api/canvas/graph',
-    mcpTool: 'canvas_add_graph_node',
+    mcpTool: 'canvas_render (action:"add-graph")',
     fields: [
       {
         name: 'graphType',
@@ -467,7 +467,7 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     kind: 'virtual-node',
     description: 'Bundled single-file HTML artifact that can open as an embedded canvas node.',
     endpoint: '/api/canvas/web-artifact',
-    mcpTool: 'canvas_build_web_artifact',
+    mcpTool: 'canvas_app (action:"build-artifact")',
     fields: [
       { name: 'title', type: 'string', required: true, description: 'Artifact title used for default paths.' },
       { name: 'appTsx', type: 'string', required: true, description: 'Contents for src/App.tsx. The CLI also accepts piped contents via --stdin.', aliases: ['app-file', 'app-tsx'] },
@@ -556,19 +556,36 @@ export function describeCanvasSchema(): {
     htmlPrimitives: listHtmlPrimitiveDescriptors(),
     mcp: {
       tools: [
-        'canvas_add_node',
-        'canvas_add_html_node',
-        'canvas_add_html_primitive',
-        'canvas_add_json_render_node',
-        'canvas_stream_json_render_node',
-        'canvas_add_graph_node',
-        'canvas_build_web_artifact',
-        'canvas_open_mcp_app',
-        'canvas_create_group',
-        'canvas_update_node',
-        'canvas_fit_view',
-        'canvas_describe_schema',
-        'canvas_validate_spec',
+        // 15 composites
+        'canvas_node',
+        'canvas_render',
+        'canvas_edge',
+        'canvas_group',
+        'canvas_history',
+        'canvas_view',
+        'canvas_query',
+        'canvas_webview',
+        'canvas_app',
+        'canvas_ax_state',
+        'canvas_ax_work',
+        'canvas_ax_gate',
+        'canvas_ax_timeline',
+        'canvas_ax_delivery',
+        'canvas_intent',
+        // 6 standalones
+        'canvas_batch',
+        'canvas_pin_nodes',
+        'canvas_invoke_command',
+        'canvas_ax_interaction',
+        'canvas_ingest_activity',
+        'canvas_screenshot',
+        // 6 snapshot tools (deprecated; fold into canvas_snapshot composite in v0.4)
+        'canvas_snapshot',
+        'canvas_list_snapshots',
+        'canvas_restore',
+        'canvas_delete_snapshot',
+        'canvas_gc_snapshots',
+        'canvas_diff',
       ],
       resources: ['canvas://schema'],
       nodeTypeRouting: buildMcpNodeTypeRouting(nodeTypes),

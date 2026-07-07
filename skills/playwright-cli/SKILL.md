@@ -56,7 +56,7 @@ playwright-cli -s=canvas close
 ## PMX Canvas Guidance
 
 - Start the canvas first: `bun run src/cli/index.ts --no-open`
-- Use this skill after `canvas_build_web_artifact` when you need browser validation
+- Use this skill after `canvas_app { action: "build-artifact" }` when you need browser validation
 - Prefer visible browser automation for UI investigation so the human can follow along
 - Store screenshots and snapshots on disk, then only read back the specific files you need
 

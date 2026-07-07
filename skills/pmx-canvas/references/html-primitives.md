@@ -1,7 +1,7 @@
 # HTML Primitive Authoring
 
 Use this guide when creating reusable sandboxed HTML communication primitives through
-`canvas_add_html_primitive` or `pmx-canvas html primitive add`.
+`canvas_node { action: "add", type: "html", primitive, data }` or `pmx-canvas html primitive add`.
 
 ## What They Are
 
@@ -11,8 +11,8 @@ sandboxed iframe node, plus metadata describing the primitive kind and source da
 - Use them when markdown becomes too dense but a full React web artifact would be too heavy.
 - Prefer them for communication artifacts: choices, plans, reviews, maps, explainers, reports,
   lightweight editors, and handoff boards.
-- Keep using `canvas_add_html_node` for bespoke one-off HTML and JS.
-- Keep using `canvas_build_web_artifact` for multi-component apps, routing, React state, or shadcn UI.
+- Keep using `canvas_node { action: "add", type: "html", html }` for bespoke one-off HTML and JS.
+- Keep using `canvas_app { action: "build-artifact" }` for multi-component apps, routing, React state, or shadcn UI.
 
 The design language is inspired by high-density HTML communication patterns: strong hierarchy,
 metric cards, sticky context panels, annotated snippets, inline SVG figures, and copy/export actions.

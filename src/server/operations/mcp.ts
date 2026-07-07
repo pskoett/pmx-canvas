@@ -12,7 +12,7 @@ import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getOperation, listOperations } from './registry.js';
 import type { OperationInvoker } from './invoker.js';
 import { OperationError, type OperationMcpToolHost } from './types.js';
-import { buildCompositeDeprecationNotes, compositeToolDefinitions, type CompositeToolDefinition } from './composites.js';
+import { compositeFoldedOpNames, compositeToolDefinitions, type CompositeToolDefinition } from './composites.js';
 
 export interface OperationToolHost extends OperationMcpToolHost {
   invoker(): OperationInvoker;
@@ -22,16 +22,17 @@ export function registerOperationTools(
   server: McpServer,
   getHost: () => Promise<OperationToolHost>,
 ): void {
-  // Legacy tools folded by a composite get a "Deprecated: use canvas_x …" prefix
-  // (plan-006 step 2) so agents migrate during the v0.2 overlap window.
-  const deprecations = buildCompositeDeprecationNotes();
+  // Ops folded by a composite are NOT registered standalone: their legacy
+  // single-purpose tools were removed in v0.3.0 (docs/api-stability.md). The op
+  // itself is untouched — it stays reachable via its composite and canvas_batch.
+  const foldedOpNames = compositeFoldedOpNames();
   for (const op of listOperations()) {
+    if (foldedOpNames.has(op.name)) continue;
     const tool = op.mcp;
     if (!tool) continue;
-    const note = deprecations.get(op.name);
     server.tool(
       tool.toolName,
-      note ? note + tool.description : tool.description,
+      tool.description,
       { ...op.inputShape, ...(tool.extraShape ?? {}) },
       async (input: Record<string, unknown>) => {
         try {

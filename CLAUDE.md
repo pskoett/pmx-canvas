@@ -96,7 +96,7 @@ Every mistake is a learning opportunity. Log it, learn from it, prevent it.
 
 1. **State lives in the server.** `CanvasStateManager` in `canvas-state.ts` is the singleton source of truth. All mutations go through it. The browser is a renderer. State survives browser refresh.
 
-2. **SSE-created nodes must sync to server-side canvasState.** When `emitPrimaryWorkbenchEvent` creates nodes on the client via SSE (`workbench-open`, `ext-app-open`), also create them in the server-side `canvasState` singleton. Otherwise `canvas_get_layout` returns 0 nodes and `canvas-layout-update` reconciliation deletes client-only nodes.
+2. **SSE-created nodes must sync to server-side canvasState.** When `emitPrimaryWorkbenchEvent` creates nodes on the client via SSE (`workbench-open`, `ext-app-open`), also create them in the server-side `canvasState` singleton. Otherwise `canvas_query { action: "layout" }` returns 0 nodes and `canvas-layout-update` reconciliation deletes client-only nodes.
 
 3. **Rebuild canvas bundle after client source changes.** After modifying any file under `src/client/`, run `bun run build` before testing in the browser. The dist bundle is not auto-built; stale bundles silently hide new features.
 
@@ -124,7 +124,7 @@ Every mistake is a learning opportunity. Log it, learn from it, prevent it.
 bun install                    # Install dependencies
 bun run build                  # Build client SPA → dist/canvas/
 bun run dev                    # Start server + open browser
-bun run dev:demo               # Start with the project-tour demo board
+bun run dev:demo               # Start with the saved dashboard demo board
 bun run start                  # Start headless (no browser)
 pmx-canvas serve --daemon      # Start daemonized server with pid/log tracking
 pmx-canvas serve status        # Check daemon health + pid state
@@ -168,6 +168,21 @@ common gotchas) lives in [`docs/RELEASE.md`](docs/RELEASE.md). The README
 intentionally does not document the release flow — it's an end-user-facing file
 and the release process is maintainer-only.
 
+## Changelog Style
+
+Keep `CHANGELOG.md` entries simple and user-facing — short, plain sentences, no
+deep technical exposition, no exhaustive migration tables. Per release:
+
+- Optional **Highlights** — 3–5 one-line bullets of the most notable changes
+- **Added** / **Changed** / **Fixed** (and **Breaking** when needed) — each
+  bullet is one plain sentence describing the change from the user's
+  perspective (what they can now do or what behaves differently)
+- No nested sub-bullets, tool-by-tool mappings, or implementation detail; link
+  to docs for anything long-form
+
+Example bullet: "Added a `/rename` slash command to rename the current session
+directly from the composer."
+
 ## Testing Conventions
 
 Use the `pmx-canvas-testing` skill for the repo-standard verification ladder, test command
@@ -196,9 +211,9 @@ package in a clean temp consumer instead of the repo dev path.
 
 ## MCP Server
 
-84 tools: 15 action-discriminated composites (`canvas_node`, `canvas_render`, `canvas_edge`, `canvas_group`, `canvas_history`, `canvas_view`, `canvas_query`, `canvas_webview`, `canvas_app`, `canvas_ax_state`, `canvas_ax_work`, `canvas_ax_gate`, `canvas_ax_timeline`, `canvas_ax_delivery`, `canvas_intent`) plus 69 legacy single-purpose tools during the v0.2 overlap window. Prefer composites for new MCP calls; see `docs/mcp.md` for the authoritative tool list and legacy replacements. `canvas_intent` (Ghost Cursor of Intent) is composite-only — its `intent.signal`/`intent.update`/`intent.clear` ops have no standalone legacy tool.
+27 tools: 15 action-discriminated composites (`canvas_node`, `canvas_render`, `canvas_edge`, `canvas_group`, `canvas_history`, `canvas_view`, `canvas_query`, `canvas_webview`, `canvas_app`, `canvas_ax_state`, `canvas_ax_work`, `canvas_ax_gate`, `canvas_ax_timeline`, `canvas_ax_delivery`, `canvas_intent`) plus 12 standalone tools (`canvas_batch`, `canvas_pin_nodes`, `canvas_invoke_command`, `canvas_ax_interaction`, `canvas_ingest_activity`, `canvas_screenshot`, plus the 6 snapshot tools — deprecated, pending a `canvas_snapshot` composite in v0.4). The 57 legacy single-purpose tools the composites replaced were removed in v0.3.0. Prefer composites for new MCP calls; see `docs/mcp.md` for the authoritative tool list and the legacy-to-composite migration reference. `canvas_intent` (Ghost Cursor of Intent) is composite-only — its `intent.signal`/`intent.update`/`intent.clear` ops have no standalone equivalent.
 
-`canvas_add_diagram` (also the `diagram` action of `canvas_app`) is a thin preset in `src/server/diagram-presets.ts` that proxies to the hosted [Excalidraw MCP app](https://github.com/excalidraw/excalidraw-mcp) (`https://mcp.excalidraw.com/mcp`). For any other MCP Apps server, use `canvas_app` action `open-mcp-app` (or the `canvas_open_mcp_app` tool directly).
+The `diagram` action of `canvas_app` is a thin preset in `src/server/diagram-presets.ts` that proxies to the hosted [Excalidraw MCP app](https://github.com/excalidraw/excalidraw-mcp) (`https://mcp.excalidraw.com/mcp`). For any other MCP Apps server, use `canvas_app` action `open-mcp-app`.
 
 14 resources: `canvas://pinned-context`, `canvas://schema`, `canvas://layout`, `canvas://summary`, `canvas://spatial-context`, `canvas://history`, `canvas://code-graph`, `canvas://ax`, `canvas://ax-context`, `canvas://ax-timeline`, `canvas://ax-work`, `canvas://ax-pending-steering`, `canvas://ax-delivery`, `canvas://skills` (plus per-skill `canvas://skills/<name>`)
 
@@ -208,13 +223,13 @@ Resource change notifications: the MCP server emits `notifications/resources/upd
 
 Neutral, agent-agnostic agent-experience primitives. The core never imports a host SDK (e.g. `@github/copilot-sdk`); host adapters map onto these HTTP/MCP surfaces. State lives in three partitions:
 
-- **Canvas-bound** (`focus`, `work-item`, `approval-gate`, `review-annotation`): live in `PmxAxState`, participate in snapshots + restore, cleared by `canvas_clear`. Read via `canvas_get_ax` / `canvas://ax-work`.
-- **Timeline** (`agent-event`, `evidence-item`, `steering-message`): persist in dedicated DB tables for diagnostics/continuity, bounded by retention (500 rows/table), NOT restored by snapshots, NOT cleared by `canvas_clear`. Read via `canvas_get_ax_timeline` / `canvas://ax-timeline`.
-- **Host/session** (`host-capability`): reported by adapters into its own table, exposed for diagnostics, survives `canvas_clear`. Read via `canvas_get_ax`.
+- **Canvas-bound** (`focus`, `work-item`, `approval-gate`, `review-annotation`): live in `PmxAxState`, participate in snapshots + restore, cleared by `canvas_view { action: "clear" }`. Read via `canvas_ax_state { action: "get" }` / `canvas://ax-work`.
+- **Timeline** (`agent-event`, `evidence-item`, `steering-message`): persist in dedicated DB tables for diagnostics/continuity, bounded by retention (500 rows/table), NOT restored by snapshots, NOT cleared by `canvas_view { action: "clear" }`. Read via `canvas_ax_timeline { action: "read" }` / `canvas://ax-timeline`.
+- **Host/session** (`host-capability`): reported by adapters into its own table, exposed for diagnostics, survives `canvas_view { action: "clear" }`. Read via `canvas_ax_state { action: "get" }`.
 
 Approval gates implement PMX approvals first (`pending → approved/rejected`); host permission hooks are mapped only where low-risk.
 
-Additional canvas-bound primitives: `elicitation` (request structured human input → respond), `mode-request` (request a plan/execute/autonomous transition → resolve), and a single `policy` singleton (tool/prompt policy: `tools.allowed|excluded|approvalRequired`, `prompt.systemAppend|mode`). All snapshot/restore with the rest of `PmxAxState` and are read via `canvas_get_ax` / `canvas://ax-work` / `canvas://ax-context`.
+Additional canvas-bound primitives: `elicitation` (request structured human input → respond), `mode-request` (request a plan/execute/autonomous transition → resolve), and a single `policy` singleton (tool/prompt policy: `tools.allowed|excluded|approvalRequired`, `prompt.systemAppend|mode`). All snapshot/restore with the rest of `PmxAxState` and are read via `canvas_ax_state { action: "get" }` / `canvas://ax-work` / `canvas://ax-context`.
 
 #### Node interactions (capability-gated)
 
@@ -224,7 +239,7 @@ Eligible nodes emit one normalized, zod-validated `PmxAxInteraction` envelope (`
 - **`sourceSurface` scoping:** sandboxed/opaque-origin iframe surfaces (`html-node`, `mcp-app`, `json-render`) are clamped to their OWN node — caller-supplied `nodeIds` are forced to `[sourceNodeId]`. Trusted surfaces (`native-node`, `adapter`) may target explicit nodeIds. **When adding a new sandboxed surface, add it to the `scoped` predicate** or it silently takes the permissive default.
 - **Transports:** native node controls call `POST /api/canvas/ax/interaction` directly; sandboxed surfaces postMessage a nonce-tagged emit to the parent canvas, which validates source + per-surface nonce + node id before submitting. `html`/`mcp-app` use `window.PMX_AX.emit(type, payload)`; the json-render/graph viewer forwards a spec action named after an AX type (e.g. `on.press → { action: "ax.work.create", params }`).
 - **Commands:** `ax.command.invoke` runs a registry command (`pmx.plan`, `pmx.execute`, `pmx.promote-context`, `pmx.summarize`, `pmx.review`) via `canvas_invoke_command`; unknown names are rejected (400) and a successful call records a `command` agent-event.
-- **Delivery:** steering can be claimed by adapterless MCP clients (`canvas_claim_ax_delivery` / `canvas://ax-pending-steering`) and acknowledged (`canvas_mark_ax_delivery`); loop-safe (a consumer never receives steering it originated).
+- **Delivery:** steering can be claimed by adapterless MCP clients (`canvas_ax_delivery { action: "claim" }` / `canvas://ax-pending-steering`) and acknowledged (`canvas_ax_delivery { action: "mark" }`); loop-safe (a consumer never receives steering it originated).
 
 Interactions request PMX-AX primitives only — never arbitrary shell, tool, MCP, or host execution.
 
@@ -236,13 +251,13 @@ The canvas exposes spatial intelligence to agents via `canvas://spatial-context`
 - **Pinned neighborhoods**: For each pinned node, lists nearby unpinned nodes (the human's implicit context)
 - **`canvas://pinned-context`** now includes neighborhood data — nearby unpinned nodes for each pin
 
-Use `canvas_search` to find nodes by title/content keywords instead of parsing the full layout.
+Use `canvas_query { action: "search" }` to find nodes by title/content keywords instead of parsing the full layout.
 
 ### Time Travel (Undo/Redo + History)
 
 Every canvas mutation is recorded in an in-memory ring buffer (last 200 operations). Each entry captures forward/inverse closures for clean undo/redo.
 
-- **`canvas_undo`** / **`canvas_redo`** — step through history, reversing operations cleanly
+- **`canvas_history`** (`action: "undo" | "redo"`) — step through history, reversing operations cleanly
 - **`canvas://history`** — human-readable mutation timeline with cursor position
 - **`canvas_diff`** — compare current canvas vs any saved snapshot (shows added/removed/modified nodes and edges)
 - HTTP: `POST /api/canvas/undo`, `POST /api/canvas/redo`, `GET /api/canvas/history`
@@ -330,6 +345,7 @@ When maintaining `.learnings/`:
 - Use `skill-pipeline` as the top-level router / entrypoint for non-trivial coding tasks
 - Claude Code hooks are configured in `.claude/settings.json` and point at the mirrored `.claude/skills/` scripts
 - Keep the three skill trees byte-for-byte identical; verify with `bun run validate:agent-skills`
+- The skill trees are local-only dev tooling and gitignored — a clean checkout does not contain them, and `validate:agent-skills` skips (exits 0) when they are absent
 - Use the skill definitions under `.agents/skills/` as the canonical instructions
 
 ### How To Run It

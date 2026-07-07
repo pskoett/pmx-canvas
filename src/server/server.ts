@@ -920,7 +920,8 @@ function rotatePrimaryWorkbenchSessionIfNeeded(): void {
   primaryWorkbenchSessionId = `pmx-${Date.now().toString(36)}`;
 }
 
-async function readJson(req: Request): Promise<Record<string, unknown>> {
+/** Null means a non-empty body failed to parse — handlers must 400, not silently no-op. */
+async function readJson(req: Request): Promise<Record<string, unknown> | null> {
   let text = '';
   try {
     text = await req.text();
@@ -937,8 +938,12 @@ async function readJson(req: Request): Promise<Record<string, unknown>> {
     return value as Record<string, unknown>;
   } catch (error) {
     logWorkbenchWarning('readJson', error);
-    return {};
+    return null;
   }
+}
+
+function malformedJsonResponse(): Response {
+  return responseJson({ ok: false, error: 'Malformed JSON body.' }, 400);
 }
 
 function htmlEscape(value: string): string {
@@ -1228,6 +1233,7 @@ function addFrameDocument(html: string, sandbox: string): string {
 
 async function handleCreateFrameDocument(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const html = body.html;
   if (typeof html !== 'string' || !html) {
     return responseJson({ ok: false, error: 'Frame document requires non-empty html.' }, 400);
@@ -1370,6 +1376,7 @@ function handleNodeSurface(pathname: string, url: URL): Response {
 
 async function handleCanvasUpdate(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const updates = Array.isArray(body.updates) ? body.updates : [];
   const result = body.recordHistory === false
     ? (() => {
@@ -1388,6 +1395,7 @@ async function handleCanvasUpdate(req: Request): Promise<Response> {
 
 async function handleCanvasViewport(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const next = {
     x: typeof body.x === 'number' ? body.x : canvasState.viewport.x,
     y: typeof body.y === 'number' ? body.y : canvasState.viewport.y,
@@ -1438,6 +1446,7 @@ function parseAnnotationPoints(value: unknown): CanvasAnnotation['points'] {
 
 async function handleCanvasAddAnnotation(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const type = body.type === 'text' ? 'text' : 'freehand';
   const points = parseAnnotationPoints(body.points);
   if (points.length < (type === 'text' ? 1 : 2)) {
@@ -1524,6 +1533,7 @@ async function handleCanvasRefreshWebpageNode(nodeId: string, req: Request): Pro
   }
 
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const rawUrl = typeof body.url === 'string' ? body.url : undefined;
   let url: string | undefined;
   if (rawUrl && rawUrl.trim().length > 0) {
@@ -1544,6 +1554,7 @@ async function handleCanvasRefreshWebpageNode(nodeId: string, req: Request): Pro
 
 async function handleCanvasThemeUpdate(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const theme = normalizeCanvasTheme(body.theme, canvasState.theme);
   const next = canvasState.setTheme(theme);
   broadcastWorkbenchEvent('theme-changed', {
@@ -1823,6 +1834,7 @@ function handleRead(pathLike: string): Response {
 
 async function handleExtAppCallTool(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
   const toolName = typeof body.toolName === 'string' ? body.toolName.trim() : '';
   if (!sessionId || !toolName) {
@@ -1893,6 +1905,7 @@ async function handleExtAppCallTool(req: Request): Promise<Response> {
 
 async function handleExtAppReadResource(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
   const uri = typeof body.uri === 'string' ? body.uri.trim() : '';
   if (!sessionId || !uri) {
@@ -1909,6 +1922,7 @@ async function handleExtAppReadResource(req: Request): Promise<Response> {
 
 async function handleExtAppListTools(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
   if (!sessionId) return responseJson({ ok: false, error: 'Missing sessionId.' }, 400);
 
@@ -1922,6 +1936,7 @@ async function handleExtAppListTools(req: Request): Promise<Response> {
 
 async function handleExtAppListResources(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
   if (!sessionId) return responseJson({ ok: false, error: 'Missing sessionId.' }, 400);
 
@@ -1935,6 +1950,7 @@ async function handleExtAppListResources(req: Request): Promise<Response> {
 
 async function handleExtAppListResourceTemplates(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
   if (!sessionId) return responseJson({ ok: false, error: 'Missing sessionId.' }, 400);
 
@@ -1948,6 +1964,7 @@ async function handleExtAppListResourceTemplates(req: Request): Promise<Response
 
 async function handleExtAppListPrompts(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
   if (!sessionId) return responseJson({ ok: false, error: 'Missing sessionId.' }, 400);
 
@@ -1961,6 +1978,7 @@ async function handleExtAppListPrompts(req: Request): Promise<Response> {
 
 async function handleExtAppModelContext(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const nodeId = typeof body.nodeId === 'string' ? body.nodeId.trim() : '';
   if (!nodeId) return responseJson({ ok: false, error: 'Missing nodeId.' }, 400);
 
@@ -2033,6 +2051,7 @@ function currentWorkbenchUrl(): string | null {
 
 async function handleWorkbenchWebViewScreenshot(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const format = body.format === 'jpeg' || body.format === 'webp' || body.format === 'png'
     ? body.format
     : 'png';
@@ -2063,6 +2082,7 @@ async function handleWorkbenchWebViewScreenshot(req: Request): Promise<Response>
 
 async function handleWorkbenchOpen(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const pathLike = typeof body.path === 'string' ? body.path : '';
   const safePath = resolveWorkspaceMarkdownPath(pathLike);
   if (!safePath) return responseText('Invalid path', 400);
@@ -2074,6 +2094,7 @@ async function handleWorkbenchOpen(req: Request): Promise<Response> {
 
 async function handleWorkbenchIntent(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const rawType = typeof body.type === 'string' ? body.type.trim() : '';
   if (!rawType) return responseText('Missing intent type', 400);
   if (!ALLOWED_WORKBENCH_INTENTS.has(rawType as PrimaryWorkbenchIntent['type'])) {
@@ -2234,6 +2255,7 @@ function handleWorkbenchEvents(req: Request): Response {
 
 async function handleSave(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const pathLike = typeof body.path === 'string' ? body.path : '';
   const safePath = resolveWorkspaceMarkdownPath(pathLike);
   if (!safePath) return responseText('Invalid path', 400);
@@ -2250,6 +2272,7 @@ async function handleSave(req: Request): Promise<Response> {
 
 async function handleRender(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const markdown = typeof body.markdown === 'string' ? body.markdown : '';
   const html =
     (marked.parse(normalizeMarkdownExternalUrls(markdown), {
@@ -2271,6 +2294,7 @@ function buildSelectionContextPreamble(contextNodeIds: string[]): string {
 
 async function handleCanvasPrompt(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const text = typeof body.text === 'string' ? body.text.trim() : '';
   if (!text) return responseText('Missing prompt text', 400);
 
@@ -2604,6 +2628,7 @@ function normalizeActivityReactions(input: Record<string, unknown>): {
 // Report primitive A: ingest a harness-forwarded agent activity; the board auto-reacts.
 async function handleAxActivityIngest(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   if (!isAxActivityKind(body.kind)) {
     return responseJson({ ok: false, error: "activity requires a valid 'kind': one of tool-start, tool-result, failure, error, session-start, session-end, command, note." }, 400);
   }
@@ -2650,6 +2675,7 @@ function handleGetAxSurfaceSnapshot(): Response {
 // safe presentation query params like the current theme.
 async function handleOpenExternalSurface(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const nodeId = typeof body.nodeId === 'string' ? body.nodeId : '';
   if (!nodeId) return responseJson({ ok: false, error: 'nodeId is required.' }, 400);
   const node = canvasState.getNode(nodeId);
@@ -2670,6 +2696,7 @@ async function handleOpenExternalSurface(req: Request): Promise<Response> {
 
 async function handleAxInteraction(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   const { result, events } = applyAxInteraction(canvasState, body, normalizeAxSource(body.source, 'api'));
   for (const e of events) {
     broadcastWorkbenchEvent(e.event, {
@@ -2711,6 +2738,7 @@ function handleAxPolicyGet(): Response {
 
 async function handleAxStatePatch(req: Request): Promise<Response> {
   const body = await readJson(req);
+  if (body === null) return malformedJsonResponse();
   if (!body.focus || typeof body.focus !== 'object' || Array.isArray(body.focus)) {
     return responseJson({ ok: false, error: 'PATCH /api/canvas/ax currently requires a focus object.' }, 400);
   }

@@ -217,7 +217,7 @@ take a screenshot when the drawn form matters.
 
 Humans draw with the pen toolbar button and remove marks with the eraser button.
 If an agent already knows the annotation ID from context, it can remove it through
-MCP with `canvas_remove_annotation`.
+MCP with `canvas_view { action: "remove-annotation", id }`.
 
 ## When to reach for the CLI
 

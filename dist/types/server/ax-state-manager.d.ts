@@ -7,8 +7,9 @@
  *
  *   • Canvas-bound (`_axState`): focus, work items, approval gates, review
  *     annotations, elicitations, mode requests, policy. Snapshotted, cleared by
- *     `canvas_clear`, replaced by `restore`. Mutators record undo/redo history
- *     (via the injected `recordMutation` / `suppressed` callbacks).
+ *     `canvas_view` (`clear` action), replaced by `restore`. Mutators record
+ *     undo/redo history (via the injected `recordMutation` / `suppressed`
+ *     callbacks).
  *   • Timeline (audit-only): agent events, evidence, steering. DB-direct, NOT in
  *     `_axState`, NOT history-recorded, NOT snapshotted, retention-bounded.
  *   • Host/session: a single host-capability row in its own table.

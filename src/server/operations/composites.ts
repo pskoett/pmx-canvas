@@ -9,17 +9,22 @@
  * to the standalone `canvas_add_edge` — same op, same arg mapping, same result
  * shape — by construction. No handler logic lives here.
  *
- * Migration (docs/api-stability.md + plan-006): composites land ADDITIVELY in
- * v0.2 alongside the legacy single-purpose tools (the tool surface grows, then
- * shrinks when the legacy tools are removed in v0.3). Every action here maps to a
- * registry-backed operation (plan-005 slices 1–7 + plan-008 Wave 1).
+ * Migration (docs/api-stability.md + plan-006): composites landed ADDITIVELY in
+ * v0.2 alongside the legacy single-purpose tools. As of v0.3.0 the legacy tools
+ * those composites fold are REMOVED (registration-suppressed — see
+ * `compositeFoldedOpNames` below); every action here maps to a registry-backed
+ * operation (plan-005 slices 1–7 + plan-008 Wave 1) that is now reachable ONLY
+ * through its composite (or `canvas_batch`).
  *
- * Still deferred (its legacy standalone tool keeps working; see plan-008): the
- * `canvas_snapshot` composite (the v0.3 name collision). The action enums are
- * forward-compatible: adding an action later is additive. (`canvas_webview`
- * shipped in plan-008 Wave 3 via runner injection; `canvas_app` shipped in Wave 4
- * — open-mcp-app / diagram / build-artifact. Wave 5 folded the last three legacy
- * tools deprecate-only — NO per-action input-injection mechanism was needed:
+ * Deferred to v0.4: the `canvas_snapshot` composite (still a name collision —
+ * see below). Its 6 legacy snapshot standalones (`canvas_snapshot`,
+ * `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`,
+ * `canvas_gc_snapshots`, `canvas_diff`) stay registered in v0.3.0 but are marked
+ * deprecated (description-prefixed) per docs/api-stability.md's
+ * deprecate-one-minor-before-removal rule. (`canvas_webview` shipped in plan-008
+ * Wave 3 via runner injection; `canvas_app` shipped in Wave 4 — open-mcp-app /
+ * diagram / build-artifact. Wave 5 folded the last three legacy tools
+ * deprecate-only — NO per-action input-injection mechanism was needed:
  * `canvas_add_html_node` / `canvas_add_html_primitive` → `canvas_node` action
  * "add" (type:"html" [+ primitive]); `canvas_refresh_webpage_node` → `canvas_node`
  * action "update" (refresh:true). `canvas_screenshot` stays standalone — it
@@ -30,8 +35,8 @@
  * name is ALREADY a legacy standalone tool (the save-snapshot tool, op
  * `snapshot.save`), so it cannot be added additively without a name clash, and
  * repurposing `canvas_snapshot` to be action-discriminated now would break
- * existing callers. It lands in v0.3, in the same change that removes the legacy
- * single-purpose snapshot tools and frees the name.
+ * existing callers. It lands in v0.4, in the same change that removes the 6
+ * kept-but-deprecated legacy snapshot tools and frees the name.
  *
  * This module must never import server.ts or index.ts.
  */
@@ -47,7 +52,7 @@ import { z, type ZodRawShape, type ZodTypeAny } from 'zod';
  *  - Two-discriminator (`canvas_ax_gate`, plan-007 Slice C): a `kind` × `action`
  *    matrix folds 9 ops into one tool. Set `extraDiscriminatorShape` (the `kind`
  *    enum), `memberOps` (the op names — used to derive the schema union + the
- *    deprecation notes), `actionEnum` (the action discriminator values), and
+ *    folded-op set), `actionEnum` (the action discriminator values), and
  *    `resolveOp` (maps `{ kind, action }` → op name, or undefined for an invalid
  *    combo → a loud error at dispatch). The flat `actions` map is left empty for
  *    these; the matrix path uses `resolveOp` instead.
@@ -78,8 +83,9 @@ export interface CompositeToolDefinition {
   actionEnum?: readonly string[];
   /**
    * Two-discriminator extension: every member op name. Used to build the schema
-   * union (all member-op fields, optional) and to derive a deprecation note per
-   * member op (each mapped back to its (kind, action) by `describeOp`).
+   * union (all member-op fields, optional) and to populate the folded-op set
+   * (`compositeFoldedOpNames`) that suppresses each member op's standalone
+   * registration.
    */
   memberOps?: string[];
   /**
@@ -331,36 +337,30 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
 ];
 
 /**
- * Deprecation notes for the legacy single-purpose tools, DERIVED from the
- * composites: every operation a composite folds gets a `Deprecated: use
- * canvas_x with action "y".` prefix on its standalone tool description, steering
- * agents to the composite during the v0.2 overlap window (the legacy tools and
- * these notes are removed together in v0.3). Keyed by registry operation name.
- * Deriving it keeps the deprecation list in lockstep with the composites — a new
- * folded action automatically deprecates the tool it replaces.
+ * Operation names FOLDED by a composite, DERIVED from the composites: every op
+ * a composite folds had its standalone single-purpose tool REMOVED in v0.3.0
+ * (see docs/api-stability.md). This set is the do-not-register list —
+ * `registerOperationTools` skips any op whose name is in it, since the op is
+ * only reachable through its composite (and through `canvas_batch`) now.
+ * Deriving it from the composites keeps suppression in lockstep with them — a
+ * newly folded action is automatically suppressed from standalone registration.
  */
-export function buildCompositeDeprecationNotes(
+export function compositeFoldedOpNames(
   definitions: CompositeToolDefinition[] = compositeToolDefinitions,
-): Map<string, string> {
-  const notes = new Map<string, string>();
+): Set<string> {
+  const names = new Set<string>();
   for (const def of definitions) {
-    // Single-discriminator composites: one note per (action → op).
-    for (const [action, opName] of Object.entries(def.actions)) {
-      notes.set(opName, `Deprecated: use ${def.toolName} with action "${action}". `);
+    // Single-discriminator composites: the flat `actions` map values.
+    for (const opName of Object.values(def.actions)) {
+      names.add(opName);
     }
-    // Two-discriminator composites (canvas_ax_gate): one note per member op,
-    // each mapped back to its (kind, action) so the deprecation points exactly
-    // at the composite invocation that replaces the legacy tool.
-    if (def.memberOps && def.describeOp) {
+    // Two-discriminator composites (canvas_ax_gate): the explicit `memberOps`
+    // list (the flat `actions` map is empty for these).
+    if (def.memberOps) {
       for (const opName of def.memberOps) {
-        const combo = def.describeOp(opName);
-        if (!combo) continue;
-        notes.set(
-          opName,
-          `Deprecated: use ${def.toolName} with kind "${combo.kind}" action "${combo.action}". `,
-        );
+        names.add(opName);
       }
     }
   }
-  return notes;
+  return names;
 }

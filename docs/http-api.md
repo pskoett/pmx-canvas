@@ -3,14 +3,18 @@
 REST endpoints for all canvas operations + an SSE event stream. Works from
 any language. Default base URL: `http://localhost:4313`.
 
+A non-empty request body that is not valid JSON returns
+`400 { "ok": false, "error": "Malformed JSON body." }` on every route; empty
+bodies are treated as an empty request.
+
 ## Canvas state
 
 ```bash
 # Get canvas state
 curl http://localhost:4313/api/canvas/state
 
-# Search nodes
-curl "http://localhost:4313/api/canvas/search?q=auth"
+# Search nodes (optional limit= caps the result count)
+curl "http://localhost:4313/api/canvas/search?q=auth&limit=10"
 
 # Validate the current layout
 curl http://localhost:4313/api/canvas/validate
@@ -133,7 +137,7 @@ Host-agnostic agent-experience primitives across three state partitions.
 Canvas-bound state (work items, approval gates, review annotations) rides
 canvas snapshots; timeline state (events, evidence, steering) persists for
 diagnostics but is retention-bounded and not restored by snapshots; the host
-capability is reported by adapters and survives `canvas_clear`.
+capability is reported by adapters and survives `canvas_view { action: "clear" }`.
 
 ```bash
 # Timeline — record a normalized agent-event

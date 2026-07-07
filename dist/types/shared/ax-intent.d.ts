@@ -5,7 +5,7 @@
  * agent is ABOUT to make (create / move / connect / remove / edit) so the canvas
  * can paint a faint placeholder before the real mutation lands. Like a
  * multiplayer cursor, it auto-expires, is count-capped, and never enters
- * `canvas_get_layout`, `state.json`, or snapshots.
+ * `canvas_query` (`layout` action), `state.json`, or snapshots.
  *
  * This module is import-shared by the server (IntentRegistry + the intent ops)
  * and the client (intent-store + IntentLayer); it must stay free of any

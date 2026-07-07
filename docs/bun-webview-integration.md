@@ -144,11 +144,11 @@ These flags are intentionally automation-only. They do **not** imply a visible B
 
 Implemented in [`src/mcp/server.ts`](../src/mcp/server.ts):
 
-- `canvas_webview_status`
-- `canvas_webview_start`
-- `canvas_webview_stop`
-- `canvas_evaluate`
-- `canvas_resize`
+- `canvas_webview { action: "status" }`
+- `canvas_webview { action: "start" }`
+- `canvas_webview { action: "stop" }`
+- `canvas_webview { action: "evaluate" }`
+- `canvas_webview { action: "resize" }`
 - `canvas_screenshot`
 
 Current MCP behavior:

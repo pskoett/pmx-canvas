@@ -1,10 +1,6 @@
 import { type CanvasLayout, type CanvasNodeState, type PmxCanvas } from '../server/index.js';
 import type { PmxAxSource } from '../server/ax-state.js';
 import { type OperationInvoker } from '../server/operations/index.js';
-type RefreshWebpageNodeResult = Awaited<ReturnType<PmxCanvas['refreshWebpageNode']>>;
-type AddHtmlNodeInput = Parameters<PmxCanvas['addHtmlNode']>[0];
-type AddHtmlPrimitiveInput = Parameters<PmxCanvas['addHtmlPrimitive']>[0];
-type AddHtmlPrimitiveResult = ReturnType<PmxCanvas['addHtmlPrimitive']>;
 type AxStateResult = ReturnType<PmxCanvas['getAxState']>;
 type AxContextResult = ReturnType<PmxCanvas['getAxContext']>;
 type SubmitAxInteractionInput = Parameters<PmxCanvas['submitAxInteraction']>[0];
@@ -33,9 +29,6 @@ export interface CanvasAccess {
     invoker(): OperationInvoker;
     getLayout(): Promise<CanvasLayout>;
     getNode(id: string): Promise<CanvasNodeState | undefined>;
-    refreshWebpageNode(id: string, url?: string): Promise<RefreshWebpageNodeResult>;
-    addHtmlNode(input: AddHtmlNodeInput): Promise<string>;
-    addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult>;
     getAxState(): Promise<AxStateResult>;
     getAxContext(options?: {
         consumer?: string;

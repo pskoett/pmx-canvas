@@ -98,14 +98,14 @@ vendor-specific.
 
 Spatial state auto-saves to `.pmx-canvas/canvas.db` (debounced ~500 ms) —
 git-committable, shareable across machines, and survives both browser
-refresh and server restart. Named [snapshots](docs/mcp.md#tools), full
+refresh and server restart. Named [snapshots](docs/mcp.md#standalone-tools), full
 undo/redo, and an auto-detected code graph (JS/TS, Python, Go, Rust) make
 the canvas durable rather than throwaway. Stop the server before committing
 the DB so SQLite WAL data is checkpointed into the file.
 
 ### 06 / Any agent
 
-Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (84 tools,
+Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (27 tools,
 14 resources, change notifications), the [CLI](docs/cli.md), the
 [HTTP API](docs/http-api.md), or the [Bun SDK](docs/sdk.md). Works with
 Claude Code, GitHub Copilot CLI, Codex, Cursor, Windsurf, or any agent
@@ -136,9 +136,9 @@ surfaces (the core never imports a host SDK).
   preview).
 - **Codex app** — native through the Codex in-app Browser (opened to
   `/workbench`) plus the PMX MCP server: agents read `canvas://ax-context` /
-  `canvas_get_ax` and label Codex-originated focus with `source: "codex"`. No
-  extension API needed — Codex's two native surfaces (MCP + in-app Browser) are
-  exactly what the canvas requires.
+  `canvas_ax_state { action: "get" }` and label Codex-originated focus with
+  `source: "codex"`. No extension API needed — Codex's two native surfaces
+  (MCP + in-app Browser) are exactly what the canvas requires.
 
 The contract is host-agnostic, so a new host plugs in the same way: map its
 hooks, canvas, and session APIs onto PMX's AX primitives — no core changes.
@@ -219,8 +219,9 @@ Codex needs no extension — its two native surfaces are exactly what the canvas
 requires. Add the PMX MCP server to the Codex workspace config (same snippet as
 [Connect your agent](#connect-your-agent-mcp)), then open the returned
 `/workbench` URL in the **Codex in-app Browser** so you can see mutations live.
-Agents read pinned/focused context from `canvas://ax-context` / `canvas_get_ax`
-and label Codex-originated focus with `source: "codex"`. See
+Agents read pinned/focused context from `canvas://ax-context` /
+`canvas_ax_state { action: "get" }` and label Codex-originated focus with
+`source: "codex"`. See
 [`codex-app-adapter.md`](skills/pmx-canvas/references/codex-app-adapter.md) for
 the full workflow and live-test checklist.
 
@@ -255,7 +256,7 @@ the agent can read `canvas://skills` and pull in companion skills
   the three-tier visual matrix (json-render → html → web-artifact)
 - **[CLI reference](docs/cli.md)** — full command surface, daemon mode,
   watch streams, WebView automation
-- **[MCP reference](docs/mcp.md)** — 84 tools, 14 resources, change
+- **[MCP reference](docs/mcp.md)** — 27 tools, 14 resources, change
   notifications, node-type routing
 - **[HTTP API](docs/http-api.md)** — REST endpoints, SSE, batch operations
 - **[AX host-adapter contract](docs/ax-host-adapter-contract.md)** — how native
@@ -273,9 +274,10 @@ the agent can read `canvas://skills` and pull in companion skills
 - **What leaves your machine.** The core canvas runs entirely on
   `localhost`. Network egress only happens for explicit, opt-in flows:
   `webpage` nodes fetch the URL you give them; `mcp-app` /
-  `canvas_add_diagram` calls go to whatever MCP server URL you configure
-  (the Excalidraw preset uses `https://mcp.excalidraw.com/mcp`); `bunx`
-  itself reads the npm registry on first install. Nothing else phones home.
+  `canvas_app { action: "diagram" }` calls go to whatever MCP server URL you
+  configure (the Excalidraw preset uses `https://mcp.excalidraw.com/mcp`);
+  `bunx` itself reads the npm registry on first install. Nothing else phones
+  home.
 
 ## Tech stack
 

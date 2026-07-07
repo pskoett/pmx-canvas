@@ -45,7 +45,7 @@ When an agent edits a file through its normal tools, the canvas node updates
 automatically via `fs.watch()`.
 
 ```ts
-canvas_add_node({ type: 'file', content: 'src/server/index.ts' })
+canvas_node({ action: 'add', type: 'file', content: 'src/server/index.ts' })
 ```
 
 ## Image nodes
@@ -55,7 +55,8 @@ HTTP(S)-backed images preserve provenance so agents can tell where evidence
 came from. Nodes can carry validation status or warnings.
 
 ```ts
-canvas_add_node({
+canvas_node({
+  action: 'add',
   type: 'image',
   content: 'artifacts/dashboard.png',
   data: {
@@ -73,8 +74,8 @@ keep enough information for an agent to refresh the node from the original
 URL later.
 
 ```ts
-canvas_add_node({ type: 'webpage', url: 'https://example.com/docs' })
-canvas_refresh_webpage_node({ id: 'node-abc123' })
+canvas_node({ action: 'add', type: 'webpage', url: 'https://example.com/docs' })
+canvas_node({ action: 'update', id: 'node-abc123', refresh: true })
 ```
 
 ## MCP App nodes
@@ -82,11 +83,12 @@ canvas_refresh_webpage_node({ id: 'node-abc123' })
 `mcp-app` nodes embed other MCP servers' UI resources (`ui://...`) directly
 on the canvas as sandboxed iframes. Any server implementing the
 [MCP Apps extension](https://modelcontextprotocol.io/docs/extensions/apps)
-can be opened with `canvas_open_mcp_app`.
+can be opened with `canvas_app { action: "open-mcp-app" }`.
 
 Generic `pmx-canvas node add --type mcp-app` is intentionally rejected —
-these nodes need tool/session metadata. Use `canvas_open_mcp_app` (or the
-`canvas_add_diagram` Excalidraw preset) instead.
+these nodes need tool/session metadata. Use `canvas_app { action:
+"open-mcp-app" }` (or the `canvas_app { action: "diagram" }` Excalidraw
+preset) instead.
 
 ### Excalidraw preset (hand-drawn diagrams)
 
@@ -95,7 +97,8 @@ server at `https://mcp.excalidraw.com/mcp`. PMX Canvas exposes a one-call
 preset:
 
 ```ts
-canvas_add_diagram({
+canvas_app({
+  action: 'diagram',
   elements: [
     { type: 'rectangle', id: 'a', x: 80, y: 120, width: 180, height: 80,
       roundness: { type: 3 }, backgroundColor: '#a5d8ff', fillStyle: 'solid',
@@ -111,8 +114,8 @@ canvas_add_diagram({
 });
 ```
 
-For any other MCP App, call `canvas_open_mcp_app` directly with the server's
-transport, tool name, and arguments.
+For any other MCP App, call `canvas_app { action: "open-mcp-app" }` directly
+with the server's transport, tool name, and arguments.
 
 ## json-render nodes
 
@@ -122,7 +125,8 @@ transport, tool name, and arguments.
 and component catalog (core + react + shadcn).
 
 ```ts
-canvas_add_json_render_node({
+canvas_render({
+  action: 'add-json-render',
   title: 'Deploy status',
   spec: {
     root: 'card',
@@ -144,7 +148,8 @@ host-provided handlers. PMX wires AX handlers named after interaction types, so 
 spec action named `ax.*` becomes a capability-gated AX interaction:
 
 ```ts
-canvas_add_json_render_node({
+canvas_render({
+  action: 'add-json-render',
   title: 'Approve plan',
   spec: {
     root: 'btn',
@@ -164,8 +169,8 @@ source + per-viewer nonce + node id) and submits it server-side; `json-render` /
 `graph` viewers are sandboxed surfaces, so caller-supplied `nodeIds` are clamped
 to the node's own id. See the [MCP reference](mcp.md#node-interactions-capability-gated).
 
-Use `canvas_describe_schema` / `canvas_validate_spec` to introspect the
-component catalog before building a spec.
+Use `canvas_render { action: "describe-schema" }` / `canvas_render { action:
+"validate" }` to introspect the component catalog before building a spec.
 
 ## HTML nodes
 
@@ -182,7 +187,9 @@ match the active theme. Theme updates are posted into sandboxed HTML iframes,
 so theme-aware HTML can follow dark/light switches without reopening the node.
 
 ```ts
-canvas_add_html_node({
+canvas_node({
+  action: 'add',
+  type: 'html',
   title: 'Cost projection',
   html: '<canvas id="c"></canvas><script src="https://cdn.jsdelivr.net/npm/chart.js"></script><script>...</script>',
 })
@@ -213,8 +220,10 @@ presentation, explainer, status report, incident report, triage board, config
 editor, or prompt tuner.
 
 ```ts
-canvas_add_html_primitive({
-  kind: 'choice-grid',
+canvas_node({
+  action: 'add',
+  type: 'html',
+  primitive: 'choice-grid',
   title: 'Implementation options',
   data: {
     items: [
@@ -246,9 +255,9 @@ A **web artifact** is a single-file, fully bundled HTML app (React + Tailwind
 real interactive app — charts, forms, mini-dashboards — beyond what a static
 node or `html` snippet can express.
 
-`canvas_build_web_artifact` takes source strings (`App.tsx`, optional
-`index.css`, `main.tsx`, `index.html`, plus extra files), runs the bundled
-web-artifacts-builder scripts, writes the self-contained HTML to
+`canvas_app { action: "build-artifact" }` takes source strings (`App.tsx`,
+optional `index.css`, `main.tsx`, `index.html`, plus extra files), runs the
+bundled web-artifacts-builder scripts, writes the self-contained HTML to
 `.pmx-canvas/artifacts/<slug>.html`, and (by default) opens it in the canvas.
 
 ```bash
@@ -277,7 +286,7 @@ as dashed-border frames with a title bar and optional accent color.
   lay children out inside it
 
 ```ts
-canvas_create_group({ title: 'Auth Module', childIds: ['node-1', 'node-2'], color: '#4a9eff' })
+canvas_group({ action: 'create', title: 'Auth Module', childIds: ['node-1', 'node-2'], color: '#4a9eff' })
 ```
 
 ## Edge types
@@ -296,25 +305,26 @@ All edges support labels, styles (solid/dashed/dotted), and animation.
 Agents don't have to guess node shapes. The running server exposes its create
 schemas, json-render component catalog, and node-type examples:
 
-- `canvas_describe_schema` / `GET /api/canvas/schema` — list all node-create
-  schemas, required fields, json-render components, HTML primitives, and sample payloads
-- `canvas_validate_spec` / `POST /api/canvas/schema/validate` — validate a
+- `canvas_render { action: "describe-schema" }` / `GET /api/canvas/schema` — list all
+  node-create schemas, required fields, json-render components, HTML primitives, and sample payloads
+- `canvas_render { action: "validate" }` / `POST /api/canvas/schema/validate` — validate a
   json-render spec, graph payload, or HTML primitive payload **without** creating a node
-- `canvas_validate` / `GET /api/canvas/validate` — validate the current
+- `canvas_query { action: "validate" }` / `GET /api/canvas/validate` — validate the current
   layout for collisions, containment, and missing edge endpoints
 - `canvas://schema` — the same data as an MCP resource
 
 The CLI's `node schema` / `validate spec` subcommands surface the same data
 from the terminal.
 
-MCP node creation uses dedicated tools for structured node families. Read
-`mcp.nodeTypeRouting` from `canvas_describe_schema` when in doubt:
-`json-render` → `canvas_add_json_render_node`,
-`graph` → `canvas_add_graph_node`,
-`html-primitive` → `canvas_add_html_primitive`,
-`html` → `canvas_add_html_node`,
-`web-artifact` → `canvas_build_web_artifact`,
-`mcp-app` → `canvas_open_mcp_app`,
-`group` → `canvas_create_group`.
+MCP node creation uses dedicated composite actions for structured node
+families. Read `mcp.nodeTypeRouting` from `canvas_render { action:
+"describe-schema" }` when in doubt:
+`json-render` → `canvas_render { action: "add-json-render" }`,
+`graph` → `canvas_render { action: "add-graph" }`,
+`html-primitive` → `canvas_node { action: "add", type: "html", primitive: "<kind>" }`,
+`html` → `canvas_node { action: "add", type: "html" }`,
+`web-artifact` → `canvas_app { action: "build-artifact" }`,
+`mcp-app` → `canvas_app { action: "open-mcp-app" }`,
+`group` → `canvas_group { action: "create" }`.
 Basic nodes (`markdown`, `status`, `file`, `image`, `webpage`) use
-`canvas_add_node`.
+`canvas_node { action: "add" }`.

@@ -83,7 +83,8 @@ realize them with PMX Canvas `graph` / `json-render` nodes. Color must encode da
 
 ## Mapping to the PMX Canvas chart catalog
 
-Realize these designs with `canvas_add_graph_node` (graph nodes) and `canvas_add_json_render_node`.
+Realize these designs with `canvas_render { action: "add-graph" }` (graph nodes) and
+`canvas_render { action: "add-json-render" }`.
 The chart catalog: `LineChart`, `BarChart`, `PieChart`, `AreaChart`, `ScatterChart`, `RadarChart`,
 `StackedBarChart`, `ComposedChart`, plus the Tufte primitives `Sparkline`, `DotPlot`, `BulletChart`,
 and `Slopegraph`.
@@ -128,9 +129,9 @@ are directly identifiable; reserve legends for genuinely many overlapping series
 
 When more than ~4 series would overlap in one chart, do **not** cram them into a single multi-color
 `LineChart`. Create several small `graph` nodes with an **identical shared scale** and consistent
-encoding, arranged in a grid (`canvas_arrange` grid, or a `group`). Position means the same thing in
-every panel; the sequence tells the macro story while each panel carries the micro detail. This is
-almost always better than color-coding 6+ lines.
+encoding, arranged in a grid (`canvas_view { action: "arrange", layout: "grid" }`, or a `group`).
+Position means the same thing in every panel; the sequence tells the macro story while each panel
+carries the micro detail. This is almost always better than color-coding 6+ lines.
 
 ## Key Principles Reference
 

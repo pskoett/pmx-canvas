@@ -46,14 +46,18 @@ and exercises the CLI flows from
 
 ## Versioning
 
-Semantic versioning. While we are still in `0.1.x`:
+Semantic versioning, in 0.x semver honestly (see `docs/api-stability.md`).
+We are pre-1.0, so minor versions — not just major — are the breaking-change
+boundary:
 
-- Patch (`0.1.x → 0.1.x+1`): bug fixes, hardening, internal cleanups,
-  additive CLI flags / MCP fields with backwards-compat fallbacks.
-- Minor (`0.1.x → 0.2.0`): documented breaking changes (e.g. dropping
-  the `hostMode + path` fallback in `getCanvasNodeKind`, removing legacy
-  `ext-app-ext-app-…` ID handling, JSON-shape changes that aren't
-  additive).
+- Patch (`0.x.y → 0.x.y+1`): bug fixes, hardening, internal cleanups,
+  additive CLI flags / MCP fields with backwards-compat fallbacks. Never
+  breaks a public surface.
+- Minor (`0.x → 0.x+1`): documented breaking changes are allowed only here
+  (e.g. the 0.2 → 0.3 removal of the 57 deprecated legacy single-purpose MCP
+  tools in favor of their composite replacements). Every breaking change in
+  a minor needs a `### Breaking` CHANGELOG entry naming the replacement —
+  see the release-blocker gate below.
 - Major (`0.x → 1.0`): production-stability commitment.
 
 CLAUDE.md rule #5 (CanvasStateManager / PmxCanvas SDK / HTTP / MCP
@@ -70,6 +74,11 @@ Each release section uses these subheadings:
   command/flag, SDK export, JSON shape).
 - **Changed** — behavior changes that aren't strictly bug fixes
   (response shape additions, schema cleanups, stricter validation).
+- **Breaking** — removed or incompatibly changed public surface (see
+  `docs/api-stability.md`). Required at minor version boundaries whenever a
+  public surface breaks; must name the replacement.
+- **Deprecated** — public surface marked for removal in a future minor,
+  per the `docs/api-stability.md` deprecation policy.
 - **Fixed** — bug fixes.
 - **Internal** — refactors, test additions, docs that don't affect
   the public surface.
@@ -77,6 +86,12 @@ Each release section uses these subheadings:
 Don't ship a release without a CHANGELOG entry. The GitHub release
 notes file (`/tmp/pmx-canvas-vX.Y.Z-release-notes.md` by convention)
 expands on the CHANGELOG with examples and migration notes.
+
+**Release-blocker gate:** a breaking change without a `### Breaking`
+CHANGELOG entry blocks the release (`docs/api-stability.md`). Check the
+diff against the previous tag for removed/renamed public surface — MCP
+tool names, HTTP routes, SDK exports, CLI flags — before tagging; if
+anything broke and isn't named under `### Breaking`, add the entry first.
 
 ## Tag → publish
 

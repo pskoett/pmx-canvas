@@ -654,7 +654,7 @@ function createGroupNode(body: Record<string, unknown>): NodeAddResult {
 
 const nodeAddShape = {
   intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
-  type: z.string().optional().catch(undefined).describe('Node type (prefer canvas_create_group for groups)'),
+  type: z.string().optional().catch(undefined).describe('Node type (prefer canvas_group {action:"create"} for groups)'),
   title: z.string().optional().catch(undefined).describe('Node title'),
   content: z.string().optional().catch(undefined).describe('Node content (markdown for markdown nodes, file path for file nodes, image path/URL/data-URI for image nodes, URL for webpage nodes)'),
   path: z.string().optional().catch(undefined).describe('Compatibility alias for image node content. Prefer content for image paths.'),
@@ -665,7 +665,7 @@ const nodeAddShape = {
   height: z.number().optional().catch(undefined).describe('Height in pixels (default: 600)'),
   strictSize: z.boolean().optional().catch(undefined).describe('Keep explicit width/height fixed and scroll overflowing content instead of browser auto-fitting'),
   children: z.unknown().optional().describe('Group-only alias for childIds. Node IDs to include in a generic group node.'),
-  childIds: z.unknown().optional().describe('Group-only field. Node IDs to include in a generic group node. Prefer canvas_create_group for groups.'),
+  childIds: z.unknown().optional().describe('Group-only field. Node IDs to include in a generic group node. Prefer canvas_group {action:"create"} for groups.'),
   childLayout: z.enum(['grid', 'column', 'flow']).optional().catch(undefined).describe('Group-only optional layout for grouped children.'),
   color: z.string().optional().catch(undefined).describe('Group-only frame accent color.'),
   toolName: z.string().optional().catch(undefined).describe('Trace node tool or operation label'),
@@ -708,12 +708,12 @@ const nodeAddOperation = defineOperation<z.infer<typeof nodeAddSchema>, NodeAddR
   },
   mcp: {
     toolName: 'canvas_add_node',
-    description: 'Add a basic node to the canvas. Returns the created node with normalized title/content and rendered geometry. Supported here: markdown, status, context, ledger, trace, file, image, webpage, mcp-app, html, group. Dedicated node tools: json-render -> canvas_add_json_render_node, graph -> canvas_add_graph_node, web-artifact -> canvas_build_web_artifact, external apps -> canvas_open_mcp_app, html (preferred) -> canvas_add_html_node, groups -> canvas_create_group. Call canvas_describe_schema for the full nodeTypeRouting table.',
+    description: 'Add a basic node to the canvas. Returns the created node with normalized title/content and rendered geometry. Supported here: markdown, status, context, ledger, trace, file, image, webpage, mcp-app, html, group. Dedicated routes: json-render -> canvas_render {action:"add-json-render"}, graph -> canvas_render {action:"add-graph"}, web-artifact -> canvas_app {action:"build-artifact"}, external apps -> canvas_app {action:"open-mcp-app"}, groups -> canvas_group {action:"create"}. Call canvas_render {action:"describe-schema"} for the full nodeTypeRouting table.',
     extraShape: {
       type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'webpage', 'mcp-app', 'html', 'group'])
-        .describe('Node type (prefer canvas_create_group for groups)'),
+        .describe('Node type (prefer canvas_group {action:"create"} for groups)'),
       children: z.array(z.string()).optional().describe('Group-only alias for childIds. Node IDs to include in a generic group node.'),
-      childIds: z.array(z.string()).optional().describe('Group-only field. Node IDs to include in a generic group node. Prefer canvas_create_group for groups.'),
+      childIds: z.array(z.string()).optional().describe('Group-only field. Node IDs to include in a generic group node. Prefer canvas_group {action:"create"} for groups.'),
       axCapabilities: z.object({
         enabled: z.boolean().optional(),
         allowed: z.array(z.string()).optional(),

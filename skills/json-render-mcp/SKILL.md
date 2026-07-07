@@ -7,9 +7,10 @@ description: MCP Apps integration for json-render. Use when building MCP servers
 
 MCP Apps integration that serves json-render UIs as interactive MCP Apps inside Claude, ChatGPT, Cursor, VS Code, and other MCP-capable clients.
 
-In `pmx-canvas`, prefer the native `canvas_add_json_render_node` and `canvas_add_graph_node`
-tools first. They store validated specs directly in canvas node state and render them through the
-local `pmx-canvas` viewer route without needing a separate sidecar server.
+In `pmx-canvas`, prefer the native `canvas_render { action: "add-json-render" }` and
+`canvas_render { action: "add-graph" }` composite actions first. They store validated specs
+directly in canvas node state and render them through the local `pmx-canvas` viewer route without
+needing a separate sidecar server.
 
 ## Quick Start
 

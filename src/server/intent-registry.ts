@@ -4,7 +4,7 @@
  * Intents are EPHEMERAL PRESENCE, deliberately modelled like the attention /
  * timeline ephemerality layer rather than canvas-bound state:
  *  - an in-memory Map (NOT CanvasStateManager) — never serialized, never
- *    snapshotted, never returned by canvas_get_layout;
+ *    snapshotted, never returned by canvas_query (layout action);
  *  - count-capped (oldest evicted) and TTL-swept so a ghost can never linger;
  *  - emitted over the same workbench SSE stream as `ax-intent` /
  *    `ax-intent-clear` frames via an INJECTED emitter (server.ts wires it,

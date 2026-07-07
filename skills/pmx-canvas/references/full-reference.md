@@ -78,8 +78,7 @@ section below.
 5. **Signal then mutate (default behavior)** — signal with `canvas_intent { action: "signal", … }`
    to telegraph the move before nearly every mutation, then create with the right composite: `canvas_node` (markdown/status/file/webpage/html
    incl. primitives), `canvas_render` (json-render/graph), `canvas_app` (mcp-app/diagram/
-   web-artifact). Prefer composites — the legacy single-purpose tools are deprecated (removed in
-   v0.3).
+   web-artifact). Use composites — the legacy single-purpose tools were removed in v0.3.0.
 6. **Arrange + validate** — `canvas_view { action: "arrange" }` after batch adds, then
    `canvas_query { action: "validate" }` to catch collisions / dangling edges before finishing.
 7. **Pin through a verified path** — `canvas_pin_nodes` (or the browser "Pin as context" /
@@ -413,16 +412,15 @@ When you do set a color (group/graph), use this palette consistently to convey m
 
 ## MCP Tools Reference
 
-PMX Canvas exposes **15 action-discriminated composites** (the recommended surface) plus a
+PMX Canvas exposes **15 action-discriminated composites** (the whole recommended surface) plus a
 set of first-class standalones. The composites fold the older
 single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) discriminator —
 **field names are unchanged**; only the tool name + the `action`/`kind` selector differ.
 
-> **Legacy single-purpose tools are Deprecated.** The old names (`canvas_add_node`,
-> `canvas_update_node`, `canvas_request_approval`, `canvas_add_work_item`, …) still work but are
-> marked `Deprecated:` and are **removed in v0.3**. Prefer the composites. The authoritative
-> legacy→composite mapping table lives in [`docs/mcp.md`](../../../docs/mcp.md) — this skill does not
-> re-enumerate the deprecated names.
+> **Legacy single-purpose tools were removed in v0.3.0.** The old names (`canvas_add_node`,
+> `canvas_update_node`, `canvas_request_approval`, `canvas_add_work_item`, …) are no longer
+> registered — use the composites instead. The authoritative legacy→composite mapping table lives
+> in [`docs/mcp.md`](../../../docs/mcp.md) — this skill does not re-enumerate the removed names.
 
 ### The 15 composites
 
@@ -499,19 +497,19 @@ investigation board" intent, then run the batch with that linked `intentId` (use
 ### Standalones (first-class — not deprecated)
 
 These stay separate by design (trust-boundary, firehose, execution-intent, or not-yet-consolidated
-surfaces): `canvas_batch`, `canvas_pin_nodes`, `canvas_screenshot`,
-`canvas_refresh_webpage_node`, `canvas_ax_interaction`,
+surfaces): `canvas_batch`, `canvas_pin_nodes`, `canvas_screenshot`, `canvas_ax_interaction`,
 `canvas_ingest_activity`, `canvas_invoke_command`, and the snapshot tools (`canvas_snapshot`,
 `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`,
-`canvas_diff` — a `canvas_snapshot` composite is deferred to v0.3).
+`canvas_diff` — deprecated pending a `canvas_snapshot` composite in v0.4; the name collides with
+the current save-snapshot tool, so the composite cannot land additively).
 
-> **Deprecated → use the composite instead** (legacy tools still work but are marked
-> `Deprecated:` and are **removed in v0.3**): `canvas_open_mcp_app` / `canvas_add_diagram` /
+> **Removed in v0.3.0 → use the composite instead**: `canvas_open_mcp_app` / `canvas_add_diagram` /
 > `canvas_build_web_artifact` → **`canvas_app`**; `canvas_webview_start` / `canvas_webview_status` /
 > `canvas_webview_stop` / `canvas_resize` / `canvas_evaluate` → **`canvas_webview`**;
 > `canvas_add_html_node` / `canvas_add_html_primitive` → **`canvas_node { action:"add", type:"html" }`**
 > (pass `primitive` for a primitive); `canvas_add_node` / `canvas_update_node` / `canvas_remove_node`
 > → **`canvas_node`**; `canvas_remove_annotation` → **`canvas_view { action:"remove-annotation" }`**;
+> `canvas_refresh_webpage_node` → **`canvas_node { action:"update", id, refresh: true }`**;
 > `canvas_validate` (board collisions / containment / dangling edges) → **`canvas_query` `validate`**;
 > `canvas_validate_spec` (json-render / graph spec dry-run) → **`canvas_render` `validate`**.
 
@@ -553,10 +551,10 @@ delete+recreate; preserves edges, pins, position)
 
 **`canvas_node { action: "get", id }`** — Get a single node's full data by `id`.
 
-**`canvas_remove_annotation`** (deprecated → `canvas_view { action: "remove-annotation" }`; removed in v0.3) — Remove a human-drawn annotation by `id`. Use when
+**`canvas_view { action: "remove-annotation", id }`** — Remove a human-drawn annotation by `id`. Use when
 context gives you the annotation ID; use WebView first if you need to identify a mark by shape or location.
 
-**`canvas_refresh_webpage_node`** (standalone) — Re-fetch the URL stored on a `webpage` node
+**`canvas_node { action: "update", id, refresh: true }`** — Re-fetch the URL stored on a `webpage` node
 - `id` (required): webpage node to refresh
 - Optional `url`: replace the stored URL before refreshing (use when the human moved the page)
 - Returns the refreshed node with updated `pageTitle` and cached extracted text
@@ -569,7 +567,7 @@ context gives you the annotation ID; use WebView first if you need to identify a
   // → returns { id: 'node-abc' }
 
   // …later, after the human reopens the canvas…
-  canvas_refresh_webpage_node({ id: 'node-abc' })
+  canvas_node({ action: 'update', id: 'node-abc', refresh: true })
   // → re-fetches the URL, updates pageTitle + extracted text, keeps the node ID and position
   ```
 
@@ -621,7 +619,7 @@ the `tufte-viz` skill (`skills/tufte-viz/SKILL.md`). Key rules:
 - For more than ~4 overlapping series, build small multiples (several small graph nodes on a shared
   scale, arranged in a grid/group) instead of one multi-color chart.
 
-**`canvas_build_web_artifact`** (deprecated → `canvas_app { action: "build-artifact" }`; removed in v0.3) — Build and optionally open a bundled web artifact
+**`canvas_app { action: "build-artifact" }`** — Build and optionally open a bundled web artifact
 - Required: `title`, `appTsx` (source string contents, not a file path)
 - CLI `--app-file` reads a file before calling the same build path; MCP callers must pass the source contents
 - Cold builds commonly take 45-60 seconds; use a long client timeout such as 300000 ms or more
@@ -631,7 +629,7 @@ ID extraction for mixed tool responses:
 - Most add-style tools return a flat `id`; web artifacts return `id` plus `nodeId`; snapshots return `id` plus nested `snapshot.id`.
 - Defensive extractor: `const getId = (r) => r.id ?? r.nodeId ?? r.snapshot?.id;`
 
-**`canvas_open_mcp_app`** (deprecated → `canvas_app { action: "open-mcp-app" }`; removed in v0.3) — Open a tool-backed external MCP app node
+**`canvas_app { action: "open-mcp-app" }`** — Open a tool-backed external MCP app node
 - Required: `toolName`, `transport`
 - `transport` is either `{ type: "stdio", command, args?, cwd?, env? }` or `{ type: "http", url, headers? }`
 - This is lower-level than `pmx-canvas external-app add --kind excalidraw`; use `canvas_app { action: "diagram" }` for the built-in Excalidraw preset
@@ -773,35 +771,31 @@ JavaScript inside the workbench page.
 
 The WebView automation runs on Bun's WebKit-based WebView (macOS) or a headless
 Chromium fallback (Linux). It does **not** open a visible window; it's an
-additional headless renderer attached to the same canvas server, so all five
-tools below operate on the live canvas state.
+additional headless renderer attached to the same canvas server, so every action
+below operates on the live canvas state through the `canvas_webview` composite.
 
-> **Deprecated → use the `canvas_webview` composite** (removed in v0.3): the five
-> standalone tools below map to `canvas_webview { action: "status" | "start" | "stop" |
-> "evaluate" | "resize" }` respectively. Field names are unchanged.
-
-**`canvas_webview_status`** — Inspect the current automation session
+**`canvas_webview { action: "status" }`** — Inspect the current automation session
 - Returns `{ supported, active, headlessOnly, url, backend, width, height, dataStoreDir, startedAt, lastError }`
   (the viewport size is `width` / `height`, not `viewportWidth` / `viewportHeight`)
 - Call before `start` to check whether a session is already alive
 
-**`canvas_webview_start`** — Start (or replace) the automation session
+**`canvas_webview { action: "start" }`** — Start (or replace) the automation session
 - Optional: `backend` (`webkit` macOS-only, or `chrome`), `width`, `height`
 - The session opens `/workbench` at the canvas URL, waits for the SPA to
-  hydrate, and reports back via `canvas_webview_status`
+  hydrate, and reports back via `canvas_webview { action: "status" }`
 
-**`canvas_webview_stop`** — Tear down the automation session
+**`canvas_webview { action: "stop" }`** — Tear down the automation session
 
-**`canvas_evaluate`** — Run JavaScript inside the workbench page and return the result
+**`canvas_webview { action: "evaluate" }`** — Run JavaScript inside the workbench page and return the result
 - Required: exactly one of `expression` (single JS expression) or `script` (multi-statement body)
 - `script` is wrapped in an async IIFE, so top-level `await` works inside script bodies
 - Useful for asserting DOM state after a sequence of canvas mutations
-- Do not use `fetch()` inside `canvas_evaluate` to call PMX HTTP APIs; WebView security/CORS
-  restrictions can block those requests. Use the matching MCP tools instead.
+- Do not use `fetch()` inside `canvas_webview { action: "evaluate" }` to call PMX HTTP APIs; WebView
+  security/CORS restrictions can block those requests. Use the matching MCP tools instead.
 - Example: read the count of rendered `.canvas-node` elements:
 
   ```typescript
-  canvas_evaluate({ expression: 'document.querySelectorAll(".canvas-node").length' })
+  canvas_webview({ action: 'evaluate', expression: 'document.querySelectorAll(".canvas-node").length' })
   ```
 
 Useful workbench selectors:
@@ -811,19 +805,20 @@ Useful workbench selectors:
   to inspect or screenshot annotation shapes; MCP/context resources only expose compact
   annotation target summaries, not the raw visual shape. Humans can remove marks with
   the eraser toolbar button; agents can remove a known annotation ID with
-  `canvas_remove_annotation`.
+  `canvas_view { action: "remove-annotation" }`.
 - Canvas chrome: `.hud-layer`, `.canvas-toolbar`, `.connection-dot`, `.canvas-bootstrap-card`
 - Nodes do not expose stable `data-node-id` attributes. Use `canvas_query` (`layout` / `search`) or MCP resource data for exact node IDs.
 
 Async script example:
 
 ```typescript
-canvas_evaluate({
+canvas_webview({
+  action: 'evaluate',
   script: 'const title = await Promise.resolve(document.title); return title;',
 })
 ```
 
-**`canvas_resize`** — Change the WebView viewport
+**`canvas_webview { action: "resize" }`** — Change the WebView viewport
 - Required: `width`, `height`
 - Use before `canvas_screenshot` when the human needs a specific aspect ratio
 
@@ -831,20 +826,20 @@ canvas_evaluate({
 - Optional: `format` (`png` default), `fullPage` (boolean)
 - Returns both an MCP image payload (renderable inline by capable agents) and
   a path under `.pmx-canvas/screenshots/` so the human can view the file
-- Pair with `canvas_resize` to control the framing
+- Pair with `canvas_webview { action: "resize" }` to control the framing
 
 Typical flow when you want to show a result:
 
 ```typescript
-canvas_webview_start({ width: 1440, height: 900 });
+canvas_webview({ action: 'start', width: 1440, height: 900 });
 // …mutations…
 canvas_screenshot({ fullPage: true });
-canvas_webview_stop();
+canvas_webview({ action: 'stop' });
 ```
 
 ### Diagrams (Excalidraw MCP app preset)
 
-**`canvas_add_diagram`** (deprecated → `canvas_app { action: "diagram" }`; removed in v0.3) — Draw a hand-drawn diagram on the canvas via the hosted
+**`canvas_app { action: "diagram" }`** — Draw a hand-drawn diagram on the canvas via the hosted
 [Excalidraw MCP app](https://github.com/excalidraw/excalidraw-mcp)
 - Required: `elements` — an array of Excalidraw elements (rectangles, ellipses, diamonds, arrows,
   text). Can also be a JSON-array string.
@@ -868,7 +863,7 @@ canvas_webview_stop();
 
 ### External MCP apps (bring your own)
 
-**`canvas_open_mcp_app`** (deprecated → `canvas_app { action: "open-mcp-app" }`; removed in v0.3) — Open any external [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps)
+**`canvas_app { action: "open-mcp-app" }`** — Open any external [MCP Apps](https://modelcontextprotocol.io/docs/extensions/apps)
 server's `ui://` resource as an iframe node on the canvas
 - Required: `toolName`, `transport` (`http` URL or `stdio` command)
 - Optional: `serverName`, `toolArguments`, `title`, `x`, `y`, `width`, `height`
@@ -877,7 +872,7 @@ server's `ui://` resource as an iframe node on the canvas
 
 ### Web Artifacts
 
-**`canvas_build_web_artifact`** (deprecated → `canvas_app { action: "build-artifact" }`; removed in v0.3) — Build a single-file HTML artifact from React/Tailwind source
+**`canvas_app { action: "build-artifact" }`** — Build a single-file HTML artifact from React/Tailwind source
 - Required: `title`, `appTsx`
 - Optional: `indexCss`, `mainTsx`, `indexHtml`, extra `files`, `projectPath`, `outputPath`, `deps`, `includeLogs`
 - By default it opens the result on the canvas as an embedded app node
@@ -891,7 +886,7 @@ server's `ui://` resource as an iframe node on the canvas
 
 ### HTML Nodes (Sandboxed iframe)
 
-**`canvas_add_html_node`** (deprecated → `canvas_node { action: "add", type: "html", html }`; removed in v0.3) — Add a normal self-contained HTML document rendered in a sandboxed iframe
+**`canvas_node { action: "add", type: "html", html }`** — Add a normal self-contained HTML document rendered in a sandboxed iframe
 - Required: `html` (full document or fragment; inline `<script>` and CDN `<script src="...">` are allowed). If `html` is a bare path to an existing local `.html`/`.htm` file, the server reads that file's contents; otherwise it is treated as raw HTML.
 - Optional: `title`, `summary`, `agentSummary`, `presentation`, `slideTitles`, `embeddedNodeIds`, `embeddedUrls`, `x`, `y`, `width` (default 720), `height` (default 640), `strictSize`
 - Iframe sandbox is `allow-scripts` only — no same-origin access, no top-navigation, no forms
@@ -901,7 +896,7 @@ server's `ui://` resource as an iframe node on the canvas
 - Only presentation-marked HTML nodes expose a browser `Present` button. Use it when the HTML is a deck, briefing, or fullscreen review surface; the PMX shell owns the fullscreen overlay and exits via `Esc` or `Exit presentation`.
 - PMX stores a semantic sidecar (`agentSummary`, `contentSummary`, embedded references) so HTML nodes remain understandable in search, pinned context, and spatial context
 
-**`canvas_add_html_primitive`** (deprecated → `canvas_node { action: "add", type: "html", primitive, data }`; removed in v0.3) — Generate a reusable HTML communication primitive as a sandboxed `html` node
+**`canvas_node { action: "add", type: "html", primitive, data }`** — Generate a reusable HTML communication primitive as a sandboxed `html` node
 - Required: `kind`; run `canvas_render { action: "describe-schema" }` and read `htmlPrimitives` for the current catalog
 - Optional: `title`, `data`, `x`, `y`, `width`, `height`, `strictSize`
 - Use when markdown would be too dense and a structured visual artifact is clearer: tradeoff grids, implementation plans, PR reviews, module maps, design sheets, explainers, reports, and lightweight human-editable boards/editors
@@ -961,7 +956,7 @@ Use native `json-render` and `graph` nodes when the output should stay fully ins
 1. Use `canvas_render { action: "add-json-render" }` for dashboards, forms, summaries, and interactive UI panels
 2. Use `canvas_render { action: "add-graph" }` for charts and trend visualizations
 3. Use the repo-local `json-render-*` skills when you need help authoring or refining the spec itself
-4. Use `canvas_build_web_artifact` instead when the result needs a full custom React app rather than a schema-driven UI
+4. Use `canvas_app { action: "build-artifact" }` instead when the result needs a full custom React app rather than a schema-driven UI
 
 Spec elements support an `on` map (`on.press`, `on.change`, …) binding events to actions (`{ action, params }`) — built-in actions (`setState`, `pushState`, …) or, when named after an AX interaction type, a capability-gated AX emit. e.g. a Button with `on: { press: { action: 'ax.work.create', params: { title: '…' } } }` lets a human turn a panel control into a tracked work item; the viewer forwards it to the canvas, which validates and submits it server-side (clamped to the node's own id). See **Node AX Interactions** above.
 
@@ -1107,9 +1102,9 @@ AX interactions are gated per node type. The lists below are each type's **ceili
 | `group` | `ax.focus.set`, `ax.work.create`, `ax.command.invoke`, `ax.event.record` |
 
 **Opt-in** — set `axCapabilities.enabled = true` (MCP: pass `axCapabilities` to
-`canvas_add_html_node` / `canvas_node { action: "update" }`. HTTP: `axCapabilities` **and** the
-`html` body are accepted **top-level on both `POST /api/canvas/node` and
-`PATCH /api/canvas/node/<id>`**, or nested under `data` — both work, top-level wins):
+`canvas_node { action: "add", type: "html" }` / `canvas_node { action: "update" }`. HTTP:
+`axCapabilities` **and** the `html` body are accepted **top-level on both `POST /api/canvas/node`
+and `PATCH /api/canvas/node/<id>`**, or nested under `data` — both work, top-level wins):
 
 | Node type | Allowed AX interaction types |
 |-----------|------------------------------|
@@ -1136,7 +1131,7 @@ inbox as a canvas node that BOTH emits AX interactions AND renders the current A
 state. The read side mirrors the write side:
 
 - **Opt in** (html/mcp-app are off by default): create with
-  `canvas_add_html_node({ html, axCapabilities: { enabled: true, allowed: ["ax.work.create","ax.work.update"] } })`,
+  `canvas_node({ action: "add", type: "html", html, axCapabilities: { enabled: true, allowed: ["ax.work.create","ax.work.update"] } })`,
   or flip an existing node on with
   `canvas_node({ action: "update", id, axCapabilities: { enabled: true, allowed: [...] } })`.
   json-render / graph nodes are enabled by default.
@@ -1163,7 +1158,7 @@ state. The read side mirrors the write side:
     against `window.PMX_AX`, not direct `fetch()` (the artifact iframe is sandboxed
     opaque-origin, so it can't call the API directly).
 
-Minimal html work board (drop-in via `canvas_add_html_node`, `axCapabilities.enabled: true`):
+Minimal html work board (drop-in via `canvas_node { action: "add", type: "html" }`, `axCapabilities.enabled: true`):
 
 ```html
 <button id="add">+ Task</button> <span id="ok"></span>
@@ -1215,10 +1210,10 @@ The `canvas://spatial-context` resource reveals how the human has organized info
 - **Pinned neighborhoods** — For each pinned node, nearby unpinned nodes are listed. These
   are the human's implicit context — things they consider related to what they pinned.
 - **Annotations** — Human-drawn markup is summarized by target/bounds only, e.g. an
-  annotation over a node or empty canvas region. Use WebView (`canvas_webview_start` +
-  `canvas_evaluate`/`canvas_screenshot`) when you need to see whether the mark is an
+  annotation over a node or empty canvas region. Use WebView (`canvas_webview { action: "start" }` +
+  `canvas_webview { action: "evaluate" }`/`canvas_screenshot`) when you need to see whether the mark is an
   arrow, line, circle, or other drawn shape. Remove known annotations with
-  `canvas_remove_annotation`; otherwise use WebView to identify the mark first.
+  `canvas_view { action: "remove-annotation" }`; otherwise use WebView to identify the mark first.
 - **Board density matters** — On a dense board, spatial context can still read like one large
   gallery unless groups and spacing separate the major regions clearly.
 
@@ -1367,7 +1362,7 @@ Understand a codebase by visualizing file relationships:
 When the user wants a real browser app instead of static notes:
 
 1. Use the `web-artifacts-builder` skill if the UI needs React state, routing, or shadcn-style components
-2. Build with `canvas_build_web_artifact`
+2. Build with `canvas_app { action: "build-artifact" }`
 3. Keep `openInCanvas` enabled unless the user explicitly wants only the output file
 4. Use the returned `projectPath` as the reusable source workspace for iterations
 5. Use the returned `path` for sharing or for opening the generated artifact outside the canvas

@@ -2,6 +2,8 @@
 # Seeds the canvas with demo content and captures a screenshot for the README.
 # Requires: canvas server running on PORT.
 
+set -euo pipefail
+
 PORT=${1:-4519}
 BASE="http://127.0.0.1:$PORT"
 

@@ -31,9 +31,9 @@ outputs:
 
 Perform analytics synthesis across engineering and product data sources. Answer questions about trends, correlations, comparisons, and distributions by querying MCP servers, analyzing the data, and presenting findings with visualizations.
 
-In `pmx-canvas`, prefer `canvas_add_graph_node` for charts and trend lines and
-`canvas_add_json_render_node` when the analysis should land as a richer dashboard or table inside
-the canvas.
+In `pmx-canvas`, prefer `canvas_render { action: "add-graph" }` for charts and trend lines and
+`canvas_render { action: "add-json-render" }` when the analysis should land as a richer dashboard
+or table inside the canvas.
 
 For chart design and color choices, apply the `tufte-viz` skill (`skills/tufte-viz/SKILL.md`): color
 must encode data, not decorate. Single-series bar charts default to one accent with the key bar

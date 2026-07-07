@@ -6,7 +6,7 @@ snapshot-vs-audit boundary; it is the documented module boundary for
 `AxStateManager` (`src/server/ax-state-manager.ts`), which `CanvasStateManager`
 holds and delegates to.
 
-| Partition | Members | Storage | Snapshotted | Cleared by `canvas_clear` | Cleared by `restore` |
+| Partition | Members | Storage | Snapshotted | Cleared by `canvas_view { action: "clear" }` | Cleared by `restore` |
 |-----------|---------|---------|:-----------:|:-------------------------:|:--------------------:|
 | **Canvas-bound** | `focus`, `workItems`, `approvalGates`, `reviewAnnotations`, `elicitations`, `modeRequests`, `policy` | in-memory `_axState` + one JSON blob in the `ax_state` table | ✅ | ✅ | ✅ (replaced by the snapshot's AX) |
 | **Timeline (audit-only)** | `agent-event`, `evidence-item`, `steering-message` | `ax_events` / `ax_evidence` / `ax_steering` tables, 500-row retention, sequential ids | ❌ | ❌ | ❌ |
@@ -15,14 +15,15 @@ holds and delegates to.
 **Rules.** Canvas-bound state travels with the canvas (snapshot / restore / clear);
 timeline and host data are diagnostic and survive all three. Timeline rows are
 append-only, retention-bounded (`AX_TIMELINE_RETENTION = 500` per table), and
-read via `canvas_get_ax_timeline` / `canvas://ax-timeline`. The host-capability
-row is reported by adapters and read via `canvas_get_ax`.
+read via `canvas_ax_timeline { action: "read" }` / `canvas://ax-timeline`. The
+host-capability row is reported by adapters and read via `canvas_ax_state {
+action: "get" }`.
 
 ## Read surfaces
 
-- **Canvas-bound:** `canvas_get_ax`, `canvas://ax`, `canvas://ax-context`, `canvas://ax-work`
-- **Timeline:** `canvas_get_ax_timeline`, `canvas://ax-timeline`, `canvas://ax-pending-steering`, `canvas://ax-delivery`
-- **Host:** `canvas_get_ax`
+- **Canvas-bound:** `canvas_ax_state { action: "get" }`, `canvas://ax`, `canvas://ax-context`, `canvas://ax-work`
+- **Timeline:** `canvas_ax_timeline { action: "read" }`, `canvas://ax-timeline`, `canvas://ax-pending-steering`, `canvas://ax-delivery`
+- **Host:** `canvas_ax_state { action: "get" }`
 
 ## Node-deletion semantics (soft-orphan + audit)
 

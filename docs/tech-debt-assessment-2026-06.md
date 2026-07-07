@@ -1,6 +1,6 @@
 # Tech Debt Assessment & Direction Proposal — June 2026
 
-**Status:** Proposed
+**Status:** Superseded by [tech-debt-assessment-2026-07.md](tech-debt-assessment-2026-07.md)
 **Date:** 2026-06-10
 **Scope:** Full-repo audit at v0.1.36 (~70k lines TS; src/server 23.2k, src/client 13.9k, src/mcp 4.2k, src/cli 4.0k)
 

@@ -9,9 +9,7 @@
  * Resolution order:
  *   1. The direct prefixed form (`ext-app-<toolCallId>` if not already
  *      prefixed, otherwise `toolCallId` as-is).
- *   2. The legacy `ext-app-ext-app-…` form, for canvases persisted before
- *      v0.1.4 and still on disk. Remove this fallback in v0.2.x.
- *   3. A scan of the layout for any `mcp-app` ext-app node carrying that
+ *   2. A scan of the layout for any `mcp-app` ext-app node carrying that
  *      `toolCallId` in its data.
  */
 import type { CanvasNodeState } from './canvas-state.js';
@@ -29,11 +27,6 @@ export function findCanvasExtAppNodeId(
     ? toolCallId
     : `ext-app-${toolCallId}`;
   if (source.getNode(directId)) return directId;
-
-  const legacyDirectId = `ext-app-${toolCallId}`;
-  if (legacyDirectId !== directId && source.getNode(legacyDirectId)) {
-    return legacyDirectId;
-  }
 
   for (const node of source.listNodes()) {
     if (

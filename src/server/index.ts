@@ -885,7 +885,7 @@ export class PmxCanvas extends EventEmitter {
 
   setContextPins(nodeIds: string[], mode: 'set' | 'add' | 'remove' = 'set'): { count: number; nodeIds: string[] } {
     const result = setCanvasContextPins(nodeIds, mode);
-    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    emitPrimaryWorkbenchEvent('context-pins-changed', { count: result.count, nodeIds: result.nodeIds });
     return result;
   }
 

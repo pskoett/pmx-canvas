@@ -20,9 +20,9 @@ surface each one binds to.
 | Adapter method | PMX surface (owned) | Harness-owned part |
 | --- | --- | --- |
 | `pullContext()` | `GET /api/canvas/ax/context?consumer=<id>` · `canvas://ax-context` — full board **plus** a compact `delivery` lead block | When/where to inject it into the model's turn |
-| `deliverSteer()` | `GET /api/canvas/ax/delivery/pending?consumer=<id>` · `canvas_claim_ax_delivery` → act → `POST …/delivery/<id>/mark` · `canvas_mark_ax_delivery` | Calling the host's native send/wake |
+| `deliverSteer()` | `GET /api/canvas/ax/delivery/pending?consumer=<id>` · `canvas_ax_delivery { action: "claim" }` → act → `POST …/delivery/<id>/mark` · `canvas_ax_delivery { action: "mark" }` | Calling the host's native send/wake |
 | `ingestActivity(event)` | `POST /api/canvas/ax/activity` · `canvas_ingest_activity` — board auto-reacts | Forwarding the host's tool/session hooks |
-| `awaitGate(id)` | `GET /api/canvas/ax/{approval\|elicitation\|mode}/<id>?waitMs=` · `canvas_await_*` | Optionally surfacing a native modal; the agent must await PMX |
+| `awaitGate(id)` | `GET /api/canvas/ax/{approval\|elicitation\|mode}/<id>?waitMs=` · `canvas_ax_gate { kind: "approval"\|"elicitation"\|"mode", action: "await" }` | Optionally surfacing a native modal; the agent must await PMX |
 | `mirrorLog(event)` *(optional)* | `GET /api/canvas/ax/timeline` · `canvas://ax-timeline` | Writing AX events into the host's own chat/session log |
 
 ## Steering is gated, not pushed (#54)
@@ -37,8 +37,8 @@ message; it does **not** wake the agent. It reaches the next turn only when:
 2. **A human message fires the turn.** A sandbox button click cannot itself create a
    new agent turn (an app-platform constraint). Any human prompt triggers the injection.
 3. **The agent acts, then acks.** Injected `pendingSteering` / `pendingActivity` is
-   *to-do*, not narration: act on it, then `canvas_mark_ax_delivery` the steering
-   (or resolve the work item / gate). Until acked, steering re-injects every gated turn.
+   *to-do*, not narration: act on it, then `canvas_ax_delivery { action: "mark" }`
+   the steering (or resolve the work item / gate). Until acked, steering re-injects every gated turn.
 
 The `delivery` lead block (`GET /api/canvas/ax/context?consumer=<id>`) is the
 robustness hedge: it's compact and sits above the full dump, so an adapter can inject
@@ -69,9 +69,9 @@ turn"), never imply it interrupts the agent now.
   tool becomes a blocked work item + a review finding + evidence without the agent
   remembering to push it. Reactions are kind-driven and overridable per call.
 - **Blocking gates (gates that actually gate).** Before, an approval gate was inert
-  data the agent had to poll. With `canvas_await_approval` (and the `?waitMs` HTTP
-  long-poll), the agent requests a gate then *blocks* until the human resolves it in
-  the browser — real human-in-the-loop control on any harness.
+  data the agent had to poll. With `canvas_ax_gate { kind: "approval", action: "await" }`
+  (and the `?waitMs` HTTP long-poll), the agent requests a gate then *blocks* until the
+  human resolves it in the browser — real human-in-the-loop control on any harness.
 
 ## What stays harness-owned
 

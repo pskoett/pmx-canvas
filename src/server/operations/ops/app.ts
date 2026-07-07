@@ -94,10 +94,10 @@ export async function openMcpAppCore(
   // event is dropped, so the node would never be created and the just-opened
   // external session would leak with a null nodeId. Reject loudly BEFORE opening
   // any session rather than silently corrupting. mcpapp.open / diagram.open are
-  // not batchable — call canvas_open_mcp_app / canvas_add_diagram (or canvas_app).
+  // not batchable — call canvas_app (action "open-mcp-app" / "diagram") instead.
   if (isEmitSuppressed()) {
     throw new OperationError(
-      'mcpapp.open / diagram.open cannot run inside canvas_batch: the canvas node is created from the ext-app-open SSE event, which batch suppresses. Call the op directly (canvas_open_mcp_app / canvas_add_diagram, or canvas_app).',
+      'mcpapp.open / diagram.open cannot run inside canvas_batch: the canvas node is created from the ext-app-open SSE event, which batch suppresses. Call canvas_app with action "open-mcp-app" or "diagram" outside the batch.',
     );
   }
   const targetNode = input.nodeId ? canvasState.getNode(input.nodeId) : undefined;
@@ -246,7 +246,7 @@ const openMcpAppOperation = defineOperation<z.infer<typeof openMcpAppSchema>, Op
   mcp: {
     toolName: 'canvas_open_mcp_app',
     description:
-      'Connect to an external MCP server that declares a ui:// app resource, call the specified tool, and open the resulting MCP App inside a canvas mcp-app node. This is a full external-MCP transport call, not the CLI kind shortcut; use canvas_add_diagram for the built-in Excalidraw preset.',
+      'Connect to an external MCP server that declares a ui:// app resource, call the specified tool, and open the resulting MCP App inside a canvas mcp-app node. This is a full external-MCP transport call, not the CLI kind shortcut; use canvas_app action "diagram" for the built-in Excalidraw preset.',
     formatResult: (result) => ({
       content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
     }),
@@ -283,7 +283,7 @@ const diagramOperation = defineOperation<z.infer<typeof diagramSchema>, OpenMcpA
   mcp: {
     toolName: 'canvas_add_diagram',
     description:
-      'Draw a hand-drawn diagram on the canvas via the hosted Excalidraw MCP app. Pass an array of Excalidraw elements (rectangles, ellipses, diamonds, arrows, text). The diagram opens inside an mcp-app node that supports fullscreen editing. For other MCP apps, use canvas_open_mcp_app.',
+      'Draw a hand-drawn diagram on the canvas via the hosted Excalidraw MCP app. Pass an array of Excalidraw elements (rectangles, ellipses, diamonds, arrows, text). The diagram opens inside an mcp-app node that supports fullscreen editing. For other MCP apps, use canvas_app action "open-mcp-app".',
     formatResult: (result) => ({
       content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
     }),

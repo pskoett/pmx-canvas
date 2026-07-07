@@ -218,7 +218,7 @@
       "id": 9,
       "name": "current-composite-routing",
       "prompt": "Create a markdown note, a bar chart, and an Excalidraw diagram on the canvas.",
-      "expected_output": "Uses current composites: canvas_node {action:add} for markdown, canvas_render {action:add-graph} for the chart, canvas_app {action:diagram} for Excalidraw. Avoids deprecated single-purpose tools (canvas_add_node/canvas_add_diagram/canvas_build_web_artifact/canvas_open_mcp_app).",
+      "expected_output": "Uses current composites: canvas_node {action:add} for markdown, canvas_render {action:add-graph} for the chart, canvas_app {action:diagram} for Excalidraw. Avoids removed single-purpose tools (canvas_add_node/canvas_add_diagram/canvas_build_web_artifact/canvas_open_mcp_app).",
       "assertions": [
         {
           "name": "uses-canvas-node",
@@ -237,7 +237,7 @@
         },
         {
           "name": "avoids-deprecated",
-          "description": "Does not call deprecated standalones (canvas_add_node/canvas_add_diagram/etc.)",
+          "description": "Does not call removed standalones (canvas_add_node/canvas_add_diagram/etc.)",
           "type": "output_check"
         }
       ]

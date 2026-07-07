@@ -69,7 +69,7 @@ const snapshotListOperation = defineOperation<z.infer<typeof snapshotListSchema>
   },
   mcp: {
     toolName: 'canvas_list_snapshots',
-    description: 'List saved canvas snapshots with IDs, names, timestamps, and node/edge counts. Defaults to the 20 newest snapshots; pass all=true to return every snapshot.',
+    description: 'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). List saved canvas snapshots with IDs, names, timestamps, and node/edge counts. Defaults to the 20 newest snapshots; pass all=true to return every snapshot.',
     extraShape: {
       limit: z.number().optional().describe('Maximum snapshots to return (default: 20)'),
       query: z.string().optional().describe('Optional case-insensitive ID/name filter'),
@@ -117,7 +117,7 @@ const snapshotSaveOperation = defineOperation<z.infer<typeof snapshotSaveSchema>
   },
   mcp: {
     toolName: 'canvas_snapshot',
-    description: 'Save the current canvas state as a named snapshot. Snapshots persist to disk and can be restored later.',
+    description: 'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). Save the current canvas state as a named snapshot. Snapshots persist to disk and can be restored later.',
     extraShape: {
       name: z.string().describe('Name for this snapshot (e.g., "before refactor", "investigation v2")'),
     },
@@ -154,7 +154,7 @@ const snapshotGcOperation = defineOperation<z.infer<typeof snapshotGcSchema>, Re
   },
   mcp: {
     toolName: 'canvas_gc_snapshots',
-    description: 'Delete old saved canvas snapshots, keeping the newest N snapshots. Use dryRun=true to preview deletions.',
+    description: 'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). Delete old saved canvas snapshots, keeping the newest N snapshots. Use dryRun=true to preview deletions.',
     extraShape: {
       keep: z.number().optional().describe('Number of newest snapshots to keep (default: 20)'),
       dryRun: z.boolean().optional().describe('Preview deletions without removing snapshot files'),
@@ -207,7 +207,7 @@ const snapshotDiffOperation = defineOperation<z.infer<typeof snapshotDiffSchema>
   },
   mcp: {
     toolName: 'canvas_diff',
-    description: 'Compare the current canvas state against a saved snapshot. Shows added/removed/modified nodes and edges. Pass either a snapshot name or ID.',
+    description: 'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). Compare the current canvas state against a saved snapshot. Shows added/removed/modified nodes and edges. Pass either a snapshot name or ID.',
     extraShape: {
       snapshot: z.string().describe('Snapshot name or ID to compare against'),
     },
@@ -289,7 +289,7 @@ const snapshotRestoreOperation = defineOperation<z.infer<typeof snapshotRestoreS
   },
   mcp: {
     toolName: 'canvas_restore',
-    description: 'Restore the canvas to a previously saved snapshot. Use canvas_snapshot to save first. Pass either the snapshot ID or name to restore.',
+    description: 'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). Restore the canvas to a previously saved snapshot. Use canvas_snapshot to save first. Pass either the snapshot ID or name to restore.',
     extraShape: {
       id: z.string().describe('Snapshot ID or name to restore (from canvas_snapshot or snapshot list)'),
     },
@@ -338,7 +338,7 @@ const snapshotDeleteOperation = defineOperation<z.infer<typeof snapshotDeleteSch
   },
   mcp: {
     toolName: 'canvas_delete_snapshot',
-    description: 'Delete a saved snapshot by ID.',
+    description: 'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). Delete a saved snapshot by ID.',
     extraShape: {
       id: z.string().describe('Snapshot ID to delete'),
     },

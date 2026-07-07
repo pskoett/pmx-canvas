@@ -8,10 +8,15 @@ blob-report/
 .playwright/
 artifacts/.web-artifacts/
 artifacts/*.html
+.pmx-canvas/artifacts/.web-artifacts/
 
 # SQLite WAL/SHM files (canvas.db itself is committable)
 *.db-wal
 *.db-shm
+
+# Daemon runtime files
+.pmx-canvas/daemon-*.log
+.pmx-canvas/daemon-*.pid
 
 # Agent-tooling meta (personal workflow artifacts, not product code)
 .agents/

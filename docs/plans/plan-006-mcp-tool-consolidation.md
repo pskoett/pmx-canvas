@@ -1,6 +1,8 @@
 # Plan 006: MCP tool consolidation (69 tools to 21)
 
-**Status:** In progress — wave 1 landed (7 canvas composites) and the AX wave landed (5 composites: `canvas_ax_state`, `canvas_ax_work`, `canvas_ax_gate`, `canvas_ax_timeline`, `canvas_ax_delivery`). Remaining: `canvas_snapshot` (name held by the legacy save tool until v0.3), `canvas_app`/`canvas_webview` (need plan-005 item 8), and the deferred actions `refresh` / `add-primitive` / `remove-annotation` / board validation.
+**Status: completed in v0.3.0 (canvas_snapshot composite moved to v0.4).**
+
+**Status (historical):** In progress — wave 1 landed (7 canvas composites) and the AX wave landed (5 composites: `canvas_ax_state`, `canvas_ax_work`, `canvas_ax_gate`, `canvas_ax_timeline`, `canvas_ax_delivery`). Remaining (closed by plan-008 + the v0.3.0 removal): `canvas_snapshot` (name held by the legacy save tool until v0.4), `canvas_app`/`canvas_webview` (landed via plan-005 item 8), and the deferred actions `refresh` / `add-primitive` / `remove-annotation` / board validation (landed via plan-008 waves 1 and 5).
 **Date:** 2026-06-12
 **Depends on:** plan-005 (operation registry). Slices 1-4 are migrated; consolidation lands per-domain as the corresponding registry slices complete.
 **Motivation:** docs/tech-debt-assessment-2026-06.md item 2. Governed by docs/api-stability.md (deprecation: marked in one minor, removed in the next).

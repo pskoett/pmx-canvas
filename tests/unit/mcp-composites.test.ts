@@ -92,7 +92,7 @@ afterEach(async () => {
 });
 
 describe('MCP composite tools (plan-006)', () => {
-  test('canvas_node folds add/get/update/remove and matches canvas_get_node', async () => {
+  test('canvas_node folds add/get/update/remove', async () => {
     const { client } = await createMcpSession();
 
     const added = parseJsonText<{ id: string }>(
@@ -100,10 +100,14 @@ describe('MCP composite tools (plan-006)', () => {
     );
     expect(added.id).toBeTruthy();
 
-    // Head-to-head read parity: composite `get` === standalone canvas_get_node.
-    const viaComposite = parseJsonText(await call(client, 'canvas_node', { action: 'get', id: added.id }));
-    const viaStandalone = parseJsonText(await call(client, 'canvas_get_node', { id: added.id }));
-    expect(viaComposite).toEqual(viaStandalone);
+    // node.get formatResult returns the compact node payload at top level
+    // (known expected output — canvas_get_node no longer exists standalone).
+    const viaComposite = parseJsonText<{ id?: string; type?: string; title?: string }>(
+      await call(client, 'canvas_node', { action: 'get', id: added.id }),
+    );
+    expect(viaComposite.id).toBe(added.id);
+    expect(viaComposite.type).toBe('markdown');
+    expect(viaComposite.title).toBe('Composite');
 
     await call(client, 'canvas_node', { action: 'update', id: added.id, title: 'Renamed' });
     // node.get formatResult returns the compact node payload at top level.
@@ -118,30 +122,39 @@ describe('MCP composite tools (plan-006)', () => {
     expect(missing.isError).toBe(true);
   }, 30000);
 
-  test('canvas_query search/layout match canvas_search/canvas_get_layout', async () => {
+  test('canvas_query folds search/layout', async () => {
     const { client } = await createMcpSession();
-    await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Findable', content: 'needle' });
+    const added = parseJsonText<{ id: string }>(
+      await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Findable', content: 'needle' }),
+    );
 
-    const searchComposite = parseJsonText(await call(client, 'canvas_query', { action: 'search', query: 'Findable' }));
-    const searchStandalone = parseJsonText(await call(client, 'canvas_search', { query: 'Findable' }));
-    expect(searchComposite).toEqual(searchStandalone);
+    // search.formatResult's known shape (canvas_search no longer exists standalone).
+    const searchComposite = parseJsonText<{ query?: string; resultCount?: number; results?: Array<{ id?: string }> }>(
+      await call(client, 'canvas_query', { action: 'search', query: 'Findable' }),
+    );
+    expect(searchComposite.query).toBe('Findable');
+    expect(searchComposite.resultCount).toBe(1);
+    expect(searchComposite.results?.[0]?.id).toBe(added.id);
 
-    const layoutComposite = parseJsonText(await call(client, 'canvas_query', { action: 'layout' }));
-    const layoutStandalone = parseJsonText(await call(client, 'canvas_get_layout', {}));
-    expect(layoutComposite).toEqual(layoutStandalone);
+    // layout.get's compact projection includes the newly-added node
+    // (canvas_get_layout no longer exists standalone).
+    const layoutComposite = parseJsonText<{ nodes?: Array<{ id?: string }> }>(
+      await call(client, 'canvas_query', { action: 'layout' }),
+    );
+    expect(layoutComposite.nodes?.some((node) => node.id === added.id)).toBe(true);
   }, 30000);
 
-  test('canvas_query validate matches canvas_validate', async () => {
+  test('canvas_query validate returns the board-summary validation shape', async () => {
     const { client } = await createMcpSession();
     await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Validatable', content: 'x' });
 
-    // Head-to-head read parity: composite `validate` === standalone canvas_validate.
+    // Known expected output of validate.get's CanvasValidationResult shape
+    // (canvas_validate no longer exists standalone): ok + a board summary,
+    // not a generic { ok } envelope.
     const validateComposite = parseJsonText<{ ok?: boolean; summary?: { nodes?: number } }>(
       await call(client, 'canvas_query', { action: 'validate' }),
     );
-    const validateStandalone = parseJsonText(await call(client, 'canvas_validate', {}));
-    expect(validateComposite).toEqual(validateStandalone);
-    // The result carries the validation shape (a board summary), not a generic ok.
+    expect(typeof validateComposite.ok).toBe('boolean');
     expect(validateComposite.summary?.nodes).toBeGreaterThanOrEqual(1);
   }, 30000);
 
@@ -179,12 +192,20 @@ describe('MCP composite tools (plan-006)', () => {
     expect(textOf(noId)).toContain('Missing id');
   }, 30000);
 
-  test('canvas_render describe-schema/validate/add-graph match standalone tools', async () => {
+  test('canvas_render describe-schema/validate/add-graph', async () => {
     const { client } = await createMcpSession();
 
-    const schemaComposite = parseJsonText(await call(client, 'canvas_render', { action: 'describe-schema' }));
-    const schemaStandalone = parseJsonText(await call(client, 'canvas_describe_schema', {}));
-    expect(schemaComposite).toEqual(schemaStandalone);
+    // Known expected output of schema.describe (canvas_describe_schema no
+    // longer exists standalone): the deterministic describeCanvasSchema()
+    // shape, including mcp.nodeTypeRouting per the tool description.
+    const schemaComposite = parseJsonText<{
+      ok?: boolean;
+      source?: string;
+      mcp?: { nodeTypeRouting?: Record<string, string> };
+    }>(await call(client, 'canvas_render', { action: 'describe-schema' }));
+    expect(schemaComposite.ok).toBe(true);
+    expect(schemaComposite.source).toBe('running-server');
+    expect(schemaComposite.mcp?.nodeTypeRouting).toBeTruthy();
 
     const valid = parseJsonText<{ ok?: boolean }>(
       await call(client, 'canvas_render', {
@@ -271,35 +292,27 @@ describe('MCP composite tools (plan-006)', () => {
   // evaluate are environment-gated: with no browser available the runner throws
   // (or start fails); the composite must surface the SAME outcome as the
   // standalone tool. canvas_screenshot is NOT folded (binary payload).
-  test('canvas_webview status matches canvas_webview_status (head-to-head read)', async () => {
+  test('canvas_webview status returns the automation status shape (canvas_webview_status no longer exists standalone)', async () => {
     const { client } = await createMcpSession();
 
     const composite = parseJsonText<{ supported?: boolean; active?: boolean; headlessOnly?: boolean }>(
       await call(client, 'canvas_webview', { action: 'status' }),
     );
-    const standalone = parseJsonText(await call(client, 'canvas_webview_status', {}));
-    expect(composite).toEqual(standalone);
     // The status carries the automation shape (not a generic ok).
     expect(composite.headlessOnly).toBe(true);
     expect(composite.active).toBe(false);
   }, 30000);
 
-  test('canvas_webview evaluate/resize dispatch and error identically to the standalone tools when no session is active', async () => {
+  test('canvas_webview evaluate/resize error with the known webview.evaluate/webview.resize messages when no session is active', async () => {
     const { client } = await createMcpSession();
 
-    // evaluate with no active session: both the composite and standalone tool
-    // dispatch to webview.evaluate → the runner throws "not active". Same isError
-    // + same message.
+    // evaluate with no active session: dispatches to webview.evaluate → the
+    // runner throws "not active" (canvas_evaluate no longer exists standalone).
     const evalComposite = await call(client, 'canvas_webview', {
       action: 'evaluate',
       script: 'const value = 2 + 2; return value;',
     });
-    const evalStandalone = await call(client, 'canvas_evaluate', {
-      script: 'const value = 2 + 2; return value;',
-    });
     expect(evalComposite.isError).toBe(true);
-    expect(evalStandalone.isError).toBe(true);
-    expect(textOf(evalComposite)).toBe(textOf(evalStandalone));
     expect(textOf(evalComposite)).toContain('automation WebView');
 
     // The "exactly one of expression/script" validation is preserved on the
@@ -312,38 +325,30 @@ describe('MCP composite tools (plan-006)', () => {
     expect(evalBoth.isError).toBe(true);
     expect(textOf(evalBoth)).toContain('exactly one');
 
-    // resize with no active session: both dispatch to webview.resize → "not
-    // active". Same isError + same message.
+    // resize with no active session: dispatches to webview.resize → "not
+    // active" (canvas_resize no longer exists standalone).
     const resizeComposite = await call(client, 'canvas_webview', { action: 'resize', width: 1024, height: 768 });
-    const resizeStandalone = await call(client, 'canvas_resize', { width: 1024, height: 768 });
     expect(resizeComposite.isError).toBe(true);
-    expect(resizeStandalone.isError).toBe(true);
-    expect(textOf(resizeComposite)).toBe(textOf(resizeStandalone));
+    expect(textOf(resizeComposite)).toContain('automation WebView');
   }, 30000);
 
-  test('canvas_webview start/stop dispatch with the same outcome shape as the standalone tools', async () => {
+  test('canvas_webview start/stop dispatch to webview.start/webview.stop (canvas_webview_start/_stop no longer exist standalone)', async () => {
     const { client } = await createMcpSession();
 
     // start is environment-gated: it succeeds only when a webview backend
-    // (Chrome/WebKit) is available. The composite must produce the SAME
-    // error-ness as the standalone tool regardless of environment.
+    // (Chrome/WebKit) is available. Assert the known shape in each branch.
     const startComposite = await call(client, 'canvas_webview', { action: 'start', width: 800, height: 600 });
-    const startStandalone = await call(client, 'canvas_webview_start', { width: 800, height: 600 });
-    expect(Boolean(startComposite.isError)).toBe(Boolean(startStandalone.isError));
     if (startComposite.isError) {
-      // No browser available: identical structured JSON error results.
-      expect(textOf(startComposite)).toBe(textOf(startStandalone));
+      // No browser available: structured JSON error result with ok:false.
       expect(parseJsonText<{ ok?: boolean }>(startComposite).ok).toBe(false);
     } else {
-      // A browser is available: the composite start reports the active webview
-      // status (same shape as the standalone canvas_webview_start).
+      // A browser is available: start reports the active webview status.
       expect(parseJsonText<{ active?: boolean }>(startComposite).active).toBe(true);
-      expect(parseJsonText<{ active?: boolean }>(startStandalone).active).toBe(true);
     }
 
     // stop dispatches to webview.stop and reports { ok, stopped, webview }; it is
     // stateful (the first stop consumes any active session), so assert the shape +
-    // a stopped session, not head-to-head equality of the stateful `stopped` flag.
+    // a stopped session.
     const stopComposite = parseJsonText<{ ok?: boolean; stopped?: boolean; webview?: { active?: boolean } }>(
       await call(client, 'canvas_webview', { action: 'stop' }),
     );
@@ -351,13 +356,11 @@ describe('MCP composite tools (plan-006)', () => {
     expect(typeof stopComposite.stopped).toBe('boolean');
     expect(stopComposite.webview?.active).toBe(false);
 
-    // A second stop (now nothing active) is a safe no-op via either surface, and
-    // the two surfaces agree once no session is active.
+    // A second stop (now nothing active) is a safe no-op: stopped flips to false.
     const stopComposite2 = parseJsonText<{ ok?: boolean; stopped?: boolean }>(
       await call(client, 'canvas_webview', { action: 'stop' }),
     );
-    const stopStandalone2 = parseJsonText(await call(client, 'canvas_webview_stop', {}));
-    expect(stopComposite2).toEqual(stopStandalone2);
+    expect(stopComposite2.ok).toBe(true);
     expect(stopComposite2.stopped).toBe(false);
   }, 30000);
 
@@ -371,7 +374,7 @@ describe('MCP composite tools (plan-006)', () => {
   // pnpm/bundle build (minutes, network) — too heavy for a unit test — so its
   // DISPATCH parity is asserted via the cheap validation-error path (both
   // surfaces reject a missing appTsx with the same op error), not a full build.
-  test('canvas_app open-mcp-app dispatches to mcpapp.open and matches canvas_open_mcp_app', async () => {
+  test('canvas_app open-mcp-app dispatches to mcpapp.open (canvas_open_mcp_app no longer exists standalone)', async () => {
     const { client, workspaceRoot } = await createMcpSession();
 
     const transport = {
@@ -382,7 +385,7 @@ describe('MCP composite tools (plan-006)', () => {
     };
 
     // Composite open-mcp-app opens a real ui:// MCP App node via the fixture —
-    // same shape as the standalone canvas_open_mcp_app result.
+    // known expected shape of mcpapp.open's formatResult.
     const viaComposite = parseJsonText<{
       ok: boolean;
       id?: string;
@@ -401,59 +404,33 @@ describe('MCP composite tools (plan-006)', () => {
     expect(viaComposite.id).toBe(viaComposite.nodeId);
     expect(viaComposite.resourceUri).toBe('ui://fixture/counter.html');
     expect(viaComposite.sessionId).toContain('mcp-app-session');
-
-    // The standalone tool (now registry-served) dispatches to the same op and
-    // returns the same shape (the toolCallId/sessionId/nodeId differ per call —
-    // each open is a fresh session — so assert structural parity, not equality).
-    const viaStandalone = parseJsonText<{
-      ok: boolean;
-      id?: string;
-      nodeId: string | null;
-      resourceUri: string;
-      sessionId: string;
-    }>(await call(client, 'canvas_open_mcp_app', {
-      toolName: 'show_counter',
-      toolArguments: { initial: 3 },
-      transport,
-    }));
-    expect(viaStandalone.ok).toBe(viaComposite.ok);
-    expect(typeof viaStandalone.nodeId).toBe(typeof viaComposite.nodeId);
-    expect(viaStandalone.id).toBe(viaStandalone.nodeId);
-    expect(viaStandalone.resourceUri).toBe(viaComposite.resourceUri);
   }, 30000);
 
-  test('canvas_app diagram dispatches to diagram.open (preset-parse-error parity, no live Excalidraw)', async () => {
+  test('canvas_app diagram dispatches to diagram.open (preset-parse-error, no live Excalidraw; canvas_add_diagram no longer exists standalone)', async () => {
     const { client } = await createMcpSession();
 
     // diagram.open builds the Excalidraw input via buildExcalidrawOpenMcpAppInput,
     // which parses `elements` BEFORE any (network) call to the hosted Excalidraw
     // MCP app. A non-empty-string-but-invalid-JSON `elements` fails that parse
-    // deterministically — a cheap way to prove dispatch parity without depending
-    // on a reachable Excalidraw server (the live path is heavy + network). Both
-    // surfaces dispatch to the same op → identical isError + message.
+    // deterministically — a cheap way to prove dispatch without depending on a
+    // reachable Excalidraw server (the live path is heavy + network).
     const args = { elements: '{not json' };
     const viaComposite = await call(client, 'canvas_app', { action: 'diagram', ...args });
-    const viaStandalone = await call(client, 'canvas_add_diagram', args);
     expect(viaComposite.isError).toBe(true);
-    expect(viaStandalone.isError).toBe(true);
-    expect(textOf(viaComposite)).toBe(textOf(viaStandalone));
     expect(textOf(viaComposite)).toContain('diagram.elements');
   }, 30000);
 
-  test('canvas_app build-artifact dispatches to webartifact.build (workspace-escape parity, no full build)', async () => {
+  test('canvas_app build-artifact dispatches to webartifact.build (workspace-escape error, no full build; canvas_build_web_artifact no longer exists standalone)', async () => {
     const { client } = await createMcpSession();
 
     // An out-of-workspace projectPath is rejected by the op handler's
-    // resolveWorkspacePath BEFORE any pnpm/bundle work — a cheap way to prove
-    // dispatch parity without a multi-minute build. title + appTsx are present so
-    // both surfaces pass schema validation and reach the same op handler, which
-    // throws the SAME workspace-escape error (isError + identical message).
+    // resolveWorkspacePath BEFORE any pnpm/bundle work — a cheap way to assert
+    // the known dispatch error without a multi-minute build. title + appTsx
+    // are present so the composite passes schema validation and reaches the
+    // op handler, which throws the known workspace-escape error.
     const args = { title: 'Escape', appTsx: 'export default () => null;', projectPath: '../escape' };
     const viaComposite = await call(client, 'canvas_app', { action: 'build-artifact', ...args });
-    const viaStandalone = await call(client, 'canvas_build_web_artifact', args);
     expect(viaComposite.isError).toBe(true);
-    expect(viaStandalone.isError).toBe(true);
-    expect(textOf(viaComposite)).toBe(textOf(viaStandalone));
     expect(textOf(viaComposite)).toContain('outside workspace');
   }, 30000);
 
@@ -461,9 +438,10 @@ describe('MCP composite tools (plan-006)', () => {
   // node.add (type:"html", primitive:"<kind>") and node.update (refresh:true)
   // already absorb canvas_add_html_node / canvas_add_html_primitive /
   // canvas_refresh_webpage_node via plain params — no new action or per-action
-  // input-injection mechanism is needed. These prove canvas_node achieves the
-  // SAME result as each standalone tool.
-  test('canvas_node add type:"html" matches canvas_add_html_node', async () => {
+  // input-injection mechanism is needed. These assert canvas_node produces the
+  // KNOWN result each deleted standalone tool used to (canvas_add_html_node /
+  // canvas_add_html_primitive / canvas_refresh_webpage_node no longer exist).
+  test('canvas_node add type:"html" creates a node with every documented html field', async () => {
     const { client } = await createMcpSession();
     const htmlArgs = {
       html: '<h1>Deck</h1>',
@@ -475,23 +453,17 @@ describe('MCP composite tools (plan-006)', () => {
       axCapabilities: { enabled: true, allowed: ['ax.work.create'] },
     };
 
-    // Both adds return the compact create payload { node: { id, type, title }, id }.
+    // node.add's known compact create payload { node: { id, type, title }, id }.
     const viaComposite = parseJsonText<{ id?: string; node?: { type?: string; title?: string } }>(
       await call(client, 'canvas_node', { action: 'add', type: 'html', ...htmlArgs }),
     );
-    const viaStandalone = parseJsonText<{ id?: string; node?: { type?: string; title?: string } }>(
-      await call(client, 'canvas_add_html_node', htmlArgs),
-    );
-    // Same node type + title; ids differ per call (each add is a fresh node).
     expect(viaComposite.node?.type).toBe('html');
-    expect(viaComposite.node?.type).toBe(viaStandalone.node?.type);
-    expect(viaComposite.node?.title).toBe(viaStandalone.node?.title);
     expect(viaComposite.node?.title).toBe('A Deck');
     expect(viaComposite.id).toBeTruthy();
 
     // The rich html fields land on the created node's data — read the full node
-    // back and confirm end-to-end parity of every documented param the standalone
-    // tool accepts (presentation, slideTitles, embeddedNodeIds/Urls, axCapabilities
+    // back and confirm every documented param the deleted standalone tool
+    // accepted (presentation, slideTitles, embeddedNodeIds/Urls, axCapabilities
     // — the last only reachable because Wave 5 advertised it in nodeAddShape).
     type HtmlData = {
       presentation?: boolean;
@@ -504,25 +476,18 @@ describe('MCP composite tools (plan-006)', () => {
     const compositeNode = parseJsonText<{ data?: HtmlData }>(
       await call(client, 'canvas_node', { action: 'get', id: viaComposite.id, full: true }),
     );
-    const standaloneNode = parseJsonText<{ data?: HtmlData }>(
-      await call(client, 'canvas_node', { action: 'get', id: viaStandalone.id, full: true }),
-    );
     expect(compositeNode.data?.presentation).toBe(true);
-    expect(compositeNode.data?.presentation).toBe(standaloneNode.data?.presentation);
-    expect(compositeNode.data?.slideTitles).toEqual(standaloneNode.data?.slideTitles);
     expect(compositeNode.data?.slideTitles).toEqual(['One', 'Two']);
-    expect(compositeNode.data?.html).toBe(standaloneNode.data?.html);
     expect(compositeNode.data?.html).toBe('<h1>Deck</h1>');
-    expect(compositeNode.data?.embeddedNodeIds).toEqual(standaloneNode.data?.embeddedNodeIds);
     expect(compositeNode.data?.embeddedNodeIds).toEqual(['n-embed-1', 'n-embed-2']);
-    expect(compositeNode.data?.embeddedUrls).toEqual(standaloneNode.data?.embeddedUrls);
+    expect(compositeNode.data?.embeddedUrls).toEqual(['https://example.com/a']);
     // axCapabilities: the AX bridge config must survive the composite path
-    // identically (would silently drop if the field were not advertised).
-    expect(compositeNode.data?.axCapabilities).toEqual(standaloneNode.data?.axCapabilities);
+    // (would silently drop if the field were not advertised).
+    expect(compositeNode.data?.axCapabilities?.enabled).toBe(true);
     expect(compositeNode.data?.axCapabilities?.allowed).toEqual(['ax.work.create']);
   }, 30000);
 
-  test('canvas_node add type:"html" primitive:"<kind>" matches canvas_add_html_primitive', async () => {
+  test('canvas_node add type:"html" primitive:"<kind>" creates the primitive-marked html node', async () => {
     const { client } = await createMcpSession();
     // A real HtmlPrimitiveKind (see src/server/html-primitives.ts HTML_PRIMITIVE_KINDS).
     const kind = 'choice-grid';
@@ -533,42 +498,36 @@ describe('MCP composite tools (plan-006)', () => {
       ],
     };
 
-    // Composite passes the kind via `primitive` (node.add routes type:"html" +
-    // primitive → createHtmlPrimitiveNode); the standalone tool passes `kind`.
-    // strictSize is the one primitive-specific param beyond kind/title/data.
+    // The composite passes the kind via `primitive` (node.add routes
+    // type:"html" + primitive → createHtmlPrimitiveNode). strictSize is the
+    // one primitive-specific param beyond kind/title/data. Note: the deleted
+    // standalone canvas_add_html_primitive tool appended a top-level
+    // `primitive: { kind, title, htmlBytes }` field via its own hand-written
+    // response wrapper — that field was never part of node.add's registry
+    // formatResult, so it has no composite equivalent; the canonical proof is
+    // the node's data.htmlPrimitive marker, asserted below.
     const viaComposite = parseJsonText<{ id?: string; node?: { type?: string } }>(
       await call(client, 'canvas_node', { action: 'add', type: 'html', primitive: kind, data, strictSize: true }),
     );
-    const viaStandalone = parseJsonText<{ id?: string; node?: { type?: string }; primitive?: { kind?: string } }>(
-      await call(client, 'canvas_add_html_primitive', { kind, data, strictSize: true }),
-    );
     expect(viaComposite.id).toBeTruthy();
     expect(viaComposite.node?.type).toBe('html');
-    expect(viaComposite.node?.type).toBe(viaStandalone.node?.type);
-    // The standalone tool surfaces the built primitive kind explicitly.
-    expect(viaStandalone.primitive?.kind).toBe(kind);
 
     // Confirm the created node carries the htmlPrimitive marker (type:"html",
-    // htmlPrimitive === kind) + strictSize on both surfaces — the canonical proof.
+    // htmlPrimitive === kind) + strictSize — the canonical proof.
     const compositeNode = parseJsonText<{ type?: string; data?: { htmlPrimitive?: string; strictSize?: boolean } }>(
       await call(client, 'canvas_node', { action: 'get', id: viaComposite.id, full: true }),
     );
-    const standaloneNode = parseJsonText<{ type?: string; data?: { htmlPrimitive?: string; strictSize?: boolean } }>(
-      await call(client, 'canvas_node', { action: 'get', id: viaStandalone.id, full: true }),
-    );
     expect(compositeNode.type).toBe('html');
     expect(compositeNode.data?.htmlPrimitive).toBe(kind);
-    expect(compositeNode.data?.htmlPrimitive).toBe(standaloneNode.data?.htmlPrimitive);
     expect(compositeNode.data?.strictSize).toBe(true);
-    expect(compositeNode.data?.strictSize).toBe(standaloneNode.data?.strictSize);
   }, 30000);
 
-  test('canvas_node update refresh:true matches canvas_refresh_webpage_node (incl. the failure path)', async () => {
+  test('canvas_node update refresh:true surfaces the known refresh-failure shape', async () => {
     const { client } = await createMcpSession();
     // A connection-refused address fails fast and deterministically (no DNS, no
     // network egress). createWebpageNode adds the node BEFORE the fetch, so the
     // node is created (id returned) even though the initial fetch fails — we can
-    // then exercise the REFRESH failure path on both surfaces.
+    // then exercise the REFRESH failure path.
     const refusedUrl = 'http://127.0.0.1:1';
     const created = parseJsonText<{ id?: string; nodeId?: string }>(
       await call(client, 'canvas_node', { action: 'add', type: 'webpage', url: refusedUrl, title: 'refresh-fail' }),
@@ -576,16 +535,13 @@ describe('MCP composite tools (plan-006)', () => {
     const id = created.id ?? created.nodeId;
     expect(id).toBeTruthy();
 
-    // Refresh re-fetches the refused URL → ok:false on both surfaces. The composite
-    // path must surface isError (not a false ok:true) — this is the Wave 5
-    // node.update formatResult fix that lets us deprecate the standalone tool.
+    // Refresh re-fetches the refused URL → ok:false. The composite path must
+    // surface isError (not a false ok:true) — this is the Wave 5 node.update
+    // formatResult fix that let the deleted standalone tool be removed.
     const viaComposite = await call(client, 'canvas_node', { action: 'update', id, refresh: true });
-    const viaStandalone = await call(client, 'canvas_refresh_webpage_node', { id });
 
     expect(viaComposite.isError).toBe(true);
-    expect(viaStandalone.isError).toBe(true);
     expect(parseJsonText<{ ok?: boolean }>(viaComposite).ok).toBe(false);
-    expect(parseJsonText<{ ok?: boolean }>(viaStandalone).ok).toBe(false);
   }, 30000);
   test('an unknown action is a loud error, not a silent no-op', async () => {
     const { client } = await createMcpSession();
@@ -603,19 +559,21 @@ describe('MCP composite tools (plan-006)', () => {
 // byte-identical to the standalone tool. Head-to-head equality where it is a read;
 // behavior assertions where it mutates.
 describe('MCP AX composite tools (plan-007 Slice C)', () => {
-  test('canvas_ax_state get/set-focus/set-policy/report-capability match standalone tools', async () => {
+  test('canvas_ax_state get/set-focus/set-policy/report-capability', async () => {
     const { client } = await createMcpSession();
     const node = parseJsonText<{ id: string }>(
       await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'AX state' }),
     );
 
-    // Head-to-head read parity: composite `get` === standalone canvas_get_ax.
-    // includeContext:false drops the agent context block, whose `generatedAt`
-    // timestamp differs by ms between two separate calls (the bodies are
-    // byte-identical by construction — same op, same buildInput — apart from it).
-    const getComposite = parseJsonText(await call(client, 'canvas_ax_state', { action: 'get', includeContext: false }));
-    const getStandalone = parseJsonText(await call(client, 'canvas_get_ax', { includeContext: false }));
-    expect(getComposite).toEqual(getStandalone);
+    // ax.get's known handler shape (canvas_get_ax no longer exists standalone):
+    // { ok: true, state, host } — includeContext:false drops the agent context
+    // block entirely.
+    const getComposite = parseJsonText<{ ok?: boolean; state?: unknown; host?: unknown; context?: unknown }>(
+      await call(client, 'canvas_ax_state', { action: 'get', includeContext: false }),
+    );
+    expect(getComposite.ok).toBe(true);
+    expect(getComposite.state).toBeTruthy();
+    expect(getComposite.context).toBeUndefined();
 
     // set-focus → ax.focus.set; the focus field reflects the node.
     const focus = parseJsonText<{ ok?: boolean; focus?: { nodeIds?: string[] } }>(
@@ -670,34 +628,43 @@ describe('MCP AX composite tools (plan-007 Slice C)', () => {
     expect(annotated.reviewAnnotation?.id).toBeTruthy();
   }, 30000);
 
-  test('canvas_ax_timeline read/record-event/add-evidence/send-steering match standalone tools', async () => {
+  test('canvas_ax_timeline read/record-event/add-evidence/send-steering', async () => {
     const { client } = await createMcpSession();
 
-    const event = parseJsonText<{ ok?: boolean; event?: { kind?: string } }>(
+    const event = parseJsonText<{ ok?: boolean; event?: { id?: string; kind?: string } }>(
       await call(client, 'canvas_ax_timeline', { action: 'record-event', kind: 'tool-start', summary: 'started' }),
     );
     expect(event.ok).toBe(true);
     expect(event.event?.kind).toBe('tool-start');
 
-    const evidence = parseJsonText<{ ok?: boolean; evidence?: { kind?: string } }>(
+    const evidence = parseJsonText<{ ok?: boolean; evidence?: { id?: string; kind?: string } }>(
       await call(client, 'canvas_ax_timeline', { action: 'add-evidence', kind: 'logs', title: 'run.log' }),
     );
     expect(evidence.ok).toBe(true);
     expect(evidence.evidence?.kind).toBe('logs');
 
-    const steering = parseJsonText<{ ok?: boolean; steering?: { message?: string } }>(
+    const steering = parseJsonText<{ ok?: boolean; steering?: { id?: string; message?: string } }>(
       await call(client, 'canvas_ax_timeline', { action: 'send-steering', message: 'focus on tests' }),
     );
     expect(steering.ok).toBe(true);
     expect(steering.steering?.message).toBe('focus on tests');
 
-    // Head-to-head read parity: composite `read` === standalone canvas_get_ax_timeline.
-    const readComposite = parseJsonText(await call(client, 'canvas_ax_timeline', { action: 'read' }));
-    const readStandalone = parseJsonText(await call(client, 'canvas_get_ax_timeline', {}));
-    expect(readComposite).toEqual(readStandalone);
+    // ax.timeline.get's known shape { ok, events, evidence, steering, summary }
+    // (canvas_get_ax_timeline no longer exists standalone) — confirm the three
+    // rows just recorded are present.
+    const readComposite = parseJsonText<{
+      ok?: boolean;
+      events?: Array<{ id?: string }>;
+      evidence?: Array<{ id?: string }>;
+      steering?: Array<{ id?: string }>;
+    }>(await call(client, 'canvas_ax_timeline', { action: 'read' }));
+    expect(readComposite.ok).toBe(true);
+    expect(readComposite.events?.some((row) => row.id === event.event?.id)).toBe(true);
+    expect(readComposite.evidence?.some((row) => row.id === evidence.evidence?.id)).toBe(true);
+    expect(readComposite.steering?.some((row) => row.id === steering.steering?.id)).toBe(true);
   }, 30000);
 
-  test('canvas_ax_delivery claim/mark match standalone tools', async () => {
+  test('canvas_ax_delivery claim/mark', async () => {
     const { client } = await createMcpSession();
     // Steering originated by `browser` so the `mcp` consumer can claim it (loop-safe).
     const steering = parseJsonText<{ steering?: { id: string } }>(
@@ -705,10 +672,14 @@ describe('MCP AX composite tools (plan-007 Slice C)', () => {
     );
     const steeringId = steering.steering!.id;
 
-    // Head-to-head read parity: composite `claim` === standalone canvas_claim_ax_delivery.
-    const claimComposite = parseJsonText(await call(client, 'canvas_ax_delivery', { action: 'claim', consumer: 'mcp' }));
-    const claimStandalone = parseJsonText(await call(client, 'canvas_claim_ax_delivery', { consumer: 'mcp' }));
-    expect(claimComposite).toEqual(claimStandalone);
+    // ax.delivery.pending's known shape { ok, pending, pendingActivity }
+    // (canvas_claim_ax_delivery no longer exists standalone) — the just-sent
+    // steering message must be claimable by the mcp consumer.
+    const claimComposite = parseJsonText<{ ok?: boolean; pending?: Array<{ id?: string }> }>(
+      await call(client, 'canvas_ax_delivery', { action: 'claim', consumer: 'mcp' }),
+    );
+    expect(claimComposite.ok).toBe(true);
+    expect(claimComposite.pending?.some((row) => row.id === steeringId)).toBe(true);
 
     const marked = parseJsonText<{ ok?: boolean; delivered?: boolean }>(
       await call(client, 'canvas_ax_delivery', { action: 'mark', id: steeringId }),
@@ -776,15 +747,12 @@ describe('MCP AX composite tools (plan-007 Slice C)', () => {
     expect(requested.modeRequest?.status).toBe('pending');
 
     // await (action → ax.mode.get) with timeoutMs 0 is an immediate read; the
-    // gate is still pending, so pending=true and the composite read === standalone.
+    // gate is still pending, so pending=true (canvas_await_mode no longer
+    // exists standalone).
     const awaitComposite = parseJsonText<{ pending?: boolean }>(
       await call(client, 'canvas_ax_gate', { kind: 'mode', action: 'await', id: requested.modeRequest!.id, timeoutMs: 0 }),
     );
-    const awaitStandalone = parseJsonText(
-      await call(client, 'canvas_await_mode', { id: requested.modeRequest!.id, timeoutMs: 0 }),
-    );
     expect(awaitComposite.pending).toBe(true);
-    expect(awaitComposite).toEqual(awaitStandalone);
   }, 30000);
 
   test('canvas_ax_gate rejects an invalid kind/action combo loudly', async () => {

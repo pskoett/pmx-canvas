@@ -291,7 +291,8 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     });
     expect(http.ok).toBe(true);
 
-    const mcp = parseJsonText<{ id: string; nodeId: string }>(await callMcp('canvas_add_node', {
+    const mcp = parseJsonText<{ id: string; nodeId: string }>(await callMcp('canvas_node', {
+      action: 'add',
       type: 'markdown',
       title: 'Parity note',
       content: 'Parity body',
@@ -357,7 +358,9 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     expect(projectNode(http)).toEqual(expected);
 
     // MCP defaults to a compact projection; full:true returns the full node.
-    const mcp = parseJsonText<SerializedNodeShape>(await callMcp('canvas_get_node', { id: created.id, full: true }));
+    const mcp = parseJsonText<SerializedNodeShape>(
+      await callMcp('canvas_node', { action: 'get', id: created.id, full: true }),
+    );
     expect(projectNode(mcp)).toEqual(expected);
 
     // CLI `node get` proxies the HTTP GET and prints the same serialized node.
@@ -401,8 +404,9 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     });
     expect(patchResponse.ok).toBe(true);
 
-    // MCP takes the same flat keys via canvas_update_node.
-    const mcpResult = await callMcp('canvas_update_node', {
+    // MCP takes the same flat keys via canvas_node action:"update".
+    const mcpResult = await callMcp('canvas_node', {
+      action: 'update',
       id: targets[1],
       title: 'Updated title',
       content: 'Updated body',
@@ -449,7 +453,9 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     expect(httpResponse.ok).toBe(true);
     expect(await httpResponse.json() as { ok: boolean; removed: string }).toEqual({ ok: true, removed: targets[0]! });
 
-    const mcp = parseJsonText<{ ok: boolean; removed: string }>(await callMcp('canvas_remove_node', { id: targets[1] }));
+    const mcp = parseJsonText<{ ok: boolean; removed: string }>(
+      await callMcp('canvas_node', { action: 'remove', id: targets[1] }),
+    );
     expect(mcp).toEqual({ ok: true, removed: targets[1]! });
 
     const cli = await runCliJson<{ ok: boolean; removed: string }>(['node', 'remove', targets[2]!]);
@@ -475,7 +481,9 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     expect(edge.ok).toBe(true);
 
     const http = projectLayout(await jsonRequest<LayoutShape>('/api/canvas/state'));
-    const mcp = projectLayout(parseJsonText<LayoutShape>(await callMcp('canvas_get_layout', { full: true })));
+    const mcp = projectLayout(
+      parseJsonText<LayoutShape>(await callMcp('canvas_query', { action: 'layout', full: true })),
+    );
     const cli = projectLayout(await runCliJson<LayoutShape>(['layout']));
     const sdkLayout = projectLayout(sdk.getLayout());
 
@@ -498,7 +506,7 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
       expect(await sse.waitForCount('canvas-layout-update', baseline + 1)).toBe(true);
 
       baseline = sse.count('canvas-layout-update');
-      const mcpUpdate = await callMcp('canvas_update_node', { id: created.id, title: 'SSE mcp update' });
+      const mcpUpdate = await callMcp('canvas_node', { action: 'update', id: created.id, title: 'SSE mcp update' });
       expect(mcpUpdate.isError).not.toBe(true);
       expect(await sse.waitForCount('canvas-layout-update', baseline + 1)).toBe(true);
 
@@ -525,8 +533,8 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
 
       await jsonRequest<SerializedNodeShape>(`/api/canvas/node/${created.id}`);
       await jsonRequest<LayoutShape>('/api/canvas/state');
-      expect((await callMcp('canvas_get_node', { id: created.id, full: true })).isError).not.toBe(true);
-      expect((await callMcp('canvas_get_layout', { full: true })).isError).not.toBe(true);
+      expect((await callMcp('canvas_node', { action: 'get', id: created.id, full: true })).isError).not.toBe(true);
+      expect((await callMcp('canvas_query', { action: 'layout', full: true })).isError).not.toBe(true);
       await runCliJson(['node', 'get', created.id]);
       await runCliJson(['layout']);
       sdk.getNode(created.id);
@@ -743,7 +751,7 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
 
     // MCP via daemon (RemoteCanvasAccess): the 404 from the HTTP DELETE is
     // surfaced as a thrown error, so the tool call comes back isError.
-    const remoteResult = await callMcp('canvas_remove_node', { id: 'node-that-never-existed' });
+    const remoteResult = await callMcp('canvas_node', { action: 'remove', id: 'node-that-never-existed' });
     expect(remoteResult.isError).toBe(true);
     expect(textOf(remoteResult)).toContain('not found');
 
@@ -772,8 +780,8 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     await localClient.connect(localTransport);
     try {
       const localResult = await localClient.callTool({
-        name: 'canvas_remove_node',
-        arguments: { id: 'node-that-never-existed' },
+        name: 'canvas_node',
+        arguments: { action: 'remove', id: 'node-that-never-existed' },
       }) as ToolResultShape;
       expect(localResult.isError).toBe(true);
       expect(textOf(localResult)).toContain('not found');

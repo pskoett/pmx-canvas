@@ -38,7 +38,8 @@ function matchPath(template: string, pathname: string): Record<string, string> |
 /**
  * Shared body reader: preserves the parsed JSON value as-is (object, array,
  * or primitive) — per-op `readInput` decides what to do with non-object
- * bodies; the shared reader never coerces.
+ * bodies; the shared reader never coerces. A non-empty body that fails to
+ * parse is a 400 (OperationError), never a silent empty input.
  */
 export async function readJsonValue(req: Request): Promise<unknown> {
   let text = '';
@@ -51,7 +52,7 @@ export async function readJsonValue(req: Request): Promise<unknown> {
   try {
     return JSON.parse(text) as unknown;
   } catch {
-    return undefined;
+    throw new OperationError('Malformed JSON body.');
   }
 }
 

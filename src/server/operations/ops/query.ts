@@ -6,9 +6,9 @@
  * - pin.set: legacy POST /api/canvas/context-pins emitted ONLY
  *   context-pins-changed (no canvas-layout-update), so mutates: false with a
  *   manual ctx.emit. The injected emitter adds the sessionId/timestamp fields
- *   the legacy handler set explicitly. (The SDK's setContextPins emits a
- *   layout update instead — that local/remote drift is erased here in favor of
- *   the HTTP wire behavior.)
+ *   the legacy handler set explicitly. (The SDK's setContextPins emits the
+ *   same context-pins-changed event — its old layout-update drift was erased
+ *   in v0.3.0.)
  * - canvas.undo / canvas.redo: legacy handlers emitted canvas-viewport-update
  *   then canvas-layout-update only after an entry was actually undone/redone,
  *   so mutates: false with conditional manual emits. (The SDK's undo/redo also
@@ -87,7 +87,7 @@ const pinOperation = defineOperation<z.infer<typeof pinSchema>, Record<string, u
 
 const searchShape = {
   q: z.unknown().optional().describe('Search query — matches against node titles, content, and file paths'),
-  limit: z.unknown().optional().describe('Max results to return (default: 10). Applied by the MCP tool only; the HTTP route returns all matches.'),
+  limit: z.unknown().optional().describe('Max results to return (default: all over HTTP, 10 via the MCP tool).'),
 };
 
 const searchSchema = z.looseObject(searchShape);
@@ -108,9 +108,12 @@ const searchOperation = defineOperation<z.infer<typeof searchSchema>, Record<str
       query: z.string().describe('Search query — matches against node titles, content, and file paths'),
       limit: z.number().optional().describe('Max results to return (default: 10)'),
     },
-    // The HTTP route only reads ?q= (legacy behavior); map the MCP-facing
-    // `query` arg onto it. The limit cap stays MCP-side, like the legacy tool.
-    buildInput: (input) => ({ q: typeof input.query === 'string' ? input.query : '' }),
+    // Map the MCP-facing `query` arg onto the wire's `q`. The handler caps by
+    // `limit` on every transport; the MCP tool additionally defaults it to 10.
+    buildInput: (input) => ({
+      q: typeof input.query === 'string' ? input.query : '',
+      ...(typeof input.limit === 'number' ? { limit: input.limit } : {}),
+    }),
     formatResult: (result, input) => {
       const body = isRecord(result) ? result : {};
       const results = Array.isArray(body.results) ? body.results : [];
@@ -132,7 +135,15 @@ const searchOperation = defineOperation<z.infer<typeof searchSchema>, Record<str
     if (!q.trim()) {
       return { results: [], query: q };
     }
-    return { results: searchNodes(canvasState.getLayout().nodes, q), query: q };
+    const rawLimit = input.limit;
+    const limit = typeof rawLimit === 'number'
+      ? rawLimit
+      : typeof rawLimit === 'string' && rawLimit.trim() !== '' ? Number(rawLimit) : Number.NaN;
+    const results = searchNodes(canvasState.getLayout().nodes, q);
+    return {
+      results: Number.isFinite(limit) && limit > 0 ? results.slice(0, Math.floor(limit)) : results,
+      query: q,
+    };
   },
 });
 

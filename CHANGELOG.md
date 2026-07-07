@@ -3,7 +3,115 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.0] - 2026-07-07
+
+### Breaking
+
+- **MCP tool surface shrinks from 84 to 27.** The 57 deprecated legacy
+  single-purpose MCP tools left over from the v0.2 composites migration are
+  removed. Each has a direct composite replacement — same operation, new
+  entry point:
+  - **`canvas_node`**: `canvas_add_node` → `action: "add"`; `canvas_get_node`
+    → `action: "get"`; `canvas_update_node` → `action: "update"`;
+    `canvas_remove_node` → `action: "remove"`; `canvas_add_html_node` →
+    `action: "add"` with `type: "html"`; `canvas_add_html_primitive` →
+    `action: "add"` with `type: "html"` + `primitive: "<kind>"`;
+    `canvas_refresh_webpage_node` → `action: "update"` with `refresh: true`.
+  - **`canvas_render`**: `canvas_describe_schema` → `action:
+    "describe-schema"`; `canvas_validate_spec` → `action: "validate"`;
+    `canvas_add_json_render_node` → `action: "add-json-render"`;
+    `canvas_stream_json_render_node` → `action: "stream-json-render"`;
+    `canvas_add_graph_node` → `action: "add-graph"`.
+  - **`canvas_edge`**: `canvas_add_edge` → `action: "add"`;
+    `canvas_remove_edge` → `action: "remove"`.
+  - **`canvas_group`**: `canvas_create_group` → `action: "create"`;
+    `canvas_group_nodes` → `action: "add"`; `canvas_ungroup` → `action:
+    "ungroup"`.
+  - **`canvas_history`**: `canvas_undo` → `action: "undo"`; `canvas_redo` →
+    `action: "redo"`.
+  - **`canvas_view`**: `canvas_arrange` → `action: "arrange"`;
+    `canvas_focus_node` → `action: "focus"`; `canvas_fit_view` → `action:
+    "fit"`; `canvas_clear` → `action: "clear"`; `canvas_remove_annotation` →
+    `action: "remove-annotation"`.
+  - **`canvas_query`**: `canvas_search` → `action: "search"`;
+    `canvas_get_layout` → `action: "layout"`; `canvas_validate` → `action:
+    "validate"`.
+  - **`canvas_app`**: `canvas_open_mcp_app` → `action: "open-mcp-app"`;
+    `canvas_add_diagram` → `action: "diagram"`; `canvas_build_web_artifact` →
+    `action: "build-artifact"`.
+  - **`canvas_webview`**: `canvas_webview_status` → `action: "status"`;
+    `canvas_webview_start` → `action: "start"`; `canvas_webview_stop` →
+    `action: "stop"`; `canvas_resize` → `action: "resize"`; `canvas_evaluate`
+    → `action: "evaluate"`.
+  - **`canvas_ax_state`**: `canvas_get_ax` → `action: "get"`;
+    `canvas_set_ax_focus` → `action: "set-focus"`; `canvas_set_ax_policy` →
+    `action: "set-policy"`; `canvas_report_host_capability` → `action:
+    "report-capability"`.
+  - **`canvas_ax_work`**: `canvas_add_work_item` → `action: "add"`;
+    `canvas_update_work_item` → `action: "update"`;
+    `canvas_add_review_annotation` → `action: "annotate"`.
+  - **`canvas_ax_gate`**: `canvas_request_approval` → `kind: "approval"`,
+    `action: "request"`; `canvas_resolve_approval` → `kind: "approval"`,
+    `action: "resolve"`; `canvas_await_approval` → `kind: "approval"`,
+    `action: "await"`; `canvas_request_elicitation` → `kind: "elicitation"`,
+    `action: "request"`; `canvas_respond_elicitation` → `kind:
+    "elicitation"`, `action: "resolve"`; `canvas_await_elicitation` → `kind:
+    "elicitation"`, `action: "await"`; `canvas_request_mode` → `kind:
+    "mode"`, `action: "request"`; `canvas_resolve_mode` → `kind: "mode"`,
+    `action: "resolve"`; `canvas_await_mode` → `kind: "mode"`, `action:
+    "await"`.
+  - **`canvas_ax_timeline`**: `canvas_get_ax_timeline` → `action: "read"`;
+    `canvas_record_ax_event` → `action: "record-event"`; `canvas_add_evidence`
+    → `action: "add-evidence"`; `canvas_send_steering` → `action:
+    "send-steering"`.
+  - **`canvas_ax_delivery`**: `canvas_claim_ax_delivery` → `action: "claim"`;
+    `canvas_mark_ax_delivery` → `action: "mark"`.
+
+  The HTTP API, the SDK, and `canvas_batch` are unaffected — these are the
+  same underlying operations, only the standalone MCP tool entry points are
+  removed. `docs/mcp.md` retains the full migration table for reference.
+
+- **Malformed JSON request bodies now return 400.** Every HTTP API route
+  responds `400 { ok: false, error: "Malformed JSON body." }` when a non-empty
+  body fails to parse, instead of silently treating it as an empty request.
+  Empty bodies are still accepted.
+
+### Deprecated
+
+- The 6 snapshot standalone tools (`canvas_snapshot`, `canvas_list_snapshots`,
+  `canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`,
+  `canvas_diff`) now carry deprecation notices in their tool descriptions and
+  fold into a `canvas_snapshot` composite (`action: save|list|restore|delete
+  |gc|diff`) in v0.4.
+
+### Removed
+
+- Legacy `ext-app-ext-app-…` double-prefix blob-lookup fallback in
+  `findCanvasExtAppNodeId` (`src/server/ext-app-lookup.ts`), scheduled for
+  removal since v0.1.4. All ext-app node IDs have carried the single-prefix
+  form since then; the primary lookup and the data-scan fallback are
+  unaffected.
+- The orphaned `dist/client` bundle and the generated web-artifact build
+  projects under `.pmx-canvas/artifacts/.web-artifacts/` are no longer
+  committed to the repo.
+
+### Fixed
+
+- HTTP `GET /api/canvas/search` now honors the `limit` query parameter
+  (previously only the MCP tool applied it).
+- The SDK's `setContextPins` emits the same `context-pins-changed` event as
+  the HTTP API and MCP tool, instead of a full layout update.
+- `canvas_ax_interaction` and `canvas_ingest_activity` return a clean tool
+  error instead of an MCP protocol error when they fail.
+- The code graph resolves workspace-relative imports against the configured
+  workspace root instead of the server process working directory.
+- The MCP server now reports the real package version in its handshake
+  (read from `package.json`) instead of a stale hard-coded `0.1.0`.
+
+### Docs
+
+- Operation descriptions and field hints no longer route agents to MCP tools
+  removed in v0.3.0.
 
 ## [0.2.7] - 2026-06-25
 
@@ -2533,6 +2641,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.3.0]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.3.0
 [0.2.7]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.7
 [0.2.6]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.6
 [0.2.5]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.2.5

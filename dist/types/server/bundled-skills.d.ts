@@ -3,9 +3,9 @@
  *
  * Skill files ship inside the npm package under `skills/<name>/SKILL.md`
  * but until 0.1.2 they were not discoverable to the agent — an agent
- * calling `canvas_build_web_artifact` had no way to find the companion
- * `skills/web-artifacts-builder/SKILL.md` prompt that documents the
- * workflow, stack choices, and gotchas.
+ * calling `canvas_app` (`build-artifact` action) had no way to find the
+ * companion `skills/web-artifacts-builder/SKILL.md` prompt that documents
+ * the workflow, stack choices, and gotchas.
  *
  * This module locates the bundled `skills/` directory relative to the
  * package root (works for both repo-local development and global npm

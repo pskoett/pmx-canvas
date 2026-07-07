@@ -6,8 +6,9 @@ license: Complete terms in LICENSE.txt
 
 This skill guides creation of distinctive, production-grade frontend interfaces that avoid generic "AI slop" aesthetics. Implement real working code with exceptional attention to aesthetic details and creative choices.
 
-In `pmx-canvas`, use `canvas_build_web_artifact` when the result should be a full custom React app,
-and use `canvas_add_json_render_node` when a schema-driven UI panel is enough.
+In `pmx-canvas`, use `canvas_app { action: "build-artifact" }` when the result should be a full
+custom React app, and use `canvas_render { action: "add-json-render" }` when a schema-driven UI
+panel is enough.
 
 The user provides frontend requirements: a component, page, application, or interface to build. They may include context about the purpose, audience, or technical constraints.
 

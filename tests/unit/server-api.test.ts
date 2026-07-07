@@ -5029,19 +5029,19 @@ describe('canvas server HTTP API', () => {
     expect(schema.htmlPrimitives.some((primitive) => primitive.kind === 'presentation')).toBe(true);
     expect(schema.htmlPrimitives.some((primitive) => primitive.kind === 'incident-report')).toBe(true);
     expect(schema.htmlPrimitives.some((primitive) => primitive.kind === 'triage-board')).toBe(true);
-    expect(schema.mcp.tools).toContain('canvas_describe_schema');
-    expect(schema.mcp.tools).toContain('canvas_add_html_primitive');
+    expect(schema.mcp.tools).toContain('canvas_render');
+    expect(schema.mcp.tools).toContain('canvas_node');
     expect(schema.mcp.resources).toContain('canvas://schema');
     expect(schema.mcp.nodeTypeRouting).toMatchObject({
-      markdown: 'canvas_add_node',
-      'json-render': 'canvas_add_json_render_node',
-      graph: 'canvas_add_graph_node',
-      'web-artifact': 'canvas_build_web_artifact',
-      // plan-008 Wave 5: html/html-primitive routing now points at canvas_node.
+      markdown: 'canvas_node (action:"add")',
+      'json-render': 'canvas_render (action:"add-json-render")',
+      graph: 'canvas_render (action:"add-graph")',
+      'web-artifact': 'canvas_app (action:"build-artifact")',
+      // v0.3.0: html/html-primitive routing points at canvas_node.
       html: 'canvas_node (action:"add", type:"html")',
       'html-primitive': 'canvas_node (action:"add", type:"html", primitive:"<kind>")',
-      'external-app': 'canvas_open_mcp_app',
-      group: 'canvas_create_group',
+      'external-app': 'canvas_app (action:"open-mcp-app")',
+      group: 'canvas_group (action:"create")',
     });
 
     const jsonValidation = await jsonRequest<{

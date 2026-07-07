@@ -1,6 +1,6 @@
 # Excalidraw Diagram Authoring
 
-Use this guide when creating diagrams through PMX Canvas with `canvas_add_diagram` or
+Use this guide when creating diagrams through PMX Canvas with `canvas_app { action: "diagram" }` or
 `pmx-canvas external-app add --kind excalidraw`.
 
 ## Why Text Can Still Drift
@@ -142,4 +142,4 @@ If a title, footer, or rightmost label is clipped, the camera is wrong even if t
 - Camera has at least `80px` padding around all visible content.
 - Titles and footers are not near the camera edge.
 - Arrows have explicit `points` and enough space for labels.
-- Calls go through PMX (`canvas_add_diagram` or `external-app add --kind excalidraw`) unless you manually apply these rules to raw Excalidraw MCP input.
+- Calls go through PMX (`canvas_app { action: "diagram" }` or `external-app add --kind excalidraw`) unless you manually apply these rules to raw Excalidraw MCP input.

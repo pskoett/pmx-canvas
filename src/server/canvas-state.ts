@@ -571,6 +571,11 @@ class CanvasStateManager {
   private _db: import('bun:sqlite').Database | null = null;
   private _saveTimer: ReturnType<typeof setTimeout> | null = null;
 
+  /** Workspace root backing persistence and workspace-relative path resolution. */
+  get workspaceRoot(): string {
+    return this._workspaceRoot;
+  }
+
   /** Set the workspace root to enable auto-persistence. */
   setWorkspaceRoot(workspaceRoot: string): void {
     this.close();

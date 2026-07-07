@@ -16,15 +16,12 @@ import {
   type OperationInvoker,
 } from '../server/operations/index.js';
 
-type RefreshWebpageNodeResult = Awaited<ReturnType<PmxCanvas['refreshWebpageNode']>>;
-// openMcpApp / addDiagram / buildWebArtifact CanvasAccess methods + their type
-// aliases removed with the standalone MCP tools (plan-008 Wave 4): those tools
-// migrated to the operation registry (mcpapp.open / diagram.open /
+// openMcpApp / addDiagram / buildWebArtifact / refreshWebpageNode / addHtmlNode /
+// addHtmlPrimitive CanvasAccess methods + their type aliases removed with the
+// standalone MCP tools (plan-008 Wave 4; refresh/html tools removed v0.3.0):
+// those tools migrated to the operation registry (mcpapp.open / diagram.open /
 // webartifact.build) and the composite/registry tools dispatch via the invoker,
 // not CanvasAccess. The public SDK PmxCanvas methods are unchanged.
-type AddHtmlNodeInput = Parameters<PmxCanvas['addHtmlNode']>[0];
-type AddHtmlPrimitiveInput = Parameters<PmxCanvas['addHtmlPrimitive']>[0];
-type AddHtmlPrimitiveResult = ReturnType<PmxCanvas['addHtmlPrimitive']>;
 type AxStateResult = ReturnType<PmxCanvas['getAxState']>;
 type AxContextResult = ReturnType<PmxCanvas['getAxContext']>;
 type SubmitAxInteractionInput = Parameters<PmxCanvas['submitAxInteraction']>[0];
@@ -56,11 +53,6 @@ interface HealthResponse {
   workspace?: string;
 }
 
-interface NodeResponse {
-  id?: string;
-  node?: { id?: string };
-}
-
 export interface CanvasAccess {
   readonly port: number;
   readonly remoteBaseUrl: string | null;
@@ -68,9 +60,6 @@ export interface CanvasAccess {
   invoker(): OperationInvoker;
   getLayout(): Promise<CanvasLayout>;
   getNode(id: string): Promise<CanvasNodeState | undefined>;
-  refreshWebpageNode(id: string, url?: string): Promise<RefreshWebpageNodeResult>;
-  addHtmlNode(input: AddHtmlNodeInput): Promise<string>;
-  addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult>;
   getAxState(): Promise<AxStateResult>;
   getAxContext(options?: { consumer?: string }): Promise<AxContextResult>;
   getAxTimeline(query?: GetAxTimelineQuery): Promise<GetAxTimelineResult>;
@@ -117,20 +106,6 @@ class LocalCanvasAccess implements CanvasAccess {
 
   async getNode(id: string): Promise<CanvasNodeState | undefined> {
     return this.canvas.getNode(id);
-  }
-
-  async refreshWebpageNode(id: string, url?: string): Promise<RefreshWebpageNodeResult> {
-    return await this.canvas.refreshWebpageNode(id, url);
-  }
-
-  async addHtmlNode(input: AddHtmlNodeInput): Promise<string> {
-    // PmxCanvas.addHtmlNode returns the created node; the CanvasAccess contract
-    // is a bare id string, so extract it (mirrors addNode above).
-    return this.canvas.addHtmlNode(input).id;
-  }
-
-  async addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult> {
-    return this.canvas.addHtmlPrimitive(input);
   }
 
   async getAxState(): Promise<AxStateResult> {
@@ -249,17 +224,6 @@ class RemoteCanvasAccess implements CanvasAccess {
     return parsed as T;
   }
 
-  private async requestNodeId(method: string, path: string, body?: unknown): Promise<string> {
-    const response = await this.requestJson<NodeResponse>(method, path, body);
-    const id = typeof response.id === 'string'
-      ? response.id
-      : typeof response.node?.id === 'string'
-        ? response.node.id
-        : '';
-    if (!id) throw new Error('Canvas response did not include a node id.');
-    return id;
-  }
-
   async getLayout(): Promise<CanvasLayout> {
     return await this.requestJson<CanvasLayout>('GET', '/api/canvas/state?includeBlobs=true');
   }
@@ -283,65 +247,6 @@ class RemoteCanvasAccess implements CanvasAccess {
       throw new Error(error);
     }
     return parsed as CanvasNodeState;
-  }
-
-  async refreshWebpageNode(id: string, url?: string): Promise<RefreshWebpageNodeResult> {
-    return await this.requestJson<RefreshWebpageNodeResult>('POST', `/api/canvas/node/${encodeURIComponent(id)}/refresh`, {
-      ...(url ? { url } : {}),
-    });
-  }
-
-  async addHtmlNode(input: AddHtmlNodeInput): Promise<string> {
-    const {
-      summary,
-      agentSummary,
-      description,
-      presentation,
-      slideTitles,
-      embeddedNodeIds,
-      embeddedUrls,
-      axCapabilities,
-      ...rest
-    } = input as AddHtmlNodeInput & {
-      summary?: string;
-      agentSummary?: string;
-      description?: string;
-      presentation?: boolean;
-      slideTitles?: string[];
-      embeddedNodeIds?: string[];
-      embeddedUrls?: string[];
-      axCapabilities?: { enabled?: boolean; allowed?: string[] };
-    };
-    return await this.requestNodeId('POST', '/api/canvas/node', {
-      type: 'html',
-      ...rest,
-      data: {
-        ...(typeof summary === 'string' ? { summary } : {}),
-        ...(typeof agentSummary === 'string' ? { agentSummary } : {}),
-        ...(typeof description === 'string' ? { description } : {}),
-        ...(presentation === true ? { presentation: true } : {}),
-        ...(Array.isArray(slideTitles) ? { slideTitles } : {}),
-        ...(Array.isArray(embeddedNodeIds) ? { embeddedNodeIds } : {}),
-        ...(Array.isArray(embeddedUrls) ? { embeddedUrls } : {}),
-        ...(axCapabilities ? { axCapabilities } : {}),
-      },
-    });
-  }
-
-  async addHtmlPrimitive(input: AddHtmlPrimitiveInput): Promise<AddHtmlPrimitiveResult> {
-    const response = await this.requestJson<{
-      id?: string;
-      node?: { id?: string };
-      primitive?: { kind?: string; title?: string; htmlBytes?: number };
-    }>('POST', '/api/canvas/node', { type: 'html', ...input, primitive: input.kind });
-    const id = typeof response.id === 'string' ? response.id : response.node?.id;
-    if (!id) throw new Error('html primitive response did not include a node id.');
-    return {
-      id,
-      kind: input.kind,
-      title: response.primitive?.title ?? input.title ?? input.kind,
-      htmlBytes: response.primitive?.htmlBytes ?? 0,
-    };
   }
 
   async getHistory(): Promise<HistoryResult> {

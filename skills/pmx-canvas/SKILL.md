@@ -25,7 +25,8 @@ Humans curate agent context by pinning nodes; agents read that curation through
    may belong to another project.
 3. **Read before write.** Search with `canvas_query { action: "search", query }` before creating
    nodes. Read the full layout only when necessary.
-4. **Snapshot before destructive changes.** Use `canvas_snapshot` before clear, restore, or a major
+4. **Snapshot before destructive changes.** Use `canvas_snapshot` (deprecated standalone; folds into
+   the `canvas_snapshot` composite's `save` action in v0.4) before clear, restore, or a major
    reorganization.
 5. **Show intent with the Ghost Cursor — by default.** Signal with
    `canvas_intent { action: "signal", ... }` before every meaningful create, move, connect, remove,
@@ -123,10 +124,12 @@ Important routing:
 - Excalidraw: `canvas_app { action: "diagram", ... }`
 - Web artifact: `canvas_app { action: "build-artifact", ... }`
 
-Legacy single-purpose tools remain during the v0.2 compatibility window but are deprecated and
-scheduled for removal in v0.3. Standalones that intentionally remain include `canvas_batch`,
-`canvas_pin_nodes`, `canvas_screenshot`, snapshot tools, `canvas_ax_interaction`,
-`canvas_ingest_activity`, and `canvas_invoke_command`.
+As of v0.3.0, the 57 legacy single-purpose tools from the v0.2 compatibility window are removed.
+The composites above plus the retained standalones are now the whole MCP surface: `canvas_batch`,
+`canvas_pin_nodes`, `canvas_screenshot`, `canvas_ax_interaction`, `canvas_ingest_activity`, and
+`canvas_invoke_command`. The 6 snapshot tools (`canvas_snapshot`, `canvas_list_snapshots`,
+`canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`, `canvas_diff`) are also retained
+but deprecated, pending a `canvas_snapshot` composite in v0.4.
 
 ## Spatial Rules
 
@@ -235,7 +238,7 @@ annotations, pins, snapshots, AX canvas state, and large-node blobs.
 - Stop the server or close/flush the SDK before committing `canvas.db`.
 - History is session-scoped and is not persisted.
 - Timeline AX data persists independently from canvas snapshots.
-- `canvas_clear` clears canvas-bound state but not host/session diagnostics.
+- `canvas_view { action: "clear" }` clears canvas-bound state but not host/session diagnostics.
 
 ## Detailed References
 

@@ -174,6 +174,8 @@ declare class CanvasStateManager {
     private _stateFilePath;
     private _db;
     private _saveTimer;
+    /** Workspace root backing persistence and workspace-relative path resolution. */
+    get workspaceRoot(): string;
     /** Set the workspace root to enable auto-persistence. */
     setWorkspaceRoot(workspaceRoot: string): void;
     private get blobsDir();

@@ -113,7 +113,7 @@ function resolveImportPath(specifier: string, fromFilePath: string): string | nu
     // Check if it looks like a relative project path (contains / and no @)
     if (!specifier.includes('/') || specifier.startsWith('@')) return null;
     // For non-relative paths, try workspace-relative resolution
-    const wsRoot = process.cwd();
+    const wsRoot = canvasState.workspaceRoot;
     return tryResolveWithExtensions(resolve(wsRoot, specifier));
   }
 
