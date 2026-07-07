@@ -32,6 +32,10 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   `pinned-context`, `code-graph`, `ax/activity`, `ax/interaction`, and
   `PATCH /api/canvas/ax` are likewise registry-served with unchanged wire
   shapes.
+- The theme, update, viewport, annotation, and webpage-refresh endpoints are
+  also registry-served now; wire shapes unchanged. One edge-case difference:
+  a malformed JSON body on the refresh endpoint returns 400 before the
+  missing-node 404 check (previously the 404 won).
 
 ## [0.3.0] - 2026-07-07
 

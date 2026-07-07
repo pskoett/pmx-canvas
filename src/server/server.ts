@@ -40,7 +40,7 @@ import { existsSync, readFileSync, statSync, writeFileSync, appendFileSync } fro
 import { readFile } from 'node:fs/promises';
 import { basename, extname, join, relative, resolve } from 'node:path';
 import * as marked from 'marked';
-import { type CanvasAnnotation, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
+import { type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
 import {
   buildAxBridge,
   buildAxStateBridge,
@@ -55,15 +55,12 @@ import { getMcpAppHostSnapshot } from './mcp-app-host.js';
 import { closeMcpAppSession, closeAllMcpAppSessions } from './mcp-app-runtime.js';
 import { findOpenCanvasPosition } from './placement.js';
 import { mutationHistory } from './mutation-history.js';
-import { summarizeCanvasAnnotation } from './canvas-serialization.js';
 import { buildAgentContextPreamble } from './agent-context.js';
 import { buildCanvasAxSurfaceSnapshot } from './ax-context.js';
 import { resolveNodeAxCapabilities } from './ax-interaction.js';
 import { normalizeCanvasTheme, type CanvasTheme } from './canvas-db.js';
 import { validateLocalImageFile } from './image-source.js';
 import {
-  applyCanvasNodeUpdates,
-  refreshCanvasWebpageNode,
   primeCanvasRuntimeBackends,
   setCanvasLayoutUpdateEmitter,
   syncCanvasRuntimeBackends,
@@ -74,7 +71,6 @@ import { setWebviewRunner } from './operations/webview-runner.js';
 import { closeNodeAppSession, nodeAppSessionId } from './operations/ops/nodes.js';
 import { traceManager } from './trace-manager.js';
 import { buildJsonRenderViewerHtml } from '../json-render/server.js';
-import { normalizeWebpageUrl } from './webpage-node.js';
 import type { JsonRenderSpec } from '../json-render/server.js';
 
 const DEFAULT_HOST = '127.0.0.1';
@@ -1223,139 +1219,6 @@ function handleNodeSurface(pathname: string, url: URL): Response {
   return responseText('Node type cannot be opened as a site', 404);
 }
 
-async function handleCanvasUpdate(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (body === null) return malformedJsonResponse();
-  const updates = Array.isArray(body.updates) ? body.updates : [];
-  const result =
-    body.recordHistory === false
-      ? (() => {
-          let suppressedResult: ReturnType<typeof applyCanvasNodeUpdates> = { applied: 0, skipped: updates.length };
-          canvasState.withSuppressedRecording(() => {
-            suppressedResult = applyCanvasNodeUpdates(updates);
-          });
-          return suppressedResult;
-        })()
-      : applyCanvasNodeUpdates(updates);
-  if (result.applied > 0) {
-    emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  }
-  return responseJson({ ok: true, ...result });
-}
-
-async function handleCanvasViewport(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (body === null) return malformedJsonResponse();
-  const next = {
-    x: typeof body.x === 'number' ? body.x : canvasState.viewport.x,
-    y: typeof body.y === 'number' ? body.y : canvasState.viewport.y,
-    scale: typeof body.scale === 'number' ? body.scale : canvasState.viewport.scale,
-  };
-  if (body.recordHistory === false) {
-    canvasState.withSuppressedRecording(() => {
-      canvasState.setViewport(next);
-    });
-  } else {
-    canvasState.setViewport(next);
-  }
-  emitPrimaryWorkbenchEvent('canvas-viewport-update', { viewport: canvasState.viewport });
-  return responseJson({ ok: true });
-}
-
-function annotationBounds(points: CanvasAnnotation['points']): CanvasAnnotation['bounds'] {
-  const xs = points.map((point) => point.x);
-  const ys = points.map((point) => point.y);
-  const minX = Math.min(...xs);
-  const minY = Math.min(...ys);
-  const maxX = Math.max(...xs);
-  const maxY = Math.max(...ys);
-  return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-}
-
-function textAnnotationBounds(
-  point: CanvasAnnotation['points'][number],
-  text: string,
-  width: number,
-): CanvasAnnotation['bounds'] {
-  return {
-    x: point.x,
-    y: point.y - width,
-    width: Math.max(width, text.length * width * 0.62),
-    height: width * 1.2,
-  };
-}
-
-function parseAnnotationPoints(value: unknown): CanvasAnnotation['points'] {
-  if (!Array.isArray(value)) return [];
-  return value
-    .map((point) => {
-      if (!point || typeof point !== 'object' || Array.isArray(point)) return null;
-      const record = point as Record<string, unknown>;
-      if (typeof record.x !== 'number' || typeof record.y !== 'number') return null;
-      if (!Number.isFinite(record.x) || !Number.isFinite(record.y)) return null;
-      return { x: record.x, y: record.y };
-    })
-    .filter((point): point is CanvasAnnotation['points'][number] => point !== null);
-}
-
-async function handleCanvasAddAnnotation(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (body === null) return malformedJsonResponse();
-  const type = body.type === 'text' ? 'text' : 'freehand';
-  const points = parseAnnotationPoints(body.points);
-  if (points.length < (type === 'text' ? 1 : 2)) {
-    return responseJson(
-      {
-        ok: false,
-        error:
-          type === 'text'
-            ? 'Text annotation requires a valid point.'
-            : 'Annotation requires at least two valid points.',
-      },
-      400,
-    );
-  }
-
-  const defaultWidth = type === 'text' ? 24 : 4;
-  const maxWidth = type === 'text' ? 96 : 24;
-  const width =
-    typeof body.width === 'number' && Number.isFinite(body.width)
-      ? Math.min(maxWidth, Math.max(1, body.width))
-      : defaultWidth;
-  const color =
-    typeof body.color === 'string' && (body.color === 'currentColor' || /^#[0-9a-fA-F]{6}$/.test(body.color))
-      ? body.color
-      : 'currentColor';
-  const label =
-    typeof body.label === 'string' && body.label.trim().length > 0 ? body.label.trim().slice(0, 160) : undefined;
-  const text =
-    type === 'text' && typeof body.text === 'string' && body.text.trim().length > 0
-      ? body.text.trim().slice(0, 240)
-      : undefined;
-  if (type === 'text' && !text) {
-    return responseJson({ ok: false, error: 'Text annotation requires text.' }, 400);
-  }
-  const id =
-    typeof body.id === 'string' && body.id.trim().length > 0
-      ? body.id.trim().slice(0, 120)
-      : `ann-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-  const annotation: CanvasAnnotation = {
-    id,
-    type,
-    points,
-    bounds: type === 'text' ? textAnnotationBounds(points[0]!, text!, width) : annotationBounds(points),
-    color,
-    width,
-    ...(text ? { text } : {}),
-    ...((label ?? text) ? { label: label ?? text } : {}),
-    createdAt: new Date().toISOString(),
-  };
-
-  canvasState.addAnnotation(annotation);
-  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson({ ok: true, annotation: summarizeCanvasAnnotation(annotation) });
-}
-
 // ── Serve image file for image nodes ─────────────────────────
 async function handleCanvasImage(pathname: string): Promise<Response> {
   const nodeId = pathname.replace('/api/canvas/image/', '');
@@ -1390,45 +1253,6 @@ async function handleCanvasImage(pathname: string): Promise<Response> {
       'Cache-Control': 'no-cache',
     },
   });
-}
-
-async function handleCanvasRefreshWebpageNode(nodeId: string, req: Request): Promise<Response> {
-  const existing = canvasState.getNode(nodeId);
-  if (existing?.type !== 'webpage') {
-    return responseJson({ ok: false, error: `Webpage node "${nodeId}" not found.` }, 404);
-  }
-
-  const body = await readJson(req);
-  if (body === null) return malformedJsonResponse();
-  const rawUrl = typeof body.url === 'string' ? body.url : undefined;
-  let url: string | undefined;
-  if (rawUrl && rawUrl.trim().length > 0) {
-    try {
-      url = normalizeWebpageUrl(rawUrl);
-    } catch (error) {
-      return responseJson({ ok: false, error: error instanceof Error ? error.message : 'Invalid webpage URL.' }, 400);
-    }
-  }
-
-  const result = await refreshCanvasWebpageNode(nodeId, { ...(url ? { url } : {}) });
-  emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-  return responseJson(result, result.ok ? 200 : 400);
-}
-
-// handleCanvasBuildWebArtifact migrated to the operation registry
-// (plan-008 Wave 4): src/server/operations/ops/app.ts (webartifact.build).
-
-async function handleCanvasThemeUpdate(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (body === null) return malformedJsonResponse();
-  const theme = normalizeCanvasTheme(body.theme, canvasState.theme);
-  const next = canvasState.setTheme(theme);
-  broadcastWorkbenchEvent('theme-changed', {
-    theme: next,
-    sessionId: primaryWorkbenchSessionId,
-    timestamp: new Date().toISOString(),
-  });
-  return responseJson({ ok: true, theme: next });
 }
 
 async function handleJsonRenderView(url: URL): Promise<Response> {
@@ -3062,14 +2886,14 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleWorkbenchIntent(req);
           }
 
-          // Webview automation routes (plan-008 Wave 3): status / start /
-          // evaluate / resize / stop are now registered operations served by the
-          // registry. A null return falls through (e.g. the screenshot route
-          // below, which stays hand-written — it returns a binary image, not a
-          // JSON wire body).
-          if (url.pathname.startsWith('/api/workbench/webview')) {
-            const webviewResponse = await dispatchOperationRoute(req, url);
-            if (webviewResponse) return webviewResponse;
+          // Operation registry routes (plan-005): every registered operation is
+          // dispatched here — webview automation, /api/canvas/*, /api/ext-app/*,
+          // theme/update/viewport/annotation/refresh (plan-009 C1 slices 1-3). A
+          // null return falls through to the remaining hand-written routes
+          // (SSE, binary, HTML/static serving, and the server-coupled handlers).
+          if (url.pathname.startsWith('/api/')) {
+            const operationResponse = await dispatchOperationRoute(req, url);
+            if (operationResponse) return operationResponse;
           }
 
           if (url.pathname === '/api/workbench/webview/screenshot' && req.method === 'POST') {
@@ -3082,51 +2906,6 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/render' && req.method === 'POST') {
             return handleRender(req);
-          }
-
-          // Operation registry routes (plan-005): registered operations are
-          // dispatched here; a null return falls through to the legacy routes.
-          // /api/ext-app/* is fully registry-served (plan-009 C1 slice 1).
-          if (url.pathname.startsWith('/api/canvas/') || url.pathname.startsWith('/api/ext-app/')) {
-            const operationResponse = await dispatchOperationRoute(req, url);
-            if (operationResponse) return operationResponse;
-          }
-
-          if (url.pathname === '/api/canvas/theme' && req.method === 'GET') {
-            return responseJson({ ok: true, theme: canvasState.theme });
-          }
-
-          if (url.pathname === '/api/canvas/theme' && req.method === 'POST') {
-            return handleCanvasThemeUpdate(req);
-          }
-
-          if (url.pathname === '/api/canvas/update' && req.method === 'POST') {
-            return handleCanvasUpdate(req);
-          }
-
-          // POST /api/canvas/batch migrated to the operation registry
-          // (plan-008 Wave 2): src/server/operations/ops/batch.ts.
-
-          if (url.pathname === '/api/canvas/viewport' && req.method === 'POST') {
-            return handleCanvasViewport(req);
-          }
-
-          if (url.pathname === '/api/canvas/annotation' && req.method === 'POST') {
-            return handleCanvasAddAnnotation(req);
-          }
-
-          // POST /api/canvas/mcp-app/open, /api/canvas/diagram, and
-          // /api/canvas/web-artifact migrated to the operation registry
-          // (plan-008 Wave 4): src/server/operations/ops/app.ts.
-
-          // Individual node GET/PATCH/DELETE
-          if (
-            url.pathname.startsWith('/api/canvas/node/') &&
-            url.pathname.endsWith('/refresh') &&
-            req.method === 'POST'
-          ) {
-            const nodeId = url.pathname.slice('/api/canvas/node/'.length, -'/refresh'.length);
-            return handleCanvasRefreshWebpageNode(nodeId, req);
           }
 
           if (url.pathname.startsWith('/api/canvas/image/') && req.method === 'GET') {

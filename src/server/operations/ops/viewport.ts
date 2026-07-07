@@ -214,4 +214,50 @@ const clearOperation = defineOperation<z.infer<typeof clearSchema>, Record<strin
   },
 });
 
-export const viewportOperations: Operation[] = [arrangeOperation, focusOperation, fitOperation, clearOperation];
+// ── viewport.set (plan-009 C1 slice 3) ────────────────────────
+
+const viewportSetShape = {
+  x: z.unknown().optional().describe('Viewport x offset'),
+  y: z.unknown().optional().describe('Viewport y offset'),
+  scale: z.unknown().optional().describe('Viewport zoom scale'),
+  recordHistory: z.unknown().optional().describe('Pass false to skip the undo-history entry'),
+};
+
+const viewportSetSchema = z.looseObject(viewportSetShape);
+
+const viewportSetOperation = defineOperation<z.infer<typeof viewportSetSchema>, Record<string, unknown>>({
+  name: 'viewport.set',
+  mutates: false,
+  input: viewportSetSchema,
+  inputShape: viewportSetShape,
+  http: {
+    method: 'POST',
+    path: '/api/canvas/viewport',
+  },
+  // Legacy wire: emits canvas-viewport-update (never a layout update).
+  handler: (input, ctx) => {
+    const body: Record<string, unknown> = input;
+    const next = {
+      x: typeof body.x === 'number' ? body.x : canvasState.viewport.x,
+      y: typeof body.y === 'number' ? body.y : canvasState.viewport.y,
+      scale: typeof body.scale === 'number' ? body.scale : canvasState.viewport.scale,
+    };
+    if (body.recordHistory === false) {
+      canvasState.withSuppressedRecording(() => {
+        canvasState.setViewport(next);
+      });
+    } else {
+      canvasState.setViewport(next);
+    }
+    ctx.emit('canvas-viewport-update', { viewport: canvasState.viewport });
+    return { ok: true };
+  },
+});
+
+export const viewportOperations: Operation[] = [
+  arrangeOperation,
+  focusOperation,
+  fitOperation,
+  clearOperation,
+  viewportSetOperation,
+];

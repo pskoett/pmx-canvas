@@ -1186,10 +1186,54 @@ const layoutGetOperation = defineOperation<z.infer<typeof layoutGetSchema>, Reco
   },
 });
 
+// ── node.refresh (plan-009 C1 slice 3) ────────────────────────
+
+const nodeRefreshShape = {
+  id: z.string().optional().catch(undefined).describe('Webpage node ID to refresh'),
+  url: z.unknown().optional().describe('Optional replacement page URL'),
+};
+
+const nodeRefreshSchema = z.looseObject(nodeRefreshShape);
+
+const nodeRefreshOperation = defineOperation<z.infer<typeof nodeRefreshSchema>, Record<string, unknown>>({
+  name: 'node.refresh',
+  mutates: false,
+  input: nodeRefreshSchema,
+  inputShape: nodeRefreshShape,
+  http: {
+    method: 'POST',
+    path: '/api/canvas/node/:id/refresh',
+    // Legacy wire: 200 on success, 400 with the refresh failure body otherwise.
+    status: (result) => (isRecord(result) && result.ok === false ? 400 : 200),
+  },
+  handler: async (input, ctx) => {
+    const nodeId = input.id ?? '';
+    const existing = canvasState.getNode(nodeId);
+    if (existing?.type !== 'webpage') {
+      throw new OperationError(`Webpage node "${nodeId}" not found.`, 404);
+    }
+    const rawUrl = typeof input.url === 'string' ? input.url : undefined;
+    let url: string | undefined;
+    if (rawUrl && rawUrl.trim().length > 0) {
+      try {
+        url = normalizeWebpageUrl(rawUrl);
+      } catch (error) {
+        throw new OperationError(error instanceof Error ? error.message : 'Invalid webpage URL.');
+      }
+    }
+    // Legacy wire: the layout update fires after every completed refresh
+    // attempt, success or failure (the node may have partial refresh state).
+    const result = await refreshCanvasWebpageNode(nodeId, { ...(url ? { url } : {}) });
+    ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
+    return result as unknown as Record<string, unknown>;
+  },
+});
+
 export const nodeOperations: Operation[] = [
   nodeAddOperation,
   nodeGetOperation,
   nodeUpdateOperation,
   nodeRemoveOperation,
   layoutGetOperation,
+  nodeRefreshOperation,
 ];
