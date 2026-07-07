@@ -56,19 +56,9 @@ import { closeMcpAppSession, closeAllMcpAppSessions } from './mcp-app-runtime.js
 import { findOpenCanvasPosition } from './placement.js';
 import { mutationHistory } from './mutation-history.js';
 import { summarizeCanvasAnnotation } from './canvas-serialization.js';
-import { buildCodeGraphSummary } from './code-graph.js';
-import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent-context.js';
-import { buildCanvasAxContext, buildCanvasAxSurfaceSnapshot } from './ax-context.js';
-import { applyAxInteraction, resolveNodeAxCapabilities } from './ax-interaction.js';
-import { isAxEvidenceKind, isAxActivityKind } from './ax-state.js';
-import type {
-  PmxAxEvidenceKind,
-  PmxAxReviewAnchorType,
-  PmxAxReviewKind,
-  PmxAxReviewSeverity,
-  PmxAxSource,
-  PmxAxWorkItemStatus,
-} from './ax-state.js';
+import { buildAgentContextPreamble } from './agent-context.js';
+import { buildCanvasAxSurfaceSnapshot } from './ax-context.js';
+import { resolveNodeAxCapabilities } from './ax-interaction.js';
 import { normalizeCanvasTheme, type CanvasTheme } from './canvas-db.js';
 import { validateLocalImageFile } from './image-source.js';
 import {
@@ -667,10 +657,6 @@ function findCanvasExtAppNodeId(toolCallId: string): string | null {
     getNode: (id) => canvasState.getNode(id),
     listNodes: () => canvasState.getLayout().nodes,
   });
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
 function findReusableCanvasExtAppNodeId(serverName: string, toolName: string): string | null {
@@ -2225,151 +2211,6 @@ async function handleCanvasPrompt(req: Request): Promise<Response> {
   return responseJson({ ok: true, nodeId });
 }
 
-function handleGetPinnedContext(): Response {
-  const pinnedIds = Array.from(canvasState.contextPinnedNodeIds);
-  const preamble = pinnedIds.length > 0 ? buildSelectionContextPreamble(pinnedIds) : '';
-  const nodes = pinnedIds
-    .map((id) => canvasState.getNode(id))
-    .filter((node): node is CanvasNodeState => node !== undefined)
-    .map((node) =>
-      serializeNodeForAgentContext(node, {
-        defaultTextLength: 700,
-        webpageTextLength: 1600,
-        includePosition: true,
-      }),
-    );
-  return responseJson({ preamble, nodeIds: pinnedIds, count: pinnedIds.length, nodes });
-}
-
-function normalizeAxNodeIds(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((id): id is string => typeof id === 'string');
-}
-
-function normalizeAxSource(value: unknown, fallback: PmxAxSource): PmxAxSource {
-  return value === 'agent' ||
-    value === 'api' ||
-    value === 'browser' ||
-    value === 'cli' ||
-    value === 'codex' ||
-    value === 'copilot' ||
-    value === 'mcp' ||
-    value === 'sdk' ||
-    value === 'system'
-    ? value
-    : fallback;
-}
-
-function handleGetAxContext(url: URL): Response {
-  // Optional ?consumer= filters the compact `delivery` lead block (loop-safe — a
-  // consumer never sees steering/activity it originated), so a host adapter can
-  // inject its own un-truncated pending block per turn (report #54 hardening).
-  const consumer = url.searchParams.get('consumer') ?? undefined;
-  return responseJson(buildCanvasAxContext(consumer));
-}
-
-function isReviewSeverity(v: unknown): v is PmxAxReviewSeverity {
-  return v === 'info' || v === 'warning' || v === 'error';
-}
-function isReviewKind(v: unknown): v is PmxAxReviewKind {
-  return v === 'comment' || v === 'finding';
-}
-function isReviewAnchor(v: unknown): v is PmxAxReviewAnchorType {
-  return v === 'node' || v === 'file' || v === 'region';
-}
-
-// Validate untrusted activity `reactions` from an HTTP body into the typed override
-// shape ingestActivity expects. `false` suppresses a default reaction; an object
-// overrides its fields (invalid fields are dropped, not stored raw).
-function normalizeActivityReactions(input: Record<string, unknown>): {
-  workItem?: false | { status?: PmxAxWorkItemStatus; detail?: string | null };
-  evidence?: false | { kind?: PmxAxEvidenceKind; body?: string | null };
-  review?:
-    | false
-    | {
-        severity?: PmxAxReviewSeverity;
-        kind?: PmxAxReviewKind;
-        anchorType?: PmxAxReviewAnchorType;
-        nodeId?: string | null;
-      };
-} {
-  const out: ReturnType<typeof normalizeActivityReactions> = {};
-  if (input.workItem === false) out.workItem = false;
-  else if (isRecord(input.workItem)) {
-    const status = normalizeAxWorkItemStatus(input.workItem.status);
-    out.workItem = {
-      ...(status ? { status } : {}),
-      ...(typeof input.workItem.detail === 'string' ? { detail: input.workItem.detail } : {}),
-    };
-  }
-  if (input.evidence === false) out.evidence = false;
-  else if (isRecord(input.evidence)) {
-    out.evidence = {
-      ...(isAxEvidenceKind(input.evidence.kind) ? { kind: input.evidence.kind } : {}),
-      ...(typeof input.evidence.body === 'string' ? { body: input.evidence.body } : {}),
-    };
-  }
-  if (input.review === false) out.review = false;
-  else if (isRecord(input.review)) {
-    out.review = {
-      ...(isReviewSeverity(input.review.severity) ? { severity: input.review.severity } : {}),
-      ...(isReviewKind(input.review.kind) ? { kind: input.review.kind } : {}),
-      ...(isReviewAnchor(input.review.anchorType) ? { anchorType: input.review.anchorType } : {}),
-      ...(typeof input.review.nodeId === 'string' ? { nodeId: input.review.nodeId } : {}),
-    };
-  }
-  return out;
-}
-
-// Report primitive A: ingest a harness-forwarded agent activity; the board auto-reacts.
-async function handleAxActivityIngest(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (body === null) return malformedJsonResponse();
-  if (!isAxActivityKind(body.kind)) {
-    return responseJson(
-      {
-        ok: false,
-        error:
-          "activity requires a valid 'kind': one of tool-start, tool-result, failure, error, session-start, session-end, command, note.",
-      },
-      400,
-    );
-  }
-  if (typeof body.title !== 'string' || !body.title.trim()) {
-    return responseJson({ ok: false, error: 'activity requires a title.' }, 400);
-  }
-  const result = canvasState.ingestActivity(
-    {
-      kind: body.kind,
-      title: body.title,
-      ...(typeof body.summary === 'string' ? { summary: body.summary } : {}),
-      ...(body.outcome === 'success' || body.outcome === 'failure' ? { outcome: body.outcome } : {}),
-      ...(typeof body.ref === 'string' ? { ref: body.ref } : {}),
-      ...(Array.isArray(body.nodeIds) ? { nodeIds: normalizeAxNodeIds(body.nodeIds) } : {}),
-      ...(isRecord(body.data) ? { data: body.data } : {}),
-      ...(isRecord(body.reactions) ? { reactions: normalizeActivityReactions(body.reactions) } : {}),
-    },
-    { source: normalizeAxSource(body.source, 'api') },
-  );
-  const meta = { sessionId: primaryWorkbenchSessionId, timestamp: new Date().toISOString() };
-  broadcastWorkbenchEvent('ax-event-created', { event: result.event, ...meta });
-  if (result.workItem) broadcastWorkbenchEvent('ax-state-changed', { workItem: result.workItem, ...meta });
-  if (result.evidence) broadcastWorkbenchEvent('ax-event-created', { evidence: result.evidence, ...meta });
-  if (result.review) broadcastWorkbenchEvent('ax-state-changed', { reviewAnnotation: result.review, ...meta });
-  return responseJson({ ok: true, ...result });
-}
-
-// Report primitive D single-item gate reads (GET /api/canvas/ax/{approval,
-// elicitation,mode}/:id) with the optional ?waitMs= long-poll migrated to the
-// operation registry (plan-007 Slice B wave 4):
-// src/server/operations/ops/ax-await.ts.
-
-// Compact AX state for surfaces (the same shape seeded into AX-enabled iframes).
-// The client fetches this and pushes it to surfaces over the ax-update channel.
-function handleGetAxSurfaceSnapshot(): Response {
-  return responseJson(buildCanvasAxSurfaceSnapshot());
-}
-
 // Open a node's surface in the user's real system browser (for hosts whose
 // embedded browser makes window.open('_blank') feel in-place, e.g. Codex).
 // Accepts ONLY { nodeId, url? } and opens this server's own surface URL — never
@@ -2395,110 +2236,6 @@ async function handleOpenExternalSurface(req: Request): Promise<Response> {
   const surfacePath = `${defaultSurfacePath}?theme=${encodeURIComponent(theme)}`;
   const opened = openUrlInExternalBrowser(`http://localhost:${port}${surfacePath}`);
   return responseJson({ ok: true, opened, url: surfacePath });
-}
-
-async function handleAxInteraction(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (body === null) return malformedJsonResponse();
-  const { result, events } = applyAxInteraction(canvasState, body, normalizeAxSource(body.source, 'api'));
-  for (const e of events) {
-    broadcastWorkbenchEvent(e.event, {
-      ...e.payload,
-      sessionId: primaryWorkbenchSessionId,
-      timestamp: new Date().toISOString(),
-    });
-  }
-  return responseJson(result, result.ok ? 200 : result.status);
-}
-
-// handleAxDeliveryPending / handleAxDeliveryMark migrated to the operation
-// registry (plan-007 Slice B wave 3): src/server/operations/ops/ax-timeline.ts.
-
-function handleAxElicitationList(): Response {
-  return responseJson({ ok: true, elicitations: canvasState.getElicitations() });
-}
-
-// handleAxElicitationRequest / handleAxElicitationRespond migrated to the
-// operation registry (plan-007 Slice B wave 2): src/server/operations/ops/ax-work.ts.
-
-function handleAxModeList(): Response {
-  return responseJson({ ok: true, modeRequests: canvasState.getModeRequests() });
-}
-
-// handleAxModeRequest / handleAxModeResolve migrated to the operation registry
-// (plan-007 Slice B wave 2): src/server/operations/ops/ax-work.ts.
-
-function handleAxCommandList(): Response {
-  return responseJson({ ok: true, commands: canvasState.getCommandRegistry() });
-}
-
-// handleAxCommandInvoke migrated to the operation registry (plan-007 Slice B
-// wave 3): src/server/operations/ops/ax-timeline.ts.
-
-function handleAxPolicyGet(): Response {
-  return responseJson({ ok: true, policy: canvasState.getPolicy() });
-}
-
-async function handleAxStatePatch(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (body === null) return malformedJsonResponse();
-  if (!body.focus || typeof body.focus !== 'object' || Array.isArray(body.focus)) {
-    return responseJson({ ok: false, error: 'PATCH /api/canvas/ax currently requires a focus object.' }, 400);
-  }
-  const focusInput = body.focus as Record<string, unknown>;
-  const focus = canvasState.setAxFocus(normalizeAxNodeIds(focusInput.nodeIds), {
-    source: normalizeAxSource(focusInput.source, 'api'),
-  });
-  broadcastWorkbenchEvent('ax-state-changed', {
-    focus,
-    sessionId: primaryWorkbenchSessionId,
-    timestamp: new Date().toISOString(),
-  });
-  return responseJson({ ok: true, state: canvasState.getAxState() });
-}
-
-// handleAxEventAdd / handleAxSteer / handleAxTimelineGet migrated to the
-// operation registry (plan-007 Slice B wave 3): src/server/operations/ops/ax-timeline.ts.
-
-const AX_WORK_STATUSES = new Set(['todo', 'in-progress', 'blocked', 'done', 'cancelled']);
-
-function normalizeAxWorkItemStatus(
-  value: unknown,
-): 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled' | undefined {
-  return typeof value === 'string' && AX_WORK_STATUSES.has(value)
-    ? (value as 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled')
-    : undefined;
-}
-
-function handleAxWorkList(): Response {
-  return responseJson({ ok: true, workItems: canvasState.getWorkItems() });
-}
-
-// handleAxWorkAdd / handleAxWorkUpdate migrated to the operation registry
-// (plan-007 Slice B wave 2): src/server/operations/ops/ax-work.ts.
-
-function handleAxApprovalList(): Response {
-  return responseJson({ ok: true, approvalGates: canvasState.getApprovalGates() });
-}
-
-// handleAxApprovalRequest / handleAxApprovalResolve migrated to the operation
-// registry (plan-007 Slice B wave 2): src/server/operations/ops/ax-work.ts.
-
-// handleAxEvidenceAdd migrated to the operation registry (plan-007 Slice B
-// wave 3): src/server/operations/ops/ax-timeline.ts.
-
-// The AX review normalize helpers + their constant sets moved with the
-// migrated handlers (plan-007 Slice B wave 2): src/server/operations/ops/ax-work.ts.
-
-function handleAxReviewList(): Response {
-  return responseJson({ ok: true, reviewAnnotations: canvasState.getReviewAnnotations() });
-}
-
-// handleAxReviewAdd / handleAxReviewUpdate migrated to the operation registry
-// (plan-007 Slice B wave 2): src/server/operations/ops/ax-work.ts.
-
-function handleAxHostCapabilityGet(): Response {
-  return responseJson({ ok: true, host: canvasState.getHostCapability() });
 }
 
 // ── Port resolution ───────────────────────────────────────────
@@ -3396,117 +3133,13 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return await handleCanvasImage(url.pathname);
           }
 
-          if (url.pathname === '/api/canvas/pinned-context' && req.method === 'GET') {
-            return handleGetPinnedContext();
-          }
-
-          // GET /api/canvas/ax migrated to the operation registry (plan-007 Slice B.1).
-
-          if (url.pathname === '/api/canvas/ax' && req.method === 'PATCH') {
-            return handleAxStatePatch(req);
-          }
-
-          if (url.pathname === '/api/canvas/ax/context' && req.method === 'GET') {
-            return handleGetAxContext(url);
-          }
-
-          if (url.pathname === '/api/canvas/ax/activity' && req.method === 'POST') {
-            return handleAxActivityIngest(req);
-          }
-
-          if (url.pathname === '/api/canvas/ax/surface-snapshot' && req.method === 'GET') {
-            return handleGetAxSurfaceSnapshot();
-          }
-
           if (url.pathname === '/api/canvas/open-external' && req.method === 'POST') {
             return handleOpenExternalSurface(req);
           }
 
-          // POST /api/canvas/ax/focus migrated to the operation registry (plan-007 Slice B.1).
-
-          // POST /api/canvas/ax/event + POST /api/canvas/ax/steer + GET
-          // /api/canvas/ax/timeline migrated to the operation registry
-          // (plan-007 Slice B wave 3): src/server/operations/ops/ax-timeline.ts.
-
-          if (url.pathname === '/api/canvas/ax/work' && req.method === 'GET') {
-            return handleAxWorkList();
-          }
-
-          // POST /api/canvas/ax/work + PATCH /api/canvas/ax/work/:id migrated to
-          // the operation registry (plan-007 Slice B wave 2).
-
-          if (url.pathname === '/api/canvas/ax/approval' && req.method === 'GET') {
-            return handleAxApprovalList();
-          }
-
-          // POST /api/canvas/ax/approval + POST /api/canvas/ax/approval/:id/resolve
-          // migrated to the operation registry (plan-007 Slice B wave 2).
-
-          // GET /api/canvas/ax/approval/:id (single-item read + ?waitMs long-poll)
-          // migrated to the operation registry (plan-007 Slice B wave 4).
-
-          // POST /api/canvas/ax/evidence migrated to the operation registry
-          // (plan-007 Slice B wave 3): src/server/operations/ops/ax-timeline.ts.
-
-          if (url.pathname === '/api/canvas/ax/review' && req.method === 'GET') {
-            return handleAxReviewList();
-          }
-
-          // POST /api/canvas/ax/review + PATCH /api/canvas/ax/review/:id migrated
-          // to the operation registry (plan-007 Slice B wave 2).
-
-          if (url.pathname === '/api/canvas/ax/host-capability' && req.method === 'GET') {
-            return handleAxHostCapabilityGet();
-          }
-
-          // PUT /api/canvas/ax/host-capability migrated to the operation registry (plan-007 Slice B.1).
-
-          if (url.pathname === '/api/canvas/ax/interaction' && req.method === 'POST') {
-            return handleAxInteraction(req);
-          }
-
-          // GET /api/canvas/ax/delivery/pending + POST /api/canvas/ax/delivery/:id/mark
-          // migrated to the operation registry (plan-007 Slice B wave 3):
-          // src/server/operations/ops/ax-timeline.ts.
-
-          if (url.pathname === '/api/canvas/ax/elicitation' && req.method === 'GET') {
-            return handleAxElicitationList();
-          }
-
-          // POST /api/canvas/ax/elicitation + POST /api/canvas/ax/elicitation/:id/respond
-          // migrated to the operation registry (plan-007 Slice B wave 2).
-
-          // GET /api/canvas/ax/elicitation/:id (single-item read + ?waitMs long-poll)
-          // migrated to the operation registry (plan-007 Slice B wave 4).
-
-          if (url.pathname === '/api/canvas/ax/mode' && req.method === 'GET') {
-            return handleAxModeList();
-          }
-
-          // POST /api/canvas/ax/mode + POST /api/canvas/ax/mode/:id/resolve migrated
-          // to the operation registry (plan-007 Slice B wave 2).
-
-          // GET /api/canvas/ax/mode/:id (single-item read + ?waitMs long-poll)
-          // migrated to the operation registry (plan-007 Slice B wave 4).
-
-          if (url.pathname === '/api/canvas/ax/command' && req.method === 'GET') {
-            return handleAxCommandList();
-          }
-
-          // POST /api/canvas/ax/command migrated to the operation registry
-          // (plan-007 Slice B wave 3): src/server/operations/ops/ax-timeline.ts.
-
-          if (url.pathname === '/api/canvas/ax/policy' && req.method === 'GET') {
-            return handleAxPolicyGet();
-          }
-
-          // POST /api/canvas/ax/policy migrated to the operation registry (plan-007 Slice B.1).
-
-          // Code graph API
-          if (url.pathname === '/api/canvas/code-graph' && req.method === 'GET') {
-            const summary = buildCodeGraphSummary();
-            return responseJson(summary);
-          }
+          // Every other /api/canvas/ax* route, pinned-context, and code-graph is
+          // registry-served (plan-007 slices; plan-009 C1 slice 2 folded the GET
+          // reads + activity/interaction/PATCH): src/server/operations/ops/ax-*.ts.
 
           if (url.pathname === '/api/canvas/prompt' && req.method === 'POST') {
             return handleCanvasPrompt(req);

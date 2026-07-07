@@ -21,6 +21,7 @@ import { webviewOperations } from './ops/webview.js';
 import { appOperations } from './ops/app.js';
 import { intentOperations } from './ops/intent.js';
 import { extAppOperations } from './ops/ext-app.js';
+import { axReadOperations } from './ops/ax-read.js';
 
 for (const op of [
   ...nodeOperations,
@@ -41,6 +42,7 @@ for (const op of [
   ...appOperations,
   ...intentOperations,
   ...extAppOperations,
+  ...axReadOperations,
 ]) {
   registerOperation(op);
 }

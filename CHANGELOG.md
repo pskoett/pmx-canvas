@@ -26,6 +26,12 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 - The `/api/ext-app/*` endpoints are now served by the operation registry;
   request and response wire shapes are unchanged.
+- The AX read endpoints (`ax/work`, `ax/approval`, `ax/review`,
+  `ax/elicitation`, `ax/mode`, `ax/command`, `ax/policy`,
+  `ax/host-capability`, `ax/context`, `ax/surface-snapshot`),
+  `pinned-context`, `code-graph`, `ax/activity`, `ax/interaction`, and
+  `PATCH /api/canvas/ax` are likewise registry-served with unchanged wire
+  shapes.
 
 ## [0.3.0] - 2026-07-07
 
