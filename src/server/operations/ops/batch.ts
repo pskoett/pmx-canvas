@@ -51,6 +51,7 @@ const SUPPORTED_BATCH_OPS = new Set([
   'node.remove',
   'graph.add',
   'edge.add',
+  'edge.remove',
   'group.create',
   'group.add',
   'group.remove',
@@ -204,7 +205,7 @@ function shapeBatchEntry(op: string, result: unknown): Record<string, unknown> {
     return { ok: true, arranged: body.arranged, layout: body.layout };
   }
 
-  // edge.add / group.remove: wire shape already matches the legacy push verbatim.
+  // edge.add / edge.remove / group.remove: wire shape matches the push verbatim.
   return body;
 }
 
@@ -356,7 +357,7 @@ const batchOperation = defineOperation<z.infer<typeof batchSchema>, BatchEnvelop
   mcp: {
     toolName: 'canvas_batch',
     description:
-      'Run a non-atomic batch of canvas operations with optional assigned references. Use assign to name a result, then reference it later as "$name" for the created node id or "$name.id" for a specific result field. On failure, earlier successful operations remain applied and the response includes ok:false, failedIndex, error, results, and refs. Supports node.add, node.update, node.remove, graph.add, edge.add, group.create, group.add, group.remove, pin.set/add/remove, snapshot.save, and arrange.',
+      'Run a non-atomic batch of canvas operations with optional assigned references. Use assign to name a result, then reference it later as "$name" for the created node id or "$name.id" for a specific result field. On failure, earlier successful operations remain applied and the response includes ok:false, failedIndex, error, results, and refs. Supports node.add, node.update, node.remove, graph.add, edge.add, edge.remove, group.create, group.add, group.remove, pin.set/add/remove, snapshot.save, and arrange.',
     formatResult: (result, input) => {
       const envelope = result as BatchEnvelope;
       const payload = wantsFullBatch(input) ? envelope : compactBatchResult(envelope);

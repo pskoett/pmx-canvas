@@ -510,6 +510,13 @@ surfaces): `canvas_batch`, `canvas_pin_nodes`, `canvas_screenshot`, `canvas_ax_i
 `canvas_diff` — deprecated pending a `canvas_snapshot` composite in v0.4; the name collides with
 the current save-snapshot tool, so the composite cannot land additively).
 
+`canvas_batch` supports exactly these ops: `node.add`, `node.update`, `node.remove`, `graph.add`,
+`edge.add`, `edge.remove`, `group.create`, `group.add`, `group.remove`, `pin.set`/`pin.add`/
+`pin.remove`, `snapshot.save`, and `arrange`. Anything else fails with "Unsupported canvas_batch
+operation" — batch is non-atomic, so earlier ops stay applied and the response carries
+`failedIndex`. `canvas_screenshot` requires an active automation WebView: call
+`canvas_webview { action: "start" }` first.
+
 > **Removed in v0.3.0 → use the composite instead**: `canvas_open_mcp_app` / `canvas_add_diagram` /
 > `canvas_build_web_artifact` → **`canvas_app`**; `canvas_webview_start` / `canvas_webview_status` /
 > `canvas_webview_stop` / `canvas_resize` / `canvas_evaluate` → **`canvas_webview`**;

@@ -24,7 +24,8 @@ Humans curate agent context by pinning nodes; agents read that curation through
    `workspace` must equal the intended absolute workspace root. A healthy listener on port 4313
    may belong to another project.
 3. **Read before write.** Search with `canvas_query { action: "search", query }` before creating
-   nodes. Read the full layout only when necessary.
+   nodes. Read the full layout only when necessary. The MCP parameter is `query` — passing the
+   HTTP API's `q` is silently ignored and returns zero results.
 4. **Snapshot before destructive changes.** Use `canvas_snapshot` (deprecated standalone; folds into
    the `canvas_snapshot` composite's `save` action in v0.4) before clear, restore, or a major
    reorganization.
@@ -33,7 +34,8 @@ Humans curate agent context by pinning nodes; agents read that curation through
    or edit, then pass the returned `intent.id` as `intentId` on the mutation so the ghost settles
    into the result. Use it as much as possible to make your next move and your work visible: the
    human watches intent form and can veto mid-thought. Skip it only for trivial in-place tweaks or
-   high-frequency batch churn.
+   high-frequency batch churn. The default TTL (~8s) expires between agent turns: signal with
+   `ttlMs: 30000` and settle by passing `intentId` on the mutation in the same or next call.
 6. **Mutate through current composites.** Prefer the 15 composite MCP tools below.
 7. **Arrange and validate.** After batch changes, use `canvas_view { action: "arrange" }` when
    appropriate and always finish with `canvas_query { action: "validate" }`.

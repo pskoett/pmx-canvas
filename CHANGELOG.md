@@ -3,6 +3,19 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- `canvas_batch` supports `edge.remove` (0.3.1 test-report Finding M) — edge
+  cleanup no longer needs a separate `canvas_edge` call.
+
+### Docs
+
+- The pmx-canvas skill documents the batch op support list, the
+  WebView-before-screenshot requirement, the `query` (not `q`) search
+  parameter, and the intent TTL + linked-settle pattern for agent turns.
+
 ## [0.3.1] - 2026-07-07
 
 ### Fixed

@@ -64,6 +64,27 @@ test('a bare-array batch body still works (issue #49 non-regression)', async () 
   expect(body.results?.length).toBe(1);
 });
 
+test('batch supports edge.remove (0.3.1 test-report Finding M)', async () => {
+  const res = await fetch(`${baseUrl}/api/canvas/batch`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      operations: [
+        { op: 'node.add', assign: 'a', args: { type: 'markdown', title: 'edge batch a', content: 'x' } },
+        { op: 'node.add', assign: 'b', args: { type: 'markdown', title: 'edge batch b', content: 'y' } },
+        { op: 'edge.add', assign: 'e', args: { from: '$a', to: '$b', type: 'relation' } },
+        { op: 'edge.remove', args: { id: '$e' } },
+        { op: 'node.remove', args: { id: '$a' } },
+        { op: 'node.remove', args: { id: '$b' } },
+      ],
+    }),
+  });
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as { ok?: boolean; results?: Array<Record<string, unknown>> };
+  expect(body.ok).toBe(true);
+  expect(body.results?.length).toBe(6);
+});
+
 test('a malformed batch body returns 400, not a partial-failure envelope', async () => {
   const res = await fetch(`${baseUrl}/api/canvas/batch`, {
     method: 'POST',
