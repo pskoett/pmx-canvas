@@ -40,20 +40,7 @@ import { existsSync, readFileSync, statSync, writeFileSync, appendFileSync } fro
 import { readFile } from 'node:fs/promises';
 import { basename, extname, join, relative, resolve } from 'node:path';
 import * as marked from 'marked';
-import type {
-  CallToolResult,
-  ListPromptsResult,
-  ListResourcesResult,
-  ListResourceTemplatesResult,
-  ListToolsResult,
-} from '@modelcontextprotocol/sdk/types.js';
-import {
-  type CanvasAnnotation,
-  type CanvasLayout,
-  type CanvasNodeState,
-  IMAGE_MIME_MAP,
-  canvasState,
-} from './canvas-state.js';
+import { type CanvasAnnotation, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
 import {
   buildAxBridge,
   buildAxStateBridge,
@@ -65,27 +52,17 @@ import {
 import { findCanvasExtAppNodeId as findCanvasExtAppNodeIdShared } from './ext-app-lookup.js';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
-import {
-  callMcpAppTool,
-  closeMcpAppSession,
-  closeAllMcpAppSessions,
-  listMcpAppPrompts,
-  listMcpAppResources,
-  listMcpAppResourceTemplates,
-  listMcpAppTools,
-  readMcpAppResource,
-} from './mcp-app-runtime.js';
-import { findOpenCanvasPosition, computeGroupBounds } from './placement.js';
+import { closeMcpAppSession, closeAllMcpAppSessions } from './mcp-app-runtime.js';
+import { findOpenCanvasPosition } from './placement.js';
 import { mutationHistory } from './mutation-history.js';
 import { summarizeCanvasAnnotation } from './canvas-serialization.js';
-import { buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
+import { buildCodeGraphSummary } from './code-graph.js';
 import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent-context.js';
 import { buildCanvasAxContext, buildCanvasAxSurfaceSnapshot } from './ax-context.js';
 import { applyAxInteraction, resolveNodeAxCapabilities } from './ax-interaction.js';
 import { isAxEvidenceKind, isAxActivityKind } from './ax-state.js';
 import type {
   PmxAxEvidenceKind,
-  PmxAxPolicy,
   PmxAxReviewAnchorType,
   PmxAxReviewKind,
   PmxAxReviewSeverity,
@@ -105,15 +82,6 @@ import { dispatchOperationRoute, setOperationEventEmitter } from './operations/i
 import { intentRegistry } from './intent-registry.js';
 import { setWebviewRunner } from './operations/webview-runner.js';
 import { closeNodeAppSession, nodeAppSessionId } from './operations/ops/nodes.js';
-import {
-  EXCALIDRAW_READ_CHECKPOINT_TOOL,
-  EXCALIDRAW_SAVE_CHECKPOINT_TOOL,
-  buildExcalidrawCheckpointId,
-  buildExcalidrawRestoreCheckpointToolInput,
-  ensureExcalidrawCheckpointId,
-  getExcalidrawCheckpointIdFromToolResult,
-  isExcalidrawCreateView,
-} from './diagram-presets.js';
 import { traceManager } from './trace-manager.js';
 import { buildJsonRenderViewerHtml } from '../json-render/server.js';
 import { normalizeWebpageUrl } from './webpage-node.js';
@@ -701,96 +669,8 @@ function findCanvasExtAppNodeId(toolCallId: string): string | null {
   });
 }
 
-function isCheckpointToolName(toolName: string): boolean {
-  return toolName === EXCALIDRAW_SAVE_CHECKPOINT_TOOL || toolName === EXCALIDRAW_READ_CHECKPOINT_TOOL;
-}
-
-/**
- * Decide whether a fresh `callServerTool` result should *replace* the
- * canvas node's bootstrap-replay `toolResult`.
- *
- * The bootstrap-replay toolResult is what the server re-sends to the
- * widget on reload to restore visible state. We only want to overwrite
- * it when the new result genuinely carries widget state — `isError` or
- * `structuredContent`. A plain-text result (e.g. `read_checkpoint`
- * returning a string status, or any informational message) updates
- * `appModelContext` for the agent's record but should *not* clobber the
- * bootstrap entry, because doing so would replace the widget's restored
- * state with conversational noise on the next reload.
- *
- * This separation is exercised by:
- *   - tests/unit/server-api.test.ts "keeps ext-app model context
- *     separate from the replayed tool result" (text-only result preserves
- *     bootstrap replay)
- *   - tests/unit/server-api.test.ts "app-only text tool results update
- *     model context without replacing bootstrap replay"
- *   - tests/unit/server-api.test.ts "rehydrates Excalidraw checkpoint
- *     replay after server restart" (structured-content result becomes
- *     the new bootstrap replay)
- */
-function shouldReplayAppToolResult(toolName: string, result: CallToolResult): boolean {
-  void toolName;
-  return Boolean(result.isError || result.structuredContent);
-}
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
-}
-
-function getExtAppNodeCheckpointId(node: CanvasNodeState): string {
-  const appCheckpoint = isRecord(node.data.appCheckpoint) ? node.data.appCheckpoint : null;
-  const storedCheckpointId = appCheckpoint?.id;
-  if (typeof storedCheckpointId === 'string' && storedCheckpointId.trim().length > 0) {
-    return storedCheckpointId.trim();
-  }
-  return getExcalidrawCheckpointIdFromToolResult(node.data.toolResult) ?? buildExcalidrawCheckpointId(node.id);
-}
-
-function getLocalExcalidrawCheckpointData(
-  node: CanvasNodeState,
-  args: Record<string, unknown> | undefined,
-): string | null {
-  if (!isExcalidrawCreateView(node.data.serverName, node.data.toolName)) return null;
-  if (!isRecord(args) || typeof args.id !== 'string') return null;
-  if (args.id.trim() !== getExtAppNodeCheckpointId(node)) return null;
-  const appCheckpoint = isRecord(node.data.appCheckpoint) ? node.data.appCheckpoint : null;
-  const data = appCheckpoint?.data;
-  return typeof data === 'string' ? data : '';
-}
-
-function persistExcalidrawCheckpointToNode(
-  nodeId: string,
-  node: CanvasNodeState,
-  args: Record<string, unknown> | undefined,
-): boolean {
-  if (!isExcalidrawCreateView(node.data.serverName, node.data.toolName)) return false;
-  if (!isRecord(args) || typeof args.id !== 'string') return false;
-  const checkpointId = getExtAppNodeCheckpointId(node);
-  if (args.id.trim() !== checkpointId) return false;
-
-  const currentToolInput = isRecord(node.data.toolInput) ? node.data.toolInput : {};
-  const nextToolInput = {
-    ...currentToolInput,
-    elements: buildExcalidrawRestoreCheckpointToolInput(checkpointId, args.data),
-  };
-  const currentToolResult = isRecord(node.data.toolResult)
-    ? ensureExcalidrawCheckpointId(node.data.toolResult as CallToolResult, node.id, checkpointId)
-    : undefined;
-
-  canvasState.updateNode(nodeId, {
-    data: {
-      ...node.data,
-      toolInput: nextToolInput,
-      ...(currentToolResult ? { toolResult: currentToolResult } : {}),
-      appCheckpoint: {
-        toolName: EXCALIDRAW_SAVE_CHECKPOINT_TOOL,
-        id: checkpointId,
-        ...(typeof args.data === 'string' ? { data: args.data } : {}),
-        updatedAt: new Date().toISOString(),
-      },
-    },
-  });
-  return true;
 }
 
 function findReusableCanvasExtAppNodeId(serverName: string, toolName: string): string | null {
@@ -940,15 +820,6 @@ async function readJson(req: Request): Promise<Record<string, unknown> | null> {
 
 function malformedJsonResponse(): Response {
   return responseJson({ ok: false, error: 'Malformed JSON body.' }, 400);
-}
-
-function htmlEscape(value: string): string {
-  return value
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
 }
 
 function toPreferredExcalidrawUrl(raw: string): string {
@@ -1503,7 +1374,7 @@ async function handleCanvasAddAnnotation(req: Request): Promise<Response> {
 async function handleCanvasImage(pathname: string): Promise<Response> {
   const nodeId = pathname.replace('/api/canvas/image/', '');
   const node = canvasState.getNode(nodeId);
-  if (!node || node.type !== 'image') {
+  if (node?.type !== 'image') {
     return responseText('Image node not found', 404);
   }
   const src = (node.data.path as string) || (node.data.src as string) || '';
@@ -1537,7 +1408,7 @@ async function handleCanvasImage(pathname: string): Promise<Response> {
 
 async function handleCanvasRefreshWebpageNode(nodeId: string, req: Request): Promise<Response> {
   const existing = canvasState.getNode(nodeId);
-  if (!existing || existing.type !== 'webpage') {
+  if (existing?.type !== 'webpage') {
     return responseJson({ ok: false, error: `Webpage node "${nodeId}" not found.` }, 404);
   }
 
@@ -1836,190 +1707,6 @@ function handleRead(pathLike: string): Response {
     content,
     updatedAt: new Date(stat.mtimeMs).toISOString(),
   });
-}
-
-async function handleExtAppCallTool(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (body === null) return malformedJsonResponse();
-  const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
-  const toolName = typeof body.toolName === 'string' ? body.toolName.trim() : '';
-  if (!sessionId || !toolName) {
-    return responseJson({ ok: false, error: 'Missing sessionId or toolName.' }, 400);
-  }
-
-  const args =
-    body.arguments && typeof body.arguments === 'object' && !Array.isArray(body.arguments)
-      ? (body.arguments as Record<string, unknown>)
-      : undefined;
-  const nodeId = typeof body.nodeId === 'string' ? body.nodeId.trim() : '';
-
-  try {
-    const requestedNode = nodeId ? canvasState.getNode(nodeId) : undefined;
-    const canReadLocalCheckpoint =
-      requestedNode?.type === 'mcp-app' &&
-      requestedNode.data.mode === 'ext-app' &&
-      requestedNode.data.appSessionId === sessionId;
-    const localCheckpointData =
-      canReadLocalCheckpoint && toolName === EXCALIDRAW_READ_CHECKPOINT_TOOL
-        ? getLocalExcalidrawCheckpointData(requestedNode, args)
-        : null;
-    const result =
-      localCheckpointData === null
-        ? await callMcpAppTool(sessionId, toolName, args)
-        : ({ content: [{ type: 'text', text: localCheckpointData }] } satisfies CallToolResult);
-    if (nodeId) {
-      const node = canvasState.getNode(nodeId);
-      if (node?.type === 'mcp-app' && node.data.mode === 'ext-app' && node.data.appSessionId === sessionId) {
-        let changed = false;
-        if (toolName === EXCALIDRAW_SAVE_CHECKPOINT_TOOL && persistExcalidrawCheckpointToNode(nodeId, node, args)) {
-          // Checkpoint saves are replayed through toolInput.elements instead of
-          // replacing the original create_view result with a generic "ok".
-          changed = true;
-        } else if (
-          !(isExcalidrawCreateView(node.data.serverName, node.data.toolName) && isCheckpointToolName(toolName))
-        ) {
-          const nextData: Record<string, unknown> = { ...node.data };
-          if (shouldReplayAppToolResult(toolName, result)) nextData.toolResult = result;
-          const nextModelContext: Record<string, unknown> = {};
-          if (Array.isArray(result.content)) {
-            nextModelContext.content = result.content;
-          }
-          if (
-            result.structuredContent &&
-            typeof result.structuredContent === 'object' &&
-            !Array.isArray(result.structuredContent)
-          ) {
-            nextModelContext.structuredContent = result.structuredContent;
-          }
-          if (Object.keys(nextModelContext).length > 0) {
-            nextData.appModelContext = {
-              ...nextModelContext,
-              updatedAt: new Date().toISOString(),
-            };
-          }
-          canvasState.updateNode(nodeId, {
-            data: nextData,
-          });
-          changed = true;
-        }
-        if (changed) {
-          broadcastWorkbenchEvent('canvas-layout-update', {
-            layout: canvasState.getLayout(),
-            sessionId: primaryWorkbenchSessionId,
-            timestamp: new Date().toISOString(),
-          });
-        }
-      }
-    }
-    return responseJson({ ok: true, result });
-  } catch (error) {
-    return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
-  }
-}
-
-async function handleExtAppReadResource(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (body === null) return malformedJsonResponse();
-  const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
-  const uri = typeof body.uri === 'string' ? body.uri.trim() : '';
-  if (!sessionId || !uri) {
-    return responseJson({ ok: false, error: 'Missing sessionId or uri.' }, 400);
-  }
-
-  try {
-    const result = await readMcpAppResource(sessionId, uri);
-    return responseJson({ ok: true, result });
-  } catch (error) {
-    return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
-  }
-}
-
-async function handleExtAppListTools(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (body === null) return malformedJsonResponse();
-  const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
-  if (!sessionId) return responseJson({ ok: false, error: 'Missing sessionId.' }, 400);
-
-  try {
-    const result: ListToolsResult = await listMcpAppTools(sessionId);
-    return responseJson({ ok: true, result });
-  } catch (error) {
-    return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
-  }
-}
-
-async function handleExtAppListResources(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (body === null) return malformedJsonResponse();
-  const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
-  if (!sessionId) return responseJson({ ok: false, error: 'Missing sessionId.' }, 400);
-
-  try {
-    const result: ListResourcesResult = await listMcpAppResources(sessionId);
-    return responseJson({ ok: true, result });
-  } catch (error) {
-    return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
-  }
-}
-
-async function handleExtAppListResourceTemplates(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (body === null) return malformedJsonResponse();
-  const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
-  if (!sessionId) return responseJson({ ok: false, error: 'Missing sessionId.' }, 400);
-
-  try {
-    const result: ListResourceTemplatesResult = await listMcpAppResourceTemplates(sessionId);
-    return responseJson({ ok: true, result });
-  } catch (error) {
-    return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
-  }
-}
-
-async function handleExtAppListPrompts(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (body === null) return malformedJsonResponse();
-  const sessionId = typeof body.sessionId === 'string' ? body.sessionId.trim() : '';
-  if (!sessionId) return responseJson({ ok: false, error: 'Missing sessionId.' }, 400);
-
-  try {
-    const result: ListPromptsResult = await listMcpAppPrompts(sessionId);
-    return responseJson({ ok: true, result });
-  } catch (error) {
-    return responseJson({ ok: false, error: error instanceof Error ? error.message : String(error) }, 400);
-  }
-}
-
-async function handleExtAppModelContext(req: Request): Promise<Response> {
-  const body = await readJson(req);
-  if (body === null) return malformedJsonResponse();
-  const nodeId = typeof body.nodeId === 'string' ? body.nodeId.trim() : '';
-  if (!nodeId) return responseJson({ ok: false, error: 'Missing nodeId.' }, 400);
-
-  const node = canvasState.getNode(nodeId);
-  if (!node) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
-
-  canvasState.updateNode(nodeId, {
-    data: {
-      ...node.data,
-      appModelContext: {
-        ...(Array.isArray(body.content) ? { content: body.content } : {}),
-        ...(body.structuredContent &&
-        typeof body.structuredContent === 'object' &&
-        !Array.isArray(body.structuredContent)
-          ? { structuredContent: body.structuredContent }
-          : {}),
-        updatedAt: new Date().toISOString(),
-      },
-    },
-  });
-
-  broadcastWorkbenchEvent('canvas-layout-update', {
-    layout: canvasState.getLayout(),
-    sessionId: primaryWorkbenchSessionId,
-    timestamp: new Date().toISOString(),
-  });
-  return responseJson({ ok: true });
 }
 
 function handleWorkbenchState(): Response {
@@ -3662,7 +3349,8 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           // Operation registry routes (plan-005): registered operations are
           // dispatched here; a null return falls through to the legacy routes.
-          if (url.pathname.startsWith('/api/canvas/')) {
+          // /api/ext-app/* is fully registry-served (plan-009 C1 slice 1).
+          if (url.pathname.startsWith('/api/canvas/') || url.pathname.startsWith('/api/ext-app/')) {
             const operationResponse = await dispatchOperationRoute(req, url);
             if (operationResponse) return operationResponse;
           }
@@ -3822,34 +3510,6 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/prompt' && req.method === 'POST') {
             return handleCanvasPrompt(req);
-          }
-
-          if (url.pathname === '/api/ext-app/call-tool' && req.method === 'POST') {
-            return handleExtAppCallTool(req);
-          }
-
-          if (url.pathname === '/api/ext-app/read-resource' && req.method === 'POST') {
-            return handleExtAppReadResource(req);
-          }
-
-          if (url.pathname === '/api/ext-app/list-tools' && req.method === 'POST') {
-            return handleExtAppListTools(req);
-          }
-
-          if (url.pathname === '/api/ext-app/list-resources' && req.method === 'POST') {
-            return handleExtAppListResources(req);
-          }
-
-          if (url.pathname === '/api/ext-app/list-resource-templates' && req.method === 'POST') {
-            return handleExtAppListResourceTemplates(req);
-          }
-
-          if (url.pathname === '/api/ext-app/list-prompts' && req.method === 'POST') {
-            return handleExtAppListPrompts(req);
-          }
-
-          if (url.pathname === '/api/ext-app/model-context' && req.method === 'POST') {
-            return handleExtAppModelContext(req);
           }
 
           // Static files for canvas SPA bundle

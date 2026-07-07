@@ -22,6 +22,11 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   by a daemon for a different workspace (or another application) — it refuses
   with the owner's workspace named and a hint to pick another port.
 
+### Changed
+
+- The `/api/ext-app/*` endpoints are now served by the operation registry;
+  request and response wire shapes are unchanged.
+
 ## [0.3.0] - 2026-07-07
 
 ### Breaking

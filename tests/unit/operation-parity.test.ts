@@ -220,12 +220,16 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
   beforeAll(async () => {
     workspaceRoot = createTestWorkspace('pmx-canvas-op-parity-');
     resetCanvasForTests(workspaceRoot);
-    port = await getAvailablePort();
-    const base = startCanvasServer({ workspaceRoot, port, autoOpenBrowser: false });
+    // Bind on port 0 and derive the real port from the base URL: reserving a
+    // port and re-binding it races parallel test files, and a lost race sent
+    // startCanvasServer's fallback toward the default port where a real
+    // daemon may be listening.
+    const base = startCanvasServer({ workspaceRoot, port: 0, autoOpenBrowser: false });
     if (!base) {
       throw new Error('Failed to start canvas server for operation parity tests.');
     }
     baseUrl = base;
+    port = Number(new URL(baseUrl).port);
 
     previousPort = process.env.PMX_CANVAS_PORT ?? '';
     previousUrl = process.env.PMX_CANVAS_URL ?? '';
