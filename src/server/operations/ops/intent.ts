@@ -104,9 +104,14 @@ const intentClearOperation = defineOperation<z.infer<typeof intentClearSchema>, 
     method: 'DELETE',
     path: '/api/canvas/ax/intent/:id',
     readInput: async (req, params, url) => {
-      const query: Record<string, string> = {};
+      const query: Record<string, unknown> = {};
       url.searchParams.forEach((value, key) => {
-        query[key] = value;
+        // `vetoed` is a boolean in the op schema; query params arrive as strings.
+        // Coerce only the literal "true"/"false" forms — anything else passes
+        // through and fails validation loudly instead of silently becoming false.
+        query[key] = key === 'vetoed' && (value === 'true' || value === 'false')
+          ? value === 'true'
+          : value;
       });
       const body = await readJsonValue(req);
       const record = body !== null && typeof body === 'object' && !Array.isArray(body)

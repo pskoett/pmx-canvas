@@ -3,6 +3,18 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- Documented the Ghost Cursor intent HTTP endpoints in `docs/http-api.md`: the
+  operation is chosen by method and path (POST signals, PATCH updates, DELETE
+  clears/settles/vetoes) — there is no `action` field over raw HTTP; that
+  discriminator exists only on the MCP `canvas_intent` composite.
+- `DELETE /api/canvas/ax/intent/:id?vetoed=true` now works: the query-string
+  form of `vetoed` is coerced to a boolean (literal `true`/`false` only; other
+  values are still rejected with 400).
+
 ## [0.3.0] - 2026-07-07
 
 ### Breaking

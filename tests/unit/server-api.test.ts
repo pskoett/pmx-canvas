@@ -268,6 +268,48 @@ describe('canvas server HTTP API', () => {
     expect(await blocked.json()).toMatchObject({ ok: false, error: 'Intent "http-veto" was vetoed.' });
     expect(canvasState.getLayout().nodes.some((node) => node.data.title === 'Must not be created')).toBe(false);
 
+    // Veto via the ?vetoed=true query form (coerced to boolean; body-less DELETE).
+    await jsonRequest('/api/canvas/ax/intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: 'http-veto-query',
+        kind: 'create',
+        position: { x: 160, y: 160 },
+      }),
+    });
+    const vetoedByQuery = await jsonRequest<{ cleared: boolean }>(
+      '/api/canvas/ax/intent/http-veto-query?vetoed=true',
+      { method: 'DELETE' },
+    );
+    expect(vetoedByQuery.cleared).toBe(true);
+    const blockedByQuery = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        intentId: 'http-veto-query',
+        type: 'markdown',
+        title: 'Query veto must also block',
+      }),
+    });
+    expect(blockedByQuery.status).toBe(409);
+
+    // A non-literal query value still fails validation loudly (no silent false).
+    await jsonRequest('/api/canvas/ax/intent', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: 'http-veto-junk',
+        kind: 'create',
+        position: { x: 200, y: 160 },
+      }),
+    });
+    const junkVeto = await fetch(`${baseUrl}/api/canvas/ax/intent/http-veto-junk?vetoed=banana`, {
+      method: 'DELETE',
+    });
+    expect(junkVeto.status).toBe(400);
+    await jsonRequest('/api/canvas/ax/intent/http-veto-junk', { method: 'DELETE' });
+
     await jsonRequest('/api/canvas/ax/intent', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

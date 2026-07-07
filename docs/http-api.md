@@ -276,6 +276,34 @@ and `/ax/mode/:id/resolve` return 404 for unknown IDs; `/ax/activity` requires a
 valid `kind` + `title` (400 otherwise); the single-item gate GETs return 404 for
 unknown IDs and clamp `?waitMs` to ≤120000.
 
+## Ghost Cursor intents (ephemeral)
+
+Intents are verb-routed over HTTP — there is **no `action` field**. That
+discriminator exists only on the MCP `canvas_intent` composite; `POST` always
+signals a *new* intent, so a body like `{"action":"clear"}` is rejected by the
+registry's kind validation. Pick the operation by method + path:
+
+```bash
+# Signal a ghost — returns { ok, intent } with the id. Auto-expires after ttlMs
+# (default 8000, max 60000), so cleanup is optional.
+curl -X POST http://localhost:4313/api/canvas/ax/intent \
+  -H "Content-Type: application/json" \
+  -d '{"kind":"create","position":{"x":400,"y":300},"nodeType":"markdown","label":"Add evidence","reason":"collecting run logs"}'
+
+# Update the ghost (position/label/reason/confidence/ttlMs; vetoed:true dissolves
+# it AND poisons the id so a later linked settle is rejected)
+curl -X PATCH http://localhost:4313/api/canvas/ax/intent/<id> \
+  -H "Content-Type: application/json" \
+  -d '{"position":{"x":520,"y":300},"reason":"moved next to the trace"}'
+
+# Clear the ghost: plain DELETE dissolves it; settle it into the real node it
+# became via settledNodeId, or veto it. Fields are accepted as JSON body or
+# query params (?vetoed=true/false is coerced; other values are rejected 400).
+curl -X DELETE http://localhost:4313/api/canvas/ax/intent/<id>
+curl -X DELETE "http://localhost:4313/api/canvas/ax/intent/<id>?settledNodeId=node-42"
+curl -X DELETE "http://localhost:4313/api/canvas/ax/intent/<id>?vetoed=true"
+```
+
 ## Diagrams (Excalidraw preset)
 
 ```bash
