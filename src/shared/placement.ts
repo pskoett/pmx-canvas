@@ -69,10 +69,7 @@ export function findOpenCanvasPosition(
     const rowNodes = existing.filter(
       (node) => node.position.y <= y + height + gap && node.position.y + node.size.height + gap > y,
     );
-    const maxBottom = rowNodes.reduce(
-      (max, node) => Math.max(max, node.position.y + node.size.height),
-      y,
-    );
+    const maxBottom = rowNodes.reduce((max, node) => Math.max(max, node.position.y + node.size.height), y);
     y = maxBottom + gap;
   }
 

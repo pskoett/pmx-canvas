@@ -102,7 +102,8 @@ function findAnnotationAtPoint(
       point.x > annotation.bounds.x + annotation.bounds.width + pad ||
       point.y < annotation.bounds.y - pad ||
       point.y > annotation.bounds.y + annotation.bounds.height + pad
-    ) continue;
+    )
+      continue;
     if (annotation.type === 'text') return annotation;
     for (let index = 1; index < annotation.points.length; index++) {
       const start = annotation.points[index - 1];
@@ -175,9 +176,7 @@ function extractUrlsFromText(text: string): string[] {
   const trimmed = text.trim();
   if (!trimmed) return [];
 
-  const rawCandidates = trimmed.includes('\n')
-    ? trimmed.split(/\r?\n/)
-    : trimmed.split(/\s+/);
+  const rawCandidates = trimmed.includes('\n') ? trimmed.split(/\r?\n/) : trimmed.split(/\s+/);
   const seen = new Set<string>();
   const urls: string[] = [];
 
@@ -236,7 +235,12 @@ export function getRenderableWorldNodes(
   return worldNodes;
 }
 
-export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu, annotationMode = false, annotationTool = null }: CanvasViewportProps) {
+export function CanvasViewport({
+  onNodeContextMenu,
+  onCanvasContextMenu,
+  annotationMode = false,
+  annotationTool = null,
+}: CanvasViewportProps) {
   const v = viewport.value;
   const isLassoing = useRef(false);
   const isAnnotating = useRef(false);
@@ -405,7 +409,7 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu, annotat
         const previous = annotationPoints.current.at(-1);
         if (previous && Math.hypot(point.x - previous.x, point.y - previous.y) < 2) return;
         annotationPoints.current = [...annotationPoints.current, point];
-        setDraftAnnotation((draft) => draft ? { ...draft, points: annotationPoints.current } : null);
+        setDraftAnnotation((draft) => (draft ? { ...draft, points: annotationPoints.current } : null));
         return;
       }
 
@@ -465,12 +469,7 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu, annotat
         if (node.dockPosition !== null) continue;
         const nx = node.position.x;
         const ny = node.position.y;
-        if (
-          nx + node.size.width > worldMinX &&
-          nx < worldMaxX &&
-          ny + node.size.height > worldMinY &&
-          ny < worldMaxY
-        ) {
+        if (nx + node.size.width > worldMinX && nx < worldMaxX && ny + node.size.height > worldMinY && ny < worldMaxY) {
           hits.push(node.id);
         }
       }
@@ -626,58 +625,77 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu, annotat
     if (dropCounter.current <= 0) {
       dropCounter.current = 0;
       setDropActive(false);
-          }
+    }
   }, []);
 
-  const handleDrop = useCallback(async (e: DragEvent) => {
-    e.preventDefault();
-    setDropActive(false);
-        dropCounter.current = 0;
+  const handleDrop = useCallback(
+    async (e: DragEvent) => {
+      e.preventDefault();
+      setDropActive(false);
+      dropCounter.current = 0;
 
-    const container = containerRef.current;
-    if (!container || !e.dataTransfer) return;
+      const container = containerRef.current;
+      if (!container || !e.dataTransfer) return;
 
-    const rect = container.getBoundingClientRect();
-    const vp = viewport.value;
-    const baseWx = (e.clientX - rect.left - vp.x) / vp.scale;
-    const baseWy = (e.clientY - rect.top - vp.y) / vp.scale;
+      const rect = container.getBoundingClientRect();
+      const vp = viewport.value;
+      const baseWx = (e.clientX - rect.left - vp.x) / vp.scale;
+      const baseWy = (e.clientY - rect.top - vp.y) / vp.scale;
 
-    const files = Array.from(e.dataTransfer.files);
-    if (files.length === 0) {
-      const urls = getTransferUrls(e.dataTransfer);
-      await createWebpageNodes(urls, baseWx, baseWy);
-      return;
-    }
-
-    const nodeW = 400;
-    const nodeH = 300;
-    const spacing = 20;
-    const cols = Math.ceil(Math.sqrt(files.length));
-
-    for (let i = 0; i < files.length; i++) {
-      const file = files[i];
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const wx = baseWx - (cols * (nodeW + spacing)) / 2 + col * (nodeW + spacing);
-      const wy = baseWy - nodeH / 2 + row * (nodeH + spacing);
-
-      const type = nodeTypeFromFilename(file.name);
-      const fileName = file.name;
-
-      if (type === 'image') {
-        const reader = new FileReader();
-        const dataUri: string = await new Promise((resolve) => {
-          reader.onload = () => resolve(reader.result as string);
-          reader.readAsDataURL(file);
-        });
-        await createNodeFromClient({ type: 'image', title: fileName, content: dataUri, x: wx, y: wy, width: nodeW, height: nodeH });
-      } else {
-        const text = await file.text();
-        const isWide = type === 'markdown' || type === 'file';
-        await createNodeFromClient({ type, title: fileName, content: text, x: wx, y: wy, width: isWide ? 720 : nodeW, height: isWide ? 500 : nodeH });
+      const files = Array.from(e.dataTransfer.files);
+      if (files.length === 0) {
+        const urls = getTransferUrls(e.dataTransfer);
+        await createWebpageNodes(urls, baseWx, baseWy);
+        return;
       }
-    }
-  }, [containerRef, createWebpageNodes]);
+
+      const nodeW = 400;
+      const nodeH = 300;
+      const spacing = 20;
+      const cols = Math.ceil(Math.sqrt(files.length));
+
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const col = i % cols;
+        const row = Math.floor(i / cols);
+        const wx = baseWx - (cols * (nodeW + spacing)) / 2 + col * (nodeW + spacing);
+        const wy = baseWy - nodeH / 2 + row * (nodeH + spacing);
+
+        const type = nodeTypeFromFilename(file.name);
+        const fileName = file.name;
+
+        if (type === 'image') {
+          const reader = new FileReader();
+          const dataUri: string = await new Promise((resolve) => {
+            reader.onload = () => resolve(reader.result as string);
+            reader.readAsDataURL(file);
+          });
+          await createNodeFromClient({
+            type: 'image',
+            title: fileName,
+            content: dataUri,
+            x: wx,
+            y: wy,
+            width: nodeW,
+            height: nodeH,
+          });
+        } else {
+          const text = await file.text();
+          const isWide = type === 'markdown' || type === 'file';
+          await createNodeFromClient({
+            type,
+            title: fileName,
+            content: text,
+            x: wx,
+            y: wy,
+            width: isWide ? 720 : nodeW,
+            height: isWide ? 500 : nodeH,
+          });
+        }
+      }
+    },
+    [containerRef, createWebpageNodes],
+  );
 
   useEffect(() => {
     const handlePaste = async (e: ClipboardEvent) => {
@@ -750,13 +768,14 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu, annotat
         height: '100%',
         position: 'relative',
         overflow: 'hidden',
-        cursor: annotationTool === 'eraser'
-          ? 'cell'
-          : annotationTool === 'text'
-            ? 'text'
-          : annotationMode || draggingEdge.value || isLassoing.current
-            ? 'crosshair'
-            : 'grab',
+        cursor:
+          annotationTool === 'eraser'
+            ? 'cell'
+            : annotationTool === 'text'
+              ? 'text'
+              : annotationMode || draggingEdge.value || isLassoing.current
+                ? 'crosshair'
+                : 'grab',
       }}
     >
       {/* D4: CSS matrix(a,b,c,d,tx,ty) — scale uniformly (a=d=scale, b=c=0)
@@ -784,7 +803,18 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu, annotat
         ))}
         {/* Snap alignment guide lines */}
         {activeGuides.value && (
-          <svg class="snap-guides-svg" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', overflow: 'visible' }}>
+          <svg
+            class="snap-guides-svg"
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              pointerEvents: 'none',
+              overflow: 'visible',
+            }}
+          >
             {activeGuides.value.map((g, i) =>
               g.axis === 'x' ? (
                 <line key={i} x1={g.pos} y1={g.from - 20} x2={g.pos} y2={g.to + 20} class="snap-guide-line" />
@@ -795,7 +825,12 @@ export function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu, annotat
           </svg>
         )}
       </div>
-      {annotationMode && <div class={`annotation-capture-layer${annotationTool === 'eraser' ? ' erasing' : ''}${annotationTool === 'text' ? ' text' : ''}`} aria-hidden="true" />}
+      {annotationMode && (
+        <div
+          class={`annotation-capture-layer${annotationTool === 'eraser' ? ' erasing' : ''}${annotationTool === 'text' ? ' text' : ''}`}
+          aria-hidden="true"
+        />
+      )}
       {textDraft && (
         <input
           class="annotation-text-input"

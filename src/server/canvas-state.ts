@@ -11,7 +11,16 @@
  */
 
 import { createHash } from 'node:crypto';
-import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, renameSync, rmSync, unlinkSync } from 'node:fs';
+import {
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  unlinkSync,
+} from 'node:fs';
 import { isAbsolute, join, dirname, relative } from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { normalizeCanvasNodeData } from './canvas-provenance.js';
@@ -123,9 +132,15 @@ interface LoadFromDiskOptions {
 }
 
 export const IMAGE_MIME_MAP: Record<string, string> = {
-  png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg',
-  gif: 'image/gif', svg: 'image/svg+xml', webp: 'image/webp',
-  bmp: 'image/bmp', ico: 'image/x-icon', avif: 'image/avif',
+  png: 'image/png',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  gif: 'image/gif',
+  svg: 'image/svg+xml',
+  webp: 'image/webp',
+  bmp: 'image/bmp',
+  ico: 'image/x-icon',
+  avif: 'image/avif',
 };
 
 export interface CanvasSnapshot {
@@ -235,7 +250,34 @@ export interface CanvasNodeUpdate {
 export type CanvasChangeType = 'pins' | 'nodes' | 'ax' | 'ax-timeline';
 
 export interface MutationRecordInfo {
-  operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'requestElicitation' | 'respondElicitation' | 'requestMode' | 'resolveModeRequest' | 'setPolicy' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
+  operationType:
+    | 'addNode'
+    | 'updateNode'
+    | 'removeNode'
+    | 'addEdge'
+    | 'removeEdge'
+    | 'addAnnotation'
+    | 'removeAnnotation'
+    | 'clear'
+    | 'restoreSnapshot'
+    | 'setPins'
+    | 'setAxFocus'
+    | 'addWorkItem'
+    | 'updateWorkItem'
+    | 'requestApproval'
+    | 'resolveApproval'
+    | 'addReviewAnnotation'
+    | 'updateReviewAnnotation'
+    | 'requestElicitation'
+    | 'respondElicitation'
+    | 'requestMode'
+    | 'resolveModeRequest'
+    | 'setPolicy'
+    | 'arrange'
+    | 'batch'
+    | 'groupNodes'
+    | 'ungroupNodes'
+    | 'viewport';
   description: string;
   forward: () => void;
   inverse: () => void;
@@ -287,13 +329,15 @@ function replaceById<T extends { id: string }>(list: T[], item: T): T[] {
 }
 
 function isPersistedBlobRef(value: unknown): value is PersistedBlobRef {
-  return isRecord(value) &&
+  return (
+    isRecord(value) &&
     value.__pmxCanvasBlob === 'v1' &&
     typeof value.path === 'string' &&
     typeof value.sha256 === 'string' &&
     value.encoding === 'json+gzip' &&
     typeof value.bytes === 'number' &&
-    typeof value.jsonBytes === 'number';
+    typeof value.jsonBytes === 'number'
+  );
 }
 
 class CanvasStateManager {
@@ -360,7 +404,11 @@ class CanvasStateManager {
   /** Run a function with mutation recording suppressed (for undo/redo replay and computed edges). */
   withSuppressedRecording(fn: () => void): void {
     this._suppressRecordingDepth++;
-    try { fn(); } finally { this._suppressRecordingDepth--; }
+    try {
+      fn();
+    } finally {
+      this._suppressRecordingDepth--;
+    }
   }
 
   /** Create a closure that runs with recording suppressed. */
@@ -388,9 +436,8 @@ class CanvasStateManager {
     bounds: { x: number; y: number; width: number; height: number },
     existingGroups?: CanvasPlacementRect[],
   ): void {
-    const otherGroups = existingGroups ?? Array.from(this.nodes.values()).filter(
-      (node) => node.id !== groupId && node.type === 'group',
-    );
+    const otherGroups =
+      existingGroups ?? Array.from(this.nodes.values()).filter((node) => node.id !== groupId && node.type === 'group');
     const resolved = resolveGroupCollision(bounds, otherGroups);
     const deltaX = resolved.x - bounds.x;
     const deltaY = resolved.y - bounds.y;
@@ -472,7 +519,12 @@ class CanvasStateManager {
     }
   }
 
-  private translateGroupChildren(groupId: string, deltaX: number, deltaY: number, skipIds: ReadonlySet<string> = new Set()): void {
+  private translateGroupChildren(
+    groupId: string,
+    deltaX: number,
+    deltaY: number,
+    skipIds: ReadonlySet<string> = new Set(),
+  ): void {
     if (deltaX === 0 && deltaY === 0) return;
     const snapshot = this.getGroupSnapshot(groupId);
     if (!snapshot) return;
@@ -509,9 +561,7 @@ class CanvasStateManager {
     const snapshot = this.getGroupSnapshot(groupId);
     if (!snapshot || snapshot.children.length === 0) return;
     if (snapshot.group.data.frameMode === 'manual') {
-      const sorted = [...snapshot.children].sort(
-        (a, b) => a.position.y - b.position.y || a.position.x - b.position.x,
-      );
+      const sorted = [...snapshot.children].sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x);
       const left = snapshot.group.position.x + GROUP_PAD;
       const top = snapshot.group.position.y + GROUP_TITLEBAR_HEIGHT + GROUP_PAD;
       const right = snapshot.group.position.x + snapshot.group.size.width - GROUP_PAD;
@@ -595,9 +645,10 @@ class CanvasStateManager {
     }
 
     // Keep legacy _stateFilePath for JSON migration detection
-    this._stateFilePath = stateFileOverride && !stateFileOverride.endsWith('.db')
-      ? stateFileOverride
-      : join(workspaceRoot, PMX_CANVAS_DIR, STATE_FILENAME);
+    this._stateFilePath =
+      stateFileOverride && !stateFileOverride.endsWith('.db')
+        ? stateFileOverride
+        : join(workspaceRoot, PMX_CANVAS_DIR, STATE_FILENAME);
 
     try {
       this._db = openCanvasDb(dbPath);
@@ -749,9 +800,7 @@ class CanvasStateManager {
   private externalizePersistedStateBlobs<T extends PersistedCanvasState>(state: T): T {
     return {
       ...state,
-      nodes: Array.isArray(state.nodes)
-        ? state.nodes.map((node) => this.externalizeNodeDataBlobs(node))
-        : [],
+      nodes: Array.isArray(state.nodes) ? state.nodes.map((node) => this.externalizeNodeDataBlobs(node)) : [],
     };
   }
 
@@ -1160,7 +1209,9 @@ class CanvasStateManager {
     if (!dir || !existsSync(dir)) return [];
 
     try {
-      const files = readdirSync(dir).filter((f) => f.endsWith('.json')).sort();
+      const files = readdirSync(dir)
+        .filter((f) => f.endsWith('.json'))
+        .sort();
       const snapshots: CanvasSnapshot[] = [];
       for (const file of files) {
         try {
@@ -1232,7 +1283,9 @@ class CanvasStateManager {
       viewport: structuredClone(resolved.state.viewport),
       nodes: Array.isArray(resolved.state.nodes) ? resolved.state.nodes.map((node) => structuredClone(node)) : [],
       edges: Array.isArray(resolved.state.edges) ? resolved.state.edges.map((edge) => structuredClone(edge)) : [],
-      annotations: Array.isArray(resolved.state.annotations) ? resolved.state.annotations.map((annotation) => structuredClone(annotation)) : [],
+      annotations: Array.isArray(resolved.state.annotations)
+        ? resolved.state.annotations.map((annotation) => structuredClone(annotation))
+        : [],
       contextPins: Array.isArray(resolved.state.contextPins) ? [...resolved.state.contextPins] : [],
       ax: resolved.state.ax ? structuredClone(resolved.state.ax) : createEmptyAxState(),
     };
@@ -1273,7 +1326,9 @@ class CanvasStateManager {
   }
 
   /** Read a snapshot's data without restoring it (for diff). Resolves by ID or name. */
-  getSnapshotData(idOrName: string): { name: string; nodes: CanvasNodeState[]; edges: CanvasEdge[]; annotations: CanvasAnnotation[] } | null {
+  getSnapshotData(
+    idOrName: string,
+  ): { name: string; nodes: CanvasNodeState[]; edges: CanvasEdge[]; annotations: CanvasAnnotation[] } | null {
     const resolved = this.readResolvedSnapshot(idOrName);
     if (!resolved) return null;
     const state = {
@@ -1286,7 +1341,9 @@ class CanvasStateManager {
       name: resolved.snapshot.name,
       nodes: Array.isArray(state.nodes) ? state.nodes.map((node) => structuredClone(node)) : [],
       edges: Array.isArray(state.edges) ? state.edges.map((edge) => structuredClone(edge)) : [],
-      annotations: Array.isArray(state.annotations) ? state.annotations.map((annotation) => structuredClone(annotation)) : [],
+      annotations: Array.isArray(state.annotations)
+        ? state.annotations.map((annotation) => structuredClone(annotation))
+        : [],
     };
   }
 
@@ -1344,9 +1401,10 @@ class CanvasStateManager {
     // (including undock → dockPosition null) are respected (see normalizeNode).
     // Skip during suppressed replay (undo/redo re-add) so a deliberately-undocked
     // context node is restored verbatim instead of being snapped back to the dock.
-    const seeded = node.type === 'context' && node.dockPosition == null && this._suppressRecordingDepth === 0
-      ? { ...node, dockPosition: 'right' as const, collapsed: true }
-      : node;
+    const seeded =
+      node.type === 'context' && node.dockPosition == null && this._suppressRecordingDepth === 0
+        ? { ...node, dockPosition: 'right' as const, collapsed: true }
+        : node;
     const cloned = structuredClone(this.normalizeNode(seeded));
     this.nodes.set(node.id, cloned);
     this.scheduleSave();
@@ -1372,11 +1430,7 @@ class CanvasStateManager {
     if (!existing) return;
     const oldSnapshot = structuredClone(existing);
     if (existing.type === 'group' && patch.position) {
-      this.translateGroupChildren(
-        id,
-        patch.position.x - existing.position.x,
-        patch.position.y - existing.position.y,
-      );
+      this.translateGroupChildren(id, patch.position.x - existing.position.x, patch.position.y - existing.position.y);
     }
     const nextNode = this.normalizeNode({ ...existing, ...patch });
     this.nodes.set(id, nextNode);
@@ -1395,7 +1449,11 @@ class CanvasStateManager {
       operationType: 'updateNode',
       description: `Updated node "${(existing.data.title as string) ?? id}"`,
       forward: this.suppressed(() => this.updateNode(id, structuredClone(patch))),
-      inverse: this.suppressed(() => { this.nodes.set(id, structuredClone(oldSnapshot)); this.scheduleSave(); this.notifyChange('nodes'); }),
+      inverse: this.suppressed(() => {
+        this.nodes.set(id, structuredClone(oldSnapshot));
+        this.scheduleSave();
+        this.notifyChange('nodes');
+      }),
     });
   }
 
@@ -1448,7 +1506,8 @@ class CanvasStateManager {
     // original deletion already recorded the note, so replaying must NOT append a
     // duplicate (the timeline is append-only). `revalidateAfterNodeRemoval` above
     // still runs unconditionally — only the timeline note is gated.
-    const affected = orphaned.reanchoredIds.length > 0 || orphaned.removedReviewIds.length > 0 || orphaned.reanchoredFocus;
+    const affected =
+      orphaned.reanchoredIds.length > 0 || orphaned.removedReviewIds.length > 0 || orphaned.reanchoredFocus;
     if (existing && this._suppressRecordingDepth === 0 && affected) {
       const title = (existing.data.title as string) ?? id;
       const focusNote = orphaned.reanchoredFocus ? ' (focus anchor cleared)' : '';
@@ -1611,9 +1670,7 @@ class CanvasStateManager {
     const oldSnapshots = new Map<string, CanvasNodeState>();
     const appliedUpdates: CanvasNodeUpdate[] = [];
     const explicitPositionUpdateIds = new Set(
-      updates
-        .filter((update) => update.position !== undefined)
-        .map((update) => update.id),
+      updates.filter((update) => update.position !== undefined).map((update) => update.id),
     );
 
     for (const update of updates) {
@@ -1623,16 +1680,10 @@ class CanvasStateManager {
         continue;
       }
       const nextPatch: Partial<CanvasNodeState> = {};
-      if (
-        update.position &&
-        (update.position.x !== existing.position.x || update.position.y !== existing.position.y)
-      ) {
+      if (update.position && (update.position.x !== existing.position.x || update.position.y !== existing.position.y)) {
         nextPatch.position = update.position;
       }
-      if (
-        update.size &&
-        (update.size.width !== existing.size.width || update.size.height !== existing.size.height)
-      ) {
+      if (update.size && (update.size.width !== existing.size.width || update.size.height !== existing.size.height)) {
         nextPatch.size = update.size;
       }
       if (update.collapsed !== undefined && update.collapsed !== existing.collapsed) {
@@ -1655,10 +1706,13 @@ class CanvasStateManager {
           explicitPositionUpdateIds,
         );
       }
-      this.nodes.set(update.id, this.normalizeNode({
-        ...existing,
-        ...nextPatch,
-      }));
+      this.nodes.set(
+        update.id,
+        this.normalizeNode({
+          ...existing,
+          ...nextPatch,
+        }),
+      );
       const parentGroupId = existing.data.parentGroup as string | undefined;
       if (parentGroupId) {
         touchedParentGroups.add(parentGroupId);
@@ -1683,7 +1737,10 @@ class CanvasStateManager {
         operationType: 'batch',
         description: formatBatchUpdateDescription(appliedUpdates),
         forward: this.suppressed(() => {
-          this.applyUpdates(appliedUpdates.map((update) => structuredClone(update)), options);
+          this.applyUpdates(
+            appliedUpdates.map((update) => structuredClone(update)),
+            options,
+          );
         }),
         inverse: this.suppressed(() => {
           for (const snapshot of inverseSnapshots) {
@@ -1883,7 +1940,11 @@ class CanvasStateManager {
   }
 
   /** Invoke a registry-gated PMX command intent — records a timeline event (no execution). */
-  invokeCommand(name: string, args: Record<string, unknown> | null = null, options: { source?: PmxAxSource } = {}): PmxAxEvent | null {
+  invokeCommand(
+    name: string,
+    args: Record<string, unknown> | null = null,
+    options: { source?: PmxAxSource } = {},
+  ): PmxAxEvent | null {
     return this.ax.invokeCommand(name, args, options);
   }
 
@@ -1905,14 +1966,27 @@ class CanvasStateManager {
 
   // ── Timeline (DB-direct; NOT in _axState; NOT history-recorded) ───
   recordAxEvent(
-    input: { kind: PmxAxEventKind; summary: string; detail?: string | null; nodeIds?: string[]; data?: Record<string, unknown> | null },
+    input: {
+      kind: PmxAxEventKind;
+      summary: string;
+      detail?: string | null;
+      nodeIds?: string[];
+      data?: Record<string, unknown> | null;
+    },
     options: { source?: PmxAxSource } = {},
   ): PmxAxEvent {
     return this.ax.recordAxEvent(input, options);
   }
 
   addEvidence(
-    input: { kind: PmxAxEvidenceKind; title: string; body?: string | null; ref?: string | null; nodeIds?: string[]; data?: Record<string, unknown> | null },
+    input: {
+      kind: PmxAxEvidenceKind;
+      title: string;
+      body?: string | null;
+      ref?: string | null;
+      nodeIds?: string[];
+      data?: Record<string, unknown> | null;
+    },
     options: { source?: PmxAxSource } = {},
   ): PmxAxEvidence {
     return this.ax.addEvidence(input, options);
@@ -1938,11 +2012,23 @@ class CanvasStateManager {
       reactions?: {
         workItem?: false | { status?: PmxAxWorkItemStatus; detail?: string | null };
         evidence?: false | { kind?: PmxAxEvidenceKind; body?: string | null };
-        review?: false | { severity?: PmxAxReviewSeverity; kind?: PmxAxReviewKind; anchorType?: PmxAxReviewAnchorType; nodeId?: string | null };
+        review?:
+          | false
+          | {
+              severity?: PmxAxReviewSeverity;
+              kind?: PmxAxReviewKind;
+              anchorType?: PmxAxReviewAnchorType;
+              nodeId?: string | null;
+            };
       };
     },
     options: { source?: PmxAxSource } = {},
-  ): { event: PmxAxEvent; workItem: PmxAxWorkItem | null; evidence: PmxAxEvidence | null; review: PmxAxReviewAnnotation | null } {
+  ): {
+    event: PmxAxEvent;
+    workItem: PmxAxWorkItem | null;
+    evidence: PmxAxEvidence | null;
+    review: PmxAxReviewAnnotation | null;
+  } {
     return this.ax.ingestActivity(input, options);
   }
 
@@ -1974,7 +2060,12 @@ class CanvasStateManager {
     return this.ax.getAxTimelineSummary();
   }
 
-  getAxTimeline(q: AxTimelineQuery = {}): { events: PmxAxEvent[]; evidence: PmxAxEvidence[]; steering: PmxAxSteeringMessage[]; summary: PmxAxTimelineSummary } {
+  getAxTimeline(q: AxTimelineQuery = {}): {
+    events: PmxAxEvent[];
+    evidence: PmxAxEvidence[];
+    steering: PmxAxSteeringMessage[];
+    summary: PmxAxTimelineSummary;
+  } {
     return this.ax.getAxTimeline(q);
   }
 
@@ -2056,7 +2147,8 @@ class CanvasStateManager {
           const c = this.nodes.get(id);
           if (!c) continue;
           const d = { ...c.data };
-          if (oldParent) d.parentGroup = oldParent; else delete d.parentGroup;
+          if (oldParent) d.parentGroup = oldParent;
+          else delete d.parentGroup;
           this.nodes.set(id, { ...c, data: d });
         }
         this.scheduleSave();

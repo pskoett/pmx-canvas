@@ -4,11 +4,7 @@ import { createCanvas } from '../../src/server/index.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { intentRegistry } from '../../src/server/intent-registry.ts';
 import { stopCanvasServer } from '../../src/server/server.ts';
-import {
-  createTestWorkspace,
-  removeTestWorkspace,
-  resetCanvasForTests,
-} from './helpers.ts';
+import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 describe('PmxCanvas SDK surface', () => {
   let workspaceRoot = '';
@@ -51,9 +47,7 @@ describe('PmxCanvas SDK surface', () => {
 
     expect(canvas.port).toBe(4789);
     expect(canvas.getNode(firstId)?.data.title).toBe('First note');
-    expect(() => canvas.addNode({ type: 'webpage', content: 'https://example.com' })).toThrow(
-      'Use addWebpageNode',
-    );
+    expect(() => canvas.addNode({ type: 'webpage', content: 'https://example.com' })).toThrow('Use addWebpageNode');
 
     const groupId = canvas.createGroup({ title: 'Cluster', childIds: [firstId] });
     expect(canvas.groupNodes(groupId, [secondId], { childLayout: 'column' })).toBe(true);
@@ -122,12 +116,14 @@ describe('PmxCanvas SDK surface', () => {
 
     const updatedGraph = canvas.getNode(graph.id);
     expect(updatedGraph?.data.arrangeLocked).toBe(true);
-    expect((updatedGraph?.data.graphConfig as { data?: Array<Record<string, unknown>> } | undefined)?.data)
-      .toEqual([{ label: 'B', value: 5 }]);
+    expect((updatedGraph?.data.graphConfig as { data?: Array<Record<string, unknown>> } | undefined)?.data).toEqual([
+      { label: 'B', value: 5 },
+    ]);
 
     const markdownId = canvas.addNode({ type: 'markdown', title: 'Plain note' }).id;
-    expect(() => canvas.updateNode(markdownId, { spec: { root: 'card', elements: {} } }))
-      .toThrow('Structured spec and graph updates can only be used');
+    expect(() => canvas.updateNode(markdownId, { spec: { root: 'card', elements: {} } })).toThrow(
+      'Structured spec and graph updates can only be used',
+    );
   });
 
   test('start() honors the port by default but can fall back when it is taken', async () => {
@@ -186,7 +182,11 @@ describe('PmxCanvas SDK surface', () => {
     // Parity holds for other surface-eligible types: getNode on a graph node
     // exposes a surfaceUrl + nodeId (documented parity for html/json-render/graph).
     const graph = canvas.addGraphNode({
-      title: 'G', graphType: 'line', data: [{ label: 'a', value: 1 }], xKey: 'label', yKey: 'value',
+      title: 'G',
+      graphType: 'line',
+      data: [{ label: 'a', value: 1 }],
+      xKey: 'label',
+      yKey: 'value',
     });
     const graphNode = canvas.getNode(graph.id);
     expect(graphNode?.nodeId).toBe(graph.id);
@@ -220,10 +220,12 @@ describe('PmxCanvas SDK surface', () => {
       kind: 'edit',
       nodeId: 'missing-node',
     });
-    expect(() => canvas.updateNode('missing-node', {
-      intentId: 'sdk-missing-edit',
-      title: 'Must not settle',
-    })).toThrow('Node "missing-node" not found.');
+    expect(() =>
+      canvas.updateNode('missing-node', {
+        intentId: 'sdk-missing-edit',
+        title: 'Must not settle',
+      }),
+    ).toThrow('Node "missing-node" not found.');
     expect(intentRegistry.list().some((intent) => intent.id === 'sdk-missing-edit')).toBe(true);
 
     intentRegistry.signal({
@@ -232,11 +234,13 @@ describe('PmxCanvas SDK surface', () => {
       position: { x: 200, y: 220 },
     });
     expect(intentRegistry.clear('sdk-veto', { vetoed: true })).toBe(true);
-    expect(() => canvas.addNode({
-      intentId: 'sdk-veto',
-      type: 'markdown',
-      title: 'Must not exist',
-    })).toThrow(/was vetoed/);
+    expect(() =>
+      canvas.addNode({
+        intentId: 'sdk-veto',
+        type: 'markdown',
+        title: 'Must not exist',
+      }),
+    ).toThrow(/was vetoed/);
     expect(canvasState.getLayout().nodes.some((node) => node.data.title === 'Must not exist')).toBe(false);
   });
 });

@@ -225,10 +225,7 @@ export function inferCanvasNodeProvenance(
   return null;
 }
 
-export function normalizeCanvasNodeData<T extends Record<string, unknown>>(
-  nodeType: CanvasNodeType,
-  data: T,
-): T {
+export function normalizeCanvasNodeData<T extends Record<string, unknown>>(nodeType: CanvasNodeType, data: T): T {
   const semanticData = nodeType === 'html' ? normalizeHtmlNodeSemanticData(data) : data;
   const existing = normalizeExistingProvenance(semanticData.provenance);
   const inferred = inferCanvasNodeProvenance(nodeType, semanticData);

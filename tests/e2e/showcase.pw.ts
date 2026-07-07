@@ -54,11 +54,7 @@ async function addNode(request: PwRequest, body: Record<string, unknown>): Promi
   return p.id;
 }
 
-async function patchNode(
-  request: PwRequest,
-  id: string,
-  body: Record<string, unknown>,
-): Promise<void> {
+async function patchNode(request: PwRequest, id: string, body: Record<string, unknown>): Promise<void> {
   await request.patch(`/api/canvas/node/${id}`, { data: body });
 }
 
@@ -82,20 +78,11 @@ async function addGraph(request: PwRequest, body: Record<string, unknown>): Prom
 
 async function addJsonRender(request: PwRequest, body: Record<string, unknown>): Promise<string> {
   const title = typeof body.title === 'string' ? body.title : undefined;
-  const p = await postOrThrow<{ id: string }>(
-    request,
-    '/api/canvas/json-render',
-    body,
-    'id',
-    title,
-  );
+  const p = await postOrThrow<{ id: string }>(request, '/api/canvas/json-render', body, 'id', title);
   return p.id;
 }
 
-async function buildArtifact(
-  request: PwRequest,
-  body: Record<string, unknown>,
-): Promise<{ id: string; url: string }> {
+async function buildArtifact(request: PwRequest, body: Record<string, unknown>): Promise<{ id: string; url: string }> {
   const title = typeof body.title === 'string' ? body.title : undefined;
   const p = await postOrThrow<{ nodeId: string; url: string }>(
     request,
@@ -140,11 +127,15 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
       '> "The best pipeline is one where humans focus on design',
       '> decisions and agents handle verification." — SRE handbook',
     ].join('\n'),
-    x: 40, y: 40, width: 420, height: 480,
+    x: 40,
+    y: 40,
+    width: 420,
+    height: 480,
   });
 
   // ── Image: pipeline diagram (SVG data URI) ─────────────────
-  const svgContent = `data:image/svg+xml;base64,${Buffer.from(`
+  const svgContent = `data:image/svg+xml;base64,${Buffer.from(
+    `
     <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 120">
       <rect width="400" height="120" fill="#1a1a2e" rx="8"/>
       <text x="200" y="25" fill="#8888aa" text-anchor="middle" font-size="11" font-family="monospace">Pipeline Flow</text>
@@ -169,13 +160,18 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
       </g>
       <text x="200" y="105" fill="#555" text-anchor="middle" font-size="9" font-family="monospace">Build → Test → Gate → Deploy</text>
     </svg>
-  `, 'utf-8').toString('base64')}`;
+  `,
+    'utf-8',
+  ).toString('base64')}`;
 
   const image = await addNode(request, {
     type: 'image',
     title: 'Pipeline Flow Diagram',
     content: svgContent,
-    x: 40, y: 550, width: 420, height: 200,
+    x: 40,
+    y: 550,
+    width: 420,
+    height: 200,
   });
 
   // ── Status node: release train ─────────────────────────────
@@ -190,7 +186,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
       activeTool: 'pipeline.evaluate',
       subagent: { state: 'running', name: 'release-gate-check' },
     },
-    x: 500, y: 40, width: 360, height: 180,
+    x: 500,
+    y: 40,
+    width: 360,
+    height: 180,
   });
 
   // ── Context node: agent briefing ───────────────────────────
@@ -208,7 +207,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
       utilization: 0.33,
       messagesLength: 28,
     },
-    x: 500, y: 250, width: 360, height: 270,
+    x: 500,
+    y: 250,
+    width: 360,
+    height: 270,
   });
 
   // ── Ledger node: execution metrics ─────────────────────────
@@ -223,7 +225,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
       canaryPassRate: '96%',
       rollbackCount: 1,
     },
-    x: 500, y: 550, width: 360, height: 200,
+    x: 500,
+    y: 550,
+    width: 360,
+    height: 200,
   });
 
   // ═══════════════════════════════════════════════════════════
@@ -241,7 +246,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
       duration: '12.4s',
       resultSummary: '142 tests passed, 0 failed',
     },
-    x: 900, y: 40, width: 340, height: 70,
+    x: 900,
+    y: 40,
+    width: 340,
+    height: 70,
   });
 
   const trace2 = await addNode(request, {
@@ -254,7 +262,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
       duration: '3.8s',
       resultSummary: 'All 6 gates passing',
     },
-    x: 900, y: 130, width: 340, height: 70,
+    x: 900,
+    y: 130,
+    width: 340,
+    height: 70,
   });
 
   const trace3 = await addNode(request, {
@@ -266,7 +277,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
       status: 'running',
       duration: 'live',
     },
-    x: 900, y: 220, width: 340, height: 70,
+    x: 900,
+    y: 220,
+    width: 340,
+    height: 70,
   });
 
   const trace4 = await addNode(request, {
@@ -279,7 +293,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
       duration: '1.2s',
       error: 'Coverage dropped below 90% threshold',
     },
-    x: 900, y: 310, width: 340, height: 70,
+    x: 900,
+    y: 310,
+    width: 340,
+    height: 70,
   });
 
   // ── File node: source code ─────────────────────────────────
@@ -310,7 +327,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
       '}',
       '```',
     ].join('\n'),
-    x: 900, y: 410, width: 340, height: 340,
+    x: 900,
+    y: 410,
+    width: 340,
+    height: 340,
   });
 
   // ═══════════════════════════════════════════════════════════
@@ -330,7 +350,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
     xKey: 'week',
     yKey: 'hours',
     color: '#e9c46a',
-    x: 40, y: 790, width: 420, height: 360,
+    x: 40,
+    y: 790,
+    width: 420,
+    height: 360,
   });
 
   const barChart = await addGraph(request, {
@@ -346,7 +369,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
     xKey: 'stage',
     yKey: 'defects',
     color: '#e76f51',
-    x: 500, y: 790, width: 420, height: 360,
+    x: 500,
+    y: 790,
+    width: 420,
+    height: 360,
   });
 
   const pieChart = await addGraph(request, {
@@ -361,7 +387,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
     ],
     nameKey: 'name',
     valueKey: 'value',
-    x: 960, y: 790, width: 420, height: 360,
+    x: 960,
+    y: 790,
+    width: 420,
+    height: 360,
   });
 
   // ═══════════════════════════════════════════════════════════
@@ -428,7 +457,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
         },
       },
     },
-    x: 40, y: 1190, width: 460, height: 520,
+    x: 40,
+    y: 1190,
+    width: 460,
+    height: 520,
   });
 
   const serviceMatrix = await addJsonRender(request, {
@@ -491,7 +523,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
         },
       },
     },
-    x: 540, y: 1190, width: 460, height: 520,
+    x: 540,
+    y: 1190,
+    width: 460,
+    height: 520,
   });
 
   const operatorForm = await addJsonRender(request, {
@@ -563,7 +598,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
         },
       },
     },
-    x: 1040, y: 1190, width: 380, height: 520,
+    x: 1040,
+    y: 1190,
+    width: 380,
+    height: 520,
   });
 
   const profileCard = await addJsonRender(request, {
@@ -610,7 +648,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
         },
       },
     },
-    x: 40, y: 1730, width: 420, height: 400,
+    x: 40,
+    y: 1730,
+    width: 420,
+    height: 400,
   });
 
   const settingsSurface = await addJsonRender(request, {
@@ -635,7 +676,13 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
         },
         email: {
           type: 'Input',
-          props: { label: 'Email', name: 'email', type: 'email', placeholder: 'you@example.com', value: 'ada@example.com' },
+          props: {
+            label: 'Email',
+            name: 'email',
+            type: 'email',
+            placeholder: 'you@example.com',
+            value: 'ada@example.com',
+          },
           children: [],
         },
         role: {
@@ -670,7 +717,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
         save: { type: 'Button', props: { label: 'Save Changes', variant: 'primary' }, children: [] },
       },
     },
-    x: 500, y: 1730, width: 420, height: 460,
+    x: 500,
+    y: 1730,
+    width: 420,
+    height: 460,
   });
 
   const pricingTable = await addJsonRender(request, {
@@ -745,7 +795,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
         enterpriseButton: { type: 'Button', props: { label: 'Contact Sales', variant: 'secondary' }, children: [] },
       },
     },
-    x: 960, y: 1730, width: 840, height: 500,
+    x: 960,
+    y: 1730,
+    width: 840,
+    height: 500,
   });
 
   const embeddedCharts = await addJsonRender(request, {
@@ -768,7 +821,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
         },
         summary: {
           type: 'Text',
-          props: { text: 'The same chart coverage can render inline inside one spec, not only as dedicated graph nodes.', variant: 'muted' },
+          props: {
+            text: 'The same chart coverage can render inline inside one spec, not only as dedicated graph nodes.',
+            variant: 'muted',
+          },
           children: [],
         },
         sep: { type: 'Separator', props: {}, children: [] },
@@ -827,7 +883,10 @@ test('SDLC showcase with all node types', async ({ page, request }) => {
         },
       },
     },
-    x: 40, y: 2260, width: 940, height: 900,
+    x: 40,
+    y: 2260,
+    width: 940,
+    height: 900,
   });
 
   // ═══════════════════════════════════════════════════════════

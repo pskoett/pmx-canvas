@@ -32,10 +32,7 @@ function RenderedMarkdown({ html }: { html: string }) {
   return <div ref={containerRef} />;
 }
 
-export function ResponseNode({
-  node,
-  expanded = false,
-}: { node: CanvasNodeState; expanded?: boolean }) {
+export function ResponseNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
   const content = (node.data.content as string) || '';
   const status = (node.data.status as string) || 'streaming';
   const [rendered, setRendered] = useState('');
@@ -59,18 +56,11 @@ export function ResponseNode({
   }, [content]);
 
   const handleReply = useCallback(() => {
-    submitCanvasPrompt(
-      '',
-      { x: node.position.x, y: node.position.y + node.size.height + 24 },
-      node.id,
-    );
+    submitCanvasPrompt('', { x: node.position.x, y: node.position.y + node.size.height + 24 }, node.id);
   }, [node]);
 
   return (
-    <div
-      class="response-node-inner"
-      style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
-    >
+    <div class="response-node-inner" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       {/* Streaming indicator */}
       {isStreaming && (
         <div

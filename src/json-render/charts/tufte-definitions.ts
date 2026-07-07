@@ -25,7 +25,13 @@ export const tufteChartComponentDefinitions = {
       'Word-sized sparkline: a single trend line with no axes, grid, or labels. Optional end dot, min/max markers, light area fill, and an inline last value. The canonical Tufte primitive for showing a trajectory in minimal space.',
     example: {
       title: 'Latency p95',
-      data: [{ t: 0, ms: 120 }, { t: 1, ms: 138 }, { t: 2, ms: 117 }, { t: 3, ms: 152 }, { t: 4, ms: 109 }],
+      data: [
+        { t: 0, ms: 120 },
+        { t: 1, ms: 138 },
+        { t: 2, ms: 117 },
+        { t: 3, ms: 152 },
+        { t: 4, ms: 109 },
+      ],
       valueKey: 'ms',
       color: null,
       fill: true,
@@ -107,7 +113,7 @@ export const tufteChartComponentDefinitions = {
       height: z.number().nullable(),
     }),
     description:
-      "Tufte slopegraph: two value columns (before/after) with a connecting line per category. Lines use one neutral ink by default; set colorByDirection to accent rising lines and mute falling ones. Ideal for paired change across many items.",
+      'Tufte slopegraph: two value columns (before/after) with a connecting line per category. Lines use one neutral ink by default; set colorByDirection to accent rising lines and mute falling ones. Ideal for paired change across many items.',
     example: {
       title: 'Coverage before/after refactor',
       data: [

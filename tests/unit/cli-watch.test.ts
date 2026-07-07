@@ -1,19 +1,10 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { runAgentCli } from '../../src/cli/agent.ts';
-import {
-  formatCompactWatchEvent,
-  SemanticWatchReducer,
-  type SemanticWatchEvent,
-} from '../../src/cli/watch.ts';
+import { formatCompactWatchEvent, SemanticWatchReducer, type SemanticWatchEvent } from '../../src/cli/watch.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
-import {
-  createTestWorkspace,
-  makeNode,
-  removeTestWorkspace,
-  resetCanvasForTests,
-} from './helpers.ts';
+import { createTestWorkspace, makeNode, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 function makeLayout(
   nodes: Parameters<typeof makeNode>[0][],
@@ -228,7 +219,7 @@ describe('agent CLI watch command', () => {
   async function jsonRequest<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetch(`${baseUrl}${path}`, init);
     expect(response.ok).toBe(true);
-    return await response.json() as T;
+    return (await response.json()) as T;
   }
 
   beforeAll(() => {

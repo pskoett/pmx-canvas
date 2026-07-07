@@ -75,7 +75,10 @@ describe('json-render validation', () => {
       },
     });
     expect((spec.elements.card?.props as Record<string, unknown>).title).toEqual({ $state: '/title' });
-    expect((spec.elements.card?.props as Record<string, unknown>).description).toEqual({ $format: 'currency', value: 5 });
+    expect((spec.elements.card?.props as Record<string, unknown>).description).toEqual({
+      $format: 'currency',
+      value: 5,
+    });
   });
 
   test('accepts minimal valid specs', () => {
@@ -175,26 +178,36 @@ describe('json-render validation', () => {
       },
     });
 
-    expect(spec.elements.healthy?.props).toEqual(expect.objectContaining({
-      text: 'Healthy',
-      variant: 'success',
-    }));
-    expect(spec.elements.info?.props).toEqual(expect.objectContaining({
-      text: 'Heads up',
-      variant: 'info',
-    }));
-    expect(spec.elements.warning?.props).toEqual(expect.objectContaining({
-      text: 'Attention',
-      variant: 'warning',
-    }));
-    expect(spec.elements.error?.props).toEqual(expect.objectContaining({
-      text: 'Build broken',
-      variant: 'error',
-    }));
-    expect(spec.elements.danger?.props).toEqual(expect.objectContaining({
-      text: 'Blocked',
-      variant: 'danger',
-    }));
+    expect(spec.elements.healthy?.props).toEqual(
+      expect.objectContaining({
+        text: 'Healthy',
+        variant: 'success',
+      }),
+    );
+    expect(spec.elements.info?.props).toEqual(
+      expect.objectContaining({
+        text: 'Heads up',
+        variant: 'info',
+      }),
+    );
+    expect(spec.elements.warning?.props).toEqual(
+      expect.objectContaining({
+        text: 'Attention',
+        variant: 'warning',
+      }),
+    );
+    expect(spec.elements.error?.props).toEqual(
+      expect.objectContaining({
+        text: 'Build broken',
+        variant: 'error',
+      }),
+    );
+    expect(spec.elements.danger?.props).toEqual(
+      expect.objectContaining({
+        text: 'Blocked',
+        variant: 'danger',
+      }),
+    );
 
     // After normalization the legacy `label` key must be gone — the spec
     // should carry exactly one of `text` or `label`, never both.
@@ -211,15 +224,17 @@ describe('json-render validation', () => {
     });
 
     expect(normalized.root).toBe('root');
-    expect(normalized.elements.root).toEqual(expect.objectContaining({
-      type: 'Badge',
-      props: expect.objectContaining({
-        text: 'Legacy Badge',
-        variant: 'success',
+    expect(normalized.elements.root).toEqual(
+      expect.objectContaining({
+        type: 'Badge',
+        props: expect.objectContaining({
+          text: 'Legacy Badge',
+          variant: 'success',
+        }),
+        visible: true,
+        children: [],
       }),
-      visible: true,
-      children: [],
-    }));
+    );
     expect((normalized.elements.root as { props?: Record<string, unknown> }).props).not.toHaveProperty('label');
   });
 });
@@ -345,7 +360,11 @@ describe('Tufte chart types', () => {
       graphType: 'sparkline',
       xKey: 't',
       yKey: 'v',
-      data: [{ t: 1, v: 10 }, { t: 2, v: 14 }, { t: 3, v: 9 }],
+      data: [
+        { t: 1, v: 10 },
+        { t: 2, v: 14 },
+        { t: 3, v: 9 },
+      ],
     });
     const chart = spec.elements.chart as { type: string; props: Record<string, unknown> };
     expect(chart.type).toBe('Sparkline');
@@ -354,7 +373,10 @@ describe('Tufte chart types', () => {
   test('builds a Slopegraph spec', () => {
     const spec = buildGraphSpec({
       graphType: 'slopegraph',
-      data: [{ label: 'A', before: 30, after: 48 }, { label: 'B', before: 42, after: 40 }],
+      data: [
+        { label: 'A', before: 30, after: 48 },
+        { label: 'B', before: 42, after: 40 },
+      ],
     });
     const chart = spec.elements.chart as { type: string; props: Record<string, unknown> };
     expect(chart.type).toBe('Slopegraph');
@@ -386,7 +408,7 @@ describe('Tufte chart types', () => {
 
 describe('json-render SpecStream', () => {
   test('applies add patches and accumulates the spec', () => {
-    let spec = emptyStreamingSpec();
+    const spec = emptyStreamingSpec();
     const r1 = applyJsonRenderStreamPatches(spec, [
       { op: 'add', path: '/root', value: 'card' },
       { op: 'add', path: '/elements/card', value: { type: 'Card', props: { title: 'Live' }, children: [] } },
@@ -413,7 +435,7 @@ describe('json-render SpecStream', () => {
     // All three are unsafe (the third decodes to a literal segment that is fine,
     // but the first two must be skipped). Critically, Object.prototype is clean.
     expect(({} as Record<string, unknown>).polluted).toBe(before);
-    expect(Object.prototype.hasOwnProperty('polluted')).toBe(false);
+    expect(Object.hasOwn(Object.prototype, 'polluted')).toBe(false);
     // The two __proto__/constructor patches are skipped.
     expect(r.skipped).toBeGreaterThanOrEqual(2);
   });

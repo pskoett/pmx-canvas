@@ -130,8 +130,7 @@ export const extraChartComponentDefinitions = {
       height: z.number().nullable(),
       showLegend: z.boolean().optional(),
     }),
-    description:
-      'Combined bar + line chart for paired metrics (e.g. counts + a derived rate) on the same axis.',
+    description: 'Combined bar + line chart for paired metrics (e.g. counts + a derived rate) on the same axis.',
     example: {
       title: 'Visits and conversion',
       data: [

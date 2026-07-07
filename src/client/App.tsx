@@ -165,7 +165,11 @@ function Toolbar({
 
         <div class="separator" />
 
-        <ToolbarHint label="Canvas status" detail={hasSynced ? statusLabel : 'Syncing canvas from server'} align="start">
+        <ToolbarHint
+          label="Canvas status"
+          detail={hasSynced ? statusLabel : 'Syncing canvas from server'}
+          align="start"
+        >
           <span class={`connection-dot ${status}`} aria-label={`Canvas status: ${statusTitle}`} />
         </ToolbarHint>
         <span class="hud-collapsible-text" style={{ fontSize: '11px', color: 'var(--c-muted)' }}>
@@ -175,20 +179,12 @@ function Toolbar({
         <div class="separator" />
 
         <ToolbarHint label="Fit canvas" detail="Frame every node on screen">
-          <button
-            type="button"
-            onClick={() => fitAll(window.innerWidth, window.innerHeight)}
-            aria-label="Fit canvas"
-          >
+          <button type="button" onClick={() => fitAll(window.innerWidth, window.innerHeight)} aria-label="Fit canvas">
             <IconFitAll />
           </button>
         </ToolbarHint>
         <ToolbarHint label="Reset view" shortcut={`${MOD_KEY}+0`}>
-          <button
-            type="button"
-            onClick={() => animateViewport({ x: 0, y: 0, scale: 1 }, 250)}
-            aria-label="Reset view"
-          >
+          <button type="button" onClick={() => animateViewport({ x: 0, y: 0, scale: 1 }, 250)} aria-label="Reset view">
             <IconResetView />
           </button>
         </ToolbarHint>
@@ -210,7 +206,10 @@ function Toolbar({
             <IconZoomOut />
           </button>
         </ToolbarHint>
-        <span class="hud-collapsible-text" style={{ fontSize: '10px', color: 'var(--c-dim)', minWidth: '36px', textAlign: 'center' }}>
+        <span
+          class="hud-collapsible-text"
+          style={{ fontSize: '10px', color: 'var(--c-dim)', minWidth: '36px', textAlign: 'center' }}
+        >
           {Math.round(v.scale * 100)}%
         </span>
 
@@ -220,7 +219,11 @@ function Toolbar({
           label="Arrange layout"
           detail={edgeCount > 0 ? 'Graph-aware layout for connected nodes' : 'Grid layout for loose nodes'}
         >
-          <button type="button" onClick={() => edgeCount > 0 ? forceDirectedArrange() : autoArrange()} aria-label="Arrange layout">
+          <button
+            type="button"
+            onClick={() => (edgeCount > 0 ? forceDirectedArrange() : autoArrange())}
+            aria-label="Arrange layout"
+          >
             <IconArrange />
           </button>
         </ToolbarHint>
@@ -234,7 +237,10 @@ function Toolbar({
             <IconMinimap />
           </button>
         </ToolbarHint>
-        <ToolbarHint label={`Switch to ${canvasTheme.value === 'dark' ? 'light' : 'dark'} theme`} detail={`Current theme: ${canvasTheme.value}`}>
+        <ToolbarHint
+          label={`Switch to ${canvasTheme.value === 'dark' ? 'light' : 'dark'} theme`}
+          detail={`Current theme: ${canvasTheme.value}`}
+        >
           <button
             type="button"
             onClick={() => {
@@ -280,13 +286,13 @@ function Toolbar({
         {(isTraceOn || traceNodeCount > 0) && (
           <ToolbarHint
             label="Clear trace"
-            detail={traceNodeCount > 0 ? `Remove ${traceNodeCount} trace node${traceNodeCount === 1 ? '' : 's'}` : 'Trace is enabled but still empty'}
+            detail={
+              traceNodeCount > 0
+                ? `Remove ${traceNodeCount} trace node${traceNodeCount === 1 ? '' : 's'}`
+                : 'Trace is enabled but still empty'
+            }
           >
-            <button
-              type="button"
-              onClick={() => sendIntent('trace-clear')}
-              aria-label="Clear trace"
-            >
+            <button type="button" onClick={() => sendIntent('trace-clear')} aria-label="Clear trace">
               <IconClearTrace />
             </button>
           </ToolbarHint>
@@ -340,25 +346,19 @@ function Toolbar({
         <div class="separator" />
 
         <ToolbarHint label="Search nodes and actions" shortcut={`${MOD_KEY}+K`}>
-          <button
-            type="button"
-            onClick={onOpenPalette}
-            aria-label="Search nodes and actions"
-          >
+          <button type="button" onClick={onOpenPalette} aria-label="Search nodes and actions">
             <IconSearch />
           </button>
         </ToolbarHint>
         <ToolbarHint label="Keyboard shortcuts" shortcut="?" align="end">
-          <button
-            type="button"
-            onClick={onOpenShortcuts}
-            aria-label="Keyboard shortcuts"
-          >
+          <button type="button" onClick={onOpenShortcuts} aria-label="Keyboard shortcuts">
             <IconShortcuts />
           </button>
         </ToolbarHint>
 
-        <span class="hud-collapsible-text" style={{ fontSize: '10px', color: 'var(--c-dim)' }}>{countsLabel}</span>
+        <span class="hud-collapsible-text" style={{ fontSize: '10px', color: 'var(--c-dim)' }}>
+          {countsLabel}
+        </span>
       </div>
     </div>
   );
@@ -370,7 +370,8 @@ function WelcomeCard({ onOpenPalette }: { onOpenPalette: () => void }) {
       <div class="welcome-icon">◇</div>
       <div class="welcome-title">Shape What The Agent Sees</div>
       <div class="welcome-subtitle">
-        Lay out notes, files, and evidence. Bring related nodes together. Pin what matters. The board will reflect the active focus.
+        Lay out notes, files, and evidence. Bring related nodes together. Pin what matters. The board will reflect the
+        active focus.
       </div>
       <div class="welcome-hints">
         <button type="button" class="welcome-hint" onClick={onOpenPalette}>
@@ -390,9 +391,7 @@ function WelcomeCard({ onOpenPalette }: { onOpenPalette: () => void }) {
           <span>Shape the focus field</span>
         </div>
       </div>
-      <div class="welcome-footer">
-        The canvas is a shared attention surface, not just an editor.
-      </div>
+      <div class="welcome-footer">The canvas is a shared attention surface, not just an editor.</div>
     </div>
   );
 }
@@ -410,9 +409,18 @@ export function App() {
   const handleToggleMinimap = useCallback(() => setMinimapVisible((v) => !v), []);
   const handleToggleSnapshot = useCallback(() => setSnapshotOpen((v) => !v), []);
   const handleCloseSnapshot = useCallback(() => setSnapshotOpen(false), []);
-  const handleToggleAnnotationMode = useCallback(() => setAnnotationTool((tool) => tool === 'pen' ? null : 'pen'), []);
-  const handleToggleAnnotationEraser = useCallback(() => setAnnotationTool((tool) => tool === 'eraser' ? null : 'eraser'), []);
-  const handleToggleTextAnnotation = useCallback(() => setAnnotationTool((tool) => tool === 'text' ? null : 'text'), []);
+  const handleToggleAnnotationMode = useCallback(
+    () => setAnnotationTool((tool) => (tool === 'pen' ? null : 'pen')),
+    [],
+  );
+  const handleToggleAnnotationEraser = useCallback(
+    () => setAnnotationTool((tool) => (tool === 'eraser' ? null : 'eraser')),
+    [],
+  );
+  const handleToggleTextAnnotation = useCallback(
+    () => setAnnotationTool((tool) => (tool === 'text' ? null : 'text')),
+    [],
+  );
 
   const handleMinimapNavigate = useCallback((x: number, y: number) => {
     animateViewport({ x, y, scale: viewport.value.scale }, 200);
@@ -508,8 +516,7 @@ export function App() {
 
   useEffect(() => {
     if (!hasInitialLayout) return;
-    const ready = (window as Window & { __pmxCanvasBootstrapReady?: () => void })
-      .__pmxCanvasBootstrapReady;
+    const ready = (window as Window & { __pmxCanvasBootstrapReady?: () => void }).__pmxCanvasBootstrapReady;
     if (typeof ready === 'function') ready();
   }, [hasInitialLayout]);
 
@@ -575,12 +582,7 @@ export function App() {
         />
       )}
       {menu && <ContextMenu menu={menu} onClose={closeMenu} />}
-      {paletteOpen && (
-        <CommandPalette
-          onClose={() => setPaletteOpen(false)}
-          onToggleMinimap={handleToggleMinimap}
-        />
-      )}
+      {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} onToggleMinimap={handleToggleMinimap} />}
       {shortcutsOpen && <ShortcutOverlay onClose={() => setShortcutsOpen(false)} />}
     </div>
   );

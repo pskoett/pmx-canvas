@@ -66,11 +66,7 @@ function ensureConfigDir(): void {
   }
 }
 
-const DEFAULT_MCP_APP_HOST_STATE_FILE = join(
-  PMX_CANVAS_CONFIG_DIR,
-  'workbench',
-  'mcp-app-host-state.json',
-);
+const DEFAULT_MCP_APP_HOST_STATE_FILE = join(PMX_CANVAS_CONFIG_DIR, 'workbench', 'mcp-app-host-state.json');
 
 function sessionDiagLogPath(): string {
   return String(process.env.PMX_SESSION_LOG || process.env.PMX_TEST_LOG || '').trim();
@@ -158,9 +154,7 @@ function resetRuntimeMetrics(): void {
 function clearPersistedRuntimeSessionsOnLoad(): void {
   const hadSessions = sessions.size;
   const hadMetrics =
-    metrics.hostedOpens > 0 ||
-    metrics.fallbackTotal > 0 ||
-    Object.keys(metrics.fallbackByReason).length > 0;
+    metrics.hostedOpens > 0 || metrics.fallbackTotal > 0 || Object.keys(metrics.fallbackByReason).length > 0;
   if (hadSessions === 0 && !activeSessionId && !hadMetrics) return;
 
   sessions.clear();
@@ -192,9 +186,7 @@ function ensureStateLoaded(): void {
         const normalized: McpAppHostCapability = {
           serverName: entry.serverName.trim(),
           state:
-            entry.state === 'supported' ||
-            entry.state === 'unsupported' ||
-            entry.state === 'degraded'
+            entry.state === 'supported' || entry.state === 'unsupported' || entry.state === 'degraded'
               ? entry.state
               : 'degraded',
           reasonCode:
@@ -204,9 +196,7 @@ function ensureStateLoaded(): void {
           runtimeReady: entry.runtimeReady === true,
           serverSupportsHost: entry.serverSupportsHost === true,
           updatedAt:
-            typeof entry.updatedAt === 'string' && entry.updatedAt.trim().length > 0
-              ? entry.updatedAt
-              : nowIso(),
+            typeof entry.updatedAt === 'string' && entry.updatedAt.trim().length > 0 ? entry.updatedAt : nowIso(),
         };
         capabilities.set(normalized.serverName, normalized);
       }
@@ -235,20 +225,15 @@ function ensureStateLoaded(): void {
               ? entry.state
               : 'background',
           createdAt:
-            typeof entry.createdAt === 'string' && entry.createdAt.trim().length > 0
-              ? entry.createdAt
-              : nowIso(),
+            typeof entry.createdAt === 'string' && entry.createdAt.trim().length > 0 ? entry.createdAt : nowIso(),
           lastSeenAt:
-            typeof entry.lastSeenAt === 'string' && entry.lastSeenAt.trim().length > 0
-              ? entry.lastSeenAt
-              : nowIso(),
+            typeof entry.lastSeenAt === 'string' && entry.lastSeenAt.trim().length > 0 ? entry.lastSeenAt : nowIso(),
           fallbackReason:
             typeof entry.fallbackReason === 'string' && entry.fallbackReason.trim().length > 0
               ? entry.fallbackReason
               : null,
           lastExternalOpenAt:
-            typeof entry.lastExternalOpenAt === 'string' &&
-            entry.lastExternalOpenAt.trim().length > 0
+            typeof entry.lastExternalOpenAt === 'string' && entry.lastExternalOpenAt.trim().length > 0
               ? entry.lastExternalOpenAt
               : null,
         };
@@ -268,12 +253,8 @@ function ensureStateLoaded(): void {
     if (parsed.metrics && typeof parsed.metrics === 'object') {
       const loadedHostedOpens = Number(parsed.metrics.hostedOpens ?? 0);
       const loadedFallbackTotal = Number(parsed.metrics.fallbackTotal ?? 0);
-      metrics.hostedOpens = Number.isFinite(loadedHostedOpens)
-        ? Math.max(0, Math.floor(loadedHostedOpens))
-        : 0;
-      metrics.fallbackTotal = Number.isFinite(loadedFallbackTotal)
-        ? Math.max(0, Math.floor(loadedFallbackTotal))
-        : 0;
+      metrics.hostedOpens = Number.isFinite(loadedHostedOpens) ? Math.max(0, Math.floor(loadedHostedOpens)) : 0;
+      metrics.fallbackTotal = Number.isFinite(loadedFallbackTotal) ? Math.max(0, Math.floor(loadedFallbackTotal)) : 0;
       if (parsed.metrics.fallbackByReason && typeof parsed.metrics.fallbackByReason === 'object') {
         for (const [reason, count] of Object.entries(parsed.metrics.fallbackByReason)) {
           const normalizedReason = reason.trim();
@@ -370,10 +351,9 @@ function supportsHostSessionByHint(input: McpAppCandidateInput): boolean {
   const keyHint = String(input.keyHint || '').toLowerCase();
   const inferredType = String(input.inferredType || '').toLowerCase();
 
-  const keySuggestsApps =
-    /resource|resource_link|resourceurl|resource_url|app|uri|url|link|viewer|preview|canvas/.test(
-      keyHint,
-    );
+  const keySuggestsApps = /resource|resource_link|resourceurl|resource_url|app|uri|url|link|viewer|preview|canvas/.test(
+    keyHint,
+  );
   const sourceSuggestsApps =
     sourceServer.includes('mcp') ||
     sourceServer.includes('excalidraw') ||
@@ -533,10 +513,7 @@ export function preRegisterKnownMcpAppHostCapabilities(serverNames: string[]): v
   }
 }
 
-function resolveCapabilityForCandidate(
-  input: McpAppCandidateInput,
-  trustedDomain: boolean,
-): McpAppHostCapability {
+function resolveCapabilityForCandidate(input: McpAppCandidateInput, trustedDomain: boolean): McpAppHostCapability {
   const runtimeReady = isHostRuntimeEnabled();
   const serverName = normalizeServerName(input.sourceServer);
   const serverSupportsHost = supportsHostSessionByHint(input);
@@ -645,8 +622,7 @@ function findMatchingOpenSession(input: McpAppCandidateInput): McpAppHostSession
 function registerFallback(reasonCode: string): void {
   metrics.fallbackTotal += 1;
   const normalizedReason = reasonCode.trim() || 'fallback';
-  metrics.fallbackByReason[normalizedReason] =
-    (metrics.fallbackByReason[normalizedReason] ?? 0) + 1;
+  metrics.fallbackByReason[normalizedReason] = (metrics.fallbackByReason[normalizedReason] ?? 0) + 1;
 }
 
 export function routeMcpAppCandidateToHost(input: McpAppCandidateInput): McpAppHostRoutingResult {

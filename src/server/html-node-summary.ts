@@ -34,11 +34,15 @@ function decodeHtmlEntities(value: string): string {
     const lower = entity.toLowerCase();
     if (lower.startsWith('#x')) {
       const codePoint = Number.parseInt(lower.slice(2), 16);
-      return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : match;
+      return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+        ? String.fromCodePoint(codePoint)
+        : match;
     }
     if (lower.startsWith('#')) {
       const codePoint = Number.parseInt(lower.slice(1), 10);
-      return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff ? String.fromCodePoint(codePoint) : match;
+      return Number.isInteger(codePoint) && codePoint >= 0 && codePoint <= 0x10ffff
+        ? String.fromCodePoint(codePoint)
+        : match;
     }
     return named[lower] ?? match;
   });
@@ -51,7 +55,10 @@ export function summarizeHtmlText(html: string): string | null {
     .replace(/<style\b[\s\S]*?<\/style>/gi, ' ')
     .replace(/<noscript\b[\s\S]*?<\/noscript>/gi, ' ');
   const text = withoutNoise
-    .replace(/<(?:h[1-6]|p|li|br|div|section|article|header|footer|main|aside|summary|figcaption|blockquote|tr|td|th)\b[^>]*>/gi, '\n')
+    .replace(
+      /<(?:h[1-6]|p|li|br|div|section|article|header|footer|main|aside|summary|figcaption|blockquote|tr|td|th)\b[^>]*>/gi,
+      '\n',
+    )
     .replace(/<[^>]+>/g, ' ');
   const normalized = normalizeWhitespace(decodeHtmlEntities(text));
   return normalized.length > 0 ? truncateText(normalized, HTML_CONTENT_SUMMARY_MAX_LENGTH) : null;
@@ -123,13 +130,15 @@ export function normalizeHtmlNodeSemanticData<T extends Record<string, unknown>>
   ].filter((value): value is string => value !== null);
   const embeddedNodeIds = uniqueLimited([...explicitNodeIds, ...(html ? extractHtmlNodeIds(html) : [])]);
   const embeddedUrls = uniqueLimited([...strings(data.embeddedUrls), ...(html ? extractHtmlUrls(html) : [])]);
-  const agentSummary = pickString(data.agentSummary) ?? joinSummaryParts([
-    primitive ? `HTML primitive: ${primitive}` : '',
-    explicitSummary ?? '',
-    contentSummary ?? '',
-    embeddedNodeIds.length > 0 ? `Embedded canvas nodes: ${embeddedNodeIds.join(', ')}` : '',
-    embeddedUrls.length > 0 ? `Embedded URLs: ${embeddedUrls.join(', ')}` : '',
-  ]);
+  const agentSummary =
+    pickString(data.agentSummary) ??
+    joinSummaryParts([
+      primitive ? `HTML primitive: ${primitive}` : '',
+      explicitSummary ?? '',
+      contentSummary ?? '',
+      embeddedNodeIds.length > 0 ? `Embedded canvas nodes: ${embeddedNodeIds.join(', ')}` : '',
+      embeddedUrls.length > 0 ? `Embedded URLs: ${embeddedUrls.join(', ')}` : '',
+    ]);
 
   return {
     ...base,

@@ -9,12 +9,7 @@ export function ContextPinHud() {
       <span class="context-pin-hud-label">
         {'\u2726'} {count} in context
       </span>
-      <button
-        type="button"
-        class="context-pin-hud-clear"
-        onClick={clearContextPins}
-        title="Clear all context pins"
-      >
+      <button type="button" class="context-pin-hud-clear" onClick={clearContextPins} title="Clear all context pins">
         ×
       </button>
     </div>

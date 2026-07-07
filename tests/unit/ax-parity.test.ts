@@ -254,9 +254,7 @@ describe('AX neutral-primitive parity and host isolation', () => {
 
   test('the Copilot adapter only imports node:* and the Copilot extension SDK', () => {
     const source = readFile('.github/extensions/pmx-canvas/extension.mjs');
-    const importLines = source
-      .split('\n')
-      .filter((line) => /^\s*import\s/.test(line));
+    const importLines = source.split('\n').filter((line) => /^\s*import\s/.test(line));
     expect(importLines.length).toBeGreaterThan(0);
     for (const line of importLines) {
       const match = line.match(/from\s+["']([^"']+)["']/);

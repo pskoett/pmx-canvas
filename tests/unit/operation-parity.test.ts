@@ -102,7 +102,12 @@ function projectNode(node: SerializedNodeShape): NodeView {
 }
 
 function projectLayout(layout: LayoutShape): {
-  nodes: Array<{ id: string; type: string; position: { x: number; y: number }; size: { width: number; height: number } }>;
+  nodes: Array<{
+    id: string;
+    type: string;
+    position: { x: number; y: number };
+    size: { width: number; height: number };
+  }>;
   edges: Array<{ id: string; from: string; to: string; type: string }>;
 } {
   return {
@@ -181,7 +186,7 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
   async function jsonRequest<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetch(`${baseUrl}${path}`, init);
     expect(response.ok).toBe(true);
-    return await response.json() as T;
+    return (await response.json()) as T;
   }
 
   async function httpAddNode(body: Record<string, unknown>): Promise<{ ok: boolean; id: string }> {
@@ -209,7 +214,7 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
   }
 
   async function callMcp(name: string, args: Record<string, unknown>): Promise<ToolResultShape> {
-    return await mcpClient.callTool({ name, arguments: args }) as ToolResultShape;
+    return (await mcpClient.callTool({ name, arguments: args })) as ToolResultShape;
   }
 
   beforeAll(async () => {
@@ -291,28 +296,38 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     });
     expect(http.ok).toBe(true);
 
-    const mcp = parseJsonText<{ id: string; nodeId: string }>(await callMcp('canvas_node', {
-      action: 'add',
-      type: 'markdown',
-      title: 'Parity note',
-      content: 'Parity body',
-      x: 120,
-      y: 160,
-      width: 360,
-      height: 220,
-    }));
+    const mcp = parseJsonText<{ id: string; nodeId: string }>(
+      await callMcp('canvas_node', {
+        action: 'add',
+        type: 'markdown',
+        title: 'Parity note',
+        content: 'Parity body',
+        x: 120,
+        y: 160,
+        width: 360,
+        height: 220,
+      }),
+    );
     // Envelope note: MCP node-create responses expose both `id` and `nodeId`.
     expect(mcp.nodeId).toBe(mcp.id);
 
     const cli = await runCliJson<{ ok: boolean; id: string; nodeId: string }>([
-      'node', 'add',
-      '--type', 'markdown',
-      '--title', 'Parity note',
-      '--content', 'Parity body',
-      '--x', '120',
-      '--y', '160',
-      '--width', '360',
-      '--height', '220',
+      'node',
+      'add',
+      '--type',
+      'markdown',
+      '--title',
+      'Parity note',
+      '--content',
+      'Parity body',
+      '--x',
+      '120',
+      '--y',
+      '160',
+      '--width',
+      '360',
+      '--height',
+      '220',
     ]);
     expect(cli.ok).toBe(true);
     // Envelope note: HTTP/CLI node-create responses also carry the `nodeId` alias.
@@ -400,7 +415,14 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     const patchResponse = await fetch(`${baseUrl}/api/canvas/node/${targets[0]}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Updated title', content: 'Updated body', x: 300, y: 340, width: 520, height: 260 }),
+      body: JSON.stringify({
+        title: 'Updated title',
+        content: 'Updated body',
+        x: 300,
+        y: 340,
+        width: 520,
+        height: 260,
+      }),
     });
     expect(patchResponse.ok).toBe(true);
 
@@ -419,13 +441,21 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
 
     // CLI takes flag-form flat keys.
     const cli = await runCliJson<{ ok: boolean }>([
-      'node', 'update', targets[2]!,
-      '--title', 'Updated title',
-      '--content', 'Updated body',
-      '--x', '300',
-      '--y', '340',
-      '--width', '520',
-      '--height', '260',
+      'node',
+      'update',
+      targets[2]!,
+      '--title',
+      'Updated title',
+      '--content',
+      'Updated body',
+      '--x',
+      '300',
+      '--y',
+      '340',
+      '--width',
+      '520',
+      '--height',
+      '260',
     ]);
     expect(cli.ok).toBe(true);
 
@@ -451,7 +481,7 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
 
     const httpResponse = await fetch(`${baseUrl}/api/canvas/node/${targets[0]}`, { method: 'DELETE' });
     expect(httpResponse.ok).toBe(true);
-    expect(await httpResponse.json() as { ok: boolean; removed: string }).toEqual({ ok: true, removed: targets[0]! });
+    expect((await httpResponse.json()) as { ok: boolean; removed: string }).toEqual({ ok: true, removed: targets[0]! });
 
     const mcp = parseJsonText<{ ok: boolean; removed: string }>(
       await callMcp('canvas_node', { action: 'remove', id: targets[1] }),
@@ -666,22 +696,23 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
           operations: [
             {
               op,
-              args: op === 'mcpapp.open'
-                ? { transport: { type: 'stdio', command: 'echo' }, toolName: 'noop' }
-                : { title: 'batch artifact', appTsx: 'export default function App(){return null}' },
+              args:
+                op === 'mcpapp.open'
+                  ? { transport: { type: 'stdio', command: 'echo' }, toolName: 'noop' }
+                  : { title: 'batch artifact', appTsx: 'export default function App(){return null}' },
             },
           ],
         }),
       });
       expect(response.status).toBe(400);
-      const res = await response.json() as { ok: boolean; failedIndex?: number; error?: string; results: unknown[] };
+      const res = (await response.json()) as { ok: boolean; failedIndex?: number; error?: string; results: unknown[] };
       expect(res.ok).toBe(false);
       expect(res.failedIndex).toBe(0);
       expect(res.error).toContain(`Unsupported canvas_batch operation "${op}"`);
       expect(res.results).toHaveLength(0);
     }
 
-    const mcpFailed = await mcpClient.callTool({
+    const mcpFailed = (await mcpClient.callTool({
       name: 'canvas_batch',
       arguments: {
         operations: [
@@ -691,7 +722,7 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
           },
         ],
       },
-    }) as ToolResultShape;
+    })) as ToolResultShape;
     expect(mcpFailed.isError).toBe(true);
     const mcpBody = parseJsonText<{ ok: boolean; failedIndex?: number; error?: string; results: unknown[] }>(mcpFailed);
     expect(mcpBody.ok).toBe(false);
@@ -745,7 +776,7 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     // HTTP: DELETE on a missing id is a hard 404 with { ok: false, error }.
     const httpResponse = await fetch(`${baseUrl}/api/canvas/node/node-that-never-existed`, { method: 'DELETE' });
     expect(httpResponse.status).toBe(404);
-    const httpBody = await httpResponse.json() as { ok: boolean; error: string };
+    const httpBody = (await httpResponse.json()) as { ok: boolean; error: string };
     expect(httpBody.ok).toBe(false);
     expect(httpBody.error).toContain('not found');
 
@@ -779,10 +810,10 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     const localClient = new Client({ name: 'pmx-canvas-local-asymmetry-test', version: '0.1.0' }, { capabilities: {} });
     await localClient.connect(localTransport);
     try {
-      const localResult = await localClient.callTool({
+      const localResult = (await localClient.callTool({
         name: 'canvas_node',
         arguments: { action: 'remove', id: 'node-that-never-existed' },
-      }) as ToolResultShape;
+      })) as ToolResultShape;
       expect(localResult.isError).toBe(true);
       expect(textOf(localResult)).toContain('not found');
     } finally {
@@ -795,11 +826,13 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     // Pinned for HTTP only. SDK updateNode has no webpage titleSource
     // special-casing today; we deliberately do NOT assert the SDK lacks it —
     // only that the HTTP behavior keeps working.
-    canvasState.addNode(makeNode({
-      id: 'parity-webpage-title',
-      type: 'webpage',
-      data: { url: 'http://127.0.0.1:1/never-fetched', title: 'Page title', titleSource: 'page' },
-    }));
+    canvasState.addNode(
+      makeNode({
+        id: 'parity-webpage-title',
+        type: 'webpage',
+        data: { url: 'http://127.0.0.1:1/never-fetched', title: 'Page title', titleSource: 'page' },
+      }),
+    );
 
     const patched = await fetch(`${baseUrl}/api/canvas/node/parity-webpage-title`, {
       method: 'PATCH',

@@ -12,10 +12,16 @@ export interface PmxAxFocusState {
 
 // ── New enums ──────────────────────────────────────────────────────
 export type PmxAxEventKind =
-  | 'prompt' | 'assistant-message' | 'tool-start' | 'tool-result'
-  | 'failure' | 'approval' | 'steering' | 'command' | 'note';
-export type PmxAxEvidenceKind =
-  | 'logs' | 'tool-result' | 'screenshot' | 'file' | 'diff' | 'test-output';
+  | 'prompt'
+  | 'assistant-message'
+  | 'tool-start'
+  | 'tool-result'
+  | 'failure'
+  | 'approval'
+  | 'steering'
+  | 'command'
+  | 'note';
+export type PmxAxEvidenceKind = 'logs' | 'tool-result' | 'screenshot' | 'file' | 'diff' | 'test-output';
 export type PmxAxWorkItemStatus = 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled';
 export type PmxAxApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type PmxAxReviewKind = 'comment' | 'finding';
@@ -226,17 +232,38 @@ export function buildPendingAxActivity(state: PmxAxState, consumer?: string): Pe
   }
   for (const g of state.approvalGates) {
     if (g.status === 'pending' && notMine(g.source)) {
-      out.push({ kind: 'approval-gate', id: g.id, title: g.title, status: g.status, nodeIds: g.nodeIds, source: g.source });
+      out.push({
+        kind: 'approval-gate',
+        id: g.id,
+        title: g.title,
+        status: g.status,
+        nodeIds: g.nodeIds,
+        source: g.source,
+      });
     }
   }
   for (const e of state.elicitations) {
     if (e.status === 'pending' && notMine(e.source)) {
-      out.push({ kind: 'elicitation', id: e.id, title: e.prompt, status: e.status, nodeIds: e.nodeIds, source: e.source });
+      out.push({
+        kind: 'elicitation',
+        id: e.id,
+        title: e.prompt,
+        status: e.status,
+        nodeIds: e.nodeIds,
+        source: e.source,
+      });
     }
   }
   for (const m of state.modeRequests) {
     if (m.status === 'pending' && notMine(m.source)) {
-      out.push({ kind: 'mode-request', id: m.id, title: m.reason ? `${m.mode}: ${m.reason}` : `mode: ${m.mode}`, status: m.status, nodeIds: m.nodeIds, source: m.source });
+      out.push({
+        kind: 'mode-request',
+        id: m.id,
+        title: m.reason ? `${m.mode}: ${m.reason}` : `mode: ${m.mode}`,
+        status: m.status,
+        nodeIds: m.nodeIds,
+        source: m.source,
+      });
     }
   }
   return out;
@@ -249,9 +276,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function normalizeSource(value: unknown): PmxAxSource | null {
-  return typeof value === 'string' && AX_SOURCES.has(value as PmxAxSource)
-    ? value as PmxAxSource
-    : null;
+  return typeof value === 'string' && AX_SOURCES.has(value as PmxAxSource) ? (value as PmxAxSource) : null;
 }
 
 function normalizeTimestamp(value: unknown): string | null {
@@ -271,27 +296,50 @@ function normalizeNodeIds(value: unknown, validNodeIds?: Set<string>): string[] 
   return ids;
 }
 
-const AX_EVENT_KINDS = new Set<PmxAxEventKind>(['prompt', 'assistant-message', 'tool-start', 'tool-result', 'failure', 'approval', 'steering', 'command', 'note']);
+const AX_EVENT_KINDS = new Set<PmxAxEventKind>([
+  'prompt',
+  'assistant-message',
+  'tool-start',
+  'tool-result',
+  'failure',
+  'approval',
+  'steering',
+  'command',
+  'note',
+]);
 
 // ── Activity ingestion (harness-forwarded tool/session events) ─────
 // A normalized activity the agent's harness forwards; the board auto-reacts.
 // The precise activity kind is preserved on the recorded event's `data.activityKind`;
 // only the (coarser) timeline event kind is constrained to PmxAxEventKind.
 export type PmxAxActivityKind =
-  | 'tool-start' | 'tool-result' | 'failure' | 'error'
-  | 'session-start' | 'session-end' | 'command' | 'note';
+  | 'tool-start'
+  | 'tool-result'
+  | 'failure'
+  | 'error'
+  | 'session-start'
+  | 'session-end'
+  | 'command'
+  | 'note';
 const AX_ACTIVITY_KINDS = new Set<PmxAxActivityKind>([
-  'tool-start', 'tool-result', 'failure', 'error', 'session-start', 'session-end', 'command', 'note',
+  'tool-start',
+  'tool-result',
+  'failure',
+  'error',
+  'session-start',
+  'session-end',
+  'command',
+  'note',
 ]);
 const ACTIVITY_TO_EVENT_KIND: Record<PmxAxActivityKind, PmxAxEventKind> = {
   'tool-start': 'tool-start',
   'tool-result': 'tool-result',
-  'failure': 'failure',
-  'error': 'failure',
+  failure: 'failure',
+  error: 'failure',
   'session-start': 'assistant-message',
   'session-end': 'assistant-message',
-  'command': 'command',
-  'note': 'assistant-message',
+  command: 'command',
+  note: 'assistant-message',
 };
 export function isAxActivityKind(value: unknown): value is PmxAxActivityKind {
   return typeof value === 'string' && AX_ACTIVITY_KINDS.has(value as PmxAxActivityKind);
@@ -312,13 +360,16 @@ export interface PmxAxCommandDescriptor {
 export const AX_COMMAND_REGISTRY: Record<string, PmxAxCommandDescriptor> = {
   'pmx.plan': { name: 'pmx.plan', description: 'Enter planning: outline the approach before executing.' },
   'pmx.execute': { name: 'pmx.execute', description: 'Proceed from plan to execution.' },
-  'pmx.promote-context': { name: 'pmx.promote-context', description: 'Promote focused/pinned nodes into durable agent context.' },
+  'pmx.promote-context': {
+    name: 'pmx.promote-context',
+    description: 'Promote focused/pinned nodes into durable agent context.',
+  },
   'pmx.summarize': { name: 'pmx.summarize', description: 'Summarize the current canvas/work state.' },
   'pmx.review': { name: 'pmx.review', description: 'Start a review pass over the focused nodes.' },
 };
 
 export function isAxCommand(name: unknown): name is string {
-  return typeof name === 'string' && Object.prototype.hasOwnProperty.call(AX_COMMAND_REGISTRY, name);
+  return typeof name === 'string' && Object.hasOwn(AX_COMMAND_REGISTRY, name);
 }
 
 export function listAxCommands(): PmxAxCommandDescriptor[] {
@@ -361,7 +412,14 @@ export function normalizeAxPolicy(input: unknown): PmxAxPolicy {
     },
   };
 }
-const AX_EVIDENCE_KINDS = new Set<PmxAxEvidenceKind>(['logs', 'tool-result', 'screenshot', 'file', 'diff', 'test-output']);
+const AX_EVIDENCE_KINDS = new Set<PmxAxEvidenceKind>([
+  'logs',
+  'tool-result',
+  'screenshot',
+  'file',
+  'diff',
+  'test-output',
+]);
 const AX_WORK_STATUSES = new Set<PmxAxWorkItemStatus>(['todo', 'in-progress', 'blocked', 'done', 'cancelled']);
 const AX_APPROVAL_STATUSES = new Set<PmxAxApprovalStatus>(['pending', 'approved', 'rejected']);
 const AX_REVIEW_KINDS = new Set<PmxAxReviewKind>(['comment', 'finding']);
@@ -425,7 +483,9 @@ export function normalizeAxElicitation(input: unknown, validNodeIds?: Set<string
     id: input.id,
     prompt: typeof input.prompt === 'string' ? input.prompt : '(input requested)',
     fields: Array.isArray(input.fields) ? input.fields.filter((f): f is string => typeof f === 'string') : [],
-    status: AX_ELICITATION_STATUSES.has(input.status as PmxAxElicitationStatus) ? input.status as PmxAxElicitationStatus : 'pending',
+    status: AX_ELICITATION_STATUSES.has(input.status as PmxAxElicitationStatus)
+      ? (input.status as PmxAxElicitationStatus)
+      : 'pending',
     response: isRecord(input.response) ? input.response : null,
     nodeIds: normalizeNodeIds(input.nodeIds, validNodeIds),
     createdAt: normalizeTimestamp(input.createdAt) ?? nowIso(),
@@ -475,9 +535,11 @@ export function normalizeAxModeRequest(input: unknown, validNodeIds?: Set<string
   if (!isRecord(input) || typeof input.id !== 'string') return null;
   return {
     id: input.id,
-    mode: AX_MODES.has(input.mode as PmxAxMode) ? input.mode as PmxAxMode : 'execute',
+    mode: AX_MODES.has(input.mode as PmxAxMode) ? (input.mode as PmxAxMode) : 'execute',
     reason: optionalString(input.reason),
-    status: AX_MODE_REQUEST_STATUSES.has(input.status as PmxAxModeRequestStatus) ? input.status as PmxAxModeRequestStatus : 'pending',
+    status: AX_MODE_REQUEST_STATUSES.has(input.status as PmxAxModeRequestStatus)
+      ? (input.status as PmxAxModeRequestStatus)
+      : 'pending',
     nodeIds: normalizeNodeIds(input.nodeIds, validNodeIds),
     createdAt: normalizeTimestamp(input.createdAt) ?? nowIso(),
     resolvedAt: normalizeTimestamp(input.resolvedAt),
@@ -535,9 +597,10 @@ export function createEmptyAxHostCapability(): PmxAxHostCapability {
 export function normalizeAxFocusState(input: unknown, validNodeIds?: Set<string>): PmxAxFocusState {
   if (!isRecord(input)) return createEmptyAxFocusState();
   const nodeIds = normalizeNodeIds(input.nodeIds, validNodeIds);
-  const primaryNodeId = typeof input.primaryNodeId === 'string' && nodeIds.includes(input.primaryNodeId)
-    ? input.primaryNodeId
-    : nodeIds[0] ?? null;
+  const primaryNodeId =
+    typeof input.primaryNodeId === 'string' && nodeIds.includes(input.primaryNodeId)
+      ? input.primaryNodeId
+      : (nodeIds[0] ?? null);
   return {
     nodeIds,
     primaryNodeId,
@@ -553,7 +616,7 @@ export function normalizeAxWorkItem(input: unknown, validNodeIds?: Set<string>):
   return {
     id: input.id,
     title: typeof input.title === 'string' ? input.title : '(untitled)',
-    status: AX_WORK_STATUSES.has(input.status as PmxAxWorkItemStatus) ? input.status as PmxAxWorkItemStatus : 'todo',
+    status: AX_WORK_STATUSES.has(input.status as PmxAxWorkItemStatus) ? (input.status as PmxAxWorkItemStatus) : 'todo',
     detail: optionalString(input.detail),
     nodeIds: normalizeNodeIds(input.nodeIds, validNodeIds),
     createdAt,
@@ -569,7 +632,9 @@ export function normalizeAxApprovalGate(input: unknown, validNodeIds?: Set<strin
     title: typeof input.title === 'string' ? input.title : '(approval)',
     detail: optionalString(input.detail),
     action: optionalString(input.action),
-    status: AX_APPROVAL_STATUSES.has(input.status as PmxAxApprovalStatus) ? input.status as PmxAxApprovalStatus : 'pending',
+    status: AX_APPROVAL_STATUSES.has(input.status as PmxAxApprovalStatus)
+      ? (input.status as PmxAxApprovalStatus)
+      : 'pending',
     nodeIds: normalizeNodeIds(input.nodeIds, validNodeIds),
     createdAt: normalizeTimestamp(input.createdAt) ?? nowIso(),
     resolvedAt: normalizeTimestamp(input.resolvedAt),
@@ -581,7 +646,9 @@ export function normalizeAxApprovalGate(input: unknown, validNodeIds?: Set<strin
 export function normalizeAxReviewAnnotation(input: unknown, validNodeIds?: Set<string>): PmxAxReviewAnnotation | null {
   if (!isRecord(input) || typeof input.id !== 'string') return null;
   const createdAt = normalizeTimestamp(input.createdAt) ?? nowIso();
-  const anchorType = AX_REVIEW_ANCHORS.has(input.anchorType as PmxAxReviewAnchorType) ? input.anchorType as PmxAxReviewAnchorType : 'node';
+  const anchorType = AX_REVIEW_ANCHORS.has(input.anchorType as PmxAxReviewAnchorType)
+    ? (input.anchorType as PmxAxReviewAnchorType)
+    : 'node';
   // node anchor pruned to a valid node; if invalid, drop the whole annotation (mirrors focus pruning)
   let nodeId: string | null = null;
   if (anchorType === 'node') {
@@ -589,17 +656,21 @@ export function normalizeAxReviewAnnotation(input: unknown, validNodeIds?: Set<s
     if (validNodeIds && !validNodeIds.has(input.nodeId)) return null;
     nodeId = input.nodeId;
   }
-  const region = isRecord(input.region) ? {
-    ...(typeof input.region.line === 'number' ? { line: input.region.line } : {}),
-    ...(typeof input.region.endLine === 'number' ? { endLine: input.region.endLine } : {}),
-    ...(typeof input.region.label === 'string' ? { label: input.region.label } : {}),
-  } : null;
+  const region = isRecord(input.region)
+    ? {
+        ...(typeof input.region.line === 'number' ? { line: input.region.line } : {}),
+        ...(typeof input.region.endLine === 'number' ? { endLine: input.region.endLine } : {}),
+        ...(typeof input.region.label === 'string' ? { label: input.region.label } : {}),
+      }
+    : null;
   return {
     id: input.id,
-    kind: AX_REVIEW_KINDS.has(input.kind as PmxAxReviewKind) ? input.kind as PmxAxReviewKind : 'comment',
+    kind: AX_REVIEW_KINDS.has(input.kind as PmxAxReviewKind) ? (input.kind as PmxAxReviewKind) : 'comment',
     body: typeof input.body === 'string' ? input.body : '',
-    severity: AX_REVIEW_SEVERITIES.has(input.severity as PmxAxReviewSeverity) ? input.severity as PmxAxReviewSeverity : 'info',
-    status: AX_REVIEW_STATUSES.has(input.status as PmxAxReviewStatus) ? input.status as PmxAxReviewStatus : 'open',
+    severity: AX_REVIEW_SEVERITIES.has(input.severity as PmxAxReviewSeverity)
+      ? (input.severity as PmxAxReviewSeverity)
+      : 'info',
+    status: AX_REVIEW_STATUSES.has(input.status as PmxAxReviewStatus) ? (input.status as PmxAxReviewStatus) : 'open',
     anchorType,
     nodeId,
     file: anchorType === 'file' ? optionalString(input.file) : null,
@@ -632,7 +703,7 @@ export function normalizeAxHostCapability(input: unknown): PmxAxHostCapability |
 // ── Timeline normalizers (DB row parse; node ids kept as recorded) ──
 export function normalizeAxEvent(input: unknown): PmxAxEvent | null {
   if (!isRecord(input) || typeof input.id !== 'string') return null;
-  const kind = AX_EVENT_KINDS.has(input.kind as PmxAxEventKind) ? input.kind as PmxAxEventKind : null;
+  const kind = AX_EVENT_KINDS.has(input.kind as PmxAxEventKind) ? (input.kind as PmxAxEventKind) : null;
   if (!kind) return null;
   return {
     id: input.id,
@@ -649,7 +720,7 @@ export function normalizeAxEvent(input: unknown): PmxAxEvent | null {
 
 export function normalizeAxEvidence(input: unknown): PmxAxEvidence | null {
   if (!isRecord(input) || typeof input.id !== 'string') return null;
-  const kind = AX_EVIDENCE_KINDS.has(input.kind as PmxAxEvidenceKind) ? input.kind as PmxAxEvidenceKind : null;
+  const kind = AX_EVIDENCE_KINDS.has(input.kind as PmxAxEvidenceKind) ? (input.kind as PmxAxEvidenceKind) : null;
   if (!kind) return null;
   return {
     id: input.id,
@@ -750,7 +821,13 @@ export function createAxReviewAnnotation(
 }
 
 export function createAxEvent(
-  input: { kind: PmxAxEventKind; summary: string; detail?: string | null; nodeIds?: string[]; data?: Record<string, unknown> | null },
+  input: {
+    kind: PmxAxEventKind;
+    summary: string;
+    detail?: string | null;
+    nodeIds?: string[];
+    data?: Record<string, unknown> | null;
+  },
   source: PmxAxSource | null,
 ): Omit<PmxAxEvent, 'seq'> {
   return {
@@ -766,7 +843,14 @@ export function createAxEvent(
 }
 
 export function createAxEvidence(
-  input: { kind: PmxAxEvidenceKind; title: string; body?: string | null; ref?: string | null; nodeIds?: string[]; data?: Record<string, unknown> | null },
+  input: {
+    kind: PmxAxEvidenceKind;
+    title: string;
+    body?: string | null;
+    ref?: string | null;
+    nodeIds?: string[];
+    data?: Record<string, unknown> | null;
+  },
   source: PmxAxSource | null,
 ): Omit<PmxAxEvidence, 'seq'> {
   return {
@@ -782,7 +866,10 @@ export function createAxEvidence(
   };
 }
 
-export function createAxSteeringMessage(message: string, source: PmxAxSource | null): Omit<PmxAxSteeringMessage, 'seq'> {
+export function createAxSteeringMessage(
+  message: string,
+  source: PmxAxSource | null,
+): Omit<PmxAxSteeringMessage, 'seq'> {
   return {
     id: axId('steer'),
     message,
@@ -801,16 +888,24 @@ export function normalizeAxState(input: unknown, validNodeIds?: Set<string>): Pm
       ? input.workItems.map((w) => normalizeAxWorkItem(w, validNodeIds)).filter((w): w is PmxAxWorkItem => w !== null)
       : [],
     approvalGates: Array.isArray(input.approvalGates)
-      ? input.approvalGates.map((g) => normalizeAxApprovalGate(g, validNodeIds)).filter((g): g is PmxAxApprovalGate => g !== null)
+      ? input.approvalGates
+          .map((g) => normalizeAxApprovalGate(g, validNodeIds))
+          .filter((g): g is PmxAxApprovalGate => g !== null)
       : [],
     reviewAnnotations: Array.isArray(input.reviewAnnotations)
-      ? input.reviewAnnotations.map((r) => normalizeAxReviewAnnotation(r, validNodeIds)).filter((r): r is PmxAxReviewAnnotation => r !== null)
+      ? input.reviewAnnotations
+          .map((r) => normalizeAxReviewAnnotation(r, validNodeIds))
+          .filter((r): r is PmxAxReviewAnnotation => r !== null)
       : [],
     elicitations: Array.isArray(input.elicitations)
-      ? input.elicitations.map((e) => normalizeAxElicitation(e, validNodeIds)).filter((e): e is PmxAxElicitation => e !== null)
+      ? input.elicitations
+          .map((e) => normalizeAxElicitation(e, validNodeIds))
+          .filter((e): e is PmxAxElicitation => e !== null)
       : [],
     modeRequests: Array.isArray(input.modeRequests)
-      ? input.modeRequests.map((m) => normalizeAxModeRequest(m, validNodeIds)).filter((m): m is PmxAxModeRequest => m !== null)
+      ? input.modeRequests
+          .map((m) => normalizeAxModeRequest(m, validNodeIds))
+          .filter((m): m is PmxAxModeRequest => m !== null)
       : [],
     policy: normalizeAxPolicy(input.policy),
   };

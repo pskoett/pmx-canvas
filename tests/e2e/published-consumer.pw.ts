@@ -40,21 +40,19 @@ test.beforeAll(() => {
   if (process.env.PMX_CANVAS_URL) return;
   consumerWorkdir = mkdtempSync(join(tmpdir(), 'pmx-canvas-published-consumer-pw-'));
   const script = join(repoRoot, 'skills', 'published-consumer-e2e', 'scripts', 'run-published-consumer-e2e.sh');
-  const result = spawnSync('bash', [
-    script,
-    `--port=${consumerPort}`,
-    `--workdir=${consumerWorkdir}`,
-    '--skip-playwright',
-    '--keep-running',
-  ], {
-    cwd: repoRoot,
-    env: {
-      ...process.env,
-      BUN_BIN: resolveBunBin(),
+  const result = spawnSync(
+    'bash',
+    [script, `--port=${consumerPort}`, `--workdir=${consumerWorkdir}`, '--skip-playwright', '--keep-running'],
+    {
+      cwd: repoRoot,
+      env: {
+        ...process.env,
+        BUN_BIN: resolveBunBin(),
+      },
+      encoding: 'utf-8',
+      timeout: 180_000,
     },
-    encoding: 'utf-8',
-    timeout: 180_000,
-  });
+  );
   const output = `${result.stdout ?? ''}${result.stderr ?? ''}`;
   if (result.status !== 0) {
     throw new Error(`Published-consumer setup failed (${result.status}).\n${output}`);
@@ -102,18 +100,31 @@ test('renders the published-consumer SDLC workspace', async ({ page, request }) 
   const graphFrame = page.frameLocator('.canvas-node:has-text("Lead Time Trend") iframe.mcp-app-frame');
   await expect(graphFrame.getByText('Lead Time Trend')).toBeVisible();
 
-  await expect.poll(async () => {
-    const response = await request.get(`${baseUrl}/api/canvas/state`);
-    const state = await response.json() as { nodes: Array<{ type: string }> };
-    const typeSet = new Set(state.nodes.map((node) => node.type));
-    return [
-      state.nodes.length >= 18,
-        ['markdown', 'image', 'file', 'status', 'context', 'ledger', 'trace', 'mcp-app', 'json-render', 'graph', 'group']
-          .every((type) => typeSet.has(type)),
-    ].every(Boolean);
-  }).toBe(true);
+  await expect
+    .poll(async () => {
+      const response = await request.get(`${baseUrl}/api/canvas/state`);
+      const state = (await response.json()) as { nodes: Array<{ type: string }> };
+      const typeSet = new Set(state.nodes.map((node) => node.type));
+      return [
+        state.nodes.length >= 18,
+        [
+          'markdown',
+          'image',
+          'file',
+          'status',
+          'context',
+          'ledger',
+          'trace',
+          'mcp-app',
+          'json-render',
+          'graph',
+          'group',
+        ].every((type) => typeSet.has(type)),
+      ].every(Boolean);
+    })
+    .toBe(true);
 
   const snapshotResponse = await request.get(`${baseUrl}/api/canvas/snapshots`);
-  const snapshots = await snapshotResponse.json() as Array<{ name: string }>;
+  const snapshots = (await snapshotResponse.json()) as Array<{ name: string }>;
   expect(snapshots.some((snapshot) => snapshot.name === 'published-consumer-baseline')).toBe(true);
 });

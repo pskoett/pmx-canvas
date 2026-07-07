@@ -92,7 +92,13 @@ const awaitInputSchema = z.looseObject(awaitInputShape);
 
 const awaitMcpExtraShape = {
   id: z.string(),
-  timeoutMs: z.number().int().min(0).max(120000).optional().describe('Max ms to block (default 30000; 0 = immediate read; capped at 120000).'),
+  timeoutMs: z
+    .number()
+    .int()
+    .min(0)
+    .max(120000)
+    .optional()
+    .describe('Max ms to block (default 30000; 0 = immediate read; capped at 120000).'),
 };
 
 // ── ax.approval.get (canvas_await_approval) ───────────────────
@@ -110,7 +116,8 @@ const axApprovalGetOperation = defineOperation<z.infer<typeof awaitInputSchema>,
   },
   mcp: {
     toolName: 'canvas_await_approval',
-    description: 'Block until an approval gate resolves (the human approves/rejects it in the browser) or the timeout elapses — primitive D, gates that actually gate. timeoutMs 0 = read immediately without waiting. Returns { approvalGate, pending } (pending=true → still unresolved after the wait).',
+    description:
+      'Block until an approval gate resolves (the human approves/rejects it in the browser) or the timeout elapses — primitive D, gates that actually gate. timeoutMs 0 = read immediately without waiting. Returns { approvalGate, pending } (pending=true → still unresolved after the wait).',
     extraShape: awaitMcpExtraShape,
     buildInput: buildAwaitInput,
     formatResult: (result) => {
@@ -118,7 +125,9 @@ const axApprovalGetOperation = defineOperation<z.infer<typeof awaitInputSchema>,
       const approvalGate = (body.approvalGate ?? null) as PmxAxApprovalGate | null;
       const pending = body.pending === true;
       return {
-        content: [{ type: 'text' as const, text: JSON.stringify({ ok: approvalGate !== null, approvalGate, pending }) }],
+        content: [
+          { type: 'text' as const, text: JSON.stringify({ ok: approvalGate !== null, approvalGate, pending }) },
+        ],
       };
     },
   },
@@ -148,7 +157,8 @@ const axElicitationGetOperation = defineOperation<z.infer<typeof awaitInputSchem
   },
   mcp: {
     toolName: 'canvas_await_elicitation',
-    description: 'Block until an elicitation is answered (the human responds in the browser) or the timeout elapses — primitive D. timeoutMs 0 = read immediately. Returns { elicitation, pending }.',
+    description:
+      'Block until an elicitation is answered (the human responds in the browser) or the timeout elapses — primitive D. timeoutMs 0 = read immediately. Returns { elicitation, pending }.',
     extraShape: awaitMcpExtraShape,
     buildInput: buildAwaitInput,
     formatResult: (result) => {
@@ -186,7 +196,8 @@ const axModeGetOperation = defineOperation<z.infer<typeof awaitInputSchema>, Rec
   },
   mcp: {
     toolName: 'canvas_await_mode',
-    description: 'Block until a mode request resolves (approved/rejected in the browser) or the timeout elapses — primitive D. timeoutMs 0 = read immediately. Returns { modeRequest, pending }.',
+    description:
+      'Block until a mode request resolves (approved/rejected in the browser) or the timeout elapses — primitive D. timeoutMs 0 = read immediately. Returns { modeRequest, pending }.',
     extraShape: awaitMcpExtraShape,
     buildInput: buildAwaitInput,
     formatResult: (result) => {
@@ -209,8 +220,4 @@ const axModeGetOperation = defineOperation<z.infer<typeof awaitInputSchema>, Rec
   },
 });
 
-export const axAwaitOperations: Operation[] = [
-  axApprovalGetOperation,
-  axElicitationGetOperation,
-  axModeGetOperation,
-];
+export const axAwaitOperations: Operation[] = [axApprovalGetOperation, axElicitationGetOperation, axModeGetOperation];

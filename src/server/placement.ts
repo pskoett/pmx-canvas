@@ -1,9 +1,4 @@
-import {
-  findBlocker,
-  findOpenCanvasPosition,
-  overlapsAny,
-  type CanvasPlacementRect,
-} from '../shared/placement.js';
+import { findBlocker, findOpenCanvasPosition, overlapsAny, type CanvasPlacementRect } from '../shared/placement.js';
 
 export { findOpenCanvasPosition, type CanvasPlacementRect } from '../shared/placement.js';
 
@@ -30,7 +25,10 @@ export function computeGroupBounds(
 ): { x: number; y: number; width: number; height: number } | null {
   if (children.length === 0) return null;
 
-  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  let minX = Infinity,
+    minY = Infinity,
+    maxX = -Infinity,
+    maxY = -Infinity;
   for (const child of children) {
     minX = Math.min(minX, child.position.x);
     minY = Math.min(minY, child.position.y);
@@ -56,17 +54,12 @@ export function computePackedGroupLayout<T extends CanvasPlacementRect & { id: s
   const positions = new Map<string, { x: number; y: number }>();
   if (children.length === 0) return { positions, bounds: null };
 
-  const sorted = [...children].sort(
-    (a, b) => a.position.y - b.position.y || a.position.x - b.position.x,
-  );
+  const sorted = [...children].sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x);
   const totalArea = sorted.reduce((sum, child) => sum + child.size.width * child.size.height, 0);
   const widestChild = sorted.reduce((max, child) => Math.max(max, child.size.width), 0);
   const targetRowWidth = Math.max(
     widestChild,
-    Math.min(
-      GROUP_LAYOUT_MAX_ROW_WIDTH,
-      Math.max(GROUP_LAYOUT_MIN_ROW_WIDTH, Math.ceil(Math.sqrt(totalArea))),
-    ),
+    Math.min(GROUP_LAYOUT_MAX_ROW_WIDTH, Math.max(GROUP_LAYOUT_MIN_ROW_WIDTH, Math.ceil(Math.sqrt(totalArea)))),
   );
 
   const startX = Math.min(...sorted.map((child) => child.position.x));
@@ -76,10 +69,7 @@ export function computePackedGroupLayout<T extends CanvasPlacementRect & { id: s
   let rowHeight = 0;
 
   for (const child of sorted) {
-    if (
-      cursorX > startX &&
-      cursorX + child.size.width > startX + targetRowWidth
-    ) {
+    if (cursorX > startX && cursorX + child.size.width > startX + targetRowWidth) {
       cursorX = startX;
       cursorY += rowHeight + GROUP_LAYOUT_GAP_Y;
       rowHeight = 0;

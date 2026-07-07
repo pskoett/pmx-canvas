@@ -212,9 +212,7 @@ async function ensureJsonRenderBundle(): Promise<void> {
   // Avoid live source-vs-dist rebuild checks here because Bun's bundler can stall on
   // the @json-render/shadcn dependency graph during request-time viewer generation.
   const needsBuild =
-    !existsSync(jsPath) ||
-    !existsSync(cssPath) ||
-    process.env.PMX_CANVAS_FORCE_JSON_RENDER_REBUILD === '1';
+    !existsSync(jsPath) || !existsSync(cssPath) || process.env.PMX_CANVAS_FORCE_JSON_RENDER_REBUILD === '1';
 
   if (needsBuild) {
     await rebuildJsonRenderBundle();
@@ -273,7 +271,7 @@ function normalizeItemArray(value: unknown): unknown {
     if (hasString(item)) return { label: item, value: item };
     const record = asRecord(item);
     const label = hasString(record?.label) ? record.label : hasString(record?.text) ? record.text : null;
-    const resolvedValue = hasString(record?.value) ? record.value : label ?? `option-${index + 1}`;
+    const resolvedValue = hasString(record?.value) ? record.value : (label ?? `option-${index + 1}`);
     return {
       label: label ?? resolvedValue,
       value: resolvedValue,
@@ -283,11 +281,7 @@ function normalizeItemArray(value: unknown): unknown {
 
 function normalizeStringMatrix(value: unknown): unknown {
   if (!Array.isArray(value)) return value;
-  return value.map((row) => (
-    Array.isArray(row)
-      ? row.map((cell) => String(cell ?? ''))
-      : [String(row ?? '')]
-  ));
+  return value.map((row) => (Array.isArray(row) ? row.map((cell) => String(cell ?? '')) : [String(row ?? '')]));
 }
 
 function normalizeButtonVariant(value: unknown): unknown {
@@ -347,12 +341,7 @@ function normalizeElementProps(
   const props = (stripNullishDeep(rawProps) as Record<string, unknown> | undefined) ?? {};
 
   for (const key of COERCIBLE_STRING_PROPS) {
-    if (
-      key in props &&
-      typeof props[key] !== 'string' &&
-      props[key] !== undefined &&
-      !isDynamicPropValue(props[key])
-    ) {
+    if (key in props && typeof props[key] !== 'string' && props[key] !== undefined && !isDynamicPropValue(props[key])) {
       props[key] = String(props[key]);
     }
   }
@@ -516,7 +505,9 @@ export function inferJsonRenderNodeTitle(spec: JsonRenderSpec, fallback = 'json-
 export function normalizeAndValidateJsonRenderSpec(spec: unknown): JsonRenderSpec {
   const specRecord = asRecord(normalizeJsonRenderInput(spec));
   if (!specRecord || typeof specRecord.root !== 'string' || !asRecord(specRecord.elements)) {
-    throw new Error('Missing root and elements in spec. Pass a complete {root, elements} document, or a single bare component object with a type field.');
+    throw new Error(
+      'Missing root and elements in spec. Pass a complete {root, elements} document, or a single bare component object with a type field.',
+    );
   }
 
   // Reject an unrecognized $-keyed expression object in any element prop BEFORE
@@ -576,10 +567,7 @@ function collectDataKeys(data: Array<Record<string, unknown>>): Set<string> {
  * as "value") without an explicit valueKey, instead of failing the data-key
  * check on a reasonable guess.
  */
-function firstPresentDataKey(
-  data: Array<Record<string, unknown>>,
-  candidates: string[],
-): string | undefined {
+function firstPresentDataKey(data: Array<Record<string, unknown>>, candidates: string[]): string | undefined {
   const keys = collectDataKeys(data);
   return candidates.find((key) => keys.has(key));
 }
@@ -653,7 +641,9 @@ function assertGraphDataKeys(
   const missing = [...required].filter((key) => !available.has(key));
   if (missing.length === 0) return;
   const availableList = [...available].sort().join(', ') || '(none)';
-  throw new Error(`Graph data key mismatch for ${chartType}: missing ${missing.join(', ')}. Available keys: ${availableList}.`);
+  throw new Error(
+    `Graph data key mismatch for ${chartType}: missing ${missing.join(', ')}. Available keys: ${availableList}.`,
+  );
 }
 
 export function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec {
@@ -685,11 +675,11 @@ export function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec {
     }
     case 'RadarChart': {
       const axisKey = input.axisKey ?? input.xKey ?? 'axis';
-      const metrics = input.metrics?.length
-        ? input.metrics
-        : inferKeysFromData(input.data, [axisKey]);
+      const metrics = input.metrics?.length ? input.metrics : inferKeysFromData(input.data, [axisKey]);
       if (metrics.length === 0) {
-        throw new Error('RadarChart requires at least one metric key (provide `metrics` or include numeric columns in `data`).');
+        throw new Error(
+          'RadarChart requires at least one metric key (provide `metrics` or include numeric columns in `data`).',
+        );
       }
       chartProps.axisKey = axisKey;
       chartProps.metrics = metrics;
@@ -698,11 +688,11 @@ export function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec {
     }
     case 'StackedBarChart': {
       const xKey = input.xKey ?? 'label';
-      const series = input.series?.length
-        ? input.series
-        : inferKeysFromData(input.data, [xKey]);
+      const series = input.series?.length ? input.series : inferKeysFromData(input.data, [xKey]);
       if (series.length === 0) {
-        throw new Error('StackedBarChart requires at least one series key (provide `series` or include numeric columns in `data`).');
+        throw new Error(
+          'StackedBarChart requires at least one series key (provide `series` or include numeric columns in `data`).',
+        );
       }
       chartProps.xKey = xKey;
       chartProps.series = series;
@@ -713,9 +703,10 @@ export function buildGraphSpec(input: GraphNodeInput): JsonRenderSpec {
     case 'ComposedChart': {
       chartProps.xKey = input.xKey ?? 'label';
       chartProps.barKey = input.barKey ?? input.yKey ?? 'value';
-      chartProps.lineKey = input.lineKey
-        ?? inferKeysFromData(input.data, [chartProps.xKey as string, chartProps.barKey as string])[0]
-        ?? 'rate';
+      chartProps.lineKey =
+        input.lineKey ??
+        inferKeysFromData(input.data, [chartProps.xKey as string, chartProps.barKey as string])[0] ??
+        'rate';
       chartProps.barColor = input.barColor ?? null;
       chartProps.lineColor = input.lineColor ?? null;
       chartProps.showLegend = input.showLegend !== false;
@@ -952,7 +943,8 @@ export async function buildJsonRenderViewerHtml(options: {
    *  node grows to it. Off for strictSize / user-resized nodes (they fill-down). */
   fitContent?: boolean;
 }): Promise<string> {
-  const sanitizeAxValue = (v?: string): string => (typeof v === 'string' ? v.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80) : '');
+  const sanitizeAxValue = (v?: string): string =>
+    typeof v === 'string' ? v.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80) : '';
   try {
     await ensureJsonRenderBundle();
     const dir = bundleDir();
@@ -967,12 +959,14 @@ export async function buildJsonRenderViewerHtml(options: {
       ...(options.theme ? [`window.__PMX_CANVAS_JSON_RENDER_THEME__ = ${JSON.stringify(options.theme)};`] : []),
       ...(options.display ? [`window.__PMX_CANVAS_JSON_RENDER_DISPLAY__ = ${JSON.stringify(options.display)};`] : []),
       ...(options.devtools ? ['window.__PMX_CANVAS_JSON_RENDER_DEVTOOLS__ = true;'] : []),
-      ...(options.nodeId && options.axToken ? [
-        `window.__PMX_CANVAS_JSON_RENDER_NODE_ID__ = ${JSON.stringify(sanitizeAxValue(options.nodeId))};`,
-        `window.__PMX_CANVAS_AX_TOKEN__ = ${JSON.stringify(sanitizeAxValue(options.axToken))};`,
-        // Read-side AX state: seed for initial render + bound under /ax for specs.
-        `window.__PMX_CANVAS_AX_STATE__ = ${JSON.stringify(options.axState ?? null).replace(/</g, '\\u003c')};`,
-      ] : []),
+      ...(options.nodeId && options.axToken
+        ? [
+            `window.__PMX_CANVAS_JSON_RENDER_NODE_ID__ = ${JSON.stringify(sanitizeAxValue(options.nodeId))};`,
+            `window.__PMX_CANVAS_AX_TOKEN__ = ${JSON.stringify(sanitizeAxValue(options.axToken))};`,
+            // Read-side AX state: seed for initial render + bound under /ax for specs.
+            `window.__PMX_CANVAS_AX_STATE__ = ${JSON.stringify(options.axState ?? null).replace(/</g, '\\u003c')};`,
+          ]
+        : []),
       ...(options.fitContent ? ['window.__PMX_CANVAS_FIT_CONTENT__ = true;'] : []),
       jsBundle,
     ].join('\n');

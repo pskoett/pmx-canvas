@@ -56,11 +56,8 @@ function summarizeWebpageData(data: Record<string, unknown>, maxLength: number):
   const status = typeof data.status === 'string' ? data.status : '';
   const statusCode = typeof data.statusCode === 'number' ? data.statusCode : null;
   const error = typeof data.error === 'string' ? data.error : '';
-  const content = typeof data.content === 'string'
-    ? data.content
-    : typeof data.excerpt === 'string'
-      ? data.excerpt
-      : '';
+  const content =
+    typeof data.content === 'string' ? data.content : typeof data.excerpt === 'string' ? data.excerpt : '';
 
   if (url) parts.push(`URL: ${url}`);
   if (pageTitle) parts.push(`Title: ${pageTitle}`);
@@ -132,9 +129,7 @@ function summarizeWebArtifactData(data: Record<string, unknown>, maxLength: numb
   const sourceFiles = Array.isArray(data.sourceFiles)
     ? data.sourceFiles.filter((file): file is string => typeof file === 'string')
     : [];
-  const deps = Array.isArray(data.deps)
-    ? data.deps.filter((dep): dep is string => typeof dep === 'string')
-    : [];
+  const deps = Array.isArray(data.deps) ? data.deps.filter((dep): dep is string => typeof dep === 'string') : [];
 
   if (content) parts.push(content);
   if (!content && title) parts.push(`Web artifact: ${title}`);
@@ -170,7 +165,16 @@ function metadataForNode(node: CanvasNodeState): Record<string, unknown> | undef
   switch (node.type) {
     case 'webpage': {
       const metadata: Record<string, unknown> = {};
-      for (const key of ['url', 'pageTitle', 'description', 'imageUrl', 'fetchedAt', 'status', 'statusCode', 'contentType']) {
+      for (const key of [
+        'url',
+        'pageTitle',
+        'description',
+        'imageUrl',
+        'fetchedAt',
+        'status',
+        'statusCode',
+        'contentType',
+      ]) {
         const value = node.data[key];
         if (value !== undefined && value !== null && value !== '') metadata[key] = value;
       }
@@ -194,7 +198,19 @@ function metadataForNode(node: CanvasNodeState): Record<string, unknown> | undef
     }
     case 'html': {
       const metadata: Record<string, unknown> = {};
-      for (const key of ['summary', 'description', 'agentSummary', 'contentSummary', 'htmlPrimitive', 'presentation', 'slideCount', 'slideTitles', 'speakerNotes', 'embeddedNodeIds', 'embeddedUrls']) {
+      for (const key of [
+        'summary',
+        'description',
+        'agentSummary',
+        'contentSummary',
+        'htmlPrimitive',
+        'presentation',
+        'slideCount',
+        'slideTitles',
+        'speakerNotes',
+        'embeddedNodeIds',
+        'embeddedUrls',
+      ]) {
         const value = node.data[key];
         if (Array.isArray(value)) {
           if (value.length > 0) metadata[key] = value;
@@ -206,7 +222,22 @@ function metadataForNode(node: CanvasNodeState): Record<string, unknown> | undef
     }
     case 'mcp-app': {
       const metadata: Record<string, unknown> = {};
-      for (const key of ['url', 'path', 'mode', 'hostMode', 'viewerType', 'serverName', 'toolName', 'resourceUri', 'sessionStatus', 'projectPath', 'artifactBytes', 'sourceFiles', 'sourceFileCount', 'deps']) {
+      for (const key of [
+        'url',
+        'path',
+        'mode',
+        'hostMode',
+        'viewerType',
+        'serverName',
+        'toolName',
+        'resourceUri',
+        'sessionStatus',
+        'projectPath',
+        'artifactBytes',
+        'sourceFiles',
+        'sourceFileCount',
+        'deps',
+      ]) {
         const value = node.data[key];
         if (Array.isArray(value)) {
           if (value.length > 0) metadata[key] = value;
@@ -221,10 +252,7 @@ function metadataForNode(node: CanvasNodeState): Record<string, unknown> | undef
   }
 }
 
-export function summarizeNodeForAgentContext(
-  node: CanvasNodeState,
-  options: AgentContextOptions = {},
-): string {
+export function summarizeNodeForAgentContext(node: CanvasNodeState, options: AgentContextOptions = {}): string {
   const defaultTextLength = options.defaultTextLength ?? DEFAULT_CONTEXT_TEXT_LENGTH;
   const webpageTextLength = options.webpageTextLength ?? DEFAULT_WEBPAGE_CONTEXT_TEXT_LENGTH;
 
@@ -241,9 +269,7 @@ export function summarizeNodeForAgentContext(
       if (chartCfg) {
         const chartTitle = (chartCfg.title as string) || 'Untitled chart';
         const chartType = (chartCfg.type as string) || 'unknown';
-        const labels = Array.isArray(chartCfg.labels)
-          ? (chartCfg.labels as string[]).join(', ')
-          : '';
+        const labels = Array.isArray(chartCfg.labels) ? (chartCfg.labels as string[]).join(', ') : '';
         return truncateContextText(`Chart: ${chartTitle} (${chartType}). Labels: ${labels}`, defaultTextLength);
       }
       return summarizeMcpAppData(node.data, defaultTextLength);
@@ -263,14 +289,17 @@ export function summarizeNodeForAgentContext(
       if (typeof node.data.htmlPrimitive === 'string') {
         return summarizeHtmlPrimitiveData(node.data, defaultTextLength);
       }
-      return stringifyContextValue({
-        title: node.data.title,
-        description: node.data.description,
-        summary: node.data.summary,
-        contentSummary: node.data.contentSummary,
-        embeddedNodeIds: node.data.embeddedNodeIds,
-        embeddedUrls: node.data.embeddedUrls,
-      }, defaultTextLength);
+      return stringifyContextValue(
+        {
+          title: node.data.title,
+          description: node.data.description,
+          summary: node.data.summary,
+          contentSummary: node.data.contentSummary,
+          embeddedNodeIds: node.data.embeddedNodeIds,
+          embeddedUrls: node.data.embeddedUrls,
+        },
+        defaultTextLength,
+      );
     }
     case 'prompt':
     case 'response': {
@@ -279,11 +308,12 @@ export function summarizeNodeForAgentContext(
     }
     case 'file': {
       const path = typeof node.data.path === 'string' ? node.data.path : '';
-      const fileContent = typeof node.data.fileContent === 'string'
-        ? node.data.fileContent
-        : typeof node.data.content === 'string'
-          ? node.data.content
-          : '';
+      const fileContent =
+        typeof node.data.fileContent === 'string'
+          ? node.data.fileContent
+          : typeof node.data.content === 'string'
+            ? node.data.content
+            : '';
       const prefix = path ? `Path: ${path}\n\n` : '';
       const remaining = Math.max(0, defaultTextLength - prefix.length);
       return `${prefix}${truncateContextText(fileContent, remaining)}`.trim();
@@ -309,13 +339,10 @@ export function serializeNodeForAgentContext(
   };
 }
 
-export function buildAgentContextPreamble(
-  nodes: CanvasNodeState[],
-  options: AgentContextOptions = {},
-): string {
+export function buildAgentContextPreamble(nodes: CanvasNodeState[], options: AgentContextOptions = {}): string {
   const sections = nodes
     .map((node) => {
-      const title = (typeof node.data.title === 'string' && node.data.title) ? node.data.title : node.id;
+      const title = typeof node.data.title === 'string' && node.data.title ? node.data.title : node.id;
       const content = summarizeNodeForAgentContext(node, options);
       if (!content) return '';
       const kind = getCanvasNodeKind(node);

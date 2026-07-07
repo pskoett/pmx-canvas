@@ -32,9 +32,39 @@ if (args.includes('--version') || args.includes('-v')) {
 // ── Agent CLI subcommands ────────────────────────────────────
 // If first arg is a known subcommand (not a --flag), route to the agent CLI.
 const AGENT_COMMANDS = new Set([
-  'node', 'edge', 'json-render', 'search', 'layout', 'status', 'arrange', 'focus',
-  'fit', 'screenshot', 'pin', 'ax', 'undo', 'redo', 'history', 'snapshot', 'diff', 'group', 'webview', 'open',
-  'clear', 'code-graph', 'spatial', 'watch', 'web-artifact', 'external-app', 'diagram', 'graph', 'html', 'batch', 'validate', 'serve', 'copilot',
+  'node',
+  'edge',
+  'json-render',
+  'search',
+  'layout',
+  'status',
+  'arrange',
+  'focus',
+  'fit',
+  'screenshot',
+  'pin',
+  'ax',
+  'undo',
+  'redo',
+  'history',
+  'snapshot',
+  'diff',
+  'group',
+  'webview',
+  'open',
+  'clear',
+  'code-graph',
+  'spatial',
+  'watch',
+  'web-artifact',
+  'external-app',
+  'diagram',
+  'graph',
+  'html',
+  'batch',
+  'validate',
+  'serve',
+  'copilot',
 ]);
 
 const firstArg = args[0] ?? '';
@@ -67,7 +97,10 @@ function readNumberOption(name: string): number | undefined {
 function readCsvOption(name: string): string[] | undefined {
   const raw = readOption(name);
   if (!raw) return undefined;
-  const values = raw.split(',').map((value) => value.trim()).filter((value) => value.length > 0);
+  const values = raw
+    .split(',')
+    .map((value) => value.trim())
+    .filter((value) => value.length > 0);
   return values.length > 0 ? values : undefined;
 }
 
@@ -99,16 +132,16 @@ function runMcpServerProcess(): Promise<void> {
         resolvePromise();
         return;
       }
-      rejectPromise(new Error(
-        signal
-          ? `MCP server exited via signal ${signal}`
-          : `MCP server exited with code ${code ?? 'unknown'}`,
-      ));
+      rejectPromise(
+        new Error(
+          signal ? `MCP server exited via signal ${signal}` : `MCP server exited with code ${code ?? 'unknown'}`,
+        ),
+      );
     });
   });
 }
 
-const serveSubcommand = firstArg === 'serve' ? args[1] ?? '' : '';
+const serveSubcommand = firstArg === 'serve' ? (args[1] ?? '') : '';
 
 if (firstArg === 'serve' && (serveSubcommand === 'status' || serveSubcommand === 'stop')) {
   const port = parseInt(readOption('port') ?? process.env.PMX_WEB_CANVAS_PORT ?? '4313');
@@ -171,9 +204,7 @@ if (AGENT_COMMANDS.has(firstArg) && firstArg !== 'serve') {
   const daemonPidFile = resolve(readOption('pid-file') ?? `.pmx-canvas/daemon-${port}.pid`);
   const daemonWaitMs = readNumberOption('wait-ms') ?? 10_000;
   const webviewBackendOption: 'chrome' | 'webkit' | undefined =
-    webviewBackend === 'chrome' || webviewBackend === 'webkit'
-      ? webviewBackend
-      : undefined;
+    webviewBackend === 'chrome' || webviewBackend === 'webkit' ? webviewBackend : undefined;
   if (themeArg && ['dark', 'light', 'high-contrast'].includes(themeArg)) {
     process.env.PMX_CANVAS_THEME = themeArg;
   }
@@ -290,7 +321,10 @@ Examples:
   }
 
   if (daemon) {
-    const baseArgs = stripOption(stripOption(stripOption(stripOption(args, 'daemon'), 'log-file'), 'pid-file'), 'wait-ms');
+    const baseArgs = stripOption(
+      stripOption(stripOption(stripOption(args, 'daemon'), 'log-file'), 'pid-file'),
+      'wait-ms',
+    );
     await startDaemonMode({
       port,
       baseArgs,
@@ -302,17 +336,16 @@ Examples:
   }
 
   const canvas = createCanvas({ port });
-  const automationWebView =
-    webviewAutomation
-      ? {
-          ...(webviewBackendOption ? { backend: webviewBackendOption } : {}),
-          ...(webviewChromePath ? { chromePath: webviewChromePath } : {}),
-          ...(webviewChromeArgv ? { chromeArgv: webviewChromeArgv } : {}),
-          ...(webviewDataDir ? { dataStoreDir: webviewDataDir } : {}),
-          ...(webviewWidth !== undefined ? { width: webviewWidth } : {}),
-          ...(webviewHeight !== undefined ? { height: webviewHeight } : {}),
-        }
-      : false;
+  const automationWebView = webviewAutomation
+    ? {
+        ...(webviewBackendOption ? { backend: webviewBackendOption } : {}),
+        ...(webviewChromePath ? { chromePath: webviewChromePath } : {}),
+        ...(webviewChromeArgv ? { chromeArgv: webviewChromeArgv } : {}),
+        ...(webviewDataDir ? { dataStoreDir: webviewDataDir } : {}),
+        ...(webviewWidth !== undefined ? { width: webviewWidth } : {}),
+        ...(webviewHeight !== undefined ? { height: webviewHeight } : {}),
+      }
+    : false;
   try {
     await canvas.start({ open: !noOpen, automationWebView });
   } catch (error) {

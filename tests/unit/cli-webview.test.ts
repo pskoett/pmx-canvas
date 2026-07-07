@@ -7,11 +7,7 @@ import { runAgentCli } from '../../src/cli/agent.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
-import {
-  createTestWorkspace,
-  removeTestWorkspace,
-  resetCanvasForTests,
-} from './helpers.ts';
+import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 const cliIndexPath = fileURLToPath(new URL('../../src/cli/index.ts', import.meta.url));
 
@@ -167,12 +163,7 @@ describe('agent CLI webview commands', () => {
     console.log = log;
 
     try {
-      await runAgentCli([
-        'webview',
-        'start',
-        '--backend',
-        process.platform === 'darwin' ? 'webkit' : 'chrome',
-      ]);
+      await runAgentCli(['webview', 'start', '--backend', process.platform === 'darwin' ? 'webkit' : 'chrome']);
 
       if (JSON.parse(log.mock.calls[0]?.[0] as string).ok === false) {
         return;
@@ -222,12 +213,7 @@ describe('agent CLI webview commands', () => {
     console.log = log;
 
     try {
-      await runAgentCli([
-        'webview',
-        'start',
-        '--backend',
-        process.platform === 'darwin' ? 'webkit' : 'chrome',
-      ]);
+      await runAgentCli(['webview', 'start', '--backend', process.platform === 'darwin' ? 'webkit' : 'chrome']);
 
       if (JSON.parse(log.mock.calls[0]?.[0] as string).ok === false) {
         return;
@@ -261,23 +247,13 @@ describe('agent CLI webview commands', () => {
     console.log = log;
 
     try {
-      await runAgentCli([
-        'webview',
-        'start',
-        '--backend',
-        process.platform === 'darwin' ? 'webkit' : 'chrome',
-      ]);
+      await runAgentCli(['webview', 'start', '--backend', process.platform === 'darwin' ? 'webkit' : 'chrome']);
 
       if (JSON.parse(log.mock.calls[0]?.[0] as string).ok === false) {
         return;
       }
 
-      await runAgentCli([
-        'webview',
-        'evaluate',
-        '--file',
-        scriptPath,
-      ]);
+      await runAgentCli(['webview', 'evaluate', '--file', scriptPath]);
     } finally {
       console.log = originalLog;
     }
@@ -485,7 +461,18 @@ describe('agent CLI webview commands', () => {
     const pidPath = join(workspaceRoot, `daemon-${port}.pid`);
 
     const proc = Bun.spawn({
-      cmd: ['bun', 'run', cliIndexPath, 'serve', '--daemon', '--no-open', `--port=${port}`, `--log-file=${logPath}`, `--pid-file=${pidPath}`, '--wait-ms=15000'],
+      cmd: [
+        'bun',
+        'run',
+        cliIndexPath,
+        'serve',
+        '--daemon',
+        '--no-open',
+        `--port=${port}`,
+        `--log-file=${logPath}`,
+        `--pid-file=${pidPath}`,
+        '--wait-ms=15000',
+      ],
       cwd: workspaceRoot,
       stdout: 'pipe',
       stderr: 'pipe',
@@ -530,7 +517,18 @@ describe('agent CLI webview commands', () => {
     const pidPath = join(workspaceRoot, `status-stop-${port}.pid`);
 
     const startProc = Bun.spawn({
-      cmd: ['bun', 'run', cliIndexPath, 'serve', '--daemon', '--no-open', `--port=${port}`, `--log-file=${logPath}`, `--pid-file=${pidPath}`, '--wait-ms=15000'],
+      cmd: [
+        'bun',
+        'run',
+        cliIndexPath,
+        'serve',
+        '--daemon',
+        '--no-open',
+        `--port=${port}`,
+        `--log-file=${logPath}`,
+        `--pid-file=${pidPath}`,
+        '--wait-ms=15000',
+      ],
       cwd: workspaceRoot,
       stdout: 'pipe',
       stderr: 'pipe',
@@ -547,7 +545,16 @@ describe('agent CLI webview commands', () => {
     expect(started.pid).toBeGreaterThan(0);
 
     const statusProc = Bun.spawn({
-      cmd: ['bun', 'run', cliIndexPath, 'serve', 'status', `--port=${port}`, `--log-file=${logPath}`, `--pid-file=${pidPath}`],
+      cmd: [
+        'bun',
+        'run',
+        cliIndexPath,
+        'serve',
+        'status',
+        `--port=${port}`,
+        `--log-file=${logPath}`,
+        `--pid-file=${pidPath}`,
+      ],
       cwd: workspaceRoot,
       stdout: 'pipe',
       stderr: 'pipe',
@@ -571,7 +578,17 @@ describe('agent CLI webview commands', () => {
     expect(statusPayload.pidRunning).toBe(true);
 
     const stopProc = Bun.spawn({
-      cmd: ['bun', 'run', cliIndexPath, 'serve', 'stop', `--port=${port}`, `--log-file=${logPath}`, `--pid-file=${pidPath}`, '--wait-ms=15000'],
+      cmd: [
+        'bun',
+        'run',
+        cliIndexPath,
+        'serve',
+        'stop',
+        `--port=${port}`,
+        `--log-file=${logPath}`,
+        `--pid-file=${pidPath}`,
+        '--wait-ms=15000',
+      ],
       cwd: workspaceRoot,
       stdout: 'pipe',
       stderr: 'pipe',

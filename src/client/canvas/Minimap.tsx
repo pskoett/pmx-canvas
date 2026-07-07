@@ -108,14 +108,7 @@ interface MinimapProps {
   containerHeight: number;
 }
 
-export function Minimap({
-  viewport,
-  nodes,
-  edges,
-  onNavigate,
-  containerWidth,
-  containerHeight,
-}: MinimapProps) {
+export function Minimap({ viewport, nodes, edges, onNavigate, containerWidth, containerHeight }: MinimapProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDragging = useRef(false);
   const frameRef = useRef<MinimapFrame | null>(null);
@@ -216,12 +209,15 @@ export function Minimap({
     scheduleDraw();
   }, [containerWidth, containerHeight, scheduleDraw]);
 
-  useEffect(() => () => {
-    if (drawRafId.current !== null) {
-      window.cancelAnimationFrame(drawRafId.current);
-      drawRafId.current = null;
-    }
-  }, []);
+  useEffect(
+    () => () => {
+      if (drawRafId.current !== null) {
+        window.cancelAnimationFrame(drawRafId.current);
+        drawRafId.current = null;
+      }
+    },
+    [],
+  );
 
   const handleNavigateFromEvent = useCallback(
     (e: MouseEvent | PointerEvent) => {
@@ -233,8 +229,7 @@ export function Minimap({
       const my = e.clientY - rect.top;
 
       const frame =
-        frameRef.current
-        ?? computeMinimapFrame(nodes.value, viewport.value, containerWidth, containerHeight);
+        frameRef.current ?? computeMinimapFrame(nodes.value, viewport.value, containerWidth, containerHeight);
       frameRef.current = frame;
       const { bounds, scale } = frame;
 

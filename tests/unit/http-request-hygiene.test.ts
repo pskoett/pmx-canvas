@@ -30,7 +30,7 @@ test('malformed JSON body returns 400 on a legacy route', async () => {
     body: '{"x": 1,',
   });
   expect(res.status).toBe(400);
-  const body = await res.json() as { ok?: boolean; error?: string };
+  const body = (await res.json()) as { ok?: boolean; error?: string };
   expect(body.ok).toBe(false);
   expect(body.error).toContain('Malformed');
 });
@@ -42,7 +42,7 @@ test('malformed JSON body returns 400 on a registry route', async () => {
     body: '{not json',
   });
   expect(res.status).toBe(400);
-  const body = await res.json() as { ok?: boolean; error?: string };
+  const body = (await res.json()) as { ok?: boolean; error?: string };
   expect(body.ok).toBe(false);
   expect(body.error).toContain('Malformed');
 });
@@ -59,7 +59,7 @@ test('a bare-array batch body still works (issue #49 non-regression)', async () 
     body: JSON.stringify([{ op: 'node.add', args: { type: 'markdown', title: 'batch bare', content: 'x' } }]),
   });
   expect(res.status).toBe(200);
-  const body = await res.json() as { ok?: boolean; results?: unknown[] };
+  const body = (await res.json()) as { ok?: boolean; results?: unknown[] };
   expect(body.ok).toBe(true);
   expect(body.results?.length).toBe(1);
 });
@@ -71,7 +71,7 @@ test('a malformed batch body returns 400, not a partial-failure envelope', async
     body: '[{"op":"node.add",',
   });
   expect(res.status).toBe(400);
-  const body = await res.json() as { ok?: boolean; error?: string };
+  const body = (await res.json()) as { ok?: boolean; error?: string };
   expect(body.ok).toBe(false);
   expect(body.error).toContain('Malformed');
 });
@@ -88,10 +88,10 @@ test('HTTP search honors the limit parameter', async () => {
 
   const limited = await fetch(`${baseUrl}/api/canvas/search?q=hygiene-needle&limit=2`);
   expect(limited.status).toBe(200);
-  const limitedBody = await limited.json() as { results: unknown[] };
+  const limitedBody = (await limited.json()) as { results: unknown[] };
   expect(limitedBody.results.length).toBe(2);
 
   const unlimited = await fetch(`${baseUrl}/api/canvas/search?q=hygiene-needle`);
-  const unlimitedBody = await unlimited.json() as { results: unknown[] };
+  const unlimitedBody = (await unlimited.json()) as { results: unknown[] };
   expect(unlimitedBody.results.length).toBeGreaterThanOrEqual(3);
 });

@@ -23,7 +23,9 @@ export const allComponentDefinitions = {
   Badge: {
     ...badgeDefinition,
     props: badgeDefinition.props.extend({
-      variant: z.enum(['default', 'secondary', 'destructive', 'outline', 'success', 'info', 'warning', 'error', 'danger']).nullable(),
+      variant: z
+        .enum(['default', 'secondary', 'destructive', 'outline', 'success', 'info', 'warning', 'error', 'danger'])
+        .nullable(),
     }),
   },
   Button: {
@@ -40,9 +42,12 @@ export const allComponentDefinitions = {
   ...tufteChartComponentDefinitions,
 };
 
-export const catalog = defineCatalog(schema as never, {
-  components: allComponentDefinitions,
-} as never);
+export const catalog = defineCatalog(
+  schema as never,
+  {
+    components: allComponentDefinitions,
+  } as never,
+);
 
 export interface JsonRenderIssue {
   path?: PropertyKey[];
@@ -134,12 +139,7 @@ function unwrapSchema(value: unknown): {
 
     const record = asRecord(current);
     const def = asRecord(record?._def) ?? asRecord(record?.def);
-    const inner =
-      def?.innerType ??
-      def?.schema ??
-      def?.type ??
-      def?.out ??
-      def?.in;
+    const inner = def?.innerType ?? def?.schema ?? def?.type ?? def?.out ?? def?.in;
 
     if (!inner || inner === current || (!isOptionalSchema(current) && !isNullableSchema(current))) {
       break;
@@ -178,9 +178,7 @@ function schemaTypeLabel(value: unknown): string {
         : Array.isArray(def?.options)
           ? def.options
           : [];
-    label = rawValues.length > 0
-      ? rawValues.map((entry) => JSON.stringify(entry)).join(' | ')
-      : 'enum';
+    label = rawValues.length > 0 ? rawValues.map((entry) => JSON.stringify(entry)).join(' | ') : 'enum';
   } else if (typeName === 'ZodLiteral' || typeName === 'literal') {
     label = JSON.stringify(def?.value ?? def?.literal ?? 'literal');
   } else if (typeName === 'ZodAny' || typeName === 'any') {
@@ -255,9 +253,7 @@ export function validateShadcnElementProps(spec: unknown): JsonRenderValidationR
     if (!definition || !hasSafeParse(definition.props)) continue;
 
     const elementProps = asRecord(element.props) ?? {};
-    const parsed = definition.props.safeParse(
-      normalizePropsForSchema(definition.props, elementProps),
-    );
+    const parsed = definition.props.safeParse(normalizePropsForSchema(definition.props, elementProps));
     if (parsed.success) continue;
 
     for (const issue of parsed.error?.issues ?? []) {

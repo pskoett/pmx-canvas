@@ -332,20 +332,22 @@ async function main(): Promise<void> {
       mimeType: RESOURCE_MIME_TYPE,
     },
     async () => ({
-      contents: [{
-        uri: resourceUri,
-        mimeType: RESOURCE_MIME_TYPE,
-        text: html,
-        _meta: {
-          ui: {
-            prefersBorder: true,
-            csp: {
-              resourceDomains: ['https://esm.sh'],
-              connectDomains: ['https://esm.sh'],
+      contents: [
+        {
+          uri: resourceUri,
+          mimeType: RESOURCE_MIME_TYPE,
+          text: html,
+          _meta: {
+            ui: {
+              prefersBorder: true,
+              csp: {
+                resourceDomains: ['https://esm.sh'],
+                connectDomains: ['https://esm.sh'],
+              },
             },
           },
         },
-      }],
+      ],
     }),
   );
 

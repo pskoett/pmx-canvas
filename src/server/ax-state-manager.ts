@@ -251,8 +251,16 @@ export class AxStateManager {
     this.deps.recordMutation({
       operationType: 'addWorkItem',
       description: `Added work item "${item.title}"`,
-      forward: this.deps.suppressed(() => { this.applyAxState(applied); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
-      inverse: this.deps.suppressed(() => { this.applyAxState(oldAxState); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
+      forward: this.deps.suppressed(() => {
+        this.applyAxState(applied);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
+      inverse: this.deps.suppressed(() => {
+        this.applyAxState(oldAxState);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
     });
     return applied.workItems.find((w) => w.id === item.id) ?? item;
   }
@@ -282,8 +290,16 @@ export class AxStateManager {
     this.deps.recordMutation({
       operationType: 'updateWorkItem',
       description: `Updated work item ${id}`,
-      forward: this.deps.suppressed(() => { this.applyAxState(applied); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
-      inverse: this.deps.suppressed(() => { this.applyAxState(oldAxState); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
+      forward: this.deps.suppressed(() => {
+        this.applyAxState(applied);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
+      inverse: this.deps.suppressed(() => {
+        this.applyAxState(oldAxState);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
     });
     return applied.workItems.find((w) => w.id === id) ?? null;
   }
@@ -306,8 +322,16 @@ export class AxStateManager {
     this.deps.recordMutation({
       operationType: 'requestApproval',
       description: `Requested approval "${gate.title}"`,
-      forward: this.deps.suppressed(() => { this.applyAxState(applied); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
-      inverse: this.deps.suppressed(() => { this.applyAxState(oldAxState); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
+      forward: this.deps.suppressed(() => {
+        this.applyAxState(applied);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
+      inverse: this.deps.suppressed(() => {
+        this.applyAxState(oldAxState);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
     });
     return applied.approvalGates.find((g) => g.id === gate.id) ?? gate;
   }
@@ -334,8 +358,16 @@ export class AxStateManager {
     this.deps.recordMutation({
       operationType: 'resolveApproval',
       description: `Resolved approval ${id} -> ${decision}`,
-      forward: this.deps.suppressed(() => { this.applyAxState(applied); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
-      inverse: this.deps.suppressed(() => { this.applyAxState(oldAxState); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
+      forward: this.deps.suppressed(() => {
+        this.applyAxState(applied);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
+      inverse: this.deps.suppressed(() => {
+        this.applyAxState(oldAxState);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
     });
     return applied.approvalGates.find((g) => g.id === id) ?? null;
   }
@@ -381,8 +413,16 @@ export class AxStateManager {
     this.deps.recordMutation({
       operationType: 'addReviewAnnotation',
       description: `Added review ${annotation.kind} (${annotation.severity})`,
-      forward: this.deps.suppressed(() => { this.applyAxState(applied); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
-      inverse: this.deps.suppressed(() => { this.applyAxState(oldAxState); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
+      forward: this.deps.suppressed(() => {
+        this.applyAxState(applied);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
+      inverse: this.deps.suppressed(() => {
+        this.applyAxState(oldAxState);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
     });
     return applied.reviewAnnotations.find((r) => r.id === annotation.id) ?? annotation;
   }
@@ -411,8 +451,16 @@ export class AxStateManager {
     this.deps.recordMutation({
       operationType: 'updateReviewAnnotation',
       description: `Updated review ${id}`,
-      forward: this.deps.suppressed(() => { this.applyAxState(applied); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
-      inverse: this.deps.suppressed(() => { this.applyAxState(oldAxState); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
+      forward: this.deps.suppressed(() => {
+        this.applyAxState(applied);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
+      inverse: this.deps.suppressed(() => {
+        this.applyAxState(oldAxState);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
     });
     return applied.reviewAnnotations.find((r) => r.id === id) ?? null;
   }
@@ -440,8 +488,16 @@ export class AxStateManager {
     this.deps.recordMutation({
       operationType: 'requestElicitation',
       description: `Requested elicitation "${elicitation.prompt}"`,
-      forward: this.deps.suppressed(() => { this.applyAxState(applied); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
-      inverse: this.deps.suppressed(() => { this.applyAxState(oldAxState); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
+      forward: this.deps.suppressed(() => {
+        this.applyAxState(applied);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
+      inverse: this.deps.suppressed(() => {
+        this.applyAxState(oldAxState);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
     });
     return applied.elicitations.find((e) => e.id === elicitation.id) ?? elicitation;
   }
@@ -468,8 +524,16 @@ export class AxStateManager {
     this.deps.recordMutation({
       operationType: 'respondElicitation',
       description: `Answered elicitation ${id}`,
-      forward: this.deps.suppressed(() => { this.applyAxState(applied); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
-      inverse: this.deps.suppressed(() => { this.applyAxState(oldAxState); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
+      forward: this.deps.suppressed(() => {
+        this.applyAxState(applied);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
+      inverse: this.deps.suppressed(() => {
+        this.applyAxState(oldAxState);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
     });
     return applied.elicitations.find((e) => e.id === id) ?? null;
   }
@@ -492,8 +556,16 @@ export class AxStateManager {
     this.deps.recordMutation({
       operationType: 'requestMode',
       description: `Requested mode "${request.mode}"`,
-      forward: this.deps.suppressed(() => { this.applyAxState(applied); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
-      inverse: this.deps.suppressed(() => { this.applyAxState(oldAxState); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
+      forward: this.deps.suppressed(() => {
+        this.applyAxState(applied);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
+      inverse: this.deps.suppressed(() => {
+        this.applyAxState(oldAxState);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
     });
     return applied.modeRequests.find((m) => m.id === request.id) ?? request;
   }
@@ -520,8 +592,16 @@ export class AxStateManager {
     this.deps.recordMutation({
       operationType: 'resolveModeRequest',
       description: `Resolved mode request ${id} -> ${decision}`,
-      forward: this.deps.suppressed(() => { this.applyAxState(applied); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
-      inverse: this.deps.suppressed(() => { this.applyAxState(oldAxState); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
+      forward: this.deps.suppressed(() => {
+        this.applyAxState(applied);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
+      inverse: this.deps.suppressed(() => {
+        this.applyAxState(oldAxState);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
     });
     return applied.modeRequests.find((m) => m.id === id) ?? null;
   }
@@ -544,10 +624,19 @@ export class AxStateManager {
   }
 
   /** Invoke a registry-gated PMX command intent — records a timeline event (no execution). */
-  invokeCommand(name: string, args: Record<string, unknown> | null = null, options: { source?: PmxAxSource } = {}): PmxAxEvent | null {
+  invokeCommand(
+    name: string,
+    args: Record<string, unknown> | null = null,
+    options: { source?: PmxAxSource } = {},
+  ): PmxAxEvent | null {
     if (!isAxCommand(name)) return null;
     return this.recordAxEvent(
-      { kind: 'command', summary: name, detail: AX_COMMAND_REGISTRY[name].description, data: { command: name, ...(args ? { args } : {}) } },
+      {
+        kind: 'command',
+        summary: name,
+        detail: AX_COMMAND_REGISTRY[name].description,
+        data: { command: name, ...(args ? { args } : {}) },
+      },
       options,
     );
   }
@@ -573,18 +662,25 @@ export class AxStateManager {
     this.deps.recordMutation({
       operationType: 'setPolicy',
       description: 'Updated AX policy',
-      forward: this.deps.suppressed(() => { this.applyAxState(applied); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
-      inverse: this.deps.suppressed(() => { this.applyAxState(oldAxState); this.deps.scheduleSave(); this.deps.notifyChange('ax'); }),
+      forward: this.deps.suppressed(() => {
+        this.applyAxState(applied);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
+      inverse: this.deps.suppressed(() => {
+        this.applyAxState(oldAxState);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
     });
     return applied.policy;
   }
 
   setHostCapability(input: unknown, _options: { source?: PmxAxSource } = {}): PmxAxHostCapability {
-    const cap = normalizeAxHostCapability(
-      isRecord(input)
-        ? { ...input, reportedAt: new Date().toISOString() }
-        : { reportedAt: new Date().toISOString() },
-    ) ?? createEmptyAxHostCapability();
+    const cap =
+      normalizeAxHostCapability(
+        isRecord(input) ? { ...input, reportedAt: new Date().toISOString() } : { reportedAt: new Date().toISOString() },
+      ) ?? createEmptyAxHostCapability();
     this._axHostCapability = cap;
     const db = this.deps.getDb();
     if (db) {
@@ -600,7 +696,13 @@ export class AxStateManager {
 
   // ── Timeline (DB-direct; NOT in _axState; NOT history-recorded) ───
   recordAxEvent(
-    input: { kind: PmxAxEventKind; summary: string; detail?: string | null; nodeIds?: string[]; data?: Record<string, unknown> | null },
+    input: {
+      kind: PmxAxEventKind;
+      summary: string;
+      detail?: string | null;
+      nodeIds?: string[];
+      data?: Record<string, unknown> | null;
+    },
     options: { source?: PmxAxSource } = {},
   ): PmxAxEvent {
     const draft = createAxEvent(input, options.source ?? 'api');
@@ -619,7 +721,14 @@ export class AxStateManager {
   }
 
   addEvidence(
-    input: { kind: PmxAxEvidenceKind; title: string; body?: string | null; ref?: string | null; nodeIds?: string[]; data?: Record<string, unknown> | null },
+    input: {
+      kind: PmxAxEvidenceKind;
+      title: string;
+      body?: string | null;
+      ref?: string | null;
+      nodeIds?: string[];
+      data?: Record<string, unknown> | null;
+    },
     options: { source?: PmxAxSource } = {},
   ): PmxAxEvidence {
     const draft = createAxEvidence(input, options.source ?? 'api');
@@ -690,11 +799,23 @@ export class AxStateManager {
       reactions?: {
         workItem?: false | { status?: PmxAxWorkItemStatus; detail?: string | null };
         evidence?: false | { kind?: PmxAxEvidenceKind; body?: string | null };
-        review?: false | { severity?: PmxAxReviewSeverity; kind?: PmxAxReviewKind; anchorType?: PmxAxReviewAnchorType; nodeId?: string | null };
+        review?:
+          | false
+          | {
+              severity?: PmxAxReviewSeverity;
+              kind?: PmxAxReviewKind;
+              anchorType?: PmxAxReviewAnchorType;
+              nodeId?: string | null;
+            };
       };
     },
     options: { source?: PmxAxSource } = {},
-  ): { event: PmxAxEvent; workItem: PmxAxWorkItem | null; evidence: PmxAxEvidence | null; review: PmxAxReviewAnnotation | null } {
+  ): {
+    event: PmxAxEvent;
+    workItem: PmxAxWorkItem | null;
+    evidence: PmxAxEvidence | null;
+    review: PmxAxReviewAnnotation | null;
+  } {
     const source = options.source ?? 'api';
     const summary = input.summary ?? input.title;
     const isFailure = input.kind === 'failure' || input.kind === 'error' || input.outcome === 'failure';
@@ -726,15 +847,26 @@ export class AxStateManager {
     // (2) Resolve reactions: kind-driven defaults, overridable per call.
     const r = input.reactions ?? {};
     const wantWorkItem = r.workItem === false ? null : (r.workItem ?? (isFailure ? {} : null));
-    const wantEvidence = r.evidence === false
-      ? null
-      : (r.evidence ?? (isFailure ? { kind: 'logs' as PmxAxEvidenceKind } : isToolSuccess ? { kind: 'tool-result' as PmxAxEvidenceKind } : null));
+    const wantEvidence =
+      r.evidence === false
+        ? null
+        : (r.evidence ??
+          (isFailure
+            ? { kind: 'logs' as PmxAxEvidenceKind }
+            : isToolSuccess
+              ? { kind: 'tool-result' as PmxAxEvidenceKind }
+              : null));
     const wantReview = r.review === false ? null : (r.review ?? (isFailure ? {} : null));
 
     let workItem: PmxAxWorkItem | null = null;
     if (wantWorkItem) {
       workItem = this.addWorkItem(
-        { title: input.title, status: wantWorkItem.status ?? 'blocked', detail: wantWorkItem.detail ?? summary, nodeIds },
+        {
+          title: input.title,
+          status: wantWorkItem.status ?? 'blocked',
+          detail: wantWorkItem.detail ?? summary,
+          nodeIds,
+        },
         { source },
       );
     }
@@ -742,7 +874,13 @@ export class AxStateManager {
     let evidence: PmxAxEvidence | null = null;
     if (wantEvidence) {
       evidence = this.addEvidence(
-        { kind: wantEvidence.kind ?? 'logs', title: input.title, body: wantEvidence.body ?? input.summary ?? null, ref: input.ref ?? null, nodeIds },
+        {
+          kind: wantEvidence.kind ?? 'logs',
+          title: input.title,
+          body: wantEvidence.body ?? input.summary ?? null,
+          ref: input.ref ?? null,
+          nodeIds,
+        },
         { source },
       );
     }
@@ -816,7 +954,12 @@ export class AxStateManager {
       : { recentEvents: [], recentEvidence: [], pendingSteering: [], counts: { events: 0, evidence: 0, steering: 0 } };
   }
 
-  getAxTimeline(q: AxTimelineQuery = {}): { events: PmxAxEvent[]; evidence: PmxAxEvidence[]; steering: PmxAxSteeringMessage[]; summary: PmxAxTimelineSummary } {
+  getAxTimeline(q: AxTimelineQuery = {}): {
+    events: PmxAxEvent[];
+    evidence: PmxAxEvidence[];
+    steering: PmxAxSteeringMessage[];
+    summary: PmxAxTimelineSummary;
+  } {
     return {
       events: this.getAxEvents(q),
       evidence: this.getAxEvidence(q),

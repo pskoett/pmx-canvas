@@ -19,5 +19,5 @@ interface MinimapProps {
     containerWidth: number;
     containerHeight: number;
 }
-export declare function Minimap({ viewport, nodes, edges, onNavigate, containerWidth, containerHeight, }: MinimapProps): import("preact/src").JSX.Element;
+export declare function Minimap({ viewport, nodes, edges, onNavigate, containerWidth, containerHeight }: MinimapProps): import("preact/src").JSX.Element;
 export {};

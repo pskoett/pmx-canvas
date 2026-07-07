@@ -18,10 +18,7 @@ export interface OperationToolHost extends OperationMcpToolHost {
   invoker(): OperationInvoker;
 }
 
-export function registerOperationTools(
-  server: McpServer,
-  getHost: () => Promise<OperationToolHost>,
-): void {
+export function registerOperationTools(server: McpServer, getHost: () => Promise<OperationToolHost>): void {
   // Ops folded by a composite are NOT registered standalone: their legacy
   // single-purpose tools were removed in v0.3.0 (docs/api-stability.md). The op
   // itself is untouched — it stays reachable via its composite and canvas_batch.
@@ -191,32 +188,27 @@ export function registerCompositeTools(
   definitions: CompositeToolDefinition[] = compositeToolDefinitions,
 ): void {
   for (const def of definitions) {
-    server.tool(
-      def.toolName,
-      def.description,
-      buildCompositeShape(def),
-      async (input: Record<string, unknown>) => {
-        try {
-          const host = await getHost();
-          const opName = resolveCompositeOp(def, input);
-          const op = getOperation(opName);
-          // Strip the composite discriminators (action + any extra, e.g. `kind`)
-          // and undo any field remap; the rest is the op's raw MCP args — the same
-          // value the standalone tool would receive.
-          const rest = stripCompositeDiscriminators(def, input);
-          const opInput = op.mcp?.buildInput ? op.mcp.buildInput(rest) : rest;
-          const result = await host.invoker().invoke(opName, opInput);
-          if (op.mcp?.formatResult) {
-            return await op.mcp.formatResult(result, rest, host);
-          }
-          return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-        } catch (error) {
-          return {
-            content: [{ type: 'text' as const, text: error instanceof Error ? error.message : String(error) }],
-            isError: true,
-          };
+    server.tool(def.toolName, def.description, buildCompositeShape(def), async (input: Record<string, unknown>) => {
+      try {
+        const host = await getHost();
+        const opName = resolveCompositeOp(def, input);
+        const op = getOperation(opName);
+        // Strip the composite discriminators (action + any extra, e.g. `kind`)
+        // and undo any field remap; the rest is the op's raw MCP args — the same
+        // value the standalone tool would receive.
+        const rest = stripCompositeDiscriminators(def, input);
+        const opInput = op.mcp?.buildInput ? op.mcp.buildInput(rest) : rest;
+        const result = await host.invoker().invoke(opName, opInput);
+        if (op.mcp?.formatResult) {
+          return await op.mcp.formatResult(result, rest, host);
         }
-      },
-    );
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+      } catch (error) {
+        return {
+          content: [{ type: 'text' as const, text: error instanceof Error ? error.message : String(error) }],
+          isError: true,
+        };
+      }
+    });
   }
 }

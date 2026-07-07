@@ -19,11 +19,13 @@ export const AUTO_FIT_BODY_PADDING = 24;
  *  height bridge (use-iframe-content-height) instead; webpage intentionally
  *  scrolls. Excluding them from the DOM path is behaviour-neutral. */
 function isIframeNode(node: CanvasNodeState): boolean {
-  return node.type === 'html'
-    || node.type === 'json-render'
-    || node.type === 'graph'
-    || node.type === 'mcp-app'
-    || node.type === 'webpage';
+  return (
+    node.type === 'html' ||
+    node.type === 'json-render' ||
+    node.type === 'graph' ||
+    node.type === 'mcp-app' ||
+    node.type === 'webpage'
+  );
 }
 
 /** Authored iframe surfaces whose content has a bounded natural height — they may
@@ -39,11 +41,13 @@ function isContentFitSurface(node: CanvasNodeState): boolean {
 /** Shared exemptions: never auto-size a node the user/agent has fixed or a node
  *  whose height is controlled elsewhere. */
 function isAutoSizeExempt(node: CanvasNodeState): boolean {
-  return node.collapsed === true
-    || node.dockPosition != null
-    || node.data.strictSize === true
-    || node.data.userResized === true
-    || node.type === 'group';
+  return (
+    node.collapsed === true ||
+    node.dockPosition != null ||
+    node.data.strictSize === true ||
+    node.data.userResized === true ||
+    node.type === 'group'
+  );
 }
 
 /** DOM-content nodes (markdown/status/file/…) whose body scrollHeight is directly
@@ -71,9 +75,6 @@ export function shouldContentFitIframeNode(node: CanvasNodeState): boolean {
  */
 export function computeContentGrowHeight(node: CanvasNodeState, contentHeight: number): number | null {
   if (!shouldContentFitIframeNode(node) || contentHeight <= 0) return null;
-  const want = Math.min(
-    contentHeight + AUTO_FIT_TITLEBAR_HEIGHT + AUTO_FIT_BODY_PADDING,
-    AUTO_FIT_MAX_HEIGHT_IFRAME,
-  );
+  const want = Math.min(contentHeight + AUTO_FIT_TITLEBAR_HEIGHT + AUTO_FIT_BODY_PADDING, AUTO_FIT_MAX_HEIGHT_IFRAME);
   return want > node.size.height + 8 ? want : null;
 }

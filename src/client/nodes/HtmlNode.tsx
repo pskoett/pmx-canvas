@@ -16,7 +16,13 @@ export function HtmlNode({
   presentation = false,
   presentationExitToken,
   autoFocus = false,
-}: { node: CanvasNodeState; expanded?: boolean; presentation?: boolean; presentationExitToken?: string; autoFocus?: boolean }) {
+}: {
+  node: CanvasNodeState;
+  expanded?: boolean;
+  presentation?: boolean;
+  presentationExitToken?: string;
+  autoFocus?: boolean;
+}) {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const theme = canvasTheme.value;
   // Stable per-mount nonce that authorizes parent → iframe theme-update messages.
@@ -25,11 +31,12 @@ export function HtmlNode({
   const axToken = useMemo(() => `ax-${crypto.randomUUID()}`, []);
   // Per-mount nonce for the content-height reporter (node grows to fit content).
   const frameToken = useMemo(() => `frame-${crypto.randomUUID()}`, []);
-  const html = typeof node.data.html === 'string'
-    ? node.data.html
-    : typeof node.data.content === 'string'
-      ? node.data.content
-      : '';
+  const html =
+    typeof node.data.html === 'string'
+      ? node.data.html
+      : typeof node.data.content === 'string'
+        ? node.data.content
+        : '';
   const v = useMemo(() => surfaceContentHash(html), [html]);
 
   // The in-canvas iframe and the "Open as site" tab load the SAME server-rendered
@@ -38,9 +45,18 @@ export function HtmlNode({
   // via postMessage below (no reload), while `v` reloads the frame when the HTML
   // itself changes.
   const surfaceSrc = useMemo(
-    () => (html
-      ? nodeSurfaceUrl(node.id, { theme, themeToken, present: presentation, presentToken: presentationExitToken, v, axToken, frameToken })
-      : ''),
+    () =>
+      html
+        ? nodeSurfaceUrl(node.id, {
+            theme,
+            themeToken,
+            present: presentation,
+            presentToken: presentationExitToken,
+            v,
+            axToken,
+            frameToken,
+          })
+        : '',
     [html, presentation, presentationExitToken, themeToken, v, node.id, axToken, frameToken],
   );
 
@@ -57,7 +73,10 @@ export function HtmlNode({
       // nodeId are a second gate, not the only one.
       if (event.source !== iframeRef.current?.contentWindow) return;
       const data = event.data as {
-        source?: string; token?: string; nodeId?: string; correlationId?: string;
+        source?: string;
+        token?: string;
+        nodeId?: string;
+        correlationId?: string;
         interaction?: { type?: unknown; payload?: unknown };
       } | null;
       if (!data || data.source !== 'pmx-canvas-ax' || data.token !== axToken || data.nodeId !== node.id) return;
@@ -75,13 +94,16 @@ export function HtmlNode({
         if (res.ok) showToast('context', 'AX interaction', interactionType, [node.id]);
         else showToast('remove', 'AX interaction rejected', res.error ?? res.code ?? '', [node.id]);
         // Report #55: ack back to the surface so it can self-confirm (e.g. "queued ✓").
-        iframeRef.current?.contentWindow?.postMessage({
-          source: 'pmx-canvas-ax-ack',
-          token: axToken,
-          ...(data.correlationId ? { correlationId: data.correlationId } : {}),
-          interaction: { type: interactionType },
-          result: res,
-        }, '*');
+        iframeRef.current?.contentWindow?.postMessage(
+          {
+            source: 'pmx-canvas-ax-ack',
+            token: axToken,
+            ...(data.correlationId ? { correlationId: data.correlationId } : {}),
+            interaction: { type: interactionType },
+            result: res,
+          },
+          '*',
+        );
       });
     }
     window.addEventListener('message', onAxMessage);
@@ -89,12 +111,15 @@ export function HtmlNode({
   }, [axToken, node.id]);
 
   useEffect(() => {
-    iframeRef.current?.contentWindow?.postMessage({
-      source: 'pmx-canvas-html-node',
-      type: 'theme-update',
-      token: themeToken,
-      theme,
-    }, '*');
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        source: 'pmx-canvas-html-node',
+        type: 'theme-update',
+        token: themeToken,
+        theme,
+      },
+      '*',
+    );
     if (autoFocus) iframeRef.current?.focus();
   }, [theme, themeToken]);
 
@@ -107,12 +132,15 @@ export function HtmlNode({
   const axStateValue = axSurfaceState.value;
   useEffect(() => {
     if (!axEnabled || axStateValue == null) return;
-    iframeRef.current?.contentWindow?.postMessage({
-      source: 'pmx-canvas-html-node',
-      type: 'ax-update',
-      token: axToken,
-      state: axStateValue,
-    }, '*');
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        source: 'pmx-canvas-html-node',
+        type: 'ax-update',
+        token: axToken,
+        state: axStateValue,
+      },
+      '*',
+    );
   }, [axEnabled, axStateValue, axToken]);
 
   useEffect(() => {
@@ -122,29 +150,31 @@ export function HtmlNode({
   }, [autoFocus, surfaceSrc]);
 
   const handleFrameLoad = () => {
-    iframeRef.current?.contentWindow?.postMessage({
-      source: 'pmx-canvas-html-node',
-      type: 'theme-update',
-      token: themeToken,
-      theme,
-    }, '*');
-    if (axEnabled && axSurfaceState.value != null) {
-      iframeRef.current?.contentWindow?.postMessage({
+    iframeRef.current?.contentWindow?.postMessage(
+      {
         source: 'pmx-canvas-html-node',
-        type: 'ax-update',
-        token: axToken,
-        state: axSurfaceState.value,
-      }, '*');
+        type: 'theme-update',
+        token: themeToken,
+        theme,
+      },
+      '*',
+    );
+    if (axEnabled && axSurfaceState.value != null) {
+      iframeRef.current?.contentWindow?.postMessage(
+        {
+          source: 'pmx-canvas-html-node',
+          type: 'ax-update',
+          token: axToken,
+          state: axSurfaceState.value,
+        },
+        '*',
+      );
     }
     if (autoFocus) iframeRef.current?.focus();
   };
 
   if (!html) {
-    return (
-      <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>
-        No HTML content set
-      </div>
-    );
+    return <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>No HTML content set</div>;
   }
 
   // SECURITY: sandbox is intentionally `allow-scripts` ONLY. Do NOT add

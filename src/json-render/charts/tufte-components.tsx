@@ -100,9 +100,7 @@ function ChartSparkline({ props }: BaseComponentProps<SparklineProps>) {
           role="img"
           aria-label={props.title ?? 'sparkline'}
         >
-          {props.fill && areaPath && (
-            <path d={areaPath} fill={stroke} fillOpacity={0.12} stroke="none" />
-          )}
+          {props.fill && areaPath && <path d={areaPath} fill={stroke} fillOpacity={0.12} stroke="none" />}
           {points.length > 1 && (
             <path d={linePath} fill="none" stroke={stroke} strokeWidth={1.5} vectorEffect="non-scaling-stroke" />
           )}
@@ -166,7 +164,13 @@ function ChartDotPlot({ props }: BaseComponentProps<DotPlotProps>) {
   return (
     <div ref={frameRef} className="pmx-chart pmx-chart--dot-plot" style={{ height }}>
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
-      <svg className="pmx-chart__dot-plot-svg" width="100%" height={rows.length * rowH} role="img" aria-label={props.title ?? 'dot plot'}>
+      <svg
+        className="pmx-chart__dot-plot-svg"
+        width="100%"
+        height={rows.length * rowH}
+        role="img"
+        aria-label={props.title ?? 'dot plot'}
+      >
         {rows.map((row, i) => {
           const cy = i * rowH + rowH / 2;
           // Reference rule runs from the axis origin to the dot, so the line's
@@ -245,12 +249,17 @@ function ChartBulletChart({ props }: BaseComponentProps<BulletChartProps>) {
   return (
     <div ref={frameRef} className="pmx-chart pmx-chart--bullet" style={{ height }}>
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
-      <svg className="pmx-chart__bullet-svg" width="100%" height={rows.length * rowH} role="img" aria-label={props.title ?? 'bullet chart'}>
+      <svg
+        className="pmx-chart__bullet-svg"
+        width="100%"
+        height={rows.length * rowH}
+        role="img"
+        aria-label={props.title ?? 'bullet chart'}
+      >
         {rows.map((row, i) => {
           const top = i * rowH;
           const cy = top + rowH / 2;
-          const domainMax =
-            Math.max(row.value, row.target ?? 0, ...(row.ranges ?? [0])) || 1;
+          const domainMax = Math.max(row.value, row.target ?? 0, ...(row.ranges ?? [0])) || 1;
           const ranges = row.ranges ?? [];
           const left = labelW + padX;
           const rightInset = padX;
@@ -261,9 +270,11 @@ function ChartBulletChart({ props }: BaseComponentProps<BulletChartProps>) {
           const barH = Math.min(20, rowH * 0.5);
           const measureH = barH * 0.4;
           // Qualitative bands: lightest (worst) to darkest (best) grayscale.
-          const bandShades = ['color-mix(in oklch, var(--muted) 35%, transparent)',
-                              'color-mix(in oklch, var(--muted) 60%, transparent)',
-                              'color-mix(in oklch, var(--muted) 90%, transparent)'];
+          const bandShades = [
+            'color-mix(in oklch, var(--muted) 35%, transparent)',
+            'color-mix(in oklch, var(--muted) 60%, transparent)',
+            'color-mix(in oklch, var(--muted) 90%, transparent)',
+          ];
           return (
             <g key={`${row.label}-${i}`}>
               <text x={labelW} y={cy} textAnchor="end" dominantBaseline="central" fontSize={12} fill={INK}>
@@ -285,7 +296,14 @@ function ChartBulletChart({ props }: BaseComponentProps<BulletChartProps>) {
               {/* Per-row scale ticks at each band boundary so the reader does not
                   compare bar lengths across rows that may be independently scaled. */}
               {ranges.map((hi, idx) => (
-                <text key={`tick-${idx}`} x={xAt(hi)} y={cy + barH / 2 + 10} textAnchor="middle" fontSize={9} fill={MUTED}>
+                <text
+                  key={`tick-${idx}`}
+                  x={xAt(hi)}
+                  y={cy + barH / 2 + 10}
+                  textAnchor="middle"
+                  fontSize={9}
+                  fill={MUTED}
+                >
                   {hi}
                 </text>
               ))}
@@ -345,7 +363,13 @@ function ChartSlopegraph({ props }: BaseComponentProps<SlopegraphProps>) {
   return (
     <div ref={frameRef} className="pmx-chart pmx-chart--slopegraph" style={{ height }}>
       {props.title && <div className="pmx-chart__title">{props.title}</div>}
-      <svg className="pmx-chart__slopegraph-svg" width="100%" height={plotH} role="img" aria-label={props.title ?? 'slopegraph'}>
+      <svg
+        className="pmx-chart__slopegraph-svg"
+        width="100%"
+        height={plotH}
+        role="img"
+        aria-label={props.title ?? 'slopegraph'}
+      >
         <text x={leftX} y={14} textAnchor="end" fontSize={12} fontWeight={600} fill={MUTED}>
           {props.beforeLabel ?? props.beforeKey}
         </text>
@@ -363,14 +387,7 @@ function ChartSlopegraph({ props }: BaseComponentProps<SlopegraphProps>) {
           const lineColor = props.colorByDirection ? (rose ? stroke : MUTED) : stroke;
           return (
             <g key={`${row.label}-${i}`}>
-              <line
-                x1={leftX}
-                y1={y1}
-                x2={rightX}
-                y2={y2}
-                stroke={lineColor}
-                strokeWidth={1.5}
-              />
+              <line x1={leftX} y1={y1} x2={rightX} y2={y2} stroke={lineColor} strokeWidth={1.5} />
               <circle cx={leftX} cy={y1} r={2.5} fill={lineColor} />
               <circle cx={rightX} cy={y2} r={2.5} fill={lineColor} />
               <text x={leftX - 8} y={y1} textAnchor="end" dominantBaseline="central" fontSize={11} fill={INK}>

@@ -254,10 +254,14 @@ export function diffLayouts(
     const changes: string[] = [];
 
     if (snapNode.position.x !== curNode.position.x || snapNode.position.y !== curNode.position.y) {
-      changes.push(`moved (${snapNode.position.x},${snapNode.position.y}) → (${curNode.position.x},${curNode.position.y})`);
+      changes.push(
+        `moved (${snapNode.position.x},${snapNode.position.y}) → (${curNode.position.x},${curNode.position.y})`,
+      );
     }
     if (snapNode.size.width !== curNode.size.width || snapNode.size.height !== curNode.size.height) {
-      changes.push(`resized ${snapNode.size.width}x${snapNode.size.height} → ${curNode.size.width}x${curNode.size.height}`);
+      changes.push(
+        `resized ${snapNode.size.width}x${snapNode.size.height} → ${curNode.size.width}x${curNode.size.height}`,
+      );
     }
     if (snapNode.collapsed !== curNode.collapsed) {
       changes.push(curNode.collapsed ? 'collapsed' : 'expanded');
@@ -314,8 +318,12 @@ export function diffLayouts(
 export function formatDiff(diff: SnapshotDiffResult): string {
   const lines: string[] = [`Diff: current canvas vs snapshot "${diff.snapshotName}"`, ''];
 
-  const total = diff.addedNodes.length + diff.removedNodes.length + diff.modifiedNodes.length
-    + diff.addedEdges.length + diff.removedEdges.length;
+  const total =
+    diff.addedNodes.length +
+    diff.removedNodes.length +
+    diff.modifiedNodes.length +
+    diff.addedEdges.length +
+    diff.removedEdges.length;
 
   if (total === 0) {
     lines.push('No differences — canvas matches the snapshot exactly.');
@@ -365,7 +373,9 @@ export function formatDiff(diff: SnapshotDiffResult): string {
     lines.push('');
   }
 
-  lines.push(`Summary: +${diff.addedNodes.length} -${diff.removedNodes.length} ~${diff.modifiedNodes.length} nodes, +${diff.addedEdges.length} -${diff.removedEdges.length} edges`);
+  lines.push(
+    `Summary: +${diff.addedNodes.length} -${diff.removedNodes.length} ~${diff.modifiedNodes.length} nodes, +${diff.addedEdges.length} -${diff.removedEdges.length} edges`,
+  );
 
   return lines.join('\n');
 }

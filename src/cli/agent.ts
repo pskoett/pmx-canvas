@@ -72,9 +72,7 @@ interface CanvasSchemaResponse {
     components: JsonRenderComponentSchema[];
   };
   graph: {
-    graphTypes: Array<
-      'line' | 'bar' | 'pie' | 'area' | 'scatter' | 'radar' | 'stacked-bar' | 'composed'
-    >;
+    graphTypes: Array<'line' | 'bar' | 'pie' | 'area' | 'scatter' | 'radar' | 'stacked-bar' | 'composed'>;
   };
   htmlPrimitives?: Array<{
     kind: string;
@@ -151,10 +149,7 @@ async function api(
   if (!res.ok) {
     if (options?.allowErrorJson) return json;
     const err = json as Record<string, unknown>;
-    die(
-      err.error ? String(err.error) : `HTTP ${res.status}`,
-      typeof err.hint === 'string' ? err.hint : undefined,
-    );
+    die(err.error ? String(err.error) : `HTTP ${res.status}`, typeof err.hint === 'string' ? err.hint : undefined);
   }
   return json;
 }
@@ -186,10 +181,38 @@ function parseFlags(args: string[]): { positional: string[]; flags: Record<strin
   const flags: Record<string, string | true> = {};
   // Boolean-only flags (never take a value argument)
   const BOOL_FLAGS = new Set([
-    'help', 'h', 'ids', 'stdin', 'yes', 'list', 'clear', 'set', 'animated', 'dry-run', 'all',
-    'no-open-in-canvas', 'lock-arrange', 'unlock-arrange', 'json', 'compact',
-    'verbose', 'include-logs', 'no-pan', 'schema', 'example', 'examples', 'strict-size', 'scroll-overflow',
-    'report', 'canvas', 'hooks', 'tools', 'session-messaging', 'permissions', 'files', 'ui-prompts',
+    'help',
+    'h',
+    'ids',
+    'stdin',
+    'yes',
+    'list',
+    'clear',
+    'set',
+    'animated',
+    'dry-run',
+    'all',
+    'no-open-in-canvas',
+    'lock-arrange',
+    'unlock-arrange',
+    'json',
+    'compact',
+    'verbose',
+    'include-logs',
+    'no-pan',
+    'schema',
+    'example',
+    'examples',
+    'strict-size',
+    'scroll-overflow',
+    'report',
+    'canvas',
+    'hooks',
+    'tools',
+    'session-messaging',
+    'permissions',
+    'files',
+    'ui-prompts',
   ]);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
@@ -228,10 +251,7 @@ function requireFlag(flags: Record<string, string | true>, name: string, hint: s
   return val;
 }
 
-function getStringFlag(
-  flags: Record<string, string | true>,
-  ...names: string[]
-): string | undefined {
+function getStringFlag(flags: Record<string, string | true>, ...names: string[]): string | undefined {
   for (const name of names) {
     const value = flags[name];
     if (typeof value === 'string' && value.length > 0) return value;
@@ -269,7 +289,11 @@ function optionalFiniteFlag(flags: Record<string, string | true>, name: string, 
   return parsed;
 }
 
-function optionalPositiveFiniteFlag(flags: Record<string, string | true>, name: string, hint: string): number | undefined {
+function optionalPositiveFiniteFlag(
+  flags: Record<string, string | true>,
+  name: string,
+  hint: string,
+): number | undefined {
   const parsed = optionalFiniteFlag(flags, name, hint);
   if (parsed === undefined) return undefined;
   if (parsed <= 0) {
@@ -411,14 +435,14 @@ function collectFlagValues(args: string[], name: string): string[] {
   return values;
 }
 
-function collectRequestedFields(
-  args: string[],
-  flags: Record<string, string | true>,
-): string[] {
+function collectRequestedFields(args: string[], flags: Record<string, string | true>): string[] {
   const requested = [
     ...collectFlagValues(args, 'field'),
-    ...((typeof flags.fields === 'string')
-      ? flags.fields.split(',').map((value) => value.trim()).filter(Boolean)
+    ...(typeof flags.fields === 'string'
+      ? flags.fields
+          .split(',')
+          .map((value) => value.trim())
+          .filter(Boolean)
       : []),
   ];
   return Array.from(new Set(requested));
@@ -453,9 +477,7 @@ function listAvailableNodeFields(node: Record<string, unknown>): string[] {
 }
 
 function summarizeHistoryResult(result: Record<string, unknown>): Record<string, unknown> {
-  const entries = Array.isArray(result.entries)
-    ? result.entries.filter(isRecord)
-    : [];
+  const entries = Array.isArray(result.entries) ? result.entries.filter(isRecord) : [];
   const countsByOperation: Record<string, number> = {};
   let currentIndex = 0;
 
@@ -483,9 +505,7 @@ function summarizeHistoryResult(result: Record<string, unknown>): Record<string,
 }
 
 function compactHistoryResult(result: Record<string, unknown>): Record<string, unknown> {
-  const entries = Array.isArray(result.entries)
-    ? result.entries.filter(isRecord)
-    : [];
+  const entries = Array.isArray(result.entries) ? result.entries.filter(isRecord) : [];
   return {
     totalMutations: entries.length,
     canUndo: result.canUndo === true,
@@ -504,10 +524,7 @@ function parseRecordArrayJson(raw: string, hint: string): Array<Record<string, u
   try {
     parsed = JSON.parse(raw);
   } catch (error) {
-    die(
-      `Invalid JSON dataset: ${error instanceof Error ? error.message : String(error)}`,
-      hint,
-    );
+    die(`Invalid JSON dataset: ${error instanceof Error ? error.message : String(error)}`, hint);
   }
 
   if (!Array.isArray(parsed) || parsed.some((item) => !isRecord(item))) {
@@ -521,10 +538,7 @@ function parseJsonValue(raw: string, label: string, hint: string): unknown {
   try {
     return JSON.parse(raw);
   } catch (error) {
-    die(
-      `Invalid ${label}: ${error instanceof Error ? error.message : String(error)}`,
-      hint,
-    );
+    die(`Invalid ${label}: ${error instanceof Error ? error.message : String(error)}`, hint);
   }
 }
 
@@ -553,10 +567,7 @@ async function readTextInput(
     try {
       return readFileSync(path, 'utf-8');
     } catch (error) {
-      die(
-        `Unable to read --${name}: ${error instanceof Error ? error.message : String(error)}`,
-        options.hint,
-      );
+      die(`Unable to read --${name}: ${error instanceof Error ? error.message : String(error)}`, options.hint);
     }
   }
 
@@ -588,10 +599,7 @@ async function readOptionalTextInput(
     try {
       return readFileSync(path, 'utf-8');
     } catch (error) {
-      die(
-        `Unable to read --${name}: ${error instanceof Error ? error.message : String(error)}`,
-        options.hint,
-      );
+      die(`Unable to read --${name}: ${error instanceof Error ? error.message : String(error)}`, options.hint);
     }
   }
 
@@ -634,7 +642,11 @@ async function applyStructuredNodeUpdateFlags(
     hint: 'Use: pmx-canvas node update <node-id> --spec-file ./new-spec.json',
   });
   if (specRaw !== undefined) {
-    body.spec = parseJsonValue(specRaw, 'JSON spec', 'Use: pmx-canvas node update <node-id> --spec-file ./new-spec.json');
+    body.spec = parseJsonValue(
+      specRaw,
+      'JSON spec',
+      'Use: pmx-canvas node update <node-id> --spec-file ./new-spec.json',
+    );
   }
 
   const graphPatch = await buildGraphRequestBody(flags, { requireData: false, allowStdin: false });
@@ -643,11 +655,8 @@ async function applyStructuredNodeUpdateFlags(
   }
 }
 
-async function buildJsonRenderRequestBody(
-  flags: Record<string, string | true>,
-): Promise<Record<string, unknown>> {
-  const hint =
-    'Use: pmx-canvas node add --type json-render --spec-file ./dashboard.json --title "Ops Dashboard"';
+async function buildJsonRenderRequestBody(flags: Record<string, string | true>): Promise<Record<string, unknown>> {
+  const hint = 'Use: pmx-canvas node add --type json-render --spec-file ./dashboard.json --title "Ops Dashboard"';
   const title = typeof flags.title === 'string' ? flags.title.trim() : '';
 
   const rawSpec = await readTextInput(flags, {
@@ -671,9 +680,7 @@ async function buildJsonRenderRequestBody(
   return body;
 }
 
-async function buildHtmlPrimitiveRequestBody(
-  flags: Record<string, string | true>,
-): Promise<Record<string, unknown>> {
+async function buildHtmlPrimitiveRequestBody(flags: Record<string, string | true>): Promise<Record<string, unknown>> {
   const hint = 'Use: pmx-canvas html primitive add --kind choice-grid --data-file ./primitive.json --title "Options"';
   const kind = getStringFlag(flags, 'kind', 'primitive');
   if (!kind) die('HTML primitives require --kind.', hint);
@@ -760,7 +767,11 @@ async function buildGraphRequestBody(
   if (showLegend !== undefined) body.showLegend = showLegend;
   if (showLabels !== undefined) body.showLabels = showLabels;
 
-  const chartHeight = optionalPositiveFiniteFlag(flags, 'chart-height', 'Use a positive number, e.g. --chart-height 300');
+  const chartHeight = optionalPositiveFiniteFlag(
+    flags,
+    'chart-height',
+    'Use a positive number, e.g. --chart-height 300',
+  );
   const x = optionalFiniteFlag(flags, 'x', 'Use a finite number, e.g. --x 500');
   const y = optionalFiniteFlag(flags, 'y', 'Use a finite number, e.g. --y 300');
   const width = optionalPositiveFiniteFlag(flags, 'width', 'Use a positive number, e.g. --width 760');
@@ -780,9 +791,7 @@ async function buildGraphRequestBody(
   return body;
 }
 
-async function buildWebArtifactRequestBody(
-  flags: Record<string, string | true>,
-): Promise<Record<string, unknown>> {
+async function buildWebArtifactRequestBody(flags: Record<string, string | true>): Promise<Record<string, unknown>> {
   const hint = 'Use: pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx';
   const title = requireFlag(flags, 'title', hint);
   const appTsx = await readTextInput(flags, {
@@ -904,9 +913,7 @@ function printNodeSchemaHelp(schema: CanvasSchemaType): void {
   console.log(`Endpoint: ${schema.endpoint}`);
   console.log('Flags:');
   for (const field of schema.fields) {
-    const aliases = field.aliases?.length
-      ? ` (aliases: ${field.aliases.map((alias) => `--${alias}`).join(', ')})`
-      : '';
+    const aliases = field.aliases?.length ? ` (aliases: ${field.aliases.map((alias) => `--${alias}`).join(', ')})` : '';
     console.log(
       `  --${field.name}${field.required ? ' [required]' : ''} <${field.type}>  ${field.description}${aliases}`,
     );
@@ -936,13 +943,19 @@ async function showNodeAddTypeHelp(flags: Record<string, string | true>): Promis
     if (componentName) {
       const component = schema.jsonRender.components.find((entry) => entry.type === componentName);
       if (!component) {
-        die(`Unknown json-render component: ${componentName}`, 'Run: pmx-canvas node schema --type json-render --summary');
+        die(
+          `Unknown json-render component: ${componentName}`,
+          'Run: pmx-canvas node schema --type json-render --summary',
+        );
       }
       const requestedField = getStringFlag(flags, 'field');
       if (requestedField) {
         const prop = component.props.find((entry) => entry.name === requestedField);
         if (!prop) {
-          die(`Unknown json-render prop: ${requestedField}`, `Run: pmx-canvas node schema --type json-render --component ${componentName}`);
+          die(
+            `Unknown json-render prop: ${requestedField}`,
+            `Run: pmx-canvas node schema --type json-render --component ${componentName}`,
+          );
         }
         payload = {
           command: 'node add',
@@ -1061,7 +1074,10 @@ function filterJsonRenderSchemaView(
   if (requestedField) {
     const prop = component.props.find((entry) => entry.name === requestedField);
     if (!prop) {
-      die(`Unknown json-render prop: ${requestedField}`, `Run: pmx-canvas node schema --type json-render --component ${componentName}`);
+      die(
+        `Unknown json-render prop: ${requestedField}`,
+        `Run: pmx-canvas node schema --type json-render --component ${componentName}`,
+      );
     }
     return {
       component: componentName,
@@ -1072,7 +1088,9 @@ function filterJsonRenderSchemaView(
   return flags.summary ? summarizeJsonRenderComponent(component) : component;
 }
 
-function summarizeHtmlPrimitive(primitive: NonNullable<CanvasSchemaResponse['htmlPrimitives']>[number]): Record<string, unknown> {
+function summarizeHtmlPrimitive(
+  primitive: NonNullable<CanvasSchemaResponse['htmlPrimitives']>[number],
+): Record<string, unknown> {
   return {
     kind: primitive.kind,
     title: primitive.title,
@@ -1138,18 +1156,11 @@ const RESOURCE_SUBCOMMAND_HINTS: Record<string, Record<string, string>> = {
   },
 };
 
-function cmd(
-  name: string,
-  help: string,
-  examples: string[],
-  run: (args: string[]) => Promise<void>,
-) {
+function cmd(name: string, help: string, examples: string[], run: (args: string[]) => Promise<void>) {
   COMMANDS[name] = { run, help, examples };
 }
 
-cmd('open', 'Open the current workbench in the browser', [
-  'pmx-canvas open',
-], async (args) => {
+cmd('open', 'Open the current workbench in the browser', ['pmx-canvas open'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('open');
 
@@ -1174,475 +1185,538 @@ cmd('open', 'Open the current workbench in the browser', [
 });
 
 // ── node add ─────────────────────────────────────────────────
-cmd('node add', 'Add a node to the canvas', [
-  'pmx-canvas node add --type markdown --title "Design Doc" --content "# Overview"',
-  'pmx-canvas node add --type status --title "Build" --content "passing"',
-  'pmx-canvas node add --type file --content "src/index.ts"',
-  'pmx-canvas node add --type webpage --url "https://example.com/docs"',
-  'pmx-canvas node add --type html --title "Widget" --content "<main>Hello</main>"',
-  'pmx-canvas node add --type html --title "Showcase" --content ./report.html   (a .html path is read from disk; otherwise --content is raw HTML)',
-  'pmx-canvas node add --type html --primitive choice-grid --data-file ./options.json --title "Options"',
-  'pmx-canvas node add --type markdown --title "Note" --x 100 --y 200',
-  'pmx-canvas node add --type json-render --title "Ops Dashboard" --spec-file ./dashboard.json',
-  'pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
-  'pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showNodeAddTypeHelp(flags);
+cmd(
+  'node add',
+  'Add a node to the canvas',
+  [
+    'pmx-canvas node add --type markdown --title "Design Doc" --content "# Overview"',
+    'pmx-canvas node add --type status --title "Build" --content "passing"',
+    'pmx-canvas node add --type file --content "src/index.ts"',
+    'pmx-canvas node add --type webpage --url "https://example.com/docs"',
+    'pmx-canvas node add --type html --title "Widget" --content "<main>Hello</main>"',
+    'pmx-canvas node add --type html --title "Showcase" --content ./report.html   (a .html path is read from disk; otherwise --content is raw HTML)',
+    'pmx-canvas node add --type html --primitive choice-grid --data-file ./options.json --title "Options"',
+    'pmx-canvas node add --type markdown --title "Note" --x 100 --y 200',
+    'pmx-canvas node add --type json-render --title "Ops Dashboard" --spec-file ./dashboard.json',
+    'pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
+    'pmx-canvas node add --type web-artifact --title "Dashboard" --app-file ./App.tsx',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showNodeAddTypeHelp(flags);
 
-  const type = (flags.type as string) || 'markdown';
+    const type = (flags.type as string) || 'markdown';
 
-  if (type === 'json-render') {
-    const result = await invokeOperation('jsonrender.add', await buildJsonRenderRequestBody(flags));
-    output(result);
-    return;
-  }
-
-  if (type === 'graph') {
-    const result = await invokeOperation('graph.add', await buildGraphRequestBody(flags));
-    output(result);
-    return;
-  }
-
-  if (type === 'web-artifact') {
-    await runWebArtifactBuildCommand(flags);
-    return;
-  }
-
-  if (type === 'html-primitive') {
-    const result = await invokeOperation('node.add', await buildHtmlPrimitiveRequestBody(flags));
-    output(result);
-    return;
-  }
-
-  if (type === 'html' && getStringFlag(flags, 'primitive', 'kind')) {
-    const result = await invokeOperation('node.add', await buildHtmlPrimitiveRequestBody(flags));
-    output(result);
-    return;
-  }
-
-  if (type === 'mcp-app') {
-    die(
-      'mcp-app nodes require tool-backed app metadata and cannot be created with generic node add.',
-      'Use: pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx, or pmx-canvas external-app add --kind excalidraw --title "Diagram"',
-    );
-  }
-
-  const body: Record<string, unknown> = { type };
-  if (flags.title) body.title = flags.title;
-  const webpageUrl = getStringFlag(flags, 'url');
-  const imagePath = getStringFlag(flags, 'path');
-  if (type === 'webpage' && webpageUrl) {
-    body.url = webpageUrl;
-  } else if (type === 'image' && imagePath && !flags.content) {
-    body.content = imagePath;
-  } else if (type === 'html') {
-    const html = getStringFlag(flags, 'html') ?? getStringFlag(flags, 'content');
-    if (html !== undefined) body.html = html;
-    const summary = getStringFlag(flags, 'summary');
-    const agentSummary = getStringFlag(flags, 'agent-summary', 'agentSummary');
-    const description = getStringFlag(flags, 'description');
-    if (summary !== undefined) body.summary = summary;
-    if (agentSummary !== undefined) body.agentSummary = agentSummary;
-    if (description !== undefined) body.description = description;
-    if (optionalBooleanFlag(flags, 'presentation', 'Use --presentation true or --presentation false') === true) body.presentation = true;
-    if (typeof flags['slide-title'] === 'string') body.slideTitles = [flags['slide-title']];
-    if (typeof flags['embedded-node-id'] === 'string') body.embeddedNodeIds = [flags['embedded-node-id']];
-  } else if (flags.content) {
-    body.content = flags.content;
-  }
-  applyCommonGeometryFlags(body, flags, {
-    x: 'Use a finite number, e.g. --x 500',
-    y: 'Use a finite number, e.g. --y 300',
-    width: 'Use a positive number, e.g. --width 500',
-    height: 'Use a positive number, e.g. --height 280',
-  });
-  applyStrictSizeFlags(body, flags);
-  if (type === 'trace') {
-    for (const field of TRACE_NODE_FIELDS) {
-      const value = getStringFlag(flags, field, field.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`));
-      if (value !== undefined) body[field] = value;
-    }
-  }
-
-  // Support --stdin for piping content
-  if (flags.stdin) {
-    if (type === 'webpage') {
-      body.url = await readStdin();
-    } else if (type === 'html') {
-      body.html = await readStdin();
-    } else {
-      body.content = await readStdin();
-    }
-  }
-
-  const result = await invokeOperation('node.add', body);
-  output(result);
-});
-
-cmd('json-render', 'Show json-render schema and canonical examples', [
-  'pmx-canvas json-render --schema --summary',
-  'pmx-canvas json-render --examples',
-  'pmx-canvas json-render --example --component Table',
-  'pmx-canvas json-render --schema --component Badge --field variant',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('json-render');
-
-  const schema = await loadCanvasSchema();
-  const componentName = getStringFlag(flags, 'component');
-  const fieldName = getStringFlag(flags, 'field');
-
-  if (flags.example || flags.examples) {
-    if (fieldName) die('--field is only supported with --schema.', 'Use: pmx-canvas json-render --schema --component Table --field rows');
-    if (componentName) {
-      const component = schema.jsonRender.components.find((entry) => entry.type === componentName);
-      if (!component) die(`Unknown json-render component: ${componentName}`, 'Run: pmx-canvas json-render --schema --summary');
-      output({ component: component.type, example: component.example });
+    if (type === 'json-render') {
+      const result = await invokeOperation('jsonrender.add', await buildJsonRenderRequestBody(flags));
+      output(result);
       return;
     }
-    output({
-      rootShape: schema.jsonRender.rootShape,
-      examples: Object.fromEntries(schema.jsonRender.components.map((entry) => [entry.type, entry.example])),
+
+    if (type === 'graph') {
+      const result = await invokeOperation('graph.add', await buildGraphRequestBody(flags));
+      output(result);
+      return;
+    }
+
+    if (type === 'web-artifact') {
+      await runWebArtifactBuildCommand(flags);
+      return;
+    }
+
+    if (type === 'html-primitive') {
+      const result = await invokeOperation('node.add', await buildHtmlPrimitiveRequestBody(flags));
+      output(result);
+      return;
+    }
+
+    if (type === 'html' && getStringFlag(flags, 'primitive', 'kind')) {
+      const result = await invokeOperation('node.add', await buildHtmlPrimitiveRequestBody(flags));
+      output(result);
+      return;
+    }
+
+    if (type === 'mcp-app') {
+      die(
+        'mcp-app nodes require tool-backed app metadata and cannot be created with generic node add.',
+        'Use: pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx, or pmx-canvas external-app add --kind excalidraw --title "Diagram"',
+      );
+    }
+
+    const body: Record<string, unknown> = { type };
+    if (flags.title) body.title = flags.title;
+    const webpageUrl = getStringFlag(flags, 'url');
+    const imagePath = getStringFlag(flags, 'path');
+    if (type === 'webpage' && webpageUrl) {
+      body.url = webpageUrl;
+    } else if (type === 'image' && imagePath && !flags.content) {
+      body.content = imagePath;
+    } else if (type === 'html') {
+      const html = getStringFlag(flags, 'html') ?? getStringFlag(flags, 'content');
+      if (html !== undefined) body.html = html;
+      const summary = getStringFlag(flags, 'summary');
+      const agentSummary = getStringFlag(flags, 'agent-summary', 'agentSummary');
+      const description = getStringFlag(flags, 'description');
+      if (summary !== undefined) body.summary = summary;
+      if (agentSummary !== undefined) body.agentSummary = agentSummary;
+      if (description !== undefined) body.description = description;
+      if (optionalBooleanFlag(flags, 'presentation', 'Use --presentation true or --presentation false') === true)
+        body.presentation = true;
+      if (typeof flags['slide-title'] === 'string') body.slideTitles = [flags['slide-title']];
+      if (typeof flags['embedded-node-id'] === 'string') body.embeddedNodeIds = [flags['embedded-node-id']];
+    } else if (flags.content) {
+      body.content = flags.content;
+    }
+    applyCommonGeometryFlags(body, flags, {
+      x: 'Use a finite number, e.g. --x 500',
+      y: 'Use a finite number, e.g. --y 300',
+      width: 'Use a positive number, e.g. --width 500',
+      height: 'Use a positive number, e.g. --height 280',
     });
-    return;
-  }
+    applyStrictSizeFlags(body, flags);
+    if (type === 'trace') {
+      for (const field of TRACE_NODE_FIELDS) {
+        const value = getStringFlag(
+          flags,
+          field,
+          field.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`),
+        );
+        if (value !== undefined) body[field] = value;
+      }
+    }
 
-  output(filterJsonRenderSchemaView(schema.jsonRender, flags));
-});
+    // Support --stdin for piping content
+    if (flags.stdin) {
+      if (type === 'webpage') {
+        body.url = await readStdin();
+      } else if (type === 'html') {
+        body.html = await readStdin();
+      } else {
+        body.content = await readStdin();
+      }
+    }
 
-cmd('html primitive add', 'Create a reusable sandboxed HTML communication primitive', [
-  'pmx-canvas html primitive add --kind choice-grid --data-file ./options.json --title "Options"',
-  'pmx-canvas html primitive add --kind plan-timeline --data-json \'{"milestones":[{"title":"Ship","detail":"Implement and verify","status":"next"}]}\'',
-  'pmx-canvas html primitive add --kind triage-board --data-file ./tickets.json --strict-size',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('html primitive add');
-  const result = await api('POST', '/api/canvas/node', await buildHtmlPrimitiveRequestBody(flags));
-  output(result);
-});
+    const result = await invokeOperation('node.add', body);
+    output(result);
+  },
+);
 
-cmd('html primitive schema', 'Describe reusable HTML communication primitives', [
-  'pmx-canvas html primitive schema --summary',
-  'pmx-canvas html primitive schema --kind choice-grid',
-  'pmx-canvas html primitive schema --kind triage-board --summary',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('html primitive schema');
-  const schema = await loadCanvasSchema();
-  output(filterHtmlPrimitiveSchemaView(schema, flags));
-});
+cmd(
+  'json-render',
+  'Show json-render schema and canonical examples',
+  [
+    'pmx-canvas json-render --schema --summary',
+    'pmx-canvas json-render --examples',
+    'pmx-canvas json-render --example --component Table',
+    'pmx-canvas json-render --schema --component Badge --field variant',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('json-render');
 
-cmd('graph add', 'Add a graph node to the canvas', [
-  'pmx-canvas graph add --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
-  'pmx-canvas graph add --graphType composed --data \'[{"day":"Mon","visits":10,"conversion":0.4}]\' --xKey day --barKey visits --lineKey conversion',
-  'pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('graph add');
+    const schema = await loadCanvasSchema();
+    const componentName = getStringFlag(flags, 'component');
+    const fieldName = getStringFlag(flags, 'field');
 
-  const result = await invokeOperation('graph.add', await buildGraphRequestBody(flags));
-  output(result);
-});
-
-cmd('node schema', 'Describe server-supported node create schemas and canonical examples', [
-  'pmx-canvas node schema',
-  'pmx-canvas node schema --type webpage',
-  'pmx-canvas node schema --type json-render',
-  'pmx-canvas json-render --schema --summary',
-  'pmx-canvas node schema --type json-render --component Table',
-  'pmx-canvas node schema --type webpage --field url',
-  'pmx-canvas node schema --summary',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('node schema');
-
-  const result = await loadCanvasSchema();
-  if (getStringFlag(flags, 'component') && flags.type !== 'json-render') {
-    die('--component is only supported with --type json-render.');
-  }
-
-  if (typeof flags.type !== 'string') {
-    if (flags.summary) {
+    if (flags.example || flags.examples) {
+      if (fieldName)
+        die(
+          '--field is only supported with --schema.',
+          'Use: pmx-canvas json-render --schema --component Table --field rows',
+        );
+      if (componentName) {
+        const component = schema.jsonRender.components.find((entry) => entry.type === componentName);
+        if (!component)
+          die(`Unknown json-render component: ${componentName}`, 'Run: pmx-canvas json-render --schema --summary');
+        output({ component: component.type, example: component.example });
+        return;
+      }
       output({
-        source: result.source,
-        version: result.version,
-        nodeTypes: result.nodeTypes.map((entry) => summarizeNodeSchema(entry)),
-        jsonRender: {
-          componentCount: result.jsonRender.components.length,
-          rootShape: result.jsonRender.rootShape,
-        },
-        graph: result.graph,
-        htmlPrimitives: result.htmlPrimitives?.map((entry) => summarizeHtmlPrimitive(entry)) ?? [],
-        mcp: result.mcp,
+        rootShape: schema.jsonRender.rootShape,
+        examples: Object.fromEntries(schema.jsonRender.components.map((entry) => [entry.type, entry.example])),
       });
       return;
     }
-    output(result);
-    return;
-  }
 
-  const requested = flags.type;
-  if (requested === 'json-render') {
-    output(filterJsonRenderSchemaView(result.jsonRender, flags));
-    return;
-  }
-  if (requested === 'graph') {
-    const graphSchema = result.nodeTypes.find((entry) => entry.type === 'graph');
-    if (graphSchema) {
-      output(filterNodeSchemaView(graphSchema, flags));
+    output(filterJsonRenderSchemaView(schema.jsonRender, flags));
+  },
+);
+
+cmd(
+  'html primitive add',
+  'Create a reusable sandboxed HTML communication primitive',
+  [
+    'pmx-canvas html primitive add --kind choice-grid --data-file ./options.json --title "Options"',
+    'pmx-canvas html primitive add --kind plan-timeline --data-json \'{"milestones":[{"title":"Ship","detail":"Implement and verify","status":"next"}]}\'',
+    'pmx-canvas html primitive add --kind triage-board --data-file ./tickets.json --strict-size',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('html primitive add');
+    const result = await api('POST', '/api/canvas/node', await buildHtmlPrimitiveRequestBody(flags));
+    output(result);
+  },
+);
+
+cmd(
+  'html primitive schema',
+  'Describe reusable HTML communication primitives',
+  [
+    'pmx-canvas html primitive schema --summary',
+    'pmx-canvas html primitive schema --kind choice-grid',
+    'pmx-canvas html primitive schema --kind triage-board --summary',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('html primitive schema');
+    const schema = await loadCanvasSchema();
+    output(filterHtmlPrimitiveSchemaView(schema, flags));
+  },
+);
+
+cmd(
+  'graph add',
+  'Add a graph node to the canvas',
+  [
+    'pmx-canvas graph add --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
+    'pmx-canvas graph add --graphType composed --data \'[{"day":"Mon","visits":10,"conversion":0.4}]\' --xKey day --barKey visits --lineKey conversion',
+    'pmx-canvas node add --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('graph add');
+
+    const result = await invokeOperation('graph.add', await buildGraphRequestBody(flags));
+    output(result);
+  },
+);
+
+cmd(
+  'node schema',
+  'Describe server-supported node create schemas and canonical examples',
+  [
+    'pmx-canvas node schema',
+    'pmx-canvas node schema --type webpage',
+    'pmx-canvas node schema --type json-render',
+    'pmx-canvas json-render --schema --summary',
+    'pmx-canvas node schema --type json-render --component Table',
+    'pmx-canvas node schema --type webpage --field url',
+    'pmx-canvas node schema --summary',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('node schema');
+
+    const result = await loadCanvasSchema();
+    if (getStringFlag(flags, 'component') && flags.type !== 'json-render') {
+      die('--component is only supported with --type json-render.');
+    }
+
+    if (typeof flags.type !== 'string') {
+      if (flags.summary) {
+        output({
+          source: result.source,
+          version: result.version,
+          nodeTypes: result.nodeTypes.map((entry) => summarizeNodeSchema(entry)),
+          jsonRender: {
+            componentCount: result.jsonRender.components.length,
+            rootShape: result.jsonRender.rootShape,
+          },
+          graph: result.graph,
+          htmlPrimitives: result.htmlPrimitives?.map((entry) => summarizeHtmlPrimitive(entry)) ?? [],
+          mcp: result.mcp,
+        });
+        return;
+      }
+      output(result);
       return;
     }
-    output(flags.summary ? result.graph : { ...result.graph });
-    return;
-  }
-  const nodeType = result.nodeTypes.find((entry) => entry.type === requested);
-  if (nodeType) {
-    output(filterNodeSchemaView(nodeType, flags));
-    return;
-  }
-  die(`Unknown schema type: ${requested}`, 'Run: pmx-canvas node schema');
-});
+
+    const requested = flags.type;
+    if (requested === 'json-render') {
+      output(filterJsonRenderSchemaView(result.jsonRender, flags));
+      return;
+    }
+    if (requested === 'graph') {
+      const graphSchema = result.nodeTypes.find((entry) => entry.type === 'graph');
+      if (graphSchema) {
+        output(filterNodeSchemaView(graphSchema, flags));
+        return;
+      }
+      output(flags.summary ? result.graph : { ...result.graph });
+      return;
+    }
+    const nodeType = result.nodeTypes.find((entry) => entry.type === requested);
+    if (nodeType) {
+      output(filterNodeSchemaView(nodeType, flags));
+      return;
+    }
+    die(`Unknown schema type: ${requested}`, 'Run: pmx-canvas node schema');
+  },
+);
 
 // ── node list ────────────────────────────────────────────────
-cmd('node list', 'List all nodes on the canvas', [
-  'pmx-canvas node list',
-  'pmx-canvas node list --type markdown',
-  'pmx-canvas node list --type mcp-app',
-  'pmx-canvas node list --ids',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('node list');
+cmd(
+  'node list',
+  'List all nodes on the canvas',
+  [
+    'pmx-canvas node list',
+    'pmx-canvas node list --type markdown',
+    'pmx-canvas node list --type mcp-app',
+    'pmx-canvas node list --ids',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('node list');
 
-  const layout = (await invokeOperation('layout.get', {})) as { nodes: Array<Record<string, unknown>> };
-  let nodes = layout.nodes;
+    const layout = (await invokeOperation('layout.get', {})) as { nodes: Array<Record<string, unknown>> };
+    let nodes = layout.nodes;
 
-  if (flags.type && flags.type !== true) {
-    nodes = nodes.filter((n) => n.type === flags.type || n.kind === flags.type);
-  }
+    if (flags.type && flags.type !== true) {
+      nodes = nodes.filter((n) => n.type === flags.type || n.kind === flags.type);
+    }
 
-  if (flags.ids) {
-    output(nodes.map((n) => n.id));
-  } else {
-    const shouldSummarize =
-      flags.summary === true ||
-      flags.compact === true ||
-      flags.type === 'mcp-app';
-    output(shouldSummarize ? nodes.map((node) => summarizeNodeResult(node)) : nodes);
-  }
-});
+    if (flags.ids) {
+      output(nodes.map((n) => n.id));
+    } else {
+      const shouldSummarize = flags.summary === true || flags.compact === true || flags.type === 'mcp-app';
+      output(shouldSummarize ? nodes.map((node) => summarizeNodeResult(node)) : nodes);
+    }
+  },
+);
 
 // ── node get ─────────────────────────────────────────────────
-cmd('node get', 'Get a node by ID', [
-  'pmx-canvas node get <node-id>',
-  'pmx-canvas node get node-abc123',
-  'pmx-canvas node get node-abc123 --summary',
-  'pmx-canvas node get node-abc123 --field title --field graphConfig',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('node get');
+cmd(
+  'node get',
+  'Get a node by ID',
+  [
+    'pmx-canvas node get <node-id>',
+    'pmx-canvas node get node-abc123',
+    'pmx-canvas node get node-abc123 --summary',
+    'pmx-canvas node get node-abc123 --field title --field graphConfig',
+  ],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('node get');
 
-  const id = positional[0];
-  if (!id) die('Missing node ID', 'pmx-canvas node get <node-id>');
+    const id = positional[0];
+    if (!id) die('Missing node ID', 'pmx-canvas node get <node-id>');
 
-  const result = await invokeOperation('node.get', { id }) as Record<string, unknown>;
-  const requestedFields = collectRequestedFields(args, flags);
-  if (requestedFields.length > 0) {
-    const picked = Object.fromEntries(requestedFields.map((field) => [field, resolveNodeFieldValue(result, field)]));
-    const missing = requestedFields.filter((field) => picked[field] === undefined);
-    if (missing.length > 0) {
-      die(
-        `Unknown node field${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}`,
-        `Available fields: ${listAvailableNodeFields(result).join(', ')}`,
-      );
+    const result = (await invokeOperation('node.get', { id })) as Record<string, unknown>;
+    const requestedFields = collectRequestedFields(args, flags);
+    if (requestedFields.length > 0) {
+      const picked = Object.fromEntries(requestedFields.map((field) => [field, resolveNodeFieldValue(result, field)]));
+      const missing = requestedFields.filter((field) => picked[field] === undefined);
+      if (missing.length > 0) {
+        die(
+          `Unknown node field${missing.length > 1 ? 's' : ''}: ${missing.join(', ')}`,
+          `Available fields: ${listAvailableNodeFields(result).join(', ')}`,
+        );
+      }
+      output({
+        id: result.id ?? id,
+        fields: picked,
+      });
+      return;
     }
-    output({
-      id: result.id ?? id,
-      fields: picked,
-    });
-    return;
-  }
 
-  if (flags.summary || flags.compact) {
-    output(summarizeNodeResult(result));
-    return;
-  }
-  output(result);
-});
+    if (flags.summary || flags.compact) {
+      output(summarizeNodeResult(result));
+      return;
+    }
+    output(result);
+  },
+);
 
 // ── node update ──────────────────────────────────────────────
-cmd('node update', 'Update a node by ID', [
-  'pmx-canvas node update <node-id> --title "New Title"',
-  'pmx-canvas node update <node-id> --content "Updated content"',
-  'pmx-canvas node update <node-id> --title "Moved" --x 500 --y 300',
-  'pmx-canvas node update <node-id> --width 840 --height 620',
-  'pmx-canvas node update <node-id> --spec-file ./dashboard.json',
-  'pmx-canvas node update <graph-id> --data-file ./metrics.json --chart-height 420',
-  'pmx-canvas node update <node-id> --pinned true',
-  'pmx-canvas node update <node-id> --dock-position right',
-  'pmx-canvas node update <node-id> --dock-position none   # undock back to the canvas',
-  'pmx-canvas node update <node-id> --lock-arrange',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('node update');
+cmd(
+  'node update',
+  'Update a node by ID',
+  [
+    'pmx-canvas node update <node-id> --title "New Title"',
+    'pmx-canvas node update <node-id> --content "Updated content"',
+    'pmx-canvas node update <node-id> --title "Moved" --x 500 --y 300',
+    'pmx-canvas node update <node-id> --width 840 --height 620',
+    'pmx-canvas node update <node-id> --spec-file ./dashboard.json',
+    'pmx-canvas node update <graph-id> --data-file ./metrics.json --chart-height 420',
+    'pmx-canvas node update <node-id> --pinned true',
+    'pmx-canvas node update <node-id> --dock-position right',
+    'pmx-canvas node update <node-id> --dock-position none   # undock back to the canvas',
+    'pmx-canvas node update <node-id> --lock-arrange',
+  ],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('node update');
 
-  const id = positional[0];
-  if (!id) die('Missing node ID', 'pmx-canvas node update <node-id> --title "New Title"');
+    const id = positional[0];
+    if (!id) die('Missing node ID', 'pmx-canvas node update <node-id> --title "New Title"');
 
-  const body: Record<string, unknown> = {};
-  await applyStructuredNodeUpdateFlags(body, flags);
-  if (flags.title && flags.title !== true) body.title = flags.title;
-  if (flags.content && flags.content !== true) body.content = flags.content;
-  if (flags.stdin) body.content = await readStdin();
+    const body: Record<string, unknown> = {};
+    await applyStructuredNodeUpdateFlags(body, flags);
+    if (flags.title && flags.title !== true) body.title = flags.title;
+    if (flags.content && flags.content !== true) body.content = flags.content;
+    if (flags.stdin) body.content = await readStdin();
 
-  const x = optionalFiniteFlag(flags, 'x', 'Use a finite number, e.g. --x 500');
-  const y = optionalFiniteFlag(flags, 'y', 'Use a finite number, e.g. --y 300');
-  const width = optionalPositiveFiniteFlag(flags, 'width', 'Use a positive number, e.g. --width 840');
-  const height = optionalPositiveFiniteFlag(flags, 'height', 'Use a positive number, e.g. --height 620');
-  const nodeHeight = optionalPositiveFiniteFlagWithAliases(
-    flags,
-    'Use a positive number, e.g. --node-height 620',
-    'node-height',
-    'nodeHeight',
-  );
-  if (height !== undefined && nodeHeight !== undefined) {
-    die('Use either --height/--node-height, not both.');
-  }
-  const frameHeight = height ?? nodeHeight;
-  const pinned = optionalBooleanFlag(flags, 'pinned', 'Use --pinned true or --pinned false');
-  if (flags['lock-arrange'] && flags['unlock-arrange']) {
-    die('Use either --lock-arrange or --unlock-arrange, not both.');
-  }
-  const arrangeLocked = flags['lock-arrange']
-    ? true
-    : flags['unlock-arrange']
-      ? false
-      : undefined;
-
-  applyStrictSizeFlags(body, flags);
-
-  for (const field of TRACE_NODE_FIELDS) {
-    const value = getStringFlag(flags, field, field.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`));
-    if (value !== undefined) body[field] = value;
-  }
-
-  if (x !== undefined || y !== undefined || width !== undefined || frameHeight !== undefined || arrangeLocked !== undefined) {
-    const existing = await invokeOperation('node.get', { id }) as {
-      position: { x: number; y: number };
-      size: { width: number; height: number };
-      data: Record<string, unknown>;
-    };
-
-    if (x !== undefined || y !== undefined) {
-      body.position = {
-        x: x ?? existing.position.x,
-        y: y ?? existing.position.y,
-      };
-    }
-
-    if (width !== undefined || frameHeight !== undefined) {
-      body.size = {
-        width: width ?? existing.size.width,
-        height: frameHeight ?? existing.size.height,
-      };
-    }
-
-    if (arrangeLocked !== undefined) {
-      body.arrangeLocked = arrangeLocked;
-    }
-  }
-
-  if (pinned !== undefined) body.pinned = pinned;
-
-  // --dock-position left|right|none : dock a node into the top HUD or undock it.
-  // `none`/`null`/empty map to JS null (undock). Assigned with a !== undefined
-  // guard so the null survives JSON.stringify to the server (which accepts a
-  // top-level dockPosition: null). HTTP PATCH already supports this; this is the
-  // CLI path the report (#40) found missing.
-  const dockRaw = getStringFlag(flags, 'dock-position', 'dockPosition');
-  let dockPosition: 'left' | 'right' | null | undefined;
-  if (dockRaw !== undefined) {
-    const v = dockRaw.trim().toLowerCase();
-    if (v === 'left' || v === 'right') dockPosition = v;
-    else if (v === 'none' || v === 'null' || v === '') dockPosition = null;
-    else die(`Invalid --dock-position "${dockRaw}".`, 'Use left, right, or none (to undock).');
-  }
-  if (dockPosition !== undefined) body.dockPosition = dockPosition;
-
-  if (Object.keys(body).length === 0) {
-    die(
-      'No updates specified',
-      'Use --title, --content, --x, --y, --width, --height, --strict-size, --pinned, --dock-position, trace fields, --lock-arrange, --unlock-arrange, or --stdin',
+    const x = optionalFiniteFlag(flags, 'x', 'Use a finite number, e.g. --x 500');
+    const y = optionalFiniteFlag(flags, 'y', 'Use a finite number, e.g. --y 300');
+    const width = optionalPositiveFiniteFlag(flags, 'width', 'Use a positive number, e.g. --width 840');
+    const height = optionalPositiveFiniteFlag(flags, 'height', 'Use a positive number, e.g. --height 620');
+    const nodeHeight = optionalPositiveFiniteFlagWithAliases(
+      flags,
+      'Use a positive number, e.g. --node-height 620',
+      'node-height',
+      'nodeHeight',
     );
-  }
+    if (height !== undefined && nodeHeight !== undefined) {
+      die('Use either --height/--node-height, not both.');
+    }
+    const frameHeight = height ?? nodeHeight;
+    const pinned = optionalBooleanFlag(flags, 'pinned', 'Use --pinned true or --pinned false');
+    if (flags['lock-arrange'] && flags['unlock-arrange']) {
+      die('Use either --lock-arrange or --unlock-arrange, not both.');
+    }
+    const arrangeLocked = flags['lock-arrange'] ? true : flags['unlock-arrange'] ? false : undefined;
 
-  const result = await invokeOperation('node.update', { id, ...body });
-  output(result);
-});
+    applyStrictSizeFlags(body, flags);
+
+    for (const field of TRACE_NODE_FIELDS) {
+      const value = getStringFlag(
+        flags,
+        field,
+        field.replace(/[A-Z]/g, (char) => `-${char.toLowerCase()}`),
+      );
+      if (value !== undefined) body[field] = value;
+    }
+
+    if (
+      x !== undefined ||
+      y !== undefined ||
+      width !== undefined ||
+      frameHeight !== undefined ||
+      arrangeLocked !== undefined
+    ) {
+      const existing = (await invokeOperation('node.get', { id })) as {
+        position: { x: number; y: number };
+        size: { width: number; height: number };
+        data: Record<string, unknown>;
+      };
+
+      if (x !== undefined || y !== undefined) {
+        body.position = {
+          x: x ?? existing.position.x,
+          y: y ?? existing.position.y,
+        };
+      }
+
+      if (width !== undefined || frameHeight !== undefined) {
+        body.size = {
+          width: width ?? existing.size.width,
+          height: frameHeight ?? existing.size.height,
+        };
+      }
+
+      if (arrangeLocked !== undefined) {
+        body.arrangeLocked = arrangeLocked;
+      }
+    }
+
+    if (pinned !== undefined) body.pinned = pinned;
+
+    // --dock-position left|right|none : dock a node into the top HUD or undock it.
+    // `none`/`null`/empty map to JS null (undock). Assigned with a !== undefined
+    // guard so the null survives JSON.stringify to the server (which accepts a
+    // top-level dockPosition: null). HTTP PATCH already supports this; this is the
+    // CLI path the report (#40) found missing.
+    const dockRaw = getStringFlag(flags, 'dock-position', 'dockPosition');
+    let dockPosition: 'left' | 'right' | null | undefined;
+    if (dockRaw !== undefined) {
+      const v = dockRaw.trim().toLowerCase();
+      if (v === 'left' || v === 'right') dockPosition = v;
+      else if (v === 'none' || v === 'null' || v === '') dockPosition = null;
+      else die(`Invalid --dock-position "${dockRaw}".`, 'Use left, right, or none (to undock).');
+    }
+    if (dockPosition !== undefined) body.dockPosition = dockPosition;
+
+    if (Object.keys(body).length === 0) {
+      die(
+        'No updates specified',
+        'Use --title, --content, --x, --y, --width, --height, --strict-size, --pinned, --dock-position, trace fields, --lock-arrange, --unlock-arrange, or --stdin',
+      );
+    }
+
+    const result = await invokeOperation('node.update', { id, ...body });
+    output(result);
+  },
+);
 
 // ── node remove ──────────────────────────────────────────────
-cmd('node remove', 'Remove a node from the canvas', [
-  'pmx-canvas node remove <node-id>',
-  'pmx-canvas node remove node-abc123',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('node remove');
+cmd(
+  'node remove',
+  'Remove a node from the canvas',
+  ['pmx-canvas node remove <node-id>', 'pmx-canvas node remove node-abc123'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('node remove');
 
-  const id = positional[0];
-  if (!id) die('Missing node ID', 'pmx-canvas node remove <node-id>');
+    const id = positional[0];
+    if (!id) die('Missing node ID', 'pmx-canvas node remove <node-id>');
 
-  const result = await invokeOperation('node.remove', { id });
-  output(result);
-});
+    const result = await invokeOperation('node.remove', { id });
+    output(result);
+  },
+);
 
 // ── edge add ─────────────────────────────────────────────────
-cmd('edge add', 'Add an edge between two nodes', [
-  'pmx-canvas edge add --from <node-id> --to <node-id> --type flow',
-  'pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation',
-  'pmx-canvas edge add --from n1 --to n2 --type depends-on --label "imports"',
-  'pmx-canvas edge add --from n1 --to n2 --type references --style dashed --animated',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('edge add');
+cmd(
+  'edge add',
+  'Add an edge between two nodes',
+  [
+    'pmx-canvas edge add --from <node-id> --to <node-id> --type flow',
+    'pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation',
+    'pmx-canvas edge add --from n1 --to n2 --type depends-on --label "imports"',
+    'pmx-canvas edge add --from n1 --to n2 --type references --style dashed --animated',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('edge add');
 
-  const type = (flags.type as string) || 'flow';
-  const from = typeof flags.from === 'string' ? flags.from : undefined;
-  const to = typeof flags.to === 'string' ? flags.to : undefined;
-  const fromSearch = typeof flags['from-search'] === 'string' ? flags['from-search'] : undefined;
-  const toSearch = typeof flags['to-search'] === 'string' ? flags['to-search'] : undefined;
+    const type = (flags.type as string) || 'flow';
+    const from = typeof flags.from === 'string' ? flags.from : undefined;
+    const to = typeof flags.to === 'string' ? flags.to : undefined;
+    const fromSearch = typeof flags['from-search'] === 'string' ? flags['from-search'] : undefined;
+    const toSearch = typeof flags['to-search'] === 'string' ? flags['to-search'] : undefined;
 
-  if (!from && !fromSearch) {
-    die(
-      'Missing source selector',
-      'Use --from <id> or --from-search "query". Search queries must resolve to exactly one node. Example: pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation',
-    );
-  }
-  if (!to && !toSearch) {
-    die(
-      'Missing target selector',
-      'Use --to <id> or --to-search "query". Search queries must resolve to exactly one node. Example: pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation',
-    );
-  }
+    if (!from && !fromSearch) {
+      die(
+        'Missing source selector',
+        'Use --from <id> or --from-search "query". Search queries must resolve to exactly one node. Example: pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation',
+      );
+    }
+    if (!to && !toSearch) {
+      die(
+        'Missing target selector',
+        'Use --to <id> or --to-search "query". Search queries must resolve to exactly one node. Example: pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation',
+      );
+    }
 
-  const body: Record<string, unknown> = {
-    type,
-    ...(from ? { from } : {}),
-    ...(to ? { to } : {}),
-    ...(fromSearch ? { fromSearch } : {}),
-    ...(toSearch ? { toSearch } : {}),
-  };
-  if (flags.label && flags.label !== true) body.label = flags.label;
-  if (typeof flags.style === 'string') body.style = flags.style;
-  if (flags.animated) body.animated = true;
+    const body: Record<string, unknown> = {
+      type,
+      ...(from ? { from } : {}),
+      ...(to ? { to } : {}),
+      ...(fromSearch ? { fromSearch } : {}),
+      ...(toSearch ? { toSearch } : {}),
+    };
+    if (flags.label && flags.label !== true) body.label = flags.label;
+    if (typeof flags.style === 'string') body.style = flags.style;
+    if (flags.animated) body.animated = true;
 
-  const result = await invokeOperation('edge.add', body);
-  output(result);
-});
+    const result = await invokeOperation('edge.add', body);
+    output(result);
+  },
+);
 
 // ── edge list ────────────────────────────────────────────────
-cmd('edge list', 'List all edges on the canvas', [
-  'pmx-canvas edge list',
-], async (args) => {
+cmd('edge list', 'List all edges on the canvas', ['pmx-canvas edge list'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('edge list');
 
@@ -1651,9 +1725,7 @@ cmd('edge list', 'List all edges on the canvas', [
 });
 
 // ── edge remove ──────────────────────────────────────────────
-cmd('edge remove', 'Remove an edge by ID', [
-  'pmx-canvas edge remove <edge-id>',
-], async (args) => {
+cmd('edge remove', 'Remove an edge by ID', ['pmx-canvas edge remove <edge-id>'], async (args) => {
   const { positional, flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('edge remove');
 
@@ -1665,40 +1737,42 @@ cmd('edge remove', 'Remove an edge by ID', [
 });
 
 // ── search ───────────────────────────────────────────────────
-cmd('search', 'Search nodes by title or content', [
-  'pmx-canvas search "design doc"',
-  'pmx-canvas search --query "TODO"',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('search');
+cmd(
+  'search',
+  'Search nodes by title or content',
+  ['pmx-canvas search "design doc"', 'pmx-canvas search --query "TODO"'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('search');
 
-  const query = positional[0] || (typeof flags.query === 'string' ? flags.query : '');
-  if (!query) die('Missing search query', 'pmx-canvas search "query"');
+    const query = positional[0] || (typeof flags.query === 'string' ? flags.query : '');
+    if (!query) die('Missing search query', 'pmx-canvas search "query"');
 
-  const result = await invokeOperation('search', { q: query });
-  output(result);
-});
+    const result = await invokeOperation('search', { q: query });
+    output(result);
+  },
+);
 
 // ── layout ───────────────────────────────────────────────────
-cmd('layout', 'Get the full canvas layout (nodes, edges, viewport)', [
-  'pmx-canvas layout',
-  'pmx-canvas layout --summary',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('layout');
+cmd(
+  'layout',
+  'Get the full canvas layout (nodes, edges, viewport)',
+  ['pmx-canvas layout', 'pmx-canvas layout --summary'],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('layout');
 
-  if (flags.summary || flags.compact) {
-    output(await api('GET', '/api/canvas/summary'));
-    return;
-  }
-  const result = await api('GET', '/api/canvas/state');
-  output(result);
-});
+    if (flags.summary || flags.compact) {
+      output(await api('GET', '/api/canvas/summary'));
+      return;
+    }
+    const result = await api('GET', '/api/canvas/state');
+    output(result);
+  },
+);
 
 // ── status ───────────────────────────────────────────────────
-cmd('status', 'Quick canvas summary', [
-  'pmx-canvas status',
-], async (args) => {
+cmd('status', 'Quick canvas summary', ['pmx-canvas status'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('status');
 
@@ -1712,11 +1786,12 @@ cmd('status', 'Quick canvas summary', [
   const typeCounts: Record<string, number> = {};
   for (const n of layout.nodes) {
     const data = isRecord(n.data) ? n.data : {};
-    const t = typeof n.kind === 'string'
-      ? n.kind
-      : n.type === 'mcp-app' && data.hostMode === 'hosted' && typeof data.path === 'string'
-      ? 'web-artifact'
-      : n.type as string;
+    const t =
+      typeof n.kind === 'string'
+        ? n.kind
+        : n.type === 'mcp-app' && data.hostMode === 'hosted' && typeof data.path === 'string'
+          ? 'web-artifact'
+          : (n.type as string);
     typeCounts[t] = (typeCounts[t] || 0) + 1;
   }
 
@@ -1730,25 +1805,24 @@ cmd('status', 'Quick canvas summary', [
 });
 
 // ── arrange ──────────────────────────────────────────────────
-cmd('arrange', 'Auto-arrange nodes on the canvas', [
-  'pmx-canvas arrange',
-  'pmx-canvas arrange --layout column',
-  'pmx-canvas arrange --layout flow',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('arrange');
+cmd(
+  'arrange',
+  'Auto-arrange nodes on the canvas',
+  ['pmx-canvas arrange', 'pmx-canvas arrange --layout column', 'pmx-canvas arrange --layout flow'],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('arrange');
 
-  const body: Record<string, unknown> = {};
-  if (flags.layout && flags.layout !== true) body.layout = flags.layout;
+    const body: Record<string, unknown> = {};
+    if (flags.layout && flags.layout !== true) body.layout = flags.layout;
 
-  const result = await api('POST', '/api/canvas/arrange', body);
-  output(result);
-});
+    const result = await api('POST', '/api/canvas/arrange', body);
+    output(result);
+  },
+);
 
 // ── focus ────────────────────────────────────────────────────
-cmd('focus', 'Pan viewport to center on a node', [
-  'pmx-canvas focus <node-id>',
-], async (args) => {
+cmd('focus', 'Pan viewport to center on a node', ['pmx-canvas focus <node-id>'], async (args) => {
   const { positional, flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('focus');
 
@@ -1759,269 +1833,347 @@ cmd('focus', 'Pan viewport to center on a node', [
   output(result);
 });
 
-cmd('fit', 'Fit the viewport to all nodes or a selected subset', [
-  'pmx-canvas fit',
-  'pmx-canvas fit --width 1440 --height 900 --padding 80',
-  'pmx-canvas fit node-a node-b',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('fit');
+cmd(
+  'fit',
+  'Fit the viewport to all nodes or a selected subset',
+  ['pmx-canvas fit', 'pmx-canvas fit --width 1440 --height 900 --padding 80', 'pmx-canvas fit node-a node-b'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('fit');
 
-  const body: Record<string, unknown> = {};
-  const width = optionalPositiveFiniteFlag(flags, 'width', 'Use a positive number, e.g. --width 1440');
-  const height = optionalPositiveFiniteFlag(flags, 'height', 'Use a positive number, e.g. --height 900');
-  const padding = optionalPositiveFiniteFlag(flags, 'padding', 'Use a positive number, e.g. --padding 80');
-  const maxScale = optionalPositiveFiniteFlag(flags, 'max-scale', 'Use a positive number, e.g. --max-scale 1');
-  if (width !== undefined) body.width = width;
-  if (height !== undefined) body.height = height;
-  if (padding !== undefined) body.padding = padding;
-  if (maxScale !== undefined) body.maxScale = maxScale;
-  if (positional.length > 0) body.nodeIds = positional;
+    const body: Record<string, unknown> = {};
+    const width = optionalPositiveFiniteFlag(flags, 'width', 'Use a positive number, e.g. --width 1440');
+    const height = optionalPositiveFiniteFlag(flags, 'height', 'Use a positive number, e.g. --height 900');
+    const padding = optionalPositiveFiniteFlag(flags, 'padding', 'Use a positive number, e.g. --padding 80');
+    const maxScale = optionalPositiveFiniteFlag(flags, 'max-scale', 'Use a positive number, e.g. --max-scale 1');
+    if (width !== undefined) body.width = width;
+    if (height !== undefined) body.height = height;
+    if (padding !== undefined) body.padding = padding;
+    if (maxScale !== undefined) body.maxScale = maxScale;
+    if (positional.length > 0) body.nodeIds = positional;
 
-  const result = await api('POST', '/api/canvas/fit', body);
-  output(result);
-});
+    const result = await api('POST', '/api/canvas/fit', body);
+    output(result);
+  },
+);
 
 // ── external-app add ─────────────────────────────────────────
-cmd('external-app add', 'Create a hosted external app node', [
-  'pmx-canvas external-app add --kind excalidraw --title "Diagram"',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('external-app add');
+cmd(
+  'external-app add',
+  'Create a hosted external app node',
+  ['pmx-canvas external-app add --kind excalidraw --title "Diagram"'],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('external-app add');
 
-  const kind = typeof flags.kind === 'string' ? flags.kind.trim() : '';
-  if (kind !== 'excalidraw') {
-    die('Unsupported external app kind.', 'Use: pmx-canvas external-app add --kind excalidraw --title "Diagram"');
-  }
+    const kind = typeof flags.kind === 'string' ? flags.kind.trim() : '';
+    if (kind !== 'excalidraw') {
+      die('Unsupported external app kind.', 'Use: pmx-canvas external-app add --kind excalidraw --title "Diagram"');
+    }
 
-  const body: Record<string, unknown> = {
-    title: typeof flags.title === 'string' ? flags.title : 'Excalidraw Diagram',
-    elements: DEFAULT_EXCALIDRAW_ELEMENTS,
-  };
-  const nodeId = getStringFlag(flags, 'node-id', 'nodeId', 'id');
-  if (nodeId) body.nodeId = nodeId;
-  const elementsJson = getStringFlag(flags, 'elements-json', 'elements');
-  if (elementsJson !== undefined) body.elements = parseJsonValue(elementsJson, 'Excalidraw elements', 'Use --elements-json \'[{"type":"rectangle","id":"r1","x":0,"y":0,"width":120,"height":80}]\'');
-  const elementsFile = getStringFlag(flags, 'elements-file', 'initial-file');
-  if (elementsFile) body.elements = parseJsonValue(readFileSync(elementsFile, 'utf-8'), 'Excalidraw elements file', 'Use --elements-file ./scene.excalidraw');
-  applyCommonGeometryFlags(body, flags, {
-    x: 'Use a finite number, e.g. --x 500',
-    y: 'Use a finite number, e.g. --y 300',
-    width: 'Use a positive number, e.g. --width 960',
-    height: 'Use a positive number, e.g. --height 720',
-  });
-  const timeoutMs = optionalPositiveFiniteFlag(flags, 'timeout-ms', 'Use a positive number, e.g. --timeout-ms 120000');
-  if (timeoutMs !== undefined) body.timeoutMs = timeoutMs;
+    const body: Record<string, unknown> = {
+      title: typeof flags.title === 'string' ? flags.title : 'Excalidraw Diagram',
+      elements: DEFAULT_EXCALIDRAW_ELEMENTS,
+    };
+    const nodeId = getStringFlag(flags, 'node-id', 'nodeId', 'id');
+    if (nodeId) body.nodeId = nodeId;
+    const elementsJson = getStringFlag(flags, 'elements-json', 'elements');
+    if (elementsJson !== undefined)
+      body.elements = parseJsonValue(
+        elementsJson,
+        'Excalidraw elements',
+        'Use --elements-json \'[{"type":"rectangle","id":"r1","x":0,"y":0,"width":120,"height":80}]\'',
+      );
+    const elementsFile = getStringFlag(flags, 'elements-file', 'initial-file');
+    if (elementsFile)
+      body.elements = parseJsonValue(
+        readFileSync(elementsFile, 'utf-8'),
+        'Excalidraw elements file',
+        'Use --elements-file ./scene.excalidraw',
+      );
+    applyCommonGeometryFlags(body, flags, {
+      x: 'Use a finite number, e.g. --x 500',
+      y: 'Use a finite number, e.g. --y 300',
+      width: 'Use a positive number, e.g. --width 960',
+      height: 'Use a positive number, e.g. --height 720',
+    });
+    const timeoutMs = optionalPositiveFiniteFlag(
+      flags,
+      'timeout-ms',
+      'Use a positive number, e.g. --timeout-ms 120000',
+    );
+    if (timeoutMs !== undefined) body.timeoutMs = timeoutMs;
 
-  const result = await api('POST', '/api/canvas/diagram', body);
-  output(result && typeof result === 'object' && !Array.isArray(result) && 'nodeId' in result && !('id' in result)
-    ? { id: (result as { nodeId?: unknown }).nodeId, ...result }
-    : result);
-});
+    const result = await api('POST', '/api/canvas/diagram', body);
+    output(
+      result && typeof result === 'object' && !Array.isArray(result) && 'nodeId' in result && !('id' in result)
+        ? { id: (result as { nodeId?: unknown }).nodeId, ...result }
+        : result,
+    );
+  },
+);
 
-cmd('diagram add', 'Create an Excalidraw diagram node', [
-  'pmx-canvas diagram add --title "Architecture"',
-  'pmx-canvas diagram add --title "Architecture" --elements \'[{"type":"rectangle","id":"r1","x":0,"y":0,"width":120,"height":80}]\'',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('diagram add');
-  const externalAppAdd = COMMANDS['external-app add'];
-  await externalAppAdd.run([...args, '--kind', 'excalidraw']);
-});
+cmd(
+  'diagram add',
+  'Create an Excalidraw diagram node',
+  [
+    'pmx-canvas diagram add --title "Architecture"',
+    'pmx-canvas diagram add --title "Architecture" --elements \'[{"type":"rectangle","id":"r1","x":0,"y":0,"width":120,"height":80}]\'',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('diagram add');
+    const externalAppAdd = COMMANDS['external-app add'];
+    await externalAppAdd.run([...args, '--kind', 'excalidraw']);
+  },
+);
 
 // ── pin ──────────────────────────────────────────────────────
-cmd('pin', 'Manage context pins', [
-  'pmx-canvas pin node1 node2 node3',
-  'pmx-canvas pin --set node1 node2 node3',
-  'pmx-canvas pin --list',
-  'pmx-canvas pin --clear',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('pin');
+cmd(
+  'pin',
+  'Manage context pins',
+  [
+    'pmx-canvas pin node1 node2 node3',
+    'pmx-canvas pin --set node1 node2 node3',
+    'pmx-canvas pin --list',
+    'pmx-canvas pin --clear',
+  ],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('pin');
 
-  if (flags.list) {
+    if (flags.list) {
+      const result = await api('GET', '/api/canvas/pinned-context');
+      output(result);
+      return;
+    }
+
+    if (flags.clear) {
+      const result = await invokeOperation('pin.set', { nodeIds: [] });
+      output(result);
+      return;
+    }
+
+    // --set: positional args are node IDs
+    if (positional.length > 0 || flags.set) {
+      const result = await invokeOperation('pin.set', { nodeIds: positional });
+      output(result);
+      return;
+    }
+
+    // Default: list
     const result = await api('GET', '/api/canvas/pinned-context');
     output(result);
-    return;
-  }
-
-  if (flags.clear) {
-    const result = await invokeOperation('pin.set', { nodeIds: [] });
-    output(result);
-    return;
-  }
-
-  // --set: positional args are node IDs
-  if (positional.length > 0 || flags.set) {
-    const result = await invokeOperation('pin.set', { nodeIds: positional });
-    output(result);
-    return;
-  }
-
-  // Default: list
-  const result = await api('GET', '/api/canvas/pinned-context');
-  output(result);
-});
+  },
+);
 
 // ── AX ────────────────────────────────────────────────────────
-cmd('ax status', 'Read host-agnostic PMX AX state', [
-  'pmx-canvas ax status',
-], async (args) => {
+cmd('ax status', 'Read host-agnostic PMX AX state', ['pmx-canvas ax status'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax status');
 
   output(await api('GET', '/api/canvas/ax'));
 });
 
-cmd('ax context', 'Read agent-ready PMX AX context', [
-  'pmx-canvas ax context',
-], async (args) => {
+cmd('ax context', 'Read agent-ready PMX AX context', ['pmx-canvas ax context'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax context');
 
   output(await api('GET', '/api/canvas/ax/context'));
 });
 
-cmd('ax focus', 'Set or clear PMX AX focus without moving the viewport', [
-  'pmx-canvas ax focus node1 node2',
-  'pmx-canvas ax focus --clear',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax focus');
+cmd(
+  'ax focus',
+  'Set or clear PMX AX focus without moving the viewport',
+  ['pmx-canvas ax focus node1 node2', 'pmx-canvas ax focus --clear'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax focus');
 
-  const nodeIds = flags.clear ? [] : positional;
-  if (!flags.clear && nodeIds.length === 0) {
-    die('Missing node ID', 'pmx-canvas ax focus <node-id> [more-node-ids]');
-  }
-
-  output(await api('POST', '/api/canvas/ax/focus', { nodeIds, source: resolveAxSource(flags) }));
-});
-
-cmd('ax event add', 'Record a normalized AX timeline event', [
-  'pmx-canvas ax event add --kind tool-start --summary "ran tests"',
-  'pmx-canvas ax event add --kind failure --summary "build broke" --detail "..." node1 node2',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax event add');
-
-  const kind = requireFlag(flags, 'kind', 'pmx-canvas ax event add --kind <kind> --summary <text>');
-  const summary = requireFlag(flags, 'summary', 'pmx-canvas ax event add --kind <kind> --summary <text>');
-  const detail = getStringFlag(flags, 'detail');
-
-  output(await api('POST', '/api/canvas/ax/event', {
-    kind,
-    summary,
-    ...(detail ? { detail } : {}),
-    ...(positional.length > 0 ? { nodeIds: positional } : {}),
-    source: resolveAxSource(flags),
-  }));
-});
-
-cmd('ax steer', 'Send a steering message to the active agent session', [
-  'pmx-canvas ax steer "focus on the failing test first"',
-  'pmx-canvas ax steer --message "stop and re-plan"',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax steer');
-
-  const message = getStringFlag(flags, 'message') ?? positional.join(' ').trim();
-  if (!message) {
-    die('Missing steering message', 'pmx-canvas ax steer <message>');
-  }
-
-  output(await api('POST', '/api/canvas/ax/steer', { message, source: resolveAxSource(flags) }));
-});
-
-cmd('ax interaction', 'Submit a node-originated AX interaction (capability-gated)', [
-  'pmx-canvas ax interaction --type ax.work.create --node node-1 --payload \'{"title":"Wire auth"}\'',
-  'pmx-canvas ax interaction --type ax.focus.set --node node-2',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax interaction');
-
-  const type = getStringFlag(flags, 'type');
-  if (!type) die('Missing --type', 'pmx-canvas ax interaction --type <ax.*> --node <id> [--payload <json>]');
-  const sourceNodeId = getStringFlag(flags, 'node');
-  if (!sourceNodeId) die('Missing --node', 'pmx-canvas ax interaction --type <ax.*> --node <id>');
-
-  let payload: unknown;
-  const payloadRaw = getStringFlag(flags, 'payload');
-  if (payloadRaw) {
-    try {
-      payload = JSON.parse(payloadRaw);
-    } catch {
-      die('Invalid --payload JSON', 'pmx-canvas ax interaction --payload \'{"title":"..."}\'');
+    const nodeIds = flags.clear ? [] : positional;
+    if (!flags.clear && nodeIds.length === 0) {
+      die('Missing node ID', 'pmx-canvas ax focus <node-id> [more-node-ids]');
     }
-  }
 
-  output(await api('POST', '/api/canvas/ax/interaction', {
-    type,
-    sourceNodeId,
-    ...(payload !== undefined ? { payload } : {}),
-    source: resolveAxSource(flags),
-  }));
-});
+    output(await api('POST', '/api/canvas/ax/focus', { nodeIds, source: resolveAxSource(flags) }));
+  },
+);
 
-cmd('ax delivery list', 'List pending AX steering for a consumer (loop-safe)', [
-  'pmx-canvas ax delivery list',
-  'pmx-canvas ax delivery list --consumer copilot --limit 20',
-  'pmx-canvas ax delivery list --order newest   # latest browser steering first (#68)',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax delivery list');
-  const consumer = getStringFlag(flags, 'consumer');
-  const limit = optionalNumberFlag(flags, 'limit', 'pmx-canvas ax delivery list --limit <n>');
-  const order = getStringFlag(flags, 'order');
-  if (order !== undefined && order !== 'newest' && order !== 'oldest') {
-    die('Invalid --order', 'pmx-canvas ax delivery list --order newest|oldest');
-  }
-  const params = new URLSearchParams();
-  if (consumer) params.set('consumer', consumer);
-  if (limit) params.set('limit', String(limit));
-  if (order) params.set('order', order);
-  const qs = params.toString();
-  output(await api('GET', `/api/canvas/ax/delivery/pending${qs ? `?${qs}` : ''}`));
-});
+cmd(
+  'ax event add',
+  'Record a normalized AX timeline event',
+  [
+    'pmx-canvas ax event add --kind tool-start --summary "ran tests"',
+    'pmx-canvas ax event add --kind failure --summary "build broke" --detail "..." node1 node2',
+  ],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax event add');
 
-cmd('ax delivery mark', 'Mark an AX steering message as delivered', [
-  'pmx-canvas ax delivery mark <steering-id>',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax delivery mark');
-  const id = getStringFlag(flags, 'id') ?? positional[0];
-  if (!id) die('Missing steering id', 'pmx-canvas ax delivery mark <steering-id>');
-  output(await api('POST', `/api/canvas/ax/delivery/${encodeURIComponent(id)}/mark`, {}));
-});
+    const kind = requireFlag(flags, 'kind', 'pmx-canvas ax event add --kind <kind> --summary <text>');
+    const summary = requireFlag(flags, 'summary', 'pmx-canvas ax event add --kind <kind> --summary <text>');
+    const detail = getStringFlag(flags, 'detail');
 
-cmd('ax elicitation request', 'Request structured human input', [
-  'pmx-canvas ax elicitation request --prompt "Who owns this migration?"',
-  'pmx-canvas ax elicitation request --prompt "Pick a region" --fields region,owner',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax elicitation request');
-  const prompt = requireFlag(flags, 'prompt', 'pmx-canvas ax elicitation request --prompt <text>');
-  const fields = getStringFlag(flags, 'fields');
-  output(await api('POST', '/api/canvas/ax/elicitation', {
-    prompt,
-    ...(fields ? { fields: fields.split(',').map((f) => f.trim()).filter(Boolean) } : {}),
-    source: resolveAxSource(flags),
-  }));
-});
+    output(
+      await api('POST', '/api/canvas/ax/event', {
+        kind,
+        summary,
+        ...(detail ? { detail } : {}),
+        ...(positional.length > 0 ? { nodeIds: positional } : {}),
+        source: resolveAxSource(flags),
+      }),
+    );
+  },
+);
 
-cmd('ax elicitation respond', 'Answer a pending elicitation', [
-  'pmx-canvas ax elicitation respond <id> --response \'{"owner":"alice"}\'',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax elicitation respond');
-  const id = getStringFlag(flags, 'id') ?? positional[0];
-  if (!id) die('Missing elicitation id', 'pmx-canvas ax elicitation respond <id> --response <json>');
-  let response: unknown = {};
-  const raw = getStringFlag(flags, 'response');
-  if (raw) {
-    try { response = JSON.parse(raw); } catch { die('Invalid --response JSON', '--response \'{"k":"v"}\''); }
-  }
-  output(await api('POST', `/api/canvas/ax/elicitation/${encodeURIComponent(id)}/respond`, { response, source: resolveAxSource(flags) }));
-});
+cmd(
+  'ax steer',
+  'Send a steering message to the active agent session',
+  ['pmx-canvas ax steer "focus on the failing test first"', 'pmx-canvas ax steer --message "stop and re-plan"'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax steer');
+
+    const message = getStringFlag(flags, 'message') ?? positional.join(' ').trim();
+    if (!message) {
+      die('Missing steering message', 'pmx-canvas ax steer <message>');
+    }
+
+    output(await api('POST', '/api/canvas/ax/steer', { message, source: resolveAxSource(flags) }));
+  },
+);
+
+cmd(
+  'ax interaction',
+  'Submit a node-originated AX interaction (capability-gated)',
+  [
+    'pmx-canvas ax interaction --type ax.work.create --node node-1 --payload \'{"title":"Wire auth"}\'',
+    'pmx-canvas ax interaction --type ax.focus.set --node node-2',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax interaction');
+
+    const type = getStringFlag(flags, 'type');
+    if (!type) die('Missing --type', 'pmx-canvas ax interaction --type <ax.*> --node <id> [--payload <json>]');
+    const sourceNodeId = getStringFlag(flags, 'node');
+    if (!sourceNodeId) die('Missing --node', 'pmx-canvas ax interaction --type <ax.*> --node <id>');
+
+    let payload: unknown;
+    const payloadRaw = getStringFlag(flags, 'payload');
+    if (payloadRaw) {
+      try {
+        payload = JSON.parse(payloadRaw);
+      } catch {
+        die('Invalid --payload JSON', 'pmx-canvas ax interaction --payload \'{"title":"..."}\'');
+      }
+    }
+
+    output(
+      await api('POST', '/api/canvas/ax/interaction', {
+        type,
+        sourceNodeId,
+        ...(payload !== undefined ? { payload } : {}),
+        source: resolveAxSource(flags),
+      }),
+    );
+  },
+);
+
+cmd(
+  'ax delivery list',
+  'List pending AX steering for a consumer (loop-safe)',
+  [
+    'pmx-canvas ax delivery list',
+    'pmx-canvas ax delivery list --consumer copilot --limit 20',
+    'pmx-canvas ax delivery list --order newest   # latest browser steering first (#68)',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax delivery list');
+    const consumer = getStringFlag(flags, 'consumer');
+    const limit = optionalNumberFlag(flags, 'limit', 'pmx-canvas ax delivery list --limit <n>');
+    const order = getStringFlag(flags, 'order');
+    if (order !== undefined && order !== 'newest' && order !== 'oldest') {
+      die('Invalid --order', 'pmx-canvas ax delivery list --order newest|oldest');
+    }
+    const params = new URLSearchParams();
+    if (consumer) params.set('consumer', consumer);
+    if (limit) params.set('limit', String(limit));
+    if (order) params.set('order', order);
+    const qs = params.toString();
+    output(await api('GET', `/api/canvas/ax/delivery/pending${qs ? `?${qs}` : ''}`));
+  },
+);
+
+cmd(
+  'ax delivery mark',
+  'Mark an AX steering message as delivered',
+  ['pmx-canvas ax delivery mark <steering-id>'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax delivery mark');
+    const id = getStringFlag(flags, 'id') ?? positional[0];
+    if (!id) die('Missing steering id', 'pmx-canvas ax delivery mark <steering-id>');
+    output(await api('POST', `/api/canvas/ax/delivery/${encodeURIComponent(id)}/mark`, {}));
+  },
+);
+
+cmd(
+  'ax elicitation request',
+  'Request structured human input',
+  [
+    'pmx-canvas ax elicitation request --prompt "Who owns this migration?"',
+    'pmx-canvas ax elicitation request --prompt "Pick a region" --fields region,owner',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax elicitation request');
+    const prompt = requireFlag(flags, 'prompt', 'pmx-canvas ax elicitation request --prompt <text>');
+    const fields = getStringFlag(flags, 'fields');
+    output(
+      await api('POST', '/api/canvas/ax/elicitation', {
+        prompt,
+        ...(fields
+          ? {
+              fields: fields
+                .split(',')
+                .map((f) => f.trim())
+                .filter(Boolean),
+            }
+          : {}),
+        source: resolveAxSource(flags),
+      }),
+    );
+  },
+);
+
+cmd(
+  'ax elicitation respond',
+  'Answer a pending elicitation',
+  ['pmx-canvas ax elicitation respond <id> --response \'{"owner":"alice"}\''],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax elicitation respond');
+    const id = getStringFlag(flags, 'id') ?? positional[0];
+    if (!id) die('Missing elicitation id', 'pmx-canvas ax elicitation respond <id> --response <json>');
+    let response: unknown = {};
+    const raw = getStringFlag(flags, 'response');
+    if (raw) {
+      try {
+        response = JSON.parse(raw);
+      } catch {
+        die('Invalid --response JSON', '--response \'{"k":"v"}\'');
+      }
+    }
+    output(
+      await api('POST', `/api/canvas/ax/elicitation/${encodeURIComponent(id)}/respond`, {
+        response,
+        source: resolveAxSource(flags),
+      }),
+    );
+  },
+);
 
 cmd('ax elicitation list', 'List elicitations', ['pmx-canvas ax elicitation list'], async (args) => {
   const { flags } = parseFlags(args);
@@ -2029,32 +2181,42 @@ cmd('ax elicitation list', 'List elicitations', ['pmx-canvas ax elicitation list
   output(await api('GET', '/api/canvas/ax/elicitation'));
 });
 
-cmd('ax mode request', 'Request a workflow mode transition (plan/execute/autonomous)', [
-  'pmx-canvas ax mode request --mode execute --reason "plan approved"',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax mode request');
-  const mode = requireFlag(flags, 'mode', 'pmx-canvas ax mode request --mode plan|execute|autonomous');
-  const reason = getStringFlag(flags, 'reason');
-  output(await api('POST', '/api/canvas/ax/mode', { mode, ...(reason ? { reason } : {}), source: resolveAxSource(flags) }));
-});
+cmd(
+  'ax mode request',
+  'Request a workflow mode transition (plan/execute/autonomous)',
+  ['pmx-canvas ax mode request --mode execute --reason "plan approved"'],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax mode request');
+    const mode = requireFlag(flags, 'mode', 'pmx-canvas ax mode request --mode plan|execute|autonomous');
+    const reason = getStringFlag(flags, 'reason');
+    output(
+      await api('POST', '/api/canvas/ax/mode', { mode, ...(reason ? { reason } : {}), source: resolveAxSource(flags) }),
+    );
+  },
+);
 
-cmd('ax mode resolve', 'Resolve a pending mode request', [
-  'pmx-canvas ax mode resolve <id> --decision approved',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax mode resolve');
-  const id = getStringFlag(flags, 'id') ?? positional[0];
-  if (!id) die('Missing mode request id', 'pmx-canvas ax mode resolve <id> --decision approved|rejected');
-  const decision = getStringFlag(flags, 'decision');
-  if (decision !== 'approved' && decision !== 'rejected') die('Invalid --decision', '--decision approved|rejected');
-  const resolution = getStringFlag(flags, 'resolution');
-  output(await api('POST', `/api/canvas/ax/mode/${encodeURIComponent(id)}/resolve`, {
-    decision,
-    ...(resolution ? { resolution } : {}),
-    source: resolveAxSource(flags),
-  }));
-});
+cmd(
+  'ax mode resolve',
+  'Resolve a pending mode request',
+  ['pmx-canvas ax mode resolve <id> --decision approved'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax mode resolve');
+    const id = getStringFlag(flags, 'id') ?? positional[0];
+    if (!id) die('Missing mode request id', 'pmx-canvas ax mode resolve <id> --decision approved|rejected');
+    const decision = getStringFlag(flags, 'decision');
+    if (decision !== 'approved' && decision !== 'rejected') die('Invalid --decision', '--decision approved|rejected');
+    const resolution = getStringFlag(flags, 'resolution');
+    output(
+      await api('POST', `/api/canvas/ax/mode/${encodeURIComponent(id)}/resolve`, {
+        decision,
+        ...(resolution ? { resolution } : {}),
+        source: resolveAxSource(flags),
+      }),
+    );
+  },
+);
 
 cmd('ax mode list', 'List mode requests', ['pmx-canvas ax mode list'], async (args) => {
   const { flags } = parseFlags(args);
@@ -2068,21 +2230,36 @@ cmd('ax command list', 'List the PMX command registry', ['pmx-canvas ax command 
   output(await api('GET', '/api/canvas/ax/command'));
 });
 
-cmd('ax command invoke', 'Invoke a registry-gated PMX command intent', [
-  'pmx-canvas ax command invoke pmx.plan',
-  'pmx-canvas ax command invoke pmx.promote-context --args \'{"nodeIds":["n1"]}\'',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax command invoke');
-  const name = getStringFlag(flags, 'name') ?? positional[0];
-  if (!name) die('Missing command name', 'pmx-canvas ax command invoke <name>');
-  let cmdArgs: unknown;
-  const raw = getStringFlag(flags, 'args');
-  if (raw) {
-    try { cmdArgs = JSON.parse(raw); } catch { die('Invalid --args JSON', '--args \'{"k":"v"}\''); }
-  }
-  output(await api('POST', '/api/canvas/ax/command', { name, ...(cmdArgs !== undefined ? { args: cmdArgs } : {}), source: resolveAxSource(flags) }));
-});
+cmd(
+  'ax command invoke',
+  'Invoke a registry-gated PMX command intent',
+  [
+    'pmx-canvas ax command invoke pmx.plan',
+    'pmx-canvas ax command invoke pmx.promote-context --args \'{"nodeIds":["n1"]}\'',
+  ],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax command invoke');
+    const name = getStringFlag(flags, 'name') ?? positional[0];
+    if (!name) die('Missing command name', 'pmx-canvas ax command invoke <name>');
+    let cmdArgs: unknown;
+    const raw = getStringFlag(flags, 'args');
+    if (raw) {
+      try {
+        cmdArgs = JSON.parse(raw);
+      } catch {
+        die('Invalid --args JSON', '--args \'{"k":"v"}\'');
+      }
+    }
+    output(
+      await api('POST', '/api/canvas/ax/command', {
+        name,
+        ...(cmdArgs !== undefined ? { args: cmdArgs } : {}),
+        source: resolveAxSource(flags),
+      }),
+    );
+  },
+);
 
 cmd('ax policy get', 'Show the current declarative AX policy', ['pmx-canvas ax policy get'], async (args) => {
   const { flags } = parseFlags(args);
@@ -2090,222 +2267,285 @@ cmd('ax policy get', 'Show the current declarative AX policy', ['pmx-canvas ax p
   output(await api('GET', '/api/canvas/ax/policy'));
 });
 
-cmd('ax policy set', 'Set the declarative AX policy (stored by PMX, enforced by adapters)', [
-  'pmx-canvas ax policy set --excluded-tools shell,write --mode concise',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax policy set');
-  const csv = (v?: string) => (v ? v.split(',').map((s) => s.trim()).filter(Boolean) : undefined);
-  const allowed = csv(getStringFlag(flags, 'allowed-tools'));
-  const excluded = csv(getStringFlag(flags, 'excluded-tools'));
-  const approvalRequired = csv(getStringFlag(flags, 'approval-tools'));
-  const mode = getStringFlag(flags, 'mode');
-  const systemAppend = getStringFlag(flags, 'system-append');
-  const tools = (allowed || excluded || approvalRequired)
-    ? { ...(allowed ? { allowed } : {}), ...(excluded ? { excluded } : {}), ...(approvalRequired ? { approvalRequired } : {}) }
-    : undefined;
-  const prompt = (mode || systemAppend)
-    ? { ...(mode ? { mode } : {}), ...(systemAppend ? { systemAppend } : {}) }
-    : undefined;
-  output(await api('POST', '/api/canvas/ax/policy', { ...(tools ? { tools } : {}), ...(prompt ? { prompt } : {}), source: resolveAxSource(flags) }));
-});
+cmd(
+  'ax policy set',
+  'Set the declarative AX policy (stored by PMX, enforced by adapters)',
+  ['pmx-canvas ax policy set --excluded-tools shell,write --mode concise'],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax policy set');
+    const csv = (v?: string) =>
+      v
+        ? v
+            .split(',')
+            .map((s) => s.trim())
+            .filter(Boolean)
+        : undefined;
+    const allowed = csv(getStringFlag(flags, 'allowed-tools'));
+    const excluded = csv(getStringFlag(flags, 'excluded-tools'));
+    const approvalRequired = csv(getStringFlag(flags, 'approval-tools'));
+    const mode = getStringFlag(flags, 'mode');
+    const systemAppend = getStringFlag(flags, 'system-append');
+    const tools =
+      allowed || excluded || approvalRequired
+        ? {
+            ...(allowed ? { allowed } : {}),
+            ...(excluded ? { excluded } : {}),
+            ...(approvalRequired ? { approvalRequired } : {}),
+          }
+        : undefined;
+    const prompt =
+      mode || systemAppend ? { ...(mode ? { mode } : {}), ...(systemAppend ? { systemAppend } : {}) } : undefined;
+    output(
+      await api('POST', '/api/canvas/ax/policy', {
+        ...(tools ? { tools } : {}),
+        ...(prompt ? { prompt } : {}),
+        source: resolveAxSource(flags),
+      }),
+    );
+  },
+);
 
-cmd('ax timeline', 'Read the bounded AX timeline (events, evidence, steering)', [
-  'pmx-canvas ax timeline',
-  'pmx-canvas ax timeline --limit 100',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax timeline');
+cmd(
+  'ax timeline',
+  'Read the bounded AX timeline (events, evidence, steering)',
+  ['pmx-canvas ax timeline', 'pmx-canvas ax timeline --limit 100'],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax timeline');
 
-  const limit = optionalNumberFlag(flags, 'limit', 'pmx-canvas ax timeline --limit <n>');
-  output(await api('GET', `/api/canvas/ax/timeline${limit ? `?limit=${limit}` : ''}`));
-});
+    const limit = optionalNumberFlag(flags, 'limit', 'pmx-canvas ax timeline --limit <n>');
+    output(await api('GET', `/api/canvas/ax/timeline${limit ? `?limit=${limit}` : ''}`));
+  },
+);
 
-cmd('ax work add', 'Add a canvas-bound AX work item', [
-  'pmx-canvas ax work add --title "Wire up auth" --status in-progress',
-  'pmx-canvas ax work add --title "Review API" node1 node2',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax work add');
+cmd(
+  'ax work add',
+  'Add a canvas-bound AX work item',
+  [
+    'pmx-canvas ax work add --title "Wire up auth" --status in-progress',
+    'pmx-canvas ax work add --title "Review API" node1 node2',
+  ],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax work add');
 
-  const title = requireFlag(flags, 'title', 'pmx-canvas ax work add --title <text>');
-  const status = getStringFlag(flags, 'status');
-  const detail = getStringFlag(flags, 'detail');
+    const title = requireFlag(flags, 'title', 'pmx-canvas ax work add --title <text>');
+    const status = getStringFlag(flags, 'status');
+    const detail = getStringFlag(flags, 'detail');
 
-  output(await api('POST', '/api/canvas/ax/work', {
-    title,
-    ...(status ? { status } : {}),
-    ...(detail ? { detail } : {}),
-    ...(positional.length > 0 ? { nodeIds: positional } : {}),
-    source: resolveAxSource(flags),
-  }));
-});
+    output(
+      await api('POST', '/api/canvas/ax/work', {
+        title,
+        ...(status ? { status } : {}),
+        ...(detail ? { detail } : {}),
+        ...(positional.length > 0 ? { nodeIds: positional } : {}),
+        source: resolveAxSource(flags),
+      }),
+    );
+  },
+);
 
-cmd('ax work update', 'Update a canvas-bound AX work item by ID', [
-  'pmx-canvas ax work update <id> --status done',
-  'pmx-canvas ax work update <id> --title "New title" --detail "..."',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax work update');
+cmd(
+  'ax work update',
+  'Update a canvas-bound AX work item by ID',
+  ['pmx-canvas ax work update <id> --status done', 'pmx-canvas ax work update <id> --title "New title" --detail "..."'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax work update');
 
-  const id = positional[0];
-  if (!id) die('Missing work item ID', 'pmx-canvas ax work update <id> --status <status>');
-  const title = getStringFlag(flags, 'title');
-  const status = getStringFlag(flags, 'status');
-  const detail = getStringFlag(flags, 'detail');
+    const id = positional[0];
+    if (!id) die('Missing work item ID', 'pmx-canvas ax work update <id> --status <status>');
+    const title = getStringFlag(flags, 'title');
+    const status = getStringFlag(flags, 'status');
+    const detail = getStringFlag(flags, 'detail');
 
-  output(await api('PATCH', `/api/canvas/ax/work/${encodeURIComponent(id)}`, {
-    ...(title ? { title } : {}),
-    ...(status ? { status } : {}),
-    ...(detail ? { detail } : {}),
-    ...(positional.length > 1 ? { nodeIds: positional.slice(1) } : {}),
-    source: resolveAxSource(flags),
-  }));
-});
+    output(
+      await api('PATCH', `/api/canvas/ax/work/${encodeURIComponent(id)}`, {
+        ...(title ? { title } : {}),
+        ...(status ? { status } : {}),
+        ...(detail ? { detail } : {}),
+        ...(positional.length > 1 ? { nodeIds: positional.slice(1) } : {}),
+        source: resolveAxSource(flags),
+      }),
+    );
+  },
+);
 
-cmd('ax work list', 'List canvas-bound AX work items', [
-  'pmx-canvas ax work list',
-], async (args) => {
+cmd('ax work list', 'List canvas-bound AX work items', ['pmx-canvas ax work list'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax work list');
 
   output(await api('GET', '/api/canvas/ax/work'));
 });
 
-cmd('ax approval request', 'Request a canvas-bound AX approval gate', [
-  'pmx-canvas ax approval request --title "Deploy to prod"',
-  'pmx-canvas ax approval request --title "Drop table" --action db.drop node1',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax approval request');
+cmd(
+  'ax approval request',
+  'Request a canvas-bound AX approval gate',
+  [
+    'pmx-canvas ax approval request --title "Deploy to prod"',
+    'pmx-canvas ax approval request --title "Drop table" --action db.drop node1',
+  ],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax approval request');
 
-  const title = requireFlag(flags, 'title', 'pmx-canvas ax approval request --title <text>');
-  const detail = getStringFlag(flags, 'detail');
-  const action = getStringFlag(flags, 'action');
+    const title = requireFlag(flags, 'title', 'pmx-canvas ax approval request --title <text>');
+    const detail = getStringFlag(flags, 'detail');
+    const action = getStringFlag(flags, 'action');
 
-  output(await api('POST', '/api/canvas/ax/approval', {
-    title,
-    ...(detail ? { detail } : {}),
-    ...(action ? { action } : {}),
-    ...(positional.length > 0 ? { nodeIds: positional } : {}),
-    source: resolveAxSource(flags),
-  }));
-});
+    output(
+      await api('POST', '/api/canvas/ax/approval', {
+        title,
+        ...(detail ? { detail } : {}),
+        ...(action ? { action } : {}),
+        ...(positional.length > 0 ? { nodeIds: positional } : {}),
+        source: resolveAxSource(flags),
+      }),
+    );
+  },
+);
 
-cmd('ax approval resolve', 'Resolve a pending AX approval gate by ID', [
-  'pmx-canvas ax approval resolve <id> --decision approved',
-  'pmx-canvas ax approval resolve <id> --decision rejected --resolution "too risky"',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax approval resolve');
+cmd(
+  'ax approval resolve',
+  'Resolve a pending AX approval gate by ID',
+  [
+    'pmx-canvas ax approval resolve <id> --decision approved',
+    'pmx-canvas ax approval resolve <id> --decision rejected --resolution "too risky"',
+  ],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax approval resolve');
 
-  const id = positional[0];
-  if (!id) die('Missing approval gate ID', 'pmx-canvas ax approval resolve <id> --decision <approved|rejected>');
-  const decision = requireFlag(flags, 'decision', 'pmx-canvas ax approval resolve <id> --decision <approved|rejected>');
-  if (decision !== 'approved' && decision !== 'rejected') {
-    die('Invalid decision', 'pmx-canvas ax approval resolve <id> --decision <approved|rejected>');
-  }
-  const resolution = getStringFlag(flags, 'resolution');
+    const id = positional[0];
+    if (!id) die('Missing approval gate ID', 'pmx-canvas ax approval resolve <id> --decision <approved|rejected>');
+    const decision = requireFlag(
+      flags,
+      'decision',
+      'pmx-canvas ax approval resolve <id> --decision <approved|rejected>',
+    );
+    if (decision !== 'approved' && decision !== 'rejected') {
+      die('Invalid decision', 'pmx-canvas ax approval resolve <id> --decision <approved|rejected>');
+    }
+    const resolution = getStringFlag(flags, 'resolution');
 
-  output(await api('POST', `/api/canvas/ax/approval/${encodeURIComponent(id)}/resolve`, {
-    decision,
-    ...(resolution ? { resolution } : {}),
-    source: resolveAxSource(flags),
-  }));
-});
+    output(
+      await api('POST', `/api/canvas/ax/approval/${encodeURIComponent(id)}/resolve`, {
+        decision,
+        ...(resolution ? { resolution } : {}),
+        source: resolveAxSource(flags),
+      }),
+    );
+  },
+);
 
-cmd('ax approval list', 'List canvas-bound AX approval gates', [
-  'pmx-canvas ax approval list',
-], async (args) => {
+cmd('ax approval list', 'List canvas-bound AX approval gates', ['pmx-canvas ax approval list'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax approval list');
 
   output(await api('GET', '/api/canvas/ax/approval'));
 });
 
-cmd('ax evidence add', 'Record an AX evidence item on the timeline', [
-  'pmx-canvas ax evidence add --kind test-output --title "unit pass" --body "..."',
-  'pmx-canvas ax evidence add --kind screenshot --title "before" --ref /tmp/before.png node1',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax evidence add');
+cmd(
+  'ax evidence add',
+  'Record an AX evidence item on the timeline',
+  [
+    'pmx-canvas ax evidence add --kind test-output --title "unit pass" --body "..."',
+    'pmx-canvas ax evidence add --kind screenshot --title "before" --ref /tmp/before.png node1',
+  ],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax evidence add');
 
-  const kind = requireFlag(flags, 'kind', 'pmx-canvas ax evidence add --kind <kind> --title <text>');
-  const title = requireFlag(flags, 'title', 'pmx-canvas ax evidence add --kind <kind> --title <text>');
-  const body = getStringFlag(flags, 'body');
-  const ref = getStringFlag(flags, 'ref');
+    const kind = requireFlag(flags, 'kind', 'pmx-canvas ax evidence add --kind <kind> --title <text>');
+    const title = requireFlag(flags, 'title', 'pmx-canvas ax evidence add --kind <kind> --title <text>');
+    const body = getStringFlag(flags, 'body');
+    const ref = getStringFlag(flags, 'ref');
 
-  output(await api('POST', '/api/canvas/ax/evidence', {
-    kind,
-    title,
-    ...(body ? { body } : {}),
-    ...(ref ? { ref } : {}),
-    ...(positional.length > 0 ? { nodeIds: positional } : {}),
-    source: resolveAxSource(flags),
-  }));
-});
+    output(
+      await api('POST', '/api/canvas/ax/evidence', {
+        kind,
+        title,
+        ...(body ? { body } : {}),
+        ...(ref ? { ref } : {}),
+        ...(positional.length > 0 ? { nodeIds: positional } : {}),
+        source: resolveAxSource(flags),
+      }),
+    );
+  },
+);
 
-cmd('ax review add', 'Add a canvas-bound AX review annotation', [
-  'pmx-canvas ax review add --body "needs a test" --node node1',
-  'pmx-canvas ax review add --body "off-by-one" --kind finding --severity error --file src/x.ts',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax review add');
+cmd(
+  'ax review add',
+  'Add a canvas-bound AX review annotation',
+  [
+    'pmx-canvas ax review add --body "needs a test" --node node1',
+    'pmx-canvas ax review add --body "off-by-one" --kind finding --severity error --file src/x.ts',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax review add');
 
-  const body = requireFlag(flags, 'body', 'pmx-canvas ax review add --body <text>');
-  const kind = getStringFlag(flags, 'kind');
-  const severity = getStringFlag(flags, 'severity');
-  const anchorType = getStringFlag(flags, 'anchor');
-  const nodeId = getStringFlag(flags, 'node');
-  const file = getStringFlag(flags, 'file');
-  const author = getStringFlag(flags, 'author');
+    const body = requireFlag(flags, 'body', 'pmx-canvas ax review add --body <text>');
+    const kind = getStringFlag(flags, 'kind');
+    const severity = getStringFlag(flags, 'severity');
+    const anchorType = getStringFlag(flags, 'anchor');
+    const nodeId = getStringFlag(flags, 'node');
+    const file = getStringFlag(flags, 'file');
+    const author = getStringFlag(flags, 'author');
 
-  output(await api('POST', '/api/canvas/ax/review', {
-    body,
-    ...(kind ? { kind } : {}),
-    ...(severity ? { severity } : {}),
-    ...(anchorType ? { anchorType } : {}),
-    ...(nodeId ? { nodeId } : {}),
-    ...(file ? { file } : {}),
-    ...(author ? { author } : {}),
-    source: resolveAxSource(flags),
-  }));
-});
+    output(
+      await api('POST', '/api/canvas/ax/review', {
+        body,
+        ...(kind ? { kind } : {}),
+        ...(severity ? { severity } : {}),
+        ...(anchorType ? { anchorType } : {}),
+        ...(nodeId ? { nodeId } : {}),
+        ...(file ? { file } : {}),
+        ...(author ? { author } : {}),
+        source: resolveAxSource(flags),
+      }),
+    );
+  },
+);
 
-cmd('ax review list', 'List canvas-bound AX review annotations', [
-  'pmx-canvas ax review list',
-], async (args) => {
+cmd('ax review list', 'List canvas-bound AX review annotations', ['pmx-canvas ax review list'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax review list');
 
   output(await api('GET', '/api/canvas/ax/review'));
 });
 
-cmd('ax host report', 'Report host/session capability to the canvas', [
-  'pmx-canvas ax host report --host copilot --canvas --tools --session-messaging',
-  'pmx-canvas ax host report --host codex --canvas --files',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('ax host report');
+cmd(
+  'ax host report',
+  'Report host/session capability to the canvas',
+  [
+    'pmx-canvas ax host report --host copilot --canvas --tools --session-messaging',
+    'pmx-canvas ax host report --host codex --canvas --files',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax host report');
 
-  const host = getStringFlag(flags, 'host');
+    const host = getStringFlag(flags, 'host');
 
-  output(await api('PUT', '/api/canvas/ax/host-capability', {
-    ...(host ? { host } : {}),
-    canvas: flags.canvas === true,
-    hooks: flags.hooks === true,
-    tools: flags.tools === true,
-    sessionMessaging: flags['session-messaging'] === true,
-    permissions: flags.permissions === true,
-    files: flags.files === true,
-    uiPrompts: flags['ui-prompts'] === true,
-    source: resolveAxSource(flags),
-  }));
-});
+    output(
+      await api('PUT', '/api/canvas/ax/host-capability', {
+        ...(host ? { host } : {}),
+        canvas: flags.canvas === true,
+        hooks: flags.hooks === true,
+        tools: flags.tools === true,
+        sessionMessaging: flags['session-messaging'] === true,
+        permissions: flags.permissions === true,
+        files: flags.files === true,
+        uiPrompts: flags['ui-prompts'] === true,
+        source: resolveAxSource(flags),
+      }),
+    );
+  },
+);
 
-cmd('ax host status', 'Read the reported host/session capability', [
-  'pmx-canvas ax host status',
-], async (args) => {
+cmd('ax host status', 'Read the reported host/session capability', ['pmx-canvas ax host status'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax host status');
 
@@ -2313,41 +2553,44 @@ cmd('ax host status', 'Read the reported host/session capability', [
 });
 
 // ── copilot install-extension ────────────────────────────────
-cmd('copilot install-extension', 'Install the bundled GitHub Copilot extension adapter', [
-  'pmx-canvas copilot install-extension --dry-run',
-  'pmx-canvas copilot install-extension --target .github/extensions/pmx-canvas/extension.mjs --yes',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('copilot install-extension');
+cmd(
+  'copilot install-extension',
+  'Install the bundled GitHub Copilot extension adapter',
+  [
+    'pmx-canvas copilot install-extension --dry-run',
+    'pmx-canvas copilot install-extension --target .github/extensions/pmx-canvas/extension.mjs --yes',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('copilot install-extension');
 
-  const sourcePath = fileURLToPath(new URL('../../.github/extensions/pmx-canvas/extension.mjs', import.meta.url));
-  if (!existsSync(sourcePath)) {
-    die('Bundled Copilot extension adapter not found.', `Expected at ${sourcePath}`);
-  }
+    const sourcePath = fileURLToPath(new URL('../../.github/extensions/pmx-canvas/extension.mjs', import.meta.url));
+    if (!existsSync(sourcePath)) {
+      die('Bundled Copilot extension adapter not found.', `Expected at ${sourcePath}`);
+    }
 
-  const targetPath = getStringFlag(flags, 'target')
-    ?? join(process.cwd(), '.github', 'extensions', 'pmx-canvas', 'extension.mjs');
-  const dryRun = flags['dry-run'] === true;
-  const targetExists = existsSync(targetPath);
+    const targetPath =
+      getStringFlag(flags, 'target') ?? join(process.cwd(), '.github', 'extensions', 'pmx-canvas', 'extension.mjs');
+    const dryRun = flags['dry-run'] === true;
+    const targetExists = existsSync(targetPath);
 
-  if (dryRun) {
-    output({ ok: true, dryRun: true, sourcePath, targetPath, targetExists, wrote: false });
-    return;
-  }
+    if (dryRun) {
+      output({ ok: true, dryRun: true, sourcePath, targetPath, targetExists, wrote: false });
+      return;
+    }
 
-  if (targetExists && flags.yes !== true) {
-    die('Target already exists. Re-run with --yes to overwrite.', `Target: ${targetPath}`);
-  }
+    if (targetExists && flags.yes !== true) {
+      die('Target already exists. Re-run with --yes to overwrite.', `Target: ${targetPath}`);
+    }
 
-  mkdirSync(dirname(targetPath), { recursive: true });
-  copyFileSync(sourcePath, targetPath);
-  output({ ok: true, dryRun: false, sourcePath, targetPath, wrote: true });
-});
+    mkdirSync(dirname(targetPath), { recursive: true });
+    copyFileSync(sourcePath, targetPath);
+    output({ ok: true, dryRun: false, sourcePath, targetPath, wrote: true });
+  },
+);
 
 // ── undo ─────────────────────────────────────────────────────
-cmd('undo', 'Undo the last canvas mutation', [
-  'pmx-canvas undo',
-], async (args) => {
+cmd('undo', 'Undo the last canvas mutation', ['pmx-canvas undo'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('undo');
 
@@ -2356,9 +2599,7 @@ cmd('undo', 'Undo the last canvas mutation', [
 });
 
 // ── redo ─────────────────────────────────────────────────────
-cmd('redo', 'Redo the last undone mutation', [
-  'pmx-canvas redo',
-], async (args) => {
+cmd('redo', 'Redo the last undone mutation', ['pmx-canvas redo'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('redo');
 
@@ -2367,101 +2608,112 @@ cmd('redo', 'Redo the last undone mutation', [
 });
 
 // ── history ──────────────────────────────────────────────────
-cmd('history', 'Show canvas mutation history', [
-  'pmx-canvas history',
-  'pmx-canvas history --summary',
-  'pmx-canvas history --compact',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('history');
+cmd(
+  'history',
+  'Show canvas mutation history',
+  ['pmx-canvas history', 'pmx-canvas history --summary', 'pmx-canvas history --compact'],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('history');
 
-  const result = await invokeOperation('history.get', {}) as Record<string, unknown>;
-  if (flags.summary) {
-    output(summarizeHistoryResult(result));
-    return;
-  }
-  if (flags.compact) {
-    output(compactHistoryResult(result));
-    return;
-  }
-  output(result);
-});
+    const result = (await invokeOperation('history.get', {})) as Record<string, unknown>;
+    if (flags.summary) {
+      output(summarizeHistoryResult(result));
+      return;
+    }
+    if (flags.compact) {
+      output(compactHistoryResult(result));
+      return;
+    }
+    output(result);
+  },
+);
 
 // ── snapshot save ────────────────────────────────────────────
-cmd('snapshot save', 'Save a named snapshot of the current canvas', [
-  'pmx-canvas snapshot save --name "before-refactor"',
-  'pmx-canvas snapshot save --name checkpoint-1',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('snapshot save');
+cmd(
+  'snapshot save',
+  'Save a named snapshot of the current canvas',
+  ['pmx-canvas snapshot save --name "before-refactor"', 'pmx-canvas snapshot save --name checkpoint-1'],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('snapshot save');
 
-  const name = requireFlag(flags, 'name', 'pmx-canvas snapshot save --name "my-snapshot"');
-  const result = await invokeOperation('snapshot.save', { name });
-  output(result);
-});
+    const name = requireFlag(flags, 'name', 'pmx-canvas snapshot save --name "my-snapshot"');
+    const result = await invokeOperation('snapshot.save', { name });
+    output(result);
+  },
+);
 
 // ── snapshot list ────────────────────────────────────────────
-cmd('snapshot list', 'List saved snapshots', [
-  'pmx-canvas snapshot list',
-  'pmx-canvas snapshot list --limit 50 --query baseline',
-  'pmx-canvas snapshot list --after 2026-05-01T00:00:00Z --before 2026-05-05T00:00:00Z',
-  'pmx-canvas snapshot list --all',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('snapshot list');
+cmd(
+  'snapshot list',
+  'List saved snapshots',
+  [
+    'pmx-canvas snapshot list',
+    'pmx-canvas snapshot list --limit 50 --query baseline',
+    'pmx-canvas snapshot list --after 2026-05-01T00:00:00Z --before 2026-05-05T00:00:00Z',
+    'pmx-canvas snapshot list --all',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('snapshot list');
 
-  const limit = optionalNumberFlag(flags, 'limit', 'Use a positive integer, e.g. --limit 50');
-  const query = getStringFlag(flags, 'query', 'q');
-  const before = getStringFlag(flags, 'before');
-  const after = getStringFlag(flags, 'after');
-  const result = await invokeOperation('snapshot.list', {
-    ...(limit !== undefined ? { limit } : {}),
-    ...(query ? { q: query } : {}),
-    ...(before ? { before } : {}),
-    ...(after ? { after } : {}),
-    ...(flags.all ? { all: true } : {}),
-  });
-  output(result);
-});
+    const limit = optionalNumberFlag(flags, 'limit', 'Use a positive integer, e.g. --limit 50');
+    const query = getStringFlag(flags, 'query', 'q');
+    const before = getStringFlag(flags, 'before');
+    const after = getStringFlag(flags, 'after');
+    const result = await invokeOperation('snapshot.list', {
+      ...(limit !== undefined ? { limit } : {}),
+      ...(query ? { q: query } : {}),
+      ...(before ? { before } : {}),
+      ...(after ? { after } : {}),
+      ...(flags.all ? { all: true } : {}),
+    });
+    output(result);
+  },
+);
 
 // ── snapshot gc ──────────────────────────────────────────────
-cmd('snapshot gc', 'Delete old snapshots, keeping the newest N', [
-  'pmx-canvas snapshot gc --keep 20 --dry-run',
-  'pmx-canvas snapshot gc --keep 50 --yes',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('snapshot gc');
+cmd(
+  'snapshot gc',
+  'Delete old snapshots, keeping the newest N',
+  ['pmx-canvas snapshot gc --keep 20 --dry-run', 'pmx-canvas snapshot gc --keep 50 --yes'],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('snapshot gc');
 
-  const keep = optionalNumberFlag(flags, 'keep', 'Use a positive integer, e.g. --keep 20');
-  const dryRun = flags['dry-run'] === true;
-  if (!dryRun && !flags.yes) {
-    die('Destructive operation requires --yes flag', 'Preview with: pmx-canvas snapshot gc --keep 20 --dry-run');
-  }
-  const result = await invokeOperation('snapshot.gc', {
-    ...(keep !== undefined ? { keep } : {}),
-    dryRun,
-  });
-  output(result);
-});
+    const keep = optionalNumberFlag(flags, 'keep', 'Use a positive integer, e.g. --keep 20');
+    const dryRun = flags['dry-run'] === true;
+    if (!dryRun && !flags.yes) {
+      die('Destructive operation requires --yes flag', 'Preview with: pmx-canvas snapshot gc --keep 20 --dry-run');
+    }
+    const result = await invokeOperation('snapshot.gc', {
+      ...(keep !== undefined ? { keep } : {}),
+      dryRun,
+    });
+    output(result);
+  },
+);
 
 // ── snapshot restore ─────────────────────────────────────────
-cmd('snapshot restore', 'Restore canvas from a snapshot', [
-  'pmx-canvas snapshot restore <snapshot-id-or-name>',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('snapshot restore');
+cmd(
+  'snapshot restore',
+  'Restore canvas from a snapshot',
+  ['pmx-canvas snapshot restore <snapshot-id-or-name>'],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('snapshot restore');
 
-  const id = positional[0];
-  if (!id) die('Missing snapshot ID or name', 'pmx-canvas snapshot restore <snapshot-id-or-name>');
+    const id = positional[0];
+    if (!id) die('Missing snapshot ID or name', 'pmx-canvas snapshot restore <snapshot-id-or-name>');
 
-  const result = await invokeOperation('snapshot.restore', { id });
-  output(result);
-});
+    const result = await invokeOperation('snapshot.restore', { id });
+    output(result);
+  },
+);
 
 // ── snapshot delete ──────────────────────────────────────────
-cmd('snapshot delete', 'Delete a saved snapshot', [
-  'pmx-canvas snapshot delete <snapshot-id>',
-], async (args) => {
+cmd('snapshot delete', 'Delete a saved snapshot', ['pmx-canvas snapshot delete <snapshot-id>'], async (args) => {
   const { positional, flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('snapshot delete');
 
@@ -2481,171 +2733,196 @@ async function runSnapshotDiff(args: string[]): Promise<void> {
 }
 
 // ── snapshot diff ────────────────────────────────────────────
-cmd('snapshot diff', 'Compare current canvas against a saved snapshot', [
-  'pmx-canvas snapshot diff <snapshot-id>',
-  'pmx-canvas snapshot diff "before-refactor"',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('snapshot diff');
-  await runSnapshotDiff(args);
-});
+cmd(
+  'snapshot diff',
+  'Compare current canvas against a saved snapshot',
+  ['pmx-canvas snapshot diff <snapshot-id>', 'pmx-canvas snapshot diff "before-refactor"'],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('snapshot diff');
+    await runSnapshotDiff(args);
+  },
+);
 
 // ── diff ─────────────────────────────────────────────────────
-cmd('diff', 'Compare current canvas against a snapshot', [
-  'pmx-canvas diff <snapshot-id>',
-], async (args) => {
+cmd('diff', 'Compare current canvas against a snapshot', ['pmx-canvas diff <snapshot-id>'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('diff');
   await runSnapshotDiff(args);
 });
 
 // ── group create ─────────────────────────────────────────────
-cmd('group create', 'Create a group node', [
-  'pmx-canvas group create --title "API Layer" node1 node2',
-  'pmx-canvas group create --title "Quarterly board" --x 40 --y 60 --width 1600 --height 900 --child-layout column node1 node2',
-  'pmx-canvas group create --title "Frontend" --color "#ff6b6b"',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('group create');
+cmd(
+  'group create',
+  'Create a group node',
+  [
+    'pmx-canvas group create --title "API Layer" node1 node2',
+    'pmx-canvas group create --title "Quarterly board" --x 40 --y 60 --width 1600 --height 900 --child-layout column node1 node2',
+    'pmx-canvas group create --title "Frontend" --color "#ff6b6b"',
+  ],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('group create');
 
-  const body: Record<string, unknown> = {};
-  if (flags.title && flags.title !== true) body.title = flags.title;
-  if (flags.color && flags.color !== true) body.color = flags.color;
-  const x = optionalFiniteFlag(flags, 'x', 'Use a finite number, e.g. --x 40');
-  const y = optionalFiniteFlag(flags, 'y', 'Use a finite number, e.g. --y 60');
-  const width = optionalPositiveFiniteFlag(flags, 'width', 'Use a positive number, e.g. --width 1600');
-  const height = optionalPositiveFiniteFlag(flags, 'height', 'Use a positive number, e.g. --height 900');
-  if (x !== undefined) body.x = x;
-  if (y !== undefined) body.y = y;
-  if (width !== undefined) body.width = width;
-  if (height !== undefined) body.height = height;
-  if (typeof flags['child-layout'] === 'string') body.childLayout = flags['child-layout'];
-  if (positional.length > 0) body.childIds = positional;
+    const body: Record<string, unknown> = {};
+    if (flags.title && flags.title !== true) body.title = flags.title;
+    if (flags.color && flags.color !== true) body.color = flags.color;
+    const x = optionalFiniteFlag(flags, 'x', 'Use a finite number, e.g. --x 40');
+    const y = optionalFiniteFlag(flags, 'y', 'Use a finite number, e.g. --y 60');
+    const width = optionalPositiveFiniteFlag(flags, 'width', 'Use a positive number, e.g. --width 1600');
+    const height = optionalPositiveFiniteFlag(flags, 'height', 'Use a positive number, e.g. --height 900');
+    if (x !== undefined) body.x = x;
+    if (y !== undefined) body.y = y;
+    if (width !== undefined) body.width = width;
+    if (height !== undefined) body.height = height;
+    if (typeof flags['child-layout'] === 'string') body.childLayout = flags['child-layout'];
+    if (positional.length > 0) body.childIds = positional;
 
-  const result = await api('POST', '/api/canvas/group', body);
-  output(result);
-});
+    const result = await api('POST', '/api/canvas/group', body);
+    output(result);
+  },
+);
 
 // ── group add ────────────────────────────────────────────────
-cmd('group add', 'Add nodes to an existing group', [
-  'pmx-canvas group add --group <group-id> node1 node2',
-  'pmx-canvas group add --group <group-id> --child-layout flow node1 node2',
-], async (args) => {
-  const { positional, flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('group add');
+cmd(
+  'group add',
+  'Add nodes to an existing group',
+  [
+    'pmx-canvas group add --group <group-id> node1 node2',
+    'pmx-canvas group add --group <group-id> --child-layout flow node1 node2',
+  ],
+  async (args) => {
+    const { positional, flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('group add');
 
-  const groupId = requireFlag(flags, 'group', 'pmx-canvas group add --group <group-id> node1 node2');
-  if (positional.length === 0) die('No node IDs provided', 'pmx-canvas group add --group <group-id> node1 node2');
+    const groupId = requireFlag(flags, 'group', 'pmx-canvas group add --group <group-id> node1 node2');
+    if (positional.length === 0) die('No node IDs provided', 'pmx-canvas group add --group <group-id> node1 node2');
 
-  const result = await api('POST', '/api/canvas/group/add', {
-    groupId,
-    childIds: positional,
-    ...(typeof flags['child-layout'] === 'string' ? { childLayout: flags['child-layout'] } : {}),
-  });
-  output(result);
-});
+    const result = await api('POST', '/api/canvas/group/add', {
+      groupId,
+      childIds: positional,
+      ...(typeof flags['child-layout'] === 'string' ? { childLayout: flags['child-layout'] } : {}),
+    });
+    output(result);
+  },
+);
 
 // ── batch ────────────────────────────────────────────────────
-cmd('batch', 'Run a batch of canvas operations from JSON', [
-  'pmx-canvas batch --file ./canvas-ops.json',
-  'pmx-canvas batch --json \'[{\"op\":\"node.add\",\"assign\":\"a\",\"args\":{\"type\":\"markdown\",\"title\":\"A\"}}]\'',
-  'pmx-canvas batch --json \'[{\"op\":\"graph.add\",\"assign\":\"g\",\"args\":{\"graphType\":\"bar\",\"data\":[{\"label\":\"Docs\",\"value\":5}],\"xKey\":\"label\",\"yKey\":\"value\"}}]\'',
-  'cat ops.json | pmx-canvas batch --stdin',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('batch');
+cmd(
+  'batch',
+  'Run a batch of canvas operations from JSON',
+  [
+    'pmx-canvas batch --file ./canvas-ops.json',
+    'pmx-canvas batch --json \'[{"op":"node.add","assign":"a","args":{"type":"markdown","title":"A"}}]\'',
+    'pmx-canvas batch --json \'[{"op":"graph.add","assign":"g","args":{"graphType":"bar","data":[{"label":"Docs","value":5}],"xKey":"label","yKey":"value"}}]\'',
+    'cat ops.json | pmx-canvas batch --stdin',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('batch');
 
-  let raw = '';
-  if (typeof flags.file === 'string') {
+    let raw = '';
+    if (typeof flags.file === 'string') {
+      try {
+        raw = readFileSync(flags.file, 'utf-8');
+      } catch (error) {
+        die(
+          `Unable to read --file: ${error instanceof Error ? error.message : String(error)}`,
+          'Use: pmx-canvas batch --file ./canvas-ops.json',
+        );
+      }
+    } else if (typeof flags.json === 'string') {
+      raw = flags.json;
+    } else if (flags.stdin) {
+      raw = await readStdin();
+    } else {
+      die('Batch operations require --file, --json, or --stdin.', 'Use: pmx-canvas batch --file ./canvas-ops.json');
+    }
+
+    let parsed: unknown;
     try {
-      raw = readFileSync(flags.file, 'utf-8');
+      parsed = JSON.parse(raw);
     } catch (error) {
       die(
-        `Unable to read --file: ${error instanceof Error ? error.message : String(error)}`,
-        'Use: pmx-canvas batch --file ./canvas-ops.json',
+        `Invalid batch JSON: ${error instanceof Error ? error.message : String(error)}`,
+        'Use a JSON array of operations or an object with an "operations" array.',
       );
     }
-  } else if (typeof flags.json === 'string') {
-    raw = flags.json;
-  } else if (flags.stdin) {
-    raw = await readStdin();
-  } else {
-    die(
-      'Batch operations require --file, --json, or --stdin.',
-      'Use: pmx-canvas batch --file ./canvas-ops.json',
-    );
-  }
 
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch (error) {
-    die(
-      `Invalid batch JSON: ${error instanceof Error ? error.message : String(error)}`,
-      'Use a JSON array of operations or an object with an "operations" array.',
+    const result = await api(
+      'POST',
+      '/api/canvas/batch',
+      Array.isArray(parsed) ? { operations: parsed } : (parsed as Record<string, unknown>),
     );
-  }
-
-  const result = await api('POST', '/api/canvas/batch', Array.isArray(parsed) ? { operations: parsed } : parsed as Record<string, unknown>);
-  output(result);
-});
+    output(result);
+  },
+);
 
 // ── validate ─────────────────────────────────────────────────
-cmd('validate', 'Validate the current layout for collisions and missing edge endpoints', [
-  'pmx-canvas validate',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('validate');
+cmd(
+  'validate',
+  'Validate the current layout for collisions and missing edge endpoints',
+  ['pmx-canvas validate'],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('validate');
 
-  const result = await api('GET', '/api/canvas/validate');
-  output(result);
-});
+    const result = await api('GET', '/api/canvas/validate');
+    output(result);
+  },
+);
 
-cmd('validate spec', 'Validate a json-render spec or graph payload without creating a node', [
-  'pmx-canvas validate spec --type json-render --spec-file ./dashboard.json',
-  'pmx-canvas validate spec --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
-  'pmx-canvas validate spec --type html-primitive --kind choice-grid --data-file ./options.json',
-  'pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('validate spec');
+cmd(
+  'validate spec',
+  'Validate a json-render spec or graph payload without creating a node',
+  [
+    'pmx-canvas validate spec --type json-render --spec-file ./dashboard.json',
+    'pmx-canvas validate spec --type graph --graph-type bar --data-file ./metrics.json --x-key label --y-key value',
+    'pmx-canvas validate spec --type html-primitive --kind choice-grid --data-file ./options.json',
+    'pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('validate spec');
 
-  const type = getStringFlag(flags, 'type');
-  if (type !== 'json-render' && type !== 'graph' && type !== 'html-primitive') {
-    die('validate spec requires --type json-render, --type graph, or --type html-primitive.');
-  }
+    const type = getStringFlag(flags, 'type');
+    if (type !== 'json-render' && type !== 'graph' && type !== 'html-primitive') {
+      die('validate spec requires --type json-render, --type graph, or --type html-primitive.');
+    }
 
-  let body: Record<string, unknown>;
-  if (type === 'json-render') {
-    body = { type, spec: (await buildJsonRenderRequestBody({ ...flags, title: String(flags.title ?? 'Validation') })).spec };
-  } else if (type === 'html-primitive') {
-    const primitiveBody = await buildHtmlPrimitiveRequestBody(flags);
-    body = {
-      type,
-      kind: primitiveBody.primitive,
-      ...(typeof primitiveBody.title === 'string' ? { title: primitiveBody.title } : {}),
-      ...(isRecord(primitiveBody.data) ? { data: primitiveBody.data } : {}),
-    };
-  } else {
-    body = { type, ...(await buildGraphRequestBody(flags)) };
-  }
+    let body: Record<string, unknown>;
+    if (type === 'json-render') {
+      body = {
+        type,
+        spec: (await buildJsonRenderRequestBody({ ...flags, title: String(flags.title ?? 'Validation') })).spec,
+      };
+    } else if (type === 'html-primitive') {
+      const primitiveBody = await buildHtmlPrimitiveRequestBody(flags);
+      body = {
+        type,
+        kind: primitiveBody.primitive,
+        ...(typeof primitiveBody.title === 'string' ? { title: primitiveBody.title } : {}),
+        ...(isRecord(primitiveBody.data) ? { data: primitiveBody.data } : {}),
+      };
+    } else {
+      body = { type, ...(await buildGraphRequestBody(flags)) };
+    }
 
-  const result = await api('POST', '/api/canvas/schema/validate', body) as Record<string, unknown>;
-  if (flags.summary) {
-    output({
-      ok: result.ok,
-      type: result.type,
-      summary: result.summary,
-    });
-    return;
-  }
-  output(result);
-});
+    const result = (await api('POST', '/api/canvas/schema/validate', body)) as Record<string, unknown>;
+    if (flags.summary) {
+      output({
+        ok: result.ok,
+        type: result.type,
+        summary: result.summary,
+      });
+      return;
+    }
+    output(result);
+  },
+);
 
 // ── group remove ─────────────────────────────────────────────
-cmd('group remove', 'Ungroup all children from a group', [
-  'pmx-canvas group remove <group-id>',
-], async (args) => {
+cmd('group remove', 'Ungroup all children from a group', ['pmx-canvas group remove <group-id>'], async (args) => {
   const { positional, flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('group remove');
 
@@ -2657,46 +2934,51 @@ cmd('group remove', 'Ungroup all children from a group', [
 });
 
 // ── web-artifact build ───────────────────────────────────────
-cmd('web-artifact build', 'Build a bundled HTML web artifact and optionally open it on the canvas', [
-  'pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx',
-  'pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --index-css-file ./index.css',
-  'pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --include-logs',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('web-artifact build');
-  await runWebArtifactBuildCommand(flags);
-});
+cmd(
+  'web-artifact build',
+  'Build a bundled HTML web artifact and optionally open it on the canvas',
+  [
+    'pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx',
+    'pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --index-css-file ./index.css',
+    'pmx-canvas web-artifact build --title "Dashboard" --app-file ./App.tsx --include-logs',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('web-artifact build');
+    await runWebArtifactBuildCommand(flags);
+  },
+);
 
 // ── clear ────────────────────────────────────────────────────
-cmd('clear', 'Remove all nodes and edges from the canvas', [
-  'pmx-canvas clear --yes',
-  'pmx-canvas clear --dry-run',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('clear');
+cmd(
+  'clear',
+  'Remove all nodes and edges from the canvas',
+  ['pmx-canvas clear --yes', 'pmx-canvas clear --dry-run'],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('clear');
 
-  if (flags['dry-run']) {
-    const layout = (await api('GET', '/api/canvas/state')) as { nodes: unknown[]; edges: unknown[] };
-    output({
-      dry_run: true,
-      would_remove: { nodes: layout.nodes.length, edges: layout.edges.length },
-      message: 'No changes made. Pass --yes to confirm.',
-    });
-    return;
-  }
+    if (flags['dry-run']) {
+      const layout = (await api('GET', '/api/canvas/state')) as { nodes: unknown[]; edges: unknown[] };
+      output({
+        dry_run: true,
+        would_remove: { nodes: layout.nodes.length, edges: layout.edges.length },
+        message: 'No changes made. Pass --yes to confirm.',
+      });
+      return;
+    }
 
-  if (!flags.yes) {
-    die('Destructive operation requires --yes flag', 'pmx-canvas clear --yes (or preview with --dry-run)');
-  }
+    if (!flags.yes) {
+      die('Destructive operation requires --yes flag', 'pmx-canvas clear --yes (or preview with --dry-run)');
+    }
 
-  const result = await api('POST', '/api/canvas/clear');
-  output(result);
-});
+    const result = await api('POST', '/api/canvas/clear');
+    output(result);
+  },
+);
 
 // ── webview status ────────────────────────────────────────────
-cmd('webview status', 'Show Bun.WebView automation status', [
-  'pmx-canvas webview status',
-], async (args) => {
+cmd('webview status', 'Show Bun.WebView automation status', ['pmx-canvas webview status'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('webview status');
 
@@ -2705,51 +2987,54 @@ cmd('webview status', 'Show Bun.WebView automation status', [
 });
 
 // ── webview start ─────────────────────────────────────────────
-cmd('webview start', 'Start or replace the Bun.WebView automation session', [
-  'pmx-canvas webview start',
-  'pmx-canvas webview start --backend chrome --width 1440 --height 900',
-  'pmx-canvas webview start --chrome-path /Applications/Google\\ Chrome.app/.../Google\\ Chrome',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('webview start');
+cmd(
+  'webview start',
+  'Start or replace the Bun.WebView automation session',
+  [
+    'pmx-canvas webview start',
+    'pmx-canvas webview start --backend chrome --width 1440 --height 900',
+    'pmx-canvas webview start --chrome-path /Applications/Google\\ Chrome.app/.../Google\\ Chrome',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('webview start');
 
-  const backend = flags.backend;
-  if (backend && backend !== true && backend !== 'chrome' && backend !== 'webkit') {
-    die('Invalid value for --backend', 'Use: --backend chrome or --backend webkit');
-  }
+    const backend = flags.backend;
+    if (backend && backend !== true && backend !== 'chrome' && backend !== 'webkit') {
+      die('Invalid value for --backend', 'Use: --backend chrome or --backend webkit');
+    }
 
-  const body: Record<string, unknown> = {};
-  if (backend && backend !== true) body.backend = backend;
+    const body: Record<string, unknown> = {};
+    if (backend && backend !== true) body.backend = backend;
 
-  const width = optionalNumberFlag(flags, 'width', 'Use a positive integer width, e.g. --width 1440');
-  const height = optionalNumberFlag(flags, 'height', 'Use a positive integer height, e.g. --height 900');
-  if (width !== undefined) body.width = width;
-  if (height !== undefined) body.height = height;
+    const width = optionalNumberFlag(flags, 'width', 'Use a positive integer width, e.g. --width 1440');
+    const height = optionalNumberFlag(flags, 'height', 'Use a positive integer height, e.g. --height 900');
+    if (width !== undefined) body.width = width;
+    if (height !== undefined) body.height = height;
 
-  if (flags['chrome-path'] && flags['chrome-path'] !== true) {
-    body.chromePath = flags['chrome-path'];
-  }
+    if (flags['chrome-path'] && flags['chrome-path'] !== true) {
+      body.chromePath = flags['chrome-path'];
+    }
 
-  if (flags['data-dir'] && flags['data-dir'] !== true) {
-    body.dataStoreDir = flags['data-dir'];
-  }
+    if (flags['data-dir'] && flags['data-dir'] !== true) {
+      body.dataStoreDir = flags['data-dir'];
+    }
 
-  if (flags['chrome-argv'] && flags['chrome-argv'] !== true) {
-    const chromeArgv = String(flags['chrome-argv'])
-      .split(',')
-      .map((value) => value.trim())
-      .filter((value) => value.length > 0);
-    if (chromeArgv.length > 0) body.chromeArgv = chromeArgv;
-  }
+    if (flags['chrome-argv'] && flags['chrome-argv'] !== true) {
+      const chromeArgv = String(flags['chrome-argv'])
+        .split(',')
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0);
+      if (chromeArgv.length > 0) body.chromeArgv = chromeArgv;
+    }
 
-  const result = await api('POST', '/api/workbench/webview/start', body, { allowErrorJson: true });
-  output(result);
-});
+    const result = await api('POST', '/api/workbench/webview/start', body, { allowErrorJson: true });
+    output(result);
+  },
+);
 
 // ── webview stop ──────────────────────────────────────────────
-cmd('webview stop', 'Stop the active Bun.WebView automation session', [
-  'pmx-canvas webview stop',
-], async (args) => {
+cmd('webview stop', 'Stop the active Bun.WebView automation session', ['pmx-canvas webview stop'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('webview stop');
 
@@ -2758,137 +3043,148 @@ cmd('webview stop', 'Stop the active Bun.WebView automation session', [
 });
 
 // ── webview evaluate ──────────────────────────────────────────
-cmd('webview evaluate', 'Evaluate JavaScript in the active Bun.WebView automation session', [
-  'pmx-canvas webview evaluate --expression "document.title"',
-  'pmx-canvas webview evaluate --script "const title = document.title; return title.toUpperCase()"',
-  'pmx-canvas webview evaluate --file ./probe.js',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('webview evaluate');
+cmd(
+  'webview evaluate',
+  'Evaluate JavaScript in the active Bun.WebView automation session',
+  [
+    'pmx-canvas webview evaluate --expression "document.title"',
+    'pmx-canvas webview evaluate --script "const title = document.title; return title.toUpperCase()"',
+    'pmx-canvas webview evaluate --file ./probe.js',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('webview evaluate');
 
-  const sourceCount = [flags.expression, flags.script, flags.file].filter(Boolean).length;
-  if (sourceCount > 1) {
-    die('Use only one of --expression, --script, or --file.', 'pmx-canvas webview evaluate --expression "document.title"');
-  }
-
-  let expression = '';
-  if (typeof flags.file === 'string') {
-    let script = '';
-    try {
-      script = readFileSync(flags.file, 'utf-8');
-    } catch (error) {
+    const sourceCount = [flags.expression, flags.script, flags.file].filter(Boolean).length;
+    if (sourceCount > 1) {
       die(
-        `Unable to read --file: ${error instanceof Error ? error.message : String(error)}`,
-        'pmx-canvas webview evaluate --file ./probe.js',
+        'Use only one of --expression, --script, or --file.',
+        'pmx-canvas webview evaluate --expression "document.title"',
       );
     }
-    expression = wrapCanvasAutomationScript(script);
-  } else if (typeof flags.script === 'string') {
-    expression = wrapCanvasAutomationScript(flags.script);
-  } else {
-    expression = requireFlag(
-      flags,
-      'expression',
-      'pmx-canvas webview evaluate --expression "document.title"',
-    );
-  }
 
-  const result = await api('POST', '/api/workbench/webview/evaluate', { expression });
-  output(result);
-});
+    let expression = '';
+    if (typeof flags.file === 'string') {
+      let script = '';
+      try {
+        script = readFileSync(flags.file, 'utf-8');
+      } catch (error) {
+        die(
+          `Unable to read --file: ${error instanceof Error ? error.message : String(error)}`,
+          'pmx-canvas webview evaluate --file ./probe.js',
+        );
+      }
+      expression = wrapCanvasAutomationScript(script);
+    } else if (typeof flags.script === 'string') {
+      expression = wrapCanvasAutomationScript(flags.script);
+    } else {
+      expression = requireFlag(flags, 'expression', 'pmx-canvas webview evaluate --expression "document.title"');
+    }
+
+    const result = await api('POST', '/api/workbench/webview/evaluate', { expression });
+    output(result);
+  },
+);
 
 // ── webview resize ────────────────────────────────────────────
-cmd('webview resize', 'Resize the active Bun.WebView automation session viewport', [
-  'pmx-canvas webview resize --width 1280 --height 800',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('webview resize');
+cmd(
+  'webview resize',
+  'Resize the active Bun.WebView automation session viewport',
+  ['pmx-canvas webview resize --width 1280 --height 800'],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('webview resize');
 
-  const width = optionalNumberFlag(flags, 'width', 'Use: pmx-canvas webview resize --width 1280 --height 800');
-  const height = optionalNumberFlag(flags, 'height', 'Use: pmx-canvas webview resize --width 1280 --height 800');
-  if (width === undefined || height === undefined) {
-    die('Missing required flags: --width, --height', 'Use: pmx-canvas webview resize --width 1280 --height 800');
-  }
+    const width = optionalNumberFlag(flags, 'width', 'Use: pmx-canvas webview resize --width 1280 --height 800');
+    const height = optionalNumberFlag(flags, 'height', 'Use: pmx-canvas webview resize --width 1280 --height 800');
+    if (width === undefined || height === undefined) {
+      die('Missing required flags: --width, --height', 'Use: pmx-canvas webview resize --width 1280 --height 800');
+    }
 
-  const result = await api('POST', '/api/workbench/webview/resize', { width, height });
-  output(result);
-});
+    const result = await api('POST', '/api/workbench/webview/resize', { width, height });
+    output(result);
+  },
+);
 
 // ── webview screenshot ────────────────────────────────────────
-cmd('webview screenshot', 'Capture a screenshot from the active Bun.WebView automation session', [
-  'pmx-canvas webview screenshot --output ./canvas.png',
-  'pmx-canvas webview screenshot --output ./canvas.webp --format webp --quality 80',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('webview screenshot');
-
-  const outputPath = requireFlag(
-    flags,
-    'output',
+cmd(
+  'webview screenshot',
+  'Capture a screenshot from the active Bun.WebView automation session',
+  [
     'pmx-canvas webview screenshot --output ./canvas.png',
-  );
+    'pmx-canvas webview screenshot --output ./canvas.webp --format webp --quality 80',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('webview screenshot');
 
-  const body: Record<string, unknown> = {};
-  if (flags.format && flags.format !== true) {
-    const format = String(flags.format);
-    if (format !== 'png' && format !== 'jpeg' && format !== 'webp') {
-      die('Invalid value for --format', 'Use: --format png, jpeg, or webp');
+    const outputPath = requireFlag(flags, 'output', 'pmx-canvas webview screenshot --output ./canvas.png');
+
+    const body: Record<string, unknown> = {};
+    if (flags.format && flags.format !== true) {
+      const format = String(flags.format);
+      if (format !== 'png' && format !== 'jpeg' && format !== 'webp') {
+        die('Invalid value for --format', 'Use: --format png, jpeg, or webp');
+      }
+      body.format = format;
     }
-    body.format = format;
-  }
 
-  if (flags.quality && flags.quality !== true) {
-    const quality = Number(flags.quality);
-    if (!Number.isFinite(quality)) {
-      die(`Invalid value for --quality: ${String(flags.quality)}`, 'Use a numeric quality, e.g. --quality 80');
+    if (flags.quality && flags.quality !== true) {
+      const quality = Number(flags.quality);
+      if (!Number.isFinite(quality)) {
+        die(`Invalid value for --quality: ${String(flags.quality)}`, 'Use a numeric quality, e.g. --quality 80');
+      }
+      body.quality = quality;
     }
-    body.quality = quality;
-  }
 
-  const base = getBaseUrl();
-  const response = await fetch(`${base}/api/workbench/webview/screenshot`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+    const base = getBaseUrl();
+    const response = await fetch(`${base}/api/workbench/webview/screenshot`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
 
-  if (!response.ok) {
-    const text = await response.text();
-    try {
-      const json = JSON.parse(text) as Record<string, unknown>;
-      die(
-        json.error ? String(json.error) : `HTTP ${response.status}`,
-        typeof json.hint === 'string' ? json.hint : undefined,
-      );
-    } catch {
-      die(`HTTP ${response.status}: ${text}`);
+    if (!response.ok) {
+      const text = await response.text();
+      try {
+        const json = JSON.parse(text) as Record<string, unknown>;
+        die(
+          json.error ? String(json.error) : `HTTP ${response.status}`,
+          typeof json.hint === 'string' ? json.hint : undefined,
+        );
+      } catch {
+        die(`HTTP ${response.status}: ${text}`);
+      }
     }
-  }
 
-  const bytes = new Uint8Array(await response.arrayBuffer());
-  writeFileSync(outputPath, bytes);
-  output({
-    ok: true,
-    output: outputPath,
-    bytes: bytes.byteLength,
-    mimeType: response.headers.get('Content-Type') ?? 'application/octet-stream',
-  });
-});
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    writeFileSync(outputPath, bytes);
+    output({
+      ok: true,
+      output: outputPath,
+      bytes: bytes.byteLength,
+      mimeType: response.headers.get('Content-Type') ?? 'application/octet-stream',
+    });
+  },
+);
 
-cmd('screenshot', 'Capture a screenshot from the active Bun.WebView automation session', [
-  'pmx-canvas screenshot --output ./canvas.png',
-  'pmx-canvas screenshot --output ./canvas.webp --format webp --quality 80',
-], async (args) => {
-  if (args.includes('--help') || args.includes('-h')) return showCommandHelp('screenshot');
-  const screenshotCommand = COMMANDS['webview screenshot'];
-  if (!screenshotCommand) die('Internal error: webview screenshot command is unavailable.');
-  await screenshotCommand.run(args);
-});
+cmd(
+  'screenshot',
+  'Capture a screenshot from the active Bun.WebView automation session',
+  [
+    'pmx-canvas screenshot --output ./canvas.png',
+    'pmx-canvas screenshot --output ./canvas.webp --format webp --quality 80',
+  ],
+  async (args) => {
+    if (args.includes('--help') || args.includes('-h')) return showCommandHelp('screenshot');
+    const screenshotCommand = COMMANDS['webview screenshot'];
+    if (!screenshotCommand) die('Internal error: webview screenshot command is unavailable.');
+    await screenshotCommand.run(args);
+  },
+);
 
 // ── code-graph ───────────────────────────────────────────────
-cmd('code-graph', 'Show auto-detected file dependency graph', [
-  'pmx-canvas code-graph',
-], async (args) => {
+cmd('code-graph', 'Show auto-detected file dependency graph', ['pmx-canvas code-graph'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('code-graph');
 
@@ -2897,9 +3193,7 @@ cmd('code-graph', 'Show auto-detected file dependency graph', [
 });
 
 // ── spatial ──────────────────────────────────────────────────
-cmd('spatial', 'Spatial analysis: clusters, reading order, neighborhoods', [
-  'pmx-canvas spatial',
-], async (args) => {
+cmd('spatial', 'Spatial analysis: clusters, reading order, neighborhoods', ['pmx-canvas spatial'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('spatial');
 
@@ -2908,102 +3202,119 @@ cmd('spatial', 'Spatial analysis: clusters, reading order, neighborhoods', [
 });
 
 // ── watch ────────────────────────────────────────────────────
-cmd('watch', 'Watch low-token semantic canvas changes over the existing SSE stream', [
-  'pmx-canvas watch',
-  'pmx-canvas watch --json',
-  'pmx-canvas watch --events context-pin,move-end',
-  'pmx-canvas watch --json --events connect --max-events 1',
-], async (args) => {
-  const { flags } = parseFlags(args);
-  if (flags.help || flags.h) return showCommandHelp('watch');
+cmd(
+  'watch',
+  'Watch low-token semantic canvas changes over the existing SSE stream',
+  [
+    'pmx-canvas watch',
+    'pmx-canvas watch --json',
+    'pmx-canvas watch --events context-pin,move-end',
+    'pmx-canvas watch --json --events connect --max-events 1',
+  ],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('watch');
 
-  if (flags.json && flags.compact) {
-    die('Use either --json or --compact, not both.');
-  }
+    if (flags.json && flags.compact) {
+      die('Use either --json or --compact, not both.');
+    }
 
-  const filtersRaw = typeof flags.events === 'string' ? flags.events : undefined;
-  const requestedFilters = filtersRaw
-    ? Array.from(new Set(filtersRaw.split(',').map((value) => value.trim()).filter((value) => value.length > 0)))
-    : [];
-  const invalidFilter = requestedFilters.find((value) => !ALL_SEMANTIC_WATCH_EVENT_TYPES.includes(value as typeof ALL_SEMANTIC_WATCH_EVENT_TYPES[number]));
-  if (invalidFilter) {
-    die(
-      `Invalid value in --events: ${invalidFilter}`,
-      'Use a comma-separated subset of: context-pin,move-end,group,connect,remove',
+    const filtersRaw = typeof flags.events === 'string' ? flags.events : undefined;
+    const requestedFilters = filtersRaw
+      ? Array.from(
+          new Set(
+            filtersRaw
+              .split(',')
+              .map((value) => value.trim())
+              .filter((value) => value.length > 0),
+          ),
+        )
+      : [];
+    const invalidFilter = requestedFilters.find(
+      (value) => !ALL_SEMANTIC_WATCH_EVENT_TYPES.includes(value as (typeof ALL_SEMANTIC_WATCH_EVENT_TYPES)[number]),
     );
-  }
-  const filters = parseSemanticEventFilter(filtersRaw);
-  if (filtersRaw && filters.size === 0) {
-    die(
-      `Invalid value for --events: ${filtersRaw}`,
-      'Use a comma-separated subset of: context-pin,move-end,group,connect,remove',
-    );
-  }
+    if (invalidFilter) {
+      die(
+        `Invalid value in --events: ${invalidFilter}`,
+        'Use a comma-separated subset of: context-pin,move-end,group,connect,remove',
+      );
+    }
+    const filters = parseSemanticEventFilter(filtersRaw);
+    if (filtersRaw && filters.size === 0) {
+      die(
+        `Invalid value for --events: ${filtersRaw}`,
+        'Use a comma-separated subset of: context-pin,move-end,group,connect,remove',
+      );
+    }
 
-  const maxEvents = optionalNumberFlag(flags, 'max-events', 'Use a positive integer, e.g. --max-events 1');
-  const jsonMode = Boolean(flags.json);
-  const reducer = new SemanticWatchReducer();
-  const pinned = await api('GET', '/api/canvas/pinned-context') as { nodeIds?: string[] };
-  reducer.setInitialPins(Array.isArray(pinned.nodeIds) ? pinned.nodeIds : []);
+    const maxEvents = optionalNumberFlag(flags, 'max-events', 'Use a positive integer, e.g. --max-events 1');
+    const jsonMode = Boolean(flags.json);
+    const reducer = new SemanticWatchReducer();
+    const pinned = (await api('GET', '/api/canvas/pinned-context')) as { nodeIds?: string[] };
+    reducer.setInitialPins(Array.isArray(pinned.nodeIds) ? pinned.nodeIds : []);
 
-  const base = getBaseUrl();
-  const controller = new AbortController();
-  let response: Response;
-  try {
-    response = await fetch(`${base}/api/workbench/events`, {
-      method: 'GET',
-      headers: { Accept: 'text/event-stream' },
-      signal: controller.signal,
-    });
-  } catch (error) {
-    die(
-      `Cannot connect to pmx-canvas event stream at ${base}: ${error instanceof Error ? error.message : String(error)}`,
-      'Start the server first: pmx-canvas --no-open',
-    );
-  }
+    const base = getBaseUrl();
+    const controller = new AbortController();
+    let response: Response;
+    try {
+      response = await fetch(`${base}/api/workbench/events`, {
+        method: 'GET',
+        headers: { Accept: 'text/event-stream' },
+        signal: controller.signal,
+      });
+    } catch (error) {
+      die(
+        `Cannot connect to pmx-canvas event stream at ${base}: ${error instanceof Error ? error.message : String(error)}`,
+        'Start the server first: pmx-canvas --no-open',
+      );
+    }
 
-  if (!response.ok) {
-    const text = await response.text();
-    die(`Failed to open event stream: HTTP ${response.status}`, text);
-  }
-  if (!response.body) {
-    die('Workbench event stream did not return a readable body.');
-  }
+    if (!response.ok) {
+      const text = await response.text();
+      die(`Failed to open event stream: HTTP ${response.status}`, text);
+    }
+    if (!response.body) {
+      die('Workbench event stream did not return a readable body.');
+    }
 
-  let emitted = 0;
-  try {
-    for await (const message of parseSseStream(response.body)) {
-      const semanticEvents = reducer
-        .handleMessage(message)
-        .filter((event) => filters.has(event.type));
+    let emitted = 0;
+    try {
+      for await (const message of parseSseStream(response.body)) {
+        const semanticEvents = reducer.handleMessage(message).filter((event) => filters.has(event.type));
 
-      for (const event of semanticEvents) {
-        console.log(jsonMode ? JSON.stringify(event) : formatCompactWatchEvent(event));
-        emitted++;
-        if (maxEvents !== undefined && emitted >= maxEvents) {
-          controller.abort();
-          return;
+        for (const event of semanticEvents) {
+          console.log(jsonMode ? JSON.stringify(event) : formatCompactWatchEvent(event));
+          emitted++;
+          if (maxEvents !== undefined && emitted >= maxEvents) {
+            controller.abort();
+            return;
+          }
         }
       }
+    } catch (error) {
+      if (controller.signal.aborted) return;
+      die(
+        `Watch stream failed: ${error instanceof Error ? error.message : String(error)}`,
+        'Ensure the server is still running and reachable.',
+      );
     }
-  } catch (error) {
-    if (controller.signal.aborted) return;
-    die(
-      `Watch stream failed: ${error instanceof Error ? error.message : String(error)}`,
-      'Ensure the server is still running and reachable.',
-    );
-  }
-});
+  },
+);
 
 // ── serve (delegates back to original CLI) ───────────────────
-cmd('serve', 'Start the canvas server', [
-  'pmx-canvas serve',
-  'pmx-canvas serve --port=8080 --no-open',
-  'pmx-canvas serve --demo --theme=light',
-  'pmx-canvas --no-open --webview-automation',
-], async (_args) => {
-  console.log('Use: pmx-canvas [--port=PORT] [--demo] [--no-open] [--theme=THEME] [--webview-automation]');
-});
+cmd(
+  'serve',
+  'Start the canvas server',
+  [
+    'pmx-canvas serve',
+    'pmx-canvas serve --port=8080 --no-open',
+    'pmx-canvas serve --demo --theme=light',
+    'pmx-canvas --no-open --webview-automation',
+  ],
+  async (_args) => {
+    console.log('Use: pmx-canvas [--port=PORT] [--demo] [--no-open] [--theme=THEME] [--webview-automation]');
+  },
+);
 
 // ── Help ─────────────────────────────────────────────────────
 
@@ -3049,8 +3360,12 @@ function showCommandHelp(name: string): void {
   }
   if (name === 'node add' || name === 'graph add' || name === 'validate spec') {
     console.log('\nGraph flags:');
-    console.log('  Graph fields accept kebab-case CLI flags and camelCase schema names, e.g. --graph-type/--graphType and --x-key/--xKey');
-    console.log('  Use --node-height/--nodeHeight for canvas frame height; use --chart-height for chart content height. --height is kept as a frame-height alias for compatibility.');
+    console.log(
+      '  Graph fields accept kebab-case CLI flags and camelCase schema names, e.g. --graph-type/--graphType and --x-key/--xKey',
+    );
+    console.log(
+      '  Use --node-height/--nodeHeight for canvas frame height; use --chart-height for chart content height. --height is kept as a frame-height alias for compatibility.',
+    );
     console.log('  Pass --show-legend false to hide legends in compact node layouts.');
   }
   if (name === 'validate spec') {
@@ -3326,9 +3641,7 @@ export async function runAgentCli(args: string[]): Promise<void> {
       `Available subcommands: ${available}`,
     ].filter((hint): hint is string => typeof hint === 'string');
     die(
-      subcommand
-        ? `Unknown ${oneWord} subcommand: "${subcommand}".`
-        : `Missing ${oneWord} subcommand.`,
+      subcommand ? `Unknown ${oneWord} subcommand: "${subcommand}".` : `Missing ${oneWord} subcommand.`,
       hints.join(' '),
     );
   }

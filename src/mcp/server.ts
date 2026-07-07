@@ -197,12 +197,19 @@ function compactNodePayload(node: Awaited<ReturnType<CanvasAccess['getNode']>>):
   };
 }
 
-function compactLayoutPayload(layout: Awaited<ReturnType<CanvasAccess['getLayout']>>, pinnedIds: string[]): Record<string, unknown> {
+function compactLayoutPayload(
+  layout: Awaited<ReturnType<CanvasAccess['getLayout']>>,
+  pinnedIds: string[],
+): Record<string, unknown> {
   return {
     summary: buildSummaryFromLayout(layout, pinnedIds),
     viewport: layout.viewport,
-    annotations: (layout.annotations ?? []).map((annotation) => summarizeCanvasAnnotationForContext(annotation, layout.nodes)),
-    nodes: layout.nodes.map((node) => compactNodePayload(node)).filter((node): node is Record<string, unknown> => node !== null),
+    annotations: (layout.annotations ?? []).map((annotation) =>
+      summarizeCanvasAnnotationForContext(annotation, layout.nodes),
+    ),
+    nodes: layout.nodes
+      .map((node) => compactNodePayload(node))
+      .filter((node): node is Record<string, unknown> => node !== null),
     edges: layout.edges.map((edge) => ({
       id: edge.id,
       from: edge.from,
@@ -218,11 +225,16 @@ function compactLayoutPayload(layout: Awaited<ReturnType<CanvasAccess['getLayout
 function agentSafeFullLayoutPayload(layout: Awaited<ReturnType<CanvasAccess['getLayout']>>): Record<string, unknown> {
   return {
     ...serializeCanvasLayoutForAgent(layout),
-    annotations: (layout.annotations ?? []).map((annotation) => summarizeCanvasAnnotationForContext(annotation, layout.nodes)),
+    annotations: (layout.annotations ?? []).map((annotation) =>
+      summarizeCanvasAnnotationForContext(annotation, layout.nodes),
+    ),
   };
 }
 
-function buildSummaryFromLayout(layout: Awaited<ReturnType<CanvasAccess['getLayout']>>, pinnedIds: string[]): Record<string, unknown> {
+function buildSummaryFromLayout(
+  layout: Awaited<ReturnType<CanvasAccess['getLayout']>>,
+  pinnedIds: string[],
+): Record<string, unknown> {
   const pinned = new Set(pinnedIds);
   const nodesByType: Record<string, number> = {};
   const pinnedTitles: string[] = [];
@@ -235,7 +247,9 @@ function buildSummaryFromLayout(layout: Awaited<ReturnType<CanvasAccess['getLayo
     totalNodes: layout.nodes.length,
     totalEdges: layout.edges.length,
     totalAnnotations: (layout.annotations ?? []).length,
-    annotations: (layout.annotations ?? []).map((annotation) => summarizeCanvasAnnotationForContext(annotation, layout.nodes)),
+    annotations: (layout.annotations ?? []).map((annotation) =>
+      summarizeCanvasAnnotationForContext(annotation, layout.nodes),
+    ),
     nodesByType,
     pinnedCount: pinned.size,
     pinnedTitles,
@@ -276,12 +290,18 @@ export async function startMcpServer(): Promise<void> {
     'canvas_ax_interaction',
     'Submit a node-originated AX interaction: a capability-gated, validated event from an eligible node that maps onto an AX operation (work item, evidence, approval, review, focus, steering, event). Returns { ok: false, code } if the node type/metadata does not allow the interaction type or the payload is invalid.',
     {
-      type: z.enum(AX_INTERACTION_TYPES).describe('Interaction type, e.g. ax.work.create, ax.evidence.add, ax.focus.set.'),
+      type: z
+        .enum(AX_INTERACTION_TYPES)
+        .describe('Interaction type, e.g. ax.work.create, ax.evidence.add, ax.focus.set.'),
       sourceNodeId: z.string().describe('The node emitting the interaction.'),
-      payload: z.record(z.string(), z.unknown()).optional().describe('Type-specific payload, e.g. {"title":"..."} for ax.work.create.'),
+      payload: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe('Type-specific payload, e.g. {"title":"..."} for ax.work.create.'),
       sourceSurface: z.enum(['native-node', 'json-render', 'html-node', 'mcp-app', 'adapter']).optional(),
       correlationId: z.string().optional(),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
+      source: z
+        .enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
         .optional()
         .describe('Optional host/source label. Defaults to mcp.'),
     },
@@ -319,29 +339,59 @@ export async function startMcpServer(): Promise<void> {
     'canvas_ingest_activity',
     'Ingest a normalized agent activity (a tool/session event your harness forwards) so the board reacts automatically — primitive A, makes AX bidirectional. Always records a timeline event; kind-driven default reactions (overridable per call via `reactions`): failure/error → work item (blocked) + review finding + evidence (logs); tool-result + outcome:"success" → evidence (tool-result); everything else (tool-start, session-*, command, note) → event only. Set any reaction to false to suppress it, or to an object to override its fields. Returns { event, workItem, evidence, review }.',
     {
-      kind: z.enum(['tool-start', 'tool-result', 'failure', 'error', 'session-start', 'session-end', 'command', 'note']),
+      kind: z.enum([
+        'tool-start',
+        'tool-result',
+        'failure',
+        'error',
+        'session-start',
+        'session-end',
+        'command',
+        'note',
+      ]),
       title: z.string(),
       summary: z.string().optional(),
       outcome: z.enum(['success', 'failure']).optional(),
-      ref: z.string().optional().describe('A file path, URL, or commit the activity refers to (used as the review file anchor for failures).'),
+      ref: z
+        .string()
+        .optional()
+        .describe('A file path, URL, or commit the activity refers to (used as the review file anchor for failures).'),
       nodeIds: z.array(z.string()).optional(),
       data: z.record(z.string(), z.unknown()).optional(),
-      reactions: z.object({
-        workItem: z.union([z.literal(false), z.object({
-          status: z.enum(['todo', 'in-progress', 'blocked', 'done', 'cancelled']).optional(),
-          detail: z.string().nullable().optional(),
-        })]).optional(),
-        evidence: z.union([z.literal(false), z.object({
-          kind: z.enum(['logs', 'tool-result', 'screenshot', 'file', 'diff', 'test-output']).optional(),
-          body: z.string().nullable().optional(),
-        })]).optional(),
-        review: z.union([z.literal(false), z.object({
-          severity: z.enum(['info', 'warning', 'error']).optional(),
-          kind: z.enum(['comment', 'finding']).optional(),
-          anchorType: z.enum(['node', 'file', 'region']).optional(),
-          nodeId: z.string().nullable().optional(),
-        })]).optional(),
-      }).optional().describe('Override or suppress the kind-driven default reactions.'),
+      reactions: z
+        .object({
+          workItem: z
+            .union([
+              z.literal(false),
+              z.object({
+                status: z.enum(['todo', 'in-progress', 'blocked', 'done', 'cancelled']).optional(),
+                detail: z.string().nullable().optional(),
+              }),
+            ])
+            .optional(),
+          evidence: z
+            .union([
+              z.literal(false),
+              z.object({
+                kind: z.enum(['logs', 'tool-result', 'screenshot', 'file', 'diff', 'test-output']).optional(),
+                body: z.string().nullable().optional(),
+              }),
+            ])
+            .optional(),
+          review: z
+            .union([
+              z.literal(false),
+              z.object({
+                severity: z.enum(['info', 'warning', 'error']).optional(),
+                kind: z.enum(['comment', 'finding']).optional(),
+                anchorType: z.enum(['node', 'file', 'region']).optional(),
+                nodeId: z.string().nullable().optional(),
+              }),
+            ])
+            .optional(),
+        })
+        .optional()
+        .describe('Override or suppress the kind-driven default reactions.'),
       source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']).optional(),
     },
     async ({ kind, title, summary, outcome, ref, nodeIds, data, reactions, source }) => {
@@ -391,7 +441,10 @@ export async function startMcpServer(): Promise<void> {
     'canvas_screenshot',
     'Capture a screenshot from the active Bun.WebView automation session. Returns both an MCP image payload and JSON metadata. Requires an active automation session started via canvas_webview with action "start".',
     {
-      format: z.enum(['png', 'jpeg', 'webp']).optional().describe('Screenshot format (default depends on Bun; png recommended)'),
+      format: z
+        .enum(['png', 'jpeg', 'webp'])
+        .optional()
+        .describe('Screenshot format (default depends on Bun; png recommended)'),
       quality: z.number().optional().describe('Optional quality for lossy formats'),
     },
     async ({ format, quality }) => {
@@ -407,27 +460,21 @@ export async function startMcpServer(): Promise<void> {
             {
               type: 'image',
               data: encodeBase64(bytes),
-              mimeType:
-                format === 'jpeg'
-                  ? 'image/jpeg'
-                  : format === 'webp'
-                    ? 'image/webp'
-                    : 'image/png',
+              mimeType: format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png',
             },
             {
               type: 'text',
-              text: JSON.stringify({
-                bytes: bytes.byteLength,
-                backend: status.backend,
-                width: status.width,
-                height: status.height,
-                mimeType:
-                  format === 'jpeg'
-                    ? 'image/jpeg'
-                    : format === 'webp'
-                      ? 'image/webp'
-                      : 'image/png',
-              }, null, 2),
+              text: JSON.stringify(
+                {
+                  bytes: bytes.byteLength,
+                  backend: status.backend,
+                  width: status.width,
+                  height: status.height,
+                  mimeType: format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png',
+                },
+                null,
+                2,
+              ),
             },
           ],
         };
@@ -449,8 +496,7 @@ export async function startMcpServer(): Promise<void> {
     'schema',
     'canvas://schema',
     {
-      description:
-        `Machine-readable create schemas, canonical examples, json-render catalog details, and MCP node-type routing from the running PMX Canvas server version. Routing: ${structuredSchemaDescription()}.`,
+      description: `Machine-readable create schemas, canonical examples, json-render catalog details, and MCP node-type routing from the running PMX Canvas server version. Routing: ${structuredSchemaDescription()}.`,
       mimeType: 'application/json',
     },
     async () => ({
@@ -480,20 +526,20 @@ export async function startMcpServer(): Promise<void> {
       const layout = await c.getLayout();
 
       const pinnedNodes = layout.nodes.filter((n) => pinnedIds.has(n.id));
-      const pinnedEdges = layout.edges.filter(
-        (e) => pinnedIds.has(e.from) && pinnedIds.has(e.to),
-      );
+      const pinnedEdges = layout.edges.filter((e) => pinnedIds.has(e.from) && pinnedIds.has(e.to));
 
       // Compute neighborhoods: for each pinned node, find nearby unpinned nodes
       const neighborhoods = findNeighborhoods(layout.nodes, pinnedIds);
 
       const context = {
         pinnedCount: pinnedNodes.length,
-        nodes: pinnedNodes.map((n) => serializeNodeForAgentContext(n, {
-          defaultTextLength: 700,
-          webpageTextLength: 1600,
-          includePosition: true,
-        })),
+        nodes: pinnedNodes.map((n) =>
+          serializeNodeForAgentContext(n, {
+            defaultTextLength: 700,
+            webpageTextLength: 1600,
+            includePosition: true,
+          }),
+        ),
         edges: pinnedEdges.map((e) => ({
           id: e.id,
           from: e.from,
@@ -547,8 +593,7 @@ export async function startMcpServer(): Promise<void> {
     'ax-context',
     'canvas://ax-context',
     {
-      description:
-        'Agent-ready PMX AX context combining pinned context, focus, and surface metadata.',
+      description: 'Agent-ready PMX AX context combining pinned context, focus, and surface metadata.',
       mimeType: 'application/json',
     },
     async () => {
@@ -606,14 +651,18 @@ export async function startMcpServer(): Promise<void> {
           {
             uri: 'canvas://ax-work',
             mimeType: 'application/json',
-            text: JSON.stringify({
-              workItems,
-              approvalGates,
-              reviewAnnotations: state.reviewAnnotations,
-              elicitations: state.elicitations,
-              modeRequests: state.modeRequests,
-              policy: state.policy,
-            }, null, 2),
+            text: JSON.stringify(
+              {
+                workItems,
+                approvalGates,
+                reviewAnnotations: state.reviewAnnotations,
+                elicitations: state.elicitations,
+                modeRequests: state.modeRequests,
+                policy: state.policy,
+              },
+              null,
+              2,
+            ),
           },
         ],
       };
@@ -634,7 +683,11 @@ export async function startMcpServer(): Promise<void> {
       const pendingActivity = buildPendingAxActivity(state);
       return {
         contents: [
-          { uri: 'canvas://ax-pending-steering', mimeType: 'application/json', text: JSON.stringify({ pending, pendingActivity }, null, 2) },
+          {
+            uri: 'canvas://ax-pending-steering',
+            mimeType: 'application/json',
+            text: JSON.stringify({ pending, pendingActivity }, null, 2),
+          },
         ],
       };
     },
@@ -653,7 +706,11 @@ export async function startMcpServer(): Promise<void> {
       const timeline = await c.getAxTimeline();
       return {
         contents: [
-          { uri: 'canvas://ax-delivery', mimeType: 'application/json', text: JSON.stringify({ steering: timeline.steering }, null, 2) },
+          {
+            uri: 'canvas://ax-delivery',
+            mimeType: 'application/json',
+            text: JSON.stringify({ steering: timeline.steering }, null, 2),
+          },
         ],
       };
     },
@@ -732,13 +789,18 @@ export async function startMcpServer(): Promise<void> {
         'grouped together), provides reading order (top-left to bottom-right), and shows ' +
         'neighborhoods around pinned nodes (nearby unpinned nodes the human implicitly associated). ' +
         'This makes "spatial arrangement is communication" real — read this to understand the ' +
-        'human\'s spatial intent, not just which nodes are pinned.',
+        "human's spatial intent, not just which nodes are pinned.",
       mimeType: 'application/json',
     },
     async () => {
       const c = await ensureCanvas();
       const layout = await c.getLayout();
-      const spatial = buildSpatialContext(layout.nodes, layout.edges, new Set(await c.getPinnedNodeIds()), layout.annotations ?? []);
+      const spatial = buildSpatialContext(
+        layout.nodes,
+        layout.edges,
+        new Set(await c.getPinnedNodeIds()),
+        layout.annotations ?? [],
+      );
       return {
         contents: [
           {

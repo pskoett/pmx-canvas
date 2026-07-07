@@ -16,9 +16,7 @@ function isCallToolResult(value: unknown): value is CallToolResult {
   return (
     isRecord(value) &&
     Array.isArray(value.content) &&
-    value.content.every(
-      (item) => isRecord(item) && typeof item.type === 'string',
-    )
+    value.content.every((item) => isRecord(item) && typeof item.type === 'string')
   );
 }
 
@@ -43,9 +41,7 @@ function serializeExtAppResultValue(value: unknown): string | undefined {
   }
 }
 
-export function normalizeExtAppToolResult(
-  input: NormalizeExtAppToolResultInput,
-): CallToolResult {
+export function normalizeExtAppToolResult(input: NormalizeExtAppToolResultInput): CallToolResult {
   const isError = input.success === false;
 
   if (isCallToolResult(input.result)) {

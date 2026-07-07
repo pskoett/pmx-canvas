@@ -23,15 +23,7 @@ export function buildControlTowerSpec(): JsonRenderSpec {
           align: 'stretch',
           justify: 'start',
         },
-        children: [
-          'lede',
-          'badgeRow',
-          'riskAlert',
-          'gateProgress',
-          'separator',
-          'gatesTable',
-          'retroAccordion',
-        ],
+        children: ['lede', 'badgeRow', 'riskAlert', 'gateProgress', 'separator', 'gatesTable', 'retroAccordion'],
       },
       lede: {
         type: 'Text',
@@ -113,7 +105,8 @@ export function buildControlTowerSpec(): JsonRenderSpec {
             },
             {
               title: 'What should an agent inspect first?',
-              content: 'Start with the artifact app and the file nodes, then compare the gate table against the graph nodes.',
+              content:
+                'Start with the artifact app and the file nodes, then compare the gate table against the graph nodes.',
             },
           ],
         },
@@ -292,11 +285,7 @@ export function buildServiceMatrixSpec(): JsonRenderSpec {
         type: 'Table',
         props: {
           columns: ['Service', 'Readiness', 'Note'],
-          rows: componentRisks.map((risk) => [
-            risk.service,
-            `${risk.readiness}%`,
-            risk.note,
-          ]),
+          rows: componentRisks.map((risk) => [risk.service, `${risk.readiness}%`, risk.note]),
           caption: 'Synthetic readiness table rendered through json-render.',
         },
         children: [],
@@ -637,7 +626,12 @@ export function buildEmbeddedChartsSpec(): JsonRenderSpec {
       },
       summaryDefects: {
         type: 'Card',
-        props: { title: 'Defect pressure', description: 'Integration remains the main spike', maxWidth: 'full', centered: false },
+        props: {
+          title: 'Defect pressure',
+          description: 'Integration remains the main spike',
+          maxWidth: 'full',
+          centered: false,
+        },
         children: ['summaryDefectsBody'],
       },
       summaryDefectsBody: {
@@ -647,7 +641,12 @@ export function buildEmbeddedChartsSpec(): JsonRenderSpec {
       },
       summaryLoad: {
         type: 'Card',
-        props: { title: 'Operational load', description: 'Platform still absorbs the largest share', maxWidth: 'full', centered: false },
+        props: {
+          title: 'Operational load',
+          description: 'Platform still absorbs the largest share',
+          maxWidth: 'full',
+          centered: false,
+        },
         children: ['summaryLoadBody'],
       },
       summaryLoadBody: {

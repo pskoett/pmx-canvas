@@ -14,7 +14,7 @@ async function tooltipOpacity(button: Locator): Promise<number> {
 
 async function clearSnapshots(request: { get: Function; delete: Function }): Promise<void> {
   const response = await request.get('/api/canvas/snapshots?all=true');
-  const snapshots = await response.json() as Array<{ id: string }>;
+  const snapshots = (await response.json()) as Array<{ id: string }>;
   for (const snapshot of snapshots) {
     await request.delete(`/api/canvas/snapshots/${snapshot.id}`);
   }
@@ -41,7 +41,7 @@ async function currentCanvasState(request: { get: Function }): Promise<{
   edges: Array<{ id: string; from: string; to: string; type: string }>;
 }> {
   const response = await request.get('/api/canvas/state');
-  return await response.json() as {
+  return (await response.json()) as {
     nodes: Array<{
       id: string;
       type: string;
@@ -77,7 +77,7 @@ test('renders every canvas node type in the browser', async ({ page, request }) 
       sandbox: 'allow-scripts',
     },
   });
-  const mcpFrame = await mcpFrameResponse.json() as { url: string };
+  const mcpFrame = (await mcpFrameResponse.json()) as { url: string };
 
   const webpageFrameResponse = await request.post('/api/canvas/frame-documents', {
     data: {
@@ -90,7 +90,7 @@ test('renders every canvas node type in the browser', async ({ page, request }) 
       sandbox: 'allow-scripts',
     },
   });
-  const webpageFrame = await webpageFrameResponse.json() as { url: string };
+  const webpageFrame = (await webpageFrameResponse.json()) as { url: string };
   const webpageUrl = `http://127.0.0.1:${playwrightPort}${webpageFrame.url}`;
   const imageSvg = [
     '<svg xmlns="http://www.w3.org/2000/svg" width="160" height="90">',
@@ -349,26 +349,28 @@ test('renders every canvas node type in the browser', async ({ page, request }) 
 
   await page.goto('/workbench');
 
-  await expect.poll(async () => {
-    const state = await currentCanvasState(request);
-    return state.nodes.map((node) => node.type).sort();
-  }).toEqual([
-    'context',
-    'file',
-    'graph',
-    'group',
-    'html',
-    'image',
-    'json-render',
-    'ledger',
-    'markdown',
-    'mcp-app',
-    'prompt',
-    'response',
-    'status',
-    'trace',
-    'webpage',
-  ]);
+  await expect
+    .poll(async () => {
+      const state = await currentCanvasState(request);
+      return state.nodes.map((node) => node.type).sort();
+    })
+    .toEqual([
+      'context',
+      'file',
+      'graph',
+      'group',
+      'html',
+      'image',
+      'json-render',
+      'ledger',
+      'markdown',
+      'mcp-app',
+      'prompt',
+      'response',
+      'status',
+      'trace',
+      'webpage',
+    ]);
 
   const node = (title: string) => page.locator('.canvas-node').filter({ hasText: title });
 
@@ -390,9 +392,15 @@ test('renders every canvas node type in the browser', async ({ page, request }) 
   await expect(node('All Types Response')).toContainText('Response renderer answer');
   await expect(node('All Types Group')).toContainText('Drag nodes here');
 
-  await expect(node('All Types HTML').frameLocator('iframe').getByRole('heading', { name: 'HTML Renderer' })).toBeVisible();
-  await expect(node('All Types MCP App').frameLocator('iframe').getByRole('heading', { name: 'MCP App Renderer' })).toBeVisible();
-  await expect(node('All Types JSON Render').frameLocator('iframe').getByText('JSON Renderer Card', { exact: true })).toBeVisible();
+  await expect(
+    node('All Types HTML').frameLocator('iframe').getByRole('heading', { name: 'HTML Renderer' }),
+  ).toBeVisible();
+  await expect(
+    node('All Types MCP App').frameLocator('iframe').getByRole('heading', { name: 'MCP App Renderer' }),
+  ).toBeVisible();
+  await expect(
+    node('All Types JSON Render').frameLocator('iframe').getByText('JSON Renderer Card', { exact: true }),
+  ).toBeVisible();
   await expect(node('All Types Graph').frameLocator('iframe').locator('.recharts-responsive-container')).toBeVisible();
 });
 
@@ -407,15 +415,18 @@ test('creates a markdown note from the canvas background', async ({ page, reques
   await expect(note).toHaveCount(1);
   await expect(page.locator('.welcome-card')).toBeHidden();
 
-  await expect.poll(async () => {
-    const state = await currentCanvasState(request);
-    return state.nodes.filter(
-      (node) => node.type === 'markdown' && node.data.title === 'New note',
-    ).length;
-  }).toBe(1);
+  await expect
+    .poll(async () => {
+      const state = await currentCanvasState(request);
+      return state.nodes.filter((node) => node.type === 'markdown' && node.data.title === 'New note').length;
+    })
+    .toBe(1);
 });
 
-test('#J: the welcome card yields to a live ghost intent so the cursor is visible on an empty board', async ({ page, request }) => {
+test('#J: the welcome card yields to a live ghost intent so the cursor is visible on an empty board', async ({
+  page,
+  request,
+}) => {
   await page.goto('/workbench');
   // Empty board → the welcome card is shown.
   await expect(page.locator('.welcome-card')).toBeVisible();
@@ -466,12 +477,12 @@ test('canvas background context menu exposes user-creatable nodes', async ({ pag
 
   await menu.locator('.context-menu-item').filter({ hasText: 'New note' }).click();
 
-  await expect.poll(async () => {
-    const state = await currentCanvasState(request);
-    return state.nodes.filter(
-      (node) => node.type === 'markdown' && node.data.title === 'New note',
-    ).length;
-  }).toBe(1);
+  await expect
+    .poll(async () => {
+      const state = await currentCanvasState(request);
+      return state.nodes.filter((node) => node.type === 'markdown' && node.data.title === 'New note').length;
+    })
+    .toBe(1);
 });
 
 test('renders server-created nodes and syncs context pins from the UI', async ({ page, request }) => {
@@ -484,7 +495,7 @@ test('renders server-created nodes and syncs context pins from the UI', async ({
       y: 260,
     },
   });
-  const created = await createResponse.json() as { id: string };
+  const created = (await createResponse.json()) as { id: string };
 
   await page.goto('/workbench');
 
@@ -493,11 +504,13 @@ test('renders server-created nodes and syncs context pins from the UI', async ({
   await seededNode.locator('.ctx-pin-btn').click();
 
   await expect(page.locator('.context-pin-bar')).toContainText('1 node in context');
-  await expect.poll(async () => {
-    const response = await request.get('/api/canvas/pinned-context');
-    const pinned = await response.json() as { count: number; nodeIds: string[] };
-    return `${pinned.count}:${pinned.nodeIds.join(',')}`;
-  }).toBe(`1:${created.id}`);
+  await expect
+    .poll(async () => {
+      const response = await request.get('/api/canvas/pinned-context');
+      const pinned = (await response.json()) as { count: number; nodeIds: string[] };
+      return `${pinned.count}:${pinned.nodeIds.join(',')}`;
+    })
+    .toBe(`1:${created.id}`);
 });
 
 test('dragging a group ignores its own children as snap targets', async ({ page, request }) => {
@@ -512,7 +525,7 @@ test('dragging a group ignores its own children as snap targets', async ({ page,
       height: 180,
     },
   });
-  const child = await childResponse.json() as { id: string };
+  const child = (await childResponse.json()) as { id: string };
 
   await request.post('/api/canvas/node', {
     data: {
@@ -536,7 +549,7 @@ test('dragging a group ignores its own children as snap targets', async ({ page,
       height: 312,
     },
   });
-  const group = await groupResponse.json() as { id: string };
+  const group = (await groupResponse.json()) as { id: string };
 
   await page.goto('/workbench');
 
@@ -545,18 +558,22 @@ test('dragging a group ignores its own children as snap targets', async ({ page,
 
   await dragNodeTitlebar(page, groupNode, 36, 0);
 
-  await expect.poll(async () => {
-    const state = await currentCanvasState(request);
-    const nextGroup = state.nodes.find((node) => node.id === group.id);
-    const nextChild = state.nodes.find((node) => node.id === child.id);
-    return JSON.stringify({
-      groupX: nextGroup?.position.x,
-      childX: nextChild?.position.x,
-    });
-  }).toBe(JSON.stringify({
-    groupX: 316,
-    childX: 356,
-  }));
+  await expect
+    .poll(async () => {
+      const state = await currentCanvasState(request);
+      const nextGroup = state.nodes.find((node) => node.id === group.id);
+      const nextChild = state.nodes.find((node) => node.id === child.id);
+      return JSON.stringify({
+        groupX: nextGroup?.position.x,
+        childX: nextChild?.position.x,
+      });
+    })
+    .toBe(
+      JSON.stringify({
+        groupX: 316,
+        childX: 356,
+      }),
+    );
 });
 
 test('dragging a grouped child ignores its own parent frame as a snap target', async ({ page, request }) => {
@@ -571,7 +588,7 @@ test('dragging a grouped child ignores its own parent frame as a snap target', a
       height: 180,
     },
   });
-  const child = await childResponse.json() as { id: string };
+  const child = (await childResponse.json()) as { id: string };
 
   await request.post('/api/canvas/node', {
     data: {
@@ -601,11 +618,13 @@ test('dragging a grouped child ignores its own parent frame as a snap target', a
 
   await dragNodeTitlebar(page, childNode, -36, 0);
 
-  await expect.poll(async () => {
-    const state = await currentCanvasState(request);
-    const nextChild = state.nodes.find((node) => node.id === child.id);
-    return nextChild?.position.x;
-  }).toBe(284);
+  await expect
+    .poll(async () => {
+      const state = await currentCanvasState(request);
+      const nextChild = state.nodes.find((node) => node.id === child.id);
+      return nextChild?.position.x;
+    })
+    .toBe(284);
 });
 
 test('dragging nodes suppresses attention field overlays', async ({ page, request }) => {
@@ -643,7 +662,9 @@ test('dragging nodes suppresses attention field overlays', async ({ page, reques
 
   await page.mouse.move(startX, startY);
   await page.mouse.down();
-  await expect.poll(async () => page.locator('html').evaluate((html) => html.classList.contains('is-node-dragging'))).toBe(true);
+  await expect
+    .poll(async () => page.locator('html').evaluate((html) => html.classList.contains('is-node-dragging')))
+    .toBe(true);
   await expect(page.locator('[data-test-attention-field="true"]')).toHaveCSS('visibility', 'hidden');
   await expect(page.locator('html')).toHaveCSS('user-select', 'none');
   await expect.poll(async () => page.evaluate(() => window.getSelection()?.toString() ?? '')).toBe('');
@@ -651,7 +672,9 @@ test('dragging nodes suppresses attention field overlays', async ({ page, reques
   await page.mouse.move(startX + 80, startY + 50, { steps: 6 });
   await expect.poll(async () => page.evaluate(() => window.getSelection()?.toString() ?? '')).toBe('');
   await page.mouse.up();
-  await expect.poll(async () => page.locator('html').evaluate((html) => html.classList.contains('is-node-dragging'))).toBe(false);
+  await expect
+    .poll(async () => page.locator('html').evaluate((html) => html.classList.contains('is-node-dragging')))
+    .toBe(false);
   await expect(page.locator('[data-test-attention-field="true"]')).toHaveCSS('visibility', 'visible');
 });
 
@@ -665,7 +688,7 @@ test('keeps the browser, pinned context, and agent-driven canvas mutations in sy
       y: 260,
     },
   });
-  const created = await createResponse.json() as { id: string };
+  const created = (await createResponse.json()) as { id: string };
 
   await page.goto('/workbench');
 
@@ -675,11 +698,13 @@ test('keeps the browser, pinned context, and agent-driven canvas mutations in sy
   await seededNode.locator('.ctx-pin-btn').click();
   await expect(page.locator('.context-pin-bar')).toContainText('1 node in context');
 
-  await expect.poll(async () => {
-    const response = await request.get('/api/canvas/pinned-context');
-    const pinned = await response.json() as { count: number; nodeIds: string[] };
-    return `${pinned.count}:${pinned.nodeIds.join(',')}`;
-  }).toBe(`1:${created.id}`);
+  await expect
+    .poll(async () => {
+      const response = await request.get('/api/canvas/pinned-context');
+      const pinned = (await response.json()) as { count: number; nodeIds: string[] };
+      return `${pinned.count}:${pinned.nodeIds.join(',')}`;
+    })
+    .toBe(`1:${created.id}`);
 
   const agentCreateResponse = await request.post('/api/canvas/node', {
     data: {
@@ -690,23 +715,25 @@ test('keeps the browser, pinned context, and agent-driven canvas mutations in sy
       y: 260,
     },
   });
-  const agentCreated = await agentCreateResponse.json() as { id: string };
+  const agentCreated = (await agentCreateResponse.json()) as { id: string };
 
   const agentNode = page.locator('.canvas-node').filter({ hasText: 'Agent reply node' });
   await expect(agentNode).toHaveCount(1);
 
-  await expect.poll(async () => {
-    const state = await currentCanvasState(request);
-    return state.nodes.some(
-      (node) => node.id === agentCreated.id && node.data.title === 'Agent reply node',
-    );
-  }).toBe(true);
+  await expect
+    .poll(async () => {
+      const state = await currentCanvasState(request);
+      return state.nodes.some((node) => node.id === agentCreated.id && node.data.title === 'Agent reply node');
+    })
+    .toBe(true);
 
-  await expect.poll(async () => {
-    const response = await request.get('/api/canvas/pinned-context');
-    const pinned = await response.json() as { count: number; nodeIds: string[] };
-    return `${pinned.count}:${pinned.nodeIds.join(',')}`;
-  }).toBe(`1:${created.id}`);
+  await expect
+    .poll(async () => {
+      const response = await request.get('/api/canvas/pinned-context');
+      const pinned = (await response.json()) as { count: number; nodeIds: string[] };
+      return `${pinned.count}:${pinned.nodeIds.join(',')}`;
+    })
+    .toBe(`1:${created.id}`);
 });
 
 test('core canvas API workflows stay synchronized with the browser', async ({ page, request }) => {
@@ -762,7 +789,7 @@ test('core canvas API workflows stay synchronized with the browser', async ({ pa
     },
   });
   expect(batchResponse.ok()).toBe(true);
-  const batch = await batchResponse.json() as {
+  const batch = (await batchResponse.json()) as {
     ok: boolean;
     refs: {
       alpha: { id: string };
@@ -781,16 +808,16 @@ test('core canvas API workflows stay synchronized with the browser', async ({ pa
   await expect(page.locator('.context-pin-bar')).toContainText('1 node in context');
 
   const search = await request.get('/api/canvas/search?q=searchable');
-  const searchBody = await search.json() as { results: Array<{ id: string; title?: string }> };
+  const searchBody = (await search.json()) as { results: Array<{ id: string; title?: string }> };
   expect(searchBody.results.map((result) => result.id)).toContain(batch.refs.alpha.id);
 
   const pinned = await request.get('/api/canvas/pinned-context');
-  const pinnedBody = await pinned.json() as { count: number; nodeIds: string[] };
+  const pinnedBody = (await pinned.json()) as { count: number; nodeIds: string[] };
   expect(pinnedBody.count).toBe(1);
   expect(pinnedBody.nodeIds).toEqual([batch.refs.alpha.id]);
 
   const spatial = await request.get('/api/canvas/spatial-context');
-  const spatialBody = await spatial.json() as {
+  const spatialBody = (await spatial.json()) as {
     pinnedNeighborhoods?: Array<{ pinnedNodeId: string; nearbyNodes?: Array<{ id: string }> }>;
   };
   expect(spatialBody.pinnedNeighborhoods?.some((entry) => entry.pinnedNodeId === batch.refs.alpha.id)).toBe(true);
@@ -799,14 +826,16 @@ test('core canvas API workflows stay synchronized with the browser', async ({ pa
     data: { nodeIds: [batch.refs.beta.id], source: 'codex' },
   });
   expect(axFocus.ok()).toBe(true);
-  await expect.poll(async () => {
-    const ax = await request.get('/api/canvas/ax');
-    const body = await ax.json() as { state?: { focus?: { nodeIds?: string[]; source?: string } } };
-    return {
-      nodeIds: body.state?.focus?.nodeIds,
-      source: body.state?.focus?.source,
-    };
-  }).toEqual({ nodeIds: [batch.refs.beta.id], source: 'codex' });
+  await expect
+    .poll(async () => {
+      const ax = await request.get('/api/canvas/ax');
+      const body = (await ax.json()) as { state?: { focus?: { nodeIds?: string[]; source?: string } } };
+      return {
+        nodeIds: body.state?.focus?.nodeIds,
+        source: body.state?.focus?.source,
+      };
+    })
+    .toEqual({ nodeIds: [batch.refs.beta.id], source: 'codex' });
 
   await request.post('/api/canvas/focus', {
     data: { id: batch.refs.beta.id },
@@ -816,20 +845,24 @@ test('core canvas API workflows stay synchronized with the browser', async ({ pa
   const beforeArrange = await currentCanvasState(request);
   const beforeAlpha = beforeArrange.nodes.find((node) => node.id === batch.refs.alpha.id)?.position;
   await request.post('/api/canvas/arrange', { data: { layout: 'column' } });
-  await expect.poll(async () => {
-    const state = await currentCanvasState(request);
-    const alpha = state.nodes.find((node) => node.id === batch.refs.alpha.id);
-    return alpha?.position;
-  }).not.toEqual(beforeAlpha);
+  await expect
+    .poll(async () => {
+      const state = await currentCanvasState(request);
+      const alpha = state.nodes.find((node) => node.id === batch.refs.alpha.id);
+      return alpha?.position;
+    })
+    .not.toEqual(beforeAlpha);
 
   const fitResponse = await request.post('/api/canvas/fit', {
     data: { nodeIds: [batch.refs.alpha.id, batch.refs.beta.id], width: 1440, height: 900, padding: 80 },
   });
   expect(fitResponse.ok()).toBe(true);
-  await expect.poll(async () => {
-    const state = await currentCanvasState(request);
-    return state.nodes.length;
-  }).toBe(2);
+  await expect
+    .poll(async () => {
+      const state = await currentCanvasState(request);
+      return state.nodes.length;
+    })
+    .toBe(2);
 
   const gammaResponse = await request.post('/api/canvas/node', {
     data: {
@@ -841,33 +874,35 @@ test('core canvas API workflows stay synchronized with the browser', async ({ pa
     },
   });
   expect(gammaResponse.ok()).toBe(true);
-  const gamma = await gammaResponse.json() as { id: string };
+  const gamma = (await gammaResponse.json()) as { id: string };
   await expect(page.locator('.canvas-node').filter({ hasText: 'Workflow Gamma' })).toHaveCount(1);
 
   const diffResponse = await request.get(`/api/canvas/snapshots/${batch.refs.baseline.snapshot.id}/diff`);
-  const diff = await diffResponse.json() as { text: string };
+  const diff = (await diffResponse.json()) as { text: string };
   expect(diff.text).toContain('Workflow Gamma');
 
   const undoResponse = await request.post('/api/canvas/undo');
   expect(undoResponse.ok()).toBe(true);
   await expect(page.locator('.canvas-node').filter({ hasText: 'Workflow Gamma' })).toHaveCount(0);
-  await expect.poll(async () => {
-    const state = await currentCanvasState(request);
-    return state.nodes.some((node) => node.id === gamma.id);
-  }).toBe(false);
+  await expect
+    .poll(async () => {
+      const state = await currentCanvasState(request);
+      return state.nodes.some((node) => node.id === gamma.id);
+    })
+    .toBe(false);
 
   const redoResponse = await request.post('/api/canvas/redo');
   expect(redoResponse.ok()).toBe(true);
   await expect(page.locator('.canvas-node').filter({ hasText: 'Workflow Gamma' })).toHaveCount(1);
 
   const historyResponse = await request.get('/api/canvas/history');
-  const history = await historyResponse.json() as { canUndo: boolean; entries: unknown[]; text: string };
+  const history = (await historyResponse.json()) as { canUndo: boolean; entries: unknown[]; text: string };
   expect(history.canUndo).toBe(true);
   expect(history.entries.length).toBeGreaterThan(0);
   expect(history.text).toContain('Added markdown node');
 
   const validateResponse = await request.get('/api/canvas/validate');
-  const validation = await validateResponse.json() as { ok: boolean };
+  const validation = (await validateResponse.json()) as { ok: boolean };
   expect(validation.ok).toBe(true);
 });
 
@@ -890,7 +925,7 @@ test('semantic attention layer shows focus and interpretation history', async ({
       y: 220,
     },
   });
-  const authNode = await authResponse.json() as { id: string };
+  const authNode = (await authResponse.json()) as { id: string };
 
   await page.goto('/workbench');
 
@@ -927,7 +962,7 @@ test('context dock renders the active pinned nodes instead of stale context card
       y: 80,
     },
   });
-  const staleContext = await staleContextResponse.json() as { id: string };
+  const staleContext = (await staleContextResponse.json()) as { id: string };
   await request.patch(`/api/canvas/node/${staleContext.id}`, {
     data: { dockPosition: 'right', collapsed: false },
   });
@@ -1071,9 +1106,12 @@ test('html bridge: an opted-in html node emits an AX interaction via window.PMX_
     data: {
       type: 'html',
       title: 'AX bridge html',
-      html: '<main><h1>Bridge</h1><button onclick="window.PMX_AX.emit(\'ax.work.create\', { title: \'from-html-bridge\' })">emit</button></main>',
+      html: "<main><h1>Bridge</h1><button onclick=\"window.PMX_AX.emit('ax.work.create', { title: 'from-html-bridge' })\">emit</button></main>",
       data: { axCapabilities: { enabled: true, allowed: ['ax.work.create'] } },
-      x: 640, y: 260, width: 520, height: 360,
+      x: 640,
+      y: 260,
+      width: 520,
+      height: 360,
     },
   });
   await page.goto('/workbench');
@@ -1081,26 +1119,35 @@ test('html bridge: an opted-in html node emits an AX interaction via window.PMX_
   await expect(node).toHaveCount(1);
   await node.frameLocator('iframe').getByRole('button', { name: 'emit' }).click();
 
-  await expect.poll(async () => {
-    const ax = await request.get('/api/canvas/ax');
-    const body = await ax.json() as { state?: { workItems?: Array<{ title: string }> } };
-    return (body.state?.workItems ?? []).some((w) => w.title === 'from-html-bridge');
-  }).toBe(true);
+  await expect
+    .poll(async () => {
+      const ax = await request.get('/api/canvas/ax');
+      const body = (await ax.json()) as { state?: { workItems?: Array<{ title: string }> } };
+      return (body.state?.workItems ?? []).some((w) => w.title === 'from-html-bridge');
+    })
+    .toBe(true);
 });
 
-test('html bridge: window.PMX_AX.emit resolves with the result so the surface can self-confirm (#55)', async ({ page, request }) => {
+test('html bridge: window.PMX_AX.emit resolves with the result so the surface can self-confirm (#55)', async ({
+  page,
+  request,
+}) => {
   // The surface awaits emit() and flips a status label on the ack — the built-in
   // confirmation that fixes "clicks look like nothing happened".
-  const html = '<main><button onclick="go()">emit</button><span id="st">idle</span>'
-    + '<script>async function go(){var r=await window.PMX_AX.emit("ax.work.create",{title:"ack-confirmed"});'
-    + 'document.getElementById("st").textContent=r&&r.ok?"queued OK":"failed";}</script></main>';
+  const html =
+    '<main><button onclick="go()">emit</button><span id="st">idle</span>' +
+    '<script>async function go(){var r=await window.PMX_AX.emit("ax.work.create",{title:"ack-confirmed"});' +
+    'document.getElementById("st").textContent=r&&r.ok?"queued OK":"failed";}</script></main>';
   await request.post('/api/canvas/node', {
     data: {
       type: 'html',
       title: 'AX ack html',
       html,
       data: { axCapabilities: { enabled: true, allowed: ['ax.work.create'] } },
-      x: 640, y: 260, width: 520, height: 360,
+      x: 640,
+      y: 260,
+      width: 520,
+      height: 360,
     },
   });
   await page.goto('/workbench');
@@ -1112,10 +1159,14 @@ test('html bridge: window.PMX_AX.emit resolves with the result so the surface ca
   await expect(frame.locator('#st')).toHaveText('queued OK');
 });
 
-test('ext-app bridge: window.PMX_AX.emit resolves with the result so the app can self-confirm (#55)', async ({ page, request }) => {
-  const html = '<main><button onclick="go()">emit</button><span id="st">idle</span>'
-    + '<script>async function go(){var r=await window.PMX_AX.emit("ax.work.create",{title:"ack-confirmed-ext-app"});'
-    + 'document.getElementById("st").textContent=r&&r.ok?"queued OK":"failed";}</script></main>';
+test('ext-app bridge: window.PMX_AX.emit resolves with the result so the app can self-confirm (#55)', async ({
+  page,
+  request,
+}) => {
+  const html =
+    '<main><button onclick="go()">emit</button><span id="st">idle</span>' +
+    '<script>async function go(){var r=await window.PMX_AX.emit("ax.work.create",{title:"ack-confirmed-ext-app"});' +
+    'document.getElementById("st").textContent=r&&r.ok?"queued OK":"failed";}</script></main>';
   await request.post('/api/canvas/node', {
     data: {
       type: 'mcp-app',
@@ -1126,7 +1177,10 @@ test('ext-app bridge: window.PMX_AX.emit resolves with the result so the app can
         axCapabilities: { enabled: true, allowed: ['ax.work.create'] },
         sessionStatus: 'ready',
       },
-      x: 640, y: 260, width: 520, height: 360,
+      x: 640,
+      y: 260,
+      width: 520,
+      height: 360,
     },
   });
   await page.goto('/workbench');
@@ -1146,10 +1200,13 @@ test('#61: hosted ext-app nodes are not openable as a standalone site', async ({
       type: 'mcp-app',
       title: 'Ext app no open-as-site',
       data: { mode: 'ext-app', html: '<main><h1>Hosted App</h1></main>', sessionStatus: 'ready' },
-      x: 360, y: 200, width: 480, height: 320,
+      x: 360,
+      y: 200,
+      width: 480,
+      height: 320,
     },
   });
-  const id = (await created.json() as { id: string }).id;
+  const id = ((await created.json()) as { id: string }).id;
   expect(id).toBeTruthy();
 
   // Server: the standalone surface route refuses cleanly (404), instead of serving
@@ -1164,7 +1221,10 @@ test('#61: hosted ext-app nodes are not openable as a standalone site', async ({
   await expect(node.getByTitle('Open as site')).toHaveCount(0);
 });
 
-test('#63: node context menu pins to the human-curated context set (primary "Pin as context")', async ({ page, request }) => {
+test('#63: node context menu pins to the human-curated context set (primary "Pin as context")', async ({
+  page,
+  request,
+}) => {
   await request.post('/api/canvas/node', {
     data: { type: 'markdown', title: 'Ctx pin target', content: '# pin me', x: 360, y: 220 },
   });
@@ -1185,7 +1245,13 @@ test('#63: node context menu pins to the human-curated context set (primary "Pin
 
 test('#64: status nodes expose the standard remove (×) control', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
-    data: { type: 'status', title: 'Removable status', data: { title: 'Removable status', status: 'success', message: 'done' }, x: 360, y: 220 },
+    data: {
+      type: 'status',
+      title: 'Removable status',
+      data: { title: 'Removable status', status: 'success', message: 'done' },
+      x: 360,
+      y: 220,
+    },
   });
   await page.goto('/workbench');
   const node = page.locator('.canvas-node').filter({ hasText: 'Removable status' });
@@ -1197,7 +1263,10 @@ test('#64: status nodes expose the standard remove (×) control', async ({ page,
   await expect(node).toHaveCount(0);
 });
 
-test('json-render bridge: a spec action named ax.* emits an AX interaction via the viewer', async ({ page, request }) => {
+test('json-render bridge: a spec action named ax.* emits an AX interaction via the viewer', async ({
+  page,
+  request,
+}) => {
   // json-render is AX-enabled by default with ax.work.create in its ceiling. The
   // viewer bundle wires spec actions named after AX types to a postMessage bridge;
   // McpAppViewer validates (iframe source + nonce + node id) and submits server-side.
@@ -1214,7 +1283,10 @@ test('json-render bridge: a spec action named ax.* emits an AX interaction via t
           },
         },
       },
-      x: 640, y: 260, width: 480, height: 320,
+      x: 640,
+      y: 260,
+      width: 480,
+      height: 320,
     },
   });
   await page.goto('/workbench');
@@ -1222,22 +1294,37 @@ test('json-render bridge: a spec action named ax.* emits an AX interaction via t
   await expect(node).toHaveCount(1);
   await node.frameLocator('iframe').getByRole('button', { name: 'emit' }).click();
 
-  await expect.poll(async () => {
-    const ax = await request.get('/api/canvas/ax');
-    const body = await ax.json() as { state?: { workItems?: Array<{ title: string }> } };
-    return (body.state?.workItems ?? []).some((w) => w.title === 'from-jsonrender-bridge');
-  }).toBe(true);
+  await expect
+    .poll(async () => {
+      const ax = await request.get('/api/canvas/ax');
+      const body = (await ax.json()) as { state?: { workItems?: Array<{ title: string }> } };
+      return (body.state?.workItems ?? []).some((w) => w.title === 'from-jsonrender-bridge');
+    })
+    .toBe(true);
 });
 
-test('AX read path: an AX-enabled html board reflects live AX state (window.PMX_AX.state + pmx-ax-update)', async ({ page, request }) => {
+test('AX read path: an AX-enabled html board reflects live AX state (window.PMX_AX.state + pmx-ax-update)', async ({
+  page,
+  request,
+}) => {
   // A board that renders the live work-item count from the read-side bridge.
-  const html = '<div id="c">init</div><script>'
-    + 'function r(s){document.getElementById("c").textContent="work:"+((s&&s.workItems)?s.workItems.length:0);}'
-    + 'r(window.PMX_AX&&window.PMX_AX.state);'
-    + 'window.addEventListener("pmx-ax-update",function(e){r(e.detail);});'
-    + '</script>';
+  const html =
+    '<div id="c">init</div><script>' +
+    'function r(s){document.getElementById("c").textContent="work:"+((s&&s.workItems)?s.workItems.length:0);}' +
+    'r(window.PMX_AX&&window.PMX_AX.state);' +
+    'window.addEventListener("pmx-ax-update",function(e){r(e.detail);});' +
+    '</script>';
   const created = await request.post('/api/canvas/node', {
-    data: { type: 'html', title: 'AX read board', html, data: { axCapabilities: { enabled: true, allowed: ['ax.work.create'] } }, x: 640, y: 260, width: 480, height: 320 },
+    data: {
+      type: 'html',
+      title: 'AX read board',
+      html,
+      data: { axCapabilities: { enabled: true, allowed: ['ax.work.create'] } },
+      x: 640,
+      y: 260,
+      width: 480,
+      height: 320,
+    },
   });
   const nodeId = ((await created.json()) as { id: string }).id;
 
@@ -1264,13 +1351,18 @@ test('file node evidence control records AX evidence', async ({ page, request })
   await expect(node).toHaveCount(1);
   await node.getByTitle('Mark this file as AX evidence').click();
 
-  await expect.poll(async () => {
-    const tl = await request.get('/api/canvas/ax/timeline');
-    return JSON.stringify(await tl.json()).includes('evidence-file.ts');
-  }).toBe(true);
+  await expect
+    .poll(async () => {
+      const tl = await request.get('/api/canvas/ax/timeline');
+      return JSON.stringify(await tl.json()).includes('evidence-file.ts');
+    })
+    .toBe(true);
 });
 
-test('ledger nodes render content as split log lines without a label or literal newlines', async ({ page, request }) => {
+test('ledger nodes render content as split log lines without a label or literal newlines', async ({
+  page,
+  request,
+}) => {
   await request.post('/api/canvas/node', {
     data: {
       type: 'ledger',
@@ -1382,10 +1474,12 @@ test('pasting a URL onto the canvas creates a webpage node', async ({ page, requ
     document.dispatchEvent(event);
   });
 
-  await expect.poll(async () => {
-    const state = await currentCanvasState(request);
-    return state.nodes.some((node) => node.type === 'webpage' && node.data.url === 'https://example.com/pasted-url');
-  }).toBe(true);
+  await expect
+    .poll(async () => {
+      const state = await currentCanvasState(request);
+      return state.nodes.some((node) => node.type === 'webpage' && node.data.url === 'https://example.com/pasted-url');
+    })
+    .toBe(true);
 });
 
 test('dropping a URL onto the canvas creates a webpage node', async ({ page, request }) => {
@@ -1397,26 +1491,32 @@ test('dropping a URL onto the canvas creates a webpage node', async ({ page, req
     const dataTransfer = new DataTransfer();
     dataTransfer.setData('text/plain', 'https://example.com/dropped-url');
     const rect = viewport.getBoundingClientRect();
-    viewport.dispatchEvent(new DragEvent('dragenter', {
-      bubbles: true,
-      cancelable: true,
-      clientX: rect.left + rect.width / 2,
-      clientY: rect.top + rect.height / 2,
-      dataTransfer,
-    }));
-    viewport.dispatchEvent(new DragEvent('drop', {
-      bubbles: true,
-      cancelable: true,
-      clientX: rect.left + rect.width / 2,
-      clientY: rect.top + rect.height / 2,
-      dataTransfer,
-    }));
+    viewport.dispatchEvent(
+      new DragEvent('dragenter', {
+        bubbles: true,
+        cancelable: true,
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+        dataTransfer,
+      }),
+    );
+    viewport.dispatchEvent(
+      new DragEvent('drop', {
+        bubbles: true,
+        cancelable: true,
+        clientX: rect.left + rect.width / 2,
+        clientY: rect.top + rect.height / 2,
+        dataTransfer,
+      }),
+    );
   });
 
-  await expect.poll(async () => {
-    const state = await currentCanvasState(request);
-    return state.nodes.some((node) => node.type === 'webpage' && node.data.url === 'https://example.com/dropped-url');
-  }).toBe(true);
+  await expect
+    .poll(async () => {
+      const state = await currentCanvasState(request);
+      return state.nodes.some((node) => node.type === 'webpage' && node.data.url === 'https://example.com/dropped-url');
+    })
+    .toBe(true);
 });
 
 test('hosts a standard MCP App node and proxies app-only tool calls', async ({ page, request }) => {
@@ -1454,7 +1554,9 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
   const frame = expandedPanel.frameLocator('iframe');
   await expect(frame.getByText('Fixture Counter')).toBeVisible();
   await expect(frame.locator('#count')).toHaveText('2');
-  await expect.poll(async () => frame.locator('body').evaluate((body) => body.scrollHeight - body.clientHeight)).toBe(0);
+  await expect
+    .poll(async () => frame.locator('body').evaluate((body) => body.scrollHeight - body.clientHeight))
+    .toBe(0);
 
   // The widget's auto-resize notifications can make the iframe's reported
   // bounds waver by a pixel across measurements while it settles, which the
@@ -1464,16 +1566,19 @@ test('hosts a standard MCP App node and proxies app-only tool calls', async ({ p
   await frame.getByRole('button', { name: 'Increment' }).click({ force: true });
   await expect(frame.locator('#count')).toHaveText('3');
 
-  await expect.poll(async () => {
-    const state = await currentCanvasState(request);
-    const hosted = state.nodes.find((node) => node.type === 'mcp-app' && node.data.title === 'Counter App');
-    const appModelContext = hosted?.data.appModelContext as
-      | { structuredContent?: { count?: number } }
-      | undefined;
-    return appModelContext?.structuredContent?.count ?? null;
-  }, {
-    timeout: 15000,
-  }).toBe(3);
+  await expect
+    .poll(
+      async () => {
+        const state = await currentCanvasState(request);
+        const hosted = state.nodes.find((node) => node.type === 'mcp-app' && node.data.title === 'Counter App');
+        const appModelContext = hosted?.data.appModelContext as { structuredContent?: { count?: number } } | undefined;
+        return appModelContext?.structuredContent?.count ?? null;
+      },
+      {
+        timeout: 15000,
+      },
+    )
+    .toBe(3);
 
   // Collapse back to inline before the reload so the post-reload assertion
   // exercises the inline iframe (count persisted via appModelContext).
@@ -1537,7 +1642,9 @@ test('MCP App node resize corner stays above iframe preview overlays', async ({ 
       height: handleRect.height,
       cursor: getComputedStyle(element).cursor,
       iframePointerEvents: iframe ? getComputedStyle(iframe).pointerEvents : null,
-      previewCatcherLeavesResizeCorner: previewRect ? previewRect.right <= nodeRect.right - 48 && previewRect.bottom <= nodeRect.bottom - 48 : null,
+      previewCatcherLeavesResizeCorner: previewRect
+        ? previewRect.right <= nodeRect.right - 48 && previewRect.bottom <= nodeRect.bottom - 48
+        : null,
       hitIsHandle: hit === element || element.contains(hit),
     };
   });
@@ -1551,14 +1658,18 @@ test('MCP App node resize corner stays above iframe preview overlays', async ({ 
   });
 
   const initialState = await currentCanvasState(request);
-  const initialNode = initialState.nodes.find((node) => node.type === 'mcp-app' && node.data.title === 'Resize Handle App');
+  const initialNode = initialState.nodes.find(
+    (node) => node.type === 'mcp-app' && node.data.title === 'Resize Handle App',
+  );
   if (!initialNode) throw new Error('Resize Handle App node missing from canvas state.');
 
   const box = await appNode.boundingBox();
   if (!box) throw new Error('Resize Handle App node is not visible.');
   await page.mouse.move(box.x + box.width - 8, box.y + box.height - 8);
   await page.mouse.down();
-  await expect.poll(async () => page.locator('html').evaluate((html) => html.classList.contains('is-node-resizing'))).toBe(true);
+  await expect
+    .poll(async () => page.locator('html').evaluate((html) => html.classList.contains('is-node-resizing')))
+    .toBe(true);
   const activeResizeStyles = await appNode.evaluate((node) => {
     const iframe = node.querySelector('iframe');
     const previewCatcher = node.querySelector('.ext-app-preview-catcher');
@@ -1575,14 +1686,18 @@ test('MCP App node resize corner stays above iframe preview overlays', async ({ 
   });
   await page.mouse.move(box.x + box.width + 72, box.y + box.height + 44, { steps: 6 });
   await page.mouse.up();
-  await expect.poll(async () => page.locator('html').evaluate((html) => html.classList.contains('is-node-resizing'))).toBe(false);
+  await expect
+    .poll(async () => page.locator('html').evaluate((html) => html.classList.contains('is-node-resizing')))
+    .toBe(false);
 
-  await expect.poll(async () => {
-    const state = await currentCanvasState(request);
-    const resized = state.nodes.find((node) => node.type === 'mcp-app' && node.data.title === 'Resize Handle App');
-    if (!resized) return false;
-    return resized.size.width > initialNode.size.width && resized.size.height > initialNode.size.height;
-  }).toBe(true);
+  await expect
+    .poll(async () => {
+      const state = await currentCanvasState(request);
+      const resized = state.nodes.find((node) => node.type === 'mcp-app' && node.data.title === 'Resize Handle App');
+      if (!resized) return false;
+      return resized.size.width > initialNode.size.width && resized.size.height > initialNode.size.height;
+    })
+    .toBe(true);
 });
 
 test('MCP App fullscreen dimensions settle after layout and edits persist (#62)', async ({ page, request }) => {
@@ -1621,7 +1736,10 @@ test('MCP App fullscreen dimensions settle after layout and edits persist (#62)'
     let lastError: unknown;
     for (let attempt = 1; attempt <= 3; attempt++) {
       if (attempt > 1) {
-        await panel.getByTitle('Close (Esc)').click({ timeout: 2_000 }).catch(() => {});
+        await panel
+          .getByTitle('Close (Esc)')
+          .click({ timeout: 2_000 })
+          .catch(() => {});
       }
       await appNode.locator('.ext-app-preview-catcher').click();
       try {
@@ -1641,33 +1759,37 @@ test('MCP App fullscreen dimensions settle after layout and edits persist (#62)'
   await expect(frame.getByText('No saved edit')).toBeVisible();
   // #62: expansion must deliver the post-layout fullscreen dimensions, not the
   // stale inline frame size that caused hosted apps to clip reflowed text.
-  await expect.poll(async () => {
-    const iframeBox = await panel.locator('iframe').boundingBox();
-    const reported = await frame.locator('#host-dimensions').evaluate((element) => ({
-      width: Number(element.getAttribute('data-width')),
-      height: Number(element.getAttribute('data-height')),
-    }));
-    if (!iframeBox) return Number.POSITIVE_INFINITY;
-    return Math.max(
-      Math.abs(reported.width - iframeBox.width),
-      Math.abs(reported.height - iframeBox.height),
-    );
-  }).toBeLessThan(4);
+  await expect
+    .poll(async () => {
+      const iframeBox = await panel.locator('iframe').boundingBox();
+      const reported = await frame.locator('#host-dimensions').evaluate((element) => ({
+        width: Number(element.getAttribute('data-width')),
+        height: Number(element.getAttribute('data-height')),
+      }));
+      if (!iframeBox) return Number.POSITIVE_INFINITY;
+      return Math.max(Math.abs(reported.width - iframeBox.width), Math.abs(reported.height - iframeBox.height));
+    })
+    .toBeLessThan(4);
   const reportedFullscreenHeight = Number(await frame.locator('#host-dimensions').getAttribute('data-height'));
   expect(reportedFullscreenHeight).toBeGreaterThan(600);
   await frame.getByRole('button', { name: 'Add Manual Edit' }).click();
   await expect(frame.getByText('Saved manual edit')).toBeVisible();
 
-  await expect.poll(async () => {
-    const state = await currentCanvasState(request);
-    const hosted = state.nodes.find((node) => node.type === 'mcp-app' && node.data.title === 'Persistent Editor App');
-    const appModelContext = hosted?.data.appModelContext as
-      | { content?: Array<{ text?: string }> }
-      | undefined;
-    return appModelContext?.content?.[0]?.text ?? null;
-  }, {
-    timeout: 15000,
-  }).toBe('Saved manual edit');
+  await expect
+    .poll(
+      async () => {
+        const state = await currentCanvasState(request);
+        const hosted = state.nodes.find(
+          (node) => node.type === 'mcp-app' && node.data.title === 'Persistent Editor App',
+        );
+        const appModelContext = hosted?.data.appModelContext as { content?: Array<{ text?: string }> } | undefined;
+        return appModelContext?.content?.[0]?.text ?? null;
+      },
+      {
+        timeout: 15000,
+      },
+    )
+    .toBe('Saved manual edit');
 
   await panel.getByTitle('Close (Esc)').click();
   // The same handshake race can hit the reopened iframe, so use the retry
@@ -1715,7 +1837,7 @@ test('inline markdown save updates authoritative canvas node content', async ({ 
       y: 260,
     },
   });
-  const created = await createResponse.json() as { id: string };
+  const created = (await createResponse.json()) as { id: string };
 
   await page.goto('/workbench');
 
@@ -1734,13 +1856,18 @@ test('inline markdown save updates authoritative canvas node content', async ({ 
   await expect(editor).toContainText('Updated paragraph');
   await page.keyboard.press('Tab');
 
-  await expect.poll(async () => {
-    const response = await request.get(`/api/canvas/node/${created.id}`);
-    const node = await response.json() as { data: Record<string, unknown> };
-    return node.data.content;
-  }, {
-    timeout: 15000,
-  }).toBe('Updated paragraph');
+  await expect
+    .poll(
+      async () => {
+        const response = await request.get(`/api/canvas/node/${created.id}`);
+        const node = (await response.json()) as { data: Record<string, unknown> };
+        return node.data.content;
+      },
+      {
+        timeout: 15000,
+      },
+    )
+    .toBe('Updated paragraph');
 });
 
 test('saves snapshots from the toolbar', async ({ page, request }) => {
@@ -1763,11 +1890,13 @@ test('saves snapshots from the toolbar', async ({ page, request }) => {
   await page.locator('.snapshot-save-btn').click();
 
   await expect(page.locator('.snapshot-item-name')).toContainText('Toolbar snapshot');
-  await expect.poll(async () => {
-    const response = await request.get('/api/canvas/snapshots');
-    const snapshots = await response.json() as Array<{ name: string }>;
-    return snapshots.map((snapshot) => snapshot.name).join(',');
-  }).toContain('Toolbar snapshot');
+  await expect
+    .poll(async () => {
+      const response = await request.get('/api/canvas/snapshots');
+      const snapshots = (await response.json()) as Array<{ name: string }>;
+      return snapshots.map((snapshot) => snapshot.name).join(',');
+    })
+    .toContain('Toolbar snapshot');
 });
 
 test('restores snapshots from the toolbar only after confirmation', async ({ page, request }) => {
@@ -1780,7 +1909,7 @@ test('restores snapshots from the toolbar only after confirmation', async ({ pag
       y: 240,
     },
   });
-  const created = await createResponse.json() as { id: string };
+  const created = (await createResponse.json()) as { id: string };
 
   const saveResponse = await request.post('/api/canvas/snapshots', {
     data: { name: 'Toolbar restore snapshot' },
@@ -1802,16 +1931,18 @@ test('restores snapshots from the toolbar only after confirmation', async ({ pag
   await expect(snapshotItem.getByRole('button', { name: 'Confirm' })).toBeVisible();
 
   const preConfirm = await request.get(`/api/canvas/node/${created.id}`);
-  const preConfirmNode = await preConfirm.json() as { data: Record<string, unknown> };
+  const preConfirmNode = (await preConfirm.json()) as { data: Record<string, unknown> };
   expect(preConfirmNode.data.title).toBe('Mutated title');
 
   await snapshotItem.getByRole('button', { name: 'Confirm' }).click();
 
-  await expect.poll(async () => {
-    const response = await request.get(`/api/canvas/node/${created.id}`);
-    const node = await response.json() as { data: Record<string, unknown> };
-    return node.data.title;
-  }).toBe('Restore target');
+  await expect
+    .poll(async () => {
+      const response = await request.get(`/api/canvas/node/${created.id}`);
+      const node = (await response.json()) as { data: Record<string, unknown> };
+      return node.data.title;
+    })
+    .toBe('Restore target');
 });
 
 test('toolbar tooltips dismiss after pointer-triggered actions', async ({ page }) => {
@@ -1848,7 +1979,7 @@ test('dark bar-chart viewer keeps tooltip without the bright hover cursor overla
       color: '#3ec668',
     },
   });
-  const created = await createResponse.json() as { url: string };
+  const created = (await createResponse.json()) as { url: string };
 
   await page.goto(`${created.url}&theme=dark`);
 
@@ -1927,9 +2058,7 @@ test('iframe-backed graph and json-render nodes avoid the sandbox escape warning
   await expect(jsonNode.frameLocator('iframe').getByText('Release Summary')).toBeVisible();
 
   await page.waitForTimeout(1000);
-  expect(
-    warnings.filter((warning) => warning.includes('allow-scripts and allow-same-origin')),
-  ).toEqual([]);
+  expect(warnings.filter((warning) => warning.includes('allow-scripts and allow-same-origin'))).toEqual([]);
 });
 
 test('graph nodes content-fit to a stable size across expand and close', async ({ page, request }) => {
@@ -1953,10 +2082,10 @@ test('graph nodes content-fit to a stable size across expand and close', async (
       height: 240,
     },
   });
-  const created = await createResponse.json() as { id: string };
+  const created = (await createResponse.json()) as { id: string };
   const fetchSize = async () => {
     const response = await request.get(`/api/canvas/node/${created.id}`);
-    return (await response.json() as { size: { width: number; height: number } }).size;
+    return ((await response.json()) as { size: { width: number; height: number } }).size;
   };
 
   await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
@@ -1981,14 +2110,18 @@ test('graph nodes content-fit to a stable size across expand and close', async (
 
   // Returns to the same content-fit size — stable, no drift on re-fit (grow-only +
   // a stable intrinsic chart height converge to the same value).
-  await expect.poll(async () => {
-    const size = await fetchSize();
-    return `${size.width}x${size.height}`;
-  }).toBe(`480x${fit.height}`);
-  await expect.poll(async () => {
-    const box = await graphNode.boundingBox();
-    return box ? `${Math.round(box.width)}x${Math.round(box.height)}` : '';
-  }).toBe(`480x${Math.round(fit.height)}`);
+  await expect
+    .poll(async () => {
+      const size = await fetchSize();
+      return `${size.width}x${size.height}`;
+    })
+    .toBe(`480x${fit.height}`);
+  await expect
+    .poll(async () => {
+      const box = await graphNode.boundingBox();
+      return box ? `${Math.round(box.width)}x${Math.round(box.height)}` : '';
+    })
+    .toBe(`480x${Math.round(fit.height)}`);
 });
 
 test('expanded graph nodes stretch chart content to the overlay frame', async ({ page, request }) => {
@@ -2061,21 +2194,22 @@ test('#65: standalone graph surfaces fill and resize with the browser viewport',
       height: 240,
     },
   });
-  const created = await createResponse.json() as { id: string };
+  const created = (await createResponse.json()) as { id: string };
 
   await page.setViewportSize({ width: 1100, height: 780 });
   await page.goto(`/api/canvas/surface/${created.id}`);
   const chart = page.locator('.recharts-surface');
   await expect(chart).toBeVisible();
 
-  const readMetrics = () => chart.evaluate((surface) => {
-    const rect = surface.getBoundingClientRect();
-    return {
-      surfaceHeight: rect.height,
-      viewportHeight: window.innerHeight,
-      scrollHeight: document.documentElement.scrollHeight,
-    };
-  });
+  const readMetrics = () =>
+    chart.evaluate((surface) => {
+      const rect = surface.getBoundingClientRect();
+      return {
+        surfaceHeight: rect.height,
+        viewportHeight: window.innerHeight,
+        scrollHeight: document.documentElement.scrollHeight,
+      };
+    });
 
   await expect.poll(async () => (await readMetrics()).surfaceHeight).toBeGreaterThan(520);
   const large = await readMetrics();
@@ -2106,7 +2240,7 @@ test('#67: standalone graph surface reflows chart width on live resize without r
       height: 240,
     },
   });
-  const created = await createResponse.json() as { id: string };
+  const created = (await createResponse.json()) as { id: string };
 
   // Surface route redirects a graph node to the standalone display=site viewer.
   await page.setViewportSize({ width: 1280, height: 720 });
@@ -2114,14 +2248,15 @@ test('#67: standalone graph surface reflows chart width on live resize without r
   const chart = page.locator('.recharts-surface');
   await expect(chart).toBeVisible();
 
-  const readMetrics = () => chart.evaluate((surface) => {
-    const rect = surface.getBoundingClientRect();
-    return {
-      svgWidth: rect.width,
-      viewportWidth: window.innerWidth,
-      scrollWidth: document.documentElement.scrollWidth,
-    };
-  });
+  const readMetrics = () =>
+    chart.evaluate((surface) => {
+      const rect = surface.getBoundingClientRect();
+      return {
+        svgWidth: rect.width,
+        viewportWidth: window.innerWidth,
+        scrollWidth: document.documentElement.scrollWidth,
+      };
+    });
 
   // Initial 1280-wide load: chart fills the viewport, no horizontal overflow.
   await expect.poll(async () => (await readMetrics()).svgWidth).toBeGreaterThan(900);
@@ -2131,8 +2266,7 @@ test('#67: standalone graph surface reflows chart width on live resize without r
   // Shrink the LIVE tab (no reload): the chart must recompute narrower, and the
   // document must not gain horizontal overflow from a stale wide SVG (#67).
   await page.setViewportSize({ width: 900, height: 600 });
-  await expect.poll(async () => (await readMetrics()).svgWidth, { timeout: 5000 })
-    .toBeLessThan(wide.svgWidth - 100);
+  await expect.poll(async () => (await readMetrics()).svgWidth, { timeout: 5000 }).toBeLessThan(wide.svgWidth - 100);
   const narrow = await readMetrics();
   expect(narrow.svgWidth).toBeLessThanOrEqual(narrow.viewportWidth);
   expect(narrow.scrollWidth).toBeLessThanOrEqual(narrow.viewportWidth + 1);
@@ -2140,7 +2274,8 @@ test('#67: standalone graph surface reflows chart width on live resize without r
   // Grow the LIVE tab back: the chart must recompute wider again (the failure
   // reproduced in both directions, so guard both).
   await page.setViewportSize({ width: 1280, height: 720 });
-  await expect.poll(async () => (await readMetrics()).svgWidth, { timeout: 5000 })
+  await expect
+    .poll(async () => (await readMetrics()).svgWidth, { timeout: 5000 })
     .toBeGreaterThan(narrow.svgWidth + 100);
   const regrown = await readMetrics();
   expect(regrown.scrollWidth).toBeLessThanOrEqual(regrown.viewportWidth + 1);
@@ -2165,7 +2300,7 @@ test('compact graph charts keep plotted content inside the iframe viewport', asy
       height: 240,
     },
   });
-  const created = await createResponse.json() as { id: string };
+  const created = (await createResponse.json()) as { id: string };
 
   await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
   await page.goto('/workbench');
@@ -2181,18 +2316,20 @@ test('compact graph charts keep plotted content inside the iframe viewport', asy
     return elements.flatMap((element) => {
       const box = element.getBoundingClientRect();
       if (box.width === 0 && box.height === 0) return [];
-      return [{
-        left: box.left - root.left,
-        top: box.top - root.top,
-        right: box.right - root.left,
-        bottom: box.bottom - root.top,
-        width: box.width,
-        height: box.height,
-        viewportWidth: window.innerWidth,
-        viewportHeight: window.innerHeight,
-        surfaceWidth: surface.getBoundingClientRect().width,
-        surfaceHeight: surface.getBoundingClientRect().height,
-      }];
+      return [
+        {
+          left: box.left - root.left,
+          top: box.top - root.top,
+          right: box.right - root.left,
+          bottom: box.bottom - root.top,
+          width: box.width,
+          height: box.height,
+          viewportWidth: window.innerWidth,
+          viewportHeight: window.innerHeight,
+          surfaceWidth: surface.getBoundingClientRect().width,
+          surfaceHeight: surface.getBoundingClientRect().height,
+        },
+      ];
     });
   });
 
@@ -2207,7 +2344,9 @@ test('compact graph charts keep plotted content inside the iframe viewport', asy
   }
 
   const response = await request.get(`/api/canvas/node/${created.id}`);
-  const node = await response.json() as { data: { spec?: { elements?: Record<string, { props?: Record<string, unknown> }> } } };
+  const node = (await response.json()) as {
+    data: { spec?: { elements?: Record<string, { props?: Record<string, unknown> }> } };
+  };
   expect(node.data.spec?.elements?.chart?.props?.showLegend).toBe(false);
 });
 
@@ -2221,7 +2360,7 @@ test('ordinary node pin updates the authoritative canvas state', async ({ page, 
       y: 260,
     },
   });
-  const created = await createResponse.json() as { id: string };
+  const created = (await createResponse.json()) as { id: string };
 
   await page.goto('/workbench');
 
@@ -2234,11 +2373,13 @@ test('ordinary node pin updates the authoritative canvas state', async ({ page, 
   await page.locator('.context-menu-item').filter({ hasText: 'Lock position' }).click();
 
   await expect(note).toHaveClass(/pinned/);
-  await expect.poll(async () => {
-    const response = await request.get(`/api/canvas/node/${created.id}`);
-    const node = await response.json() as { pinned: boolean };
-    return node.pinned;
-  }).toBe(true);
+  await expect
+    .poll(async () => {
+      const response = await request.get(`/api/canvas/node/${created.id}`);
+      const node = (await response.json()) as { pinned: boolean };
+      return node.pinned;
+    })
+    .toBe(true);
 });
 
 test('zoomed-out node chrome keeps usable action hit targets', async ({ page, request }) => {
@@ -2291,7 +2432,7 @@ test('group context menu updates the group accent color', async ({ page, request
       height: 280,
     },
   });
-  const created = await createResponse.json() as { id: string };
+  const created = (await createResponse.json()) as { id: string };
 
   await page.goto('/workbench');
 
@@ -2301,11 +2442,13 @@ test('group context menu updates the group accent color', async ({ page, request
   await group.click({ button: 'right' });
   await page.getByRole('button', { name: 'Set group color to Green' }).click();
 
-  await expect.poll(async () => {
-    const response = await request.get(`/api/canvas/node/${created.id}`);
-    const node = await response.json() as { data: Record<string, unknown> };
-    return node.data.color;
-  }).toBe('#22c55e');
+  await expect
+    .poll(async () => {
+      const response = await request.get(`/api/canvas/node/${created.id}`);
+      const node = (await response.json()) as { data: Record<string, unknown> };
+      return node.data.color;
+    })
+    .toBe('#22c55e');
 
   await expect(group).toHaveCSS('border-top-color', 'rgb(34, 197, 94)');
 });
@@ -2320,7 +2463,7 @@ test('restored grouped nodes can be dragged without snapping back', async ({ pag
       y: 240,
     },
   });
-  const first = await firstResponse.json() as { id: string };
+  const first = (await firstResponse.json()) as { id: string };
 
   const secondResponse = await request.post('/api/canvas/node', {
     data: {
@@ -2331,7 +2474,7 @@ test('restored grouped nodes can be dragged without snapping back', async ({ pag
       y: 240,
     },
   });
-  const second = await secondResponse.json() as { id: string };
+  const second = (await secondResponse.json()) as { id: string };
 
   const groupResponse = await request.post('/api/canvas/group', {
     data: {
@@ -2339,12 +2482,12 @@ test('restored grouped nodes can be dragged without snapping back', async ({ pag
       childIds: [first.id, second.id],
     },
   });
-  const group = await groupResponse.json() as { id: string };
+  const group = (await groupResponse.json()) as { id: string };
 
   const saveResponse = await request.post('/api/canvas/snapshots', {
     data: { name: 'Grouped drag restore snapshot' },
   });
-  const saved = await saveResponse.json() as { snapshot: { id: string } };
+  const saved = (await saveResponse.json()) as { snapshot: { id: string } };
 
   await request.patch(`/api/canvas/node/${first.id}`, {
     data: { position: { x: 1160, y: 740 } },
@@ -2360,26 +2503,28 @@ test('restored grouped nodes can be dragged without snapping back', async ({ pag
 
   const beforeGroupResponse = await request.get(`/api/canvas/node/${group.id}`);
   const beforeChildResponse = await request.get(`/api/canvas/node/${first.id}`);
-  const beforeGroup = await beforeGroupResponse.json() as { position: { x: number; y: number } };
-  const beforeChild = await beforeChildResponse.json() as { position: { x: number; y: number } };
+  const beforeGroup = (await beforeGroupResponse.json()) as { position: { x: number; y: number } };
+  const beforeChild = (await beforeChildResponse.json()) as { position: { x: number; y: number } };
 
   await dragNodeTitlebar(page, groupedGroup, 180, 120);
 
-  await expect.poll(async () => {
-    const groupResponseAfter = await request.get(`/api/canvas/node/${group.id}`);
-    const childResponseAfter = await request.get(`/api/canvas/node/${first.id}`);
-    const groupNode = await groupResponseAfter.json() as { position: { x: number; y: number } };
-    const childNode = await childResponseAfter.json() as { position: { x: number; y: number } };
-    const groupDeltaX = groupNode.position.x - beforeGroup.position.x;
-    const groupDeltaY = groupNode.position.y - beforeGroup.position.y;
-    const childDeltaX = childNode.position.x - beforeChild.position.x;
-    const childDeltaY = childNode.position.y - beforeChild.position.y;
-    return (
-      (Math.abs(groupDeltaX) > 10 || Math.abs(groupDeltaY) > 10) &&
-      Math.abs(groupDeltaX - childDeltaX) <= 1 &&
-      Math.abs(groupDeltaY - childDeltaY) <= 1
-    );
-  }).toBe(true);
+  await expect
+    .poll(async () => {
+      const groupResponseAfter = await request.get(`/api/canvas/node/${group.id}`);
+      const childResponseAfter = await request.get(`/api/canvas/node/${first.id}`);
+      const groupNode = (await groupResponseAfter.json()) as { position: { x: number; y: number } };
+      const childNode = (await childResponseAfter.json()) as { position: { x: number; y: number } };
+      const groupDeltaX = groupNode.position.x - beforeGroup.position.x;
+      const groupDeltaY = groupNode.position.y - beforeGroup.position.y;
+      const childDeltaX = childNode.position.x - beforeChild.position.x;
+      const childDeltaY = childNode.position.y - beforeChild.position.y;
+      return (
+        (Math.abs(groupDeltaX) > 10 || Math.abs(groupDeltaY) > 10) &&
+        Math.abs(groupDeltaX - childDeltaX) <= 1 &&
+        Math.abs(groupDeltaY - childDeltaY) <= 1
+      );
+    })
+    .toBe(true);
 });
 
 test('light theme uses a high-contrast blue for context-pinned nodes', async ({ page, request }) => {
@@ -2392,7 +2537,7 @@ test('light theme uses a high-contrast blue for context-pinned nodes', async ({ 
       y: 260,
     },
   });
-  const created = await createResponse.json() as { id: string };
+  const created = (await createResponse.json()) as { id: string };
 
   await page.goto('/workbench');
   // Switch to light theme through the real toolbar control so the choice is
@@ -2408,22 +2553,29 @@ test('light theme uses a high-contrast blue for context-pinned nodes', async ({ 
 
   await note.locator('.ctx-pin-btn').click();
 
-  await expect.poll(async () => {
-    const response = await request.get('/api/canvas/pinned-context');
-    const pinned = await response.json() as { nodeIds: string[] };
-    return pinned.nodeIds;
-  }).toContain(created.id);
+  await expect
+    .poll(async () => {
+      const response = await request.get('/api/canvas/pinned-context');
+      const pinned = (await response.json()) as { nodeIds: string[] };
+      return pinned.nodeIds;
+    })
+    .toContain(created.id);
 
   await expect(note).toHaveCSS('border-top-color', 'rgb(75, 188, 255)');
-  await expect.poll(async () => {
-    return await note.evaluate((element) => getComputedStyle(element).boxShadow);
-  }).toContain('75, 188, 255');
+  await expect
+    .poll(async () => {
+      return await note.evaluate((element) => getComputedStyle(element).boxShadow);
+    })
+    .toContain('75, 188, 255');
 });
 
 test('annotations use theme contrast colors and can be erased', async ({ page, request }) => {
   await request.post('/api/canvas/annotation', {
     data: {
-      points: [{ x: 100, y: 120 }, { x: 220, y: 120 }],
+      points: [
+        { x: 100, y: 120 },
+        { x: 220, y: 120 },
+      ],
       color: 'currentColor',
       width: 4,
     },
@@ -2443,11 +2595,13 @@ test('annotations use theme contrast colors and can be erased', async ({ page, r
   await page.mouse.click(160, 120);
 
   await expect(annotation).toHaveCount(0);
-  await expect.poll(async () => {
-    const response = await request.get('/api/canvas/state');
-    const state = await response.json() as { annotations?: unknown[] };
-    return state.annotations?.length ?? 0;
-  }).toBe(0);
+  await expect
+    .poll(async () => {
+      const response = await request.get('/api/canvas/state');
+      const state = (await response.json()) as { annotations?: unknown[] };
+      return state.annotations?.length ?? 0;
+    })
+    .toBe(0);
 });
 
 test('can start pen and text annotations over nodes', async ({ page, request }) => {
@@ -2480,11 +2634,13 @@ test('can start pen and text annotations over nodes', async ({ page, request }) 
   await expect(page.locator('.annotation-layer text')).toContainText('Intent note');
   await expect(page.locator('.annotation-layer text')).toHaveCSS('fill', 'rgb(244, 239, 230)');
 
-  await expect.poll(async () => {
-    const response = await request.get('/api/canvas/state');
-    const state = await response.json() as { annotations?: Array<{ type?: string; text?: string }> };
-    return state.annotations?.map((annotation) => `${annotation.type}:${annotation.text ?? ''}`).sort() ?? [];
-  }).toEqual(['freehand:', 'text:Intent note']);
+  await expect
+    .poll(async () => {
+      const response = await request.get('/api/canvas/state');
+      const state = (await response.json()) as { annotations?: Array<{ type?: string; text?: string }> };
+      return state.annotations?.map((annotation) => `${annotation.type}:${annotation.text ?? ''}`).sort() ?? [];
+    })
+    .toEqual(['freehand:', 'text:Intent note']);
 });
 
 test('annotation toolbar actions preserve the current light theme', async ({ page }) => {
@@ -2506,11 +2662,13 @@ test('theme selection persists for fresh browser sessions', async ({ page, reque
   await page.getByLabel('Switch to light theme').click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 
-  await expect.poll(async () => {
-    const response = await request.get('/api/canvas/theme');
-    const body = await response.json() as { theme?: string };
-    return body.theme;
-  }).toBe('light');
+  await expect
+    .poll(async () => {
+      const response = await request.get('/api/canvas/theme');
+      const body = (await response.json()) as { theme?: string };
+      return body.theme;
+    })
+    .toBe('light');
 
   const secondPage = await context.newPage();
   await secondPage.goto('/workbench');
@@ -2520,11 +2678,13 @@ test('theme selection persists for fresh browser sessions', async ({ page, reque
   await page.getByLabel('Switch to dark theme').click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
-  await expect.poll(async () => {
-    const response = await request.get('/api/canvas/theme');
-    const body = await response.json() as { theme?: string };
-    return body.theme;
-  }).toBe('dark');
+  await expect
+    .poll(async () => {
+      const response = await request.get('/api/canvas/theme');
+      const body = (await response.json()) as { theme?: string };
+      return body.theme;
+    })
+    .toBe('dark');
 
   const thirdPage = await context.newPage();
   await thirdPage.goto('/workbench');
@@ -2542,7 +2702,7 @@ test('server-side focus updates the browser viewport', async ({ page, request })
       y: 700,
     },
   });
-  const created = await createResponse.json() as { id: string };
+  const created = (await createResponse.json()) as { id: string };
 
   await page.goto('/workbench');
   await expect(page.locator('.canvas-node').filter({ hasText: 'Focus me' })).toHaveCount(1);
@@ -2551,12 +2711,16 @@ test('server-side focus updates the browser viewport', async ({ page, request })
     data: { id: created.id },
   });
 
-  await expect.poll(async () => {
-    return await page.evaluate(() => {
-      const viewport = document.querySelector('.canvas-viewport > div[style*="position: absolute"]') as HTMLElement | null;
-      return viewport?.style.transform ?? null;
-    });
-  }).toContain('matrix(1, 0, 0, 1, 800, 600)');
+  await expect
+    .poll(async () => {
+      return await page.evaluate(() => {
+        const viewport = document.querySelector(
+          '.canvas-viewport > div[style*="position: absolute"]',
+        ) as HTMLElement | null;
+        return viewport?.style.transform ?? null;
+      });
+    })
+    .toContain('matrix(1, 0, 0, 1, 800, 600)');
 });
 
 test('authoritative viewport updates from the server override browser startup state', async ({ page, request }) => {
@@ -2566,15 +2730,22 @@ test('authoritative viewport updates from the server override browser startup st
 
   await page.goto('/workbench');
 
-  await expect.poll(async () => {
-    return await page.evaluate(() => {
-      const viewport = document.querySelector('.canvas-viewport > div[style*="position: absolute"]') as HTMLElement | null;
-      return viewport?.style.transform ?? null;
-    });
-  }).toContain('matrix(1.5, 0, 0, 1.5, 120, -80)');
+  await expect
+    .poll(async () => {
+      return await page.evaluate(() => {
+        const viewport = document.querySelector(
+          '.canvas-viewport > div[style*="position: absolute"]',
+        ) as HTMLElement | null;
+        return viewport?.style.transform ?? null;
+      });
+    })
+    .toContain('matrix(1.5, 0, 0, 1.5, 120, -80)');
 });
 
-test('ghost intents are interactive, reconnect-safe, vetoable, and settle into linked mutations', async ({ page, request }) => {
+test('ghost intents are interactive, reconnect-safe, vetoable, and settle into linked mutations', async ({
+  page,
+  request,
+}) => {
   await page.goto('/workbench');
 
   await request.post('/api/canvas/ax/intent', {
@@ -2592,21 +2763,25 @@ test('ghost intents are interactive, reconnect-safe, vetoable, and settle into l
   const vetoGhost = page.locator('[data-intent-id="e2e-veto-intent"]');
   const vetoButton = vetoGhost.getByRole('button', { name: 'Veto this move' });
   await expect(vetoButton).toBeVisible();
-  expect(await vetoButton.evaluate((button) => {
-    const rect = button.getBoundingClientRect();
-    const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
-    return hit === button || button.contains(hit);
-  })).toBe(true);
+  expect(
+    await vetoButton.evaluate((button) => {
+      const rect = button.getBoundingClientRect();
+      const hit = document.elementFromPoint(rect.x + rect.width / 2, rect.y + rect.height / 2);
+      return hit === button || button.contains(hit);
+    }),
+  ).toBe(true);
 
   await vetoButton.click();
   await expect(vetoGhost).toHaveCount(0);
-  await expect.poll(async () => {
-    const response = await request.get('/api/canvas/ax/timeline?limit=20');
-    const timeline = await response.json() as {
-      summary?: { pendingSteering?: Array<{ message?: string }> };
-    };
-    return timeline.summary?.pendingSteering?.some((item) => item.message?.includes('Blocked note')) ?? false;
-  }).toBe(true);
+  await expect
+    .poll(async () => {
+      const response = await request.get('/api/canvas/ax/timeline?limit=20');
+      const timeline = (await response.json()) as {
+        summary?: { pendingSteering?: Array<{ message?: string }> };
+      };
+      return timeline.summary?.pendingSteering?.some((item) => item.message?.includes('Blocked note')) ?? false;
+    })
+    .toBe(true);
 
   const blockedMutation = await request.post('/api/canvas/node', {
     data: {
@@ -2637,38 +2812,41 @@ test('ghost intents are interactive, reconnect-safe, vetoable, and settle into l
   await page.reload();
   await expect(settleGhost).toBeVisible();
 
-  const settleObservation = page.evaluate(() => new Promise<{
-    positionDelta: number;
-    sizeDelta: number;
-  }>((resolve) => {
-    let bestPositionDelta = Number.POSITIVE_INFINITY;
-    let bestSizeDelta = Number.POSITIVE_INFINITY;
-    const startedAt = Date.now();
-    const sample = () => {
-      const ghost = document.querySelector('[data-intent-id="e2e-settle-intent"].is-settling');
-      const node = Array.from(document.querySelectorAll('.canvas-node')).find(
-        (candidate) => candidate.querySelector('.node-title')?.textContent === 'Settled through intent',
-      );
-      if (ghost && node) {
-        const ghostRect = ghost.getBoundingClientRect();
-        const nodeRect = node.getBoundingClientRect();
-        bestPositionDelta = Math.min(
-          bestPositionDelta,
-          Math.abs(ghostRect.x - nodeRect.x) + Math.abs(ghostRect.y - nodeRect.y),
-        );
-        bestSizeDelta = Math.min(
-          bestSizeDelta,
-          Math.abs(ghostRect.width - nodeRect.width) + Math.abs(ghostRect.height - nodeRect.height),
-        );
-      }
-      if ((!ghost && Number.isFinite(bestPositionDelta)) || Date.now() - startedAt > 1000) {
-        resolve({ positionDelta: bestPositionDelta, sizeDelta: bestSizeDelta });
-        return;
-      }
-      requestAnimationFrame(sample);
-    };
-    requestAnimationFrame(sample);
-  }));
+  const settleObservation = page.evaluate(
+    () =>
+      new Promise<{
+        positionDelta: number;
+        sizeDelta: number;
+      }>((resolve) => {
+        let bestPositionDelta = Number.POSITIVE_INFINITY;
+        let bestSizeDelta = Number.POSITIVE_INFINITY;
+        const startedAt = Date.now();
+        const sample = () => {
+          const ghost = document.querySelector('[data-intent-id="e2e-settle-intent"].is-settling');
+          const node = Array.from(document.querySelectorAll('.canvas-node')).find(
+            (candidate) => candidate.querySelector('.node-title')?.textContent === 'Settled through intent',
+          );
+          if (ghost && node) {
+            const ghostRect = ghost.getBoundingClientRect();
+            const nodeRect = node.getBoundingClientRect();
+            bestPositionDelta = Math.min(
+              bestPositionDelta,
+              Math.abs(ghostRect.x - nodeRect.x) + Math.abs(ghostRect.y - nodeRect.y),
+            );
+            bestSizeDelta = Math.min(
+              bestSizeDelta,
+              Math.abs(ghostRect.width - nodeRect.width) + Math.abs(ghostRect.height - nodeRect.height),
+            );
+          }
+          if ((!ghost && Number.isFinite(bestPositionDelta)) || Date.now() - startedAt > 1000) {
+            resolve({ positionDelta: bestPositionDelta, sizeDelta: bestSizeDelta });
+            return;
+          }
+          requestAnimationFrame(sample);
+        };
+        requestAnimationFrame(sample);
+      }),
+  );
 
   const committed = await request.post('/api/canvas/node', {
     data: {

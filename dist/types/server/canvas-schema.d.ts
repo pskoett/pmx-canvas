@@ -34,7 +34,7 @@ export interface StructuredValidationResult {
     summary: Record<string, unknown>;
 }
 declare const CANONICAL_GRAPH_TYPES: readonly ["line", "bar", "pie", "area", "scatter", "radar", "stacked-bar", "composed", "sparkline", "dot-plot", "bullet", "slopegraph"];
-type CanvasGraphType = typeof CANONICAL_GRAPH_TYPES[number];
+type CanvasGraphType = (typeof CANONICAL_GRAPH_TYPES)[number];
 export declare function describeCanvasSchema(): {
     ok: true;
     source: 'running-server';

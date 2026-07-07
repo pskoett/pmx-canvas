@@ -80,7 +80,11 @@ async function createMcpSession(): Promise<{
   return { workspaceRoot, client, transport, port };
 }
 
-async function createMcpSessionForWorkspace(workspaceRoot: string, port: number, extraEnv: Record<string, string> = {}): Promise<{
+async function createMcpSessionForWorkspace(
+  workspaceRoot: string,
+  port: number,
+  extraEnv: Record<string, string> = {},
+): Promise<{
   client: Client;
   transport: StdioClientTransport;
 }> {
@@ -257,18 +261,18 @@ describe('MCP parity with CLI', () => {
 
     // A human creates an open work item in the browser (source: 'browser').
     const work = parseJsonText<{ workItem: { id: string } }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ax_work',
         arguments: { action: 'add', title: 'Review the export', status: 'todo', source: 'browser' },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
 
     // An adapterless agent polling the delivery surface now discovers it (not just steering).
     const claim = parseJsonText<{ pendingActivity: Array<{ kind: string; id: string; source: string }> }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ax_delivery',
         arguments: { action: 'claim', consumer: 'copilot' },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
     const seen = claim.pendingActivity.find((a) => a.id === work.workItem.id);
     expect(seen?.kind).toBe('work-item');
@@ -276,20 +280,20 @@ describe('MCP parity with CLI', () => {
 
     // Loop-safety: the originating consumer does not get its own item handed back.
     const ownClaim = parseJsonText<{ pendingActivity: Array<{ id: string }> }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ax_delivery',
         arguments: { action: 'claim', consumer: 'browser' },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
     expect(ownClaim.pendingActivity.find((a) => a.id === work.workItem.id)).toBeUndefined();
 
     // canvas_get_ax includes full state, but its compact delivery lead block is
     // filtered for the MCP consumer so an MCP client is not handed back its own work.
     const ownWork = parseJsonText<{ workItem: { id: string } }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ax_work',
         arguments: { action: 'add', title: 'MCP-originated task', status: 'todo' },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
     await session.client.callTool({
       name: 'canvas_ax_timeline',
@@ -305,10 +309,10 @@ describe('MCP parity with CLI', () => {
       };
       state: { workItems: Array<{ id: string }> };
     }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ax_state',
         arguments: { action: 'get' },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
     expect(ax.state.workItems.find((a) => a.id === ownWork.workItem.id)).toBeDefined();
     expect(ax.context.delivery.pendingActivity.find((a) => a.id === ownWork.workItem.id)).toBeUndefined();
@@ -330,10 +334,10 @@ describe('MCP parity with CLI', () => {
       review: { severity: string } | null;
       evidence: { kind: string } | null;
     }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ingest_activity',
         arguments: { kind: 'failure', title: 'build failed', summary: 'tsc error', source: 'copilot' },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
     expect(ingested.workItem?.status).toBe('blocked');
     expect(ingested.review?.severity).toBe('error');
@@ -341,25 +345,25 @@ describe('MCP parity with CLI', () => {
 
     // Primitive D: a pending gate read immediately is still pending.
     const gate = parseJsonText<{ approvalGate: { id: string } }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ax_gate',
         arguments: { kind: 'approval', action: 'request', title: 'Deploy', approvalAction: 'deploy', source: 'mcp' },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
     const immediate = parseJsonText<{ approvalGate: { status: string } | null; pending: boolean }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ax_gate',
         arguments: { kind: 'approval', action: 'await', id: gate.approvalGate.id, timeoutMs: 0 },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
     expect(immediate.pending).toBe(true);
 
     // A short wait on a still-pending gate times out as pending (no resolution arrives).
     const timedOut = parseJsonText<{ pending: boolean }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ax_gate',
         arguments: { kind: 'approval', action: 'await', id: gate.approvalGate.id, timeoutMs: 150 },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
     expect(timedOut.pending).toBe(true);
 
@@ -369,20 +373,20 @@ describe('MCP parity with CLI', () => {
       arguments: { kind: 'approval', action: 'resolve', id: gate.approvalGate.id, decision: 'approved', source: 'mcp' },
     });
     const resolved = parseJsonText<{ approvalGate: { status: string } | null; pending: boolean }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ax_gate',
         arguments: { kind: 'approval', action: 'await', id: gate.approvalGate.id, timeoutMs: 0 },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
     expect(resolved.approvalGate?.status).toBe('approved');
     expect(resolved.pending).toBe(false);
 
     // Unknown id → approvalGate null.
     const missing = parseJsonText<{ approvalGate: unknown; ok: boolean }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ax_gate',
         arguments: { kind: 'approval', action: 'await', id: 'nope', timeoutMs: 0 },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
     expect(missing.approvalGate).toBeNull();
   });
@@ -395,44 +399,44 @@ describe('MCP parity with CLI', () => {
     });
 
     const event = parseJsonText<{ ok: boolean; event: { id: string; kind: string; source: string } }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ax_timeline',
         arguments: { action: 'record-event', kind: 'tool-start', summary: 'ran the suite' },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
     expect(event.event.kind).toBe('tool-start');
     expect(event.event.source).toBe('mcp');
 
     const work = parseJsonText<{ ok: boolean; workItem: { id: string; status: string; source: string } }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ax_work',
         arguments: { action: 'add', title: 'Wire MCP work item', status: 'in-progress' },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
     expect(work.workItem.status).toBe('in-progress');
     expect(work.workItem.source).toBe('mcp');
 
     const gate = parseJsonText<{ ok: boolean; approvalGate: { id: string; status: string } }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ax_gate',
         arguments: { kind: 'approval', action: 'request', title: 'Deploy from MCP' },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
     expect(gate.approvalGate.status).toBe('pending');
 
     const resolved = parseJsonText<{ ok: boolean; approvalGate: { status: string } }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ax_gate',
         arguments: { kind: 'approval', action: 'resolve', id: gate.approvalGate.id, decision: 'approved' },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
     expect(resolved.approvalGate.status).toBe('approved');
 
     const timeline = parseJsonText<{ ok: boolean; events: Array<{ id: string }> }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ax_timeline',
         arguments: { action: 'read' },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
     expect(timeline.events.map((e) => e.id)).toContain(event.event.id);
 
@@ -441,10 +445,10 @@ describe('MCP parity with CLI', () => {
       ok: boolean;
       state: { workItems: Array<{ id: string }>; approvalGates: Array<{ id: string }> };
     }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ax_state',
         arguments: { action: 'get' },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
     expect(ax.state.workItems.map((w) => w.id)).toContain(work.workItem.id);
     expect(ax.state.approvalGates.map((g) => g.id)).toContain(gate.approvalGate.id);
@@ -463,7 +467,7 @@ describe('MCP parity with CLI', () => {
     expect(updateTool?.inputSchema.properties).toHaveProperty('dockPosition');
     expect(updateTool?.inputSchema.properties).toHaveProperty('pinned');
 
-    const added = await session.client.callTool({
+    const added = (await session.client.callTool({
       name: 'canvas_node',
       arguments: {
         action: 'add',
@@ -471,7 +475,7 @@ describe('MCP parity with CLI', () => {
         title: 'Parity markdown',
         content: 'body',
       },
-    }) as ToolResultShape;
+    })) as ToolResultShape;
     const created = parseJsonText<{
       id: string;
       nodeId: string;
@@ -483,7 +487,7 @@ describe('MCP parity with CLI', () => {
     expect(created.nodeId).toBe(created.id);
     const { id } = created;
 
-    const updated = await session.client.callTool({
+    const updated = (await session.client.callTool({
       name: 'canvas_node',
       arguments: {
         action: 'update',
@@ -492,17 +496,17 @@ describe('MCP parity with CLI', () => {
         dockPosition: 'right',
         pinned: true,
       },
-    }) as ToolResultShape;
+    })) as ToolResultShape;
     expect(parseJsonText<{ ok: boolean; id: string; node?: { id: string } }>(updated)).toMatchObject({
       ok: true,
       id,
       node: { id },
     });
 
-    const fetched = await session.client.callTool({
+    const fetched = (await session.client.callTool({
       name: 'canvas_node',
       arguments: { action: 'get', id, full: true },
-    }) as ToolResultShape;
+    })) as ToolResultShape;
     const node = parseJsonText<{
       dockPosition?: 'left' | 'right' | null;
       pinned?: boolean;
@@ -524,25 +528,39 @@ describe('MCP parity with CLI', () => {
     expect(tools.tools.find((t) => t.name === 'canvas_node')?.inputSchema.properties).toHaveProperty('axCapabilities');
 
     // AX-enabled html node can emit ax.work.create.
-    const on = parseJsonText<{ id: string }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: { action: 'add', type: 'html', title: 'AX board', html: '<button>x</button>', axCapabilities: { enabled: true, allowed: ['ax.work.create'] } },
-    }) as ToolResultShape);
-    const emitOn = parseJsonText<{ ok: boolean }>(await session.client.callTool({
-      name: 'canvas_ax_interaction',
-      arguments: { type: 'ax.work.create', sourceNodeId: on.id, payload: { title: 'from board' } },
-    }) as ToolResultShape);
+    const on = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'html',
+          title: 'AX board',
+          html: '<button>x</button>',
+          axCapabilities: { enabled: true, allowed: ['ax.work.create'] },
+        },
+      })) as ToolResultShape,
+    );
+    const emitOn = parseJsonText<{ ok: boolean }>(
+      (await session.client.callTool({
+        name: 'canvas_ax_interaction',
+        arguments: { type: 'ax.work.create', sourceNodeId: on.id, payload: { title: 'from board' } },
+      })) as ToolResultShape,
+    );
     expect(emitOn.ok).toBe(true);
 
     // A default html node is AX-disabled — the emit is rejected (fails closed).
-    const off = parseJsonText<{ id: string }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: { action: 'add', type: 'html', title: 'plain', html: '<p>x</p>' },
-    }) as ToolResultShape);
-    const blocked = parseJsonText<{ ok: boolean }>(await session.client.callTool({
-      name: 'canvas_ax_interaction',
-      arguments: { type: 'ax.work.create', sourceNodeId: off.id, payload: { title: 'nope' } },
-    }) as ToolResultShape);
+    const off = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: { action: 'add', type: 'html', title: 'plain', html: '<p>x</p>' },
+      })) as ToolResultShape,
+    );
+    const blocked = parseJsonText<{ ok: boolean }>(
+      (await session.client.callTool({
+        name: 'canvas_ax_interaction',
+        arguments: { type: 'ax.work.create', sourceNodeId: off.id, payload: { title: 'nope' } },
+      })) as ToolResultShape,
+    );
     expect(blocked.ok).toBe(false);
 
     // Flipping it on via canvas_node update (merged into data) makes it emit-capable.
@@ -550,17 +568,21 @@ describe('MCP parity with CLI', () => {
       name: 'canvas_node',
       arguments: { action: 'update', id: off.id, axCapabilities: { enabled: true, allowed: ['ax.work.create'] } },
     });
-    const emitAfter = parseJsonText<{ ok: boolean }>(await session.client.callTool({
-      name: 'canvas_ax_interaction',
-      arguments: { type: 'ax.work.create', sourceNodeId: off.id, payload: { title: 'now ok' } },
-    }) as ToolResultShape);
+    const emitAfter = parseJsonText<{ ok: boolean }>(
+      (await session.client.callTool({
+        name: 'canvas_ax_interaction',
+        arguments: { type: 'ax.work.create', sourceNodeId: off.id, payload: { title: 'now ok' } },
+      })) as ToolResultShape,
+    );
     expect(emitAfter.ok).toBe(true);
 
     // The axCapabilities merge must NOT clobber existing node data (html survives).
-    const fetched = parseJsonText<{ data?: { html?: string; axCapabilities?: { enabled?: boolean } } }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: { action: 'get', id: off.id, full: true },
-    }) as ToolResultShape);
+    const fetched = parseJsonText<{ data?: { html?: string; axCapabilities?: { enabled?: boolean } } }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: { action: 'get', id: off.id, full: true },
+      })) as ToolResultShape,
+    );
     expect(fetched.data?.html).toBe('<p>x</p>');
     expect(fetched.data?.axCapabilities?.enabled).toBe(true);
   });
@@ -578,29 +600,37 @@ describe('MCP parity with CLI', () => {
 
     const described = parseJsonText<{
       nodeTypes: Array<{ type: string; fields: Array<{ name: string }> }>;
-    }>(await session.client.callTool({
-      name: 'canvas_render',
-      arguments: { action: 'describe-schema' },
-    }) as ToolResultShape);
-    expect(described.nodeTypes.find((entry) => entry.type === 'markdown')?.fields.some((field) => field.name === 'strictSize')).toBe(true);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_render',
+        arguments: { action: 'describe-schema' },
+      })) as ToolResultShape,
+    );
+    expect(
+      described.nodeTypes
+        .find((entry) => entry.type === 'markdown')
+        ?.fields.some((field) => field.name === 'strictSize'),
+    ).toBe(true);
 
     const created = parseJsonText<{
       id: string;
       data: { strictSize?: boolean };
       size: { width: number; height: number };
-    }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'add',
-        type: 'markdown',
-        title: 'Strict MCP markdown',
-        content: 'Tall content',
-        width: 320,
-        height: 140,
-        strictSize: true,
-        full: true,
-      },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'markdown',
+          title: 'Strict MCP markdown',
+          content: 'Tall content',
+          width: 320,
+          height: 140,
+          strictSize: true,
+          full: true,
+        },
+      })) as ToolResultShape,
+    );
 
     expect(created.size).toEqual({ width: 320, height: 140 });
     expect(created.data.strictSize).toBe(true);
@@ -627,22 +657,24 @@ describe('MCP parity with CLI', () => {
     const created = parseJsonText<{
       id: string;
       data: Record<string, unknown>;
-    }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'add',
-        type: 'trace',
-        title: 'MCP trace',
-        content: 'Trace body',
-        toolName: 'canvas_add_node',
-        category: 'mcp',
-        status: 'success',
-        duration: '42ms',
-        resultSummary: 'Created node',
-        error: '',
-        full: true,
-      },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'trace',
+          title: 'MCP trace',
+          content: 'Trace body',
+          toolName: 'canvas_add_node',
+          category: 'mcp',
+          status: 'success',
+          duration: '42ms',
+          resultSummary: 'Created node',
+          error: '',
+          full: true,
+        },
+      })) as ToolResultShape,
+    );
 
     expect(created.data).toMatchObject({
       title: 'MCP trace',
@@ -655,17 +687,19 @@ describe('MCP parity with CLI', () => {
       error: '',
     });
 
-    const updated = parseJsonText<{ data: Record<string, unknown> }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'update',
-        id: created.id,
-        toolName: 'canvas_update_node',
-        status: 'failed',
-        error: 'boom',
-        full: true,
-      },
-    }) as ToolResultShape);
+    const updated = parseJsonText<{ data: Record<string, unknown> }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'update',
+          id: created.id,
+          toolName: 'canvas_update_node',
+          status: 'failed',
+          error: 'boom',
+          full: true,
+        },
+      })) as ToolResultShape,
+    );
 
     expect(updated.data).toMatchObject({
       toolName: 'canvas_update_node',
@@ -698,12 +732,12 @@ describe('MCP parity with CLI', () => {
       }),
     });
     expect(createdResponse.ok).toBe(true);
-    const created = await createdResponse.json() as { id: string };
+    const created = (await createdResponse.json()) as { id: string };
 
-    const fetchedResult = await session.client.callTool({
+    const fetchedResult = (await session.client.callTool({
       name: 'canvas_node',
       arguments: { action: 'get', id: created.id },
-    }) as ToolResultShape;
+    })) as ToolResultShape;
     expect(fetchedResult.isError).not.toBe(true);
     const fetched = parseJsonText<{
       id: string;
@@ -717,23 +751,27 @@ describe('MCP parity with CLI', () => {
     const fullFetched = parseJsonText<{
       id: string;
       data: { strictSize?: boolean };
-    }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: { action: 'get', id: created.id, full: true },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: { action: 'get', id: created.id, full: true },
+      })) as ToolResultShape,
+    );
     expect(fullFetched.data.strictSize).toBe(true);
 
-    const addedByMcp = parseJsonText<{ id: string }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'add',
-        type: 'markdown',
-        title: 'MCP through daemon',
-        content: 'round trip',
-      },
-    }) as ToolResultShape);
+    const addedByMcp = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'markdown',
+          title: 'MCP through daemon',
+          content: 'round trip',
+        },
+      })) as ToolResultShape,
+    );
 
-    const httpLayout = await (await fetch(`${baseUrl}/api/canvas/state`)).json() as { nodes: Array<{ id: string }> };
+    const httpLayout = (await (await fetch(`${baseUrl}/api/canvas/state`)).json()) as { nodes: Array<{ id: string }> };
     expect(httpLayout.nodes.some((node) => node.id === created.id)).toBe(true);
     expect(httpLayout.nodes.some((node) => node.id === addedByMcp.id)).toBe(true);
   });
@@ -763,10 +801,7 @@ describe('MCP parity with CLI', () => {
           return Response.json({ ok: true, workspace: workspaceRoot });
         }
         if (url.pathname === '/api/workbench/webview/start' && request.method === 'POST') {
-          return Response.json(
-            { ok: false, error: timeoutMessage, webview },
-            { status: 500 },
-          );
+          return Response.json({ ok: false, error: timeoutMessage, webview }, { status: 500 });
         }
         if (url.pathname === '/api/workbench/events') {
           return new Response(null, { status: 204 });
@@ -786,17 +821,19 @@ describe('MCP parity with CLI', () => {
     // v0.3.0: the standalone canvas_webview_start tool was removed — canvas_webview
     // (action:"start") is now the only entry point, so there is nothing left to
     // compare it against for byte-identical parity.
-    const composite = await session.client.callTool({
+    const composite = (await session.client.callTool({
       name: 'canvas_webview',
       arguments: { action: 'start' },
-    }) as ToolResultShape;
+    })) as ToolResultShape;
 
     expect(composite.isError).toBe(true);
-    expect(parseJsonText<{
-      ok: boolean;
-      error: string;
-      webview?: { supported?: boolean };
-    }>(composite)).toMatchObject({
+    expect(
+      parseJsonText<{
+        ok: boolean;
+        error: string;
+        webview?: { supported?: boolean };
+      }>(composite),
+    ).toMatchObject({
       ok: false,
       error: timeoutMessage,
       webview: { supported: true },
@@ -818,15 +855,17 @@ describe('MCP parity with CLI', () => {
       removeTestWorkspace(workspaceRoot);
     });
 
-    const localOnly = parseJsonText<{ id: string }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'add',
-        type: 'markdown',
-        title: 'Before delayed daemon',
-        content: 'created in local MCP mode',
-      },
-    }) as ToolResultShape);
+    const localOnly = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'markdown',
+          title: 'Before delayed daemon',
+          content: 'created in local MCP mode',
+        },
+      })) as ToolResultShape,
+    );
     expect(localOnly.id).toBeTruthy();
 
     const baseUrl = startCanvasServer({ workspaceRoot, port: remotePort, autoOpenBrowser: false });
@@ -841,28 +880,32 @@ describe('MCP parity with CLI', () => {
       }),
     });
     expect(createdResponse.ok).toBe(true);
-    const created = await createdResponse.json() as { id: string };
+    const created = (await createdResponse.json()) as { id: string };
 
-    const fetchedResult = await session.client.callTool({
+    const fetchedResult = (await session.client.callTool({
       name: 'canvas_node',
       arguments: { action: 'get', id: created.id },
-    }) as ToolResultShape;
+    })) as ToolResultShape;
     expect(fetchedResult.isError).not.toBe(true);
     expect(parseJsonText<{ id: string; title: string }>(fetchedResult)).toMatchObject({
       id: created.id,
       title: 'Delayed daemon node',
     });
 
-    const addedByMcp = parseJsonText<{ id: string }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'add',
-        type: 'markdown',
-        title: 'MCP after promotion',
-      },
-    }) as ToolResultShape);
+    const addedByMcp = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'markdown',
+          title: 'MCP after promotion',
+        },
+      })) as ToolResultShape,
+    );
 
-    const remoteLayout = await (await fetch(`${baseUrl}/api/canvas/state`)).json() as { nodes: Array<{ id: string }> };
+    const remoteLayout = (await (await fetch(`${baseUrl}/api/canvas/state`)).json()) as {
+      nodes: Array<{ id: string }>;
+    };
     expect(remoteLayout.nodes.some((node) => node.id === addedByMcp.id)).toBe(true);
   });
 
@@ -873,7 +916,7 @@ describe('MCP parity with CLI', () => {
       removeTestWorkspace(session.workspaceRoot);
     });
 
-    const added = await session.client.callTool({
+    const added = (await session.client.callTool({
       name: 'canvas_render',
       arguments: {
         action: 'add-graph',
@@ -883,10 +926,10 @@ describe('MCP parity with CLI', () => {
         xKey: 'label',
         yKey: 'value',
       },
-    }) as ToolResultShape;
+    })) as ToolResultShape;
     const created = parseJsonText<{ id: string }>(added);
 
-    const updated = await session.client.callTool({
+    const updated = (await session.client.callTool({
       name: 'canvas_node',
       arguments: {
         action: 'update',
@@ -895,7 +938,7 @@ describe('MCP parity with CLI', () => {
         arrangeLocked: true,
         full: true,
       },
-    }) as ToolResultShape;
+    })) as ToolResultShape;
 
     const payload = parseJsonText<{
       ok: boolean;
@@ -942,16 +985,20 @@ describe('MCP parity with CLI', () => {
       ok: boolean;
       viewport: { x: number; y: number; scale: number };
       nodeCount: number;
-    }>(await session.client.callTool({
-      name: 'canvas_view',
-      arguments: { action: 'fit', width: 1200, height: 800, padding: 100 },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_view',
+        arguments: { action: 'fit', width: 1200, height: 800, padding: 100 },
+      })) as ToolResultShape,
+    );
     expect(fitted).toMatchObject({ ok: true, nodeCount: 2, viewport: { x: 50, y: 0, scale: 1 } });
 
-    const layout = parseJsonText<{ viewport: { x: number; y: number; scale: number } }>(await session.client.callTool({
-      name: 'canvas_query',
-      arguments: { action: 'layout', full: true },
-    }) as ToolResultShape);
+    const layout = parseJsonText<{ viewport: { x: number; y: number; scale: number } }>(
+      (await session.client.callTool({
+        name: 'canvas_query',
+        arguments: { action: 'layout', full: true },
+      })) as ToolResultShape,
+    );
     expect(layout.viewport).toEqual(fitted.viewport);
   });
 
@@ -962,14 +1009,14 @@ describe('MCP parity with CLI', () => {
       removeTestWorkspace(session.workspaceRoot);
     });
 
-    const result = await session.client.callTool({
+    const result = (await session.client.callTool({
       name: 'canvas_node',
       arguments: {
         action: 'add',
         type: 'webpage',
         content: 'https://example.invalid',
       },
-    }) as ToolResultShape;
+    })) as ToolResultShape;
 
     const payload = parseJsonText<{
       ok: boolean;
@@ -990,10 +1037,13 @@ describe('MCP parity with CLI', () => {
       hostname: '127.0.0.1',
       port: 0,
       fetch() {
-        const sections = Array.from({ length: 24 }, (_, index) =>
-          `<p>Long-form webpage section ${index + 1}. This is persistent context for agent grounding and should survive truncation better than the old excerpt-only path.</p>`,
+        const sections = Array.from(
+          { length: 24 },
+          (_, index) =>
+            `<p>Long-form webpage section ${index + 1}. This is persistent context for agent grounding and should survive truncation better than the old excerpt-only path.</p>`,
         ).join('\n');
-        return new Response(`<!doctype html>
+        return new Response(
+          `<!doctype html>
 <html>
   <head>
     <title>Long Canvas Webpage</title>
@@ -1005,9 +1055,11 @@ describe('MCP parity with CLI', () => {
       ${sections}
     </main>
   </body>
-</html>`, {
-          headers: { 'Content-Type': 'text/html; charset=utf-8' },
-        });
+</html>`,
+          {
+            headers: { 'Content-Type': 'text/html; charset=utf-8' },
+          },
+        );
       },
     });
 
@@ -1021,25 +1073,29 @@ describe('MCP parity with CLI', () => {
     const created = parseJsonText<{
       id: string;
       fetch: { ok: boolean };
-    }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'add',
-        type: 'webpage',
-        content: `http://127.0.0.1:${webpageServer.port}/article-long`,
-        x: 220,
-        y: 180,
-      },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'webpage',
+          content: `http://127.0.0.1:${webpageServer.port}/article-long`,
+          x: 220,
+          y: 180,
+        },
+      })) as ToolResultShape,
+    );
     expect(created.fetch.ok).toBe(true);
 
-    const pins = parseJsonText<{ ok: boolean; pinnedNodeIds: string[] }>(await session.client.callTool({
-      name: 'canvas_pin_nodes',
-      arguments: {
-        nodeIds: [created.id],
-        mode: 'set',
-      },
-    }) as ToolResultShape);
+    const pins = parseJsonText<{ ok: boolean; pinnedNodeIds: string[] }>(
+      (await session.client.callTool({
+        name: 'canvas_pin_nodes',
+        arguments: {
+          nodeIds: [created.id],
+          mode: 'set',
+        },
+      })) as ToolResultShape,
+    );
     expect(pins.pinnedNodeIds).toEqual([created.id]);
 
     const resource = await session.client.readResource({ uri: 'canvas://pinned-context' });
@@ -1082,51 +1138,59 @@ describe('MCP parity with CLI', () => {
       removeTestWorkspace(session.workspaceRoot);
     });
 
-    const markdown = parseJsonText<{ id: string }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'add',
-        type: 'markdown',
-        title: 'MCP Pinned Note',
-        content: 'MCP native context',
-      },
-    }) as ToolResultShape);
-    const graph = parseJsonText<{ id: string }>(await session.client.callTool({
-      name: 'canvas_render',
-      arguments: {
-        action: 'add-graph',
-        title: 'MCP Pinned Graph',
-        graphType: 'bar',
-        data: [{ label: 'A', value: 1 }],
-        xKey: 'label',
-        yKey: 'value',
-      },
-    }) as ToolResultShape);
-    const externalApp = parseJsonText<{ nodeId: string | null }>(await session.client.callTool({
-      name: 'canvas_app',
-      arguments: {
-        action: 'open-mcp-app',
-        title: 'MCP Pinned Counter',
-        serverName: 'Fixture Counter',
-        toolName: 'show_counter',
-        toolArguments: { initial: 2 },
-        transport: {
-          type: 'stdio',
-          command: 'bun',
-          args: ['run', fixtureMcpAppServerPath],
-          cwd: session.workspaceRoot,
+    const markdown = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'markdown',
+          title: 'MCP Pinned Note',
+          content: 'MCP native context',
         },
-      },
-    }) as ToolResultShape);
+      })) as ToolResultShape,
+    );
+    const graph = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_render',
+        arguments: {
+          action: 'add-graph',
+          title: 'MCP Pinned Graph',
+          graphType: 'bar',
+          data: [{ label: 'A', value: 1 }],
+          xKey: 'label',
+          yKey: 'value',
+        },
+      })) as ToolResultShape,
+    );
+    const externalApp = parseJsonText<{ nodeId: string | null }>(
+      (await session.client.callTool({
+        name: 'canvas_app',
+        arguments: {
+          action: 'open-mcp-app',
+          title: 'MCP Pinned Counter',
+          serverName: 'Fixture Counter',
+          toolName: 'show_counter',
+          toolArguments: { initial: 2 },
+          transport: {
+            type: 'stdio',
+            command: 'bun',
+            args: ['run', fixtureMcpAppServerPath],
+            cwd: session.workspaceRoot,
+          },
+        },
+      })) as ToolResultShape,
+    );
     expect(externalApp.nodeId).toBeTruthy();
 
-    parseJsonText<{ ok: boolean; pinnedNodeIds: string[] }>(await session.client.callTool({
-      name: 'canvas_pin_nodes',
-      arguments: {
-        nodeIds: [markdown.id, graph.id, externalApp.nodeId],
-        mode: 'set',
-      },
-    }) as ToolResultShape);
+    parseJsonText<{ ok: boolean; pinnedNodeIds: string[] }>(
+      (await session.client.callTool({
+        name: 'canvas_pin_nodes',
+        arguments: {
+          nodeIds: [markdown.id, graph.id, externalApp.nodeId],
+          mode: 'set',
+        },
+      })) as ToolResultShape,
+    );
 
     const resource = await session.client.readResource({ uri: 'canvas://pinned-context' });
     const textResource = resource.contents.find((entry) => 'text' in entry && typeof entry.text === 'string');
@@ -1147,61 +1211,73 @@ describe('MCP parity with CLI', () => {
       removeTestWorkspace(session.workspaceRoot);
     });
 
-    const pinned = parseJsonText<{ id: string }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'add',
-        type: 'markdown',
-        title: 'MCP AX pinned',
-        content: 'Pinned through MCP AX',
-      },
-    }) as ToolResultShape);
-    const focused = parseJsonText<{ id: string }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'add',
-        type: 'markdown',
-        title: 'MCP AX focused',
-        content: 'Focused through MCP AX',
-      },
-    }) as ToolResultShape);
+    const pinned = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'markdown',
+          title: 'MCP AX pinned',
+          content: 'Pinned through MCP AX',
+        },
+      })) as ToolResultShape,
+    );
+    const focused = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'markdown',
+          title: 'MCP AX focused',
+          content: 'Focused through MCP AX',
+        },
+      })) as ToolResultShape,
+    );
 
-    parseJsonText<{ ok: boolean; pinnedNodeIds: string[] }>(await session.client.callTool({
-      name: 'canvas_pin_nodes',
-      arguments: {
-        nodeIds: [pinned.id],
-        mode: 'set',
-      },
-    }) as ToolResultShape);
+    parseJsonText<{ ok: boolean; pinnedNodeIds: string[] }>(
+      (await session.client.callTool({
+        name: 'canvas_pin_nodes',
+        arguments: {
+          nodeIds: [pinned.id],
+          mode: 'set',
+        },
+      })) as ToolResultShape,
+    );
     const focus = parseJsonText<{ ok: boolean; focus: { nodeIds: string[]; source: string | null } }>(
-      await session.client.callTool({
+      (await session.client.callTool({
         name: 'canvas_ax_state',
         arguments: { action: 'set-focus', nodeIds: [focused.id, 'missing-node'], source: 'codex' },
-      }) as ToolResultShape,
+      })) as ToolResultShape,
     );
     expect(focus.focus).toMatchObject({ nodeIds: [focused.id], source: 'codex' });
 
     const toolResult = parseJsonText<{
       state: { focus: { nodeIds: string[] } };
       context: { pinned: { nodeIds: string[] }; focus: { nodeIds: string[] } };
-    }>(await session.client.callTool({
-      name: 'canvas_ax_state',
-      arguments: { action: 'get' },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_ax_state',
+        arguments: { action: 'get' },
+      })) as ToolResultShape,
+    );
     expect(toolResult.state.focus.nodeIds).toEqual([focused.id]);
     expect(toolResult.context.pinned.nodeIds).toEqual([pinned.id]);
     expect(toolResult.context.focus.nodeIds).toEqual([focused.id]);
 
-    const nodePayload = parseJsonText<{ pinned: boolean }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: { action: 'get', id: pinned.id },
-    }) as ToolResultShape);
+    const nodePayload = parseJsonText<{ pinned: boolean }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: { action: 'get', id: pinned.id },
+      })) as ToolResultShape,
+    );
     expect(nodePayload.pinned).toBe(true);
 
-    const layoutPayload = parseJsonText<{ nodes: Array<{ id: string; pinned: boolean }> }>(await session.client.callTool({
-      name: 'canvas_query',
-      arguments: { action: 'layout' },
-    }) as ToolResultShape);
+    const layoutPayload = parseJsonText<{ nodes: Array<{ id: string; pinned: boolean }> }>(
+      (await session.client.callTool({
+        name: 'canvas_query',
+        arguments: { action: 'layout' },
+      })) as ToolResultShape,
+    );
     expect(layoutPayload.nodes.find((node) => node.id === pinned.id)?.pinned).toBe(true);
 
     const resource = await session.client.readResource({ uri: 'canvas://ax-context' });
@@ -1228,20 +1304,22 @@ describe('MCP parity with CLI', () => {
       toolCallId: string;
       sessionId: string;
       resourceUri: string;
-    }>(await session.client.callTool({
-      name: 'canvas_app',
-      arguments: {
-        action: 'open-mcp-app',
-        toolName: 'show_counter',
-        toolArguments: { initial: 2 },
-        transport: {
-          type: 'stdio',
-          command: 'bun',
-          args: ['run', fixtureMcpAppServerPath],
-          cwd: session.workspaceRoot,
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_app',
+        arguments: {
+          action: 'open-mcp-app',
+          toolName: 'show_counter',
+          toolArguments: { initial: 2 },
+          transport: {
+            type: 'stdio',
+            command: 'bun',
+            args: ['run', fixtureMcpAppServerPath],
+            cwd: session.workspaceRoot,
+          },
         },
-      },
-    }) as ToolResultShape);
+      })) as ToolResultShape,
+    );
 
     expect(opened.ok).toBe(true);
     expect(typeof opened.nodeId).toBe('string');
@@ -1256,15 +1334,15 @@ describe('MCP parity with CLI', () => {
         type: string;
         data: Record<string, unknown>;
       }>;
-    }>(await session.client.callTool({
-      name: 'canvas_query',
-      arguments: { action: 'layout', full: true },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_query',
+        arguments: { action: 'layout', full: true },
+      })) as ToolResultShape,
+    );
 
-    const appNode = layout.nodes.find((node) =>
-      node.type === 'mcp-app' &&
-      node.data.mode === 'ext-app' &&
-      node.data.appSessionId === opened.sessionId,
+    const appNode = layout.nodes.find(
+      (node) => node.type === 'mcp-app' && node.data.mode === 'ext-app' && node.data.appSessionId === opened.sessionId,
     );
     expect(appNode).toBeTruthy();
     expect(appNode?.id).toBe(opened.nodeId);
@@ -1283,44 +1361,50 @@ describe('MCP parity with CLI', () => {
       ok: boolean;
       nodeId: string | null;
       resourceUri: string;
-    }>(await session.client.callTool({
-      name: 'canvas_app',
-      arguments: {
-        action: 'open-mcp-app',
-        toolName: 'show_counter',
-        toolArguments: { initial: 1 },
-        transport: {
-          type: 'stdio',
-          command: 'bun',
-          args: ['run', fixtureMcpAppServerPath],
-          cwd: session.workspaceRoot,
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_app',
+        arguments: {
+          action: 'open-mcp-app',
+          toolName: 'show_counter',
+          toolArguments: { initial: 1 },
+          transport: {
+            type: 'stdio',
+            command: 'bun',
+            args: ['run', fixtureMcpAppServerPath],
+            cwd: session.workspaceRoot,
+          },
         },
-      },
-    }) as ToolResultShape);
-    const second = parseJsonText<{ ok: boolean; nodeId: string | null }>(await session.client.callTool({
-      name: 'canvas_app',
-      arguments: {
-        action: 'open-mcp-app',
-        toolName: 'show_counter',
-        toolArguments: { initial: 2 },
-        transport: {
-          type: 'stdio',
-          command: 'bun',
-          args: ['run', fixtureMcpAppServerPath],
-          cwd: session.workspaceRoot,
+      })) as ToolResultShape,
+    );
+    const second = parseJsonText<{ ok: boolean; nodeId: string | null }>(
+      (await session.client.callTool({
+        name: 'canvas_app',
+        arguments: {
+          action: 'open-mcp-app',
+          toolName: 'show_counter',
+          toolArguments: { initial: 2 },
+          transport: {
+            type: 'stdio',
+            command: 'bun',
+            args: ['run', fixtureMcpAppServerPath],
+            cwd: session.workspaceRoot,
+          },
         },
-      },
-    }) as ToolResultShape);
+      })) as ToolResultShape,
+    );
 
     expect(first.ok).toBe(true);
     expect(second.ok).toBe(true);
     expect(typeof first.nodeId).toBe('string');
     expect(typeof second.nodeId).toBe('string');
 
-    const nodeText = textOf(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: { action: 'get', id: first.nodeId, full: true },
-    }) as ToolResultShape);
+    const nodeText = textOf(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: { action: 'get', id: first.nodeId, full: true },
+      })) as ToolResultShape,
+    );
     const fetchedNode = JSON.parse(nodeText) as { data: { html?: unknown; resourceUri?: unknown } };
     expect(nodeText).not.toContain('Fixture Counter');
     expect(fetchedNode.data.resourceUri).toBe('ui://fixture/counter.html');
@@ -1331,10 +1415,12 @@ describe('MCP parity with CLI', () => {
       sha256: expect.any(String),
     });
 
-    const layoutText = textOf(await session.client.callTool({
-      name: 'canvas_query',
-      arguments: { action: 'layout', full: true },
-    }) as ToolResultShape);
+    const layoutText = textOf(
+      (await session.client.callTool({
+        name: 'canvas_query',
+        arguments: { action: 'layout', full: true },
+      })) as ToolResultShape,
+    );
     const layout = JSON.parse(layoutText) as {
       nodes: Array<{ id: string; type: string; data: { html?: unknown; resourceUri?: unknown } }>;
     };
@@ -1361,21 +1447,44 @@ describe('MCP parity with CLI', () => {
 
     const described = parseJsonText<{
       ok: boolean;
-      nodeTypes: Array<{ type: string; kind: string; mcpTool?: string; fields: Array<{ name: string; aliases?: string[]; required?: boolean }> }>;
+      nodeTypes: Array<{
+        type: string;
+        kind: string;
+        mcpTool?: string;
+        fields: Array<{ name: string; aliases?: string[]; required?: boolean }>;
+      }>;
       jsonRender: { components: Array<{ type: string }> };
       mcp: { nodeTypeRouting: Record<string, string> };
-    }>(await session.client.callTool({
-      name: 'canvas_render',
-      arguments: { action: 'describe-schema' },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_render',
+        arguments: { action: 'describe-schema' },
+      })) as ToolResultShape,
+    );
 
     expect(described.ok).toBe(true);
-    expect(described.nodeTypes.find((entry) => entry.type === 'webpage')?.fields.find((field) => field.name === 'url')?.aliases).toContain('content');
-    expect(described.nodeTypes.find((entry) => entry.type === 'image')?.fields.find((field) => field.name === 'content')?.aliases).toContain('path');
-    expect(described.nodeTypes.find((entry) => entry.type === 'json-render')?.fields.find((field) => field.name === 'title')).toMatchObject({ required: false });
-    expect(described.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'series')).toBe(true);
-    expect(described.nodeTypes.find((entry) => entry.type === 'trace')?.fields.some((field) => field.name === 'toolName')).toBe(true);
-    expect(described.nodeTypes.find((entry) => entry.type === 'trace')?.fields.some((field) => field.name === 'resultSummary')).toBe(true);
+    expect(
+      described.nodeTypes.find((entry) => entry.type === 'webpage')?.fields.find((field) => field.name === 'url')
+        ?.aliases,
+    ).toContain('content');
+    expect(
+      described.nodeTypes.find((entry) => entry.type === 'image')?.fields.find((field) => field.name === 'content')
+        ?.aliases,
+    ).toContain('path');
+    expect(
+      described.nodeTypes.find((entry) => entry.type === 'json-render')?.fields.find((field) => field.name === 'title'),
+    ).toMatchObject({ required: false });
+    expect(
+      described.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'series'),
+    ).toBe(true);
+    expect(
+      described.nodeTypes.find((entry) => entry.type === 'trace')?.fields.some((field) => field.name === 'toolName'),
+    ).toBe(true);
+    expect(
+      described.nodeTypes
+        .find((entry) => entry.type === 'trace')
+        ?.fields.some((field) => field.name === 'resultSummary'),
+    ).toBe(true);
     expect(described.nodeTypes.find((entry) => entry.type === 'external-app')?.kind).toBe('virtual-node');
     // v0.3.0: nodeTypeRouting now points at composite (action:"...") invocations —
     // the legacy single-purpose tools it used to name were removed. Values below
@@ -1400,29 +1509,31 @@ describe('MCP parity with CLI', () => {
       normalizedSpec: {
         elements: Record<string, { props?: { rows?: string[][] } }>;
       };
-    }>(await session.client.callTool({
-      name: 'canvas_render',
-      arguments: {
-        action: 'validate',
-        type: 'json-render',
-        spec: {
-          root: 'table',
-          elements: {
-            table: {
-              type: 'Table',
-              props: {
-                columns: ['Metric', 'Value'],
-                rows: [
-                  ['Builds', 12],
-                  ['Deploys', 4],
-                ],
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_render',
+        arguments: {
+          action: 'validate',
+          type: 'json-render',
+          spec: {
+            root: 'table',
+            elements: {
+              table: {
+                type: 'Table',
+                props: {
+                  columns: ['Metric', 'Value'],
+                  rows: [
+                    ['Builds', 12],
+                    ['Deploys', 4],
+                  ],
+                },
+                children: [],
               },
-              children: [],
             },
           },
         },
-      },
-    }) as ToolResultShape);
+      })) as ToolResultShape,
+    );
 
     expect(validated.ok).toBe(true);
     expect(validated.type).toBe('json-render');
@@ -1458,15 +1569,17 @@ describe('MCP parity with CLI', () => {
       ok: boolean;
       id: string;
       data: { src: string; mimeType: string };
-    }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'add',
-        type: 'image',
-        path: imagePath,
-        full: true,
-      },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'image',
+          path: imagePath,
+          full: true,
+        },
+      })) as ToolResultShape,
+    );
     expect(image.ok).toBe(true);
     expect(image.data.src).toBe(imagePath);
     expect(image.data.mimeType).toBe('image/png');
@@ -1478,16 +1591,18 @@ describe('MCP parity with CLI', () => {
         root: string;
         elements: Record<string, { type?: string; props?: { text?: string; variant?: string; label?: string } }>;
       };
-    }>(await session.client.callTool({
-      name: 'canvas_render',
-      arguments: {
-        action: 'add-json-render',
-        spec: {
-          type: 'Badge',
-          props: { label: 'MCP Legacy', variant: 'success' },
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_render',
+        arguments: {
+          action: 'add-json-render',
+          spec: {
+            type: 'Badge',
+            props: { label: 'MCP Legacy', variant: 'success' },
+          },
         },
-      },
-    }) as ToolResultShape);
+      })) as ToolResultShape,
+    );
     expect(jsonRender.ok).toBe(true);
     expect(jsonRender.spec.root).toBe('root');
     expect(jsonRender.spec.elements.root?.type).toBe('Badge');
@@ -1517,34 +1632,38 @@ describe('MCP parity with CLI', () => {
     const composed = parseJsonText<{
       ok: boolean;
       normalizedSpec: { elements: { chart?: { type?: string; props?: Record<string, unknown> } } };
-    }>(await session.client.callTool({
-      name: 'canvas_render',
-      arguments: {
-        action: 'validate',
-        type: 'graph',
-        title: 'MCP Composed',
-        graphType: 'composed',
-        data: [
-          { month: 'Jan', visits: 120, conversion: 0.2 },
-          { month: 'Feb', visits: 160, conversion: 0.3 },
-        ],
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_render',
+        arguments: {
+          action: 'validate',
+          type: 'graph',
+          title: 'MCP Composed',
+          graphType: 'composed',
+          data: [
+            { month: 'Jan', visits: 120, conversion: 0.2 },
+            { month: 'Feb', visits: 160, conversion: 0.3 },
+          ],
+          xKey: 'month',
+          barKey: 'visits',
+          lineKey: 'conversion',
+          barColor: '#60b5ff',
+          lineColor: '#d7a83f',
+        },
+      })) as ToolResultShape,
+    );
+
+    expect(composed.ok).toBe(true);
+    expect(composed.normalizedSpec.elements.chart?.type).toBe('ComposedChart');
+    expect(composed.normalizedSpec.elements.chart?.props).toEqual(
+      expect.objectContaining({
         xKey: 'month',
         barKey: 'visits',
         lineKey: 'conversion',
         barColor: '#60b5ff',
         lineColor: '#d7a83f',
-      },
-    }) as ToolResultShape);
-
-    expect(composed.ok).toBe(true);
-    expect(composed.normalizedSpec.elements.chart?.type).toBe('ComposedChart');
-    expect(composed.normalizedSpec.elements.chart?.props).toEqual(expect.objectContaining({
-      xKey: 'month',
-      barKey: 'visits',
-      lineKey: 'conversion',
-      barColor: '#60b5ff',
-      lineColor: '#d7a83f',
-    }));
+      }),
+    );
   });
 
   test('canvas_build_web_artifact matches CLI log behavior and keeps raw logs opt-in', async () => {
@@ -1566,7 +1685,9 @@ describe('MCP parity with CLI', () => {
 
     const initScriptPath = join(session.workspaceRoot, 'emit-init.sh');
     const bundleScriptPath = join(session.workspaceRoot, 'emit-bundle.sh');
-    writeFileSync(initScriptPath, `#!/bin/bash
+    writeFileSync(
+      initScriptPath,
+      `#!/bin/bash
 set -e
 PROJECT_NAME="$1"
 mkdir -p "$PROJECT_NAME/src"
@@ -1584,13 +1705,19 @@ EOF
 cat > "$PROJECT_NAME/src/App.tsx" <<'EOF'
 export default function App() { return null; }
 EOF
-`, 'utf-8');
-    writeFileSync(bundleScriptPath, `#!/bin/bash
+`,
+      'utf-8',
+    );
+    writeFileSync(
+      bundleScriptPath,
+      `#!/bin/bash
 set -e
 echo "bundle stdout"
 echo "bundle stderr" 1>&2
 echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
-`, 'utf-8');
+`,
+      'utf-8',
+    );
     await Bun.$`chmod +x ${initScriptPath} ${bundleScriptPath}`;
 
     const quiet = parseJsonText<{
@@ -1602,16 +1729,18 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
       stdout?: string;
       stderr?: string;
       completedAt?: string;
-    }>(await session.client.callTool({
-      name: 'canvas_app',
-      arguments: {
-        action: 'build-artifact',
-        title: 'Quiet MCP Artifact',
-        appTsx: 'export default function App() { return <main>Quiet MCP Artifact</main>; }',
-        initScriptPath,
-        bundleScriptPath,
-      },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_app',
+        arguments: {
+          action: 'build-artifact',
+          title: 'Quiet MCP Artifact',
+          appTsx: 'export default function App() { return <main>Quiet MCP Artifact</main>; }',
+          initScriptPath,
+          bundleScriptPath,
+        },
+      })) as ToolResultShape,
+    );
     expect(quiet.path).toContain('quiet-mcp-artifact.html');
     expect(quiet.id).toBe(quiet.nodeId);
     expect(quiet.stdout).toBeUndefined();
@@ -1623,10 +1752,12 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
 
     const compactLayout = parseJsonText<{
       nodes: Array<{ id: string; kind: string; content: string | null }>;
-    }>(await session.client.callTool({
-      name: 'canvas_query',
-      arguments: { action: 'layout' },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_query',
+        arguments: { action: 'layout' },
+      })) as ToolResultShape,
+    );
     const compactArtifact = compactLayout.nodes.find((node) => node.id === quiet.nodeId);
     expect(compactArtifact?.kind).toBe('web-artifact');
     expect(compactArtifact?.content).toContain('Web artifact: Quiet MCP Artifact');
@@ -1636,17 +1767,19 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
     const verbose = parseJsonText<{
       stdout?: string;
       stderr?: string;
-    }>(await session.client.callTool({
-      name: 'canvas_app',
-      arguments: {
-        action: 'build-artifact',
-        title: 'Verbose MCP Artifact',
-        appTsx: 'export default function App() { return <main>Verbose MCP Artifact</main>; }',
-        initScriptPath,
-        bundleScriptPath,
-        includeLogs: true,
-      },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_app',
+        arguments: {
+          action: 'build-artifact',
+          title: 'Verbose MCP Artifact',
+          appTsx: 'export default function App() { return <main>Verbose MCP Artifact</main>; }',
+          initScriptPath,
+          bundleScriptPath,
+          includeLogs: true,
+        },
+      })) as ToolResultShape,
+    );
     expect(verbose.stdout).toContain('bundle stdout');
     expect(verbose.stderr).toContain('bundle stderr');
   });
@@ -1662,16 +1795,18 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
     const evaluateTool = tools.tools.find((tool) => tool.name === 'canvas_webview');
     expect(evaluateTool?.inputSchema.properties).toHaveProperty('script');
     expect(evaluateTool?.inputSchema.properties).toHaveProperty('expression');
-    const evaluateProperties = evaluateTool?.inputSchema.properties as Record<string, { description?: string }> | undefined;
+    const evaluateProperties = evaluateTool?.inputSchema.properties as
+      | Record<string, { description?: string }>
+      | undefined;
     expect(evaluateProperties?.script?.description).toContain('async IIFE');
 
-    const result = await session.client.callTool({
+    const result = (await session.client.callTool({
       name: 'canvas_webview',
       arguments: {
         action: 'evaluate',
         script: 'const value = 2 + 2; return value;',
       },
-    }) as ToolResultShape;
+    })) as ToolResultShape;
 
     expect(result.isError).toBe(true);
     expect(textOf(result)).toContain('automation WebView');
@@ -1691,63 +1826,75 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
     expect(edgeTool?.inputSchema.properties).toHaveProperty('fromSearch');
     expect(edgeTool?.inputSchema.properties).toHaveProperty('toSearch');
 
-    const first = parseJsonText<{ id: string }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'add',
-        type: 'markdown',
-        title: 'Edge start',
-        content: 'alpha',
-      },
-    }) as ToolResultShape);
-    const second = parseJsonText<{ id: string }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'add',
-        type: 'markdown',
-        title: 'Edge end',
-        content: 'beta',
-      },
-    }) as ToolResultShape);
+    const first = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'markdown',
+          title: 'Edge start',
+          content: 'alpha',
+        },
+      })) as ToolResultShape,
+    );
+    const second = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'markdown',
+          title: 'Edge end',
+          content: 'beta',
+        },
+      })) as ToolResultShape,
+    );
 
-    const edge = parseJsonText<{ id: string; from: string; to: string }>(await session.client.callTool({
-      name: 'canvas_edge',
-      arguments: {
-        action: 'add',
-        fromSearch: 'Edge start',
-        toSearch: 'Edge end',
-        type: 'references',
-        style: 'dashed',
-        animated: true,
-      },
-    }) as ToolResultShape);
+    const edge = parseJsonText<{ id: string; from: string; to: string }>(
+      (await session.client.callTool({
+        name: 'canvas_edge',
+        arguments: {
+          action: 'add',
+          fromSearch: 'Edge start',
+          toSearch: 'Edge end',
+          type: 'references',
+          style: 'dashed',
+          animated: true,
+        },
+      })) as ToolResultShape,
+    );
     expect(edge.id).toBeTruthy();
 
     const node = parseJsonText<{
       title: string | null;
       content: string | null;
-    }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: { action: 'get', id: first.id },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: { action: 'get', id: first.id },
+      })) as ToolResultShape,
+    );
     expect(node.title).toBe('Edge start');
     expect(node.content).toBe('alpha');
 
     const layout = parseJsonText<{
       edges: Array<{ id: string; style?: string; animated?: boolean }>;
-    }>(await session.client.callTool({
-      name: 'canvas_query',
-      arguments: { action: 'layout' },
-    }) as ToolResultShape);
-    expect(layout.edges).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        id: edge.id,
-        from: first.id,
-        to: second.id,
-        style: 'dashed',
-        animated: true,
-      }),
-    ]));
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_query',
+        arguments: { action: 'layout' },
+      })) as ToolResultShape,
+    );
+    expect(layout.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: edge.id,
+          from: first.id,
+          to: second.id,
+          style: 'dashed',
+          animated: true,
+        }),
+      ]),
+    );
   });
 
   test('canvas_create_group exposes manual frame + childLayout, and canvas_batch/canvas_validate provide parity', async () => {
@@ -1761,88 +1908,100 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
     const groupTool = tools.tools.find((tool) => tool.name === 'canvas_group');
     expect(groupTool?.inputSchema.properties).toHaveProperty('childLayout');
 
-    const child = parseJsonText<{ id: string }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'add',
-        type: 'markdown',
-        title: 'Grouped child',
-        x: 760,
-        y: 240,
-        width: 220,
-        height: 140,
-      },
-    }) as ToolResultShape);
+    const child = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'markdown',
+          title: 'Grouped child',
+          x: 760,
+          y: 240,
+          width: 220,
+          height: 140,
+        },
+      })) as ToolResultShape,
+    );
 
     const group = parseJsonText<{
       id: string;
       position: { x: number; y: number };
       size: { width: number; height: number };
-    }>(await session.client.callTool({
-      name: 'canvas_group',
-      arguments: {
-        action: 'create',
-        title: 'Manual group',
-        x: 40,
-        y: 60,
-        width: 960,
-        height: 720,
-        childIds: [child.id],
-        childLayout: 'column',
-        full: true,
-      },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_group',
+        arguments: {
+          action: 'create',
+          title: 'Manual group',
+          x: 40,
+          y: 60,
+          width: 960,
+          height: 720,
+          childIds: [child.id],
+          childLayout: 'column',
+          full: true,
+        },
+      })) as ToolResultShape,
+    );
     expect(group.position).toEqual({ x: 40, y: 60 });
     expect(group.size).toEqual({ width: 960, height: 720 });
 
-    const aliasChild = parseJsonText<{ id: string }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'add',
-        type: 'markdown',
-        title: 'Generic group child',
-        x: 1120,
-        y: 240,
-        width: 220,
-        height: 140,
-      },
-    }) as ToolResultShape);
+    const aliasChild = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'markdown',
+          title: 'Generic group child',
+          x: 1120,
+          y: 240,
+          width: 220,
+          height: 140,
+        },
+      })) as ToolResultShape,
+    );
 
-    const genericGroup = parseJsonText<{ data: { children?: string[] } }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'add',
-        type: 'group',
-        title: 'Generic group with children alias',
-        children: [aliasChild.id],
-        full: true,
-      },
-    }) as ToolResultShape);
+    const genericGroup = parseJsonText<{ data: { children?: string[] } }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'group',
+          title: 'Generic group with children alias',
+          children: [aliasChild.id],
+          full: true,
+        },
+      })) as ToolResultShape,
+    );
     expect(genericGroup.data.children).toEqual([aliasChild.id]);
 
-    const childIdsChild = parseJsonText<{ id: string }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'add',
-        type: 'markdown',
-        title: 'Generic group childIds child',
-        x: 1400,
-        y: 240,
-        width: 220,
-        height: 140,
-      },
-    }) as ToolResultShape);
+    const childIdsChild = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'markdown',
+          title: 'Generic group childIds child',
+          x: 1400,
+          y: 240,
+          width: 220,
+          height: 140,
+        },
+      })) as ToolResultShape,
+    );
 
-    const childIdsGroup = parseJsonText<{ data: { children?: string[] } }>(await session.client.callTool({
-      name: 'canvas_node',
-      arguments: {
-        action: 'add',
-        type: 'group',
-        title: 'Generic group with childIds',
-        childIds: [childIdsChild.id],
-        full: true,
-      },
-    }) as ToolResultShape);
+    const childIdsGroup = parseJsonText<{ data: { children?: string[] } }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: {
+          action: 'add',
+          type: 'group',
+          title: 'Generic group with childIds',
+          childIds: [childIdsChild.id],
+          full: true,
+        },
+      })) as ToolResultShape,
+    );
     expect(childIdsGroup.data.children).toEqual([childIdsChild.id]);
 
     await session.client.callTool({
@@ -1853,42 +2012,48 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
     const batch = parseJsonText<{
       ok: boolean;
       refs: Record<string, { id: string }>;
-    }>(await session.client.callTool({
-      name: 'canvas_batch',
-      arguments: {
-        full: true,
-        operations: [
-          {
-            op: 'node.add',
-            assign: 'child',
-            args: { type: 'markdown', title: 'Batch child', x: 240, y: 200, width: 240, height: 160 },
-          },
-          {
-            op: 'group.create',
-            assign: 'frame',
-            args: { title: 'Batch frame', childIds: ['$child.id'] },
-          },
-        ],
-      },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_batch',
+        arguments: {
+          full: true,
+          operations: [
+            {
+              op: 'node.add',
+              assign: 'child',
+              args: { type: 'markdown', title: 'Batch child', x: 240, y: 200, width: 240, height: 160 },
+            },
+            {
+              op: 'group.create',
+              assign: 'frame',
+              args: { title: 'Batch frame', childIds: ['$child.id'] },
+            },
+          ],
+        },
+      })) as ToolResultShape,
+    );
     expect(batch.ok).toBe(true);
 
     const validation = parseJsonText<{
       ok: boolean;
       collisions: unknown[];
       containments: Array<{ groupId: string; childId: string }>;
-    }>(await session.client.callTool({
-      name: 'canvas_query',
-      arguments: { action: 'validate' },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_query',
+        arguments: { action: 'validate' },
+      })) as ToolResultShape,
+    );
     expect(validation.ok).toBe(true);
     expect(validation.collisions).toEqual([]);
-    expect(validation.containments).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        groupId: batch.refs.frame.id,
-        childId: batch.refs.child.id,
-      }),
-    ]));
+    expect(validation.containments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          groupId: batch.refs.frame.id,
+          childId: batch.refs.child.id,
+        }),
+      ]),
+    );
   });
 
   test('canvas_batch documents bare refs and surfaces partial failure envelopes', async () => {
@@ -1907,23 +2072,25 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
       ok: boolean;
       refs: Record<string, { id: string }>;
       results: Array<{ ok: boolean; id: string; from?: string; to?: string }>;
-    }>(await session.client.callTool({
-      name: 'canvas_batch',
-      arguments: {
-        operations: [
-          { op: 'node.add', assign: 'src', args: { type: 'markdown', title: 'Bare source' } },
-          { op: 'node.add', assign: 'dst', args: { type: 'markdown', title: 'Bare target' } },
-          { op: 'edge.add', assign: 'edge', args: { from: '$src', to: '$dst', type: 'references' } },
-        ],
-      },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_batch',
+        arguments: {
+          operations: [
+            { op: 'node.add', assign: 'src', args: { type: 'markdown', title: 'Bare source' } },
+            { op: 'node.add', assign: 'dst', args: { type: 'markdown', title: 'Bare target' } },
+            { op: 'edge.add', assign: 'edge', args: { from: '$src', to: '$dst', type: 'references' } },
+          ],
+        },
+      })) as ToolResultShape,
+    );
     expect(success.ok).toBe(true);
     expect(success.results[2]).toMatchObject({
       from: success.refs.src.id,
       to: success.refs.dst.id,
     });
 
-    const failed = await session.client.callTool({
+    const failed = (await session.client.callTool({
       name: 'canvas_batch',
       arguments: {
         operations: [
@@ -1931,15 +2098,17 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
           { op: 'edge.add', args: { from: '$kept', to: '$missing', type: 'references' } },
         ],
       },
-    }) as ToolResultShape;
+    })) as ToolResultShape;
     expect(failed.isError).toBe(true);
-    expect(parseJsonText<{
-      ok: boolean;
-      failedIndex: number;
-      error: string;
-      refs: Record<string, { id: string }>;
-      results: Array<{ id: string }>;
-    }>(failed)).toMatchObject({
+    expect(
+      parseJsonText<{
+        ok: boolean;
+        failedIndex: number;
+        error: string;
+        refs: Record<string, { id: string }>;
+        results: Array<{ id: string }>;
+      }>(failed),
+    ).toMatchObject({
       ok: false,
       failedIndex: 1,
       refs: { kept: { id: expect.any(String) } },
@@ -1964,21 +2133,23 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
         fetch: { ok: boolean; error?: string };
         error?: string;
       }>;
-    }>(await session.client.callTool({
-      name: 'canvas_batch',
-      arguments: {
-        operations: [
-          {
-            op: 'node.add',
-            assign: 'page',
-            args: {
-              type: 'webpage',
-              url: 'https://example.invalid',
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_batch',
+        arguments: {
+          operations: [
+            {
+              op: 'node.add',
+              assign: 'page',
+              args: {
+                type: 'webpage',
+                url: 'https://example.invalid',
+              },
             },
-          },
-        ],
-      },
-    }) as ToolResultShape);
+          ],
+        },
+      })) as ToolResultShape,
+    );
 
     expect(result.ok).toBe(true);
     expect(typeof result.refs.page?.id).toBe('string');
@@ -2005,40 +2176,44 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
         size: { width: number; height: number };
         data: Record<string, unknown>;
       }>;
-    }>(await session.client.callTool({
-      name: 'canvas_batch',
-      arguments: {
-        full: true,
-        operations: [
-          {
-            op: 'graph.add',
-            assign: 'graph',
-            args: {
-              title: 'Batch graph',
-              graphType: 'radar',
-              data: [
-                { axis: 'Speed', north: 5, south: 3 },
-                { axis: 'Quality', north: 4, south: 6 },
-              ],
-              axisKey: 'axis',
-              metrics: ['north', 'south'],
-              width: 880,
-              nodeHeight: 640,
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_batch',
+        arguments: {
+          full: true,
+          operations: [
+            {
+              op: 'graph.add',
+              assign: 'graph',
+              args: {
+                title: 'Batch graph',
+                graphType: 'radar',
+                data: [
+                  { axis: 'Speed', north: 5, south: 3 },
+                  { axis: 'Quality', north: 4, south: 6 },
+                ],
+                axisKey: 'axis',
+                metrics: ['north', 'south'],
+                width: 880,
+                nodeHeight: 640,
+              },
             },
-          },
-        ],
-      },
-    }) as ToolResultShape);
+          ],
+        },
+      })) as ToolResultShape,
+    );
 
     expect(result.ok).toBe(true);
     expect(typeof result.refs.graph?.id).toBe('string');
     expect(result.results[0]?.type).toBe('graph');
     expect(result.results[0]?.size).toEqual({ width: 880, height: 640 });
-    expect(result.results[0]?.data.graphConfig).toEqual(expect.objectContaining({
-      graphType: 'radar',
-      axisKey: 'axis',
-      metrics: ['north', 'south'],
-    }));
+    expect(result.results[0]?.data.graphConfig).toEqual(
+      expect.objectContaining({
+        graphType: 'radar',
+        axisKey: 'axis',
+        metrics: ['north', 'south'],
+      }),
+    );
   });
 
   test('canvas_list_snapshots, canvas_gc_snapshots, and canvas_delete_snapshot match CLI snapshot management', async () => {
@@ -2050,10 +2225,12 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
 
     const savedSnapshots: Array<{ id: string; name: string }> = [];
     for (const name of ['mcp-alpha', 'mcp-beta', 'mcp-parity-snapshot']) {
-      const saved = parseJsonText<{ ok: boolean; id: string; snapshot: { id: string; name: string } }>(await session.client.callTool({
-        name: 'canvas_snapshot',
-        arguments: { name },
-      }) as ToolResultShape);
+      const saved = parseJsonText<{ ok: boolean; id: string; snapshot: { id: string; name: string } }>(
+        (await session.client.callTool({
+          name: 'canvas_snapshot',
+          arguments: { name },
+        })) as ToolResultShape,
+      );
       expect(saved.ok).toBe(true);
       savedSnapshots.push(saved.snapshot);
       await new Promise((resolve) => setTimeout(resolve, 2));
@@ -2062,49 +2239,61 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
     expect(saved.ok).toBe(true);
     expect(saved.id).toBe(saved.snapshot.id);
 
-    const listed = parseJsonText<{ snapshots: Array<{ id: string; name: string }> }>(await session.client.callTool({
-      name: 'canvas_list_snapshots',
-      arguments: { limit: 2 },
-    }) as ToolResultShape);
+    const listed = parseJsonText<{ snapshots: Array<{ id: string; name: string }> }>(
+      (await session.client.callTool({
+        name: 'canvas_list_snapshots',
+        arguments: { limit: 2 },
+      })) as ToolResultShape,
+    );
     expect(listed.snapshots.map((snapshot) => snapshot.name)).toEqual(['mcp-parity-snapshot', 'mcp-beta']);
 
-    const filtered = parseJsonText<{ snapshots: Array<{ id: string; name: string }> }>(await session.client.callTool({
-      name: 'canvas_list_snapshots',
-      arguments: { query: 'alpha', all: true },
-    }) as ToolResultShape);
+    const filtered = parseJsonText<{ snapshots: Array<{ id: string; name: string }> }>(
+      (await session.client.callTool({
+        name: 'canvas_list_snapshots',
+        arguments: { query: 'alpha', all: true },
+      })) as ToolResultShape,
+    );
     expect(filtered.snapshots.map((snapshot) => snapshot.name)).toEqual(['mcp-alpha']);
 
-    const dateFiltered = parseJsonText<{ snapshots: Array<{ id: string; name: string; createdAt: string }> }>(await session.client.callTool({
-      name: 'canvas_list_snapshots',
-      arguments: {
-        all: true,
-        after: savedSnapshots[1]!.createdAt,
-        before: savedSnapshots[1]!.createdAt,
-      },
-    }) as ToolResultShape);
+    const dateFiltered = parseJsonText<{ snapshots: Array<{ id: string; name: string; createdAt: string }> }>(
+      (await session.client.callTool({
+        name: 'canvas_list_snapshots',
+        arguments: {
+          all: true,
+          after: savedSnapshots[1]!.createdAt,
+          before: savedSnapshots[1]!.createdAt,
+        },
+      })) as ToolResultShape,
+    );
     expect(dateFiltered.snapshots.map((snapshot) => snapshot.name)).toEqual(['mcp-beta']);
 
-    const preview = parseJsonText<{ ok: boolean; kept: number; dryRun: boolean; deleted: Array<{ name: string }> }>(await session.client.callTool({
-      name: 'canvas_gc_snapshots',
-      arguments: { keep: 2, dryRun: true },
-    }) as ToolResultShape);
+    const preview = parseJsonText<{ ok: boolean; kept: number; dryRun: boolean; deleted: Array<{ name: string }> }>(
+      (await session.client.callTool({
+        name: 'canvas_gc_snapshots',
+        arguments: { keep: 2, dryRun: true },
+      })) as ToolResultShape,
+    );
     expect(preview.ok).toBe(true);
     expect(preview.kept).toBe(2);
     expect(preview.dryRun).toBe(true);
     expect(preview.deleted.map((snapshot) => snapshot.name)).toEqual(['mcp-alpha']);
 
-    const deleted = parseJsonText<{ ok: boolean; deleted: string }>(await session.client.callTool({
-      name: 'canvas_delete_snapshot',
-      arguments: {
-        id: saved.snapshot.id,
-      },
-    }) as ToolResultShape);
+    const deleted = parseJsonText<{ ok: boolean; deleted: string }>(
+      (await session.client.callTool({
+        name: 'canvas_delete_snapshot',
+        arguments: {
+          id: saved.snapshot.id,
+        },
+      })) as ToolResultShape,
+    );
     expect(deleted).toEqual({ ok: true, deleted: saved.snapshot.id });
 
-    const afterDelete = parseJsonText<{ snapshots: Array<{ id: string; name: string }> }>(await session.client.callTool({
-      name: 'canvas_list_snapshots',
-      arguments: { all: true },
-    }) as ToolResultShape);
+    const afterDelete = parseJsonText<{ snapshots: Array<{ id: string; name: string }> }>(
+      (await session.client.callTool({
+        name: 'canvas_list_snapshots',
+        arguments: { all: true },
+      })) as ToolResultShape,
+    );
     expect(afterDelete.snapshots.some((snapshot) => snapshot.id === saved.snapshot.id)).toBe(false);
   });
 
@@ -2124,10 +2313,12 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
         content: 'snapshot content',
       },
     });
-    const saved = parseJsonText<{ id: string }>(await session.client.callTool({
-      name: 'canvas_snapshot',
-      arguments: { name: 'compact restore' },
-    }) as ToolResultShape);
+    const saved = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_snapshot',
+        arguments: { name: 'compact restore' },
+      })) as ToolResultShape,
+    );
     await session.client.callTool({ name: 'canvas_view', arguments: { action: 'clear' } });
 
     const restored = parseJsonText<{
@@ -2135,10 +2326,12 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
       restored: string;
       summary: { nodeCount: number; edgeCount: number; nodesByType: Record<string, number> };
       layout?: unknown;
-    }>(await session.client.callTool({
-      name: 'canvas_restore',
-      arguments: { id: saved.id },
-    }) as ToolResultShape);
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_restore',
+        arguments: { id: saved.id },
+      })) as ToolResultShape,
+    );
 
     expect(restored.ok).toBe(true);
     expect(restored.restored).toBe(saved.id);

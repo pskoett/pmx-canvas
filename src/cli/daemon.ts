@@ -94,11 +94,11 @@ export async function readHealthStatus(url: string): Promise<HealthStatus> {
   try {
     const response = await fetch(url);
     if (!response.ok) return { responsive: false, workspace: null };
-    const payload = await response.json().catch(() => null) as unknown;
-    const workspace = payload && typeof payload === 'object' && 'workspace' in payload
-      && typeof payload.workspace === 'string'
-      ? payload.workspace
-      : null;
+    const payload = (await response.json().catch(() => null)) as unknown;
+    const workspace =
+      payload && typeof payload === 'object' && 'workspace' in payload && typeof payload.workspace === 'string'
+        ? payload.workspace
+        : null;
     return { responsive: true, workspace };
   } catch {
     return { responsive: false, workspace: null };
@@ -138,11 +138,7 @@ export async function waitForHealth(
   return { ok: false, reason: `Timed out waiting for ${healthUrl}` };
 }
 
-export async function waitForShutdown(
-  healthUrl: string,
-  timeoutMs: number,
-  isAlive: () => boolean,
-): Promise<boolean> {
+export async function waitForShutdown(healthUrl: string, timeoutMs: number, isAlive: () => boolean): Promise<boolean> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
     const responsive = await isHealthy(healthUrl);
@@ -169,9 +165,7 @@ export function classifyPrecheck(health: HealthStatus, expectedWorkspace: string
   return 'foreign-port-owner';
 }
 
-export type LockResult =
-  | { ok: true }
-  | { ok: false; holderPid: number | null; reason: 'running' | 'starting' };
+export type LockResult = { ok: true } | { ok: false; holderPid: number | null; reason: 'running' | 'starting' };
 
 /** How long an empty lock file is presumed to belong to a concurrent starter. */
 const LOCK_FRESH_MS = 30_000;
@@ -213,11 +207,13 @@ export interface DaemonPaths {
   pidFile: string;
 }
 
-export async function startDaemonMode(options: DaemonPaths & {
-  baseArgs: string[];
-  waitMs: number;
-  entry: string;
-}): Promise<void> {
+export async function startDaemonMode(
+  options: DaemonPaths & {
+    baseArgs: string[];
+    waitMs: number;
+    entry: string;
+  },
+): Promise<void> {
   const healthUrl = `http://localhost:${options.port}/health`;
   const workbenchUrl = `http://localhost:${options.port}/workbench`;
   const expectedWorkspace = resolveExpectedWorkspace();
@@ -260,9 +256,10 @@ export async function startDaemonMode(options: DaemonPaths & {
     outputJson({
       ok: false,
       daemon: true,
-      error: lock.reason === 'running'
-        ? `A daemon (pid ${lock.holderPid}) already owns ${options.pidFile}.`
-        : `Another \`serve --daemon\` start appears to be in progress (${options.pidFile} is locked).`,
+      error:
+        lock.reason === 'running'
+          ? `A daemon (pid ${lock.holderPid}) already owns ${options.pidFile}.`
+          : `Another \`serve --daemon\` start appears to be in progress (${options.pidFile} is locked).`,
       hint: 'Use `pmx-canvas serve status` / `pmx-canvas serve stop`, or remove the pid file if it is stale.',
       url: workbenchUrl,
       healthUrl,
@@ -274,9 +271,7 @@ export async function startDaemonMode(options: DaemonPaths & {
 
   mkdirSync(dirname(options.logFile), { recursive: true });
   const logFd = openSync(options.logFile, 'a');
-  const childArgs = options.baseArgs.includes('--no-open')
-    ? options.baseArgs
-    : [...options.baseArgs, '--no-open'];
+  const childArgs = options.baseArgs.includes('--no-open') ? options.baseArgs : [...options.baseArgs, '--no-open'];
   const child = spawn(process.execPath, ['run', options.entry, ...childArgs], {
     cwd: process.cwd(),
     detached: true,
@@ -290,9 +285,7 @@ export async function startDaemonMode(options: DaemonPaths & {
 
   let exitMessage: string | null = null;
   child.once('exit', (code, signal) => {
-    exitMessage = signal
-      ? `Daemon exited via signal ${signal}`
-      : `Daemon exited with code ${code ?? 'unknown'}`;
+    exitMessage = signal ? `Daemon exited via signal ${signal}` : `Daemon exited with code ${code ?? 'unknown'}`;
   });
   child.unref();
 
@@ -354,10 +347,12 @@ export async function showServeStatus(options: DaemonPaths & { entry: string }):
   process.exit(0);
 }
 
-export async function stopServeDaemon(options: DaemonPaths & {
-  waitMs: number;
-  entry: string;
-}): Promise<void> {
+export async function stopServeDaemon(
+  options: DaemonPaths & {
+    waitMs: number;
+    entry: string;
+  },
+): Promise<void> {
   const healthUrl = `http://localhost:${options.port}/health`;
   const url = `http://localhost:${options.port}/workbench`;
   const pid = readPidFile(options.pidFile);

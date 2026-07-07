@@ -106,9 +106,7 @@ function readHeaderWithTimeout(path: string, size: number): Buffer {
         );
       }
       const detail = ddError instanceof Error ? ddError.message : String(ddError);
-      throw new Error(
-        `Invalid image node: could not read "${fileName(path)}" — ${detail}.`,
-      );
+      throw new Error(`Invalid image node: could not read "${fileName(path)}" — ${detail}.`);
     }
   }
 }
@@ -161,7 +159,11 @@ function detectImageMimeType(header: Buffer): string | null {
     if (brandArea.includes('avif') || brandArea.includes('avis')) return 'image/avif';
   }
 
-  const text = header.toString('utf8').replace(/^\uFEFF/, '').trimStart().toLowerCase();
+  const text = header
+    .toString('utf8')
+    .replace(/^\uFEFF/, '')
+    .trimStart()
+    .toLowerCase();
   if (text.startsWith('<svg') || (text.startsWith('<?xml') && text.includes('<svg'))) {
     return 'image/svg+xml';
   }

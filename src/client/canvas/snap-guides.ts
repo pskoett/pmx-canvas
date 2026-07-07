@@ -19,8 +19,16 @@ export interface SnapResult {
 /** Active guide lines to render. Null when not dragging. */
 export const activeGuides = signal<GuideLine[] | null>(null);
 
-interface RefEdgeX { val: number; minY: number; maxY: number }
-interface RefEdgeY { val: number; minX: number; maxX: number }
+interface RefEdgeX {
+  val: number;
+  minY: number;
+  maxY: number;
+}
+interface RefEdgeY {
+  val: number;
+  minX: number;
+  maxX: number;
+}
 
 /** Cached reference edges — built once at drag-start, reused on every pointermove. */
 let cachedRefX: RefEdgeX[] = [];
@@ -37,10 +45,7 @@ function getChildIds(node: CanvasNodeState | undefined): string[] {
   return node.data.children.filter((childId): childId is string => typeof childId === 'string');
 }
 
-function collectExcludedReferenceIds(
-  dragId: string,
-  allNodes: CanvasNodeState[],
-): Set<string> {
+function collectExcludedReferenceIds(dragId: string, allNodes: CanvasNodeState[]): Set<string> {
   const nodeMap = new Map(allNodes.map((node) => [node.id, node]));
   const excluded = new Set<string>([dragId]);
   const dragNode = nodeMap.get(dragId);
@@ -105,12 +110,7 @@ export function clearSnapCache(): void {
  * Snap a dragging node's proposed position to cached reference edges.
  * Must call buildSnapCache() before the first call in a drag session.
  */
-export function snapToGuides(
-  proposedX: number,
-  proposedY: number,
-  nodeW: number,
-  nodeH: number,
-): SnapResult {
+export function snapToGuides(proposedX: number, proposedY: number, nodeW: number, nodeH: number): SnapResult {
   const dragEdgesX = [proposedX, proposedX + nodeW / 2, proposedX + nodeW];
   const dragEdgesY = [proposedY, proposedY + nodeH / 2, proposedY + nodeH];
   const offX = [0, nodeW / 2, nodeW];

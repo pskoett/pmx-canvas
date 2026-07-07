@@ -131,6 +131,7 @@ pmx-canvas serve status        # Check daemon health + pid state
 pmx-canvas serve stop          # Stop daemonized server
 pmx-canvas --mcp               # Run as MCP server
 pmx-canvas --theme=light       # Start with light theme
+bun run lint                   # Biome lint + format check (lint:fix to write)
 ```
 
 ## Persistence

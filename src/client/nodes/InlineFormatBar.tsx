@@ -4,13 +4,7 @@ import { promptAndInsertLink, wrapSelectionInCode } from './inline-editor-comman
 
 const GAP = 8;
 
-type ExecCommand =
-  | 'bold'
-  | 'italic'
-  | 'strikeThrough'
-  | 'formatBlock'
-  | 'insertUnorderedList'
-  | 'insertOrderedList';
+type ExecCommand = 'bold' | 'italic' | 'strikeThrough' | 'formatBlock' | 'insertUnorderedList' | 'insertOrderedList';
 
 type BlockTag = 'H1' | 'H2' | 'H3' | 'P' | 'BLOCKQUOTE';
 
@@ -54,13 +48,7 @@ function runAction(action: Action): void {
 
 /** Floating selection toolbar for a contentEditable host. Mounts once; while
  *  visible, positions itself above the current selection's viewport rect. */
-export function InlineFormatBar({
-  hostRef,
-  onChange,
-}: {
-  hostRef: RefObject<HTMLElement>;
-  onChange: () => void;
-}) {
+export function InlineFormatBar({ hostRef, onChange }: { hostRef: RefObject<HTMLElement>; onChange: () => void }) {
   const [visible, setVisible] = useState(false);
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const [barWidth, setBarWidth] = useState(0);
@@ -91,10 +79,7 @@ export function InlineFormatBar({
     // Use measured width if we have it; fall back to a conservative estimate
     // on the very first show before layout completes.
     const width = barWidth || 420;
-    const left = Math.max(
-      GAP,
-      Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - width - GAP),
-    );
+    const left = Math.max(GAP, Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - width - GAP));
     const top = Math.max(GAP, rect.top - GAP - 36);
     setPos({ top, left });
     setVisible(true);
@@ -160,9 +145,7 @@ export function InlineFormatBar({
             {a.icon}
           </button>
         );
-        return a.dividerBefore
-          ? [<span key={`div-${i}`} class="md-inline-format-divider" />, btn]
-          : [btn];
+        return a.dividerBefore ? [<span key={`div-${i}`} class="md-inline-format-divider" />, btn] : [btn];
       })}
     </div>
   );

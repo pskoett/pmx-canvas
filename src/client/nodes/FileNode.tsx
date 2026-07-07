@@ -8,20 +8,38 @@ import { runNodeAxInteraction } from './ax-node-actions';
 function langFromPath(path: string): string {
   const ext = path.split('.').pop()?.toLowerCase() ?? '';
   const map: Record<string, string> = {
-    ts: 'TypeScript', tsx: 'TSX', js: 'JavaScript', jsx: 'JSX',
-    py: 'Python', rs: 'Rust', go: 'Go', rb: 'Ruby',
-    java: 'Java', kt: 'Kotlin', swift: 'Swift', c: 'C', cpp: 'C++', h: 'C/C++',
-    css: 'CSS', html: 'HTML', json: 'JSON', yaml: 'YAML', yml: 'YAML',
-    md: 'Markdown', toml: 'TOML', sql: 'SQL', sh: 'Shell', bash: 'Shell',
-    xml: 'XML', graphql: 'GraphQL', proto: 'Protobuf',
+    ts: 'TypeScript',
+    tsx: 'TSX',
+    js: 'JavaScript',
+    jsx: 'JSX',
+    py: 'Python',
+    rs: 'Rust',
+    go: 'Go',
+    rb: 'Ruby',
+    java: 'Java',
+    kt: 'Kotlin',
+    swift: 'Swift',
+    c: 'C',
+    cpp: 'C++',
+    h: 'C/C++',
+    css: 'CSS',
+    html: 'HTML',
+    json: 'JSON',
+    yaml: 'YAML',
+    yml: 'YAML',
+    md: 'Markdown',
+    toml: 'TOML',
+    sql: 'SQL',
+    sh: 'Shell',
+    bash: 'Shell',
+    xml: 'XML',
+    graphql: 'GraphQL',
+    proto: 'Protobuf',
   };
   return map[ext] ?? (ext.toUpperCase() || 'Text');
 }
 
-export function FileNode({
-  node,
-  expanded = false,
-}: { node: CanvasNodeState; expanded?: boolean }) {
+export function FileNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
   const filePath = (node.data.path as string) || (node.data.content as string) || '';
   const title = (node.data.title as string) || filePath.split('/').pop() || 'File';
   const cachedContent = node.data.fileContent as string | undefined;
@@ -44,26 +62,30 @@ export function FileNode({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    fetchFile(filePath).then(({ content: fileText }) => {
-      if (cancelled) return;
-      if (!fileText && fileText !== '') {
-        setError('File not found');
+    fetchFile(filePath)
+      .then(({ content: fileText }) => {
+        if (cancelled) return;
+        if (!fileText && fileText !== '') {
+          setError('File not found');
+          setLoading(false);
+          return;
+        }
+        setContent(fileText);
         setLoading(false);
-        return;
-      }
-      setContent(fileText);
-      setLoading(false);
-      // Cache content in node data so it survives re-renders
-      const lines = fileText.split('\n').length;
-      updateNodeData(node.id, { fileContent: fileText, lineCount: lines });
-      void updateNodeFromClient(node.id, { data: { fileContent: fileText, lineCount: lines } });
-    }).catch(() => {
-      if (!cancelled) {
-        setError('Failed to load file');
-        setLoading(false);
-      }
-    });
-    return () => { cancelled = true; };
+        // Cache content in node data so it survives re-renders
+        const lines = fileText.split('\n').length;
+        updateNodeData(node.id, { fileContent: fileText, lineCount: lines });
+        void updateNodeFromClient(node.id, { data: { fileContent: fileText, lineCount: lines } });
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError('Failed to load file');
+          setLoading(false);
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [filePath, cachedContent]);
 
   // Sync content when server pushes updates via SSE
@@ -80,27 +102,29 @@ export function FileNode({
     // Clear cached content to force a fresh fetch
     updateNodeData(node.id, { fileContent: undefined });
     void updateNodeFromClient(node.id, { data: { fileContent: undefined } });
-    fetchFile(filePath).then(({ content: fileText }) => {
-      setContent(fileText);
-      setLoading(false);
-      const lines = fileText.split('\n').length;
-      const updatedAt = new Date().toISOString();
-      updateNodeData(node.id, {
-        fileContent: fileText,
-        lineCount: lines,
-        updatedAt,
-      });
-      void updateNodeFromClient(node.id, {
-        data: {
+    fetchFile(filePath)
+      .then(({ content: fileText }) => {
+        setContent(fileText);
+        setLoading(false);
+        const lines = fileText.split('\n').length;
+        const updatedAt = new Date().toISOString();
+        updateNodeData(node.id, {
           fileContent: fileText,
           lineCount: lines,
           updatedAt,
-        },
+        });
+        void updateNodeFromClient(node.id, {
+          data: {
+            fileContent: fileText,
+            lineCount: lines,
+            updatedAt,
+          },
+        });
+      })
+      .catch(() => {
+        setError('Failed to reload');
+        setLoading(false);
       });
-    }).catch(() => {
-      setError('Failed to reload');
-      setLoading(false);
-    });
   }, [filePath, node.id]);
 
   const lang = langFromPath(filePath);
@@ -108,11 +132,7 @@ export function FileNode({
   const gutterWidth = `${String(lines.length).length + 1}ch`;
 
   if (!filePath) {
-    return (
-      <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>
-        No file path set
-      </div>
-    );
+    return <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>No file path set</div>;
   }
 
   return (
@@ -162,9 +182,7 @@ export function FileNode({
           {filePath}
         </span>
         {lineCount !== undefined && (
-          <span style={{ color: 'var(--c-dim)', fontSize: '10px', flexShrink: 0 }}>
-            {lineCount} lines
-          </span>
+          <span style={{ color: 'var(--c-dim)', fontSize: '10px', flexShrink: 0 }}>{lineCount} lines</span>
         )}
         {updatedAt && (
           <span style={{ color: 'var(--c-dim)', fontSize: '10px', flexShrink: 0 }}>
@@ -224,14 +242,8 @@ export function FileNode({
           borderRadius: expanded ? '0 0 8px 8px' : undefined,
         }}
       >
-        {loading && (
-          <div style={{ color: 'var(--c-dim)', padding: '12px', fontStyle: 'italic' }}>
-            Loading…
-          </div>
-        )}
-        {error && (
-          <div style={{ color: 'var(--c-danger)', padding: '12px' }}>{error}</div>
-        )}
+        {loading && <div style={{ color: 'var(--c-dim)', padding: '12px', fontStyle: 'italic' }}>Loading…</div>}
+        {error && <div style={{ color: 'var(--c-danger)', padding: '12px' }}>{error}</div>}
         {!loading && !error && (
           <pre
             style={{

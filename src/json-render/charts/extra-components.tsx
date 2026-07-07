@@ -136,16 +136,7 @@ function ChartRadarChart({ props }: BaseComponentProps<RadarChartProps>) {
           {props.showLegend !== false && <Legend wrapperStyle={legendMargin} />}
           {metrics.map((metric, i) => {
             const color = CHART_COLORS[i % CHART_COLORS.length];
-            return (
-              <Radar
-                key={metric}
-                name={metric}
-                dataKey={metric}
-                stroke={color}
-                fill={color}
-                fillOpacity={0.25}
-              />
-            );
+            return <Radar key={metric} name={metric} dataKey={metric} stroke={color} fill={color} fillOpacity={0.25} />;
           })}
         </RechartsRadarChart>
       </ResponsiveContainer>
@@ -167,7 +158,7 @@ function ChartStackedBarChart({ props }: BaseComponentProps<StackedBarChartProps
   const series = (props.series ?? []).filter((s) => typeof s === 'string' && s.length > 0);
   const chartData = props.aggregate
     ? mergeAggregated(props.data ?? [], props.xKey, series, props.aggregate)
-    : props.data ?? [];
+    : (props.data ?? []);
   const { frameRef, height } = useChartFrameHeight(props.height, 300);
 
   return (
@@ -212,11 +203,12 @@ function mergeAggregated(
       bucket[s].push(Number.isNaN(n) ? 0 : n);
     }
   }
-  const reducer = aggregate === 'count'
-    ? (vs: number[]) => vs.length
-    : aggregate === 'avg'
-      ? (vs: number[]) => vs.reduce((a, b) => a + b, 0) / vs.length
-      : (vs: number[]) => vs.reduce((a, b) => a + b, 0);
+  const reducer =
+    aggregate === 'count'
+      ? (vs: number[]) => vs.length
+      : aggregate === 'avg'
+        ? (vs: number[]) => vs.reduce((a, b) => a + b, 0) / vs.length
+        : (vs: number[]) => vs.reduce((a, b) => a + b, 0);
   return Array.from(grouped.entries()).map(([key, buckets]) => {
     const out: Record<string, unknown> = { [xKey]: key };
     for (const s of series) out[s] = reducer(buckets[s] ?? []);

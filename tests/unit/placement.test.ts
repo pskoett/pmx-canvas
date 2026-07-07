@@ -25,10 +25,7 @@ describe('shared placement helpers', () => {
   });
 
   test('overlapsAny and findBlocker return the first conflicting rect', () => {
-    const existing = [
-      rect(40, 80, 160, 120),
-      rect(280, 80, 200, 120),
-    ];
+    const existing = [rect(40, 80, 160, 120), rect(280, 80, 200, 120)];
 
     expect(overlapsAny({ x: 520, y: 80 }, 120, 120, existing, 24)).toBe(false);
     expect(overlapsAny({ x: 190, y: 80 }, 120, 120, existing, 24)).toBe(true);
@@ -41,10 +38,7 @@ describe('shared placement helpers', () => {
   });
 
   test('findOpenCanvasPosition places a node to the right of the most recent rect when open', () => {
-    const existing = [
-      rect(40, 80, 180, 120),
-      rect(260, 80, 220, 120),
-    ];
+    const existing = [rect(40, 80, 180, 120), rect(260, 80, 220, 120)];
 
     expect(findOpenCanvasPosition(existing, 160, 120, 24)).toEqual({ x: 504, y: 80 });
   });

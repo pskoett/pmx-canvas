@@ -152,7 +152,8 @@ function boundTextRefId(value: unknown): string | null {
 function hasRenderableExcalidrawElement(elements: Array<Record<string, unknown>>): boolean {
   return elements.some((element) => {
     if (element.isDeleted === true) return false;
-    if (element.type === 'cameraUpdate' || element.type === 'restoreCheckpoint' || element.type === 'delete') return false;
+    if (element.type === 'cameraUpdate' || element.type === 'restoreCheckpoint' || element.type === 'delete')
+      return false;
     if (typeof element.type !== 'string' || element.type.length === 0) return false;
     if (element.type === 'text') {
       return typeof element.text === 'string' && element.text.trim().length > 0;
@@ -173,7 +174,12 @@ function normalizeExcalidrawBoundText(elements: Array<Record<string, unknown>>):
   const collapsedTextIds = new Set<string>();
 
   for (const container of elements) {
-    if (!isTextBindableContainer(container) || typeof container.id !== 'string' || !Array.isArray(container.boundElements)) continue;
+    if (
+      !isTextBindableContainer(container) ||
+      typeof container.id !== 'string' ||
+      !Array.isArray(container.boundElements)
+    )
+      continue;
     for (const rawBoundElement of container.boundElements) {
       const textId = boundTextRefId(rawBoundElement);
       if (!textId) continue;
@@ -187,9 +193,8 @@ function normalizeExcalidrawBoundText(elements: Array<Record<string, unknown>>):
 
   for (const element of elements) {
     if (element.type !== 'text' || typeof element.id !== 'string') continue;
-    const containerId = typeof element.containerId === 'string'
-      ? element.containerId
-      : containerIdByTextId.get(element.id);
+    const containerId =
+      typeof element.containerId === 'string' ? element.containerId : containerIdByTextId.get(element.id);
     if (!containerId) continue;
     const container = elementsById.get(containerId);
     if (!container || !isTextBindableContainer(container)) continue;
@@ -227,9 +232,7 @@ function normalizeExcalidrawBoundText(elements: Array<Record<string, unknown>>):
 function resolveExcalidrawCameraSize(width: number, height: number): { width: number; height: number } {
   const requiredWidth = Math.max(EXCALIDRAW_MIN_CAMERA_WIDTH, width);
   const requiredHeight = Math.max(EXCALIDRAW_MIN_CAMERA_HEIGHT, height);
-  const standard = EXCALIDRAW_CAMERA_SIZES.find(
-    (size) => size.width >= requiredWidth && size.height >= requiredHeight,
-  );
+  const standard = EXCALIDRAW_CAMERA_SIZES.find((size) => size.width >= requiredWidth && size.height >= requiredHeight);
   if (standard) return standard;
 
   const heightFromWidth = requiredWidth / EXCALIDRAW_CAMERA_ASPECT_RATIO;
@@ -241,9 +244,7 @@ function resolveExcalidrawCameraSize(width: number, height: number): { width: nu
   };
 }
 
-export function inferExcalidrawCameraUpdate(
-  elements: Array<Record<string, unknown>>,
-): Record<string, unknown> | null {
+export function inferExcalidrawCameraUpdate(elements: Array<Record<string, unknown>>): Record<string, unknown> | null {
   let minX = Number.POSITIVE_INFINITY;
   let minY = Number.POSITIVE_INFINITY;
   let maxX = Number.NEGATIVE_INFINITY;
@@ -257,7 +258,12 @@ export function inferExcalidrawCameraUpdate(
   };
 
   for (const element of elements) {
-    if (element.isDeleted === true || element.type === 'cameraUpdate' || element.type === 'restoreCheckpoint' || element.type === 'delete') {
+    if (
+      element.isDeleted === true ||
+      element.type === 'cameraUpdate' ||
+      element.type === 'restoreCheckpoint' ||
+      element.type === 'delete'
+    ) {
       continue;
     }
 
@@ -287,10 +293,7 @@ export function inferExcalidrawCameraUpdate(
 
   const contentWidth = Math.max(1, maxX - minX);
   const contentHeight = Math.max(1, maxY - minY);
-  const padding = Math.max(
-    EXCALIDRAW_CAMERA_PADDING,
-    Math.round(Math.max(contentWidth, contentHeight) * 0.18),
-  );
+  const padding = Math.max(EXCALIDRAW_CAMERA_PADDING, Math.round(Math.max(contentWidth, contentHeight) * 0.18));
   const camera = resolveExcalidrawCameraSize(contentWidth + padding * 2, contentHeight + padding * 2);
   const centerX = minX + contentWidth / 2;
   const centerY = minY + contentHeight / 2;
@@ -304,9 +307,7 @@ export function inferExcalidrawCameraUpdate(
   };
 }
 
-function withInferredCameraUpdate(
-  elements: Array<Record<string, unknown>>,
-): Array<Record<string, unknown>> {
+function withInferredCameraUpdate(elements: Array<Record<string, unknown>>): Array<Record<string, unknown>> {
   if (elementHasCameraUpdate(elements)) return elements;
   const camera = inferExcalidrawCameraUpdate(elements);
   return camera ? [camera, ...elements] : elements;
@@ -332,10 +333,7 @@ export function normalizeExcalidrawCheckpointDataForToolInput(data: unknown): st
 export function buildExcalidrawRestoreCheckpointToolInput(checkpointId: string, data?: unknown): string {
   const elements = parseExcalidrawCheckpointElements(data);
   const camera = elements ? inferExcalidrawCameraUpdate(elements) : null;
-  return JSON.stringify([
-    { type: 'restoreCheckpoint', id: checkpointId },
-    ...(camera ? [camera] : []),
-  ]);
+  return JSON.stringify([{ type: 'restoreCheckpoint', id: checkpointId }, ...(camera ? [camera] : [])]);
 }
 
 export function isExcalidrawCreateView(serverName: unknown, toolName: unknown): boolean {
@@ -343,7 +341,10 @@ export function isExcalidrawCreateView(serverName: unknown, toolName: unknown): 
 }
 
 export function buildExcalidrawCheckpointId(seed: string): string {
-  const safe = seed.replace(/[^A-Za-z0-9_-]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 96);
+  const safe = seed
+    .replace(/[^A-Za-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 96);
   return `pmx-${safe || 'checkpoint'}`;
 }
 
@@ -353,10 +354,7 @@ export function getExcalidrawCheckpointIdFromToolResult(result: unknown): string
   return typeof checkpointId === 'string' && checkpointId.trim().length > 0 ? checkpointId.trim() : null;
 }
 
-export function withExcalidrawCheckpointId(
-  result: CallToolResult,
-  checkpointId: string,
-): CallToolResult {
+export function withExcalidrawCheckpointId(result: CallToolResult, checkpointId: string): CallToolResult {
   const structuredContent = isRecord(result.structuredContent) ? result.structuredContent : {};
   return {
     ...result,
@@ -392,6 +390,7 @@ export function buildExcalidrawOpenMcpAppInput(input: DiagramPresetOpenInput): E
   if (typeof input.y === 'number' && Number.isFinite(input.y)) out.y = input.y;
   if (typeof input.width === 'number' && Number.isFinite(input.width)) out.width = input.width;
   if (typeof input.height === 'number' && Number.isFinite(input.height)) out.height = input.height;
-  if (typeof input.timeoutMs === 'number' && Number.isFinite(input.timeoutMs) && input.timeoutMs > 0) out.timeoutMs = input.timeoutMs;
+  if (typeof input.timeoutMs === 'number' && Number.isFinite(input.timeoutMs) && input.timeoutMs > 0)
+    out.timeoutMs = input.timeoutMs;
   return out;
 }

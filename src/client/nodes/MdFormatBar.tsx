@@ -62,13 +62,16 @@ export function MdFormatBar({ textareaRef }: { textareaRef: { current: HTMLTextA
     };
   }, [textareaRef, updatePosition]);
 
-  const runAction = useCallback((action: FormatAction) => {
-    const ta = textareaRef.current;
-    if (ta) {
-      action.action(ta);
-      ta.focus();
-    }
-  }, [textareaRef]);
+  const runAction = useCallback(
+    (action: FormatAction) => {
+      const ta = textareaRef.current;
+      if (ta) {
+        action.action(ta);
+        ta.focus();
+      }
+    },
+    [textareaRef],
+  );
 
   if (!visible) return null;
 

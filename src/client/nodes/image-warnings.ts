@@ -52,13 +52,7 @@ function metadataWarnings(node: CanvasNodeState): ImageNodeWarning[] {
 }
 
 function looksLikeLoginCapture(node: CanvasNodeState): boolean {
-  const haystack = [
-    node.data.title,
-    node.data.caption,
-    node.data.alt,
-    node.data.src,
-    node.data.path,
-  ]
+  const haystack = [node.data.title, node.data.caption, node.data.alt, node.data.src, node.data.path]
     .map((value) => readTrimmedString(value)?.toLowerCase() ?? '')
     .join(' ');
 

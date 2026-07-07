@@ -60,16 +60,20 @@ export function parseGraphPayloadData(value: unknown): Array<Record<string, unkn
 
 /** MCP json-render spec schema (moved from mcp/server.ts): full document or bare component. */
 const jsonRenderSpecSchema = z.union([
-  z.object({
-    root: z.string(),
-    elements: z.record(z.string(), z.unknown()),
-    state: z.record(z.string(), z.unknown()).optional(),
-  }).passthrough(),
-  z.object({
-    type: z.string(),
-    props: z.record(z.string(), z.unknown()).optional(),
-    children: z.array(z.string()).optional(),
-  }).passthrough(),
+  z
+    .object({
+      root: z.string(),
+      elements: z.record(z.string(), z.unknown()),
+      state: z.record(z.string(), z.unknown()).optional(),
+    })
+    .passthrough(),
+  z
+    .object({
+      type: z.string(),
+      props: z.record(z.string(), z.unknown()).optional(),
+      children: z.array(z.string()).optional(),
+    })
+    .passthrough(),
 ]);
 
 const htmlPrimitiveKindSchema = z.string().refine(isHtmlPrimitiveKind, 'Unknown HTML primitive kind');
@@ -89,14 +93,30 @@ function structuredNodeToolResult(result: unknown): { content: Array<{ type: 'te
 // ── jsonrender.add ────────────────────────────────────────────
 
 const jsonRenderAddShape = {
-  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
-  title: z.string().optional().catch(undefined).describe('Optional node title. If omitted, PMX Canvas infers one from the root element.'),
-  spec: z.unknown().describe('json-render spec. Prefer a complete {root, elements, state?} document; a single bare component object is accepted for legacy callers.'),
+  intentId: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+  title: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Optional node title. If omitted, PMX Canvas infers one from the root element.'),
+  spec: z
+    .unknown()
+    .describe(
+      'json-render spec. Prefer a complete {root, elements, state?} document; a single bare component object is accepted for legacy callers.',
+    ),
   x: z.number().optional().catch(undefined).describe('Optional X position'),
   y: z.number().optional().catch(undefined).describe('Optional Y position'),
   width: z.number().optional().catch(undefined).describe('Optional node width'),
   height: z.number().optional().catch(undefined).describe('Optional node height'),
-  strictSize: z.boolean().optional().catch(undefined).describe('Keep explicit width/height fixed and scroll overflowing content instead of browser auto-fitting'),
+  strictSize: z
+    .boolean()
+    .optional()
+    .catch(undefined)
+    .describe('Keep explicit width/height fixed and scroll overflowing content instead of browser auto-fitting'),
 };
 
 const jsonRenderAddSchema = z.looseObject(jsonRenderAddShape);
@@ -115,7 +135,8 @@ const jsonRenderAddOperation = defineOperation<
   },
   mcp: {
     toolName: 'canvas_add_json_render_node',
-    description: 'Create a native json-render canvas node from a complete spec. Use this for structured dashboards, forms, tables, and other interactive UI panels that should render directly inside PMX Canvas.',
+    description:
+      'Create a native json-render canvas node from a complete spec. Use this for structured dashboards, forms, tables, and other interactive UI panels that should render directly inside PMX Canvas.',
     formatResult: (result) => structuredNodeToolResult(result),
   },
   handler: (input) => {
@@ -123,8 +144,7 @@ const jsonRenderAddOperation = defineOperation<
     const title = typeof body.title === 'string' ? body.title.trim() : '';
     // Legacy fallback: a body without an object `spec` is treated as the spec
     // itself (bare-component compatibility path).
-    const rawSpec =
-      body.spec && typeof body.spec === 'object' && !Array.isArray(body.spec) ? body.spec : body;
+    const rawSpec = body.spec && typeof body.spec === 'object' && !Array.isArray(body.spec) ? body.spec : body;
     const geometry = resolveCreateGeometry(body);
     try {
       return createCanvasJsonRenderNode({
@@ -194,24 +214,36 @@ export function streamJsonRenderCore(input: StreamJsonRenderInput): StreamJsonRe
 }
 
 const jsonRenderStreamShape = {
-  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
-  nodeId: z.string().optional().catch(undefined).describe('Existing streaming node id to append to; omit to create a new streaming node'),
+  intentId: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+  nodeId: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Existing streaming node id to append to; omit to create a new streaming node'),
   title: z.string().optional().catch(undefined).describe('Title when creating a new streaming node'),
-  patches: z.unknown().optional().describe('SpecStream patches to apply this call: JSON-Patch objects ({op,path,value}) or raw JSONL patch lines'),
+  patches: z
+    .unknown()
+    .optional()
+    .describe('SpecStream patches to apply this call: JSON-Patch objects ({op,path,value}) or raw JSONL patch lines'),
   done: z.boolean().optional().catch(undefined).describe('Set true on the final call to mark the stream complete'),
   x: z.number().optional().catch(undefined).describe('Optional X position (new node)'),
   y: z.number().optional().catch(undefined).describe('Optional Y position (new node)'),
   width: z.number().optional().catch(undefined).describe('Optional node width (new node)'),
   nodeHeight: z.number().optional().catch(undefined).describe('Optional node height (new node)'),
-  strictSize: z.boolean().optional().catch(undefined).describe('Keep explicit node size fixed and scroll overflowing content (new node)'),
+  strictSize: z
+    .boolean()
+    .optional()
+    .catch(undefined)
+    .describe('Keep explicit node size fixed and scroll overflowing content (new node)'),
 };
 
 const jsonRenderStreamSchema = z.looseObject(jsonRenderStreamShape);
 
-const jsonRenderStreamOperation = defineOperation<
-  z.infer<typeof jsonRenderStreamSchema>,
-  StreamJsonRenderResult
->({
+const jsonRenderStreamOperation = defineOperation<z.infer<typeof jsonRenderStreamSchema>, StreamJsonRenderResult>({
   name: 'jsonrender.stream',
   mutates: true,
   input: jsonRenderStreamSchema,
@@ -222,7 +254,8 @@ const jsonRenderStreamOperation = defineOperation<
   },
   mcp: {
     toolName: 'canvas_stream_json_render_node',
-    description: 'Progressively build a json-render node by streaming SpecStream patches, so a panel fills in live as you generate it. Omit nodeId on the first call to create a new streaming node (returns its id); pass that same nodeId on later calls to append more patches; set done=true on the final call. Each call updates the live node. Patches are JSON-Patch operations, e.g. {"op":"add","path":"/elements/card","value":{"type":"Card","props":{"title":"Live"},"children":[]}}, {"op":"replace","path":"/root","value":"card"}, {"op":"add","path":"/elements/card/children/-","value":"row1"}. Build the spec incrementally: set /root, add container elements, then append children. The server accumulates the spec (it is the source of truth); partial specs render what they can.',
+    description:
+      'Progressively build a json-render node by streaming SpecStream patches, so a panel fills in live as you generate it. Omit nodeId on the first call to create a new streaming node (returns its id); pass that same nodeId on later calls to append more patches; set done=true on the final call. Each call updates the live node. Patches are JSON-Patch operations, e.g. {"op":"add","path":"/elements/card","value":{"type":"Card","props":{"title":"Live"},"children":[]}}, {"op":"replace","path":"/root","value":"card"}, {"op":"add","path":"/elements/card/children/-","value":"row1"}. Build the spec incrementally: set /root, add container elements, then append children. The server accumulates the spec (it is the source of truth); partial specs render what they can.',
     extraShape: {
       // Strict patch typing for the MCP surface only; the operation schema
       // stays loose so the HTTP route keeps tolerating malformed patch lists
@@ -230,7 +263,9 @@ const jsonRenderStreamOperation = defineOperation<
       patches: z
         .array(z.union([z.string(), z.record(z.string(), z.unknown())]))
         .optional()
-        .describe('SpecStream patches to apply this call: JSON-Patch objects ({op,path,value}) or raw JSONL patch lines'),
+        .describe(
+          'SpecStream patches to apply this call: JSON-Patch objects ({op,path,value}) or raw JSONL patch lines',
+        ),
     },
     buildInput: (input) => {
       // MCP names the frame height `nodeHeight`; the HTTP body uses `height`.
@@ -244,7 +279,7 @@ const jsonRenderStreamOperation = defineOperation<
       // node degrades to the bare { ok, id, nodeId } payload.
       let created: Record<string, unknown> = { ok: true, id, nodeId: id };
       try {
-        const node = await host.invoker().invoke('node.get', { id, includeBlobs: true }) as CanvasNodeState;
+        const node = (await host.invoker().invoke('node.get', { id, includeBlobs: true })) as CanvasNodeState;
         created = { ok: true, node: compactNodePayload(node), id, nodeId: id };
       } catch {
         // keep the bare payload (legacy c.getNode → undefined path)
@@ -279,52 +314,114 @@ const jsonRenderStreamOperation = defineOperation<
 // ── graph.add ─────────────────────────────────────────────────
 
 const graphAddShape = {
-  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+  intentId: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
   title: z.string().optional().catch(undefined).describe('Optional node title'),
-  graphType: z.string().optional().catch(undefined).describe('Graph type: line, bar, pie, area, scatter, radar, stacked-bar (or "stack"), composed (or "combo"), sparkline, dot-plot (or "dot"), bullet, slopegraph (or "slope")'),
+  graphType: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe(
+      'Graph type: line, bar, pie, area, scatter, radar, stacked-bar (or "stack"), composed (or "combo"), sparkline, dot-plot (or "dot"), bullet, slopegraph (or "slope")',
+    ),
   data: z.unknown().optional().describe('Array of chart data objects'),
   xKey: z.string().optional().catch(undefined).describe('X-axis key (line/bar/area/scatter/stacked/composed)'),
-  yKey: z.string().optional().catch(undefined).describe('Y-axis key (line/bar/area/scatter); falls back to barKey for composed'),
+  yKey: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Y-axis key (line/bar/area/scatter); falls back to barKey for composed'),
   zKey: z.string().optional().catch(undefined).describe('Optional bubble-size key for scatter charts'),
   nameKey: z.string().optional().catch(undefined).describe('Name key for pie graphs'),
-  valueKey: z.string().optional().catch(undefined).describe('Value key for pie slices, sparkline, dot-plot, and the bullet measure'),
+  valueKey: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Value key for pie slices, sparkline, dot-plot, and the bullet measure'),
   axisKey: z.string().optional().catch(undefined).describe('Category key for radar charts'),
-  metrics: z.array(z.string()).optional().catch(undefined).describe('Series keys to plot as radar polygons (defaults to non-axis numeric columns)'),
-  series: z.array(z.string()).optional().catch(undefined).describe('Series keys for stacked-bar segments (defaults to non-x numeric columns)'),
+  metrics: z
+    .array(z.string())
+    .optional()
+    .catch(undefined)
+    .describe('Series keys to plot as radar polygons (defaults to non-axis numeric columns)'),
+  series: z
+    .array(z.string())
+    .optional()
+    .catch(undefined)
+    .describe('Series keys for stacked-bar segments (defaults to non-x numeric columns)'),
   barKey: z.string().optional().catch(undefined).describe('Bar series key for composed charts'),
   lineKey: z.string().optional().catch(undefined).describe('Line series key for composed charts'),
-  aggregate: z.enum(['sum', 'count', 'avg']).optional().catch(undefined).describe('Optional aggregation for repeated x-axis values (line/bar/area/stacked)'),
+  aggregate: z
+    .enum(['sum', 'count', 'avg'])
+    .optional()
+    .catch(undefined)
+    .describe('Optional aggregation for repeated x-axis values (line/bar/area/stacked)'),
   color: z.string().optional().catch(undefined).describe('Optional series color (line/bar/area/scatter)'),
   colorBy: z
     .enum(['series', 'category', 'value', 'none'])
     .optional()
     .catch(undefined)
-    .describe("Bar charts only: how bars are colored. 'series' (default) = single accent with one highlighted bar; 'category' = rotate palette per bar; 'value' = shade by magnitude; 'none' = flat. Prefer 'series' — color should encode data, not decorate."),
+    .describe(
+      "Bar charts only: how bars are colored. 'series' (default) = single accent with one highlighted bar; 'category' = rotate palette per bar; 'value' = shade by magnitude; 'none' = flat. Prefer 'series' — color should encode data, not decorate.",
+    ),
   highlight: z
     .union([z.number(), z.enum(['max', 'min'])])
     .nullable()
     .optional()
     .catch(undefined)
-    .describe("Bar charts only, for colorBy='series': which bar gets the accent — 'max' (default), 'min', a 0-based index, or null for no emphasis."),
+    .describe(
+      "Bar charts only, for colorBy='series': which bar gets the accent — 'max' (default), 'min', a 0-based index, or null for no emphasis.",
+    ),
   barColor: z.string().optional().catch(undefined).describe('Optional bar color for composed charts'),
   lineColor: z.string().optional().catch(undefined).describe('Optional line color for composed charts'),
-  labelKey: z.string().optional().catch(undefined).describe('Category label key for dot-plot / bullet / slopegraph rows'),
+  labelKey: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Category label key for dot-plot / bullet / slopegraph rows'),
   targetKey: z.string().optional().catch(undefined).describe('Per-row target value key for bullet charts'),
-  rangesKey: z.string().optional().catch(undefined).describe('Per-row qualitative band thresholds key (number[]) for bullet charts'),
+  rangesKey: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Per-row qualitative band thresholds key (number[]) for bullet charts'),
   beforeKey: z.string().optional().catch(undefined).describe('Left-column value key for slopegraph'),
   afterKey: z.string().optional().catch(undefined).describe('Right-column value key for slopegraph'),
   beforeLabel: z.string().optional().catch(undefined).describe('Header label for the slopegraph left column'),
   afterLabel: z.string().optional().catch(undefined).describe('Header label for the slopegraph right column'),
-  sort: z.enum(['asc', 'desc', 'none']).optional().catch(undefined).describe('Row sort order for dot-plot (defaults to desc)'),
+  sort: z
+    .enum(['asc', 'desc', 'none'])
+    .optional()
+    .catch(undefined)
+    .describe('Row sort order for dot-plot (defaults to desc)'),
   fill: z.boolean().optional().catch(undefined).describe('Sparkline: draw a light area fill under the line'),
-  showEndDot: z.boolean().optional().catch(undefined).describe('Sparkline: draw a dot at the last point (default true)'),
+  showEndDot: z
+    .boolean()
+    .optional()
+    .catch(undefined)
+    .describe('Sparkline: draw a dot at the last point (default true)'),
   showMinMax: z.boolean().optional().catch(undefined).describe('Sparkline: mark the min and max points'),
   showValue: z.boolean().optional().catch(undefined).describe('Sparkline: print the last value inline'),
-  colorByDirection: z.boolean().optional().catch(undefined).describe('Slopegraph: accent rising lines and mute falling ones (default off — lines use one neutral ink)'),
+  colorByDirection: z
+    .boolean()
+    .optional()
+    .catch(undefined)
+    .describe('Slopegraph: accent rising lines and mute falling ones (default off — lines use one neutral ink)'),
   // CHART CONTENT height — see the alias-triangle note at the top of this file.
   height: z.number().optional().catch(undefined).describe('Optional chart content height'),
-  showLegend: z.boolean().optional().catch(undefined).describe('Show chart legend when supported; pass false for compact node layouts'),
-  showLabels: z.boolean().optional().catch(undefined).describe('Show direct labels when supported, such as pie slice labels (defaults to true)'),
+  showLegend: z
+    .boolean()
+    .optional()
+    .catch(undefined)
+    .describe('Show chart legend when supported; pass false for compact node layouts'),
+  showLabels: z
+    .boolean()
+    .optional()
+    .catch(undefined)
+    .describe('Show direct labels when supported, such as pie slice labels (defaults to true)'),
   x: z.number().optional().catch(undefined).describe('Optional X position'),
   y: z.number().optional().catch(undefined).describe('Optional Y position'),
   width: z.number().optional().catch(undefined).describe('Optional node width'),
@@ -332,15 +429,16 @@ const graphAddShape = {
   nodeHeight: z.number().optional().catch(undefined).describe('Optional node height'),
   // Node FRAME height (SDK GraphNodeInput field name) — see the alias-triangle note.
   heightPx: z.number().optional().catch(undefined).describe('SDK alias for nodeHeight (node frame height)'),
-  strictSize: z.boolean().optional().catch(undefined).describe('Keep explicit node size fixed and scroll overflowing content instead of browser auto-fitting'),
+  strictSize: z
+    .boolean()
+    .optional()
+    .catch(undefined)
+    .describe('Keep explicit node size fixed and scroll overflowing content instead of browser auto-fitting'),
 };
 
 const graphAddSchema = z.looseObject(graphAddShape);
 
-const graphAddOperation = defineOperation<
-  z.infer<typeof graphAddSchema>,
-  ReturnType<typeof createCanvasGraphNode>
->({
+const graphAddOperation = defineOperation<z.infer<typeof graphAddSchema>, ReturnType<typeof createCanvasGraphNode>>({
   name: 'graph.add',
   mutates: true,
   input: graphAddSchema,
@@ -351,9 +449,14 @@ const graphAddOperation = defineOperation<
   },
   mcp: {
     toolName: 'canvas_add_graph_node',
-    description: 'Create a native graph node backed by the json-render chart catalog. Supports line, bar, pie, area, scatter, radar, stacked-bar, composed (bar+line), sparkline, dot-plot (Cleveland), bullet (Few KPI vs target), and slopegraph (paired before/after) graphs rendered directly inside PMX Canvas.',
+    description:
+      'Create a native graph node backed by the json-render chart catalog. Supports line, bar, pie, area, scatter, radar, stacked-bar, composed (bar+line), sparkline, dot-plot (Cleveland), bullet (Few KPI vs target), and slopegraph (paired before/after) graphs rendered directly inside PMX Canvas.',
     extraShape: {
-      graphType: z.string().describe('Graph type: line, bar, pie, area, scatter, radar, stacked-bar (or "stack"), composed (or "combo"), sparkline, dot-plot (or "dot"), bullet, slopegraph (or "slope")'),
+      graphType: z
+        .string()
+        .describe(
+          'Graph type: line, bar, pie, area, scatter, radar, stacked-bar (or "stack"), composed (or "combo"), sparkline, dot-plot (or "dot"), bullet, slopegraph (or "slope")',
+        ),
       data: z.array(z.record(z.string(), z.unknown())).describe('Array of chart data objects'),
     },
     formatResult: (result) => structuredNodeToolResult(result),
@@ -362,16 +465,15 @@ const graphAddOperation = defineOperation<
     const body: Record<string, unknown> = input;
     const title = typeof body.title === 'string' && body.title.trim() ? body.title.trim() : 'Graph';
     // `type` is the legacy HTTP-only graphType alias (not advertised over MCP).
-    const graphType = typeof body.graphType === 'string' ? body.graphType : typeof body.type === 'string' ? body.type : 'line';
+    const graphType =
+      typeof body.graphType === 'string' ? body.graphType : typeof body.type === 'string' ? body.type : 'line';
     const data = parseGraphPayloadData(body.data);
     if (!data) {
       throw new OperationError('Missing required field: data.');
     }
     try {
       const aggregate =
-        body.aggregate === 'sum' || body.aggregate === 'count' || body.aggregate === 'avg'
-          ? body.aggregate
-          : undefined;
+        body.aggregate === 'sum' || body.aggregate === 'count' || body.aggregate === 'avg' ? body.aggregate : undefined;
       const metrics = Array.isArray(body.metrics)
         ? body.metrics.filter((m: unknown): m is string => typeof m === 'string')
         : null;
@@ -385,9 +487,10 @@ const graphAddOperation = defineOperation<
       const width = pickPositiveNumber(body, 'width') ?? (size ? pickPositiveNumber(size, 'width') : undefined);
       // Node FRAME height. `body.height` is the CHART plot height (passed
       // through as `height` below) — see the alias-triangle note at the top.
-      const nodeHeight = pickPositiveNumber(body, 'nodeHeight')
-        ?? pickPositiveNumber(body, 'heightPx')
-        ?? (size ? pickPositiveNumber(size, 'height') : undefined);
+      const nodeHeight =
+        pickPositiveNumber(body, 'nodeHeight') ??
+        pickPositiveNumber(body, 'heightPx') ??
+        (size ? pickPositiveNumber(size, 'height') : undefined);
       const showLegend = typeof body.showLegend === 'boolean' ? body.showLegend : undefined;
       const showLabels = typeof body.showLabels === 'boolean' ? body.showLabels : undefined;
       const colorBy =
@@ -395,11 +498,13 @@ const graphAddOperation = defineOperation<
           ? body.colorBy
           : undefined;
       const highlight =
-        typeof body.highlight === 'number' || body.highlight === 'max' || body.highlight === 'min' || body.highlight === null
+        typeof body.highlight === 'number' ||
+        body.highlight === 'max' ||
+        body.highlight === 'min' ||
+        body.highlight === null
           ? body.highlight
           : undefined;
-      const sort =
-        body.sort === 'asc' || body.sort === 'desc' || body.sort === 'none' ? body.sort : undefined;
+      const sort = body.sort === 'asc' || body.sort === 'desc' || body.sort === 'none' ? body.sort : undefined;
       return createCanvasGraphNode({
         title,
         graphType,
@@ -470,7 +575,8 @@ const schemaDescribeOperation = defineOperation<
   },
   mcp: {
     toolName: 'canvas_describe_schema',
-    description: 'Describe the current server-supported canvas create schemas, json-render component catalog, canonical examples, and related MCP entry points. Includes mcp.nodeTypeRouting, the authoritative map from node type to MCP creation tool.',
+    description:
+      'Describe the current server-supported canvas create schemas, json-render component catalog, canonical examples, and related MCP entry points. Includes mcp.nodeTypeRouting, the authoritative map from node type to MCP creation tool.',
     formatResult: (result) => ({
       content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
     }),
@@ -495,40 +601,74 @@ const specValidateShape = {
   yKey: z.string().optional().catch(undefined).describe('Y-axis key for line/bar graphs'),
   zKey: z.string().optional().catch(undefined).describe('Optional bubble-size key for scatter charts'),
   nameKey: z.string().optional().catch(undefined).describe('Slice name key for pie graphs'),
-  valueKey: z.string().optional().catch(undefined).describe('Value key for pie slices, sparkline, dot-plot, and the bullet measure'),
+  valueKey: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Value key for pie slices, sparkline, dot-plot, and the bullet measure'),
   axisKey: z.string().optional().catch(undefined).describe('Category key for radar charts'),
   metrics: z.array(z.string()).optional().catch(undefined).describe('Series keys to plot as radar polygons'),
   series: z.array(z.string()).optional().catch(undefined).describe('Series keys for stacked-bar segments'),
   barKey: z.string().optional().catch(undefined).describe('Bar series key for composed charts'),
   lineKey: z.string().optional().catch(undefined).describe('Line series key for composed charts'),
-  aggregate: z.enum(['sum', 'count', 'avg']).optional().catch(undefined).describe('Optional aggregation for repeated keys'),
+  aggregate: z
+    .enum(['sum', 'count', 'avg'])
+    .optional()
+    .catch(undefined)
+    .describe('Optional aggregation for repeated keys'),
   color: z.string().optional().catch(undefined).describe('Optional graph color'),
-  colorBy: z.enum(['series', 'category', 'value', 'none']).optional().catch(undefined).describe("Bar charts only: how bars are colored (default 'series')"),
-  highlight: z.union([z.number(), z.enum(['max', 'min'])]).nullable().optional().catch(undefined).describe("Bar charts only, colorBy='series': which bar gets the accent"),
+  colorBy: z
+    .enum(['series', 'category', 'value', 'none'])
+    .optional()
+    .catch(undefined)
+    .describe("Bar charts only: how bars are colored (default 'series')"),
+  highlight: z
+    .union([z.number(), z.enum(['max', 'min'])])
+    .nullable()
+    .optional()
+    .catch(undefined)
+    .describe("Bar charts only, colorBy='series': which bar gets the accent"),
   barColor: z.string().optional().catch(undefined).describe('Optional bar color for composed charts'),
   lineColor: z.string().optional().catch(undefined).describe('Optional line color for composed charts'),
-  labelKey: z.string().optional().catch(undefined).describe('Category label key for dot-plot / bullet / slopegraph rows'),
+  labelKey: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Category label key for dot-plot / bullet / slopegraph rows'),
   targetKey: z.string().optional().catch(undefined).describe('Per-row target value key for bullet charts'),
-  rangesKey: z.string().optional().catch(undefined).describe('Per-row qualitative band thresholds key (number[]) for bullet charts'),
+  rangesKey: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Per-row qualitative band thresholds key (number[]) for bullet charts'),
   beforeKey: z.string().optional().catch(undefined).describe('Left-column value key for slopegraph'),
   afterKey: z.string().optional().catch(undefined).describe('Right-column value key for slopegraph'),
   beforeLabel: z.string().optional().catch(undefined).describe('Header label for the slopegraph left column'),
   afterLabel: z.string().optional().catch(undefined).describe('Header label for the slopegraph right column'),
-  sort: z.enum(['asc', 'desc', 'none']).optional().catch(undefined).describe('Row sort order for dot-plot (defaults to desc)'),
+  sort: z
+    .enum(['asc', 'desc', 'none'])
+    .optional()
+    .catch(undefined)
+    .describe('Row sort order for dot-plot (defaults to desc)'),
   fill: z.boolean().optional().catch(undefined).describe('Sparkline: draw a light area fill under the line'),
-  showEndDot: z.boolean().optional().catch(undefined).describe('Sparkline: draw a dot at the last point (default true)'),
+  showEndDot: z
+    .boolean()
+    .optional()
+    .catch(undefined)
+    .describe('Sparkline: draw a dot at the last point (default true)'),
   showMinMax: z.boolean().optional().catch(undefined).describe('Sparkline: mark the min and max points'),
   showValue: z.boolean().optional().catch(undefined).describe('Sparkline: print the last value inline'),
-  colorByDirection: z.boolean().optional().catch(undefined).describe('Slopegraph: accent rising lines and mute falling ones (default off)'),
+  colorByDirection: z
+    .boolean()
+    .optional()
+    .catch(undefined)
+    .describe('Slopegraph: accent rising lines and mute falling ones (default off)'),
   height: z.number().optional().catch(undefined).describe('Optional graph content height'),
 };
 
 const specValidateSchema = z.looseObject(specValidateShape);
 
-const specValidateOperation = defineOperation<
-  z.infer<typeof specValidateSchema>,
-  Record<string, unknown>
->({
+const specValidateOperation = defineOperation<z.infer<typeof specValidateSchema>, Record<string, unknown>>({
   name: 'spec.validate',
   mutates: false,
   input: specValidateSchema,
@@ -541,13 +681,17 @@ const specValidateOperation = defineOperation<
   },
   mcp: {
     toolName: 'canvas_validate_spec',
-    description: 'Validate a json-render spec, graph payload, or HTML primitive payload without creating a node. Returns normalized metadata the server would accept.',
+    description:
+      'Validate a json-render spec, graph payload, or HTML primitive payload without creating a node. Returns normalized metadata the server would accept.',
     extraShape: {
       type: z.enum(['json-render', 'graph', 'html-primitive']).describe('Structured payload type to validate'),
       spec: jsonRenderSpecSchema.optional().describe('json-render spec to validate when type="json-render"'),
       kind: htmlPrimitiveKindSchema.optional().describe('HTML primitive kind when type="html-primitive"'),
       primitive: htmlPrimitiveKindSchema.optional().describe('Alias for kind when type="html-primitive"'),
-      primitiveData: z.record(z.string(), z.unknown()).optional().describe('HTML primitive data payload when type="html-primitive"'),
+      primitiveData: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe('HTML primitive data payload when type="html-primitive"'),
       data: z.array(z.record(z.string(), z.unknown())).optional().describe('Graph dataset when type="graph"'),
     },
     buildInput: (input) => {
@@ -566,7 +710,9 @@ const specValidateOperation = defineOperation<
       if (body.ok === false) {
         // Legacy MCP surfaced the bare validation message with isError.
         return {
-          content: [{ type: 'text' as const, text: typeof body.error === 'string' ? body.error : 'Validation failed.' }],
+          content: [
+            { type: 'text' as const, text: typeof body.error === 'string' ? body.error : 'Validation failed.' },
+          ],
           isError: true,
         };
       }
@@ -582,10 +728,7 @@ const specValidateOperation = defineOperation<
 
     try {
       if (rawType === 'json-render') {
-        const rawSpec =
-          body.spec && typeof body.spec === 'object' && !Array.isArray(body.spec)
-            ? body.spec
-            : body;
+        const rawSpec = body.spec && typeof body.spec === 'object' && !Array.isArray(body.spec) ? body.spec : body;
         return validateStructuredCanvasPayload({
           type: 'json-render',
           spec: rawSpec,
@@ -593,11 +736,8 @@ const specValidateOperation = defineOperation<
       }
 
       if (rawType === 'html-primitive') {
-        const kind = typeof body.kind === 'string'
-          ? body.kind
-          : typeof body.primitive === 'string'
-            ? body.primitive
-            : '';
+        const kind =
+          typeof body.kind === 'string' ? body.kind : typeof body.primitive === 'string' ? body.primitive : '';
         const data = isRecord(body.data) ? body.data : {};
         return validateStructuredCanvasPayload({
           type: 'html-primitive',
@@ -615,30 +755,31 @@ const specValidateOperation = defineOperation<
       }
 
       const aggregate =
-        body.aggregate === 'sum' || body.aggregate === 'count' || body.aggregate === 'avg'
-          ? body.aggregate
-          : undefined;
+        body.aggregate === 'sum' || body.aggregate === 'count' || body.aggregate === 'avg' ? body.aggregate : undefined;
       const colorBy =
         body.colorBy === 'series' || body.colorBy === 'category' || body.colorBy === 'value' || body.colorBy === 'none'
           ? body.colorBy
           : undefined;
       const highlight =
-        typeof body.highlight === 'number' || body.highlight === 'max' || body.highlight === 'min' || body.highlight === null
+        typeof body.highlight === 'number' ||
+        body.highlight === 'max' ||
+        body.highlight === 'min' ||
+        body.highlight === null
           ? body.highlight
           : undefined;
-      const sort =
-        body.sort === 'asc' || body.sort === 'desc' || body.sort === 'none' ? body.sort : undefined;
+      const sort = body.sort === 'asc' || body.sort === 'desc' || body.sort === 'none' ? body.sort : undefined;
 
       return validateStructuredCanvasPayload({
         type: 'graph',
         graph: {
           title: typeof body.title === 'string' && body.title.trim() ? body.title.trim() : 'Graph',
           // `typeName` is the legacy HTTP-only graphType alias on this route.
-          graphType: typeof body.graphType === 'string'
-            ? body.graphType
-            : typeof body.typeName === 'string'
-              ? body.typeName
-              : 'line',
+          graphType:
+            typeof body.graphType === 'string'
+              ? body.graphType
+              : typeof body.typeName === 'string'
+                ? body.typeName
+                : 'line',
           data,
           ...(typeof body.xKey === 'string' ? { xKey: body.xKey } : {}),
           ...(typeof body.yKey === 'string' ? { yKey: body.yKey } : {}),

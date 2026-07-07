@@ -15,16 +15,11 @@ import type { PmxAxSource } from '../../ax-state.js';
 export const AX_SOURCES = ['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'] as const;
 
 /** Zod schema for the optional `source` field shared by AX MCP tool shapes. */
-export const AX_SOURCE_SHAPE = z
-  .enum(AX_SOURCES)
-  .optional()
-  .describe('Optional host/source label. Defaults to mcp.');
+export const AX_SOURCE_SHAPE = z.enum(AX_SOURCES).optional().describe('Optional host/source label. Defaults to mcp.');
 
 /** An absent or unrecognized source falls back to the per-surface default. */
 export function normalizeAxSource(value: unknown, fallback: PmxAxSource): PmxAxSource {
-  return (AX_SOURCES as readonly string[]).includes(value as string)
-    ? (value as PmxAxSource)
-    : fallback;
+  return (AX_SOURCES as readonly string[]).includes(value as string) ? (value as PmxAxSource) : fallback;
 }
 
 export function normalizeAxNodeIds(value: unknown): string[] {

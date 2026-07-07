@@ -1,14 +1,9 @@
 import { useCallback } from 'preact/hooks';
-import {
-  addContextPins,
-  clearSelection,
-  selectedNodeIds,
-} from '../state/canvas-store';
+import { addContextPins, clearSelection, selectedNodeIds } from '../state/canvas-store';
 import { createEdgeFromClient, createGroupFromClient } from '../state/intent-bridge';
 
 export function SelectionBar() {
   const count = selectedNodeIds.value.size;
-  if (count === 0) return null;
 
   const handlePinContext = useCallback(() => {
     const ids = Array.from(selectedNodeIds.value);
@@ -34,16 +29,14 @@ export function SelectionBar() {
     clearSelection();
   }, []);
 
+  if (count === 0) return null;
+
   return (
     <div class="selection-bar">
       <span class="selection-bar-count">
         {'\u2726'} {count} node{count !== 1 ? 's' : ''} selected
       </span>
-      <button
-        type="button"
-        class="selection-bar-btn selection-bar-pin-ctx"
-        onClick={handlePinContext}
-      >
+      <button type="button" class="selection-bar-btn selection-bar-pin-ctx" onClick={handlePinContext}>
         Pin as context
       </button>
       {count >= 2 && (

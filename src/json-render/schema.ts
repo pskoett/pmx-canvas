@@ -34,11 +34,13 @@ export const schema = defineSchema(
     builtInActions: [
       {
         name: 'setState',
-        description: 'Update a value in the state model at the given statePath. Params: { statePath: string, value: any }',
+        description:
+          'Update a value in the state model at the given statePath. Params: { statePath: string, value: any }',
       },
       {
         name: 'pushState',
-        description: 'Append an item to an array in state. Params: { statePath: string, value: any, clearStatePath?: string }. Value can contain {"$state":"/path"} refs and "$id" for auto IDs.',
+        description:
+          'Append an item to an array in state. Params: { statePath: string, value: any, clearStatePath?: string }. Value can contain {"$state":"/path"} refs and "$id" for auto IDs.',
       },
       {
         name: 'removeState',
@@ -46,7 +48,8 @@ export const schema = defineSchema(
       },
       {
         name: 'validateForm',
-        description: 'Validate all registered form fields and write the result to state. Params: { statePath?: string }. Defaults to /formValidation. Result: { valid: boolean, errors: Record<string, string[]> }.',
+        description:
+          'Validate all registered form fields and write the result to state. Params: { statePath?: string }. Defaults to /formValidation. Result: { valid: boolean, errors: Record<string, string[]> }.',
       },
     ],
     defaultRules: [

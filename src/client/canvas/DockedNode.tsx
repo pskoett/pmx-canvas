@@ -59,7 +59,9 @@ function ContextDockedNode({ node }: { node: CanvasNodeState }) {
                 e.stopPropagation();
                 expand();
               }}
-              title={hasItems ? `${count} item${count === 1 ? '' : 's'} in agent context — expand` : 'Expand agent context'}
+              title={
+                hasItems ? `${count} item${count === 1 ? '' : 's'} in agent context — expand` : 'Expand agent context'
+              }
               aria-label={hasItems ? `Context — ${count} item${count === 1 ? '' : 's'}` : 'Expand agent context'}
             >
               {'▸'}
@@ -157,9 +159,7 @@ export function DockedNode({ node }: { node: CanvasNodeState }) {
           </button>
         </div>
       </div>
-      {!node.collapsed && (
-        <div class="docked-node-body">{renderDockedContent(node)}</div>
-      )}
+      {!node.collapsed && <div class="docked-node-body">{renderDockedContent(node)}</div>}
     </div>
   );
 }

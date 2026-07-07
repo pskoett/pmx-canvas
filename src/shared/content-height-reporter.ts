@@ -21,12 +21,14 @@ export function sanitizeFrameToken(token: string): string {
 /** Inline JS (no `<script>` wrapper) that reports content height to the parent. */
 export function contentHeightReporterSource(frameToken: string): string {
   const token = JSON.stringify(sanitizeFrameToken(frameToken));
-  return `(function(){var T=${token};var last=0,timer=null;`
-    + `function m(){var d=document.documentElement;return Math.max(d?d.scrollHeight:0,document.body?document.body.scrollHeight:0);}`
-    + `function r(){var h=m();if(Math.abs(h-last)<=4)return;last=h;window.parent.postMessage({source:'pmx-canvas-frame',type:'content-height',token:T,height:h},'*');}`
-    + `function s(){if(timer)return;timer=setTimeout(function(){timer=null;r();},100);}`
-    + `if(document.readyState!=='loading')s();window.addEventListener('load',s);`
-    + `try{new ResizeObserver(s).observe(document.documentElement);}catch(e){}setTimeout(s,60);})();`;
+  return (
+    `(function(){var T=${token};var last=0,timer=null;` +
+    `function m(){var d=document.documentElement;return Math.max(d?d.scrollHeight:0,document.body?document.body.scrollHeight:0);}` +
+    `function r(){var h=m();if(Math.abs(h-last)<=4)return;last=h;window.parent.postMessage({source:'pmx-canvas-frame',type:'content-height',token:T,height:h},'*');}` +
+    `function s(){if(timer)return;timer=setTimeout(function(){timer=null;r();},100);}` +
+    `if(document.readyState!=='loading')s();window.addEventListener('load',s);` +
+    `try{new ResizeObserver(s).observe(document.documentElement);}catch(e){}setTimeout(s,60);})();`
+  );
 }
 
 /** `<script>`-wrapped reporter for injection into an HTML `<head>` / document. */

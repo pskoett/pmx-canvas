@@ -2,12 +2,7 @@ function logRequestError(action: string, error: unknown): void {
   console.error(`[intent-bridge] ${action} failed`, error);
 }
 
-async function requestJson<T>(
-  action: string,
-  url: string,
-  fallback: T,
-  init?: RequestInit,
-): Promise<T> {
+async function requestJson<T>(action: string, url: string, fallback: T, init?: RequestInit): Promise<T> {
   try {
     const res = await fetch(url, init);
     return (await res.json()) as T;
@@ -17,11 +12,7 @@ async function requestJson<T>(
   }
 }
 
-async function requestOk(
-  action: string,
-  url: string,
-  init?: RequestInit,
-): Promise<{ ok: boolean }> {
+async function requestOk(action: string, url: string, init?: RequestInit): Promise<{ ok: boolean }> {
   try {
     const res = await fetch(url, init);
     return { ok: res.ok };
@@ -31,11 +22,7 @@ async function requestOk(
   }
 }
 
-async function requestBestEffort(
-  action: string,
-  url: string,
-  init?: RequestInit,
-): Promise<void> {
+async function requestBestEffort(action: string, url: string, init?: RequestInit): Promise<void> {
   try {
     await fetch(url, init);
   } catch (error) {
@@ -44,15 +31,17 @@ async function requestBestEffort(
 }
 
 /** Dispatch user intents from the canvas to the server (for TUI consumption). */
-export async function sendIntent(
-  type: string,
-  payload: Record<string, unknown> = {},
-): Promise<{ ok: boolean }> {
-  return requestJson('sendIntent', '/api/workbench/intent', { ok: false }, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type, payload }),
-  });
+export async function sendIntent(type: string, payload: Record<string, unknown> = {}): Promise<{ ok: boolean }> {
+  return requestJson(
+    'sendIntent',
+    '/api/workbench/intent',
+    { ok: false },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type, payload }),
+    },
+  );
 }
 
 /**
@@ -88,11 +77,16 @@ export async function vetoGhostIntent(intent: {
 
 /** Fetch rendered markdown HTML from the server. */
 export async function renderMarkdown(markdown: string): Promise<string> {
-  const data = await requestJson<{ html?: string }>('renderMarkdown', '/api/render', {}, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ markdown }),
-  });
+  const data = await requestJson<{ html?: string }>(
+    'renderMarkdown',
+    '/api/render',
+    {},
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ markdown }),
+    },
+  );
   return data.html ?? '';
 }
 
@@ -105,15 +99,17 @@ export async function fetchFile(path: string): Promise<{
 }
 
 /** Save file content to the server. */
-export async function saveFile(
-  path: string,
-  content: string,
-): Promise<{ ok: boolean; updatedAt?: string }> {
-  return requestJson('saveFile', '/api/file/save', { ok: false }, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ path, content }),
-  });
+export async function saveFile(path: string, content: string): Promise<{ ok: boolean; updatedAt?: string }> {
+  return requestJson(
+    'saveFile',
+    '/api/file/save',
+    { ok: false },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path, content }),
+    },
+  );
 }
 
 /** Fetch current workbench state. */
@@ -136,11 +132,16 @@ export async function fetchCanvasState(): Promise<Record<string, unknown>> {
 }
 
 export async function saveCanvasTheme(theme: string): Promise<{ ok: boolean; theme?: string }> {
-  return requestJson('saveCanvasTheme', '/api/canvas/theme', { ok: false }, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ theme }),
-  });
+  return requestJson(
+    'saveCanvasTheme',
+    '/api/canvas/theme',
+    { ok: false },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ theme }),
+    },
+  );
 }
 
 /** Fetch available slash commands for prompt completion. */
@@ -157,17 +158,22 @@ export async function submitCanvasPrompt(
   threadNodeId?: string,
 ): Promise<{ ok: boolean; nodeId?: string; error?: string }> {
   if (!text.trim()) return { ok: false, error: 'Prompt text is required' };
-  return requestJson('submitCanvasPrompt', '/api/canvas/prompt', { ok: false, error: 'Network error' }, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      text,
-      ...(position ? { position } : {}),
-      ...(parentNodeId ? { parentNodeId } : {}),
-      ...(contextNodeIds && contextNodeIds.length > 0 ? { contextNodeIds } : {}),
-      ...(threadNodeId ? { threadNodeId } : {}),
-    }),
-  });
+  return requestJson(
+    'submitCanvasPrompt',
+    '/api/canvas/prompt',
+    { ok: false, error: 'Network error' },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        text,
+        ...(position ? { position } : {}),
+        ...(parentNodeId ? { parentNodeId } : {}),
+        ...(contextNodeIds && contextNodeIds.length > 0 ? { contextNodeIds } : {}),
+        ...(threadNodeId ? { threadNodeId } : {}),
+      }),
+    },
+  );
 }
 
 /** Submit a reply into an existing prompt thread. */
@@ -203,11 +209,16 @@ export async function createEdgeFromClient(
   type: string,
   label?: string,
 ): Promise<{ ok: boolean; id?: string }> {
-  return requestJson('createEdgeFromClient', '/api/canvas/edge', { ok: false }, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from, to, type, label }),
-  });
+  return requestJson(
+    'createEdgeFromClient',
+    '/api/canvas/edge',
+    { ok: false },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from, to, type, label }),
+    },
+  );
 }
 
 /** Create a canvas node via the server. Returns the new node ID. */
@@ -220,11 +231,16 @@ export async function createNodeFromClient(opts: {
   width?: number;
   height?: number;
 }): Promise<{ ok: boolean; id?: string }> {
-  return requestJson('createNodeFromClient', '/api/canvas/node', { ok: false }, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(opts),
-  });
+  return requestJson(
+    'createNodeFromClient',
+    '/api/canvas/node',
+    { ok: false },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opts),
+    },
+  );
 }
 
 /** Update a canvas node via the server. */
@@ -241,11 +257,16 @@ export async function updateNodeFromClient(
     data?: Record<string, unknown>;
   },
 ): Promise<{ ok: boolean; id?: string }> {
-  return requestJson('updateNodeFromClient', `/api/canvas/node/${encodeURIComponent(id)}`, { ok: false }, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  });
+  return requestJson(
+    'updateNodeFromClient',
+    `/api/canvas/node/${encodeURIComponent(id)}`,
+    { ok: false },
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    },
+  );
 }
 
 /** Refresh a webpage node from its persisted URL on the server. */
@@ -253,18 +274,28 @@ export async function refreshWebpageNodeFromClient(
   id: string,
   url?: string,
 ): Promise<{ ok: boolean; id?: string; error?: string }> {
-  return requestJson('refreshWebpageNodeFromClient', `/api/canvas/node/${encodeURIComponent(id)}/refresh`, { ok: false }, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(url ? { url } : {}),
-  });
+  return requestJson(
+    'refreshWebpageNodeFromClient',
+    `/api/canvas/node/${encodeURIComponent(id)}/refresh`,
+    { ok: false },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(url ? { url } : {}),
+    },
+  );
 }
 
 /** Remove a canvas node via the server. */
 export async function removeNodeFromClient(id: string): Promise<{ ok: boolean; removed?: string }> {
-  return requestJson('removeNodeFromClient', `/api/canvas/node/${encodeURIComponent(id)}`, { ok: false }, {
-    method: 'DELETE',
-  });
+  return requestJson(
+    'removeNodeFromClient',
+    `/api/canvas/node/${encodeURIComponent(id)}`,
+    { ok: false },
+    {
+      method: 'DELETE',
+    },
+  );
 }
 
 // ── PMX-AX node interactions ──────────────────────────────────
@@ -292,7 +323,10 @@ export async function fetchAxSurfaceState(): Promise<unknown> {
 }
 
 /** Ask the server to open a node's surface in the system browser. */
-export async function openNodeInSystemBrowserRequest(nodeId: string, url?: string): Promise<{ ok: boolean; opened: boolean }> {
+export async function openNodeInSystemBrowserRequest(
+  nodeId: string,
+  url?: string,
+): Promise<{ ok: boolean; opened: boolean }> {
   return requestJson<{ ok: boolean; opened: boolean }>(
     'openNodeInSystemBrowserRequest',
     '/api/canvas/open-external',
@@ -324,14 +358,19 @@ export async function updateViewportFromClient(
   viewport: { x: number; y: number; scale: number },
   options: { recordHistory?: boolean } = {},
 ): Promise<{ ok: boolean }> {
-  return requestJson('updateViewportFromClient', '/api/canvas/viewport', { ok: false }, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      ...viewport,
-      ...(options.recordHistory === false ? { recordHistory: false } : {}),
-    }),
-  });
+  return requestJson(
+    'updateViewportFromClient',
+    '/api/canvas/viewport',
+    { ok: false },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        ...viewport,
+        ...(options.recordHistory === false ? { recordHistory: false } : {}),
+      }),
+    },
+  );
 }
 
 // ── Group API ─────────────────────────────────────────────────
@@ -346,29 +385,44 @@ export async function createGroupFromClient(opts: {
   width?: number;
   height?: number;
 }): Promise<{ ok: boolean; id?: string }> {
-  return requestJson('createGroupFromClient', '/api/canvas/group', { ok: false }, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(opts),
-  });
+  return requestJson(
+    'createGroupFromClient',
+    '/api/canvas/group',
+    { ok: false },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(opts),
+    },
+  );
 }
 
 /** Add nodes to an existing group. */
 export async function addToGroupFromClient(groupId: string, childIds: string[]): Promise<{ ok: boolean }> {
-  return requestJson('addToGroupFromClient', '/api/canvas/group/add', { ok: false }, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ groupId, childIds }),
-  });
+  return requestJson(
+    'addToGroupFromClient',
+    '/api/canvas/group/add',
+    { ok: false },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId, childIds }),
+    },
+  );
 }
 
 /** Ungroup all children from a group. */
 export async function ungroupFromClient(groupId: string): Promise<{ ok: boolean }> {
-  return requestJson('ungroupFromClient', '/api/canvas/group/ungroup', { ok: false }, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ groupId }),
-  });
+  return requestJson(
+    'ungroupFromClient',
+    '/api/canvas/group/ungroup',
+    { ok: false },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId }),
+    },
+  );
 }
 
 // ── Snapshot API ──────────────────────────────────────────────
@@ -386,11 +440,16 @@ export async function listSnapshots(): Promise<CanvasSnapshotInfo[]> {
 }
 
 export async function saveSnapshot(name: string): Promise<{ ok: boolean; snapshot?: CanvasSnapshotInfo }> {
-  return requestJson('saveSnapshot', '/api/canvas/snapshots', { ok: false }, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name }),
-  });
+  return requestJson(
+    'saveSnapshot',
+    '/api/canvas/snapshots',
+    { ok: false },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name }),
+    },
+  );
 }
 
 export async function restoreSnapshot(id: string): Promise<{ ok: boolean }> {
@@ -403,9 +462,14 @@ export async function deleteSnapshot(id: string): Promise<{ ok: boolean }> {
 
 /** Remove a canvas edge via the server. */
 export async function removeEdgeFromClient(edgeId: string): Promise<{ ok: boolean }> {
-  return requestJson('removeEdgeFromClient', '/api/canvas/edge', { ok: false }, {
-    method: 'DELETE',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ edge_id: edgeId }),
-  });
+  return requestJson(
+    'removeEdgeFromClient',
+    '/api/canvas/edge',
+    { ok: false },
+    {
+      method: 'DELETE',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ edge_id: edgeId }),
+    },
+  );
 }

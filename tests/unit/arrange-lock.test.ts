@@ -14,19 +14,23 @@ describe('arrange exclusions', () => {
   });
 
   test('skips pinned nodes during arrange', () => {
-    canvasState.addNode(makeNode({
-      id: 'locked-node',
-      type: 'markdown',
-      position: { x: 900, y: 700 },
-      pinned: true,
-      data: { title: 'Pinned' },
-    }));
-    canvasState.addNode(makeNode({
-      id: 'movable-node',
-      type: 'markdown',
-      position: { x: 500, y: 500 },
-      data: { title: 'Movable' },
-    }));
+    canvasState.addNode(
+      makeNode({
+        id: 'locked-node',
+        type: 'markdown',
+        position: { x: 900, y: 700 },
+        pinned: true,
+        data: { title: 'Pinned' },
+      }),
+    );
+    canvasState.addNode(
+      makeNode({
+        id: 'movable-node',
+        type: 'markdown',
+        position: { x: 500, y: 500 },
+        data: { title: 'Movable' },
+      }),
+    );
 
     const result = arrangeCanvasNodes('column');
 

@@ -36,9 +36,7 @@ describe('web artifact builders', () => {
     process.chdir(workspaceRoot);
     try {
       expect(realpathSync(resolveWebArtifactScriptPath('init'))).toBe(realpathSync(initScriptPath));
-      expect(realpathSync(resolveWebArtifactScriptPath('bundle'))).toBe(
-        realpathSync(bundleScriptPath),
-      );
+      expect(realpathSync(resolveWebArtifactScriptPath('bundle'))).toBe(realpathSync(bundleScriptPath));
     } finally {
       process.chdir(originalCwd);
     }
@@ -49,10 +47,14 @@ describe('web artifact builders', () => {
     process.chdir(workspaceRoot);
     try {
       expect(realpathSync(resolveWebArtifactScriptPath('init'))).toBe(
-        realpathSync(join(import.meta.dir, '..', '..', 'src', 'server', 'web-artifacts', 'scripts', 'init-artifact.sh')),
+        realpathSync(
+          join(import.meta.dir, '..', '..', 'src', 'server', 'web-artifacts', 'scripts', 'init-artifact.sh'),
+        ),
       );
       expect(realpathSync(resolveWebArtifactScriptPath('bundle'))).toBe(
-        realpathSync(join(import.meta.dir, '..', '..', 'src', 'server', 'web-artifacts', 'scripts', 'bundle-artifact.sh')),
+        realpathSync(
+          join(import.meta.dir, '..', '..', 'src', 'server', 'web-artifacts', 'scripts', 'bundle-artifact.sh'),
+        ),
       );
     } finally {
       process.chdir(originalCwd);
@@ -80,16 +82,14 @@ describe('web artifact builders', () => {
 
       expect(existsSync(result.projectPath)).toBe(true);
       expect(existsSync(result.filePath)).toBe(true);
-      expect(readFileSync(join(result.projectPath, 'src', 'App.tsx'), 'utf-8')).toContain(
-        'Opportunity Tree',
-      );
-      expect(
-        readFileSync(join(result.projectPath, 'src', 'components', 'Card.tsx'), 'utf-8'),
-      ).toContain('Card');
+      expect(readFileSync(join(result.projectPath, 'src', 'App.tsx'), 'utf-8')).toContain('Opportunity Tree');
+      expect(readFileSync(join(result.projectPath, 'src', 'components', 'Card.tsx'), 'utf-8')).toContain('Card');
       expect(readFileSync(result.filePath, 'utf-8')).toContain('Opportunity Tree');
       expect(result.fileSize).toBeGreaterThan(0);
       expect(result.sourceContext.content).toContain('Web artifact: Opportunity Tree');
-      expect(result.sourceContext.content).toContain('Source files: src/App.tsx, src/index.css, src/components/Card.tsx');
+      expect(result.sourceContext.content).toContain(
+        'Source files: src/App.tsx, src/index.css, src/components/Card.tsx',
+      );
       expect(result.sourceContext.content).toContain('App source preview:');
       expect(result.sourceContext.content).toContain('Opportunity Tree');
       expect(result.sourceContext.content).not.toContain('<!DOCTYPE html>');
@@ -105,7 +105,9 @@ describe('web artifact builders', () => {
   test('removes literal macOS sed backup artifacts from initialized projects', async () => {
     const initScriptPath = join(workspaceRoot, 'init-with-sed-backup.sh');
     const bundleScriptPath = join(workspaceRoot, 'bundle-sed-backup.sh');
-    writeFileSync(initScriptPath, `#!/bin/bash
+    writeFileSync(
+      initScriptPath,
+      `#!/bin/bash
 set -e
 PROJECT_NAME="$1"
 mkdir -p "$PROJECT_NAME/src"
@@ -121,11 +123,17 @@ EOF
 cat > "$PROJECT_NAME/src/App.tsx" <<'EOF'
 export default function App() { return null; }
 EOF
-`, 'utf-8');
-    writeFileSync(bundleScriptPath, `#!/bin/bash
+`,
+      'utf-8',
+    );
+    writeFileSync(
+      bundleScriptPath,
+      `#!/bin/bash
 set -e
 echo '<!DOCTYPE html><html><body>sed backup</body></html>' > bundle.html
-`, 'utf-8');
+`,
+      'utf-8',
+    );
     chmodSync(initScriptPath, 0o755);
     chmodSync(bundleScriptPath, 0o755);
 
@@ -151,7 +159,9 @@ echo '<!DOCTYPE html><html><body>sed backup</body></html>' > bundle.html
   test('fails instead of emitting a zero-byte artifact', async () => {
     const initScriptPath = join(workspaceRoot, 'init-empty.sh');
     const bundleScriptPath = join(workspaceRoot, 'bundle-empty.sh');
-    writeFileSync(initScriptPath, `#!/bin/bash
+    writeFileSync(
+      initScriptPath,
+      `#!/bin/bash
 set -e
 PROJECT_NAME="$1"
 mkdir -p "$PROJECT_NAME/src"
@@ -161,25 +171,33 @@ EOF
 cat > "$PROJECT_NAME/index.html" <<'EOF'
 <!DOCTYPE html><html><body><div id="root"></div></body></html>
 EOF
-`, 'utf-8');
-    writeFileSync(bundleScriptPath, `#!/bin/bash
+`,
+      'utf-8',
+    );
+    writeFileSync(
+      bundleScriptPath,
+      `#!/bin/bash
 set -e
 : > bundle.html
-`, 'utf-8');
+`,
+      'utf-8',
+    );
     chmodSync(initScriptPath, 0o755);
     chmodSync(bundleScriptPath, 0o755);
 
     const originalCwd = process.cwd();
     process.chdir(workspaceRoot);
     try {
-      await expect(executeWebArtifactBuild({
-        title: 'Empty Artifact',
-        appTsx: 'export default function App() { return null; }',
-        projectPath: join(workspaceRoot, 'artifacts', '.web-artifacts', 'empty-artifact'),
-        outputPath: join(workspaceRoot, 'artifacts', 'empty-artifact.html'),
-        initScriptPath,
-        bundleScriptPath,
-      })).rejects.toThrow(/empty/);
+      await expect(
+        executeWebArtifactBuild({
+          title: 'Empty Artifact',
+          appTsx: 'export default function App() { return null; }',
+          projectPath: join(workspaceRoot, 'artifacts', '.web-artifacts', 'empty-artifact'),
+          outputPath: join(workspaceRoot, 'artifacts', 'empty-artifact.html'),
+          initScriptPath,
+          bundleScriptPath,
+        }),
+      ).rejects.toThrow(/empty/);
       expect(canvasState.getLayout().nodes).toHaveLength(0);
     } finally {
       process.chdir(originalCwd);
@@ -218,15 +236,17 @@ set -e
     const originalCwd = process.cwd();
     process.chdir(workspaceRoot);
     try {
-      await expect(executeWebArtifactBuild({
-        title: 'Bad Deps Artifact',
-        appTsx: 'export default function App() { return <main>Bad Deps</main>; }',
-        deps: ['--global'],
-        projectPath: join(workspaceRoot, 'artifacts', '.web-artifacts', 'bad-deps-artifact'),
-        outputPath: join(workspaceRoot, 'artifacts', 'bad-deps-artifact.html'),
-        initScriptPath,
-        bundleScriptPath,
-      })).rejects.toThrow(/Invalid web-artifact dependency name/);
+      await expect(
+        executeWebArtifactBuild({
+          title: 'Bad Deps Artifact',
+          appTsx: 'export default function App() { return <main>Bad Deps</main>; }',
+          deps: ['--global'],
+          projectPath: join(workspaceRoot, 'artifacts', '.web-artifacts', 'bad-deps-artifact'),
+          outputPath: join(workspaceRoot, 'artifacts', 'bad-deps-artifact.html'),
+          initScriptPath,
+          bundleScriptPath,
+        }),
+      ).rejects.toThrow(/Invalid web-artifact dependency name/);
     } finally {
       process.chdir(originalCwd);
     }
@@ -305,7 +325,9 @@ set -e
   test('log summaries suppress known build noise while keeping actionable lines', async () => {
     const initScriptPath = join(workspaceRoot, 'emit-noisy-init.sh');
     const bundleScriptPath = join(workspaceRoot, 'emit-noisy-bundle.sh');
-    writeFileSync(initScriptPath, `#!/bin/bash
+    writeFileSync(
+      initScriptPath,
+      `#!/bin/bash
 set -e
 PROJECT_NAME="$1"
 mkdir -p "$PROJECT_NAME/src"
@@ -321,13 +343,19 @@ EOF
 cat > "$PROJECT_NAME/src/App.tsx" <<'EOF'
 export default function App() { return null; }
 EOF
-`, 'utf-8');
-    writeFileSync(bundleScriptPath, `#!/bin/bash
+`,
+      'utf-8',
+    );
+    writeFileSync(
+      bundleScriptPath,
+      `#!/bin/bash
 set -e
 echo 'Opening \`/dev/tty\` failed (6): Device not configured' 1>&2
 echo 'useful warning line' 1>&2
 echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
-`, 'utf-8');
+`,
+      'utf-8',
+    );
     chmodSync(initScriptPath, 0o755);
     chmodSync(bundleScriptPath, 0o755);
 

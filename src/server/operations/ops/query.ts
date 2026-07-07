@@ -19,10 +19,7 @@
  */
 import { z } from 'zod';
 import { canvasState } from '../../canvas-state.js';
-import {
-  setCanvasContextPins,
-  syncCanvasRuntimeBackends,
-} from '../../canvas-operations.js';
+import { setCanvasContextPins, syncCanvasRuntimeBackends } from '../../canvas-operations.js';
 import { buildCanvasSummary } from '../../canvas-serialization.js';
 import { mutationHistory } from '../../mutation-history.js';
 import { buildSpatialContext, searchNodes } from '../../spatial-analysis.js';
@@ -36,7 +33,10 @@ const MAX_PINS = 20;
 
 const pinShape = {
   nodeIds: z.unknown().optional().describe('Array of node IDs to pin'),
-  mode: z.unknown().optional().describe('set: replace all pins, add: add to existing pins, remove: unpin these nodes (default: set)'),
+  mode: z
+    .unknown()
+    .optional()
+    .describe('set: replace all pins, add: add to existing pins, remove: unpin these nodes (default: set)'),
 };
 
 const pinSchema = z.looseObject(pinShape);
@@ -52,20 +52,25 @@ const pinOperation = defineOperation<z.infer<typeof pinSchema>, Record<string, u
   },
   mcp: {
     toolName: 'canvas_pin_nodes',
-    description: 'Pin nodes to include them in the agent context. Pinned nodes appear in the canvas://pinned-context resource. The human can also pin nodes by clicking in the browser.',
+    description:
+      'Pin nodes to include them in the agent context. Pinned nodes appear in the canvas://pinned-context resource. The human can also pin nodes by clicking in the browser.',
     extraShape: {
       nodeIds: z.array(z.string()).describe('Array of node IDs to pin'),
-      mode: z.enum(['set', 'add', 'remove']).optional()
+      mode: z
+        .enum(['set', 'add', 'remove'])
+        .optional()
         .describe('set: replace all pins, add: add to existing pins, remove: unpin these nodes (default: set)'),
     },
     // The wire body is { ok, count } (legacy HTTP shape); the tool reports the
     // resulting pin list, so re-read it from the host. (Legacy RemoteCanvasAccess
     // computed the list client-side; the server state is authoritative now.)
     formatResult: async (_result, _input, host) => ({
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({ ok: true, pinnedNodeIds: await host.getPinnedNodeIds() }),
-      }],
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({ ok: true, pinnedNodeIds: await host.getPinnedNodeIds() }),
+        },
+      ],
     }),
   },
   handler: (input, ctx) => {
@@ -103,7 +108,8 @@ const searchOperation = defineOperation<z.infer<typeof searchSchema>, Record<str
   },
   mcp: {
     toolName: 'canvas_search',
-    description: 'Search for nodes by title or content keywords. Returns matching nodes ranked by relevance with snippets. Much faster than reading the full layout when you need to find specific nodes.',
+    description:
+      'Search for nodes by title or content keywords. Returns matching nodes ranked by relevance with snippets. Much faster than reading the full layout when you need to find specific nodes.',
     extraShape: {
       query: z.string().describe('Search query — matches against node titles, content, and file paths'),
       limit: z.number().optional().describe('Max results to return (default: 10)'),
@@ -119,14 +125,20 @@ const searchOperation = defineOperation<z.infer<typeof searchSchema>, Record<str
       const results = Array.isArray(body.results) ? body.results : [];
       const limit = typeof input.limit === 'number' ? input.limit : 10;
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            query: input.query,
-            resultCount: results.length,
-            results: results.slice(0, limit),
-          }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                query: input.query,
+                resultCount: results.length,
+                results: results.slice(0, limit),
+              },
+              null,
+              2,
+            ),
+          },
+        ],
       };
     },
   },
@@ -136,9 +148,12 @@ const searchOperation = defineOperation<z.infer<typeof searchSchema>, Record<str
       return { results: [], query: q };
     }
     const rawLimit = input.limit;
-    const limit = typeof rawLimit === 'number'
-      ? rawLimit
-      : typeof rawLimit === 'string' && rawLimit.trim() !== '' ? Number(rawLimit) : Number.NaN;
+    const limit =
+      typeof rawLimit === 'number'
+        ? rawLimit
+        : typeof rawLimit === 'string' && rawLimit.trim() !== ''
+          ? Number(rawLimit)
+          : Number.NaN;
     const results = searchNodes(canvasState.getLayout().nodes, q);
     return {
       results: Number.isFinite(limit) && limit > 0 ? results.slice(0, Math.floor(limit)) : results,
@@ -178,10 +193,12 @@ async function formatUndoRedoResult(result: unknown, host: OperationMcpToolHost)
   const historyBody = isRecord(history) ? history : {};
   const body = isRecord(result) ? result : {};
   return {
-    content: [{
-      type: 'text' as const,
-      text: JSON.stringify({ ...body, canUndo: historyBody.canUndo, canRedo: historyBody.canRedo }),
-    }],
+    content: [
+      {
+        type: 'text' as const,
+        text: JSON.stringify({ ...body, canUndo: historyBody.canUndo, canRedo: historyBody.canRedo }),
+      },
+    ],
   };
 }
 
@@ -200,7 +217,8 @@ const undoOperation = defineOperation<z.infer<typeof undoRedoSchema>, Record<str
   },
   mcp: {
     toolName: 'canvas_undo',
-    description: 'Undo the last canvas mutation. Returns a description of what was undone. Use this to backtrack when an approach is wrong — explore without fear.',
+    description:
+      'Undo the last canvas mutation. Returns a description of what was undone. Use this to backtrack when an approach is wrong — explore without fear.',
     formatResult: (result, _input, host) => formatUndoRedoResult(result, host),
   },
   handler: async (_input, ctx) => {

@@ -1,17 +1,10 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
-import {
-  createTestWorkspace,
-  makeNode,
-  removeTestWorkspace,
-  resetCanvasForTests,
-} from './helpers.ts';
+import { createTestWorkspace, makeNode, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 function orphanNotes() {
-  return canvasState
-    .getAxEvents()
-    .filter((e) => e.kind === 'note' && e.data?.systemEvent === 'ax-node-orphan');
+  return canvasState.getAxEvents().filter((e) => e.kind === 'note' && e.data?.systemEvent === 'ax-node-orphan');
 }
 
 describe('AX node-orphan audit (plan-007 Slice A)', () => {

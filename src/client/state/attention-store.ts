@@ -1,13 +1,7 @@
 import { signal } from '@preact/signals';
 import type { SemanticAttentionRegion } from '../../shared/semantic-attention.js';
 
-export type AttentionTone =
-  | 'context'
-  | 'relationship'
-  | 'group'
-  | 'cluster'
-  | 'neighborhood'
-  | 'remove';
+export type AttentionTone = 'context' | 'relationship' | 'group' | 'cluster' | 'neighborhood' | 'remove';
 
 export interface AttentionEntry {
   id: string;

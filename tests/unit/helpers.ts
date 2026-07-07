@@ -115,9 +115,7 @@ export function readPersistedCanvasState(workspaceRoot: string): {
   };
 }
 
-export function makeNode(
-  overrides: Partial<CanvasNodeState> & Pick<CanvasNodeState, 'id' | 'type'>,
-): CanvasNodeState {
+export function makeNode(overrides: Partial<CanvasNodeState> & Pick<CanvasNodeState, 'id' | 'type'>): CanvasNodeState {
   return {
     id: overrides.id,
     type: overrides.type,

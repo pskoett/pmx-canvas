@@ -168,11 +168,26 @@ export function getSelectionRect(ta: HTMLTextAreaElement): { top: number; left: 
   const mirror = document.createElement('div');
   const style = getComputedStyle(ta);
   const props = [
-    'fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing',
-    'wordSpacing', 'textIndent', 'whiteSpace', 'wordWrap', 'overflowWrap',
-    'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft',
-    'borderTopWidth', 'borderRightWidth', 'borderBottomWidth', 'borderLeftWidth',
-    'boxSizing', 'width',
+    'fontFamily',
+    'fontSize',
+    'fontWeight',
+    'lineHeight',
+    'letterSpacing',
+    'wordSpacing',
+    'textIndent',
+    'whiteSpace',
+    'wordWrap',
+    'overflowWrap',
+    'paddingTop',
+    'paddingRight',
+    'paddingBottom',
+    'paddingLeft',
+    'borderTopWidth',
+    'borderRightWidth',
+    'borderBottomWidth',
+    'borderLeftWidth',
+    'boxSizing',
+    'width',
   ] as const;
   for (const p of props) {
     mirror.style[p] = style[p];

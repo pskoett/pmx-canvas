@@ -154,8 +154,7 @@ class TraceManager {
 
     const startedAt = (node.data.startedAt as number) || Date.now();
     const durationMs = Math.max(0, Date.now() - startedAt);
-    const durationText =
-      durationMs < 1000 ? `${durationMs}ms` : `${(durationMs / 1000).toFixed(1)}s`;
+    const durationText = durationMs < 1000 ? `${durationMs}ms` : `${(durationMs / 1000).toFixed(1)}s`;
 
     canvasState.updateNode(nodeId, {
       data: {
@@ -178,10 +177,7 @@ class TraceManager {
     this.broadcastUpdate();
   }
 
-  onSubagentStarted(payload: {
-    agentName: string;
-    agentDisplayName?: string;
-  }): void {
+  onSubagentStarted(payload: { agentName: string; agentDisplayName?: string }): void {
     if (!this._enabled) return;
 
     const id = nextTraceNodeId();
@@ -249,8 +245,7 @@ class TraceManager {
 
     const startedAt = (node.data.startedAt as number) || Date.now();
     const durationMs = payload.durationMs ?? Math.max(0, Date.now() - startedAt);
-    const durationText =
-      durationMs < 1000 ? `${durationMs}ms` : `${(durationMs / 1000).toFixed(1)}s`;
+    const durationText = durationMs < 1000 ? `${durationMs}ms` : `${(durationMs / 1000).toFixed(1)}s`;
 
     canvasState.updateNode(nodeId, {
       data: {

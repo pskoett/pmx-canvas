@@ -345,9 +345,7 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
  * Deriving it from the composites keeps suppression in lockstep with them — a
  * newly folded action is automatically suppressed from standalone registration.
  */
-export function compositeFoldedOpNames(
-  definitions: CompositeToolDefinition[] = compositeToolDefinitions,
-): Set<string> {
+export function compositeFoldedOpNames(definitions: CompositeToolDefinition[] = compositeToolDefinitions): Set<string> {
   const names = new Set<string>();
   for (const def of definitions) {
     // Single-discriminator composites: the flat `actions` map values.

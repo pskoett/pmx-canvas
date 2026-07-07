@@ -16,17 +16,15 @@ import {
 
 describe('diagram-presets', () => {
   test('normalizeExcalidrawElements accepts an array and returns a compact JSON string', () => {
-    const result = normalizeExcalidrawElements([
-      { type: 'rectangle', id: 'r1', x: 0, y: 0, width: 10, height: 10 },
-    ]);
+    const result = normalizeExcalidrawElements([{ type: 'rectangle', id: 'r1', x: 0, y: 0, width: 10, height: 10 }]);
     expect(result).toBe('[{"type":"rectangle","id":"r1","x":0,"y":0,"width":10,"height":10}]');
   });
 
   test('normalizeExcalidrawElements accepts a JSON string and canonicalizes it', () => {
-    const result = normalizeExcalidrawElements('[\n  { "type": "ellipse", "id": "e1", "x": 0, "y": 0, "width": 10, "height": 10 }\n]');
-    expect(JSON.parse(result)).toEqual([
-      { type: 'ellipse', id: 'e1', x: 0, y: 0, width: 10, height: 10 },
-    ]);
+    const result = normalizeExcalidrawElements(
+      '[\n  { "type": "ellipse", "id": "e1", "x": 0, "y": 0, "width": 10, "height": 10 }\n]',
+    );
+    expect(JSON.parse(result)).toEqual([{ type: 'ellipse', id: 'e1', x: 0, y: 0, width: 10, height: 10 }]);
   });
 
   test('normalizeExcalidrawElements seeds empty arrays so the hosted editor can open', () => {
@@ -47,17 +45,19 @@ describe('diagram-presets', () => {
   });
 
   test('normalizeExcalidrawElements preserves shorthand labels for Excalidraw conversion', () => {
-    const result = JSON.parse(normalizeExcalidrawElements([
-      {
-        type: 'rectangle',
-        id: 'box',
-        x: 10,
-        y: 20,
-        width: 220,
-        height: 100,
-        label: { text: 'Inside box', fontSize: 24 },
-      },
-    ]));
+    const result = JSON.parse(
+      normalizeExcalidrawElements([
+        {
+          type: 'rectangle',
+          id: 'box',
+          x: 10,
+          y: 20,
+          width: 220,
+          height: 100,
+          label: { text: 'Inside box', fontSize: 24 },
+        },
+      ]),
+    );
     expect(result[0]).toMatchObject({
       type: 'rectangle',
       id: 'box',
@@ -68,36 +68,40 @@ describe('diagram-presets', () => {
   });
 
   test('normalizeExcalidrawElementsForToolInput adds a camera update for visible content', () => {
-    const result = JSON.parse(normalizeExcalidrawElementsForToolInput([
-      { type: 'rectangle', id: 'r1', x: 1000, y: 800, width: 120, height: 80 },
-    ]));
+    const result = JSON.parse(
+      normalizeExcalidrawElementsForToolInput([
+        { type: 'rectangle', id: 'r1', x: 1000, y: 800, width: 120, height: 80 },
+      ]),
+    );
     expect(result[0]).toMatchObject({ type: 'cameraUpdate' });
     expect(result[0].width / result[0].height).toBeCloseTo(4 / 3, 2);
     expect(result[1]).toMatchObject({ type: 'rectangle', id: 'r1' });
   });
 
   test('normalizeExcalidrawElementsForToolInput converts bound text into hosted-app labels', () => {
-    const result = JSON.parse(normalizeExcalidrawElementsForToolInput([
-      {
-        type: 'rectangle',
-        id: 'box',
-        x: 10,
-        y: 20,
-        width: 220,
-        height: 100,
-        boundElements: [],
-      },
-      {
-        type: 'text',
-        id: 'box-label',
-        x: 24,
-        y: 52,
-        width: 180,
-        height: 24,
-        text: 'Bound label',
-        containerId: 'box',
-      },
-    ]));
+    const result = JSON.parse(
+      normalizeExcalidrawElementsForToolInput([
+        {
+          type: 'rectangle',
+          id: 'box',
+          x: 10,
+          y: 20,
+          width: 220,
+          height: 100,
+          boundElements: [],
+        },
+        {
+          type: 'text',
+          id: 'box-label',
+          x: 24,
+          y: 52,
+          width: 180,
+          height: 24,
+          text: 'Bound label',
+          containerId: 'box',
+        },
+      ]),
+    );
 
     const box = result.find((element: Record<string, unknown>) => element.id === 'box');
     const label = result.find((element: Record<string, unknown>) => element.id === 'box-label');
@@ -109,30 +113,32 @@ describe('diagram-presets', () => {
   });
 
   test('normalizeExcalidrawElementsForToolInput converts canonical centered container text into labels', () => {
-    const result = JSON.parse(normalizeExcalidrawElementsForToolInput([
-      {
-        type: 'rectangle',
-        id: 'r1',
-        x: 200,
-        y: 200,
-        width: 240,
-        height: 100,
-        boundElements: [{ type: 'text', id: 't1' }],
-      },
-      {
-        type: 'text',
-        id: 't1',
-        x: 200,
-        y: 200,
-        width: 240,
-        height: 100,
-        text: 'Centered?',
-        fontSize: 20,
-        textAlign: 'center',
-        verticalAlign: 'middle',
-        containerId: 'r1',
-      },
-    ]));
+    const result = JSON.parse(
+      normalizeExcalidrawElementsForToolInput([
+        {
+          type: 'rectangle',
+          id: 'r1',
+          x: 200,
+          y: 200,
+          width: 240,
+          height: 100,
+          boundElements: [{ type: 'text', id: 't1' }],
+        },
+        {
+          type: 'text',
+          id: 't1',
+          x: 200,
+          y: 200,
+          width: 240,
+          height: 100,
+          text: 'Centered?',
+          fontSize: 20,
+          textAlign: 'center',
+          verticalAlign: 'middle',
+          containerId: 'r1',
+        },
+      ]),
+    );
 
     const box = result.find((element: Record<string, unknown>) => element.id === 'r1');
     const label = result.find((element: Record<string, unknown>) => element.id === 't1');
@@ -149,17 +155,19 @@ describe('diagram-presets', () => {
   });
 
   test('normalizeExcalidrawElementsForToolInput preserves shorthand labels for hosted-app conversion', () => {
-    const result = JSON.parse(normalizeExcalidrawElementsForToolInput([
-      {
-        type: 'rectangle',
-        id: 'box',
-        x: 100,
-        y: 80,
-        width: 220,
-        height: 90,
-        label: { text: 'Shorthand label', fontSize: 18 },
-      },
-    ]));
+    const result = JSON.parse(
+      normalizeExcalidrawElementsForToolInput([
+        {
+          type: 'rectangle',
+          id: 'box',
+          x: 100,
+          y: 80,
+          width: 220,
+          height: 90,
+          label: { text: 'Shorthand label', fontSize: 18 },
+        },
+      ]),
+    );
 
     const box = result.find((element: Record<string, unknown>) => element.id === 'box');
     const label = result.find((element: Record<string, unknown>) => element.id === 'box-label');
@@ -171,26 +179,28 @@ describe('diagram-presets', () => {
   });
 
   test('normalizeExcalidrawElementsForToolInput converts one-sided bound text into a hosted-app label', () => {
-    const result = JSON.parse(normalizeExcalidrawElementsForToolInput([
-      {
-        type: 'rectangle',
-        id: 'box',
-        x: 10,
-        y: 20,
-        width: 220,
-        height: 100,
-      },
-      {
-        type: 'text',
-        id: 'box-label',
-        x: 24,
-        y: 52,
-        width: 180,
-        height: 24,
-        text: 'One-sided label',
-        containerId: 'box',
-      },
-    ]));
+    const result = JSON.parse(
+      normalizeExcalidrawElementsForToolInput([
+        {
+          type: 'rectangle',
+          id: 'box',
+          x: 10,
+          y: 20,
+          width: 220,
+          height: 100,
+        },
+        {
+          type: 'text',
+          id: 'box-label',
+          x: 24,
+          y: 52,
+          width: 180,
+          height: 24,
+          text: 'One-sided label',
+          containerId: 'box',
+        },
+      ]),
+    );
 
     const box = result.find((element: Record<string, unknown>) => element.id === 'box');
     const label = result.find((element: Record<string, unknown>) => element.id === 'box-label');
@@ -200,26 +210,28 @@ describe('diagram-presets', () => {
   });
 
   test('normalizeExcalidrawElementsForToolInput converts boundElements-only text into a hosted-app label', () => {
-    const result = JSON.parse(normalizeExcalidrawElementsForToolInput([
-      {
-        type: 'rectangle',
-        id: 'box',
-        x: 10,
-        y: 20,
-        width: 220,
-        height: 100,
-        boundElements: [{ type: 'text', id: 'box-label' }],
-      },
-      {
-        type: 'text',
-        id: 'box-label',
-        x: 24,
-        y: 52,
-        width: 180,
-        height: 24,
-        text: 'Reverse-only label',
-      },
-    ]));
+    const result = JSON.parse(
+      normalizeExcalidrawElementsForToolInput([
+        {
+          type: 'rectangle',
+          id: 'box',
+          x: 10,
+          y: 20,
+          width: 220,
+          height: 100,
+          boundElements: [{ type: 'text', id: 'box-label' }],
+        },
+        {
+          type: 'text',
+          id: 'box-label',
+          x: 24,
+          y: 52,
+          width: 180,
+          height: 24,
+          text: 'Reverse-only label',
+        },
+      ]),
+    );
 
     const box = result.find((element: Record<string, unknown>) => element.id === 'box');
     const label = result.find((element: Record<string, unknown>) => element.id === 'box-label');
@@ -229,12 +241,14 @@ describe('diagram-presets', () => {
   });
 
   test('normalizeExcalidrawElementsForToolInput seeds defaults for non-renderable arrays', () => {
-    const result = JSON.parse(normalizeExcalidrawElementsForToolInput([
-      { type: 'cameraUpdate', x: 0, y: 0, width: 400, height: 300 },
-      { type: 'delete', ids: 'missing' },
-      { id: 'shape-without-type', x: 20, y: 20 },
-      { type: 'text', id: 'empty-text', text: '   ' },
-    ]));
+    const result = JSON.parse(
+      normalizeExcalidrawElementsForToolInput([
+        { type: 'cameraUpdate', x: 0, y: 0, width: 400, height: 300 },
+        { type: 'delete', ids: 'missing' },
+        { id: 'shape-without-type', x: 20, y: 20 },
+        { type: 'text', id: 'empty-text', text: '   ' },
+      ]),
+    );
 
     expect(result[0]).toMatchObject({ type: 'cameraUpdate' });
     expect(result[1]).toMatchObject({ type: 'rectangle', id: 'pmx-start' });
@@ -242,7 +256,16 @@ describe('diagram-presets', () => {
 
   test('inferExcalidrawCameraUpdate accounts for point-based elements', () => {
     const camera = inferExcalidrawCameraUpdate([
-      { type: 'line', id: 'l1', x: 50, y: 70, points: [[0, 0], [140, 90]] },
+      {
+        type: 'line',
+        id: 'l1',
+        x: 50,
+        y: 70,
+        points: [
+          [0, 0],
+          [140, 90],
+        ],
+      },
     ]);
     expect(camera).toMatchObject({ type: 'cameraUpdate' });
     expect(camera?.width).toBeGreaterThanOrEqual(320);
@@ -251,9 +274,11 @@ describe('diagram-presets', () => {
   });
 
   test('normalizeExcalidrawCheckpointDataForToolInput extracts saved elements and camera', () => {
-    const result = normalizeExcalidrawCheckpointDataForToolInput(JSON.stringify({
-      elements: [{ type: 'ellipse', id: 'saved', x: 10, y: 20, width: 30, height: 40 }],
-    }));
+    const result = normalizeExcalidrawCheckpointDataForToolInput(
+      JSON.stringify({
+        elements: [{ type: 'ellipse', id: 'saved', x: 10, y: 20, width: 30, height: 40 }],
+      }),
+    );
     const parsed = result ? JSON.parse(result) : [];
     expect(parsed[0]).toMatchObject({ type: 'cameraUpdate' });
     expect(parsed[1]).toMatchObject({ type: 'ellipse', id: 'saved' });
@@ -266,9 +291,14 @@ describe('diagram-presets', () => {
   });
 
   test('buildExcalidrawRestoreCheckpointToolInput includes a 4:3 camera for saved elements', () => {
-    const result = JSON.parse(buildExcalidrawRestoreCheckpointToolInput('checkpoint-1', JSON.stringify({
-      elements: [{ type: 'diamond', id: 'edited', x: -140, y: -150, width: 740, height: 660 }],
-    })));
+    const result = JSON.parse(
+      buildExcalidrawRestoreCheckpointToolInput(
+        'checkpoint-1',
+        JSON.stringify({
+          elements: [{ type: 'diamond', id: 'edited', x: -140, y: -150, width: 740, height: 660 }],
+        }),
+      ),
+    );
     expect(result[0]).toEqual({ type: 'restoreCheckpoint', id: 'checkpoint-1' });
     expect(result[1]).toMatchObject({ type: 'cameraUpdate' });
     expect(result[1].width / result[1].height).toBeCloseTo(4 / 3, 2);
@@ -279,8 +309,9 @@ describe('diagram-presets', () => {
     expect(ensureExcalidrawCheckpointId({ content: [] }, 'node id!*')).toMatchObject({
       structuredContent: { checkpointId: 'pmx-node-id' },
     });
-    expect(ensureExcalidrawCheckpointId({ content: [], structuredContent: { checkpointId: 'existing' } }, 'ignored'))
-      .toMatchObject({ structuredContent: { checkpointId: 'existing' } });
+    expect(
+      ensureExcalidrawCheckpointId({ content: [], structuredContent: { checkpointId: 'existing' } }, 'ignored'),
+    ).toMatchObject({ structuredContent: { checkpointId: 'existing' } });
   });
 
   test('normalizeExcalidrawElements rejects empty strings', () => {

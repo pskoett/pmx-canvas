@@ -69,9 +69,8 @@ async function defaultReadInput(
     return { ...query, ...params };
   }
   const body = await readJsonValue(req);
-  const record = body !== null && typeof body === 'object' && !Array.isArray(body)
-    ? body as Record<string, unknown>
-    : {};
+  const record =
+    body !== null && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>) : {};
   return { ...query, ...record, ...params };
 }
 

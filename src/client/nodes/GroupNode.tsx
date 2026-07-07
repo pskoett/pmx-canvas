@@ -26,14 +26,12 @@ export function GroupNode({ node }: GroupNodeProps) {
   return (
     <div class="group-node-body">
       <div class="group-summary">
-        <span class="group-child-count">{childCount} node{childCount !== 1 ? 's' : ''}</span>
+        <span class="group-child-count">
+          {childCount} node{childCount !== 1 ? 's' : ''}
+        </span>
         {typeSummary && <span class="group-type-summary">{typeSummary}</span>}
       </div>
-      {childCount === 0 && (
-        <div class="group-empty-hint">
-          Drag nodes here or use the selection bar to group nodes
-        </div>
-      )}
+      {childCount === 0 && <div class="group-empty-hint">Drag nodes here or use the selection bar to group nodes</div>}
     </div>
   );
 }

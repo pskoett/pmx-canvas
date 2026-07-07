@@ -43,8 +43,7 @@ export function isSameOriginFrameDocumentUrl(url: string, origin = window.locati
   try {
     const baseOrigin = new URL(origin).origin;
     const resolved = new URL(url, baseOrigin);
-    return resolved.origin === baseOrigin &&
-      resolved.pathname.startsWith('/api/canvas/frame-documents/');
+    return resolved.origin === baseOrigin && resolved.pathname.startsWith('/api/canvas/frame-documents/');
   } catch {
     return false;
   }
@@ -89,7 +88,10 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
     function onAxMessage(event: MessageEvent) {
       if (event.source !== iframeRef.current?.contentWindow) return;
       const data = event.data as {
-        source?: string; token?: string; nodeId?: string; correlationId?: string;
+        source?: string;
+        token?: string;
+        nodeId?: string;
+        correlationId?: string;
         interaction?: { type?: unknown; payload?: unknown };
       } | null;
       if (!data || data.source !== 'pmx-canvas-ax' || data.token !== axToken || data.nodeId !== node.id) return;
@@ -107,13 +109,16 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
         if (res.ok) showToast('context', 'AX interaction', interactionType, [node.id]);
         else showToast('remove', 'AX interaction rejected', res.error ?? res.code ?? '', [node.id]);
         // Report #55: ack back to the viewer so the surface can self-confirm.
-        iframeRef.current?.contentWindow?.postMessage({
-          source: 'pmx-canvas-ax-ack',
-          token: axToken,
-          ...(data.correlationId ? { correlationId: data.correlationId } : {}),
-          interaction: { type: interactionType },
-          result: res,
-        }, '*');
+        iframeRef.current?.contentWindow?.postMessage(
+          {
+            source: 'pmx-canvas-ax-ack',
+            token: axToken,
+            ...(data.correlationId ? { correlationId: data.correlationId } : {}),
+            interaction: { type: interactionType },
+            result: res,
+          },
+          '*',
+        );
       });
     }
     window.addEventListener('message', onAxMessage);
@@ -125,12 +130,15 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
   const axStateValue = axSurfaceState.value;
   const pushAxState = () => {
     if (!isAxViewer || !axToken || axStateValue == null) return;
-    iframeRef.current?.contentWindow?.postMessage({
-      source: 'pmx-canvas-html-node',
-      type: 'ax-update',
-      token: axToken,
-      state: axStateValue,
-    }, '*');
+    iframeRef.current?.contentWindow?.postMessage(
+      {
+        source: 'pmx-canvas-html-node',
+        type: 'ax-update',
+        token: axToken,
+        state: axStateValue,
+      },
+      '*',
+    );
   };
   useEffect(pushAxState, [isAxViewer, axToken, axStateValue]);
 
@@ -156,9 +164,7 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
           <span>⚠</span>
           <span>Cannot embed — opened externally</span>
         </div>
-        {fallbackReason && (
-          <div style={{ color: 'var(--c-muted)', fontSize: '11px' }}>Reason: {fallbackReason}</div>
-        )}
+        {fallbackReason && <div style={{ color: 'var(--c-muted)', fontSize: '11px' }}>Reason: {fallbackReason}</div>}
         <a
           href={url}
           target="_blank"
@@ -171,9 +177,7 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
         >
           {url}
         </a>
-        {sourceServer && (
-          <div style={{ color: 'var(--c-dim)', fontSize: '10px' }}>Source: {sourceServer}</div>
-        )}
+        {sourceServer && <div style={{ color: 'var(--c-dim)', fontSize: '10px' }}>Source: {sourceServer}</div>}
       </div>
     );
   }

@@ -134,16 +134,12 @@ function toSafeExternalUrl(url: string): string | null {
   return parsed.toString();
 }
 
-export function getMcpAppCandidateFromToolCompletion(
-  data: McpAppToolCompletionInput,
-): McpAppToolCandidate | null {
+export function getMcpAppCandidateFromToolCompletion(data: McpAppToolCompletionInput): McpAppToolCandidate | null {
   const inlineUrls = [
     ...(typeof data.content === 'string' ? [data.content] : []),
     ...(typeof data.detailedContent === 'string' ? [data.detailedContent] : []),
     ...collectToolResultTextFragments(data.result),
-  ].flatMap((value) =>
-    (value.match(/https?:\/\/[^\s<>"'`]+/gi) ?? []).map((url) => ({ url, keyHint: 'inline' })),
-  );
+  ].flatMap((value) => (value.match(/https?:\/\/[^\s<>"'`]+/gi) ?? []).map((url) => ({ url, keyHint: 'inline' })));
 
   const nestedUrls = collectToolResultUrlCandidates(data.result);
   const candidates = [...inlineUrls, ...nestedUrls];
@@ -156,10 +152,9 @@ export function getMcpAppCandidateFromToolCompletion(
     const safe = toSafeExternalUrl(entry.url);
     if (!safe) continue;
     const key = entry.keyHint.toLowerCase();
-    const hintedByKey =
-      /resource|resource_link|resourceurl|resource_url|app|uri|url|link|viewer|preview|canvas/.test(
-        key,
-      );
+    const hintedByKey = /resource|resource_link|resourceurl|resource_url|app|uri|url|link|viewer|preview|canvas/.test(
+      key,
+    );
     const hintedByUrl = isLikelyMcpAppWebUrl(safe);
     if (!hintedByKey && !hintedByUrl && !sourceHasMcp) continue;
     return {

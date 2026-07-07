@@ -25,7 +25,7 @@ describe('agent CLI node commands', () => {
   async function jsonRequest<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetch(`${baseUrl}${path}`, init);
     expect(response.ok).toBe(true);
-    return await response.json() as T;
+    return (await response.json()) as T;
   }
 
   beforeAll(() => {
@@ -209,16 +209,7 @@ describe('agent CLI node commands', () => {
     console.log = log;
 
     try {
-      await runAgentCli([
-        'node',
-        'add',
-        '--type',
-        'html',
-        '--title',
-        'CLI HTML',
-        '--content',
-        html,
-      ]);
+      await runAgentCli(['node', 'add', '--type', 'html', '--title', 'CLI HTML', '--content', html]);
     } finally {
       console.log = originalLog;
     }
@@ -288,11 +279,15 @@ describe('agent CLI node commands', () => {
 
   test('html primitive CLI creates generated html node with primitive metadata', async () => {
     const dataPath = join(workspaceRoot, 'options-primitive.json');
-    writeFileSync(dataPath, JSON.stringify({
-      items: [
-        { title: 'HTML artifact', summary: 'Readable and interactive.', pros: ['Visual'], cons: ['More verbose'] },
-      ],
-    }), 'utf-8');
+    writeFileSync(
+      dataPath,
+      JSON.stringify({
+        items: [
+          { title: 'HTML artifact', summary: 'Readable and interactive.', pros: ['Visual'], cons: ['More verbose'] },
+        ],
+      }),
+      'utf-8',
+    );
     const log = mock(() => {});
     const originalLog = console.log;
     console.log = log;
@@ -342,7 +337,10 @@ describe('agent CLI node commands', () => {
         '--title',
         'CLI Presentation',
         '--data-json',
-        JSON.stringify({ theme: 'aurora', slides: [{ title: 'Frame' }, { title: 'Decision', note: 'Ask for approval.' }] }),
+        JSON.stringify({
+          theme: 'aurora',
+          slides: [{ title: 'Frame' }, { title: 'Decision', note: 'Ask for approval.' }],
+        }),
       ]);
     } finally {
       console.log = originalLog;
@@ -588,8 +586,14 @@ describe('agent CLI node commands', () => {
       console.log = originalLog;
     }
 
-    const eventOut = JSON.parse(log.mock.calls[0]?.[0] as string) as { ok: boolean; event: { kind: string; source: string } };
-    const steerOut = JSON.parse(log.mock.calls[1]?.[0] as string) as { ok: boolean; steering: { message: string; source: string } };
+    const eventOut = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      event: { kind: string; source: string };
+    };
+    const steerOut = JSON.parse(log.mock.calls[1]?.[0] as string) as {
+      ok: boolean;
+      steering: { message: string; source: string };
+    };
     const evidenceOut = JSON.parse(log.mock.calls[2]?.[0] as string) as { ok: boolean; evidence: { kind: string } };
     const timelineOut = JSON.parse(log.mock.calls[3]?.[0] as string) as {
       events: Array<{ id: string }>;
@@ -634,8 +638,12 @@ describe('agent CLI node commands', () => {
 
     const updatedWork = JSON.parse(log.mock.calls[1]?.[0] as string) as { workItem: { status: string } };
     const resolvedApproval = JSON.parse(log.mock.calls[3]?.[0] as string) as { approvalGate: { status: string } };
-    const review = JSON.parse(log.mock.calls[4]?.[0] as string) as { reviewAnnotation: { nodeId: string; source: string } };
-    const hostReport = JSON.parse(log.mock.calls[5]?.[0] as string) as { host: { host: string; sessionMessaging: boolean } };
+    const review = JSON.parse(log.mock.calls[4]?.[0] as string) as {
+      reviewAnnotation: { nodeId: string; source: string };
+    };
+    const hostReport = JSON.parse(log.mock.calls[5]?.[0] as string) as {
+      host: { host: string; sessionMessaging: boolean };
+    };
     const hostStatus = JSON.parse(log.mock.calls[6]?.[0] as string) as { host: { host: string } };
 
     expect(updatedWork.workItem.status).toBe('done');
@@ -767,13 +775,17 @@ describe('agent CLI node commands', () => {
     });
 
     const specPath = join(workspaceRoot, 'updated-json-render.json');
-    writeFileSync(specPath, JSON.stringify({
-      root: 'card',
-      elements: {
-        card: { type: 'Card', props: { title: 'After' }, children: ['copy'] },
-        copy: { type: 'Text', props: { text: 'After body' }, children: [] },
-      },
-    }), 'utf-8');
+    writeFileSync(
+      specPath,
+      JSON.stringify({
+        root: 'card',
+        elements: {
+          card: { type: 'Card', props: { title: 'After' }, children: ['copy'] },
+          copy: { type: 'Text', props: { text: 'After body' }, children: [] },
+        },
+      }),
+      'utf-8',
+    );
 
     const log = mock(() => {});
     const originalLog = console.log;
@@ -888,14 +900,7 @@ describe('agent CLI node commands', () => {
     console.log = log;
 
     try {
-      await runAgentCli([
-        'node',
-        'update',
-        created.id,
-        '--data-file',
-        dataPath,
-        '--lock-arrange',
-      ]);
+      await runAgentCli(['node', 'update', created.id, '--data-file', dataPath, '--lock-arrange']);
     } finally {
       console.log = originalLog;
     }
@@ -1080,20 +1085,28 @@ describe('agent CLI node commands', () => {
     });
 
     await runAgentCli(['node', 'update', created.id, '--dock-position', 'left']);
-    expect((await jsonRequest<{ dockPosition: string | null }>(`/api/canvas/node/${created.id}`)).dockPosition).toBe('left');
+    expect((await jsonRequest<{ dockPosition: string | null }>(`/api/canvas/node/${created.id}`)).dockPosition).toBe(
+      'left',
+    );
 
     // The crux of #40: `none` must reach the server as a real null (undock).
     await runAgentCli(['node', 'update', created.id, '--dock-position', 'none']);
-    expect((await jsonRequest<{ dockPosition: string | null }>(`/api/canvas/node/${created.id}`)).dockPosition).toBeNull();
+    expect(
+      (await jsonRequest<{ dockPosition: string | null }>(`/api/canvas/node/${created.id}`)).dockPosition,
+    ).toBeNull();
   });
 
   test('node add supports graph nodes from a JSON data file', async () => {
     const dataPath = join(workspaceRoot, 'graph-data.json');
-    writeFileSync(dataPath, JSON.stringify([
-      { label: 'Docs', value: 5 },
-      { label: 'Tests', value: 8 },
-      { label: 'Release', value: 3 },
-    ]), 'utf-8');
+    writeFileSync(
+      dataPath,
+      JSON.stringify([
+        { label: 'Docs', value: 5 },
+        { label: 'Tests', value: 8 },
+        { label: 'Release', value: 3 },
+      ]),
+      'utf-8',
+    );
 
     const log = mock(() => {});
     const originalLog = console.log;
@@ -1159,7 +1172,10 @@ describe('agent CLI node commands', () => {
         '--title',
         'Alias Graph',
         '--data',
-        JSON.stringify([{ x: 'a', y: 1 }, { x: 'b', y: 2 }]),
+        JSON.stringify([
+          { x: 'a', y: 1 },
+          { x: 'b', y: 2 },
+        ]),
         '--x-key',
         'x',
         '--y-key',
@@ -1172,7 +1188,10 @@ describe('agent CLI node commands', () => {
     const output = JSON.parse(log.mock.calls[0]?.[0] as string) as { ok: boolean; id: string };
     expect(output.ok).toBe(true);
     const node = await jsonRequest<{ data: { graphConfig: Record<string, unknown> } }>(`/api/canvas/node/${output.id}`);
-    expect(node.data.graphConfig.data).toEqual([{ x: 'a', y: 1 }, { x: 'b', y: 2 }]);
+    expect(node.data.graphConfig.data).toEqual([
+      { x: 'a', y: 1 },
+      { x: 'b', y: 2 },
+    ]);
   });
 
   test('node add accepts camelCase graph flags shown by schema help', async () => {
@@ -1237,7 +1256,9 @@ describe('agent CLI node commands', () => {
 
     const output = JSON.parse(log.mock.calls[0]?.[0] as string) as { ok: boolean; id: string };
     expect(output.ok).toBe(true);
-    const node = await jsonRequest<{ type: string; data: { title: string; graphConfig: Record<string, unknown> } }>(`/api/canvas/node/${output.id}`);
+    const node = await jsonRequest<{ type: string; data: { title: string; graphConfig: Record<string, unknown> } }>(
+      `/api/canvas/node/${output.id}`,
+    );
     expect(node.type).toBe('graph');
     expect(node.data.title).toBe('Top-level Graph');
     expect(node.data.graphConfig).toMatchObject({
@@ -1344,7 +1365,9 @@ describe('agent CLI node commands', () => {
     }) as typeof process.exit;
 
     try {
-      await expect(runAgentCli(['node', 'add', '--type', 'mcp-app', '--title', 'Bad', '--content', 'x'])).rejects.toThrow('exit:1');
+      await expect(
+        runAgentCli(['node', 'add', '--type', 'mcp-app', '--title', 'Bad', '--content', 'x']),
+      ).rejects.toThrow('exit:1');
     } finally {
       console.error = originalError;
       process.exit = originalExit;
@@ -1510,14 +1533,22 @@ describe('agent CLI node commands', () => {
   test('node add exposes the full graph flag surface for newer chart types', async () => {
     const radarPath = join(workspaceRoot, 'graph-radar.json');
     const stackedPath = join(workspaceRoot, 'graph-stacked.json');
-    writeFileSync(radarPath, JSON.stringify([
-      { axis: 'Q1', north: 5, south: 7 },
-      { axis: 'Q2', north: 6, south: 4 },
-    ]), 'utf-8');
-    writeFileSync(stackedPath, JSON.stringify([
-      { month: 'Jan', north: 5, south: 2 },
-      { month: 'Feb', north: 7, south: 3 },
-    ]), 'utf-8');
+    writeFileSync(
+      radarPath,
+      JSON.stringify([
+        { axis: 'Q1', north: 5, south: 7 },
+        { axis: 'Q2', north: 6, south: 4 },
+      ]),
+      'utf-8',
+    );
+    writeFileSync(
+      stackedPath,
+      JSON.stringify([
+        { month: 'Jan', north: 5, south: 2 },
+        { month: 'Feb', north: 7, south: 3 },
+      ]),
+      'utf-8',
+    );
 
     const log = mock(() => {});
     const originalLog = console.log;
@@ -1611,14 +1642,18 @@ describe('agent CLI node commands', () => {
     const outputs = log.mock.calls.map((call) => JSON.parse(call[0] as string) as { id: string });
     expect(outputs).toHaveLength(4);
 
-    const radarNode = await jsonRequest<{ data: { graphConfig: Record<string, unknown> } }>(`/api/canvas/node/${outputs[0]?.id}`);
+    const radarNode = await jsonRequest<{ data: { graphConfig: Record<string, unknown> } }>(
+      `/api/canvas/node/${outputs[0]?.id}`,
+    );
     expect(radarNode.data.graphConfig).toMatchObject({
       graphType: 'radar',
       axisKey: 'axis',
       metrics: ['north', 'south'],
     });
 
-    const scatterNode = await jsonRequest<{ data: { graphConfig: Record<string, unknown> } }>(`/api/canvas/node/${outputs[1]?.id}`);
+    const scatterNode = await jsonRequest<{ data: { graphConfig: Record<string, unknown> } }>(
+      `/api/canvas/node/${outputs[1]?.id}`,
+    );
     expect(scatterNode.data.graphConfig).toMatchObject({
       graphType: 'scatter',
       xKey: 'x',
@@ -1627,14 +1662,18 @@ describe('agent CLI node commands', () => {
       color: '#3366ff',
     });
 
-    const stackedNode = await jsonRequest<{ data: { graphConfig: Record<string, unknown> } }>(`/api/canvas/node/${outputs[2]?.id}`);
+    const stackedNode = await jsonRequest<{ data: { graphConfig: Record<string, unknown> } }>(
+      `/api/canvas/node/${outputs[2]?.id}`,
+    );
     expect(stackedNode.data.graphConfig).toMatchObject({
       graphType: 'stacked-bar',
       xKey: 'month',
       series: ['north', 'south'],
     });
 
-    const composedNode = await jsonRequest<{ data: { graphConfig: Record<string, unknown> } }>(`/api/canvas/node/${outputs[3]?.id}`);
+    const composedNode = await jsonRequest<{ data: { graphConfig: Record<string, unknown> } }>(
+      `/api/canvas/node/${outputs[3]?.id}`,
+    );
     expect(composedNode.data.graphConfig).toMatchObject({
       graphType: 'composed',
       xKey: 'month',
@@ -1647,41 +1686,36 @@ describe('agent CLI node commands', () => {
 
   test('node add supports json-render nodes from a spec file', async () => {
     const specPath = join(workspaceRoot, 'dashboard.json');
-    writeFileSync(specPath, JSON.stringify({
-      root: 'card',
-      elements: {
-        card: {
-          type: 'Card',
-          props: {
-            title: 'CLI Dashboard',
+    writeFileSync(
+      specPath,
+      JSON.stringify({
+        root: 'card',
+        elements: {
+          card: {
+            type: 'Card',
+            props: {
+              title: 'CLI Dashboard',
+            },
+            children: ['copy'],
           },
-          children: ['copy'],
-        },
-        copy: {
-          type: 'Text',
-          props: {
-            text: 'Rendered from the CLI',
+          copy: {
+            type: 'Text',
+            props: {
+              text: 'Rendered from the CLI',
+            },
+            children: [],
           },
-          children: [],
         },
-      },
-    }), 'utf-8');
+      }),
+      'utf-8',
+    );
 
     const log = mock(() => {});
     const originalLog = console.log;
     console.log = log;
 
     try {
-      await runAgentCli([
-        'node',
-        'add',
-        '--type',
-        'json-render',
-        '--title',
-        'CLI Dashboard',
-        '--spec-file',
-        specPath,
-      ]);
+      await runAgentCli(['node', 'add', '--type', 'json-render', '--title', 'CLI Dashboard', '--spec-file', specPath]);
     } finally {
       console.log = originalLog;
     }
@@ -1705,16 +1739,23 @@ describe('agent CLI node commands', () => {
 
   test('node add supports image --path and json-render without title', async () => {
     const imagePath = join(workspaceRoot, 'cli-image-path.png');
-    writeFileSync(imagePath, Buffer.from(
-      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
-      'base64',
-    ));
+    writeFileSync(
+      imagePath,
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+        'base64',
+      ),
+    );
 
     const specPath = join(workspaceRoot, 'titleless-badge.json');
-    writeFileSync(specPath, JSON.stringify({
-      type: 'Badge',
-      props: { label: 'CLI Legacy', variant: 'success' },
-    }), 'utf-8');
+    writeFileSync(
+      specPath,
+      JSON.stringify({
+        type: 'Badge',
+        props: { label: 'CLI Legacy', variant: 'success' },
+      }),
+      'utf-8',
+    );
 
     const log = mock(() => {});
     const originalLog = console.log;
@@ -1823,22 +1864,26 @@ describe('agent CLI node commands', () => {
 
   test('node schema and validate spec expose running-server schema/validation info', async () => {
     const specPath = join(workspaceRoot, 'validation-dashboard.json');
-    writeFileSync(specPath, JSON.stringify({
-      root: 'table',
-      elements: {
-        table: {
-          type: 'Table',
-          props: {
-            columns: ['Metric', 'Value'],
-            rows: [
-              ['Builds', 12],
-              ['Deploys', 4],
-            ],
+    writeFileSync(
+      specPath,
+      JSON.stringify({
+        root: 'table',
+        elements: {
+          table: {
+            type: 'Table',
+            props: {
+              columns: ['Metric', 'Value'],
+              rows: [
+                ['Builds', 12],
+                ['Deploys', 4],
+              ],
+            },
+            children: [],
           },
-          children: [],
         },
-      },
-    }), 'utf-8');
+      }),
+      'utf-8',
+    );
 
     const log = mock(() => {});
     const originalLog = console.log;
@@ -1854,7 +1899,17 @@ describe('agent CLI node commands', () => {
       await runAgentCli(['node', 'add', '--help', '--type', 'html', '--json']);
       await runAgentCli(['html', 'primitive', 'schema', '--kind', 'choice-grid', '--summary']);
       await runAgentCli(['validate', 'spec', '--type', 'json-render', '--spec-file', specPath, '--summary']);
-      await runAgentCli(['validate', 'spec', '--type', 'html-primitive', '--kind', 'choice-grid', '--data-json', '{"items":[{"title":"A"}]}', '--summary']);
+      await runAgentCli([
+        'validate',
+        'spec',
+        '--type',
+        'html-primitive',
+        '--kind',
+        'choice-grid',
+        '--data-json',
+        '{"items":[{"title":"A"}]}',
+        '--summary',
+      ]);
     } finally {
       console.log = originalLog;
     }
@@ -2001,16 +2056,7 @@ describe('agent CLI node commands', () => {
     console.log = log;
 
     try {
-      await runAgentCli([
-        'edge',
-        'add',
-        '--from-search',
-        'DVT O2',
-        '--to-search',
-        'deep work',
-        '--type',
-        'relation',
-      ]);
+      await runAgentCli(['edge', 'add', '--from-search', 'DVT O2', '--to-search', 'deep work', '--type', 'relation']);
     } finally {
       console.log = originalLog;
     }
@@ -2083,18 +2129,22 @@ describe('agent CLI node commands', () => {
     mutationHistory.reset();
 
     const batchPath = join(workspaceRoot, 'cli-batch.json');
-    writeFileSync(batchPath, JSON.stringify([
-      {
-        op: 'node.add',
-        assign: 'child',
-        args: { type: 'markdown', title: 'CLI batch child', x: 200, y: 200, width: 220, height: 140 },
-      },
-      {
-        op: 'group.create',
-        assign: 'frame',
-        args: { title: 'CLI batch frame', childIds: ['$child.id'] },
-      },
-    ]), 'utf-8');
+    writeFileSync(
+      batchPath,
+      JSON.stringify([
+        {
+          op: 'node.add',
+          assign: 'child',
+          args: { type: 'markdown', title: 'CLI batch child', x: 200, y: 200, width: 220, height: 140 },
+        },
+        {
+          op: 'group.create',
+          assign: 'frame',
+          args: { title: 'CLI batch frame', childIds: ['$child.id'] },
+        },
+      ]),
+      'utf-8',
+    );
 
     const batchLog = mock(() => {});
     console.log = batchLog;
@@ -2125,34 +2175,40 @@ describe('agent CLI node commands', () => {
     };
     expect(validation.ok).toBe(true);
     expect(validation.collisions).toEqual([]);
-    expect(validation.containments).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        groupId: batchOutput.refs.frame.id,
-        childId: batchOutput.refs.child.id,
-      }),
-    ]));
+    expect(validation.containments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          groupId: batchOutput.refs.frame.id,
+          childId: batchOutput.refs.child.id,
+        }),
+      ]),
+    );
   });
 
   test('batch supports graph.add from the CLI surface', async () => {
     const batchPath = join(workspaceRoot, 'cli-graph-batch.json');
-    writeFileSync(batchPath, JSON.stringify([
-      {
-        op: 'graph.add',
-        assign: 'graph',
-        args: {
-          title: 'CLI batch graph',
-          graphType: 'bar',
-          data: [
-            { label: 'Docs', value: 5 },
-            { label: 'Tests', value: 8 },
-          ],
-          xKey: 'label',
-          yKey: 'value',
-          width: 840,
-          nodeHeight: 600,
+    writeFileSync(
+      batchPath,
+      JSON.stringify([
+        {
+          op: 'graph.add',
+          assign: 'graph',
+          args: {
+            title: 'CLI batch graph',
+            graphType: 'bar',
+            data: [
+              { label: 'Docs', value: 5 },
+              { label: 'Tests', value: 8 },
+            ],
+            xKey: 'label',
+            yKey: 'value',
+            width: 840,
+            nodeHeight: 600,
+          },
         },
-      },
-    ]), 'utf-8');
+      ]),
+      'utf-8',
+    );
 
     const log = mock(() => {});
     const originalLog = console.log;
@@ -2228,7 +2284,7 @@ describe('agent CLI node commands', () => {
 
   test('external-app add uses a non-empty Excalidraw default scene', async () => {
     const fetchMock = mock(async (_url: string | URL | Request, init?: RequestInit) => {
-      const body = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
+      const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : {};
       return new Response(JSON.stringify({ ok: true, result: body }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -2242,7 +2298,16 @@ describe('agent CLI node commands', () => {
     console.log = log;
 
     try {
-      await runAgentCli(['external-app', 'add', '--kind', 'excalidraw', '--title', 'CLI Diagram', '--timeout-ms', '120000']);
+      await runAgentCli([
+        'external-app',
+        'add',
+        '--kind',
+        'excalidraw',
+        '--title',
+        'CLI Diagram',
+        '--timeout-ms',
+        '120000',
+      ]);
     } finally {
       console.log = originalLog;
       globalThis.fetch = originalFetch;
@@ -2259,15 +2324,13 @@ describe('agent CLI node commands', () => {
     };
     expect(output.id).toBe(output.nodeId);
     expect(output.result?.title).toBe('CLI Diagram');
-    expect(output.result?.elements).toEqual([
-      expect.objectContaining({ type: 'rectangle', id: 'pmx-start' }),
-    ]);
+    expect(output.result?.elements).toEqual([expect.objectContaining({ type: 'rectangle', id: 'pmx-start' })]);
     expect(output.result?.timeoutMs).toBe(120000);
   });
 
   test('external-app add accepts elements alias and existing node targets', async () => {
     const fetchMock = mock(async (_url: string | URL | Request, init?: RequestInit) => {
-      const body = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
+      const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : {};
       return new Response(JSON.stringify({ ok: true, result: body }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -2303,14 +2366,12 @@ describe('agent CLI node commands', () => {
       };
     };
     expect(output.result?.nodeId).toBe('ext-app-existing');
-    expect(output.result?.elements).toEqual([
-      expect.objectContaining({ type: 'rectangle', id: 'changed' }),
-    ]);
+    expect(output.result?.elements).toEqual([expect.objectContaining({ type: 'rectangle', id: 'changed' })]);
   });
 
   test('diagram add always uses the Excalidraw external app alias', async () => {
     const fetchMock = mock(async (_url: string | URL | Request, init?: RequestInit) => {
-      const body = typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : {};
+      const body = typeof init?.body === 'string' ? (JSON.parse(init.body) as Record<string, unknown>) : {};
       return new Response(JSON.stringify({ ok: true, result: body }), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
@@ -2334,15 +2395,15 @@ describe('agent CLI node commands', () => {
       result?: { title?: string; elements?: Array<Record<string, unknown>> };
     };
     expect(output.result?.title).toBe('Alias Diagram');
-    expect(output.result?.elements).toEqual([
-      expect.objectContaining({ type: 'rectangle', id: 'pmx-start' }),
-    ]);
+    expect(output.result?.elements).toEqual([expect.objectContaining({ type: 'rectangle', id: 'pmx-start' })]);
   });
 
   test('web-artifact build suppresses raw logs by default and includes them on demand', async () => {
     const initScriptPath = join(workspaceRoot, 'emit-init.sh');
     const bundleScriptPath = join(workspaceRoot, 'emit-bundle.sh');
-    writeFileSync(initScriptPath, `#!/bin/bash
+    writeFileSync(
+      initScriptPath,
+      `#!/bin/bash
 set -e
 PROJECT_NAME="$1"
 mkdir -p "$PROJECT_NAME/src"
@@ -2360,13 +2421,19 @@ EOF
 cat > "$PROJECT_NAME/src/App.tsx" <<'EOF'
 export default function App() { return null; }
 EOF
-`, 'utf-8');
-    writeFileSync(bundleScriptPath, `#!/bin/bash
+`,
+      'utf-8',
+    );
+    writeFileSync(
+      bundleScriptPath,
+      `#!/bin/bash
 set -e
 echo "bundle stdout"
 echo "bundle stderr" 1>&2
 echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
-`, 'utf-8');
+`,
+      'utf-8',
+    );
     await Bun.$`chmod +x ${initScriptPath} ${bundleScriptPath}`;
 
     const appPath = join(workspaceRoot, 'NoisyApp.tsx');
@@ -2434,10 +2501,14 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
 
   test('web-artifact build prints failure JSON and exits non-zero', async () => {
     const bundleScriptPath = join(workspaceRoot, 'fail-bundle.sh');
-    writeFileSync(bundleScriptPath, `#!/bin/bash
+    writeFileSync(
+      bundleScriptPath,
+      `#!/bin/bash
 set -e
 exit 2
-`, 'utf-8');
+`,
+      'utf-8',
+    );
     await Bun.$`chmod +x ${bundleScriptPath}`;
 
     const appPath = join(workspaceRoot, 'FailApp.tsx');
@@ -2452,16 +2523,18 @@ exit 2
     }) as typeof process.exit;
 
     try {
-      await expect(runAgentCli([
-        'web-artifact',
-        'build',
-        '--title',
-        'Fail Artifact',
-        '--app-file',
-        appPath,
-        '--bundle-script-path',
-        bundleScriptPath,
-      ])).rejects.toThrow('exit:1');
+      await expect(
+        runAgentCli([
+          'web-artifact',
+          'build',
+          '--title',
+          'Fail Artifact',
+          '--app-file',
+          appPath,
+          '--bundle-script-path',
+          bundleScriptPath,
+        ]),
+      ).rejects.toThrow('exit:1');
     } finally {
       console.log = originalLog;
       process.exit = originalExit;
@@ -2509,18 +2582,22 @@ exit 2
     };
 
     expect(listed).toHaveLength(1);
-    expect(listed[0]).toEqual(expect.objectContaining({
-      id: created.id,
-      title: 'normalized-node.ts',
-      content: 'export const normalized = true;\n',
-      path: filePath,
-    }));
-    expect(fetched).toEqual(expect.objectContaining({
-      id: created.id,
-      title: listed[0]?.title,
-      content: listed[0]?.content,
-      path: listed[0]?.path,
-    }));
+    expect(listed[0]).toEqual(
+      expect.objectContaining({
+        id: created.id,
+        title: 'normalized-node.ts',
+        content: 'export const normalized = true;\n',
+        path: filePath,
+      }),
+    );
+    expect(fetched).toEqual(
+      expect.objectContaining({
+        id: created.id,
+        title: listed[0]?.title,
+        content: listed[0]?.content,
+        path: listed[0]?.path,
+      }),
+    );
   });
 
   test('node list --type mcp-app defaults to compact summaries', async () => {
@@ -2571,17 +2648,19 @@ exit 2
     }>;
 
     expect(listed).toHaveLength(1);
-    expect(listed[0]).toEqual(expect.objectContaining({
-      id: opened.nodeId,
-      type: 'mcp-app',
-      kind: 'external-app',
-      title: 'Counter App',
-      mode: 'ext-app',
-      appSessionId: opened.sessionId,
-      hostMode: 'hosted',
-      toolName: 'show_counter',
-      sessionStatus: 'ready',
-    }));
+    expect(listed[0]).toEqual(
+      expect.objectContaining({
+        id: opened.nodeId,
+        type: 'mcp-app',
+        kind: 'external-app',
+        title: 'Counter App',
+        mode: 'ext-app',
+        appSessionId: opened.sessionId,
+        hostMode: 'hosted',
+        toolName: 'show_counter',
+        sessionStatus: 'ready',
+      }),
+    );
     expect(Array.isArray(listed[0]?.dataKeys)).toBe(true);
     expect(listed[0]?.data).toBeUndefined();
     expect(listed[0]?.content).toBeUndefined();
@@ -2634,11 +2713,13 @@ exit 2
     };
     expect(nodeSummary.id).toBe(created.id);
     expect(nodeSummary.pinned).toBe(true);
-    expect(nodeSummary.graph).toEqual(expect.objectContaining({
-      graphType: 'composed',
-      dataPoints: 2,
-      lineKey: 'conversion',
-    }));
+    expect(nodeSummary.graph).toEqual(
+      expect.objectContaining({
+        graphType: 'composed',
+        dataPoints: 2,
+        lineKey: 'conversion',
+      }),
+    );
     expect(nodeSummary.data).toBeUndefined();
     expect(nodeSummary.dataKeys).toContain('graphConfig');
 
@@ -2651,10 +2732,12 @@ exit 2
     };
     expect(nodeFields.id).toBe(created.id);
     expect(nodeFields.fields.title).toBe('Compact Graph');
-    expect(nodeFields.fields.graphConfig).toEqual(expect.objectContaining({
-      graphType: 'composed',
-      barKey: 'visits',
-    }));
+    expect(nodeFields.fields.graphConfig).toEqual(
+      expect.objectContaining({
+        graphType: 'composed',
+        barKey: 'visits',
+      }),
+    );
 
     const layoutSummary = JSON.parse(log.mock.calls[2]?.[0] as string) as {
       totalNodes: number;
@@ -2750,11 +2833,17 @@ exit 2
     const filtered = JSON.parse(log.mock.calls[1]?.[0] as string) as Array<{ name: string }>;
     expect(filtered.map((item) => item.name)).toEqual(['cli-alpha-old', 'cli-alpha']);
 
-    const preview = JSON.parse(log.mock.calls[2]?.[0] as string) as { dryRun: boolean; deleted: Array<{ name: string }> };
+    const preview = JSON.parse(log.mock.calls[2]?.[0] as string) as {
+      dryRun: boolean;
+      deleted: Array<{ name: string }>;
+    };
     expect(preview.dryRun).toBe(true);
     expect(preview.deleted.map((item) => item.name)).toEqual(['cli-beta', 'cli-alpha']);
 
-    const result = JSON.parse(log.mock.calls[3]?.[0] as string) as { dryRun: boolean; deleted: Array<{ name: string }> };
+    const result = JSON.parse(log.mock.calls[3]?.[0] as string) as {
+      dryRun: boolean;
+      deleted: Array<{ name: string }>;
+    };
     expect(result.dryRun).toBe(false);
     expect(result.deleted.map((item) => item.name)).toEqual(['cli-beta', 'cli-alpha']);
 
@@ -2763,23 +2852,32 @@ exit 2
   });
 
   test('snapshot list supports before and after filters from the CLI', async () => {
-    const first = await jsonRequest<{ ok: boolean; snapshot: { name: string; createdAt: string } }>('/api/canvas/snapshots', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'first-filtered-snapshot' }),
-    });
+    const first = await jsonRequest<{ ok: boolean; snapshot: { name: string; createdAt: string } }>(
+      '/api/canvas/snapshots',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'first-filtered-snapshot' }),
+      },
+    );
     await Bun.sleep(5);
-    const second = await jsonRequest<{ ok: boolean; snapshot: { name: string; createdAt: string } }>('/api/canvas/snapshots', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'second-filtered-snapshot' }),
-    });
+    const second = await jsonRequest<{ ok: boolean; snapshot: { name: string; createdAt: string } }>(
+      '/api/canvas/snapshots',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'second-filtered-snapshot' }),
+      },
+    );
     await Bun.sleep(5);
-    const third = await jsonRequest<{ ok: boolean; snapshot: { name: string; createdAt: string } }>('/api/canvas/snapshots', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'third-filtered-snapshot' }),
-    });
+    const third = await jsonRequest<{ ok: boolean; snapshot: { name: string; createdAt: string } }>(
+      '/api/canvas/snapshots',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'third-filtered-snapshot' }),
+      },
+    );
     expect(first.ok && second.ok && third.ok).toBe(true);
 
     const log = mock(() => {});
@@ -2838,10 +2936,7 @@ exit 2
   });
 
   test('Codex app adapter reference documents native Browser and MCP surfaces', () => {
-    const reference = readFileSync(
-      join(process.cwd(), 'skills/pmx-canvas/references/codex-app-adapter.md'),
-      'utf-8',
-    );
+    const reference = readFileSync(join(process.cwd(), 'skills/pmx-canvas/references/codex-app-adapter.md'), 'utf-8');
     const skill = readFileSync(join(process.cwd(), 'skills/pmx-canvas/SKILL.md'), 'utf-8');
 
     expect(skill).toContain('references/codex-app-adapter.md');
@@ -2892,12 +2987,14 @@ exit 2
     const state = await jsonRequest<{
       edges: Array<{ id: string; style?: string; animated?: boolean }>;
     }>('/api/canvas/state');
-    expect(state.edges).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        id: output.id,
-        style: 'dashed',
-        animated: true,
-      }),
-    ]));
+    expect(state.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: output.id,
+          style: 'dashed',
+          animated: true,
+        }),
+      ]),
+    );
   });
 });

@@ -69,28 +69,24 @@ import {
   setGroupChildrenFromApi,
 } from './operations/ops/nodes.js';
 import { streamJsonRenderCore } from './operations/ops/json-render.js';
-import {
-  executeOperation,
-  runCanvasBatchOperation,
-  type OpenMcpAppCoreResult,
-} from './operations/index.js';
+import { executeOperation, runCanvasBatchOperation, type OpenMcpAppCoreResult } from './operations/index.js';
 import { validateCanvasLayout } from './canvas-validation.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
 import { serializeCanvasNode, type SerializedCanvasNode } from './canvas-serialization.js';
-import { buildHtmlPrimitive, getHtmlPrimitiveSemanticMetadata, isHtmlPrimitiveKind, listHtmlPrimitiveDescriptors } from './html-primitives.js';
+import {
+  buildHtmlPrimitive,
+  getHtmlPrimitiveSemanticMetadata,
+  isHtmlPrimitiveKind,
+  listHtmlPrimitiveDescriptors,
+} from './html-primitives.js';
 import type { HtmlPrimitiveKind } from './html-primitives.js';
 import {
   buildWebArtifactOnCanvas,
   type WebArtifactBuildInput,
   type WebArtifactCanvasBuildResult,
 } from './web-artifacts.js';
-import {
-  closeMcpAppSession,
-  type ExternalMcpTransportConfig,
-} from './mcp-app-runtime.js';
-import {
-  type DiagramPresetOpenInput,
-} from './diagram-presets.js';
+import { closeMcpAppSession, type ExternalMcpTransportConfig } from './mcp-app-runtime.js';
+import type { DiagramPresetOpenInput } from './diagram-presets.js';
 import {
   buildGraphSpec,
   GRAPH_NODE_SIZE,
@@ -256,39 +252,44 @@ export class PmxCanvas extends EventEmitter {
     height?: number;
     strictSize?: boolean;
   }): SdkCanvasNode {
-    return this.runIntentCommit(input.intentId, ['create'], () => {
-      if (input.type === 'webpage') {
-        throw new Error('Use addWebpageNode for webpage nodes so page content is fetched and cached on the server.');
-      }
-      if (input.type === 'group') {
-        const groupId = this.createGroup({
-          ...(typeof input.title === 'string' ? { title: input.title } : {}),
-          childIds: input.childIds ?? input.children ?? [],
-          ...(typeof input.x === 'number' ? { x: input.x } : {}),
-          ...(typeof input.y === 'number' ? { y: input.y } : {}),
-          ...(typeof input.width === 'number' ? { width: input.width } : {}),
-          ...(typeof input.height === 'number' ? { height: input.height } : {}),
-          ...(typeof input.color === 'string' ? { color: input.color } : {}),
-          ...(input.childLayout ? { childLayout: input.childLayout } : {}),
-        });
-        const groupNode = canvasState.getNode(groupId);
-        if (!groupNode) throw new Error(`Group node "${groupId}" was not created.`);
-        return toSdkNode(groupNode);
-      }
-      // Thin wrapper over the shared operation core (plan-005); the SDK keeps
-      // fileMode 'path' as an explicit visible parameter instead of forked code.
-      const { node, needsCodeGraphRecompute } = createBasicCanvasNode(input, { fileMode: 'path' });
+    return this.runIntentCommit(
+      input.intentId,
+      ['create'],
+      () => {
+        if (input.type === 'webpage') {
+          throw new Error('Use addWebpageNode for webpage nodes so page content is fetched and cached on the server.');
+        }
+        if (input.type === 'group') {
+          const groupId = this.createGroup({
+            ...(typeof input.title === 'string' ? { title: input.title } : {}),
+            childIds: input.childIds ?? input.children ?? [],
+            ...(typeof input.x === 'number' ? { x: input.x } : {}),
+            ...(typeof input.y === 'number' ? { y: input.y } : {}),
+            ...(typeof input.width === 'number' ? { width: input.width } : {}),
+            ...(typeof input.height === 'number' ? { height: input.height } : {}),
+            ...(typeof input.color === 'string' ? { color: input.color } : {}),
+            ...(input.childLayout ? { childLayout: input.childLayout } : {}),
+          });
+          const groupNode = canvasState.getNode(groupId);
+          if (!groupNode) throw new Error(`Group node "${groupId}" was not created.`);
+          return toSdkNode(groupNode);
+        }
+        // Thin wrapper over the shared operation core (plan-005); the SDK keeps
+        // fileMode 'path' as an explicit visible parameter instead of forked code.
+        const { node, needsCodeGraphRecompute } = createBasicCanvasNode(input, { fileMode: 'path' });
 
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
 
-      if (needsCodeGraphRecompute) {
-        scheduleCodeGraphRecompute(() => {
-          emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-        });
-      }
+        if (needsCodeGraphRecompute) {
+          scheduleCodeGraphRecompute(() => {
+            emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+          });
+        }
 
-      return toSdkNode(node);
-    }, (node) => node.id);
+        return toSdkNode(node);
+      },
+      (node) => node.id,
+    );
   }
 
   async addWebpageNode(input: {
@@ -320,9 +321,7 @@ export class PmxCanvas extends EventEmitter {
       return {
         ok: true,
         id,
-        fetch: result.ok
-          ? { ok: true }
-          : { ok: false, error: result.error ?? 'Failed to fetch webpage content.' },
+        fetch: result.ok ? { ok: true } : { ok: false, error: result.error ?? 'Failed to fetch webpage content.' },
         ...(result.ok ? {} : { error: result.error }),
       };
     };
@@ -338,34 +337,44 @@ export class PmxCanvas extends EventEmitter {
 
   updateNode(id: string, patch: Partial<CanvasNodeState> & Record<string, unknown>): void {
     const intentId = typeof patch.intentId === 'string' ? patch.intentId : undefined;
-    this.runIntentCommit(intentId, ['move', 'edit'], () => {
-      const existing = canvasState.getNode(id);
-      if (!existing) {
-        if (intentId !== undefined) throw new Error(`Node "${id}" not found.`);
-        return;
-      }
-      // Thin wrapper over the shared patch core (plan-005): the SDK now carries
-      // the same superset semantics as HTTP/MCP (webpage titleSource/url, html
-      // top-level fields, axCapabilities merge, group children).
-      const { patch: resolvedPatch, groupChildIds } = buildNodePatch(existing, patch);
-      canvasState.updateNode(id, resolvedPatch);
-      if (groupChildIds !== undefined) setGroupChildrenFromApi(id, groupChildIds);
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-    }, () => id);
+    this.runIntentCommit(
+      intentId,
+      ['move', 'edit'],
+      () => {
+        const existing = canvasState.getNode(id);
+        if (!existing) {
+          if (intentId !== undefined) throw new Error(`Node "${id}" not found.`);
+          return;
+        }
+        // Thin wrapper over the shared patch core (plan-005): the SDK now carries
+        // the same superset semantics as HTTP/MCP (webpage titleSource/url, html
+        // top-level fields, axCapabilities merge, group children).
+        const { patch: resolvedPatch, groupChildIds } = buildNodePatch(existing, patch);
+        canvasState.updateNode(id, resolvedPatch);
+        if (groupChildIds !== undefined) setGroupChildrenFromApi(id, groupChildIds);
+        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+      },
+      () => id,
+    );
   }
 
   /** Remove a node. Missing id throws (plan-005 unifies this across surfaces). */
   removeNode(id: string, options?: { intentId?: string }): void {
-    this.runIntentCommit(options?.intentId, ['remove'], () => {
-      const { needsCodeGraphRecompute } = removeNodeCore(id);
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+    this.runIntentCommit(
+      options?.intentId,
+      ['remove'],
+      () => {
+        const { needsCodeGraphRecompute } = removeNodeCore(id);
+        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
 
-      if (needsCodeGraphRecompute) {
-        scheduleCodeGraphRecompute(() => {
-          emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-        });
-      }
-    }, () => undefined);
+        if (needsCodeGraphRecompute) {
+          scheduleCodeGraphRecompute(() => {
+            emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+          });
+        }
+      },
+      () => undefined,
+    );
   }
 
   addEdge(input: {
@@ -379,11 +388,16 @@ export class PmxCanvas extends EventEmitter {
     style?: CanvasEdge['style'];
     animated?: boolean;
   }): string {
-    return this.runIntentCommit(input.intentId, ['connect'], () => {
-      const { id } = addCanvasEdge(input);
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-      return id;
-    }, () => undefined);
+    return this.runIntentCommit(
+      input.intentId,
+      ['connect'],
+      () => {
+        const { id } = addCanvasEdge(input);
+        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+        return id;
+      },
+      () => undefined,
+    );
   }
 
   addAnnotation(input: Omit<CanvasAnnotation, 'id' | 'createdAt'> & { id?: string; createdAt?: string }): string {
@@ -423,39 +437,58 @@ export class PmxCanvas extends EventEmitter {
     color?: string;
     childLayout?: 'grid' | 'column' | 'flow';
   }): string {
-    return this.runIntentCommit(input.intentId, ['create'], () => {
-      const { id } = createCanvasGroup(input);
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-      return id;
-    }, (id) => id);
+    return this.runIntentCommit(
+      input.intentId,
+      ['create'],
+      () => {
+        const { id } = createCanvasGroup(input);
+        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+        return id;
+      },
+      (id) => id,
+    );
   }
 
   /** Add nodes to an existing group. */
-  groupNodes(groupId: string, childIds: string[], options?: { childLayout?: 'grid' | 'column' | 'flow'; intentId?: string }): boolean {
-    return this.runIntentCommit(options?.intentId, ['edit'], () => {
-      const { ok } = groupCanvasNodes(groupId, childIds, options);
-      if (!ok && options?.intentId !== undefined) {
-        throw new Error(`Group "${groupId}" could not be updated.`);
-      }
-      if (ok) {
-        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-      }
-      return ok;
-    }, () => groupId);
+  groupNodes(
+    groupId: string,
+    childIds: string[],
+    options?: { childLayout?: 'grid' | 'column' | 'flow'; intentId?: string },
+  ): boolean {
+    return this.runIntentCommit(
+      options?.intentId,
+      ['edit'],
+      () => {
+        const { ok } = groupCanvasNodes(groupId, childIds, options);
+        if (!ok && options?.intentId !== undefined) {
+          throw new Error(`Group "${groupId}" could not be updated.`);
+        }
+        if (ok) {
+          emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+        }
+        return ok;
+      },
+      () => groupId,
+    );
   }
 
   /** Remove all children from a group (the group node remains). */
   ungroupNodes(groupId: string, options?: { intentId?: string }): boolean {
-    return this.runIntentCommit(options?.intentId, ['edit'], () => {
-      const { ok } = ungroupCanvasNodes(groupId);
-      if (!ok && options?.intentId !== undefined) {
-        throw new Error(`Group "${groupId}" could not be updated.`);
-      }
-      if (ok) {
-        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-      }
-      return ok;
-    }, () => groupId);
+    return this.runIntentCommit(
+      options?.intentId,
+      ['edit'],
+      () => {
+        const { ok } = ungroupCanvasNodes(groupId);
+        if (!ok && options?.intentId !== undefined) {
+          throw new Error(`Group "${groupId}" could not be updated.`);
+        }
+        if (ok) {
+          emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+        }
+        return ok;
+      },
+      () => groupId,
+    );
   }
 
   clear(): void {
@@ -508,7 +541,13 @@ export class PmxCanvas extends EventEmitter {
   }
 
   recordAxEvent(
-    input: { kind: PmxAxEvent['kind']; summary: string; detail?: string | null; nodeIds?: string[]; data?: Record<string, unknown> | null },
+    input: {
+      kind: PmxAxEvent['kind'];
+      summary: string;
+      detail?: string | null;
+      nodeIds?: string[];
+      data?: Record<string, unknown> | null;
+    },
     options?: { source?: PmxAxSource },
   ): PmxAxEvent {
     const event = canvasState.recordAxEvent(input, { source: options?.source ?? 'sdk' });
@@ -616,7 +655,14 @@ export class PmxCanvas extends EventEmitter {
   }
 
   addEvidence(
-    input: { kind: PmxAxEvidenceKind; title: string; body?: string | null; ref?: string | null; nodeIds?: string[]; data?: Record<string, unknown> | null },
+    input: {
+      kind: PmxAxEvidenceKind;
+      title: string;
+      body?: string | null;
+      ref?: string | null;
+      nodeIds?: string[];
+      data?: Record<string, unknown> | null;
+    },
     options?: { source?: PmxAxSource },
   ): PmxAxEvidence {
     const evidence = canvasState.addEvidence(input, { source: options?.source ?? 'sdk' });
@@ -708,7 +754,10 @@ export class PmxCanvas extends EventEmitter {
     decision: 'approved' | 'rejected',
     options?: { resolution?: string; source?: PmxAxSource },
   ): PmxAxModeRequest | null {
-    const modeRequest = canvasState.resolveModeRequest(id, decision, { ...(options ?? {}), source: options?.source ?? 'sdk' });
+    const modeRequest = canvasState.resolveModeRequest(id, decision, {
+      ...(options ?? {}),
+      source: options?.source ?? 'sdk',
+    });
     if (modeRequest) emitPrimaryWorkbenchEvent('ax-state-changed', { modeRequest });
     return modeRequest;
   }
@@ -726,11 +775,23 @@ export class PmxCanvas extends EventEmitter {
       reactions?: {
         workItem?: false | { status?: PmxAxWorkItemStatus; detail?: string | null };
         evidence?: false | { kind?: PmxAxEvidenceKind; body?: string | null };
-        review?: false | { severity?: PmxAxReviewSeverity; kind?: PmxAxReviewKind; anchorType?: PmxAxReviewAnchorType; nodeId?: string | null };
+        review?:
+          | false
+          | {
+              severity?: PmxAxReviewSeverity;
+              kind?: PmxAxReviewKind;
+              anchorType?: PmxAxReviewAnchorType;
+              nodeId?: string | null;
+            };
       };
     },
     options?: { source?: PmxAxSource },
-  ): { event: PmxAxEvent; workItem: PmxAxWorkItem | null; evidence: PmxAxEvidence | null; review: PmxAxReviewAnnotation | null } {
+  ): {
+    event: PmxAxEvent;
+    workItem: PmxAxWorkItem | null;
+    evidence: PmxAxEvidence | null;
+    review: PmxAxReviewAnnotation | null;
+  } {
     const result = canvasState.ingestActivity(input, { source: options?.source ?? 'sdk' });
     emitPrimaryWorkbenchEvent('ax-event-created', { event: result.event });
     if (result.workItem) emitPrimaryWorkbenchEvent('ax-state-changed', { workItem: result.workItem });
@@ -795,7 +856,11 @@ export class PmxCanvas extends EventEmitter {
     return canvasState.getCommandRegistry();
   }
 
-  invokeCommand(name: string, args?: Record<string, unknown> | null, options?: { source?: PmxAxSource }): PmxAxEvent | null {
+  invokeCommand(
+    name: string,
+    args?: Record<string, unknown> | null,
+    options?: { source?: PmxAxSource },
+  ): PmxAxEvent | null {
     const event = canvasState.invokeCommand(name, args ?? null, { source: options?.source ?? 'sdk' });
     if (event) emitPrimaryWorkbenchEvent('ax-event-created', { event });
     return event;
@@ -873,13 +938,15 @@ export class PmxCanvas extends EventEmitter {
     };
   }
 
-  applyUpdates(updates: Array<{
-    id: string;
-    position?: { x: number; y: number };
-    size?: { width: number; height: number };
-    collapsed?: boolean;
-    dockPosition?: 'left' | 'right' | null;
-  }>): { applied: number; skipped: number } {
+  applyUpdates(
+    updates: Array<{
+      id: string;
+      position?: { x: number; y: number };
+      size?: { width: number; height: number };
+      collapsed?: boolean;
+      dockPosition?: 'left' | 'right' | null;
+    }>,
+  ): { applied: number; skipped: number } {
     return applyCanvasNodeUpdates(updates);
   }
 
@@ -913,7 +980,12 @@ export class PmxCanvas extends EventEmitter {
     return gcCanvasSnapshots(options);
   }
 
-  diffSnapshot(idOrName: string): { ok: boolean; text?: string; diff?: ReturnType<typeof diffLayouts>; error?: string } {
+  diffSnapshot(idOrName: string): {
+    ok: boolean;
+    text?: string;
+    diff?: ReturnType<typeof diffLayouts>;
+    error?: string;
+  } {
     const snapData = canvasState.getSnapshotData(idOrName);
     if (!snapData) return { ok: false, error: `Snapshot "${idOrName}" not found` };
 
@@ -935,11 +1007,7 @@ export class PmxCanvas extends EventEmitter {
     return describeCanvasSchema();
   }
 
-  validateSpec(input: {
-    type: 'json-render' | 'graph';
-    spec?: unknown;
-    graph?: GraphNodeInput;
-  }) {
+  validateSpec(input: { type: 'json-render' | 'graph'; spec?: unknown; graph?: GraphNodeInput }) {
     return validateStructuredCanvasPayload(input);
   }
 
@@ -981,25 +1049,30 @@ export class PmxCanvas extends EventEmitter {
     // close, ext-app-open + ext-app-result via ctx.emit → the registry emitter
     // wired to emitPrimaryWorkbenchEvent). mutates:false, so the registry adds no
     // canvas-layout-update; the two ext-app-* frames fire exactly once.
-    return await executeOperation('mcpapp.open', input) as OpenMcpAppCoreResult;
+    return (await executeOperation('mcpapp.open', input)) as OpenMcpAppCoreResult;
   }
 
-  async addDiagram(
-    input: DiagramPresetOpenInput,
-  ): Promise<OpenMcpAppCoreResult> {
+  async addDiagram(input: DiagramPresetOpenInput): Promise<OpenMcpAppCoreResult> {
     // Delegate to the diagram.open registry op, which builds the Excalidraw
     // OpenMcpApp input and dispatches to the shared open core (one ext-app-* pair).
-    return await executeOperation('diagram.open', input) as OpenMcpAppCoreResult;
+    return (await executeOperation('diagram.open', input)) as OpenMcpAppCoreResult;
   }
 
-  addJsonRenderNode(
-    input: JsonRenderNodeInput & { intentId?: string },
-  ): { id: string; url: string; spec: JsonRenderSpec } {
-    return this.runIntentCommit(input.intentId, ['create'], () => {
-      const result = createCanvasJsonRenderNode(input);
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-      return result;
-    }, (result) => result.id);
+  addJsonRenderNode(input: JsonRenderNodeInput & { intentId?: string }): {
+    id: string;
+    url: string;
+    spec: JsonRenderSpec;
+  } {
+    return this.runIntentCommit(
+      input.intentId,
+      ['create'],
+      () => {
+        const result = createCanvasJsonRenderNode(input);
+        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+        return result;
+      },
+      (result) => result.id,
+    );
   }
 
   /**
@@ -1034,19 +1107,24 @@ export class PmxCanvas extends EventEmitter {
     // `mutates` path). `streamJsonRenderCore` throws OperationError (an Error
     // subclass with the same message) on a bad append target. The core's
     // result carries an extra `ok: true`; the SDK's wire shape omits it.
-    return this.runIntentCommit(input.intentId, input.nodeId ? ['edit'] : ['create'], () => {
-      const result = streamJsonRenderCore(input);
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-      return {
-        id: result.id,
-        url: result.url,
-        applied: result.applied,
-        skipped: result.skipped,
-        specVersion: result.specVersion,
-        elementCount: result.elementCount,
-        streamStatus: result.streamStatus,
-      };
-    }, (result) => result.id);
+    return this.runIntentCommit(
+      input.intentId,
+      input.nodeId ? ['edit'] : ['create'],
+      () => {
+        const result = streamJsonRenderCore(input);
+        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+        return {
+          id: result.id,
+          url: result.url,
+          applied: result.applied,
+          skipped: result.skipped,
+          specVersion: result.specVersion,
+          elementCount: result.elementCount,
+          streamStatus: result.streamStatus,
+        };
+      },
+      (result) => result.id,
+    );
   }
 
   addHtmlNode(input: {
@@ -1069,34 +1147,39 @@ export class PmxCanvas extends EventEmitter {
      *  the html capability ceiling server-side; cannot escalate. */
     axCapabilities?: { enabled?: boolean; allowed?: string[] };
   }): SdkCanvasNode {
-    return this.runIntentCommit(input.intentId, ['create'], () => {
-      const { id } = addCanvasNode({
-        type: 'html',
-        ...(typeof input.title === 'string' ? { title: input.title } : {}),
-        data: {
-          html: resolveHtmlContent(input.html),
-          ...(typeof input.summary === 'string' ? { summary: input.summary } : {}),
-          ...(typeof input.agentSummary === 'string' ? { agentSummary: input.agentSummary } : {}),
-          ...(typeof input.description === 'string' ? { description: input.description } : {}),
-          ...(input.presentation === true ? { presentation: true } : {}),
-          ...(Array.isArray(input.slideTitles) ? { slideTitles: input.slideTitles } : {}),
-          ...(Array.isArray(input.embeddedNodeIds) ? { embeddedNodeIds: input.embeddedNodeIds } : {}),
-          ...(Array.isArray(input.embeddedUrls) ? { embeddedUrls: input.embeddedUrls } : {}),
-          ...(input.axCapabilities ? { axCapabilities: input.axCapabilities } : {}),
-        },
-        ...(typeof input.x === 'number' ? { x: input.x } : {}),
-        ...(typeof input.y === 'number' ? { y: input.y } : {}),
-        ...(typeof input.width === 'number' ? { width: input.width } : {}),
-        ...(typeof input.height === 'number' ? { height: input.height } : {}),
-        ...(input.strictSize ? { strictSize: true } : {}),
-        defaultWidth: 720,
-        defaultHeight: 640,
-      });
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-      const node = canvasState.getNode(id);
-      if (!node) throw new Error(`HTML node "${id}" was not created.`);
-      return toSdkNode(node);
-    }, (node) => node.id);
+    return this.runIntentCommit(
+      input.intentId,
+      ['create'],
+      () => {
+        const { id } = addCanvasNode({
+          type: 'html',
+          ...(typeof input.title === 'string' ? { title: input.title } : {}),
+          data: {
+            html: resolveHtmlContent(input.html),
+            ...(typeof input.summary === 'string' ? { summary: input.summary } : {}),
+            ...(typeof input.agentSummary === 'string' ? { agentSummary: input.agentSummary } : {}),
+            ...(typeof input.description === 'string' ? { description: input.description } : {}),
+            ...(input.presentation === true ? { presentation: true } : {}),
+            ...(Array.isArray(input.slideTitles) ? { slideTitles: input.slideTitles } : {}),
+            ...(Array.isArray(input.embeddedNodeIds) ? { embeddedNodeIds: input.embeddedNodeIds } : {}),
+            ...(Array.isArray(input.embeddedUrls) ? { embeddedUrls: input.embeddedUrls } : {}),
+            ...(input.axCapabilities ? { axCapabilities: input.axCapabilities } : {}),
+          },
+          ...(typeof input.x === 'number' ? { x: input.x } : {}),
+          ...(typeof input.y === 'number' ? { y: input.y } : {}),
+          ...(typeof input.width === 'number' ? { width: input.width } : {}),
+          ...(typeof input.height === 'number' ? { height: input.height } : {}),
+          ...(input.strictSize ? { strictSize: true } : {}),
+          defaultWidth: 720,
+          defaultHeight: 640,
+        });
+        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+        const node = canvasState.getNode(id);
+        if (!node) throw new Error(`HTML node "${id}" was not created.`);
+        return toSdkNode(node);
+      },
+      (node) => node.id,
+    );
   }
 
   addHtmlPrimitive(input: {
@@ -1110,52 +1193,60 @@ export class PmxCanvas extends EventEmitter {
     height?: number;
     strictSize?: boolean;
   }): { id: string; kind: HtmlPrimitiveKind; title: string; htmlBytes: number } {
-    return this.runIntentCommit(input.intentId, ['create'], () => {
-      const built = buildHtmlPrimitive({
-        kind: input.kind,
-        ...(typeof input.title === 'string' ? { title: input.title } : {}),
-        ...(input.data ? { data: input.data } : {}),
-      });
-      const { id } = addCanvasNode({
-        type: 'html',
-        title: built.title,
-        data: {
-          html: built.html,
-          htmlPrimitive: built.kind,
-          primitiveData: built.data,
-          description: built.summary,
-          agentSummary: typeof input.data?.agentSummary === 'string' ? input.data.agentSummary : built.summary,
-          ...(typeof input.data?.summary === 'string' ? { summary: input.data.summary } : {}),
-          ...getHtmlPrimitiveSemanticMetadata(built.data),
-        },
-        ...(typeof input.x === 'number' ? { x: input.x } : {}),
-        ...(typeof input.y === 'number' ? { y: input.y } : {}),
-        ...(typeof input.width === 'number' ? { width: input.width } : {}),
-        ...(typeof input.height === 'number' ? { height: input.height } : {}),
-        ...(input.strictSize ? { strictSize: true } : {}),
-        defaultWidth: built.defaultSize.width,
-        defaultHeight: built.defaultSize.height,
-      });
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-      return { id, kind: built.kind, title: built.title, htmlBytes: Buffer.byteLength(built.html, 'utf-8') };
-    }, (result) => result.id);
+    return this.runIntentCommit(
+      input.intentId,
+      ['create'],
+      () => {
+        const built = buildHtmlPrimitive({
+          kind: input.kind,
+          ...(typeof input.title === 'string' ? { title: input.title } : {}),
+          ...(input.data ? { data: input.data } : {}),
+        });
+        const { id } = addCanvasNode({
+          type: 'html',
+          title: built.title,
+          data: {
+            html: built.html,
+            htmlPrimitive: built.kind,
+            primitiveData: built.data,
+            description: built.summary,
+            agentSummary: typeof input.data?.agentSummary === 'string' ? input.data.agentSummary : built.summary,
+            ...(typeof input.data?.summary === 'string' ? { summary: input.data.summary } : {}),
+            ...getHtmlPrimitiveSemanticMetadata(built.data),
+          },
+          ...(typeof input.x === 'number' ? { x: input.x } : {}),
+          ...(typeof input.y === 'number' ? { y: input.y } : {}),
+          ...(typeof input.width === 'number' ? { width: input.width } : {}),
+          ...(typeof input.height === 'number' ? { height: input.height } : {}),
+          ...(input.strictSize ? { strictSize: true } : {}),
+          defaultWidth: built.defaultSize.width,
+          defaultHeight: built.defaultSize.height,
+        });
+        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+        return { id, kind: built.kind, title: built.title, htmlBytes: Buffer.byteLength(built.html, 'utf-8') };
+      },
+      (result) => result.id,
+    );
   }
 
   addGraphNode(input: GraphNodeInput & { intentId?: string }): { id: string; url: string; spec: JsonRenderSpec } {
-    return this.runIntentCommit(input.intentId, ['create'], () => {
-      const result = createCanvasGraphNode(input);
-      emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
-      return result;
-    }, (result) => result.id);
+    return this.runIntentCommit(
+      input.intentId,
+      ['create'],
+      () => {
+        const result = createCanvasGraphNode(input);
+        emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+        return result;
+      },
+      (result) => result.id,
+    );
   }
 
   get port(): number {
     return this._port;
   }
 
-  async startAutomationWebView(
-    options: CanvasAutomationWebViewOptions = {},
-  ): Promise<CanvasAutomationWebViewStatus> {
+  async startAutomationWebView(options: CanvasAutomationWebViewOptions = {}): Promise<CanvasAutomationWebViewStatus> {
     const base = this._server ?? startCanvasServer({ port: this._port, allowPortFallback: false });
     if (!base) {
       throw new Error(`Failed to start canvas server on port ${this._port}`);
@@ -1177,10 +1268,7 @@ export class PmxCanvas extends EventEmitter {
     return evaluateCanvasAutomationWebView(expression);
   }
 
-  async resizeAutomationWebView(
-    width: number,
-    height: number,
-  ): Promise<CanvasAutomationWebViewStatus> {
+  async resizeAutomationWebView(width: number, height: number): Promise<CanvasAutomationWebViewStatus> {
     return resizeCanvasAutomationWebView(width, height);
   }
 
@@ -1217,14 +1305,24 @@ export {
   screenshotCanvasAutomationWebView,
 } from './server.js';
 export { canvasState } from './canvas-state.js';
-export type { CanvasAnnotation, CanvasSnapshot, CanvasSnapshotGcResult, CanvasSnapshotListOptions } from './canvas-state.js';
+export type {
+  CanvasAnnotation,
+  CanvasSnapshot,
+  CanvasSnapshotGcResult,
+  CanvasSnapshotListOptions,
+} from './canvas-state.js';
 export { findOpenCanvasPosition } from './placement.js';
 export { searchNodes, buildSpatialContext, detectClusters, findNeighborhoods } from './spatial-analysis.js';
 export type { SpatialCluster, SpatialContext, SpatialNeighbor, NodeSpatialInfo } from './spatial-analysis.js';
 export { mutationHistory, diffLayouts, formatDiff } from './mutation-history.js';
 export { recomputeCodeGraph, buildCodeGraphSummary, formatCodeGraph } from './code-graph.js';
 export { describeCanvasSchema, validateStructuredCanvasPayload } from './canvas-schema.js';
-export { buildHtmlPrimitive, getHtmlPrimitiveSemanticMetadata, isHtmlPrimitiveKind, listHtmlPrimitiveDescriptors } from './html-primitives.js';
+export {
+  buildHtmlPrimitive,
+  getHtmlPrimitiveSemanticMetadata,
+  isHtmlPrimitiveKind,
+  listHtmlPrimitiveDescriptors,
+} from './html-primitives.js';
 export {
   buildWebArtifactOnCanvas,
   executeWebArtifactBuild,
@@ -1249,7 +1347,12 @@ export type {
   WebArtifactCanvasOpenResult,
 } from './web-artifacts.js';
 export type { GraphNodeInput, JsonRenderNodeInput, JsonRenderSpec } from '../json-render/server.js';
-export type { HtmlPrimitiveKind, HtmlPrimitiveDescriptor, HtmlPrimitiveInput, HtmlPrimitiveBuildResult } from './html-primitives.js';
+export type {
+  HtmlPrimitiveKind,
+  HtmlPrimitiveDescriptor,
+  HtmlPrimitiveInput,
+  HtmlPrimitiveBuildResult,
+} from './html-primitives.js';
 export { traceManager } from './trace-manager.js';
 export type {
   PmxAxApprovalGate,

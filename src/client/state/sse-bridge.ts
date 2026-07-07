@@ -72,10 +72,8 @@ function applyLayoutOverrides(node: CanvasNodeState): CanvasNodeState {
 }
 
 // ── Default positions by type ─────────────────────────────────
-const DEFAULT_POSITIONS: Record<
-  CanvasNodeState['type'],
-  { x: number; y: number; w: number; h: number }
-> & Record<'prompt' | 'response', { x: number; y: number; w: number; h: number }> = {
+const DEFAULT_POSITIONS: Record<CanvasNodeState['type'], { x: number; y: number; w: number; h: number }> &
+  Record<'prompt' | 'response', { x: number; y: number; w: number; h: number }> = {
   status: { x: 40, y: 80, w: 300, h: 120 },
   markdown: { x: 380, y: 80, w: 720, h: 600 },
   context: { x: 1130, y: 80, w: 320, h: 400 },
@@ -114,11 +112,7 @@ function makeNode(
 }
 
 function getMarkdownPlacement(): { x: number; y: number } {
-  return findOpenCanvasPosition(
-    [...nodes.value.values()],
-    DEFAULT_POSITIONS.markdown.w,
-    DEFAULT_POSITIONS.markdown.h,
-  );
+  return findOpenCanvasPosition([...nodes.value.values()], DEFAULT_POSITIONS.markdown.w, DEFAULT_POSITIONS.markdown.h);
 }
 
 // ── Node ensure helpers ───────────────────────────────────────
@@ -243,11 +237,7 @@ function findExtAppNodeId(toolCallId: string): string | null {
   const legacyDirectId = `ext-app-${toolCallId}`;
   if (legacyDirectId !== directId && nodes.value.has(legacyDirectId)) return legacyDirectId;
   for (const [nodeId, node] of nodes.value.entries()) {
-    if (
-      node.type === 'mcp-app' &&
-      node.data.mode === 'ext-app' &&
-      node.data.toolCallId === toolCallId
-    ) {
+    if (node.type === 'mcp-app' && node.data.mode === 'ext-app' && node.data.toolCallId === toolCallId) {
       return nodeId;
     }
   }
@@ -301,28 +291,27 @@ function applyCanvasTheme(theme: string): void {
 }
 
 function isCanvasNodeType(value: unknown): value is CanvasNodeState['type'] {
-  return value === 'markdown'
-    || value === 'mcp-app'
-    || value === 'webpage'
-    || value === 'json-render'
-    || value === 'graph'
-    || value === 'prompt'
-    || value === 'response'
-    || value === 'status'
-    || value === 'context'
-    || value === 'ledger'
-    || value === 'trace'
-    || value === 'file'
-    || value === 'image'
-    || value === 'html'
-    || value === 'group';
+  return (
+    value === 'markdown' ||
+    value === 'mcp-app' ||
+    value === 'webpage' ||
+    value === 'json-render' ||
+    value === 'graph' ||
+    value === 'prompt' ||
+    value === 'response' ||
+    value === 'status' ||
+    value === 'context' ||
+    value === 'ledger' ||
+    value === 'trace' ||
+    value === 'file' ||
+    value === 'image' ||
+    value === 'html' ||
+    value === 'group'
+  );
 }
 
 function isCanvasEdgeType(value: unknown): value is CanvasEdge['type'] {
-  return value === 'relation'
-    || value === 'depends-on'
-    || value === 'flow'
-    || value === 'references';
+  return value === 'relation' || value === 'depends-on' || value === 'flow' || value === 'references';
 }
 
 function parseCanvasPosition(value: unknown): { x: number; y: number } | null {
@@ -353,10 +342,8 @@ function parseCanvasNode(raw: Record<string, unknown>): CanvasNodeState | null {
   const size = parseCanvasSize(raw.size);
   if (!position || !size) return null;
 
-  const dockPosition =
-    raw.dockPosition === 'left' || raw.dockPosition === 'right' ? raw.dockPosition : null;
-  const data =
-    raw.data && typeof raw.data === 'object' ? Object.fromEntries(Object.entries(raw.data)) : {};
+  const dockPosition = raw.dockPosition === 'left' || raw.dockPosition === 'right' ? raw.dockPosition : null;
+  const data = raw.data && typeof raw.data === 'object' ? Object.fromEntries(Object.entries(raw.data)) : {};
 
   return {
     id: raw.id,
@@ -383,9 +370,7 @@ function parseCanvasEdge(raw: Record<string, unknown>): CanvasEdge | null {
     to: raw.to,
     type: raw.type,
     ...(typeof raw.label === 'string' ? { label: raw.label } : {}),
-    ...(raw.style === 'solid' || raw.style === 'dashed' || raw.style === 'dotted'
-      ? { style: raw.style }
-      : {}),
+    ...(raw.style === 'solid' || raw.style === 'dashed' || raw.style === 'dotted' ? { style: raw.style } : {}),
     ...(raw.animated === true ? { animated: true } : {}),
   };
 }
@@ -429,8 +414,7 @@ function handleWorkbenchOpen(data: Record<string, unknown>): void {
   // H6: Guard — path must be a string for node ID stability
   if (typeof data.path !== 'string' || !data.path) return;
   const path = data.path;
-  const title =
-    (typeof data.title === 'string' ? data.title : '') || path.split('/').pop() || 'Untitled';
+  const title = (typeof data.title === 'string' ? data.title : '') || path.split('/').pop() || 'Untitled';
 
   ensureMarkdownNode(path, title);
   if (data.ledgerSummary) {
@@ -515,9 +499,7 @@ function handleAuxClose(data: Record<string, unknown>): void {
     } else {
       const existing = nodes.value.get(id);
       if (!existing) return;
-      const auxTabs = ((existing.data.auxTabs as Array<Record<string, unknown>>) ?? []).filter(
-        (t) => t.id !== data.id,
-      );
+      const auxTabs = ((existing.data.auxTabs as Array<Record<string, unknown>>) ?? []).filter((t) => t.id !== data.id);
       updateNodeData(id, { auxTabs });
     }
   }
@@ -587,8 +569,7 @@ function handleExtAppOpen(data: Record<string, unknown>): void {
 
 function handleExtAppUpdate(data: Record<string, unknown>): void {
   if (typeof data.toolCallId !== 'string' || !data.toolCallId) return;
-  const id =
-    findExtAppEventNodeId(data) ?? findOnlyPendingExtAppNodeId(data.serverName, data.toolName);
+  const id = findExtAppEventNodeId(data) ?? findOnlyPendingExtAppNodeId(data.serverName, data.toolName);
   if (!id) return;
   if (nodes.value.has(id)) {
     updateNodeData(id, { html: data.html });
@@ -597,8 +578,7 @@ function handleExtAppUpdate(data: Record<string, unknown>): void {
 
 function handleExtAppResult(data: Record<string, unknown>): void {
   if (typeof data.toolCallId !== 'string' || !data.toolCallId) return;
-  const id =
-    findExtAppEventNodeId(data) ?? findOnlyPendingExtAppNodeId(data.serverName, data.toolName);
+  const id = findExtAppEventNodeId(data) ?? findOnlyPendingExtAppNodeId(data.serverName, data.toolName);
   if (!id) return;
   if (nodes.value.has(id)) {
     if (data.success === false) {
@@ -611,8 +591,7 @@ function handleExtAppResult(data: Record<string, unknown>): void {
         success: typeof data.success === 'boolean' ? data.success : undefined,
         error: typeof data.error === 'string' ? data.error : undefined,
         content: typeof data.content === 'string' ? data.content : undefined,
-        detailedContent:
-          typeof data.detailedContent === 'string' ? data.detailedContent : undefined,
+        detailedContent: typeof data.detailedContent === 'string' ? data.detailedContent : undefined,
       }),
     });
   }
@@ -843,14 +822,14 @@ function handleCanvasLayoutUpdate(data: Record<string, unknown>): void {
   const shouldApplyViewport = !hasInitialServerLayout.value;
   hasInitialServerLayout.value = true;
 
-  const serverNodes = layout.nodes
-    .map(parseCanvasNode)
-    .filter((node): node is CanvasNodeState => node !== null);
+  const serverNodes = layout.nodes.map(parseCanvasNode).filter((node): node is CanvasNodeState => node !== null);
   const serverEdges = Array.isArray(layout.edges)
     ? layout.edges.map(parseCanvasEdge).filter((edge): edge is CanvasEdge => edge !== null)
     : Array.from(edges.value.values());
   const serverAnnotations = Array.isArray(layout.annotations)
-    ? layout.annotations.map(parseCanvasAnnotation).filter((annotation): annotation is CanvasAnnotation => annotation !== null)
+    ? layout.annotations
+        .map(parseCanvasAnnotation)
+        .filter((annotation): annotation is CanvasAnnotation => annotation !== null)
     : undefined;
   const nextViewport = layout.viewport
     ? {
@@ -861,12 +840,15 @@ function handleCanvasLayoutUpdate(data: Record<string, unknown>): void {
     : undefined;
 
   cancelViewportAnimation();
-  applyServerCanvasLayout({
-    ...(nextViewport ? { viewport: nextViewport } : {}),
-    nodes: serverNodes,
-    edges: serverEdges,
-    ...(serverAnnotations ? { annotations: serverAnnotations } : {}),
-  }, { applyViewport: shouldApplyViewport });
+  applyServerCanvasLayout(
+    {
+      ...(nextViewport ? { viewport: nextViewport } : {}),
+      nodes: serverNodes,
+      edges: serverEdges,
+      ...(serverAnnotations ? { annotations: serverAnnotations } : {}),
+    },
+    { applyViewport: shouldApplyViewport },
+  );
 
   syncAttentionFromSse({ event: 'canvas-layout-update', data });
 }
@@ -923,9 +905,7 @@ function handleThemeChanged(data: Record<string, unknown>): void {
 }
 
 function handleContextPinsChanged(data: Record<string, unknown>): void {
-  const nodeIds = Array.isArray(data.nodeIds)
-    ? data.nodeIds.filter((id): id is string => typeof id === 'string')
-    : [];
+  const nodeIds = Array.isArray(data.nodeIds) ? data.nodeIds.filter((id): id is string => typeof id === 'string') : [];
   replaceContextPinsFromServer(nodeIds);
   syncAttentionFromSse({ event: 'context-pins-changed', data });
 }
@@ -939,7 +919,9 @@ function handleAxStateChanged(): void {
   if (axRefreshTimer) clearTimeout(axRefreshTimer);
   axRefreshTimer = setTimeout(() => {
     axRefreshTimer = null;
-    void fetchAxSurfaceState().then((state) => { axSurfaceState.value = state; });
+    void fetchAxSurfaceState().then((state) => {
+      axSurfaceState.value = state;
+    });
   }, 150);
 }
 
@@ -951,11 +933,12 @@ function handleAxIntent(data: Record<string, unknown>): void {
   // be pruned if its `clear` frame were dropped. The server always sets it, so this
   // only rejects a malformed frame — keeping the backstop's guarantee real.
   if (
-    !intent
-    || typeof intent.id !== 'string'
-    || typeof intent.kind !== 'string'
-    || typeof intent.expiresAt !== 'number'
-  ) return;
+    !intent ||
+    typeof intent.id !== 'string' ||
+    typeof intent.kind !== 'string' ||
+    typeof intent.expiresAt !== 'number'
+  )
+    return;
   upsertIntent(intent);
 }
 

@@ -14,11 +14,7 @@
  */
 import { z } from 'zod';
 import { canvasState } from '../../canvas-state.js';
-import {
-  arrangeCanvasNodes,
-  clearCanvas,
-  fitCanvasView,
-} from '../../canvas-operations.js';
+import { arrangeCanvasNodes, clearCanvas, fitCanvasView } from '../../canvas-operations.js';
 import { validateCanvasLayout } from '../../canvas-validation.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 import { closeNodeAppSession, isRecord } from './nodes.js';
@@ -42,17 +38,20 @@ const arrangeOperation = defineOperation<z.infer<typeof arrangeSchema>, Record<s
   },
   mcp: {
     toolName: 'canvas_arrange',
-    description: 'Auto-arrange all nodes on the canvas. Layouts: grid (default), column (vertical stack), flow (horizontal row).',
+    description:
+      'Auto-arrange all nodes on the canvas. Layouts: grid (default), column (vertical stack), flow (horizontal row).',
     extraShape: {
       layout: z.enum(['grid', 'column', 'flow']).optional().describe('Arrangement layout (default: grid)'),
     },
     // Legacy tool reported { ok: true, layout } regardless of the arrange
     // result (it ignored the arranged count and validation outcome).
     formatResult: (result, input) => ({
-      content: [{
-        type: 'text' as const,
-        text: JSON.stringify({ ok: true, layout: typeof input.layout === 'string' ? input.layout : 'grid' }),
-      }],
+      content: [
+        {
+          type: 'text' as const,
+          text: JSON.stringify({ ok: true, layout: typeof input.layout === 'string' ? input.layout : 'grid' }),
+        },
+      ],
     }),
   },
   handler: (input) => {
@@ -93,7 +92,8 @@ const focusOperation = defineOperation<z.infer<typeof focusSchema>, Record<strin
   },
   mcp: {
     toolName: 'canvas_focus_node',
-    description: 'Bring a node into focus. By default the viewport pans so the node is centered. Pass noPan=true to raise/select the node without moving the human\'s camera (useful when reacting to background events without disrupting the human\'s current view).',
+    description:
+      "Bring a node into focus. By default the viewport pans so the node is centered. Pass noPan=true to raise/select the node without moving the human's camera (useful when reacting to background events without disrupting the human's current view).",
     extraShape: {
       id: z.string().describe('Node ID to focus on'),
       noPan: z
@@ -104,10 +104,12 @@ const focusOperation = defineOperation<z.infer<typeof focusSchema>, Record<strin
     formatResult: (result) => {
       const body = isRecord(result) ? result : {};
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({ ok: true, focused: body.focused, panned: body.panned }),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({ ok: true, focused: body.focused, panned: body.panned }),
+          },
+        ],
       };
     },
   },
@@ -155,7 +157,8 @@ const fitOperation = defineOperation<z.infer<typeof fitSchema>, Record<string, u
   },
   mcp: {
     toolName: 'canvas_fit_view',
-    description: 'Fit the canvas viewport to all nodes or a selected subset. Useful before screenshots and whole-board review.',
+    description:
+      'Fit the canvas viewport to all nodes or a selected subset. Useful before screenshots and whole-board review.',
     extraShape: {
       nodeIds: z.array(z.string()).optional().describe('Optional node IDs to fit instead of the whole canvas'),
     },
@@ -211,9 +214,4 @@ const clearOperation = defineOperation<z.infer<typeof clearSchema>, Record<strin
   },
 });
 
-export const viewportOperations: Operation[] = [
-  arrangeOperation,
-  focusOperation,
-  fitOperation,
-  clearOperation,
-];
+export const viewportOperations: Operation[] = [arrangeOperation, focusOperation, fitOperation, clearOperation];

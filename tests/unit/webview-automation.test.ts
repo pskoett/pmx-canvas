@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { createCanvas } from '../../src/server/index.ts';
-import {
-  createTestWorkspace,
-  removeTestWorkspace,
-  resetCanvasForTests,
-} from './helpers.ts';
+import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 const supportsWebView = typeof Bun.WebView === 'function';
 
@@ -38,7 +34,7 @@ describe('canvas WebView automation', () => {
     try {
       await canvas.start({ open: false });
 
-      let started;
+      let started: Awaited<ReturnType<typeof canvas.startAutomationWebView>>;
       try {
         started = await canvas.startAutomationWebView({ width: 900, height: 700 });
       } catch (error) {

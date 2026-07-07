@@ -47,8 +47,21 @@ import type {
   ListResourceTemplatesResult,
   ListToolsResult,
 } from '@modelcontextprotocol/sdk/types.js';
-import { type CanvasAnnotation, type CanvasLayout, type CanvasNodeState, IMAGE_MIME_MAP, canvasState } from './canvas-state.js';
-import { buildAxBridge, buildAxStateBridge, buildContentHeightReporter, buildHtmlSurfaceDocument, HTML_SURFACE_SANDBOX, normalizeSurfaceTheme } from './html-surface.js';
+import {
+  type CanvasAnnotation,
+  type CanvasLayout,
+  type CanvasNodeState,
+  IMAGE_MIME_MAP,
+  canvasState,
+} from './canvas-state.js';
+import {
+  buildAxBridge,
+  buildAxStateBridge,
+  buildContentHeightReporter,
+  buildHtmlSurfaceDocument,
+  HTML_SURFACE_SANDBOX,
+  normalizeSurfaceTheme,
+} from './html-surface.js';
 import { findCanvasExtAppNodeId as findCanvasExtAppNodeIdShared } from './ext-app-lookup.js';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
@@ -91,10 +104,7 @@ import {
 import { dispatchOperationRoute, setOperationEventEmitter } from './operations/index.js';
 import { intentRegistry } from './intent-registry.js';
 import { setWebviewRunner } from './operations/webview-runner.js';
-import {
-  closeNodeAppSession,
-  nodeAppSessionId,
-} from './operations/ops/nodes.js';
+import { closeNodeAppSession, nodeAppSessionId } from './operations/ops/nodes.js';
 import {
   EXCALIDRAW_READ_CHECKPOINT_TOOL,
   EXCALIDRAW_SAVE_CHECKPOINT_TOOL,
@@ -105,12 +115,8 @@ import {
   isExcalidrawCreateView,
 } from './diagram-presets.js';
 import { traceManager } from './trace-manager.js';
-import {
-  buildJsonRenderViewerHtml,
-} from '../json-render/server.js';
-import {
-  normalizeWebpageUrl,
-} from './webpage-node.js';
+import { buildJsonRenderViewerHtml } from '../json-render/server.js';
+import { normalizeWebpageUrl } from './webpage-node.js';
 import type { JsonRenderSpec } from '../json-render/server.js';
 
 const DEFAULT_HOST = '127.0.0.1';
@@ -294,16 +300,15 @@ export interface CanvasAutomationWebViewStatus {
 }
 
 let canvasAutomationWebView: CanvasWebViewLike | null = null;
-let canvasAutomationWebViewStatus: Omit<CanvasAutomationWebViewStatus, 'supported' | 'active' | 'headlessOnly'> =
-  {
-    url: null,
-    backend: null,
-    width: null,
-    height: null,
-    dataStoreDir: null,
-    startedAt: null,
-    lastError: null,
-  };
+let canvasAutomationWebViewStatus: Omit<CanvasAutomationWebViewStatus, 'supported' | 'active' | 'headlessOnly'> = {
+  url: null,
+  backend: null,
+  width: null,
+  height: null,
+  dataStoreDir: null,
+  startedAt: null,
+  lastError: null,
+};
 let canvasAutomationWebViewQueue: Promise<void> = Promise.resolve();
 
 function sessionDiagLog(tag: string, payload: Record<string, unknown>): void {
@@ -407,9 +412,7 @@ function detectCanvasAutomationWebViewBackendKind(backend: CanvasWebViewBackend)
 
 function getCanvasAutomationWebViewTimeoutMs(): number {
   const raw = Number.parseInt(process.env.PMX_CANVAS_WEBVIEW_TIMEOUT_MS ?? '', 10);
-  return Number.isFinite(raw) && raw > 0
-    ? raw
-    : DEFAULT_CANVAS_AUTOMATION_WEBVIEW_TIMEOUT_MS;
+  return Number.isFinite(raw) && raw > 0 ? raw : DEFAULT_CANVAS_AUTOMATION_WEBVIEW_TIMEOUT_MS;
 }
 
 async function withCanvasAutomationWebViewTimeout<T>(task: Promise<T>, action: string): Promise<T> {
@@ -457,7 +460,10 @@ async function closeCanvasAutomationWebViewInternal(): Promise<boolean> {
 
 function runCanvasAutomationWebViewTask<T>(task: () => Promise<T>): Promise<T> {
   const result = canvasAutomationWebViewQueue.then(task);
-  canvasAutomationWebViewQueue = result.then(() => undefined, () => undefined);
+  canvasAutomationWebViewQueue = result.then(
+    () => undefined,
+    () => undefined,
+  );
   return result;
 }
 
@@ -553,7 +559,8 @@ export async function evaluateCanvasAutomationWebView(expression: string): Promi
     withCanvasAutomationWebViewTimeout(
       requireActiveCanvasAutomationWebView().evaluate(expression),
       'evaluating JavaScript in the workbench automation WebView',
-    ));
+    ),
+  );
 }
 
 export function wrapCanvasAutomationScript(script: string): string {
@@ -580,9 +587,7 @@ export async function resizeCanvasAutomationWebView(
   });
 }
 
-export async function screenshotCanvasAutomationWebView(
-  options: Record<string, unknown> = {},
-): Promise<Uint8Array> {
+export async function screenshotCanvasAutomationWebView(options: Record<string, unknown> = {}): Promise<Uint8Array> {
   return runCanvasAutomationWebViewTask(async () => {
     const result = await withCanvasAutomationWebViewTimeout(
       requireActiveCanvasAutomationWebView().screenshot(options),
@@ -621,9 +626,7 @@ export interface PrimaryWorkbenchCanvasPromptRequest {
   contextNodeIds: string[];
 }
 
-type PrimaryWorkbenchCanvasPromptHandler = (
-  request: PrimaryWorkbenchCanvasPromptRequest,
-) => Promise<void>;
+type PrimaryWorkbenchCanvasPromptHandler = (request: PrimaryWorkbenchCanvasPromptRequest) => Promise<void>;
 
 let primaryWorkbenchCanvasPromptHandler: PrimaryWorkbenchCanvasPromptHandler | null = null;
 
@@ -831,9 +834,7 @@ function extAppEventGeometryPatch(
   const width = typeof payload.width === 'number' ? payload.width : undefined;
   const height = typeof payload.height === 'number' ? payload.height : undefined;
   return {
-    ...(x !== undefined || y !== undefined
-      ? { position: { x: x ?? node.position.x, y: y ?? node.position.y } }
-      : {}),
+    ...(x !== undefined || y !== undefined ? { position: { x: x ?? node.position.x, y: y ?? node.position.y } } : {}),
     ...(width !== undefined || height !== undefined
       ? { size: { width: width ?? node.size.width, height: height ?? node.size.height } }
       : {}),
@@ -888,9 +889,7 @@ export function hasWorkbenchSubscribers(): boolean {
   return workbenchSubscribers.size > 0;
 }
 
-export function setPrimaryWorkbenchCanvasPromptHandler(
-  handler: PrimaryWorkbenchCanvasPromptHandler | null,
-): void {
+export function setPrimaryWorkbenchCanvasPromptHandler(handler: PrimaryWorkbenchCanvasPromptHandler | null): void {
   primaryWorkbenchCanvasPromptHandler = handler;
 }
 
@@ -906,10 +905,7 @@ function enqueuePrimaryWorkbenchIntent(
   };
   pendingWorkbenchIntents.push(intent);
   if (pendingWorkbenchIntents.length > MAX_PENDING_WORKBENCH_INTENTS) {
-    pendingWorkbenchIntents.splice(
-      0,
-      pendingWorkbenchIntents.length - MAX_PENDING_WORKBENCH_INTENTS,
-    );
+    pendingWorkbenchIntents.splice(0, pendingWorkbenchIntents.length - MAX_PENDING_WORKBENCH_INTENTS);
   }
   broadcastWorkbenchEvent('workbench-intent', { ...intent });
   return intent;
@@ -982,18 +978,13 @@ function isExcalidrawUrl(url: string): boolean {
 }
 
 function normalizeMarkdownExternalUrls(markdown: string): string {
-  const normalizedLinks = markdown.replace(/https?:\/\/[^\s<>"'`)\]]+/gi, (url) =>
-    toPreferredExcalidrawUrl(url),
-  );
-  return normalizedLinks.replace(
-    /!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/gi,
-    (full, altRaw: string, urlRaw: string) => {
-      const url = toPreferredExcalidrawUrl(urlRaw);
-      if (!isExcalidrawUrl(url)) return full;
-      const label = (altRaw || 'Open Excalidraw diagram').trim() || 'Open Excalidraw diagram';
-      return `> Excalidraw diagram: [${label}](${url})`;
-    },
-  );
+  const normalizedLinks = markdown.replace(/https?:\/\/[^\s<>"'`)\]]+/gi, (url) => toPreferredExcalidrawUrl(url));
+  return normalizedLinks.replace(/!\[([^\]]*)\]\((https?:\/\/[^)\s]+)\)/gi, (full, altRaw: string, urlRaw: string) => {
+    const url = toPreferredExcalidrawUrl(urlRaw);
+    if (!isExcalidrawUrl(url)) return full;
+    const label = (altRaw || 'Open Excalidraw diagram').trim() || 'Open Excalidraw diagram';
+    return `> Excalidraw diagram: [${label}](${url})`;
+  });
 }
 
 // ── Canvas SPA HTML ────────────────────────────────────────────
@@ -1308,18 +1299,17 @@ function handleNodeSurface(pathname: string, url: URL): Response {
   const theme = normalizeSurfaceTheme(url.searchParams.get('theme'));
 
   if (node.type === 'html') {
-    const html = typeof node.data.html === 'string'
-      ? node.data.html
-      : typeof node.data.content === 'string'
-        ? node.data.content
-        : '';
+    const html =
+      typeof node.data.html === 'string'
+        ? node.data.html
+        : typeof node.data.content === 'string'
+          ? node.data.content
+          : '';
     if (!html) return responseText('HTML node has no content', 404);
     const present = url.searchParams.get('present') === '1';
     const axCaps = resolveNodeAxCapabilities(node);
     const axEnabled = axCaps.enabled && axCaps.allowed.length > 0;
-    const surfaceTitle = typeof node.data.title === 'string' && node.data.title.trim()
-      ? node.data.title
-      : node.id;
+    const surfaceTitle = typeof node.data.title === 'string' && node.data.title.trim() ? node.data.title : node.id;
     const doc = buildHtmlSurfaceDocument(html, {
       theme,
       title: surfaceTitle,
@@ -1332,7 +1322,9 @@ function handleNodeSurface(pathname: string, url: URL): Response {
       // Seed the read-side bridge with the current AX state (only for AX surfaces).
       ...(axEnabled ? { axState: buildCanvasAxSurfaceSnapshot() } : {}),
       // Content-height reporter nonce (lets an html node grow to fit its content).
-      ...(url.searchParams.get('frameToken') ? { contentHeightToken: url.searchParams.get('frameToken') as string } : {}),
+      ...(url.searchParams.get('frameToken')
+        ? { contentHeightToken: url.searchParams.get('frameToken') as string }
+        : {}),
     });
     return surfaceHtmlResponse(doc, HTML_SURFACE_SANDBOX);
   }
@@ -1378,15 +1370,16 @@ async function handleCanvasUpdate(req: Request): Promise<Response> {
   const body = await readJson(req);
   if (body === null) return malformedJsonResponse();
   const updates = Array.isArray(body.updates) ? body.updates : [];
-  const result = body.recordHistory === false
-    ? (() => {
-        let suppressedResult: ReturnType<typeof applyCanvasNodeUpdates> = { applied: 0, skipped: updates.length };
-        canvasState.withSuppressedRecording(() => {
-          suppressedResult = applyCanvasNodeUpdates(updates);
-        });
-        return suppressedResult;
-      })()
-    : applyCanvasNodeUpdates(updates);
+  const result =
+    body.recordHistory === false
+      ? (() => {
+          let suppressedResult: ReturnType<typeof applyCanvasNodeUpdates> = { applied: 0, skipped: updates.length };
+          canvasState.withSuppressedRecording(() => {
+            suppressedResult = applyCanvasNodeUpdates(updates);
+          });
+          return suppressedResult;
+        })()
+      : applyCanvasNodeUpdates(updates);
   if (result.applied > 0) {
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   }
@@ -1422,7 +1415,11 @@ function annotationBounds(points: CanvasAnnotation['points']): CanvasAnnotation[
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
 }
 
-function textAnnotationBounds(point: CanvasAnnotation['points'][number], text: string, width: number): CanvasAnnotation['bounds'] {
+function textAnnotationBounds(
+  point: CanvasAnnotation['points'][number],
+  text: string,
+  width: number,
+): CanvasAnnotation['bounds'] {
   return {
     x: point.x,
     y: point.y - width,
@@ -1450,29 +1447,41 @@ async function handleCanvasAddAnnotation(req: Request): Promise<Response> {
   const type = body.type === 'text' ? 'text' : 'freehand';
   const points = parseAnnotationPoints(body.points);
   if (points.length < (type === 'text' ? 1 : 2)) {
-    return responseJson({ ok: false, error: type === 'text' ? 'Text annotation requires a valid point.' : 'Annotation requires at least two valid points.' }, 400);
+    return responseJson(
+      {
+        ok: false,
+        error:
+          type === 'text'
+            ? 'Text annotation requires a valid point.'
+            : 'Annotation requires at least two valid points.',
+      },
+      400,
+    );
   }
 
   const defaultWidth = type === 'text' ? 24 : 4;
   const maxWidth = type === 'text' ? 96 : 24;
-  const width = typeof body.width === 'number' && Number.isFinite(body.width)
-    ? Math.min(maxWidth, Math.max(1, body.width))
-    : defaultWidth;
-  const color = typeof body.color === 'string' && (body.color === 'currentColor' || /^#[0-9a-fA-F]{6}$/.test(body.color))
-    ? body.color
-    : 'currentColor';
-  const label = typeof body.label === 'string' && body.label.trim().length > 0
-    ? body.label.trim().slice(0, 160)
-    : undefined;
-  const text = type === 'text' && typeof body.text === 'string' && body.text.trim().length > 0
-    ? body.text.trim().slice(0, 240)
-    : undefined;
+  const width =
+    typeof body.width === 'number' && Number.isFinite(body.width)
+      ? Math.min(maxWidth, Math.max(1, body.width))
+      : defaultWidth;
+  const color =
+    typeof body.color === 'string' && (body.color === 'currentColor' || /^#[0-9a-fA-F]{6}$/.test(body.color))
+      ? body.color
+      : 'currentColor';
+  const label =
+    typeof body.label === 'string' && body.label.trim().length > 0 ? body.label.trim().slice(0, 160) : undefined;
+  const text =
+    type === 'text' && typeof body.text === 'string' && body.text.trim().length > 0
+      ? body.text.trim().slice(0, 240)
+      : undefined;
   if (type === 'text' && !text) {
     return responseJson({ ok: false, error: 'Text annotation requires text.' }, 400);
   }
-  const id = typeof body.id === 'string' && body.id.trim().length > 0
-    ? body.id.trim().slice(0, 120)
-    : `ann-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  const id =
+    typeof body.id === 'string' && body.id.trim().length > 0
+      ? body.id.trim().slice(0, 120)
+      : `ann-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
   const annotation: CanvasAnnotation = {
     id,
     type,
@@ -1481,7 +1490,7 @@ async function handleCanvasAddAnnotation(req: Request): Promise<Response> {
     color,
     width,
     ...(text ? { text } : {}),
-    ...(label ?? text ? { label: label ?? text } : {}),
+    ...((label ?? text) ? { label: label ?? text } : {}),
     createdAt: new Date().toISOString(),
   };
 
@@ -1585,22 +1594,18 @@ async function handleJsonRenderView(url: URL): Promise<Response> {
 
   const themeValue = url.searchParams.get('theme');
   const theme =
-    themeValue === 'dark' || themeValue === 'light' || themeValue === 'high-contrast'
-      ? themeValue
-      : undefined;
+    themeValue === 'dark' || themeValue === 'light' || themeValue === 'high-contrast' ? themeValue : undefined;
   const title = (node.data.title as string) || node.id;
   // Devtools panel is double-gated: the operator must opt in via the env flag
   // AND the request must carry ?devtools=1. Off by default in all normal runs.
   const devtoolsEnabled =
-    process.env.PMX_CANVAS_JSON_RENDER_DEVTOOLS === '1' &&
-    url.searchParams.get('devtools') === '1';
+    process.env.PMX_CANVAS_JSON_RENDER_DEVTOOLS === '1' && url.searchParams.get('devtools') === '1';
   const axToken = url.searchParams.get('axToken');
   const axEnabled = resolveNodeAxCapabilities(node).enabled;
   const frameToken = url.searchParams.get('frameToken');
   const displayParam = url.searchParams.get('display');
-  const display = displayParam === 'expanded' ? 'expanded' as const
-    : displayParam === 'site' ? 'site' as const
-    : undefined;
+  const display =
+    displayParam === 'expanded' ? ('expanded' as const) : displayParam === 'site' ? ('site' as const) : undefined;
   // A standalone "site" tab fills the viewport; content-fit (grow-to-content for the
   // in-canvas iframe) would fight that, so it's ignored in site mode (#65).
   const fitContent = url.searchParams.get('fit') === 'content' && display !== 'site';
@@ -1682,9 +1687,7 @@ function handleArtifactView(url: URL): Response {
         const safeNodeId = node.id.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 80);
         const stateJson = JSON.stringify(buildCanvasAxSurfaceSnapshot()).replace(/</g, '\\u003c');
         const bridge = `${buildAxBridge(safeToken, safeNodeId)}${buildAxStateBridge(safeToken, stateJson)}`;
-        content = content.includes('</head>')
-          ? content.replace('</head>', `${bridge}</head>`)
-          : `${bridge}${content}`;
+        content = content.includes('</head>') ? content.replace('</head>', `${bridge}</head>`) : `${bridge}${content}`;
       }
     }
     // Content-height reporter so a web-artifact node grows to fit its app (#48).
@@ -1711,7 +1714,8 @@ function handleArtifactView(url: URL): Response {
       ? `<article class="markdown-body">${marked.parse(content) as string}</article>`
       : `<pre class="artifact-code"><code>${escapeHtml(content)}</code></pre>`;
 
-  return new Response(`<!doctype html>
+  return new Response(
+    `<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
@@ -1809,12 +1813,14 @@ function handleArtifactView(url: URL): Response {
     <section class="panel">${body}</section>
   </main>
 </body>
-</html>`, {
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store',
+</html>`,
+    {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+      },
     },
-  });
+  );
 }
 
 function handleRead(pathLike: string): Response {
@@ -1843,7 +1849,7 @@ async function handleExtAppCallTool(req: Request): Promise<Response> {
 
   const args =
     body.arguments && typeof body.arguments === 'object' && !Array.isArray(body.arguments)
-      ? body.arguments as Record<string, unknown>
+      ? (body.arguments as Record<string, unknown>)
       : undefined;
   const nodeId = typeof body.nodeId === 'string' ? body.nodeId.trim() : '';
 
@@ -1853,12 +1859,14 @@ async function handleExtAppCallTool(req: Request): Promise<Response> {
       requestedNode?.type === 'mcp-app' &&
       requestedNode.data.mode === 'ext-app' &&
       requestedNode.data.appSessionId === sessionId;
-    const localCheckpointData = canReadLocalCheckpoint && toolName === EXCALIDRAW_READ_CHECKPOINT_TOOL
-      ? getLocalExcalidrawCheckpointData(requestedNode, args)
-      : null;
-    const result = localCheckpointData === null
-      ? await callMcpAppTool(sessionId, toolName, args)
-      : { content: [{ type: 'text', text: localCheckpointData }] } satisfies CallToolResult;
+    const localCheckpointData =
+      canReadLocalCheckpoint && toolName === EXCALIDRAW_READ_CHECKPOINT_TOOL
+        ? getLocalExcalidrawCheckpointData(requestedNode, args)
+        : null;
+    const result =
+      localCheckpointData === null
+        ? await callMcpAppTool(sessionId, toolName, args)
+        : ({ content: [{ type: 'text', text: localCheckpointData }] } satisfies CallToolResult);
     if (nodeId) {
       const node = canvasState.getNode(nodeId);
       if (node?.type === 'mcp-app' && node.data.mode === 'ext-app' && node.data.appSessionId === sessionId) {
@@ -1867,14 +1875,20 @@ async function handleExtAppCallTool(req: Request): Promise<Response> {
           // Checkpoint saves are replayed through toolInput.elements instead of
           // replacing the original create_view result with a generic "ok".
           changed = true;
-        } else if (!(isExcalidrawCreateView(node.data.serverName, node.data.toolName) && isCheckpointToolName(toolName))) {
+        } else if (
+          !(isExcalidrawCreateView(node.data.serverName, node.data.toolName) && isCheckpointToolName(toolName))
+        ) {
           const nextData: Record<string, unknown> = { ...node.data };
           if (shouldReplayAppToolResult(toolName, result)) nextData.toolResult = result;
           const nextModelContext: Record<string, unknown> = {};
           if (Array.isArray(result.content)) {
             nextModelContext.content = result.content;
           }
-          if (result.structuredContent && typeof result.structuredContent === 'object' && !Array.isArray(result.structuredContent)) {
+          if (
+            result.structuredContent &&
+            typeof result.structuredContent === 'object' &&
+            !Array.isArray(result.structuredContent)
+          ) {
             nextModelContext.structuredContent = result.structuredContent;
           }
           if (Object.keys(nextModelContext).length > 0) {
@@ -1990,7 +2004,9 @@ async function handleExtAppModelContext(req: Request): Promise<Response> {
       ...node.data,
       appModelContext: {
         ...(Array.isArray(body.content) ? { content: body.content } : {}),
-        ...(body.structuredContent && typeof body.structuredContent === 'object' && !Array.isArray(body.structuredContent)
+        ...(body.structuredContent &&
+        typeof body.structuredContent === 'object' &&
+        !Array.isArray(body.structuredContent)
           ? { structuredContent: body.structuredContent }
           : {}),
         updatedAt: new Date().toISOString(),
@@ -2052,9 +2068,7 @@ function currentWorkbenchUrl(): string | null {
 async function handleWorkbenchWebViewScreenshot(req: Request): Promise<Response> {
   const body = await readJson(req);
   if (body === null) return malformedJsonResponse();
-  const format = body.format === 'jpeg' || body.format === 'webp' || body.format === 'png'
-    ? body.format
-    : 'png';
+  const format = body.format === 'jpeg' || body.format === 'webp' || body.format === 'png' ? body.format : 'png';
   const quality = typeof body.quality === 'number' ? body.quality : undefined;
 
   try {
@@ -2063,11 +2077,7 @@ async function handleWorkbenchWebViewScreenshot(req: Request): Promise<Response>
       ...(quality !== undefined ? { quality } : {}),
     });
     const responseBytes = Uint8Array.from(bytes);
-    const mimeType = format === 'jpeg'
-      ? 'image/jpeg'
-      : format === 'webp'
-        ? 'image/webp'
-        : 'image/png';
+    const mimeType = format === 'jpeg' ? 'image/jpeg' : format === 'webp' ? 'image/webp' : 'image/png';
     return new Response(responseBytes.buffer, {
       headers: {
         'Content-Type': mimeType,
@@ -2102,10 +2112,7 @@ async function handleWorkbenchIntent(req: Request): Promise<Response> {
   }
 
   const rawPayload = body.payload;
-  const payload =
-    rawPayload && typeof rawPayload === 'object'
-      ? (rawPayload as PrimaryWorkbenchEventPayload)
-      : {};
+  const payload = rawPayload && typeof rawPayload === 'object' ? (rawPayload as PrimaryWorkbenchEventPayload) : {};
 
   // Handle trace intents directly on the server
   if (rawType === 'trace-toggle') {
@@ -2303,10 +2310,7 @@ async function handleCanvasPrompt(req: Request): Promise<Response> {
   const parentNodeId = typeof body.parentNodeId === 'string' ? body.parentNodeId : undefined;
   const MAX_CONTEXT_NODES = 20;
   let contextNodeIds = Array.isArray(body.contextNodeIds)
-    ? (body.contextNodeIds.filter((id: unknown) => typeof id === 'string') as string[]).slice(
-        0,
-        MAX_CONTEXT_NODES,
-      )
+    ? (body.contextNodeIds.filter((id: unknown) => typeof id === 'string') as string[]).slice(0, MAX_CONTEXT_NODES)
     : [];
 
   if (contextNodeIds.length === 0 && canvasState.contextPinnedNodeIds.size > 0) {
@@ -2365,9 +2369,7 @@ async function handleCanvasPrompt(req: Request): Promise<Response> {
     }
 
     const MAX_THREAD_TURNS = 100;
-    const existingTurnCount = Array.isArray(threadNode.data.turns)
-      ? (threadNode.data.turns as unknown[]).length
-      : 0;
+    const existingTurnCount = Array.isArray(threadNode.data.turns) ? (threadNode.data.turns as unknown[]).length : 0;
     if (existingTurnCount >= MAX_THREAD_TURNS) {
       return responseText('Thread has reached the maximum number of turns', 400);
     }
@@ -2442,9 +2444,7 @@ async function handleCanvasPrompt(req: Request): Promise<Response> {
   const suffix = Math.random().toString(36).slice(2, 8);
   const nodeId = `prompt-${Date.now()}-${suffix}`;
 
-  const promptCount = canvasState
-    .getLayout()
-    .nodes.filter((n) => n.type === 'prompt' || n.type === 'response').length;
+  const promptCount = canvasState.getLayout().nodes.filter((n) => n.type === 'prompt' || n.type === 'response').length;
   const pos = position ?? { x: 380 + promptCount * 30, y: 1260 + promptCount * 30 };
 
   let enrichedText = text;
@@ -2544,11 +2544,13 @@ function handleGetPinnedContext(): Response {
   const nodes = pinnedIds
     .map((id) => canvasState.getNode(id))
     .filter((node): node is CanvasNodeState => node !== undefined)
-    .map((node) => serializeNodeForAgentContext(node, {
-      defaultTextLength: 700,
-      webpageTextLength: 1600,
-      includePosition: true,
-    }));
+    .map((node) =>
+      serializeNodeForAgentContext(node, {
+        defaultTextLength: 700,
+        webpageTextLength: 1600,
+        includePosition: true,
+      }),
+    );
   return responseJson({ preamble, nodeIds: pinnedIds, count: pinnedIds.length, nodes });
 }
 
@@ -2595,7 +2597,14 @@ function isReviewAnchor(v: unknown): v is PmxAxReviewAnchorType {
 function normalizeActivityReactions(input: Record<string, unknown>): {
   workItem?: false | { status?: PmxAxWorkItemStatus; detail?: string | null };
   evidence?: false | { kind?: PmxAxEvidenceKind; body?: string | null };
-  review?: false | { severity?: PmxAxReviewSeverity; kind?: PmxAxReviewKind; anchorType?: PmxAxReviewAnchorType; nodeId?: string | null };
+  review?:
+    | false
+    | {
+        severity?: PmxAxReviewSeverity;
+        kind?: PmxAxReviewKind;
+        anchorType?: PmxAxReviewAnchorType;
+        nodeId?: string | null;
+      };
 } {
   const out: ReturnType<typeof normalizeActivityReactions> = {};
   if (input.workItem === false) out.workItem = false;
@@ -2630,7 +2639,14 @@ async function handleAxActivityIngest(req: Request): Promise<Response> {
   const body = await readJson(req);
   if (body === null) return malformedJsonResponse();
   if (!isAxActivityKind(body.kind)) {
-    return responseJson({ ok: false, error: "activity requires a valid 'kind': one of tool-start, tool-result, failure, error, session-start, session-end, command, note." }, 400);
+    return responseJson(
+      {
+        ok: false,
+        error:
+          "activity requires a valid 'kind': one of tool-start, tool-result, failure, error, session-start, session-end, command, note.",
+      },
+      400,
+    );
   }
   if (typeof body.title !== 'string' || !body.title.trim()) {
     return responseJson({ ok: false, error: 'activity requires a title.' }, 400);
@@ -2759,9 +2775,11 @@ async function handleAxStatePatch(req: Request): Promise<Response> {
 
 const AX_WORK_STATUSES = new Set(['todo', 'in-progress', 'blocked', 'done', 'cancelled']);
 
-function normalizeAxWorkItemStatus(value: unknown): 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled' | undefined {
+function normalizeAxWorkItemStatus(
+  value: unknown,
+): 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled' | undefined {
   return typeof value === 'string' && AX_WORK_STATUSES.has(value)
-    ? value as 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled'
+    ? (value as 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled')
     : undefined;
 }
 
@@ -2930,11 +2948,9 @@ export function buildMacBrowserOpenScript(appName: string, url: string): string 
 }
 
 function resolveWindowsBrowserForCanvas(): { name: string; exe: string } | null {
-  const envDirs = [
-    process.env.PROGRAMFILES,
-    process.env['PROGRAMFILES(X86)'],
-    process.env.LOCALAPPDATA,
-  ].filter((d): d is string => Boolean(d));
+  const envDirs = [process.env.PROGRAMFILES, process.env['PROGRAMFILES(X86)'], process.env.LOCALAPPDATA].filter(
+    (d): d is string => Boolean(d),
+  );
 
   const browsers = [
     { name: 'Edge', subpath: join('Microsoft', 'Edge', 'Application', 'msedge.exe') },
@@ -2995,8 +3011,7 @@ function syncContextNodeToCanvasState(
     mergedData.messagesLength !== undefined ||
     mergedData.utilization !== undefined ||
     mergedData.nearLimit !== undefined;
-  const shouldCreate =
-    options.forceCreate === true || cards.length > 0 || auxTabs.length > 0 || hasUsage;
+  const shouldCreate = options.forceCreate === true || cards.length > 0 || auxTabs.length > 0 || hasUsage;
 
   if (!existing) {
     if (!shouldCreate) return;
@@ -3105,16 +3120,17 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
   } else if (event === 'ext-app-open') {
     const toolCallId = payload.toolCallId as string;
     if (!toolCallId) return;
-    const id = typeof payload.nodeId === 'string' && payload.nodeId.length > 0
-      ? payload.nodeId
-      : toolCallId.startsWith('ext-app-') ? toolCallId : `ext-app-${toolCallId}`;
+    const id =
+      typeof payload.nodeId === 'string' && payload.nodeId.length > 0
+        ? payload.nodeId
+        : toolCallId.startsWith('ext-app-')
+          ? toolCallId
+          : `ext-app-${toolCallId}`;
     const dataPatch = {
       mode: 'ext-app',
       toolCallId,
       nodeId: id,
-      ...(typeof payload.title === 'string' && payload.title.trim().length > 0
-        ? { title: payload.title.trim() }
-        : {}),
+      ...(typeof payload.title === 'string' && payload.title.trim().length > 0 ? { title: payload.title.trim() } : {}),
       html: payload.html,
       toolInput: payload.toolInput,
       serverName: payload.serverName,
@@ -3224,18 +3240,14 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
               success: typeof payload.success === 'boolean' ? payload.success : undefined,
               error: typeof payload.error === 'string' ? payload.error : undefined,
               content: typeof payload.content === 'string' ? payload.content : undefined,
-              detailedContent:
-                typeof payload.detailedContent === 'string' ? payload.detailedContent : undefined,
+              detailedContent: typeof payload.detailedContent === 'string' ? payload.detailedContent : undefined,
             }),
           },
         });
       }
     });
   } else if (event === 'context-cards') {
-    syncContextNodeToCanvasState(
-      { cards: Array.isArray(payload.cards) ? payload.cards : [] },
-      { forceCreate: true },
-    );
+    syncContextNodeToCanvasState({ cards: Array.isArray(payload.cards) ? payload.cards : [] }, { forceCreate: true });
   } else if (event === 'context-usage') {
     syncContextNodeToCanvasState({
       currentTokens: payload.currentTokens,
@@ -3258,9 +3270,7 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
       return;
     }
     const auxTabs = Array.isArray(existing.data.auxTabs)
-      ? (existing.data.auxTabs as Array<Record<string, unknown>>).filter(
-          (tab) => tab.id !== payload.id,
-        )
+      ? (existing.data.auxTabs as Array<Record<string, unknown>>).filter((tab) => tab.id !== payload.id)
       : [];
     syncContextNodeToCanvasState({ auxTabs });
   } else if (event === 'canvas-status' || event === 'execution-phase') {
@@ -3405,10 +3415,7 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
   }
 }
 
-export function emitPrimaryWorkbenchEvent(
-  event: string,
-  payload: PrimaryWorkbenchEventPayload = {},
-): void {
+export function emitPrimaryWorkbenchEvent(event: string, payload: PrimaryWorkbenchEventPayload = {}): void {
   rotatePrimaryWorkbenchSessionIfNeeded();
   const envelope = {
     ...payload,
@@ -3485,10 +3492,7 @@ function ensureCanvasBrowserOpen(): void {
   canvasBrowserOpening = false;
 }
 
-export function openPrimaryWorkbenchPath(
-  pathLike: string,
-  workspaceRoot = process.cwd(),
-): string | null {
+export function openPrimaryWorkbenchPath(pathLike: string, workspaceRoot = process.cwd()): string | null {
   const safePath = resolve(pathLike);
   if (!isMarkdownFile(safePath)) return null;
   if (!existsSync(safePath)) return null;
@@ -3552,11 +3556,12 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
   rotatePrimaryWorkbenchSessionIfNeeded();
 
   const preferredPort = options.port ?? Number(process.env.PMX_WEB_CANVAS_PORT ?? DEFAULT_PORT);
-  const portCandidates = options.port === 0
-    ? [0]
-    : options.allowPortFallback === false
-    ? [preferredPort > 0 ? Math.floor(preferredPort) : DEFAULT_PORT]
-    : buildPortCandidates(preferredPort);
+  const portCandidates =
+    options.port === 0
+      ? [0]
+      : options.allowPortFallback === false
+        ? [preferredPort > 0 ? Math.floor(preferredPort) : DEFAULT_PORT]
+        : buildPortCandidates(preferredPort);
 
   for (const portCandidate of portCandidates) {
     try {
@@ -3690,7 +3695,11 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           // (plan-008 Wave 4): src/server/operations/ops/app.ts.
 
           // Individual node GET/PATCH/DELETE
-          if (url.pathname.startsWith('/api/canvas/node/') && url.pathname.endsWith('/refresh') && req.method === 'POST') {
+          if (
+            url.pathname.startsWith('/api/canvas/node/') &&
+            url.pathname.endsWith('/refresh') &&
+            req.method === 'POST'
+          ) {
             const nodeId = url.pathname.slice('/api/canvas/node/'.length, -'/refresh'.length);
             return handleCanvasRefreshWebpageNode(nodeId, req);
           }

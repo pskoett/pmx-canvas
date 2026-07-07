@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { updateNodeData } from '../state/canvas-store';
-import {
-  fetchSlashCommands,
-  renderMarkdown,
-  submitCanvasPrompt,
-  submitThreadReply,
-} from '../state/intent-bridge';
+import { fetchSlashCommands, renderMarkdown, submitCanvasPrompt, submitThreadReply } from '../state/intent-bridge';
 import type { CanvasNodeState } from '../types';
 
 // Cached slash commands — fetched once on first use.
@@ -16,10 +11,7 @@ async function getCommands() {
 }
 
 /** Find the best matching slash command for a query prefix. */
-function matchSlashCommand(
-  query: string,
-  commands: Array<{ name: string }>,
-): string | null {
+function matchSlashCommand(query: string, commands: Array<{ name: string }>): string | null {
   if (!query) return null;
   const lower = query.toLowerCase();
   const exact = commands.find((c) => c.name.toLowerCase() === lower);
@@ -121,15 +113,10 @@ function ErrorBanner({ message, onDismiss }: { message: string | null; onDismiss
   );
 }
 
-export function PromptNode({
-  node,
-  expanded = false,
-}: { node: CanvasNodeState; expanded?: boolean }) {
+export function PromptNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
   // Backward compat: old canvas states have flat { text, status } data.
   // New threads use { turns[], threadStatus }. Detect format by presence of turns array.
-  const turns: ThreadTurn[] = Array.isArray(node.data.turns)
-    ? (node.data.turns as ThreadTurn[])
-    : [];
+  const turns: ThreadTurn[] = Array.isArray(node.data.turns) ? (node.data.turns as ThreadTurn[]) : [];
   const isLegacy = turns.length === 0;
   const legacyText = (node.data.text as string) || '';
   const legacyStatus = (node.data.status as string) || 'draft';
@@ -201,7 +188,9 @@ export function PromptNode({
         setRenderedTurns(next);
       });
 
-      return () => { cancelled = true; };
+      return () => {
+        cancelled = true;
+      };
     };
 
     if (!hasStreaming) {
@@ -243,9 +232,7 @@ export function PromptNode({
       text: trimmed, // keep for backward compat display
     });
     setDraft('');
-    const ctxIds = Array.isArray(node.data.contextNodeIds)
-      ? (node.data.contextNodeIds as string[])
-      : undefined;
+    const ctxIds = Array.isArray(node.data.contextNodeIds) ? (node.data.contextNodeIds as string[]) : undefined;
     const result = await submitCanvasPrompt(trimmed, node.position, node.id, ctxIds, node.id);
     if (!result.ok) {
       updateNodeData(node.id, { turns: [], threadStatus: 'draft', text: '', status: 'draft' });
@@ -260,9 +247,7 @@ export function PromptNode({
     const savedReply = replyDraft;
     setError(null);
     // Optimistically add user turn
-    const currentTurns = Array.isArray(node.data.turns)
-      ? [...(node.data.turns as ThreadTurn[])]
-      : [];
+    const currentTurns = Array.isArray(node.data.turns) ? [...(node.data.turns as ThreadTurn[])] : [];
     currentTurns.push({ role: 'user', text: trimmed, status: 'pending' });
     updateNodeData(node.id, { turns: currentTurns, threadStatus: 'pending' });
     setReplyDraft('');
@@ -319,17 +304,12 @@ export function PromptNode({
     [handleReplySubmit, replyDraft],
   );
 
-  const ctxCount = Array.isArray(node.data.contextNodeIds)
-    ? (node.data.contextNodeIds as string[]).length
-    : 0;
+  const ctxCount = Array.isArray(node.data.contextNodeIds) ? (node.data.contextNodeIds as string[]).length : 0;
 
   // ── Draft mode (no turns yet): show initial textarea ──
   if (isDraft && turns.length === 0) {
     return (
-      <div
-        class="prompt-node-inner"
-        style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '8px' }}
-      >
+      <div class="prompt-node-inner" style={{ display: 'flex', flexDirection: 'column', height: '100%', gap: '8px' }}>
         <ContextBadge count={ctxCount} />
         <ErrorBanner message={error} onDismiss={() => setError(null)} />
         <textarea
@@ -380,10 +360,7 @@ export function PromptNode({
   // ── Legacy flat format (old nodes without turns) ──
   if (isLegacy) {
     return (
-      <div
-        class="prompt-node-inner"
-        style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
-      >
+      <div class="prompt-node-inner" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
         <div
           style={{
             flex: 1,
@@ -425,10 +402,7 @@ export function PromptNode({
 
   // ── Thread view: render all turns ──
   return (
-    <div
-      class="prompt-node-inner"
-      style={{ display: 'flex', flexDirection: 'column', height: '100%' }}
-    >
+    <div class="prompt-node-inner" style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
       <ContextBadge count={ctxCount} />
       <ErrorBanner message={error} onDismiss={() => setError(null)} />
 
@@ -439,7 +413,10 @@ export function PromptNode({
             {i > 0 && <div class="thread-turn-divider" />}
             {turn.role === 'user' ? (
               <div class="thread-turn-user">
-                <div class="thread-turn-role"><span class="status-dot" />You</div>
+                <div class="thread-turn-role">
+                  <span class="status-dot" />
+                  You
+                </div>
                 <div
                   style={{
                     fontSize: expanded ? '15px' : '13px',
@@ -454,7 +431,10 @@ export function PromptNode({
               </div>
             ) : (
               <div class="thread-turn-assistant">
-                <div class="thread-turn-role"><span class={`status-dot${turn.status === 'streaming' ? ' pulsing' : ''}`} />PMX</div>
+                <div class="thread-turn-role">
+                  <span class={`status-dot${turn.status === 'streaming' ? ' pulsing' : ''}`} />
+                  PMX
+                </div>
                 {turn.status === 'streaming' && !turn.text && (
                   <div
                     style={{
@@ -481,9 +461,7 @@ export function PromptNode({
                     </>
                   ) : (
                     <div style={{ color: 'var(--c-muted)', fontStyle: 'italic' }}>
-                      {turn.status === 'streaming'
-                        ? 'Waiting for response…'
-                        : turn.text || 'Empty response'}
+                      {turn.status === 'streaming' ? 'Waiting for response…' : turn.text || 'Empty response'}
                     </div>
                   )}
                 </div>
@@ -525,13 +503,7 @@ export function PromptNode({
                     : 'var(--c-muted)',
             }}
           >
-            {isStreaming
-              ? 'Streaming…'
-              : isPending
-                ? 'Sending…'
-                : isAnswered
-                  ? 'Answered'
-                  : threadStatus}
+            {isStreaming ? 'Streaming…' : isPending ? 'Sending…' : isAnswered ? 'Answered' : threadStatus}
           </span>
           <span style={{ fontSize: '10px', color: 'var(--c-muted)' }}>
             {turns.length} turn{turns.length !== 1 ? 's' : ''}

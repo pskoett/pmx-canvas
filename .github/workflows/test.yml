@@ -22,6 +22,9 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Lint (Biome)
+        run: bun run lint
+
       # dist/types is committed and tsc output is deterministic, so a byte
       # check is reliable. The dist/canvas and dist/json-render bundles are
       # deliberately NOT checked: bundler output varies across bun versions,

@@ -53,7 +53,15 @@ import { defineOperation, OperationError, type Operation } from '../types.js';
 import { isRecord } from './nodes.js';
 import { AX_SOURCE_SHAPE, axJsonResult, normalizeAxNodeIds, normalizeAxSource } from './ax-shared.js';
 
-const AX_EVENT_KINDS = ['prompt', 'assistant-message', 'tool-start', 'tool-result', 'failure', 'approval', 'steering'] as const;
+const AX_EVENT_KINDS = [
+  'prompt',
+  'assistant-message',
+  'tool-start',
+  'tool-result',
+  'failure',
+  'approval',
+  'steering',
+] as const;
 const AX_EVIDENCE_KINDS = ['logs', 'tool-result', 'screenshot', 'file', 'diff', 'test-output'] as const;
 
 // ── ax.event.record (canvas_record_ax_event) ──────────────────
@@ -80,7 +88,8 @@ const axEventRecordOperation = defineOperation<z.infer<typeof axEventRecordSchem
   },
   mcp: {
     toolName: 'canvas_record_ax_event',
-    description: 'Record a normalized AX timeline event (prompt/assistant-message/tool-start/tool-result/failure/approval/steering). Timeline events persist for diagnostics and continuity but are not restored by snapshots.',
+    description:
+      'Record a normalized AX timeline event (prompt/assistant-message/tool-start/tool-result/failure/approval/steering). Timeline events persist for diagnostics and continuity but are not restored by snapshots.',
     extraShape: {
       kind: z.enum(AX_EVENT_KINDS).describe('Normalized event kind.'),
       summary: z.string().describe('Short human-readable summary of the event.'),
@@ -136,7 +145,8 @@ const axEvidenceAddOperation = defineOperation<z.infer<typeof axEvidenceAddSchem
   },
   mcp: {
     toolName: 'canvas_add_evidence',
-    description: 'Record an AX evidence item (logs/tool-result/screenshot/file/diff/test-output) on the timeline. Evidence persists for diagnostics and continuity but is not restored by snapshots; exposed via canvas://ax-timeline.',
+    description:
+      'Record an AX evidence item (logs/tool-result/screenshot/file/diff/test-output) on the timeline. Evidence persists for diagnostics and continuity but is not restored by snapshots; exposed via canvas://ax-timeline.',
     extraShape: {
       kind: z.enum(AX_EVIDENCE_KINDS).describe('Evidence kind.'),
       title: z.string().describe('Short human-readable title for the evidence.'),
@@ -189,7 +199,8 @@ const axSteerOperation = defineOperation<z.infer<typeof axSteerSchema>, Record<s
   },
   mcp: {
     toolName: 'canvas_send_steering',
-    description: 'Record a steering message: a user instruction from the surface to the active agent session. Persisted on the AX timeline and exposed via canvas://ax-timeline.',
+    description:
+      'Record a steering message: a user instruction from the surface to the active agent session. Persisted on the AX timeline and exposed via canvas://ax-timeline.',
     extraShape: {
       message: z.string().describe('The steering instruction to deliver to the active agent session.'),
       source: AX_SOURCE_SHAPE,
@@ -228,7 +239,8 @@ const axTimelineGetOperation = defineOperation<z.infer<typeof axTimelineGetSchem
   },
   mcp: {
     toolName: 'canvas_get_ax_timeline',
-    description: 'Read the bounded AX timeline: recent agent-events, evidence, and steering messages plus counts. Use this for diagnostics and session continuity.',
+    description:
+      'Read the bounded AX timeline: recent agent-events, evidence, and steering messages plus counts. Use this for diagnostics and session continuity.',
     extraShape: {
       limit: z.number().optional().describe('Max rows per timeline table (default 50, max 200).'),
     },
@@ -238,9 +250,7 @@ const axTimelineGetOperation = defineOperation<z.infer<typeof axTimelineGetSchem
     // `limit` arrives as a number over MCP or a string over the HTTP query;
     // Number() normalizes both. Only a finite positive limit is forwarded.
     const limit = Number(input.limit ?? '');
-    const timeline = canvasState.getAxTimeline(
-      Number.isFinite(limit) && limit > 0 ? { limit } : {},
-    );
+    const timeline = canvasState.getAxTimeline(Number.isFinite(limit) && limit > 0 ? { limit } : {});
     return { ok: true, ...timeline } as unknown as Record<string, unknown>;
   },
 });
@@ -266,11 +276,17 @@ const axDeliveryPendingOperation = defineOperation<z.infer<typeof axDeliveryPend
   },
   mcp: {
     toolName: 'canvas_claim_ax_delivery',
-    description: 'Claim pending PMX AX deliveries for a consumer (adapterless delivery). Returns `pending` undelivered steering (mark each with canvas_mark_ax_delivery after acting) AND `pendingActivity`: open canvas-bound AX items awaiting the agent (open work items, pending approval gates / elicitations / mode requests) — typically created by the human in the browser. Both exclude items the consumer itself originated (loop prevention). `pending` defaults to oldest-first (FIFO, for ordered processing); pass `order:"newest"` to surface the human\'s LATEST in-canvas steering first when a small `limit` would otherwise bury it behind a stale backlog (report #68). pendingActivity is read-only here: resolve each via its own tool (canvas_resolve_approval / canvas_respond_elicitation / canvas_resolve_mode / canvas_update_work_item), not canvas_mark_ax_delivery.',
+    description:
+      'Claim pending PMX AX deliveries for a consumer (adapterless delivery). Returns `pending` undelivered steering (mark each with canvas_mark_ax_delivery after acting) AND `pendingActivity`: open canvas-bound AX items awaiting the agent (open work items, pending approval gates / elicitations / mode requests) — typically created by the human in the browser. Both exclude items the consumer itself originated (loop prevention). `pending` defaults to oldest-first (FIFO, for ordered processing); pass `order:"newest"` to surface the human\'s LATEST in-canvas steering first when a small `limit` would otherwise bury it behind a stale backlog (report #68). pendingActivity is read-only here: resolve each via its own tool (canvas_resolve_approval / canvas_respond_elicitation / canvas_resolve_mode / canvas_update_work_item), not canvas_mark_ax_delivery.',
     extraShape: {
       consumer: z.string().optional().describe('Consumer/source label to exclude from results (e.g. copilot, mcp).'),
       limit: z.number().optional().describe('Max steering messages to return.'),
-      order: z.enum(['newest', 'oldest']).optional().describe('Order of returned steering: "oldest" (FIFO, default) for ordered processing, or "newest" first to see the latest browser action when limited.'),
+      order: z
+        .enum(['newest', 'oldest'])
+        .optional()
+        .describe(
+          'Order of returned steering: "oldest" (FIFO, default) for ordered processing, or "newest" first to see the latest browser action when limited.',
+        ),
     },
     // `consumer` is a loop-safety scope, not a source label — never defaulted.
     formatResult: axJsonResult,
@@ -285,9 +301,7 @@ const axDeliveryPendingOperation = defineOperation<z.infer<typeof axDeliveryPend
     // queries apply the same loop-safe consumer filter before the limit.
     const newest = input.order === 'newest';
     const scope = { ...(consumer ? { consumer } : {}), ...(limit ? { limit } : {}) };
-    const pending = newest
-      ? canvasState.getPendingSteeringForContext(scope)
-      : canvasState.getPendingSteering(scope);
+    const pending = newest ? canvasState.getPendingSteeringForContext(scope) : canvasState.getPendingSteering(scope);
     // The MCP tool aggregated pendingActivity; one wire body now serves it over
     // HTTP too (documented broadening). Loop-safe: consumer scopes both queries.
     const pendingActivity = buildPendingAxActivity(canvasState.getAxState(), consumer);
@@ -352,7 +366,8 @@ const axCommandInvokeOperation = defineOperation<z.infer<typeof axCommandInvokeS
   },
   mcp: {
     toolName: 'canvas_invoke_command',
-    description: 'Invoke a registry-gated PMX command intent (pmx.plan | pmx.execute | pmx.promote-context | pmx.summarize | pmx.review). Records a timeline event a host/agent can observe — NOT arbitrary execution; unknown names are rejected.',
+    description:
+      'Invoke a registry-gated PMX command intent (pmx.plan | pmx.execute | pmx.promote-context | pmx.summarize | pmx.review). Records a timeline event a host/agent can observe — NOT arbitrary execution; unknown names are rejected.',
     extraShape: {
       name: z.string().describe('A command name from the PMX command registry.'),
       args: z.record(z.string(), z.unknown()).optional(),
@@ -365,11 +380,9 @@ const axCommandInvokeOperation = defineOperation<z.infer<typeof axCommandInvokeS
     if (typeof input.name !== 'string') {
       throw new OperationError('command requires a name.');
     }
-    const event = canvasState.invokeCommand(
-      input.name,
-      isRecord(input.args) ? input.args : null,
-      { source: normalizeAxSource(input.source, 'api') },
-    );
+    const event = canvasState.invokeCommand(input.name, isRecord(input.args) ? input.args : null, {
+      source: normalizeAxSource(input.source, 'api'),
+    });
     // Allowlist gate: invokeCommand returns null for an unknown command name.
     if (!event) throw new OperationError(`Unknown command "${input.name}".`, 400);
     ctx.emit('ax-event-created', { event });

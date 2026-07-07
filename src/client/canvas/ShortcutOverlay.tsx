@@ -48,7 +48,9 @@ export function ShortcutOverlay({ onClose }: { onClose: () => void }) {
       <div class="shortcut-overlay" onMouseDown={(e) => e.stopPropagation()}>
         <div class="shortcut-overlay-header">
           <span class="shortcut-overlay-title">Keyboard Shortcuts</span>
-          <span class="shortcut-overlay-hint">Press <kbd>?</kbd> or <kbd>Esc</kbd> to close</span>
+          <span class="shortcut-overlay-hint">
+            Press <kbd>?</kbd> or <kbd>Esc</kbd> to close
+          </span>
         </div>
         <div class="shortcut-overlay-body">
           {GROUPS.map((group) => (

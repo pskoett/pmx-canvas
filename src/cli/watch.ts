@@ -7,16 +7,8 @@ import {
   type SseMessage,
 } from '../shared/semantic-attention.js';
 
-export {
-  ALL_SEMANTIC_WATCH_EVENT_TYPES,
-  formatCompactWatchEvent,
-  SemanticWatchReducer,
-};
-export type {
-  SemanticWatchEvent,
-  SemanticWatchEventType,
-  SseMessage,
-};
+export { ALL_SEMANTIC_WATCH_EVENT_TYPES, formatCompactWatchEvent, SemanticWatchReducer };
+export type { SemanticWatchEvent, SemanticWatchEventType, SseMessage };
 
 export function parseSemanticEventFilter(raw: string | undefined): Set<SemanticWatchEventType> {
   const all = new Set<SemanticWatchEventType>(ALL_SEMANTIC_WATCH_EVENT_TYPES);

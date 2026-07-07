@@ -7,7 +7,10 @@ import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { IntentRegistry } from '../../src/server/intent-registry.ts';
 import { MAX_LIVE_INTENTS } from '../../src/shared/ax-intent.ts';
 
-interface Frame { event: string; payload: Record<string, unknown> }
+interface Frame {
+  event: string;
+  payload: Record<string, unknown>;
+}
 
 let registry: IntentRegistry;
 let frames: Frame[];
@@ -28,7 +31,12 @@ function intentOf(frame: Frame): Record<string, unknown> {
 
 describe('IntentRegistry', () => {
   test('signal(create) stores, returns, and emits ax-intent', () => {
-    const intent = registry.signal({ kind: 'create', position: { x: 10, y: 20 }, nodeType: 'markdown', label: 'Add note' });
+    const intent = registry.signal({
+      kind: 'create',
+      position: { x: 10, y: 20 },
+      nodeType: 'markdown',
+      label: 'Add note',
+    });
     expect(intent.id).toMatch(/^intent-/);
     expect(intent.kind).toBe('create');
     expect(intent.position).toEqual({ x: 10, y: 20 });
@@ -50,7 +58,9 @@ describe('IntentRegistry', () => {
 
   test('zod rejects an unknown kind and out-of-range confidence', () => {
     expect(() => registry.signal({ kind: 'teleport', position: { x: 0, y: 0 } })).toThrow(/Invalid intent/);
-    expect(() => registry.signal({ kind: 'create', position: { x: 0, y: 0 }, confidence: 5 })).toThrow(/Invalid intent/);
+    expect(() => registry.signal({ kind: 'create', position: { x: 0, y: 0 }, confidence: 5 })).toThrow(
+      /Invalid intent/,
+    );
   });
 
   test('signal with an existing id replaces in place and preserves createdAt', () => {
@@ -115,11 +125,13 @@ describe('IntentRegistry', () => {
     registry.signal({ id: 'veto-me', kind: 'create', position: { x: 0, y: 0 } });
     expect(registry.clear('veto-me', { vetoed: true })).toBe(true);
 
-    expect(() => registry.signal({
-      id: 'veto-me',
-      kind: 'create',
-      position: { x: 10, y: 10 },
-    })).toThrow(/Use a new id for a revised intent/);
+    expect(() =>
+      registry.signal({
+        id: 'veto-me',
+        kind: 'create',
+        position: { x: 10, y: 10 },
+      }),
+    ).toThrow(/Use a new id for a revised intent/);
     await expect(
       registry.runCommit(
         'veto-me',

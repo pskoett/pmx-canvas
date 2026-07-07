@@ -20,9 +20,7 @@ export function LedgerNode({ node }: { node: CanvasNodeState }) {
   const entries = Object.entries(data).filter(([key]) => !HIDDEN_LEDGER_KEYS.has(key));
 
   if (lines.length === 0 && entries.length === 0) {
-    return (
-      <div style={{ color: 'var(--c-dim)', fontSize: '12px', fontStyle: 'italic' }}>No ledger data</div>
-    );
+    return <div style={{ color: 'var(--c-dim)', fontSize: '12px', fontStyle: 'italic' }}>No ledger data</div>;
   }
 
   return (
@@ -61,7 +59,15 @@ export function LedgerNode({ node }: { node: CanvasNodeState }) {
           <span style={{ color: 'var(--c-muted)', fontSize: '11px', flexShrink: 0 }}>
             {key.replace(/([A-Z])/g, ' $1').replace(/^./, (s) => s.toUpperCase())}
           </span>
-          <span style={{ color: 'var(--c-text)', fontFamily: 'var(--mono)', fontSize: '11px', textAlign: 'right', wordBreak: 'break-word' }}>
+          <span
+            style={{
+              color: 'var(--c-text)',
+              fontFamily: 'var(--mono)',
+              fontSize: '11px',
+              textAlign: 'right',
+              wordBreak: 'break-word',
+            }}
+          >
             {typeof value === 'object' ? JSON.stringify(value) : String(value ?? '—')}
           </span>
         </div>

@@ -13,15 +13,8 @@ import type {
   Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 import type { RequestOptions } from '@modelcontextprotocol/sdk/shared/protocol.js';
-import {
-  EXTENSION_ID,
-  RESOURCE_MIME_TYPE,
-} from '@modelcontextprotocol/ext-apps/server';
-import type {
-  McpUiClientCapabilities,
-  McpUiResourceCsp,
-  McpUiResourceMeta,
-} from '@modelcontextprotocol/ext-apps';
+import { EXTENSION_ID, RESOURCE_MIME_TYPE } from '@modelcontextprotocol/ext-apps/server';
+import type { McpUiClientCapabilities, McpUiResourceCsp, McpUiResourceMeta } from '@modelcontextprotocol/ext-apps';
 import { getToolUiResourceUri } from '@modelcontextprotocol/ext-apps/app-bridge';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 
@@ -39,9 +32,7 @@ export interface ExternalMcpStdioTransportConfig {
   env?: Record<string, string>;
 }
 
-export type ExternalMcpTransportConfig =
-  | ExternalMcpHttpTransportConfig
-  | ExternalMcpStdioTransportConfig;
+export type ExternalMcpTransportConfig = ExternalMcpHttpTransportConfig | ExternalMcpStdioTransportConfig;
 
 export interface OpenMcpAppInput {
   transport: ExternalMcpTransportConfig;
@@ -220,10 +211,7 @@ async function createSession(
   timeoutMs?: number,
 ): Promise<McpAppSession> {
   const transport = buildTransport(transportConfig);
-  const client = new Client(
-    { name: 'pmx-canvas-app-host', version: '0.1.0' },
-    { capabilities: clientCapabilities },
-  );
+  const client = new Client({ name: 'pmx-canvas-app-host', version: '0.1.0' }, { capabilities: clientCapabilities });
   await client.connect(transport, requestOptions(timeoutMs));
 
   const toolList = await client.listTools(undefined, requestOptions(timeoutMs));
@@ -369,10 +357,14 @@ export async function openMcpApp(input: OpenMcpAppInput): Promise<OpenMcpAppResu
     }
 
     const toolInput = isRecord(input.toolArguments) ? input.toolArguments : {};
-    const rawToolResult = await session.client.callTool({
-      name: tool.name,
-      arguments: toolInput,
-    }, undefined, options);
+    const rawToolResult = await session.client.callTool(
+      {
+        name: tool.name,
+        arguments: toolInput,
+      },
+      undefined,
+      options,
+    );
     const toolResult = normalizeExtAppToolResult({ result: rawToolResult });
     const readResult = await session.client.readResource({ uri: resourceUri }, options);
     const resourceMeta = resourceMetaFromReadResult(readResult);

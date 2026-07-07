@@ -39,7 +39,7 @@ function fuzzyMatch(query: string, text: string): { match: boolean; score: numbe
     if (t[ti] === q[qi]) {
       indices.push(ti);
       // Consecutive chars bonus
-      score += (lastIdx === ti - 1) ? 10 : 1;
+      score += lastIdx === ti - 1 ? 10 : 1;
       // Start-of-word bonus
       if (ti === 0 || t[ti - 1] === ' ' || t[ti - 1] === '-' || t[ti - 1] === '_') score += 5;
       lastIdx = ti;
@@ -94,13 +94,7 @@ function parseTypeFilter(query: string): { typeFilter: CanvasNodeState['type'] |
 }
 
 // ── Component ───────────────────────────────────────────────
-export function CommandPalette({
-  onClose,
-  onToggleMinimap,
-}: {
-  onClose: () => void;
-  onToggleMinimap: () => void;
-}) {
+export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => void; onToggleMinimap: () => void }) {
   const [query, setQuery] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -135,11 +129,46 @@ export function CommandPalette({
 
     // Action items
     const actions: Array<{ label: string; badge: string; action: () => void }> = [
-      { label: 'New note (markdown node)', badge: 'CREATE', action: () => { createNodeFromClient({ type: 'markdown', title: 'New note', width: 520, height: 360 }); onClose(); } },
-      { label: 'Fit all nodes', badge: 'VIEW', action: () => { fitAll(window.innerWidth, window.innerHeight); onClose(); } },
-      { label: 'Auto-arrange (grid)', badge: 'LAYOUT', action: () => { autoArrange(); onClose(); } },
-      { label: 'Auto-arrange (graph-aware)', badge: 'LAYOUT', action: () => { forceDirectedArrange(); onClose(); } },
-      { label: 'Toggle minimap', badge: 'VIEW', action: () => { onToggleMinimap(); onClose(); } },
+      {
+        label: 'New note (markdown node)',
+        badge: 'CREATE',
+        action: () => {
+          createNodeFromClient({ type: 'markdown', title: 'New note', width: 520, height: 360 });
+          onClose();
+        },
+      },
+      {
+        label: 'Fit all nodes',
+        badge: 'VIEW',
+        action: () => {
+          fitAll(window.innerWidth, window.innerHeight);
+          onClose();
+        },
+      },
+      {
+        label: 'Auto-arrange (grid)',
+        badge: 'LAYOUT',
+        action: () => {
+          autoArrange();
+          onClose();
+        },
+      },
+      {
+        label: 'Auto-arrange (graph-aware)',
+        badge: 'LAYOUT',
+        action: () => {
+          forceDirectedArrange();
+          onClose();
+        },
+      },
+      {
+        label: 'Toggle minimap',
+        badge: 'VIEW',
+        action: () => {
+          onToggleMinimap();
+          onClose();
+        },
+      },
       {
         label: 'Toggle theme (dark/light)',
         badge: 'THEME',
@@ -215,7 +244,9 @@ export function CommandPalette({
 
   // Clear highlights on unmount (palette close)
   useEffect(() => {
-    return () => { searchHighlightIds.value = null; };
+    return () => {
+      searchHighlightIds.value = null;
+    };
   }, []);
 
   // Clamp selected index
@@ -268,15 +299,22 @@ export function CommandPalette({
           placeholder={`Search nodes and actions... (${MOD_KEY}+K)`}
         />
         <div class="command-palette-hint">
-          <span><kbd>{'\u2191'}</kbd><kbd>{'\u2193'}</kbd> navigate</span>
-          <span><kbd>{'\u21B5'}</kbd> select</span>
-          <span><kbd>esc</kbd> close</span>
-          <span><kbd>type:</kbd> filter by type</span>
+          <span>
+            <kbd>{'\u2191'}</kbd>
+            <kbd>{'\u2193'}</kbd> navigate
+          </span>
+          <span>
+            <kbd>{'\u21B5'}</kbd> select
+          </span>
+          <span>
+            <kbd>esc</kbd> close
+          </span>
+          <span>
+            <kbd>type:</kbd> filter by type
+          </span>
         </div>
         <div class="command-palette-results" ref={listRef}>
-          {filtered.length === 0 && (
-            <div class="command-palette-empty">No matching nodes or actions</div>
-          )}
+          {filtered.length === 0 && <div class="command-palette-empty">No matching nodes or actions</div>}
           {filtered.map((item, i) => (
             <button
               key={item.id}
@@ -285,15 +323,11 @@ export function CommandPalette({
               onMouseEnter={() => setSelectedIndex(i)}
               onClick={() => item.action()}
             >
-              <span class={`command-palette-badge${item.badgeClass ? ` ${item.badgeClass}` : ''}`}>
-                {item.badge}
-              </span>
+              <span class={`command-palette-badge${item.badgeClass ? ` ${item.badgeClass}` : ''}`}>{item.badge}</span>
               <span class="command-palette-label">
                 {item.indices.length > 0 ? highlightMatch(item.label, item.indices) : item.label}
               </span>
-              {item.description && (
-                <span class="command-palette-desc">{item.description}</span>
-              )}
+              {item.description && <span class="command-palette-desc">{item.description}</span>}
             </button>
           ))}
         </div>

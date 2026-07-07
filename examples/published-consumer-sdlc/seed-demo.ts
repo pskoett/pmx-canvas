@@ -2,14 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createCanvas } from 'pmx-canvas';
-import {
-  contextCards,
-  ledgerSummary,
-  ownershipLoad,
-  stageDefectCounts,
-  traceEvents,
-  weeklyMetrics,
-} from './data';
+import { contextCards, ledgerSummary, ownershipLoad, stageDefectCounts, traceEvents, weeklyMetrics } from './data';
 import {
   buildControlTowerSpec,
   buildEmbeddedChartsSpec,

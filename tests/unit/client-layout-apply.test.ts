@@ -38,7 +38,10 @@ function makeAnnotation(id: string): CanvasAnnotation {
   return {
     id,
     type: 'freehand',
-    points: [{ x: 0, y: 0 }, { x: 20, y: 20 }],
+    points: [
+      { x: 0, y: 0 },
+      { x: 20, y: 20 },
+    ],
     bounds: { x: 0, y: 0, width: 20, height: 20 },
     color: '#f97316',
     width: 4,
@@ -93,10 +96,7 @@ describe('applyServerCanvasLayout', () => {
     applyServerCanvasLayout({
       viewport: { x: 140, y: 220, scale: 0.75 },
       nodes: [updatedSecond, third],
-      edges: [
-        makeEdge('edge-2', updatedSecond.id, third.id),
-        makeEdge('edge-stale', updatedSecond.id, 'missing-node'),
-      ],
+      edges: [makeEdge('edge-2', updatedSecond.id, third.id), makeEdge('edge-stale', updatedSecond.id, 'missing-node')],
       annotations: [makeAnnotation('ann-1')],
     });
 
@@ -112,11 +112,14 @@ describe('applyServerCanvasLayout', () => {
   });
 
   test('applies server viewport when explicitly requested for initial sync', () => {
-    applyServerCanvasLayout({
-      viewport: { x: 140, y: 220, scale: 0.75 },
-      nodes: [makeNode('node-1')],
-      edges: [],
-    }, { applyViewport: true });
+    applyServerCanvasLayout(
+      {
+        viewport: { x: 140, y: 220, scale: 0.75 },
+        nodes: [makeNode('node-1')],
+        edges: [],
+      },
+      { applyViewport: true },
+    );
 
     expect(viewport.value).toEqual({ x: 140, y: 220, scale: 0.75 });
   });

@@ -37,7 +37,7 @@ async function postJson<T>(url: string, body: Record<string, unknown>): Promise<
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
-  const json = await response.json() as {
+  const json = (await response.json()) as {
     ok: boolean;
     result?: T;
     error?: string;
@@ -72,7 +72,9 @@ export function nextWebkitRepaintSlot(): number {
   const slot = webkitRepaintSlot++;
   if (typeof window !== 'undefined') {
     if (webkitRepaintSlotResetTimer) clearTimeout(webkitRepaintSlotResetTimer);
-    webkitRepaintSlotResetTimer = setTimeout(() => { webkitRepaintSlot = 0; }, 3000);
+    webkitRepaintSlotResetTimer = setTimeout(() => {
+      webkitRepaintSlot = 0;
+    }, 3000);
   }
   return slot;
 }
@@ -128,9 +130,7 @@ export async function sendExtAppBootstrapState(
 }
 
 export function resolveExtAppSandbox(value: unknown): string {
-  return typeof value === 'string' && value.trim().length > 0
-    ? value.trim()
-    : DEFAULT_EXT_APP_SANDBOX;
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : DEFAULT_EXT_APP_SANDBOX;
 }
 
 export function buildExtAppAxBridgeScript(axToken: string, nodeId: string): string {
@@ -246,10 +246,12 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   const rawToolCallId = node.data.toolCallId;
   const toolCallId: RequestId | undefined =
     typeof rawToolCallId === 'string' || typeof rawToolCallId === 'number' ? rawToolCallId : undefined;
-  const resourceMeta = node.data.resourceMeta as {
-    csp?: Record<string, unknown>;
-    permissions?: Record<string, unknown>;
-  } | undefined;
+  const resourceMeta = node.data.resourceMeta as
+    | {
+        csp?: Record<string, unknown>;
+        permissions?: Record<string, unknown>;
+      }
+    | undefined;
   const sessionStatus = node.data.sessionStatus as string | undefined;
   const sessionError = node.data.sessionError as string | undefined;
   const maxHeight = node.size.height;
@@ -262,9 +264,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   const axCaps = node.data.axCapabilities as { enabled?: boolean } | undefined;
   const axEnabled = axCaps?.enabled === true && typeof html === 'string' && html.length > 0;
   const axToken = useMemo(() => `ax-${crypto.randomUUID()}`, []);
-  const axBridgeScript = axEnabled
-    ? buildExtAppAxBridgeScript(axToken, nodeId)
-    : '';
+  const axBridgeScript = axEnabled ? buildExtAppAxBridgeScript(axToken, nodeId) : '';
   const iframeDocument = useIframeDocument(injectExtAppAxBridgeScript(html ?? '', axBridgeScript), iframeSandbox);
 
   useEffect(() => {
@@ -272,7 +272,10 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     function onAxMessage(event: MessageEvent) {
       if (event.source !== iframeRef.current?.contentWindow) return;
       const data = event.data as {
-        source?: string; token?: string; nodeId?: string; correlationId?: string;
+        source?: string;
+        token?: string;
+        nodeId?: string;
+        correlationId?: string;
         interaction?: { type?: unknown; payload?: unknown };
       } | null;
       if (!data || data.source !== 'pmx-canvas-ax' || data.token !== axToken || data.nodeId !== nodeId) return;
@@ -289,13 +292,16 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
       }).then((res) => {
         if (res.ok) showToast('context', 'AX interaction', interactionType, [nodeId]);
         else showToast('remove', 'AX interaction rejected', res.error ?? res.code ?? '', [nodeId]);
-        iframeRef.current?.contentWindow?.postMessage({
-          source: 'pmx-canvas-ax-ack',
-          token: axToken,
-          ...(data.correlationId ? { correlationId: data.correlationId } : {}),
-          interaction: { type: interactionType },
-          result: res,
-        }, '*');
+        iframeRef.current?.contentWindow?.postMessage(
+          {
+            source: 'pmx-canvas-ax-ack',
+            token: axToken,
+            ...(data.correlationId ? { correlationId: data.correlationId } : {}),
+            interaction: { type: interactionType },
+            result: res,
+          },
+          '*',
+        );
       });
     }
     window.addEventListener('message', onAxMessage);
@@ -336,9 +342,12 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, hasReplayToolResult]);
 
-  useEffect(() => () => {
-    if (webkitRepaintTimerRef.current !== null) window.clearTimeout(webkitRepaintTimerRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (webkitRepaintTimerRef.current !== null) window.clearTimeout(webkitRepaintTimerRef.current);
+    },
+    [],
+  );
 
   const toMcpTheme = (theme: string): McpUiTheme => (theme === 'light' ? 'light' : 'dark');
   const isExpanded = expanded || expandedNodeId.value === nodeId;
@@ -368,10 +377,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     if (lastSentToolResultRef.current === pendingToolResult) {
       return null;
     }
-    if (
-      lastSentToolResultRef.current &&
-      extAppToolResultsMatch(lastSentToolResultRef.current, pendingToolResult)
-    ) {
+    if (lastSentToolResultRef.current && extAppToolResultsMatch(lastSentToolResultRef.current, pendingToolResult)) {
       lastSentToolResultRef.current = pendingToolResult;
       return null;
     }
@@ -423,7 +429,9 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
         throw new Error('Ext-app iframe window is unavailable');
       }
 
-      const buildHostContext = (displayMode: DisplayMode = expandedNodeId.value === nodeId ? 'fullscreen' : 'inline') => ({
+      const buildHostContext = (
+        displayMode: DisplayMode = expandedNodeId.value === nodeId ? 'fullscreen' : 'inline',
+      ) => ({
         theme: toMcpTheme(canvasTheme.value),
         platform: 'web' as const,
         containerDimensions: resolveExtAppContainerDimensions(iframe, {
@@ -433,12 +441,14 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
         displayMode,
         locale: navigator.language,
         timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        ...(toolDefinition ? {
-          toolInfo: {
-            id: toolCallId,
-            tool: toolDefinition,
-          },
-        } : {}),
+        ...(toolDefinition
+          ? {
+              toolInfo: {
+                id: toolCallId,
+                tool: toolDefinition,
+              },
+            }
+          : {}),
       });
 
       const scheduleHostContextUpdate = () => {
@@ -655,7 +665,10 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
       // at fire time so the widget keeps its fullscreen/inline context accurate.
       let firstFire = true;
       themeUnsubRef.current = canvasTheme.subscribe((newTheme) => {
-        if (firstFire) { firstFire = false; return; }
+        if (firstFire) {
+          firstFire = false;
+          return;
+        }
         if (disposed) return;
         bridge.setHostContext?.({
           ...buildHostContext(),
@@ -787,7 +800,17 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   }
 
   return (
-    <div style={{ flex: 1, width: '100%', height: '100%', minWidth: 0, minHeight: 0, display: 'flex', flexDirection: 'column' }}>
+    <div
+      style={{
+        flex: 1,
+        width: '100%',
+        height: '100%',
+        minWidth: 0,
+        minHeight: 0,
+        display: 'flex',
+        flexDirection: 'column',
+      }}
+    >
       {sessionStatus && sessionStatus !== 'ready' && (
         <div
           style={{
@@ -852,9 +875,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
         </div>
       )}
       {status === 'loading' && (
-        <div style={{ padding: '8px', fontSize: '11px', color: 'var(--c-muted)' }}>
-          Connecting to ext-app viewer...
-        </div>
+        <div style={{ padding: '8px', fontSize: '11px', color: 'var(--c-muted)' }}>Connecting to ext-app viewer...</div>
       )}
       {/* Iframe stack: the widget renders a preview; when not expanded, a
           transparent click-catcher sits on top so the first click always

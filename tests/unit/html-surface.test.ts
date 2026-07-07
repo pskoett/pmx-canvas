@@ -60,7 +60,10 @@ describe('buildHtmlSurfaceDocument', () => {
     expect(off).not.toContain('window.PMX_AX');
 
     const on = buildHtmlSurfaceDocument('<body>x</body>', {
-      theme: 'dark', axBridge: true, axToken: 'ax-abc', nodeId: 'node-1',
+      theme: 'dark',
+      axBridge: true,
+      axToken: 'ax-abc',
+      nodeId: 'node-1',
     });
     expect(on).toContain('data-pmx-canvas-ax-bridge');
     expect(on).toContain('window.PMX_AX');
@@ -68,7 +71,10 @@ describe('buildHtmlSurfaceDocument', () => {
     expect(on).toContain('PMX_AX_NODE_ID = "node-1"');
 
     const evil = buildHtmlSurfaceDocument('<body>x</body>', {
-      theme: 'dark', axBridge: true, axToken: 'a</script><x>', nodeId: 'n',
+      theme: 'dark',
+      axBridge: true,
+      axToken: 'a</script><x>',
+      nodeId: 'n',
     });
     expect(evil).not.toContain('a</script><x>');
   });
@@ -79,10 +85,10 @@ describe('buildHtmlSurfaceDocument', () => {
   });
 
   test('injects a fallback <title> into a full document head when the author HTML has none', () => {
-    const doc = buildHtmlSurfaceDocument(
-      '<html><head><meta charset="utf-8"></head><body>full</body></html>',
-      { theme: 'dark', title: 'Full Doc Title' },
-    );
+    const doc = buildHtmlSurfaceDocument('<html><head><meta charset="utf-8"></head><body>full</body></html>', {
+      theme: 'dark',
+      title: 'Full Doc Title',
+    });
     expect(doc).toContain('<title>Full Doc Title</title>');
   });
 

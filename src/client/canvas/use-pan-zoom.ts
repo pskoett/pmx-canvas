@@ -31,15 +31,18 @@ export function usePanZoom({ viewport, onViewportChange, onViewportCommit, disab
   const lastPinchDist = useRef(0);
   const wheelCommitTimer = useRef<number | null>(null);
 
-  const scheduleViewportCommit = useCallback((next: ViewportState) => {
-    if (wheelCommitTimer.current !== null) {
-      window.clearTimeout(wheelCommitTimer.current);
-    }
-    wheelCommitTimer.current = window.setTimeout(() => {
-      wheelCommitTimer.current = null;
-      onViewportCommit(next);
-    }, 140);
-  }, [onViewportCommit]);
+  const scheduleViewportCommit = useCallback(
+    (next: ViewportState) => {
+      if (wheelCommitTimer.current !== null) {
+        window.clearTimeout(wheelCommitTimer.current);
+      }
+      wheelCommitTimer.current = window.setTimeout(() => {
+        wheelCommitTimer.current = null;
+        onViewportCommit(next);
+      }, 140);
+    },
+    [onViewportCommit],
+  );
 
   const handleWheel = useCallback(
     (e: WheelEvent) => {
@@ -79,15 +82,18 @@ export function usePanZoom({ viewport, onViewportChange, onViewportCommit, disab
     [disabled, viewport, onViewportChange, scheduleViewportCommit],
   );
 
-  const handlePointerDown = useCallback((e: PointerEvent) => {
-    if (disabled) return;
-    // Only pan when clicking the canvas background (not nodes)
-    const container = containerRef.current;
-    if (!container || e.target !== container) return;
-    isPanning.current = true;
-    lastPointer.current = { x: e.clientX, y: e.clientY };
-    container.setPointerCapture(e.pointerId);
-  }, [disabled]);
+  const handlePointerDown = useCallback(
+    (e: PointerEvent) => {
+      if (disabled) return;
+      // Only pan when clicking the canvas background (not nodes)
+      const container = containerRef.current;
+      if (!container || e.target !== container) return;
+      isPanning.current = true;
+      lastPointer.current = { x: e.clientX, y: e.clientY };
+      container.setPointerCapture(e.pointerId);
+    },
+    [disabled],
+  );
 
   const handlePointerMove = useCallback(
     (e: PointerEvent) => {
@@ -183,14 +189,7 @@ export function usePanZoom({ viewport, onViewportChange, onViewportCommit, disab
       el.removeEventListener('touchmove', handleTouchMove);
       el.removeEventListener('touchend', handleTouchEnd);
     };
-  }, [
-    handleWheel,
-    handlePointerDown,
-    handlePointerMove,
-    handlePointerUp,
-    handleTouchMove,
-    handleTouchEnd,
-  ]);
+  }, [handleWheel, handlePointerDown, handlePointerMove, handlePointerUp, handleTouchMove, handleTouchEnd]);
 
   return containerRef;
 }

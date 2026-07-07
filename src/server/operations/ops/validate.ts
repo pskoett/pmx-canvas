@@ -26,7 +26,8 @@ const validateGetOperation = defineOperation<z.infer<typeof validateGetSchema>, 
   },
   mcp: {
     toolName: 'canvas_validate',
-    description: 'Validate the current canvas layout. Distinguishes true node collisions from expected group-child containment and reports missing edge endpoints.',
+    description:
+      'Validate the current canvas layout. Distinguishes true node collisions from expected group-child containment and reports missing edge endpoints.',
     formatResult: (result) => ({
       content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }],
     }),

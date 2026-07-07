@@ -123,9 +123,20 @@ function resolveImportPath(specifier: string, fromFilePath: string): string | nu
 }
 
 const RESOLVE_EXTENSIONS = [
-  '', '.ts', '.tsx', '.js', '.jsx', '.mjs', '.mts',
-  '/index.ts', '/index.tsx', '/index.js', '/index.jsx',
-  '.py', '.go', '.rs',
+  '',
+  '.ts',
+  '.tsx',
+  '.js',
+  '.jsx',
+  '.mjs',
+  '.mts',
+  '/index.ts',
+  '/index.tsx',
+  '/index.js',
+  '/index.jsx',
+  '.py',
+  '.go',
+  '.rs',
 ];
 
 function tryResolveWithExtensions(basePath: string): string | null {
@@ -179,7 +190,7 @@ function getFileNodes(): CanvasNodeState[] {
  */
 function buildPathIndex(fileNodes?: CanvasNodeState[]): Map<string, string> {
   const index = new Map<string, string>();
-  for (const node of (fileNodes ?? getFileNodes())) {
+  for (const node of fileNodes ?? getFileNodes()) {
     index.set(node.data.path as string, node.id);
   }
   return index;
@@ -299,7 +310,7 @@ export function buildCodeGraphSummary(): CodeGraphSummary {
       path: relative(process.cwd(), node.data.path as string) || (node.data.path as string),
       title: (node.data.title as string) ?? null,
       imports: importSpecs.get(node.id) ?? [],
-      importedBy: [...(inc)].map((id) => {
+      importedBy: [...inc].map((id) => {
         const path = idToPath.get(id);
         return path ? relative(process.cwd(), path) : id;
       }),
@@ -350,7 +361,9 @@ export function formatCodeGraph(summary: CodeGraphSummary): string {
   }
 
   if (summary.isolatedFiles.length > 0) {
-    lines.push(`Isolated files (${summary.isolatedFiles.length}): ${summary.isolatedFiles.map((f) => f.title ?? f.path).join(', ')}`);
+    lines.push(
+      `Isolated files (${summary.isolatedFiles.length}): ${summary.isolatedFiles.map((f) => f.title ?? f.path).join(', ')}`,
+    );
     lines.push('');
   }
 

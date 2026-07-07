@@ -72,8 +72,7 @@ function normalizeText(text: string): string {
 function parseTagAttributes(tag: string): Record<string, string> {
   const attributes: Record<string, string> = {};
   const pattern = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))/g;
-  let match: RegExpExecArray | null = null;
-  while ((match = pattern.exec(tag)) !== null) {
+  for (const match of tag.matchAll(pattern)) {
     const [, name, doubleQuoted, singleQuoted, unquoted] = match;
     attributes[name.toLowerCase()] = doubleQuoted ?? singleQuoted ?? unquoted ?? '';
   }
@@ -226,11 +225,8 @@ export function summarizeWebpageContent(data: Record<string, unknown>, maxLength
   const url = typeof data.url === 'string' ? data.url : '';
   const pageTitle = typeof data.pageTitle === 'string' ? data.pageTitle : '';
   const description = typeof data.description === 'string' ? data.description : '';
-  const excerpt = typeof data.excerpt === 'string'
-    ? data.excerpt
-    : typeof data.content === 'string'
-      ? data.content
-      : '';
+  const excerpt =
+    typeof data.excerpt === 'string' ? data.excerpt : typeof data.content === 'string' ? data.content : '';
 
   if (url) parts.push(`URL: ${url}`);
   if (pageTitle) parts.push(`Title: ${pageTitle}`);
@@ -267,9 +263,7 @@ export async function fetchWebpageSnapshot(inputUrl: string): Promise<WebpageSna
     }
 
     const pageTitle =
-      extractMetaContent(body, 'og:title') ??
-      extractMetaContent(body, 'twitter:title') ??
-      extractTitle(body);
+      extractMetaContent(body, 'og:title') ?? extractMetaContent(body, 'twitter:title') ?? extractTitle(body);
     const description =
       extractMetaContent(body, 'description') ??
       extractMetaContent(body, 'og:description') ??
@@ -300,9 +294,7 @@ export async function fetchWebpageSnapshot(inputUrl: string): Promise<WebpageSna
     if (error instanceof Error && error.name === 'AbortError') {
       throw new WebpageFetchError(`Timed out after ${FETCH_TIMEOUT_MS}ms while fetching ${url}.`);
     }
-    throw new WebpageFetchError(
-      error instanceof Error ? error.message : `Failed to fetch ${url}.`,
-    );
+    throw new WebpageFetchError(error instanceof Error ? error.message : `Failed to fetch ${url}.`);
   } finally {
     clearTimeout(timeout);
   }

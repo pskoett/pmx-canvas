@@ -69,9 +69,7 @@ export function setWebviewRunner(runner: WebviewRunner | null): void {
 
 export function getWebviewRunner(): WebviewRunner {
   if (!injectedRunner) {
-    throw new Error(
-      'Webview runner is not injected. server.ts must call setWebviewRunner(...) at module load.',
-    );
+    throw new Error('Webview runner is not injected. server.ts must call setWebviewRunner(...) at module load.');
   }
   return injectedRunner;
 }

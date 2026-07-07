@@ -31,10 +31,7 @@ function RenderedMarkdown({
   return <div ref={containerRef} class={className} style={style} />;
 }
 
-export function MarkdownNode({
-  node,
-  expanded = false,
-}: { node: CanvasNodeState; expanded?: boolean }) {
+export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
   const path = node.data.path as string;
   const [content, setContent] = useState('');
   const [rendered, setRendered] = useState('');
@@ -302,9 +299,7 @@ export function MarkdownNode({
               onSave={handleInlineSave}
             />
           ) : (
-            <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '24px' }}>
-              Loading…
-            </div>
+            <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '24px' }}>Loading…</div>
           )}
         </div>
         <button type="button" class="md-edit-fab" onClick={() => setSourceMode(true)}>
@@ -323,9 +318,7 @@ export function MarkdownNode({
         html={rendered}
         style={{ padding: rendered ? '0' : '12px', color: rendered ? undefined : 'var(--c-dim)' }}
       />
-      {!loaded && (
-        <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>Loading…</div>
-      )}
+      {!loaded && <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>Loading…</div>}
       {loaded && !rendered && (
         <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>Empty node</div>
       )}

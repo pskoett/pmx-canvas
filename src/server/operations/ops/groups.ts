@@ -10,11 +10,7 @@
  */
 import { z } from 'zod';
 import { canvasState, type CanvasNodeState } from '../../canvas-state.js';
-import {
-  createCanvasGroup,
-  groupCanvasNodes,
-  ungroupCanvasNodes,
-} from '../../canvas-operations.js';
+import { createCanvasGroup, groupCanvasNodes, ungroupCanvasNodes } from '../../canvas-operations.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 import { buildNodeResponse, createdNodePayloadFromNode, isRecord } from './nodes.js';
 
@@ -25,7 +21,11 @@ function pickChildLayout(value: unknown): 'grid' | 'column' | 'flow' | undefined
 // ── group.create ──────────────────────────────────────────────
 
 const groupCreateShape = {
-  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+  intentId: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
   title: z.string().optional().catch(undefined).describe('Group title (default: "Group")'),
   childIds: z.unknown().optional().describe('Node IDs to include in the group. Group auto-sizes to fit them.'),
   color: z.string().optional().catch(undefined).describe('Group accent color (CSS color string, e.g. "#4a9eff")'),
@@ -33,7 +33,11 @@ const groupCreateShape = {
   y: z.number().optional().catch(undefined).describe('Y position (auto-computed from children if omitted)'),
   width: z.number().optional().catch(undefined).describe('Width (auto-computed from children if omitted)'),
   height: z.number().optional().catch(undefined).describe('Height (auto-computed from children if omitted)'),
-  childLayout: z.enum(['grid', 'column', 'flow']).optional().catch(undefined).describe('Optional child auto-layout. Omit to preserve current child positions.'),
+  childLayout: z
+    .enum(['grid', 'column', 'flow'])
+    .optional()
+    .catch(undefined)
+    .describe('Optional child auto-layout. Omit to preserve current child positions.'),
 };
 
 const groupCreateSchema = z.looseObject(groupCreateShape);
@@ -49,10 +53,17 @@ const groupCreateOperation = defineOperation<z.infer<typeof groupCreateSchema>, 
   },
   mcp: {
     toolName: 'canvas_create_group',
-    description: 'Create a group (frame) on the canvas that visually contains other nodes. Groups are spatial containers — they communicate "these nodes belong together." If childIds are provided, grouping preserves child positions by default; pass childLayout to auto-pack them. You can also provide an explicit frame (x/y/width/height) and auto-arrange children inside it.',
+    description:
+      'Create a group (frame) on the canvas that visually contains other nodes. Groups are spatial containers — they communicate "these nodes belong together." If childIds are provided, grouping preserves child positions by default; pass childLayout to auto-pack them. You can also provide an explicit frame (x/y/width/height) and auto-arrange children inside it.',
     extraShape: {
-      childIds: z.array(z.string()).optional().describe('Node IDs to include in the group. Group auto-sizes to fit them.'),
-      full: z.boolean().optional().describe('Return the full created group payload. Default false returns compact metadata.'),
+      childIds: z
+        .array(z.string())
+        .optional()
+        .describe('Node IDs to include in the group. Group auto-sizes to fit them.'),
+      full: z
+        .boolean()
+        .optional()
+        .describe('Return the full created group payload. Default false returns compact metadata.'),
       verbose: z.boolean().optional().describe('Alias for full:true.'),
     },
     formatResult: (result, input) => {
@@ -82,7 +93,16 @@ const groupCreateOperation = defineOperation<z.infer<typeof groupCreateSchema>, 
         );
       }
     }
-    const { node } = createCanvasGroup({ title, childIds, color, x, y, width, height, ...(childLayout ? { childLayout } : {}) });
+    const { node } = createCanvasGroup({
+      title,
+      childIds,
+      color,
+      x,
+      y,
+      width,
+      height,
+      ...(childLayout ? { childLayout } : {}),
+    });
     return node;
   },
   serialize: (node) => buildNodeResponse(node),
@@ -91,10 +111,18 @@ const groupCreateOperation = defineOperation<z.infer<typeof groupCreateSchema>, 
 // ── group.add ─────────────────────────────────────────────────
 
 const groupAddShape = {
-  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+  intentId: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
   groupId: z.string().optional().catch(undefined).describe('The group node ID'),
   childIds: z.unknown().optional().describe('Node IDs to add to the group'),
-  childLayout: z.enum(['grid', 'column', 'flow']).optional().catch(undefined).describe('Optional child layout to apply while grouping'),
+  childLayout: z
+    .enum(['grid', 'column', 'flow'])
+    .optional()
+    .catch(undefined)
+    .describe('Optional child layout to apply while grouping'),
 };
 
 const groupAddSchema = z.looseObject(groupAddShape);
@@ -138,7 +166,11 @@ const groupAddOperation = defineOperation<z.infer<typeof groupAddSchema>, Record
 // ── group.remove (ungroup) ────────────────────────────────────
 
 const groupRemoveShape = {
-  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+  intentId: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
   groupId: z.string().optional().catch(undefined).describe('The group node ID to ungroup'),
 };
 
@@ -155,7 +187,8 @@ const groupRemoveOperation = defineOperation<z.infer<typeof groupRemoveSchema>, 
   },
   mcp: {
     toolName: 'canvas_ungroup',
-    description: 'Remove all children from a group, releasing them as independent nodes. The group node itself remains (delete it separately with canvas_remove_node if desired).',
+    description:
+      'Remove all children from a group, releasing them as independent nodes. The group node itself remains (delete it separately with canvas_remove_node if desired).',
     extraShape: {
       groupId: z.string().describe('The group node ID to ungroup'),
     },
@@ -172,8 +205,4 @@ const groupRemoveOperation = defineOperation<z.infer<typeof groupRemoveSchema>, 
   },
 });
 
-export const groupOperations: Operation[] = [
-  groupCreateOperation,
-  groupAddOperation,
-  groupRemoveOperation,
-];
+export const groupOperations: Operation[] = [groupCreateOperation, groupAddOperation, groupRemoveOperation];

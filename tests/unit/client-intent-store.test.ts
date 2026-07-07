@@ -1,11 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { EVENT_HANDLERS } from '../../src/client/state/sse-bridge.ts';
-import {
-  intents,
-  resetIntents,
-  settleIntent,
-  upsertIntent,
-} from '../../src/client/state/intent-store.ts';
+import { intents, resetIntents, settleIntent, upsertIntent } from '../../src/client/state/intent-store.ts';
 
 describe('ghost intent client store', () => {
   afterEach(() => {

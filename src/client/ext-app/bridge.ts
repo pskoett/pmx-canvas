@@ -32,10 +32,7 @@ interface JsonRpcErrorResponse extends JsonRpcBase {
 }
 
 type JsonRpcResponseMessage = JsonRpcSuccessResponse | JsonRpcErrorResponse;
-type JsonRpcMessage =
-  | JsonRpcRequestMessage
-  | JsonRpcNotificationMessage
-  | JsonRpcResponseMessage;
+type JsonRpcMessage = JsonRpcRequestMessage | JsonRpcNotificationMessage | JsonRpcResponseMessage;
 
 type DisplayMode = 'inline' | 'fullscreen' | 'pip';
 
@@ -256,10 +253,7 @@ export class AppBridge {
     this.notificationHandlers.set(method, (params) => callback(params as TParams));
   }
 
-  private setRequestHandler<TParams, TResult>(
-    method: string,
-    callback: RequestHandler<TParams, TResult>,
-  ): void {
+  private setRequestHandler<TParams, TResult>(method: string, callback: RequestHandler<TParams, TResult>): void {
     this.requestHandlers.set(method, (params, extra) => callback(params as TParams, extra));
   }
 
@@ -447,10 +441,7 @@ export class AppBridge {
     }
   }
 
-  private async handleRequest(
-    message: JsonRpcRequestMessage,
-    extra: RequestExtra,
-  ): Promise<unknown> {
+  private async handleRequest(message: JsonRpcRequestMessage, extra: RequestExtra): Promise<unknown> {
     if (message.method === 'ui/initialize') {
       return this.handleInitialize(message.params);
     }

@@ -1,10 +1,7 @@
 import { createHash } from 'node:crypto';
 import { canvasState } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasLayout, CanvasNodeState, ViewportState } from './canvas-state.js';
-import {
-  normalizeCanvasNodeData,
-  type CanvasNodeProvenance,
-} from './canvas-provenance.js';
+import { normalizeCanvasNodeData, type CanvasNodeProvenance } from './canvas-provenance.js';
 import { getCanvasNodeKind as getSharedCanvasNodeKind } from '../shared/canvas-node-kind.js';
 import { canOpenNodeAsSurface } from '../shared/surface.js';
 
@@ -79,34 +76,32 @@ export function getCanvasNodeKind(node: CanvasNodeState, data: Record<string, un
 }
 
 export function getCanvasNodeTitle(node: CanvasNodeState): string | null {
-  return pickString(node.data.title)
-    ?? (node.type === 'webpage' ? pickString(node.data.pageTitle) : null)
-    ?? null;
+  return pickString(node.data.title) ?? (node.type === 'webpage' ? pickString(node.data.pageTitle) : null) ?? null;
 }
 
 export function getCanvasNodeContent(node: CanvasNodeState): string | null {
   if (node.type === 'html') {
     const primitive = typeof node.data.htmlPrimitive === 'string' ? node.data.htmlPrimitive : null;
     const description = pickString(node.data.description);
-    return pickString(node.data.agentSummary)
-      ?? pickString(node.data.contentSummary)
-      ?? (primitive
-        ? (description ? `${primitive}: ${description}` : primitive)
-        : null);
+    return (
+      pickString(node.data.agentSummary) ??
+      pickString(node.data.contentSummary) ??
+      (primitive ? (description ? `${primitive}: ${description}` : primitive) : null)
+    );
   }
-  return pickString(node.data.content)
-    ?? pickString(node.data.fileContent)
-    ?? pickString(node.data.text)
-    ?? (node.type === 'file' ? pickString(node.data.path) : null)
-    ?? (node.type === 'image' ? pickString(node.data.src) : null)
-    ?? (node.type === 'webpage' ? pickString(node.data.url) : null)
-    ?? null;
+  return (
+    pickString(node.data.content) ??
+    pickString(node.data.fileContent) ??
+    pickString(node.data.text) ??
+    (node.type === 'file' ? pickString(node.data.path) : null) ??
+    (node.type === 'image' ? pickString(node.data.src) : null) ??
+    (node.type === 'webpage' ? pickString(node.data.url) : null) ??
+    null
+  );
 }
 
 export function getCanvasNodeSurfaceUrl(node: CanvasNodeState, data: Record<string, unknown>): string | null {
-  return canOpenNodeAsSurface(node.type, data)
-    ? `/api/canvas/surface/${encodeURIComponent(node.id)}`
-    : null;
+  return canOpenNodeAsSurface(node.type, data) ? `/api/canvas/surface/${encodeURIComponent(node.id)}` : null;
 }
 
 export function serializeCanvasNode(node: CanvasNodeState): SerializedCanvasNode {
@@ -236,22 +231,21 @@ function rectsOverlap(
   a: { x: number; y: number; width: number; height: number },
   b: { x: number; y: number; width: number; height: number },
 ): boolean {
-  return a.x <= b.x + b.width &&
-    a.x + a.width >= b.x &&
-    a.y <= b.y + b.height &&
-    a.y + a.height >= b.y;
+  return a.x <= b.x + b.width && a.x + a.width >= b.x && a.y <= b.y + b.height && a.y + a.height >= b.y;
 }
 
 export function summarizeCanvasAnnotationForContext(
   annotation: CanvasAnnotation,
   nodes: CanvasNodeState[],
 ): CanvasAnnotationContextSummary {
-  const targetNodes = nodes.filter((node) => rectsOverlap(annotation.bounds, {
-    x: node.position.x,
-    y: node.position.y,
-    width: node.size.width,
-    height: node.size.height,
-  }));
+  const targetNodes = nodes.filter((node) =>
+    rectsOverlap(annotation.bounds, {
+      x: node.position.x,
+      y: node.position.y,
+      width: node.size.width,
+      height: node.size.height,
+    }),
+  );
   const targetNodeTitles = targetNodes.map((node) => getCanvasNodeTitle(node) ?? node.id);
   return {
     id: annotation.id,
@@ -284,9 +278,7 @@ export function buildCanvasSummary(): CanvasSummary {
     typeCounts[kind] = (typeCounts[kind] ?? 0) + 1;
   }
 
-  const pinnedTitles = layout.nodes
-    .filter((n) => pinnedIds.has(n.id))
-    .map((n) => getCanvasNodeTitle(n) ?? n.id);
+  const pinnedTitles = layout.nodes.filter((n) => pinnedIds.has(n.id)).map((n) => getCanvasNodeTitle(n) ?? n.id);
 
   return {
     totalNodes: layout.nodes.length,

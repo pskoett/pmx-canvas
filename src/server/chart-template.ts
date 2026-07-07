@@ -15,15 +15,14 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 const extAppsPackageDir = dirname(require.resolve('@modelcontextprotocol/ext-apps/package.json'));
-const extAppsRuntimeSource = readFileSync(
-  join(extAppsPackageDir, 'dist', 'src', 'app-with-deps.js'),
-  'utf-8',
-);
+const extAppsRuntimeSource = readFileSync(join(extAppsPackageDir, 'dist', 'src', 'app-with-deps.js'), 'utf-8');
 const appBindingMatch = extAppsRuntimeSource.match(/([A-Za-z_$][\w$]*) as App/);
 const transportBindingMatch = extAppsRuntimeSource.match(/([A-Za-z_$][\w$]*) as PostMessageTransport/);
 
 if (!appBindingMatch || !transportBindingMatch) {
-  throw new Error('Failed to locate App or PostMessageTransport export bindings in @modelcontextprotocol/ext-apps runtime');
+  throw new Error(
+    'Failed to locate App or PostMessageTransport export bindings in @modelcontextprotocol/ext-apps runtime',
+  );
 }
 
 const extAppsBootstrapSource = `${extAppsRuntimeSource}

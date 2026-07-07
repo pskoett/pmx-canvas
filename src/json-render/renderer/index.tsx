@@ -19,7 +19,16 @@ import { tufteChartComponents } from '../charts/tufte-components';
 import { pmxCanvasDirectives } from '../directives';
 import { JsonRenderDevtools } from '@json-render/devtools-react';
 
-type BadgeVariant = 'default' | 'secondary' | 'destructive' | 'outline' | 'success' | 'info' | 'warning' | 'error' | 'danger';
+type BadgeVariant =
+  | 'default'
+  | 'secondary'
+  | 'destructive'
+  | 'outline'
+  | 'success'
+  | 'info'
+  | 'warning'
+  | 'error'
+  | 'danger';
 type BadgeProps = {
   text: string;
   variant?: BadgeVariant | null;
@@ -30,11 +39,7 @@ function Badge({ props }: { props: BadgeProps }) {
   const variant = props.variant;
   const resolvedVariant = variant ?? 'default';
   return (
-    <span
-      data-slot="badge"
-      data-variant={resolvedVariant}
-      className={`pmx-badge pmx-badge--${resolvedVariant}`}
-    >
+    <span data-slot="badge" data-variant={resolvedVariant} className={`pmx-badge pmx-badge--${resolvedVariant}`}>
       {props.text}
     </span>
   );
@@ -111,9 +116,17 @@ function AxStateSync() {
 // validates + submits through the capability-gated endpoint). Convention-based
 // opt-in: spec authors name the action handler after the AX interaction type.
 const AX_INTERACTION_HANDLER_NAMES = [
-  'ax.event.record', 'ax.steer', 'ax.work.create', 'ax.work.update',
-  'ax.evidence.add', 'ax.approval.request', 'ax.review.add', 'ax.focus.set',
-  'ax.elicitation.request', 'ax.mode.request', 'ax.command.invoke',
+  'ax.event.record',
+  'ax.steer',
+  'ax.work.create',
+  'ax.work.update',
+  'ax.evidence.add',
+  'ax.approval.request',
+  'ax.review.add',
+  'ax.focus.set',
+  'ax.elicitation.request',
+  'ax.mode.request',
+  'ax.command.invoke',
 ] as const;
 
 function buildAxHandlers(): Record<string, (params: Record<string, unknown>) => void> {
@@ -126,12 +139,15 @@ function buildAxHandlers(): Record<string, (params: Record<string, unknown>) => 
   // is no JS surface for a Promise-style ack here, so we don't stamp a correlationId.
   for (const type of AX_INTERACTION_HANDLER_NAMES) {
     handlers[type] = (params: Record<string, unknown>) => {
-      window.parent.postMessage({
-        source: 'pmx-canvas-ax',
-        token,
-        nodeId,
-        interaction: { type, payload: params && typeof params === 'object' ? params : {} },
-      }, '*');
+      window.parent.postMessage(
+        {
+          source: 'pmx-canvas-ax',
+          token,
+          nodeId,
+          interaction: { type, payload: params && typeof params === 'object' ? params : {} },
+        },
+        '*',
+      );
     };
   }
   return handlers;
@@ -176,16 +192,22 @@ function App() {
 
   // Seed AX state under a reserved `/ax` key so specs can bind { "$state": "/ax/workItems" }.
   const axState = window.__PMX_CANVAS_AX_STATE__;
-  const initialState = axState !== undefined && axState !== null
-    ? { ...(spec.state ?? {}), ax: axState }
-    : spec.state ?? undefined;
+  const initialState =
+    axState !== undefined && axState !== null ? { ...(spec.state ?? {}), ax: axState } : (spec.state ?? undefined);
 
   // Standalone "Open as site" tab (#65): fill the browser viewport instead of the
   // in-canvas card height. The chart child flex-grows; useChartFrameHeight measures
   // the full viewport in this mode. Embedded/expanded keep the padded min-height box.
   const isSite = window.__PMX_CANVAS_JSON_RENDER_DISPLAY__ === 'site';
   const containerStyle = isSite
-    ? { display: 'flex', flexDirection: 'column' as const, height: '100dvh', minHeight: '100dvh', padding: 0, boxSizing: 'border-box' as const }
+    ? {
+        display: 'flex',
+        flexDirection: 'column' as const,
+        height: '100dvh',
+        minHeight: '100dvh',
+        padding: 0,
+        boxSizing: 'border-box' as const,
+      }
     : { minHeight: '100vh', padding: 16, boxSizing: 'border-box' as const };
   return (
     <div style={containerStyle}>
@@ -199,9 +221,7 @@ function App() {
         <div style={isSite ? { flex: 1, minHeight: 0 } : undefined}>
           <Renderer spec={spec} registry={registry} loading={false} />
         </div>
-        {window.__PMX_CANVAS_JSON_RENDER_DEVTOOLS__ ? (
-          <JsonRenderDevtools position="right" />
-        ) : null}
+        {window.__PMX_CANVAS_JSON_RENDER_DEVTOOLS__ ? <JsonRenderDevtools position="right" /> : null}
       </JSONUIProvider>
     </div>
   );

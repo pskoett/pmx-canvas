@@ -38,15 +38,7 @@ export interface TraceEvent {
   resultSummary: string;
 }
 
-export const pipelineStages = [
-  'Plan',
-  'Code',
-  'Build',
-  'Test',
-  'Canary',
-  'Deploy',
-  'Observe',
-] as const;
+export const pipelineStages = ['Plan', 'Code', 'Build', 'Test', 'Canary', 'Deploy', 'Observe'] as const;
 
 export const weeklyMetrics: WeeklyMetric[] = [
   { week: 'W14', leadTimeHours: 27, deployments: 14, changeFailureRate: 9.8, mttrMinutes: 52 },

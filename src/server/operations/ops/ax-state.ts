@@ -52,7 +52,8 @@ const axGetOperation = defineOperation<z.infer<typeof axGetSchema>, Record<strin
   },
   mcp: {
     toolName: 'canvas_get_ax',
-    description: 'Read the host-agnostic PMX AX state and agent-ready AX context. Use this when you need pinned context plus the current focus field.',
+    description:
+      'Read the host-agnostic PMX AX state and agent-ready AX context. Use this when you need pinned context plus the current focus field.',
     extraShape: {
       includeContext: z.boolean().optional().describe('Include serialized agent-ready AX context. Default true.'),
     },
@@ -85,7 +86,12 @@ const axGetOperation = defineOperation<z.infer<typeof axGetSchema>, Record<strin
 
 const axFocusSetShape = {
   nodeIds: z.unknown().optional().describe('Node IDs to place in the AX focus field. Missing nodes are ignored.'),
-  source: z.unknown().optional().describe('Optional host/source label for adapter-originated focus. Defaults to mcp. Use codex from the Codex app adapter.'),
+  source: z
+    .unknown()
+    .optional()
+    .describe(
+      'Optional host/source label for adapter-originated focus. Defaults to mcp. Use codex from the Codex app adapter.',
+    ),
 };
 
 const axFocusSetSchema = z.looseObject(axFocusSetShape);
@@ -101,12 +107,16 @@ const axFocusSetOperation = defineOperation<z.infer<typeof axFocusSetSchema>, Re
   },
   mcp: {
     toolName: 'canvas_set_ax_focus',
-    description: 'Set the PMX AX focus field without requiring viewport movement. Focus is persisted and available through canvas://ax-context.',
+    description:
+      'Set the PMX AX focus field without requiring viewport movement. Focus is persisted and available through canvas://ax-context.',
     extraShape: {
       nodeIds: z.array(z.string()).describe('Node IDs to place in the AX focus field. Missing nodes are ignored.'),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
+      source: z
+        .enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
         .optional()
-        .describe('Optional host/source label for adapter-originated focus. Defaults to mcp. Use codex from the Codex app adapter.'),
+        .describe(
+          'Optional host/source label for adapter-originated focus. Defaults to mcp. Use codex from the Codex app adapter.',
+        ),
     },
     buildInput: (input) => ({ ...input, source: normalizeAxSource(input.source, 'mcp') }),
     formatResult: (result) => {
@@ -146,13 +156,16 @@ const axPolicySetOperation = defineOperation<z.infer<typeof axPolicySetSchema>, 
   },
   mcp: {
     toolName: 'canvas_set_ax_policy',
-    description: 'Set the declarative AX policy (allowed/excluded/approval-required tools; prompt mode/append). PMX stores it and exposes it via canvas://ax-context; host adapters READ and enforce it. Merges with the existing policy.',
+    description:
+      'Set the declarative AX policy (allowed/excluded/approval-required tools; prompt mode/append). PMX stores it and exposes it via canvas://ax-context; host adapters READ and enforce it. Merges with the existing policy.',
     extraShape: {
-      tools: z.object({
-        allowed: z.array(z.string()).optional(),
-        excluded: z.array(z.string()).optional(),
-        approvalRequired: z.array(z.string()).optional(),
-      }).optional(),
+      tools: z
+        .object({
+          allowed: z.array(z.string()).optional(),
+          excluded: z.array(z.string()).optional(),
+          approvalRequired: z.array(z.string()).optional(),
+        })
+        .optional(),
       prompt: z.object({ systemAppend: z.string().optional(), mode: z.string().optional() }).optional(),
       source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']).optional(),
     },
@@ -196,7 +209,10 @@ const axHostCapabilityReportShape = {
 
 const axHostCapabilityReportSchema = z.looseObject(axHostCapabilityReportShape);
 
-const axHostCapabilityReportOperation = defineOperation<z.infer<typeof axHostCapabilityReportSchema>, Record<string, unknown>>({
+const axHostCapabilityReportOperation = defineOperation<
+  z.infer<typeof axHostCapabilityReportSchema>,
+  Record<string, unknown>
+>({
   name: 'ax.host-capability.report',
   mutates: false,
   input: axHostCapabilityReportSchema,
@@ -208,7 +224,8 @@ const axHostCapabilityReportOperation = defineOperation<z.infer<typeof axHostCap
   },
   mcp: {
     toolName: 'canvas_report_host_capability',
-    description: 'Report host/session capability from an adapter: what the host can do (canvas/hooks/tools/sessionMessaging/permissions/files/uiPrompts). Stored for diagnostics; core does not depend on a host.',
+    description:
+      'Report host/session capability from an adapter: what the host can do (canvas/hooks/tools/sessionMessaging/permissions/files/uiPrompts). Stored for diagnostics; core does not depend on a host.',
     extraShape: {
       host: z.string().optional().describe('Host identifier (e.g. copilot, codex).'),
       canvas: z.boolean().optional(),
@@ -219,7 +236,8 @@ const axHostCapabilityReportOperation = defineOperation<z.infer<typeof axHostCap
       files: z.boolean().optional(),
       uiPrompts: z.boolean().optional(),
       raw: z.record(z.string(), z.unknown()).optional().describe('Optional raw capability payload for diagnostics.'),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
+      source: z
+        .enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
         .optional()
         .describe('Optional host/source label. Defaults to mcp.'),
     },

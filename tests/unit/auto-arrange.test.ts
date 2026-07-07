@@ -13,13 +13,11 @@ function makeNode(overrides: Partial<ArrangeNode> & Pick<ArrangeNode, 'id' | 'ty
   };
 }
 
-function overlap(a: { x: number; y: number; width: number; height: number }, b: { x: number; y: number; width: number; height: number }): boolean {
-  return (
-    a.x < b.x + b.width &&
-    a.x + a.width > b.x &&
-    a.y < b.y + b.height &&
-    a.y + a.height > b.y
-  );
+function overlap(
+  a: { x: number; y: number; width: number; height: number },
+  b: { x: number; y: number; width: number; height: number },
+): boolean {
+  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y;
 }
 
 describe('computeAutoArrange', () => {
@@ -27,15 +25,37 @@ describe('computeAutoArrange', () => {
     const nodes: ArrangeNode[] = [
       makeNode({ id: 'group-a', type: 'group', position: { x: 20, y: 20 }, size: { width: 900, height: 500 } }),
       makeNode({ id: 'group-b', type: 'group', position: { x: 1400, y: 20 }, size: { width: 900, height: 500 } }),
-      makeNode({ id: 'a-1', type: 'markdown', position: { x: 80, y: 80 }, size: { width: 520, height: 320 }, data: { parentGroup: 'group-a' } }),
-      makeNode({ id: 'a-2', type: 'image', position: { x: 80, y: 440 }, size: { width: 520, height: 220 }, data: { parentGroup: 'group-a' } }),
-      makeNode({ id: 'b-1', type: 'mcp-app', position: { x: 1480, y: 80 }, size: { width: 760, height: 520 }, data: { parentGroup: 'group-b' } }),
-      makeNode({ id: 'b-2', type: 'graph', position: { x: 1480, y: 640 }, size: { width: 420, height: 300 }, data: { parentGroup: 'group-b' } }),
+      makeNode({
+        id: 'a-1',
+        type: 'markdown',
+        position: { x: 80, y: 80 },
+        size: { width: 520, height: 320 },
+        data: { parentGroup: 'group-a' },
+      }),
+      makeNode({
+        id: 'a-2',
+        type: 'image',
+        position: { x: 80, y: 440 },
+        size: { width: 520, height: 220 },
+        data: { parentGroup: 'group-a' },
+      }),
+      makeNode({
+        id: 'b-1',
+        type: 'mcp-app',
+        position: { x: 1480, y: 80 },
+        size: { width: 760, height: 520 },
+        data: { parentGroup: 'group-b' },
+      }),
+      makeNode({
+        id: 'b-2',
+        type: 'graph',
+        position: { x: 1480, y: 640 },
+        size: { width: 420, height: 300 },
+        data: { parentGroup: 'group-b' },
+      }),
     ];
 
-    const edges: ArrangeEdge[] = [
-      { id: 'edge-1', from: 'a-1', to: 'b-1' },
-    ];
+    const edges: ArrangeEdge[] = [{ id: 'edge-1', from: 'a-1', to: 'b-1' }];
 
     const result = computeAutoArrange(nodes, edges, 'graph');
 
@@ -64,8 +84,20 @@ describe('computeAutoArrange', () => {
   test('packs grouped units and standalone nodes without overlapping in grid mode', () => {
     const nodes: ArrangeNode[] = [
       makeNode({ id: 'group-a', type: 'group', position: { x: 20, y: 20 }, size: { width: 900, height: 500 } }),
-      makeNode({ id: 'a-1', type: 'markdown', position: { x: 80, y: 80 }, size: { width: 520, height: 320 }, data: { parentGroup: 'group-a' } }),
-      makeNode({ id: 'a-2', type: 'image', position: { x: 80, y: 440 }, size: { width: 520, height: 220 }, data: { parentGroup: 'group-a' } }),
+      makeNode({
+        id: 'a-1',
+        type: 'markdown',
+        position: { x: 80, y: 80 },
+        size: { width: 520, height: 320 },
+        data: { parentGroup: 'group-a' },
+      }),
+      makeNode({
+        id: 'a-2',
+        type: 'image',
+        position: { x: 80, y: 440 },
+        size: { width: 520, height: 220 },
+        data: { parentGroup: 'group-a' },
+      }),
       makeNode({ id: 'solo-1', type: 'status', position: { x: 1400, y: 20 }, size: { width: 320, height: 180 } }),
       makeNode({ id: 'solo-2', type: 'trace', position: { x: 1800, y: 20 }, size: { width: 320, height: 180 } }),
     ];
@@ -78,7 +110,7 @@ describe('computeAutoArrange', () => {
     expect(groupA).toBeDefined();
     expect(solo1).toBeDefined();
     expect(solo2).toBeDefined();
-    expect((solo2?.x ?? 0)).toBeGreaterThan((solo1?.x ?? 0));
-    expect((groupA?.x ?? 0)).toBeLessThan((solo1?.x ?? 0));
+    expect(solo2?.x ?? 0).toBeGreaterThan(solo1?.x ?? 0);
+    expect(groupA?.x ?? 0).toBeLessThan(solo1?.x ?? 0);
   });
 });

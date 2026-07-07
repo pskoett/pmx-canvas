@@ -24,7 +24,10 @@ const positionShape = z.object({ x: z.number(), y: z.number() });
 // ── intent.signal (canvas_intent action "signal") ─────────────
 
 const intentSignalShape = {
-  kind: z.enum(INTENT_KINDS).optional().describe('create | move | connect | remove | edit — the move about to be made.'),
+  kind: z
+    .enum(INTENT_KINDS)
+    .optional()
+    .describe('create | move | connect | remove | edit — the move about to be made.'),
   position: positionShape.optional().describe('World coords: where a create forms, or the destination of a move.'),
   nodeId: z.string().optional().describe('The existing node a move/edit/remove targets.'),
   edge: z
@@ -66,7 +69,12 @@ const intentUpdateShape = {
   confidence: z.number().optional().describe('0..1 → ghost opacity/solidity.'),
   seq: z.number().optional().describe('New ordering hint.'),
   ttlMs: z.number().optional().describe('Reset the TTL to this many ms from now.'),
-  vetoed: z.boolean().optional().describe('Veto the intent: dissolves the ghost AND poisons the id so a later linked settle is rejected (same as clear { vetoed:true }).'),
+  vetoed: z
+    .boolean()
+    .optional()
+    .describe(
+      'Veto the intent: dissolves the ghost AND poisons the id so a later linked settle is rejected (same as clear { vetoed:true }).',
+    ),
 };
 
 const intentUpdateSchema = z.looseObject(intentUpdateShape);
@@ -109,14 +117,11 @@ const intentClearOperation = defineOperation<z.infer<typeof intentClearSchema>, 
         // `vetoed` is a boolean in the op schema; query params arrive as strings.
         // Coerce only the literal "true"/"false" forms — anything else passes
         // through and fails validation loudly instead of silently becoming false.
-        query[key] = key === 'vetoed' && (value === 'true' || value === 'false')
-          ? value === 'true'
-          : value;
+        query[key] = key === 'vetoed' && (value === 'true' || value === 'false') ? value === 'true' : value;
       });
       const body = await readJsonValue(req);
-      const record = body !== null && typeof body === 'object' && !Array.isArray(body)
-        ? body as Record<string, unknown>
-        : {};
+      const record =
+        body !== null && typeof body === 'object' && !Array.isArray(body) ? (body as Record<string, unknown>) : {};
       return { ...query, ...record, ...params };
     },
   },
@@ -131,8 +136,4 @@ const intentClearOperation = defineOperation<z.infer<typeof intentClearSchema>, 
   },
 });
 
-export const intentOperations: Operation[] = [
-  intentSignalOperation,
-  intentUpdateOperation,
-  intentClearOperation,
-];
+export const intentOperations: Operation[] = [intentSignalOperation, intentUpdateOperation, intentClearOperation];

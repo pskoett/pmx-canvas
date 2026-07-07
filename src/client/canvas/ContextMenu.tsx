@@ -103,9 +103,7 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
     items = buildCanvasMenuItems(menu.canvasX, menu.canvasY);
   }
   const keyCounts = new Map<string, number>();
-  const estimatedHeight = items.some((item) => item.render)
-    ? items.length * 32 + 168
-    : items.length * 32 + 8;
+  const estimatedHeight = items.some((item) => item.render) ? items.length * 32 + 168 : items.length * 32 + 8;
 
   // Keep menu on screen
   const adjustedX = Math.min(menu.x, Math.max(12, window.innerWidth - 240));
@@ -128,7 +126,7 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
           ? 'separator'
           : item.render
             ? 'custom'
-          : `${item.label ?? 'item'}:${item.shortcut ?? ''}`;
+            : `${item.label ?? 'item'}:${item.shortcut ?? ''}`;
         const nextCount = (keyCounts.get(baseKey) ?? 0) + 1;
         keyCounts.set(baseKey, nextCount);
         const itemKey = `${baseKey}:${nextCount}`;
@@ -239,10 +237,7 @@ function renderGroupColorSection(node: CanvasNodeState, onClose: () => void): Co
                 onClose();
               }}
             >
-              <span
-                class="context-menu-color-dot"
-                style={{ '--swatch-color': preset.value }}
-              />
+              <span class="context-menu-color-dot" style={{ '--swatch-color': preset.value }} />
               <span>{preset.label}</span>
             </button>
           );
@@ -267,7 +262,12 @@ function renderGroupColorSection(node: CanvasNodeState, onClose: () => void): Co
   );
 }
 
-function centeredPosition(canvasX: number, canvasY: number, width: number, height: number): {
+function centeredPosition(
+  canvasX: number,
+  canvasY: number,
+  width: number,
+  height: number,
+): {
   x: number;
   y: number;
 } {
@@ -452,9 +452,7 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
   const pending = pendingConnection.value;
   if (pending && pending.from !== node.id) {
     const sourceNode = nodes.value.get(pending.from);
-    const sourceTitle = sourceNode
-      ? ((sourceNode.data.title as string) || sourceNode.id).slice(0, 20)
-      : pending.from;
+    const sourceTitle = sourceNode ? ((sourceNode.data.title as string) || sourceNode.id).slice(0, 20) : pending.from;
     items.push({
       label: `Connect from "${sourceTitle}"`,
       action: () => {
@@ -472,9 +470,7 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
   });
 
   // Show edge count
-  const edgeCount = Array.from(edges.value.values()).filter(
-    (e) => e.from === node.id || e.to === node.id,
-  ).length;
+  const edgeCount = Array.from(edges.value.values()).filter((e) => e.from === node.id || e.to === node.id).length;
   if (edgeCount > 0) {
     items.push({
       label: `${edgeCount} edge${edgeCount !== 1 ? 's' : ''} connected`,
@@ -502,8 +498,7 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
   if (node.type === 'mcp-app' || node.type === 'json-render' || node.type === 'graph') {
     if (node.data.chartConfig) {
       // Chart ext-app node — chart-specific actions
-      const chartTitle =
-        ((node.data.chartConfig as Record<string, unknown>).title as string) || 'chart';
+      const chartTitle = ((node.data.chartConfig as Record<string, unknown>).title as string) || 'chart';
       items.push({
         label: 'Copy chart data',
         action: () => {
@@ -527,9 +522,7 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
         items.push({
           label: 'Copy spec',
           action: () => {
-            navigator.clipboard.writeText(
-              JSON.stringify(node.data.spec ?? node.data.graphConfig ?? {}, null, 2),
-            );
+            navigator.clipboard.writeText(JSON.stringify(node.data.spec ?? node.data.graphConfig ?? {}, null, 2));
           },
         });
       }

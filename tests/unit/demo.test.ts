@@ -21,16 +21,9 @@ describe('demo canvas seed', () => {
     const types = new Set(layout.nodes.map((node) => node.type));
 
     expect(result).toEqual({ nodes: 19, edges: 6, groups: 3 });
-    expect(types).toEqual(new Set([
-      'markdown',
-      'graph',
-      'group',
-    ]));
+    expect(types).toEqual(new Set(['markdown', 'graph', 'group']));
     expect(layout.edges).toHaveLength(6);
-    expect(Array.from(canvasState.contextPinnedNodeIds)).toEqual([
-      'node-mo0xsd9m-5dkm',
-      'graph-mo0xsd9s-sm0g',
-    ]);
+    expect(Array.from(canvasState.contextPinnedNodeIds)).toEqual(['node-mo0xsd9m-5dkm', 'graph-mo0xsd9s-sm0g']);
 
     const title = layout.nodes.find((node) => node.id === 'node-mo0xsd9l-jobh');
     expect(title?.data.title).toContain('Tech Enabling OKRs');

@@ -1,10 +1,6 @@
 import { useEffect } from 'preact/hooks';
 import { nodes } from '../state/canvas-store';
-import {
-  hoveredIntentId,
-  intents,
-  type ClientIntent,
-} from '../state/intent-store';
+import { hoveredIntentId, intents, type ClientIntent } from '../state/intent-store';
 import { vetoGhostIntent } from '../state/intent-bridge';
 import { getNodeIcon } from '../icons';
 import { TYPE_LABELS } from '../types';
@@ -75,8 +71,7 @@ function bezierPath(a: { x: number; y: number }, b: { x: number; y: number }): s
 function GhostInfo({ intent }: { intent: ClientIntent }) {
   const NodeIcon = isKnownNodeType(intent.nodeType) ? getNodeIcon(intent.nodeType) : null;
   const label = intent.label || intent.kind;
-  const confidencePct =
-    typeof intent.confidence === 'number' ? `${Math.round(intent.confidence * 100)}%` : null;
+  const confidencePct = typeof intent.confidence === 'number' ? `${Math.round(intent.confidence * 100)}%` : null;
   return (
     <div
       class="intent-info"
@@ -160,9 +155,7 @@ function GhostOverlay({ intent, rect, variant }: { intent: ClientIntent; rect: R
 }
 
 function renderGhost(intent: ClientIntent) {
-  const settledRect = intent.phase === 'settling'
-    ? getNodeRect(intent.settledNodeId)
-    : null;
+  const settledRect = intent.phase === 'settling' ? getNodeRect(intent.settledNodeId) : null;
   switch (intent.kind) {
     case 'create': {
       if (!intent.position) return null;
@@ -174,7 +167,12 @@ function renderGhost(intent: ClientIntent) {
       if (!intent.position) return null;
       const source = getNodeRect(intent.nodeId);
       const size = source ?? DEFAULT_GHOST_SIZE;
-      const rect: Rect = settledRect ?? { left: intent.position.x, top: intent.position.y, width: size.width, height: size.height };
+      const rect: Rect = settledRect ?? {
+        left: intent.position.x,
+        top: intent.position.y,
+        width: size.width,
+        height: size.height,
+      };
       return <GhostBox key={intent.id} intent={intent} rect={rect} />;
     }
     case 'remove': {
@@ -192,7 +190,10 @@ function renderGhost(intent: ClientIntent) {
       const from = getNodeRect(intent.edge.from);
       const to = getNodeRect(intent.edge.to);
       if (!from || !to) return null;
-      const mid = { x: (from.left + from.width / 2 + to.left + to.width / 2) / 2, y: (from.top + from.height / 2 + to.top + to.height / 2) / 2 };
+      const mid = {
+        x: (from.left + from.width / 2 + to.left + to.width / 2) / 2,
+        y: (from.top + from.height / 2 + to.top + to.height / 2) / 2,
+      };
       const rect: Rect = { left: mid.x - 110, top: mid.y - 18, width: 220, height: 36 };
       // The bezier itself is drawn in the shared SVG layer; here we anchor the info card.
       return (
@@ -200,7 +201,12 @@ function renderGhost(intent: ClientIntent) {
           key={intent.id}
           class={`intent-ghost intent-ghost-connect is-${intent.phase}`}
           data-intent-id={intent.id}
-          style={{ left: `${rect.left}px`, top: `${rect.top}px`, width: `${rect.width}px`, opacity: ghostOpacity(intent) }}
+          style={{
+            left: `${rect.left}px`,
+            top: `${rect.top}px`,
+            width: `${rect.width}px`,
+            opacity: ghostOpacity(intent),
+          }}
         >
           <GhostInfo intent={intent} />
         </div>
@@ -234,7 +240,18 @@ export function IntentLayer() {
 
   return (
     <div class="intent-layer">
-      <svg class="intent-line-layer" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', overflow: 'visible', pointerEvents: 'none' }}>
+      <svg
+        class="intent-line-layer"
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          width: '100%',
+          height: '100%',
+          overflow: 'visible',
+          pointerEvents: 'none',
+        }}
+      >
         <defs>
           <marker id="intent-arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
             <path d="M0,0 L6,3 L0,6 Z" class="intent-arrow-head" />

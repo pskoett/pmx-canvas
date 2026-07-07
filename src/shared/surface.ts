@@ -13,8 +13,10 @@
 export function canOpenNodeAsSurface(type: string, data: Record<string, unknown>): boolean {
   switch (type) {
     case 'html':
-      return (typeof data.html === 'string' && data.html.length > 0)
-        || (typeof data.content === 'string' && data.content.length > 0);
+      return (
+        (typeof data.html === 'string' && data.html.length > 0) ||
+        (typeof data.content === 'string' && data.content.length > 0)
+      );
     case 'json-render':
     case 'graph':
       return true;
@@ -24,8 +26,10 @@ export function canOpenNodeAsSurface(type: string, data: Record<string, unknown>
       // "Open as site" only produced a broken `-32601` page (report #61). Those apps
       // open externally through their own app, not PMX. Only a bundled web-artifact
       // (static) or a real url-backed viewer can open as a standalone site.
-      return (data.viewerType === 'web-artifact' && typeof data.path === 'string' && data.path.length > 0)
-        || (typeof data.url === 'string' && data.url.length > 0);
+      return (
+        (data.viewerType === 'web-artifact' && typeof data.path === 'string' && data.path.length > 0) ||
+        (typeof data.url === 'string' && data.url.length > 0)
+      );
     case 'webpage':
       return typeof data.url === 'string' && data.url.length > 0;
     default:

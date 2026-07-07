@@ -1,10 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import {
-  activeNeighborNodeIds,
-  activeNodeId,
-  edges,
-  getNeighborNodeIds,
-} from '../../src/client/state/canvas-store.ts';
+import { activeNeighborNodeIds, activeNodeId, edges, getNeighborNodeIds } from '../../src/client/state/canvas-store.ts';
 import { computeMinimapFrame } from '../../src/client/canvas/Minimap.tsx';
 import type { CanvasEdge, CanvasNodeState } from '../../src/client/types.ts';
 
@@ -61,12 +56,7 @@ describe('client performance helpers', () => {
       ['right', makeNode('right', 900, 650, 240, 180)],
     ]);
 
-    const frame = computeMinimapFrame(
-      nodeMap,
-      { x: -80, y: -40, scale: 2 },
-      1200,
-      800,
-    );
+    const frame = computeMinimapFrame(nodeMap, { x: -80, y: -40, scale: 2 }, 1200, 800);
 
     expect(frame.bounds).toEqual({
       minX: 20,

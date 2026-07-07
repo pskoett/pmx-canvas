@@ -106,10 +106,7 @@ function entryFromContextPin(event: ContextPinWatchEvent): AttentionEntry | null
     'context',
     'Context updated',
     detail,
-    [
-      ...event.added.map((node) => node.id),
-      ...event.removed.map((node) => node.id),
-    ],
+    [...event.added.map((node) => node.id), ...event.removed.map((node) => node.id)],
     event.timestamp ? Date.parse(event.timestamp) || Date.now() : Date.now(),
   );
 }
@@ -148,10 +145,7 @@ function entryFromRemove(event: RemoveWatchEvent): AttentionEntry | null {
     'remove',
     'Items removed',
     parts.join(' · '),
-    [
-      ...event.nodes.map((node) => node.id),
-      ...event.edges.flatMap((edge) => [edge.fromId, edge.toId]),
-    ],
+    [...event.nodes.map((node) => node.id), ...event.edges.flatMap((edge) => [edge.fromId, edge.toId])],
     event.timestamp ? Date.parse(event.timestamp) || Date.now() : Date.now(),
   );
 }
@@ -318,7 +312,8 @@ export function resetAttentionBridge(): void {
 }
 
 export function syncAttentionFromSse(message: SseMessage): void {
-  const entries = reducer.handleMessage(message)
+  const entries = reducer
+    .handleMessage(message)
     .map((event) => entryFromEvent(event))
     .filter((entry): entry is AttentionEntry => entry !== null);
 

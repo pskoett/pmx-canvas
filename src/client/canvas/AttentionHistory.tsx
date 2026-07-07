@@ -42,7 +42,17 @@ export function AttentionHistory() {
         aria-label={unread > 0 ? `Recent updates — ${unread} new` : 'Recent updates'}
         title={unread > 0 ? `${unread} new updates since last viewed` : 'Recent updates'}
       >
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
           <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" />
           <circle cx="4.5" cy="8" r="1.1" fill="currentColor" stroke="none" />
           <line x1="6.5" y1="6.5" x2="12.5" y2="6.5" />

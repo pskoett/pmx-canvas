@@ -10,11 +10,7 @@ import {
   type PmxCanvas,
 } from '../server/index.js';
 import type { PmxAxSource } from '../server/ax-state.js';
-import {
-  HttpOperationInvoker,
-  LocalOperationInvoker,
-  type OperationInvoker,
-} from '../server/operations/index.js';
+import { HttpOperationInvoker, LocalOperationInvoker, type OperationInvoker } from '../server/operations/index.js';
 
 // openMcpApp / addDiagram / buildWebArtifact / refreshWebpageNode / addHtmlNode /
 // addHtmlPrimitive CanvasAccess methods + their type aliases removed with the
@@ -66,7 +62,10 @@ export interface CanvasAccess {
   listWorkItems(): Promise<ListWorkItemsResult>;
   listApprovalGates(): Promise<ListApprovalGatesResult>;
   listReviewAnnotations(): Promise<ListReviewAnnotationsResult>;
-  submitAxInteraction(input: SubmitAxInteractionInput, options?: { source?: PmxAxSource }): Promise<SubmitAxInteractionResult>;
+  submitAxInteraction(
+    input: SubmitAxInteractionInput,
+    options?: { source?: PmxAxSource },
+  ): Promise<SubmitAxInteractionResult>;
   getPendingSteering(options?: { consumer?: string; limit?: number }): Promise<GetPendingSteeringResult>;
   listElicitations(): Promise<ListElicitationsResult>;
   listModeRequests(): Promise<ListModeRequestsResult>;
@@ -120,7 +119,10 @@ class LocalCanvasAccess implements CanvasAccess {
     return this.canvas.getAxTimeline(query);
   }
 
-  async submitAxInteraction(input: SubmitAxInteractionInput, options?: { source?: PmxAxSource }): Promise<SubmitAxInteractionResult> {
+  async submitAxInteraction(
+    input: SubmitAxInteractionInput,
+    options?: { source?: PmxAxSource },
+  ): Promise<SubmitAxInteractionResult> {
     return this.canvas.submitAxInteraction(input, { source: options?.source ?? 'mcp' });
   }
 
@@ -213,9 +215,10 @@ class RemoteCanvasAccess implements CanvasAccess {
       }
     }
     if (!response.ok) {
-      const error = parsed && typeof parsed === 'object' && 'error' in parsed
-        ? String((parsed as { error?: unknown }).error)
-        : `HTTP ${response.status}`;
+      const error =
+        parsed && typeof parsed === 'object' && 'error' in parsed
+          ? String((parsed as { error?: unknown }).error)
+          : `HTTP ${response.status}`;
       if (path === '/api/canvas/batch' && parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
         return parsed as T;
       }
@@ -232,7 +235,7 @@ class RemoteCanvasAccess implements CanvasAccess {
     const response = await fetch(`${this.remoteBaseUrl}/api/canvas/node/${encodeURIComponent(id)}?includeBlobs=true`);
     if (response.status === 404) return undefined;
     const text = await response.text();
-    let parsed: unknown = undefined;
+    let parsed: unknown;
     if (text.length > 0) {
       try {
         parsed = JSON.parse(text) as unknown;
@@ -241,9 +244,10 @@ class RemoteCanvasAccess implements CanvasAccess {
       }
     }
     if (!response.ok) {
-      const error = parsed && typeof parsed === 'object' && 'error' in parsed
-        ? String((parsed as { error?: unknown }).error)
-        : `HTTP ${response.status}`;
+      const error =
+        parsed && typeof parsed === 'object' && 'error' in parsed
+          ? String((parsed as { error?: unknown }).error)
+          : `HTTP ${response.status}`;
       throw new Error(error);
     }
     return parsed as CanvasNodeState;
@@ -269,7 +273,10 @@ class RemoteCanvasAccess implements CanvasAccess {
     return await this.requestJson<GetAxTimelineResult>('GET', `/api/canvas/ax/timeline${qs}`);
   }
 
-  async submitAxInteraction(input: SubmitAxInteractionInput, options?: { source?: PmxAxSource }): Promise<SubmitAxInteractionResult> {
+  async submitAxInteraction(
+    input: SubmitAxInteractionInput,
+    options?: { source?: PmxAxSource },
+  ): Promise<SubmitAxInteractionResult> {
     // The interaction endpoint returns its structured outcome (ok/code/error) in
     // the body for both accepted and rejected interactions, so read the body
     // regardless of HTTP status rather than throwing on a denial.
@@ -324,12 +331,18 @@ class RemoteCanvasAccess implements CanvasAccess {
   }
 
   async listApprovalGates(): Promise<ListApprovalGatesResult> {
-    const response = await this.requestJson<{ approvalGates?: ListApprovalGatesResult }>('GET', '/api/canvas/ax/approval');
+    const response = await this.requestJson<{ approvalGates?: ListApprovalGatesResult }>(
+      'GET',
+      '/api/canvas/ax/approval',
+    );
     return response.approvalGates ?? [];
   }
 
   async listReviewAnnotations(): Promise<ListReviewAnnotationsResult> {
-    const response = await this.requestJson<{ reviewAnnotations?: ListReviewAnnotationsResult }>('GET', '/api/canvas/ax/review');
+    const response = await this.requestJson<{ reviewAnnotations?: ListReviewAnnotationsResult }>(
+      'GET',
+      '/api/canvas/ax/review',
+    );
     return response.reviewAnnotations ?? [];
   }
 
@@ -400,7 +413,7 @@ async function readHealth(baseUrl: string): Promise<HealthResponse | null> {
   try {
     const response = await fetch(`${baseUrl}/health`, { signal: AbortSignal.timeout(400) });
     if (!response.ok) return null;
-    return await response.json() as HealthResponse;
+    return (await response.json()) as HealthResponse;
   } catch {
     return null;
   }
@@ -444,7 +457,9 @@ export function shouldAttachToExistingDaemon(
   occupant: { ok?: boolean; workspace?: unknown } | null,
   allowSplit: boolean,
 ): boolean {
-  return !allowSplit && occupant?.ok === true && typeof occupant.workspace === 'string' && occupant.workspace.length > 0;
+  return (
+    !allowSplit && occupant?.ok === true && typeof occupant.workspace === 'string' && occupant.workspace.length > 0
+  );
 }
 
 /**
@@ -550,8 +565,7 @@ export async function createCanvasAccess(): Promise<CanvasAccess> {
   const boundPort = canvas.port;
   if (boundPort !== port) {
     const occupant = await readHealth(occupantBaseUrl);
-    const occupantWorkspace =
-      typeof occupant?.workspace === 'string' ? ` (serving ${occupant.workspace})` : '';
+    const occupantWorkspace = typeof occupant?.workspace === 'string' ? ` (serving ${occupant.workspace})` : '';
     process.stderr.write(
       `[pmx-canvas] preferred port ${port} was in use${occupantWorkspace}; ` +
         `started this canvas on port ${boundPort} instead. To share one canvas, run the daemon ` +

@@ -41,11 +41,7 @@ export function useNodeResize({ nodeId, viewport, onResize, onResizeEnd }: NodeR
         const scale = viewport.value.scale;
         const dw = (pointer.x - startPointer.current.x) / scale;
         const dh = (pointer.y - startPointer.current.y) / scale;
-        onResize(
-          nodeId,
-          Math.max(MIN_WIDTH, startSize.current.w + dw),
-          Math.max(MIN_HEIGHT, startSize.current.h + dh),
-        );
+        onResize(nodeId, Math.max(MIN_WIDTH, startSize.current.w + dw), Math.max(MIN_HEIGHT, startSize.current.h + dh));
       };
 
       const onPointerMove = (ev: PointerEvent) => {

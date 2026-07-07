@@ -1,8 +1,4 @@
-import {
-  clearContextPins,
-  contextPinnedNodeIds,
-  hasOpenDockedContextPanel,
-} from '../state/canvas-store';
+import { clearContextPins, contextPinnedNodeIds, hasOpenDockedContextPanel } from '../state/canvas-store';
 import { attentionHistoryOpen } from '../state/attention-store';
 
 export function ContextPinBar() {

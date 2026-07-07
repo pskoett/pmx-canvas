@@ -16,11 +16,23 @@ const VALID_EDGE_STYLES = new Set(['solid', 'dashed', 'dotted']);
 // ── edge.add ──────────────────────────────────────────────────
 
 const edgeAddShape = {
-  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+  intentId: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
   from: z.string().optional().catch(undefined).describe('Source node ID'),
   to: z.string().optional().catch(undefined).describe('Target node ID'),
-  fromSearch: z.string().optional().catch(undefined).describe('Resolve the source node by exact or fuzzy title/content search'),
-  toSearch: z.string().optional().catch(undefined).describe('Resolve the target node by exact or fuzzy title/content search'),
+  fromSearch: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Resolve the source node by exact or fuzzy title/content search'),
+  toSearch: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Resolve the target node by exact or fuzzy title/content search'),
   type: z.unknown().optional().describe('Edge type: flow, depends-on, relation, or references'),
   label: z.unknown().optional().describe('Edge label text'),
   style: z.unknown().optional().describe('Optional edge stroke style: solid, dashed, or dotted'),
@@ -40,7 +52,8 @@ const edgeAddOperation = defineOperation<z.infer<typeof edgeAddSchema>, CanvasEd
   },
   mcp: {
     toolName: 'canvas_add_edge',
-    description: 'Add an edge (connection) between two nodes. Edge types: flow (sequential), depends-on (dependency), relation (general), references (cross-reference).',
+    description:
+      'Add an edge (connection) between two nodes. Edge types: flow (sequential), depends-on (dependency), relation (general), references (cross-reference).',
     extraShape: {
       type: z.enum(['flow', 'depends-on', 'relation', 'references']).describe('Edge type'),
       label: z.string().optional().describe('Edge label text'),
@@ -59,18 +72,24 @@ const edgeAddOperation = defineOperation<z.infer<typeof edgeAddSchema>, CanvasEd
     formatResult: (result) => {
       const body = isRecord(result) ? result : {};
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            id: body.id,
-            from: body.from,
-            to: body.to,
-            type: body.type,
-            label: body.label,
-            style: body.style,
-            animated: body.animated,
-          }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                id: body.id,
+                from: body.from,
+                to: body.to,
+                type: body.type,
+                label: body.label,
+                style: body.style,
+                animated: body.animated,
+              },
+              null,
+              2,
+            ),
+          },
+        ],
       };
     },
   },
@@ -78,11 +97,7 @@ const edgeAddOperation = defineOperation<z.infer<typeof edgeAddSchema>, CanvasEd
     const body: Record<string, unknown> = input;
     const rawType = body.type;
     const style = typeof body.style === 'string' ? body.style : undefined;
-    if (
-      !rawType ||
-      (!body.from && !body.fromSearch) ||
-      (!body.to && !body.toSearch)
-    ) {
+    if (!rawType || (!body.from && !body.fromSearch) || (!body.to && !body.toSearch)) {
       throw new OperationError('Missing required fields: type plus from/fromSearch and to/toSearch.');
     }
     if (typeof rawType !== 'string' || !VALID_EDGE_TYPES.has(rawType)) {
@@ -161,7 +176,4 @@ const edgeRemoveOperation = defineOperation<z.infer<typeof edgeRemoveSchema>, Re
   },
 });
 
-export const edgeOperations: Operation[] = [
-  edgeAddOperation,
-  edgeRemoveOperation,
-];
+export const edgeOperations: Operation[] = [edgeAddOperation, edgeRemoveOperation];

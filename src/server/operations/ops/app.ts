@@ -85,10 +85,7 @@ export interface OpenMcpAppCoreResult {
  * call it. The diagram.open op delegates here after building the Excalidraw input
  * (the SSE pair fires ONCE — diagram.open does not re-emit).
  */
-export async function openMcpAppCore(
-  input: OpenMcpAppCoreInput,
-  ctx: OperationContext,
-): Promise<OpenMcpAppCoreResult> {
+export async function openMcpAppCore(input: OpenMcpAppCoreInput, ctx: OperationContext): Promise<OpenMcpAppCoreResult> {
   // The canvas node is created as a side-effect of the `ext-app-open` SSE event
   // (syncEventToCanvasState). Inside a suppressed-emit run (canvas.batch) that
   // event is dropped, so the node would never be created and the just-opened
@@ -155,10 +152,12 @@ export async function openMcpAppCore(
     success: toolResult.isError !== true,
     result: toolResult,
   });
-  const nodeId = input.nodeId ?? findCanvasExtAppNodeId(toolCallId, {
-    getNode: (id) => canvasState.getNode(id),
-    listNodes: () => canvasState.getLayout().nodes,
-  });
+  const nodeId =
+    input.nodeId ??
+    findCanvasExtAppNodeId(toolCallId, {
+      getNode: (id) => canvasState.getNode(id),
+      listNodes: () => canvasState.getLayout().nodes,
+    });
   return {
     ok: true,
     ...(nodeId ? { id: nodeId } : {}),
@@ -180,15 +179,10 @@ function buildOpenMcpAppInput(body: Record<string, unknown>): OpenMcpAppCoreInpu
     throw new OperationError('Missing valid transport or toolName.');
   }
   const toolArguments = isRecord(body.toolArguments) ? body.toolArguments : undefined;
-  const serverName = typeof body.serverName === 'string' && body.serverName.trim().length > 0
-    ? body.serverName.trim()
-    : undefined;
-  const title = typeof body.title === 'string' && body.title.trim().length > 0
-    ? body.title.trim()
-    : undefined;
-  const nodeId = typeof body.nodeId === 'string' && body.nodeId.trim().length > 0
-    ? body.nodeId.trim()
-    : undefined;
+  const serverName =
+    typeof body.serverName === 'string' && body.serverName.trim().length > 0 ? body.serverName.trim() : undefined;
+  const title = typeof body.title === 'string' && body.title.trim().length > 0 ? body.title.trim() : undefined;
+  const nodeId = typeof body.nodeId === 'string' && body.nodeId.trim().length > 0 ? body.nodeId.trim() : undefined;
   return {
     transport,
     toolName,
@@ -216,21 +210,26 @@ const openMcpAppShape = {
   y: z.number().optional().describe('Y position (auto-placed if omitted)'),
   width: z.number().optional().describe('Width in pixels (default: 720)'),
   height: z.number().optional().describe('Height in pixels (default: 500)'),
-  timeoutMs: z.number().optional().describe('Optional MCP request timeout in milliseconds for cold external app servers'),
-  transport: z.union([
-    z.object({
-      type: z.literal('stdio'),
-      command: z.string().describe('Executable used to start the external MCP server'),
-      args: z.array(z.string()).optional().describe('Arguments for the executable'),
-      cwd: z.string().optional().describe('Optional working directory'),
-      env: z.record(z.string(), z.string()).optional().describe('Optional environment overrides'),
-    }),
-    z.object({
-      type: z.literal('http'),
-      url: z.string().describe('Streamable HTTP MCP endpoint URL'),
-      headers: z.record(z.string(), z.string()).optional().describe('Optional HTTP headers'),
-    }),
-  ]).describe('How PMX Canvas should connect to the external MCP server'),
+  timeoutMs: z
+    .number()
+    .optional()
+    .describe('Optional MCP request timeout in milliseconds for cold external app servers'),
+  transport: z
+    .union([
+      z.object({
+        type: z.literal('stdio'),
+        command: z.string().describe('Executable used to start the external MCP server'),
+        args: z.array(z.string()).optional().describe('Arguments for the executable'),
+        cwd: z.string().optional().describe('Optional working directory'),
+        env: z.record(z.string(), z.string()).optional().describe('Optional environment overrides'),
+      }),
+      z.object({
+        type: z.literal('http'),
+        url: z.string().describe('Streamable HTTP MCP endpoint URL'),
+        headers: z.record(z.string(), z.string()).optional().describe('Optional HTTP headers'),
+      }),
+    ])
+    .describe('How PMX Canvas should connect to the external MCP server'),
 };
 const openMcpAppSchema = z.looseObject(openMcpAppShape);
 
@@ -257,17 +256,29 @@ const openMcpAppOperation = defineOperation<z.infer<typeof openMcpAppSchema>, Op
 // ── diagram.open (Excalidraw preset → mcpapp.open core) ───────
 
 const diagramShape = {
-  elements: z.union([
-    z.string().describe('JSON array string of Excalidraw elements'),
-    z.array(z.record(z.string(), z.unknown())).describe('Array of Excalidraw elements'),
-  ]).describe('Excalidraw elements to render. See https://github.com/excalidraw/excalidraw-mcp for the element format.'),
-  nodeId: z.string().optional().describe('Existing Excalidraw mcp-app node ID to update in place instead of creating a new node.'),
+  elements: z
+    .union([
+      z.string().describe('JSON array string of Excalidraw elements'),
+      z.array(z.record(z.string(), z.unknown())).describe('Array of Excalidraw elements'),
+    ])
+    .describe(
+      'Excalidraw elements to render. See https://github.com/excalidraw/excalidraw-mcp for the element format.',
+    ),
+  nodeId: z
+    .string()
+    .optional()
+    .describe('Existing Excalidraw mcp-app node ID to update in place instead of creating a new node.'),
   title: z.string().optional().describe('Optional canvas node title override'),
   x: z.number().optional().describe('X position (auto-placed if omitted)'),
   y: z.number().optional().describe('Y position (auto-placed if omitted)'),
   width: z.number().optional().describe('Width in pixels (default: 720)'),
   height: z.number().optional().describe('Height in pixels (default: 500)'),
-  timeoutMs: z.number().optional().describe('Optional MCP request timeout in milliseconds for Excalidraw cold starts. Client-side MCP hosts may still enforce their own total request timeout.'),
+  timeoutMs: z
+    .number()
+    .optional()
+    .describe(
+      'Optional MCP request timeout in milliseconds for Excalidraw cold starts. Client-side MCP hosts may still enforce their own total request timeout.',
+    ),
 };
 const diagramSchema = z.looseObject(diagramShape);
 
@@ -289,7 +300,7 @@ const diagramOperation = defineOperation<z.infer<typeof diagramSchema>, OpenMcpA
     }),
   },
   handler: (input, ctx) => {
-    let built;
+    let built: ReturnType<typeof buildExcalidrawOpenMcpAppInput>;
     try {
       built = buildExcalidrawOpenMcpAppInput(input);
     } catch (error) {
@@ -297,19 +308,22 @@ const diagramOperation = defineOperation<z.infer<typeof diagramSchema>, OpenMcpA
     }
     // Delegate to the shared open core (the SSE pair fires once — diagram.open
     // does not re-emit).
-    return openMcpAppCore({
-      transport: built.transport,
-      toolName: built.toolName,
-      toolArguments: built.toolArguments,
-      serverName: built.serverName,
-      ...(built.nodeId ? { nodeId: built.nodeId } : {}),
-      ...(built.title ? { title: built.title } : {}),
-      ...(typeof built.x === 'number' ? { x: built.x } : {}),
-      ...(typeof built.y === 'number' ? { y: built.y } : {}),
-      ...(typeof built.width === 'number' ? { width: built.width } : {}),
-      ...(typeof built.height === 'number' ? { height: built.height } : {}),
-      ...(typeof built.timeoutMs === 'number' ? { timeoutMs: built.timeoutMs } : {}),
-    }, ctx);
+    return openMcpAppCore(
+      {
+        transport: built.transport,
+        toolName: built.toolName,
+        toolArguments: built.toolArguments,
+        serverName: built.serverName,
+        ...(built.nodeId ? { nodeId: built.nodeId } : {}),
+        ...(built.title ? { title: built.title } : {}),
+        ...(typeof built.x === 'number' ? { x: built.x } : {}),
+        ...(typeof built.y === 'number' ? { y: built.y } : {}),
+        ...(typeof built.width === 'number' ? { width: built.width } : {}),
+        ...(typeof built.height === 'number' ? { height: built.height } : {}),
+        ...(typeof built.timeoutMs === 'number' ? { timeoutMs: built.timeoutMs } : {}),
+      },
+      ctx,
+    );
   },
 });
 
@@ -321,23 +335,42 @@ const webArtifactShape = {
   indexCss: z.string().optional().describe('Optional contents for src/index.css'),
   mainTsx: z.string().optional().describe('Optional contents for src/main.tsx'),
   indexHtml: z.string().optional().describe('Optional contents for index.html'),
-  files: z.record(z.string(), z.string()).optional().describe('Optional map of additional project-relative file paths to file contents'),
-  deps: z.array(z.string()).optional().describe('Optional npm dependencies to install before bundling (e.g. ["recharts", "framer-motion@^11"]). Validated against npm-name format; flags and shell metacharacters are rejected.'),
-  projectPath: z.string().optional().describe('Optional workspace-relative reusable project path. Defaults to .pmx-canvas/artifacts/.web-artifacts/<slug>'),
-  outputPath: z.string().optional().describe('Optional workspace-relative HTML output path. Defaults to .pmx-canvas/artifacts/<slug>.html'),
+  files: z
+    .record(z.string(), z.string())
+    .optional()
+    .describe('Optional map of additional project-relative file paths to file contents'),
+  deps: z
+    .array(z.string())
+    .optional()
+    .describe(
+      'Optional npm dependencies to install before bundling (e.g. ["recharts", "framer-motion@^11"]). Validated against npm-name format; flags and shell metacharacters are rejected.',
+    ),
+  projectPath: z
+    .string()
+    .optional()
+    .describe(
+      'Optional workspace-relative reusable project path. Defaults to .pmx-canvas/artifacts/.web-artifacts/<slug>',
+    ),
+  outputPath: z
+    .string()
+    .optional()
+    .describe('Optional workspace-relative HTML output path. Defaults to .pmx-canvas/artifacts/<slug>.html'),
   openInCanvas: z.boolean().optional().describe('Open the generated artifact in canvas after build (default true)'),
   includeLogs: z.boolean().optional().describe('Include raw build stdout/stderr in the response (default false)'),
-  initScriptPath: z.string().optional().describe('Optional script path override for tests/debugging. Must resolve inside the workspace.'),
-  bundleScriptPath: z.string().optional().describe('Optional script path override for tests/debugging. Must resolve inside the workspace.'),
+  initScriptPath: z
+    .string()
+    .optional()
+    .describe('Optional script path override for tests/debugging. Must resolve inside the workspace.'),
+  bundleScriptPath: z
+    .string()
+    .optional()
+    .describe('Optional script path override for tests/debugging. Must resolve inside the workspace.'),
   timeoutMs: z.number().optional().describe('Optional timeout in milliseconds for init and bundle commands'),
 };
 const webArtifactSchema = z.looseObject(webArtifactShape);
 
 /** Shape the byte-identical web-artifact response envelope from the build result. */
-function webArtifactEnvelope(
-  result: WebArtifactCanvasBuildResult,
-  includeLogs: boolean,
-): Record<string, unknown> {
+function webArtifactEnvelope(result: WebArtifactCanvasBuildResult, includeLogs: boolean): Record<string, unknown> {
   return {
     ok: true,
     path: result.filePath,
@@ -415,12 +448,8 @@ const webArtifactOperation = defineOperation<z.infer<typeof webArtifactSchema>, 
         // legacy HTTP handler used resolveWorkspacePath; the MCP tool used its
         // own safeWorkspacePath — both enforce containment). resolveWorkspacePath
         // resolves against the active canvas workspace root.
-        ...(typeof input.projectPath === 'string'
-          ? { projectPath: resolveWorkspacePath(input.projectPath) }
-          : {}),
-        ...(typeof input.outputPath === 'string'
-          ? { outputPath: resolveWorkspacePath(input.outputPath) }
-          : {}),
+        ...(typeof input.projectPath === 'string' ? { projectPath: resolveWorkspacePath(input.projectPath) } : {}),
+        ...(typeof input.outputPath === 'string' ? { outputPath: resolveWorkspacePath(input.outputPath) } : {}),
         // Script-path overrides are honored only when contained inside the
         // workspace (enforced by resolveTrustedScriptPath in
         // executeWebArtifactBuild), so they cannot point at an arbitrary host
@@ -440,8 +469,4 @@ const webArtifactOperation = defineOperation<z.infer<typeof webArtifactSchema>, 
   },
 });
 
-export const appOperations: Operation[] = [
-  openMcpAppOperation,
-  diagramOperation,
-  webArtifactOperation,
-];
+export const appOperations: Operation[] = [openMcpAppOperation, diagramOperation, webArtifactOperation];

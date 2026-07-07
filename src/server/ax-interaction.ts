@@ -86,11 +86,29 @@ function caps(
  * a node can anchor AX state but only eligible types may EMIT interactions.
  */
 export const DEFAULT_NODE_AX_CAPABILITIES: Record<CanvasNodeType, NodeAxCapabilities> = {
-  markdown: caps(true, ['ax.steer', 'ax.work.create', 'ax.evidence.add', 'ax.command.invoke', 'ax.event.record'], 'notify-agent'),
-  context: caps(true, ['ax.focus.set', 'ax.steer', 'ax.evidence.add', 'ax.command.invoke', 'ax.event.record'], 'notify-agent'),
-  status: caps(true, ['ax.work.create', 'ax.work.update', 'ax.approval.request', 'ax.mode.request', 'ax.event.record'], 'notify-agent'),
+  markdown: caps(
+    true,
+    ['ax.steer', 'ax.work.create', 'ax.evidence.add', 'ax.command.invoke', 'ax.event.record'],
+    'notify-agent',
+  ),
+  context: caps(
+    true,
+    ['ax.focus.set', 'ax.steer', 'ax.evidence.add', 'ax.command.invoke', 'ax.event.record'],
+    'notify-agent',
+  ),
+  status: caps(
+    true,
+    ['ax.work.create', 'ax.work.update', 'ax.approval.request', 'ax.mode.request', 'ax.event.record'],
+    'notify-agent',
+  ),
   file: caps(true, ['ax.evidence.add', 'ax.review.add', 'ax.focus.set', 'ax.event.record']),
-  'json-render': caps(true, ['ax.work.create', 'ax.work.update', 'ax.evidence.add', 'ax.elicitation.request', 'ax.event.record']),
+  'json-render': caps(true, [
+    'ax.work.create',
+    'ax.work.update',
+    'ax.evidence.add',
+    'ax.elicitation.request',
+    'ax.event.record',
+  ]),
   graph: caps(true, ['ax.evidence.add', 'ax.focus.set', 'ax.event.record']),
   ledger: caps(true, ['ax.evidence.add', 'ax.event.record']),
   trace: caps(true, ['ax.evidence.add', 'ax.event.record']),
@@ -123,8 +141,12 @@ export const DEFAULT_NODE_AX_CAPABILITIES: Record<CanvasNodeType, NodeAxCapabili
   // itself, and request human input. Excludes higher-trust types (steer, approval,
   // review, command, mode) which stay native-control / adapter only.
   'mcp-app': caps(false, [
-    'ax.event.record', 'ax.evidence.add', 'ax.work.create', 'ax.work.update',
-    'ax.focus.set', 'ax.elicitation.request',
+    'ax.event.record',
+    'ax.evidence.add',
+    'ax.work.create',
+    'ax.work.update',
+    'ax.focus.set',
+    'ax.elicitation.request',
   ]),
   // Internal thread nodes — anchor only, no human-facing emission by default.
   prompt: caps(false, ['ax.event.record']),
@@ -141,11 +163,13 @@ export function normalizeNodeAxCapabilities(value: unknown): Partial<NodeAxCapab
   if (typeof v.enabled === 'boolean') out.enabled = v.enabled;
   if (Array.isArray(v.allowed)) {
     out.allowed = v.allowed.filter((a): a is AxInteractionType =>
-      AX_INTERACTION_TYPES.includes(a as AxInteractionType));
+      AX_INTERACTION_TYPES.includes(a as AxInteractionType),
+    );
   }
   if (Array.isArray(v.requiresApproval)) {
     out.requiresApproval = v.requiresApproval.filter((a): a is AxInteractionType =>
-      AX_INTERACTION_TYPES.includes(a as AxInteractionType));
+      AX_INTERACTION_TYPES.includes(a as AxInteractionType),
+    );
   }
   if (v.delivery === 'record-only' || v.delivery === 'notify-agent' || v.delivery === 'send-to-agent') {
     out.delivery = v.delivery;
@@ -172,7 +196,15 @@ export function resolveNodeAxCapabilities(node: CanvasNodeState): NodeAxCapabili
 
 // ── Envelope + payload validation ──────────────────────────────
 
-const EVENT_KINDS = ['prompt', 'assistant-message', 'tool-start', 'tool-result', 'failure', 'approval', 'steering'] as const;
+const EVENT_KINDS = [
+  'prompt',
+  'assistant-message',
+  'tool-start',
+  'tool-result',
+  'failure',
+  'approval',
+  'steering',
+] as const;
 const EVIDENCE_KINDS = ['logs', 'tool-result', 'screenshot', 'file', 'diff', 'test-output'] as const;
 const WORK_STATUSES = ['todo', 'in-progress', 'blocked', 'done', 'cancelled'] as const;
 const REVIEW_KINDS = ['comment', 'finding'] as const;
@@ -284,7 +316,13 @@ const PAYLOAD_SCHEMAS: Record<string, z.ZodType> = {
 export interface AxInteractionManager {
   getNode(id: string): CanvasNodeState | undefined;
   recordAxEvent(
-    input: { kind: PmxAxEventKind; summary: string; detail?: string | null; nodeIds?: string[]; data?: Record<string, unknown> | null },
+    input: {
+      kind: PmxAxEventKind;
+      summary: string;
+      detail?: string | null;
+      nodeIds?: string[];
+      data?: Record<string, unknown> | null;
+    },
     options?: { source?: PmxAxSource },
   ): PmxAxEvent;
   recordSteeringMessage(message: string, options?: { source?: PmxAxSource }): PmxAxSteeringMessage;
@@ -298,7 +336,14 @@ export interface AxInteractionManager {
     options?: { source?: PmxAxSource },
   ): PmxAxWorkItem | null;
   addEvidence(
-    input: { kind: PmxAxEvidenceKind; title: string; body?: string | null; ref?: string | null; nodeIds?: string[]; data?: Record<string, unknown> | null },
+    input: {
+      kind: PmxAxEvidenceKind;
+      title: string;
+      body?: string | null;
+      ref?: string | null;
+      nodeIds?: string[];
+      data?: Record<string, unknown> | null;
+    },
     options?: { source?: PmxAxSource },
   ): PmxAxEvidence;
   requestApproval(
@@ -332,7 +377,11 @@ export interface AxInteractionManager {
     input: { mode: PmxAxMode; reason?: string | null; nodeIds?: string[] },
     options?: { source?: PmxAxSource },
   ): PmxAxModeRequest;
-  invokeCommand(name: string, args?: Record<string, unknown> | null, options?: { source?: PmxAxSource }): PmxAxEvent | null;
+  invokeCommand(
+    name: string,
+    args?: Record<string, unknown> | null,
+    options?: { source?: PmxAxSource },
+  ): PmxAxEvent | null;
 }
 
 export interface AxInteractionEvent {
@@ -353,13 +402,7 @@ function outcomeEvent(extra: Record<string, unknown>): AxInteractionEvent {
   return { event: 'ax-interaction', payload: extra };
 }
 
-function reject(
-  type: string,
-  sourceNodeId: string,
-  status: number,
-  code: string,
-  error: string,
-): AxInteractionResult {
+function reject(type: string, sourceNodeId: string, status: number, code: string, error: string): AxInteractionResult {
   return {
     result: { ok: false, status, code, error },
     events: [outcomeEvent({ ok: false, type, sourceNodeId, code, error })],
@@ -375,10 +418,7 @@ function accept(
 ): AxInteractionResult {
   return {
     result: { ok: true, type, sourceNodeId, primitive },
-    events: [
-      outcomeEvent({ ok: true, type, sourceNodeId }),
-      { event: stateEvent, payload: statePayload },
-    ],
+    events: [outcomeEvent({ ok: true, type, sourceNodeId }), { event: stateEvent, payload: statePayload }],
   };
 }
 
@@ -396,10 +436,14 @@ export function applyAxInteraction(
   const parsed = InteractionEnvelopeSchema.safeParse(rawBody);
   if (!parsed.success) {
     const error = parsed.error.issues.map((i) => `${i.path.join('.') || 'envelope'}: ${i.message}`).join('; ');
-    const type = typeof (rawBody as { type?: unknown })?.type === 'string' ? String((rawBody as { type?: unknown }).type) : 'unknown';
-    const sourceNodeId = typeof (rawBody as { sourceNodeId?: unknown })?.sourceNodeId === 'string'
-      ? String((rawBody as { sourceNodeId?: unknown }).sourceNodeId)
-      : '';
+    const type =
+      typeof (rawBody as { type?: unknown })?.type === 'string'
+        ? String((rawBody as { type?: unknown }).type)
+        : 'unknown';
+    const sourceNodeId =
+      typeof (rawBody as { sourceNodeId?: unknown })?.sourceNodeId === 'string'
+        ? String((rawBody as { sourceNodeId?: unknown }).sourceNodeId)
+        : '';
     return reject(type, sourceNodeId, 400, 'invalid-envelope', error);
   }
   const interaction = parsed.data;
@@ -410,7 +454,13 @@ export function applyAxInteraction(
 
   const capabilities = resolveNodeAxCapabilities(node);
   if (!capabilities.enabled) {
-    return reject(type, sourceNodeId, 403, 'ax-disabled', `AX interactions are not enabled for node "${sourceNodeId}".`);
+    return reject(
+      type,
+      sourceNodeId,
+      403,
+      'ax-disabled',
+      `AX interactions are not enabled for node "${sourceNodeId}".`,
+    );
   }
   if (!capabilities.allowed.includes(type)) {
     return reject(type, sourceNodeId, 403, 'not-allowed', `Node type "${node.type}" cannot emit "${type}".`);
@@ -418,7 +468,13 @@ export function applyAxInteraction(
   // Fail closed: approval-gated interaction types are rejected until approval
   // routing lands, rather than dispatched without the gate they require.
   if (capabilities.requiresApproval.includes(type)) {
-    return reject(type, sourceNodeId, 403, 'requires-approval', `"${type}" requires approval routing, which is not yet available.`);
+    return reject(
+      type,
+      sourceNodeId,
+      403,
+      'requires-approval',
+      `"${type}" requires approval routing, which is not yet available.`,
+    );
   }
 
   const schema = PAYLOAD_SCHEMAS[type];
@@ -446,9 +502,21 @@ export function applyAxInteraction(
 
   switch (type) {
     case 'ax.event.record': {
-      const p = payloadParsed.data as { kind: PmxAxEventKind; summary: string; detail?: string | null; nodeIds?: string[]; data?: Record<string, unknown> | null };
+      const p = payloadParsed.data as {
+        kind: PmxAxEventKind;
+        summary: string;
+        detail?: string | null;
+        nodeIds?: string[];
+        data?: Record<string, unknown> | null;
+      };
       const event = manager.recordAxEvent(
-        { kind: p.kind, summary: p.summary, detail: p.detail ?? null, nodeIds: scopedNodeIds(p.nodeIds), data: p.data ?? null },
+        {
+          kind: p.kind,
+          summary: p.summary,
+          detail: p.detail ?? null,
+          nodeIds: scopedNodeIds(p.nodeIds),
+          data: p.data ?? null,
+        },
         opts,
       );
       return accept(type, sourceNodeId, event, 'ax-event-created', { event });
@@ -459,15 +527,31 @@ export function applyAxInteraction(
       return accept(type, sourceNodeId, steering, 'ax-event-created', { steering });
     }
     case 'ax.work.create': {
-      const p = payloadParsed.data as { title: string; status?: PmxAxWorkItemStatus; detail?: string | null; nodeIds?: string[] };
+      const p = payloadParsed.data as {
+        title: string;
+        status?: PmxAxWorkItemStatus;
+        detail?: string | null;
+        nodeIds?: string[];
+      };
       const workItem = manager.addWorkItem(
-        { title: p.title, ...(p.status ? { status: p.status } : {}), ...(p.detail !== undefined ? { detail: p.detail } : {}), nodeIds: scopedNodeIds(p.nodeIds) },
+        {
+          title: p.title,
+          ...(p.status ? { status: p.status } : {}),
+          ...(p.detail !== undefined ? { detail: p.detail } : {}),
+          nodeIds: scopedNodeIds(p.nodeIds),
+        },
         opts,
       );
       return accept(type, sourceNodeId, workItem, 'ax-state-changed', { workItem });
     }
     case 'ax.work.update': {
-      const p = payloadParsed.data as { id: string; title?: string; status?: PmxAxWorkItemStatus; detail?: string | null; nodeIds?: string[] };
+      const p = payloadParsed.data as {
+        id: string;
+        title?: string;
+        status?: PmxAxWorkItemStatus;
+        detail?: string | null;
+        nodeIds?: string[];
+      };
       const { id, ...patch } = p;
       if (scoped && patch.nodeIds !== undefined) patch.nodeIds = [sourceNodeId];
       const workItem = manager.updateWorkItem(id, patch, opts);
@@ -475,29 +559,71 @@ export function applyAxInteraction(
       return accept(type, sourceNodeId, workItem, 'ax-state-changed', { workItem });
     }
     case 'ax.evidence.add': {
-      const p = payloadParsed.data as { kind: PmxAxEvidenceKind; title: string; body?: string | null; ref?: string | null; nodeIds?: string[]; data?: Record<string, unknown> | null };
+      const p = payloadParsed.data as {
+        kind: PmxAxEvidenceKind;
+        title: string;
+        body?: string | null;
+        ref?: string | null;
+        nodeIds?: string[];
+        data?: Record<string, unknown> | null;
+      };
       const evidence = manager.addEvidence(
-        { kind: p.kind, title: p.title, body: p.body ?? null, ref: p.ref ?? null, nodeIds: scopedNodeIds(p.nodeIds), data: p.data ?? null },
+        {
+          kind: p.kind,
+          title: p.title,
+          body: p.body ?? null,
+          ref: p.ref ?? null,
+          nodeIds: scopedNodeIds(p.nodeIds),
+          data: p.data ?? null,
+        },
         opts,
       );
       return accept(type, sourceNodeId, evidence, 'ax-event-created', { evidence });
     }
     case 'ax.approval.request': {
-      const p = payloadParsed.data as { title: string; detail?: string | null; action?: string | null; nodeIds?: string[] };
+      const p = payloadParsed.data as {
+        title: string;
+        detail?: string | null;
+        action?: string | null;
+        nodeIds?: string[];
+      };
       const approvalGate = manager.requestApproval(
-        { title: p.title, ...(p.detail !== undefined ? { detail: p.detail } : {}), ...(p.action !== undefined ? { action: p.action } : {}), nodeIds: scopedNodeIds(p.nodeIds) },
+        {
+          title: p.title,
+          ...(p.detail !== undefined ? { detail: p.detail } : {}),
+          ...(p.action !== undefined ? { action: p.action } : {}),
+          nodeIds: scopedNodeIds(p.nodeIds),
+        },
         opts,
       );
       return accept(type, sourceNodeId, approvalGate, 'ax-state-changed', { approvalGate });
     }
     case 'ax.approval.resolve': {
       const p = payloadParsed.data as { id: string; decision: 'approved' | 'rejected'; resolution?: string };
-      const approvalGate = manager.resolveApproval(p.id, p.decision, { ...(p.resolution !== undefined ? { resolution: p.resolution } : {}), source });
-      if (!approvalGate) return reject(type, sourceNodeId, 404, 'approval-not-found', `Approval "${p.id}" not found or already resolved.`);
+      const approvalGate = manager.resolveApproval(p.id, p.decision, {
+        ...(p.resolution !== undefined ? { resolution: p.resolution } : {}),
+        source,
+      });
+      if (!approvalGate)
+        return reject(
+          type,
+          sourceNodeId,
+          404,
+          'approval-not-found',
+          `Approval "${p.id}" not found or already resolved.`,
+        );
       return accept(type, sourceNodeId, approvalGate, 'ax-state-changed', { approvalGate });
     }
     case 'ax.review.add': {
-      const p = payloadParsed.data as { body: string; kind?: PmxAxReviewKind; severity?: PmxAxReviewSeverity; anchorType?: PmxAxReviewAnchorType; nodeId?: string; file?: string; author?: string };
+      const p = payloadParsed.data as {
+        body: string;
+        kind?: PmxAxReviewKind;
+        severity?: PmxAxReviewSeverity;
+        anchorType?: PmxAxReviewAnchorType;
+        nodeId?: string;
+        file?: string;
+        author?: string;
+      };
       // Sandboxed surfaces may only review their own node; trusted surfaces may
       // anchor to a file/region or another node.
       // A node-interaction review carries a sourceNodeId, so it defaults to a node
@@ -510,13 +636,20 @@ export function applyAxInteraction(
           ...(p.kind ? { kind: p.kind } : {}),
           ...(p.severity ? { severity: p.severity } : {}),
           anchorType,
-          nodeId: scoped ? sourceNodeId : (anchorType === 'node' ? (p.nodeId ?? sourceNodeId) : (p.nodeId ?? null)),
+          nodeId: scoped ? sourceNodeId : anchorType === 'node' ? (p.nodeId ?? sourceNodeId) : (p.nodeId ?? null),
           ...(!scoped && p.file !== undefined ? { file: p.file } : {}),
           ...(p.author !== undefined ? { author: p.author } : {}),
         },
         opts,
       );
-      if (!reviewAnnotation) return reject(type, sourceNodeId, 400, 'invalid-review-anchor', 'Node-anchored review requires a nodeId that exists on the canvas.');
+      if (!reviewAnnotation)
+        return reject(
+          type,
+          sourceNodeId,
+          400,
+          'invalid-review-anchor',
+          'Node-anchored review requires a nodeId that exists on the canvas.',
+        );
       return accept(type, sourceNodeId, reviewAnnotation, 'ax-state-changed', { reviewAnnotation });
     }
     case 'ax.focus.set': {

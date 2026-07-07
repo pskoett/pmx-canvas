@@ -124,7 +124,7 @@ export class IntentRegistry {
 
     const now = Date.now();
     const ttl = typeof input.ttlMs === 'number' ? input.ttlMs : DEFAULT_INTENT_TTL_MS;
-    const id = input.id && this.intents.has(input.id) ? input.id : input.id ?? nextIntentId();
+    const id = input.id && this.intents.has(input.id) ? input.id : (input.id ?? nextIntentId());
     this.pruneVetoTombstones();
     if (this.vetoedIntentIds.has(id)) {
       throw new OperationError(`Intent "${id}" was vetoed. Use a new id for a revised intent.`, 409);
@@ -234,10 +234,7 @@ export class IntentRegistry {
       throw new OperationError(`No live intent "${id}" to commit.`, 409);
     }
     if (!allowedKinds.includes(intent.kind)) {
-      throw new OperationError(
-        `Intent "${id}" has kind "${intent.kind}", which cannot commit this mutation.`,
-        409,
-      );
+      throw new OperationError(`Intent "${id}" has kind "${intent.kind}", which cannot commit this mutation.`, 409);
     }
     this.committingIntentIds.add(id);
     return intent;

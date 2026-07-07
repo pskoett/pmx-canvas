@@ -10,8 +10,14 @@ import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { createTestWorkspace, removeTestWorkspace } from './helpers.ts';
 
-interface TextContentItem { type: string; text?: string }
-interface ToolResultShape { content?: TextContentItem[]; isError?: boolean }
+interface TextContentItem {
+  type: string;
+  text?: string;
+}
+interface ToolResultShape {
+  content?: TextContentItem[];
+  isError?: boolean;
+}
 
 const mcpServerPath = fileURLToPath(new URL('../../src/mcp/server.ts', import.meta.url));
 const fixtureMcpAppServerPath = fileURLToPath(new URL('../fixtures/mcp-app-fixture.ts', import.meta.url));
@@ -116,7 +122,9 @@ describe('MCP composite tools (plan-006)', () => {
     );
     expect(afterUpdate.title).toBe('Renamed');
 
-    const removed = parseJsonText<{ ok?: boolean }>(await call(client, 'canvas_node', { action: 'remove', id: added.id }));
+    const removed = parseJsonText<{ ok?: boolean }>(
+      await call(client, 'canvas_node', { action: 'remove', id: added.id }),
+    );
     expect(removed.ok).toBe(true);
     const missing = await call(client, 'canvas_node', { action: 'get', id: added.id });
     expect(missing.isError).toBe(true);
@@ -170,9 +178,16 @@ describe('MCP composite tools (plan-006)', () => {
     const created = await fetch(`${baseUrl}/api/canvas/annotation`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ id: annotationId, type: 'freehand', points: [{ x: 0, y: 0 }, { x: 10, y: 10 }] }),
+      body: JSON.stringify({
+        id: annotationId,
+        type: 'freehand',
+        points: [
+          { x: 0, y: 0 },
+          { x: 10, y: 10 },
+        ],
+      }),
     });
-    expect((await created.json() as { ok?: boolean }).ok).toBe(true);
+    expect(((await created.json()) as { ok?: boolean }).ok).toBe(true);
 
     const removed = parseJsonText<{ ok?: boolean; removed?: string }>(
       await call(client, 'canvas_view', { action: 'remove-annotation', id: annotationId }),
@@ -235,8 +250,12 @@ describe('MCP composite tools (plan-006)', () => {
 
   test('canvas_edge folds add/remove', async () => {
     const { client } = await createMcpSession();
-    const a = parseJsonText<{ id: string }>(await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'A' }));
-    const b = parseJsonText<{ id: string }>(await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'B' }));
+    const a = parseJsonText<{ id: string }>(
+      await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'A' }),
+    );
+    const b = parseJsonText<{ id: string }>(
+      await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'B' }),
+    );
 
     const edge = parseJsonText<{ id?: string; from?: string; to?: string; type?: string }>(
       await call(client, 'canvas_edge', { action: 'add', from: a.id, to: b.id, type: 'flow' }),
@@ -254,7 +273,9 @@ describe('MCP composite tools (plan-006)', () => {
 
   test('canvas_group create/ungroup and canvas_view focus/fit/arrange', async () => {
     const { client } = await createMcpSession();
-    const node = parseJsonText<{ id: string }>(await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Grouped' }));
+    const node = parseJsonText<{ id: string }>(
+      await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Grouped' }),
+    );
 
     const group = parseJsonText<{ id?: string; groupId?: string }>(
       await call(client, 'canvas_group', { action: 'create', title: 'G', childIds: [node.id] }),
@@ -267,13 +288,17 @@ describe('MCP composite tools (plan-006)', () => {
     expect((await call(client, 'canvas_view', { action: 'fit' })).isError ?? false).toBe(false);
     expect((await call(client, 'canvas_view', { action: 'arrange' })).isError ?? false).toBe(false);
 
-    const ungrouped = parseJsonText<{ ok?: boolean }>(await call(client, 'canvas_group', { action: 'ungroup', groupId }));
+    const ungrouped = parseJsonText<{ ok?: boolean }>(
+      await call(client, 'canvas_group', { action: 'ungroup', groupId }),
+    );
     expect(ungrouped.ok).toBe(true);
   }, 30000);
 
   test('canvas_history undo/redo reverse the last mutation', async () => {
     const { client } = await createMcpSession();
-    const node = parseJsonText<{ id: string }>(await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Undoable' }));
+    const node = parseJsonText<{ id: string }>(
+      await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Undoable' }),
+    );
 
     expect((await call(client, 'canvas_history', { action: 'undo' })).isError ?? false).toBe(false);
     // After undo, the node add is reversed → get errors.
@@ -393,12 +418,14 @@ describe('MCP composite tools (plan-006)', () => {
       toolCallId: string;
       sessionId: string;
       resourceUri: string;
-    }>(await call(client, 'canvas_app', {
-      action: 'open-mcp-app',
-      toolName: 'show_counter',
-      toolArguments: { initial: 2 },
-      transport,
-    }));
+    }>(
+      await call(client, 'canvas_app', {
+        action: 'open-mcp-app',
+        toolName: 'show_counter',
+        toolArguments: { initial: 2 },
+        transport,
+      }),
+    );
     expect(viaComposite.ok).toBe(true);
     expect(typeof viaComposite.nodeId).toBe('string');
     expect(viaComposite.id).toBe(viaComposite.nodeId);
@@ -750,7 +777,12 @@ describe('MCP AX composite tools (plan-007 Slice C)', () => {
     // gate is still pending, so pending=true (canvas_await_mode no longer
     // exists standalone).
     const awaitComposite = parseJsonText<{ pending?: boolean }>(
-      await call(client, 'canvas_ax_gate', { kind: 'mode', action: 'await', id: requested.modeRequest!.id, timeoutMs: 0 }),
+      await call(client, 'canvas_ax_gate', {
+        kind: 'mode',
+        action: 'await',
+        id: requested.modeRequest!.id,
+        timeoutMs: 0,
+      }),
     );
     expect(awaitComposite.pending).toBe(true);
   }, 30000);

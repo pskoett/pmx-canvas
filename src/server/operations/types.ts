@@ -107,7 +107,9 @@ export interface Operation {
  * Any `z.looseObject(...)` satisfies this.
  */
 export interface OperationInputSchema<I> {
-  safeParse(value: unknown):
+  safeParse(
+    value: unknown,
+  ):
     | { success: true; data: I }
     | { success: false; error: { issues: Array<{ path: PropertyKey[]; message: string }> } };
 }
@@ -126,9 +128,7 @@ export interface OperationDefinition<I extends Record<string, unknown>, O> {
   serialize?: (output: O) => unknown;
 }
 
-export function defineOperation<I extends Record<string, unknown>, O>(
-  def: OperationDefinition<I, O>,
-): Operation {
+export function defineOperation<I extends Record<string, unknown>, O>(def: OperationDefinition<I, O>): Operation {
   return {
     name: def.name,
     mutates: def.mutates,
@@ -139,7 +139,9 @@ export function defineOperation<I extends Record<string, unknown>, O>(
       const parsed = def.input.safeParse(rawInput ?? {});
       if (!parsed.success) {
         const detail = parsed.error.issues
-          .map((issue) => (issue.path.length > 0 ? `${issue.path.map(String).join('.')}: ${issue.message}` : issue.message))
+          .map((issue) =>
+            issue.path.length > 0 ? `${issue.path.map(String).join('.')}: ${issue.message}` : issue.message,
+          )
           .join('; ');
         throw new OperationError(`Invalid input for ${def.name}: ${detail}`, 400);
       }

@@ -12,10 +12,20 @@ const globalCss = readFileSync(resolve(themeDir, 'global.css'), 'utf-8');
 const surfaceCss = readFileSync(resolve(themeDir, 'surface-theme.css'), 'utf-8');
 
 const CORE_TOKENS = [
-  '--c-bg', '--c-panel', '--c-panel-soft', '--c-line',
-  '--c-text', '--c-text-soft', '--c-muted', '--c-dim',
-  '--c-accent', '--c-ok', '--c-warn', '--c-warn-alt',
-  '--c-danger', '--c-purple',
+  '--c-bg',
+  '--c-panel',
+  '--c-panel-soft',
+  '--c-line',
+  '--c-text',
+  '--c-text-soft',
+  '--c-muted',
+  '--c-dim',
+  '--c-accent',
+  '--c-ok',
+  '--c-warn',
+  '--c-warn-alt',
+  '--c-danger',
+  '--c-purple',
 ];
 
 const THEME_SELECTORS = [':root', ':root[data-theme="light"]', ':root[data-theme="high-contrast"]'];

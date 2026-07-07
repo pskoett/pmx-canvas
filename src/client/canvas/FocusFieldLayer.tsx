@@ -20,9 +20,7 @@ function getNodeRect(nodeId: string): Rect | null {
 }
 
 function getRegionRect(nodeIds: string[]): Rect | null {
-  const rects = nodeIds
-    .map((nodeId) => getNodeRect(nodeId))
-    .filter((rect): rect is Rect => rect !== null);
+  const rects = nodeIds.map((nodeId) => getNodeRect(nodeId)).filter((rect): rect is Rect => rect !== null);
   if (rects.length === 0) return null;
 
   const minLeft = Math.min(...rects.map((rect) => rect.left));
@@ -62,13 +60,7 @@ export function FocusFieldLayer() {
       {regions.map((region) => {
         const rect = getRegionRect(region.nodeIds);
         if (!rect) return null;
-        return (
-          <div
-            key={region.id}
-            class="attention-field-region"
-            style={rectStyle(rect, 42)}
-          />
-        );
+        return <div key={region.id} class="attention-field-region" style={rectStyle(rect, 42)} />;
       })}
       {secondaryNodeIds.map((nodeId) => {
         const rect = getNodeRect(nodeId);
@@ -77,12 +69,15 @@ export function FocusFieldLayer() {
           <div
             key={`secondary-${nodeId}`}
             class="attention-field-node attention-field-secondary"
-            style={rectStyle({
-              left: rect.left - 18,
-              top: rect.top - 18,
-              width: rect.width + 36,
-              height: rect.height + 36,
-            }, 28)}
+            style={rectStyle(
+              {
+                left: rect.left - 18,
+                top: rect.top - 18,
+                width: rect.width + 36,
+                height: rect.height + 36,
+              },
+              28,
+            )}
           />
         );
       })}
@@ -93,12 +88,15 @@ export function FocusFieldLayer() {
           <div
             key={`primary-${nodeId}`}
             class="attention-field-node attention-field-primary"
-            style={rectStyle({
-              left: rect.left - 24,
-              top: rect.top - 24,
-              width: rect.width + 48,
-              height: rect.height + 48,
-            }, 30)}
+            style={rectStyle(
+              {
+                left: rect.left - 24,
+                top: rect.top - 24,
+                width: rect.width + 48,
+                height: rect.height + 48,
+              },
+              30,
+            )}
           />
         );
       })}

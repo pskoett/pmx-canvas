@@ -19,21 +19,12 @@ export interface ExtAppLookupSource {
   listNodes(): readonly CanvasNodeState[];
 }
 
-export function findCanvasExtAppNodeId(
-  toolCallId: string,
-  source: ExtAppLookupSource,
-): string | null {
-  const directId = toolCallId.startsWith('ext-app-')
-    ? toolCallId
-    : `ext-app-${toolCallId}`;
+export function findCanvasExtAppNodeId(toolCallId: string, source: ExtAppLookupSource): string | null {
+  const directId = toolCallId.startsWith('ext-app-') ? toolCallId : `ext-app-${toolCallId}`;
   if (source.getNode(directId)) return directId;
 
   for (const node of source.listNodes()) {
-    if (
-      node.type === 'mcp-app' &&
-      node.data.mode === 'ext-app' &&
-      node.data.toolCallId === toolCallId
-    ) {
+    if (node.type === 'mcp-app' && node.data.mode === 'ext-app' && node.data.toolCallId === toolCallId) {
       return node.id;
     }
   }

@@ -35,13 +35,13 @@ import {
   type JsonRenderNodeInput,
   type JsonRenderSpec,
 } from '../json-render/server.js';
-import {
-  fetchWebpageSnapshot,
-  getWebpageFetchErrorDetails,
-  normalizeWebpageUrl,
-} from './webpage-node.js';
+import { fetchWebpageSnapshot, getWebpageFetchErrorDetails, normalizeWebpageUrl } from './webpage-node.js';
 import { validateLocalImageFile } from './image-source.js';
-import { buildExcalidrawRestoreCheckpointToolInput, ensureExcalidrawCheckpointId, isExcalidrawCreateView } from './diagram-presets.js';
+import {
+  buildExcalidrawRestoreCheckpointToolInput,
+  ensureExcalidrawCheckpointId,
+  isExcalidrawCreateView,
+} from './diagram-presets.js';
 
 export type CanvasArrangeMode = 'grid' | 'column' | 'flow';
 export type CanvasPinMode = 'set' | 'add' | 'remove';
@@ -175,13 +175,16 @@ function isJsonRenderSpecLike(value: unknown): boolean {
 }
 
 function isGraphPayloadLike(value: unknown): value is Record<string, unknown> {
-  return isRecord(value) && !isJsonRenderSpecLike(value) && (
-    Array.isArray(value.data) || typeof value.graphType === 'string'
+  return (
+    isRecord(value) &&
+    !isJsonRenderSpecLike(value) &&
+    (Array.isArray(value.data) || typeof value.graphType === 'string')
   );
 }
 
 function hasGraphUpdateFields(input: Record<string, unknown>): boolean {
-  return input.graphType !== undefined ||
+  return (
+    input.graphType !== undefined ||
     input.type !== undefined ||
     Array.isArray(input.data) ||
     input.xKey !== undefined ||
@@ -200,18 +203,13 @@ function hasGraphUpdateFields(input: Record<string, unknown>): boolean {
     input.color !== undefined ||
     input.barColor !== undefined ||
     input.lineColor !== undefined ||
-    input.chartHeight !== undefined;
+    input.chartHeight !== undefined
+  );
 }
 
 function graphUpdateInput(input: CanvasStructuredNodeUpdateInput): CanvasGraphNodeUpdateInput {
   const data = pickGraphData(input as Record<string, unknown>, 'data');
-  const {
-    data: _data,
-    content: _content,
-    arrangeLocked: _arrangeLocked,
-    chartHeight,
-    ...graphFields
-  } = input;
+  const { data: _data, content: _content, arrangeLocked: _arrangeLocked, chartHeight, ...graphFields } = input;
   return {
     ...graphFields,
     ...(data ? { data } : {}),
@@ -251,10 +249,13 @@ export function buildStructuredNodeUpdate(
       throw new Error('json-render structured updates require a spec.');
     }
     return {
-      data: mergeNodeDataFields(buildJsonRenderNodeUpdate(node, {
-        ...(typeof input.title === 'string' ? { title: input.title } : {}),
-        spec: input.spec,
-      }).data, input),
+      data: mergeNodeDataFields(
+        buildJsonRenderNodeUpdate(node, {
+          ...(typeof input.title === 'string' ? { title: input.title } : {}),
+          spec: input.spec,
+        }).data,
+        input,
+      ),
     };
   }
 
@@ -264,7 +265,9 @@ export function buildStructuredNodeUpdate(
     };
   }
 
-  throw new Error(`Structured spec and graph updates can only be used with json-render or graph nodes, not ${node.type} nodes.`);
+  throw new Error(
+    `Structured spec and graph updates can only be used with json-render or graph nodes, not ${node.type} nodes.`,
+  );
 }
 
 function graphConfigToInput(config: Record<string, unknown>, fallbackTitle: string): GraphNodeInput | null {
@@ -296,7 +299,8 @@ function graphConfigToInput(config: Record<string, unknown>, fallbackTitle: stri
 
 function mergeGraphInput(source: Record<string, unknown>, fallback: GraphNodeInput | null): GraphNodeInput {
   const data = pickGraphData(source, 'data') ?? fallback?.data;
-  if (!data) throw new Error('Graph update requires a data array, either in the update payload or the existing graphConfig.');
+  if (!data)
+    throw new Error('Graph update requires a data array, either in the update payload or the existing graphConfig.');
   return {
     title: pickString(source, 'title') ?? fallback?.title ?? 'Graph',
     graphType: pickString(source, 'graphType') ?? pickString(source, 'type') ?? fallback?.graphType ?? 'line',
@@ -304,24 +308,48 @@ function mergeGraphInput(source: Record<string, unknown>, fallback: GraphNodeInp
     ...((pickString(source, 'xKey') ?? fallback?.xKey) ? { xKey: pickString(source, 'xKey') ?? fallback?.xKey } : {}),
     ...((pickString(source, 'yKey') ?? fallback?.yKey) ? { yKey: pickString(source, 'yKey') ?? fallback?.yKey } : {}),
     ...((pickString(source, 'zKey') ?? fallback?.zKey) ? { zKey: pickString(source, 'zKey') ?? fallback?.zKey } : {}),
-    ...((pickString(source, 'nameKey') ?? fallback?.nameKey) ? { nameKey: pickString(source, 'nameKey') ?? fallback?.nameKey } : {}),
-    ...((pickString(source, 'valueKey') ?? fallback?.valueKey) ? { valueKey: pickString(source, 'valueKey') ?? fallback?.valueKey } : {}),
+    ...((pickString(source, 'nameKey') ?? fallback?.nameKey)
+      ? { nameKey: pickString(source, 'nameKey') ?? fallback?.nameKey }
+      : {}),
+    ...((pickString(source, 'valueKey') ?? fallback?.valueKey)
+      ? { valueKey: pickString(source, 'valueKey') ?? fallback?.valueKey }
+      : {}),
     ...(typeof source.showLegend === 'boolean' || typeof fallback?.showLegend === 'boolean'
       ? { showLegend: typeof source.showLegend === 'boolean' ? source.showLegend : fallback?.showLegend }
       : {}),
     ...(typeof source.showLabels === 'boolean' || typeof fallback?.showLabels === 'boolean'
       ? { showLabels: typeof source.showLabels === 'boolean' ? source.showLabels : fallback?.showLabels }
       : {}),
-    ...((pickString(source, 'axisKey') ?? fallback?.axisKey) ? { axisKey: pickString(source, 'axisKey') ?? fallback?.axisKey } : {}),
-    ...((pickStringArray(source, 'metrics') ?? fallback?.metrics) ? { metrics: pickStringArray(source, 'metrics') ?? fallback?.metrics } : {}),
-    ...((pickStringArray(source, 'series') ?? fallback?.series) ? { series: pickStringArray(source, 'series') ?? fallback?.series } : {}),
-    ...((pickString(source, 'barKey') ?? fallback?.barKey) ? { barKey: pickString(source, 'barKey') ?? fallback?.barKey } : {}),
-    ...((pickString(source, 'lineKey') ?? fallback?.lineKey) ? { lineKey: pickString(source, 'lineKey') ?? fallback?.lineKey } : {}),
-    ...((pickAggregate(source, 'aggregate') ?? fallback?.aggregate) ? { aggregate: pickAggregate(source, 'aggregate') ?? fallback?.aggregate } : {}),
-    ...((pickString(source, 'color') ?? fallback?.color) ? { color: pickString(source, 'color') ?? fallback?.color } : {}),
-    ...((pickString(source, 'barColor') ?? fallback?.barColor) ? { barColor: pickString(source, 'barColor') ?? fallback?.barColor } : {}),
-    ...((pickString(source, 'lineColor') ?? fallback?.lineColor) ? { lineColor: pickString(source, 'lineColor') ?? fallback?.lineColor } : {}),
-    ...((pickNumber(source, 'height') ?? fallback?.height) !== undefined ? { height: pickNumber(source, 'height') ?? fallback?.height } : {}),
+    ...((pickString(source, 'axisKey') ?? fallback?.axisKey)
+      ? { axisKey: pickString(source, 'axisKey') ?? fallback?.axisKey }
+      : {}),
+    ...((pickStringArray(source, 'metrics') ?? fallback?.metrics)
+      ? { metrics: pickStringArray(source, 'metrics') ?? fallback?.metrics }
+      : {}),
+    ...((pickStringArray(source, 'series') ?? fallback?.series)
+      ? { series: pickStringArray(source, 'series') ?? fallback?.series }
+      : {}),
+    ...((pickString(source, 'barKey') ?? fallback?.barKey)
+      ? { barKey: pickString(source, 'barKey') ?? fallback?.barKey }
+      : {}),
+    ...((pickString(source, 'lineKey') ?? fallback?.lineKey)
+      ? { lineKey: pickString(source, 'lineKey') ?? fallback?.lineKey }
+      : {}),
+    ...((pickAggregate(source, 'aggregate') ?? fallback?.aggregate)
+      ? { aggregate: pickAggregate(source, 'aggregate') ?? fallback?.aggregate }
+      : {}),
+    ...((pickString(source, 'color') ?? fallback?.color)
+      ? { color: pickString(source, 'color') ?? fallback?.color }
+      : {}),
+    ...((pickString(source, 'barColor') ?? fallback?.barColor)
+      ? { barColor: pickString(source, 'barColor') ?? fallback?.barColor }
+      : {}),
+    ...((pickString(source, 'lineColor') ?? fallback?.lineColor)
+      ? { lineColor: pickString(source, 'lineColor') ?? fallback?.lineColor }
+      : {}),
+    ...((pickNumber(source, 'height') ?? fallback?.height) !== undefined
+      ? { height: pickNumber(source, 'height') ?? fallback?.height }
+      : {}),
   };
 }
 
@@ -351,9 +379,7 @@ export function buildGraphNodeUpdate(
   const fallback = graphConfigToInput(currentConfig, fallbackTitle);
   const source = isGraphPayloadLike(input.spec)
     ? input.spec
-    : Object.fromEntries(
-        Object.entries(input).filter(([key, value]) => key !== 'spec' && value !== undefined),
-      );
+    : Object.fromEntries(Object.entries(input).filter(([key, value]) => key !== 'spec' && value !== undefined));
 
   if (input.spec !== undefined && !isGraphPayloadLike(input.spec)) {
     const spec = normalizeAndValidateJsonRenderSpec(input.spec);
@@ -531,7 +557,8 @@ function prepareExtAppNodesForSessionSync(forceRehydrate: boolean): string[] {
         setExtAppRuntimeState(node.id, {
           appSessionId: null,
           sessionStatus: 'error',
-          sessionError: 'Saved app session cannot be restored because its transport details are missing. Reopen the app to restore interactivity.',
+          sessionError:
+            'Saved app session cannot be restored because its transport details are missing. Reopen the app to restore interactivity.',
         });
         continue;
       }
@@ -549,9 +576,7 @@ function prepareExtAppNodesForSessionSync(forceRehydrate: boolean): string[] {
   return targetIds;
 }
 
-export function primeCanvasRuntimeBackends(
-  options: { forceRehydrateExtApps?: boolean } = {},
-): { targetIds: string[] } {
+export function primeCanvasRuntimeBackends(options: { forceRehydrateExtApps?: boolean } = {}): { targetIds: string[] } {
   const forceRehydrateExtApps = options.forceRehydrateExtApps === true;
   rewatchAllFileNodes();
 
@@ -574,11 +599,13 @@ export function primeCanvasRuntimeBackends(
 export async function syncCanvasRuntimeBackends(
   options: { forceRehydrateExtApps?: boolean; alreadyPrimed?: boolean } = {},
 ): Promise<{ rehydrated: number; failed: number }> {
-  const targetIds = options.alreadyPrimed === true
-    ? canvasState.getLayout().nodes
-      .filter((node) => isExtAppNode(node) && node.data.sessionStatus === 'rehydrating')
-      .map((node) => node.id)
-    : primeCanvasRuntimeBackends(options).targetIds;
+  const targetIds =
+    options.alreadyPrimed === true
+      ? canvasState
+          .getLayout()
+          .nodes.filter((node) => isExtAppNode(node) && node.data.sessionStatus === 'rehydrating')
+          .map((node) => node.id)
+      : primeCanvasRuntimeBackends(options).targetIds;
   let rehydrated = 0;
   let failed = 0;
 
@@ -593,7 +620,8 @@ export async function syncCanvasRuntimeBackends(
         setExtAppRuntimeState(nodeId, {
           appSessionId: null,
           sessionStatus: 'error',
-          sessionError: 'Saved app session cannot be restored because its launch metadata is incomplete. Reopen the app to restore interactivity.',
+          sessionError:
+            'Saved app session cannot be restored because its launch metadata is incomplete. Reopen the app to restore interactivity.',
         });
       });
       failed++;
@@ -696,9 +724,8 @@ function buildFileNodeData(input: CanvasAddNodeInput): Record<string, unknown> {
     };
   }
 
-  const rawPath = typeof input.data?.path === 'string' && input.data.path.length > 0
-    ? input.data.path
-    : (input.content ?? '');
+  const rawPath =
+    typeof input.data?.path === 'string' && input.data.path.length > 0 ? input.data.path : (input.content ?? '');
   const resolved = resolve(rawPath);
   const fileName = resolved.split('/').pop() ?? rawPath;
   const data: Record<string, unknown> = {
@@ -754,20 +781,20 @@ function buildImageNodeData(input: CanvasAddNodeInput): Record<string, unknown> 
   return {
     ...(input.data ?? {}),
     src,
-    title: input.title ?? (isUrl ? src.split('/').pop() ?? 'Image' : 'Image'),
+    title: input.title ?? (isUrl ? (src.split('/').pop() ?? 'Image') : 'Image'),
   };
 }
 
 function buildWebpageNodeData(input: CanvasAddNodeInput): Record<string, unknown> {
-  const rawUrl = typeof input.data?.url === 'string' && input.data.url.length > 0
-    ? input.data.url
-    : (input.content ?? '');
+  const rawUrl =
+    typeof input.data?.url === 'string' && input.data.url.length > 0 ? input.data.url : (input.content ?? '');
   const url = normalizeWebpageUrl(rawUrl);
-  const explicitTitle = typeof input.title === 'string' && input.title.trim().length > 0
-    ? input.title.trim()
-    : typeof input.data?.title === 'string' && input.data.title.trim().length > 0
-      ? input.data.title.trim()
-      : '';
+  const explicitTitle =
+    typeof input.title === 'string' && input.title.trim().length > 0
+      ? input.title.trim()
+      : typeof input.data?.title === 'string' && input.data.title.trim().length > 0
+        ? input.data.title.trim()
+        : '';
 
   return {
     ...(input.data ?? {}),
@@ -873,9 +900,10 @@ export function addCanvasNode(input: CanvasAddNodeInput): {
 
   const width = input.width ?? input.defaultWidth ?? 720;
   const height = input.height ?? input.defaultHeight ?? 600;
-  const position = input.x !== undefined && input.y !== undefined
-    ? { x: input.x, y: input.y }
-    : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
+  const position =
+    input.x !== undefined && input.y !== undefined
+      ? { x: input.x, y: input.y }
+      : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
   const id = `node-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const data = buildNodeData(input);
   const node: CanvasNodeState = {
@@ -901,13 +929,15 @@ export function addCanvasNode(input: CanvasAddNodeInput): {
   return { id, node: storedNode, needsCodeGraphRecompute: input.type === 'file' };
 }
 
-export function resolveCanvasNode(nodeRef: CanvasNodeLookupInput): {
-  ok: true;
-  node: CanvasNodeState;
-} | {
-  ok: false;
-  error: string;
-} {
+export function resolveCanvasNode(nodeRef: CanvasNodeLookupInput):
+  | {
+      ok: true;
+      node: CanvasNodeState;
+    }
+  | {
+      ok: false;
+      error: string;
+    } {
   if (typeof nodeRef.id === 'string' && nodeRef.id.trim().length > 0) {
     const node = canvasState.getNode(nodeRef.id.trim());
     if (!node) {
@@ -940,7 +970,10 @@ export function resolveCanvasNode(nodeRef: CanvasNodeLookupInput): {
     if (matches.length > 1) {
       return {
         ok: false,
-        error: `Search "${query}" is ambiguous. Matches: ${matches.slice(0, 5).map((match) => `${match.title ?? match.id} (${match.id})`).join(', ')}`,
+        error: `Search "${query}" is ambiguous. Matches: ${matches
+          .slice(0, 5)
+          .map((match) => `${match.title ?? match.id} (${match.id})`)
+          .join(', ')}`,
       };
     }
     const node = canvasState.getNode(matches[0]!.id);
@@ -963,11 +996,12 @@ export async function refreshCanvasWebpageNode(
   }
 
   const currentData = existing.data;
-  const configuredUrl = typeof options.url === 'string' && options.url.trim().length > 0
-    ? options.url
-    : typeof currentData.url === 'string'
-      ? currentData.url
-      : '';
+  const configuredUrl =
+    typeof options.url === 'string' && options.url.trim().length > 0
+      ? options.url
+      : typeof currentData.url === 'string'
+        ? currentData.url
+        : '';
 
   let normalizedUrl: string;
   try {
@@ -1005,9 +1039,8 @@ export async function refreshCanvasWebpageNode(
     const latestData = latest.data;
     const titleSource = latestData.titleSource === 'user' ? 'user' : 'page';
     const currentTitle = typeof latestData.title === 'string' ? latestData.title.trim() : '';
-    const nextTitle = titleSource === 'user' && currentTitle.length > 0
-      ? currentTitle
-      : snapshot.pageTitle ?? snapshot.url;
+    const nextTitle =
+      titleSource === 'user' && currentTitle.length > 0 ? currentTitle : (snapshot.pageTitle ?? snapshot.url);
 
     const nextData: Record<string, unknown> = {
       ...latestData,
@@ -1203,9 +1236,9 @@ function shiftGridUpdatesBelowObstacles(
     const deltaY = blockerBottom + GRID_OBSTACLE_GAP_Y - minPlannedY;
     if (deltaY <= 0) return shifted;
 
-    shifted = shifted.map((update) => update.position
-      ? { ...update, position: { x: update.position.x, y: update.position.y + deltaY } }
-      : update);
+    shifted = shifted.map((update) =>
+      update.position ? { ...update, position: { x: update.position.x, y: update.position.y + deltaY } } : update,
+    );
   }
 
   return shifted;
@@ -1213,9 +1246,8 @@ function shiftGridUpdatesBelowObstacles(
 
 export function arrangeCanvasNodes(layout: CanvasArrangeMode): { arranged: number; layout: CanvasArrangeMode } {
   const nodes = canvasState.getLayoutForPersistence().nodes;
-  const excludedIds = layout === 'grid'
-    ? collectGridArrangeExcludedNodeIds(nodes)
-    : collectArrangeExcludedNodeIds(nodes);
+  const excludedIds =
+    layout === 'grid' ? collectGridArrangeExcludedNodeIds(nodes) : collectArrangeExcludedNodeIds(nodes);
   const movableNodes = nodes.filter((node) => !excludedIds.has(node.id));
   const oldPositions = nodes.map((node) => ({ id: node.id, position: { ...node.position } }));
   const oldSizes = nodes.map((node) => ({ id: node.id, size: { ...node.size } }));
@@ -1268,26 +1300,34 @@ export function arrangeCanvasNodes(layout: CanvasArrangeMode): { arranged: numbe
   mutationHistory.record({
     description: `Auto-arranged ${movableNodes.length} nodes (${layout})`,
     operationType: 'arrange',
-    forward: () => canvasState.withSuppressedRecording(() => {
-      canvasState.applyUpdates(newPositions.map((position) => {
-        const size = newSizesById.get(position.id);
-        return {
-          id: position.id,
-          position: position.position,
-          ...(size ? { size } : {}),
-        };
-      }), layout === 'grid' ? { skipGroupChildTranslation: true } : {});
-    }),
-    inverse: () => canvasState.withSuppressedRecording(() => {
-      canvasState.applyUpdates(oldPositions.map((position) => {
-        const size = oldSizesById.get(position.id);
-        return {
-          id: position.id,
-          position: position.position,
-          ...(size ? { size } : {}),
-        };
-      }), layout === 'grid' ? { skipGroupChildTranslation: true } : {});
-    }),
+    forward: () =>
+      canvasState.withSuppressedRecording(() => {
+        canvasState.applyUpdates(
+          newPositions.map((position) => {
+            const size = newSizesById.get(position.id);
+            return {
+              id: position.id,
+              position: position.position,
+              ...(size ? { size } : {}),
+            };
+          }),
+          layout === 'grid' ? { skipGroupChildTranslation: true } : {},
+        );
+      }),
+    inverse: () =>
+      canvasState.withSuppressedRecording(() => {
+        canvasState.applyUpdates(
+          oldPositions.map((position) => {
+            const size = oldSizesById.get(position.id);
+            return {
+              id: position.id,
+              position: position.position,
+              ...(size ? { size } : {}),
+            };
+          }),
+          layout === 'grid' ? { skipGroupChildTranslation: true } : {},
+        );
+      }),
   });
 
   return { arranged: movableNodes.length, layout };
@@ -1302,7 +1342,8 @@ export function setCanvasContextPins(
   nodeIds: string[],
   mode: CanvasPinMode = 'set',
 ): { count: number; nodeIds: string[] } {
-  const normalizePins = (ids: string[]): string[] => ids.filter((id, index) => ids.indexOf(id) === index).slice(0, MAX_CONTEXT_PINS);
+  const normalizePins = (ids: string[]): string[] =>
+    ids.filter((id, index) => ids.indexOf(id) === index).slice(0, MAX_CONTEXT_PINS);
   const normalizedNodeIds = normalizePins(nodeIds);
   if (mode === 'set') {
     canvasState.setContextPins(normalizedNodeIds);
@@ -1344,7 +1385,9 @@ export function deleteCanvasSnapshot(id: string): { ok: boolean } {
   return { ok: canvasState.deleteSnapshot(id) };
 }
 
-export function gcCanvasSnapshots(options?: Parameters<typeof canvasState.gcSnapshots>[0]): ReturnType<typeof canvasState.gcSnapshots> {
+export function gcCanvasSnapshots(
+  options?: Parameters<typeof canvasState.gcSnapshots>[0],
+): ReturnType<typeof canvasState.gcSnapshots> {
   return canvasState.gcSnapshots(options);
 }
 
@@ -1399,7 +1442,8 @@ export function createCanvasGroup(input: CanvasCreateGroupInput): { id: string; 
   let y = input.y;
   let width = input.width ?? 600;
   let height = input.height ?? 400;
-  const explicitFrame = input.x !== undefined || input.y !== undefined || input.width !== undefined || input.height !== undefined;
+  const explicitFrame =
+    input.x !== undefined || input.y !== undefined || input.width !== undefined || input.height !== undefined;
 
   const childIds = input.childIds ?? [];
   if (childIds.length > 0 && x === undefined && y === undefined) {
@@ -1415,9 +1459,10 @@ export function createCanvasGroup(input: CanvasCreateGroupInput): { id: string; 
     }
   }
 
-  const position = x !== undefined && y !== undefined
-    ? { x, y }
-    : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
+  const position =
+    x !== undefined && y !== undefined
+      ? { x, y }
+      : findOpenCanvasPosition(canvasState.getLayout().nodes, width, height);
 
   const id = `group-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const data: Record<string, unknown> = {
@@ -1480,9 +1525,12 @@ export function clearCanvas(): { ok: boolean } {
   return { ok: true };
 }
 
-export function createCanvasJsonRenderNode(
-  input: JsonRenderNodeInput,
-): { id: string; url: string; spec: JsonRenderSpec; node: CanvasNodeState } {
+export function createCanvasJsonRenderNode(input: JsonRenderNodeInput): {
+  id: string;
+  url: string;
+  spec: JsonRenderSpec;
+  node: CanvasNodeState;
+} {
   const spec = normalizeAndValidateJsonRenderSpec(input.spec);
   const width = input.width ?? JSON_RENDER_NODE_SIZE.width;
   const height = input.height ?? JSON_RENDER_NODE_SIZE.height;
@@ -1561,7 +1609,14 @@ export function appendCanvasJsonRenderStream(
   patches: unknown[],
   done: boolean,
 ):
-  | { ok: true; applied: number; skipped: number; specVersion: number; elementCount: number; streamStatus: 'open' | 'closed' }
+  | {
+      ok: true;
+      applied: number;
+      skipped: number;
+      specVersion: number;
+      elementCount: number;
+      streamStatus: 'open' | 'closed';
+    }
   | { ok: false; error: string } {
   const node = canvasState.getNode(nodeId);
   if (!node) return { ok: false, error: `Node "${nodeId}" not found.` };
@@ -1577,14 +1632,16 @@ export function appendCanvasJsonRenderStream(
     data: { ...node.data, spec, specVersion, streamStatus },
   });
 
-  const elementCount =
-    spec.elements && typeof spec.elements === 'object' ? Object.keys(spec.elements).length : 0;
+  const elementCount = spec.elements && typeof spec.elements === 'object' ? Object.keys(spec.elements).length : 0;
   return { ok: true, applied, skipped, specVersion, elementCount, streamStatus };
 }
 
-export function createCanvasGraphNode(
-  input: GraphNodeInput,
-): { id: string; url: string; spec: JsonRenderSpec; node: CanvasNodeState } {
+export function createCanvasGraphNode(input: GraphNodeInput): {
+  id: string;
+  url: string;
+  spec: JsonRenderSpec;
+  node: CanvasNodeState;
+} {
   const title = input.title?.trim() || 'Graph';
   const spec = buildGraphSpec(input);
   const width = input.width ?? GRAPH_NODE_SIZE.width;

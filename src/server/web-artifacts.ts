@@ -169,9 +169,8 @@ function buildWebArtifactSourceContext(
   }
 
   const appPreview = truncatePreviewText(input.appTsx, WEB_ARTIFACT_SOURCE_PREVIEW_MAX_LENGTH);
-  const cssPreview = typeof input.indexCss === 'string'
-    ? truncatePreviewText(input.indexCss, WEB_ARTIFACT_CSS_PREVIEW_MAX_LENGTH)
-    : '';
+  const cssPreview =
+    typeof input.indexCss === 'string' ? truncatePreviewText(input.indexCss, WEB_ARTIFACT_CSS_PREVIEW_MAX_LENGTH) : '';
   const allSourceFiles = [...sourceFiles];
   const storedSourceFiles = allSourceFiles.slice(0, WEB_ARTIFACT_MAX_STORED_SOURCE_FILES);
   const parts = [
@@ -378,17 +377,12 @@ export function resolveWebArtifactScriptPath(kind: 'init' | 'bundle'): string {
     if (existsSync(candidate)) return resolve(candidate);
   }
 
-  throw new Error(
-    `No web-artifact ${kind} script found. Expected one of: ${candidates.join(', ')}`,
-  );
+  throw new Error(`No web-artifact ${kind} script found. Expected one of: ${candidates.join(', ')}`);
 }
 
 function writeProjectFiles(
   projectPath: string,
-  input: Pick<
-    WebArtifactBuildInput,
-    'title' | 'appTsx' | 'indexCss' | 'mainTsx' | 'indexHtml' | 'files'
-  >,
+  input: Pick<WebArtifactBuildInput, 'title' | 'appTsx' | 'indexCss' | 'mainTsx' | 'indexHtml' | 'files'>,
 ): void {
   const writes = new Map<string, string>();
   writes.set(join(projectPath, 'src', 'App.tsx'), input.appTsx);
@@ -462,10 +456,7 @@ function summarizeArtifactLog(text: string): WebArtifactLogSummary | undefined {
     .filter((line) => line.trim().length > 0);
   if (lines.length === 0) return undefined;
 
-  const noisyPatterns = [
-    /\/dev\/tty/i,
-    /no such device or address/i,
-  ];
+  const noisyPatterns = [/\/dev\/tty/i, /no such device or address/i];
   const filteredLines = lines.filter((line) => !noisyPatterns.some((pattern) => pattern.test(line)));
   const suppressedNoiseCount = lines.length - filteredLines.length;
   const visibleLines = filteredLines.length > 0 ? filteredLines : lines;
@@ -479,9 +470,7 @@ function summarizeArtifactLog(text: string): WebArtifactLogSummary | undefined {
   };
 }
 
-export async function executeWebArtifactBuild(
-  input: WebArtifactBuildInput,
-): Promise<WebArtifactBuildOutput> {
+export async function executeWebArtifactBuild(input: WebArtifactBuildInput): Promise<WebArtifactBuildOutput> {
   const workspaceRoot = currentWorkspaceRoot();
   const artifactsDir = ensureArtifactsDir(workspaceRoot);
   const slug = slugify(input.title);
@@ -505,9 +494,7 @@ export async function executeWebArtifactBuild(
   let stdout = '';
   let stderr = '';
   const needsInit =
-    !existsSync(projectPath) ||
-    !existsSync(join(projectPath, 'package.json')) ||
-    !existsSync(join(projectPath, 'src'));
+    !existsSync(projectPath) || !existsSync(join(projectPath, 'package.json')) || !existsSync(join(projectPath, 'src'));
 
   if (needsInit) {
     const initResult = await runProcess('bash', [initScriptPath, basename(projectPath)], {
@@ -530,10 +517,17 @@ export async function executeWebArtifactBuild(
     // change install behavior. With deps already validated against
     // npm-name format and quoted via single-quote escaping, the regular
     // shell is sufficient and reproducible across machines.
-    const depResult = await runProcess('bash', ['-c', `if command -v pnpm >/dev/null 2>&1; then pnpm --silent add --ignore-scripts -- ${quotedDeps}; elif command -v bun >/dev/null 2>&1; then bun x pnpm@${pnpmVersion} --silent add --ignore-scripts -- ${quotedDeps}; else npm install --ignore-scripts -- ${quotedDeps}; fi`], {
-      cwd: projectPath,
-      timeoutMs,
-    });
+    const depResult = await runProcess(
+      'bash',
+      [
+        '-c',
+        `if command -v pnpm >/dev/null 2>&1; then pnpm --silent add --ignore-scripts -- ${quotedDeps}; elif command -v bun >/dev/null 2>&1; then bun x pnpm@${pnpmVersion} --silent add --ignore-scripts -- ${quotedDeps}; else npm install --ignore-scripts -- ${quotedDeps}; fi`,
+      ],
+      {
+        cwd: projectPath,
+        timeoutMs,
+      },
+    );
     stdout = [stdout, depResult.stdout].filter(Boolean).join('\n');
     stderr = [stderr, depResult.stderr].filter(Boolean).join('\n');
   }
@@ -641,9 +635,11 @@ export function openWebArtifactInCanvas(input: {
   return { nodeId: id, url };
 }
 
-export async function buildWebArtifactOnCanvas(input: WebArtifactBuildInput & {
-  openInCanvas?: boolean;
-}): Promise<WebArtifactCanvasBuildResult> {
+export async function buildWebArtifactOnCanvas(
+  input: WebArtifactBuildInput & {
+    openInCanvas?: boolean;
+  },
+): Promise<WebArtifactCanvasBuildResult> {
   const startedMs = Date.now();
   const startedAt = new Date(startedMs).toISOString();
   const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;

@@ -69,7 +69,8 @@ const snapshotListOperation = defineOperation<z.infer<typeof snapshotListSchema>
   },
   mcp: {
     toolName: 'canvas_list_snapshots',
-    description: 'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). List saved canvas snapshots with IDs, names, timestamps, and node/edge counts. Defaults to the 20 newest snapshots; pass all=true to return every snapshot.',
+    description:
+      'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). List saved canvas snapshots with IDs, names, timestamps, and node/edge counts. Defaults to the 20 newest snapshots; pass all=true to return every snapshot.',
     extraShape: {
       limit: z.number().optional().describe('Maximum snapshots to return (default: 20)'),
       query: z.string().optional().describe('Optional case-insensitive ID/name filter'),
@@ -84,9 +85,7 @@ const snapshotListOperation = defineOperation<z.infer<typeof snapshotListSchema>
   handler: (input) => {
     const body: Record<string, unknown> = input;
     // Legacy precedence: ?q= wins over ?query= even when empty.
-    const query = typeof body.q === 'string'
-      ? body.q
-      : typeof body.query === 'string' ? body.query : undefined;
+    const query = typeof body.q === 'string' ? body.q : typeof body.query === 'string' ? body.query : undefined;
     const limit = parsePositiveIntegerParam(body.limit);
     return listCanvasSnapshots({
       ...(limit !== undefined ? { limit } : {}),
@@ -117,7 +116,8 @@ const snapshotSaveOperation = defineOperation<z.infer<typeof snapshotSaveSchema>
   },
   mcp: {
     toolName: 'canvas_snapshot',
-    description: 'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). Save the current canvas state as a named snapshot. Snapshots persist to disk and can be restored later.',
+    description:
+      'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). Save the current canvas state as a named snapshot. Snapshots persist to disk and can be restored later.',
     extraShape: {
       name: z.string().describe('Name for this snapshot (e.g., "before refactor", "investigation v2")'),
     },
@@ -154,7 +154,8 @@ const snapshotGcOperation = defineOperation<z.infer<typeof snapshotGcSchema>, Re
   },
   mcp: {
     toolName: 'canvas_gc_snapshots',
-    description: 'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). Delete old saved canvas snapshots, keeping the newest N snapshots. Use dryRun=true to preview deletions.',
+    description:
+      'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). Delete old saved canvas snapshots, keeping the newest N snapshots. Use dryRun=true to preview deletions.',
     extraShape: {
       keep: z.number().optional().describe('Number of newest snapshots to keep (default: 20)'),
       dryRun: z.boolean().optional().describe('Preview deletions without removing snapshot files'),
@@ -168,11 +169,8 @@ const snapshotGcOperation = defineOperation<z.infer<typeof snapshotGcSchema>, Re
     const keepValue = body.keep;
     // Legacy coercion replicated as-is, including the Number('junk') → NaN
     // pass-through (gcCanvasSnapshots falls back to its own default).
-    const keep = typeof keepValue === 'number'
-      ? keepValue
-      : typeof keepValue === 'string'
-        ? Number(keepValue)
-        : undefined;
+    const keep =
+      typeof keepValue === 'number' ? keepValue : typeof keepValue === 'string' ? Number(keepValue) : undefined;
     const dryRun = body.dryRun === true || body['dry-run'] === true;
     return gcCanvasSnapshots({
       ...(keep !== undefined ? { keep } : {}),
@@ -207,7 +205,8 @@ const snapshotDiffOperation = defineOperation<z.infer<typeof snapshotDiffSchema>
   },
   mcp: {
     toolName: 'canvas_diff',
-    description: 'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). Compare the current canvas state against a saved snapshot. Shows added/removed/modified nodes and edges. Pass either a snapshot name or ID.',
+    description:
+      'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). Compare the current canvas state against a saved snapshot. Shows added/removed/modified nodes and edges. Pass either a snapshot name or ID.',
     extraShape: {
       snapshot: z.string().describe('Snapshot name or ID to compare against'),
     },
@@ -242,9 +241,7 @@ const snapshotDiffQueryOperation = defineOperation<z.infer<typeof snapshotDiffQu
   },
   handler: (input) => {
     // Legacy precedence: ?name= wins over ?id= even when empty.
-    const name = typeof input.name === 'string'
-      ? input.name
-      : typeof input.id === 'string' ? input.id : '';
+    const name = typeof input.name === 'string' ? input.name : typeof input.id === 'string' ? input.id : '';
     if (!name.trim()) throw new OperationError('Missing snapshot name or id.');
     return diffSnapshotCore(name);
   },
@@ -273,7 +270,11 @@ function buildSnapshotRestoreSummary(layout: unknown): Record<string, unknown> {
 }
 
 const snapshotRestoreShape = {
-  id: z.string().optional().catch(undefined).describe('Snapshot ID or name to restore (from canvas_snapshot or snapshot list)'),
+  id: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Snapshot ID or name to restore (from canvas_snapshot or snapshot list)'),
 };
 
 const snapshotRestoreSchema = z.looseObject(snapshotRestoreShape);
@@ -289,21 +290,28 @@ const snapshotRestoreOperation = defineOperation<z.infer<typeof snapshotRestoreS
   },
   mcp: {
     toolName: 'canvas_restore',
-    description: 'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). Restore the canvas to a previously saved snapshot. Use canvas_snapshot to save first. Pass either the snapshot ID or name to restore.',
+    description:
+      'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). Restore the canvas to a previously saved snapshot. Use canvas_snapshot to save first. Pass either the snapshot ID or name to restore.',
     extraShape: {
       id: z.string().describe('Snapshot ID or name to restore (from canvas_snapshot or snapshot list)'),
     },
     formatResult: async (_result, input, host) => {
       const layout = await host.invoker().invoke('layout.get', { includeBlobs: true });
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            ok: true,
-            restored: input.id,
-            summary: buildSnapshotRestoreSummary(layout),
-          }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                ok: true,
+                restored: input.id,
+                summary: buildSnapshotRestoreSummary(layout),
+              },
+              null,
+              2,
+            ),
+          },
+        ],
       };
     },
   },
@@ -338,7 +346,8 @@ const snapshotDeleteOperation = defineOperation<z.infer<typeof snapshotDeleteSch
   },
   mcp: {
     toolName: 'canvas_delete_snapshot',
-    description: 'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). Delete a saved snapshot by ID.',
+    description:
+      'Deprecated: folds into the canvas_snapshot composite in v0.4 (actions save|list|restore|delete|gc|diff). Delete a saved snapshot by ID.',
     extraShape: {
       id: z.string().describe('Snapshot ID to delete'),
     },

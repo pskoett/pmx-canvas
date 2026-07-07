@@ -72,7 +72,11 @@ async function runWebviewTask<T>(task: () => Promise<T> | T): Promise<T> {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     let webview: WebviewStatus | undefined;
-    try { webview = getWebviewRunner().status(); } catch { /* runner not wired */ }
+    try {
+      webview = getWebviewRunner().status();
+    } catch {
+      /* runner not wired */
+    }
     throw new OperationError(message, 400, webview ? { webview } : undefined);
   }
 }
@@ -164,7 +168,9 @@ const startOperation = defineOperation<z.infer<typeof startSchema>, WebviewStart
     description:
       'Start or replace the headless Bun.WebView automation session for the current PMX Canvas workbench. Use this before screenshot, evaluate, or resize when no automation session is active.',
     extraShape: {
-      backend: z.enum(['chrome', 'webkit']).optional()
+      backend: z
+        .enum(['chrome', 'webkit'])
+        .optional()
         .describe('Automation backend. Default: webkit on macOS, chrome elsewhere.'),
       width: z.number().optional().describe('Viewport width in pixels (default: 1280)'),
       height: z.number().optional().describe('Viewport height in pixels (default: 800)'),
@@ -184,14 +190,20 @@ const startOperation = defineOperation<z.infer<typeof startSchema>, WebviewStart
       const body = result as { ok?: boolean; webview?: WebviewStatus; error?: string };
       if (body.ok && body.webview) return statusText(body.webview);
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({
-            ok: false,
-            error: body.error ?? 'WebView start failed.',
-            ...(body.webview ? { webview: body.webview } : {}),
-          }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              {
+                ok: false,
+                error: body.error ?? 'WebView start failed.',
+                ...(body.webview ? { webview: body.webview } : {}),
+              },
+              null,
+              2,
+            ),
+          },
+        ],
         isError: true,
       };
     },
@@ -228,10 +240,12 @@ const stopOperation = defineOperation<z.infer<typeof stopSchema>, { stopped: boo
     formatResult: (result) => {
       const body = result as { ok: boolean; stopped: boolean; webview: WebviewStatus };
       return {
-        content: [{
-          type: 'text' as const,
-          text: JSON.stringify({ ok: true, stopped: body.stopped, webview: body.webview }, null, 2),
-        }],
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify({ ok: true, stopped: body.stopped, webview: body.webview }, null, 2),
+          },
+        ],
       };
     },
   },
@@ -262,7 +276,8 @@ const resizeOperation = defineOperation<z.infer<typeof resizeSchema>, WebviewSta
   },
   mcp: {
     toolName: 'canvas_resize',
-    description: 'Resize the active Bun.WebView automation viewport. Requires an active automation session started via canvas_webview_start.',
+    description:
+      'Resize the active Bun.WebView automation viewport. Requires an active automation session started via canvas_webview_start.',
     extraShape: {
       width: z.number().describe('Viewport width in pixels'),
       height: z.number().describe('Viewport height in pixels'),
@@ -287,7 +302,12 @@ const resizeOperation = defineOperation<z.infer<typeof resizeSchema>, WebviewSta
 
 const evaluateShape = {
   expression: z.unknown().optional().describe('JavaScript expression to evaluate in the page context'),
-  script: z.unknown().optional().describe('Multi-statement JavaScript body. The MCP server wraps it in an async IIFE and evaluates the resolved return value.'),
+  script: z
+    .unknown()
+    .optional()
+    .describe(
+      'Multi-statement JavaScript body. The MCP server wraps it in an async IIFE and evaluates the resolved return value.',
+    ),
 };
 const evaluateSchema = z.looseObject(evaluateShape);
 
@@ -302,10 +322,16 @@ const evaluateOperation = defineOperation<z.infer<typeof evaluateSchema>, { valu
   },
   mcp: {
     toolName: 'canvas_evaluate',
-    description: 'Evaluate JavaScript in the active Bun.WebView automation session for the workbench page. Use this to inspect rendered browser state. Requires an active automation session started via canvas_webview_start.',
+    description:
+      'Evaluate JavaScript in the active Bun.WebView automation session for the workbench page. Use this to inspect rendered browser state. Requires an active automation session started via canvas_webview_start.',
     extraShape: {
       expression: z.string().optional().describe('JavaScript expression to evaluate in the page context'),
-      script: z.string().optional().describe('Multi-statement JavaScript body. The MCP server wraps it in an async IIFE and evaluates the resolved return value.'),
+      script: z
+        .string()
+        .optional()
+        .describe(
+          'Multi-statement JavaScript body. The MCP server wraps it in an async IIFE and evaluates the resolved return value.',
+        ),
     },
     // Legacy canvas_evaluate validation: exactly one of expression/script (its
     // own message). Validate here so the MCP tool throws the legacy message

@@ -38,9 +38,11 @@
     "build": "bun run build:client && bun run build:json-render && bun run build:types",
     "start": "bun run src/cli/index.ts --no-open",
     "pack:dry-run": "bun pm pack --dry-run",
-    "release:check": "bun run build && bun run typecheck && bun run test:all",
+    "release:check": "bun run build && bun run typecheck && bun run lint && bun run test:all",
     "release:smoke": "bash scripts/release-smoke.sh",
     "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
     "test": "PMX_CANVAS_DISABLE_BROWSER_OPEN=1 bun test tests/unit",
     "test:unit": "PMX_CANVAS_DISABLE_BROWSER_OPEN=1 bun test tests/unit",
     "test:coverage": "bun test tests/unit --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir coverage",
@@ -76,6 +78,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@biomejs/biome": "^2.5.2",
     "@playwright/test": "^1.58.2",
     "@tailwindcss/cli": "^4.1.18",
     "@types/bun": "latest",

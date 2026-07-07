@@ -29,9 +29,7 @@ function resetClientState(): void {
 function parseBody(init: RequestInit | undefined): Record<string, unknown> | null {
   if (typeof init?.body !== 'string') return null;
   const parsed = JSON.parse(init.body) as unknown;
-  return parsed && typeof parsed === 'object' && !Array.isArray(parsed)
-    ? parsed as Record<string, unknown>
-    : null;
+  return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, unknown>) : null;
 }
 
 describe('ext-app open browser sync', () => {
@@ -68,9 +66,11 @@ describe('ext-app open browser sync', () => {
       value: ((input: RequestInfo | URL, init?: RequestInit) => {
         const body = parseBody(init);
         if (body) fetchBodies.push(body);
-        return Promise.resolve(new Response(JSON.stringify({ ok: true }), {
-          headers: { 'Content-Type': 'application/json' },
-        }));
+        return Promise.resolve(
+          new Response(JSON.stringify({ ok: true }), {
+            headers: { 'Content-Type': 'application/json' },
+          }),
+        );
       }) satisfies typeof fetch,
     });
   });
@@ -79,8 +79,14 @@ describe('ext-app open browser sync', () => {
     resetClientState();
     Object.defineProperty(globalThis, 'fetch', { configurable: true, value: originalFetch });
     Object.defineProperty(globalThis, 'window', { configurable: true, value: originalWindow });
-    Object.defineProperty(globalThis, 'requestAnimationFrame', { configurable: true, value: originalRequestAnimationFrame });
-    Object.defineProperty(globalThis, 'cancelAnimationFrame', { configurable: true, value: originalCancelAnimationFrame });
+    Object.defineProperty(globalThis, 'requestAnimationFrame', {
+      configurable: true,
+      value: originalRequestAnimationFrame,
+    });
+    Object.defineProperty(globalThis, 'cancelAnimationFrame', {
+      configurable: true,
+      value: originalCancelAnimationFrame,
+    });
     Object.defineProperty(globalThis, 'localStorage', { configurable: true, value: originalLocalStorage });
   });
 

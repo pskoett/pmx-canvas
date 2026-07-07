@@ -1,9 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import {
-  findBundledSkillsRoot,
-  listBundledSkills,
-  readBundledSkill,
-} from '../../src/server/bundled-skills.ts';
+import { findBundledSkillsRoot, listBundledSkills, readBundledSkill } from '../../src/server/bundled-skills.ts';
 
 describe('bundled skills', () => {
   test('findBundledSkillsRoot resolves the packaged skills directory', () => {

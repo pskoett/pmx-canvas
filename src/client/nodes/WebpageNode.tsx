@@ -20,11 +20,12 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
   const url = typeof node.data.url === 'string' ? node.data.url : '';
   const pageTitle = typeof node.data.pageTitle === 'string' ? node.data.pageTitle : '';
   const description = typeof node.data.description === 'string' ? node.data.description : '';
-  const excerpt = typeof node.data.excerpt === 'string'
-    ? node.data.excerpt
-    : typeof node.data.content === 'string'
-      ? node.data.content
-      : '';
+  const excerpt =
+    typeof node.data.excerpt === 'string'
+      ? node.data.excerpt
+      : typeof node.data.content === 'string'
+        ? node.data.content
+        : '';
   const status = typeof node.data.status === 'string' ? node.data.status : 'idle';
   const error = typeof node.data.error === 'string' ? node.data.error : '';
   const fetchedAt = formatFetchedAt(typeof node.data.fetchedAt === 'string' ? node.data.fetchedAt : undefined);
@@ -55,12 +56,7 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
     return <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>No webpage URL set</div>;
   }
 
-  const statusTone =
-    status === 'ready'
-      ? 'var(--c-ok)'
-      : status === 'error'
-        ? 'var(--c-danger)'
-        : 'var(--c-warn)';
+  const statusTone = status === 'ready' ? 'var(--c-ok)' : status === 'error' ? 'var(--c-danger)' : 'var(--c-warn)';
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', height: '100%' }}>
@@ -123,7 +119,9 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
             />
           )}
           {description && (
-            <p style={{ margin: 0, color: 'var(--c-text-soft)', lineHeight: 1.5, fontSize: expanded ? '14px' : '12px' }}>
+            <p
+              style={{ margin: 0, color: 'var(--c-text-soft)', lineHeight: 1.5, fontSize: expanded ? '14px' : '12px' }}
+            >
               {description}
             </p>
           )}
@@ -232,7 +230,8 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
               background: 'rgba(255,255,255,0.03)',
             }}
           >
-            Live preview (best effort). If this stays blank, the site likely blocks framing. The cached text snapshot below still works.
+            Live preview (best effort). If this stays blank, the site likely blocks framing. The cached text snapshot
+            below still works.
           </div>
           <iframe
             class="webpage-node-iframe"
@@ -274,7 +273,14 @@ export function WebpageNode({ node, expanded = false }: { node: CanvasNodeState;
         }}
       >
         {excerpt ? (
-          <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.55, color: 'var(--c-text)', fontSize: expanded ? '14px' : '12px' }}>
+          <div
+            style={{
+              whiteSpace: 'pre-wrap',
+              lineHeight: 1.55,
+              color: 'var(--c-text)',
+              fontSize: expanded ? '14px' : '12px',
+            }}
+          >
             {excerpt}
           </div>
         ) : (

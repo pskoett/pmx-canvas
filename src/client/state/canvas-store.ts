@@ -1,5 +1,13 @@
 import { batch, computed, signal } from '@preact/signals';
-import { isExcalidrawNode, type CanvasAnnotation, type CanvasEdge, type CanvasLayout, type CanvasNodeState, type ConnectionStatus, type ViewportState } from '../types';
+import {
+  isExcalidrawNode,
+  type CanvasAnnotation,
+  type CanvasEdge,
+  type CanvasLayout,
+  type CanvasNodeState,
+  type ConnectionStatus,
+  type ViewportState,
+} from '../types';
 import { computeAutoArrange } from '../../shared/auto-arrange';
 import { pushCanvasUpdate, updateViewportFromClient } from './intent-bridge';
 
@@ -29,7 +37,7 @@ export const axSurfaceState = signal<unknown>(null);
 export const expandedNodeId = signal<string | null>(null);
 export const pendingExpandedNodeCloseId = signal<string | null>(null);
 let expandedCloseTimer: ReturnType<typeof setTimeout> | null = null;
-let pendingCloseInitialCheckpointAt: unknown = undefined;
+let pendingCloseInitialCheckpointAt: unknown;
 const EXCALIDRAW_CLOSE_POLL_MS = 100;
 const EXCALIDRAW_CLOSE_MAX_WAIT_MS = 2500;
 
@@ -54,10 +62,7 @@ export const selectedNodeIds = signal<Set<string>>(new Set());
 // ── Context pins (persistent context for agent queries) ──────
 export const contextPinnedNodeIds = signal<Set<string>>(new Set());
 
-export function getNeighborNodeIds(
-  nodeId: string | null,
-  edgeMap: Map<string, CanvasEdge>,
-): Set<string> {
+export function getNeighborNodeIds(nodeId: string | null, edgeMap: Map<string, CanvasEdge>): Set<string> {
   if (!nodeId) return new Set();
 
   const neighborIds = new Set<string>();
@@ -392,10 +397,7 @@ export function commitViewport(next: ViewportState): void {
   commitViewportWithOptions(next);
 }
 
-function commitViewportWithOptions(
-  next: ViewportState,
-  options: { recordHistory?: boolean } = {},
-): void {
+function commitViewportWithOptions(next: ViewportState, options: { recordHistory?: boolean } = {}): void {
   viewport.value = next;
   persistLayout(options);
   void updateViewportFromClient(next, options);
@@ -412,9 +414,7 @@ export function applyServerCanvasLayout(
     if (node.zIndex >= nextMaxZ) nextMaxZ = node.zIndex + 1;
   }
 
-  const edgeSource = layout.edges.filter(
-    (edge) => nextNodes.has(edge.from) && nextNodes.has(edge.to),
-  );
+  const edgeSource = layout.edges.filter((edge) => nextNodes.has(edge.from) && nextNodes.has(edge.to));
   const nextEdges = new Map<string, CanvasEdge>();
   for (const edge of edgeSource) {
     nextEdges.set(edge.id, edge);
@@ -424,8 +424,7 @@ export function applyServerCanvasLayout(
     nextAnnotations.set(annotation.id, annotation);
   }
 
-  const nextActiveNodeId =
-    activeNodeId.value !== null && nextNodes.has(activeNodeId.value) ? activeNodeId.value : null;
+  const nextActiveNodeId = activeNodeId.value !== null && nextNodes.has(activeNodeId.value) ? activeNodeId.value : null;
   const nextExpandedNodeId =
     expandedNodeId.value !== null && nextNodes.has(expandedNodeId.value) ? expandedNodeId.value : null;
   const nextSelectedNodeIds = filterNodeIdSet(selectedNodeIds.value, nextNodes);
@@ -618,11 +617,15 @@ export function focusNode(id: string, options: { recordHistory?: boolean } = {})
   const v = viewport.value;
   const cx = node.position.x + node.size.width / 2;
   const cy = node.position.y + node.size.height / 2;
-  animateViewport({
-    x: window.innerWidth / 2 - cx * v.scale,
-    y: window.innerHeight / 2 - cy * v.scale,
-    scale: v.scale,
-  }, 300, options);
+  animateViewport(
+    {
+      x: window.innerWidth / 2 - cx * v.scale,
+      y: window.innerHeight / 2 - cy * v.scale,
+      scale: v.scale,
+    },
+    300,
+    options,
+  );
   bringToFront(id);
 }
 
@@ -669,10 +672,18 @@ export function walkGraph(direction: 'up' | 'down' | 'left' | 'right'): void {
     // Dot product with direction vector, normalized by distance
     let dot: number;
     switch (direction) {
-      case 'up':    dot = -dy; break;
-      case 'down':  dot =  dy; break;
-      case 'left':  dot = -dx; break;
-      case 'right': dot =  dx; break;
+      case 'up':
+        dot = -dy;
+        break;
+      case 'down':
+        dot = dy;
+        break;
+      case 'left':
+        dot = -dx;
+        break;
+      case 'right':
+        dot = dx;
+        break;
     }
 
     // Only consider nodes that are at least somewhat in the right direction
@@ -727,10 +738,7 @@ export function collapseExpandedNode(): void {
     const pollForSave = () => {
       const latestNode = nodes.value.get(closingNodeId);
       const latestCheckpointAt = (latestNode?.data.appCheckpoint as { updatedAt?: unknown } | undefined)?.updatedAt;
-      if (
-        latestCheckpointAt !== undefined &&
-        latestCheckpointAt !== pendingCloseInitialCheckpointAt
-      ) {
+      if (latestCheckpointAt !== undefined && latestCheckpointAt !== pendingCloseInitialCheckpointAt) {
         finishExpandedNodeClose(closingNodeId);
         return;
       }
@@ -762,10 +770,14 @@ export function autoArrange(): void {
       updateNode(id, { position });
     }
     for (const [groupId, bounds] of result.groupBounds.entries()) {
-      updateNodeWithOptions(groupId, {
-        position: { x: bounds.x, y: bounds.y },
-        size: { width: bounds.width, height: bounds.height },
-      }, { skipGroupChildTranslation: true });
+      updateNodeWithOptions(
+        groupId,
+        {
+          position: { x: bounds.x, y: bounds.y },
+          size: { width: bounds.width, height: bounds.height },
+        },
+        { skipGroupChildTranslation: true },
+      );
     }
   });
   persistLayout();
@@ -780,10 +792,14 @@ export function forceDirectedArrange(): void {
       updateNode(id, { position });
     }
     for (const [groupId, bounds] of result.groupBounds.entries()) {
-      updateNodeWithOptions(groupId, {
-        position: { x: bounds.x, y: bounds.y },
-        size: { width: bounds.width, height: bounds.height },
-      }, { skipGroupChildTranslation: true });
+      updateNodeWithOptions(
+        groupId,
+        {
+          position: { x: bounds.x, y: bounds.y },
+          size: { width: bounds.width, height: bounds.height },
+        },
+        { skipGroupChildTranslation: true },
+      );
     }
   });
   persistLayout();

@@ -56,7 +56,9 @@ const MAX_ROW_WIDTH = 3200;
 const GROUP_PAD = 40;
 const GROUP_TITLEBAR_HEIGHT = 32;
 
-function computeGroupBounds(rects: Array<{ position: ArrangePosition; size: ArrangeSize }>): (ArrangePosition & ArrangeSize) | null {
+function computeGroupBounds(
+  rects: Array<{ position: ArrangePosition; size: ArrangeSize }>,
+): (ArrangePosition & ArrangeSize) | null {
   if (rects.length === 0) return null;
 
   let minX = Number.POSITIVE_INFINITY;
@@ -158,7 +160,11 @@ function buildArrangeUnits(allNodes: ArrangeNode[]): {
   return { units, nodesById, nodeToUnit };
 }
 
-function buildUnitGraphs(units: ArrangeUnit[], nodeToUnit: Map<string, string>, edges: ArrangeEdge[]): {
+function buildUnitGraphs(
+  units: ArrangeUnit[],
+  nodeToUnit: Map<string, string>,
+  edges: ArrangeEdge[],
+): {
   outgoing: Map<string, Set<string>>;
   undirected: Map<string, Set<string>>;
   indegree: Map<string, number>;
@@ -277,9 +283,10 @@ function computeGraphComponent(
   const roots = component
     .filter((unit) => (indegree.get(unit.id) ?? 0) === 0 && (outdegree.get(unit.id) ?? 0) > 0)
     .sort((a, b) => a.sortKey.x - b.sortKey.x || a.sortKey.y - b.sortKey.y);
-  const seedUnits = roots.length > 0
-    ? roots
-    : [component.slice().sort((a, b) => a.sortKey.x - b.sortKey.x || a.sortKey.y - b.sortKey.y)[0]];
+  const seedUnits =
+    roots.length > 0
+      ? roots
+      : [component.slice().sort((a, b) => a.sortKey.x - b.sortKey.x || a.sortKey.y - b.sortKey.y)[0]];
 
   const levels = new Map<string, number>();
   const queue = seedUnits.map((unit) => unit.id);

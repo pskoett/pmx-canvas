@@ -53,11 +53,13 @@ export function buildCanvasAxSurfaceSnapshot(): PmxAxSurfaceSnapshot {
 }
 
 function serializeNodes(nodes: CanvasNodeState[]) {
-  return nodes.map((node) => serializeNodeForAgentContext(node, {
-    defaultTextLength: 700,
-    webpageTextLength: 1600,
-    includePosition: true,
-  }));
+  return nodes.map((node) =>
+    serializeNodeForAgentContext(node, {
+      defaultTextLength: 700,
+      webpageTextLength: 1600,
+      includePosition: true,
+    }),
+  );
 }
 
 export function buildCanvasAxPinnedContext(): PmxAxPinnedContext {

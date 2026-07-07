@@ -63,7 +63,10 @@ function setPhase(id: string, phase: IntentPhase, ms: number, settledNodeId?: st
   next.set(id, { ...current, phase, ...(settledNodeId ? { settledNodeId } : {}) });
   writeIntents(next);
   clearExitTimer(id);
-  exitTimers.set(id, setTimeout(() => removeIntent(id), ms));
+  exitTimers.set(
+    id,
+    setTimeout(() => removeIntent(id), ms),
+  );
 }
 
 /** Resolve a ghost into a real node — the settle morph, then removal. */

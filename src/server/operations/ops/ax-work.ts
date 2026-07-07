@@ -61,9 +61,7 @@ import { AX_SOURCE_SHAPE, AX_SOURCES, axJsonResult, normalizeAxNodeIds, normaliz
 
 const AX_WORK_ITEM_STATUSES = new Set(['todo', 'in-progress', 'blocked', 'done', 'cancelled']);
 function normalizeAxWorkItemStatus(value: unknown): PmxAxWorkItemStatus | undefined {
-  return typeof value === 'string' && AX_WORK_ITEM_STATUSES.has(value)
-    ? value as PmxAxWorkItemStatus
-    : undefined;
+  return typeof value === 'string' && AX_WORK_ITEM_STATUSES.has(value) ? (value as PmxAxWorkItemStatus) : undefined;
 }
 
 const AX_REVIEW_KINDS = new Set(['comment', 'finding']);
@@ -72,16 +70,16 @@ const AX_REVIEW_STATUSES = new Set(['open', 'resolved', 'dismissed']);
 const AX_REVIEW_ANCHORS = new Set(['node', 'file', 'region']);
 
 function normalizeAxReviewKind(value: unknown): PmxAxReviewKind | undefined {
-  return typeof value === 'string' && AX_REVIEW_KINDS.has(value) ? value as PmxAxReviewKind : undefined;
+  return typeof value === 'string' && AX_REVIEW_KINDS.has(value) ? (value as PmxAxReviewKind) : undefined;
 }
 function normalizeAxReviewSeverity(value: unknown): PmxAxReviewSeverity | undefined {
-  return typeof value === 'string' && AX_REVIEW_SEVERITIES.has(value) ? value as PmxAxReviewSeverity : undefined;
+  return typeof value === 'string' && AX_REVIEW_SEVERITIES.has(value) ? (value as PmxAxReviewSeverity) : undefined;
 }
 function normalizeAxReviewStatus(value: unknown): PmxAxReviewStatus | undefined {
-  return typeof value === 'string' && AX_REVIEW_STATUSES.has(value) ? value as PmxAxReviewStatus : undefined;
+  return typeof value === 'string' && AX_REVIEW_STATUSES.has(value) ? (value as PmxAxReviewStatus) : undefined;
 }
 function normalizeAxReviewAnchor(value: unknown): PmxAxReviewAnchorType | undefined {
-  return typeof value === 'string' && AX_REVIEW_ANCHORS.has(value) ? value as PmxAxReviewAnchorType : undefined;
+  return typeof value === 'string' && AX_REVIEW_ANCHORS.has(value) ? (value as PmxAxReviewAnchorType) : undefined;
 }
 function normalizeAxReviewRegion(value: unknown): PmxAxReviewRegion | undefined {
   if (!isRecord(value)) return undefined;
@@ -115,10 +113,12 @@ const axWorkCreateOperation = defineOperation<z.infer<typeof axWorkCreateSchema>
   },
   mcp: {
     toolName: 'canvas_add_work_item',
-    description: 'Add a canvas-bound AX work item: a visible task/plan/status tied to nodes and agent work. Work items participate in snapshots and are exposed via canvas://ax-work.',
+    description:
+      'Add a canvas-bound AX work item: a visible task/plan/status tied to nodes and agent work. Work items participate in snapshots and are exposed via canvas://ax-work.',
     extraShape: {
       title: z.string().describe('Short title of the work item.'),
-      status: z.enum(['todo', 'in-progress', 'blocked', 'done', 'cancelled'])
+      status: z
+        .enum(['todo', 'in-progress', 'blocked', 'done', 'cancelled'])
         .optional()
         .describe('Work item status. Defaults to todo.'),
       detail: z.string().optional().describe('Optional longer description.'),
@@ -135,7 +135,9 @@ const axWorkCreateOperation = defineOperation<z.infer<typeof axWorkCreateSchema>
     // Report #56: reject an unknown status (e.g. "in_progress") instead of
     // silently dropping it — the accepted tokens use hyphens.
     if (input.status !== undefined && !normalizeAxWorkItemStatus(input.status)) {
-      throw new OperationError(`invalid work item status "${String(input.status)}"; expected one of: todo, in-progress, blocked, done, cancelled.`);
+      throw new OperationError(
+        `invalid work item status "${String(input.status)}"; expected one of: todo, in-progress, blocked, done, cancelled.`,
+      );
     }
     const status = normalizeAxWorkItemStatus(input.status);
     const workItem = canvasState.addWorkItem(
@@ -176,13 +178,12 @@ const axWorkUpdateOperation = defineOperation<z.infer<typeof axWorkUpdateSchema>
   },
   mcp: {
     toolName: 'canvas_update_work_item',
-    description: 'Update a canvas-bound AX work item by ID (title/status/detail/nodeIds). Returns null if the work item does not exist.',
+    description:
+      'Update a canvas-bound AX work item by ID (title/status/detail/nodeIds). Returns null if the work item does not exist.',
     extraShape: {
       id: z.string().describe('Work item ID to update.'),
       title: z.string().optional().describe('New title.'),
-      status: z.enum(['todo', 'in-progress', 'blocked', 'done', 'cancelled'])
-        .optional()
-        .describe('New status.'),
+      status: z.enum(['todo', 'in-progress', 'blocked', 'done', 'cancelled']).optional().describe('New status.'),
       detail: z.string().optional().describe('New detail text.'),
       nodeIds: z.array(z.string()).optional().describe('Replacement node IDs.'),
       source: AX_SOURCE_SHAPE,
@@ -194,7 +195,9 @@ const axWorkUpdateOperation = defineOperation<z.infer<typeof axWorkUpdateSchema>
     const id = typeof input.id === 'string' ? input.id : '';
     // Report #56: reject an unknown status instead of returning ok:true + no-op.
     if (input.status !== undefined && !normalizeAxWorkItemStatus(input.status)) {
-      throw new OperationError(`invalid work item status "${String(input.status)}"; expected one of: todo, in-progress, blocked, done, cancelled.`);
+      throw new OperationError(
+        `invalid work item status "${String(input.status)}"; expected one of: todo, in-progress, blocked, done, cancelled.`,
+      );
     }
     const status = normalizeAxWorkItemStatus(input.status);
     const workItem = canvasState.updateWorkItem(
@@ -240,7 +243,8 @@ const axReviewAddOperation = defineOperation<z.infer<typeof axReviewAddSchema>, 
   },
   mcp: {
     toolName: 'canvas_add_review_annotation',
-    description: 'Add a canvas-bound review annotation: a comment or finding anchored to a node, file, or region. Review annotations participate in snapshots and are exposed via canvas://ax-work.',
+    description:
+      'Add a canvas-bound review annotation: a comment or finding anchored to a node, file, or region. Review annotations participate in snapshots and are exposed via canvas://ax-work.',
     extraShape: {
       body: z.string().describe('Annotation body text.'),
       kind: z.enum(['comment', 'finding']).optional().describe('Annotation kind. Default comment.'),
@@ -248,11 +252,14 @@ const axReviewAddOperation = defineOperation<z.infer<typeof axReviewAddSchema>, 
       anchorType: z.enum(['node', 'file', 'region']).optional().describe('Anchor type. Default node.'),
       nodeId: z.string().optional().describe('Node ID when anchorType is node.'),
       file: z.string().optional().describe('File path when anchorType is file.'),
-      region: z.object({
-        line: z.number().optional(),
-        endLine: z.number().optional(),
-        label: z.string().optional(),
-      }).optional().describe('Region descriptor when anchorType is region.'),
+      region: z
+        .object({
+          line: z.number().optional(),
+          endLine: z.number().optional(),
+          label: z.string().optional(),
+        })
+        .optional()
+        .describe('Region descriptor when anchorType is region.'),
       author: z.string().optional().describe('Optional author label.'),
       source: AX_SOURCE_SHAPE,
     },
@@ -356,7 +363,8 @@ const axApprovalRequestOperation = defineOperation<z.infer<typeof axApprovalRequ
   },
   mcp: {
     toolName: 'canvas_request_approval',
-    description: 'Request human approval before a high-impact AX action: creates a pending approval gate tied to nodes. Canvas-bound and snapshotted; exposed via canvas://ax-work.',
+    description:
+      'Request human approval before a high-impact AX action: creates a pending approval gate tied to nodes. Canvas-bound and snapshotted; exposed via canvas://ax-work.',
     extraShape: {
       title: z.string().describe('Short title of what needs approval.'),
       detail: z.string().optional().describe('Optional explanation of the action and its impact.'),
@@ -407,7 +415,8 @@ const axApprovalResolveOperation = defineOperation<z.infer<typeof axApprovalReso
   },
   mcp: {
     toolName: 'canvas_resolve_approval',
-    description: 'Resolve a pending approval gate by ID with approved or rejected. Returns null if the gate does not exist or is already resolved.',
+    description:
+      'Resolve a pending approval gate by ID with approved or rejected. Returns null if the gate does not exist or is already resolved.',
     extraShape: {
       id: z.string().describe('Approval gate ID to resolve.'),
       decision: z.enum(['approved', 'rejected']).describe('Approval decision.'),
@@ -422,14 +431,10 @@ const axApprovalResolveOperation = defineOperation<z.infer<typeof axApprovalReso
     if (input.decision !== 'approved' && input.decision !== 'rejected') {
       throw new OperationError('resolve requires decision approved or rejected.');
     }
-    const approvalGate = canvasState.resolveApproval(
-      id,
-      input.decision,
-      {
-        ...(typeof input.resolution === 'string' ? { resolution: input.resolution } : {}),
-        source: normalizeAxSource(input.source, 'api'),
-      },
-    );
+    const approvalGate = canvasState.resolveApproval(id, input.decision, {
+      ...(typeof input.resolution === 'string' ? { resolution: input.resolution } : {}),
+      source: normalizeAxSource(input.source, 'api'),
+    });
     if (!approvalGate) throw new OperationError('approval gate not found or already resolved.', 404);
     ctx.emit('ax-state-changed', { approvalGate });
     return { ok: true, approvalGate } as unknown as Record<string, unknown>;
@@ -447,7 +452,10 @@ const axElicitationRequestShape = {
 
 const axElicitationRequestSchema = z.looseObject(axElicitationRequestShape);
 
-const axElicitationRequestOperation = defineOperation<z.infer<typeof axElicitationRequestSchema>, Record<string, unknown>>({
+const axElicitationRequestOperation = defineOperation<
+  z.infer<typeof axElicitationRequestSchema>,
+  Record<string, unknown>
+>({
   name: 'ax.elicitation.request',
   mutates: false,
   input: axElicitationRequestSchema,
@@ -458,7 +466,8 @@ const axElicitationRequestOperation = defineOperation<z.infer<typeof axElicitati
   },
   mcp: {
     toolName: 'canvas_request_elicitation',
-    description: 'Request structured human input (an elicitation): a pending question/form tied to nodes. Canvas-bound and snapshotted; exposed via canvas://ax-work. Answer it with canvas_respond_elicitation.',
+    description:
+      'Request structured human input (an elicitation): a pending question/form tied to nodes. Canvas-bound and snapshotted; exposed via canvas://ax-work. Answer it with canvas_respond_elicitation.',
     extraShape: {
       prompt: z.string().describe('The question or instruction for the human.'),
       fields: z.array(z.string()).optional().describe('Optional field names to request (a simple structured form).'),
@@ -475,7 +484,9 @@ const axElicitationRequestOperation = defineOperation<z.infer<typeof axElicitati
     const elicitation = canvasState.requestElicitation(
       {
         prompt: input.prompt,
-        ...(Array.isArray(input.fields) ? { fields: input.fields.filter((f): f is string => typeof f === 'string') } : {}),
+        ...(Array.isArray(input.fields)
+          ? { fields: input.fields.filter((f): f is string => typeof f === 'string') }
+          : {}),
         ...(Array.isArray(input.nodeIds) ? { nodeIds: normalizeAxNodeIds(input.nodeIds) } : {}),
       },
       { source: normalizeAxSource(input.source, 'api') },
@@ -495,7 +506,10 @@ const axElicitationRespondShape = {
 
 const axElicitationRespondSchema = z.looseObject(axElicitationRespondShape);
 
-const axElicitationRespondOperation = defineOperation<z.infer<typeof axElicitationRespondSchema>, Record<string, unknown>>({
+const axElicitationRespondOperation = defineOperation<
+  z.infer<typeof axElicitationRespondSchema>,
+  Record<string, unknown>
+>({
   name: 'ax.elicitation.respond',
   mutates: false,
   input: axElicitationRespondSchema,
@@ -518,7 +532,9 @@ const axElicitationRespondOperation = defineOperation<z.infer<typeof axElicitati
   handler: (input, ctx) => {
     const id = typeof input.id === 'string' ? input.id : '';
     const response = isRecord(input.response) ? input.response : {};
-    const elicitation = canvasState.respondElicitation(id, response, { source: normalizeAxSource(input.source, 'api') });
+    const elicitation = canvasState.respondElicitation(id, response, {
+      source: normalizeAxSource(input.source, 'api'),
+    });
     if (!elicitation) throw new OperationError('elicitation not found or already answered.', 404);
     ctx.emit('ax-state-changed', { elicitation });
     return { ok: true, elicitation } as unknown as Record<string, unknown>;
@@ -547,7 +563,8 @@ const axModeRequestOperation = defineOperation<z.infer<typeof axModeRequestSchem
   },
   mcp: {
     toolName: 'canvas_request_mode',
-    description: 'Request a workflow mode transition (plan/execute/autonomous): a pending mode request tied to nodes. Canvas-bound and snapshotted; exposed via canvas://ax-work. Resolve with canvas_resolve_mode.',
+    description:
+      'Request a workflow mode transition (plan/execute/autonomous): a pending mode request tied to nodes. Canvas-bound and snapshotted; exposed via canvas://ax-work. Resolve with canvas_resolve_mode.',
     extraShape: {
       mode: z.enum(['plan', 'execute', 'autonomous']).describe('Requested target mode.'),
       reason: z.string().optional(),

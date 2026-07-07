@@ -53,7 +53,7 @@ export {
 export { dispatchOperationRoute } from './http.js';
 export { runCanvasBatchOperation, type BatchEnvelope } from './ops/batch.js';
 // OpenMcpAppCoreResult is the SDK's cast target for executeOperation('mcpapp.open').
-export { type OpenMcpAppCoreResult } from './ops/app.js';
+export type { OpenMcpAppCoreResult } from './ops/app.js';
 export { LocalOperationInvoker, HttpOperationInvoker, type OperationInvoker } from './invoker.js';
 export { registerOperationTools, registerCompositeTools, type OperationToolHost } from './mcp.js';
 export { compositeToolDefinitions, type CompositeToolDefinition } from './composites.js';

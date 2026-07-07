@@ -9,12 +9,7 @@ import {
   unwatchFileForNode,
   watchFileForNode,
 } from '../../src/server/file-watcher.ts';
-import {
-  createTestWorkspace,
-  makeNode,
-  removeTestWorkspace,
-  resetCanvasForTests,
-} from './helpers.ts';
+import { createTestWorkspace, makeNode, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 async function waitFor(check: () => boolean, timeoutMs = 1500): Promise<void> {
   const deadline = Date.now() + timeoutMs;
@@ -45,14 +40,16 @@ describe('file watcher', () => {
     const filePath = join(workspaceRoot, 'watched.md');
     writeFileSync(filePath, 'line one\nline two', 'utf-8');
 
-    canvasState.addNode(makeNode({
-      id: 'file-node',
-      type: 'file',
-      data: {
-        title: 'watched.md',
-        path: filePath,
-      },
-    }));
+    canvasState.addNode(
+      makeNode({
+        id: 'file-node',
+        type: 'file',
+        data: {
+          title: 'watched.md',
+          path: filePath,
+        },
+      }),
+    );
 
     const changedNodeIds: string[] = [];
     onFileNodeChanged((nodeId) => {
@@ -102,14 +99,16 @@ describe('file watcher', () => {
     const filePath = join(workspaceRoot, 'rewatch.md');
     writeFileSync(filePath, 'before', 'utf-8');
 
-    canvasState.addNode(makeNode({
-      id: 'rewatch-node',
-      type: 'file',
-      data: {
-        title: 'rewatch.md',
-        path: filePath,
-      },
-    }));
+    canvasState.addNode(
+      makeNode({
+        id: 'rewatch-node',
+        type: 'file',
+        data: {
+          title: 'rewatch.md',
+          path: filePath,
+        },
+      }),
+    );
 
     rewatchAllFileNodes();
 

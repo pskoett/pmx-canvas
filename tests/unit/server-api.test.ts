@@ -6,7 +6,12 @@ import { canvasState, type PersistedBlobRef } from '../../src/server/canvas-stat
 import { MARKDOWN_NODE_DEFAULT_SIZE, MCP_APP_NODE_DEFAULT_SIZE } from '../../src/server/canvas-operations.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { intentRegistry } from '../../src/server/intent-registry.ts';
-import { emitPrimaryWorkbenchEvent, startCanvasServer, stopCanvasServer, wrapCanvasAutomationScript } from '../../src/server/server.ts';
+import {
+  emitPrimaryWorkbenchEvent,
+  startCanvasServer,
+  stopCanvasServer,
+  wrapCanvasAutomationScript,
+} from '../../src/server/server.ts';
 import {
   createFakeWebArtifactScripts,
   createTestWorkspace,
@@ -37,17 +42,21 @@ interface BlobSummary {
 }
 
 function isBlobSummary(value: unknown): value is BlobSummary {
-  return value !== null &&
+  return (
+    value !== null &&
     typeof value === 'object' &&
     !Array.isArray(value) &&
-    (value as { stored?: unknown }).stored === 'sidecar';
+    (value as { stored?: unknown }).stored === 'sidecar'
+  );
 }
 
 function isBlobReference(value: unknown): value is PersistedBlobRef {
-  return value !== null &&
+  return (
+    value !== null &&
     typeof value === 'object' &&
     !Array.isArray(value) &&
-    (value as { __pmxCanvasBlob?: unknown }).__pmxCanvasBlob === 'v1';
+    (value as { __pmxCanvasBlob?: unknown }).__pmxCanvasBlob === 'v1'
+  );
 }
 
 interface WorkbenchWebViewStatusResponse {
@@ -72,7 +81,7 @@ async function waitForNode(
   for (let index = 0; index < attempts; index++) {
     const response = await fetch(`${baseUrl}/api/canvas/state`);
     if (response.ok) {
-      const state = await response.json() as CanvasStateResponse;
+      const state = (await response.json()) as CanvasStateResponse;
       const match = state.nodes.find(predicate);
       if (match) return match;
     }
@@ -81,11 +90,7 @@ async function waitForNode(
   return null;
 }
 
-async function readSseEvent(
-  baseUrl: string,
-  eventName: string,
-  timeoutMs = 3000,
-): Promise<Record<string, unknown>> {
+async function readSseEvent(baseUrl: string, eventName: string, timeoutMs = 3000): Promise<Record<string, unknown>> {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -130,7 +135,7 @@ describe('canvas server HTTP API', () => {
   async function jsonRequest<T>(path: string, init?: RequestInit): Promise<T> {
     const response = await fetch(`${baseUrl}${path}`, init);
     expect(response.ok).toBe(true);
-    return await response.json() as T;
+    return (await response.json()) as T;
   }
 
   beforeAll(() => {
@@ -148,10 +153,13 @@ describe('canvas server HTTP API', () => {
       fetch(req) {
         const url = new URL(req.url);
         if (url.pathname === '/article-long') {
-          const sections = Array.from({ length: 24 }, (_, index) =>
-            `<p>Long-form webpage section ${index + 1}. This is persistent context for agent grounding and should survive truncation better than the old excerpt-only path.</p>`,
+          const sections = Array.from(
+            { length: 24 },
+            (_, index) =>
+              `<p>Long-form webpage section ${index + 1}. This is persistent context for agent grounding and should survive truncation better than the old excerpt-only path.</p>`,
           ).join('\n');
-          return new Response(`<!doctype html>
+          return new Response(
+            `<!doctype html>
 <html>
   <head>
     <title>Long Canvas Webpage</title>
@@ -163,17 +171,21 @@ describe('canvas server HTTP API', () => {
       ${sections}
     </main>
   </body>
-</html>`, {
-            headers: { 'Content-Type': 'text/html; charset=utf-8' },
-          });
+</html>`,
+            {
+              headers: { 'Content-Type': 'text/html; charset=utf-8' },
+            },
+          );
         }
         if (url.pathname === '/article') {
           const version = url.searchParams.get('v') ?? '1';
           const title = version === '2' ? 'Canvas Webpage v2' : 'Canvas Webpage v1';
-          const body = version === '2'
-            ? 'Updated webpage content for saved canvas refresh.'
-            : 'Initial webpage content for canvas grounding.';
-          return new Response(`<!doctype html>
+          const body =
+            version === '2'
+              ? 'Updated webpage content for saved canvas refresh.'
+              : 'Initial webpage content for canvas grounding.';
+          return new Response(
+            `<!doctype html>
 <html>
   <head>
     <title>${title}</title>
@@ -187,12 +199,15 @@ describe('canvas server HTTP API', () => {
       <p>Supplemental text block ${version}.</p>
     </main>
   </body>
-</html>`, {
-            headers: { 'Content-Type': 'text/html; charset=utf-8' },
-          });
+</html>`,
+            {
+              headers: { 'Content-Type': 'text/html; charset=utf-8' },
+            },
+          );
         }
         if (url.pathname === '/article-frame-blocked') {
-          return new Response(`<!doctype html>
+          return new Response(
+            `<!doctype html>
 <html>
   <head>
     <title>Frame Blocked Fixture</title>
@@ -204,12 +219,14 @@ describe('canvas server HTTP API', () => {
       <p>This page is readable by the server but not embeddable in an iframe.</p>
     </main>
   </body>
-</html>`, {
-            headers: {
-              'Content-Type': 'text/html; charset=utf-8',
-              'X-Frame-Options': 'SAMEORIGIN',
+</html>`,
+            {
+              headers: {
+                'Content-Type': 'text/html; charset=utf-8',
+                'X-Frame-Options': 'SAMEORIGIN',
+              },
             },
-          });
+          );
         }
         return new Response('missing', { status: 404 });
       },
@@ -278,10 +295,9 @@ describe('canvas server HTTP API', () => {
         position: { x: 160, y: 160 },
       }),
     });
-    const vetoedByQuery = await jsonRequest<{ cleared: boolean }>(
-      '/api/canvas/ax/intent/http-veto-query?vetoed=true',
-      { method: 'DELETE' },
-    );
+    const vetoedByQuery = await jsonRequest<{ cleared: boolean }>('/api/canvas/ax/intent/http-veto-query?vetoed=true', {
+      method: 'DELETE',
+    });
     expect(vetoedByQuery.cleared).toBe(true);
     const blockedByQuery = await fetch(`${baseUrl}/api/canvas/node`, {
       method: 'POST',
@@ -343,7 +359,9 @@ describe('canvas server HTTP API', () => {
       }),
     });
     expect(blankIntent.status).toBe(400);
-    expect(canvasState.getLayout().nodes.some((node) => node.data.title === 'Blank intent must not bypass gating')).toBe(false);
+    expect(
+      canvasState.getLayout().nodes.some((node) => node.data.title === 'Blank intent must not bypass gating'),
+    ).toBe(false);
 
     const streamed = await jsonRequest<{ id: string }>('/api/canvas/json-render/stream', {
       method: 'POST',
@@ -440,7 +458,12 @@ describe('canvas server HTTP API', () => {
     });
     expect(appNode.size).toEqual(MCP_APP_NODE_DEFAULT_SIZE);
 
-    const fetchedNode = await jsonRequest<{ id: string; title: string | null; content: string | null; data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`);
+    const fetchedNode = await jsonRequest<{
+      id: string;
+      title: string | null;
+      content: string | null;
+      data: Record<string, unknown>;
+    }>(`/api/canvas/node/${created.id}`);
     expect(fetchedNode.id).toBe(created.id);
     expect(fetchedNode.title).toBe('API note');
     expect(fetchedNode.content).toBe('# Hello');
@@ -494,7 +517,13 @@ describe('canvas server HTTP API', () => {
     const graph = await jsonRequest<{ id: string }>('/api/canvas/graph', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'G', graphType: 'bar', data: [{ label: 'A', value: 1 }], xKey: 'label', yKey: 'value' }),
+      body: JSON.stringify({
+        title: 'G',
+        graphType: 'bar',
+        data: [{ label: 'A', value: 1 }],
+        xKey: 'label',
+        yKey: 'value',
+      }),
     });
     // A manual resize round-trips userResized as a data merge (mirrors the client).
     await jsonRequest<{ ok: boolean }>(`/api/canvas/node/${graph.id}`, {
@@ -518,7 +547,10 @@ describe('canvas server HTTP API', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        points: [{ x: 10, y: 20 }, { x: 40, y: 80 }],
+        points: [
+          { x: 10, y: 20 },
+          { x: 40, y: 80 },
+        ],
         color: 'currentColor',
         width: 4,
       }),
@@ -527,11 +559,16 @@ describe('canvas server HTTP API', () => {
     expect(created.annotation.color).toBe('currentColor');
     expect(created.annotation.pointCount).toBe(2);
     expect(created.annotation.text).toBeNull();
-    expect((await jsonRequest<CanvasStateResponse>('/api/canvas/state')).annotations?.map((annotation) => annotation.id)).toEqual([created.annotation.id]);
+    expect(
+      (await jsonRequest<CanvasStateResponse>('/api/canvas/state')).annotations?.map((annotation) => annotation.id),
+    ).toEqual([created.annotation.id]);
 
-    const removed = await jsonRequest<{ ok: boolean; removed: string }>(`/api/canvas/annotation/${created.annotation.id}`, {
-      method: 'DELETE',
-    });
+    const removed = await jsonRequest<{ ok: boolean; removed: string }>(
+      `/api/canvas/annotation/${created.annotation.id}`,
+      {
+        method: 'DELETE',
+      },
+    );
 
     expect(removed.removed).toBe(created.annotation.id);
     expect((await jsonRequest<CanvasStateResponse>('/api/canvas/state')).annotations).toEqual([]);
@@ -656,7 +693,7 @@ describe('canvas server HTTP API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'image', content: fakeImagePath, title: 'Fake image' }),
     });
-    const payload = await response.json() as { ok: boolean; error: string };
+    const payload = (await response.json()) as { ok: boolean; error: string };
 
     expect(response.status).toBe(400);
     expect(payload.ok).toBe(false);
@@ -670,7 +707,7 @@ describe('canvas server HTTP API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'image', content: join(workspaceRoot, 'missing.png'), title: 'Missing image' }),
     });
-    const payload = await response.json() as { ok: boolean; error: string };
+    const payload = (await response.json()) as { ok: boolean; error: string };
 
     expect(response.status).toBe(400);
     expect(payload.ok).toBe(false);
@@ -706,7 +743,7 @@ describe('canvas server HTTP API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'html', title: 'Invalid html numeric', html: 123 }),
     });
-    const topLevelPayload = await topLevelResponse.json() as { ok: boolean; error: string };
+    const topLevelPayload = (await topLevelResponse.json()) as { ok: boolean; error: string };
 
     expect(topLevelResponse.status).toBe(400);
     expect(topLevelPayload.ok).toBe(false);
@@ -717,7 +754,7 @@ describe('canvas server HTTP API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'html', title: 'Invalid nested html', data: { html: 123 } }),
     });
-    const dataPayload = await dataResponse.json() as { ok: boolean; error: string };
+    const dataPayload = (await dataResponse.json()) as { ok: boolean; error: string };
 
     expect(dataResponse.status).toBe(400);
     expect(dataPayload.ok).toBe(false);
@@ -768,7 +805,9 @@ describe('canvas server HTTP API', () => {
     expect(created.data.html).toContain('Copy JSON');
     expect(created.data.html).toContain('Use HTML');
 
-    const search = await jsonRequest<{ results: Array<{ id: string; snippet: string }> }>('/api/canvas/search?q=side-by-side');
+    const search = await jsonRequest<{ results: Array<{ id: string; snippet: string }> }>(
+      '/api/canvas/search?q=side-by-side',
+    );
     expect(search.results.some((result) => result.id === created.id)).toBe(true);
   });
 
@@ -785,9 +824,7 @@ describe('canvas server HTTP API', () => {
         kind: 'choice-grid',
         title: 'Query Primitive Options',
         data: {
-          items: [
-            { title: 'Query type', summary: 'Routes through html-primitive instead of markdown.' },
-          ],
+          items: [{ title: 'Query type', summary: 'Routes through html-primitive instead of markdown.' }],
         },
       }),
     });
@@ -796,7 +833,11 @@ describe('canvas server HTTP API', () => {
     expect(created.type).toBe('html');
     expect(created.primitive.kind).toBe('choice-grid');
     expect(created.data.htmlPrimitive).toBe('choice-grid');
-    expect(canvasState.getLayout().nodes.some((node) => node.type === 'markdown' && node.data.title === 'Query Primitive Options')).toBe(false);
+    expect(
+      canvasState
+        .getLayout()
+        .nodes.some((node) => node.type === 'markdown' && node.data.title === 'Query Primitive Options'),
+    ).toBe(false);
   });
 
   test('presentation primitives persist slide metadata for agents', async () => {
@@ -830,11 +871,13 @@ describe('canvas server HTTP API', () => {
     expect(created.data.slideCount).toBe(2);
     expect(created.data.slideTitles).toEqual(['Why now', 'What ships']);
     expect(created.data.speakerNotes).toEqual(['Open with the customer impact.']);
-    expect(created.data.primitiveData).toEqual(expect.objectContaining({
-      presentation: true,
-      slideCount: 2,
-      slideTitles: ['Why now', 'What ships'],
-    }));
+    expect(created.data.primitiveData).toEqual(
+      expect.objectContaining({
+        presentation: true,
+        slideCount: 2,
+        slideTitles: ['Why now', 'What ships'],
+      }),
+    );
     expect(created.data.html).toContain('PMX presentation');
     expect(created.data.html).toContain('Page Up/Down');
     expect(created.data.html).not.toContain('Copy JSON');
@@ -853,7 +896,9 @@ describe('canvas server HTTP API', () => {
     }
     expect(created.content).toContain('Slides: Why now, What ships');
 
-    const search = await jsonRequest<{ results: Array<{ id: string; snippet: string }> }>('/api/canvas/search?q=What%20ships');
+    const search = await jsonRequest<{ results: Array<{ id: string; snippet: string }> }>(
+      '/api/canvas/search?q=What%20ships',
+    );
     expect(search.results.some((result) => result.id === created.id)).toBe(true);
   });
 
@@ -952,7 +997,7 @@ describe('canvas server HTTP API', () => {
 
     expect(response.ok).toBe(false);
     expect(response.status).toBe(400);
-    const body = await response.json() as { error: string };
+    const body = (await response.json()) as { error: string };
     expect(body.error).toContain('Invalid presentation theme');
     expect(canvasState.getLayout().nodes.some((node) => node.data.title === 'Bad Theme Deck')).toBe(false);
   });
@@ -992,8 +1037,12 @@ describe('canvas server HTTP API', () => {
     expect(created.data.embeddedUrls).toEqual(['/api/canvas/json-render/view?nodeId=graph-source-1']);
     expect(created.content).toContain('Explicit semantic summary');
 
-    const search = await jsonRequest<{ results: Array<{ id: string; snippet: string }> }>('/api/canvas/search?q=revenue');
-    expect(search.results.some((result) => result.id === created.id && result.snippet.includes('Revenue climbed'))).toBe(true);
+    const search = await jsonRequest<{ results: Array<{ id: string; snippet: string }> }>(
+      '/api/canvas/search?q=revenue',
+    );
+    expect(
+      search.results.some((result) => result.id === created.id && result.snippet.includes('Revenue climbed')),
+    ).toBe(true);
 
     await jsonRequest<{ ok: boolean; count: number }>('/api/canvas/context-pins', {
       method: 'POST',
@@ -1006,15 +1055,19 @@ describe('canvas server HTTP API', () => {
     }>('/api/canvas/pinned-context');
     expect(pinnedContext.preamble).toContain('Explicit semantic summary');
     expect(pinnedContext.preamble).toContain('Quarterly HTML Report');
-    expect(pinnedContext.nodes[0]?.metadata).toEqual(expect.objectContaining({
-      summary: 'Explicit semantic summary for the report.',
-      embeddedNodeIds: ['graph-source-1'],
-    }));
+    expect(pinnedContext.nodes[0]?.metadata).toEqual(
+      expect.objectContaining({
+        summary: 'Explicit semantic summary for the report.',
+        embeddedNodeIds: ['graph-source-1'],
+      }),
+    );
 
     const updated = await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ data: { html: '<main><h1>Updated HTML Report</h1><p>Churn dropped after the update.</p></main>' } }),
+      body: JSON.stringify({
+        data: { html: '<main><h1>Updated HTML Report</h1><p>Churn dropped after the update.</p></main>' },
+      }),
     });
     expect(updated.data.contentSummary).toContain('Updated HTML Report');
     expect(updated.data.contentSummary).toContain('Churn dropped');
@@ -1078,7 +1131,7 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ sessionId: opened.sessionId }),
     });
     expect(toolsAfterDelete.ok).toBe(false);
-    const deleteError = await toolsAfterDelete.json() as { error?: string };
+    const deleteError = (await toolsAfterDelete.json()) as { error?: string };
     expect(deleteError.error?.toLowerCase().includes('not found')).toBe(true);
 
     const reopened = await jsonRequest<{
@@ -1112,7 +1165,7 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ sessionId: reopened.sessionId }),
     });
     expect(toolsAfterClear.ok).toBe(false);
-    const clearError = await toolsAfterClear.json() as { error?: string };
+    const clearError = (await toolsAfterClear.json()) as { error?: string };
     expect(clearError.error?.toLowerCase().includes('not found')).toBe(true);
   });
 
@@ -1121,14 +1174,18 @@ describe('canvas server HTTP API', () => {
       ok: boolean;
       nodeId: string | null;
       sessionId: string;
-    }>('/api/canvas/diagram', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        title: 'Mutable Diagram',
-        elements: [{ type: 'rectangle', id: 'before', x: 0, y: 0, width: 80, height: 50 }],
-      }),
-    }, 15_000);
+    }>(
+      '/api/canvas/diagram',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Mutable Diagram',
+          elements: [{ type: 'rectangle', id: 'before', x: 0, y: 0, width: 80, height: 50 }],
+        }),
+      },
+      15_000,
+    );
     expect(created.ok).toBe(true);
     expect(typeof created.nodeId).toBe('string');
 
@@ -1152,7 +1209,7 @@ describe('canvas server HTTP API', () => {
     expect(state.nodes.filter((node) => node.type === 'mcp-app')).toHaveLength(1);
     const node = state.nodes.find((entry) => entry.id === created.nodeId);
     const toolInput = node?.data.toolInput as { elements?: string } | undefined;
-    const elements = toolInput?.elements ? JSON.parse(toolInput.elements) as Array<Record<string, unknown>> : [];
+    const elements = toolInput?.elements ? (JSON.parse(toolInput.elements) as Array<Record<string, unknown>>) : [];
     expect(elements.some((element) => element.id === 'changed')).toBe(true);
     expect(elements.some((element) => element.id === 'before')).toBe(false);
   }, 30_000);
@@ -1180,11 +1237,14 @@ describe('canvas server HTTP API', () => {
     expect(opened.ok).toBe(true);
     expect(typeof opened.nodeId).toBe('string');
 
-    const saved = await jsonRequest<{ ok: boolean; id: string; snapshot: { id: string; name: string } }>('/api/canvas/snapshots', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'counter-snapshot' }),
-    });
+    const saved = await jsonRequest<{ ok: boolean; id: string; snapshot: { id: string; name: string } }>(
+      '/api/canvas/snapshots',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'counter-snapshot' }),
+      },
+    );
     expect(saved.id).toBe(saved.snapshot.id);
     expect(saved.snapshot.name).toBe('counter-snapshot');
 
@@ -1234,7 +1294,6 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ sessionId: restoredSessionId }),
     });
     expect(newSession.ok).toBe(true);
-
   }, 30000);
 
   test('persists app model context from ext-app tool results', async () => {
@@ -1281,26 +1340,23 @@ describe('canvas server HTTP API', () => {
     });
     expect(toolResponse.ok).toBe(true);
 
-    const updatedNode = await waitForNode(
-      baseUrl,
-      (entry) => {
-        const modelContext = entry.data.appModelContext as
-          | { structuredContent?: { count?: number } }
-          | undefined;
-        return (
-          entry.id === node?.id &&
-          modelContext?.structuredContent?.count === 3
-        );
-      },
-    );
+    const updatedNode = await waitForNode(baseUrl, (entry) => {
+      const modelContext = entry.data.appModelContext as { structuredContent?: { count?: number } } | undefined;
+      return entry.id === node?.id && modelContext?.structuredContent?.count === 3;
+    });
     expect(updatedNode).toBeTruthy();
   }, 30000);
 
   test('surface route serves an html node as a themed standalone document', async () => {
     canvasState.addNode({
-      id: 'surface-html', type: 'html',
-      position: { x: 0, y: 0 }, size: { width: 720, height: 640 },
-      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'surface-html',
+      type: 'html',
+      position: { x: 0, y: 0 },
+      size: { width: 720, height: 640 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: { title: 'Doc', html: '<main>Surface body</main>' },
     });
     const res = await fetch(`${baseUrl}/api/canvas/surface/surface-html?theme=light`);
@@ -1317,15 +1373,22 @@ describe('canvas server HTTP API', () => {
     // browser tab shows "Doc" instead of the raw surface URL.
     expect(body).toContain('<title>Doc</title>');
 
-    const meta = await fetch(`${baseUrl}/api/canvas/node/surface-html?includeBlobs=true`).then((r) => r.json()) as { surfaceUrl?: string };
+    const meta = (await fetch(`${baseUrl}/api/canvas/node/surface-html?includeBlobs=true`).then((r) => r.json())) as {
+      surfaceUrl?: string;
+    };
     expect(meta.surfaceUrl).toBe('/api/canvas/surface/surface-html');
   });
 
   test('surface route falls back to the node id for the tab title when no node title is set', async () => {
     canvasState.addNode({
-      id: 'surface-untitled', type: 'html',
-      position: { x: 0, y: 0 }, size: { width: 720, height: 640 },
-      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'surface-untitled',
+      type: 'html',
+      position: { x: 0, y: 0 },
+      size: { width: 720, height: 640 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: { title: '   ', html: '<main>Body</main>' }, // whitespace-only → falls back to id
     });
     const res = await fetch(`${baseUrl}/api/canvas/surface/surface-untitled`);
@@ -1337,9 +1400,14 @@ describe('canvas server HTTP API', () => {
     const missing = await fetch(`${baseUrl}/api/canvas/surface/does-not-exist`);
     expect(missing.status).toBe(404);
     canvasState.addNode({
-      id: 'surface-md', type: 'markdown',
-      position: { x: 0, y: 0 }, size: { width: 400, height: 300 },
-      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'surface-md',
+      type: 'markdown',
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: { content: '# hi' },
     });
     const md = await fetch(`${baseUrl}/api/canvas/surface/surface-md`);
@@ -1348,9 +1416,14 @@ describe('canvas server HTTP API', () => {
 
   test('surface route redirects a webpage node to its external url', async () => {
     canvasState.addNode({
-      id: 'surface-web', type: 'webpage',
-      position: { x: 0, y: 0 }, size: { width: 600, height: 400 },
-      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'surface-web',
+      type: 'webpage',
+      position: { x: 0, y: 0 },
+      size: { width: 600, height: 400 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: { url: `${webpageOrigin}/article` },
     });
     const res = await fetch(`${baseUrl}/api/canvas/surface/surface-web`, { redirect: 'manual' });
@@ -1360,9 +1433,14 @@ describe('canvas server HTTP API', () => {
 
   test('surface route redirects a web-artifact node to the artifact route', async () => {
     canvasState.addNode({
-      id: 'surface-artifact', type: 'mcp-app',
-      position: { x: 0, y: 0 }, size: { width: 960, height: 720 },
-      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'surface-artifact',
+      type: 'mcp-app',
+      position: { x: 0, y: 0 },
+      size: { width: 960, height: 720 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: { viewerType: 'web-artifact', path: '/tmp/does-not-matter.html', url: '/artifact?path=x' },
     });
     const res = await fetch(`${baseUrl}/api/canvas/surface/surface-artifact`, { redirect: 'manual' });
@@ -1372,9 +1450,14 @@ describe('canvas server HTTP API', () => {
 
   test('surface route redirects a json-render node to the standalone viewer', async () => {
     canvasState.addNode({
-      id: 'surface-jsonrender', type: 'json-render',
-      position: { x: 0, y: 0 }, size: { width: 600, height: 400 },
-      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'surface-jsonrender',
+      type: 'json-render',
+      position: { x: 0, y: 0 },
+      size: { width: 600, height: 400 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: { viewerType: 'json-render', spec: { root: 'x', elements: {} } },
     });
     const res = await fetch(`${baseUrl}/api/canvas/surface/surface-jsonrender?theme=dark`, { redirect: 'manual' });
@@ -1389,9 +1472,14 @@ describe('canvas server HTTP API', () => {
 
   test('#65: the standalone viewer renders in full-viewport (site) mode', async () => {
     canvasState.addNode({
-      id: 'surface-graph-65', type: 'graph',
-      position: { x: 0, y: 0 }, size: { width: 760, height: 520 },
-      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'surface-graph-65',
+      type: 'graph',
+      position: { x: 0, y: 0 },
+      size: { width: 760, height: 520 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: {
         viewerType: 'graph',
         graphConfig: { graphType: 'bar', height: 320 },
@@ -1408,9 +1496,14 @@ describe('canvas server HTTP API', () => {
 
   test('surface route 404s a hosted ext-app node — it is not openable as a standalone site (#61)', async () => {
     canvasState.addNode({
-      id: 'surface-extapp', type: 'mcp-app',
-      position: { x: 0, y: 0 }, size: { width: 960, height: 720 },
-      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'surface-extapp',
+      type: 'mcp-app',
+      position: { x: 0, y: 0 },
+      size: { width: 960, height: 720 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: { mode: 'ext-app', html: '<!doctype html><html><head></head><body>ext app surface</body></html>' },
     });
     // A hosted ext-app is a live MCP-app shell needing the in-canvas AppBridge host; a
@@ -1422,9 +1515,14 @@ describe('canvas server HTTP API', () => {
 
   test('surface route blocks unsafe redirect targets', async () => {
     canvasState.addNode({
-      id: 'surface-bad-url', type: 'webpage',
-      position: { x: 0, y: 0 }, size: { width: 600, height: 400 },
-      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'surface-bad-url',
+      type: 'webpage',
+      position: { x: 0, y: 0 },
+      size: { width: 600, height: 400 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: { url: 'javascript:alert(1)' },
     });
     const res = await fetch(`${baseUrl}/api/canvas/surface/surface-bad-url`, { redirect: 'manual' });
@@ -1433,15 +1531,29 @@ describe('canvas server HTTP API', () => {
 
   test('surface route injects the AX bridge only for opted-in html nodes', async () => {
     canvasState.addNode({
-      id: 'surf-ax-off', type: 'html',
-      position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'surf-ax-off',
+      type: 'html',
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: { html: '<main>x</main>' },
     });
-    expect((await (await fetch(`${baseUrl}/api/canvas/surface/surf-ax-off`)).text()).includes('window.PMX_AX')).toBe(false);
+    expect((await (await fetch(`${baseUrl}/api/canvas/surface/surf-ax-off`)).text()).includes('window.PMX_AX')).toBe(
+      false,
+    );
 
     canvasState.addNode({
-      id: 'surf-ax-on', type: 'html',
-      position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'surf-ax-on',
+      type: 'html',
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: { html: '<main>x</main>', axCapabilities: { enabled: true, allowed: ['ax.work.create'] } },
     });
     const on = await (await fetch(`${baseUrl}/api/canvas/surface/surf-ax-on?axToken=ax-test`)).text();
@@ -1451,8 +1563,14 @@ describe('canvas server HTTP API', () => {
 
   test('surface route falls back to content, 404s when html node is empty', async () => {
     canvasState.addNode({
-      id: 'surf-content', type: 'html',
-      position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'surf-content',
+      type: 'html',
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: { content: '<main>from content</main>' },
     });
     const c = await fetch(`${baseUrl}/api/canvas/surface/surf-content`);
@@ -1460,8 +1578,14 @@ describe('canvas server HTTP API', () => {
     expect(await c.text()).toContain('from content');
 
     canvasState.addNode({
-      id: 'surf-empty', type: 'html',
-      position: { x: 0, y: 0 }, size: { width: 400, height: 300 }, zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'surf-empty',
+      type: 'html',
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: {},
     });
     expect((await fetch(`${baseUrl}/api/canvas/surface/surf-empty`)).status).toBe(404);
@@ -1469,17 +1593,28 @@ describe('canvas server HTTP API', () => {
 
   test('ax interaction creates a work item from an eligible node', async () => {
     canvasState.addNode({
-      id: 'ax-status', type: 'status',
-      position: { x: 0, y: 0 }, size: { width: 300, height: 200 },
-      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'ax-status',
+      type: 'status',
+      position: { x: 0, y: 0 },
+      size: { width: 300, height: 200 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: { title: 'Build' },
     });
     const res = await fetch(`${baseUrl}/api/canvas/ax/interaction`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'ax.work.create', sourceNodeId: 'ax-status', payload: { title: 'Ship it' }, source: 'cli' }),
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'ax.work.create',
+        sourceNodeId: 'ax-status',
+        payload: { title: 'Ship it' },
+        source: 'cli',
+      }),
     });
     expect(res.status).toBe(200);
-    const json = await res.json() as { ok: boolean; primitive?: { title: string; nodeIds: string[] } };
+    const json = (await res.json()) as { ok: boolean; primitive?: { title: string; nodeIds: string[] } };
     expect(json.ok).toBe(true);
     expect(json.primitive?.title).toBe('Ship it');
     expect(json.primitive?.nodeIds).toEqual(['ax-status']);
@@ -1488,179 +1623,240 @@ describe('canvas server HTTP API', () => {
 
   test('ax interaction rejects a disallowed interaction type', async () => {
     canvasState.addNode({
-      id: 'ax-file', type: 'file',
-      position: { x: 0, y: 0 }, size: { width: 300, height: 200 },
-      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'ax-file',
+      type: 'file',
+      position: { x: 0, y: 0 },
+      size: { width: 300, height: 200 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: { path: '/tmp/x.ts' },
     });
     const res = await fetch(`${baseUrl}/api/canvas/ax/interaction`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'ax.steer', sourceNodeId: 'ax-file', payload: { message: 'go' } }),
     });
     expect(res.status).toBe(403);
-    expect(await res.json() as Record<string, unknown>).toMatchObject({ ok: false, code: 'not-allowed' });
+    expect((await res.json()) as Record<string, unknown>).toMatchObject({ ok: false, code: 'not-allowed' });
   });
 
   test('ax interaction respects per-node opt-in for html nodes', async () => {
     canvasState.addNode({
-      id: 'ax-html-off', type: 'html',
-      position: { x: 0, y: 0 }, size: { width: 300, height: 200 },
-      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'ax-html-off',
+      type: 'html',
+      position: { x: 0, y: 0 },
+      size: { width: 300, height: 200 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: { html: '<main>x</main>' },
     });
     const off = await fetch(`${baseUrl}/api/canvas/ax/interaction`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'ax.work.create', sourceNodeId: 'ax-html-off', payload: { title: 'x' } }),
     });
     expect(off.status).toBe(403);
-    expect((await off.json() as { code: string }).code).toBe('ax-disabled');
+    expect(((await off.json()) as { code: string }).code).toBe('ax-disabled');
 
     canvasState.addNode({
-      id: 'ax-html-on', type: 'html',
-      position: { x: 0, y: 0 }, size: { width: 300, height: 200 },
-      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'ax-html-on',
+      type: 'html',
+      position: { x: 0, y: 0 },
+      size: { width: 300, height: 200 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: { html: '<main>x</main>', axCapabilities: { enabled: true, allowed: ['ax.work.create'] } },
     });
     const on = await fetch(`${baseUrl}/api/canvas/ax/interaction`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'ax.work.create', sourceNodeId: 'ax-html-on', payload: { title: 'opted in' } }),
     });
     expect(on.status).toBe(200);
-    expect((await on.json() as { ok: boolean }).ok).toBe(true);
+    expect(((await on.json()) as { ok: boolean }).ok).toBe(true);
   });
 
   test('ax interaction rejects unknown node and invalid payload', async () => {
     const unknown = await fetch(`${baseUrl}/api/canvas/ax/interaction`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'ax.work.create', sourceNodeId: 'nope', payload: { title: 'x' } }),
     });
     expect(unknown.status).toBe(404);
     canvasState.addNode({
-      id: 'ax-status-2', type: 'status',
-      position: { x: 0, y: 0 }, size: { width: 300, height: 200 },
-      zIndex: 1, collapsed: false, pinned: false, dockPosition: null,
+      id: 'ax-status-2',
+      type: 'status',
+      position: { x: 0, y: 0 },
+      size: { width: 300, height: 200 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
       data: {},
     });
     const bad = await fetch(`${baseUrl}/api/canvas/ax/interaction`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'ax.work.create', sourceNodeId: 'ax-status-2', payload: {} }),
     });
     expect(bad.status).toBe(400);
-    expect((await bad.json() as { code: string }).code).toBe('invalid-payload');
+    expect(((await bad.json()) as { code: string }).code).toBe('invalid-payload');
   });
 
   test('ax delivery: pending query, loop prevention, and mark', async () => {
     const steer = await fetch(`${baseUrl}/api/canvas/ax/steer`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: 'focus on the failing test', source: 'copilot' }),
     });
-    const steering = (await steer.json() as { steering: { id: string } }).steering;
+    const steering = ((await steer.json()) as { steering: { id: string } }).steering;
 
     const seenByMcp = async () => {
       const r = await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=mcp`);
-      const body = await r.json() as { pending: Array<{ id: string }> };
+      const body = (await r.json()) as { pending: Array<{ id: string }> };
       return body.pending.some((s) => s.id === steering.id);
     };
 
     // Visible to a different consumer...
     expect(await seenByMcp()).toBe(true);
     // ...but excluded for the originating consumer (loop prevention).
-    const copilotPending = await (await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot`)).json() as { pending: Array<{ id: string }> };
+    const copilotPending = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot`)
+    ).json()) as { pending: Array<{ id: string }> };
     expect(copilotPending.pending.some((s) => s.id === steering.id)).toBe(false);
 
     // Mark delivered, then it drops out of pending.
-    const mark = await (await fetch(`${baseUrl}/api/canvas/ax/delivery/${encodeURIComponent(steering.id)}/mark`, { method: 'POST' })).json() as { ok: boolean; delivered: boolean };
+    const mark = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/delivery/${encodeURIComponent(steering.id)}/mark`, { method: 'POST' })
+    ).json()) as { ok: boolean; delivered: boolean };
     expect(mark.delivered).toBe(true);
     expect(await seenByMcp()).toBe(false);
   });
 
   test('ax elicitation: request, list, respond lifecycle', async () => {
-    const req = await (await fetch(`${baseUrl}/api/canvas/ax/elicitation`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ prompt: 'Who owns this?', fields: ['owner'], source: 'cli' }),
-    })).json() as { ok: boolean; elicitation: { id: string; status: string } };
+    const req = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/elicitation`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ prompt: 'Who owns this?', fields: ['owner'], source: 'cli' }),
+      })
+    ).json()) as { ok: boolean; elicitation: { id: string; status: string } };
     expect(req.ok).toBe(true);
     expect(req.elicitation.status).toBe('pending');
 
-    const list = await (await fetch(`${baseUrl}/api/canvas/ax/elicitation`)).json() as { elicitations: Array<{ id: string }> };
+    const list = (await (await fetch(`${baseUrl}/api/canvas/ax/elicitation`)).json()) as {
+      elicitations: Array<{ id: string }>;
+    };
     expect(list.elicitations.some((e) => e.id === req.elicitation.id)).toBe(true);
 
-    const respond = await (await fetch(`${baseUrl}/api/canvas/ax/elicitation/${encodeURIComponent(req.elicitation.id)}/respond`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ response: { owner: 'alice' } }),
-    })).json() as { ok: boolean; elicitation: { status: string; response: Record<string, unknown> } };
+    const respond = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/elicitation/${encodeURIComponent(req.elicitation.id)}/respond`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response: { owner: 'alice' } }),
+      })
+    ).json()) as { ok: boolean; elicitation: { status: string; response: Record<string, unknown> } };
     expect(respond.elicitation.status).toBe('answered');
     expect(respond.elicitation.response).toEqual({ owner: 'alice' });
 
     // answered → snapshotted in ax state
-    const ax = await (await fetch(`${baseUrl}/api/canvas/ax`)).json() as { state: { elicitations: Array<{ id: string; status: string }> } };
+    const ax = (await (await fetch(`${baseUrl}/api/canvas/ax`)).json()) as {
+      state: { elicitations: Array<{ id: string; status: string }> };
+    };
     expect(ax.state.elicitations.find((e) => e.id === req.elicitation.id)?.status).toBe('answered');
   });
 
   test('ax mode: request and resolve lifecycle', async () => {
-    const req = await (await fetch(`${baseUrl}/api/canvas/ax/mode`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ mode: 'execute', reason: 'plan approved', source: 'cli' }),
-    })).json() as { ok: boolean; modeRequest: { id: string; mode: string; status: string } };
+    const req = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/mode`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode: 'execute', reason: 'plan approved', source: 'cli' }),
+      })
+    ).json()) as { ok: boolean; modeRequest: { id: string; mode: string; status: string } };
     expect(req.modeRequest.mode).toBe('execute');
     expect(req.modeRequest.status).toBe('pending');
 
     const bad = await fetch(`${baseUrl}/api/canvas/ax/mode`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ mode: 'turbo' }),
     });
     expect(bad.status).toBe(400);
 
-    const resolve = await (await fetch(`${baseUrl}/api/canvas/ax/mode/${encodeURIComponent(req.modeRequest.id)}/resolve`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ decision: 'approved', resolution: 'go' }),
-    })).json() as { ok: boolean; modeRequest: { status: string; resolution: string } };
+    const resolve = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/mode/${encodeURIComponent(req.modeRequest.id)}/resolve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ decision: 'approved', resolution: 'go' }),
+      })
+    ).json()) as { ok: boolean; modeRequest: { status: string; resolution: string } };
     expect(resolve.modeRequest.status).toBe('approved');
     expect(resolve.modeRequest.resolution).toBe('go');
   });
 
   test('ax command: registry list + registry-gated invoke', async () => {
-    const list = await (await fetch(`${baseUrl}/api/canvas/ax/command`)).json() as { commands: Array<{ name: string }> };
+    const list = (await (await fetch(`${baseUrl}/api/canvas/ax/command`)).json()) as {
+      commands: Array<{ name: string }>;
+    };
     expect(list.commands.some((c) => c.name === 'pmx.plan')).toBe(true);
 
     const ok = await fetch(`${baseUrl}/api/canvas/ax/command`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'pmx.plan', args: { note: 'x' }, source: 'cli' }),
     });
     expect(ok.status).toBe(200);
-    const okBody = await ok.json() as { ok: boolean; event: { kind: string; data: { command: string } } };
+    const okBody = (await ok.json()) as { ok: boolean; event: { kind: string; data: { command: string } } };
     expect(okBody.event.kind).toBe('command');
     expect(okBody.event.data.command).toBe('pmx.plan');
 
     const bad = await fetch(`${baseUrl}/api/canvas/ax/command`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ name: 'definitely-not-a-command' }),
     });
     expect(bad.status).toBe(400);
   });
 
   test('ax policy: defaults empty, merges on set, exposed in context', async () => {
-    const initial = await (await fetch(`${baseUrl}/api/canvas/ax/policy`)).json() as { policy: { tools: { excluded: string[] } } };
+    const initial = (await (await fetch(`${baseUrl}/api/canvas/ax/policy`)).json()) as {
+      policy: { tools: { excluded: string[] } };
+    };
     expect(initial.policy.tools.excluded).toEqual([]);
 
     await fetch(`${baseUrl}/api/canvas/ax/policy`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tools: { excluded: ['shell', 'write'] }, prompt: { mode: 'concise' }, source: 'cli' }),
     });
-    const set = await (await fetch(`${baseUrl}/api/canvas/ax/policy`)).json() as { policy: { tools: { excluded: string[] }; prompt: { mode: string } } };
+    const set = (await (await fetch(`${baseUrl}/api/canvas/ax/policy`)).json()) as {
+      policy: { tools: { excluded: string[] }; prompt: { mode: string } };
+    };
     expect(set.policy.tools.excluded).toEqual(['shell', 'write']);
     expect(set.policy.prompt.mode).toBe('concise');
 
     // merge: setting prompt does not wipe tools
     await fetch(`${baseUrl}/api/canvas/ax/policy`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ prompt: { systemAppend: 'be terse' } }),
     });
-    const merged = await (await fetch(`${baseUrl}/api/canvas/ax/policy`)).json() as { policy: { tools: { excluded: string[] }; prompt: { mode: string; systemAppend: string } } };
+    const merged = (await (await fetch(`${baseUrl}/api/canvas/ax/policy`)).json()) as {
+      policy: { tools: { excluded: string[] }; prompt: { mode: string; systemAppend: string } };
+    };
     expect(merged.policy.tools.excluded).toEqual(['shell', 'write']);
     expect(merged.policy.prompt.systemAppend).toBe('be terse');
 
-    const ctx = await (await fetch(`${baseUrl}/api/canvas/ax/context`)).json() as { policy?: { tools: { excluded: string[] } } };
+    const ctx = (await (await fetch(`${baseUrl}/api/canvas/ax/context`)).json()) as {
+      policy?: { tools: { excluded: string[] } };
+    };
     expect(ctx.policy?.tools.excluded).toEqual(['shell', 'write']);
   });
 
@@ -1680,7 +1876,9 @@ describe('canvas server HTTP API', () => {
     // The viewer bundle *references* the bridge globals by name (buildAxHandlers
     // reads them), so the identifiers always appear. The injection is gated on the
     // token *value*: only present when both nodeId and axToken are supplied.
-    const withToken = await (await fetch(`${baseUrl}/api/canvas/json-render/view?nodeId=${created.id}&axToken=ax-probe`)).text();
+    const withToken = await (
+      await fetch(`${baseUrl}/api/canvas/json-render/view?nodeId=${created.id}&axToken=ax-probe`)
+    ).text();
     expect(withToken).toContain('window.__PMX_CANVAS_AX_TOKEN__ = "ax-probe"');
     expect(withToken).toContain(`window.__PMX_CANVAS_JSON_RENDER_NODE_ID__ = "${created.id}"`);
 
@@ -1818,7 +2016,7 @@ describe('canvas server HTTP API', () => {
       }),
     });
     expect(readResponse.ok).toBe(true);
-    const read = await readResponse.json() as { result: { content: Array<{ text?: string }> } };
+    const read = (await readResponse.json()) as { result: { content: Array<{ text?: string }> } };
     expect(read.result.content[0]?.text).toBe('{"elements":[{"id":"manual"}]}');
   });
 
@@ -1879,9 +2077,7 @@ describe('canvas server HTTP API', () => {
         serverName: 'Excalidraw',
         toolName: 'create_view',
         toolArguments: {
-          elements: JSON.stringify([
-            { type: 'rectangle', id: 'original', x: 0, y: 0, width: 10, height: 10 },
-          ]),
+          elements: JSON.stringify([{ type: 'rectangle', id: 'original', x: 0, y: 0, width: 10, height: 10 }]),
         },
         transport: {
           type: 'stdio',
@@ -1910,7 +2106,7 @@ describe('canvas server HTTP API', () => {
       }),
     });
     expect(initialReadResponse.ok).toBe(true);
-    const initialRead = await initialReadResponse.json() as { result: { content: Array<{ text?: string }> } };
+    const initialRead = (await initialReadResponse.json()) as { result: { content: Array<{ text?: string }> } };
     expect(initialRead.result.content[0]?.text).toBe('');
 
     const wrongSessionReadResponse = await fetch(`${baseUrl}/api/ext-app/call-tool`, {
@@ -1964,7 +2160,7 @@ describe('canvas server HTTP API', () => {
       }),
     });
     expect(readResponse.ok).toBe(true);
-    const read = await readResponse.json() as { result: { content: Array<{ text?: string }> } };
+    const read = (await readResponse.json()) as { result: { content: Array<{ text?: string }> } };
     expect(read.result.content[0]?.text).toContain('"id":"edited"');
   });
 
@@ -1982,9 +2178,7 @@ describe('canvas server HTTP API', () => {
         serverName: 'Excalidraw',
         toolName: 'create_view',
         toolArguments: {
-          elements: JSON.stringify([
-            { type: 'rectangle', id: 'box', x: 0, y: 0, width: 10, height: 10 },
-          ]),
+          elements: JSON.stringify([{ type: 'rectangle', id: 'box', x: 0, y: 0, width: 10, height: 10 }]),
         },
         transport: {
           type: 'stdio',
@@ -2029,9 +2223,7 @@ describe('canvas server HTTP API', () => {
         serverName: 'Excalidraw',
         toolName: 'create_view',
         toolArguments: {
-          elements: JSON.stringify([
-            { type: 'rectangle', id: 'box', x: 0, y: 0, width: 10, height: 10 },
-          ]),
+          elements: JSON.stringify([{ type: 'rectangle', id: 'box', x: 0, y: 0, width: 10, height: 10 }]),
         },
         x: 100,
         y: 120,
@@ -2089,11 +2281,7 @@ describe('canvas server HTTP API', () => {
     stopCanvasServer();
 
     const persisted = readPersistedCanvasState(workspaceRoot);
-    expect(
-      persisted.nodes.some(
-        (node) => node.type === 'mcp-app' && node.data.title === 'Restart Counter',
-      ),
-    ).toBe(true);
+    expect(persisted.nodes.some((node) => node.type === 'mcp-app' && node.data.title === 'Restart Counter')).toBe(true);
 
     const restarted = startCanvasServer({ workspaceRoot, port: 0 });
     expect(restarted).toBeTruthy();
@@ -2129,9 +2317,7 @@ describe('canvas server HTTP API', () => {
 
     const stateAfterRestart = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
     expect(
-      stateAfterRestart.nodes.some(
-        (node) => node.type === 'markdown' && node.data.title === 'Restart marker',
-      ),
+      stateAfterRestart.nodes.some((node) => node.type === 'markdown' && node.data.title === 'Restart marker'),
     ).toBe(true);
   }, 30000);
 
@@ -2186,7 +2372,9 @@ describe('canvas server HTTP API', () => {
 
     const full = await jsonRequest<CanvasStateResponse>('/api/canvas/state?includeBlobs=true');
     const fullNode = full.nodes.find((entry) => entry.id === 'ext-app-large-blob');
-    expect((fullNode?.data.toolResult as typeof largeToolResult | undefined)?.content[0]?.text).toBe('x'.repeat(20_000));
+    expect((fullNode?.data.toolResult as typeof largeToolResult | undefined)?.content[0]?.text).toBe(
+      'x'.repeat(20_000),
+    );
   });
 
   test('rehydrates Excalidraw checkpoint replay after server restart', async () => {
@@ -2202,9 +2390,7 @@ describe('canvas server HTTP API', () => {
         serverName: 'Excalidraw',
         toolName: 'create_view',
         toolArguments: {
-          elements: JSON.stringify([
-            { type: 'rectangle', id: 'original', x: 0, y: 0, width: 10, height: 10 },
-          ]),
+          elements: JSON.stringify([{ type: 'rectangle', id: 'original', x: 0, y: 0, width: 10, height: 10 }]),
         },
         transport: {
           type: 'stdio',
@@ -2253,16 +2439,16 @@ describe('canvas server HTTP API', () => {
     const restoredNode = await waitForNode(
       baseUrl,
       (entry) =>
-        entry.id === nodeId &&
-        typeof entry.data.appSessionId === 'string' &&
-        entry.data.sessionStatus === 'ready',
+        entry.id === nodeId && typeof entry.data.appSessionId === 'string' && entry.data.sessionStatus === 'ready',
     );
     expect(restoredNode).toBeTruthy();
     const restoredSessionId = restoredNode?.data.appSessionId as string;
     expect(restoredSessionId).toBeTruthy();
     expect(restoredSessionId).not.toBe(opened.sessionId);
 
-    const restoredToolResult = restoredNode?.data.toolResult as { structuredContent?: { checkpointId?: string } } | undefined;
+    const restoredToolResult = restoredNode?.data.toolResult as
+      | { structuredContent?: { checkpointId?: string } }
+      | undefined;
     expect(restoredToolResult?.structuredContent?.checkpointId).toBe(checkpointId);
     const restoredToolInput = restoredNode?.data.toolInput as { elements?: string } | undefined;
     const replayedElements = restoredToolInput?.elements ? JSON.parse(restoredToolInput.elements) : [];
@@ -2280,7 +2466,7 @@ describe('canvas server HTTP API', () => {
       }),
     });
     expect(readResponse.ok).toBe(true);
-    const read = await readResponse.json() as { result: { content: Array<{ text?: string }> } };
+    const read = (await readResponse.json()) as { result: { content: Array<{ text?: string }> } };
     expect(read.result.content[0]?.text).toContain('saved-after-restart');
   }, 30000);
 
@@ -2300,7 +2486,13 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ type: 'markdown', title: 'Arrange me', width: 360, height: 200 }),
     });
 
-    const createdFile = await jsonRequest<{ id: string; position: { x: number; y: number }; path: string | null; content: string | null; data: Record<string, unknown> }>(`/api/canvas/node/${fileNode.id}`);
+    const createdFile = await jsonRequest<{
+      id: string;
+      position: { x: number; y: number };
+      path: string | null;
+      content: string | null;
+      data: Record<string, unknown>;
+    }>(`/api/canvas/node/${fileNode.id}`);
     expect(createdFile.path).toBe(filePath);
     expect(createdFile.content).toBe('export const value = 1;\n');
     expect(createdFile.data.path).toBe(filePath);
@@ -2315,8 +2507,12 @@ describe('canvas server HTTP API', () => {
     expect(arrange.arranged).toBe(2);
     expect(arrange.layout).toBe('column');
 
-    const arrangedFile = await jsonRequest<{ id: string; position: { x: number; y: number } }>(`/api/canvas/node/${fileNode.id}`);
-    const arrangedMarkdown = await jsonRequest<{ id: string; position: { x: number; y: number } }>(`/api/canvas/node/${markdownNode.id}`);
+    const arrangedFile = await jsonRequest<{ id: string; position: { x: number; y: number } }>(
+      `/api/canvas/node/${fileNode.id}`,
+    );
+    const arrangedMarkdown = await jsonRequest<{ id: string; position: { x: number; y: number } }>(
+      `/api/canvas/node/${markdownNode.id}`,
+    );
     expect(arrangedFile.position).toEqual({ x: 40, y: 80 });
     expect(arrangedMarkdown.position).toEqual({ x: 40, y: 304 });
   });
@@ -2362,8 +2558,12 @@ describe('canvas server HTTP API', () => {
       }),
     });
 
-    const groupedFirst = await jsonRequest<{ position: { x: number; y: number }; data: Record<string, unknown> }>(`/api/canvas/node/${first.id}`);
-    const groupedSecond = await jsonRequest<{ position: { x: number; y: number }; data: Record<string, unknown> }>(`/api/canvas/node/${second.id}`);
+    const groupedFirst = await jsonRequest<{ position: { x: number; y: number }; data: Record<string, unknown> }>(
+      `/api/canvas/node/${first.id}`,
+    );
+    const groupedSecond = await jsonRequest<{ position: { x: number; y: number }; data: Record<string, unknown> }>(
+      `/api/canvas/node/${second.id}`,
+    );
     expect(groupedFirst.position).toEqual({ x: 680, y: 160 });
     expect(groupedSecond.position).toEqual({ x: 680, y: 420 });
     expect(groupedFirst.data.parentGroup).toBe(grouped.id);
@@ -2432,7 +2632,7 @@ describe('canvas server HTTP API', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ title: 'Missing children', childIds: ['node-missing-a', 'node-missing-b'] }),
     });
-    const payload = await response.json() as { ok: boolean; error: string };
+    const payload = (await response.json()) as { ok: boolean; error: string };
 
     expect(response.status).toBe(400);
     expect(payload.ok).toBe(false);
@@ -2508,12 +2708,14 @@ describe('canvas server HTTP API', () => {
     expect(validation.collisions).toEqual([]);
     expect(validation.containmentViolations).toEqual([]);
     expect(validation.summary.containments).toBeGreaterThanOrEqual(1);
-    expect(validation.containments).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        groupId: String(batch.refs.frame?.id),
-        childId: String(batch.refs.child?.id),
-      }),
-    ]));
+    expect(validation.containments).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          groupId: String(batch.refs.frame?.id),
+          childId: String(batch.refs.child?.id),
+        }),
+      ]),
+    );
 
     await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
       method: 'POST',
@@ -2579,8 +2781,26 @@ describe('canvas server HTTP API', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-    const a = await post({ type: 'markdown', title: 'GA', content: 'a', x: 100, y: 100, width: 280, height: 180, strictSize: true });
-    const b = await post({ type: 'markdown', title: 'GB', content: 'b', x: 900, y: 600, width: 280, height: 180, strictSize: true });
+    const a = await post({
+      type: 'markdown',
+      title: 'GA',
+      content: 'a',
+      x: 100,
+      y: 100,
+      width: 280,
+      height: 180,
+      strictSize: true,
+    });
+    const b = await post({
+      type: 'markdown',
+      title: 'GB',
+      content: 'b',
+      x: 900,
+      y: 600,
+      width: 280,
+      height: 180,
+      strictSize: true,
+    });
     const group = await jsonRequest<{ id: string }>('/api/canvas/group', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -2751,15 +2971,22 @@ describe('canvas server HTTP API', () => {
 
     expect(batch.ok).toBe(true);
     expect(batch.results[0]?.content).toBe(filePath);
-    expect(batch.results[0]?.data.fileContent).toEqual(expect.objectContaining({
-      omitted: 'file-content',
-      bytes: Buffer.byteLength(content, 'utf-8'),
-    }));
+    expect(batch.results[0]?.data.fileContent).toEqual(
+      expect.objectContaining({
+        omitted: 'file-content',
+        bytes: Buffer.byteLength(content, 'utf-8'),
+      }),
+    );
     expect(String(batch.results[0]?.data.fileContent)).not.toContain('export const value119');
   });
 
   test('creates and refreshes webpage nodes over HTTP with cached text context', async () => {
-    const created = await jsonRequest<{ ok: boolean; id: string; error?: string; fetch: { ok: boolean; error?: string } }>('/api/canvas/node', {
+    const created = await jsonRequest<{
+      ok: boolean;
+      id: string;
+      error?: string;
+      fetch: { ok: boolean; error?: string };
+    }>('/api/canvas/node', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -2769,7 +2996,13 @@ describe('canvas server HTTP API', () => {
     });
     expect(created.fetch.ok).toBe(true);
 
-    const node = await jsonRequest<{ id: string; type: string; url: string | null; content: string | null; data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`);
+    const node = await jsonRequest<{
+      id: string;
+      type: string;
+      url: string | null;
+      content: string | null;
+      data: Record<string, unknown>;
+    }>(`/api/canvas/node/${created.id}`);
     expect(node.type).toBe('webpage');
     expect(node.url).toBe(`${webpageOrigin}/article?v=1`);
     expect(node.content).toContain('Initial webpage content for canvas grounding.');
@@ -2778,7 +3011,9 @@ describe('canvas server HTTP API', () => {
     expect(node.data.status).toBe('ready');
     expect(String(node.data.content)).toContain('Initial webpage content for canvas grounding.');
 
-    const search = await jsonRequest<{ results: Array<{ id: string }> }>(`/api/canvas/search?q=${encodeURIComponent('grounding')}`);
+    const search = await jsonRequest<{ results: Array<{ id: string }> }>(
+      `/api/canvas/search?q=${encodeURIComponent('grounding')}`,
+    );
     expect(search.results.map((result) => result.id)).toContain(created.id);
 
     const refreshed = await jsonRequest<{ ok: boolean; id: string }>(`/api/canvas/node/${created.id}/refresh`, {
@@ -2859,7 +3094,7 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ size: { width: -10, height: 100 } }),
     });
     expect(invalidPatch.status).toBe(400);
-    const invalidPatchBody = await invalidPatch.json() as { ok: boolean; error: string };
+    const invalidPatchBody = (await invalidPatch.json()) as { ok: boolean; error: string };
     expect(invalidPatchBody.ok).toBe(false);
     expect(invalidPatchBody.error).toContain('greater than zero');
 
@@ -2878,7 +3113,11 @@ describe('canvas server HTTP API', () => {
     expect(batchResult.applied).toBe(1);
     expect(batchResult.skipped).toBe(1);
 
-    const updated = await jsonRequest<{ id: string; position: { x: number; y: number }; size: { width: number; height: number } }>(`/api/canvas/node/${created.id}`);
+    const updated = await jsonRequest<{
+      id: string;
+      position: { x: number; y: number };
+      size: { width: number; height: number };
+    }>(`/api/canvas/node/${created.id}`);
     expect(updated.position).toEqual({ x: 200, y: 240 });
     expect(updated.size).toEqual(MARKDOWN_NODE_DEFAULT_SIZE);
   });
@@ -2949,7 +3188,11 @@ describe('canvas server HTTP API', () => {
     expect(history.canUndo).toBe(true);
     expect(history.canRedo).toBe(false);
     expect(history.text).toContain('Updated 1 node (1 moved, 1 collapsed)');
-    expect(history.entries.some((entry) => entry.operationType === 'batch' && entry.description === 'Updated 1 node (1 moved, 1 collapsed)')).toBe(true);
+    expect(
+      history.entries.some(
+        (entry) => entry.operationType === 'batch' && entry.description === 'Updated 1 node (1 moved, 1 collapsed)',
+      ),
+    ).toBe(true);
 
     const undone = await jsonRequest<{ ok: boolean; description: string }>('/api/canvas/undo', {
       method: 'POST',
@@ -3380,7 +3623,7 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ children: [first.id, 123] }),
     });
     expect(malformedPatch.status).toBe(400);
-    const malformedBody = await malformedPatch.json() as { error?: string };
+    const malformedBody = (await malformedPatch.json()) as { error?: string };
     expect(malformedBody.error).toContain('children');
   });
 
@@ -3420,11 +3663,14 @@ describe('canvas server HTTP API', () => {
     expect(stateWithPins.nodes.find((node) => node.id === firstNode.id)?.pinned).toBe(true);
     expect(stateWithPins.nodes.find((node) => node.id === secondNode.id)?.pinned).toBe(false);
 
-    const snapshotSave = await jsonRequest<{ ok: boolean; id: string; snapshot: { id: string; name: string } }>('/api/canvas/snapshots', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: 'before-clear' }),
-    });
+    const snapshotSave = await jsonRequest<{ ok: boolean; id: string; snapshot: { id: string; name: string } }>(
+      '/api/canvas/snapshots',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'before-clear' }),
+      },
+    );
     expect(snapshotSave.id).toBe(snapshotSave.snapshot.id);
     expect(snapshotSave.snapshot.name).toBe('before-clear');
 
@@ -3449,7 +3695,9 @@ describe('canvas server HTTP API', () => {
     }>(`/api/canvas/snapshots/${snapshotSave.snapshot.id}/diff`);
     expect(diff.ok).toBe(true);
     expect(diff.text).toContain('Modified nodes (2):');
-    expect(diff.diff.modifiedNodes.map((node) => node.id)).toEqual(expect.arrayContaining([firstNode.id, secondNode.id]));
+    expect(diff.diff.modifiedNodes.map((node) => node.id)).toEqual(
+      expect.arrayContaining([firstNode.id, secondNode.id]),
+    );
 
     const queryDiff = await jsonRequest<{ ok: boolean; diff: { snapshotName: string } }>(
       `/api/canvas/snapshots/diff?name=${encodeURIComponent(snapshotSave.snapshot.name)}`,
@@ -3644,11 +3892,13 @@ describe('canvas server HTTP API', () => {
     expect(pinnedContext.nodes[0]?.content).toContain('Web artifact: Pinned Artifact');
     expect(pinnedContext.nodes[0]?.content).toContain('App source preview:');
     expect(pinnedContext.nodes[0]?.content).not.toContain('<!DOCTYPE html>');
-    expect(pinnedContext.nodes[0]?.metadata).toEqual(expect.objectContaining({
-      viewerType: 'web-artifact',
-      sourceFiles: ['src/App.tsx'],
-      sourceFileCount: 1,
-    }));
+    expect(pinnedContext.nodes[0]?.metadata).toEqual(
+      expect.objectContaining({
+        viewerType: 'web-artifact',
+        sourceFiles: ['src/App.tsx'],
+        sourceFileCount: 1,
+      }),
+    );
   });
 
   test('pinned-context returns kind for native, graph, and mcp-app subtype nodes', async () => {
@@ -3716,7 +3966,9 @@ describe('canvas server HTTP API', () => {
       preamble: string;
       nodes: Array<{ id: string; type: string; kind: string }>;
     }>('/api/canvas/pinned-context');
-    const kinds = Object.fromEntries(pinnedContext.nodes.map((node) => [node.id, { type: node.type, kind: node.kind }]));
+    const kinds = Object.fromEntries(
+      pinnedContext.nodes.map((node) => [node.id, { type: node.type, kind: node.kind }]),
+    );
 
     expect(kinds[markdown.id]).toEqual({ type: 'markdown', kind: 'markdown' });
     expect(kinds[graph.id]).toEqual({ type: 'graph', kind: 'graph' });
@@ -3776,18 +4028,24 @@ describe('canvas server HTTP API', () => {
     });
     expect(event.event.kind).toBe('tool-start');
 
-    const steering = await jsonRequest<{ ok: boolean; steering: { id: string; message: string } }>('/api/canvas/ax/steer', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: 'focus on the failing test', source: 'api' }),
-    });
+    const steering = await jsonRequest<{ ok: boolean; steering: { id: string; message: string } }>(
+      '/api/canvas/ax/steer',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'focus on the failing test', source: 'api' }),
+      },
+    );
     expect(steering.steering.message).toBe('focus on the failing test');
 
-    const evidence = await jsonRequest<{ ok: boolean; evidence: { id: string; kind: string } }>('/api/canvas/ax/evidence', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind: 'test-output', title: 'unit pass', source: 'api' }),
-    });
+    const evidence = await jsonRequest<{ ok: boolean; evidence: { id: string; kind: string } }>(
+      '/api/canvas/ax/evidence',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'test-output', title: 'unit pass', source: 'api' }),
+      },
+    );
     expect(evidence.evidence.kind).toBe('test-output');
 
     const timeline = await jsonRequest<{
@@ -3808,7 +4066,7 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ kind: 'not-a-real-kind', summary: 'nope' }),
     });
     expect(response.status).toBe(400);
-    const body = await response.json() as { ok: boolean };
+    const body = (await response.json()) as { ok: boolean };
     expect(body.ok).toBe(false);
   });
 
@@ -3819,11 +4077,14 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ type: 'markdown', title: 'AX work node' }),
     });
 
-    const created = await jsonRequest<{ ok: boolean; workItem: { id: string; status: string } }>('/api/canvas/ax/work', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Implement auth', status: 'todo', nodeIds: [node.id], source: 'api' }),
-    });
+    const created = await jsonRequest<{ ok: boolean; workItem: { id: string; status: string } }>(
+      '/api/canvas/ax/work',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Implement auth', status: 'todo', nodeIds: [node.id], source: 'api' }),
+      },
+    );
     expect(created.workItem.status).toBe('todo');
 
     const updated = await jsonRequest<{ ok: boolean; workItem: { status: string } }>(
@@ -3843,11 +4104,14 @@ describe('canvas server HTTP API', () => {
     });
     expect(missing.status).toBe(404);
 
-    const gate = await jsonRequest<{ ok: boolean; approvalGate: { id: string; status: string } }>('/api/canvas/ax/approval', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Deploy to prod', action: 'deploy.prod', source: 'api' }),
-    });
+    const gate = await jsonRequest<{ ok: boolean; approvalGate: { id: string; status: string } }>(
+      '/api/canvas/ax/approval',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: 'Deploy to prod', action: 'deploy.prod', source: 'api' }),
+      },
+    );
     expect(gate.approvalGate.status).toBe('pending');
 
     const resolved = await jsonRequest<{ ok: boolean; approvalGate: { status: string } }>(
@@ -3869,26 +4133,33 @@ describe('canvas server HTTP API', () => {
   });
 
   test('AX review annotation and host capability endpoints round-trip over HTTP', async () => {
-    const review = await jsonRequest<{ ok: boolean; reviewAnnotation: { id: string; status: string; severity: string } }>(
-      '/api/canvas/ax/review',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: 'off-by-one', kind: 'finding', severity: 'error', anchorType: 'file', file: 'src/x.ts', source: 'api' }),
-      },
-    );
+    const review = await jsonRequest<{
+      ok: boolean;
+      reviewAnnotation: { id: string; status: string; severity: string };
+    }>('/api/canvas/ax/review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        body: 'off-by-one',
+        kind: 'finding',
+        severity: 'error',
+        anchorType: 'file',
+        file: 'src/x.ts',
+        source: 'api',
+      }),
+    });
     expect(review.reviewAnnotation.severity).toBe('error');
 
     // #39: a body-only review annotation (no anchorType, no nodeId) succeeds as an
     // unanchored note instead of 400ing — anchorType is documented optional.
-    const bodyOnly = await jsonRequest<{ ok: boolean; reviewAnnotation: { id: string; anchorType: string; nodeId: string | null } }>(
-      '/api/canvas/ax/review',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ body: 'general note, no anchor', source: 'api' }),
-      },
-    );
+    const bodyOnly = await jsonRequest<{
+      ok: boolean;
+      reviewAnnotation: { id: string; anchorType: string; nodeId: string | null };
+    }>('/api/canvas/ax/review', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body: 'general note, no anchor', source: 'api' }),
+    });
     expect(bodyOnly.ok).toBe(true);
     expect(bodyOnly.reviewAnnotation.anchorType).toBe('file');
     expect(bodyOnly.reviewAnnotation.nodeId).toBeNull();
@@ -3925,7 +4196,7 @@ describe('canvas server HTTP API', () => {
       body: '',
     });
     expect(empty.status).toBe(400);
-    expect((await empty.json() as { error: string }).error).toContain("requires a 'type'");
+    expect(((await empty.json()) as { error: string }).error).toContain("requires a 'type'");
     expect(canvasState.getLayout().nodes).toHaveLength(0);
 
     // ?type= query still resolves the type (no body needed).
@@ -3941,16 +4212,24 @@ describe('canvas server HTTP API', () => {
     const created = await jsonRequest<{ ok: boolean; id: string; data: Record<string, unknown> }>('/api/canvas/node', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'html', title: 'AX html', html: '<p>one</p>', axCapabilities: { enabled: true, allowed: ['ax.steer'] } }),
+      body: JSON.stringify({
+        type: 'html',
+        title: 'AX html',
+        html: '<p>one</p>',
+        axCapabilities: { enabled: true, allowed: ['ax.steer'] },
+      }),
     });
     expect(created.data.html).toBe('<p>one</p>');
     expect((created.data.axCapabilities as { enabled?: boolean }).enabled).toBe(true);
 
-    const patched = await jsonRequest<{ ok: boolean; data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ html: '<p>two</p>', axCapabilities: { enabled: false } }),
-    });
+    const patched = await jsonRequest<{ ok: boolean; data: Record<string, unknown> }>(
+      `/api/canvas/node/${created.id}`,
+      {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ html: '<p>two</p>', axCapabilities: { enabled: false } }),
+      },
+    );
     expect(patched.data.html).toBe('<p>two</p>');
     expect((patched.data.axCapabilities as { enabled?: boolean }).enabled).toBe(false);
   });
@@ -3962,7 +4241,7 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ title: 'x', status: 'in_progress' }),
     });
     expect(badCreate.status).toBe(400);
-    expect((await badCreate.json() as { error: string }).error).toContain('in-progress');
+    expect(((await badCreate.json()) as { error: string }).error).toContain('in-progress');
 
     const created = await jsonRequest<{ workItem: { id: string; status: string } }>('/api/canvas/ax/work', {
       method: 'POST',
@@ -3978,7 +4257,9 @@ describe('canvas server HTTP API', () => {
     });
     expect(badPatch.status).toBe(400);
     // The item is unchanged (not silently no-op'd to ok:true).
-    const ax = await (await fetch(`${baseUrl}/api/canvas/ax`)).json() as { state: { workItems: Array<{ id: string; status: string }> } };
+    const ax = (await (await fetch(`${baseUrl}/api/canvas/ax`)).json()) as {
+      state: { workItems: Array<{ id: string; status: string }> };
+    };
     expect(ax.state.workItems.find((w) => w.id === created.workItem.id)?.status).toBe('in-progress');
   });
 
@@ -4013,7 +4294,13 @@ describe('canvas server HTTP API', () => {
     }>('/api/canvas/ax/activity', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind: 'failure', title: 'tsc failed', summary: 'type error in x.ts', nodeIds: [node.id], source: 'api' }),
+      body: JSON.stringify({
+        kind: 'failure',
+        title: 'tsc failed',
+        summary: 'type error in x.ts',
+        nodeIds: [node.id],
+        source: 'api',
+      }),
     });
     expect(failure.workItem?.status).toBe('blocked');
     expect(failure.review?.severity).toBe('error');
@@ -4022,21 +4309,32 @@ describe('canvas server HTTP API', () => {
     expect(failure.event.data?.activityKind).toBe('failure');
 
     // tool-result + success → evidence only (no work item / review)
-    const success = await jsonRequest<{ workItem: unknown; review: unknown; evidence: { kind: string } | null }>('/api/canvas/ax/activity', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind: 'tool-result', title: 'tests passed', outcome: 'success', source: 'api' }),
-    });
+    const success = await jsonRequest<{ workItem: unknown; review: unknown; evidence: { kind: string } | null }>(
+      '/api/canvas/ax/activity',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'tool-result', title: 'tests passed', outcome: 'success', source: 'api' }),
+      },
+    );
     expect(success.evidence?.kind).toBe('tool-result');
     expect(success.workItem).toBeNull();
     expect(success.review).toBeNull();
 
     // reactions overrides: suppress the work item + review on a failure
-    const suppressed = await jsonRequest<{ workItem: unknown; review: unknown; evidence: unknown }>('/api/canvas/ax/activity', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind: 'failure', title: 'noisy', reactions: { workItem: false, review: false }, source: 'api' }),
-    });
+    const suppressed = await jsonRequest<{ workItem: unknown; review: unknown; evidence: unknown }>(
+      '/api/canvas/ax/activity',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'failure',
+          title: 'noisy',
+          reactions: { workItem: false, review: false },
+          source: 'api',
+        }),
+      },
+    );
     expect(suppressed.workItem).toBeNull();
     expect(suppressed.review).toBeNull();
     expect(suppressed.evidence).not.toBeNull();
@@ -4050,11 +4348,20 @@ describe('canvas server HTTP API', () => {
     expect(bad.status).toBe(400);
 
     // Caller data cannot clobber the canonical activityKind/outcome on the event.
-    const clobber = await jsonRequest<{ event: { data: { activityKind?: string; outcome?: string } | null } }>('/api/canvas/ax/activity', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ kind: 'failure', title: 'spoofed', outcome: 'failure', data: { activityKind: 'note', outcome: 'success' }, source: 'api' }),
-    });
+    const clobber = await jsonRequest<{ event: { data: { activityKind?: string; outcome?: string } | null } }>(
+      '/api/canvas/ax/activity',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          kind: 'failure',
+          title: 'spoofed',
+          outcome: 'failure',
+          data: { activityKind: 'note', outcome: 'success' },
+          source: 'api',
+        }),
+      },
+    );
     expect(clobber.event.data?.activityKind).toBe('failure');
     expect(clobber.event.data?.outcome).toBe('failure');
   });
@@ -4068,12 +4375,17 @@ describe('canvas server HTTP API', () => {
     const id = gate.approvalGate.id;
 
     // Immediate read (no waitMs): still pending.
-    const now = await jsonRequest<{ ok: boolean; approvalGate: { status: string }; pending: boolean }>(`/api/canvas/ax/approval/${id}`);
+    const now = await jsonRequest<{ ok: boolean; approvalGate: { status: string }; pending: boolean }>(
+      `/api/canvas/ax/approval/${id}`,
+    );
     expect(now.approvalGate.status).toBe('pending');
     expect(now.pending).toBe(true);
 
     // Long-poll resolves when the gate is resolved mid-wait.
-    const waitPromise = fetch(`${baseUrl}/api/canvas/ax/approval/${id}?waitMs=5000`).then((r) => r.json()) as Promise<{ approvalGate: { status: string }; pending: boolean }>;
+    const waitPromise = fetch(`${baseUrl}/api/canvas/ax/approval/${id}?waitMs=5000`).then((r) => r.json()) as Promise<{
+      approvalGate: { status: string };
+      pending: boolean;
+    }>;
     await new Promise((resolve) => setTimeout(resolve, 60));
     await fetch(`${baseUrl}/api/canvas/ax/approval/${id}/resolve`, {
       method: 'POST',
@@ -4101,7 +4413,9 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ message: 'focus on auth', source: 'browser' }),
     });
 
-    type Delivery = { delivery: { pendingSteering: Array<{ source: string | null }>; pendingActivity: Array<{ kind: string }> } };
+    type Delivery = {
+      delivery: { pendingSteering: Array<{ source: string | null }>; pendingActivity: Array<{ kind: string }> };
+    };
     const unfiltered = await jsonRequest<Delivery>('/api/canvas/ax/context');
     expect(unfiltered.delivery.pendingActivity.some((a) => a.kind === 'work-item')).toBe(true);
     expect(unfiltered.delivery.pendingSteering.some((s) => s.source === 'browser')).toBe(true);
@@ -4125,24 +4439,29 @@ describe('canvas server HTTP API', () => {
     }
 
     // Compact context (consumer=copilot does NOT filter source:'api' steers).
-    type Ctx = { delivery: { pendingSteering: Array<{ message: string }>; totalPending: number; omittedPending: number } };
+    type Ctx = {
+      delivery: { pendingSteering: Array<{ message: string }>; totalPending: number; omittedPending: number };
+    };
     const ctx = await jsonRequest<Ctx>('/api/canvas/ax/context?consumer=copilot');
     const ps = ctx.delivery.pendingSteering;
-    expect(ps).toHaveLength(10);                       // capped at the context limit
-    expect(ps[0].message).toBe(`${tag}-${n - 1}`);     // NEWEST steer is first (was the bug)
-    expect(ps[9].message).toBe(`${tag}-${n - 10}`);    // descending by recency
+    expect(ps).toHaveLength(10); // capped at the context limit
+    expect(ps[0].message).toBe(`${tag}-${n - 1}`); // NEWEST steer is first (was the bug)
+    expect(ps[9].message).toBe(`${tag}-${n - 10}`); // descending by recency
     expect(ctx.delivery.totalPending).toBeGreaterThanOrEqual(n);
     expect(ctx.delivery.omittedPending).toBe(ctx.delivery.totalPending - ps.length);
     expect(ctx.delivery.omittedPending).toBeGreaterThan(0); // backlog is signalled, not hidden
 
     // The FIFO claim/ack delivery queue is unchanged: oldest-first, no count fields.
-    const fifo = await (await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot&limit=80`)).json() as {
-      pending: Array<{ message: string }>; totalPending?: number;
+    const fifo = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot&limit=80`)
+    ).json()) as {
+      pending: Array<{ message: string }>;
+      totalPending?: number;
     };
     const mine = fifo.pending.filter((s) => s.message.startsWith(tag)).map((s) => s.message);
-    expect(mine[0]).toBe(`${tag}-0`);                  // oldest of mine first (FIFO)
+    expect(mine[0]).toBe(`${tag}-0`); // oldest of mine first (FIFO)
     expect(mine[mine.length - 1]).toBe(`${tag}-${n - 1}`);
-    expect(fifo.totalPending).toBeUndefined();         // delivery shape NOT changed
+    expect(fifo.totalPending).toBeUndefined(); // delivery shape NOT changed
   });
 
   test('#68: delivery claim accepts order=newest to surface the latest steering first; default stays oldest-first FIFO', async () => {
@@ -4160,18 +4479,26 @@ describe('canvas server HTTP API', () => {
 
     // order=newest reverses MY steers vs the default FIFO oldest-first (large limit
     // so other tests' steers don't truncate mine out).
-    const newest = await (await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot&order=newest&limit=200`)).json() as Pending;
-    const oldest = await (await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot&order=oldest&limit=200`)).json() as Pending;
-    expect(mineOf(newest)[0]).toBe(`${tag}-${n - 1}`);  // newest-first
-    expect(mineOf(oldest)[0]).toBe(`${tag}-0`);          // oldest-first (default behavior)
+    const newest = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot&order=newest&limit=200`)
+    ).json()) as Pending;
+    const oldest = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot&order=oldest&limit=200`)
+    ).json()) as Pending;
+    expect(mineOf(newest)[0]).toBe(`${tag}-${n - 1}`); // newest-first
+    expect(mineOf(oldest)[0]).toBe(`${tag}-0`); // oldest-first (default behavior)
     expect(mineOf(newest)).toEqual([...mineOf(oldest)].reverse());
 
     // The crux of #68: with a SMALL limit, order=newest surfaces the human's
     // latest action (mine were created last → globally newest), instead of burying
     // it behind the stale backlog the default FIFO returns.
-    const smallNewest = await (await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot&order=newest&limit=3`)).json() as Pending;
+    const smallNewest = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot&order=newest&limit=3`)
+    ).json()) as Pending;
     expect(smallNewest.pending[0].message).toBe(`${tag}-${n - 1}`);
-    const smallDefault = await (await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot&limit=3`)).json() as Pending;
+    const smallDefault = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=copilot&limit=3`)
+    ).json()) as Pending;
     expect(smallDefault.pending.some((s) => s.message === `${tag}-${n - 1}`)).toBe(false); // latest buried by the backlog
   });
 
@@ -4179,10 +4506,26 @@ describe('canvas server HTTP API', () => {
     const review = await jsonRequest<{ reviewAnnotation: { id: string } }>('/api/canvas/ax/review', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ body: 'secret human comment', author: 'alice', anchorType: 'file', file: 'x.ts', source: 'api' }),
+      body: JSON.stringify({
+        body: 'secret human comment',
+        author: 'alice',
+        anchorType: 'file',
+        file: 'x.ts',
+        source: 'api',
+      }),
     });
-    const snap = await jsonRequest<{ reviewAnnotations: Array<Record<string, unknown>> }>('/api/canvas/ax/surface-snapshot');
-    for (const k of ['focus', 'workItems', 'approvalGates', 'reviewAnnotations', 'elicitations', 'modeRequests', 'policy']) {
+    const snap = await jsonRequest<{ reviewAnnotations: Array<Record<string, unknown>> }>(
+      '/api/canvas/ax/surface-snapshot',
+    );
+    for (const k of [
+      'focus',
+      'workItems',
+      'approvalGates',
+      'reviewAnnotations',
+      'elicitations',
+      'modeRequests',
+      'policy',
+    ]) {
       expect(snap).toHaveProperty(k);
     }
     const entry = snap.reviewAnnotations.find((r) => r.id === review.reviewAnnotation.id);
@@ -4274,10 +4617,7 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ title: 'canvas-bound work', source: 'api' }),
     });
 
-    const seen = await Promise.race([
-      eventsPromise,
-      Bun.sleep(2_000).then(() => new Set<string>()),
-    ]);
+    const seen = await Promise.race([eventsPromise, Bun.sleep(2_000).then(() => new Set<string>())]);
     abortController.abort();
 
     expect(seen.has('ax-event-created')).toBe(true);
@@ -4339,17 +4679,21 @@ describe('canvas server HTTP API', () => {
       animated: true,
     });
 
-    const state = await jsonRequest<CanvasStateResponse & {
-      edges: Array<{ id: string; type: string; style?: string; animated?: boolean }>;
-    }>('/api/canvas/state');
-    expect(state.edges).toEqual(expect.arrayContaining([
-      expect.objectContaining({
-        id: edge.id,
-        type: 'references',
-        style: 'dotted',
-        animated: true,
-      }),
-    ]));
+    const state = await jsonRequest<
+      CanvasStateResponse & {
+        edges: Array<{ id: string; type: string; style?: string; animated?: boolean }>;
+      }
+    >('/api/canvas/state');
+    expect(state.edges).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: edge.id,
+          type: 'references',
+          style: 'dotted',
+          animated: true,
+        }),
+      ]),
+    );
   });
 
   test('covers group and ungroup HTTP routes', async () => {
@@ -4370,9 +4714,14 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ title: 'API Group', childIds: [firstNode.id, secondNode.id] }),
     });
 
-    const groupNode = await jsonRequest<{ id: string; data: Record<string, unknown> }>(`/api/canvas/node/${createdGroup.id}`);
+    const groupNode = await jsonRequest<{ id: string; data: Record<string, unknown> }>(
+      `/api/canvas/node/${createdGroup.id}`,
+    );
     expect(groupNode.data.children).toEqual([firstNode.id, secondNode.id]);
-    expect((await jsonRequest<{ id: string; data: Record<string, unknown> }>(`/api/canvas/node/${firstNode.id}`)).data.parentGroup).toBe(createdGroup.id);
+    expect(
+      (await jsonRequest<{ id: string; data: Record<string, unknown> }>(`/api/canvas/node/${firstNode.id}`)).data
+        .parentGroup,
+    ).toBe(createdGroup.id);
 
     const ungrouped = await jsonRequest<{ ok: boolean; groupId: string }>('/api/canvas/group/ungroup', {
       method: 'POST',
@@ -4381,9 +4730,14 @@ describe('canvas server HTTP API', () => {
     });
     expect(ungrouped.groupId).toBe(createdGroup.id);
 
-    const ungroupedGroup = await jsonRequest<{ id: string; data: Record<string, unknown> }>(`/api/canvas/node/${createdGroup.id}`);
+    const ungroupedGroup = await jsonRequest<{ id: string; data: Record<string, unknown> }>(
+      `/api/canvas/node/${createdGroup.id}`,
+    );
     expect(ungroupedGroup.data.children).toEqual([]);
-    expect((await jsonRequest<{ id: string; data: Record<string, unknown> }>(`/api/canvas/node/${firstNode.id}`)).data.parentGroup).toBeUndefined();
+    expect(
+      (await jsonRequest<{ id: string; data: Record<string, unknown> }>(`/api/canvas/node/${firstNode.id}`)).data
+        .parentGroup,
+    ).toBeUndefined();
 
     const missingGroup = await fetch(`${baseUrl}/api/canvas/group/add`, {
       method: 'POST',
@@ -4446,10 +4800,7 @@ describe('canvas server HTTP API', () => {
     expect(initialStatus.active).toBe(false);
     expect(initialStatus.headlessOnly).toBe(true);
 
-    const requestedBackend =
-      process.platform === 'darwin'
-        ? 'webkit'
-        : 'chrome';
+    const requestedBackend = process.platform === 'darwin' ? 'webkit' : 'chrome';
 
     const startResponse = await fetch(`${baseUrl}/api/workbench/webview/start`, {
       method: 'POST',
@@ -4459,7 +4810,7 @@ describe('canvas server HTTP API', () => {
 
     if (!startResponse.ok) {
       expect([500, 501]).toContain(startResponse.status);
-      const unsupported = await startResponse.json() as {
+      const unsupported = (await startResponse.json()) as {
         ok: boolean;
         error: string;
         webview: WorkbenchWebViewStatusResponse;
@@ -4476,7 +4827,7 @@ describe('canvas server HTTP API', () => {
     }
 
     expect(startResponse.ok).toBe(true);
-    const started = await startResponse.json() as {
+    const started = (await startResponse.json()) as {
       ok: boolean;
       webview: WorkbenchWebViewStatusResponse;
     };
@@ -4490,7 +4841,7 @@ describe('canvas server HTTP API', () => {
       method: 'DELETE',
     });
     expect(stopResponse.ok).toBe(true);
-    const stopped = await stopResponse.json() as {
+    const stopped = (await stopResponse.json()) as {
       ok: boolean;
       stopped: boolean;
       webview: WorkbenchWebViewStatusResponse;
@@ -4519,7 +4870,7 @@ describe('canvas server HTTP API', () => {
       });
       expect(res.status).toBe(400);
       expect(res.headers.get('content-type') ?? '').toContain('application/json');
-      const failed = await res.json() as { ok: boolean; error: string; webview?: { active?: boolean } };
+      const failed = (await res.json()) as { ok: boolean; error: string; webview?: { active?: boolean } };
       expect(failed.ok).toBe(false);
       expect(failed.error.length).toBeGreaterThan(0);
       // Never leak a server filesystem path / stack frame in the error body.
@@ -4530,10 +4881,7 @@ describe('canvas server HTTP API', () => {
   });
 
   test('supports WebView evaluate, resize, and screenshot endpoints', async () => {
-    const requestedBackend =
-      process.platform === 'darwin'
-        ? 'webkit'
-        : 'chrome';
+    const requestedBackend = process.platform === 'darwin' ? 'webkit' : 'chrome';
 
     const startResponse = await fetch(`${baseUrl}/api/workbench/webview/start`, {
       method: 'POST',
@@ -4543,7 +4891,7 @@ describe('canvas server HTTP API', () => {
 
     if (!startResponse.ok) {
       expect([500, 501]).toContain(startResponse.status);
-      const failed = await startResponse.json() as {
+      const failed = (await startResponse.json()) as {
         ok: boolean;
         error: string;
         webview: WorkbenchWebViewStatusResponse;
@@ -4560,7 +4908,7 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ expression: 'document.title' }),
     });
     expect(evaluateResponse.ok).toBe(true);
-    const evaluated = await evaluateResponse.json() as { ok: boolean; value: unknown };
+    const evaluated = (await evaluateResponse.json()) as { ok: boolean; value: unknown };
     expect(evaluated.ok).toBe(true);
     expect(evaluated.value).toBe('PMX Canvas');
 
@@ -4572,7 +4920,7 @@ describe('canvas server HTTP API', () => {
       }),
     });
     expect(scriptResponse.ok).toBe(true);
-    const scriptEvaluated = await scriptResponse.json() as { ok: boolean; value: unknown };
+    const scriptEvaluated = (await scriptResponse.json()) as { ok: boolean; value: unknown };
     expect(scriptEvaluated.ok).toBe(true);
     expect(scriptEvaluated.value).toBe('PMX Canvas async');
 
@@ -4582,7 +4930,7 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ width: 1024, height: 768 }),
     });
     expect(resizeResponse.ok).toBe(true);
-    const resized = await resizeResponse.json() as {
+    const resized = (await resizeResponse.json()) as {
       ok: boolean;
       webview: WorkbenchWebViewStatusResponse;
     };
@@ -4834,10 +5182,7 @@ describe('canvas server HTTP API', () => {
       }),
     });
 
-    const nodeIds = await Promise.race([
-      eventsPromise,
-      Bun.sleep(2_000).then(() => [] as string[]),
-    ]);
+    const nodeIds = await Promise.race([eventsPromise, Bun.sleep(2_000).then(() => [] as string[])]);
     abortController.abort();
 
     expect(nodeIds).toContain(created.id);
@@ -4905,7 +5250,13 @@ describe('canvas server HTTP API', () => {
     const updatedGraph = await jsonRequest<{
       ok: boolean;
       id: string;
-      node: { id: string; data: { graphConfig: Record<string, unknown>; spec: { elements: Record<string, { type?: string; props?: Record<string, unknown> }> } } };
+      node: {
+        id: string;
+        data: {
+          graphConfig: Record<string, unknown>;
+          spec: { elements: Record<string, { type?: string; props?: Record<string, unknown> }> };
+        };
+      };
     }>(`/api/canvas/node/${graph.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
@@ -4962,7 +5313,7 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ graphType: 'bar' }),
     });
     expect(invalidStructuredUpdate.ok).toBe(false);
-    const invalidStructuredBody = await invalidStructuredUpdate.json() as { ok: boolean; error: string };
+    const invalidStructuredBody = (await invalidStructuredUpdate.json()) as { ok: boolean; error: string };
     expect(invalidStructuredBody.ok).toBe(false);
     expect(invalidStructuredBody.error).toContain('Graph update fields can only be used with graph nodes');
 
@@ -4977,7 +5328,7 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ spec: { root: 'card', elements: {} } }),
     });
     expect(invalidSpecUpdate.ok).toBe(false);
-    const invalidSpecBody = await invalidSpecUpdate.json() as { ok: boolean; error: string };
+    const invalidSpecBody = (await invalidSpecUpdate.json()) as { ok: boolean; error: string };
     expect(invalidSpecBody.error).toContain('Structured spec and graph updates can only be used');
   });
 
@@ -5046,19 +5397,44 @@ describe('canvas server HTTP API', () => {
 
     expect(schema.ok).toBe(true);
     expect(schema.source).toBe('running-server');
-    expect(schema.nodeTypes.find((entry) => entry.type === 'webpage')?.fields.find((field) => field.name === 'url')?.aliases).toContain('content');
-    expect(schema.nodeTypes.find((entry) => entry.type === 'image')?.fields.find((field) => field.name === 'content')?.aliases).toContain('path');
+    expect(
+      schema.nodeTypes.find((entry) => entry.type === 'webpage')?.fields.find((field) => field.name === 'url')?.aliases,
+    ).toContain('content');
+    expect(
+      schema.nodeTypes.find((entry) => entry.type === 'image')?.fields.find((field) => field.name === 'content')
+        ?.aliases,
+    ).toContain('path');
     const htmlFields = schema.nodeTypes.find((entry) => entry.type === 'html')?.fields ?? [];
     expect(htmlFields.find((field) => field.name === 'agentSummary')?.aliases).toContain('agent-summary');
-    expect(htmlFields.find((field) => field.name === 'embeddedNodeIds')?.aliases).toEqual(expect.arrayContaining(['embedded-node-id', 'embedded-node-ids']));
-    expect(htmlFields.find((field) => field.name === 'embeddedUrls')?.aliases).toEqual(expect.arrayContaining(['embedded-url', 'embedded-urls']));
-    expect(htmlFields.find((field) => field.name === 'slideTitles')?.aliases).toEqual(expect.arrayContaining(['slide-title', 'slide-titles']));
-    expect(schema.nodeTypes.find((entry) => entry.type === 'json-render')?.fields.find((field) => field.name === 'title')).toMatchObject({ required: false });
-    expect(schema.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'zKey')).toBe(true);
-    expect(schema.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'metrics')).toBe(true);
-    expect(schema.nodeTypes.find((entry) => entry.type === 'trace')?.fields.some((field) => field.name === 'toolName')).toBe(true);
-    expect(schema.nodeTypes.find((entry) => entry.type === 'trace')?.fields.some((field) => field.name === 'resultSummary')).toBe(true);
-    expect(schema.nodeTypes.find((entry) => entry.type === 'web-artifact')?.fields.some((field) => field.name === 'timeoutMs')).toBe(true);
+    expect(htmlFields.find((field) => field.name === 'embeddedNodeIds')?.aliases).toEqual(
+      expect.arrayContaining(['embedded-node-id', 'embedded-node-ids']),
+    );
+    expect(htmlFields.find((field) => field.name === 'embeddedUrls')?.aliases).toEqual(
+      expect.arrayContaining(['embedded-url', 'embedded-urls']),
+    );
+    expect(htmlFields.find((field) => field.name === 'slideTitles')?.aliases).toEqual(
+      expect.arrayContaining(['slide-title', 'slide-titles']),
+    );
+    expect(
+      schema.nodeTypes.find((entry) => entry.type === 'json-render')?.fields.find((field) => field.name === 'title'),
+    ).toMatchObject({ required: false });
+    expect(
+      schema.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'zKey'),
+    ).toBe(true);
+    expect(
+      schema.nodeTypes.find((entry) => entry.type === 'graph')?.fields.some((field) => field.name === 'metrics'),
+    ).toBe(true);
+    expect(
+      schema.nodeTypes.find((entry) => entry.type === 'trace')?.fields.some((field) => field.name === 'toolName'),
+    ).toBe(true);
+    expect(
+      schema.nodeTypes.find((entry) => entry.type === 'trace')?.fields.some((field) => field.name === 'resultSummary'),
+    ).toBe(true);
+    expect(
+      schema.nodeTypes
+        .find((entry) => entry.type === 'web-artifact')
+        ?.fields.some((field) => field.name === 'timeoutMs'),
+    ).toBe(true);
     expect(schema.jsonRender.components.some((component) => component.type === 'Table')).toBe(true);
     expect(schema.graph.graphTypes).toContain('area');
     expect(schema.graph.graphTypes).toContain('stacked-bar');
@@ -5150,13 +5526,15 @@ describe('canvas server HTTP API', () => {
     expect(graphValidation.ok).toBe(true);
     expect(graphValidation.type).toBe('graph');
     expect(graphValidation.summary).toEqual(expect.objectContaining({ graphType: 'ComposedChart', dataPoints: 2 }));
-    expect(graphValidation.normalizedSpec.elements.chart?.props).toEqual(expect.objectContaining({
-      xKey: 'label',
-      barKey: 'value',
-      lineKey: 'rate',
-      barColor: '#60b5ff',
-      lineColor: '#d7a83f',
-    }));
+    expect(graphValidation.normalizedSpec.elements.chart?.props).toEqual(
+      expect.objectContaining({
+        xKey: 'label',
+        barKey: 'value',
+        lineKey: 'rate',
+        barColor: '#60b5ff',
+        lineColor: '#d7a83f',
+      }),
+    );
 
     const invalidGraphValidation = await fetch(`${baseUrl}/api/canvas/schema/validate`, {
       method: 'POST',
@@ -5170,7 +5548,7 @@ describe('canvas server HTTP API', () => {
       }),
     });
     expect(invalidGraphValidation.ok).toBe(false);
-    const invalidGraphBody = await invalidGraphValidation.json() as { ok: boolean; error: string };
+    const invalidGraphBody = (await invalidGraphValidation.json()) as { ok: boolean; error: string };
     expect(invalidGraphBody.ok).toBe(false);
     expect(invalidGraphBody.error).toContain('missingLabel');
     expect(invalidGraphBody.error).toContain('Available keys: label, value');
@@ -5186,7 +5564,7 @@ describe('canvas server HTTP API', () => {
       }),
     });
     expect(invalidGraphCreate.ok).toBe(false);
-    const invalidGraphCreateBody = await invalidGraphCreate.json() as { ok: boolean; error: string };
+    const invalidGraphCreateBody = (await invalidGraphCreate.json()) as { ok: boolean; error: string };
     expect(invalidGraphCreateBody.ok).toBe(false);
     expect(invalidGraphCreateBody.error).toContain('missingValue');
 
@@ -5229,7 +5607,9 @@ describe('canvas server HTTP API', () => {
       }),
     });
     expect(invalidHtmlPrimitiveValidation.status).toBe(400);
-    expect((await invalidHtmlPrimitiveValidation.json() as { error: string }).error).toContain('Invalid presentation theme');
+    expect(((await invalidHtmlPrimitiveValidation.json()) as { error: string }).error).toContain(
+      'Invalid presentation theme',
+    );
   });
 
   test('rejects invalid json-render payloads and invalid viewer requests', async () => {
@@ -5242,7 +5622,7 @@ describe('canvas server HTTP API', () => {
       }),
     });
     expect(invalidSpec.status).toBe(400);
-    expect((await invalidSpec.json() as { ok: boolean; error: string }).error).toContain('Missing root and elements');
+    expect(((await invalidSpec.json()) as { ok: boolean; error: string }).error).toContain('Missing root and elements');
 
     const missingNodeId = await fetch(`${baseUrl}/api/canvas/json-render/view`);
     expect(missingNodeId.status).toBe(400);

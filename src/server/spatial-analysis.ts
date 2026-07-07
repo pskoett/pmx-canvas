@@ -125,9 +125,7 @@ function deriveClusterLabel(nodes: CanvasNodeState[]): string {
   for (const n of nodes) {
     typeCounts[n.type] = (typeCounts[n.type] ?? 0) + 1;
   }
-  const parts = Object.entries(typeCounts).map(([type, count]) =>
-    count === 1 ? type : `${count} ${type}`,
-  );
+  const parts = Object.entries(typeCounts).map(([type, count]) => (count === 1 ? type : `${count} ${type}`));
 
   if (titled) {
     return `${titled.data.title} + ${parts.join(', ')}`;
@@ -139,22 +137,21 @@ function rectsOverlap(
   a: { x: number; y: number; width: number; height: number },
   b: { x: number; y: number; width: number; height: number },
 ): boolean {
-  return a.x <= b.x + b.width &&
-    a.x + a.width >= b.x &&
-    a.y <= b.y + b.height &&
-    a.y + a.height >= b.y;
+  return a.x <= b.x + b.width && a.x + a.width >= b.x && a.y <= b.y + b.height && a.y + a.height >= b.y;
 }
 
 function summarizeAnnotationForSpatialContext(
   annotation: CanvasAnnotation,
   nodes: CanvasNodeState[],
 ): SpatialAnnotationContext {
-  const targetNodes = nodes.filter((node) => rectsOverlap(annotation.bounds, {
-    x: node.position.x,
-    y: node.position.y,
-    width: node.size.width,
-    height: node.size.height,
-  }));
+  const targetNodes = nodes.filter((node) =>
+    rectsOverlap(annotation.bounds, {
+      x: node.position.x,
+      y: node.position.y,
+      width: node.size.width,
+      height: node.size.height,
+    }),
+  );
   const targetNodeTitles = targetNodes.map((node) =>
     typeof node.data.title === 'string' && node.data.title.length > 0 ? node.data.title : node.id,
   );
@@ -176,10 +173,7 @@ function summarizeAnnotationForSpatialContext(
  *
  * Default threshold: 200px (roughly "visually grouped" on a typical canvas).
  */
-export function detectClusters(
-  nodes: CanvasNodeState[],
-  proximityThreshold = 200,
-): SpatialCluster[] {
+export function detectClusters(nodes: CanvasNodeState[], proximityThreshold = 200): SpatialCluster[] {
   if (nodes.length === 0) return [];
 
   // Union-Find for clustering
@@ -312,10 +306,22 @@ export function searchNodes(
 
   for (const node of nodes) {
     const title = ((node.data.title as string) ?? '').toLowerCase();
-    const content = ((node.data.content as string) ?? (node.data.agentSummary as string) ?? (node.data.contentSummary as string) ?? (node.data.description as string) ?? (node.data.fileContent as string) ?? '').toLowerCase();
+    const content = (
+      (node.data.content as string) ??
+      (node.data.agentSummary as string) ??
+      (node.data.contentSummary as string) ??
+      (node.data.description as string) ??
+      (node.data.fileContent as string) ??
+      ''
+    ).toLowerCase();
     const path = ((node.data.path as string) ?? '').toLowerCase();
     const description = ((node.data.description as string) ?? '').toLowerCase();
-    const summary = ((node.data.summary as string) ?? (node.data.agentSummary as string) ?? (node.data.contentSummary as string) ?? '').toLowerCase();
+    const summary = (
+      (node.data.summary as string) ??
+      (node.data.agentSummary as string) ??
+      (node.data.contentSummary as string) ??
+      ''
+    ).toLowerCase();
     const url = ((node.data.url as string) ?? '').toLowerCase();
 
     let score = 0;
@@ -333,12 +339,19 @@ export function searchNodes(
 
     // Extract a snippet around the first match in content
     let snippet = '';
-    const fullContent = (node.data.content as string) ?? (node.data.agentSummary as string) ?? (node.data.contentSummary as string) ?? (node.data.description as string) ?? (node.data.fileContent as string) ?? '';
+    const fullContent =
+      (node.data.content as string) ??
+      (node.data.agentSummary as string) ??
+      (node.data.contentSummary as string) ??
+      (node.data.description as string) ??
+      (node.data.fileContent as string) ??
+      '';
     const matchIdx = fullContent.toLowerCase().indexOf(terms[0]);
     if (matchIdx >= 0) {
       const start = Math.max(0, matchIdx - 40);
       const end = Math.min(fullContent.length, matchIdx + 80);
-      snippet = (start > 0 ? '...' : '') +
+      snippet =
+        (start > 0 ? '...' : '') +
         fullContent.slice(start, end).replace(/\n/g, ' ') +
         (end < fullContent.length ? '...' : '');
     } else if (title) {
@@ -383,10 +396,11 @@ export function buildSpatialContext(
     id: n.id,
     type: n.type,
     title: (n.data.title as string) ?? null,
-    content: summarizeNodeForAgentContext(n, {
-      defaultTextLength: 320,
-      webpageTextLength: 640,
-    }) || null,
+    content:
+      summarizeNodeForAgentContext(n, {
+        defaultTextLength: 320,
+        webpageTextLength: 640,
+      }) || null,
     clusterId: nodeToCluster.get(n.id) ?? null,
     readingOrder: i,
   }));

@@ -7,12 +7,14 @@ interface FrameDocumentCreateResponse {
 }
 
 function isFrameDocumentCreateResponse(value: unknown): value is FrameDocumentCreateResponse {
-  return Boolean(value)
-    && typeof value === 'object'
-    && value !== null
-    && !Array.isArray(value)
-    && 'ok' in value
-    && typeof (value as { ok: unknown }).ok === 'boolean';
+  return (
+    Boolean(value) &&
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value) &&
+    'ok' in value &&
+    typeof (value as { ok: unknown }).ok === 'boolean'
+  );
 }
 
 export async function createIframeDocumentUrl(html: string, sandbox: string): Promise<string> {
@@ -21,17 +23,21 @@ export async function createIframeDocumentUrl(html: string, sandbox: string): Pr
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ html, sandbox }),
   });
-  const json = await response.json() as unknown;
+  const json = (await response.json()) as unknown;
   if (!response.ok || !isFrameDocumentCreateResponse(json) || !json.ok || typeof json.url !== 'string') {
-    const message = isFrameDocumentCreateResponse(json) && json.error
-      ? json.error
-      : `Frame document request failed with HTTP ${response.status}`;
+    const message =
+      isFrameDocumentCreateResponse(json) && json.error
+        ? json.error
+        : `Frame document request failed with HTTP ${response.status}`;
     throw new Error(message);
   }
   return json.url;
 }
 
-export function useIframeDocument(html: string, sandbox: string): { attributes: { src?: string }; ready: boolean; key: string } {
+export function useIframeDocument(
+  html: string,
+  sandbox: string,
+): { attributes: { src?: string }; ready: boolean; key: string } {
   const [src, setSrc] = useState<string | null>(null);
 
   useEffect(() => {
@@ -50,9 +56,12 @@ export function useIframeDocument(html: string, sandbox: string): { attributes: 
     };
   }, [html, sandbox]);
 
-  return useMemo(() => ({
-    attributes: src ? { src } : {},
-    ready: Boolean(src),
-    key: src ?? '',
-  }), [src]);
+  return useMemo(
+    () => ({
+      attributes: src ? { src } : {},
+      ready: Boolean(src),
+      key: src ?? '',
+    }),
+    [src],
+  );
 }

@@ -24,10 +24,7 @@
  */
 import { z } from 'zod';
 import { canvasState } from '../../canvas-state.js';
-import {
-  serializeCanvasNode,
-  serializeCanvasNodeCompact,
-} from '../../canvas-serialization.js';
+import { serializeCanvasNode, serializeCanvasNodeCompact } from '../../canvas-serialization.js';
 import { addCanvasNode } from '../../canvas-operations.js';
 import { executeOperation, runWithSuppressedEmits } from '../registry.js';
 import { defineOperation, type Operation, type OperationContext } from '../types.js';
@@ -261,12 +258,19 @@ async function runBatch(operations: BatchEntry[]): Promise<BatchEnvelope> {
 }
 
 const batchShape = {
-  operations: z.array(z.object({
-    op: z.string().describe('Operation name, e.g. "node.add" or "edge.add"'),
-    assign: z.string().optional().describe('Optional reference name for later operations'),
-    args: z.record(z.string(), z.unknown()).optional().describe('Operation arguments'),
-  })).describe('Ordered array of batch operations'),
-  full: z.boolean().optional().describe('Return full batch operation results. Default false compacts node-like payloads.'),
+  operations: z
+    .array(
+      z.object({
+        op: z.string().describe('Operation name, e.g. "node.add" or "edge.add"'),
+        assign: z.string().optional().describe('Optional reference name for later operations'),
+        args: z.record(z.string(), z.unknown()).optional().describe('Operation arguments'),
+      }),
+    )
+    .describe('Ordered array of batch operations'),
+  full: z
+    .boolean()
+    .optional()
+    .describe('Return full batch operation results. Default false compacts node-like payloads.'),
   verbose: z.boolean().optional().describe('Alias for full:true.'),
 };
 
@@ -287,7 +291,25 @@ function compactBatchValue(value: unknown): unknown {
   const record = value as Record<string, unknown>;
   const nodeLike = typeof record.id === 'string' && typeof record.type === 'string';
   const compact: Record<string, unknown> = {};
-  for (const key of ['ok', 'id', 'type', 'kind', 'title', 'content', 'position', 'size', 'fetch', 'error', 'from', 'to', 'groupId', 'nodeIds', 'snapshot', 'arranged', 'layout']) {
+  for (const key of [
+    'ok',
+    'id',
+    'type',
+    'kind',
+    'title',
+    'content',
+    'position',
+    'size',
+    'fetch',
+    'error',
+    'from',
+    'to',
+    'groupId',
+    'nodeIds',
+    'snapshot',
+    'arranged',
+    'layout',
+  ]) {
     if (record[key] !== undefined) compact[key] = record[key];
   }
   if (nodeLike) return compact;
@@ -325,13 +347,16 @@ const batchOperation = defineOperation<z.infer<typeof batchSchema>, BatchEnvelop
       const body = await readJsonValue(req);
       const operations = Array.isArray(body)
         ? body
-        : isRecord(body) && Array.isArray(body.operations) ? body.operations : [];
+        : isRecord(body) && Array.isArray(body.operations)
+          ? body.operations
+          : [];
       return { operations };
     },
   },
   mcp: {
     toolName: 'canvas_batch',
-    description: 'Run a non-atomic batch of canvas operations with optional assigned references. Use assign to name a result, then reference it later as "$name" for the created node id or "$name.id" for a specific result field. On failure, earlier successful operations remain applied and the response includes ok:false, failedIndex, error, results, and refs. Supports node.add, node.update, node.remove, graph.add, edge.add, group.create, group.add, group.remove, pin.set/add/remove, snapshot.save, and arrange.',
+    description:
+      'Run a non-atomic batch of canvas operations with optional assigned references. Use assign to name a result, then reference it later as "$name" for the created node id or "$name.id" for a specific result field. On failure, earlier successful operations remain applied and the response includes ok:false, failedIndex, error, results, and refs. Supports node.add, node.update, node.remove, graph.add, edge.add, group.create, group.add, group.remove, pin.set/add/remove, snapshot.save, and arrange.',
     formatResult: (result, input) => {
       const envelope = result as BatchEnvelope;
       const payload = wantsFullBatch(input) ? envelope : compactBatchResult(envelope);
@@ -361,5 +386,5 @@ export const batchOperations: Operation[] = [batchOperation];
 export async function runCanvasBatchOperation(
   operations: Array<{ op: string; assign?: string; args?: Record<string, unknown> }>,
 ): Promise<BatchEnvelope> {
-  return await executeOperation('canvas.batch', { operations }) as BatchEnvelope;
+  return (await executeOperation('canvas.batch', { operations })) as BatchEnvelope;
 }

@@ -20,7 +20,7 @@ export const HTML_PRIMITIVE_KINDS = [
   'prompt-tuner',
 ] as const;
 
-export type HtmlPrimitiveKind = typeof HTML_PRIMITIVE_KINDS[number];
+export type HtmlPrimitiveKind = (typeof HTML_PRIMITIVE_KINDS)[number];
 
 export interface HtmlPrimitiveDescriptor {
   kind: HtmlPrimitiveKind;
@@ -55,7 +55,11 @@ export interface HtmlPrimitiveSemanticMetadata {
   presentationTheme?: string | Record<string, string>;
 }
 
-type PrimitiveRenderer = (input: { title: string; data: Record<string, unknown>; descriptor: HtmlPrimitiveDescriptor }) => string;
+type PrimitiveRenderer = (input: {
+  title: string;
+  data: Record<string, unknown>;
+  descriptor: HtmlPrimitiveDescriptor;
+}) => string;
 
 const DESCRIPTORS: HtmlPrimitiveDescriptor[] = [
   {
@@ -70,7 +74,13 @@ const DESCRIPTORS: HtmlPrimitiveDescriptor[] = [
       title: 'Implementation Options',
       data: {
         items: [
-          { title: 'Small patch', summary: 'Least disruption.', tradeoff: 'Limited future flexibility.', pros: ['Fast'], cons: ['May need follow-up'] },
+          {
+            title: 'Small patch',
+            summary: 'Least disruption.',
+            tradeoff: 'Limited future flexibility.',
+            pros: ['Fast'],
+            cons: ['May need follow-up'],
+          },
         ],
       },
     },
@@ -81,7 +91,8 @@ const DESCRIPTORS: HtmlPrimitiveDescriptor[] = [
     description: 'Implementation plan with milestones, data flow, code checkpoints, and risks.',
     useWhen: 'Use when a markdown plan would be long and the human needs sequence, dependencies, and risk at a glance.',
     defaultSize: { width: 1040, height: 760 },
-    dataShape: '{ milestones: [{ title, detail, status }], flow: [{ from, to, label }], risks: [{ risk, mitigation }], snippets: [{ label, code }] }',
+    dataShape:
+      '{ milestones: [{ title, detail, status }], flow: [{ from, to, label }], risks: [{ risk, mitigation }], snippets: [{ label, code }] }',
     example: {
       kind: 'plan-timeline',
       title: 'Feature Plan',
@@ -102,7 +113,15 @@ const DESCRIPTORS: HtmlPrimitiveDescriptor[] = [
       kind: 'review-sheet',
       title: 'Streaming Review',
       data: {
-        findings: [{ severity: 'warning', title: 'Backpressure boundary', file: 'src/server.ts', line: 42, detail: 'Confirm queue flush before close.' }],
+        findings: [
+          {
+            severity: 'warning',
+            title: 'Backpressure boundary',
+            file: 'src/server.ts',
+            line: 42,
+            detail: 'Confirm queue flush before close.',
+          },
+        ],
       },
     },
   },
@@ -112,13 +131,20 @@ const DESCRIPTORS: HtmlPrimitiveDescriptor[] = [
     description: 'Reviewer-ready PR narrative with motivation, before/after, file tour, test plan, and rollout notes.',
     useWhen: 'Use when a change needs a high-signal review guide rather than a flat pull request description.',
     defaultSize: { width: 1040, height: 760 },
-    dataShape: '{ summary, why, before: string[], after: string[], files: [{ path, why, focus }], reviewFocus: string[], tests: string[], rollout: string[] }',
+    dataShape:
+      '{ summary, why, before: string[], after: string[], files: [{ path, why, focus }], reviewFocus: string[], tests: string[], rollout: string[] }',
     example: {
       kind: 'pr-writeup',
       title: 'HTML Primitive PR',
       data: {
         summary: 'Adds generated HTML primitives across HTTP, MCP, CLI, and SDK.',
-        files: [{ path: 'src/server/html-primitives.ts', why: 'Primitive catalog and renderers.', focus: 'Escaping and export behavior.' }],
+        files: [
+          {
+            path: 'src/server/html-primitives.ts',
+            why: 'Primitive catalog and renderers.',
+            focus: 'Escaping and export behavior.',
+          },
+        ],
       },
     },
   },
@@ -142,15 +168,19 @@ const DESCRIPTORS: HtmlPrimitiveDescriptor[] = [
     kind: 'code-walkthrough',
     title: 'Code Walkthrough',
     description: 'Guided code-path map with modules, ordered file steps, snippets, key files, and gotchas.',
-    useWhen: 'Use to explain an unfamiliar package, request path, or implementation slice after inspecting source files.',
+    useWhen:
+      'Use to explain an unfamiliar package, request path, or implementation slice after inspecting source files.',
     defaultSize: { width: 1040, height: 760 },
-    dataShape: '{ summary, modules: [{ id, title, detail, role }], edges: [{ from, to, label }], steps: [{ title, file, detail, code }], keyFiles: [{ path, description }], gotchas: string[] }',
+    dataShape:
+      '{ summary, modules: [{ id, title, detail, role }], edges: [{ from, to, label }], steps: [{ title, file, detail, code }], keyFiles: [{ path, description }], gotchas: string[] }',
     example: {
       kind: 'code-walkthrough',
       title: 'Canvas Creation Path',
       data: {
         modules: [{ id: 'api', title: 'HTTP API', detail: 'Receives node create requests.', role: 'entry' }],
-        steps: [{ title: 'Route request', file: 'src/server/server.ts', detail: 'Normalize input before mutating state.' }],
+        steps: [
+          { title: 'Route request', file: 'src/server/server.ts', detail: 'Normalize input before mutating state.' },
+        ],
       },
     },
   },
@@ -165,7 +195,14 @@ const DESCRIPTORS: HtmlPrimitiveDescriptor[] = [
       kind: 'design-sheet',
       title: 'Visual Directions',
       data: {
-        directions: [{ title: 'Editorial', tone: 'calm, high contrast', palette: ['#f8f1e7', '#16120f', '#d65a31'], rationale: 'Readable and opinionated.' }],
+        directions: [
+          {
+            title: 'Editorial',
+            tone: 'calm, high contrast',
+            palette: ['#f8f1e7', '#16120f', '#d65a31'],
+            rationale: 'Readable and opinionated.',
+          },
+        ],
       },
     },
   },
@@ -188,10 +225,13 @@ const DESCRIPTORS: HtmlPrimitiveDescriptor[] = [
   {
     kind: 'interaction-prototype',
     title: 'Interaction Prototype',
-    description: 'Throwaway interaction or motion sandbox with a live stage, controls, annotations, and copyable config.',
-    useWhen: 'Use for animation tuning, click-through sketches, draggable behavior studies, and interaction questions that prose cannot answer.',
+    description:
+      'Throwaway interaction or motion sandbox with a live stage, controls, annotations, and copyable config.',
+    useWhen:
+      'Use for animation tuning, click-through sketches, draggable behavior studies, and interaction questions that prose cannot answer.',
     defaultSize: { width: 1040, height: 760 },
-    dataShape: '{ scenario, controls: [{ key, label, value, min?, max?, unit? }], screens: [{ title, detail }], annotations: [{ title, detail }], questions: string[], snippet? }',
+    dataShape:
+      '{ scenario, controls: [{ key, label, value, min?, max?, unit? }], screens: [{ title, detail }], annotations: [{ title, detail }], questions: string[], snippet? }',
     example: {
       kind: 'interaction-prototype',
       title: 'Sidebar Motion Study',
@@ -234,17 +274,25 @@ const DESCRIPTORS: HtmlPrimitiveDescriptor[] = [
   {
     kind: 'presentation',
     title: 'HTML Presentation',
-    description: 'PowerPoint-style fullscreen-ready HTML presentation with slide navigation, progress, speaker notes, and presentation metadata.',
-    useWhen: 'Use when the human asks for a presentation, pitch deck, briefing, workshop walkthrough, or PowerPoint-like deliverable.',
+    description:
+      'PowerPoint-style fullscreen-ready HTML presentation with slide navigation, progress, speaker notes, and presentation metadata.',
+    useWhen:
+      'Use when the human asks for a presentation, pitch deck, briefing, workshop walkthrough, or PowerPoint-like deliverable.',
     defaultSize: { width: 1120, height: 700 },
-    dataShape: '{ subtitle?, theme?: "canvas"|"midnight"|"paper"|"aurora"|{ bg?, panel?, surface?, border?, text?, textSecondary?, textMuted?, accent? }, slides: [{ title, kicker?, body?, bullets?: string[], metrics?: [{ label, value, detail? }], note? }] }',
+    dataShape:
+      '{ subtitle?, theme?: "canvas"|"midnight"|"paper"|"aurora"|{ bg?, panel?, surface?, border?, text?, textSecondary?, textMuted?, accent? }, slides: [{ title, kicker?, body?, bullets?: string[], metrics?: [{ label, value, detail? }], note? }] }',
     example: {
       kind: 'presentation',
       title: 'Project Briefing',
       data: {
         subtitle: 'A meeting-ready narrative for review.',
         slides: [
-          { title: 'Why this matters', kicker: '01', body: 'Frame the decision and outcome.', bullets: ['Human-readable', 'Fullscreen-ready'] },
+          {
+            title: 'Why this matters',
+            kicker: '01',
+            body: 'Frame the decision and outcome.',
+            bullets: ['Human-readable', 'Fullscreen-ready'],
+          },
           { title: 'What changes', kicker: '02', bullets: ['Show the before/after', 'End with clear next steps'] },
         ],
       },
@@ -254,14 +302,22 @@ const DESCRIPTORS: HtmlPrimitiveDescriptor[] = [
     kind: 'illustration-set',
     title: 'Illustration Set',
     description: 'Inline SVG figure sheet with captions and per-figure SVG copy/export controls.',
-    useWhen: 'Use for blog figures, architecture illustrations, conceptual diagrams, and vector sketches that should be tweakable or pasteable.',
+    useWhen:
+      'Use for blog figures, architecture illustrations, conceptual diagrams, and vector sketches that should be tweakable or pasteable.',
     defaultSize: { width: 1040, height: 760 },
-    dataShape: '{ figures: [{ title, caption, shapes: [{ type, x, y, width, height, cx, cy, r, x1, y1, x2, y2, text, color }] }] }',
+    dataShape:
+      '{ figures: [{ title, caption, shapes: [{ type, x, y, width, height, cx, cy, r, x1, y1, x2, y2, text, color }] }] }',
     example: {
       kind: 'illustration-set',
       title: 'Article Figures',
       data: {
-        figures: [{ title: 'Feedback Loop', caption: 'Human and agent exchange context.', shapes: [{ type: 'rect', x: 40, y: 50, width: 130, height: 70, text: 'Human' }] }],
+        figures: [
+          {
+            title: 'Feedback Loop',
+            caption: 'Human and agent exchange context.',
+            shapes: [{ type: 'rect', x: 40, y: 50, width: 130, height: 70, text: 'Human' }],
+          },
+        ],
       },
     },
   },
@@ -271,7 +327,8 @@ const DESCRIPTORS: HtmlPrimitiveDescriptor[] = [
     description: 'Readable explainer with TLDR, collapsible steps, annotated snippets, FAQ, and glossary.',
     useWhen: 'Use to teach how a feature, algorithm, or code path works after inspecting repo context.',
     defaultSize: { width: 980, height: 760 },
-    dataShape: '{ summary, steps: [{ title, detail }], snippets: [{ label, code, note }], faq: [{ q, a }], glossary: [{ term, definition }] }',
+    dataShape:
+      '{ summary, steps: [{ title, detail }], snippets: [{ label, code, note }], faq: [{ q, a }], glossary: [{ term, definition }] }',
     example: {
       kind: 'explainer',
       title: 'Rate Limiter Explainer',
@@ -284,10 +341,12 @@ const DESCRIPTORS: HtmlPrimitiveDescriptor[] = [
   {
     kind: 'incident-report',
     title: 'Incident Report',
-    description: 'Post-incident report with impact metrics, minute-by-minute timeline, root cause, log excerpts, and action checklist.',
+    description:
+      'Post-incident report with impact metrics, minute-by-minute timeline, root cause, log excerpts, and action checklist.',
     useWhen: 'Use for incident summaries, post-mortems, reliability reviews, and follow-up tracking.',
     defaultSize: { width: 1040, height: 760 },
-    dataShape: '{ severity, status, duration, summary, impact: [{ label, value, tone }], timeline: [{ time, event, detail, tone }], rootCause, logs?: string, actions: [{ done, owner, description, due }] }',
+    dataShape:
+      '{ severity, status, duration, summary, impact: [{ label, value, tone }], timeline: [{ time, event, detail, tone }], rootCause, logs?: string, actions: [{ done, owner, description, due }] }',
     example: {
       kind: 'incident-report',
       title: 'API Latency Incident',
@@ -304,7 +363,8 @@ const DESCRIPTORS: HtmlPrimitiveDescriptor[] = [
     description: 'Skimmable report with metrics, shipped/slipped lists, blockers, and next actions.',
     useWhen: 'Use for weekly updates, project health, incident summaries, and leadership-ready status.',
     defaultSize: { width: 980, height: 720 },
-    dataShape: '{ metrics: [{ label, value, tone }], shipped: string[], slipped: string[], risks: string[], next: string[] }',
+    dataShape:
+      '{ metrics: [{ label, value, tone }], shipped: string[], slipped: string[], risks: string[], next: string[] }',
     example: {
       kind: 'status-report',
       title: 'Weekly Canvas Status',
@@ -325,7 +385,14 @@ const DESCRIPTORS: HtmlPrimitiveDescriptor[] = [
       kind: 'triage-board',
       title: 'Ticket Triage',
       data: {
-        items: [{ title: 'Fix flaky smoke test', detail: 'Fails on CI timeout.', column: 'Now', rationale: 'Blocks release.' }],
+        items: [
+          {
+            title: 'Fix flaky smoke test',
+            detail: 'Fails on CI timeout.',
+            column: 'Now',
+            rationale: 'Blocks release.',
+          },
+        ],
       },
     },
   },
@@ -340,7 +407,9 @@ const DESCRIPTORS: HtmlPrimitiveDescriptor[] = [
       kind: 'config-editor',
       title: 'Feature Flags',
       data: {
-        flags: [{ key: 'newCheckout', label: 'New checkout', area: 'Checkout', enabled: false, requires: ['paymentsV2'] }],
+        flags: [
+          { key: 'newCheckout', label: 'New checkout', area: 'Checkout', enabled: false, requires: ['paymentsV2'] },
+        ],
       },
     },
   },
@@ -381,36 +450,57 @@ function strings(value: unknown): string[] {
   return value.map((item) => text(item).trim()).filter(Boolean);
 }
 
-function fieldRecords(data: Record<string, unknown>, key: string, fallback: Record<string, unknown>[]): Record<string, unknown>[] {
+function fieldRecords(
+  data: Record<string, unknown>,
+  key: string,
+  fallback: Record<string, unknown>[],
+): Record<string, unknown>[] {
   const found = records(data[key]);
   return found.length > 0 ? found : fallback;
 }
 
 const DEFAULT_DECK_SLIDES: Record<string, unknown>[] = [
-  { title: 'HTML keeps humans in the loop', kicker: 'Thesis', bullets: ['Higher information density', 'Visual clarity', 'Two-way interaction'] },
-  { title: 'Use the lightest tier that works', bullets: ['json-render for structured UI', 'html primitives for rich documents', 'web artifacts for full React apps'] },
+  {
+    title: 'HTML keeps humans in the loop',
+    kicker: 'Thesis',
+    bullets: ['Higher information density', 'Visual clarity', 'Two-way interaction'],
+  },
+  {
+    title: 'Use the lightest tier that works',
+    bullets: [
+      'json-render for structured UI',
+      'html primitives for rich documents',
+      'web artifacts for full React apps',
+    ],
+  },
 ];
 
 const DEFAULT_PRESENTATION_SLIDES: Record<string, unknown>[] = [
-  { title: 'Set the frame', kicker: '01', body: 'Open with the decision, audience, and outcome this presentation supports.' },
-  { title: 'Show the evidence', kicker: '02', bullets: ['Use concrete facts', 'Keep one idea per slide', 'Make risks visible'] },
+  {
+    title: 'Set the frame',
+    kicker: '01',
+    body: 'Open with the decision, audience, and outcome this presentation supports.',
+  },
+  {
+    title: 'Show the evidence',
+    kicker: '02',
+    bullets: ['Use concrete facts', 'Keep one idea per slide', 'Make risks visible'],
+  },
   { title: 'Close with action', kicker: '03', bullets: ['Decision needed', 'Owner and next step', 'Timing'] },
 ];
 
-function presentationSlides(data: Record<string, unknown>, fallback = DEFAULT_PRESENTATION_SLIDES): Record<string, unknown>[] {
+function presentationSlides(
+  data: Record<string, unknown>,
+  fallback = DEFAULT_PRESENTATION_SLIDES,
+): Record<string, unknown>[] {
   return fieldRecords(data, 'slides', fallback);
 }
 
-function enrichPresentationData(
-  kind: HtmlPrimitiveKind,
-  data: Record<string, unknown>,
-): Record<string, unknown> {
+function enrichPresentationData(kind: HtmlPrimitiveKind, data: Record<string, unknown>): Record<string, unknown> {
   if (kind !== 'deck' && kind !== 'presentation') return data;
   const slides = presentationSlides(data, kind === 'deck' ? DEFAULT_DECK_SLIDES : DEFAULT_PRESENTATION_SLIDES);
   const slideTitles = slides.map((slide, index) => itemTitle(slide, `Slide ${index + 1}`));
-  const speakerNotes = slides
-    .map((slide) => text(slide.note).trim())
-    .filter(Boolean);
+  const speakerNotes = slides.map((slide) => text(slide.note).trim()).filter(Boolean);
   const theme = kind === 'presentation' ? presentationThemeMetadata(data) : undefined;
   return {
     ...data,
@@ -517,7 +607,9 @@ function isPresentationThemeName(value: string): value is PresentationThemeName 
 
 function parsePresentationThemeName(value: string, field = 'theme'): PresentationThemeName {
   if (isPresentationThemeName(value)) return value;
-  throw new Error(`Invalid presentation ${field} "${value}". Use canvas, midnight, paper, aurora, or a custom theme object.`);
+  throw new Error(
+    `Invalid presentation ${field} "${value}". Use canvas, midnight, paper, aurora, or a custom theme object.`,
+  );
 }
 
 function presentationTheme(data: Record<string, unknown>): PresentationThemeTokens {
@@ -526,9 +618,7 @@ function presentationTheme(data: Record<string, unknown>): PresentationThemeToke
     return PRESENTATION_THEMES[parsePresentationThemeName(raw)];
   }
   if (!isRecord(raw)) return PRESENTATION_THEMES.canvas;
-  const baseName = typeof raw.base === 'string'
-    ? parsePresentationThemeName(raw.base, 'theme base')
-    : 'canvas';
+  const baseName = typeof raw.base === 'string' ? parsePresentationThemeName(raw.base, 'theme base') : 'canvas';
   const base = PRESENTATION_THEMES[baseName];
   const readColor = (key: string, fallback: string): string => {
     const value = text(raw[key]);
@@ -570,7 +660,9 @@ function number(value: unknown, fallback = 0): number {
 function inlineSvgShape(shape: Record<string, unknown>, index: number): string {
   const color = safeCssColor(text(shape.color, '#4a9eff'));
   const label = text(shape.text, text(shape.label));
-  const labelText = label ? `<text x="${number(shape.x, number(shape.cx, 80)) + 12}" y="${number(shape.y, number(shape.cy, 80)) + 28}" fill="var(--color-text, #e8edf2)" font-size="13" font-weight="700">${escapeHtml(label)}</text>` : '';
+  const labelText = label
+    ? `<text x="${number(shape.x, number(shape.cx, 80)) + 12}" y="${number(shape.y, number(shape.cy, 80)) + 28}" fill="var(--color-text, #e8edf2)" font-size="13" font-weight="700">${escapeHtml(label)}</text>`
+    : '';
   switch (text(shape.type, 'rect')) {
     case 'circle':
       return `<circle cx="${number(shape.cx, 80 + index * 40)}" cy="${number(shape.cy, 80)}" r="${number(shape.r, 32)}" fill="${color}" opacity="0.22" stroke="${color}" stroke-width="2" />${label ? `<text x="${number(shape.cx, 80 + index * 40)}" y="${number(shape.cy, 80) + 4}" text-anchor="middle" fill="var(--color-text, #e8edf2)" font-size="13" font-weight="700">${escapeHtml(label)}</text>` : ''}`;
@@ -597,13 +689,23 @@ function itemTitle(item: Record<string, unknown>, fallback: string): string {
 
 function badge(value: string): string {
   const normalized = value.toLowerCase();
-  const tone = normalized.includes('block') || normalized.includes('fail') || normalized.includes('danger') || normalized.includes('critical')
-    ? 'danger'
-    : normalized.includes('warn') || normalized.includes('risk') || normalized.includes('progress') || normalized.includes('later')
-      ? 'warn'
-      : normalized.includes('ok') || normalized.includes('done') || normalized.includes('ship') || normalized.includes('green')
-        ? 'ok'
-        : 'info';
+  const tone =
+    normalized.includes('block') ||
+    normalized.includes('fail') ||
+    normalized.includes('danger') ||
+    normalized.includes('critical')
+      ? 'danger'
+      : normalized.includes('warn') ||
+          normalized.includes('risk') ||
+          normalized.includes('progress') ||
+          normalized.includes('later')
+        ? 'warn'
+        : normalized.includes('ok') ||
+            normalized.includes('done') ||
+            normalized.includes('ship') ||
+            normalized.includes('green')
+          ? 'ok'
+          : 'info';
   return `<span class="badge ${tone}">${escapeHtml(value)}</span>`;
 }
 
@@ -727,11 +829,31 @@ ${input.script ?? ''}
 
 function renderChoiceGrid({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
   const items = fieldRecords(data, 'items', [
-    { title: 'Option A', summary: 'Conservative path with minimal code churn.', tradeoff: 'Lower upside, lower risk.', pros: ['Quick to ship', 'Easy to review'], cons: ['Less flexible'] },
-    { title: 'Option B', summary: 'Balanced refactor with clearer seams.', tradeoff: 'More code touched.', pros: ['Better long-term shape'], cons: ['Requires more tests'] },
-    { title: 'Option C', summary: 'Purpose-built new layer.', tradeoff: 'Best UX, highest implementation cost.', pros: ['Distinctive output'], cons: ['More maintenance'] },
+    {
+      title: 'Option A',
+      summary: 'Conservative path with minimal code churn.',
+      tradeoff: 'Lower upside, lower risk.',
+      pros: ['Quick to ship', 'Easy to review'],
+      cons: ['Less flexible'],
+    },
+    {
+      title: 'Option B',
+      summary: 'Balanced refactor with clearer seams.',
+      tradeoff: 'More code touched.',
+      pros: ['Better long-term shape'],
+      cons: ['Requires more tests'],
+    },
+    {
+      title: 'Option C',
+      summary: 'Purpose-built new layer.',
+      tradeoff: 'Best UX, highest implementation cost.',
+      pros: ['Distinctive output'],
+      cons: ['More maintenance'],
+    },
   ]);
-  const body = `<section class="grid">${items.map((item, index) => `
+  const body = `<section class="grid">${items
+    .map(
+      (item, index) => `
     <article class="card ${index === 0 ? 'emphasis' : ''}">
       <div class="small">Choice ${index + 1}</div>
       <h2>${escapeHtml(itemTitle(item, `Option ${index + 1}`))}</h2>
@@ -739,7 +861,9 @@ function renderChoiceGrid({ title, data, descriptor }: Parameters<PrimitiveRende
       ${text(item.tradeoff) ? `<p><strong>Tradeoff:</strong> ${escapeHtml(text(item.tradeoff))}</p>` : ''}
       <div class="two"><div><h3>Pros</h3>${list(strings(item.pros))}</div><div><h3>Cons</h3>${list(strings(item.cons))}</div></div>
       ${codeBlock(item.code)}
-    </article>`).join('')}</section>`;
+    </article>`,
+    )
+    .join('')}</section>`;
   return page({ title, kind: 'choice-grid', summary: descriptor.description, data, body });
 }
 
@@ -755,10 +879,16 @@ function renderPlanTimeline({ title, data, descriptor }: Parameters<PrimitiveRen
     { from: 'Primitive catalog', to: 'HTML node', label: 'renders iframe HTML' },
     { from: 'Human', to: 'Agent', label: 'exports edited JSON/prompt' },
   ]);
-  const risks = fieldRecords(data, 'risks', [{ risk: 'Overly generic output', mitigation: 'Use named primitives with clear use cases.' }]);
+  const risks = fieldRecords(data, 'risks', [
+    { risk: 'Overly generic output', mitigation: 'Use named primitives with clear use cases.' },
+  ]);
   const snippets = fieldRecords(data, 'snippets', []);
-  const body = `<section class="two"><div class="panel"><h2>Milestones</h2><div class="timeline">${milestones.map((item, index) => `
-    <div class="step"><div class="dot">${index + 1}</div><div class="card"><h3>${escapeHtml(itemTitle(item, `Milestone ${index + 1}`))} ${badge(text(item.status, 'planned'))}</h3><p>${escapeHtml(text(item.detail, 'Add implementation detail.'))}</p></div></div>`).join('')}</div></div>
+  const body = `<section class="two"><div class="panel"><h2>Milestones</h2><div class="timeline">${milestones
+    .map(
+      (item, index) => `
+    <div class="step"><div class="dot">${index + 1}</div><div class="card"><h3>${escapeHtml(itemTitle(item, `Milestone ${index + 1}`))} ${badge(text(item.status, 'planned'))}</h3><p>${escapeHtml(text(item.detail, 'Add implementation detail.'))}</p></div></div>`,
+    )
+    .join('')}</div></div>
     <div class="panel"><h2>Data Flow</h2><div class="flow">${flow.map((item, index) => `<div class="flow-node"><h3>${escapeHtml(text(item.from, `Step ${index + 1}`))}</h3><p>${escapeHtml(text(item.label, 'flows to'))}</p><strong>${escapeHtml(text(item.to, 'Next'))}</strong></div>${index < flow.length - 1 ? '<div class="arrow">-></div>' : ''}`).join('')}</div><h2 style="margin-top:18px">Risks</h2>${risks.map((item) => `<div class="card"><strong>${escapeHtml(text(item.risk, 'Risk'))}</strong><p>${escapeHtml(text(item.mitigation, 'Mitigation'))}</p></div>`).join('')}</div></section>
     ${snippets.length > 0 ? `<section class="panel" style="margin-top:14px"><h2>Code Checkpoints</h2>${snippets.map((item) => `<h3>${escapeHtml(itemTitle(item, 'Snippet'))}</h3>${codeBlock(item.code)}`).join('')}</section>` : ''}`;
   return page({ title, kind: 'plan-timeline', summary: descriptor.description, data, body });
@@ -766,19 +896,31 @@ function renderPlanTimeline({ title, data, descriptor }: Parameters<PrimitiveRen
 
 function renderReviewSheet({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
   const findings = fieldRecords(data, 'findings', [
-    { severity: 'warning', title: 'Review focus', file: 'src/example.ts', line: 1, detail: 'Explain the risky behavior and what to inspect.' },
+    {
+      severity: 'warning',
+      title: 'Review focus',
+      file: 'src/example.ts',
+      line: 1,
+      detail: 'Explain the risky behavior and what to inspect.',
+    },
   ]);
   const files = fieldRecords(data, 'files', []);
   const diff = text(data.diff);
-  const body = `<section class="two"><div class="panel"><h2>Findings</h2>${findings.map((item) => `
-    <article class="card"><h3>${badge(text(item.severity, 'info'))} ${escapeHtml(itemTitle(item, 'Finding'))}</h3><p class="small">${escapeHtml([text(item.file), text(item.line)].filter(Boolean).join(':'))}</p><p>${escapeHtml(text(item.detail, 'Add review note.'))}</p></article>`).join('')}</div>
+  const body = `<section class="two"><div class="panel"><h2>Findings</h2>${findings
+    .map(
+      (item) => `
+    <article class="card"><h3>${badge(text(item.severity, 'info'))} ${escapeHtml(itemTitle(item, 'Finding'))}</h3><p class="small">${escapeHtml([text(item.file), text(item.line)].filter(Boolean).join(':'))}</p><p>${escapeHtml(text(item.detail, 'Add review note.'))}</p></article>`,
+    )
+    .join('')}</div>
     <div class="panel"><h2>Review Tour</h2>${files.length > 0 ? files.map((item) => `<article class="card"><h3>${escapeHtml(text(item.path, 'File'))}</h3><p>${escapeHtml(text(item.why, 'Why this file matters.'))}</p></article>`).join('') : '<p class="muted">Add files with path and why fields for a guided review.</p>'}</div></section>
     ${diff ? `<section class="panel" style="margin-top:14px"><h2>Diff Excerpt</h2>${codeBlock(diff)}</section>` : ''}`;
   return page({ title, kind: 'review-sheet', summary: descriptor.description, data, body });
 }
 
 function renderPrWriteup({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
-  const files = fieldRecords(data, 'files', [{ path: 'src/example.ts', why: 'Core behavior changed here.', focus: 'Review edge cases and tests.' }]);
+  const files = fieldRecords(data, 'files', [
+    { path: 'src/example.ts', why: 'Core behavior changed here.', focus: 'Review edge cases and tests.' },
+  ]);
   const body = `<section class="panel"><h2>Summary</h2><p>${escapeHtml(text(data.summary, 'Summarize the change in one reviewer-friendly paragraph.'))}</p><p>${escapeHtml(text(data.why, 'Explain why this change matters now.'))}</p></section>
     <section class="two" style="margin-top:14px"><div class="card"><h2>Before</h2>${list(fieldStrings(data, 'before', ['Current behavior or pain point.']))}</div><div class="card emphasis"><h2>After</h2>${list(fieldStrings(data, 'after', ['New behavior or reviewer-visible outcome.']))}</div></section>
     <section class="three" style="margin-top:14px"><div class="panel"><h2>File Tour</h2>${files.map((file) => `<details open><summary><strong>${escapeHtml(text(file.path, 'File'))}</strong></summary><p>${escapeHtml(text(file.why, 'Why this file matters.'))}</p><p class="small">Focus: ${escapeHtml(text(file.focus, 'Review behavior and tests.'))}</p></details>`).join('')}</div>
@@ -831,7 +973,9 @@ function renderCodeWalkthrough({ title, data, descriptor }: Parameters<Primitive
     { id: 'core', title: 'Core Logic', detail: 'State change or main computation.', role: 'core' },
     { id: 'view', title: 'Renderer', detail: 'User-visible result.', role: 'view' },
   ]);
-  const steps = fieldRecords(data, 'steps', [{ title: 'Trace the path', file: 'src/example.ts', detail: 'Explain the first important hop.', code: '' }]);
+  const steps = fieldRecords(data, 'steps', [
+    { title: 'Trace the path', file: 'src/example.ts', detail: 'Explain the first important hop.', code: '' },
+  ]);
   const keyFiles = fieldRecords(data, 'keyFiles', []);
   const edges = fieldRecords(data, 'edges', []);
   const body = `<section class="panel"><h2>Path Summary</h2><p>${escapeHtml(text(data.summary, 'Explain the code path this walkthrough covers.'))}</p><div class="flow" style="margin-top:12px">${modules.map((module) => `<div class="flow-node"><div class="small">${escapeHtml(text(module.role, text(module.id, 'module')))}</div><h3>${escapeHtml(itemTitle(module, 'Module'))}</h3><p>${escapeHtml(text(module.detail, ''))}</p></div>`).join('<div class="arrow">-></div>')}</div>${edges.length > 0 ? `<p class="small" style="margin-top:10px">Edges: ${escapeHtml(edges.map((edge) => `${text(edge.from)} -> ${text(edge.to)}${text(edge.label) ? ` (${text(edge.label)})` : ''}`).join(', '))}</p>` : ''}</section>
@@ -843,14 +987,26 @@ function renderCodeWalkthrough({ title, data, descriptor }: Parameters<Primitive
 
 function renderDesignSheet({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
   const directions = fieldRecords(data, 'directions', [
-    { title: 'Editorial dense', tone: 'serious, information-rich', palette: ['#f4efe5', '#17120f', '#c84f2f'], rationale: 'Good when humans need to compare many details quickly.' },
-    { title: 'Control-room dark', tone: 'operational, high contrast', palette: ['#07111d', '#dce8f2', '#4a9eff'], rationale: 'Good for dashboards and incident views.' },
+    {
+      title: 'Editorial dense',
+      tone: 'serious, information-rich',
+      palette: ['#f4efe5', '#17120f', '#c84f2f'],
+      rationale: 'Good when humans need to compare many details quickly.',
+    },
+    {
+      title: 'Control-room dark',
+      tone: 'operational, high contrast',
+      palette: ['#07111d', '#dce8f2', '#4a9eff'],
+      rationale: 'Good for dashboards and incident views.',
+    },
   ]);
   const tokens = fieldRecords(data, 'tokens', []);
-  const body = `<section class="grid">${directions.map((item) => {
-    const palette = strings(item.palette);
-    return `<article class="card"><h2>${escapeHtml(itemTitle(item, 'Direction'))}</h2><p>${escapeHtml(text(item.tone, 'Tone'))}</p><div class="swatches">${palette.map((color) => `<span class="swatch" title="${escapeHtml(color)}" style="background:${safeCssColor(color)}"></span>`).join('')}</div><p>${escapeHtml(text(item.rationale, 'Rationale'))}</p></article>`;
-  }).join('')}</section>
+  const body = `<section class="grid">${directions
+    .map((item) => {
+      const palette = strings(item.palette);
+      return `<article class="card"><h2>${escapeHtml(itemTitle(item, 'Direction'))}</h2><p>${escapeHtml(text(item.tone, 'Tone'))}</p><div class="swatches">${palette.map((color) => `<span class="swatch" title="${escapeHtml(color)}" style="background:${safeCssColor(color)}"></span>`).join('')}</div><p>${escapeHtml(text(item.rationale, 'Rationale'))}</p></article>`;
+    })
+    .join('')}</section>
     ${tokens.length > 0 ? `<section class="panel" style="margin-top:14px"><h2>Tokens</h2><div class="grid">${tokens.map((item) => `<div class="card"><strong>${escapeHtml(itemTitle(item, 'Token'))}</strong><p>${escapeHtml(text(item.value, ''))}</p></div>`).join('')}</div></section>` : ''}`;
   return page({ title, kind: 'design-sheet', summary: descriptor.description, data, body });
 }
@@ -860,7 +1016,13 @@ function renderComponentGallery({ title, data, descriptor }: Parameters<Primitiv
   const variants = fieldRecords(data, 'variants', [
     { label: 'Primary', state: 'default', intent: 'Main action', example: 'Continue', note: 'High emphasis.' },
     { label: 'Secondary', state: 'hover', intent: 'Alternative action', example: 'Back', note: 'Lower emphasis.' },
-    { label: 'Destructive', state: 'disabled', intent: 'Danger zone', example: 'Delete', note: 'Requires confirmation.' },
+    {
+      label: 'Destructive',
+      state: 'disabled',
+      intent: 'Danger zone',
+      example: 'Delete',
+      note: 'Requires confirmation.',
+    },
   ]);
   const body = `<section class="panel"><h2>${escapeHtml(component)}</h2><p>Variant contact sheet for fast visual review.</p></section>
     <section class="grid" style="margin-top:14px">${variants.map((item) => `<article class="card"><div class="small">${escapeHtml(text(item.state, 'state'))} / ${escapeHtml(text(item.intent, 'intent'))}</div><h2>${escapeHtml(itemTitle(item, 'Variant'))}</h2><button type="button">${escapeHtml(text(item.example, itemTitle(item, 'Example')))}</button><p>${escapeHtml(text(item.note, ''))}</p></article>`).join('')}</section>`;
@@ -868,13 +1030,17 @@ function renderComponentGallery({ title, data, descriptor }: Parameters<Primitiv
 }
 
 function renderInteractionPrototype({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
-  const controls = fieldRecords(data, 'controls', [{ key: 'duration', label: 'Duration', value: 280, min: 100, max: 900, unit: 'ms' }]);
+  const controls = fieldRecords(data, 'controls', [
+    { key: 'duration', label: 'Duration', value: 280, min: 100, max: 900, unit: 'ms' },
+  ]);
   const screens = fieldRecords(data, 'screens', [
     { title: 'Start', detail: 'Initial state before interaction.' },
     { title: 'Active', detail: 'The user has started the interaction.' },
     { title: 'Done', detail: 'Final state after completion.' },
   ]);
-  const annotations = fieldRecords(data, 'annotations', [{ title: 'Decision', detail: 'Tune the values until this feels right.' }]);
+  const annotations = fieldRecords(data, 'annotations', [
+    { title: 'Decision', detail: 'Tune the values until this feels right.' },
+  ]);
   const body = `<section class="three"><div class="panel"><h2>Stage</h2><p>${escapeHtml(text(data.scenario, 'Describe the interaction this prototype evaluates.'))}</p><div class="flow" style="margin-top:16px">${screens.map((screen, index) => `<button class="flow-node" type="button" data-screen="${index}"><h3>${escapeHtml(itemTitle(screen, 'Screen'))}</h3><p>${escapeHtml(text(screen.detail, ''))}</p></button>`).join('<div class="arrow">-></div>')}</div><div class="card emphasis" id="prototype-readout" style="margin-top:14px">Select a screen to inspect it.</div></div>
     <div class="panel"><h2>Controls</h2>${controls.map((control, index) => `<label class="card"><span class="small">${escapeHtml(text(control.key, `control${index}`))}</span><h3>${escapeHtml(text(control.label, 'Control'))}: <span data-control-value="${index}">${escapeHtml(text(control.value, '0'))}</span>${escapeHtml(text(control.unit, ''))}</h3><input type="range" data-control="${index}" min="${number(control.min, 0)}" max="${number(control.max, 1000)}" value="${number(control.value, 0)}"></label>`).join('')}</div>
     <div class="panel sticky"><h2>Notes</h2>${annotations.map((item) => `<article class="card"><h3>${escapeHtml(itemTitle(item, 'Note'))}</h3><p>${escapeHtml(text(item.detail, ''))}</p></article>`).join('')}<h2 style="margin-top:18px">Questions</h2>${list(fieldStrings(data, 'questions', ['Does the timing feel responsive?', 'What should persist after completion?']))}${codeBlock(data.snippet)}</div></section>`;
@@ -924,11 +1090,23 @@ document.querySelectorAll('[data-step]').forEach((button) => button.addEventList
 }
 
 function renderIllustrationSet({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
-  const figures = fieldRecords(data, 'figures', [{ title: 'System Loop', caption: 'A small editable SVG-style figure.', shapes: [{ type: 'rect', x: 40, y: 60, width: 160, height: 72, text: 'Agent', color: '#4a9eff' }, { type: 'arrow', x1: 210, y1: 96, x2: 340, y2: 96, color: '#eab308' }, { type: 'circle', cx: 420, cy: 96, r: 42, text: 'Human', color: '#22c55e' }] }]);
-  const body = `<section class="grid">${figures.map((figure, index) => {
-    const shapes = records(figure.shapes);
-    return `<article class="card figure"><h2>${escapeHtml(itemTitle(figure, `Figure ${index + 1}`))}</h2><svg viewBox="0 0 560 260" role="img" aria-label="${escapeHtml(itemTitle(figure, `Figure ${index + 1}`))}" data-figure="${index}"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="currentColor"></path></marker></defs>${shapes.map(inlineSvgShape).join('')}</svg><p>${escapeHtml(text(figure.caption, ''))}</p><button type="button" data-copy-svg="${index}">Copy SVG</button></article>`;
-  }).join('')}</section>`;
+  const figures = fieldRecords(data, 'figures', [
+    {
+      title: 'System Loop',
+      caption: 'A small editable SVG-style figure.',
+      shapes: [
+        { type: 'rect', x: 40, y: 60, width: 160, height: 72, text: 'Agent', color: '#4a9eff' },
+        { type: 'arrow', x1: 210, y1: 96, x2: 340, y2: 96, color: '#eab308' },
+        { type: 'circle', cx: 420, cy: 96, r: 42, text: 'Human', color: '#22c55e' },
+      ],
+    },
+  ]);
+  const body = `<section class="grid">${figures
+    .map((figure, index) => {
+      const shapes = records(figure.shapes);
+      return `<article class="card figure"><h2>${escapeHtml(itemTitle(figure, `Figure ${index + 1}`))}</h2><svg viewBox="0 0 560 260" role="img" aria-label="${escapeHtml(itemTitle(figure, `Figure ${index + 1}`))}" data-figure="${index}"><defs><marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="currentColor"></path></marker></defs>${shapes.map(inlineSvgShape).join('')}</svg><p>${escapeHtml(text(figure.caption, ''))}</p><button type="button" data-copy-svg="${index}">Copy SVG</button></article>`;
+    })
+    .join('')}</section>`;
   return page({
     title,
     kind: 'illustration-set',
@@ -973,9 +1151,10 @@ function renderPresentation({ title, data, descriptor }: Parameters<PrimitiveRen
   const theme = presentationTheme(data);
   const accentOverride = safeCssColor(text(data.accent, ''));
   const accent = accentOverride === 'transparent' ? theme.accent : accentOverride;
-  const slideMarkup = slides.map((item, index) => {
-    const metrics = records(item.metrics);
-    return `<article class="slide ${index === 0 ? 'active' : ''}" data-slide="${index}">
+  const slideMarkup = slides
+    .map((item, index) => {
+      const metrics = records(item.metrics);
+      return `<article class="slide ${index === 0 ? 'active' : ''}" data-slide="${index}">
       <div class="slide-grid ${metrics.length > 0 ? 'with-metrics' : 'without-metrics'}">
         <div class="slide-copy">
           <div class="kicker">${escapeHtml(text(item.kicker, `Slide ${index + 1}`))}</div>
@@ -987,7 +1166,8 @@ function renderPresentation({ title, data, descriptor }: Parameters<PrimitiveRen
       </div>
       ${text(item.note) ? `<aside class="speaker-note"><span>Speaker note</span>${escapeHtml(text(item.note))}</aside>` : ''}
     </article>`;
-  }).join('');
+    })
+    .join('');
 
   return `<!doctype html>
 <html lang="en">
@@ -1088,7 +1268,9 @@ showSlide(0);
 }
 
 function renderExplainer({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
-  const steps = fieldRecords(data, 'steps', [{ title: 'Start here', detail: 'Add request path, data flow, or concept steps.' }]);
+  const steps = fieldRecords(data, 'steps', [
+    { title: 'Start here', detail: 'Add request path, data flow, or concept steps.' },
+  ]);
   const snippets = fieldRecords(data, 'snippets', []);
   const faq = fieldRecords(data, 'faq', []);
   const glossary = fieldRecords(data, 'glossary', []);
@@ -1100,7 +1282,10 @@ function renderExplainer({ title, data, descriptor }: Parameters<PrimitiveRender
 }
 
 function renderStatusReport({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
-  const metrics = fieldRecords(data, 'metrics', [{ label: 'Health', value: 'on track', tone: 'ok' }, { label: 'Risk', value: 'medium', tone: 'warn' }]);
+  const metrics = fieldRecords(data, 'metrics', [
+    { label: 'Health', value: 'on track', tone: 'ok' },
+    { label: 'Risk', value: 'medium', tone: 'warn' },
+  ]);
   const body = `<section class="grid">${metrics.map((item) => `<article class="card"><div class="small">${escapeHtml(text(item.label, 'Metric'))}</div><h2>${escapeHtml(text(item.value, 'Value'))}</h2>${badge(text(item.tone, 'info'))}</article>`).join('')}</section>
     <section class="grid" style="margin-top:14px"><article class="card"><h2>Shipped</h2>${list(fieldStrings(data, 'shipped', ['Add shipped items.']))}</article><article class="card"><h2>Slipped</h2>${list(fieldStrings(data, 'slipped', ['Add slipped items.']))}</article><article class="card"><h2>Risks</h2>${list(fieldStrings(data, 'risks', ['Add risks.']))}</article><article class="card"><h2>Next</h2>${list(fieldStrings(data, 'next', ['Add next actions.']))}</article></section>`;
   return page({ title, kind: 'status-report', summary: descriptor.description, data, body });
@@ -1112,8 +1297,12 @@ function renderIncidentReport({ title, data, descriptor }: Parameters<PrimitiveR
     { label: 'Status', value: text(data.status, 'resolved'), tone: 'ok' },
     { label: 'Duration', value: text(data.duration, 'unknown'), tone: 'info' },
   ]);
-  const timeline = fieldRecords(data, 'timeline', [{ time: '00:00', event: 'Incident started', detail: 'Add the first observed signal.', tone: 'warn' }]);
-  const actions = fieldRecords(data, 'actions', [{ done: false, owner: 'Unassigned', description: 'Add follow-up action.', due: 'TBD' }]);
+  const timeline = fieldRecords(data, 'timeline', [
+    { time: '00:00', event: 'Incident started', detail: 'Add the first observed signal.', tone: 'warn' },
+  ]);
+  const actions = fieldRecords(data, 'actions', [
+    { done: false, owner: 'Unassigned', description: 'Add follow-up action.', due: 'TBD' },
+  ]);
   const body = `<section class="grid">${impact.map((item) => `<article class="card metric"><div class="small">${escapeHtml(text(item.label, 'Metric'))}</div><strong>${escapeHtml(text(item.value, 'Value'))}</strong>${badge(text(item.tone, 'info'))}</article>`).join('')}</section>
     <section class="panel" style="margin-top:14px"><h2>Executive Summary</h2><p>${escapeHtml(text(data.summary, 'Summarize user impact, detection, and resolution.'))}</p></section>
     <section class="three" style="margin-top:14px"><div class="panel"><h2>Timeline</h2><div class="timeline">${timeline.map((item, index) => `<div class="step"><div class="dot">${escapeHtml(text(item.time, String(index + 1)))}</div><div class="card"><h3>${escapeHtml(text(item.event, 'Event'))} ${badge(text(item.tone, 'info'))}</h3><p>${escapeHtml(text(item.detail, ''))}</p></div></div>`).join('')}</div></div>
@@ -1137,10 +1326,33 @@ document.querySelector('[data-copy-actions]')?.addEventListener('click', () => c
 function renderTriageBoard({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
   const columns = fieldStrings(data, 'columns', ['Now', 'Next', 'Later', 'Cut']);
   const items = fieldRecords(data, 'items', [
-    { title: 'Clarify requirements', detail: 'Human should decide scope boundary.', column: 'Now', rationale: 'Blocks accurate implementation.' },
-    { title: 'Polish visuals', detail: 'Improve hierarchy after behavior lands.', column: 'Next', rationale: 'Useful but not blocking.' },
+    {
+      title: 'Clarify requirements',
+      detail: 'Human should decide scope boundary.',
+      column: 'Now',
+      rationale: 'Blocks accurate implementation.',
+    },
+    {
+      title: 'Polish visuals',
+      detail: 'Improve hierarchy after behavior lands.',
+      column: 'Next',
+      rationale: 'Useful but not blocking.',
+    },
   ]);
-  const body = `<section class="columns">${columns.map((column) => `<div class="column" data-column="${escapeHtml(column)}"><h2>${escapeHtml(column)}</h2>${items.filter((item) => text(item.column, columns[0]) === column).map((item, index) => `<article class="card ticket" draggable="true" data-ticket="${index}"><h3>${escapeHtml(itemTitle(item, 'Item'))}</h3><p>${escapeHtml(text(item.detail, ''))}</p><p class="small">${escapeHtml(text(item.rationale, ''))}</p></article>`).join('')}</div>`).join('')}</section><p class="small" style="margin-top:12px">Drag cards between columns, then copy JSON or markdown.</p><button type="button" data-copy-markdown>Copy markdown</button>`;
+  const body = `<section class="columns">${columns
+    .map(
+      (column) =>
+        `<div class="column" data-column="${escapeHtml(column)}"><h2>${escapeHtml(column)}</h2>${items
+          .filter((item) => text(item.column, columns[0]) === column)
+          .map(
+            (item, index) =>
+              `<article class="card ticket" draggable="true" data-ticket="${index}"><h3>${escapeHtml(itemTitle(item, 'Item'))}</h3><p>${escapeHtml(text(item.detail, ''))}</p><p class="small">${escapeHtml(text(item.rationale, ''))}</p></article>`,
+          )
+          .join('')}</div>`,
+    )
+    .join(
+      '',
+    )}</section><p class="small" style="margin-top:12px">Drag cards between columns, then copy JSON or markdown.</p><button type="button" data-copy-markdown>Copy markdown</button>`;
   return page({
     title,
     kind: 'triage-board',
@@ -1178,8 +1390,21 @@ document.querySelector('[data-copy-markdown]')?.addEventListener('click', () => 
 
 function renderConfigEditor({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
   const flags = fieldRecords(data, 'flags', [
-    { key: 'paymentsV2', label: 'Payments V2', area: 'Checkout', enabled: true, description: 'Required for the new checkout path.' },
-    { key: 'newCheckout', label: 'New checkout', area: 'Checkout', enabled: false, requires: ['paymentsV2'], description: 'Routes users through the new flow.' },
+    {
+      key: 'paymentsV2',
+      label: 'Payments V2',
+      area: 'Checkout',
+      enabled: true,
+      description: 'Required for the new checkout path.',
+    },
+    {
+      key: 'newCheckout',
+      label: 'New checkout',
+      area: 'Checkout',
+      enabled: false,
+      requires: ['paymentsV2'],
+      description: 'Routes users through the new flow.',
+    },
   ]);
   const body = `<section class="grid">${flags.map((flag, index) => `<label class="card"><div class="small">${escapeHtml(text(flag.area, 'General'))}</div><h3><input type="checkbox" data-flag="${index}" ${flag.enabled === true ? 'checked' : ''}> ${escapeHtml(text(flag.label, text(flag.key, `Flag ${index + 1}`)))}</h3><p>${escapeHtml(text(flag.description, ''))}</p><p class="small">Key: ${escapeHtml(text(flag.key, 'unknown'))}${strings(flag.requires).length > 0 ? ` / requires: ${escapeHtml(strings(flag.requires).join(', '))}` : ''}</p><p class="small" data-warning="${index}"></p></label>`).join('')}</section><button type="button" data-copy-diff style="margin-top:12px">Copy diff</button>`;
   return page({
@@ -1212,8 +1437,13 @@ refreshWarnings();`,
 }
 
 function renderPromptTuner({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
-  const template = text(data.template, 'Explain {{feature}} for {{audience}}. Include the tradeoffs and one concrete example.');
-  const samples = fieldRecords(data, 'samples', [{ name: 'Default', variables: { feature: 'PMX Canvas pins', audience: 'coding agents' } }]);
+  const template = text(
+    data.template,
+    'Explain {{feature}} for {{audience}}. Include the tradeoffs and one concrete example.',
+  );
+  const samples = fieldRecords(data, 'samples', [
+    { name: 'Default', variables: { feature: 'PMX Canvas pins', audience: 'coding agents' } },
+  ]);
   const body = `<section class="two"><div class="panel"><h2>Template</h2><textarea id="template">${escapeHtml(template)}</textarea><p class="small"><span id="char-count">0</span> characters</p></div><div class="panel"><h2>Live Samples</h2><div id="previews"></div><button type="button" data-copy-template>Copy template</button></div></section>`;
   return page({
     title,
@@ -1296,9 +1526,8 @@ export function buildHtmlPrimitive(input: HtmlPrimitiveInput): HtmlPrimitiveBuil
   const data = enrichPresentationData(input.kind, input.data ?? {});
   const renderer = RENDERERS[input.kind];
   const slideTitles = strings(data.slideTitles);
-  const summary = slideTitles.length > 0
-    ? `${descriptor.description} Slides: ${slideTitles.join(', ')}.`
-    : descriptor.description;
+  const summary =
+    slideTitles.length > 0 ? `${descriptor.description} Slides: ${slideTitles.join(', ')}.` : descriptor.description;
   return {
     kind: input.kind,
     title,

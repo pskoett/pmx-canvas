@@ -1,5 +1,5 @@
 export declare const HTML_PRIMITIVE_KINDS: readonly ["choice-grid", "plan-timeline", "review-sheet", "pr-writeup", "system-map", "code-walkthrough", "design-sheet", "component-gallery", "interaction-prototype", "flowchart", "deck", "presentation", "illustration-set", "explainer", "status-report", "incident-report", "triage-board", "config-editor", "prompt-tuner"];
-export type HtmlPrimitiveKind = typeof HTML_PRIMITIVE_KINDS[number];
+export type HtmlPrimitiveKind = (typeof HTML_PRIMITIVE_KINDS)[number];
 export interface HtmlPrimitiveDescriptor {
     kind: HtmlPrimitiveKind;
     title: string;

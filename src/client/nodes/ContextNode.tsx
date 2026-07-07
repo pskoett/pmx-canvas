@@ -82,9 +82,7 @@ function stripHtmlToText(value: string): string {
     .trim();
 }
 
-export function normalizeContextNodeFallback(
-  nodeData: Record<string, unknown>,
-): ContextNodeFallbackDisplay | null {
+export function normalizeContextNodeFallback(nodeData: Record<string, unknown>): ContextNodeFallbackDisplay | null {
   const title = asTrimmedString(nodeData.title);
   const content = asTrimmedString(nodeData.content);
   const rendered = stripHtmlToText(asTrimmedString(nodeData.rendered));
@@ -135,24 +133,23 @@ export function ContextNode({
   node,
   expanded = false,
   pinnedNodes = [],
-}: { node: CanvasNodeState; expanded?: boolean; pinnedNodes?: CanvasNodeState[] }) {
+}: {
+  node: CanvasNodeState;
+  expanded?: boolean;
+  pinnedNodes?: CanvasNodeState[];
+}) {
   const cards = (node.data.cards as ContextCard[]) ?? [];
   const auxTabs = (node.data.auxTabs as Array<{ id: string; url: string; reason?: string }>) ?? [];
   const pinnedContext = pinnedNodes.map(normalizePinnedContextDisplay);
   const hasPinnedContext = pinnedContext.length > 0;
-  const currentTokens =
-    typeof node.data.currentTokens === 'number' ? node.data.currentTokens : null;
+  const currentTokens = typeof node.data.currentTokens === 'number' ? node.data.currentTokens : null;
   const tokenLimit = typeof node.data.tokenLimit === 'number' ? node.data.tokenLimit : null;
   const utilization = typeof node.data.utilization === 'number' ? node.data.utilization : null;
-  const messagesLength =
-    typeof node.data.messagesLength === 'number' ? node.data.messagesLength : null;
-  const percent =
-    utilization !== null ? Math.max(0, Math.min(100, Math.round(utilization * 100))) : null;
+  const messagesLength = typeof node.data.messagesLength === 'number' ? node.data.messagesLength : null;
+  const percent = utilization !== null ? Math.max(0, Math.min(100, Math.round(utilization * 100))) : null;
   const barColor = usageBarColor(utilization ?? 0);
   const fallback =
-    !hasPinnedContext && cards.length === 0 && auxTabs.length === 0
-      ? normalizeContextNodeFallback(node.data)
-      : null;
+    !hasPinnedContext && cards.length === 0 && auxTabs.length === 0 ? normalizeContextNodeFallback(node.data) : null;
 
   const openCard = async (card: ContextCard): Promise<void> => {
     const path = typeof card.path === 'string' ? card.path.trim() : '';
@@ -254,9 +251,7 @@ export function ContextNode({
                 borderLeft: '2px solid var(--c-accent)',
               }}
             >
-              <div style={{ fontWeight: 600, color: 'var(--c-text)', marginBottom: '2px' }}>
-                {display.title}
-              </div>
+              <div style={{ fontWeight: 600, color: 'var(--c-text)', marginBottom: '2px' }}>{display.title}</div>
               {display.summary && (
                 <div
                   style={{
@@ -347,9 +342,7 @@ export function ContextNode({
                   borderLeft: '2px solid var(--c-accent)',
                 }}
               >
-                <div style={{ fontWeight: 600, color: 'var(--c-text)', marginBottom: '2px' }}>
-                  {display.title}
-                </div>
+                <div style={{ fontWeight: 600, color: 'var(--c-text)', marginBottom: '2px' }}>{display.title}</div>
                 <div
                   style={{
                     color: 'var(--c-muted)',
@@ -478,9 +471,7 @@ export function ContextNode({
             >
               {tab.url}
               {tab.reason && (
-                <span style={{ color: 'var(--c-dim)', fontSize: '10px', marginLeft: '6px' }}>
-                  ({tab.reason})
-                </span>
+                <span style={{ color: 'var(--c-dim)', fontSize: '10px', marginLeft: '6px' }}>({tab.reason})</span>
               )}
             </a>
           ))}
@@ -496,9 +487,7 @@ export function ContextNode({
             borderLeft: '2px solid var(--c-accent)',
           }}
         >
-          <div style={{ fontWeight: 600, color: 'var(--c-text)', marginBottom: '4px' }}>
-            {fallback.title}
-          </div>
+          <div style={{ fontWeight: 600, color: 'var(--c-text)', marginBottom: '4px' }}>{fallback.title}</div>
           {fallback.summary && (
             <div
               style={{

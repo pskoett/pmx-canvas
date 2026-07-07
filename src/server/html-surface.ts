@@ -243,9 +243,7 @@ export function buildHtmlSurfaceDocument(userHtml: string, options: HtmlSurfaceO
   const presentationBridge = options.presentation
     ? buildPresentationEscapeBridge(sanitizeToken(options.presentationExitToken))
     : '';
-  const axBridge = options.axBridge
-    ? buildAxBridge(sanitizeToken(options.axToken), sanitizeToken(options.nodeId))
-    : '';
+  const axBridge = options.axBridge ? buildAxBridge(sanitizeToken(options.axToken), sanitizeToken(options.nodeId)) : '';
   // Read-side AX state bridge (seed + live push). `</` is escaped so a work-item
   // title containing "</script>" can't break out of the inline script.
   const axStateBridge = options.axBridge
@@ -264,12 +262,11 @@ export function buildHtmlSurfaceDocument(userHtml: string, options: HtmlSurfaceO
   // Only supply a fallback <title> when the author HTML does not already set a
   // DOCUMENT title. Strip inline <svg>/<math> first so a nested accessibility
   // <title> (e.g. <svg><title>…</title></svg>) doesn't suppress the fallback.
-  const withoutNestedTitles = trimmed
-    .replace(/<svg[\s\S]*?<\/svg>/gi, '')
-    .replace(/<math[\s\S]*?<\/math>/gi, '');
-  const titleTag = options.title && !/<title[\s>]/i.test(withoutNestedTitles)
-    ? `<title>${escapeSurfaceHtml(options.title)}</title>`
-    : '';
+  const withoutNestedTitles = trimmed.replace(/<svg[\s\S]*?<\/svg>/gi, '').replace(/<math[\s\S]*?<\/math>/gi, '');
+  const titleTag =
+    options.title && !/<title[\s>]/i.test(withoutNestedTitles)
+      ? `<title>${escapeSurfaceHtml(options.title)}</title>`
+      : '';
   if (isFullDoc) {
     const withTheme = trimmed.replace(
       /<html([^>]*)>/i,

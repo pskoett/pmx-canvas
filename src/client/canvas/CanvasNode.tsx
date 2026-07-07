@@ -1,9 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
-import {
-  attentionPrimaryNodeIds,
-  attentionPulseNodeIds,
-  attentionSecondaryNodeIds,
-} from '../state/attention-store';
+import { attentionPrimaryNodeIds, attentionPulseNodeIds, attentionSecondaryNodeIds } from '../state/attention-store';
 import {
   activeNodeId,
   activeNeighborNodeIds,
@@ -55,16 +51,19 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const renameRef = useRef<HTMLInputElement>(null);
 
   // ── Drag (with snap alignment) ──────────────────────
-  const handleMove = useCallback((id: string, x: number, y: number) => {
-    const snap = snapToGuides(x, y, node.size.width, node.size.height);
-    const current = nodes.value.get(id);
-    if (current?.position.x === snap.x && current.position.y === snap.y) {
+  const handleMove = useCallback(
+    (id: string, x: number, y: number) => {
+      const snap = snapToGuides(x, y, node.size.width, node.size.height);
+      const current = nodes.value.get(id);
+      if (current?.position.x === snap.x && current.position.y === snap.y) {
+        activeGuides.value = snap.guides.length > 0 ? snap.guides : null;
+        return;
+      }
+      updateNode(id, { position: { x: snap.x, y: snap.y } });
       activeGuides.value = snap.guides.length > 0 ? snap.guides : null;
-      return;
-    }
-    updateNode(id, { position: { x: snap.x, y: snap.y } });
-    activeGuides.value = snap.guides.length > 0 ? snap.guides : null;
-  }, [node.size.width, node.size.height]);
+    },
+    [node.size.width, node.size.height],
+  );
 
   const handleDragEnd = useCallback(() => {
     clearSnapCache();
@@ -196,7 +195,16 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         autoFitPersistTimer.current = null;
       }
     };
-  }, [node.id, node.type, node.data.mode, node.data.strictSize, node.collapsed, node.dockPosition, node.size.width, node.size.height]);
+  }, [
+    node.id,
+    node.type,
+    node.data.mode,
+    node.data.strictSize,
+    node.collapsed,
+    node.dockPosition,
+    node.size.width,
+    node.size.height,
+  ]);
 
   const isPinned = node.pinned;
   const isTrace = node.type === 'trace';
@@ -237,12 +245,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     .join(' ');
 
   return (
-    <div
-      class={nodeClass}
-      style={nodeStyle}
-      onPointerDown={handlePointerDown}
-      onContextMenu={handleContextMenuEvent}
-    >
+    <div class={nodeClass} style={nodeStyle} onPointerDown={handlePointerDown} onContextMenu={handleContextMenuEvent}>
       <div class="node-titlebar" onPointerDown={handleTitlePointerDown}>
         <span class="node-type-icon" aria-hidden="true">
           {(() => {
@@ -345,10 +348,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         </div>
       )}
       {!node.collapsed && (
-        <div
-          class="node-resize-handle"
-          onPointerDown={(e) => startResize(e, node.size.width, node.size.height)}
-        />
+        <div class="node-resize-handle" onPointerDown={(e) => startResize(e, node.size.width, node.size.height)} />
       )}
       {/* Connection port handles — visible on hover, drag to connect */}
       {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
@@ -364,10 +364,22 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
             const hh = node.size.height / 2;
             let px: number, py: number;
             switch (side) {
-              case 'top':    px = cx; py = cy - hh; break;
-              case 'bottom': px = cx; py = cy + hh; break;
-              case 'left':   px = cx - hw; py = cy; break;
-              case 'right':  px = cx + hw; py = cy; break;
+              case 'top':
+                px = cx;
+                py = cy - hh;
+                break;
+              case 'bottom':
+                px = cx;
+                py = cy + hh;
+                break;
+              case 'left':
+                px = cx - hw;
+                py = cy;
+                break;
+              case 'right':
+                px = cx + hw;
+                py = cy;
+                break;
             }
             draggingEdge.value = {
               fromId: node.id,

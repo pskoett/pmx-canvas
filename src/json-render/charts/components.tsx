@@ -120,8 +120,9 @@ export function useChartFrameHeight(explicitHeight: number | null | undefined, f
 
   // Standalone "Open as site" tab (#65): fill the full browser viewport — there is no
   // card chrome below the chart, so drop the ~44px reserve and use a larger floor.
-  const isSite = typeof window !== 'undefined'
-    && (window as { __PMX_CANVAS_JSON_RENDER_DISPLAY__?: string }).__PMX_CANVAS_JSON_RENDER_DISPLAY__ === 'site';
+  const isSite =
+    typeof window !== 'undefined' &&
+    (window as { __PMX_CANVAS_JSON_RENDER_DISPLAY__?: string }).__PMX_CANVAS_JSON_RENDER_DISPLAY__ === 'site';
 
   useEffect(() => {
     const frame = frameRef.current;
@@ -169,16 +170,21 @@ export function useChartFrameHeight(explicitHeight: number | null | undefined, f
   // the node/viewport height. That makes the document's scrollHeight stable so the
   // node can grow to it once and converge (no fill-down feedback loop). When NOT in
   // content-fit (strictSize / user-resized nodes), it fills the frame down as before.
-  const fitContent = typeof window !== 'undefined'
-    && (window as { __PMX_CANVAS_FIT_CONTENT__?: boolean }).__PMX_CANVAS_FIT_CONTENT__ === true;
+  const fitContent =
+    typeof window !== 'undefined' &&
+    (window as { __PMX_CANVAS_FIT_CONTENT__?: boolean }).__PMX_CANVAS_FIT_CONTENT__ === true;
   // Site mode (#65): fill the viewport (autoHeight), ignoring an explicit/configured
   // chart height that would otherwise cap it to a shallow card. Content-fit is off in
   // site mode (the server skips it), so site never takes the intrinsic-height branch.
   const height = isSite
     ? autoHeight
     : fitContent
-      ? (typeof explicitHeight === 'number' ? explicitHeight : fallbackHeight)
-      : (typeof explicitHeight === 'number' ? Math.min(explicitHeight, autoHeight) : autoHeight);
+      ? typeof explicitHeight === 'number'
+        ? explicitHeight
+        : fallbackHeight
+      : typeof explicitHeight === 'number'
+        ? Math.min(explicitHeight, autoHeight)
+        : autoHeight;
   return {
     frameRef,
     height,
@@ -251,11 +257,7 @@ function ChartLineChart({ props }: BaseComponentProps<CartesianChartProps>) {
  * 'max'/'min' pick the tallest/shortest yKey value; a number is used as-is
  * (clamped to range); null/out-of-range means no bar is emphasized.
  */
-function resolveHighlightIndex(
-  data: Record<string, unknown>[],
-  yKey: string,
-  highlight: BarHighlight,
-): number {
+function resolveHighlightIndex(data: Record<string, unknown>[], yKey: string, highlight: BarHighlight): number {
   if (highlight === null || data.length === 0) return -1;
   if (typeof highlight === 'number') {
     return highlight >= 0 && highlight < data.length ? highlight : -1;
@@ -299,9 +301,7 @@ function barCellFill(
     case 'series':
     default:
       // Tufte-safe emphasis: one accent bar, the rest a muted version of it.
-      return index === highlightIndex
-        ? accent
-        : `color-mix(in oklch, ${accent} 32%, transparent)`;
+      return index === highlightIndex ? accent : `color-mix(in oklch, ${accent} 32%, transparent)`;
   }
 }
 
@@ -317,8 +317,7 @@ function ChartBarChart({ props }: BaseComponentProps<CartesianChartProps>) {
           min: values.length ? Math.min(...values) : 0,
           max: values.length ? Math.max(...values) : 0,
         };
-        const highlightIndex =
-          mode === 'series' ? resolveHighlightIndex(data, props.yKey, highlight) : -1;
+        const highlightIndex = mode === 'series' ? resolveHighlightIndex(data, props.yKey, highlight) : -1;
         return (
           <RechartsBarChart data={data} margin={chartMargin}>
             <CartesianGrid strokeDasharray="3 3" stroke="var(--border, #e5e5e5)" />
@@ -327,10 +326,7 @@ function ChartBarChart({ props }: BaseComponentProps<CartesianChartProps>) {
             <Tooltip contentStyle={tooltipStyle} cursor={false} />
             <Bar dataKey={props.yKey} radius={[4, 4, 0, 0]}>
               {data.map((_, i) => (
-                <Cell
-                  key={i}
-                  fill={barCellFill(mode, accent, i, values[i], range, highlightIndex)}
-                />
+                <Cell key={i} fill={barCellFill(mode, accent, i, values[i], range, highlightIndex)} />
               ))}
             </Bar>
           </RechartsBarChart>

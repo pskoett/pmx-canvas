@@ -44,8 +44,8 @@ export default function App() {
           <p className="eyebrow">Published Consumer Fixture</p>
           <h1>Delivery Control Room</h1>
           <p className="hero-copy">
-            A deliberately dense SDLC cockpit built through the packaged PMX Canvas API,
-            rendered as a bundled artifact, and backed by synthetic release telemetry.
+            A deliberately dense SDLC cockpit built through the packaged PMX Canvas API, rendered as a bundled artifact,
+            and backed by synthetic release telemetry.
           </p>
         </div>
         <div className="hero-chip">

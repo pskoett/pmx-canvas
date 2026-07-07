@@ -9,12 +9,7 @@
  * This module must never import server.ts or index.ts.
  */
 import { z } from 'zod';
-import {
-  canvasState,
-  type CanvasAnnotation,
-  type CanvasLayout,
-  type CanvasNodeState,
-} from '../../canvas-state.js';
+import { canvasState, type CanvasAnnotation, type CanvasLayout, type CanvasNodeState } from '../../canvas-state.js';
 import {
   addCanvasNode,
   createCanvasGroup,
@@ -122,18 +117,22 @@ function normalizeGeometryInput(body: Record<string, unknown>): {
     ...(pickFiniteNumber(body, 'y') !== undefined ? { y: pickFiniteNumber(body, 'y') } : {}),
     ...(pickFiniteNumber(body, 'width') !== undefined ? { width: pickFiniteNumber(body, 'width') } : {}),
     ...(pickFiniteNumber(body, 'height') !== undefined ? { height: pickFiniteNumber(body, 'height') } : {}),
-    ...(position ? {
-      position: {
-        ...(pickFiniteNumber(position, 'x') !== undefined ? { x: pickFiniteNumber(position, 'x') } : {}),
-        ...(pickFiniteNumber(position, 'y') !== undefined ? { y: pickFiniteNumber(position, 'y') } : {}),
-      },
-    } : {}),
-    ...(size ? {
-      size: {
-        ...(pickFiniteNumber(size, 'width') !== undefined ? { width: pickFiniteNumber(size, 'width') } : {}),
-        ...(pickFiniteNumber(size, 'height') !== undefined ? { height: pickFiniteNumber(size, 'height') } : {}),
-      },
-    } : {}),
+    ...(position
+      ? {
+          position: {
+            ...(pickFiniteNumber(position, 'x') !== undefined ? { x: pickFiniteNumber(position, 'x') } : {}),
+            ...(pickFiniteNumber(position, 'y') !== undefined ? { y: pickFiniteNumber(position, 'y') } : {}),
+          },
+        }
+      : {}),
+    ...(size
+      ? {
+          size: {
+            ...(pickFiniteNumber(size, 'width') !== undefined ? { width: pickFiniteNumber(size, 'width') } : {}),
+            ...(pickFiniteNumber(size, 'height') !== undefined ? { height: pickFiniteNumber(size, 'height') } : {}),
+          },
+        }
+      : {}),
   };
 }
 
@@ -217,8 +216,9 @@ export function setGroupChildrenFromApi(groupId: string, childIds: string[]): bo
   const dataChildIds = Array.isArray(group.data.children)
     ? group.data.children.filter((id): id is string => typeof id === 'string')
     : [];
-  const parentBackrefIds = canvasState.getLayout().nodes
-    .filter((node) => node.id !== groupId && node.data.parentGroup === groupId)
+  const parentBackrefIds = canvasState
+    .getLayout()
+    .nodes.filter((node) => node.id !== groupId && node.data.parentGroup === groupId)
     .map((node) => node.id);
   const currentChildIds = [...new Set([...dataChildIds, ...parentBackrefIds])];
   if (currentChildIds.length > 0) {
@@ -310,7 +310,9 @@ export function buildSummaryFromLayout(layout: CanvasLayout, pinnedIds: string[]
     totalNodes: layout.nodes.length,
     totalEdges: layout.edges.length,
     totalAnnotations: (layout.annotations ?? []).length,
-    annotations: (layout.annotations ?? []).map((annotation: CanvasAnnotation) => summarizeCanvasAnnotationForContext(annotation, layout.nodes)),
+    annotations: (layout.annotations ?? []).map((annotation: CanvasAnnotation) =>
+      summarizeCanvasAnnotationForContext(annotation, layout.nodes),
+    ),
     nodesByType,
     pinnedCount: pinned.size,
     pinnedTitles,
@@ -322,8 +324,12 @@ export function compactLayoutPayload(layout: CanvasLayout, pinnedIds: string[]):
   return {
     summary: buildSummaryFromLayout(layout, pinnedIds),
     viewport: layout.viewport,
-    annotations: (layout.annotations ?? []).map((annotation) => summarizeCanvasAnnotationForContext(annotation, layout.nodes)),
-    nodes: layout.nodes.map((node) => compactNodePayload(node)).filter((node): node is Record<string, unknown> => node !== null),
+    annotations: (layout.annotations ?? []).map((annotation) =>
+      summarizeCanvasAnnotationForContext(annotation, layout.nodes),
+    ),
+    nodes: layout.nodes
+      .map((node) => compactNodePayload(node))
+      .filter((node): node is Record<string, unknown> => node !== null),
     edges: layout.edges.map((edge) => ({
       id: edge.id,
       from: edge.from,
@@ -339,7 +345,9 @@ export function compactLayoutPayload(layout: CanvasLayout, pinnedIds: string[]):
 export function agentSafeFullLayoutPayload(layout: CanvasLayout): Record<string, unknown> {
   return {
     ...serializeCanvasLayoutForAgent(layout),
-    annotations: (layout.annotations ?? []).map((annotation) => summarizeCanvasAnnotationForContext(annotation, layout.nodes)),
+    annotations: (layout.annotations ?? []).map((annotation) =>
+      summarizeCanvasAnnotationForContext(annotation, layout.nodes),
+    ),
   };
 }
 
@@ -348,7 +356,10 @@ export function agentSafeFullLayoutPayload(layout: CanvasLayout): Record<string,
  * agents using either key (or a cached schema) work — matching the
  * external-app / web-artifact responses that already return both.
  */
-export function createdNodePayloadFromNode(node: CanvasNodeState, options: Record<string, unknown> = {}): Record<string, unknown> {
+export function createdNodePayloadFromNode(
+  node: CanvasNodeState,
+  options: Record<string, unknown> = {},
+): Record<string, unknown> {
   if (!wantsFullPayload(options)) {
     return { ok: true, node: compactNodePayload(node), id: node.id, nodeId: node.id };
   }
@@ -377,28 +388,28 @@ export function createBasicCanvasNode(
       throw new OperationError('HTML node field "data.html" must be a string.');
     }
   }
-  const content = type === 'image' && typeof body.path === 'string' && typeof body.content !== 'string'
-    ? body.path
-    : body.content;
+  const content =
+    type === 'image' && typeof body.path === 'string' && typeof body.content !== 'string' ? body.path : body.content;
   // For html nodes, accept top-level `html` AND `axCapabilities` and merge into data
   // so callers can POST { type: 'html', title, html, axCapabilities } without nesting
   // under `data` (report #53 — transport parity with MCP canvas_add_html_node). A
   // top-level value overrides the same key under `data` (mirrors the `html` precedence).
   const topAxCapabilities = type === 'html' ? normalizeNodeAxCapabilities(body.axCapabilities) : null;
-  const htmlMergedData = type === 'html'
-    ? {
-        ...(extraData ?? {}),
-        ...(typeof body.html === 'string' ? { html: resolveHtmlContent(body.html) } : {}),
-        ...(typeof body.summary === 'string' ? { summary: body.summary } : {}),
-        ...(typeof body.agentSummary === 'string' ? { agentSummary: body.agentSummary } : {}),
-        ...(typeof body.description === 'string' ? { description: body.description } : {}),
-        ...(body.presentation === true ? { presentation: true } : {}),
-        ...(Array.isArray(body.slideTitles) ? { slideTitles: body.slideTitles } : {}),
-        ...(Array.isArray(body.embeddedNodeIds) ? { embeddedNodeIds: body.embeddedNodeIds } : {}),
-        ...(Array.isArray(body.embeddedUrls) ? { embeddedUrls: body.embeddedUrls } : {}),
-        ...(topAxCapabilities ? { axCapabilities: topAxCapabilities } : {}),
-      }
-    : extraData;
+  const htmlMergedData =
+    type === 'html'
+      ? {
+          ...(extraData ?? {}),
+          ...(typeof body.html === 'string' ? { html: resolveHtmlContent(body.html) } : {}),
+          ...(typeof body.summary === 'string' ? { summary: body.summary } : {}),
+          ...(typeof body.agentSummary === 'string' ? { agentSummary: body.agentSummary } : {}),
+          ...(typeof body.description === 'string' ? { description: body.description } : {}),
+          ...(body.presentation === true ? { presentation: true } : {}),
+          ...(Array.isArray(body.slideTitles) ? { slideTitles: body.slideTitles } : {}),
+          ...(Array.isArray(body.embeddedNodeIds) ? { embeddedNodeIds: body.embeddedNodeIds } : {}),
+          ...(Array.isArray(body.embeddedUrls) ? { embeddedUrls: body.embeddedUrls } : {}),
+          ...(topAxCapabilities ? { axCapabilities: topAxCapabilities } : {}),
+        }
+      : extraData;
   const geometry = resolveCreateGeometry(body);
   const defaults = defaultNodeSize(type);
   try {
@@ -494,11 +505,12 @@ export function buildNodePatch(
     const patchAxCapabilities = normalizeNodeAxCapabilities(body.axCapabilities);
     if (patchAxCapabilities) data.axCapabilities = patchAxCapabilities;
     if (existing.type === 'webpage') {
-      const nextUrl = typeof body.url === 'string'
-        ? body.url
-        : typeof (body.data as Record<string, unknown> | undefined)?.url === 'string'
-          ? (body.data as Record<string, unknown>).url as string
-          : undefined;
+      const nextUrl =
+        typeof body.url === 'string'
+          ? body.url
+          : typeof (body.data as Record<string, unknown> | undefined)?.url === 'string'
+            ? ((body.data as Record<string, unknown>).url as string)
+            : undefined;
       if (typeof nextUrl === 'string' && nextUrl.trim().length > 0) {
         try {
           data.url = normalizeWebpageUrl(nextUrl);
@@ -507,9 +519,7 @@ export function buildNodePatch(
         }
       }
     }
-    patch.data = existing.type === 'trace'
-      ? mergeTraceNodeDataFields(data, body)
-      : data;
+    patch.data = existing.type === 'trace' ? mergeTraceNodeDataFields(data, body) : data;
   }
   const error = validateCanvasNodePatch({
     ...(patch.position ? { position: patch.position as { x: number; y: number } } : {}),
@@ -543,11 +553,12 @@ interface NodeAddResult {
 }
 
 async function createWebpageNode(body: Record<string, unknown>, ctx: OperationContext): Promise<NodeAddResult> {
-  const rawUrl = typeof body.url === 'string' && body.url.trim().length > 0
-    ? body.url
-    : typeof body.content === 'string'
-      ? body.content
-      : '';
+  const rawUrl =
+    typeof body.url === 'string' && body.url.trim().length > 0
+      ? body.url
+      : typeof body.content === 'string'
+        ? body.content
+        : '';
 
   let normalizedUrl: string;
   try {
@@ -577,9 +588,7 @@ async function createWebpageNode(body: Record<string, unknown>, ctx: OperationCo
   return {
     node: created,
     extras: {
-      fetch: refreshed.ok
-        ? { ok: true }
-        : { ok: false, error: refreshed.error ?? 'Failed to fetch webpage content.' },
+      fetch: refreshed.ok ? { ok: true } : { ok: false, error: refreshed.error ?? 'Failed to fetch webpage content.' },
       ...(refreshed.ok ? {} : { error: refreshed.error }),
     },
   };
@@ -639,9 +648,10 @@ function createGroupNode(body: Record<string, unknown>): NodeAddResult {
   const childIds = childList.value ?? [];
   const childError = validateGroupChildIds('', childIds);
   if (childError) throw new OperationError(`Cannot create group: ${childError}`);
-  const childLayout = body.childLayout === 'grid' || body.childLayout === 'column' || body.childLayout === 'flow'
-    ? body.childLayout
-    : undefined;
+  const childLayout =
+    body.childLayout === 'grid' || body.childLayout === 'column' || body.childLayout === 'flow'
+      ? body.childLayout
+      : undefined;
   const { node } = createCanvasGroup({
     ...(typeof body.title === 'string' ? { title: body.title } : {}),
     childIds,
@@ -653,20 +663,54 @@ function createGroupNode(body: Record<string, unknown>): NodeAddResult {
 }
 
 const nodeAddShape = {
-  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+  intentId: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
   type: z.string().optional().catch(undefined).describe('Node type (prefer canvas_group {action:"create"} for groups)'),
   title: z.string().optional().catch(undefined).describe('Node title'),
-  content: z.string().optional().catch(undefined).describe('Node content (markdown for markdown nodes, file path for file nodes, image path/URL/data-URI for image nodes, URL for webpage nodes)'),
-  path: z.string().optional().catch(undefined).describe('Compatibility alias for image node content. Prefer content for image paths.'),
-  url: z.string().optional().catch(undefined).describe('Canonical webpage URL field for webpage nodes. Overrides content when both are provided.'),
+  content: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe(
+      'Node content (markdown for markdown nodes, file path for file nodes, image path/URL/data-URI for image nodes, URL for webpage nodes)',
+    ),
+  path: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Compatibility alias for image node content. Prefer content for image paths.'),
+  url: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Canonical webpage URL field for webpage nodes. Overrides content when both are provided.'),
   x: z.number().optional().catch(undefined).describe('X position (auto-placed if omitted)'),
   y: z.number().optional().catch(undefined).describe('Y position (auto-placed if omitted)'),
   width: z.number().optional().catch(undefined).describe('Width in pixels (default: 720)'),
   height: z.number().optional().catch(undefined).describe('Height in pixels (default: 600)'),
-  strictSize: z.boolean().optional().catch(undefined).describe('Keep explicit width/height fixed and scroll overflowing content instead of browser auto-fitting'),
-  children: z.unknown().optional().describe('Group-only alias for childIds. Node IDs to include in a generic group node.'),
-  childIds: z.unknown().optional().describe('Group-only field. Node IDs to include in a generic group node. Prefer canvas_group {action:"create"} for groups.'),
-  childLayout: z.enum(['grid', 'column', 'flow']).optional().catch(undefined).describe('Group-only optional layout for grouped children.'),
+  strictSize: z
+    .boolean()
+    .optional()
+    .catch(undefined)
+    .describe('Keep explicit width/height fixed and scroll overflowing content instead of browser auto-fitting'),
+  children: z
+    .unknown()
+    .optional()
+    .describe('Group-only alias for childIds. Node IDs to include in a generic group node.'),
+  childIds: z
+    .unknown()
+    .optional()
+    .describe(
+      'Group-only field. Node IDs to include in a generic group node. Prefer canvas_group {action:"create"} for groups.',
+    ),
+  childLayout: z
+    .enum(['grid', 'column', 'flow'])
+    .optional()
+    .catch(undefined)
+    .describe('Group-only optional layout for grouped children.'),
   color: z.string().optional().catch(undefined).describe('Group-only frame accent color.'),
   toolName: z.string().optional().catch(undefined).describe('Trace node tool or operation label'),
   category: z.string().optional().catch(undefined).describe('Trace node category: mcp, file, subagent, or other'),
@@ -680,12 +724,25 @@ const nodeAddShape = {
   kind: z.unknown().optional().describe('Alias for primitive.'),
   summary: z.string().optional().catch(undefined).describe('Agent-readable semantic summary (html nodes).'),
   agentSummary: z.string().optional().catch(undefined).describe('Explicit agent-readable summary (html nodes).'),
-  description: z.string().optional().catch(undefined).describe('Short description included in search and pinned/spatial context (html nodes).'),
-  presentation: z.boolean().optional().catch(undefined).describe('Marks an html node as a fullscreen presentation/deck.'),
+  description: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Short description included in search and pinned/spatial context (html nodes).'),
+  presentation: z
+    .boolean()
+    .optional()
+    .catch(undefined)
+    .describe('Marks an html node as a fullscreen presentation/deck.'),
   slideTitles: z.unknown().optional().describe('Agent-readable slide titles for presentation HTML.'),
   embeddedNodeIds: z.unknown().optional().describe('Canvas node IDs embedded or represented by this HTML surface.'),
   embeddedUrls: z.unknown().optional().describe('URLs embedded or represented by this HTML surface.'),
-  axCapabilities: z.unknown().optional().describe('Opt an html node into AX interactions. Merged into node data for html nodes; clamped to the node-type ceiling server-side.'),
+  axCapabilities: z
+    .unknown()
+    .optional()
+    .describe(
+      'Opt an html node into AX interactions. Merged into node data for html nodes; clamped to the node-type ceiling server-side.',
+    ),
   position: z.unknown().optional().describe('Geometry alias: { x, y } object form.'),
   size: z.unknown().optional().describe('Geometry alias: { width, height } object form.'),
 };
@@ -693,7 +750,10 @@ const nodeAddShape = {
 const nodeAddSchema = z.looseObject(nodeAddShape);
 
 const fullVerboseShape = {
-  full: z.boolean().optional().describe('Return the full created node payload. Default false returns compact metadata.'),
+  full: z
+    .boolean()
+    .optional()
+    .describe('Return the full created node payload. Default false returns compact metadata.'),
   verbose: z.boolean().optional().describe('Alias for full:true.'),
 };
 
@@ -708,22 +768,50 @@ const nodeAddOperation = defineOperation<z.infer<typeof nodeAddSchema>, NodeAddR
   },
   mcp: {
     toolName: 'canvas_add_node',
-    description: 'Add a basic node to the canvas. Returns the created node with normalized title/content and rendered geometry. Supported here: markdown, status, context, ledger, trace, file, image, webpage, mcp-app, html, group. Dedicated routes: json-render -> canvas_render {action:"add-json-render"}, graph -> canvas_render {action:"add-graph"}, web-artifact -> canvas_app {action:"build-artifact"}, external apps -> canvas_app {action:"open-mcp-app"}, groups -> canvas_group {action:"create"}. Call canvas_render {action:"describe-schema"} for the full nodeTypeRouting table.',
+    description:
+      'Add a basic node to the canvas. Returns the created node with normalized title/content and rendered geometry. Supported here: markdown, status, context, ledger, trace, file, image, webpage, mcp-app, html, group. Dedicated routes: json-render -> canvas_render {action:"add-json-render"}, graph -> canvas_render {action:"add-graph"}, web-artifact -> canvas_app {action:"build-artifact"}, external apps -> canvas_app {action:"open-mcp-app"}, groups -> canvas_group {action:"create"}. Call canvas_render {action:"describe-schema"} for the full nodeTypeRouting table.',
     extraShape: {
-      type: z.enum(['markdown', 'status', 'context', 'ledger', 'trace', 'file', 'image', 'webpage', 'mcp-app', 'html', 'group'])
+      type: z
+        .enum([
+          'markdown',
+          'status',
+          'context',
+          'ledger',
+          'trace',
+          'file',
+          'image',
+          'webpage',
+          'mcp-app',
+          'html',
+          'group',
+        ])
         .describe('Node type (prefer canvas_group {action:"create"} for groups)'),
-      children: z.array(z.string()).optional().describe('Group-only alias for childIds. Node IDs to include in a generic group node.'),
-      childIds: z.array(z.string()).optional().describe('Group-only field. Node IDs to include in a generic group node. Prefer canvas_group {action:"create"} for groups.'),
-      axCapabilities: z.object({
-        enabled: z.boolean().optional(),
-        allowed: z.array(z.string()).optional(),
-      }).optional().describe('Opt an html node into AX interactions (e.g. { enabled: true, allowed: ["ax.work.create"] }) so its sandboxed UI can emit ax.* via window.PMX_AX.emit. html nodes are AX-disabled by default; merged into node data, clamped to the node-type ceiling server-side.'),
+      children: z
+        .array(z.string())
+        .optional()
+        .describe('Group-only alias for childIds. Node IDs to include in a generic group node.'),
+      childIds: z
+        .array(z.string())
+        .optional()
+        .describe(
+          'Group-only field. Node IDs to include in a generic group node. Prefer canvas_group {action:"create"} for groups.',
+        ),
+      axCapabilities: z
+        .object({
+          enabled: z.boolean().optional(),
+          allowed: z.array(z.string()).optional(),
+        })
+        .optional()
+        .describe(
+          'Opt an html node into AX interactions (e.g. { enabled: true, allowed: ["ax.work.create"] }) so its sandboxed UI can emit ax.* via window.PMX_AX.emit. html nodes are AX-disabled by default; merged into node data, clamped to the node-type ceiling server-side.',
+        ),
       ...fullVerboseShape,
     },
     buildInput: (input) => {
       if (input.type === 'webpage') {
-        const url = (typeof input.url === 'string' ? input.url : undefined)
-          ?? (typeof input.content === 'string' ? input.content : undefined);
+        const url =
+          (typeof input.url === 'string' ? input.url : undefined) ??
+          (typeof input.content === 'string' ? input.content : undefined);
         if (!url) {
           throw new OperationError('Webpage nodes require a page URL via "url" (preferred) or "content".');
         }
@@ -755,13 +843,19 @@ const nodeAddOperation = defineOperation<z.infer<typeof nodeAddSchema>, NodeAddR
     }
     if (!NODE_TYPE_SET.has(type)) {
       if (type === 'json-render') {
-        throw new OperationError('Node type "json-render" is created via POST /api/canvas/json-render. See /api/canvas/schema for the required spec shape.');
+        throw new OperationError(
+          'Node type "json-render" is created via POST /api/canvas/json-render. See /api/canvas/schema for the required spec shape.',
+        );
       }
       if (type === 'graph') {
-        throw new OperationError('Node type "graph" is created via POST /api/canvas/graph. See /api/canvas/schema for graphType + data fields.');
+        throw new OperationError(
+          'Node type "graph" is created via POST /api/canvas/graph. See /api/canvas/schema for graphType + data fields.',
+        );
       }
       if (type === 'web-artifact') {
-        throw new OperationError('Node type "web-artifact" is created via POST /api/canvas/web-artifact with appTsx + title.');
+        throw new OperationError(
+          'Node type "web-artifact" is created via POST /api/canvas/web-artifact with appTsx + title.',
+        );
       }
       if (type === 'html-primitive') {
         return createHtmlPrimitiveNode(body);
@@ -808,7 +902,8 @@ const nodeGetOperation = defineOperation<z.infer<typeof nodeGetSchema>, Serializ
   },
   mcp: {
     toolName: 'canvas_get_node',
-    description: 'Get a single node by ID. Defaults to compact metadata; pass full:true to include full data/tool results.',
+    description:
+      'Get a single node by ID. Defaults to compact metadata; pass full:true to include full data/tool results.',
     extraShape: {
       full: z.boolean().optional().describe('Include full node data, including mcp-app tool results. Default false.'),
       verbose: z.boolean().optional().describe('Alias for full:true.'),
@@ -825,9 +920,7 @@ const nodeGetOperation = defineOperation<z.infer<typeof nodeGetSchema>, Serializ
     const node = full ? canvasState.getNode(id) : canvasState.getNodeForPersistence(id);
     if (!node) throw new OperationError(`Node "${id}" not found.`, 404);
     const responseNode = withContextPinReadState(node);
-    return full
-      ? serializeCanvasNode(responseNode)
-      : serializeCanvasNodeWithBlobSummaries(responseNode);
+    return full ? serializeCanvasNode(responseNode) : serializeCanvasNodeWithBlobSummaries(responseNode);
   },
 });
 
@@ -835,7 +928,11 @@ const nodeGetOperation = defineOperation<z.infer<typeof nodeGetSchema>, Serializ
 
 const nodeUpdateShape = {
   id: z.string().describe('Node ID to update'),
-  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+  intentId: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
   title: z.unknown().optional().describe('New title'),
   content: z.unknown().optional().describe('New content'),
   x: z.number().optional().catch(undefined).describe('New X position'),
@@ -846,7 +943,12 @@ const nodeUpdateShape = {
   size: z.unknown().optional().describe('Geometry alias: { width, height } object form.'),
   spec: z.unknown().optional().describe('New json-render spec, or a graph payload with graphType/data for graph nodes'),
   graphType: z.unknown().optional().describe('Graph type when updating a graph node'),
-  data: z.unknown().optional().describe('Graph dataset (array) when updating a graph node, or extra data fields (object) merged into the node data'),
+  data: z
+    .unknown()
+    .optional()
+    .describe(
+      'Graph dataset (array) when updating a graph node, or extra data fields (object) merged into the node data',
+    ),
   xKey: z.unknown().optional().describe('Graph x/category key'),
   yKey: z.unknown().optional().describe('Graph y/value key'),
   chartHeight: z.unknown().optional().describe('Graph chart content height, distinct from node height'),
@@ -857,11 +959,27 @@ const nodeUpdateShape = {
   resultSummary: z.string().optional().catch(undefined).describe('Trace node result summary'),
   error: z.string().optional().catch(undefined).describe('Trace node error message'),
   collapsed: z.unknown().optional().describe('Collapse or expand the node'),
-  dockPosition: z.unknown().optional().describe('Dock the node to the left/right HUD column, or pass null to return it to the canvas'),
+  dockPosition: z
+    .unknown()
+    .optional()
+    .describe('Dock the node to the left/right HUD column, or pass null to return it to the canvas'),
   pinned: z.unknown().optional().describe('Pin or unpin the node to exclude it from auto-arrange'),
-  arrangeLocked: z.boolean().optional().catch(undefined).describe('Prevent auto-arrange from moving this node. Pinned nodes are also skipped.'),
-  strictSize: z.boolean().optional().catch(undefined).describe('Keep explicit width/height fixed and scroll overflowing content.'),
-  axCapabilities: z.unknown().optional().describe('Enable/disable AX interactions on an existing node. Merged into the node data; clamped to the node-type ceiling server-side.'),
+  arrangeLocked: z
+    .boolean()
+    .optional()
+    .catch(undefined)
+    .describe('Prevent auto-arrange from moving this node. Pinned nodes are also skipped.'),
+  strictSize: z
+    .boolean()
+    .optional()
+    .catch(undefined)
+    .describe('Keep explicit width/height fixed and scroll overflowing content.'),
+  axCapabilities: z
+    .unknown()
+    .optional()
+    .describe(
+      'Enable/disable AX interactions on an existing node. Merged into the node data; clamped to the node-type ceiling server-side.',
+    ),
   html: z.unknown().optional().describe('New HTML document/fragment (html nodes only).'),
   url: z.unknown().optional().describe('New URL for webpage nodes.'),
   refresh: z.unknown().optional().describe('Webpage nodes: pass true to re-fetch the page instead of patching fields.'),
@@ -889,21 +1007,39 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
     extraShape: {
       title: z.string().optional().describe('New title'),
       content: z.string().optional().describe('New content'),
-      spec: z.record(z.string(), z.unknown()).optional().describe('New json-render spec, or a graph payload with graphType/data for graph nodes'),
+      spec: z
+        .record(z.string(), z.unknown())
+        .optional()
+        .describe('New json-render spec, or a graph payload with graphType/data for graph nodes'),
       graphType: z.string().optional().describe('Graph type when updating a graph node'),
       data: z.array(z.record(z.string(), z.unknown())).optional().describe('Graph dataset when updating a graph node'),
       xKey: z.string().optional().describe('Graph x/category key'),
       yKey: z.string().optional().describe('Graph y/value key'),
       chartHeight: z.number().optional().describe('Graph chart content height, distinct from node height'),
       collapsed: z.boolean().optional().describe('Collapse or expand the node'),
-      dockPosition: z.enum(['left', 'right']).nullable().optional().describe('Dock the node to the left/right HUD column, or pass null to return it to the canvas'),
+      dockPosition: z
+        .enum(['left', 'right'])
+        .nullable()
+        .optional()
+        .describe('Dock the node to the left/right HUD column, or pass null to return it to the canvas'),
       pinned: z.boolean().optional().describe('Pin or unpin the node to exclude it from auto-arrange'),
-      arrangeLocked: z.boolean().optional().describe('Prevent auto-arrange from moving this node. Pinned nodes are also skipped.'),
-      axCapabilities: z.object({
-        enabled: z.boolean().optional(),
-        allowed: z.array(z.string()).optional(),
-      }).optional().describe('Enable/disable AX interactions on an existing node (e.g. flip an html node on with { enabled: true, allowed: ["ax.work.create"] }). Merged into the node data; clamped to the node-type ceiling server-side.'),
-      full: z.boolean().optional().describe('Return the full updated node payload. Default false returns compact metadata.'),
+      arrangeLocked: z
+        .boolean()
+        .optional()
+        .describe('Prevent auto-arrange from moving this node. Pinned nodes are also skipped.'),
+      axCapabilities: z
+        .object({
+          enabled: z.boolean().optional(),
+          allowed: z.array(z.string()).optional(),
+        })
+        .optional()
+        .describe(
+          'Enable/disable AX interactions on an existing node (e.g. flip an html node on with { enabled: true, allowed: ["ax.work.create"] }). Merged into the node data; clamped to the node-type ceiling server-side.',
+        ),
+      full: z
+        .boolean()
+        .optional()
+        .describe('Return the full updated node payload. Default false returns compact metadata.'),
       verbose: z.boolean().optional().describe('Alias for full:true.'),
     },
     buildInput: (input) => {
@@ -967,7 +1103,11 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
 
 const nodeRemoveShape = {
   id: z.string().describe('Node ID to remove'),
-  intentId: z.string().optional().catch(undefined).describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+  intentId: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
 };
 
 const nodeRemoveSchema = z.looseObject(nodeRemoveShape);
@@ -1018,9 +1158,13 @@ const layoutGetOperation = defineOperation<z.infer<typeof layoutGetSchema>, Reco
   },
   mcp: {
     toolName: 'canvas_get_layout',
-    description: 'Get the canvas layout. Defaults to a compact agent-safe projection; pass full:true for full node data.',
+    description:
+      'Get the canvas layout. Defaults to a compact agent-safe projection; pass full:true for full node data.',
     extraShape: {
-      full: z.boolean().optional().describe('Return the full layout including node data. Default false keeps responses compact.'),
+      full: z
+        .boolean()
+        .optional()
+        .describe('Return the full layout including node data. Default false keeps responses compact.'),
       verbose: z.boolean().optional().describe('Alias for full:true.'),
     },
     buildInput: () => ({ includeBlobs: true }),
@@ -1036,8 +1180,9 @@ const layoutGetOperation = defineOperation<z.infer<typeof layoutGetSchema>, Reco
     const full = includeBlobs === true || includeBlobs === 'true';
     return (full
       ? serializeCanvasLayout(canvasState.getLayout())
-      : serializeCanvasLayoutWithBlobSummaries(withContextPinLayoutReadState(canvasState.getLayoutForPersistence()))
-    ) as unknown as Record<string, unknown>;
+      : serializeCanvasLayoutWithBlobSummaries(
+          withContextPinLayoutReadState(canvasState.getLayoutForPersistence()),
+        )) as unknown as Record<string, unknown>;
   },
 });
 

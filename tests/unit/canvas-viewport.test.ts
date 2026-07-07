@@ -22,16 +22,9 @@ function makeNode(
 
 describe('CanvasViewport world node selection', () => {
   test('omits the expanded node from the world layer', () => {
-    const nodes = [
-      makeNode('group-1', 'group'),
-      makeNode('app-1', 'mcp-app'),
-      makeNode('md-1', 'markdown'),
-    ];
+    const nodes = [makeNode('group-1', 'group'), makeNode('app-1', 'mcp-app'), makeNode('md-1', 'markdown')];
 
-    expect(getRenderableWorldNodes(nodes, 'app-1').map((node) => node.id)).toEqual([
-      'group-1',
-      'md-1',
-    ]);
+    expect(getRenderableWorldNodes(nodes, 'app-1').map((node) => node.id)).toEqual(['group-1', 'md-1']);
   });
 
   test('keeps docked nodes out and preserves group-first ordering', () => {
@@ -42,10 +35,6 @@ describe('CanvasViewport world node selection', () => {
       makeNode('img-1', 'image'),
     ];
 
-    expect(getRenderableWorldNodes(nodes, null).map((node) => node.id)).toEqual([
-      'group-1',
-      'md-1',
-      'img-1',
-    ]);
+    expect(getRenderableWorldNodes(nodes, null).map((node) => node.id)).toEqual(['group-1', 'md-1', 'img-1']);
   });
 });

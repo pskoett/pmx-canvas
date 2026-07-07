@@ -5,15 +5,13 @@ import { canvasState } from '../../src/server/canvas-state.ts';
 import { addCanvasNode, arrangeCanvasNodes, setCanvasContextPins } from '../../src/server/canvas-operations.ts';
 import { validateCanvasLayout } from '../../src/server/canvas-validation.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
-import {
-  createTestWorkspace,
-  makeNode,
-  removeTestWorkspace,
-  resetCanvasForTests,
-} from './helpers.ts';
+import { createTestWorkspace, makeNode, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 const imageFixtures: Record<string, Buffer | string> = {
-  png: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'),
+  png: Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+    'base64',
+  ),
   jpg: Buffer.from([0xff, 0xd8, 0xff, 0xdb, 0x00, 0x43, 0x00]),
   jpeg: Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46]),
   gif: Buffer.from('GIF89a'),
@@ -71,19 +69,23 @@ describe('canvas operations', () => {
   });
 
   test('validation ignores docked nodes as canvas collision candidates', () => {
-    canvasState.addNode(makeNode({
-      id: 'canvas-node',
-      type: 'markdown',
-      position: { x: 780, y: 80 },
-      size: { width: 520, height: 360 },
-    }));
-    canvasState.addNode(makeNode({
-      id: 'dock-node',
-      type: 'context',
-      position: { x: 968, y: 40 },
-      size: { width: 360, height: 200 },
-      dockPosition: 'right',
-    }));
+    canvasState.addNode(
+      makeNode({
+        id: 'canvas-node',
+        type: 'markdown',
+        position: { x: 780, y: 80 },
+        size: { width: 520, height: 360 },
+      }),
+    );
+    canvasState.addNode(
+      makeNode({
+        id: 'dock-node',
+        type: 'context',
+        position: { x: 968, y: 40 },
+        size: { width: 360, height: 200 },
+        dockPosition: 'right',
+      }),
+    );
 
     const validation = validateCanvasLayout(canvasState.getLayout());
 
@@ -92,20 +94,24 @@ describe('canvas operations', () => {
   });
 
   test('grid arrange moves group frames without arranging grouped children separately', () => {
-    canvasState.addNode(makeNode({
-      id: 'group-a',
-      type: 'group',
-      position: { x: 40, y: 40 },
-      size: { width: 600, height: 360 },
-      data: { title: 'Group A', children: ['child-a'] },
-    }));
-    canvasState.addNode(makeNode({
-      id: 'child-a',
-      type: 'markdown',
-      position: { x: 64, y: 84 },
-      size: { width: 360, height: 200 },
-      data: { title: 'Child A', parentGroup: 'group-a' },
-    }));
+    canvasState.addNode(
+      makeNode({
+        id: 'group-a',
+        type: 'group',
+        position: { x: 40, y: 40 },
+        size: { width: 600, height: 360 },
+        data: { title: 'Group A', children: ['child-a'] },
+      }),
+    );
+    canvasState.addNode(
+      makeNode({
+        id: 'child-a',
+        type: 'markdown',
+        position: { x: 64, y: 84 },
+        size: { width: 360, height: 200 },
+        data: { title: 'Child A', parentGroup: 'group-a' },
+      }),
+    );
     canvasState.addNode(makeNode({ id: 'loose-a', type: 'markdown', size: { width: 360, height: 200 } }));
 
     arrangeCanvasNodes('grid');
@@ -118,34 +124,42 @@ describe('canvas operations', () => {
   });
 
   test('grid arrange preserves grouped child offsets without double translation', () => {
-    canvasState.addNode(makeNode({
-      id: 'group-a',
-      type: 'group',
-      position: { x: 0, y: 168 },
-      size: { width: 680, height: 1272 },
-      data: { title: 'Group A', children: ['child-a', 'child-b'] },
-    }));
-    canvasState.addNode(makeNode({
-      id: 'child-a',
-      type: 'markdown',
-      position: { x: 40, y: 240 },
-      size: { width: 600, height: 200 },
-      data: { title: 'Child A', parentGroup: 'group-a' },
-    }));
-    canvasState.addNode(makeNode({
-      id: 'child-b',
-      type: 'markdown',
-      position: { x: 40, y: 540 },
-      size: { width: 600, height: 200 },
-      data: { title: 'Child B', parentGroup: 'group-a' },
-    }));
-    canvasState.addNode(makeNode({
-      id: 'loose-a',
-      type: 'markdown',
-      position: { x: 1800, y: 500 },
-      size: { width: 360, height: 200 },
-      data: { title: 'Loose A' },
-    }));
+    canvasState.addNode(
+      makeNode({
+        id: 'group-a',
+        type: 'group',
+        position: { x: 0, y: 168 },
+        size: { width: 680, height: 1272 },
+        data: { title: 'Group A', children: ['child-a', 'child-b'] },
+      }),
+    );
+    canvasState.addNode(
+      makeNode({
+        id: 'child-a',
+        type: 'markdown',
+        position: { x: 40, y: 240 },
+        size: { width: 600, height: 200 },
+        data: { title: 'Child A', parentGroup: 'group-a' },
+      }),
+    );
+    canvasState.addNode(
+      makeNode({
+        id: 'child-b',
+        type: 'markdown',
+        position: { x: 40, y: 540 },
+        size: { width: 600, height: 200 },
+        data: { title: 'Child B', parentGroup: 'group-a' },
+      }),
+    );
+    canvasState.addNode(
+      makeNode({
+        id: 'loose-a',
+        type: 'markdown',
+        position: { x: 1800, y: 500 },
+        size: { width: 360, height: 200 },
+        data: { title: 'Loose A' },
+      }),
+    );
 
     arrangeCanvasNodes('grid');
 
@@ -162,27 +176,33 @@ describe('canvas operations', () => {
   });
 
   test('grid arrange undo preserves grouped child offsets', () => {
-    canvasState.addNode(makeNode({
-      id: 'group-a',
-      type: 'group',
-      position: { x: 0, y: 168 },
-      size: { width: 680, height: 1272 },
-      data: { title: 'Group A', children: ['child-a', 'child-b'] },
-    }));
-    canvasState.addNode(makeNode({
-      id: 'child-a',
-      type: 'markdown',
-      position: { x: 40, y: 240 },
-      size: { width: 600, height: 200 },
-      data: { title: 'Child A', parentGroup: 'group-a' },
-    }));
-    canvasState.addNode(makeNode({
-      id: 'child-b',
-      type: 'markdown',
-      position: { x: 40, y: 540 },
-      size: { width: 600, height: 200 },
-      data: { title: 'Child B', parentGroup: 'group-a' },
-    }));
+    canvasState.addNode(
+      makeNode({
+        id: 'group-a',
+        type: 'group',
+        position: { x: 0, y: 168 },
+        size: { width: 680, height: 1272 },
+        data: { title: 'Group A', children: ['child-a', 'child-b'] },
+      }),
+    );
+    canvasState.addNode(
+      makeNode({
+        id: 'child-a',
+        type: 'markdown',
+        position: { x: 40, y: 240 },
+        size: { width: 600, height: 200 },
+        data: { title: 'Child A', parentGroup: 'group-a' },
+      }),
+    );
+    canvasState.addNode(
+      makeNode({
+        id: 'child-b',
+        type: 'markdown',
+        position: { x: 40, y: 540 },
+        size: { width: 600, height: 200 },
+        data: { title: 'Child B', parentGroup: 'group-a' },
+      }),
+    );
 
     arrangeCanvasNodes('grid');
     mutationHistory.undo();
@@ -194,28 +214,30 @@ describe('canvas operations', () => {
   });
 
   test('validation treats group children list containment as non-collision', () => {
-    canvasState.addNode(makeNode({
-      id: 'group-a',
-      type: 'group',
-      position: { x: 40, y: 40 },
-      size: { width: 600, height: 360 },
-      data: { title: 'Group A', children: ['child-a'] },
-    }));
-    canvasState.addNode(makeNode({
-      id: 'child-a',
-      type: 'markdown',
-      position: { x: 64, y: 84 },
-      size: { width: 360, height: 200 },
-      data: { title: 'Child A' },
-    }));
+    canvasState.addNode(
+      makeNode({
+        id: 'group-a',
+        type: 'group',
+        position: { x: 40, y: 40 },
+        size: { width: 600, height: 360 },
+        data: { title: 'Group A', children: ['child-a'] },
+      }),
+    );
+    canvasState.addNode(
+      makeNode({
+        id: 'child-a',
+        type: 'markdown',
+        position: { x: 64, y: 84 },
+        size: { width: 360, height: 200 },
+        data: { title: 'Child A' },
+      }),
+    );
 
     const validation = validateCanvasLayout(canvasState.getLayout());
 
     expect(validation.ok).toBe(true);
     expect(validation.collisions).toEqual([]);
-    expect(validation.containments).toEqual([
-      expect.objectContaining({ groupId: 'group-a', childId: 'child-a' }),
-    ]);
+    expect(validation.containments).toEqual([expect.objectContaining({ groupId: 'group-a', childId: 'child-a' })]);
   });
 });
 
@@ -249,22 +271,22 @@ describe('image node validation', () => {
   test('rejects non-image file paths with a helpful message', () => {
     const filePath = join(workspaceRoot, 'Development_Platform_Roadmap.pptx');
     writeFileSync(filePath, 'not image bytes', 'utf-8');
-    expect(() =>
-      addCanvasNode({ type: 'image', content: filePath }),
-    ).toThrow(/Invalid image node.*unsupported extension.*\.pptx/);
+    expect(() => addCanvasNode({ type: 'image', content: filePath })).toThrow(
+      /Invalid image node.*unsupported extension.*\.pptx/,
+    );
   });
 
   test('rejects fake image files with image extensions', () => {
     const filePath = join(workspaceRoot, 'fake.png');
     writeFileSync(filePath, 'not image bytes', 'utf-8');
-    expect(() =>
-      addCanvasNode({ type: 'image', content: filePath }),
-    ).toThrow(/Invalid image node.*not a recognized image file/);
+    expect(() => addCanvasNode({ type: 'image', content: filePath })).toThrow(
+      /Invalid image node.*not a recognized image file/,
+    );
   });
 
   test('rejects non-image data URIs', () => {
-    expect(() =>
-      addCanvasNode({ type: 'image', content: 'data:application/pdf;base64,JVBERi0x' }),
-    ).toThrow(/Invalid image node.*image\/\*/);
+    expect(() => addCanvasNode({ type: 'image', content: 'data:application/pdf;base64,JVBERi0x' })).toThrow(
+      /Invalid image node.*image\/\*/,
+    );
   });
 });

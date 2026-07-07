@@ -5,7 +5,13 @@ interface IconProps {
   class?: string;
 }
 
-const defaults = { fill: 'none', stroke: 'currentColor', 'stroke-width': '1.5', 'stroke-linecap': 'round', 'stroke-linejoin': 'round' } as const;
+const defaults = {
+  fill: 'none',
+  stroke: 'currentColor',
+  'stroke-width': '1.5',
+  'stroke-linecap': 'round',
+  'stroke-linejoin': 'round',
+} as const;
 
 function Icon({ size = 16, children, ...rest }: IconProps & { children: JSX.Element | JSX.Element[] }): JSX.Element {
   return (
@@ -240,8 +246,28 @@ export function IconLogo({ size = 22, class: className }: IconProps): JSX.Elemen
       class={className}
       aria-hidden="true"
     >
-      <rect x="8" y="8" width="48" height="48" rx="7" fill="none" stroke="currentColor" stroke-width="2.2" opacity="0.35" />
-      <rect x="16" y="16" width="32" height="32" rx="5" fill="none" stroke="currentColor" stroke-width="2.2" opacity="0.6" />
+      <rect
+        x="8"
+        y="8"
+        width="48"
+        height="48"
+        rx="7"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.2"
+        opacity="0.35"
+      />
+      <rect
+        x="16"
+        y="16"
+        width="32"
+        height="32"
+        rx="5"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2.2"
+        opacity="0.6"
+      />
       <rect x="24" y="24" width="16" height="16" rx="3" fill="none" stroke="currentColor" stroke-width="2.2" />
       <rect x="29" y="29" width="6" height="6" rx="1" fill="currentColor" />
     </svg>
@@ -439,22 +465,39 @@ export function IconNodeGraph(p: IconProps): JSX.Element {
 /** Map a node type → its Focus Field icon component. */
 export function getNodeIcon(type: string): (p: IconProps) => JSX.Element {
   switch (type) {
-    case 'markdown': return IconNodeMarkdown;
-    case 'prompt': return IconNodePrompt;
-    case 'response': return IconNodeResponse;
-    case 'file': return IconNodeFile;
-    case 'image': return IconNodeImage;
-    case 'webpage': return IconNodeWebpage;
-    case 'context': return IconNodeContext;
-    case 'group': return IconNodeGroup;
-    case 'status': return IconNodeStatus;
-    case 'trace': return IconNodeTrace;
-    case 'ledger': return IconNodeLedger;
-    case 'mcp-app': return IconNodeMcpApp;
-    case 'ext-app': return IconNodeExtApp;
-    case 'json-render': return IconNodeJsonRender;
-    case 'graph': return IconNodeGraph;
-    case 'html': return IconNodeWebpage;
-    default: return IconNodeMarkdown;
+    case 'markdown':
+      return IconNodeMarkdown;
+    case 'prompt':
+      return IconNodePrompt;
+    case 'response':
+      return IconNodeResponse;
+    case 'file':
+      return IconNodeFile;
+    case 'image':
+      return IconNodeImage;
+    case 'webpage':
+      return IconNodeWebpage;
+    case 'context':
+      return IconNodeContext;
+    case 'group':
+      return IconNodeGroup;
+    case 'status':
+      return IconNodeStatus;
+    case 'trace':
+      return IconNodeTrace;
+    case 'ledger':
+      return IconNodeLedger;
+    case 'mcp-app':
+      return IconNodeMcpApp;
+    case 'ext-app':
+      return IconNodeExtApp;
+    case 'json-render':
+      return IconNodeJsonRender;
+    case 'graph':
+      return IconNodeGraph;
+    case 'html':
+      return IconNodeWebpage;
+    default:
+      return IconNodeMarkdown;
   }
 }

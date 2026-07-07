@@ -95,9 +95,8 @@ function linkedIntentId(rawInput: unknown): string | undefined {
 
 function allowedIntentKinds(name: string, rawInput: unknown): readonly PmxAxIntentKind[] | undefined {
   if (name === 'jsonrender.stream') {
-    const input = rawInput && typeof rawInput === 'object' && !Array.isArray(rawInput)
-      ? rawInput as Record<string, unknown>
-      : {};
+    const input =
+      rawInput && typeof rawInput === 'object' && !Array.isArray(rawInput) ? (rawInput as Record<string, unknown>) : {};
     return typeof input.nodeId === 'string' && input.nodeId.length > 0 ? ['edit'] : ['create'];
   }
   return INTENT_KINDS_BY_OPERATION[name];

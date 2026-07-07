@@ -1,12 +1,7 @@
 import type { CanvasEdge, CanvasLayout, CanvasNodeState } from '../client/types.js';
 import { buildSpatialContext, type SpatialContext } from '../server/spatial-analysis.js';
 
-export type SemanticWatchEventType =
-  | 'context-pin'
-  | 'connect'
-  | 'remove'
-  | 'group'
-  | 'move-end';
+export type SemanticWatchEventType = 'context-pin' | 'connect' | 'remove' | 'group' | 'move-end';
 
 export const ALL_SEMANTIC_WATCH_EVENT_TYPES: SemanticWatchEventType[] = [
   'context-pin',
@@ -184,7 +179,10 @@ function buildClusterPeerMap(spatial: SpatialContext): Map<string, string[]> {
   for (const cluster of spatial.clusters) {
     const members = [...cluster.nodeIds].sort((a, b) => a.localeCompare(b));
     for (const nodeId of members) {
-      map.set(nodeId, members.filter((id) => id !== nodeId));
+      map.set(
+        nodeId,
+        members.filter((id) => id !== nodeId),
+      );
     }
   }
   return map;
@@ -208,7 +206,7 @@ function diffSet(prev: Set<string>, next: Set<string>): { added: string[]; remov
 }
 
 function normalizeEventMeta(payload: unknown): EventMeta {
-  const record = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
+  const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
   return {
     timestamp: typeof record.timestamp === 'string' ? record.timestamp : undefined,
     sessionId: typeof record.sessionId === 'string' ? record.sessionId : undefined,
@@ -311,8 +309,9 @@ export function formatCompactWatchEvent(event: SemanticWatchEvent): string {
       if (event.updated.length > 0) {
         parts.push(
           `updated: ${event.updated
-            .map((group) =>
-              `"${group.title ?? group.id}" +${group.addedChildIds.length} -${group.removedChildIds.length} children`,
+            .map(
+              (group) =>
+                `"${group.title ?? group.id}" +${group.addedChildIds.length} -${group.removedChildIds.length} children`,
             )
             .join(', ')}`,
         );
@@ -350,7 +349,7 @@ export class SemanticWatchReducer {
   }
 
   private handleContextPinsChanged(payload: unknown): SemanticWatchEvent[] {
-    const record = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
+    const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
     const nodeIds = Array.isArray(record.nodeIds)
       ? record.nodeIds.filter((id): id is string => typeof id === 'string')
       : [];
@@ -378,34 +377,36 @@ export class SemanticWatchReducer {
       return [];
     }
 
-    return [{
-      type: 'context-pin',
-      ...meta,
-      ...previousEventPins,
-    }];
+    return [
+      {
+        type: 'context-pin',
+        ...meta,
+        ...previousEventPins,
+      },
+    ];
   }
 
   private handleLayoutUpdate(payload: unknown): SemanticWatchEvent[] {
-    const record = payload && typeof payload === 'object' ? payload as Record<string, unknown> : {};
-    const layout = record.layout && typeof record.layout === 'object'
-      ? record.layout as CanvasLayout
-      : null;
+    const record = payload && typeof payload === 'object' ? (payload as Record<string, unknown>) : {};
+    const layout = record.layout && typeof record.layout === 'object' ? (record.layout as CanvasLayout) : null;
     if (!layout) return [];
 
     const meta = normalizeEventMeta(payload);
     if (!this.currentLayout) {
       this.currentLayout = layout;
-      this.previousSpatial = buildSpatialContext(layout.nodes, layout.edges, this.currentPins, layout.annotations ?? []);
+      this.previousSpatial = buildSpatialContext(
+        layout.nodes,
+        layout.edges,
+        this.currentPins,
+        layout.annotations ?? [],
+      );
       return [];
     }
 
     const prevLayout = this.currentLayout;
-    const prevSpatial = this.previousSpatial ?? buildSpatialContext(
-      prevLayout.nodes,
-      prevLayout.edges,
-      this.currentPins,
-      prevLayout.annotations ?? [],
-    );
+    const prevSpatial =
+      this.previousSpatial ??
+      buildSpatialContext(prevLayout.nodes, prevLayout.edges, this.currentPins, prevLayout.annotations ?? []);
     const nextSpatial = buildSpatialContext(layout.nodes, layout.edges, this.currentPins, layout.annotations ?? []);
     const events: SemanticWatchEvent[] = [];
 
@@ -463,12 +464,16 @@ export class SemanticWatchReducer {
     nextNodeMap: Map<string, CanvasNodeState>,
     meta: EventMeta,
   ): GroupWatchEvent | null {
-    const prevGroupIds = sortIds(Array.from(prevNodeMap.values())
-      .filter((node) => node.type === 'group')
-      .map((node) => node.id));
-    const nextGroupIds = sortIds(Array.from(nextNodeMap.values())
-      .filter((node) => node.type === 'group')
-      .map((node) => node.id));
+    const prevGroupIds = sortIds(
+      Array.from(prevNodeMap.values())
+        .filter((node) => node.type === 'group')
+        .map((node) => node.id),
+    );
+    const nextGroupIds = sortIds(
+      Array.from(nextNodeMap.values())
+        .filter((node) => node.type === 'group')
+        .map((node) => node.id),
+    );
 
     const created = nextGroupIds
       .filter((id) => !prevGroupIds.includes(id))
@@ -552,10 +557,7 @@ export class SemanticWatchReducer {
       }
     }
 
-    const pinIds = new Set<string>([
-      ...prevNeighborhoodMap.keys(),
-      ...nextNeighborhoodMap.keys(),
-    ]);
+    const pinIds = new Set<string>([...prevNeighborhoodMap.keys(), ...nextNeighborhoodMap.keys()]);
     for (const pinId of pinIds) {
       const oldNeighbors = prevNeighborhoodMap.get(pinId) ?? [];
       const newNeighbors = nextNeighborhoodMap.get(pinId) ?? [];

@@ -50,7 +50,8 @@ describe('agent-context mcp-app summaries', () => {
       title: 'Canvas comparison artifact',
       viewerType: 'web-artifact',
       hostMode: 'hosted',
-      content: 'Web artifact: Canvas comparison artifact\nApp source preview:\nexport default function App() { return <main>Compare old and new canvas states</main>; }',
+      content:
+        'Web artifact: Canvas comparison artifact\nApp source preview:\nexport default function App() { return <main>Compare old and new canvas states</main>; }',
       sourceFiles: ['src/App.tsx', 'src/index.css'],
       sourceFileCount: 2,
       artifactBytes: 12345,
@@ -66,15 +67,17 @@ describe('agent-context mcp-app summaries', () => {
     expect(serialized.content).toContain('Compare old and new canvas states');
     expect(serialized.content).toContain('Path: /tmp/canvas-comparison.html');
     expect(serialized.content).not.toContain('<!DOCTYPE html>');
-    expect(serialized.metadata).toEqual(expect.objectContaining({
-      path: '/tmp/canvas-comparison.html',
-      url: '/artifact?path=%2Ftmp%2Fcanvas-comparison.html',
-      hostMode: 'hosted',
-      viewerType: 'web-artifact',
-      sourceFiles: ['src/App.tsx', 'src/index.css'],
-      sourceFileCount: 2,
-      artifactBytes: 12345,
-    }));
+    expect(serialized.metadata).toEqual(
+      expect.objectContaining({
+        path: '/tmp/canvas-comparison.html',
+        url: '/artifact?path=%2Ftmp%2Fcanvas-comparison.html',
+        hostMode: 'hosted',
+        viewerType: 'web-artifact',
+        sourceFiles: ['src/App.tsx', 'src/index.css'],
+        sourceFileCount: 2,
+        artifactBytes: 12345,
+      }),
+    );
     expect(serialized.position).toEqual({ x: 120, y: 80 });
   });
 
@@ -104,11 +107,13 @@ describe('agent-context mcp-app summaries', () => {
     const serialized = serializeNodeForAgentContext(node);
     expect(serialized.type).toBe('html');
     expect(serialized.content).toBe('Explicit agent summary for the HTML report.');
-    expect(serialized.metadata).toEqual(expect.objectContaining({
-      agentSummary: 'Explicit agent summary for the HTML report.',
-      contentSummary: 'Visible HTML report Semantic sidecar text.',
-      embeddedNodeIds: ['graph-node-1'],
-    }));
+    expect(serialized.metadata).toEqual(
+      expect.objectContaining({
+        agentSummary: 'Explicit agent summary for the HTML report.',
+        contentSummary: 'Visible HTML report Semantic sidecar text.',
+        embeddedNodeIds: ['graph-node-1'],
+      }),
+    );
   });
 
   test('serializes html presentation metadata for pinned context consumers', () => {
@@ -125,11 +130,13 @@ describe('agent-context mcp-app summaries', () => {
     const serialized = serializeNodeForAgentContext(node);
     expect(serialized.type).toBe('html');
     expect(serialized.content).toBe('Presentation covering planning tradeoffs.');
-    expect(serialized.metadata).toEqual(expect.objectContaining({
-      presentation: true,
-      slideCount: 2,
-      slideTitles: ['Context', 'Decision'],
-      speakerNotes: ['Pause for questions.'],
-    }));
+    expect(serialized.metadata).toEqual(
+      expect.objectContaining({
+        presentation: true,
+        slideCount: 2,
+        slideTitles: ['Context', 'Decision'],
+        speakerNotes: ['Pause for questions.'],
+      }),
+    );
   });
 });

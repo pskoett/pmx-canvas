@@ -7,19 +7,17 @@ import { getImageNodeWarnings } from './image-warnings';
  * Supports: file paths (served via /api/canvas/image/:nodeId), data URIs, and URLs.
  * Features: fit-to-container, zoom in/out within node, pan when zoomed.
  */
-export function ImageNode({
-  node,
-  expanded = false,
-}: { node: CanvasNodeState; expanded?: boolean }) {
+export function ImageNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
   const src = (node.data.src as string) || '';
   const alt = (node.data.alt as string) || (node.data.title as string) || 'Image';
   const caption = (node.data.caption as string) || '';
   const warnings = getImageNodeWarnings(node);
 
   // Determine the image source URL
-  const imageSrc = src.startsWith('data:') || src.startsWith('http://') || src.startsWith('https://')
-    ? src
-    : `/api/canvas/image/${node.id}`;
+  const imageSrc =
+    src.startsWith('data:') || src.startsWith('http://') || src.startsWith('https://')
+      ? src
+      : `/api/canvas/image/${node.id}`;
 
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState(false);
@@ -54,13 +52,16 @@ export function ImageNode({
     setZoom((z) => Math.max(0.25, Math.min(10, z * delta)));
   }, []);
 
-  const handlePointerDown = useCallback((e: PointerEvent) => {
-    if (zoom <= 1) return;
-    e.stopPropagation();
-    dragging.current = true;
-    lastPos.current = { x: e.clientX, y: e.clientY };
-    (e.target as HTMLElement).setPointerCapture(e.pointerId);
-  }, [zoom]);
+  const handlePointerDown = useCallback(
+    (e: PointerEvent) => {
+      if (zoom <= 1) return;
+      e.stopPropagation();
+      dragging.current = true;
+      lastPos.current = { x: e.clientX, y: e.clientY };
+      (e.target as HTMLElement).setPointerCapture(e.pointerId);
+    },
+    [zoom],
+  );
 
   const handlePointerMove = useCallback((e: PointerEvent) => {
     if (!dragging.current) return;
@@ -92,10 +93,7 @@ export function ImageNode({
   const zoomPct = Math.round(zoom * 100);
 
   return (
-    <div
-      class={`image-node ${expanded ? 'image-node-expanded' : ''}`}
-      ref={containerRef}
-    >
+    <div class={`image-node ${expanded ? 'image-node-expanded' : ''}`} ref={containerRef}>
       {warnings.length > 0 && (
         <div class="image-node-warning-stack">
           {warnings.map((warning) => (
@@ -114,9 +112,7 @@ export function ImageNode({
         onPointerUp={handlePointerUp}
         style={{ cursor: zoom > 1 ? 'grab' : 'default' }}
       >
-        {!loaded && !error && (
-          <div class="image-node-loading">Loading…</div>
-        )}
+        {!loaded && !error && <div class="image-node-loading">Loading…</div>}
         {error && (
           <div class="image-node-error">
             <div class="image-node-error-icon">⚠</div>
@@ -143,12 +139,7 @@ export function ImageNode({
           <span class="image-node-meta">
             {sizeLabel && <span>{sizeLabel}</span>}
             {zoom !== 1 && (
-              <button
-                type="button"
-                class="image-node-zoom-reset"
-                onClick={resetView}
-                title="Reset zoom"
-              >
+              <button type="button" class="image-node-zoom-reset" onClick={resetView} title="Reset zoom">
                 {zoomPct}% ↺
               </button>
             )}
