@@ -151,8 +151,13 @@ pmx-canvas serve stop                                  # Stop the daemon for thi
 
 `serve --daemon` writes a pid file (`.pmx-canvas/daemon-<port>.pid`) and a log file
 (`.pmx-canvas/daemon-<port>.log`); the wait flag blocks until `/health` returns OK so a script
-can rely on the server being responsive when the command returns. `serve stop` reads the pid
-file, sends SIGTERM, and cleans up on exit.
+can rely on the server being responsive when the command returns. The pid file doubles as the
+spawn lock and records the pid immediately, so a starting-but-not-yet-healthy daemon is already
+addressable by `serve stop`, and a failed startup kills the child — no orphans. If the requested
+port already serves a *different* workspace (or a non-canvas app), `serve --daemon` refuses with
+the owner named and a hint to pick another port; it never reports a foreign daemon as "already
+running". `serve stop` reads the pid file, verifies the pid still looks like a canvas daemon
+(recycled pids read as stale), sends SIGTERM, and cleans up on exit.
 
 ### Verify workspace identity BEFORE mutating (required)
 
@@ -170,7 +175,9 @@ file, sends SIGTERM, and cleans up on exit.
 3. **On mismatch, isolate**: start the intended workspace on an explicit free port —
    `pmx-canvas serve --daemon --no-open --port=<free-port>` — and target that port. (`PMX_CANVAS_PORT`
    alone may still attach to an existing `4313` listener; prefer an explicit `--port`.) Then
-   **re-read `/health`** to confirm the workspace now matches.
+   **re-read `/health`** to confirm the workspace now matches. `serve --daemon` also enforces
+   this itself: pointed at a port owned by another workspace, it exits with an error naming the
+   owner instead of attaching to it.
 4. **MCP transport exception:** `pmx-canvas --mcp` launched from an incidental host dir may attach to
    the healthy daemon already on the preferred port when no explicit workspace root is set, so writes
    land in the visible workbench instead of a hidden fallback workspace. Host adapters should set

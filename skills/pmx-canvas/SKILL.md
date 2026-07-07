@@ -55,7 +55,9 @@ Both surfaces report `workspace`. It must match the intended workspace root.
 
 - If `responsive: true` but `pidRunning: false`, treat the listener as potentially stale.
 - On mismatch, do not mutate. Start the intended workspace on an explicit free port:
-  `pmx-canvas serve --daemon --no-open --port=<free-port>`.
+  `pmx-canvas serve --daemon --no-open --port=<free-port>`. (`serve --daemon` enforces this
+  itself: pointed at a port owned by another workspace, it refuses with the owner named instead
+  of reporting "already running".)
 - Target that port and re-check `/health`.
 - `PMX_CANVAS_PORT` is the agent CLI target; the server's startup port is controlled by `--port`
   or `PMX_WEB_CANVAS_PORT`.
