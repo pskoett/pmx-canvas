@@ -219,13 +219,15 @@ describe('code graph', () => {
     const utilNode = summary.nodes.find((node) => node.id === 'util');
     expect(utilNode?.importedBy).toHaveLength(2);
     expect(
-      utilNode?.importedBy.every(
-        (path) =>
+      utilNode?.importedBy.every((rawPath) => {
+        const path = rawPath.replaceAll('\\', '/');
+        return (
           path.endsWith('/src/app.ts') ||
           path.endsWith('/src/feature.ts') ||
           path === 'src/app.ts' ||
-          path === 'src/feature.ts',
-      ),
+          path === 'src/feature.ts'
+        );
+      }),
     ).toBe(true);
     expect(utilNode?.inDegree).toBe(2);
 
