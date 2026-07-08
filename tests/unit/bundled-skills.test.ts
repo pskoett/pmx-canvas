@@ -6,7 +6,8 @@ describe('bundled skills', () => {
     const root = findBundledSkillsRoot();
     expect(root).not.toBeNull();
     expect(typeof root).toBe('string');
-    expect(root!.endsWith('/skills')).toBe(true);
+    // Separator-agnostic: join() yields backslashes on Windows.
+    expect(root!.split(/[\\/]/).at(-1)).toBe('skills');
   });
 
   test('listBundledSkills returns at least the canonical product skills', () => {

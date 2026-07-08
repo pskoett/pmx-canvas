@@ -72,7 +72,22 @@ set -e
 
 export function removeTestWorkspace(workspaceRoot: string): void {
   canvasState.close();
-  rmSync(workspaceRoot, { recursive: true, force: true });
+  // Windows releases the SQLite WAL/db handles asynchronously after close(),
+  // so an immediate rm can hit EBUSY. Retry briefly, then tolerate: the dir is
+  // an ephemeral temp workspace — leaking it must never fail the suite.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      rmSync(workspaceRoot, { recursive: true, force: true });
+      return;
+    } catch {
+      Bun.sleepSync(100);
+    }
+  }
+  try {
+    rmSync(workspaceRoot, { recursive: true, force: true });
+  } catch (error) {
+    console.warn(`removeTestWorkspace: leaking ${workspaceRoot} (${String(error)})`);
+  }
 }
 
 export function readPersistedCanvasState(workspaceRoot: string): {

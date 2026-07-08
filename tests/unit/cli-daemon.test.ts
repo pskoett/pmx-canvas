@@ -100,7 +100,9 @@ describe('resolveDaemonPidView (0.3.2 report Finding P)', () => {
   });
 });
 
-describe('processCommandMatches / isOwnDaemonProcess', () => {
+// Daemon liveness is checked via `ps` command-line matching — POSIX-only, like
+// the daemon flow itself. No `ps` on Windows runners.
+describe.skipIf(process.platform === 'win32')('processCommandMatches / isOwnDaemonProcess', () => {
   test('matches the current process command line', () => {
     expect(processCommandMatches(process.pid, 'bun')).toBe(true);
   });
@@ -126,7 +128,7 @@ describe('processCommandMatches / isOwnDaemonProcess', () => {
   });
 });
 
-describe('acquireDaemonLock', () => {
+describe.skipIf(process.platform === 'win32')('acquireDaemonLock', () => {
   test('acquires a fresh lock and leaves the (empty) lock file in place', () => {
     const path = tempPidFile();
     const result = acquireDaemonLock(path, 'bun');

@@ -1,4 +1,5 @@
 import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
+import { fileURLToPath } from 'node:url';
 import { extractGlobalTargetFlags, runAgentCli } from '../../src/cli/agent.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
@@ -74,7 +75,9 @@ describe('agent CLI global target flags', () => {
   // bypass that router and mask a misroute, so we spawn the entry as a
   // subprocess. Bun.spawn (async) keeps this process's event loop alive so the
   // in-process test server on serverPort can answer the subprocess's request.
-  const cliEntry = new URL('../../src/cli/index.ts', import.meta.url).pathname;
+  // fileURLToPath, not .pathname: on Windows the latter yields "/D:/..." which
+  // is not a spawnable filesystem path.
+  const cliEntry = fileURLToPath(new URL('../../src/cli/index.ts', import.meta.url));
 
   async function runRealCli(args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
     const proc = Bun.spawn([process.execPath, 'run', cliEntry, ...args], {
