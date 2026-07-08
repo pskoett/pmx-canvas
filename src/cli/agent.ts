@@ -89,11 +89,75 @@ interface CanvasSchemaResponse {
   };
 }
 
+// Per-invocation target override from the global --server-url / --port flags.
+// Before these existed, `--port 4750` on any agent command was SILENTLY ignored
+// and the command hit the default 4313 daemon — which once pointed a test
+// automation WebView at a live production board.
+let cliTargetOverride: string | null = null;
+
 function getBaseUrl(): string {
+  if (cliTargetOverride) return cliTargetOverride;
   const envUrl = process.env.PMX_CANVAS_URL;
   if (envUrl) return envUrl.replace(/\/$/, '');
   const port = process.env.PMX_CANVAS_PORT || DEFAULT_PORT;
   return `http://localhost:${port}`;
+}
+
+/**
+ * Extract the global `--port <n>` / `--server-url <url>` flags (any position,
+ * `=` or space-separated value) and set the invocation's target override.
+ * Returns the remaining args for command dispatch. Invalid values are a loud
+ * `die` — never a silent fallback to the default port. `--server-url` wins
+ * over `--port` when both are given.
+ */
+export function extractGlobalTargetFlags(args: string[]): string[] {
+  cliTargetOverride = null;
+  let portOverride: number | null = null;
+  let urlOverride: string | null = null;
+  const rest: string[] = [];
+
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    let name: 'port' | 'server-url' | null = null;
+    let value: string | undefined;
+    if (arg === '--port' || arg === '--server-url') {
+      name = arg.slice(2) as 'port' | 'server-url';
+      value = args[i + 1];
+      i += 1;
+    } else if (arg.startsWith('--port=')) {
+      name = 'port';
+      value = arg.slice('--port='.length);
+    } else if (arg.startsWith('--server-url=')) {
+      name = 'server-url';
+      value = arg.slice('--server-url='.length);
+    } else {
+      rest.push(arg);
+      continue;
+    }
+
+    if (name === 'port') {
+      const port = Number(value);
+      if (!value || !Number.isInteger(port) || port <= 0 || port > 65535) {
+        die(
+          `--port requires a port number, got ${value === undefined ? 'no value' : JSON.stringify(value)}.`,
+          'Example: --port 4313. Without the flag, PMX_CANVAS_PORT / PMX_CANVAS_URL pick the target.',
+        );
+      }
+      portOverride = port;
+    } else {
+      if (!value || !/^https?:\/\//.test(value)) {
+        die(
+          `--server-url requires an http(s) URL, got ${value === undefined ? 'no value' : JSON.stringify(value)}.`,
+          'Example: --server-url http://localhost:4313. Without the flag, PMX_CANVAS_URL picks the target.',
+        );
+      }
+      urlOverride = value.replace(/\/$/, '');
+    }
+  }
+
+  if (urlOverride) cliTargetOverride = urlOverride;
+  else if (portOverride) cliTargetOverride = `http://localhost:${portOverride}`;
+  return rest;
 }
 
 function die(message: string, hint?: string): never {
@@ -3535,6 +3599,8 @@ Analysis:
 
 Global flags:
   --help, -h                          Show help for any command
+  --port <n>                          Target daemon port for this invocation (overrides PMX_CANVAS_PORT)
+  --server-url <url>                  Target server URL for this invocation (overrides PMX_CANVAS_URL; wins over --port)
 
 Environment:
   PMX_CANVAS_URL    Server URL (default: http://localhost:4313)
@@ -3592,7 +3658,8 @@ async function readStdin(): Promise<string> {
 
 // ── Router ───────────────────────────────────────────────────
 
-export async function runAgentCli(args: string[]): Promise<void> {
+export async function runAgentCli(rawArgs: string[]): Promise<void> {
+  const args = extractGlobalTargetFlags(rawArgs);
   if (args.length === 0 || args[0] === '--help' || args[0] === '-h') {
     showTopLevelHelp();
     return;

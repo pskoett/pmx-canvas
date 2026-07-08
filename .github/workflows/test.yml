@@ -52,6 +52,37 @@ jobs:
           path: coverage/
           retention-days: 14
 
+  # Required cross-platform gate: the unit suite must pass on Windows and
+  # macOS on every change (the 0.3.1 Windows report found the SPA had never
+  # booted on Windows — a path-separator bug no ubuntu-only CI could catch).
+  # Runs typecheck + the full unit suite; lint/coverage/mirror checks stay on
+  # the ubuntu job (they are platform-independent). Bash-backed suites
+  # (web-artifacts) self-skip on Windows via describe.skipIf(win32).
+  test-cross-platform:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.12
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Unit tests
+        run: bun run test
+
   # Required e2e gate. Kept separate from unit tests so unit feedback stays
   # fast; must NOT be allowed to soft-fail (no continue-on-error). Runs the
   # Playwright suite via scripts/run-playwright.sh (Node runner — see

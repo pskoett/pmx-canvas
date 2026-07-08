@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { recomputeCodeGraph } from './code-graph.js';
 import {
   canvasState,
@@ -727,7 +727,7 @@ function buildFileNodeData(input: CanvasAddNodeInput): Record<string, unknown> {
   const rawPath =
     typeof input.data?.path === 'string' && input.data.path.length > 0 ? input.data.path : (input.content ?? '');
   const resolved = resolve(rawPath);
-  const fileName = resolved.split('/').pop() ?? rawPath;
+  const fileName = basename(resolved) || rawPath;
   const data: Record<string, unknown> = {
     ...(input.data ?? {}),
     path: resolved,
@@ -767,7 +767,7 @@ function buildImageNodeData(input: CanvasAddNodeInput): Record<string, unknown> 
 
   if (!isDataUri && !isUrl && src) {
     const resolved = resolve(src);
-    const fileName = resolved.split('/').pop() ?? src;
+    const fileName = basename(resolved) || src;
     const { mimeType } = validateLocalImageFile(resolved);
     return {
       ...(input.data ?? {}),

@@ -1,16 +1,17 @@
 import { describe, expect, test } from 'bun:test';
 import {
   buildExtAppAxBridgeScript,
+  enqueueWebkitRemount,
   getExtAppBridgeInitKey,
   injectExtAppAxBridgeScript,
   isWebKitOnlyHost,
-  nextWebkitRepaintSlot,
   resolveExtAppContainerDimensions,
   resolveExtAppDisplayModeRequest,
   resolveExtAppInlineFrameHeight,
   resolveExtAppSandbox,
   shouldScheduleWebKitRepaint,
   shouldApplyExtAppSizeChange,
+  WEBKIT_REMOUNT_SETTLE_MS,
 } from '../../src/client/nodes/ExtAppFrame.tsx';
 import type { CanvasNodeState } from '../../src/client/types.ts';
 
@@ -42,14 +43,57 @@ describe('ExtAppFrame WebKit-host gate (Finding F)', () => {
     for (const ua of notWebkitOnly) expect(isWebKitOnlyHost(ua)).toBe(false);
   });
 
-  test('serializes repaint slots so concurrent ext-apps stagger (not re-burst)', () => {
-    // Consecutive ext-apps mounting in the same burst get strictly increasing slots,
-    // which the effect turns into an increasing remount delay (one repaint at a time).
-    const a = nextWebkitRepaintSlot();
-    const b = nextWebkitRepaintSlot();
-    const c = nextWebkitRepaintSlot();
-    expect(b).toBe(a + 1);
-    expect(c).toBe(b + 1);
+  test('remount queue is boot-aware: the next remount waits for the previous boot', async () => {
+    // Each recovery remount reboots the app (~1-2s for Excalidraw); a fixed stagger
+    // re-bursts N reboots. The queue must not fire remount B until app A's awaitBoot
+    // resolves — that is the whole fix for the multi-app reload blackout.
+    const order: string[] = [];
+    let releaseA: (() => void) | undefined;
+    const bootA = new Promise<void>((resolve) => {
+      releaseA = resolve;
+    });
+    enqueueWebkitRemount({
+      remount: () => {
+        order.push('remount:A');
+        return true;
+      },
+      awaitBoot: () => bootA.then(() => order.push('boot:A')).then(() => {}),
+    });
+    enqueueWebkitRemount({
+      remount: () => {
+        order.push('remount:B');
+        return true;
+      },
+      awaitBoot: () => Promise.resolve(),
+    });
+
+    await new Promise((resolve) => setTimeout(resolve, 30));
+    expect(order).toEqual(['remount:A']); // B queued, NOT started while A boots
+
+    releaseA?.();
+    await new Promise((resolve) => setTimeout(resolve, WEBKIT_REMOUNT_SETTLE_MS + 400)); // A boot + settle delay
+    expect(order).toEqual(['remount:A', 'boot:A', 'remount:B']);
+  });
+
+  test('a skipped remount (node gone) does not stall the queue on its boot wait', async () => {
+    const order: string[] = [];
+    enqueueWebkitRemount({
+      remount: () => false, // node unmounted/expanded — skip
+      awaitBoot: () =>
+        new Promise(() => {
+          order.push('boot-wait:skipped'); // must never be awaited
+        }),
+    });
+    enqueueWebkitRemount({
+      remount: () => {
+        order.push('remount:next');
+        return true;
+      },
+      awaitBoot: () => Promise.resolve(),
+    });
+    // The shared queue may still be draining the previous test's settle delay.
+    await new Promise((resolve) => setTimeout(resolve, WEBKIT_REMOUNT_SETTLE_MS * 2 + 500));
+    expect(order).toEqual(['remount:next']);
   });
 
   test('waits for replayed tool output before scheduling the repaint remount', () => {

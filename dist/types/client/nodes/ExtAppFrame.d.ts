@@ -19,7 +19,15 @@ interface ExtAppHostDimensionsTarget {
  * everywhere we can test (Chrome / Codex / Playwright).
  */
 export declare function isWebKitOnlyHost(userAgent: string): boolean;
-export declare function nextWebkitRepaintSlot(): number;
+export declare const WEBKIT_REMOUNT_SETTLE_MS = 1000;
+export interface WebkitRemountTask {
+    /** Perform the remount. Return false if the node no longer needs it (skips the boot wait). */
+    remount: () => boolean;
+    /** Resolves when the remounted app genuinely boots AND finishes its bootstrap replay, or after a bounded timeout. */
+    awaitBoot: () => Promise<void>;
+}
+export declare function extAppRecoveryLog(nodeId: string, event: string): void;
+export declare function enqueueWebkitRemount(task: WebkitRemountTask): void;
 export declare function shouldScheduleWebKitRepaint(status: ExtAppFrameStatus, hasReplayToolResult: boolean): boolean;
 export declare function getExtAppBridgeInitKey(node: CanvasNodeState, retryKey: number): string;
 export declare function resolveExtAppDisplayModeRequest(requestedMode: DisplayMode, isExpanded: boolean): {

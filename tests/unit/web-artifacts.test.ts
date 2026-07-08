@@ -14,7 +14,11 @@ import {
   resetCanvasForTests,
 } from './helpers.ts';
 
-describe('web artifact builders', () => {
+// Web-artifact builds execute the bundled bash scripts (init-artifact.sh /
+// bundle-artifact.sh) — the feature is POSIX-only today, so these tests cannot
+// run on native Windows (no shebang execution). Windows support for the
+// web-artifacts pipeline is a separate feature, not a test gap.
+describe.skipIf(process.platform === 'win32')('web artifact builders', () => {
   let workspaceRoot = '';
 
   beforeEach(() => {

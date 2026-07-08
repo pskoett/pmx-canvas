@@ -2,7 +2,16 @@
 
 The CLI is the shell-native way to run and control PMX Canvas. It targets
 `http://localhost:4313` by default — override with `PMX_CANVAS_URL` or
-`PMX_CANVAS_PORT` when the server runs elsewhere.
+`PMX_CANVAS_PORT` when the server runs elsewhere, or per invocation with the
+global `--port <n>` / `--server-url <url>` flags (any position; `--server-url`
+wins over `--port`, and both win over the environment variables). An invalid
+value for either flag is a hard error — the CLI never falls back silently to
+the default port.
+
+```bash
+pmx-canvas node list --port 4750                      # target a non-default daemon
+pmx-canvas --server-url http://127.0.0.1:4750 status  # same, by URL
+```
 
 ## Server lifecycle
 

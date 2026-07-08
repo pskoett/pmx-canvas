@@ -1021,13 +1021,26 @@ function resolveCanvasBundleDir(): string {
   return fallback;
 }
 
+/**
+ * Containment check for bundle-asset serving. Separator-agnostic: on Windows,
+ * `resolve()` returns backslash paths, so comparing against a `${dir}/` template
+ * rejected every asset — /canvas/index.js 404'd and the SPA never booted (the
+ * 0.3.1 Windows report). Normalizing both sides keeps the check exact on POSIX
+ * and correct on win32, and testable with win32-shaped fixtures on any host.
+ */
+export function isCanvasBundlePath(distPath: string, bundleDir: string): boolean {
+  const normalize = (value: string) => value.replaceAll('\\', '/');
+  const dir = normalize(bundleDir).replace(/\/+$/, '');
+  return normalize(distPath).startsWith(`${dir}/`);
+}
+
 function serveCanvasStatic(pathname: string): Response | null {
   const fileName = pathname.slice('/canvas/'.length);
   if (!fileName || fileName.includes('..') || fileName.startsWith('/')) return null;
 
   const bundleDir = resolveCanvasBundleDir();
   const distPath = resolve(bundleDir, fileName);
-  if (!distPath.startsWith(`${bundleDir}/`)) return null;
+  if (!isCanvasBundlePath(distPath, bundleDir)) return null;
   if (existsSync(distPath)) {
     const ext = extname(fileName);
     return new Response(readFileSync(distPath), {

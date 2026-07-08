@@ -59,24 +59,50 @@ export function isWebKitOnlyHost(userAgent: string): boolean {
   return /AppleWebKit/.test(userAgent) && !/Chrome|Chromium|CriOS|Edg|Android/.test(userAgent);
 }
 
-// Finding F (0.2.5): SERIALIZED WebKit repaint slots. The black tile is a cold-
-// hydration BURST problem — a single ext-app repaints fine into an idle panel (like
-// a live-created node, or expand+close), but several compositing at once overwhelm
-// WebKit and all stay black. We give each mounting ext-app an increasing slot so its
-// one-time repaint remount fires into a progressively-quieter panel (one app at a
-// time), turning the burst back into a sequence of single repaints. The shared
-// counter resets after the burst so a later board load starts from slot 0.
-let webkitRepaintSlot = 0;
-let webkitRepaintSlotResetTimer: ReturnType<typeof setTimeout> | null = null;
-export function nextWebkitRepaintSlot(): number {
-  const slot = webkitRepaintSlot++;
-  if (typeof window !== 'undefined') {
-    if (webkitRepaintSlotResetTimer) clearTimeout(webkitRepaintSlotResetTimer);
-    webkitRepaintSlotResetTimer = setTimeout(() => {
-      webkitRepaintSlot = 0;
-    }, 3000);
-  }
-  return slot;
+// Finding F (0.2.5, reworked 0.3.1): BOOT-AWARE serialized WebKit remount queue.
+// The black tile is a cold-hydration BURST problem — a single ext-app repaints fine
+// into an idle panel (like a live-created node, or expand+close), but several
+// compositing at once overwhelm WebKit and all stay black. The 0.2.5 fixed-stagger
+// slots (450ms apart) were NOT boot-aware: each recovery remount reboots the app
+// (~1-2s for Excalidraw), so N staggered remounts overlapped into a fresh burst and
+// the per-node one-shot flag was spent — exactly the multi-app reload blackout the
+// 0.3.1 report shows. This queue runs remounts strictly one at a time: each entry
+// performs its remount, then waits for that app's GENUINE initialized handshake
+// (or a bounded timeout for an app that never boots) plus a settle delay before the
+// next entry fires — so every remount lands in an idle panel, which is the
+// empirically always-successful recovery (what expand+close does manually).
+// Settle covers the scene DRAW: the app's initialized handshake fires before the
+// replayed tool result arrives and the scene is painted, so the queue waits for the
+// settled signal (bootstrap chain incl. tool-result send complete) plus this pause.
+export const WEBKIT_REMOUNT_SETTLE_MS = 1000;
+const WEBKIT_BOOT_TIMEOUT_MS = 7000;
+
+export interface WebkitRemountTask {
+  /** Perform the remount. Return false if the node no longer needs it (skips the boot wait). */
+  remount: () => boolean;
+  /** Resolves when the remounted app genuinely boots AND finishes its bootstrap replay, or after a bounded timeout. */
+  awaitBoot: () => Promise<void>;
+}
+
+// Bounded recovery trail readable via `webview evaluate` / devtools
+// (window.__PMX_EXTAPP_LOG). The WebKit compositor dropout is otherwise
+// unobservable from page JS — this is the only diagnostic surface.
+export function extAppRecoveryLog(nodeId: string, event: string): void {
+  if (typeof window === 'undefined') return;
+  const host = window as unknown as { __PMX_EXTAPP_LOG?: Array<{ t: number; nodeId: string; event: string }> };
+  host.__PMX_EXTAPP_LOG ??= [];
+  if (host.__PMX_EXTAPP_LOG.length < 500) host.__PMX_EXTAPP_LOG.push({ t: Date.now(), nodeId, event });
+}
+
+let webkitRemountChain: Promise<void> = Promise.resolve();
+export function enqueueWebkitRemount(task: WebkitRemountTask): void {
+  webkitRemountChain = webkitRemountChain
+    .then(async () => {
+      if (!task.remount()) return;
+      await task.awaitBoot();
+      await new Promise((resolve) => setTimeout(resolve, WEBKIT_REMOUNT_SETTLE_MS));
+    })
+    .catch(() => {});
 }
 
 export function shouldScheduleWebKitRepaint(status: ExtAppFrameStatus, hasReplayToolResult: boolean): boolean {
@@ -231,7 +257,14 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   const bridgeReadyRef = useRef(false);
   const themeUnsubRef = useRef<(() => void) | null>(null);
   const webkitRepaintDoneRef = useRef(false);
-  const webkitRepaintTimerRef = useRef<number | null>(null);
+  const webkitRemountAttemptsRef = useRef(0);
+  // Genuine boot signal: set ONLY when the app completes the ui/initialize
+  // handshake (bridge.oninitialized) — NOT by the 1200ms bootstrap fallback,
+  // which flips status via notifications that resolve even into a dead iframe.
+  const appInitializedRef = useRef(false);
+  const bootWaitersRef = useRef<Array<() => void>>([]);
+  const remountQueuedRef = useRef(false);
+  const unmountedRef = useRef(false);
   const [status, setStatus] = useState<ExtAppFrameStatus>('loading');
   const [error, setError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
@@ -308,23 +341,55 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     return () => window.removeEventListener('message', onAxMessage);
   }, [axEnabled, axToken, nodeId]);
 
-  // Finding F (0.2.4/0.2.5): in a WebKit host panel (e.g. the GitHub Copilot app's
-  // WKWebView, and Bun's headless WebKit WebView) the doubly-nested ext-app iframe
-  // (workbench iframe → mcp-app.html iframe) can come up as a black tile for nodes
-  // present at panel-load. The mcp-app shell loads blank, then the app boots over the
-  // bridge and draws its content AFTER load; under a cold-hydration burst WebKit does
-  // not composite that late draw, so the layer stays black (clean in Blink, and clean
-  // for a node created live into an already-idle panel). A parent-side transform/src
-  // nudge does NOT repair a black layer — only a full remount (new iframe element +
-  // bridge re-init, what expand+close does) does, and only when it lands in an idle
-  // moment. So: once the app has booted — `ready` for empty apps, `done` for restored
-  // apps that must replay saved tool output — under WebKit only, force ONE remount,
-  // SERIALIZED per node (an increasing slot delay) so concurrent ext-apps
-  // don't re-form a single compositing burst (the 0.2.4 fixed-250ms-on-mount remount
-  // fired mid-burst before the app had even booted, and all siblings re-raced —
-  // insufficient). This reliably repaints a SINGLE present-at-load ext-app; a board
-  // with several ext-apps present at WebKit panel-load can still black out (a host
-  // compositor limit — expand+close or Chrome remains the fallback; see SKILL.md).
+  // Enqueue one serialized remount attempt for this node (Finding F recovery).
+  // Attempts are capped so a persistently-failing app degrades to the manual
+  // fallback (expand+close / Retry) instead of remount-looping forever.
+  const WEBKIT_MAX_REMOUNT_ATTEMPTS = 3;
+  const scheduleWebkitRemount = (reason: string): void => {
+    if (webkitRemountAttemptsRef.current >= WEBKIT_MAX_REMOUNT_ATTEMPTS) {
+      extAppRecoveryLog(nodeId, `remount-cap-hit (${reason})`);
+      return;
+    }
+    if (remountQueuedRef.current) return; // an attempt is already queued and has not run yet
+    webkitRemountAttemptsRef.current += 1;
+    remountQueuedRef.current = true;
+    extAppRecoveryLog(nodeId, `remount-queued #${webkitRemountAttemptsRef.current} (${reason})`);
+    enqueueWebkitRemount({
+      remount: () => {
+        remountQueuedRef.current = false;
+        if (unmountedRef.current || expandedNodeId.value === nodeId) {
+          extAppRecoveryLog(nodeId, 'remount-skipped');
+          return false;
+        }
+        extAppRecoveryLog(nodeId, `remount-run #${webkitRemountAttemptsRef.current}`);
+        setRetryKey((k) => k + 1);
+        return true;
+      },
+      awaitBoot: () =>
+        new Promise<void>((resolve) => {
+          const timer = window.setTimeout(finish, WEBKIT_BOOT_TIMEOUT_MS);
+          function finish() {
+            window.clearTimeout(timer);
+            resolve();
+          }
+          bootWaitersRef.current.push(finish);
+        }),
+    });
+  };
+
+  // Finding F (0.2.4/0.2.5, reworked 0.3.1): in a WebKit host panel (e.g. the GitHub
+  // Copilot app's WKWebView, and Bun's headless WebKit WebView) the doubly-nested
+  // ext-app iframe (workbench iframe → mcp-app.html iframe) can come up as a black
+  // tile for nodes present at panel-load. The mcp-app shell loads blank, then the app
+  // boots over the bridge and draws its content AFTER load; under a cold-hydration
+  // burst WebKit does not composite that late draw, so the layer stays black (clean
+  // in Blink, and clean for a node created live into an already-idle panel). A
+  // parent-side transform/src nudge does NOT repair a black layer — only a full
+  // remount (new iframe element + bridge re-init, what expand+close does) does, and
+  // only when it lands in an idle moment. So: once the app has booted — `ready` for
+  // empty apps, `done` for restored apps that must replay saved tool output — under
+  // WebKit only, enqueue ONE recovery remount through the boot-aware queue above, so
+  // concurrent ext-apps remount strictly one at a time instead of re-bursting.
   // Strict no-op in Blink/Gecko; the e2e engine is unaffected. Inline instance only.
   useEffect(() => {
     if (expanded || webkitRepaintDoneRef.current) return;
@@ -332,19 +397,33 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
     if (!isWebKitOnlyHost(navigator.userAgent)) return;
     webkitRepaintDoneRef.current = true;
-    // Serialize: each ext-app repaints into a progressively-quieter panel so the
-    // cold-hydration burst becomes a sequence of single (always-successful) repaints.
-    // The timer is held in a ref and cleared only on UNMOUNT (separate effect), NOT in
-    // this effect's cleanup — otherwise a later status change (ready→done) would cancel
-    // the one-shot remount before it fires. The gate above runs once per node.
-    const delayMs = 250 + nextWebkitRepaintSlot() * 450;
-    webkitRepaintTimerRef.current = window.setTimeout(() => setRetryKey((k) => k + 1), delayMs);
+    scheduleWebkitRemount('post-boot-repaint');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, hasReplayToolResult]);
 
+  // Never-booted watchdog (0.3.1): an iframe whose scripts never ran in the burst
+  // shows no error — the bootstrap fallback flips status via notifications that
+  // resolve into a dead window, so the tile just stays black. If the CURRENT frame
+  // has not completed the genuine initialize handshake within the watchdog window,
+  // retry it through the same serialized queue (bounded by the shared attempt cap).
+  const WEBKIT_BOOT_WATCHDOG_MS = 6000;
+  useEffect(() => {
+    if (expanded) return;
+    if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
+    if (!isWebKitOnlyHost(navigator.userAgent)) return;
+    if (!iframeDocument.ready) return;
+    const timer = window.setTimeout(() => {
+      if (appInitializedRef.current || unmountedRef.current) return;
+      scheduleWebkitRemount('boot-watchdog');
+    }, WEBKIT_BOOT_WATCHDOG_MS);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [frameKey, iframeDocument.ready, expanded]);
+
   useEffect(
     () => () => {
-      if (webkitRepaintTimerRef.current !== null) window.clearTimeout(webkitRepaintTimerRef.current);
+      unmountedRef.current = true;
+      for (const waiter of bootWaitersRef.current.splice(0)) waiter();
     },
     [],
   );
@@ -415,6 +494,9 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     lastSentToolResultRef.current = undefined;
     toolResultSendingRef.current = null;
     bridgeReadyRef.current = false;
+    // New frame = new boot attempt: the genuine-initialized signal belongs to the
+    // CURRENT iframe. The queue's awaitBoot waits on this frame's handshake.
+    appInitializedRef.current = false;
 
     const clearFallbackTimer = (): void => {
       if (!fallbackTimer) return;
@@ -611,12 +693,23 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
         if (disposed) return;
         clearFallbackTimer();
         bridgeReadyRef.current = true;
+        appInitializedRef.current = true;
+        extAppRecoveryLog(nodeId, 'initialized');
         setStatus('ready');
         setError(null);
         void Promise.resolve(bridge.sendHostContextChange(buildHostContext(isExpanded ? 'fullscreen' : 'inline')))
           .then(() => sendExtAppBootstrapState(bridge, latestToolInputRef.current, undefined))
           .then(() => flushToolResult(bridge))
-          .then(() => nudgeHostContextAfterLayout())
+          .then(() => {
+            // Settled: handshake + bootstrap replay delivered — the app draws its
+            // scene right after this. Release the remount queue (which then adds
+            // its own settle pause covering the draw) only from this genuine path;
+            // the bootstrap fallback never releases it (a dead iframe must run the
+            // queue's bounded timeout instead of green-lighting the next remount).
+            extAppRecoveryLog(nodeId, 'settled');
+            for (const waiter of bootWaitersRef.current.splice(0)) waiter();
+            nudgeHostContextAfterLayout();
+          })
           .catch((err) => {
             const msg = err instanceof Error ? err.message : String(err);
             setError(`Bridge bootstrap failed: ${msg}`);

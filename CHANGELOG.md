@@ -9,6 +9,27 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 - `canvas_batch` supports `edge.remove` (0.3.1 test-report Finding M) — edge
   cleanup no longer needs a separate `canvas_edge` call.
+- Global `--port <n>` and `--server-url <url>` CLI flags target a specific
+  daemon for one invocation (they override `PMX_CANVAS_PORT` /
+  `PMX_CANVAS_URL`). Previously `--port` was silently ignored and the command
+  hit the default port; an invalid value is now a hard error.
+- CI runs the typecheck and unit suite on Windows and macOS on every push and
+  pull request, so platform-specific breakage (like the Windows static-asset
+  bug) is caught before release.
+
+### Fixed
+
+- **Windows: the canvas SPA now boots.** Bundle assets (`/canvas/index.js`,
+  `/canvas/global.css`) were rejected by a path check that compared Windows
+  backslash paths against a forward-slash template, so every asset returned 404
+  and the browser showed "PMX Canvas did not finish booting".
+- Excalidraw/ext-app tiles that went black on canvas reload in WebKit host
+  panels (e.g. the GitHub Copilot app) now auto-recover: present-at-load apps
+  are remounted through a serialized, boot-aware queue with a watchdog retry,
+  instead of a single fixed-delay repaint that re-collided on multi-app boards.
+  Rare stragglers still recover via expand-then-close.
+- File and image node titles on Windows now use the file name instead of the
+  full backslash path.
 
 ### Docs
 
