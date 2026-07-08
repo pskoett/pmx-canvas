@@ -3,6 +3,22 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- App tiles now show a spinner and a "Connecting to <app>..." overlay while an
+  app frame boots or recovers, instead of a dark tile body (0.3.3 report: the
+  transient black window during automatic recovery).
+
+### Docs
+
+- WebView backend preflight: prefer webkit on macOS; the chrome backend can
+  show an "Allow remote debugging?" dialog that must be approved promptly, and
+  `PMX_CANVAS_WEBVIEW_TIMEOUT_MS` can be raised for slow starts.
+- Skill evals: the two file-node eval prompts now reference the bundled
+  fixture paths, so a literal eval run works in any workspace.
+
 ## [0.3.3] - 2026-07-08
 
 ### Fixed

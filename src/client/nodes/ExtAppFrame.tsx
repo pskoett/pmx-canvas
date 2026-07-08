@@ -1077,9 +1077,6 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
           </button>
         </div>
       )}
-      {status === 'loading' && (
-        <div style={{ padding: '8px', fontSize: '11px', color: 'var(--c-muted)' }}>Connecting to ext-app viewer...</div>
-      )}
       {/* Iframe stack: the widget renders a preview; when not expanded, a
           transparent click-catcher sits on top so the first click always
           expands the node. Without this, widgets like Excalidraw show their
@@ -1109,6 +1106,42 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
           }}
           title={`Ext App: ${toolName}`}
         />
+        {/* Connecting overlay: an opaque sibling ABOVE the iframe while this
+            frame boots. During WebKit recovery remounts the iframe's own layer
+            can composite black (Finding N), but sibling DOM always paints — so
+            the multi-second recovery window reads as an intentional loading
+            state instead of a broken black tile. pointer-events pass through
+            so the expand click-catcher keeps working. */}
+        {status === 'loading' && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              background: 'var(--c-panel)',
+              color: 'var(--c-muted)',
+              fontSize: '12px',
+              pointerEvents: 'none',
+            }}
+          >
+            <div
+              style={{
+                width: '22px',
+                height: '22px',
+                border: '2px solid var(--c-line)',
+                borderTopColor: 'var(--c-muted)',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+              }}
+            />
+            <div>Connecting to {toolName}...</div>
+            <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
+          </div>
+        )}
         {!isExpanded && (
           <button
             type="button"

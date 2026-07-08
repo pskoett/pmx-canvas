@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "investigation-board",
-      "prompt": "I'm debugging a memory leak in our Node.js API. The /api/users endpoint is leaking memory on every request. I found a suspicious closure in src/handlers/users.ts that captures the entire request object, and the heap snapshot shows growing EventEmitter listeners. Can you set up an investigation board on the canvas so I can see the full picture?",
+      "prompt": "I'm debugging a memory leak in our Node.js API. The /api/users endpoint is leaking memory on every request. I found a suspicious closure in evals/fixtures/investigation-board/src/handlers/users.ts that captures the entire request object, and the heap snapshot shows growing EventEmitter listeners. Can you set up an investigation board on the canvas so I can see the full picture?",
       "expected_output": "Creates multiple nodes (bug description, code file, heap findings, hypothesis) connected with edges, arranged in a tree layout. Uses appropriate node types (markdown for findings, file for source, status for investigation progress).",
       "files": [
         "evals/fixtures/investigation-board/src/handlers/users.ts"
@@ -96,7 +96,7 @@
       "assertions": [
         {
           "name": "reads-pinned-context",
-          "description": "Reads the curated pin set via canvas://pinned-context — or the host-equivalent (canvas_ax_state / the HTTP pinned-context endpoint) where a direct resource tool is unavailable — not just canvas_query action:layout",
+          "description": "Reads the curated pin set via canvas://pinned-context \u2014 or the host-equivalent (canvas_ax_state / the HTTP pinned-context endpoint) where a direct resource tool is unavailable \u2014 not just canvas_query action:layout",
           "type": "output_check"
         },
         {
@@ -114,7 +114,7 @@
     {
       "id": 5,
       "name": "code-exploration-files",
-      "prompt": "I'm trying to understand how the authentication flow works in this project. Can you put the relevant auth files on the canvas so I can see how they connect? The main files are src/auth/login.ts, src/auth/middleware.ts, src/auth/jwt.ts, and src/routes/auth.ts.",
+      "prompt": "I'm trying to understand how the authentication flow works in this project. Can you put the relevant auth files on the canvas so I can see how they connect? The main files are evals/fixtures/code-exploration/src/auth/login.ts, evals/fixtures/code-exploration/src/auth/middleware.ts, evals/fixtures/code-exploration/src/auth/jwt.ts, and evals/fixtures/code-exploration/src/routes/auth.ts.",
       "expected_output": "Creates file nodes for each mentioned file (content auto-loads), relies on code graph to auto-detect import dependencies, groups auth files together, and reads canvas://code-graph for dependency analysis.",
       "files": [
         "evals/fixtures/code-exploration/src/auth/jwt.ts",
@@ -278,7 +278,7 @@
       "assertions": [
         {
           "name": "pins-via-verified-path",
-          "description": "Pins via canvas_pin_nodes / CLI pin / 'Pin as context' — not an unverified action",
+          "description": "Pins via canvas_pin_nodes / CLI pin / 'Pin as context' \u2014 not an unverified action",
           "type": "output_check"
         },
         {
@@ -417,7 +417,7 @@
       "id": 17,
       "name": "standalone-surface-open-as-site",
       "prompt": "Open the bar-chart graph node as a standalone full-page site for a screenshot, and also try to open the Excalidraw diagram node the same way. Tell me the correct surface URL for each.",
-      "expected_output": "For the graph/json-render node, uses the stable surface URL /api/canvas/surface/<id> which redirects to the full-viewport display=site viewer (reads surfaceUrl from the node, does not fabricate a path). Recognizes the hosted Excalidraw/ext-app node is NOT an open-as-site target (its surface route returns a clean 404 — it renders only with the in-canvas host bridge) and does not claim a standalone tab will work. Notes that some host browsers (e.g. the Codex in-app single-tab browser) don't deliver live-resize events, so a system browser is recommended for separate full-page viewing.",
+      "expected_output": "For the graph/json-render node, uses the stable surface URL /api/canvas/surface/<id> which redirects to the full-viewport display=site viewer (reads surfaceUrl from the node, does not fabricate a path). Recognizes the hosted Excalidraw/ext-app node is NOT an open-as-site target (its surface route returns a clean 404 \u2014 it renders only with the in-canvas host bridge) and does not claim a standalone tab will work. Notes that some host browsers (e.g. the Codex in-app single-tab browser) don't deliver live-resize events, so a system browser is recommended for separate full-page viewing.",
       "assertions": [
         {
           "name": "graph-site-surface-url",

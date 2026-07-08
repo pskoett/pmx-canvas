@@ -173,6 +173,11 @@ PMX Canvas follows Bun's current stable backend reality.
 - required on Linux and Windows
 - also supported on macOS
 - preferred when backend consistency or future CDP-based tooling matters
+- can trigger a native "Allow remote debugging?" dialog on first start in some
+  hosts — approve it promptly or the start times out with `ok:false`. Raise
+  `PMX_CANVAS_WEBVIEW_TIMEOUT_MS` (e.g. `30000`) when the prompt or a slow
+  Chrome launch is expected, and retry once before classifying a timeout as a
+  failure.
 
 ### Current default behavior
 

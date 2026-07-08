@@ -797,6 +797,13 @@ below operates on the live canvas state through the `canvas_webview` composite.
 - Optional: `backend` (`webkit` macOS-only, or `chrome`), `width`, `height`
 - The session opens `/workbench` at the canvas URL, waits for the SPA to
   hydrate, and reports back via `canvas_webview { action: "status" }`
+- **Backend preflight**: prefer `webkit` on macOS — it is the reliable
+  automation backend across tested hosts. The `chrome` backend can trigger a
+  native "Allow remote debugging?" dialog on first start in some hosts; if the
+  prompt is not approved promptly the start times out with `ok:false`. When
+  using `chrome`, approve the dialog immediately and/or raise
+  `PMX_CANVAS_WEBVIEW_TIMEOUT_MS` (e.g. `30000`). A single chrome timeout is
+  worth one immediate retry before classifying it as a failure.
 
 **`canvas_webview { action: "stop" }`** — Tear down the automation session
 
