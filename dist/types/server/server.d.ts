@@ -81,6 +81,14 @@ export declare function setPrimaryWorkbenchAutoOpenEnabled(enabled: boolean): vo
 export declare function isPrimaryWorkbenchAutoOpenEnabled(): boolean;
 export declare function hasWorkbenchSubscribers(): boolean;
 export declare function setPrimaryWorkbenchCanvasPromptHandler(handler: PrimaryWorkbenchCanvasPromptHandler | null): void;
+/**
+ * Containment check for bundle-asset serving. Separator-agnostic: on Windows,
+ * `resolve()` returns backslash paths, so comparing against a `${dir}/` template
+ * rejected every asset — /canvas/index.js 404'd and the SPA never booted (the
+ * 0.3.1 Windows report). Normalizing both sides keeps the check exact on POSIX
+ * and correct on win32, and testable with win32-shaped fixtures on any host.
+ */
+export declare function isCanvasBundlePath(distPath: string, bundleDir: string): boolean;
 export declare function buildMacBrowserOpenScript(appName: string, url: string): string;
 export declare function openUrlInExternalBrowser(url: string): boolean;
 /**

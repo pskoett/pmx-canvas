@@ -120,6 +120,25 @@ function stripOption(argv: string[], name: string): string[] {
   return stripped;
 }
 
+// Global target flags (--port / --server-url) may precede the subcommand, e.g.
+// `pmx-canvas --port 4750 node list`. Skip them (and their values) when picking
+// the subcommand to dispatch, so the agent CLI — which strips these flags via
+// extractGlobalTargetFlags and validates them loudly — is reached instead of the
+// server-startup fallback. Only these two flags are skipped; other leading flags
+// (--mcp, --demo, …) still route exactly as before.
+function commandAfterGlobalTargetFlags(argv: string[]): string {
+  for (let index = 0; index < argv.length; index++) {
+    const arg = argv[index];
+    if (arg === '--port' || arg === '--server-url') {
+      if (index + 1 < argv.length && !argv[index + 1].startsWith('-')) index++;
+      continue;
+    }
+    if (arg.startsWith('--port=') || arg.startsWith('--server-url=')) continue;
+    return arg;
+  }
+  return '';
+}
+
 function runMcpServerProcess(): Promise<void> {
   return new Promise((resolvePromise, rejectPromise) => {
     const child = spawn(process.execPath, ['run', mcpServerEntry], {
@@ -181,7 +200,8 @@ if (firstArg === 'serve') {
   args.shift();
 }
 
-if (AGENT_COMMANDS.has(firstArg) && firstArg !== 'serve') {
+const routedCommand = commandAfterGlobalTargetFlags(args);
+if (AGENT_COMMANDS.has(routedCommand) && routedCommand !== 'serve') {
   await runAgentCli(args);
 } else if (args.includes('--mcp')) {
   // MCP server mode: stdio transport, auto-starts canvas on first tool call

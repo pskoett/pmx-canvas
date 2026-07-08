@@ -68,10 +68,37 @@ describe('agent CLI global target flags', () => {
     expect(both).toEqual([]);
   });
 
-  test('the flags work in any argv position (before the command name)', async () => {
+  // These two drive the REAL CLI entry (src/cli/index.ts), which routes on the
+  // first subcommand. A leading global flag must still reach the agent command
+  // instead of the server-startup fallback. Calling runAgentCli directly would
+  // bypass that router and mask a misroute, so we spawn the entry as a
+  // subprocess. Bun.spawn (async) keeps this process's event loop alive so the
+  // in-process test server on serverPort can answer the subprocess's request.
+  const cliEntry = new URL('../../src/cli/index.ts', import.meta.url).pathname;
+
+  async function runRealCli(args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+    const proc = Bun.spawn([process.execPath, 'run', cliEntry, ...args], {
+      env: { ...process.env, PMX_CANVAS_URL: 'http://127.0.0.1:9', PMX_CANVAS_PORT: '' },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
+    await proc.exited;
+    return { code: proc.exitCode ?? -1, stdout, stderr };
+  }
+
+  test('a leading global flag routes to the agent command via the real CLI entry', async () => {
     canvasState.withSuppressedRecording(() => canvasState.clear());
-    const result = JSON.parse(await runCli(['--port', String(serverPort), 'node', 'list'])) as unknown[];
-    expect(result).toEqual([]);
+    const result = await runRealCli(['--port', String(serverPort), 'node', 'list']);
+    expect(result.code).toBe(0);
+    expect(JSON.parse(result.stdout.trim())).toEqual([]);
+  });
+
+  test('a leading invalid --port dies loudly via the real CLI entry (never boots a server)', async () => {
+    const result = await runRealCli(['--port', 'banana', 'node', 'list']);
+    expect(result.code).toBe(1);
+    const parsed = JSON.parse((result.stdout || result.stderr).trim()) as { error?: string };
+    expect(parsed.error).toContain('--port');
   });
 
   test('an invalid --port value dies loudly instead of silently hitting the default port', () => {
