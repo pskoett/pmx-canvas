@@ -17,7 +17,7 @@ export declare function removePidFile(path: string): void;
 export interface HealthStatus {
     responsive: boolean;
     workspace: string | null;
-    /** The serving process's own pid, self-reported by /health (0.3.1+ servers). */
+    /** The serving process's own pid, self-reported by /health (0.3.3+ servers). */
     pid: number | null;
 }
 export declare function readHealthStatus(url: string): Promise<HealthStatus>;

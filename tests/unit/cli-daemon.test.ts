@@ -54,11 +54,15 @@ describe('classifyPrecheck', () => {
   });
 
   test('matching workspace means already running', () => {
-    expect(classifyPrecheck({ responsive: true, workspace: '/tmp/pmx-ws-a', pid: null }, expected)).toBe('already-running');
+    expect(classifyPrecheck({ responsive: true, workspace: '/tmp/pmx-ws-a', pid: null }, expected)).toBe(
+      'already-running',
+    );
   });
 
   test('different workspace is a port conflict, not a success', () => {
-    expect(classifyPrecheck({ responsive: true, workspace: '/tmp/pmx-ws-b', pid: null }, expected)).toBe('foreign-port-owner');
+    expect(classifyPrecheck({ responsive: true, workspace: '/tmp/pmx-ws-b', pid: null }, expected)).toBe(
+      'foreign-port-owner',
+    );
   });
 
   test('a responsive server without a workspace field is foreign', () => {

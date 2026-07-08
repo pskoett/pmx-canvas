@@ -352,7 +352,8 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   const axBridgeScript = axEnabled ? buildExtAppAxBridgeScript(axToken, nodeId) : '';
   // The boot beacon precedes the AX bridge so it runs first at parse time; it
   // shares the per-component token (used purely to authenticate the message).
-  const bootBeaconScript = typeof html === 'string' && html.length > 0 ? buildExtAppBootBeaconScript(axToken, nodeId) : '';
+  const bootBeaconScript =
+    typeof html === 'string' && html.length > 0 ? buildExtAppBootBeaconScript(axToken, nodeId) : '';
   const iframeDocument = useIframeDocument(
     injectExtAppAxBridgeScript(html ?? '', bootBeaconScript + axBridgeScript),
     iframeSandbox,
@@ -362,7 +363,8 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     function onBootBeacon(event: MessageEvent) {
       if (event.source !== iframeRef.current?.contentWindow) return;
       const data = event.data as { source?: string; token?: string; nodeId?: string } | null;
-      if (!data || data.source !== 'pmx-canvas-ext-app-alive' || data.token !== axToken || data.nodeId !== nodeId) return;
+      if (!data || data.source !== 'pmx-canvas-ext-app-alive' || data.token !== axToken || data.nodeId !== nodeId)
+        return;
       appScriptsRanRef.current = true;
     }
     window.addEventListener('message', onBootBeacon);
@@ -430,6 +432,12 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
           extAppRecoveryLog(nodeId, 'remount-skipped');
           return false;
         }
+        // Stamp visibility at RUN time, not schedule time: the serialized queue
+        // can hold this slot for many seconds, and what decides whether the
+        // repaint can composite is the document's visibility when the remount
+        // actually executes (the Finding N re-arm keys on this flag). Covers
+        // every scheduling path (post-boot repaint, boot watchdog, re-arm).
+        bootedWhileHiddenRef.current = typeof document !== 'undefined' && document.visibilityState === 'hidden';
         extAppRecoveryLog(nodeId, `remount-run #${webkitRemountAttemptsRef.current}`);
         setRetryKey((k) => k + 1);
         return true;
@@ -466,7 +474,6 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
     if (!isWebKitOnlyHost(navigator.userAgent)) return;
     webkitRepaintDoneRef.current = true;
-    bootedWhileHiddenRef.current = typeof document !== 'undefined' && document.visibilityState === 'hidden';
     scheduleWebkitRemount('post-boot-repaint');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, hasReplayToolResult]);

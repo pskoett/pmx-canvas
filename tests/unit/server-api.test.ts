@@ -1428,9 +1428,57 @@ describe('canvas server HTTP API', () => {
     expect(viewHead.status).toBe(200);
     expect(viewHead.headers.get('Content-Type')).toBe(viewGet.headers.get('Content-Type'));
     expect(await viewHead.text()).toBe('');
+    // RFC 9110 §8.6: HEAD's Content-Length must match what GET would send
+    // (Bun.serve strips the body natively and keeps the true length).
+    expect(viewHead.headers.get('Content-Length')).toBe(viewGet.headers.get('Content-Length'));
     // HEAD mirrors GET's failure statuses too.
     const missingHead = await fetch(`${baseUrl}/api/canvas/surface/does-not-exist`, { method: 'HEAD' });
     expect(missingHead.status).toBe(404);
+  });
+
+  test('ext-app recovery debug endpoint validates, clamps, and trims reports', async () => {
+    const report = (body: string) =>
+      fetch(`${baseUrl}/api/canvas/debug/ext-app-recovery`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
+
+    // Malformed JSON follows the repo-wide 400 contract.
+    const malformed = await report('{"entries": [');
+    expect(malformed.status).toBe(400);
+    expect(((await malformed.json()) as { error?: string }).error).toContain('Malformed');
+
+    // A non-array entries field is rejected.
+    const nonArray = await report(JSON.stringify({ entries: 'nope' }));
+    expect(nonArray.status).toBe(400);
+
+    // Entries round-trip, clamped to the known trail shape with bounded strings.
+    const posted = await report(
+      JSON.stringify({
+        entries: [{ t: 123, nodeId: 'node-a', event: 'x'.repeat(5000), visibility: 'hidden', junk: 'dropped' }],
+      }),
+    );
+    expect(posted.status).toBe(200);
+    const read = await fetch(`${baseUrl}/api/canvas/debug/ext-app-recovery`);
+    expect(read.status).toBe(200);
+    const { entries } = (await read.json()) as { entries: Array<Record<string, unknown>> };
+    const entry = entries.at(-1);
+    expect(entry?.t).toBe(123);
+    expect(entry?.nodeId).toBe('node-a');
+    expect((entry?.event as string).length).toBe(300);
+    expect(entry?.visibility).toBe('hidden');
+    expect(entry?.junk).toBeUndefined();
+
+    // The in-memory log is trimmed by count (500 max) no matter how much is posted.
+    for (let i = 0; i < 6; i += 1) {
+      const batch = Array.from({ length: 100 }, (_, j) => ({ t: i * 100 + j, nodeId: 'trim', event: 'e' }));
+      expect((await report(JSON.stringify({ entries: batch }))).status).toBe(200);
+    }
+    const trimmed = (await (await fetch(`${baseUrl}/api/canvas/debug/ext-app-recovery`)).json()) as {
+      entries: unknown[];
+    };
+    expect(trimmed.entries.length).toBeLessThanOrEqual(500);
   });
 
   test('surface route 404s for unknown node and non-openable types', async () => {

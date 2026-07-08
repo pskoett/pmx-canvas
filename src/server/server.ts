@@ -1127,28 +1127,35 @@ function handleFrameDocument(pathname: string): Response {
 // recovery log here; agents/testers read it back over HTTP. In-memory only,
 // diagnostics-grade: no persistence, no snapshots.
 const EXT_APP_RECOVERY_LOG_MAX = 500;
+const EXT_APP_RECOVERY_FIELD_MAX = 300;
 const extAppRecoveryEntries: Array<Record<string, unknown>> = [];
+
+/**
+ * Clamp a reported entry to the known trail shape ({ t, nodeId, event,
+ * visibility }) with bounded string lengths. The count trim below caps the
+ * number of entries; this caps bytes per entry, so the in-memory log stays
+ * diagnostics-sized no matter what a client posts.
+ */
+function clampExtAppRecoveryEntry(entry: Record<string, unknown>): Record<string, unknown> {
+  const clamped: Record<string, unknown> = {};
+  if (typeof entry.t === 'number' && Number.isFinite(entry.t)) clamped.t = entry.t;
+  for (const key of ['nodeId', 'event', 'visibility'] as const) {
+    const value = entry[key];
+    if (typeof value === 'string') clamped[key] = value.slice(0, EXT_APP_RECOVERY_FIELD_MAX);
+  }
+  return clamped;
+}
 
 function handleExtAppRecoveryReport(entries: unknown): Response {
   if (!Array.isArray(entries)) return responseJson({ ok: false, error: 'entries must be an array' }, 400);
   for (const entry of entries.slice(0, 100)) {
-    if (!entry || typeof entry !== 'object') continue;
-    extAppRecoveryEntries.push(entry as Record<string, unknown>);
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
+    extAppRecoveryEntries.push(clampExtAppRecoveryEntry(entry as Record<string, unknown>));
   }
   if (extAppRecoveryEntries.length > EXT_APP_RECOVERY_LOG_MAX) {
     extAppRecoveryEntries.splice(0, extAppRecoveryEntries.length - EXT_APP_RECOVERY_LOG_MAX);
   }
   return responseJson({ ok: true, total: extAppRecoveryEntries.length });
-}
-
-/**
- * HEAD answers like GET on probe-able surface routes: same status and headers,
- * no body (Finding O — a HEAD 404 against a working GET reads as broken).
- */
-async function withHeadSemantics(method: string, response: Response | Promise<Response>): Promise<Response> {
-  const resolved = await response;
-  if (method !== 'HEAD') return resolved;
-  return new Response(null, { status: resolved.status, statusText: resolved.statusText, headers: resolved.headers });
 }
 
 // ── Node surfaces ("Open as site") ─────────────────────────────
@@ -2891,13 +2898,16 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           // Standalone surfaces answer HEAD like GET (status + headers, no body):
           // tooling probes these advertised URLs, and a HEAD 404 against a
           // working GET reads as a broken surface (0.3.2 report Finding O).
+          // Bun.serve strips the body and keeps the true Content-Length on HEAD,
+          // so the GET handler's response is returned as-is.
           if (url.pathname === '/api/canvas/json-render/view' && (req.method === 'GET' || req.method === 'HEAD')) {
-            return withHeadSemantics(req.method, handleJsonRenderView(url));
+            return handleJsonRenderView(url);
           }
 
           if (url.pathname === '/api/canvas/debug/ext-app-recovery' && req.method === 'POST') {
-            const body = (await req.json().catch(() => null)) as { entries?: unknown } | null;
-            return handleExtAppRecoveryReport(body?.entries);
+            const body = await readJson(req);
+            if (body === null) return malformedJsonResponse();
+            return handleExtAppRecoveryReport(body.entries);
           }
 
           if (url.pathname === '/api/canvas/debug/ext-app-recovery' && req.method === 'GET') {
@@ -2913,7 +2923,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           }
 
           if (url.pathname.startsWith('/api/canvas/surface/') && (req.method === 'GET' || req.method === 'HEAD')) {
-            return withHeadSemantics(req.method, handleNodeSurface(url.pathname, url));
+            return handleNodeSurface(url.pathname, url);
           }
 
           if (url.pathname === '/' || url.pathname === '/workbench' || url.pathname === '/artifact') {
