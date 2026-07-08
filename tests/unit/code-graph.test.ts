@@ -204,14 +204,13 @@ describe('code graph', () => {
     expect(summary.totalAutoEdges).toBe(2);
     expect(summary.centralFiles[0]?.title).toBe('Util');
     expect(summary.centralFiles[0]?.inDegree).toBe(2);
-    expect(
-      summary.centralFiles[0]?.path.endsWith('/src/util.ts') || summary.centralFiles[0]?.path === 'src/util.ts',
-    ).toBe(true);
+    // Separator-agnostic: paths are OS-native (backslashes on Windows).
+    const centralPath = summary.centralFiles[0]?.path.replaceAll('\\', '/');
+    expect(centralPath?.endsWith('/src/util.ts') || centralPath === 'src/util.ts').toBe(true);
     expect(summary.isolatedFiles).toHaveLength(1);
     expect(summary.isolatedFiles[0]?.title).toBe('Lone');
-    expect(
-      summary.isolatedFiles[0]?.path.endsWith('/src/lone.ts') || summary.isolatedFiles[0]?.path === 'src/lone.ts',
-    ).toBe(true);
+    const lonePathReported = summary.isolatedFiles[0]?.path.replaceAll('\\', '/');
+    expect(lonePathReported?.endsWith('/src/lone.ts') || lonePathReported === 'src/lone.ts').toBe(true);
 
     const appNode = summary.nodes.find((node) => node.id === 'app');
     expect(appNode?.imports).toEqual(['./util']);

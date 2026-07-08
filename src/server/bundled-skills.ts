@@ -65,7 +65,11 @@ export function findBundledSkillsRoot(): string | null {
   return null;
 }
 
-function parseFrontmatterDescription(markdown: string): string {
+function parseFrontmatterDescription(rawMarkdown: string): string {
+  // Normalize CRLF first: a git checkout with autocrlf (the Windows default)
+  // puts a trailing \r on every line, which `(.*)$` cannot match (JS `.` and
+  // `$` both exclude \r), silently emptying every description.
+  const markdown = rawMarkdown.replace(/\r\n/g, '\n');
   // YAML frontmatter lives between two `---` fences at the very top.
   if (!markdown.startsWith('---')) return '';
   const end = markdown.indexOf('\n---', 3);

@@ -4,7 +4,9 @@ import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from '.
 
 const supportsWebView = typeof Bun.WebView === 'function';
 
-describe('canvas WebView automation', () => {
+// WebView automation is not supported on Windows yet: the start path fails
+// mid-flight without recording lastError, and no backend is validated there.
+describe.skipIf(process.platform === 'win32')('canvas WebView automation', () => {
   let workspaceRoot = '';
 
   afterEach(async () => {
