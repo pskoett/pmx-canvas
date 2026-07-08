@@ -38,6 +38,19 @@ export declare function resolveExtAppDisplayModeRequest(requestedMode: DisplayMo
 export declare function sendExtAppBootstrapState(bridge: ExtAppBridgeNotifications, toolInput: Record<string, unknown>, toolResult: CallToolResult | undefined): Promise<void>;
 export declare function resolveExtAppSandbox(value: unknown): string;
 export declare function buildExtAppAxBridgeScript(axToken: string, nodeId: string): string;
+/**
+ * Boot beacon injected into EVERY ext-app document (not gated on AX): posts one
+ * parent message the moment the iframe's scripts execute. This is the liveness
+ * signal the WebKit never-booted watchdog keys on — it distinguishes an app
+ * that is alive but boots via the 1200ms bootstrap fallback (e.g. a non-SDK
+ * widget that never sends ui/notifications/initialized) from a dead window
+ * whose scripts never ran. Without it, the watchdog treated every
+ * fallback-booted app as never-booted and remounted it up to the attempt cap —
+ * a reboot/flicker loop for exactly the apps the fallback exists to support
+ * (0.3.2 pre-release review). The token scopes the message to this component;
+ * the host also checks event.source against the live iframe.
+ */
+export declare function buildExtAppBootBeaconScript(frameToken: string, nodeId: string): string;
 export declare function injectExtAppAxBridgeScript(html: string, axBridgeScript: string): string;
 export declare function resolveExtAppContainerDimensions(target: ExtAppHostDimensionsTarget | null | undefined, fallback: {
     width: number;

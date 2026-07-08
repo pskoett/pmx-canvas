@@ -92,6 +92,33 @@ export function extAppRecoveryLog(nodeId: string, event: string): void {
   const host = window as unknown as { __PMX_EXTAPP_LOG?: Array<{ t: number; nodeId: string; event: string }> };
   host.__PMX_EXTAPP_LOG ??= [];
   if (host.__PMX_EXTAPP_LOG.length < 500) host.__PMX_EXTAPP_LOG.push({ t: Date.now(), nodeId, event });
+  queueExtAppRecoveryReport({ t: Date.now(), nodeId, event });
+}
+
+// Mirror the recovery trail to the daemon (batched, fire-and-forget) so a host
+// panel without devtools access — the Copilot WKWebView, exactly where the
+// black tiles happen — still yields an actionable trace: agents read it back
+// via GET /api/canvas/debug/ext-app-recovery (0.3.2 report Finding N).
+let extAppReportQueue: Array<{ t: number; nodeId: string; event: string; visibility?: string }> = [];
+let extAppReportTimer: ReturnType<typeof setTimeout> | null = null;
+function queueExtAppRecoveryReport(entry: { t: number; nodeId: string; event: string }): void {
+  extAppReportQueue.push({
+    ...entry,
+    ...(typeof document !== 'undefined' ? { visibility: document.visibilityState } : {}),
+  });
+  if (extAppReportTimer) return;
+  extAppReportTimer = setTimeout(() => {
+    extAppReportTimer = null;
+    const entries = extAppReportQueue.splice(0);
+    if (entries.length === 0) return;
+    void fetch('/api/canvas/debug/ext-app-recovery', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries }),
+    }).catch(() => {
+      // Diagnostics only — never let reporting failures affect recovery.
+    });
+  }, 1500);
 }
 
 let webkitRemountChain: Promise<void> = Promise.resolve();
@@ -204,6 +231,24 @@ export function buildExtAppAxBridgeScript(axToken: string, nodeId: string): stri
 </script>`;
 }
 
+/**
+ * Boot beacon injected into EVERY ext-app document (not gated on AX): posts one
+ * parent message the moment the iframe's scripts execute. This is the liveness
+ * signal the WebKit never-booted watchdog keys on — it distinguishes an app
+ * that is alive but boots via the 1200ms bootstrap fallback (e.g. a non-SDK
+ * widget that never sends ui/notifications/initialized) from a dead window
+ * whose scripts never ran. Without it, the watchdog treated every
+ * fallback-booted app as never-booted and remounted it up to the attempt cap —
+ * a reboot/flicker loop for exactly the apps the fallback exists to support
+ * (0.3.2 pre-release review). The token scopes the message to this component;
+ * the host also checks event.source against the live iframe.
+ */
+export function buildExtAppBootBeaconScript(frameToken: string, nodeId: string): string {
+  return `<script data-pmx-canvas-boot-beacon>
+window.parent.postMessage({ source: 'pmx-canvas-ext-app-alive', token: ${JSON.stringify(frameToken)}, nodeId: ${JSON.stringify(nodeId)} }, '*');
+</script>`;
+}
+
 export function injectExtAppAxBridgeScript(html: string, axBridgeScript: string): string {
   if (!axBridgeScript) return html;
   const headMatch = /<head\b[^>]*>/i.exec(html);
@@ -262,8 +307,15 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   // handshake (bridge.oninitialized) — NOT by the 1200ms bootstrap fallback,
   // which flips status via notifications that resolve even into a dead iframe.
   const appInitializedRef = useRef(false);
+  // Liveness signal from the injected boot beacon: the CURRENT frame's scripts
+  // executed. Proves "alive" for apps that boot via the fallback path without
+  // ever sending initialized; a dead window never beacons.
+  const appScriptsRanRef = useRef(false);
   const bootWaitersRef = useRef<Array<() => void>>([]);
   const remountQueuedRef = useRef(false);
+  // Recovery ran while the document was hidden (compositing suppressed) — re-arm
+  // one fresh remount round when the panel becomes visible (Finding N).
+  const bootedWhileHiddenRef = useRef(false);
   const unmountedRef = useRef(false);
   const [status, setStatus] = useState<ExtAppFrameStatus>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -298,7 +350,24 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   const axEnabled = axCaps?.enabled === true && typeof html === 'string' && html.length > 0;
   const axToken = useMemo(() => `ax-${crypto.randomUUID()}`, []);
   const axBridgeScript = axEnabled ? buildExtAppAxBridgeScript(axToken, nodeId) : '';
-  const iframeDocument = useIframeDocument(injectExtAppAxBridgeScript(html ?? '', axBridgeScript), iframeSandbox);
+  // The boot beacon precedes the AX bridge so it runs first at parse time; it
+  // shares the per-component token (used purely to authenticate the message).
+  const bootBeaconScript = typeof html === 'string' && html.length > 0 ? buildExtAppBootBeaconScript(axToken, nodeId) : '';
+  const iframeDocument = useIframeDocument(
+    injectExtAppAxBridgeScript(html ?? '', bootBeaconScript + axBridgeScript),
+    iframeSandbox,
+  );
+
+  useEffect(() => {
+    function onBootBeacon(event: MessageEvent) {
+      if (event.source !== iframeRef.current?.contentWindow) return;
+      const data = event.data as { source?: string; token?: string; nodeId?: string } | null;
+      if (!data || data.source !== 'pmx-canvas-ext-app-alive' || data.token !== axToken || data.nodeId !== nodeId) return;
+      appScriptsRanRef.current = true;
+    }
+    window.addEventListener('message', onBootBeacon);
+    return () => window.removeEventListener('message', onBootBeacon);
+  }, [axToken, nodeId]);
 
   useEffect(() => {
     if (!axEnabled) return;
@@ -397,15 +466,47 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
     if (!isWebKitOnlyHost(navigator.userAgent)) return;
     webkitRepaintDoneRef.current = true;
+    bootedWhileHiddenRef.current = typeof document !== 'undefined' && document.visibilityState === 'hidden';
     scheduleWebkitRemount('post-boot-repaint');
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [status, hasReplayToolResult]);
 
-  // Never-booted watchdog (0.3.1): an iframe whose scripts never ran in the burst
+  // Finding N (0.3.2 report): the Copilot panel can load the canvas while the
+  // WKWebView document is HIDDEN (panel backgrounded/occluded). WebKit suppresses
+  // compositing for hidden documents, so the whole serialized recovery above can
+  // run to completion without ever producing a visible paint — and nothing
+  // retried once the panel was shown, which is why tiles stayed black until a
+  // manual expand+close (necessarily performed while visible). When the document
+  // becomes visible again, re-arm ONE fresh serialized remount round for frames
+  // whose recovery ran while hidden.
+  useEffect(() => {
+    if (expanded) return;
+    if (typeof document === 'undefined' || typeof navigator === 'undefined' || typeof window === 'undefined') return;
+    if (!isWebKitOnlyHost(navigator.userAgent)) return;
+    function onVisibilityChange() {
+      if (document.visibilityState !== 'visible') return;
+      if (!bootedWhileHiddenRef.current || unmountedRef.current) return;
+      bootedWhileHiddenRef.current = false;
+      // Fresh visibility = fresh recovery budget: the hidden-run attempts were
+      // spent without a chance of compositing.
+      webkitRemountAttemptsRef.current = 0;
+      extAppRecoveryLog(nodeId, 'visible-again-rearm');
+      scheduleWebkitRemount('visible-after-hidden-boot');
+    }
+    document.addEventListener('visibilitychange', onVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', onVisibilityChange);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded, nodeId]);
+
+  // Never-booted watchdog (0.3.2): an iframe whose scripts never ran in the burst
   // shows no error — the bootstrap fallback flips status via notifications that
-  // resolve into a dead window, so the tile just stays black. If the CURRENT frame
-  // has not completed the genuine initialize handshake within the watchdog window,
-  // retry it through the same serialized queue (bounded by the shared attempt cap).
+  // resolve into a dead window, so the tile just stays black. "Alive" is either
+  // boot signal from the CURRENT frame: the genuine initialize handshake, or the
+  // injected boot beacon (which covers apps that boot via the fallback without
+  // ever sending initialized — remounting those was a flicker loop, and checking
+  // bridgeReadyRef instead would be wrong: the fallback sets it blindly, dead
+  // window or not). Only a frame with NEITHER signal is retried through the
+  // serialized queue (bounded by the shared attempt cap).
   const WEBKIT_BOOT_WATCHDOG_MS = 6000;
   useEffect(() => {
     if (expanded) return;
@@ -413,7 +514,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     if (!isWebKitOnlyHost(navigator.userAgent)) return;
     if (!iframeDocument.ready) return;
     const timer = window.setTimeout(() => {
-      if (appInitializedRef.current || unmountedRef.current) return;
+      if (appInitializedRef.current || appScriptsRanRef.current || unmountedRef.current) return;
       scheduleWebkitRemount('boot-watchdog');
     }, WEBKIT_BOOT_WATCHDOG_MS);
     return () => window.clearTimeout(timer);
@@ -494,9 +595,11 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     lastSentToolResultRef.current = undefined;
     toolResultSendingRef.current = null;
     bridgeReadyRef.current = false;
-    // New frame = new boot attempt: the genuine-initialized signal belongs to the
-    // CURRENT iframe. The queue's awaitBoot waits on this frame's handshake.
+    // New frame = new boot attempt: both boot signals belong to the CURRENT
+    // iframe (the beacon listener also pins event.source to the live element).
+    // The queue's awaitBoot waits on this frame's handshake.
     appInitializedRef.current = false;
+    appScriptsRanRef.current = false;
 
     const clearFallbackTimer = (): void => {
       if (!fallbackTimer) return;

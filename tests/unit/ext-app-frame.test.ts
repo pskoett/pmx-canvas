@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   buildExtAppAxBridgeScript,
+  buildExtAppBootBeaconScript,
   enqueueWebkitRemount,
   getExtAppBridgeInitKey,
   injectExtAppAxBridgeScript,
@@ -145,6 +146,39 @@ describe('ExtAppFrame sandbox handling', () => {
 
   test('preserves a non-empty sandbox override for sandbox proxy resources', () => {
     expect(resolveExtAppSandbox(' allow-scripts allow-forms ')).toBe('allow-scripts allow-forms');
+  });
+});
+
+describe('ExtAppFrame boot beacon (WebKit watchdog liveness)', () => {
+  // The watchdog must not remount an app that is alive but boots via the 1200ms
+  // fallback (never sends initialized). The beacon is its liveness proof: it
+  // posts the moment the iframe's scripts execute — a dead window never beacons.
+  test('beacon posts an authenticated liveness message to the parent', () => {
+    const script = buildExtAppBootBeaconScript('frame-token', 'node-9');
+
+    expect(script).toContain('data-pmx-canvas-boot-beacon');
+    expect(script).toContain('window.parent.postMessage');
+    expect(script).toContain("source: 'pmx-canvas-ext-app-alive'");
+    expect(script).toContain('"frame-token"');
+    expect(script).toContain('"node-9"');
+  });
+
+  test('beacon runs before the AX bridge and before authored body content', () => {
+    const beacon = buildExtAppBootBeaconScript('frame-token', 'node-9');
+    const ax = buildExtAppAxBridgeScript('frame-token', 'node-9');
+    const html = '<!doctype html><html><head><title>App</title></head><body><main>app</main></body></html>';
+    const injected = injectExtAppAxBridgeScript(html, beacon + ax);
+
+    const beaconAt = injected.indexOf('data-pmx-canvas-boot-beacon');
+    expect(beaconAt).toBeGreaterThan(injected.indexOf('<head>'));
+    expect(beaconAt).toBeLessThan(injected.indexOf('data-pmx-canvas-ax-bridge'));
+    expect(beaconAt).toBeLessThan(injected.indexOf('<main>'));
+  });
+
+  test('beacon-only injection works when AX is disabled', () => {
+    const beacon = buildExtAppBootBeaconScript('frame-token', 'node-9');
+    const injected = injectExtAppAxBridgeScript('<main>app</main>', beacon);
+    expect(injected.indexOf('data-pmx-canvas-boot-beacon')).toBeLessThan(injected.indexOf('<main>'));
   });
 });
 

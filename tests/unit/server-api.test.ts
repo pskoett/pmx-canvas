@@ -1396,6 +1396,43 @@ describe('canvas server HTTP API', () => {
     expect(await res.text()).toContain('<title>surface-untitled</title>');
   });
 
+  test('surface and json-render view answer HEAD like GET (0.3.2 report Finding O)', async () => {
+    // Tooling probes the advertised surfaceUrl with HEAD; a 404 against a
+    // working GET reads as a broken surface.
+    canvasState.addNode({
+      id: 'surface-head-graph',
+      type: 'graph',
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: {
+        title: 'HEAD probe graph',
+        viewerType: 'graph',
+        graphConfig: { graphType: 'bar', height: 320 },
+        spec: { root: 'chart', elements: { chart: { type: 'BarChart', props: { height: 320, data: [] } } } },
+      },
+    });
+    // Graph surfaces redirect to the json-render view; HEAD must mirror GET at
+    // every hop, so following redirects ends 200 exactly like GET does.
+    const surfaceHead = await fetch(`${baseUrl}/api/canvas/surface/surface-head-graph`, { method: 'HEAD' });
+    expect(surfaceHead.status).toBe(200);
+    expect(await surfaceHead.text()).toBe('');
+    const viewGet = await fetch(`${baseUrl}/api/canvas/json-render/view?nodeId=surface-head-graph`);
+    expect(viewGet.status).toBe(200);
+    const viewHead = await fetch(`${baseUrl}/api/canvas/json-render/view?nodeId=surface-head-graph`, {
+      method: 'HEAD',
+    });
+    expect(viewHead.status).toBe(200);
+    expect(viewHead.headers.get('Content-Type')).toBe(viewGet.headers.get('Content-Type'));
+    expect(await viewHead.text()).toBe('');
+    // HEAD mirrors GET's failure statuses too.
+    const missingHead = await fetch(`${baseUrl}/api/canvas/surface/does-not-exist`, { method: 'HEAD' });
+    expect(missingHead.status).toBe(404);
+  });
+
   test('surface route 404s for unknown node and non-openable types', async () => {
     const missing = await fetch(`${baseUrl}/api/canvas/surface/does-not-exist`);
     expect(missing.status).toBe(404);

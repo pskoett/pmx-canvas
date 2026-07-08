@@ -217,14 +217,17 @@ Prefer `canvas_query { action: "search" }` over parsing the full layout.
   loads (e.g. the GitHub Copilot app's embedded WKWebView) can render as a black tile — a host
   compositor paint race on the nested iframe, **not** a broken node (the session is healthy and
   `sessionStatus` is `ready`; it renders fine in Chrome, the Codex browser, and for nodes created
-  live after the panel hydrates). Under WebKit the canvas auto-recovers: after boot, each
-  present-at-load ext-app is remounted through a **serialized, boot-aware queue** (one app at a
-  time, each waiting for the previous app's handshake + scene replay), with a watchdog retry for
-  iframes that never boot — so multi-app boards converge to painted tiles within a few seconds of
-  panel load. In rare cases a tile can still end up black (compositing success is not observable
-  from page JS, so retries are bounded); recovery is deterministic: **expand-then-close** the
-  black tile (forces a fresh mount in the fullscreen overlay, which always paints), or open the
-  workbench in a normal browser (Chrome). Do not diagnose a healthy app session as a broken node.
+  live after the panel hydrates). Under WebKit the canvas ATTEMPTS auto-recovery: after boot,
+  each present-at-load ext-app is remounted through a serialized, boot-aware queue (one app at a
+  time), with a watchdog retry for iframes that never boot and a re-arm when a panel that loaded
+  hidden becomes visible. Treat the auto-recovery as best-effort, NOT guaranteed — the 0.3.2
+  Copilot-host report shows tiles can still come up black in real WKWebView panels (compositing
+  success is not observable from page JS, so retries are bounded). Keep the cautionary behavior:
+  recovery is deterministic via **expand-then-close** of the black tile (forces a fresh mount in
+  the fullscreen overlay, which always paints), or open the workbench in a normal browser
+  (Chrome). Do not diagnose a healthy app session as a broken node. When reporting a black tile,
+  fetch `GET /api/canvas/debug/ext-app-recovery` from the daemon and attach the trace — it shows
+  what the recovery queue actually did in that panel.
 - Graph and json-render standalone surfaces use `display=site` and fill the browser viewport, and
   reflow on a live window resize in a normal browser. Some single-tab host browsers (e.g. the
   Codex in-app browser) don't deliver live-resize events, so a resized standalone chart can look

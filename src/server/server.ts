@@ -1120,6 +1120,37 @@ function handleFrameDocument(pathname: string): Response {
   });
 }
 
+// ── Ext-app recovery diagnostics (0.3.2 report Finding N) ──────
+//
+// The WebKit black-tile recovery trail is otherwise trapped inside host panels
+// without devtools (the Copilot WKWebView). Clients mirror their bounded
+// recovery log here; agents/testers read it back over HTTP. In-memory only,
+// diagnostics-grade: no persistence, no snapshots.
+const EXT_APP_RECOVERY_LOG_MAX = 500;
+const extAppRecoveryEntries: Array<Record<string, unknown>> = [];
+
+function handleExtAppRecoveryReport(entries: unknown): Response {
+  if (!Array.isArray(entries)) return responseJson({ ok: false, error: 'entries must be an array' }, 400);
+  for (const entry of entries.slice(0, 100)) {
+    if (!entry || typeof entry !== 'object') continue;
+    extAppRecoveryEntries.push(entry as Record<string, unknown>);
+  }
+  if (extAppRecoveryEntries.length > EXT_APP_RECOVERY_LOG_MAX) {
+    extAppRecoveryEntries.splice(0, extAppRecoveryEntries.length - EXT_APP_RECOVERY_LOG_MAX);
+  }
+  return responseJson({ ok: true, total: extAppRecoveryEntries.length });
+}
+
+/**
+ * HEAD answers like GET on probe-able surface routes: same status and headers,
+ * no body (Finding O — a HEAD 404 against a working GET reads as broken).
+ */
+async function withHeadSemantics(method: string, response: Response | Promise<Response>): Promise<Response> {
+  const resolved = await response;
+  if (method !== 'HEAD') return resolved;
+  return new Response(null, { status: resolved.status, statusText: resolved.statusText, headers: resolved.headers });
+}
+
 // ── Node surfaces ("Open as site") ─────────────────────────────
 //
 // One stable, node-addressable URL — /api/canvas/surface/:nodeId — that serves
@@ -2843,7 +2874,10 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           const url = new URL(req.url);
 
           if (url.pathname === '/health') {
-            return responseJson({ ok: true, workspace: activeWorkspaceRoot });
+            // `pid` lets `serve status` report the ACTUAL serving process even
+            // when the pid file is stale (e.g. an adapter respawned the server
+            // outside `serve --daemon` — 0.3.2 report Finding P).
+            return responseJson({ ok: true, workspace: activeWorkspaceRoot, pid: process.pid });
           }
 
           if (url.pathname === '/favicon.ico' || url.pathname === '/favicon.svg') {
@@ -2854,8 +2888,20 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleArtifactView(url);
           }
 
-          if (url.pathname === '/api/canvas/json-render/view' && req.method === 'GET') {
-            return handleJsonRenderView(url);
+          // Standalone surfaces answer HEAD like GET (status + headers, no body):
+          // tooling probes these advertised URLs, and a HEAD 404 against a
+          // working GET reads as a broken surface (0.3.2 report Finding O).
+          if (url.pathname === '/api/canvas/json-render/view' && (req.method === 'GET' || req.method === 'HEAD')) {
+            return withHeadSemantics(req.method, handleJsonRenderView(url));
+          }
+
+          if (url.pathname === '/api/canvas/debug/ext-app-recovery' && req.method === 'POST') {
+            const body = (await req.json().catch(() => null)) as { entries?: unknown } | null;
+            return handleExtAppRecoveryReport(body?.entries);
+          }
+
+          if (url.pathname === '/api/canvas/debug/ext-app-recovery' && req.method === 'GET') {
+            return responseJson({ ok: true, entries: extAppRecoveryEntries });
           }
 
           if (url.pathname === '/api/canvas/frame-documents' && req.method === 'POST') {
@@ -2866,8 +2912,8 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleFrameDocument(url.pathname);
           }
 
-          if (url.pathname.startsWith('/api/canvas/surface/') && req.method === 'GET') {
-            return handleNodeSurface(url.pathname, url);
+          if (url.pathname.startsWith('/api/canvas/surface/') && (req.method === 'GET' || req.method === 'HEAD')) {
+            return withHeadSemantics(req.method, handleNodeSurface(url.pathname, url));
           }
 
           if (url.pathname === '/' || url.pathname === '/workbench' || url.pathname === '/artifact') {

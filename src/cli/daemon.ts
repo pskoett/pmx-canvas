@@ -88,20 +88,26 @@ export function removePidFile(path: string): void {
 export interface HealthStatus {
   responsive: boolean;
   workspace: string | null;
+  /** The serving process's own pid, self-reported by /health (0.3.1+ servers). */
+  pid: number | null;
 }
 
 export async function readHealthStatus(url: string): Promise<HealthStatus> {
   try {
     const response = await fetch(url);
-    if (!response.ok) return { responsive: false, workspace: null };
+    if (!response.ok) return { responsive: false, workspace: null, pid: null };
     const payload = (await response.json().catch(() => null)) as unknown;
     const workspace =
       payload && typeof payload === 'object' && 'workspace' in payload && typeof payload.workspace === 'string'
         ? payload.workspace
         : null;
-    return { responsive: true, workspace };
+    const pid =
+      payload && typeof payload === 'object' && 'pid' in payload && typeof payload.pid === 'number'
+        ? payload.pid
+        : null;
+    return { responsive: true, workspace, pid };
   } catch {
-    return { responsive: false, workspace: null };
+    return { responsive: false, workspace: null, pid: null };
   }
 }
 
@@ -335,17 +341,41 @@ export async function startDaemonMode(
   process.exit(0);
 }
 
+/**
+ * Resolve the pid story `serve status` reports. The AUTHORITATIVE pid is the
+ * serving process's self-reported /health pid: the pid file can go stale when
+ * something other than `serve --daemon` (re)spawned the server on this port —
+ * e.g. a host adapter respawn (0.3.2 report Finding P). Reporting the dead
+ * file pid as `pid` while `running` was true made agents read a contradiction
+ * (`running: true, pidRunning: false`); report the real listener instead and
+ * mark the file explicitly stale. Pre-0.3.3 servers don't self-report a pid —
+ * for those, fall back to the pid-file view unchanged.
+ */
+export function resolveDaemonPidView(
+  pidFilePid: number | null,
+  pidFilePidRunning: boolean,
+  health: HealthStatus,
+): { pid: number | null; pidRunning: boolean; pidFileStale: boolean } {
+  const authoritative = health.responsive && health.pid !== null;
+  return {
+    pid: authoritative ? health.pid : pidFilePid,
+    pidRunning: authoritative ? true : pidFilePidRunning,
+    pidFileStale: pidFilePid !== null && !pidFilePidRunning && (!health.responsive || health.pid !== pidFilePid),
+  };
+}
+
 export async function showServeStatus(options: DaemonPaths & { entry: string }): Promise<void> {
   const healthUrl = `http://localhost:${options.port}/health`;
   const url = `http://localhost:${options.port}/workbench`;
-  const pid = readPidFile(options.pidFile);
-  const pidRunning = pid ? isOwnDaemonProcess(pid, options.entry) : false;
+  const pidFilePid = readPidFile(options.pidFile);
+  const pidFilePidRunning = pidFilePid ? isOwnDaemonProcess(pidFilePid, options.entry) : false;
   const health = await readHealthStatus(healthUrl);
   const responsive = health.responsive;
-  const running = responsive || pidRunning;
+  const running = responsive || pidFilePidRunning;
+  const { pid, pidRunning, pidFileStale } = resolveDaemonPidView(pidFilePid, pidFilePidRunning, health);
   // Clean up a stale pid file, but never a concurrent starter's fresh empty
   // spawn lock (that would let a racing `serve --daemon` double-spawn).
-  if (!running && existsSync(options.pidFile) && !pidRunning && !isFreshEmptyLock(options.pidFile)) {
+  if (!running && existsSync(options.pidFile) && !pidFilePidRunning && !isFreshEmptyLock(options.pidFile)) {
     removePidFile(options.pidFile);
   }
 
@@ -357,6 +387,8 @@ export async function showServeStatus(options: DaemonPaths & { entry: string }):
     workspace: health.workspace,
     pid,
     pidRunning,
+    pidFilePid,
+    pidFileStale,
     url,
     healthUrl,
     logFile: options.logFile,

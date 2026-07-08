@@ -10,6 +10,7 @@ import {
   isOwnDaemonProcess,
   processCommandMatches,
   readPidFile,
+  resolveDaemonPidView,
 } from '../../src/cli/daemon.ts';
 
 function tempPidFile(): string {
@@ -49,19 +50,49 @@ describe('classifyPrecheck', () => {
   const expected = resolve('/tmp/pmx-ws-a');
 
   test('unresponsive health means not running', () => {
-    expect(classifyPrecheck({ responsive: false, workspace: null }, expected)).toBe('not-running');
+    expect(classifyPrecheck({ responsive: false, workspace: null, pid: null }, expected)).toBe('not-running');
   });
 
   test('matching workspace means already running', () => {
-    expect(classifyPrecheck({ responsive: true, workspace: '/tmp/pmx-ws-a' }, expected)).toBe('already-running');
+    expect(classifyPrecheck({ responsive: true, workspace: '/tmp/pmx-ws-a', pid: null }, expected)).toBe('already-running');
   });
 
   test('different workspace is a port conflict, not a success', () => {
-    expect(classifyPrecheck({ responsive: true, workspace: '/tmp/pmx-ws-b' }, expected)).toBe('foreign-port-owner');
+    expect(classifyPrecheck({ responsive: true, workspace: '/tmp/pmx-ws-b', pid: null }, expected)).toBe('foreign-port-owner');
   });
 
   test('a responsive server without a workspace field is foreign', () => {
-    expect(classifyPrecheck({ responsive: true, workspace: null }, expected)).toBe('foreign-port-owner');
+    expect(classifyPrecheck({ responsive: true, workspace: null, pid: null }, expected)).toBe('foreign-port-owner');
+  });
+});
+
+describe('resolveDaemonPidView (0.3.2 report Finding P)', () => {
+  test('adapter respawn: responsive server + dead pid-file pid reports the real listener and marks the file stale', () => {
+    // The report's exact scenario: pid file says 57638 (dead), port 4313 is
+    // actually served by 4947. `running: true, pidRunning: false` read as a
+    // contradiction — the view must name the real pid and flag the stale file.
+    const view = resolveDaemonPidView(57638, false, { responsive: true, workspace: '/ws', pid: 4947 });
+    expect(view).toEqual({ pid: 4947, pidRunning: true, pidFileStale: true });
+  });
+
+  test('healthy serve --daemon: file pid matches the serving pid, nothing stale', () => {
+    const view = resolveDaemonPidView(4947, true, { responsive: true, workspace: '/ws', pid: 4947 });
+    expect(view).toEqual({ pid: 4947, pidRunning: true, pidFileStale: false });
+  });
+
+  test('not responsive + dead file pid: stale file, no invented pid', () => {
+    const view = resolveDaemonPidView(57638, false, { responsive: false, workspace: null, pid: null });
+    expect(view).toEqual({ pid: 57638, pidRunning: false, pidFileStale: true });
+  });
+
+  test('pre-0.3.3 server without a health pid falls back to the pid-file view', () => {
+    const view = resolveDaemonPidView(57638, false, { responsive: true, workspace: '/ws', pid: null });
+    expect(view).toEqual({ pid: 57638, pidRunning: false, pidFileStale: true });
+  });
+
+  test('no pid file at all: health pid is authoritative and nothing is stale', () => {
+    const view = resolveDaemonPidView(null, false, { responsive: true, workspace: '/ws', pid: 4947 });
+    expect(view).toEqual({ pid: 4947, pidRunning: true, pidFileStale: false });
   });
 });
 

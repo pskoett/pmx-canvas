@@ -17,6 +17,8 @@ export declare function removePidFile(path: string): void;
 export interface HealthStatus {
     responsive: boolean;
     workspace: string | null;
+    /** The serving process's own pid, self-reported by /health (0.3.1+ servers). */
+    pid: number | null;
 }
 export declare function readHealthStatus(url: string): Promise<HealthStatus>;
 export declare function isHealthy(url: string): Promise<boolean>;
@@ -65,6 +67,21 @@ export declare function startDaemonMode(options: DaemonPaths & {
     waitMs: number;
     entry: string;
 }): Promise<void>;
+/**
+ * Resolve the pid story `serve status` reports. The AUTHORITATIVE pid is the
+ * serving process's self-reported /health pid: the pid file can go stale when
+ * something other than `serve --daemon` (re)spawned the server on this port —
+ * e.g. a host adapter respawn (0.3.2 report Finding P). Reporting the dead
+ * file pid as `pid` while `running` was true made agents read a contradiction
+ * (`running: true, pidRunning: false`); report the real listener instead and
+ * mark the file explicitly stale. Pre-0.3.3 servers don't self-report a pid —
+ * for those, fall back to the pid-file view unchanged.
+ */
+export declare function resolveDaemonPidView(pidFilePid: number | null, pidFilePidRunning: boolean, health: HealthStatus): {
+    pid: number | null;
+    pidRunning: boolean;
+    pidFileStale: boolean;
+};
 export declare function showServeStatus(options: DaemonPaths & {
     entry: string;
 }): Promise<void>;

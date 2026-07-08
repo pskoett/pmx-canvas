@@ -3,6 +3,28 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Fixed
+
+- App tiles that load while a WebKit host panel is hidden now retry their
+  repaint when the panel becomes visible, instead of staying black until a
+  manual expand-and-close (0.3.2 report Finding N; best-effort — the manual
+  recovery still applies).
+- The WebKit repaint watchdog no longer remount-loops apps that boot without
+  sending an initialized handshake.
+- `HEAD` requests to graph and json-render surface URLs now answer like `GET`
+  instead of returning 404 (Finding O).
+- `serve status` now reports the pid actually serving the port and marks a
+  stale pid file explicitly, instead of the confusing `running: true,
+  pidRunning: false` combination after a host adapter respawn (Finding P).
+
+### Added
+
+- Black-tile diagnostics: the canvas mirrors its app-recovery trail to the
+  server; read it at `GET /api/canvas/debug/ext-app-recovery` when reporting a
+  rendering issue from a host panel.
+
 ## [0.3.2] - 2026-07-08
 
 ### Added

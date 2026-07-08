@@ -124,6 +124,17 @@ If this is the first release from your machine, run `bunx npm login`
 once so Bun can reuse your npm credentials. CI does not need this —
 it uses `NPM_TOKEN` directly.
 
+## Sync consumer skill mirrors
+
+Every release since 0.3.0 has been retested against **stale** skill mirrors:
+consumer workspaces (e.g. `personalclaude`) carry copies of the pmx-canvas
+skill under `.github/`, `.codex/`, `.claude/`, and `.agents/`, and testers
+repeatedly had to sync them mid-cycle before results were trustworthy. After
+publishing, update the installed package in the consumer workspace and re-sync
+its four mirrors from
+`<global npm root>/pmx-canvas/skills/pmx-canvas/` so the first test pass runs
+against the released skill, not the previous version's guidance.
+
 ## GitHub release
 
 After `npm publish` succeeds:
