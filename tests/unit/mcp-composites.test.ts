@@ -6,9 +6,8 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { Client } from '@modelcontextprotocol/sdk/client';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
-import { createTestWorkspace, removeTestWorkspace } from './helpers.ts';
+import { createTestWorkspace, getAvailablePort, removeTestWorkspace } from './helpers.ts';
 
 interface TextContentItem {
   type: string;
@@ -21,22 +20,6 @@ interface ToolResultShape {
 
 const mcpServerPath = fileURLToPath(new URL('../../src/mcp/server.ts', import.meta.url));
 const fixtureMcpAppServerPath = fileURLToPath(new URL('../fixtures/mcp-app-fixture.ts', import.meta.url));
-
-async function getAvailablePort(): Promise<number> {
-  return await new Promise((resolve, reject) => {
-    const server = createServer();
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      if (!address || typeof address === 'string') {
-        server.close();
-        reject(new Error('Failed to resolve an ephemeral port.'));
-        return;
-      }
-      server.close((error) => (error ? reject(error) : resolve(address.port)));
-    });
-  });
-}
 
 function textOf(result: ToolResultShape): string {
   return result.content?.find((item) => item.type === 'text')?.text ?? '';

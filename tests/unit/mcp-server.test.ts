@@ -2,10 +2,9 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { Client } from '@modelcontextprotocol/sdk/client';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
 import { writeFileSync } from 'node:fs';
-import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createTestWorkspace, removeTestWorkspace } from './helpers.ts';
+import { createTestWorkspace, getAvailablePort, removeTestWorkspace } from './helpers.ts';
 import { MARKDOWN_NODE_DEFAULT_SIZE } from '../../src/server/canvas-operations.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
 
@@ -25,28 +24,6 @@ const tinyPng = Buffer.from(
   'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
   'base64',
 );
-
-async function getAvailablePort(): Promise<number> {
-  return await new Promise((resolve, reject) => {
-    const server = createServer();
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      if (!address || typeof address === 'string') {
-        server.close();
-        reject(new Error('Failed to resolve an ephemeral port.'));
-        return;
-      }
-      server.close((error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve(address.port);
-      });
-    });
-  });
-}
 
 function textOf(result: ToolResultShape): string {
   return result.content?.find((item) => item.type === 'text')?.text ?? '';

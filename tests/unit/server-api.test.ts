@@ -141,6 +141,10 @@ describe('canvas server HTTP API', () => {
   beforeAll(() => {
     workspaceRoot = createTestWorkspace('pmx-canvas-api-');
     resetCanvasForTests(workspaceRoot);
+    // Diagram tests must never round-trip to the hosted Excalidraw MCP server
+    // (plan-009 M8: it intermittently times out under parallel load); the local
+    // stdio fixture implements the same create_view contract.
+    process.env.PMX_CANVAS_EXCALIDRAW_MCP_COMMAND = `bun run ${fixtureMcpAppServerPath}`;
     const base = startCanvasServer({ workspaceRoot, port: 0 });
     if (!base) {
       throw new Error('Failed to start canvas server for tests.');
@@ -238,6 +242,7 @@ describe('canvas server HTTP API', () => {
     stopCanvasServer();
     webpageServer?.stop(true);
     removeTestWorkspace(workspaceRoot);
+    delete process.env.PMX_CANVAS_EXCALIDRAW_MCP_COMMAND;
   });
 
   beforeEach(() => {

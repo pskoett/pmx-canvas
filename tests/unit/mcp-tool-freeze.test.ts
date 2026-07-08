@@ -43,11 +43,10 @@
 // folded everything else — at that point this list shrinks again, from 27 to
 // 22.
 import { afterAll, describe, expect, test } from 'bun:test';
-import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { createTestWorkspace, removeTestWorkspace } from './helpers.ts';
+import { createTestWorkspace, getAvailablePort, removeTestWorkspace } from './helpers.ts';
 
 const mcpServerPath = fileURLToPath(new URL('../../src/mcp/server.ts', import.meta.url));
 
@@ -107,28 +106,6 @@ afterAll(async () => {
     await fn();
   }
 });
-
-async function getAvailablePort(): Promise<number> {
-  return await new Promise((resolve, reject) => {
-    const server = createServer();
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      if (!address || typeof address === 'string') {
-        server.close();
-        reject(new Error('Failed to resolve an ephemeral port.'));
-        return;
-      }
-      server.close((error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve(address.port);
-      });
-    });
-  });
-}
 
 async function createMcpSession(): Promise<Client> {
   const workspaceRoot = createTestWorkspace('pmx-canvas-mcp-freeze-');

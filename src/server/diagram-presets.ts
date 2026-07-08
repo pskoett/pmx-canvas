@@ -41,6 +41,20 @@ export const EXCALIDRAW_MCP_TRANSPORT: ExternalMcpTransportConfig = {
   url: EXCALIDRAW_MCP_URL,
 };
 
+/**
+ * The diagram preset targets the hosted Excalidraw MCP server. Tests set
+ * PMX_CANVAS_EXCALIDRAW_MCP_COMMAND (a stdio command line, e.g.
+ * "bun run tests/fixtures/mcp-app-fixture.ts") so the unit suite never does a
+ * real network round-trip — the hosted dependency made diagram tests time out
+ * under parallel load (plan-009 M8).
+ */
+export function resolveExcalidrawTransport(): ExternalMcpTransportConfig {
+  const override = process.env.PMX_CANVAS_EXCALIDRAW_MCP_COMMAND?.trim();
+  if (!override) return EXCALIDRAW_MCP_TRANSPORT;
+  const [command = override, ...args] = override.split(/\s+/);
+  return { type: 'stdio', command, args };
+}
+
 export interface DiagramPresetOpenInput {
   elements: unknown;
   nodeId?: string;
@@ -379,7 +393,7 @@ export function ensureExcalidrawCheckpointId(
 export function buildExcalidrawOpenMcpAppInput(input: DiagramPresetOpenInput): ExcalidrawOpenMcpAppInput {
   const elements = normalizeExcalidrawElementsForToolInput(input.elements);
   const out: ExcalidrawOpenMcpAppInput = {
-    transport: EXCALIDRAW_MCP_TRANSPORT,
+    transport: resolveExcalidrawTransport(),
     toolName: EXCALIDRAW_CREATE_VIEW_TOOL,
     serverName: EXCALIDRAW_SERVER_NAME,
     toolArguments: { elements },

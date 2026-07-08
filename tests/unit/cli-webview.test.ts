@@ -1,37 +1,14 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { existsSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
-import { createServer } from 'node:net';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runAgentCli } from '../../src/cli/agent.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
-import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
+import { createTestWorkspace, getAvailablePort, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
 const cliIndexPath = fileURLToPath(new URL('../../src/cli/index.ts', import.meta.url));
-
-async function getAvailablePort(): Promise<number> {
-  return await new Promise((resolve, reject) => {
-    const server = createServer();
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      if (!address || typeof address === 'string') {
-        server.close();
-        reject(new Error('Failed to resolve an ephemeral port.'));
-        return;
-      }
-      server.close((error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve(address.port);
-      });
-    });
-  });
-}
 
 describe('agent CLI webview commands', () => {
   let workspaceRoot = '';

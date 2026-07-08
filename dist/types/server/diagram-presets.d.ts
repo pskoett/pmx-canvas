@@ -7,6 +7,14 @@ export declare const EXCALIDRAW_SAVE_CHECKPOINT_TOOL = "save_checkpoint";
 export declare const EXCALIDRAW_READ_CHECKPOINT_TOOL = "read_checkpoint";
 export declare const DEFAULT_EXCALIDRAW_ELEMENTS: ReadonlyArray<Record<string, unknown>>;
 export declare const EXCALIDRAW_MCP_TRANSPORT: ExternalMcpTransportConfig;
+/**
+ * The diagram preset targets the hosted Excalidraw MCP server. Tests set
+ * PMX_CANVAS_EXCALIDRAW_MCP_COMMAND (a stdio command line, e.g.
+ * "bun run tests/fixtures/mcp-app-fixture.ts") so the unit suite never does a
+ * real network round-trip — the hosted dependency made diagram tests time out
+ * under parallel load (plan-009 M8).
+ */
+export declare function resolveExcalidrawTransport(): ExternalMcpTransportConfig;
 export interface DiagramPresetOpenInput {
     elements: unknown;
     nodeId?: string;

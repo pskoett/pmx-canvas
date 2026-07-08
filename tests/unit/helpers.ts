@@ -1,4 +1,5 @@
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
@@ -11,6 +12,34 @@ import { stopCanvasServer } from '../../src/server/server.ts';
 
 export function createTestWorkspace(prefix: string): string {
   return mkdtempSync(join(tmpdir(), prefix));
+}
+
+/**
+ * Reserve an ephemeral port by binding and releasing it. Prefer
+ * `startCanvasServer({ port: 0 })` + parsing the base URL where the same
+ * process binds — reserve-then-rebind races parallel test files. Use this
+ * only where a subprocess must be told its port up front.
+ */
+export async function getAvailablePort(): Promise<number> {
+  return await new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        server.close();
+        reject(new Error('Failed to resolve an ephemeral port.'));
+        return;
+      }
+      server.close((error) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+        resolve(address.port);
+      });
+    });
+  });
 }
 
 function writeExecutable(path: string, content: string): void {

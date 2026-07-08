@@ -15,7 +15,6 @@
 // behavior and the change must be a deliberate, documented decision.
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { rmSync } from 'node:fs';
-import { createServer } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
@@ -24,7 +23,13 @@ import { canvasState } from '../../src/server/canvas-state.ts';
 import { createCanvas, type PmxCanvas } from '../../src/server/index.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
-import { createTestWorkspace, makeNode, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
+import {
+  createTestWorkspace,
+  getAvailablePort,
+  makeNode,
+  removeTestWorkspace,
+  resetCanvasForTests,
+} from './helpers.ts';
 
 interface TextContentItem {
   type: string;
@@ -44,28 +49,6 @@ function textOf(result: ToolResultShape): string {
 
 function parseJsonText<T>(result: ToolResultShape): T {
   return JSON.parse(textOf(result)) as T;
-}
-
-async function getAvailablePort(): Promise<number> {
-  return await new Promise((resolve, reject) => {
-    const server = createServer();
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      if (!address || typeof address === 'string') {
-        server.close();
-        reject(new Error('Failed to resolve an ephemeral port.'));
-        return;
-      }
-      server.close((error) => {
-        if (error) {
-          reject(error);
-          return;
-        }
-        resolve(address.port);
-      });
-    });
-  });
 }
 
 // The canonical state projection used for cross-surface equivalence. Envelope
