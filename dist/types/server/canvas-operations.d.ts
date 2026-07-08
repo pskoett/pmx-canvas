@@ -128,6 +128,8 @@ export declare function validateCanvasNodePatch(patch: {
 export declare function mergeTraceNodeDataFields(base: Record<string, unknown>, input: Record<string, unknown>): Record<string, unknown>;
 export declare function hasTraceNodeDataFields(input: Record<string, unknown>): boolean;
 export declare function scheduleCodeGraphRecompute(onComplete?: () => void): void;
+/** Clear a pending recompute so the timer cannot outlive its server (start/stop cycles, tests). */
+export declare function cancelCodeGraphRecompute(): void;
 /**
  * Resolve an html-node `html` field that may be a path to a local .html/.htm file.
  *

@@ -41,6 +41,16 @@ jobs:
       - name: Validate agent skill mirrors
         run: bun run validate:agent-skills
 
+      # CLAUDE.md and AGENTS.md are hand-maintained twins; a one-line drift
+      # between them has already happened once (plan-009 M9).
+      - name: CLAUDE.md / AGENTS.md must stay identical
+        run: |
+          if ! diff -q CLAUDE.md AGENTS.md; then
+            echo "::error::CLAUDE.md and AGENTS.md have drifted — edit both identically."
+            diff CLAUDE.md AGENTS.md | head -20
+            exit 1
+          fi
+
       - name: Unit tests with coverage
         run: bun run test:coverage
 

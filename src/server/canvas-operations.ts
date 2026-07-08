@@ -856,6 +856,14 @@ export function scheduleCodeGraphRecompute(onComplete?: () => void): void {
   }, 300);
 }
 
+/** Clear a pending recompute so the timer cannot outlive its server (start/stop cycles, tests). */
+export function cancelCodeGraphRecompute(): void {
+  if (codeGraphTimer) {
+    clearTimeout(codeGraphTimer);
+    codeGraphTimer = null;
+  }
+}
+
 /**
  * Resolve an html-node `html` field that may be a path to a local .html/.htm file.
  *

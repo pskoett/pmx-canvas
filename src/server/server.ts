@@ -61,6 +61,7 @@ import { resolveNodeAxCapabilities } from './ax-interaction.js';
 import { normalizeCanvasTheme, type CanvasTheme } from './canvas-db.js';
 import { validateLocalImageFile } from './image-source.js';
 import {
+  cancelCodeGraphRecompute,
   primeCanvasRuntimeBackends,
   setCanvasLayoutUpdateEmitter,
   syncCanvasRuntimeBackends,
@@ -3015,6 +3016,7 @@ export function stopCanvasServer(): void {
   intentRegistry.reset();
   canvasState.close();
   closeAllMcpAppSessions();
+  cancelCodeGraphRecompute();
   setCanvasLayoutUpdateEmitter(null);
   void closeCanvasAutomationWebViewInternal().catch((error) => {
     logWorkbenchWarning('stopCanvasServer closeCanvasAutomationWebViewInternal', error);

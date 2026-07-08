@@ -107,7 +107,8 @@ the DB so SQLite WAL data is checkpointed into the file.
 
 Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (27 tools,
 14 resources, change notifications), the [CLI](docs/cli.md), the
-[HTTP API](docs/http-api.md), or the [Bun SDK](docs/sdk.md). Works with
+[HTTP API](docs/http-api.md), or the [Bun SDK](docs/sdk.md) — all
+[environment variables documented here](docs/environment.md). Works with
 Claude Code, GitHub Copilot CLI, Codex, Cursor, Windsurf, or any agent
 that can spawn an MCP stdio server, call a CLI, or hit an HTTP endpoint.
 

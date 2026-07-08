@@ -6,6 +6,15 @@
 
 Each item is tagged by shape: **project** (multi-day, own plan/PR), **decision** (needs a maintainer call before code), or **small** (safe standalone change).
 
+## Decision analysis (2026-07-08, maintainer-approved)
+
+The remaining items were re-analyzed with pros/cons and tiered; the maintainer approved this ordering:
+
+- **Tier 1 (do):** CLI raw fetches → operation invoker **together with** the H3 parser/module split (same file, one project); H7 test coverage **as a prerequisite** for any client refactor; M2 AX-bridge dedup (first client task after H7); the M8 flake subset (mock the Excalidraw network tests, share `getAvailablePort`, Playwright `retries`/`forbidOnly`, `e2e-cli` into CI).
+- **Tier 2 (reshaped):** the PmxCanvas→executeOperation collapse is **not** mechanical — `executeOperation` is async while 57/76 SDK methods are sync with typed returns, so a full collapse is a breaking SDK change. Verdict: migrate only the already-async/void methods now; decide the full async-SDK question as a **v0.4 breaking item** with the `canvas_snapshot` composite. Post-registry the sync methods are thin presentation over the shared cores (single logic site) — not logic duplication. H5 (sse-bridge factory) proceeds **after H7**. M6 gets the middle path: runtime per-action required-field errors, no `oneOf` schema break (many MCP hosts handle `oneOf` poorly). M1 gets the minimum four (minify, devtools→devDeps, lazy-load, replace the python mtime gate); the React-stack decision stays open.
+- **Tier 3 (cheap batch):** CI check that CLAUDE.md/AGENTS.md stay identical (instead of doc generation); document `PMX_DATA` + the `PMX_CANVAS_JSON_RENDER_*`/`PMX_MCP_APP_HOST_*` env families; publish.yml verifies the tag SHA passed test.yml; `@types/turndown` → devDependencies; L1 dead `ContextPinHud`; L4 one-shot migration marker; L6 timer-leak fixes.
+- **Tier 4 (closed as by-design / parked):** the six server-coupled routes (nothing to dedup — injection machinery for single-copy handlers isn't worth it); M3 ExtAppFrame refactor (the timing hacks are load-bearing WebKit fixes — document invariants, enter only when a feature forces it); M7 notification fan-out, L2, L3, `noUncheckedIndexedAccess` (parked); M10 packaging closed after the `@types` one-liner (`bin`→`src` under Bun and shipped `dist/` are both load-bearing by design).
+
 ## Phase 1 — finish what was started
 
 | Item | Source | What's open | Shape |
@@ -45,7 +54,7 @@ Each item is tagged by shape: **project** (multi-day, own plan/PR), **decision**
 | Env var hygiene | M11 residual | `PMX_CANVAS_PORT` vs `PMX_WEB_CANVAS_PORT` applied inconsistently across entry points; `PMX_DATA` (15 uses) and the `PMX_CANVAS_JSON_RENDER_*` / `PMX_MCP_APP_HOST_*` families undocumented. |
 | `publish.yml` e2e gap | M11 residual | Publishing skips e2e with no verification that the tagged SHA passed `test.yml`. |
 | MCP notification fan-out | M7 residual | Five `canvas://` resource URIs notify on every mutation regardless of type (`mcp/server.ts:95-99`). |
-| Legacy migration code on every boot | L4 | JSON→SQLite migration runs unconditionally (`canvas-state.ts:758,785`); gate behind a one-shot marker and retire. |
+| Legacy migration code on every boot | L4 | **Parked deliberately (2026-07-08):** the "unconditional" run is a couple of `existsSync` stats per boot — a one-shot marker adds state machinery to save nothing measurable and risks breaking upgrades from old layouts. Retire the migration code wholesale in a future major instead. |
 | Suppression/mutation plumbing | L5 | Two parallel suppression depth-counters; `onMutation` is a single-slot setter wired twice (last-write-wins). |
 | Module-global lifecycle leaks | L6 | ~20 module-level `let`s in `server.ts`; code-graph debounce timer survives `stopCanvasServer`; remote SSE watcher loop has no cancellation. |
 | June doc citations | L7 residual | `tech-debt-assessment-2026-06.md` cites gitignored `.learnings/` entries future maintainers can't read. |

@@ -69,11 +69,18 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - File and image node titles on Windows now use the file name instead of the
   full backslash path.
 
+### Fixed
+
+- A pending code-graph recompute timer no longer outlives its server across
+  start/stop cycles.
+
 ### Docs
 
 - The pmx-canvas skill documents the batch op support list, the
   WebView-before-screenshot requirement, the `query` (not `q`) search
   parameter, and the intent TTL + linked-settle pattern for agent turns.
+- All `PMX_*` environment variables are documented in
+  [`docs/environment.md`](docs/environment.md).
 
 ## [0.3.1] - 2026-07-07
 
