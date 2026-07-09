@@ -405,6 +405,11 @@ const webArtifactOperation = defineOperation<z.infer<typeof webArtifactSchema>, 
   http: {
     method: 'POST',
     path: '/api/canvas/web-artifact',
+    // Build failures throw OperationError, served as { ok:false, error }. The
+    // CLI prints that failure envelope on STDOUT and exits 1
+    // (cli-node.test.ts:2502-2548 pins it), so the HTTP invoker must return
+    // the non-2xx body instead of throwing — mirrors canvas.batch/webview.start.
+    errorBodyAsResult: true,
   },
   mcp: {
     toolName: 'canvas_build_web_artifact',

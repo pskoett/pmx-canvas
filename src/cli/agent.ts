@@ -176,53 +176,11 @@ function output(data: unknown): void {
   process.stdout.write(`${text}\n`);
 }
 
-async function api(
-  method: string,
-  path: string,
-  body?: Record<string, unknown>,
-  options?: { allowErrorJson?: boolean },
-): Promise<unknown> {
-  const base = getBaseUrl();
-  const url = `${base}${path}`;
-  const opts: RequestInit = {
-    method,
-    headers: { 'Content-Type': 'application/json' },
-  };
-  if (body) opts.body = JSON.stringify(body);
-
-  let res: Response;
-  try {
-    res = await fetch(url, opts);
-  } catch (error) {
-    die(
-      `Cannot connect to pmx-canvas at ${base}: ${error instanceof Error ? error.message : String(error)}`,
-      `Start the server first: pmx-canvas --no-open`,
-    );
-  }
-
-  const text = await res.text();
-  let json: unknown;
-  try {
-    json = JSON.parse(text);
-  } catch (error) {
-    if (!res.ok) die(`HTTP ${res.status}: ${text}`);
-    console.debug('[cli] response was not JSON', error);
-    return text;
-  }
-
-  if (!res.ok) {
-    if (options?.allowErrorJson) return json;
-    const err = json as Record<string, unknown>;
-    die(err.error ? String(err.error) : `HTTP ${res.status}`, typeof err.hint === 'string' ? err.hint : undefined);
-  }
-  return json;
-}
-
-// Operation-registry invoker (plan-005): node CRUD, layout reads, edge,
-// pin/search/history/undo/redo, and snapshot commands build their HTTP request
-// from the shared route table instead of hand-written paths.
-// Error handling mirrors api(): operation failures and connection failures
-// die with the same JSON error shape.
+// Operation-registry invoker (plan-005): every server-backed command builds
+// its HTTP request from the shared route table instead of hand-written paths.
+// Operation failures and connection failures die with the same JSON error
+// shape ({ error, hint? } on stderr, exit 1); routes declaring
+// errorBodyAsResult return their failure envelope instead of throwing.
 async function invokeOperation(name: string, input: Record<string, unknown>): Promise<unknown> {
   const base = getBaseUrl();
   try {
@@ -927,7 +885,10 @@ async function runWebArtifactBuildCommand(flags: Record<string, string | true>):
   if (typeof heartbeat.unref === 'function') heartbeat.unref();
   let result: unknown;
   try {
-    result = await api('POST', '/api/canvas/web-artifact', body, { allowErrorJson: true });
+    // webartifact.build declares errorBodyAsResult, so build-failure envelopes
+    // ({ ok:false, error }) are returned here and printed on stdout before the
+    // exit-1 branch below (cli-node.test.ts pins that contract).
+    result = await invokeOperation('webartifact.build', body);
   } finally {
     clearInterval(heartbeat);
   }
@@ -938,7 +899,7 @@ async function runWebArtifactBuildCommand(flags: Record<string, string | true>):
 }
 
 async function loadCanvasSchema(): Promise<CanvasSchemaResponse> {
-  const result = await api('GET', '/api/canvas/schema');
+  const result = await invokeOperation('schema.describe', {});
   return result as CanvasSchemaResponse;
 }
 
@@ -1417,7 +1378,7 @@ cmd(
   async (args) => {
     const { flags } = parseFlags(args);
     if (flags.help || flags.h) return showCommandHelp('html primitive add');
-    const result = await api('POST', '/api/canvas/node', await buildHtmlPrimitiveRequestBody(flags));
+    const result = await invokeOperation('node.add', await buildHtmlPrimitiveRequestBody(flags));
     output(result);
   },
 );
@@ -1784,7 +1745,7 @@ cmd('edge list', 'List all edges on the canvas', ['pmx-canvas edge list'], async
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('edge list');
 
-  const layout = (await api('GET', '/api/canvas/state')) as { edges: unknown[] };
+  const layout = (await invokeOperation('layout.get', {})) as { edges: unknown[] };
   output(layout.edges);
 });
 
@@ -1827,10 +1788,10 @@ cmd(
     if (flags.help || flags.h) return showCommandHelp('layout');
 
     if (flags.summary || flags.compact) {
-      output(await api('GET', '/api/canvas/summary'));
+      output(await invokeOperation('summary.get', {}));
       return;
     }
-    const result = await api('GET', '/api/canvas/state');
+    const result = await invokeOperation('layout.get', {});
     output(result);
   },
 );
@@ -1840,12 +1801,12 @@ cmd('status', 'Quick canvas summary', ['pmx-canvas status'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('status');
 
-  const layout = (await api('GET', '/api/canvas/state')) as {
+  const layout = (await invokeOperation('layout.get', {})) as {
     nodes: Array<Record<string, unknown>>;
     edges: unknown[];
     viewport: unknown;
   };
-  const pinned = (await api('GET', '/api/canvas/pinned-context')) as { count: number; nodeIds: string[] };
+  const pinned = (await invokeOperation('pinned-context.get', {})) as { count: number; nodeIds: string[] };
 
   const typeCounts: Record<string, number> = {};
   for (const n of layout.nodes) {
@@ -1880,7 +1841,7 @@ cmd(
     const body: Record<string, unknown> = {};
     if (flags.layout && flags.layout !== true) body.layout = flags.layout;
 
-    const result = await api('POST', '/api/canvas/arrange', body);
+    const result = await invokeOperation('arrange', body);
     output(result);
   },
 );
@@ -1893,7 +1854,7 @@ cmd('focus', 'Pan viewport to center on a node', ['pmx-canvas focus <node-id>'],
   const id = positional[0];
   if (!id) die('Missing node ID', 'pmx-canvas focus <node-id>');
 
-  const result = await api('POST', '/api/canvas/focus', { id, ...(flags['no-pan'] ? { noPan: true } : {}) });
+  const result = await invokeOperation('node.focus', { id, ...(flags['no-pan'] ? { noPan: true } : {}) });
   output(result);
 });
 
@@ -1916,7 +1877,7 @@ cmd(
     if (maxScale !== undefined) body.maxScale = maxScale;
     if (positional.length > 0) body.nodeIds = positional;
 
-    const result = await api('POST', '/api/canvas/fit', body);
+    const result = await invokeOperation('view.fit', body);
     output(result);
   },
 );
@@ -1968,7 +1929,7 @@ cmd(
     );
     if (timeoutMs !== undefined) body.timeoutMs = timeoutMs;
 
-    const result = await api('POST', '/api/canvas/diagram', body);
+    const result = await invokeOperation('diagram.open', body);
     output(
       result && typeof result === 'object' && !Array.isArray(result) && 'nodeId' in result && !('id' in result)
         ? { id: (result as { nodeId?: unknown }).nodeId, ...result }
@@ -2007,7 +1968,7 @@ cmd(
     if (flags.help || flags.h) return showCommandHelp('pin');
 
     if (flags.list) {
-      const result = await api('GET', '/api/canvas/pinned-context');
+      const result = await invokeOperation('pinned-context.get', {});
       output(result);
       return;
     }
@@ -2026,7 +1987,7 @@ cmd(
     }
 
     // Default: list
-    const result = await api('GET', '/api/canvas/pinned-context');
+    const result = await invokeOperation('pinned-context.get', {});
     output(result);
   },
 );
@@ -2036,14 +1997,14 @@ cmd('ax status', 'Read host-agnostic PMX AX state', ['pmx-canvas ax status'], as
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax status');
 
-  output(await api('GET', '/api/canvas/ax'));
+  output(await invokeOperation('ax.get', {}));
 });
 
 cmd('ax context', 'Read agent-ready PMX AX context', ['pmx-canvas ax context'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax context');
 
-  output(await api('GET', '/api/canvas/ax/context'));
+  output(await invokeOperation('ax.context.get', {}));
 });
 
 cmd(
@@ -2059,7 +2020,7 @@ cmd(
       die('Missing node ID', 'pmx-canvas ax focus <node-id> [more-node-ids]');
     }
 
-    output(await api('POST', '/api/canvas/ax/focus', { nodeIds, source: resolveAxSource(flags) }));
+    output(await invokeOperation('ax.focus.set', { nodeIds, source: resolveAxSource(flags) }));
   },
 );
 
@@ -2079,7 +2040,7 @@ cmd(
     const detail = getStringFlag(flags, 'detail');
 
     output(
-      await api('POST', '/api/canvas/ax/event', {
+      await invokeOperation('ax.event.record', {
         kind,
         summary,
         ...(detail ? { detail } : {}),
@@ -2103,7 +2064,7 @@ cmd(
       die('Missing steering message', 'pmx-canvas ax steer <message>');
     }
 
-    output(await api('POST', '/api/canvas/ax/steer', { message, source: resolveAxSource(flags) }));
+    output(await invokeOperation('ax.steer', { message, source: resolveAxSource(flags) }));
   },
 );
 
@@ -2134,7 +2095,7 @@ cmd(
     }
 
     output(
-      await api('POST', '/api/canvas/ax/interaction', {
+      await invokeOperation('ax.interaction.submit', {
         type,
         sourceNodeId,
         ...(payload !== undefined ? { payload } : {}),
@@ -2161,12 +2122,7 @@ cmd(
     if (order !== undefined && order !== 'newest' && order !== 'oldest') {
       die('Invalid --order', 'pmx-canvas ax delivery list --order newest|oldest');
     }
-    const params = new URLSearchParams();
-    if (consumer) params.set('consumer', consumer);
-    if (limit) params.set('limit', String(limit));
-    if (order) params.set('order', order);
-    const qs = params.toString();
-    output(await api('GET', `/api/canvas/ax/delivery/pending${qs ? `?${qs}` : ''}`));
+    output(await invokeOperation('ax.delivery.pending', { consumer, limit, order }));
   },
 );
 
@@ -2179,7 +2135,7 @@ cmd(
     if (flags.help || flags.h) return showCommandHelp('ax delivery mark');
     const id = getStringFlag(flags, 'id') ?? positional[0];
     if (!id) die('Missing steering id', 'pmx-canvas ax delivery mark <steering-id>');
-    output(await api('POST', `/api/canvas/ax/delivery/${encodeURIComponent(id)}/mark`, {}));
+    output(await invokeOperation('ax.delivery.mark', { id }));
   },
 );
 
@@ -2196,7 +2152,7 @@ cmd(
     const prompt = requireFlag(flags, 'prompt', 'pmx-canvas ax elicitation request --prompt <text>');
     const fields = getStringFlag(flags, 'fields');
     output(
-      await api('POST', '/api/canvas/ax/elicitation', {
+      await invokeOperation('ax.elicitation.request', {
         prompt,
         ...(fields
           ? {
@@ -2231,7 +2187,8 @@ cmd(
       }
     }
     output(
-      await api('POST', `/api/canvas/ax/elicitation/${encodeURIComponent(id)}/respond`, {
+      await invokeOperation('ax.elicitation.respond', {
+        id,
         response,
         source: resolveAxSource(flags),
       }),
@@ -2242,7 +2199,7 @@ cmd(
 cmd('ax elicitation list', 'List elicitations', ['pmx-canvas ax elicitation list'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax elicitation list');
-  output(await api('GET', '/api/canvas/ax/elicitation'));
+  output(await invokeOperation('ax.elicitation.list', {}));
 });
 
 cmd(
@@ -2255,7 +2212,11 @@ cmd(
     const mode = requireFlag(flags, 'mode', 'pmx-canvas ax mode request --mode plan|execute|autonomous');
     const reason = getStringFlag(flags, 'reason');
     output(
-      await api('POST', '/api/canvas/ax/mode', { mode, ...(reason ? { reason } : {}), source: resolveAxSource(flags) }),
+      await invokeOperation('ax.mode.request', {
+        mode,
+        ...(reason ? { reason } : {}),
+        source: resolveAxSource(flags),
+      }),
     );
   },
 );
@@ -2273,7 +2234,8 @@ cmd(
     if (decision !== 'approved' && decision !== 'rejected') die('Invalid --decision', '--decision approved|rejected');
     const resolution = getStringFlag(flags, 'resolution');
     output(
-      await api('POST', `/api/canvas/ax/mode/${encodeURIComponent(id)}/resolve`, {
+      await invokeOperation('ax.mode.resolve', {
+        id,
         decision,
         ...(resolution ? { resolution } : {}),
         source: resolveAxSource(flags),
@@ -2285,13 +2247,13 @@ cmd(
 cmd('ax mode list', 'List mode requests', ['pmx-canvas ax mode list'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax mode list');
-  output(await api('GET', '/api/canvas/ax/mode'));
+  output(await invokeOperation('ax.mode.list', {}));
 });
 
 cmd('ax command list', 'List the PMX command registry', ['pmx-canvas ax command list'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax command list');
-  output(await api('GET', '/api/canvas/ax/command'));
+  output(await invokeOperation('ax.command.list', {}));
 });
 
 cmd(
@@ -2316,7 +2278,7 @@ cmd(
       }
     }
     output(
-      await api('POST', '/api/canvas/ax/command', {
+      await invokeOperation('ax.command.invoke', {
         name,
         ...(cmdArgs !== undefined ? { args: cmdArgs } : {}),
         source: resolveAxSource(flags),
@@ -2328,7 +2290,7 @@ cmd(
 cmd('ax policy get', 'Show the current declarative AX policy', ['pmx-canvas ax policy get'], async (args) => {
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax policy get');
-  output(await api('GET', '/api/canvas/ax/policy'));
+  output(await invokeOperation('ax.policy.get', {}));
 });
 
 cmd(
@@ -2361,7 +2323,7 @@ cmd(
     const prompt =
       mode || systemAppend ? { ...(mode ? { mode } : {}), ...(systemAppend ? { systemAppend } : {}) } : undefined;
     output(
-      await api('POST', '/api/canvas/ax/policy', {
+      await invokeOperation('ax.policy.set', {
         ...(tools ? { tools } : {}),
         ...(prompt ? { prompt } : {}),
         source: resolveAxSource(flags),
@@ -2379,7 +2341,7 @@ cmd(
     if (flags.help || flags.h) return showCommandHelp('ax timeline');
 
     const limit = optionalNumberFlag(flags, 'limit', 'pmx-canvas ax timeline --limit <n>');
-    output(await api('GET', `/api/canvas/ax/timeline${limit ? `?limit=${limit}` : ''}`));
+    output(await invokeOperation('ax.timeline.get', limit ? { limit } : {}));
   },
 );
 
@@ -2399,7 +2361,7 @@ cmd(
     const detail = getStringFlag(flags, 'detail');
 
     output(
-      await api('POST', '/api/canvas/ax/work', {
+      await invokeOperation('ax.work.create', {
         title,
         ...(status ? { status } : {}),
         ...(detail ? { detail } : {}),
@@ -2425,7 +2387,8 @@ cmd(
     const detail = getStringFlag(flags, 'detail');
 
     output(
-      await api('PATCH', `/api/canvas/ax/work/${encodeURIComponent(id)}`, {
+      await invokeOperation('ax.work.update', {
+        id,
         ...(title ? { title } : {}),
         ...(status ? { status } : {}),
         ...(detail ? { detail } : {}),
@@ -2440,7 +2403,7 @@ cmd('ax work list', 'List canvas-bound AX work items', ['pmx-canvas ax work list
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax work list');
 
-  output(await api('GET', '/api/canvas/ax/work'));
+  output(await invokeOperation('ax.work.list', {}));
 });
 
 cmd(
@@ -2459,7 +2422,7 @@ cmd(
     const action = getStringFlag(flags, 'action');
 
     output(
-      await api('POST', '/api/canvas/ax/approval', {
+      await invokeOperation('ax.approval.request', {
         title,
         ...(detail ? { detail } : {}),
         ...(action ? { action } : {}),
@@ -2494,7 +2457,8 @@ cmd(
     const resolution = getStringFlag(flags, 'resolution');
 
     output(
-      await api('POST', `/api/canvas/ax/approval/${encodeURIComponent(id)}/resolve`, {
+      await invokeOperation('ax.approval.resolve', {
+        id,
         decision,
         ...(resolution ? { resolution } : {}),
         source: resolveAxSource(flags),
@@ -2507,7 +2471,7 @@ cmd('ax approval list', 'List canvas-bound AX approval gates', ['pmx-canvas ax a
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax approval list');
 
-  output(await api('GET', '/api/canvas/ax/approval'));
+  output(await invokeOperation('ax.approval.list', {}));
 });
 
 cmd(
@@ -2527,7 +2491,7 @@ cmd(
     const ref = getStringFlag(flags, 'ref');
 
     output(
-      await api('POST', '/api/canvas/ax/evidence', {
+      await invokeOperation('ax.evidence.add', {
         kind,
         title,
         ...(body ? { body } : {}),
@@ -2559,7 +2523,7 @@ cmd(
     const author = getStringFlag(flags, 'author');
 
     output(
-      await api('POST', '/api/canvas/ax/review', {
+      await invokeOperation('ax.review.add', {
         body,
         ...(kind ? { kind } : {}),
         ...(severity ? { severity } : {}),
@@ -2577,7 +2541,7 @@ cmd('ax review list', 'List canvas-bound AX review annotations', ['pmx-canvas ax
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax review list');
 
-  output(await api('GET', '/api/canvas/ax/review'));
+  output(await invokeOperation('ax.review.list', {}));
 });
 
 cmd(
@@ -2594,7 +2558,7 @@ cmd(
     const host = getStringFlag(flags, 'host');
 
     output(
-      await api('PUT', '/api/canvas/ax/host-capability', {
+      await invokeOperation('ax.host-capability.report', {
         ...(host ? { host } : {}),
         canvas: flags.canvas === true,
         hooks: flags.hooks === true,
@@ -2613,7 +2577,7 @@ cmd('ax host status', 'Read the reported host/session capability', ['pmx-canvas 
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('ax host status');
 
-  output(await api('GET', '/api/canvas/ax/host-capability'));
+  output(await invokeOperation('ax.host-capability.get', {}));
 });
 
 // ── copilot install-extension ────────────────────────────────
@@ -2842,7 +2806,7 @@ cmd(
     if (typeof flags['child-layout'] === 'string') body.childLayout = flags['child-layout'];
     if (positional.length > 0) body.childIds = positional;
 
-    const result = await api('POST', '/api/canvas/group', body);
+    const result = await invokeOperation('group.create', body);
     output(result);
   },
 );
@@ -2862,7 +2826,7 @@ cmd(
     const groupId = requireFlag(flags, 'group', 'pmx-canvas group add --group <group-id> node1 node2');
     if (positional.length === 0) die('No node IDs provided', 'pmx-canvas group add --group <group-id> node1 node2');
 
-    const result = await api('POST', '/api/canvas/group/add', {
+    const result = await invokeOperation('group.add', {
       groupId,
       childIds: positional,
       ...(typeof flags['child-layout'] === 'string' ? { childLayout: flags['child-layout'] } : {}),
@@ -2913,12 +2877,19 @@ cmd(
       );
     }
 
-    const result = await api(
-      'POST',
-      '/api/canvas/batch',
-      Array.isArray(parsed) ? { operations: parsed } : (parsed as Record<string, unknown>),
+    // A parsed `null` (--json 'null') must become an empty batch — the invoker
+    // iterates Object.entries(input), which throws on null. The raw route
+    // coerced it to { ok:true, results: [] } server-side; keep that behavior.
+    const result = await invokeOperation(
+      'canvas.batch',
+      Array.isArray(parsed) ? { operations: parsed } : ((parsed ?? { operations: [] }) as Record<string, unknown>),
     );
     output(result);
+    // canvas.batch declares errorBodyAsResult, so a failed batch is RETURNED as
+    // its full { ok:false, results, refs, failedIndex, error } envelope instead
+    // of throwing. Print it (above), then exit 1 — a deliberate change from the
+    // old bare stderr die: richer failure output, same non-zero exit.
+    if ((result as { ok?: boolean }).ok === false) process.exit(1);
   },
 );
 
@@ -2931,7 +2902,7 @@ cmd(
     const { flags } = parseFlags(args);
     if (flags.help || flags.h) return showCommandHelp('validate');
 
-    const result = await api('GET', '/api/canvas/validate');
+    const result = await invokeOperation('validate.get', {});
     output(result);
   },
 );
@@ -2972,7 +2943,7 @@ cmd(
       body = { type, ...(await buildGraphRequestBody(flags)) };
     }
 
-    const result = (await api('POST', '/api/canvas/schema/validate', body)) as Record<string, unknown>;
+    const result = (await invokeOperation('spec.validate', body)) as Record<string, unknown>;
     if (flags.summary) {
       output({
         ok: result.ok,
@@ -2993,7 +2964,7 @@ cmd('group remove', 'Ungroup all children from a group', ['pmx-canvas group remo
   const id = positional[0];
   if (!id) die('Missing group ID', 'pmx-canvas group remove <group-id>');
 
-  const result = await api('POST', '/api/canvas/group/ungroup', { groupId: id });
+  const result = await invokeOperation('group.remove', { groupId: id });
   output(result);
 });
 
@@ -3023,7 +2994,7 @@ cmd(
     if (flags.help || flags.h) return showCommandHelp('clear');
 
     if (flags['dry-run']) {
-      const layout = (await api('GET', '/api/canvas/state')) as { nodes: unknown[]; edges: unknown[] };
+      const layout = (await invokeOperation('layout.get', {})) as { nodes: unknown[]; edges: unknown[] };
       output({
         dry_run: true,
         would_remove: { nodes: layout.nodes.length, edges: layout.edges.length },
@@ -3036,7 +3007,7 @@ cmd(
       die('Destructive operation requires --yes flag', 'pmx-canvas clear --yes (or preview with --dry-run)');
     }
 
-    const result = await api('POST', '/api/canvas/clear');
+    const result = await invokeOperation('canvas.clear', {});
     output(result);
   },
 );
@@ -3046,7 +3017,7 @@ cmd('webview status', 'Show Bun.WebView automation status', ['pmx-canvas webview
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('webview status');
 
-  const result = await api('GET', '/api/workbench/webview');
+  const result = await invokeOperation('webview.status', {});
   output(result);
 });
 
@@ -3092,7 +3063,9 @@ cmd(
       if (chromeArgv.length > 0) body.chromeArgv = chromeArgv;
     }
 
-    const result = await api('POST', '/api/workbench/webview/start', body, { allowErrorJson: true });
+    // webview.start declares errorBodyAsResult, so failure envelopes
+    // ({ ok:false, error, webview? }) are returned and printed like before.
+    const result = await invokeOperation('webview.start', body);
     output(result);
   },
 );
@@ -3102,7 +3075,7 @@ cmd('webview stop', 'Stop the active Bun.WebView automation session', ['pmx-canv
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('webview stop');
 
-  const result = await api('DELETE', '/api/workbench/webview');
+  const result = await invokeOperation('webview.stop', {});
   output(result);
 });
 
@@ -3145,7 +3118,9 @@ cmd(
       expression = requireFlag(flags, 'expression', 'pmx-canvas webview evaluate --expression "document.title"');
     }
 
-    const result = await api('POST', '/api/workbench/webview/evaluate', { expression });
+    // Send ONLY expression — the CLI already wraps --script/--file into an
+    // expression; passing the op's `script` input would double-wrap server-side.
+    const result = await invokeOperation('webview.evaluate', { expression });
     output(result);
   },
 );
@@ -3165,7 +3140,7 @@ cmd(
       die('Missing required flags: --width, --height', 'Use: pmx-canvas webview resize --width 1280 --height 800');
     }
 
-    const result = await api('POST', '/api/workbench/webview/resize', { width, height });
+    const result = await invokeOperation('webview.resize', { width, height });
     output(result);
   },
 );
@@ -3252,7 +3227,7 @@ cmd('code-graph', 'Show auto-detected file dependency graph', ['pmx-canvas code-
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('code-graph');
 
-  const result = await api('GET', '/api/canvas/code-graph');
+  const result = await invokeOperation('code-graph.get', {});
   output(result);
 });
 
@@ -3261,7 +3236,7 @@ cmd('spatial', 'Spatial analysis: clusters, reading order, neighborhoods', ['pmx
   const { flags } = parseFlags(args);
   if (flags.help || flags.h) return showCommandHelp('spatial');
 
-  const result = await api('GET', '/api/canvas/spatial-context');
+  const result = await invokeOperation('spatial.get', {});
   output(result);
 });
 
@@ -3314,7 +3289,7 @@ cmd(
     const maxEvents = optionalNumberFlag(flags, 'max-events', 'Use a positive integer, e.g. --max-events 1');
     const jsonMode = Boolean(flags.json);
     const reducer = new SemanticWatchReducer();
-    const pinned = (await api('GET', '/api/canvas/pinned-context')) as { nodeIds?: string[] };
+    const pinned = (await invokeOperation('pinned-context.get', {})) as { nodeIds?: string[] };
     reducer.setInitialPins(Array.isArray(pinned.nodeIds) ? pinned.nodeIds : []);
 
     const base = getBaseUrl();

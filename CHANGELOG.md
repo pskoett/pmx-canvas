@@ -74,6 +74,14 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - A pending code-graph recompute timer no longer outlives its server across
   start/stop cycles.
 
+### Changed
+
+- The CLI dispatches every canvas command through the operation registry's
+  HTTP invoker instead of hand-written request paths; success output is
+  unchanged. One failure-path improvement: a failed `pmx-canvas batch` now
+  prints the full result envelope (`ok:false`, `failedIndex`, partial
+  `results`, `refs`) on stdout and exits 1, instead of a bare stderr error.
+
 ### Docs
 
 - The pmx-canvas skill documents the batch op support list, the
