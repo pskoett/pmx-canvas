@@ -65,7 +65,9 @@ describe('AX neutral-primitive parity and host isolation', () => {
     const opsRegistry = readDir('src/server/operations/ops');
     const httpServer = readFile('src/server/server.ts') + opsRegistry;
     const mcp = readFile('src/mcp/server.ts') + opsRegistry;
-    const cli = readFile('src/cli/agent.ts');
+    // The CLI command registrations live in per-domain modules under
+    // src/cli/commands/ (plan-009 H3 split); concatenate the whole CLI tree.
+    const cli = readDir('src/cli');
     const access = readFile('src/mcp/canvas-access.ts');
 
     // Each AX operation: the SDK method name, the HTTP route fragment, the MCP

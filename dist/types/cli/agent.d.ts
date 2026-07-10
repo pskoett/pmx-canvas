@@ -10,12 +10,17 @@
  * - Idempotent operations where possible
  * - --yes for destructive actions, --dry-run for preview
  */
-/**
- * Extract the global `--port <n>` / `--server-url <url>` flags (any position,
- * `=` or space-separated value) and set the invocation's target override.
- * Returns the remaining args for command dispatch. Invalid values are a loud
- * `die` — never a silent fallback to the default port. `--server-url` wins
- * over `--port` when both are given.
- */
-export declare function extractGlobalTargetFlags(args: string[]): string[];
+import { extractGlobalTargetFlags } from './shared.js';
+import './commands/nodes.js';
+import './commands/edges.js';
+import './commands/groups.js';
+import './commands/view.js';
+import './commands/query.js';
+import './commands/pins.js';
+import './commands/history.js';
+import './commands/ax.js';
+import './commands/webview.js';
+import './commands/apps.js';
+import './commands/copilot.js';
+export { extractGlobalTargetFlags };
 export declare function runAgentCli(rawArgs: string[]): Promise<void>;
