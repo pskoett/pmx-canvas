@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { createCanvas } from '../../src/server/index.ts';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
-const supportsWebView = typeof Bun.WebView === 'function';
+const supportsWebView = typeof (Bun as { WebView?: unknown }).WebView === 'function';
 
 // WebView automation is not supported on Windows yet: the start path fails
 // mid-flight without recording lastError, and no backend is validated there.
@@ -24,7 +24,7 @@ describe.skipIf(process.platform === 'win32')('canvas WebView automation', () =>
 
   test('starts, evaluates, resizes, and screenshots through the SDK', async () => {
     if (!supportsWebView) {
-      expect(typeof Bun.WebView).toBe('undefined');
+      expect(typeof (Bun as { WebView?: unknown }).WebView).toBe('undefined');
       return;
     }
 

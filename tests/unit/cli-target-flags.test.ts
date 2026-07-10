@@ -41,7 +41,7 @@ describe('agent CLI global target flags', () => {
   });
 
   async function runCli(args: string[]): Promise<string> {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
     try {

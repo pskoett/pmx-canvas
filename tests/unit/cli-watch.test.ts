@@ -269,7 +269,7 @@ describe('agent CLI watch command', () => {
       }),
     });
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -289,7 +289,7 @@ describe('agent CLI watch command', () => {
     expect(log).toHaveBeenCalledTimes(1);
     const output = JSON.parse(log.mock.calls[0]?.[0] as string) as {
       type: string;
-      added: Array<{ id: string; title: string | null }>;
+      added: Array<{ id: string; title: string | null; nodeType: string }>;
     };
     expect(output.type).toBe('context-pin');
     expect(output.added).toEqual([{ id: created.id, title: 'Pinned note', nodeType: 'markdown' }]);

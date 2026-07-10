@@ -84,7 +84,7 @@ describe('agent CLI node commands', () => {
       }),
     });
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -118,7 +118,7 @@ describe('agent CLI node commands', () => {
     });
     type AxBody = { state: { focus: { source: string | null } } };
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
     try {
@@ -137,7 +137,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('node add returns rendered geometry for immediate layout scripting', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -174,7 +174,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('node add accepts single-dash coordinate aliases', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -204,7 +204,7 @@ describe('agent CLI node commands', () => {
 
   test('node add maps html content to the renderer html field', async () => {
     const html = '<main><h1>CLI HTML widget</h1></main>';
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -229,7 +229,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('node add forwards html semantic sidecar flags', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -288,7 +288,7 @@ describe('agent CLI node commands', () => {
       }),
       'utf-8',
     );
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -323,7 +323,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('html presentation primitive CLI exposes slide metadata', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -363,7 +363,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('node add forwards trace fields advertised by schema help', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -417,7 +417,7 @@ describe('agent CLI node commands', () => {
       }),
     });
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -453,7 +453,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('node update help advertises trace flags', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -472,7 +472,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('node add help advertises html sidecar flags', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -508,7 +508,7 @@ describe('agent CLI node commands', () => {
     });
 
     const before = canvasState.viewport;
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -542,7 +542,7 @@ describe('agent CLI node commands', () => {
       body: JSON.stringify({ nodeIds: [first.id] }),
     });
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -573,7 +573,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('ax timeline commands record events, steering, and evidence with the cli source', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -616,7 +616,7 @@ describe('agent CLI node commands', () => {
       body: JSON.stringify({ type: 'markdown', title: 'CLI work node' }),
     });
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -654,12 +654,11 @@ describe('agent CLI node commands', () => {
   });
 
   test('ax event add fails loud when the required kind flag is missing', async () => {
-    const errorLog = mock(() => {});
+    const errorLog = mock((..._args: unknown[]) => {});
     const originalError = console.error;
     const originalExit = process.exit;
     console.error = errorLog;
     let exitCode: number | undefined;
-    // @ts-expect-error test stub for process.exit
     process.exit = ((code?: number) => {
       exitCode = code;
       throw new Error('process.exit');
@@ -680,11 +679,10 @@ describe('agent CLI node commands', () => {
   });
 
   test('a bare ax subcommand points at the full command', async () => {
-    const errorLog = mock(() => {});
+    const errorLog = mock((..._args: unknown[]) => {});
     const originalError = console.error;
     const originalExit = process.exit;
     console.error = errorLog;
-    // @ts-expect-error test stub for process.exit
     process.exit = (() => {
       throw new Error('process.exit');
     }) as typeof process.exit;
@@ -706,7 +704,7 @@ describe('agent CLI node commands', () => {
 
   test('copilot install-extension --dry-run writes nothing', async () => {
     const target = join(workspaceRoot, '.github', 'extensions', 'pmx-canvas', 'extension.mjs');
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -738,7 +736,7 @@ describe('agent CLI node commands', () => {
       body: JSON.stringify({ type: 'markdown', title: 'Fit B', x: 700, y: 500, width: 300, height: 200 }),
     });
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -787,7 +785,7 @@ describe('agent CLI node commands', () => {
       'utf-8',
     );
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -829,7 +827,7 @@ describe('agent CLI node commands', () => {
     const dataPath = join(workspaceRoot, 'updated-graph-data.json');
     writeFileSync(dataPath, JSON.stringify([{ label: 'B', value: 9 }]), 'utf-8');
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -895,7 +893,7 @@ describe('agent CLI node commands', () => {
     const dataPath = join(workspaceRoot, 'locked-graph-data.json');
     writeFileSync(dataPath, JSON.stringify([{ label: 'B', value: 12 }]), 'utf-8');
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -925,7 +923,7 @@ describe('agent CLI node commands', () => {
       }),
     });
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     const originalStdin = process.stdin;
     console.log = log;
@@ -968,7 +966,7 @@ describe('agent CLI node commands', () => {
       },
     });
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -1000,7 +998,7 @@ describe('agent CLI node commands', () => {
       },
     });
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -1028,7 +1026,7 @@ describe('agent CLI node commands', () => {
       }),
     });
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -1056,7 +1054,7 @@ describe('agent CLI node commands', () => {
       }),
     });
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -1108,7 +1106,7 @@ describe('agent CLI node commands', () => {
       'utf-8',
     );
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -1157,7 +1155,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('node add accepts --data as a graph JSON alias', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -1195,7 +1193,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('node add accepts camelCase graph flags shown by schema help', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -1231,7 +1229,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('graph add creates graph nodes without requiring node add alias syntax', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -1269,7 +1267,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('graph add distinguishes node frame height from chart content height', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -1356,7 +1354,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('node add rejects generic mcp-app nodes with guidance', async () => {
-    const error = mock(() => {});
+    const error = mock((..._args: unknown[]) => {});
     const originalError = console.error;
     const originalExit = process.exit;
     console.error = error;
@@ -1379,7 +1377,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('node delete fails loudly with remove suggestion', async () => {
-    const error = mock(() => {});
+    const error = mock((..._args: unknown[]) => {});
     const originalError = console.error;
     const originalExit = process.exit;
     console.error = error;
@@ -1400,7 +1398,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('node pin fails loudly and points to top-level pin command', async () => {
-    const error = mock(() => {});
+    const error = mock((..._args: unknown[]) => {});
     const originalError = console.error;
     const originalExit = process.exit;
     console.error = error;
@@ -1468,7 +1466,7 @@ describe('agent CLI node commands', () => {
       body: JSON.stringify({ nodeIds: [markdown.id, artifactId, externalAppId] }),
     });
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -1489,7 +1487,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('edge delete fails loudly with remove suggestion', async () => {
-    const error = mock(() => {});
+    const error = mock((..._args: unknown[]) => {});
     const originalError = console.error;
     const originalExit = process.exit;
     console.error = error;
@@ -1510,7 +1508,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('edge rm fails loudly with remove suggestion', async () => {
-    const error = mock(() => {});
+    const error = mock((..._args: unknown[]) => {});
     const originalError = console.error;
     const originalExit = process.exit;
     console.error = error;
@@ -1550,7 +1548,7 @@ describe('agent CLI node commands', () => {
       'utf-8',
     );
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -1710,7 +1708,7 @@ describe('agent CLI node commands', () => {
       'utf-8',
     );
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -1757,7 +1755,7 @@ describe('agent CLI node commands', () => {
       'utf-8',
     );
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -1791,7 +1789,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('node add supports webpage nodes with the canonical --url flag', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -1823,7 +1821,7 @@ describe('agent CLI node commands', () => {
     const appPath = join(workspaceRoot, 'NodeAddArtifact.tsx');
     writeFileSync(appPath, 'export default function App() { return <main>Node add artifact</main>; }', 'utf-8');
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -1885,7 +1883,7 @@ describe('agent CLI node commands', () => {
       'utf-8',
     );
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -2004,7 +2002,7 @@ describe('agent CLI node commands', () => {
   });
 
   test('node add can request strict sizing for scroll-contained content', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -2051,7 +2049,7 @@ describe('agent CLI node commands', () => {
       body: JSON.stringify({ type: 'markdown', title: 'deep work', content: 'target' }),
     });
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -2084,7 +2082,7 @@ describe('agent CLI node commands', () => {
       body: JSON.stringify({ type: 'markdown', title: 'Frame B', x: 1240, y: 420, width: 240, height: 160 }),
     });
 
-    const groupLog = mock(() => {});
+    const groupLog = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = groupLog;
 
@@ -2146,7 +2144,7 @@ describe('agent CLI node commands', () => {
       'utf-8',
     );
 
-    const batchLog = mock(() => {});
+    const batchLog = mock((..._args: unknown[]) => {});
     console.log = batchLog;
     try {
       await runAgentCli(['batch', '--file', batchPath]);
@@ -2161,7 +2159,7 @@ describe('agent CLI node commands', () => {
     expect(typeof batchOutput.refs.child?.id).toBe('string');
     expect(typeof batchOutput.refs.frame?.id).toBe('string');
 
-    const validateLog = mock(() => {});
+    const validateLog = mock((..._args: unknown[]) => {});
     console.log = validateLog;
     try {
       await runAgentCli(['validate']);
@@ -2210,7 +2208,7 @@ describe('agent CLI node commands', () => {
       'utf-8',
     );
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -2242,7 +2240,7 @@ describe('agent CLI node commands', () => {
     writeFileSync(appPath, 'export default function App() { return <main>CLI Artifact</main>; }', 'utf-8');
     writeFileSync(cssPath, 'body { background: #123456; }', 'utf-8');
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -2291,9 +2289,9 @@ describe('agent CLI node commands', () => {
       });
     });
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = fetchMock as typeof fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -2337,9 +2335,9 @@ describe('agent CLI node commands', () => {
       });
     });
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = fetchMock as typeof fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -2378,9 +2376,9 @@ describe('agent CLI node commands', () => {
       });
     });
     const originalFetch = globalThis.fetch;
-    globalThis.fetch = fetchMock as typeof fetch;
+    globalThis.fetch = fetchMock as unknown as typeof fetch;
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -2439,7 +2437,7 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
     const appPath = join(workspaceRoot, 'NoisyApp.tsx');
     writeFileSync(appPath, 'export default function App() { return <main>Noisy Artifact</main>; }', 'utf-8');
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -2514,7 +2512,7 @@ exit 2
     const appPath = join(workspaceRoot, 'FailApp.tsx');
     writeFileSync(appPath, 'export default function App() { return <main>Fail</main>; }', 'utf-8');
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     const originalExit = process.exit;
     console.log = log;
@@ -2557,7 +2555,7 @@ exit 2
       body: JSON.stringify({ type: 'file', content: filePath }),
     });
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -2622,7 +2620,7 @@ exit 2
     expect(opened.ok).toBe(true);
     expect(typeof opened.nodeId).toBe('string');
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -2688,7 +2686,7 @@ exit 2
       body: JSON.stringify({ nodeIds: [created.id] }),
     });
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -2784,7 +2782,7 @@ exit 2
       body: JSON.stringify({ content: 'after' }),
     });
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -2814,7 +2812,7 @@ exit 2
       await new Promise((resolve) => setTimeout(resolve, 2));
     }
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -2880,7 +2878,7 @@ exit 2
     );
     expect(first.ok && second.ok && third.ok).toBe(true);
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -2903,7 +2901,7 @@ exit 2
   });
 
   test('snapshot list help advertises before and after filters', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -2959,7 +2957,7 @@ exit 2
       body: JSON.stringify({ type: 'markdown', title: 'Edge end' }),
     });
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 

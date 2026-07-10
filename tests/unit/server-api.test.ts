@@ -25,8 +25,10 @@ interface CanvasStateResponse {
   nodes: Array<{
     id: string;
     type: string;
+    kind?: string;
     pinned?: boolean;
     dockPosition?: 'left' | 'right' | null;
+    position?: { x: number; y: number };
     data: Record<string, unknown>;
   }>;
   edges: Array<{ id: string; from: string; to: string; type: string }>;
@@ -1123,7 +1125,7 @@ describe('canvas server HTTP API', () => {
     const layout = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
     const hostedNode = layout.nodes.find((node) => node.type === 'mcp-app' && node.data.title === 'Counter App');
     expect(hostedNode).toBeTruthy();
-    expect(hostedNode?.id).toBe(opened.nodeId);
+    expect(hostedNode?.id).toBe(opened.nodeId!);
 
     const deleteResponse = await fetch(`${baseUrl}/api/canvas/node/${hostedNode?.id}`, {
       method: 'DELETE',
@@ -1179,18 +1181,14 @@ describe('canvas server HTTP API', () => {
       ok: boolean;
       nodeId: string | null;
       sessionId: string;
-    }>(
-      '/api/canvas/diagram',
-      {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: 'Mutable Diagram',
-          elements: [{ type: 'rectangle', id: 'before', x: 0, y: 0, width: 80, height: 50 }],
-        }),
-      },
-      15_000,
-    );
+    }>('/api/canvas/diagram', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Mutable Diagram',
+        elements: [{ type: 'rectangle', id: 'before', x: 0, y: 0, width: 80, height: 50 }],
+      }),
+    });
     expect(created.ok).toBe(true);
     expect(typeof created.nodeId).toBe('string');
 
@@ -2278,7 +2276,7 @@ describe('canvas server HTTP API', () => {
       }),
     });
     expect(opened.ok).toBe(true);
-    expect(opened.id).toBe(opened.nodeId);
+    expect(opened.id).toBe(opened.nodeId!);
     expect(opened.toolCallId.startsWith('ext-app-')).toBe(false);
     expect(opened.nodeId?.startsWith('ext-app-')).toBe(true);
     expect(opened.nodeId?.startsWith('ext-app-ext-app-')).toBe(false);

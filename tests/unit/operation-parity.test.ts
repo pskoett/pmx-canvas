@@ -185,7 +185,7 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
   }
 
   async function runCliJson<T>(args: string[]): Promise<T> {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
     try {

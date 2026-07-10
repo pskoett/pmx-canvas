@@ -229,6 +229,7 @@ describe('agent-safe canvas serialization', () => {
   test('does not repeat external MCP app shell HTML in full agent layout payloads', () => {
     const layout = serializeCanvasLayoutForAgent({
       viewport: { x: 0, y: 0, scale: 1 },
+      theme: 'dark',
       nodes: [
         makeNode({ id: 'ext-app-1', type: 'mcp-app', data: { mode: 'ext-app', resourceUri, html: shellHtml } }),
         makeNode({ id: 'ext-app-2', type: 'mcp-app', data: { mode: 'ext-app', resourceUri, html: shellHtml } }),

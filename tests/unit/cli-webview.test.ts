@@ -57,7 +57,7 @@ describe('agent CLI webview commands', () => {
   });
 
   test('status and stop commands return JSON output', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -88,7 +88,7 @@ describe('agent CLI webview commands', () => {
   });
 
   test('start command sends backend and size options', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -135,7 +135,7 @@ describe('agent CLI webview commands', () => {
 
   test('evaluate, resize, and screenshot commands work against the HTTP API', async () => {
     const screenshotPath = join(workspaceRoot, 'cli-webview-test.png');
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -185,7 +185,7 @@ describe('agent CLI webview commands', () => {
   }, 15000);
 
   test('evaluate supports --script for multi-statement JavaScript', async () => {
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -219,7 +219,7 @@ describe('agent CLI webview commands', () => {
     const scriptPath = join(workspaceRoot, 'probe.js');
     writeFileSync(scriptPath, 'const title = document.title; return `${title} from file`;');
 
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
     console.log = log;
 
@@ -248,7 +248,7 @@ describe('agent CLI webview commands', () => {
     const originalArgv = process.argv;
     const originalExit = process.exit;
     const originalLog = console.log;
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const exitMock = mock(() => undefined as never);
 
     console.log = log;
@@ -273,7 +273,7 @@ describe('agent CLI webview commands', () => {
     const originalArgv = process.argv;
     const originalExit = process.exit;
     const originalLog = console.log;
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const exitMock = mock((code?: number) => {
       throw new Error(`exit:${code}`);
     });
@@ -300,7 +300,7 @@ describe('agent CLI webview commands', () => {
     const originalArgv = process.argv;
     const originalExit = process.exit;
     const originalLog = console.log;
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const exitMock = mock((code?: number) => {
       throw new Error(`exit:${code}`);
     });
@@ -327,7 +327,7 @@ describe('agent CLI webview commands', () => {
     const originalArgv = process.argv;
     const originalExit = process.exit;
     const originalLog = console.log;
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const exitMock = mock((code?: number) => {
       throw new Error(`exit:${code}`);
     });
@@ -355,7 +355,7 @@ describe('agent CLI webview commands', () => {
     const originalArgv = process.argv;
     const originalExit = process.exit;
     const originalLog = console.log;
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const exitMock = mock((code?: number) => {
       throw new Error(`exit:${code}`);
     });
@@ -382,7 +382,7 @@ describe('agent CLI webview commands', () => {
     const originalArgv = process.argv;
     const originalExit = process.exit;
     const originalLog = console.log;
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const exitMock = mock((code?: number) => {
       throw new Error(`exit:${code}`);
     });
@@ -409,7 +409,7 @@ describe('agent CLI webview commands', () => {
     const originalArgv = process.argv;
     const originalExit = process.exit;
     const originalLog = console.log;
-    const log = mock(() => {});
+    const log = mock((..._args: unknown[]) => {});
     const exitMock = mock((code?: number) => {
       throw new Error(`exit:${code}`);
     });

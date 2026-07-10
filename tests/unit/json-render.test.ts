@@ -22,8 +22,8 @@ describe('json-render validation', () => {
         t: { type: 'Text', props: { text: 'plain' }, children: [] },
       },
     });
-    expect(spec.elements.card.on).toEqual({});
-    expect(spec.elements.t.on).toEqual({});
+    expect((spec.elements.card as { on: Record<string, unknown> }).on).toEqual({});
+    expect((spec.elements.t as { on: Record<string, unknown> }).on).toEqual({});
   });
 
   test('preserves an authored `on` binding through validation', () => {
@@ -38,7 +38,7 @@ describe('json-render validation', () => {
         },
       },
     });
-    expect((spec.elements.card.on as Record<string, unknown>).press).toBeDefined();
+    expect((spec.elements.card as { on: Record<string, unknown> }).on.press).toBeDefined();
   });
 
   test('rejects an unknown $-keyed directive instead of rendering "[object Object]"', () => {
@@ -74,8 +74,8 @@ describe('json-render validation', () => {
         },
       },
     });
-    expect((spec.elements.card?.props as Record<string, unknown>).title).toEqual({ $state: '/title' });
-    expect((spec.elements.card?.props as Record<string, unknown>).description).toEqual({
+    expect((spec.elements.card as { props: Record<string, unknown> }).props.title).toEqual({ $state: '/title' });
+    expect((spec.elements.card as { props: Record<string, unknown> }).props.description).toEqual({
       $format: 'currency',
       value: 5,
     });
@@ -97,7 +97,7 @@ describe('json-render validation', () => {
 
     expect(spec.root).toBe('card');
     expect(Object.keys(spec.elements)).toEqual(['card']);
-    expect(spec.elements.card?.visible).toBe(true);
+    expect((spec.elements.card as { visible?: boolean }).visible).toBe(true);
   });
 
   test('normalizes common element aliases and cleans non-string children', () => {
@@ -124,9 +124,9 @@ describe('json-render validation', () => {
       },
     });
 
-    expect(spec.elements.panel?.type).toBe('Card');
-    expect(spec.elements.panel?.children).toEqual(['copy']);
-    expect((spec.elements.panel?.props as Record<string, unknown>).description).toBeUndefined();
+    expect((spec.elements.panel as { type: string }).type).toBe('Card');
+    expect((spec.elements.panel as { children: unknown[] }).children).toEqual(['copy']);
+    expect((spec.elements.panel as { props: Record<string, unknown> }).props.description).toBeUndefined();
   });
 
   test('normalizes legacy Badge label and status variants', () => {
@@ -178,31 +178,31 @@ describe('json-render validation', () => {
       },
     });
 
-    expect(spec.elements.healthy?.props).toEqual(
+    expect((spec.elements.healthy as { props: Record<string, unknown> }).props).toEqual(
       expect.objectContaining({
         text: 'Healthy',
         variant: 'success',
       }),
     );
-    expect(spec.elements.info?.props).toEqual(
+    expect((spec.elements.info as { props: Record<string, unknown> }).props).toEqual(
       expect.objectContaining({
         text: 'Heads up',
         variant: 'info',
       }),
     );
-    expect(spec.elements.warning?.props).toEqual(
+    expect((spec.elements.warning as { props: Record<string, unknown> }).props).toEqual(
       expect.objectContaining({
         text: 'Attention',
         variant: 'warning',
       }),
     );
-    expect(spec.elements.error?.props).toEqual(
+    expect((spec.elements.error as { props: Record<string, unknown> }).props).toEqual(
       expect.objectContaining({
         text: 'Build broken',
         variant: 'error',
       }),
     );
-    expect(spec.elements.danger?.props).toEqual(
+    expect((spec.elements.danger as { props: Record<string, unknown> }).props).toEqual(
       expect.objectContaining({
         text: 'Blocked',
         variant: 'danger',
@@ -212,7 +212,7 @@ describe('json-render validation', () => {
     // After normalization the legacy `label` key must be gone — the spec
     // should carry exactly one of `text` or `label`, never both.
     for (const key of ['healthy', 'info', 'warning', 'error', 'danger'] as const) {
-      const props = spec.elements[key]?.props as Record<string, unknown>;
+      const props = (spec.elements[key] as { props: Record<string, unknown> }).props;
       expect('label' in props).toBe(false);
     }
   });

@@ -51,8 +51,16 @@ jobs:
             exit 1
           fi
 
+      # Full typecheck including the test files (tsconfig.tests.json) — the
+      # dist/types staleness step only type-checks src via declaration emit.
+      - name: Typecheck (src + tests)
+        run: bun run typecheck
+
       - name: Unit tests with coverage
         run: bun run test:coverage
+
+      - name: Client render tests
+        run: bun run test:client
 
       - name: Upload coverage
         if: always()

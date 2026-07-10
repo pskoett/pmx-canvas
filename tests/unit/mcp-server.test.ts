@@ -786,7 +786,7 @@ describe('MCP parity with CLI', () => {
         return Response.json({ ok: false, error: 'Not found.' }, { status: 404 });
       },
     });
-    const session = await createMcpSessionForWorkspace(workspaceRoot, daemon.port, {
+    const session = await createMcpSessionForWorkspace(workspaceRoot, daemon.port!, {
       PMX_CANVAS_URL: `http://127.0.0.1:${daemon.port}`,
     });
     cleanup.push(async () => {
@@ -1076,7 +1076,9 @@ describe('MCP parity with CLI', () => {
     expect(pins.pinnedNodeIds).toEqual([created.id]);
 
     const resource = await session.client.readResource({ uri: 'canvas://pinned-context' });
-    const textResource = resource.contents.find((entry) => 'text' in entry && typeof entry.text === 'string');
+    const textResource = resource.contents.find(
+      (entry): entry is { uri: string; text: string } => 'text' in entry && typeof entry.text === 'string',
+    );
     expect(textResource).toBeDefined();
     const parsed = JSON.parse(textResource?.text ?? '{}') as {
       pinnedCount: number;
@@ -1170,7 +1172,9 @@ describe('MCP parity with CLI', () => {
     );
 
     const resource = await session.client.readResource({ uri: 'canvas://pinned-context' });
-    const textResource = resource.contents.find((entry) => 'text' in entry && typeof entry.text === 'string');
+    const textResource = resource.contents.find(
+      (entry): entry is { uri: string; text: string } => 'text' in entry && typeof entry.text === 'string',
+    );
     const parsed = JSON.parse(textResource?.text ?? '{}') as {
       nodes: Array<{ id: string; type: string; kind: string }>;
     };
@@ -1258,7 +1262,9 @@ describe('MCP parity with CLI', () => {
     expect(layoutPayload.nodes.find((node) => node.id === pinned.id)?.pinned).toBe(true);
 
     const resource = await session.client.readResource({ uri: 'canvas://ax-context' });
-    const textResource = resource.contents.find((entry) => 'text' in entry && typeof entry.text === 'string');
+    const textResource = resource.contents.find(
+      (entry): entry is { uri: string; text: string } => 'text' in entry && typeof entry.text === 'string',
+    );
     const context = JSON.parse(textResource?.text ?? '{}') as {
       pinned: { nodeIds: string[] };
       focus: { nodeIds: string[] };
@@ -1300,7 +1306,7 @@ describe('MCP parity with CLI', () => {
 
     expect(opened.ok).toBe(true);
     expect(typeof opened.nodeId).toBe('string');
-    expect(opened.id).toBe(opened.nodeId);
+    expect(opened.id).toBe(opened.nodeId!);
     expect(opened.nodeId?.startsWith('ext-app-ext-app-')).toBe(false);
     expect(opened.sessionId).toContain('mcp-app-session');
     expect(opened.resourceUri).toBe('ui://fixture/counter.html');
@@ -1322,7 +1328,7 @@ describe('MCP parity with CLI', () => {
       (node) => node.type === 'mcp-app' && node.data.mode === 'ext-app' && node.data.appSessionId === opened.sessionId,
     );
     expect(appNode).toBeTruthy();
-    expect(appNode?.id).toBe(opened.nodeId);
+    expect(appNode?.id).toBe(opened.nodeId!);
     expect(appNode?.data.resourceUri).toBe('ui://fixture/counter.html');
     expect(appNode?.data.toolName).toBe('show_counter');
   }, 20000);
@@ -1520,7 +1526,8 @@ describe('MCP parity with CLI', () => {
     ]);
 
     const resource = await session.client.readResource({ uri: 'canvas://schema' });
-    const schemaText = resource.contents?.find((item) => item.uri === 'canvas://schema')?.text ?? '';
+    const schemaText =
+      (resource.contents?.find((item) => item.uri === 'canvas://schema') as { text?: string } | undefined)?.text ?? '';
     expect(schemaText).toContain('"source": "running-server"');
     expect(schemaText).toContain('"nodeTypeRouting"');
     expect(schemaText).toContain('"web-artifact": "canvas_app (action:\\"build-artifact\\")"');
@@ -2200,9 +2207,13 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
       removeTestWorkspace(session.workspaceRoot);
     });
 
-    const savedSnapshots: Array<{ id: string; name: string }> = [];
+    const savedSnapshots: Array<{ id: string; name: string; createdAt: string }> = [];
     for (const name of ['mcp-alpha', 'mcp-beta', 'mcp-parity-snapshot']) {
-      const saved = parseJsonText<{ ok: boolean; id: string; snapshot: { id: string; name: string } }>(
+      const saved = parseJsonText<{
+        ok: boolean;
+        id: string;
+        snapshot: { id: string; name: string; createdAt: string };
+      }>(
         (await session.client.callTool({
           name: 'canvas_snapshot',
           arguments: { name },

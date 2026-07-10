@@ -5,6 +5,14 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- A client component test harness (happy-dom + Testing Library) with the
+  first 20 render tests, plus dedicated suites for the semantic watch
+  reducer and the canvas schema (46 new tests). Test files are now
+  typechecked, and CI fails when total coverage drops below the recorded
+  floor.
+
 ### Fixed
 
 - App tiles now show a spinner and a "Connecting to <app>..." overlay while an

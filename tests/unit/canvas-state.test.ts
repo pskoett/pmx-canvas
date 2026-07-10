@@ -375,7 +375,7 @@ describe('canvas state manager', () => {
     const review = canvasState.addReviewAnnotation(
       { body: 'needs a test', kind: 'finding', severity: 'warning', anchorType: 'node', nodeId: node.id },
       { source: 'api' },
-    );
+    )!;
     expect(review.status).toBe('open');
     expect(review.nodeId).toBe(node.id);
 
@@ -406,7 +406,7 @@ describe('canvas state manager', () => {
     const review = canvasState.addReviewAnnotation(
       { body: 'fix this', anchorType: 'node', nodeId: node.id },
       { source: 'api' },
-    );
+    )!;
     expect(canvasState.getReviewAnnotations().map((r) => r.id)).toEqual([review.id]);
 
     canvasState.removeNode(node.id);

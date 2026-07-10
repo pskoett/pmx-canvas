@@ -110,7 +110,7 @@ describe('PmxCanvas SDK surface', () => {
     });
 
     canvas.updateNode(graph.id, {
-      data: [{ label: 'B', value: 5 }],
+      data: [{ label: 'B', value: 5 }] as unknown as Record<string, unknown>,
       arrangeLocked: true,
     });
 

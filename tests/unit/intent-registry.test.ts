@@ -144,7 +144,7 @@ describe('IntentRegistry', () => {
 
   test('a committing intent rejects a late veto and settles after mutation', async () => {
     registry.signal({ id: 'commit-me', kind: 'create', position: { x: 0, y: 0 } });
-    let releaseMutation: (() => void) | null = null;
+    let releaseMutation!: () => void;
     const mutationGate = new Promise<void>((resolve) => {
       releaseMutation = resolve;
     });
@@ -172,7 +172,7 @@ describe('IntentRegistry', () => {
 
   test('a committing intent rejects a late veto-via-update and still settles (#C race-safety)', async () => {
     registry.signal({ id: 'commit-vu', kind: 'create', position: { x: 0, y: 0 } });
-    let releaseMutation: (() => void) | null = null;
+    let releaseMutation!: () => void;
     const mutationGate = new Promise<void>((resolve) => {
       releaseMutation = resolve;
     });
@@ -205,7 +205,7 @@ describe('IntentRegistry', () => {
 
   test('an intent can back only one in-flight mutation', async () => {
     registry.signal({ id: 'single-commit', kind: 'create', position: { x: 0, y: 0 } });
-    let releaseMutation: (() => void) | null = null;
+    let releaseMutation!: () => void;
     const mutationGate = new Promise<void>((resolve) => {
       releaseMutation = resolve;
     });

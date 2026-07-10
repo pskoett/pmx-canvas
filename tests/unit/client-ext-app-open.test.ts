@@ -71,7 +71,7 @@ describe('ext-app open browser sync', () => {
             headers: { 'Content-Type': 'application/json' },
           }),
         );
-      }) satisfies typeof fetch,
+      }) as unknown as typeof fetch,
     });
   });
 

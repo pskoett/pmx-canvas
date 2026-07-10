@@ -411,7 +411,7 @@ describe('MCP composite tools (plan-006)', () => {
     );
     expect(viaComposite.ok).toBe(true);
     expect(typeof viaComposite.nodeId).toBe('string');
-    expect(viaComposite.id).toBe(viaComposite.nodeId);
+    expect(viaComposite.id).toBe(viaComposite.nodeId!);
     expect(viaComposite.resourceUri).toBe('ui://fixture/counter.html');
     expect(viaComposite.sessionId).toContain('mcp-app-session');
   }, 30000);
