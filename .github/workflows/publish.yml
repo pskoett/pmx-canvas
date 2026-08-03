@@ -63,12 +63,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          runs=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/test.yml/runs?head_sha=${GITHUB_SHA}&status=success" --jq '.total_count')
+          # GITHUB_SHA is the TAG OBJECT sha for annotated tags (the release
+          # convention), but Test runs are recorded against the commit sha —
+          # peel the tag to the commit before querying.
+          commit_sha=$(git rev-parse 'HEAD^{commit}')
+          runs=$(gh api "repos/${GITHUB_REPOSITORY}/actions/workflows/test.yml/runs?head_sha=${commit_sha}&status=success" --jq '.total_count')
           if [ "${runs}" = "0" ]; then
-            echo "::error::No successful Test workflow run for ${GITHUB_SHA}. Push to main and wait for CI before tagging (docs/RELEASE.md)."
+            echo "::error::No successful Test workflow run for ${commit_sha}. Push to main and wait for CI before tagging (docs/RELEASE.md)."
             exit 1
           fi
-          echo "Test workflow passed for ${GITHUB_SHA} (${runs} successful run(s))"
+          echo "Test workflow passed for ${commit_sha} (${runs} successful run(s))"
 
       - name: Build
         run: bun run build

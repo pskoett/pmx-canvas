@@ -315,7 +315,7 @@ pmx-canvas spatial
 - `group create|add|remove` — manage groups
 - `clear --yes` — destructive clear with explicit confirmation
 - `validate spec` — validate json-render specs and graph payloads without creating nodes
-- `web-artifact build` — build bundled React/Tailwind HTML artifacts; use `--deps` for extra packages and `--include-logs` only when raw logs are useful
+- `web-artifact build` — build bundled React/Tailwind HTML artifacts; use `--deps` for extra packages and `--include-logs` only when raw logs are useful. The build pipeline runs bash scripts (POSIX-only) — it is not supported on native Windows; already-built artifacts render everywhere
 - `external-app add --kind excalidraw` — create the hosted Excalidraw preset; response includes `id` and `nodeId` aliases for the same canvas node
 - `serve status|stop` — inspect and stop daemonized servers started with `serve --daemon`
 - `code-graph`, `spatial` — analysis commands

@@ -68,19 +68,26 @@ export class HttpOperationInvoker implements OperationInvoker {
     const response = await fetch(url, init);
     const text = await response.text();
     let parsed: unknown = null;
+    let parsedAsJson = false;
     if (text.length > 0) {
       try {
         parsed = JSON.parse(text) as unknown;
+        parsedAsJson = true;
       } catch {
         parsed = { error: text };
       }
     }
     if (!response.ok) {
-      if (route.errorBodyAsResult) return parsed;
+      // errorBodyAsResult carries the route's STRUCTURED partial-failure
+      // envelope (e.g. canvas_batch { ok:false, failedIndex, ... }) through as
+      // a result. A non-JSON error body (an HTML 502 from a proxy, a foreign
+      // service) is not that envelope — fall through to the throw path so the
+      // caller still fails loudly with a nonzero exit.
+      if (route.errorBodyAsResult && parsedAsJson) return parsed;
       const message =
-        parsed !== null && typeof parsed === 'object' && 'error' in parsed
+        parsedAsJson && parsed !== null && typeof parsed === 'object' && 'error' in parsed
           ? String((parsed as { error?: unknown }).error)
-          : `HTTP ${response.status}`;
+          : `HTTP ${response.status}${text.length > 0 ? `: ${text.slice(0, 200)}` : ''}`;
       throw new OperationError(message, toOperationErrorStatus(response.status));
     }
     return parsed;

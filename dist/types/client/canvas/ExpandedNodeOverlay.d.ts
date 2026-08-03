@@ -1,1 +1,1 @@
-export declare function ExpandedNodeOverlay(): import("preact/src").JSX.Element | null;
+export declare function ExpandedNodeOverlay(): import("preact/jsx-runtime").JSX.Element | null;

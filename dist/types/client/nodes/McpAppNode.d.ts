@@ -3,4 +3,4 @@ export declare function isSameOriginFrameDocumentUrl(url: string, origin?: strin
 export declare function McpAppNode({ node, expanded }: {
     node: CanvasNodeState;
     expanded?: boolean;
-}): import("preact/src").JSX.Element;
+}): import("preact/jsx-runtime").JSX.Element;

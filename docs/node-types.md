@@ -268,6 +268,11 @@ The scaffold includes `recharts`. Pass `--deps name,name2` for additional
 package dependencies. Failed or empty CLI bundles print `ok: false`, exit
 non-zero, and do not create a canvas node.
 
+Platform note: the artifact build pipeline runs through bundled bash scripts
+and requires a POSIX shell — it is not supported on native Windows yet.
+Already-built artifacts render fine on every platform; only the build step is
+POSIX-only.
+
 The matching agent skill is at
 [`skills/web-artifacts-builder/SKILL.md`](../skills/web-artifacts-builder/SKILL.md).
 

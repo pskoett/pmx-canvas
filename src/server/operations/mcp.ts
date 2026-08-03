@@ -11,7 +11,7 @@ import { z, type ZodRawShape, type ZodTypeAny } from 'zod';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { getOperation, listOperations } from './registry.js';
 import type { OperationInvoker } from './invoker.js';
-import { OperationError, type OperationMcpToolHost } from './types.js';
+import { OperationError, type Operation, type OperationMcpToolHost } from './types.js';
 import { compositeFoldedOpNames, compositeToolDefinitions, type CompositeToolDefinition } from './composites.js';
 
 export interface OperationToolHost extends OperationMcpToolHost {
@@ -177,6 +177,43 @@ function stripCompositeDiscriminators(
 }
 
 /**
+ * Per-op cache of the MCP arg names its extraShape marks REQUIRED (a schema
+ * that rejects `undefined`). These are the standalone tools' old contracts,
+ * which buildCompositeShape flattens to all-optional — the composite handler
+ * re-enforces them at dispatch so a missing required field fails loudly and
+ * names the field, instead of failing deep in the handler or silently
+ * no-oping (the `q`-vs-`query` zero-results trap from the 0.3.1 test report).
+ */
+const requiredFieldsCache = new WeakMap<object, string[]>();
+
+// Advertised input aliases that satisfy a required extraShape field: the op's
+// handler accepts either name, so the pre-dispatch check must too. (The only
+// such collision across all 15 composites — edges.ts advertises `edge_id` as a
+// legacy alias for `id` and its handler reads `edge_id ?? id`.)
+const REQUIRED_FIELD_ALIASES: Record<string, Record<string, readonly string[]>> = {
+  'edge.remove': { id: ['edge_id'] },
+};
+
+function requiredFieldSatisfied(opName: string, field: string, rest: Record<string, unknown>): boolean {
+  if (rest[field] !== undefined) return true;
+  const aliases = REQUIRED_FIELD_ALIASES[opName]?.[field] ?? [];
+  return aliases.some((alias) => rest[alias] !== undefined);
+}
+
+function requiredMcpFields(op: Operation): string[] {
+  const tool = op.mcp;
+  if (!tool?.extraShape) return [];
+  let keys = requiredFieldsCache.get(tool);
+  if (!keys) {
+    keys = Object.entries(tool.extraShape)
+      .filter(([, schema]) => !(schema as ZodTypeAny).safeParse(undefined).success)
+      .map(([key]) => key);
+    requiredFieldsCache.set(tool, keys);
+  }
+  return keys;
+}
+
+/**
  * Register composite (action-discriminated) MCP tools (plan-006). Each action
  * dispatches to a registered operation, reusing that op's `mcp.buildInput` and
  * `mcp.formatResult` so the composite action is byte-identical to the standalone
@@ -188,6 +225,12 @@ export function registerCompositeTools(
   definitions: CompositeToolDefinition[] = compositeToolDefinitions,
 ): void {
   for (const def of definitions) {
+    // Public composite name for each op field (inverse of fieldRemap), so
+    // required-field errors name the argument the agent actually sends.
+    const publicFieldName = new Map<string, string>();
+    for (const [publicKey, opField] of Object.entries(def.fieldRemap ?? {})) {
+      publicFieldName.set(opField, publicKey);
+    }
     server.tool(def.toolName, def.description, buildCompositeShape(def), async (input: Record<string, unknown>) => {
       try {
         const host = await getHost();
@@ -197,6 +240,13 @@ export function registerCompositeTools(
         // and undo any field remap; the rest is the op's raw MCP args — the same
         // value the standalone tool would receive.
         const rest = stripCompositeDiscriminators(def, input);
+        const missing = requiredMcpFields(op).filter((field) => !requiredFieldSatisfied(opName, field, rest));
+        if (missing.length > 0) {
+          const named = missing.map((field) => `"${publicFieldName.get(field) ?? field}"`).join(', ');
+          throw new OperationError(
+            `${def.toolName} action "${String(input.action)}" requires ${named}. Unknown parameters are ignored — check the argument names.`,
+          );
+        }
         const opInput = op.mcp?.buildInput ? op.mcp.buildInput(rest) : rest;
         const result = await host.invoker().invoke(opName, opInput);
         if (op.mcp?.formatResult) {

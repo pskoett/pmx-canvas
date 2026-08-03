@@ -8,6 +8,7 @@
  */
 
 import type { Spec } from '@json-render/core';
+import { AX_SURFACE_EMIT_SOURCE, HTML_SURFACE_PUSH_SOURCE } from '../../shared/ax-surface-protocol.js';
 import { useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { defineRegistry, JSONUIProvider, Renderer, useStateBinding } from '@json-render/react';
@@ -101,7 +102,7 @@ function AxStateSync() {
     if (!token) return undefined;
     function onMessage(event: MessageEvent) {
       const m = event.data as { source?: string; type?: string; token?: string; state?: unknown } | null;
-      if (!m || m.source !== 'pmx-canvas-html-node' || m.type !== 'ax-update' || m.token !== token) return;
+      if (!m || m.source !== HTML_SURFACE_PUSH_SOURCE || m.type !== 'ax-update' || m.token !== token) return;
       window.__PMX_CANVAS_AX_STATE__ = m.state;
       setAx(m.state);
     }
@@ -141,7 +142,7 @@ function buildAxHandlers(): Record<string, (params: Record<string, unknown>) => 
     handlers[type] = (params: Record<string, unknown>) => {
       window.parent.postMessage(
         {
-          source: 'pmx-canvas-ax',
+          source: AX_SURFACE_EMIT_SOURCE,
           token,
           nodeId,
           interaction: { type, payload: params && typeof params === 'object' ? params : {} },

@@ -2,10 +2,13 @@ import type { CallToolResult, ListToolsResult, RequestId, Tool } from '@modelcon
 import { ListToolsRequestSchema } from '@modelcontextprotocol/sdk/types.js';
 import { AppBridge, PostMessageTransport, buildAllowAttribute } from '@modelcontextprotocol/ext-apps/app-bridge';
 import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import {
+  AX_SURFACE_ACK_SOURCE,
+  AX_SURFACE_EMIT_SOURCE,
+  EXT_APP_BOOT_BEACON_SOURCE,
+} from '../../shared/ax-surface-protocol.js';
 import { extAppToolResultsMatch } from '../../shared/ext-app-tool-result.js';
 import { DEFAULT_EXT_APP_SANDBOX } from '../../shared/surface.js';
-import { submitAxInteractionFromClient } from '../state/intent-bridge';
-import { showToast } from '../state/attention-bridge';
 import {
   canvasTheme,
   collapseExpandedNode,
@@ -18,6 +21,7 @@ import {
 import type { CanvasNodeState } from '../types';
 import { AUTO_FIT_TITLEBAR_HEIGHT } from '../canvas/auto-fit';
 import { useIframeDocument } from './iframe-document-url';
+import { useAxSurfaceBridge } from './use-ax-surface-bridge';
 
 type McpUiTheme = 'light' | 'dark';
 
@@ -205,7 +209,7 @@ export function buildExtAppAxBridgeScript(axToken: string, nodeId: string): stri
       }, 10000);
       pending.set(correlationId, function (result) { clearTimeout(timer); resolve(result); });
       window.parent.postMessage({
-        source: 'pmx-canvas-ax',
+        source: '${AX_SURFACE_EMIT_SOURCE}',
         token: PMX_AX_TOKEN,
         nodeId: PMX_AX_NODE_ID,
         correlationId: correlationId,
@@ -218,7 +222,7 @@ export function buildExtAppAxBridgeScript(axToken: string, nodeId: string): stri
   };
   window.addEventListener('message', function (event) {
     const m = event.data;
-    if (!m || m.source !== 'pmx-canvas-ax-ack' || m.token !== PMX_AX_TOKEN) return;
+    if (!m || m.source !== '${AX_SURFACE_ACK_SOURCE}' || m.token !== PMX_AX_TOKEN) return;
     const result = m.result || { ok: false };
     const resolver = m.correlationId ? pending.get(m.correlationId) : undefined;
     if (resolver) { pending.delete(m.correlationId); resolver(result); }
@@ -245,7 +249,7 @@ export function buildExtAppAxBridgeScript(axToken: string, nodeId: string): stri
  */
 export function buildExtAppBootBeaconScript(frameToken: string, nodeId: string): string {
   return `<script data-pmx-canvas-boot-beacon>
-window.parent.postMessage({ source: 'pmx-canvas-ext-app-alive', token: ${JSON.stringify(frameToken)}, nodeId: ${JSON.stringify(nodeId)} }, '*');
+window.parent.postMessage({ source: '${EXT_APP_BOOT_BEACON_SOURCE}', token: ${JSON.stringify(frameToken)}, nodeId: ${JSON.stringify(nodeId)} }, '*');
 </script>`;
 }
 
@@ -363,7 +367,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     function onBootBeacon(event: MessageEvent) {
       if (event.source !== iframeRef.current?.contentWindow) return;
       const data = event.data as { source?: string; token?: string; nodeId?: string } | null;
-      if (!data || data.source !== 'pmx-canvas-ext-app-alive' || data.token !== axToken || data.nodeId !== nodeId)
+      if (!data || data.source !== EXT_APP_BOOT_BEACON_SOURCE || data.token !== axToken || data.nodeId !== nodeId)
         return;
       appScriptsRanRef.current = true;
     }
@@ -371,46 +375,8 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     return () => window.removeEventListener('message', onBootBeacon);
   }, [axToken, nodeId]);
 
-  useEffect(() => {
-    if (!axEnabled) return;
-    function onAxMessage(event: MessageEvent) {
-      if (event.source !== iframeRef.current?.contentWindow) return;
-      const data = event.data as {
-        source?: string;
-        token?: string;
-        nodeId?: string;
-        correlationId?: string;
-        interaction?: { type?: unknown; payload?: unknown };
-      } | null;
-      if (!data || data.source !== 'pmx-canvas-ax' || data.token !== axToken || data.nodeId !== nodeId) return;
-      const interaction = data.interaction;
-      if (!interaction || typeof interaction.type !== 'string') return;
-      const interactionType = interaction.type;
-      void submitAxInteractionFromClient({
-        type: interactionType,
-        sourceNodeId: nodeId,
-        sourceSurface: 'mcp-app',
-        ...(interaction.payload && typeof interaction.payload === 'object'
-          ? { payload: interaction.payload as Record<string, unknown> }
-          : {}),
-      }).then((res) => {
-        if (res.ok) showToast('context', 'AX interaction', interactionType, [nodeId]);
-        else showToast('remove', 'AX interaction rejected', res.error ?? res.code ?? '', [nodeId]);
-        iframeRef.current?.contentWindow?.postMessage(
-          {
-            source: 'pmx-canvas-ax-ack',
-            token: axToken,
-            ...(data.correlationId ? { correlationId: data.correlationId } : {}),
-            interaction: { type: interactionType },
-            result: res,
-          },
-          '*',
-        );
-      });
-    }
-    window.addEventListener('message', onAxMessage);
-    return () => window.removeEventListener('message', onAxMessage);
-  }, [axEnabled, axToken, nodeId]);
+  // Ext-app AX emits — the shared sandboxed-surface trust boundary (M2).
+  useAxSurfaceBridge({ enabled: axEnabled, token: axToken, nodeId, sourceSurface: 'mcp-app', iframeRef });
 
   // Enqueue one serialized remount attempt for this node (Finding F recovery).
   // Attempts are capped so a persistently-failing app degrades to the manual
@@ -439,6 +405,11 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
         // every scheduling path (post-boot repaint, boot watchdog, re-arm).
         bootedWhileHiddenRef.current = typeof document !== 'undefined' && document.visibilityState === 'hidden';
         extAppRecoveryLog(nodeId, `remount-run #${webkitRemountAttemptsRef.current}`);
+        // Back to 'loading' so the connecting overlay covers this recovery
+        // remount's boot window too (the fallback boot flipped status to
+        // ready/done even when the previous frame was dead — without this the
+        // overlay only ever covered the INITIAL boot, not recovery).
+        setStatus('loading');
         setRetryKey((k) => k + 1);
         return true;
       },
@@ -1112,7 +1083,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
             the multi-second recovery window reads as an intentional loading
             state instead of a broken black tile. pointer-events pass through
             so the expand click-catcher keeps working. */}
-        {status === 'loading' && (
+        {status === 'loading' && !error && (
           <div
             style={{
               position: 'absolute',

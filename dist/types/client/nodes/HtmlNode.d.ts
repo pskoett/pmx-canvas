@@ -6,4 +6,4 @@ export declare function HtmlNode({ node, expanded, presentation, presentationExi
     presentation?: boolean;
     presentationExitToken?: string;
     autoFocus?: boolean;
-}): import("preact/src").JSX.Element;
+}): import("preact/jsx-runtime").JSX.Element;

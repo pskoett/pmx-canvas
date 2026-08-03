@@ -167,5 +167,22 @@ jobs:
       - name: Install dependencies
         run: bun install --frozen-lockfile
 
+      - name: Resolve @playwright/test version
+        id: playwright-version
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      # The coverage script's browser-verification section launches Chromium;
+      # bun install does not download browsers (module presence != executable,
+      # LRN-20260603-001), so install it explicitly like the e2e job does.
+      - name: Install Playwright browser
+        timeout-minutes: 15
+        run: npx playwright install --with-deps chromium
+
       - name: CLI end-to-end coverage
         run: bun run test:e2e-cli

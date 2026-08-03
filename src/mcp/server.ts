@@ -175,53 +175,6 @@ function encodeBase64(bytes: Uint8Array): string {
   return Buffer.from(bytes).toString('base64');
 }
 
-function wantsFullPayload(input: { full?: boolean; verbose?: boolean; includeData?: boolean } = {}): boolean {
-  return input.full === true || input.verbose === true || input.includeData === true;
-}
-
-function compactNodePayload(node: Awaited<ReturnType<CanvasAccess['getNode']>>): Record<string, unknown> | null {
-  if (!node) return null;
-  const serialized = serializeCanvasNode(node);
-  return {
-    id: serialized.id,
-    type: serialized.type,
-    kind: serialized.kind,
-    title: serialized.title,
-    content: serialized.content,
-    position: serialized.position,
-    size: serialized.size,
-    pinned: serialized.pinned,
-    collapsed: serialized.collapsed,
-    dockPosition: serialized.dockPosition,
-    provenance: serialized.provenance,
-  };
-}
-
-function compactLayoutPayload(
-  layout: Awaited<ReturnType<CanvasAccess['getLayout']>>,
-  pinnedIds: string[],
-): Record<string, unknown> {
-  return {
-    summary: buildSummaryFromLayout(layout, pinnedIds),
-    viewport: layout.viewport,
-    annotations: (layout.annotations ?? []).map((annotation) =>
-      summarizeCanvasAnnotationForContext(annotation, layout.nodes),
-    ),
-    nodes: layout.nodes
-      .map((node) => compactNodePayload(node))
-      .filter((node): node is Record<string, unknown> => node !== null),
-    edges: layout.edges.map((edge) => ({
-      id: edge.id,
-      from: edge.from,
-      to: edge.to,
-      type: edge.type,
-      ...(edge.label ? { label: edge.label } : {}),
-      ...(edge.style ? { style: edge.style } : {}),
-      ...(edge.animated !== undefined ? { animated: edge.animated } : {}),
-    })),
-  };
-}
-
 function agentSafeFullLayoutPayload(layout: Awaited<ReturnType<CanvasAccess['getLayout']>>): Record<string, unknown> {
   return {
     ...serializeCanvasLayoutForAgent(layout),

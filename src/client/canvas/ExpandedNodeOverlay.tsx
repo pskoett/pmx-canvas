@@ -1,3 +1,4 @@
+import { HTML_SURFACE_PUSH_SOURCE } from '../../shared/ax-surface-protocol.js';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { ContextNode } from '../nodes/ContextNode';
 import { FileNode } from '../nodes/FileNode';
@@ -86,7 +87,7 @@ function isPresentationExitMessage(value: unknown, token: string): boolean {
   return (
     value !== null &&
     typeof value === 'object' &&
-    (value as { source?: unknown }).source === 'pmx-canvas-html-node' &&
+    (value as { source?: unknown }).source === HTML_SURFACE_PUSH_SOURCE &&
     (value as { type?: unknown }).type === 'presentation-exit' &&
     (value as { token?: unknown }).token === token
   );
@@ -134,7 +135,7 @@ export function ExpandedNodeOverlay() {
       );
       frame?.contentWindow?.postMessage(
         {
-          source: 'pmx-canvas-html-node',
+          source: HTML_SURFACE_PUSH_SOURCE,
           token: presentationExitToken,
           ...message,
         },

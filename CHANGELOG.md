@@ -3,7 +3,7 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.3.4] - 2026-08-03
 
 ### Added
 
@@ -18,6 +18,23 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - App tiles now show a spinner and a "Connecting to <app>..." overlay while an
   app frame boots or recovers, instead of a dark tile body (0.3.3 report: the
   transient black window during automatic recovery).
+- Composite tools now name the missing field when a required argument for the
+  chosen action is absent, instead of failing deep in the handler or silently
+  doing nothing.
+- A pending code-graph recompute timer no longer outlives its server across
+  start/stop cycles.
+
+### Changed
+
+- The sandboxed-surface AX bridge (the listener that validates and submits
+  iframe interactions) is now one shared implementation across html, app, and
+  viewer nodes, with the protocol tags defined in a single module. No behavior
+  change — this hardens a security boundary that was previously copy-pasted.
+- The CLI dispatches every canvas command through the operation registry's
+  HTTP invoker instead of hand-written request paths; success output is
+  unchanged. One failure-path improvement: a failed `pmx-canvas batch` now
+  prints the full result envelope (`ok:false`, `failedIndex`, partial
+  `results`, `refs`) on stdout and exits 1, instead of a bare stderr error.
 
 ### Docs
 
@@ -26,6 +43,10 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   `PMX_CANVAS_WEBVIEW_TIMEOUT_MS` can be raised for slow starts.
 - Skill evals: the two file-node eval prompts now reference the bundled
   fixture paths, so a literal eval run works in any workspace.
+- Web-artifact builds are documented as POSIX-only (the build pipeline runs
+  bash scripts); already-built artifacts render on every platform.
+- All `PMX_*` environment variables are documented in
+  [`docs/environment.md`](docs/environment.md).
 
 ## [0.3.3] - 2026-07-08
 
@@ -77,26 +98,11 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - File and image node titles on Windows now use the file name instead of the
   full backslash path.
 
-### Fixed
-
-- A pending code-graph recompute timer no longer outlives its server across
-  start/stop cycles.
-
-### Changed
-
-- The CLI dispatches every canvas command through the operation registry's
-  HTTP invoker instead of hand-written request paths; success output is
-  unchanged. One failure-path improvement: a failed `pmx-canvas batch` now
-  prints the full result envelope (`ok:false`, `failedIndex`, partial
-  `results`, `refs`) on stdout and exits 1, instead of a bare stderr error.
-
 ### Docs
 
 - The pmx-canvas skill documents the batch op support list, the
   WebView-before-screenshot requirement, the `query` (not `q`) search
   parameter, and the intent TTL + linked-settle pattern for agent turns.
-- All `PMX_*` environment variables are documented in
-  [`docs/environment.md`](docs/environment.md).
 
 ## [0.3.1] - 2026-07-07
 
@@ -2773,6 +2779,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.3.4]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.3.4
 [0.3.3]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.3.3
 [0.3.2]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.3.2
 [0.3.1]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.3.1

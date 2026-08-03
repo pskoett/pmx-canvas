@@ -96,15 +96,6 @@ export interface CompositeToolDefinition {
         action: string;
     }) => string | undefined;
     /**
-     * Two-discriminator extension: human-readable `(kind, action)` for a member op
-     * (the inverse of `resolveOp`), used to build that op's deprecation note. The
-     * `kind` field-collision is resolved here (see `gateFieldRemap`).
-     */
-    describeOp?: (opName: string) => {
-        kind: string;
-        action: string;
-    } | undefined;
-    /**
      * Field-name remap applied to the composite's advertised schema and undone at
      * dispatch. Resolves a collision between a discriminator name and a member-op
      * field of the same name (e.g. `ax.approval.request` has its own `action`

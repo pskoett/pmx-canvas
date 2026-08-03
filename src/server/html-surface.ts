@@ -15,6 +15,11 @@
  * postMessage required.
  */
 
+import {
+  AX_SURFACE_ACK_SOURCE,
+  AX_SURFACE_EMIT_SOURCE,
+  HTML_SURFACE_PUSH_SOURCE,
+} from '../shared/ax-surface-protocol.js';
 import { contentHeightReporterTag } from '../shared/content-height-reporter.js';
 
 export type SurfaceTheme = 'dark' | 'light' | 'high-contrast';
@@ -54,7 +59,7 @@ function buildThemeBridge(themeToken: string): string {
 const PMX_CANVAS_THEME_TOKEN = ${token};
 window.addEventListener('message', (event) => {
   const message = event.data;
-  if (!message || message.source !== 'pmx-canvas-html-node' || message.type !== 'theme-update' || message.token !== PMX_CANVAS_THEME_TOKEN) return;
+  if (!message || message.source !== '${HTML_SURFACE_PUSH_SOURCE}' || message.type !== 'theme-update' || message.token !== PMX_CANVAS_THEME_TOKEN) return;
   if (typeof message.theme !== 'string') return;
   document.documentElement.setAttribute('data-pmx-canvas-theme', message.theme);
   document.documentElement.setAttribute('data-theme', message.theme);
@@ -74,12 +79,12 @@ function buildPresentationEscapeBridge(exitToken: string): string {
 const PMX_CANVAS_PRESENTATION_EXIT_TOKEN = ${token};
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
-    window.parent.postMessage({ source: 'pmx-canvas-html-node', type: 'presentation-exit', token: PMX_CANVAS_PRESENTATION_EXIT_TOKEN }, '*');
+    window.parent.postMessage({ source: '${HTML_SURFACE_PUSH_SOURCE}', type: 'presentation-exit', token: PMX_CANVAS_PRESENTATION_EXIT_TOKEN }, '*');
   }
 }, true);
 window.addEventListener('message', (event) => {
   const message = event.data;
-  if (!message || message.source !== 'pmx-canvas-html-node' || message.type !== 'presentation-key' || message.token !== PMX_CANVAS_PRESENTATION_EXIT_TOKEN) return;
+  if (!message || message.source !== '${HTML_SURFACE_PUSH_SOURCE}' || message.type !== 'presentation-key' || message.token !== PMX_CANVAS_PRESENTATION_EXIT_TOKEN) return;
   if (typeof message.key !== 'string') return;
   if (typeof window.PMX_CANVAS_PRESENTATION_HANDLE_KEY === 'function') {
     window.PMX_CANVAS_PRESENTATION_HANDLE_KEY(message.key);
@@ -131,7 +136,7 @@ export function buildAxBridge(axToken: string, nodeId: string): string {
     seq += 1;
     const correlationId = PMX_AX_NODE_ID + '-' + seq + '-' + (Date.now ? Date.now() : 0);
     window.parent.postMessage({
-      source: 'pmx-canvas-ax',
+      source: '${AX_SURFACE_EMIT_SOURCE}',
       token: PMX_AX_TOKEN,
       nodeId: PMX_AX_NODE_ID,
       correlationId: correlationId,
@@ -152,7 +157,7 @@ export function buildAxBridge(axToken: string, nodeId: string): string {
   };
   window.addEventListener('message', function (event) {
     const m = event.data;
-    if (!m || m.source !== 'pmx-canvas-ax-ack' || m.token !== PMX_AX_TOKEN) return;
+    if (!m || m.source !== '${AX_SURFACE_ACK_SOURCE}' || m.token !== PMX_AX_TOKEN) return;
     const result = m.result || { ok: false };
     const resolver = m.correlationId ? pending.get(m.correlationId) : undefined;
     if (resolver) { pending.delete(m.correlationId); resolver(result); }
@@ -182,7 +187,7 @@ export function buildAxStateBridge(axToken: string, snapshotJson: string): strin
   window.PMX_AX.state = ${snapshotJson};
   window.addEventListener('message', function (event) {
     const m = event.data;
-    if (!m || m.source !== 'pmx-canvas-html-node' || m.type !== 'ax-update' || m.token !== PMX_AX_STATE_TOKEN) return;
+    if (!m || m.source !== '${HTML_SURFACE_PUSH_SOURCE}' || m.type !== 'ax-update' || m.token !== PMX_AX_STATE_TOKEN) return;
     window.PMX_AX.state = m.state;
     try { window.dispatchEvent(new CustomEvent('pmx-ax-update', { detail: m.state })); } catch (e) {}
   });

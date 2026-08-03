@@ -183,11 +183,12 @@ describe('MCP composite tools (plan-006)', () => {
     expect(missing.isError).toBe(true);
     expect(textOf(missing)).toContain('not found');
 
-    // An OMITTED id is a 400, not a misleading 404 — the composite widens `id` to
-    // optional (node.focus also contributes it), so the handler guards it.
+    // An OMITTED id fails at composite dispatch with the tool, action, and field
+    // named (M6 per-action required-field enforcement) — not a misleading 404 and
+    // not a deep handler error.
     const noId = await call(client, 'canvas_view', { action: 'remove-annotation' });
     expect(noId.isError).toBe(true);
-    expect(textOf(noId)).toContain('Missing id');
+    expect(textOf(noId)).toContain('requires "id"');
   }, 30000);
 
   test('canvas_render describe-schema/validate/add-graph', async () => {
@@ -252,6 +253,17 @@ describe('MCP composite tools (plan-006)', () => {
       await call(client, 'canvas_edge', { action: 'remove', id: edge.id }),
     );
     expect(removed.ok).toBe(true);
+
+    // The advertised legacy alias `edge_id` must satisfy the required-field
+    // check too (the handler reads edge_id ?? id) — it must dispatch, not be
+    // rejected pre-dispatch as missing "id".
+    const edge2 = parseJsonText<{ id?: string }>(
+      await call(client, 'canvas_edge', { action: 'add', from: a.id, to: b.id, type: 'flow' }),
+    );
+    const removedViaAlias = parseJsonText<{ ok?: boolean }>(
+      await call(client, 'canvas_edge', { action: 'remove', edge_id: edge2.id }),
+    );
+    expect(removedViaAlias.ok).toBe(true);
   }, 30000);
 
   test('canvas_group create/ungroup and canvas_view focus/fit/arrange', async () => {

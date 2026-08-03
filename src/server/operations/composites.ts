@@ -95,12 +95,6 @@ export interface CompositeToolDefinition {
    */
   resolveOp?: (input: { kind: string; action: string }) => string | undefined;
   /**
-   * Two-discriminator extension: human-readable `(kind, action)` for a member op
-   * (the inverse of `resolveOp`), used to build that op's deprecation note. The
-   * `kind` field-collision is resolved here (see `gateFieldRemap`).
-   */
-  describeOp?: (opName: string) => { kind: string; action: string } | undefined;
-  /**
    * Field-name remap applied to the composite's advertised schema and undone at
    * dispatch. Resolves a collision between a discriminator name and a member-op
    * field of the same name (e.g. `ax.approval.request` has its own `action`
@@ -131,7 +125,7 @@ function resolveGateOp(input: { kind: string; action: string }): string | undefi
   return undefined;
 }
 
-/** The 9 gate ops, in (kind, action) order — single source for memberOps + describeOp. */
+/** The 9 gate ops, in (kind, action) order — single source for memberOps. */
 const GATE_OPS: Array<{ op: string; kind: string; action: string }> = GATE_KINDS.flatMap((kind) =>
   GATE_ACTIONS.map((action) => {
     const op = resolveGateOp({ kind, action });
@@ -142,11 +136,6 @@ const GATE_OPS: Array<{ op: string; kind: string; action: string }> = GATE_KINDS
     return { op, kind, action };
   }),
 );
-
-function describeGateOp(opName: string): { kind: string; action: string } | undefined {
-  const match = GATE_OPS.find((entry) => entry.op === opName);
-  return match ? { kind: match.kind, action: match.action } : undefined;
-}
 
 export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
@@ -289,7 +278,6 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
     },
     memberOps: GATE_OPS.map((entry) => entry.op),
     resolveOp: resolveGateOp,
-    describeOp: describeGateOp,
     // ax.approval.request defines its own optional `action` field (a
     // machine-readable identifier the gate guards) — it collides with the gate
     // lifecycle `action` discriminator. Namespace it to `approvalAction` in the

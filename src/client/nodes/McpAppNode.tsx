@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useRef } from 'preact/hooks';
+import { HTML_SURFACE_PUSH_SOURCE } from '../../shared/ax-surface-protocol.js';
 import type { CanvasNodeState } from '../types';
 import { axSurfaceState, canvasTheme } from '../state/canvas-store';
 import { shouldContentFitIframeNode } from '../canvas/auto-fit';
-import { submitAxInteractionFromClient } from '../state/intent-bridge';
-import { showToast } from '../state/attention-bridge';
 import { ExtAppFrame } from './ExtAppFrame';
+import { useAxSurfaceBridge } from './use-ax-surface-bridge';
 import { useIframeContentHeight } from './use-iframe-content-height';
 
 function withViewerParams(
@@ -80,50 +80,15 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
   const frameToken = useMemo(() => (contentFit ? `frame-${crypto.randomUUID()}` : ''), [contentFit]);
   useIframeContentHeight(node, iframeRef, frameToken);
 
-  // Receive AX emits forwarded by the json-render viewer; validate (bound to this
-  // node's iframe + nonce + node id) and submit through the capability-gated
-  // endpoint, which re-validates server-side.
-  useEffect(() => {
-    if (!isAxViewer || !axToken) return;
-    function onAxMessage(event: MessageEvent) {
-      if (event.source !== iframeRef.current?.contentWindow) return;
-      const data = event.data as {
-        source?: string;
-        token?: string;
-        nodeId?: string;
-        correlationId?: string;
-        interaction?: { type?: unknown; payload?: unknown };
-      } | null;
-      if (!data || data.source !== 'pmx-canvas-ax' || data.token !== axToken || data.nodeId !== node.id) return;
-      const interaction = data.interaction;
-      if (!interaction || typeof interaction.type !== 'string') return;
-      const interactionType = interaction.type;
-      void submitAxInteractionFromClient({
-        type: interactionType,
-        sourceNodeId: node.id,
-        sourceSurface: axSurface,
-        ...(interaction.payload && typeof interaction.payload === 'object'
-          ? { payload: interaction.payload as Record<string, unknown> }
-          : {}),
-      }).then((res) => {
-        if (res.ok) showToast('context', 'AX interaction', interactionType, [node.id]);
-        else showToast('remove', 'AX interaction rejected', res.error ?? res.code ?? '', [node.id]);
-        // Report #55: ack back to the viewer so the surface can self-confirm.
-        iframeRef.current?.contentWindow?.postMessage(
-          {
-            source: 'pmx-canvas-ax-ack',
-            token: axToken,
-            ...(data.correlationId ? { correlationId: data.correlationId } : {}),
-            interaction: { type: interactionType },
-            result: res,
-          },
-          '*',
-        );
-      });
-    }
-    window.addEventListener('message', onAxMessage);
-    return () => window.removeEventListener('message', onAxMessage);
-  }, [isAxViewer, axToken, node.id]);
+  // AX emits forwarded by the json-render viewer — the shared sandboxed-surface
+  // trust boundary (M2).
+  useAxSurfaceBridge({
+    enabled: isAxViewer && Boolean(axToken),
+    token: axToken,
+    nodeId: node.id,
+    sourceSurface: axSurface,
+    iframeRef,
+  });
 
   // Read-side: push live AX state into the json-render viewer so a spec bound to
   // /ax reflects the work queue. Validated by the viewer against axToken.
@@ -132,7 +97,7 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
     if (!isAxViewer || !axToken || axStateValue == null) return;
     iframeRef.current?.contentWindow?.postMessage(
       {
-        source: 'pmx-canvas-html-node',
+        source: HTML_SURFACE_PUSH_SOURCE,
         type: 'ax-update',
         token: axToken,
         state: axStateValue,
