@@ -2715,6 +2715,16 @@ test('theme selection persists for fresh browser sessions', async ({ page, reque
   await thirdPage.goto('/workbench');
   await expect(thirdPage.locator('html')).toHaveAttribute('data-theme', 'dark');
   await thirdPage.close();
+
+  // A NEW named theme must survive the same round-trip: the client whitelist
+  // once hardcoded the original three, silently resetting new themes to dark
+  // on reload while the server kept reporting the saved name.
+  await selectTheme(page, 'Ember');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'ember');
+  const fourthPage = await context.newPage();
+  await fourthPage.goto('/workbench');
+  await expect(fourthPage.locator('html')).toHaveAttribute('data-theme', 'ember');
+  await fourthPage.close();
 });
 
 test('server-side focus updates the browser viewport', async ({ page, request }) => {

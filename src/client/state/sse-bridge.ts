@@ -31,6 +31,7 @@ import { invalidateTokenCache } from '../theme/tokens';
 import { resetAttentionBridge, syncAttentionFromSse } from './attention-bridge';
 import { dissolveIntent, resetIntents, settleIntent, upsertIntent } from './intent-store';
 import type { PmxAxIntent } from '../../shared/ax-intent.js';
+import { isCanvasTheme } from '../../shared/themes.js';
 
 let eventSource: EventSource | null = null;
 let savedLayout: Map<string, Partial<CanvasNodeState>> | null = null;
@@ -275,8 +276,10 @@ function ensureLedgerNode(summary: Record<string, unknown>): void {
 }
 
 function applyCanvasTheme(theme: string): void {
-  const valid = theme === 'dark' || theme === 'light' || theme === 'high-contrast';
-  if (!valid) return;
+  // Registry-driven: this is the ONLY path a server-side theme reaches the
+  // browser (connected snapshot + theme-changed events) — a hardcoded subset
+  // here silently drops themes on reload and breaks cross-tab sync.
+  if (!isCanvasTheme(theme)) return;
   document.documentElement.setAttribute('data-theme', theme);
   invalidateTokenCache();
   if (canvasTheme.value !== theme) canvasTheme.value = theme;

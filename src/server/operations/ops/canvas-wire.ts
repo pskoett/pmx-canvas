@@ -28,7 +28,12 @@ const themeGetOperation = defineOperation<z.infer<typeof emptySchema>, Record<st
 });
 
 const themeSetShape = {
-  theme: z.unknown().optional().describe('Theme: dark, light, or high-contrast'),
+  theme: z
+    .unknown()
+    .optional()
+    .describe(
+      'Theme name from the canvas theme registry (e.g. dark, light, high-contrast, midnight, sepia, arctic, ember, forest)',
+    ),
 };
 const themeSetSchema = z.looseObject(themeSetShape);
 

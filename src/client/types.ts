@@ -1,3 +1,5 @@
+import type { CanvasThemeName } from '../shared/themes.js';
+
 export interface ViewportState {
   x: number;
   y: number;
@@ -108,7 +110,7 @@ export function isExcalidrawNode(node: CanvasNodeState): boolean {
 
 export interface CanvasLayout {
   viewport: ViewportState;
-  theme?: 'dark' | 'light' | 'high-contrast';
+  theme?: CanvasThemeName;
   nodes: CanvasNodeState[];
   edges: CanvasEdge[];
   annotations?: CanvasAnnotation[];
