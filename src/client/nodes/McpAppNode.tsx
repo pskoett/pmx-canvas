@@ -6,6 +6,7 @@ import { shouldContentFitIframeNode } from '../canvas/auto-fit';
 import { ExtAppFrame } from './ExtAppFrame';
 import { useAxSurfaceBridge } from './use-ax-surface-bridge';
 import { useIframeContentHeight } from './use-iframe-content-height';
+import { useSurfaceFrame } from './use-surface-frame';
 
 function withViewerParams(
   url: string,
@@ -117,6 +118,9 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
     frameToken || undefined,
     contentFit,
   );
+  // src vs fetch()+srcdoc, decided by the boot-wide embed probe (Amp portals).
+  // External viewer URLs always stay src — the hook passes them through.
+  const surfaceFrame = useSurfaceFrame(url);
   const sourceServer = (node.data.sourceServer as string) || '';
   const hostMode = (node.data.hostMode as string) || 'hosted';
   const fallbackReason = node.data.fallbackReason as string | undefined;
@@ -174,7 +178,7 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
           app/host RPC and broader capabilities. */}
       <iframe
         ref={iframeRef}
-        src={url}
+        {...surfaceFrame}
         class="mcp-app-frame"
         sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
         allow="clipboard-read; clipboard-write"

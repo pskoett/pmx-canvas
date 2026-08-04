@@ -128,12 +128,18 @@ it uses `NPM_TOKEN` directly.
 
 Every release since 0.3.0 has been retested against **stale** skill mirrors:
 consumer workspaces (e.g. `personalclaude`) carry copies of the pmx-canvas
-skill under `.github/`, `.codex/`, `.claude/`, and `.agents/`, and testers
+skills under `.github/`, `.codex/`, `.claude/`, and `.agents/`, and testers
 repeatedly had to sync them mid-cycle before results were trustworthy. After
 publishing, update the installed package in the consumer workspace and re-sync
-its four mirrors from
-`<global npm root>/pmx-canvas/skills/pmx-canvas/` so the first test pass runs
-against the released skill, not the previous version's guidance.
+its four mirrors from `<global npm root>/pmx-canvas/skills/` so the first test
+pass runs against the released skills, not the previous version's guidance.
+
+Sync the **complete tree of every bundled skill** — `pmx-canvas` AND
+`pmx-canvas-testing`, including `references/`, `evals/`, and fixtures — and
+verify by diffing whole directories, not by comparing the `SKILL.md` hash
+alone. The 0.3.4 and 0.4.0 cycles both hit drift where `SKILL.md` matched but
+references/evals were stale, or a newly bundled skill was missing from the
+mirrors entirely.
 
 ## GitHub release
 

@@ -345,6 +345,28 @@ produces no event within 3 seconds of connecting, it switches to polling.
 Force a transport with `/workbench?transport=poll` (or `transport=sse` to
 disable the fallback).
 
+## Iframe embed probe (nested-iframe hosts)
+
+Some hosts embed the canvas page itself inside an iframe (the Amp orb portal
+does), and Chrome then refuses to load child iframes from `src` URLs — even
+same-origin ones — so iframe-backed nodes would show a broken placeholder.
+When (and only when) the canvas page detects it is embedded, it probes the
+real behavior at boot by loading a hidden iframe against:
+
+```bash
+curl http://localhost:4313/api/canvas/iframe-probe
+```
+
+If that iframe never loads, the client switches every same-origin surface
+(HTML nodes, graph/json-render viewers, frame documents) to `fetch()` +
+`srcdoc` inline rendering. External app URLs stay on `src` — they cannot be
+fetched cross-origin. Force a mode with `/workbench?iframe-mode=srcdoc` (or
+`iframe-mode=src`).
+
+`/api/canvas/frame-documents/:id` also answers `HEAD`, which the browser uses
+after every reconnect to detect frame documents lost to a server restart and
+re-mint them automatically (Finding S).
+
 ## Time travel
 
 ```bash

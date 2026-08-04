@@ -144,10 +144,15 @@ surfaces (the core never imports a host SDK).
   built-in browser pane alongside the PMX MCP server, same zero-adapter recipe
   as Codex: open `http://localhost:4313/workbench` in the app's browser and the
   live board, pins, and Ghost Cursor all work in-panel.
-- **Amp orb portals** (and other buffering proxies) — the canvas detects when
-  the live event stream is being buffered by the proxy and automatically
-  switches to a polling transport, so the board boots and stays live through
-  the portal with no proxy shims (`/workbench?transport=poll` forces it).
+- **Amp orb portals** (and other buffering proxies / nested-iframe embeds) —
+  the canvas detects when the live event stream is being buffered by the proxy
+  and automatically switches to a polling transport, so the board boots and
+  stays live through the portal with no proxy shims
+  (`/workbench?transport=poll` forces it). It also detects when the nested
+  iframe embed blocks `src`-URL iframes entirely and renders HTML, graph,
+  json-render, and app surfaces inline via `srcdoc` instead
+  (`?iframe-mode=srcdoc` forces it), so iframe-backed nodes work in the portal
+  too.
 
 The contract is host-agnostic, so a new host plugs in the same way: map its
 hooks, canvas, and session APIs onto PMX's AX primitives — no core changes.

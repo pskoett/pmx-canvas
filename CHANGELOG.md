@@ -3,6 +3,28 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Iframe-backed nodes (HTML, graph, json-render, MCP apps) now render inside
+  nested-iframe hosts like Amp orb portals: the canvas probes at boot whether
+  the embedding context loads iframe `src` URLs at all, and falls back to
+  fetching same-origin surfaces and rendering them inline via `srcdoc` when it
+  does not. Force a mode with `/workbench?iframe-mode=srcdoc` (or `=src`).
+
+### Fixed
+
+- Ext-app nodes now survive a daemon restart without a full panel reload
+  (Finding S): the browser revalidates its frame-document URLs on every
+  reconnect and automatically re-mints them against the new server process
+  when they have gone stale.
+- Best-effort mitigation for residual black ext-app tiles in WebKit host
+  panels (Finding N): after an app finishes booting, the canvas briefly nudges
+  the iframe's layout size so WebKit must re-rasterize the frame — the same
+  mechanism as the manual enlarge-then-close unstick, without the reload. The
+  nudge is recorded as `repaint-nudge` in the ext-app recovery trail.
+
 ## [0.4.0] - 2026-08-04
 
 ### Breaking

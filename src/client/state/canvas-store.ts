@@ -22,6 +22,11 @@ export const edges = signal<Map<string, CanvasEdge>>(new Map());
 export const annotations = signal<Map<string, CanvasAnnotation>>(new Map());
 export const activeNodeId = signal<string | null>(null);
 export const connectionStatus = signal<ConnectionStatus>('connecting');
+// Bumped on every processed `connected` frame (SSE reconnects and poll snapshot
+// resets alike). Consumers holding server-minted URLs revalidate on change —
+// a server restart invalidates in-memory resources like frame documents
+// (Finding S) while the browser keeps the stale URLs alive.
+export const workbenchConnectionEpoch = signal<number>(0);
 export const sessionId = signal<string>('');
 export const traceEnabled = signal<boolean>(false);
 export const canvasTheme = signal<string>('dark');

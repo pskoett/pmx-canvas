@@ -1139,6 +1139,20 @@ function handleFrameDocument(pathname: string): Response {
   });
 }
 
+// Tiny always-200 document the client loads in a hidden iframe at boot to learn
+// whether this embedding context loads iframes from src URLs at all — nested
+// iframe hosts like the Amp orb portal block them, and the client then falls
+// back to fetch() + srcdoc surfaces (see src/client/state/iframe-mode.ts).
+function handleIframeProbe(): Response {
+  return new Response('<!doctype html><title>pmx-canvas iframe probe</title>', {
+    headers: {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-store',
+      'Content-Security-Policy': 'sandbox allow-scripts',
+    },
+  });
+}
+
 // ── Ext-app recovery diagnostics (0.3.2 report Finding N) ──────
 //
 // The WebKit black-tile recovery trail is otherwise trapped inside host panels
@@ -3011,8 +3025,17 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             return handleCreateFrameDocument(req);
           }
 
-          if (url.pathname.startsWith('/api/canvas/frame-documents/') && req.method === 'GET') {
+          // HEAD lets clients revalidate a minted frame URL after reconnect
+          // (Finding S) without downloading the whole document.
+          if (
+            url.pathname.startsWith('/api/canvas/frame-documents/') &&
+            (req.method === 'GET' || req.method === 'HEAD')
+          ) {
             return handleFrameDocument(url.pathname);
+          }
+
+          if (url.pathname === '/api/canvas/iframe-probe' && (req.method === 'GET' || req.method === 'HEAD')) {
+            return handleIframeProbe();
           }
 
           if (url.pathname.startsWith('/api/canvas/surface/') && (req.method === 'GET' || req.method === 'HEAD')) {

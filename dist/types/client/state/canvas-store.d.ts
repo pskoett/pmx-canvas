@@ -5,6 +5,7 @@ export declare const edges: import("@preact/signals-core").Signal<Map<string, Ca
 export declare const annotations: import("@preact/signals-core").Signal<Map<string, CanvasAnnotation>>;
 export declare const activeNodeId: import("@preact/signals-core").Signal<string | null>;
 export declare const connectionStatus: import("@preact/signals-core").Signal<ConnectionStatus>;
+export declare const workbenchConnectionEpoch: import("@preact/signals-core").Signal<number>;
 export declare const sessionId: import("@preact/signals-core").Signal<string>;
 export declare const traceEnabled: import("@preact/signals-core").Signal<boolean>;
 export declare const canvasTheme: import("@preact/signals-core").Signal<string>;

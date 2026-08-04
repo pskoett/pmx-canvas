@@ -428,6 +428,23 @@ describe('canvas server HTTP API', () => {
     expect(await response.text()).toContain('Frame document fixture');
   });
 
+  test('frame documents answer HEAD so clients can revalidate after reconnect (Finding S)', async () => {
+    const created = await jsonRequest<{ ok: boolean; url: string }>('/api/canvas/frame-documents', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ html: '<!doctype html><main>Revalidate fixture</main>' }),
+    });
+    expect(created.ok).toBe(true);
+
+    const alive = await fetch(`${baseUrl}${created.url}`, { method: 'HEAD' });
+    expect(alive.status).toBe(200);
+
+    // A restarted daemon has an empty in-memory frame store — stale URLs 404,
+    // which is the client's signal to re-mint the document.
+    const gone = await fetch(`${baseUrl}/api/canvas/frame-documents/definitely-gone`, { method: 'HEAD' });
+    expect(gone.status).toBe(404);
+  });
+
   test('supports node CRUD, markdown rendering, and search', async () => {
     const render = await jsonRequest<{ html: string }>('/api/render', {
       method: 'POST',
@@ -1380,6 +1397,18 @@ describe('canvas server HTTP API', () => {
       surfaceUrl?: string;
     };
     expect(meta.surfaceUrl).toBe('/api/canvas/surface/surface-html');
+  });
+
+  test('iframe-probe endpoint serves the tiny embed-detection document', async () => {
+    // The client boots a hidden iframe against this URL to learn whether the
+    // embedding context loads src-URL iframes at all (Amp orb portals block
+    // them); it must always be a small 200 html document, never cached.
+    const res = await fetch(`${baseUrl}/api/canvas/iframe-probe`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    expect(res.headers.get('cache-control')).toBe('no-store');
+    expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts');
+    expect(await res.text()).toContain('pmx-canvas iframe probe');
   });
 
   test('surface route falls back to the node id for the tab title when no node title is set', async () => {

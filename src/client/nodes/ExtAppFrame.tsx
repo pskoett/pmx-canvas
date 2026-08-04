@@ -579,6 +579,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     if (!iframe) return;
     let disposed = false;
     let fallbackTimer: ReturnType<typeof setTimeout> | null = null;
+    let repaintNudgeTimer: ReturnType<typeof setTimeout> | null = null;
     let hostContextResizeObserver: ResizeObserver | null = null;
     let hostContextRaf: number | null = null;
     let readyNudgeRaf: number | null = null;
@@ -652,6 +653,32 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
             void bridge.sendHostContextChange?.(buildHostContext());
           });
         });
+      };
+
+      // Finding N best-effort: WKWebView can keep compositing a stale (black)
+      // texture for the doubly-nested app iframe even after a genuine settled
+      // boot — the user-proven unstick is enlarge+close, i.e. a layout-size
+      // change. Mimic the cheap half of that after the scene draw: bounce the
+      // iframe's height by 1px for two frames so WebKit must re-rasterize the
+      // layer. No reload, no app state loss; a healthy frame repaints
+      // identically. Scheduled past the remount queue's settle pause so it
+      // lands after the app has actually drawn.
+      const scheduleWebkitRepaintNudge = () => {
+        if (!isWebKitOnlyHost(navigator.userAgent)) return;
+        if (repaintNudgeTimer) clearTimeout(repaintNudgeTimer);
+        repaintNudgeTimer = setTimeout(() => {
+          repaintNudgeTimer = null;
+          const frame = iframeRef.current;
+          if (disposed || !frame) return;
+          const previous = frame.style.height;
+          frame.style.height = 'calc(100% - 1px)';
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => {
+              frame.style.height = previous;
+              extAppRecoveryLog(nodeId, 'repaint-nudge');
+            });
+          });
+        }, WEBKIT_REMOUNT_SETTLE_MS + 200);
       };
 
       const bridge = new AppBridge(
@@ -805,6 +832,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
             extAppRecoveryLog(nodeId, 'settled');
             for (const waiter of bootWaitersRef.current.splice(0)) waiter();
             nudgeHostContextAfterLayout();
+            scheduleWebkitRepaintNudge();
           })
           .catch((err) => {
             const msg = err instanceof Error ? err.message : String(err);
@@ -831,6 +859,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
             setStatus(bootstrapToolResult ? 'done' : 'ready');
             setError(null);
             nudgeHostContextAfterLayout();
+            scheduleWebkitRepaintNudge();
           })
           .catch((err) => {
             const msg = err instanceof Error ? err.message : String(err);
@@ -878,6 +907,10 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     return () => {
       disposed = true;
       clearFallbackTimer();
+      if (repaintNudgeTimer) {
+        clearTimeout(repaintNudgeTimer);
+        repaintNudgeTimer = null;
+      }
       hostContextResizeObserver?.disconnect();
       hostContextResizeObserver = null;
       if (hostContextRaf !== null) {

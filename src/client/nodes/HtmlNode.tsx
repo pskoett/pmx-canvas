@@ -5,6 +5,7 @@ import type { CanvasNodeState } from '../types';
 import { nodeSurfaceUrl, surfaceContentHash } from './surface-url';
 import { useAxSurfaceBridge } from './use-ax-surface-bridge';
 import { useIframeContentHeight } from './use-iframe-content-height';
+import { useSurfaceFrame } from './use-surface-frame';
 
 export function shouldShowPresentationControls(node: CanvasNodeState): boolean {
   return node.type === 'html' && node.data.presentation === true;
@@ -59,6 +60,9 @@ export function HtmlNode({
         : '',
     [html, presentation, presentationExitToken, themeToken, v, node.id, axToken, frameToken],
   );
+
+  // src vs fetch()+srcdoc, decided by the boot-wide embed probe (Amp portals).
+  const surfaceFrame = useSurfaceFrame(surfaceSrc);
 
   // Grow the node to fit the surface's reported content height (grow-only, gated).
   // Never in the expanded overlay — there the surface fills the large overlay frame.
@@ -149,7 +153,7 @@ export function HtmlNode({
       class={presentation ? 'html-node-frame html-node-frame-presentation' : 'html-node-frame'}
       title={typeof node.data.title === 'string' ? node.data.title : 'HTML node'}
       sandbox="allow-scripts"
-      src={surfaceSrc}
+      {...surfaceFrame}
       tabIndex={autoFocus ? 0 : undefined}
       onLoad={handleFrameLoad}
       style={{

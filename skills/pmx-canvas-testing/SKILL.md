@@ -71,6 +71,9 @@ Prefer extending the existing suites before inventing a one-off script.
 - Avoid brittle selectors. Prefer stable text, roles, titles, or deliberate component hooks
 - If a change spans server and client, add at least one server-side assertion and one browser or
   API-level proof
+- MCP harnesses using the official SDK must wind down BOTH halves: call `client.close()` AND
+  `transport.close()` on the `StdioClientTransport`. Closing only the client leaves the spawned
+  stdio server process alive after the test exits (0.4.0 cycle finding)
 
 ## Layout And Embedded Content Checks
 

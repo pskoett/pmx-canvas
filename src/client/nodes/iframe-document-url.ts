@@ -1,4 +1,7 @@
-import { useEffect, useMemo, useState } from 'preact/hooks';
+import { useEffect, useMemo, useRef, useState } from 'preact/hooks';
+import { workbenchConnectionEpoch } from '../state/canvas-store';
+import { iframeMode } from '../state/iframe-mode';
+import { surfaceContentHash } from './surface-url';
 
 interface FrameDocumentCreateResponse {
   ok: boolean;
@@ -37,13 +40,20 @@ export async function createIframeDocumentUrl(html: string, sandbox: string): Pr
 export function useIframeDocument(
   html: string,
   sandbox: string,
-): { attributes: { src?: string }; ready: boolean; key: string } {
+): { attributes: { src?: string; srcdoc?: string }; ready: boolean; key: string } {
+  // Boot-wide embed probe (state/iframe-mode.ts): srcdoc mode means src-URL
+  // iframes are blocked here (nested-iframe hosts like Amp orb portals), so the
+  // frame-documents round-trip would produce a URL the browser refuses to load.
+  const mode = iframeMode.value;
   const [src, setSrc] = useState<string | null>(null);
+  const [remintNonce, setRemintNonce] = useState(0);
+  const mintEpochRef = useRef(0);
 
   useEffect(() => {
     setSrc(null);
-    if (!html) return;
+    if (!html || mode !== 'src') return;
     let cancelled = false;
+    mintEpochRef.current = workbenchConnectionEpoch.value;
     void createIframeDocumentUrl(html, sandbox)
       .then((url) => {
         if (!cancelled) setSrc(url);
@@ -54,14 +64,49 @@ export function useIframeDocument(
     return () => {
       cancelled = true;
     };
-  }, [html, sandbox]);
+  }, [html, sandbox, mode, remintNonce]);
 
-  return useMemo(
-    () => ({
+  // Finding S: frame documents live in server memory, so a daemon restart turns
+  // this mount's URL into a 404 while the panel keeps showing the dead frame.
+  // Every reconnect frame (SSE reconnect or poll snapshot reset) revalidates the
+  // minted URL and re-mints a fresh document when the server no longer has it —
+  // no full workbench reload required.
+  const epoch = workbenchConnectionEpoch.value;
+  useEffect(() => {
+    if (!src || mode !== 'src' || epoch === mintEpochRef.current) return;
+    let cancelled = false;
+    void fetch(src, { method: 'HEAD' })
+      .then((res) => {
+        if (cancelled) return;
+        if (res.ok) {
+          mintEpochRef.current = epoch;
+          return;
+        }
+        setRemintNonce((n) => n + 1);
+      })
+      .catch(() => {
+        // Transient network failure — the next reconnect epoch retries.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [epoch, src, mode]);
+
+  return useMemo(() => {
+    if (mode === 'srcdoc' && html) {
+      // The document already lives client-side, so serve it inline. Consumers
+      // always render the iframe `sandbox` attribute, which supplies the
+      // sandboxing the frame-document CSP header would have.
+      return {
+        attributes: { srcdoc: html },
+        ready: true,
+        key: `srcdoc-${surfaceContentHash(html)}`,
+      };
+    }
+    return {
       attributes: src ? { src } : {},
       ready: Boolean(src),
       key: src ?? '',
-    }),
-    [src],
-  );
+    };
+  }, [src, mode, html]);
 }

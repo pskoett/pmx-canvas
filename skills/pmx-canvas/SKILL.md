@@ -223,12 +223,20 @@ Prefer `canvas_query { action: "search" }` over parsing the full layout.
   time), with a watchdog retry for iframes that never boot and a re-arm when a panel that loaded
   hidden becomes visible. Treat the auto-recovery as best-effort, NOT guaranteed — the 0.3.2
   Copilot-host report shows tiles can still come up black in real WKWebView panels (compositing
-  success is not observable from page JS, so retries are bounded). Keep the cautionary behavior:
+  success is not observable from page JS, so retries are bounded). Since 0.4.1 the canvas also
+  fires a post-boot **repaint nudge** under WebKit (a 1px layout bounce that forces the
+  compositor to re-rasterize the frame — the cheap half of the proven enlarge-close unstick;
+  shows as `repaint-nudge` in the recovery trail). Keep the cautionary behavior anyway:
   recovery is deterministic via **expand-then-close** of the black tile (forces a fresh mount in
   the fullscreen overlay, which always paints), or open the workbench in a normal browser
   (Chrome). Do not diagnose a healthy app session as a broken node. When reporting a black tile,
   fetch `GET /api/canvas/debug/ext-app-recovery` from the daemon and attach the trace — it shows
   what the recovery queue actually did in that panel.
+- Ext-app frame documents live in server memory. Through 0.4.0, killing/restarting the daemon
+  while a panel stays open leaves ext-app tiles on dead frame URLs (`Frame document not found`,
+  0.4.0 report Finding S) until a full workbench reload. Since 0.4.1 the browser revalidates its
+  frame documents on every reconnect and re-mints them against the new process automatically —
+  if a post-restart tile still looks blank on an older install, reload the workbench page.
 - A hosted ext-app (Excalidraw) resized NARROW/TALL (e.g. 360x529) can show its diagram in the
   upper region with the app's own dark fill below it — in every engine (0.3.4 report Finding Q).
   This letterboxing lives inside the hosted app bundle's root container, not in PMX (a body-level
@@ -238,10 +246,18 @@ Prefer `canvas_query { action: "search" }` over parsing the full layout.
 - Behind proxies that buffer streaming responses (e.g. portal hosts), the workbench auto-falls
   back from SSE to a polling transport within ~3s, so the board still boots and stays live.
   Force a mode with `/workbench?transport=poll` (or `transport=sse`) when diagnosing.
+- Nested-iframe embeds (e.g. the Amp orb portal renders the canvas page inside an ampcode.com
+  iframe) can block child iframes from loading ANY `src` URL, breaking every iframe-backed node
+  with a gray placeholder. The canvas probes this at boot and auto-falls back to fetching
+  same-origin surfaces and rendering them inline via `srcdoc` (HTML, graph, json-render, frame
+  documents). External app URLs cannot be inlined (cross-origin) and may stay blocked in such
+  hosts. Force a mode with `/workbench?iframe-mode=srcdoc` (or `iframe-mode=src`) when
+  diagnosing.
 - Graph and json-render standalone surfaces use `display=site` and fill the browser viewport, and
-  reflow on a live window resize in a normal browser. Some single-tab host browsers (e.g. the
-  Codex in-app browser) don't deliver live-resize events, so a resized standalone chart can look
-  stale until reload — use a system browser for separate full-page viewing.
+  reflow on a live window resize in a normal browser. Some single-tab host browsers historically
+  didn't deliver live-resize events (current Codex builds do — the 0.4.0 retest saw a standalone
+  graph reflow on a native viewport resize), so if a resized standalone chart looks stale,
+  reload it or use a system browser for separate full-page viewing.
 - Some hosts cannot automate inside sandboxed workbench iframes. Verify those interactions in a
   system browser or through server-side AX state.
 - `pmx-canvas screenshot` requires an active WebView. Start it with

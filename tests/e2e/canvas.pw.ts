@@ -1663,7 +1663,26 @@ test('MCP App node resize corner stays above iframe preview overlays', async ({ 
   );
   if (!initialNode) throw new Error('Resize Handle App node missing from canvas state.');
 
-  const box = await appNode.boundingBox();
+  // The app-open flow pans/fits the viewport; under full-suite load that
+  // animation can still be in flight here, leaving these coordinates stale by
+  // mouse-down time (the pointer then misses the resize handle entirely).
+  // Interact only once the node's box has held still across two reads.
+  let settledBox = await appNode.boundingBox();
+  await expect
+    .poll(async () => {
+      const next = await appNode.boundingBox();
+      const stable =
+        !!settledBox &&
+        !!next &&
+        Math.abs(next.x - settledBox.x) < 0.5 &&
+        Math.abs(next.y - settledBox.y) < 0.5 &&
+        Math.abs(next.width - settledBox.width) < 0.5 &&
+        Math.abs(next.height - settledBox.height) < 0.5;
+      settledBox = next;
+      return stable;
+    })
+    .toBe(true);
+  const box = settledBox;
   if (!box) throw new Error('Resize Handle App node is not visible.');
   await page.mouse.move(box.x + box.width - 8, box.y + box.height - 8);
   await page.mouse.down();
@@ -2888,4 +2907,56 @@ test('polling transport boots the board and receives live updates (proxy-safe fa
     data: { type: 'markdown', title: 'Poll Live Node', content: 'via incremental poll', x: 80, y: 320 },
   });
   await expect(page.locator('.canvas-node').filter({ hasText: 'Poll Live Node' })).toBeVisible({ timeout: 10000 });
+});
+
+test('srcdoc iframe mode renders same-origin surfaces inline (nested-embed fallback)', async ({ page, request }) => {
+  // Nested-iframe hosts (the Amp orb portal embeds the canvas page inside an
+  // ampcode.com iframe) block child iframes from loading ANY src URL — even
+  // same-origin ones — so iframe-backed nodes show a gray placeholder there.
+  // ?iframe-mode=srcdoc forces the fallback the boot probe selects in that
+  // context: surfaces are fetch()ed and rendered inline via srcdoc. This test
+  // proves the whole inline transport — html surface AND the json-render
+  // viewer bundle — renders real content without any src attribute.
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'html',
+      title: 'Srcdoc HTML target',
+      html: '<main><h1>Srcdoc surface sentinel</h1></main>',
+      x: 80,
+      y: 80,
+      width: 520,
+      height: 360,
+    },
+  });
+  await request.post('/api/canvas/json-render', {
+    data: {
+      title: 'Srcdoc JSON target',
+      spec: {
+        root: 'card',
+        elements: {
+          card: {
+            type: 'Card',
+            props: { title: 'Srcdoc card', description: 'inline transport' },
+            children: [],
+          },
+        },
+      },
+      x: 700,
+      y: 80,
+      width: 420,
+      height: 300,
+    },
+  });
+
+  await page.goto('/workbench?iframe-mode=srcdoc');
+
+  const htmlNode = page.locator('.canvas-node').filter({ hasText: 'Srcdoc HTML target' });
+  await expect(htmlNode.locator('iframe')).toHaveAttribute('srcdoc', /Srcdoc surface sentinel/);
+  await expect(htmlNode.locator('iframe')).not.toHaveAttribute('src', /.+/);
+  await expect(htmlNode.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts');
+  await expect(htmlNode.frameLocator('iframe').getByText('Srcdoc surface sentinel')).toBeVisible();
+
+  const jsonNode = page.locator('.canvas-node').filter({ hasText: 'Srcdoc JSON target' });
+  await expect(jsonNode.locator('iframe')).toHaveAttribute('srcdoc', /./);
+  await expect(jsonNode.frameLocator('iframe').getByText('Srcdoc card')).toBeVisible();
 });

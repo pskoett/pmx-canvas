@@ -23,6 +23,7 @@ import {
   sessionId,
   traceEnabled,
   updateNodeData,
+  workbenchConnectionEpoch,
 } from './canvas-store';
 import { fetchAxSurfaceState } from './intent-bridge';
 import { DEFAULT_POSITIONS, makeNodeState } from './node-factory';
@@ -393,6 +394,8 @@ function parseCanvasAnnotation(raw: Record<string, unknown>): CanvasAnnotation |
 function handleConnected(data: Record<string, unknown>): void {
   sessionId.value = (data.sessionId as string) || '';
   connectionStatus.value = 'connected';
+  // Reconnect marker for holders of server-minted URLs (Finding S).
+  workbenchConnectionEpoch.value += 1;
   if (typeof data.theme === 'string') {
     applyCanvasTheme(data.theme);
   }
