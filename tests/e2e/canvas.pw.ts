@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
 const playwrightPort = Number(process.env.PMX_PLAYWRIGHT_PORT ?? '4517');
@@ -12,7 +12,7 @@ async function tooltipOpacity(button: Locator): Promise<number> {
   return await tooltip.evaluate((element) => Number.parseFloat(getComputedStyle(element).opacity));
 }
 
-async function clearSnapshots(request: { get: Function; delete: Function }): Promise<void> {
+async function clearSnapshots(request: APIRequestContext): Promise<void> {
   const response = await request.get('/api/canvas/snapshots?all=true');
   const snapshots = (await response.json()) as Array<{ id: string }>;
   for (const snapshot of snapshots) {
@@ -20,7 +20,7 @@ async function clearSnapshots(request: { get: Function; delete: Function }): Pro
   }
 }
 
-async function clearCanvas(request: { post: Function }): Promise<void> {
+async function clearCanvas(request: APIRequestContext): Promise<void> {
   await request.post('/api/canvas/clear');
   await request.post('/api/canvas/context-pins', {
     data: { nodeIds: [] },
@@ -30,7 +30,7 @@ async function clearCanvas(request: { post: Function }): Promise<void> {
   });
 }
 
-async function currentCanvasState(request: { get: Function }): Promise<{
+async function currentCanvasState(request: APIRequestContext): Promise<{
   nodes: Array<{
     id: string;
     type: string;
@@ -2866,4 +2866,26 @@ test('ghost intents are interactive, reconnect-safe, vetoable, and settle into l
   expect(observed.positionDelta).toBeLessThan(16);
   expect(observed.sizeDelta).toBeLessThan(24);
   await expect(settleGhost).toHaveCount(0);
+});
+
+test('polling transport boots the board and receives live updates (proxy-safe fallback)', async ({ page, request }) => {
+  // Buffering proxies (e.g. the Amp orb portal) never flush the SSE stream, so
+  // the client falls back to GET /api/workbench/poll. ?transport=poll forces
+  // that path deterministically: the board must bootstrap from the poll
+  // snapshot and reflect a server-side mutation within a couple of poll cycles
+  // — with the SSE stream never involved.
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Poll Boot Node', content: 'via snapshot', x: 80, y: 80 },
+  });
+
+  await page.goto('/workbench?transport=poll');
+
+  // Bootstrap: the snapshot's canvas-layout-update renders the existing node.
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Poll Boot Node' })).toBeVisible();
+
+  // Live path: a node added AFTER boot arrives through incremental polls.
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Poll Live Node', content: 'via incremental poll', x: 80, y: 320 },
+  });
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Poll Live Node' })).toBeVisible({ timeout: 10000 });
 });

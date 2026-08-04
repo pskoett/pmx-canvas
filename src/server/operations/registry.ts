@@ -39,7 +39,10 @@ export function setOperationEventEmitter(emitter: OperationEventEmitter | null):
   operationEventEmitter = emitter;
 }
 
-// Depth-counted emit suppression (mirrors canvasState._suppressRecordingDepth).
+// Depth-counted EMIT suppression (same pattern as, but deliberately distinct
+// state from, canvasState's recording suppression: batch suppresses SSE emits
+// while sub-ops still record history; undo/redo suppresses recording while
+// still emitting SSE — merging the two counters would break one or the other).
 // While > 0, emitOperationEvent is a no-op so a meta-op (canvas.batch) can run
 // many sub-ops without producing per-entry SSE frames, then emit ONE final
 // layout frame itself. Both the `mutates` auto-emit and `ctx.emit` route through

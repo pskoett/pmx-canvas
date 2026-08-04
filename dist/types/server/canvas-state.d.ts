@@ -7,7 +7,9 @@
  *
  * Persistence: canvas state auto-saves to `.pmx-canvas/canvas.db` (SQLite WAL mode)
  * in the workspace root on every mutation (debounced). Auto-loads on `loadFromDisk()`.
- * Legacy `.pmx-canvas/state.json` is auto-migrated on first boot.
+ * Legacy pre-0.2 formats (`.pmx-canvas/state.json`, `.pmx-canvas.json`,
+ * `.pmx-canvas-snapshots/`, loose blob files) are no longer imported as of 0.4.0 —
+ * the one-shot boot migration into SQLite was retired.
  */
 import { type PersistedCanvasState, type CanvasTheme, type AxTimelineQuery } from './canvas-db.js';
 import { type PmxAxActivityKind, type PmxAxElicitation, type PmxAxModeRequest, type PmxAxMode, type PmxAxCommandDescriptor, type PmxAxPolicy, type PmxAxFocusState, type PmxAxSource, type PmxAxState, type PmxAxWorkItem, type PmxAxWorkItemStatus, type PmxAxApprovalGate, type PmxAxReviewAnnotation, type PmxAxReviewKind, type PmxAxReviewSeverity, type PmxAxReviewStatus, type PmxAxReviewAnchorType, type PmxAxReviewRegion, type PmxAxEvent, type PmxAxEventKind, type PmxAxEvidence, type PmxAxEvidenceKind, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
@@ -155,7 +157,7 @@ declare class CanvasStateManager {
     private notifyChange;
     private _mutationRecorder;
     private _suppressRecordingDepth;
-    /** Register a mutation recorder. Used by mutation-history to capture undo/redo closures. */
+    /** Register THE mutation recorder (single slot, last-write-wins — see note above). */
     onMutation(cb: (info: MutationRecordInfo) => void): void;
     /** Run a function with mutation recording suppressed (for undo/redo replay and computed edges). */
     withSuppressedRecording(fn: () => void): void;
@@ -171,7 +173,6 @@ declare class CanvasStateManager {
     private translateGroupChildren;
     private recomputeParentGroupBounds;
     private compactGroupChildren;
-    private _stateFilePath;
     private _db;
     private _saveTimer;
     /** Workspace root backing persistence and workspace-relative path resolution. */
@@ -188,20 +189,9 @@ declare class CanvasStateManager {
     isBlobReference(value: unknown): value is PersistedBlobRef;
     resolveBlobReference(value: unknown): unknown;
     private externalizePersistedStateBlobs;
-    /**
-     * One-time migration: rename files from the pre-consolidation layout
-     * (`.pmx-canvas.json` + `.pmx-canvas-snapshots/`) into `.pmx-canvas/`.
-     * No-op when the new layout already exists.
-     */
-    private migrateLegacyLayout;
-    /**
-     * One-time migration: import state.json + snapshot JSON files + blob files
-     * into the SQLite database. Renames originals to `.bak`.
-     */
-    private migrateJsonToSqlite;
     getWorkspaceRoot(): string;
     private emptyPersistedState;
-    /** Load canvas state from SQLite (or legacy JSON fallback). Call once on server startup. */
+    /** Load canvas state from SQLite. Call once on server startup. */
     loadFromDisk(options?: LoadFromDiskOptions): boolean;
     /**
      * Whether this workspace's canvas DB already holds saved state. Used to gate
@@ -215,6 +205,15 @@ declare class CanvasStateManager {
     flushToDisk(): void;
     /** Write current state to SQLite immediately. */
     private saveToDisk;
+    private _lastPersistenceError;
+    /** Health view of state persistence: ok until a save fails, ok again after the next success. */
+    get persistenceHealth(): {
+        ok: boolean;
+        lastError: {
+            message: string;
+            at: string;
+        } | null;
+    };
     /** Close the SQLite database cleanly. Call on server shutdown. */
     close(): void;
     private get snapshotsDir();

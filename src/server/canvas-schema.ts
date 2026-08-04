@@ -937,7 +937,7 @@ export function describeCanvasSchema(): {
     htmlPrimitives: listHtmlPrimitiveDescriptors(),
     mcp: {
       tools: [
-        // 15 composites
+        // 16 composites (canvas_snapshot folded the legacy snapshot standalones in v0.4.0)
         'canvas_node',
         'canvas_render',
         'canvas_edge',
@@ -947,6 +947,7 @@ export function describeCanvasSchema(): {
         'canvas_query',
         'canvas_webview',
         'canvas_app',
+        'canvas_snapshot',
         'canvas_ax_state',
         'canvas_ax_work',
         'canvas_ax_gate',
@@ -960,13 +961,6 @@ export function describeCanvasSchema(): {
         'canvas_ax_interaction',
         'canvas_ingest_activity',
         'canvas_screenshot',
-        // 6 snapshot tools (deprecated; fold into canvas_snapshot composite in v0.4)
-        'canvas_snapshot',
-        'canvas_list_snapshots',
-        'canvas_restore',
-        'canvas_delete_snapshot',
-        'canvas_gc_snapshots',
-        'canvas_diff',
       ],
       resources: ['canvas://schema'],
       nodeTypeRouting: buildMcpNodeTypeRouting(nodeTypes),

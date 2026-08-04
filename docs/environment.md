@@ -8,7 +8,7 @@ optional; defaults are listed.
 | Variable | Read by | Effect |
 |---|---|---|
 | `PMX_WEB_CANVAS_PORT` | server, CLI `serve` | Preferred server port (default `4313`). CLI `--port` wins over it. |
-| `PMX_CANVAS_PORT` | agent CLI, MCP transport | Client-side default target port for CLI commands and the `--mcp` same-workspace lookup. Does not change what the server binds. |
+| `PMX_CANVAS_PORT` | all entry points | Client-side target port for CLI commands and the `--mcp` lookup; as of 0.4.0 the server also falls back to it when `--port`/`PMX_WEB_CANVAS_PORT` are unset, so one var can drive the whole stack. |
 | `PMX_CANVAS_URL` | agent CLI, MCP transport | Full base URL target (wins over `PMX_CANVAS_PORT`). |
 | `PMX_CANVAS_WORKSPACE_ROOT` | server, MCP transport | Pins the workspace root for daemon binds and the MCP same-workspace lookup, overriding the launch cwd. Set it when a host spawns `--mcp` from an incidental dir. |
 | `PMX_CANVAS_ALLOW_WORKSPACE_SPLIT` | MCP transport | `1` forces a separate canvas instead of attaching to a different-workspace daemon on the preferred port. |
@@ -18,7 +18,7 @@ optional; defaults are listed.
 | Variable | Read by | Effect |
 |---|---|---|
 | `PMX_CANVAS_DB_PATH` | server | Overrides the SQLite path (default `.pmx-canvas/canvas.db`). |
-| `PMX_CANVAS_STATE_FILE` | server | Legacy JSON state path (back-compat; a `.db` value is treated as the DB path). |
+| `PMX_CANVAS_STATE_FILE` | server | `.db`-path alias only as of 0.4.0 (non-`.db` values are ignored with a boot warning; the pre-0.2 JSON import was removed). |
 | `PMX_CANVAS_BLOB_THRESHOLD_BYTES` | server | Node payloads above this many JSON bytes are stored as blobs (default `2048`). |
 
 ## Server behavior

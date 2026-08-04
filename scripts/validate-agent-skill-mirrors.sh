@@ -36,14 +36,13 @@ for root in "${ROOTS[@]}"; do
 done
 
 if [ "${#EXISTING_ROOTS[@]}" -lt 1 ]; then
-  # No mirror trees are committed in this checkout — `.agents/` and `.opencode/`
+  # No mirror trees are present in this checkout — `.agents/` and `.opencode/`
   # are gitignored (see .gitignore) and `.claude/` is typically excluded by a
-  # global gitignore, so a clean CI checkout has none of them. There is nothing
-  # to compare, so skip gracefully rather than failing: this script guards drift
-  # only between trees that ARE present (e.g. local dev), exactly as the
-  # per-root skip above intends. Hard-failing here turned the normal CI state
-  # (all roots absent) into a false-negative failure.
-  echo "No skills roots present in this checkout; nothing to validate (skipping)." >&2
+  # global gitignore, so a clean checkout has none of them. The check is
+  # local-only dev tooling by design (plan-009 C2): it guards drift between
+  # whatever trees ARE present, and there is deliberately no CI step for it.
+  # Exit 0, but label the run as skipped so it cannot read as a validation pass.
+  echo "SKIPPED (trees absent): no agent-skill trees in this checkout — nothing was validated." >&2
   exit 0
 fi
 

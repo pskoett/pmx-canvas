@@ -132,13 +132,9 @@ describe('MCP parity with CLI', () => {
       'canvas_ax_interaction',
       'canvas_ingest_activity',
       'canvas_screenshot',
-      // Snapshot tools: deprecated (description-prefixed) but retained until v0.4.
+      // v0.4.0: the canvas_snapshot COMPOSITE (save|list|restore|delete|gc|diff)
+      // replaced the 6 legacy snapshot standalones.
       'canvas_snapshot',
-      'canvas_list_snapshots',
-      'canvas_restore',
-      'canvas_delete_snapshot',
-      'canvas_gc_snapshots',
-      'canvas_diff',
     ];
     for (const tool of expectedTools) {
       expect(toolNames.has(tool)).toBe(true);
@@ -147,6 +143,11 @@ describe('MCP parity with CLI', () => {
 
     // The tools folded by composites in v0.3.0 must NOT be registered standalone.
     const removedTools = [
+      'canvas_list_snapshots',
+      'canvas_restore',
+      'canvas_delete_snapshot',
+      'canvas_gc_snapshots',
+      'canvas_diff',
       'canvas_get_layout',
       'canvas_get_node',
       'canvas_add_node',
@@ -2200,7 +2201,7 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
     );
   });
 
-  test('canvas_list_snapshots, canvas_gc_snapshots, and canvas_delete_snapshot match CLI snapshot management', async () => {
+  test('canvas_snapshot list/gc/delete actions match CLI snapshot management', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
       await session.transport.close();
@@ -2216,11 +2217,12 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
       }>(
         (await session.client.callTool({
           name: 'canvas_snapshot',
-          arguments: { name },
+          arguments: { action: 'save', name },
         })) as ToolResultShape,
       );
       expect(saved.ok).toBe(true);
       savedSnapshots.push(saved.snapshot);
+      // Deliberate 2ms gap: snapshots sort/filter by millisecond createdAt, so each needs a distinct timestamp.
       await new Promise((resolve) => setTimeout(resolve, 2));
     }
     const saved = { ok: true, id: savedSnapshots[2]!.id, snapshot: savedSnapshots[2]! };
@@ -2229,24 +2231,25 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
 
     const listed = parseJsonText<{ snapshots: Array<{ id: string; name: string }> }>(
       (await session.client.callTool({
-        name: 'canvas_list_snapshots',
-        arguments: { limit: 2 },
+        name: 'canvas_snapshot',
+        arguments: { action: 'list', limit: 2 },
       })) as ToolResultShape,
     );
     expect(listed.snapshots.map((snapshot) => snapshot.name)).toEqual(['mcp-parity-snapshot', 'mcp-beta']);
 
     const filtered = parseJsonText<{ snapshots: Array<{ id: string; name: string }> }>(
       (await session.client.callTool({
-        name: 'canvas_list_snapshots',
-        arguments: { query: 'alpha', all: true },
+        name: 'canvas_snapshot',
+        arguments: { action: 'list', query: 'alpha', all: true },
       })) as ToolResultShape,
     );
     expect(filtered.snapshots.map((snapshot) => snapshot.name)).toEqual(['mcp-alpha']);
 
     const dateFiltered = parseJsonText<{ snapshots: Array<{ id: string; name: string; createdAt: string }> }>(
       (await session.client.callTool({
-        name: 'canvas_list_snapshots',
+        name: 'canvas_snapshot',
         arguments: {
+          action: 'list',
           all: true,
           after: savedSnapshots[1]!.createdAt,
           before: savedSnapshots[1]!.createdAt,
@@ -2257,8 +2260,8 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
 
     const preview = parseJsonText<{ ok: boolean; kept: number; dryRun: boolean; deleted: Array<{ name: string }> }>(
       (await session.client.callTool({
-        name: 'canvas_gc_snapshots',
-        arguments: { keep: 2, dryRun: true },
+        name: 'canvas_snapshot',
+        arguments: { action: 'gc', keep: 2, dryRun: true },
       })) as ToolResultShape,
     );
     expect(preview.ok).toBe(true);
@@ -2268,8 +2271,9 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
 
     const deleted = parseJsonText<{ ok: boolean; deleted: string }>(
       (await session.client.callTool({
-        name: 'canvas_delete_snapshot',
+        name: 'canvas_snapshot',
         arguments: {
+          action: 'delete',
           id: saved.snapshot.id,
         },
       })) as ToolResultShape,
@@ -2278,14 +2282,14 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
 
     const afterDelete = parseJsonText<{ snapshots: Array<{ id: string; name: string }> }>(
       (await session.client.callTool({
-        name: 'canvas_list_snapshots',
-        arguments: { all: true },
+        name: 'canvas_snapshot',
+        arguments: { action: 'list', all: true },
       })) as ToolResultShape,
     );
     expect(afterDelete.snapshots.some((snapshot) => snapshot.id === saved.snapshot.id)).toBe(false);
   });
 
-  test('canvas_restore returns a compact summary instead of the full layout', async () => {
+  test('canvas_snapshot restore returns a compact summary instead of the full layout', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
       await session.transport.close();
@@ -2304,7 +2308,7 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
     const saved = parseJsonText<{ id: string }>(
       (await session.client.callTool({
         name: 'canvas_snapshot',
-        arguments: { name: 'compact restore' },
+        arguments: { action: 'save', name: 'compact restore' },
       })) as ToolResultShape,
     );
     await session.client.callTool({ name: 'canvas_view', arguments: { action: 'clear' } });
@@ -2316,8 +2320,8 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
       layout?: unknown;
     }>(
       (await session.client.callTool({
-        name: 'canvas_restore',
-        arguments: { id: saved.id },
+        name: 'canvas_snapshot',
+        arguments: { action: 'restore', id: saved.id },
       })) as ToolResultShape,
     );
 

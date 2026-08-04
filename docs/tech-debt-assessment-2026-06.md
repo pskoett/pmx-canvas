@@ -14,11 +14,11 @@ Code quality is better than the release velocity would suggest: zero `as any` ac
 
 Every operation is hand-written four times — `CanvasStateManager` → `PmxCanvas` → HTTP handler in `server.ts` → MCP tool in `src/mcp/server.ts` — each with its own validation and error shapes. The CLI (`src/cli/agent.ts`, 3,300 lines) duplicates it a fifth time with raw fetch calls instead of using the SDK.
 
-Evidence from `.learnings/` that this is actively producing bugs:
+Evidence from `.learnings/` that this is actively producing bugs (the `.learnings/` tree is gitignored, so the substance of each cited entry is inlined here):
 
-- [LRN-20260606-006] Fix #32 applied to only one of two duplicated mutation paths (`updateNode()` vs `applyUpdates()`).
-- [LRN-20260607-005] New `json-render` sourceSurface enum member silently took the permissive default because the `scoped` guard in `applyAxInteraction` was not updated. Security near-miss.
-- [LRN-20260608-002] `readJson` hardening silently killed the documented bare-array shape of `POST /api/canvas/batch` (#49).
+- [LRN-20260606-006] Fix #32 applied to only one of two duplicated mutation paths (`updateNode()` vs `applyUpdates()`). Both paths carried an identical copy of the group repack-on-resize logic, so fixing only the batch path left single-node `PATCH` updates still repacking siblings. The same entry records the parallel serializer pair drifting: the `nodeId` response alias was added to the MCP `createdNodePayload` but not the HTTP `buildNodeResponse`, so CLI/HTTP `node add --json` lacked it (#31).
+- [LRN-20260607-005] New `json-render` sourceSurface enum member silently took the permissive default because the `scoped` guard in `applyAxInteraction` was not updated. Security near-miss: the sandboxed viewer forwards author-controlled spec action params verbatim, so a prompt-injected spec could have anchored AX state onto arbitrary nodes via caller-supplied `nodeIds` (`on.press → { action: 'ax.work.create', params: { nodeIds: ['victim'] } }`). The fix added `json-render` to the clamp; the durable rule is that any guard switching on an enum-like string is a mandatory co-change site for every new member, or the new member takes the permissive default.
+- [LRN-20260608-002] `readJson` hardening silently killed the documented bare-array shape of `POST /api/canvas/batch` (#49). The #47 hardening normalized every non-object body — including top-level arrays — to `{}`, which turned the handler's `Array.isArray(body)` branch into dead code: bare-array batches returned `{ ok: true, results: [] }` and created nothing. Fixed with an array-preserving reader (`readJsonObjectOrArray`) used only by the batch endpoint.
 
 These are not three bugs. They are one architecture failing three times.
 
@@ -36,7 +36,7 @@ A project whose thesis is agent experience ships a tool surface that consumes a 
 
 ### 4. E2E is not a CI gate (high)
 
-The Playwright/Bun ESM loader blocker ([ERR-20260508-001]) has been open for weeks. E2E was removed from the publish workflow after the apt-mirror hang ([LRN-20260603-002]) and does not gate PRs. The bugs that matter (iframe blank flicker, literal `\n` in ledger, SVG calc()) were all caught only by browser tests. Green CI can currently ship a broken canvas.
+The Playwright/Bun ESM loader blocker ([ERR-20260508-001]: `bun x playwright test` dies before test discovery because Playwright's transform layer tries to import a nonexistent `playwright.config.ts.esm.preflight` module under Bun; browser tests only run when Playwright is launched through Node with Bun on `PATH`) has been open for weeks. E2E was removed from the publish workflow after the apt-mirror hang ([LRN-20260603-001]: the `playwright install --with-deps chromium` step began reliably hanging ~15 minutes on GitHub runners with zero code change — a runner-image/apt regression — so publish dropped its redundant browser steps and kept build + typecheck + unit + smoke) and does not gate PRs. The bugs that matter (iframe blank flicker, literal `\n` in ledger, SVG calc()) were all caught only by browser tests. Green CI can currently ship a broken canvas.
 
 **Fix:** run Playwright via Node's runner in CI permanently, and make headless e2e a hard PR gate.
 

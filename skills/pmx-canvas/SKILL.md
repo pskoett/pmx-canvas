@@ -26,8 +26,8 @@ Humans curate agent context by pinning nodes; agents read that curation through
 3. **Read before write.** Search with `canvas_query { action: "search", query }` before creating
    nodes. Read the full layout only when necessary. The MCP parameter is `query` — passing the
    HTTP API's `q` is silently ignored and returns zero results.
-4. **Snapshot before destructive changes.** Use `canvas_snapshot` (deprecated standalone; folds into
-   the `canvas_snapshot` composite's `save` action in v0.4) before clear, restore, or a major
+4. **Snapshot before destructive changes.** Use `canvas_snapshot { action: "save", name }` before
+   clear, restore, or a major
    reorganization.
 5. **Show intent with the Ghost Cursor — by default.** Signal with
    `canvas_intent { action: "signal", ... }` before every meaningful create, move, connect, remove,
@@ -36,7 +36,7 @@ Humans curate agent context by pinning nodes; agents read that curation through
    human watches intent form and can veto mid-thought. Skip it only for trivial in-place tweaks or
    high-frequency batch churn. The default TTL (~8s) expires between agent turns: signal with
    `ttlMs: 30000` and settle by passing `intentId` on the mutation in the same or next call.
-6. **Mutate through current composites.** Prefer the 15 composite MCP tools below.
+6. **Mutate through current composites.** Prefer the 16 composite MCP tools below.
 7. **Arrange and validate.** After batch changes, use `canvas_view { action: "arrange" }` when
    appropriate and always finish with `canvas_query { action: "validate" }`.
 8. **Verify context pins.** Pin with `canvas_pin_nodes` or the browser's **Pin as context**, then
@@ -115,6 +115,7 @@ json-render, a graph, or an HTML primitive is sufficient.
 | `canvas_ax_gate` | `request`, `resolve`, `await` with `approval`, `elicitation`, or `mode` |
 | `canvas_ax_timeline` | `read`, `record-event`, `add-evidence`, `send-steering` |
 | `canvas_ax_delivery` | `claim`, `mark` |
+| `canvas_snapshot` | `save`, `list`, `restore`, `delete`, `gc`, `diff` |
 | `canvas_intent` | `signal`, `update`, `clear` |
 
 Important routing:
@@ -131,9 +132,9 @@ Important routing:
 As of v0.3.0, the 57 legacy single-purpose tools from the v0.2 compatibility window are removed.
 The composites above plus the retained standalones are now the whole MCP surface: `canvas_batch`,
 `canvas_pin_nodes`, `canvas_screenshot`, `canvas_ax_interaction`, `canvas_ingest_activity`, and
-`canvas_invoke_command`. The 6 snapshot tools (`canvas_snapshot`, `canvas_list_snapshots`,
-`canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`, `canvas_diff`) are also retained
-but deprecated, pending a `canvas_snapshot` composite in v0.4.
+`canvas_invoke_command`. Snapshots are the `canvas_snapshot` composite (actions
+`save | list | restore | delete | gc | diff`); the 6 legacy snapshot standalones were removed in
+v0.4.0 after their deprecated 0.3.x window.
 
 ## Spatial Rules
 
@@ -228,6 +229,15 @@ Prefer `canvas_query { action: "search" }` over parsing the full layout.
   (Chrome). Do not diagnose a healthy app session as a broken node. When reporting a black tile,
   fetch `GET /api/canvas/debug/ext-app-recovery` from the daemon and attach the trace — it shows
   what the recovery queue actually did in that panel.
+- A hosted ext-app (Excalidraw) resized NARROW/TALL (e.g. 360x529) can show its diagram in the
+  upper region with the app's own dark fill below it — in every engine (0.3.4 report Finding Q).
+  This letterboxing lives inside the hosted app bundle's root container, not in PMX (a body-level
+  background override ships but cannot reach the app's inner root). Keep ext-app tiles near the
+  app's aspect (the 960x738 default, or the same ratio), or expand the node — the fullscreen
+  overlay renders full-bleed. The durable fix is upstream in the excalidraw-mcp app.
+- Behind proxies that buffer streaming responses (e.g. portal hosts), the workbench auto-falls
+  back from SSE to a polling transport within ~3s, so the board still boots and stays live.
+  Force a mode with `/workbench?transport=poll` (or `transport=sse`) when diagnosing.
 - Graph and json-render standalone surfaces use `display=site` and fill the browser viewport, and
   reflow on a live window resize in a normal browser. Some single-tab host browsers (e.g. the
   Codex in-app browser) don't deliver live-resize events, so a resized standalone chart can look

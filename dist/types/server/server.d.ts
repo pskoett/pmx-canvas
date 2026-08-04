@@ -24,6 +24,7 @@
  * - GET  /api/canvas/json-render/view?nodeId=... -> local json-render viewer
  * - POST /api/canvas/web-artifact -> build bundled HTML artifact + optional canvas node
  * - GET  /api/workbench/events   -> SSE event stream
+ * - GET  /api/workbench/poll     -> proxy-safe polling transport (same events, JSON)
  * - GET  /api/workbench/state    -> workbench state snapshot
  * - POST /api/workbench/intent   -> workbench intents
  * - GET  /api/workbench/webview  -> Bun.WebView automation status

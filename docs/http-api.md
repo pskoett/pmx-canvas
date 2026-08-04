@@ -5,7 +5,9 @@ any language. Default base URL: `http://localhost:4313`.
 
 A non-empty request body that is not valid JSON returns
 `400 { "ok": false, "error": "Malformed JSON body." }` on every route; empty
-bodies are treated as an empty request.
+bodies are treated as an empty request. As of 0.4.0 every error response is a
+JSON envelope of that same shape (`{ ok: false, error }`, status unchanged) —
+no plain-text errors remain.
 
 ## Canvas state
 
@@ -320,6 +322,28 @@ curl -N http://localhost:4313/api/workbench/events
 
 The browser, the CLI `watch` command, and the MCP resource notifications
 all consume this stream. Auto-reconnect with exponential backoff.
+
+## Polling transport (proxy-safe)
+
+Some proxies (e.g. the Amp orb portal) buffer streaming responses and only
+flush them on close, so the SSE stream above delivers nothing. The polling
+transport returns the same events as short-lived JSON responses that pass
+through any proxy:
+
+```bash
+# No `since`: a full connect snapshot (same events an SSE connect sends) + the
+# current cursor. With `since=<seq>`: only events after that cursor.
+curl "http://localhost:4313/api/workbench/poll"
+curl "http://localhost:4313/api/workbench/poll?since=42"
+```
+
+Responses are `{ ok, transport: "poll", snapshot, seq, events }` — poll again
+with `since=<seq>` every couple of seconds. A `since` from a previous server
+run or one that fell off the bounded event ring recovers with a fresh
+snapshot. The browser client uses this automatically: if the SSE stream
+produces no event within 3 seconds of connecting, it switches to polling.
+Force a transport with `/workbench?transport=poll` (or `transport=sse` to
+disable the fallback).
 
 ## Time travel
 

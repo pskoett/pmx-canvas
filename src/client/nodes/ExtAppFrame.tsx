@@ -253,6 +253,19 @@ window.parent.postMessage({ source: '${EXT_APP_BOOT_BEACON_SOURCE}', token: ${JS
 </script>`;
 }
 
+/**
+ * Base styles injected into every ext-app document (Finding Q, 0.3.4 report):
+ * apps aspect-fit their drawn surface to the frame width, and on narrow/tall
+ * tiles the leftover region shows the app document's own body background —
+ * pure black for the hosted Excalidraw bundle, in every engine. Making the
+ * app document transparent lets the host iframe's theme background
+ * (var(--c-panel)) show through the letterbox instead. Background only — app
+ * content, its drawn scene, and its own foreground styling are untouched.
+ */
+export function buildExtAppSurfaceBaseStyles(): string {
+  return '<style data-pmx-canvas-ext-app-base>html, body { background: transparent !important; }</style>';
+}
+
 export function injectExtAppAxBridgeScript(html: string, axBridgeScript: string): string {
   if (!axBridgeScript) return html;
   const headMatch = /<head\b[^>]*>/i.exec(html);
@@ -359,7 +372,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   const bootBeaconScript =
     typeof html === 'string' && html.length > 0 ? buildExtAppBootBeaconScript(axToken, nodeId) : '';
   const iframeDocument = useIframeDocument(
-    injectExtAppAxBridgeScript(html ?? '', bootBeaconScript + axBridgeScript),
+    injectExtAppAxBridgeScript(html ?? '', buildExtAppSurfaceBaseStyles() + bootBeaconScript + axBridgeScript),
     iframeSandbox,
   );
 
@@ -688,7 +701,9 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
 
       bridge.onsandboxready = async () => {
         await bridge.sendSandboxResourceReady({
-          html,
+          // Same Finding Q base styles for the sandbox-proxy path: the inner
+          // resource document is the one that letterboxes on narrow tiles.
+          html: injectExtAppAxBridgeScript(html, buildExtAppSurfaceBaseStyles()),
           sandbox: DEFAULT_EXT_APP_SANDBOX,
           ...(resourceMeta?.csp ? { csp: resourceMeta.csp } : {}),
           ...(resourceMeta?.permissions ? { permissions: resourceMeta.permissions } : {}),

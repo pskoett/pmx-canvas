@@ -25,23 +25,16 @@
 // hand-registered tools with no composite of their own (canvas_add_html_node,
 // canvas_add_html_primitive, canvas_refresh_webpage_node — folded into
 // canvas_node add/update params) were deleted outright from src/mcp/server.ts.
-// This drops the surface from 84 to 27: 15 composites + canvas_batch,
-// canvas_pin_nodes, canvas_invoke_command, canvas_ax_interaction,
-// canvas_ingest_activity, canvas_screenshot (registry-registered standalones
-// with no composite home) + the 6 legacy snapshot tools (canvas_snapshot,
-// canvas_list_snapshots, canvas_restore, canvas_delete_snapshot,
-// canvas_gc_snapshots, canvas_diff), which are KEPT for v0.3.0 — the
-// canvas_snapshot composite name collides with the legacy save-snapshot tool,
-// so it cannot land additively. Those 6 carry "Deprecated: folds into the
-// canvas_snapshot composite in v0.4 …" description prefixes as the
-// deprecate-first-remove-later warning.
+// v0.3.0 dropped the surface from 84 to 27, keeping the 6 legacy snapshot
+// tools deprecated (the canvas_snapshot composite name collided with the
+// legacy save-snapshot tool, so it could not land additively).
 //
-// v0.4 plan: the canvas_snapshot composite ships, repurposing the
-// canvas_snapshot name to be action-discriminated and folding the other 5
-// deprecated snapshot standalones (canvas_list_snapshots, canvas_restore,
-// canvas_delete_snapshot, canvas_gc_snapshots, canvas_diff) the same way v0.3.0
-// folded everything else — at that point this list shrinks again, from 27 to
-// 22.
+// v0.4.0 completed the fold: the canvas_snapshot COMPOSITE ships (actions
+// save | list | restore | delete | gc | diff), repurposing the freed name and
+// removing the 6 deprecated snapshot standalones the same way v0.3.0 folded
+// everything else. Surface: 22 tools = 16 composites + canvas_batch,
+// canvas_pin_nodes, canvas_invoke_command, canvas_ax_interaction,
+// canvas_ingest_activity, canvas_screenshot.
 import { afterAll, describe, expect, test } from 'bun:test';
 import { fileURLToPath } from 'node:url';
 import { Client } from '@modelcontextprotocol/sdk/client';
@@ -59,21 +52,16 @@ const FROZEN_TOOL_NAMES = [
   'canvas_ax_timeline',
   'canvas_ax_work',
   'canvas_batch',
-  'canvas_delete_snapshot',
-  'canvas_diff',
   'canvas_edge',
-  'canvas_gc_snapshots',
   'canvas_group',
   'canvas_history',
   'canvas_ingest_activity',
   'canvas_intent',
   'canvas_invoke_command',
-  'canvas_list_snapshots',
   'canvas_node',
   'canvas_pin_nodes',
   'canvas_query',
   'canvas_render',
-  'canvas_restore',
   'canvas_screenshot',
   'canvas_snapshot',
   'canvas_view',
@@ -131,11 +119,11 @@ async function createMcpSession(): Promise<Client> {
 }
 
 describe('MCP public surface freeze', () => {
-  test('the sorted tool-name list matches the frozen 27-tool list exactly', async () => {
+  test('the sorted tool-name list matches the frozen 22-tool list exactly', async () => {
     const client = await createMcpSession();
     const tools = await client.listTools();
     const sortedNames = tools.tools.map((tool) => tool.name).sort();
-    expect(FROZEN_TOOL_NAMES).toHaveLength(27);
+    expect(FROZEN_TOOL_NAMES).toHaveLength(22);
     expect(sortedNames).toEqual(FROZEN_TOOL_NAMES);
   }, 30000);
 

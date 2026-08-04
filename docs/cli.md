@@ -51,6 +51,11 @@ pmx-canvas node add --help --type webpage --json                                
 pmx-canvas external-app add --kind excalidraw --title "Diagram"
 
 pmx-canvas edge add --from-search "DVT O3 — GitOps" --to-search "deep work trend" --type relation
+
+# Updates return a compact { ok, id, position, size, updatedFields } envelope;
+# pass --full for the complete node payload (ext-app payloads can be huge).
+pmx-canvas node update <node-id> --width 840 --height 620
+pmx-canvas node update <node-id> --title "Renamed" --full
 ```
 
 `--from-search` / `--to-search` must each resolve to exactly one node — broad

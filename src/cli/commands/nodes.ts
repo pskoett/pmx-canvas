@@ -830,6 +830,7 @@ cmd(
     'pmx-canvas node update <node-id> --dock-position right',
     'pmx-canvas node update <node-id> --dock-position none   # undock back to the canvas',
     'pmx-canvas node update <node-id> --lock-arrange',
+    'pmx-canvas node update <node-id> --width 840 --full   # full node payload instead of the compact envelope',
   ],
   async (args) => {
     const { positional, flags } = parseFlags(args);
@@ -932,7 +933,36 @@ cmd(
     }
 
     const result = await invokeOperation('node.update', { id, ...body });
-    output(result);
+    if (flags.full || flags.verbose) {
+      output(result);
+      return;
+    }
+    // Finding R (0.3.4 report): the raw update result echoes the FULL node —
+    // ~940 KB for an ext-app (bundled html + tool result) — which can consume a
+    // large share of an agent turn for a simple resize. Default to a compact
+    // envelope; --full restores the complete response.
+    const updatedNode = isRecord(result) && isRecord(result.node) ? result.node : undefined;
+    // Raw geometry flags also land in the body alongside their structured
+    // position/size forms (the graph-patch builder copies them through); report
+    // only the canonical field once.
+    const structuredDupes: Record<string, string> = {
+      width: 'size',
+      height: 'size',
+      nodeHeight: 'size',
+      x: 'position',
+      y: 'position',
+    };
+    const updatedFields = Object.keys(body)
+      .filter((key) => !(structuredDupes[key] && body[structuredDupes[key]] !== undefined))
+      .sort();
+    output({
+      ok: isRecord(result) && result.ok !== undefined ? result.ok : true,
+      id,
+      nodeId: id,
+      ...(updatedNode && isRecord(updatedNode.position) ? { position: updatedNode.position } : {}),
+      ...(updatedNode && isRecord(updatedNode.size) ? { size: updatedNode.size } : {}),
+      updatedFields,
+    });
   },
 );
 

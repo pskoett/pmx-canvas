@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
@@ -513,6 +513,7 @@ describe('canvas state manager', () => {
       const saved = canvasState.saveSnapshot(name);
       expect(saved).not.toBeNull();
       snapshots.push(saved!);
+      // Deliberate 2ms gap: snapshots sort by millisecond createdAt, so each needs a distinct timestamp.
       await new Promise((resolve) => setTimeout(resolve, 2));
     }
 
@@ -1159,45 +1160,7 @@ describe('canvas state manager', () => {
     }
   });
 
-  test('migrates legacy .pmx-canvas.json and .pmx-canvas-snapshots/ into .pmx-canvas/', () => {
-    const migrationWorkspace = createTestWorkspace('pmx-canvas-migrate-');
-
-    const legacyState = join(migrationWorkspace, '.pmx-canvas.json');
-    writeFileSync(
-      legacyState,
-      JSON.stringify(
-        {
-          version: 1,
-          viewport: { x: 10, y: 20, scale: 1.25 },
-          nodes: [],
-          edges: [],
-          contextPins: [],
-        },
-        null,
-        2,
-      ),
-      'utf-8',
-    );
-
-    const legacySnapshotsDir = join(migrationWorkspace, '.pmx-canvas-snapshots');
-    mkdirSync(legacySnapshotsDir, { recursive: true });
-    writeFileSync(join(legacySnapshotsDir, 'marker.json'), '{}', 'utf-8');
-
-    try {
-      resetCanvasForTests(migrationWorkspace);
-
-      expect(existsSync(legacyState)).toBe(false);
-      expect(existsSync(legacySnapshotsDir)).toBe(false);
-      // Legacy state.json is migrated to SQLite, then renamed to .bak
-      const stateJsonPath = join(migrationWorkspace, '.pmx-canvas', 'state.json');
-      const stateJsonBakPath = `${stateJsonPath}.bak`;
-      expect(existsSync(stateJsonPath) || existsSync(stateJsonBakPath)).toBe(true);
-      expect(existsSync(join(migrationWorkspace, '.pmx-canvas', 'snapshots', 'marker.json'))).toBe(true);
-
-      expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
-      expect(canvasState.viewport).toEqual({ x: 10, y: 20, scale: 1.25 });
-    } finally {
-      removeTestWorkspace(migrationWorkspace);
-    }
-  });
+  // The legacy boot-migration test (`.pmx-canvas.json` / `.pmx-canvas-snapshots/`
+  // → SQLite, renaming originals to `.bak`) was removed with the migration
+  // itself in 0.4.0: pre-0.2 layouts are no longer imported (plan-009 L4).
 });

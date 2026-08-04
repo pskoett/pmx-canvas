@@ -73,7 +73,7 @@ section below.
 3. **Read before write** — `canvas_query { action: "search", query }` (or `pmx-canvas search`)
    to find existing nodes; avoid duplicates. Use `canvas_query { action: "layout" }` only when
    you need the full board.
-4. **Snapshot before destructive work** — `canvas_snapshot { name }` before clear/major
+4. **Snapshot before destructive work** — `canvas_snapshot { action: "save", name }` before clear/major
    reorg; restore if needed.
 5. **Signal then mutate (default behavior)** — signal with `canvas_intent { action: "signal", … }`
    to telegraph the move before nearly every mutation, then create with the right composite: `canvas_node` (markdown/status/file/webpage/html
@@ -315,6 +315,7 @@ pmx-canvas spatial
 - `group create|add|remove` — manage groups
 - `clear --yes` — destructive clear with explicit confirmation
 - `validate spec` — validate json-render specs and graph payloads without creating nodes
+- `node update` — returns a compact `{ ok, id, nodeId, position, size, updatedFields }` envelope by default; pass `--full` for the complete node payload. Full ext-app/mcp-app payloads embed the bundled app HTML and tool results (hundreds of KB — a no-op ext-app resize once returned ~940 KB), so in agent turns keep the default envelope and read content via `node get --summary`
 - `web-artifact build` — build bundled React/Tailwind HTML artifacts; use `--deps` for extra packages and `--include-logs` only when raw logs are useful. The build pipeline runs bash scripts (POSIX-only) — it is not supported on native Windows; already-built artifacts render everywhere
 - `external-app add --kind excalidraw` — create the hosted Excalidraw preset; response includes `id` and `nodeId` aliases for the same canvas node
 - `serve status|stop` — inspect and stop daemonized servers started with `serve --daemon`
@@ -429,7 +430,7 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 > registered — use the composites instead. The authoritative legacy→composite mapping table lives
 > in [`docs/mcp.md`](../../../docs/mcp.md) — this skill does not re-enumerate the removed names.
 
-### The 15 composites
+### The 16 composites
 
 | Composite | `action` values | What it does |
 |-----------|-----------------|--------------|
@@ -505,10 +506,9 @@ investigation board" intent, then run the batch with that linked `intentId` (use
 
 These stay separate by design (trust-boundary, firehose, execution-intent, or not-yet-consolidated
 surfaces): `canvas_batch`, `canvas_pin_nodes`, `canvas_screenshot`, `canvas_ax_interaction`,
-`canvas_ingest_activity`, `canvas_invoke_command`, and the snapshot tools (`canvas_snapshot`,
-`canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`,
-`canvas_diff` — deprecated pending a `canvas_snapshot` composite in v0.4; the name collides with
-the current save-snapshot tool, so the composite cannot land additively).
+`canvas_ingest_activity`, `canvas_invoke_command`. Snapshots moved into the `canvas_snapshot`
+composite in v0.4.0 (actions `save | list | restore | delete | gc | diff`); the 6 legacy snapshot
+standalones were removed after their deprecated 0.3.x window.
 
 `canvas_batch` supports exactly these ops: `node.add`, `node.update`, `node.remove`, `graph.add`,
 `edge.add`, `edge.remove`, `group.create`, `group.add`, `group.remove`, `pin.set`/`pin.add`/
@@ -766,13 +766,14 @@ ranked matches with content snippets. Use instead of parsing the full layout to 
 ### History & Snapshots
 
 - **`canvas_history { action: "undo" }`** / **`canvas_history { action: "redo" }`** — step the mutation ring buffer.
-- **`canvas_snapshot`** (standalone) — save a named snapshot; `name` required. Returns `{ ok, id, snapshot }` (flat `id` aliases `snapshot.id`).
-- **`canvas_restore`** (standalone) — restore from a snapshot `id`.
-- **`canvas_diff`** (standalone) — compare current canvas against a saved snapshot (added/removed/modified nodes & edges).
+- **`canvas_snapshot { action: "save", name }`** — save a named snapshot. Returns `{ ok, id, snapshot }` (flat `id` aliases `snapshot.id`).
+- **`canvas_snapshot { action: "list" }`** / **`{ action: "gc", keep }`** / **`{ action: "delete", id }`** — manage saved snapshots.
+- **`canvas_snapshot { action: "restore", id }`** — restore from a snapshot.
+- **`canvas_snapshot { action: "diff", id }`** — compare current canvas against a saved snapshot (added/removed/modified nodes & edges).
 
 ### Canvas Management
 
-**`canvas_view { action: "clear" }`** — Remove all nodes and edges. **Always `canvas_snapshot` first** —
+**`canvas_view { action: "clear" }`** — Remove all nodes and edges. **Always `canvas_snapshot { action: "save" }` first** —
 this is irreversible without a prior snapshot.
 
 ### Browser Automation (WebView)
@@ -1405,7 +1406,7 @@ Monitor ongoing processes:
 
 Show two states side by side for the human to compare:
 
-1. Take a snapshot before changes: `canvas_snapshot` with name "before-X"
+1. Take a snapshot before changes: `canvas_snapshot { action: "save" }` with name "before-X"
 2. Make changes to the canvas
 3. Use `canvas_diff` to show what changed
 4. Or: create two groups ("Before" and "After") with corresponding nodes
@@ -1414,7 +1415,7 @@ Show two states side by side for the human to compare:
 
 When the human wants to explore a different approach without losing current work:
 
-1. **First**, save the current state: `canvas_snapshot` with a descriptive name
+1. **First**, save the current state: `canvas_snapshot { action: "save" }` with a descriptive name
 2. **Then** clear: `canvas_view { action: "clear" }` (never clear without snapshotting first)
 3. Set up the new workspace with initial nodes
 4. Tell the human the snapshot name and that `canvas_restore` can bring everything back

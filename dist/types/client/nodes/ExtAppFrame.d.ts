@@ -51,6 +51,16 @@ export declare function buildExtAppAxBridgeScript(axToken: string, nodeId: strin
  * the host also checks event.source against the live iframe.
  */
 export declare function buildExtAppBootBeaconScript(frameToken: string, nodeId: string): string;
+/**
+ * Base styles injected into every ext-app document (Finding Q, 0.3.4 report):
+ * apps aspect-fit their drawn surface to the frame width, and on narrow/tall
+ * tiles the leftover region shows the app document's own body background —
+ * pure black for the hosted Excalidraw bundle, in every engine. Making the
+ * app document transparent lets the host iframe's theme background
+ * (var(--c-panel)) show through the letterbox instead. Background only — app
+ * content, its drawn scene, and its own foreground styling are untouched.
+ */
+export declare function buildExtAppSurfaceBaseStyles(): string;
 export declare function injectExtAppAxBridgeScript(html: string, axBridgeScript: string): string;
 export declare function resolveExtAppContainerDimensions(target: ExtAppHostDimensionsTarget | null | undefined, fallback: {
     width: number;

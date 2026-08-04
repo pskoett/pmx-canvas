@@ -24,6 +24,7 @@
  * - GET  /api/canvas/json-render/view?nodeId=... -> local json-render viewer
  * - POST /api/canvas/web-artifact -> build bundled HTML artifact + optional canvas node
  * - GET  /api/workbench/events   -> SSE event stream
+ * - GET  /api/workbench/poll     -> proxy-safe polling transport (same events, JSON)
  * - GET  /api/workbench/state    -> workbench state snapshot
  * - POST /api/workbench/intent   -> workbench intents
  * - GET  /api/workbench/webview  -> Bun.WebView automation status
@@ -710,7 +711,24 @@ function toSseFrame(event: string, payload: PrimaryWorkbenchEventPayload): Uint8
   return textEncoder.encode(`${lines.join('\n')}\n`);
 }
 
+// ── Workbench event ring (proxy-safe polling transport) ─────────
+// Buffering proxies (e.g. the Amp orb portal) hold a long-lived SSE response
+// open and never flush it to the browser, so an EventSource client behind one
+// receives nothing and the canvas never boots. Every broadcast event is also
+// recorded here with a monotonic seq; GET /api/workbench/poll replays them as
+// a normal, immediately-closed JSON response that any proxy delivers. Bounded:
+// a client whose `since` fell off the ring gets a fresh connect snapshot,
+// which fully rebuilds client state (same events an SSE connect sends).
+const WORKBENCH_EVENT_RING_MAX = 500;
+let workbenchEventSeq = 0;
+const workbenchEventRing: Array<{ seq: number; event: string; payload: PrimaryWorkbenchEventPayload }> = [];
+
 function broadcastWorkbenchEvent(event: string, payload: PrimaryWorkbenchEventPayload): void {
+  workbenchEventSeq += 1;
+  workbenchEventRing.push({ seq: workbenchEventSeq, event, payload });
+  if (workbenchEventRing.length > WORKBENCH_EVENT_RING_MAX) {
+    workbenchEventRing.splice(0, workbenchEventRing.length - WORKBENCH_EVENT_RING_MAX);
+  }
   const frame = toSseFrame(event, payload);
   for (const [subscriberId, controller] of workbenchSubscribers.entries()) {
     try {
@@ -1372,14 +1390,19 @@ function responseJson(data: unknown, status = 200): Response {
   });
 }
 
+// v0.4.0 (M4): every hand-written error response is a JSON envelope
+// ({ ok: false, error }, same status codes) matching the registry dispatcher —
+// consumers no longer need to branch on text/plain vs JSON error bodies.
 function responseText(text: string, status = 400): Response {
-  return new Response(text, {
-    status,
-    headers: {
-      'Content-Type': 'text/plain; charset=utf-8',
-      'Cache-Control': 'no-store',
+  return Response.json(
+    { ok: false, error: text },
+    {
+      status,
+      headers: {
+        'Cache-Control': 'no-store',
+      },
     },
-  });
+  );
 }
 
 function handleArtifactView(url: URL): Response {
@@ -1692,15 +1715,134 @@ async function handleWorkbenchIntent(req: Request): Promise<Response> {
   return responseJson({ ok: true, intent });
 }
 
-function handleWorkbenchEvents(req: Request): Response {
-  const reqUrl = new URL(req.url);
-  const requestedSessionId = reqUrl.searchParams.get('session')?.trim() ?? '';
+/**
+ * The connect snapshot: the ordered event list that fully rebuilds a client's
+ * state. Single source for BOTH transports — the SSE stream enqueues these
+ * frames on connect, and /api/workbench/poll returns them as JSON when a
+ * poller has no usable `since` (fresh client, server restart, or ring
+ * eviction). Adding a new connect-time event here reaches both paths.
+ */
+function buildWorkbenchConnectSnapshot(
+  requestedSessionId: string,
+): Array<{ event: string; payload: Record<string, unknown> }> {
   const continuity =
     requestedSessionId.length === 0
       ? 'fresh'
       : requestedSessionId === primaryWorkbenchSessionId
         ? 'resumed'
         : 'rotated';
+  const events: Array<{ event: string; payload: Record<string, unknown> }> = [];
+  events.push({
+    event: 'connected',
+    payload: {
+      sessionId: primaryWorkbenchSessionId,
+      requestedSessionId: requestedSessionId || null,
+      continuity,
+      path: primaryWorkbenchPath,
+      theme: canvasState.theme,
+      timestamp: new Date().toISOString(),
+    },
+  });
+  if (primaryWorkbenchPath) {
+    events.push({
+      event: 'workbench-open',
+      payload: {
+        sessionId: primaryWorkbenchSessionId,
+        path: primaryWorkbenchPath,
+        title: basename(primaryWorkbenchPath),
+        source: 'snapshot',
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  }
+  if (lastWorkbenchContextCardsEnvelope) {
+    events.push({
+      event: 'context-cards',
+      payload: {
+        ...lastWorkbenchContextCardsEnvelope,
+        sessionId: primaryWorkbenchSessionId,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  }
+  events.push({
+    event: 'mcp-app-host-snapshot',
+    payload: {
+      reason: 'connect-snapshot',
+      ...getMcpAppHostSnapshot(),
+      timestamp: new Date().toISOString(),
+    },
+  });
+  events.push({
+    event: 'canvas-layout-update',
+    payload: {
+      layout: canvasState.getLayout(),
+      sessionId: primaryWorkbenchSessionId,
+      timestamp: new Date().toISOString(),
+    },
+  });
+  events.push({
+    event: 'context-pins-changed',
+    payload: {
+      count: canvasState.contextPinnedNodeIds.size,
+      nodeIds: Array.from(canvasState.contextPinnedNodeIds),
+      sessionId: primaryWorkbenchSessionId,
+      timestamp: new Date().toISOString(),
+    },
+  });
+  for (const intent of intentRegistry.list()) {
+    events.push({
+      event: 'ax-intent',
+      payload: {
+        intent,
+        reason: 'connect-snapshot',
+        sessionId: primaryWorkbenchSessionId,
+        timestamp: new Date().toISOString(),
+      },
+    });
+  }
+  return events;
+}
+
+/**
+ * Proxy-safe transport (Amp orb portals and any proxy that buffers streaming
+ * responses): returns the buffered events after `since` — or the full connect
+ * snapshot when `since` is absent, from a previous server run, or already
+ * evicted from the ring — as a normal JSON response that closes immediately.
+ * The client polls every couple of seconds; each response flushes through any
+ * proxy. `seq` is the cursor for the next poll.
+ */
+function handleWorkbenchPoll(url: URL): Response {
+  rotatePrimaryWorkbenchSessionIfNeeded();
+  const requestedSessionId = url.searchParams.get('session')?.trim() ?? '';
+  const sinceRaw = url.searchParams.get('since');
+  const since = sinceRaw === null ? Number.NaN : Number(sinceRaw);
+  const ringHeadSeq =
+    workbenchEventRing.length > 0 ? (workbenchEventRing[0] as { seq: number }).seq : workbenchEventSeq + 1;
+  const usableSince = Number.isInteger(since) && since >= 0 && since <= workbenchEventSeq && since + 1 >= ringHeadSeq;
+  if (!usableSince) {
+    return responseJson({
+      ok: true,
+      transport: 'poll',
+      snapshot: true,
+      seq: workbenchEventSeq,
+      sessionId: primaryWorkbenchSessionId,
+      events: buildWorkbenchConnectSnapshot(requestedSessionId),
+    });
+  }
+  return responseJson({
+    ok: true,
+    transport: 'poll',
+    snapshot: false,
+    seq: workbenchEventSeq,
+    sessionId: primaryWorkbenchSessionId,
+    events: workbenchEventRing.filter((entry) => entry.seq > since),
+  });
+}
+
+function handleWorkbenchEvents(req: Request): Response {
+  const reqUrl = new URL(req.url);
+  const requestedSessionId = reqUrl.searchParams.get('session')?.trim() ?? '';
   const subscriberId = nextWorkbenchSubscriberId++;
   let pingTimer: ReturnType<typeof setInterval> | null = null;
 
@@ -1708,68 +1850,8 @@ function handleWorkbenchEvents(req: Request): Response {
     start(controller) {
       workbenchSubscribers.set(subscriberId, controller);
       syncCanvasBrowserOpenedFromSubscribers();
-      controller.enqueue(
-        toSseFrame('connected', {
-          sessionId: primaryWorkbenchSessionId,
-          requestedSessionId: requestedSessionId || null,
-          continuity,
-          path: primaryWorkbenchPath,
-          theme: canvasState.theme,
-          timestamp: new Date().toISOString(),
-        }),
-      );
-      if (primaryWorkbenchPath) {
-        controller.enqueue(
-          toSseFrame('workbench-open', {
-            sessionId: primaryWorkbenchSessionId,
-            path: primaryWorkbenchPath,
-            title: basename(primaryWorkbenchPath),
-            source: 'snapshot',
-            updatedAt: new Date().toISOString(),
-          }),
-        );
-      }
-      if (lastWorkbenchContextCardsEnvelope) {
-        controller.enqueue(
-          toSseFrame('context-cards', {
-            ...lastWorkbenchContextCardsEnvelope,
-            sessionId: primaryWorkbenchSessionId,
-            timestamp: new Date().toISOString(),
-          }),
-        );
-      }
-      controller.enqueue(
-        toSseFrame('mcp-app-host-snapshot', {
-          reason: 'connect-snapshot',
-          ...getMcpAppHostSnapshot(),
-          timestamp: new Date().toISOString(),
-        }),
-      );
-      const layout = canvasState.getLayout();
-      controller.enqueue(
-        toSseFrame('canvas-layout-update', {
-          layout,
-          sessionId: primaryWorkbenchSessionId,
-          timestamp: new Date().toISOString(),
-        }),
-      );
-      controller.enqueue(
-        toSseFrame('context-pins-changed', {
-          count: canvasState.contextPinnedNodeIds.size,
-          nodeIds: Array.from(canvasState.contextPinnedNodeIds),
-          sessionId: primaryWorkbenchSessionId,
-          timestamp: new Date().toISOString(),
-        }),
-      );
-      for (const intent of intentRegistry.list()) {
-        controller.enqueue(
-          toSseFrame('ax-intent', {
-            intent,
-            reason: 'connect-snapshot',
-            sessionId: primaryWorkbenchSessionId,
-            timestamp: new Date().toISOString(),
-          }),
-        );
+      for (const { event, payload } of buildWorkbenchConnectSnapshot(requestedSessionId)) {
+        controller.enqueue(toSseFrame(event, payload));
       }
       pingTimer = setInterval(() => {
         try {
@@ -2855,7 +2937,10 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
   rotatePrimaryWorkbenchSessionIfNeeded();
 
-  const preferredPort = options.port ?? Number(process.env.PMX_WEB_CANVAS_PORT ?? DEFAULT_PORT);
+  // M11: PMX_WEB_CANVAS_PORT (server-specific) wins, then PMX_CANVAS_PORT — so
+  // setting only the client var no longer splits the client and server ports.
+  const preferredPort =
+    options.port ?? Number(process.env.PMX_WEB_CANVAS_PORT ?? process.env.PMX_CANVAS_PORT ?? DEFAULT_PORT);
   const portCandidates =
     options.port === 0
       ? [0]
@@ -2884,8 +2969,15 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
           if (url.pathname === '/health') {
             // `pid` lets `serve status` report the ACTUAL serving process even
             // when the pid file is stale (e.g. an adapter respawned the server
-            // outside `serve --daemon` — 0.3.2 report Finding P).
-            return responseJson({ ok: true, workspace: activeWorkspaceRoot, pid: process.pid });
+            // outside `serve --daemon` — 0.3.2 report Finding P). `persistence`
+            // surfaces silent save failures (M4): the canvas keeps serving from
+            // memory, but ok:false means durability is degraded.
+            return responseJson({
+              ok: true,
+              workspace: activeWorkspaceRoot,
+              pid: process.pid,
+              persistence: canvasState.persistenceHealth,
+            });
           }
 
           if (url.pathname === '/favicon.ico' || url.pathname === '/favicon.svg') {
@@ -2950,6 +3042,10 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/workbench/events' && req.method === 'GET') {
             return handleWorkbenchEvents(req);
+          }
+
+          if (url.pathname === '/api/workbench/poll' && req.method === 'GET') {
+            return handleWorkbenchPoll(url);
           }
 
           if (url.pathname === '/api/workbench/intent' && req.method === 'POST') {

@@ -3,8 +3,14 @@ import { runAgentCli } from '../../src/cli/agent.ts';
 import { formatCompactWatchEvent, SemanticWatchReducer, type SemanticWatchEvent } from '../../src/cli/watch.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
-import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
-import { createTestWorkspace, makeNode, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
+import { hasWorkbenchSubscribers, startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
+import {
+  createTestWorkspace,
+  makeNode,
+  removeTestWorkspace,
+  resetCanvasForTests,
+  waitForCondition,
+} from './helpers.ts';
 
 function makeLayout(
   nodes: Parameters<typeof makeNode>[0][],
@@ -275,7 +281,10 @@ describe('agent CLI watch command', () => {
 
     try {
       const watchPromise = runAgentCli(['watch', '--json', '--events', 'context-pin', '--max-events', '1']);
-      await Bun.sleep(100);
+      // The in-process server registers SSE subscribers synchronously in the
+      // stream's start() — wait for the watch stream to attach so the pin
+      // event below cannot be emitted before anyone is listening.
+      await waitForCondition(() => hasWorkbenchSubscribers(), { label: 'the watch SSE subscription to attach' });
       await jsonRequest<{ ok: boolean }>('/api/canvas/context-pins', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

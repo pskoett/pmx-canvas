@@ -147,6 +147,7 @@ function parseFlags(args: string[]): { positional: string[]; flags: Record<strin
     'json',
     'compact',
     'verbose',
+    'full',
     'include-logs',
     'no-pan',
     'schema',

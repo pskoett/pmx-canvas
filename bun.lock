@@ -7,8 +7,6 @@
       "dependencies": {
         "@joplin/turndown-plugin-gfm": "^1.0.64",
         "@json-render/core": "0.19.0",
-        "@json-render/devtools": "0.19.0",
-        "@json-render/devtools-react": "0.19.0",
         "@json-render/directives": "0.19.0",
         "@json-render/mcp": "0.19.0",
         "@json-render/react": "0.19.0",
@@ -27,6 +25,8 @@
       "devDependencies": {
         "@biomejs/biome": "^2.5.2",
         "@happy-dom/global-registrator": "^20.10.6",
+        "@json-render/devtools": "0.19.0",
+        "@json-render/devtools-react": "0.19.0",
         "@playwright/test": "^1.58.2",
         "@tailwindcss/cli": "^4.1.18",
         "@testing-library/preact": "^3.2.4",

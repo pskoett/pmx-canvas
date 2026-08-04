@@ -2,16 +2,16 @@
  * Comprehensive showcase test — creates a full SDLC dashboard using every
  * node type, edges, groups, and context pins, then captures a hero screenshot.
  */
-import { expect, test } from '@playwright/test';
+import { expect, test, type APIRequestContext } from '@playwright/test';
 
 // ── Helpers ──────────────────────────────────────────────────
 
-async function clear(request: { post: Function }): Promise<void> {
+async function clear(request: APIRequestContext): Promise<void> {
   await request.post('/api/canvas/clear');
   await request.post('/api/canvas/context-pins', { data: { nodeIds: [] } });
 }
 
-type PwRequest = { post: Function; patch: Function };
+type PwRequest = APIRequestContext;
 
 /**
  * Posts to a PMX Canvas endpoint and returns the parsed JSON. Throws (with a

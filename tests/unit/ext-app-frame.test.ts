@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   buildExtAppAxBridgeScript,
   buildExtAppBootBeaconScript,
+  buildExtAppSurfaceBaseStyles,
   enqueueWebkitRemount,
   getExtAppBridgeInitKey,
   injectExtAppAxBridgeScript,
@@ -15,6 +16,7 @@ import {
   WEBKIT_REMOUNT_SETTLE_MS,
 } from '../../src/client/nodes/ExtAppFrame.tsx';
 import type { CanvasNodeState } from '../../src/client/types.ts';
+import { waitForCondition } from './helpers.ts';
 
 describe('ExtAppFrame WebKit-host gate (Finding F)', () => {
   // Real WebKit-only hosts (Safari / WKWebView, e.g. the Copilot panel) → remount on.
@@ -68,11 +70,16 @@ describe('ExtAppFrame WebKit-host gate (Finding F)', () => {
       awaitBoot: () => Promise.resolve(),
     });
 
+    // Deliberate fixed 30ms window: proves B did NOT fire while A boots — absence can't be polled.
     await new Promise((resolve) => setTimeout(resolve, 30));
     expect(order).toEqual(['remount:A']); // B queued, NOT started while A boots
 
     releaseA?.();
-    await new Promise((resolve) => setTimeout(resolve, WEBKIT_REMOUNT_SETTLE_MS + 400)); // A boot + settle delay
+    // B runs only after A's boot resolves plus the WEBKIT_REMOUNT_SETTLE_MS pause.
+    await waitForCondition(() => order.includes('remount:B'), {
+      timeoutMs: WEBKIT_REMOUNT_SETTLE_MS + 3000,
+      label: "remount B to run after A's boot + settle",
+    });
     expect(order).toEqual(['remount:A', 'boot:A', 'remount:B']);
   });
 
@@ -92,8 +99,14 @@ describe('ExtAppFrame WebKit-host gate (Finding F)', () => {
       },
       awaitBoot: () => Promise.resolve(),
     });
-    // The shared queue may still be draining the previous test's settle delay.
-    await new Promise((resolve) => setTimeout(resolve, WEBKIT_REMOUNT_SETTLE_MS * 2 + 500));
+    // The shared queue may still be draining the previous test's settle delay,
+    // so poll: if the queue wrongly awaited the skipped boot, 'boot-wait:skipped'
+    // is pushed before 'remount:next' (equality below catches it) and the queue
+    // stalls forever on the never-resolving promise (this wait times out).
+    await waitForCondition(() => order.length > 0, {
+      timeoutMs: WEBKIT_REMOUNT_SETTLE_MS + 3000,
+      label: 'the remount queue to process past the skipped task',
+    });
     expect(order).toEqual(['remount:next']);
   });
 
@@ -173,6 +186,15 @@ describe('ExtAppFrame boot beacon (WebKit watchdog liveness)', () => {
     expect(beaconAt).toBeGreaterThan(injected.indexOf('<head>'));
     expect(beaconAt).toBeLessThan(injected.indexOf('data-pmx-canvas-ax-bridge'));
     expect(beaconAt).toBeLessThan(injected.indexOf('<main>'));
+  });
+
+  test('base styles make the app document background transparent (Finding Q, body-level)', () => {
+    const styles = buildExtAppSurfaceBaseStyles();
+    expect(styles).toContain('data-pmx-canvas-ext-app-base');
+    expect(styles).toContain('background: transparent !important');
+    const injected = injectExtAppAxBridgeScript('<head><title>t</title></head><body>app</body>', styles);
+    expect(injected.indexOf('data-pmx-canvas-ext-app-base')).toBeGreaterThan(injected.indexOf('<head>'));
+    expect(injected.indexOf('data-pmx-canvas-ext-app-base')).toBeLessThan(injected.indexOf('<body>'));
   });
 
   test('beacon-only injection works when AX is disabled', () => {

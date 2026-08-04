@@ -193,7 +193,7 @@ cmd('snapshot delete', 'Delete a saved snapshot', ['pmx-canvas snapshot delete <
 });
 
 async function runSnapshotDiff(args: string[]): Promise<void> {
-  const { positional, flags } = parseFlags(args);
+  const { positional } = parseFlags(args);
   const snapshot = positional[0];
   if (!snapshot) die('Missing snapshot ID or name', 'pmx-canvas snapshot diff <snapshot-id-or-name>');
   const result = await invokeOperation('snapshot.diff', { id: snapshot });

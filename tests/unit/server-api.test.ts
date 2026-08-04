@@ -1484,6 +1484,58 @@ describe('canvas server HTTP API', () => {
     expect(trimmed.entries.length).toBeLessThanOrEqual(500);
   });
 
+  test('workbench poll transport: snapshot bootstrap, incremental events, stale-since recovery', async () => {
+    // Proxy-safe transport (Amp orb portals): each poll is a short-lived JSON
+    // response. A fresh poller (no `since`) gets the SAME connect snapshot the
+    // SSE stream sends, so client bootstrap is transport-independent.
+    const first = await jsonRequest<{
+      ok: boolean;
+      snapshot: boolean;
+      seq: number;
+      events: Array<{ event: string; seq?: number }>;
+    }>('/api/workbench/poll');
+    expect(first.ok).toBe(true);
+    expect(first.snapshot).toBe(true);
+    const snapshotEvents = first.events.map((entry) => entry.event);
+    expect(snapshotEvents).toContain('connected');
+    expect(snapshotEvents).toContain('canvas-layout-update');
+    expect(snapshotEvents).toContain('context-pins-changed');
+
+    // A live mutation lands in the ring; polling with `since` returns it
+    // incrementally with strictly increasing seqs.
+    await jsonRequest('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Poll probe', x: 40, y: 40 }),
+    });
+    const incremental = await jsonRequest<{
+      snapshot: boolean;
+      seq: number;
+      events: Array<{ event: string; seq: number }>;
+    }>(`/api/workbench/poll?since=${first.seq}`);
+    expect(incremental.snapshot).toBe(false);
+    expect(incremental.seq).toBeGreaterThan(first.seq);
+    expect(incremental.events.length).toBeGreaterThan(0);
+    expect(incremental.events.some((entry) => entry.event === 'canvas-layout-update')).toBe(true);
+    expect(incremental.events.every((entry) => entry.seq > first.seq)).toBe(true);
+
+    // A caught-up poller gets an empty incremental response, not a snapshot.
+    const caughtUp = await jsonRequest<{ snapshot: boolean; events: unknown[] }>(
+      `/api/workbench/poll?since=${incremental.seq}`,
+    );
+    expect(caughtUp.snapshot).toBe(false);
+    expect(caughtUp.events.length).toBe(0);
+
+    // A `since` from a previous server run (beyond the live seq) and a garbage
+    // `since` both recover via a fresh snapshot instead of erroring.
+    const fromFuture = await jsonRequest<{ snapshot: boolean }>(
+      `/api/workbench/poll?since=${incremental.seq + 100000}`,
+    );
+    expect(fromFuture.snapshot).toBe(true);
+    const garbage = await jsonRequest<{ snapshot: boolean }>('/api/workbench/poll?since=banana');
+    expect(garbage.snapshot).toBe(true);
+  });
+
   test('surface route 404s for unknown node and non-openable types', async () => {
     const missing = await fetch(`${baseUrl}/api/canvas/surface/does-not-exist`);
     expect(missing.status).toBe(404);
@@ -3840,6 +3892,7 @@ describe('canvas server HTTP API', () => {
         body: JSON.stringify({ name }),
       });
       expect(saved.snapshot.name).toBe(name);
+      // Deliberate 2ms gap: snapshots sort by millisecond createdAt, so each needs a distinct timestamp.
       await new Promise((resolve) => setTimeout(resolve, 2));
     }
 
@@ -4474,6 +4527,9 @@ describe('canvas server HTTP API', () => {
       approvalGate: { status: string };
       pending: boolean;
     }>;
+    // Deliberate 60ms gap so the long-poll is in flight server-side before the
+    // resolve lands — there is no "waiter registered" signal to poll, and the
+    // endpoint answers correctly either way; this keeps the mid-wait path exercised.
     await new Promise((resolve) => setTimeout(resolve, 60));
     await fetch(`${baseUrl}/api/canvas/ax/approval/${id}/resolve`, {
       method: 'POST',
@@ -4670,9 +4726,12 @@ describe('canvas server HTTP API', () => {
 
   test('AX mutations emit ax-event-created and ax-state-changed SSE events', async () => {
     const abortController = new AbortController();
+    // Await the SSE handshake before mutating: the server registers the
+    // subscriber in the stream's start() before the response is returned, so a
+    // resolved fetch means the events below cannot be missed.
+    const response = await fetch(`${baseUrl}/api/workbench/events`, { signal: abortController.signal });
+    expect(response.ok).toBe(true);
     const eventsPromise = (async () => {
-      const response = await fetch(`${baseUrl}/api/workbench/events`, { signal: abortController.signal });
-      expect(response.ok).toBe(true);
       const reader = response.body?.getReader();
       expect(reader).toBeDefined();
       const decoder = new TextDecoder();
@@ -4693,7 +4752,6 @@ describe('canvas server HTTP API', () => {
       return seen;
     })();
 
-    await Bun.sleep(50);
     await jsonRequest('/api/canvas/ax/event', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -5241,9 +5299,12 @@ describe('canvas server HTTP API', () => {
 
   test('HTTP node creation broadcasts a live canvas-layout-update event', async () => {
     const abortController = new AbortController();
+    // Await the SSE handshake before mutating: the server registers the
+    // subscriber in the stream's start() before the response is returned, so a
+    // resolved fetch means the layout-update below cannot be missed.
+    const response = await fetch(`${baseUrl}/api/workbench/events`, { signal: abortController.signal });
+    expect(response.ok).toBe(true);
     const eventsPromise = (async () => {
-      const response = await fetch(`${baseUrl}/api/workbench/events`, { signal: abortController.signal });
-      expect(response.ok).toBe(true);
       const reader = response.body?.getReader();
       expect(reader).toBeDefined();
       const decoder = new TextDecoder();
@@ -5266,7 +5327,6 @@ describe('canvas server HTTP API', () => {
       return [];
     })();
 
-    await Bun.sleep(50);
     const created = await jsonRequest<{ id: string }>('/api/canvas/node', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

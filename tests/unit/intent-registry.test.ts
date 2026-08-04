@@ -160,6 +160,7 @@ describe('IntentRegistry', () => {
       (result) => result.nodeId,
     );
 
+    // One event-loop turn (not a timed wait): lets runCommit's mutation callback start so the intent is committing.
     await Bun.sleep(0);
     expect(registry.clear('commit-me', { vetoed: true })).toBe(false);
     releaseMutation?.();
@@ -188,6 +189,7 @@ describe('IntentRegistry', () => {
       (result) => result.nodeId,
     );
 
+    // One event-loop turn (not a timed wait): lets runCommit's mutation callback start so the intent is committing.
     await Bun.sleep(0);
     // update{vetoed} loses the race to an in-flight commit: the committing guard runs
     // BEFORE the veto branch, so it throws "already committing" instead of poisoning —

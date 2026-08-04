@@ -16,27 +16,12 @@
  * operation (plan-005 slices 1–7 + plan-008 Wave 1) that is now reachable ONLY
  * through its composite (or `canvas_batch`).
  *
- * Deferred to v0.4: the `canvas_snapshot` composite (still a name collision —
- * see below). Its 6 legacy snapshot standalones (`canvas_snapshot`,
- * `canvas_list_snapshots`, `canvas_restore`, `canvas_delete_snapshot`,
- * `canvas_gc_snapshots`, `canvas_diff`) stay registered in v0.3.0 but are marked
- * deprecated (description-prefixed) per docs/api-stability.md's
- * deprecate-one-minor-before-removal rule. (`canvas_webview` shipped in plan-008
- * Wave 3 via runner injection; `canvas_app` shipped in Wave 4 — open-mcp-app /
- * diagram / build-artifact. Wave 5 folded the last three legacy tools
- * deprecate-only — NO per-action input-injection mechanism was needed:
- * `canvas_add_html_node` / `canvas_add_html_primitive` → `canvas_node` action
- * "add" (type:"html" [+ primitive]); `canvas_refresh_webpage_node` → `canvas_node`
- * action "update" (refresh:true). `canvas_screenshot` stays standalone — it
- * returns a binary image payload the composite/registry JSON wire shape does not
- * model.)
- *
- * Not shipped here: the `canvas_snapshot` composite (plan-006 #7). Its target
- * name is ALREADY a legacy standalone tool (the save-snapshot tool, op
- * `snapshot.save`), so it cannot be added additively without a name clash, and
- * repurposing `canvas_snapshot` to be action-discriminated now would break
- * existing callers. It lands in v0.4, in the same change that removes the 6
- * kept-but-deprecated legacy snapshot tools and frees the name.
+ * v0.4.0 completed the fold: the `canvas_snapshot` composite shipped (its name
+ * was held by the legacy save-snapshot standalone through v0.3.x, which — with
+ * the other 5 snapshot standalones — was deprecated in 0.3.0 and removed here
+ * per docs/api-stability.md's deprecate-one-minor-before-removal rule).
+ * `canvas_screenshot` stays standalone — it returns a binary image payload the
+ * composite/registry JSON wire shape does not model.
  *
  * This module must never import server.ts or index.ts.
  */

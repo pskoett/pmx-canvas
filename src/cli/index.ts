@@ -163,7 +163,10 @@ function runMcpServerProcess(): Promise<void> {
 const serveSubcommand = firstArg === 'serve' ? (args[1] ?? '') : '';
 
 if (firstArg === 'serve' && (serveSubcommand === 'status' || serveSubcommand === 'stop')) {
-  const port = parseInt(readOption('port') ?? process.env.PMX_WEB_CANVAS_PORT ?? '4313');
+  const port = parseInt(
+    readOption('port') ?? process.env.PMX_WEB_CANVAS_PORT ?? process.env.PMX_CANVAS_PORT ?? '4313',
+    10,
+  );
   const daemonLogFile = resolve(readOption('log-file') ?? `.pmx-canvas/daemon-${port}.log`);
   const daemonPidFile = resolve(readOption('pid-file') ?? `.pmx-canvas/daemon-${port}.pid`);
   const daemonWaitMs = readNumberOption('wait-ms') ?? 10_000;
@@ -208,7 +211,10 @@ if (AGENT_COMMANDS.has(routedCommand) && routedCommand !== 'serve') {
   await runMcpServerProcess();
 } else {
   // "serve" is also accessible via flags (backward compat)
-  const port = parseInt(readOption('port') ?? process.env.PMX_WEB_CANVAS_PORT ?? '4313');
+  const port = parseInt(
+    readOption('port') ?? process.env.PMX_WEB_CANVAS_PORT ?? process.env.PMX_CANVAS_PORT ?? '4313',
+    10,
+  );
   const demo = hasFlag('demo');
   const noOpen = hasFlag('no-open');
   const daemon = hasFlag('daemon');

@@ -110,6 +110,38 @@ describe('agent CLI node commands', () => {
     expect(updated.size).toEqual({ width: 640, height: 200 });
   });
 
+  test('node update returns a compact envelope by default (0.3.4 report Finding R)', async () => {
+    // A no-op resize on an ext-app previously echoed the FULL node (~940 KB of
+    // bundled html + tool result). The default output must stay turn-safe.
+    const created = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Compact envelope', content: 'x'.repeat(4000), x: 40, y: 40 }),
+    });
+
+    const log = mock((..._args: unknown[]) => {});
+    const originalLog = console.log;
+    console.log = log;
+    try {
+      await runAgentCli(['node', 'update', created.id, '--width', '360', '--height', '240']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const raw = log.mock.calls[0]?.[0] as string;
+    expect(raw.length).toBeLessThan(1000); // envelope, not the node body
+    const output = JSON.parse(raw) as Record<string, unknown>;
+    expect(output).toMatchObject({
+      ok: true,
+      id: created.id,
+      nodeId: created.id,
+      size: { width: 360, height: 240 },
+      updatedFields: ['size'],
+    });
+    expect(output.node).toBeUndefined();
+    expect(output.content).toBeUndefined();
+  });
+
   test('ax focus --source honors the flag and defaults to cli (report #69)', async () => {
     const created = await jsonRequest<{ id: string }>('/api/canvas/node', {
       method: 'POST',
@@ -434,6 +466,7 @@ describe('agent CLI node commands', () => {
         'Updated trace',
         '--error',
         'boom',
+        '--full',
       ]);
     } finally {
       console.log = originalLog;
@@ -790,7 +823,7 @@ describe('agent CLI node commands', () => {
     console.log = log;
 
     try {
-      await runAgentCli(['node', 'update', created.id, '--spec-file', specPath]);
+      await runAgentCli(['node', 'update', created.id, '--spec-file', specPath, '--full']);
     } finally {
       console.log = originalLog;
     }
@@ -848,6 +881,7 @@ describe('agent CLI node commands', () => {
         'value',
         '--chart-height',
         '420',
+        '--full',
       ]);
     } finally {
       console.log = originalLog;
@@ -898,7 +932,7 @@ describe('agent CLI node commands', () => {
     console.log = log;
 
     try {
-      await runAgentCli(['node', 'update', created.id, '--data-file', dataPath, '--lock-arrange']);
+      await runAgentCli(['node', 'update', created.id, '--data-file', dataPath, '--lock-arrange', '--full']);
     } finally {
       console.log = originalLog;
     }
@@ -933,7 +967,7 @@ describe('agent CLI node commands', () => {
     });
 
     try {
-      await runAgentCli(['node', 'update', created.id, '--stdin']);
+      await runAgentCli(['node', 'update', created.id, '--stdin', '--full']);
     } finally {
       console.log = originalLog;
       Object.defineProperty(process, 'stdin', { value: originalStdin, configurable: true });
@@ -1031,7 +1065,7 @@ describe('agent CLI node commands', () => {
     console.log = log;
 
     try {
-      await runAgentCli(['node', 'update', created.id, '--lock-arrange']);
+      await runAgentCli(['node', 'update', created.id, '--lock-arrange', '--full']);
     } finally {
       console.log = originalLog;
     }
@@ -1059,8 +1093,8 @@ describe('agent CLI node commands', () => {
     console.log = log;
 
     try {
-      await runAgentCli(['node', 'update', created.id, '--pinned', 'true']);
-      await runAgentCli(['node', 'update', created.id, '--pinned', 'false']);
+      await runAgentCli(['node', 'update', created.id, '--pinned', 'true', '--full']);
+      await runAgentCli(['node', 'update', created.id, '--pinned', 'false', '--full']);
     } finally {
       console.log = originalLog;
     }
@@ -2809,6 +2843,7 @@ exit 2
         body: JSON.stringify({ name }),
       });
       expect(saved.snapshot.name).toBe(name);
+      // Deliberate 2ms gap: snapshots sort by millisecond createdAt, so each needs a distinct timestamp.
       await new Promise((resolve) => setTimeout(resolve, 2));
     }
 
@@ -2858,6 +2893,7 @@ exit 2
         body: JSON.stringify({ name: 'first-filtered-snapshot' }),
       },
     );
+    // Deliberate 5ms gap: the before/after filters compare millisecond createdAt values, which must be strictly ordered.
     await Bun.sleep(5);
     const second = await jsonRequest<{ ok: boolean; snapshot: { name: string; createdAt: string } }>(
       '/api/canvas/snapshots',
@@ -2867,6 +2903,7 @@ exit 2
         body: JSON.stringify({ name: 'second-filtered-snapshot' }),
       },
     );
+    // Deliberate 5ms gap: keeps the third snapshot's createdAt strictly after the second's.
     await Bun.sleep(5);
     const third = await jsonRequest<{ ok: boolean; snapshot: { name: string; createdAt: string } }>(
       '/api/canvas/snapshots',

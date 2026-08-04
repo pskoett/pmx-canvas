@@ -9,15 +9,16 @@ import {
   unwatchFileForNode,
   watchFileForNode,
 } from '../../src/server/file-watcher.ts';
-import { createTestWorkspace, makeNode, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
+import {
+  createTestWorkspace,
+  makeNode,
+  removeTestWorkspace,
+  resetCanvasForTests,
+  waitForCondition,
+} from './helpers.ts';
 
 async function waitFor(check: () => boolean, timeoutMs = 1500): Promise<void> {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    if (check()) return;
-    await Bun.sleep(25);
-  }
-  throw new Error(`Timed out after ${timeoutMs}ms waiting for file watcher update.`);
+  await waitForCondition(check, { timeoutMs, label: 'file watcher update' });
 }
 
 describe('file watcher', () => {
@@ -57,6 +58,7 @@ describe('file watcher', () => {
     });
 
     watchFileForNode('file-node', filePath);
+    // Deliberate 30ms pause: fs.watch exposes no "attached" signal, so give the OS watcher a beat before writing.
     await Bun.sleep(30);
     writeFileSync(filePath, 'updated\ncontent\nhere', 'utf-8');
 
@@ -83,6 +85,7 @@ describe('file watcher', () => {
     watchFileForNode('file-b', filePath);
     unwatchFileForNode('file-a', filePath);
 
+    // Deliberate 30ms pause: fs.watch exposes no "attached" signal, so give the OS watcher a beat before writing.
     await Bun.sleep(30);
     writeFileSync(filePath, 'shared v2', 'utf-8');
 
@@ -112,6 +115,7 @@ describe('file watcher', () => {
 
     rewatchAllFileNodes();
 
+    // Deliberate 30ms pause: fs.watch exposes no "attached" signal, so give the OS watcher a beat before writing.
     await Bun.sleep(30);
     writeFileSync(filePath, 'after rewatch', 'utf-8');
 

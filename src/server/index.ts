@@ -176,15 +176,9 @@ export class PmxCanvas extends EventEmitter {
     this._server = base;
     this._port = getCanvasServerPort() ?? this._port;
 
-    // Wire up mutation history recorder
-    canvasState.onMutation((info) => {
-      mutationHistory.record({
-        description: info.description,
-        operationType: info.operationType,
-        forward: info.forward,
-        inverse: info.inverse,
-      });
-    });
+    // The mutation-history recorder is wired by startCanvasServer above —
+    // onMutation is a single slot, so wiring it again here would only
+    // re-install an identical forwarder (plan-009 L5).
 
     // Wire up prompt handler to emit events
     setPrimaryWorkbenchCanvasPromptHandler(async (request) => {

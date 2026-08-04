@@ -38,8 +38,7 @@ jobs:
             exit 1
           fi
 
-      - name: Validate agent skill mirrors
-        run: bun run validate:agent-skills
+      # Agent-skill mirror validation (validate:agent-skills) is local-only by design (plan-009 C2): the skill trees are gitignored, so in CI the check could only ever skip.
 
       # CLAUDE.md and AGENTS.md are hand-maintained twins; a one-line drift
       # between them has already happened once (plan-009 M9).
@@ -73,7 +72,7 @@ jobs:
   # Required cross-platform gate: the unit suite must pass on Windows and
   # macOS on every change (the 0.3.1 Windows report found the SPA had never
   # booted on Windows — a path-separator bug no ubuntu-only CI could catch).
-  # Runs typecheck + the full unit suite; lint/coverage/mirror checks stay on
+  # Runs typecheck + the full unit suite; lint/coverage checks stay on
   # the ubuntu job (they are platform-independent). Bash-backed suites
   # (web-artifacts) self-skip on Windows via describe.skipIf(win32).
   test-cross-platform:

@@ -183,6 +183,37 @@ export function resetCanvasForTests(workspaceRoot: string): void {
   canvasState.setTheme('dark');
 }
 
-export async function waitForPersistence(ms = 650): Promise<void> {
-  await Bun.sleep(ms);
+/**
+ * Poll `check` until it holds, or throw a labeled timeout error. Replaces
+ * fixed sleeps: waits exactly as long as the condition needs and fails loudly
+ * (instead of asserting on stale state) when it never becomes true.
+ */
+export async function waitForCondition(
+  check: () => boolean | Promise<boolean>,
+  options: { timeoutMs?: number; intervalMs?: number; label?: string } = {},
+): Promise<void> {
+  const { timeoutMs = 3000, intervalMs = 25, label = 'condition' } = options;
+  const deadline = Date.now() + timeoutMs;
+  while (!(await check())) {
+    if (Date.now() >= deadline) {
+      throw new Error(`waitForCondition: timed out after ${timeoutMs}ms waiting for ${label}.`);
+    }
+    await Bun.sleep(intervalMs);
+  }
+}
+
+/**
+ * Wait for the debounced canvas auto-save (SAVE_DEBOUNCE_MS in
+ * canvas-state.ts) to flush to SQLite. `_saveTimer` is non-null while a save
+ * is pending and is nulled in the same synchronous callback that performs the
+ * write, so once a poll from the event loop observes null the persisted DB
+ * reflects the last mutation. Polling the drain (instead of a fixed sleep)
+ * keeps the mutation→scheduleSave→write path under test without racing it.
+ */
+export async function waitForPersistence(timeoutMs = 3000): Promise<void> {
+  // biome-ignore lint/complexity/useLiteralKeys: reaches the private save timer — the real "save flushed" signal.
+  await waitForCondition(() => canvasState['_saveTimer'] === null, {
+    timeoutMs,
+    label: 'the debounced canvas save to flush',
+  });
 }

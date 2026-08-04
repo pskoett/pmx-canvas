@@ -1,1 +1,1 @@
-export {};
+import './uuid-polyfill';

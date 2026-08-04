@@ -147,10 +147,10 @@ All generated files live under `.pmx-canvas/` in the workspace root:
   daemon-<port>.pid    # daemon pid file
 ```
 
-State auto-saves every mutation (debounced 500ms) and auto-loads on server start. Legacy files (`.pmx-canvas/state.json`, `.pmx-canvas.json`, `.pmx-canvas/snapshots/`, `.pmx-canvas-snapshots/`, and blob files) are imported into SQLite and renamed to `.bak` on first boot.
+State auto-saves every mutation (debounced 500ms) and auto-loads on server start. Pre-0.2 legacy layouts (`.pmx-canvas/state.json`, `.pmx-canvas.json`, snapshot dirs, blob files) are no longer imported as of 0.4.0 — restore them with a 0.3.x install first if needed.
 
 - Override DB path: `PMX_CANVAS_DB_PATH` env var
-- Backward-compatible legacy JSON path: `PMX_CANVAS_STATE_FILE` env var
+- `PMX_CANVAS_STATE_FILE` remains only as a `.db`-path alias (non-`.db` values are ignored with a boot warning as of 0.4.0)
 - `--demo` only seeds when canvas is empty (won't clobber restored state)
 - State saves: viewport, nodes, edges, annotations, context pins, snapshots, and large node blobs
 - Stop the server or flush/close the SDK before committing `canvas.db`; shutdown checkpoints SQLite WAL data into the DB file.
@@ -212,7 +212,7 @@ package in a clean temp consumer instead of the repo dev path.
 
 ## MCP Server
 
-27 tools: 15 action-discriminated composites (`canvas_node`, `canvas_render`, `canvas_edge`, `canvas_group`, `canvas_history`, `canvas_view`, `canvas_query`, `canvas_webview`, `canvas_app`, `canvas_ax_state`, `canvas_ax_work`, `canvas_ax_gate`, `canvas_ax_timeline`, `canvas_ax_delivery`, `canvas_intent`) plus 12 standalone tools (`canvas_batch`, `canvas_pin_nodes`, `canvas_invoke_command`, `canvas_ax_interaction`, `canvas_ingest_activity`, `canvas_screenshot`, plus the 6 snapshot tools — deprecated, pending a `canvas_snapshot` composite in v0.4). The 57 legacy single-purpose tools the composites replaced were removed in v0.3.0. Prefer composites for new MCP calls; see `docs/mcp.md` for the authoritative tool list and the legacy-to-composite migration reference. `canvas_intent` (Ghost Cursor of Intent) is composite-only — its `intent.signal`/`intent.update`/`intent.clear` ops have no standalone equivalent.
+22 tools: 16 action-discriminated composites (`canvas_node`, `canvas_render`, `canvas_edge`, `canvas_group`, `canvas_history`, `canvas_view`, `canvas_query`, `canvas_webview`, `canvas_app`, `canvas_snapshot`, `canvas_ax_state`, `canvas_ax_work`, `canvas_ax_gate`, `canvas_ax_timeline`, `canvas_ax_delivery`, `canvas_intent`) plus 6 standalone tools (`canvas_batch`, `canvas_pin_nodes`, `canvas_invoke_command`, `canvas_ax_interaction`, `canvas_ingest_activity`, `canvas_screenshot`). The 57 legacy single-purpose tools the composites replaced were removed in v0.3.0; v0.4.0 shipped the `canvas_snapshot` composite and removed the 6 deprecated snapshot standalones. Prefer composites for new MCP calls; see `docs/mcp.md` for the authoritative tool list and the legacy-to-composite migration reference. `canvas_intent` (Ghost Cursor of Intent) is composite-only — its `intent.signal`/`intent.update`/`intent.clear` ops have no standalone equivalent.
 
 The `diagram` action of `canvas_app` is a thin preset in `src/server/diagram-presets.ts` that proxies to the hosted [Excalidraw MCP app](https://github.com/excalidraw/excalidraw-mcp) (`https://mcp.excalidraw.com/mcp`). For any other MCP Apps server, use `canvas_app` action `open-mcp-app`.
 

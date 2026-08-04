@@ -7,20 +7,13 @@
  *
  * Persistence: canvas state auto-saves to `.pmx-canvas/canvas.db` (SQLite WAL mode)
  * in the workspace root on every mutation (debounced). Auto-loads on `loadFromDisk()`.
- * Legacy `.pmx-canvas/state.json` is auto-migrated on first boot.
+ * Legacy pre-0.2 formats (`.pmx-canvas/state.json`, `.pmx-canvas.json`,
+ * `.pmx-canvas-snapshots/`, loose blob files) are no longer imported as of 0.4.0 —
+ * the one-shot boot migration into SQLite was retired.
  */
 
 import { createHash } from 'node:crypto';
-import {
-  existsSync,
-  readFileSync,
-  writeFileSync,
-  mkdirSync,
-  readdirSync,
-  renameSync,
-  rmSync,
-  unlinkSync,
-} from 'node:fs';
+import { existsSync, readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, unlinkSync } from 'node:fs';
 import { isAbsolute, join, dirname, relative } from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
 import { normalizeCanvasNodeData } from './canvas-provenance.js';
@@ -34,7 +27,6 @@ import {
   deleteSnapshotFromDB,
   writeBlobToDB,
   readBlobFromDB,
-  hasBlobInDB,
   isDbPopulated,
   checkpointCanvasDb,
   finalizeCanvasDbForClose,
@@ -97,12 +89,9 @@ function normalizeSnapshotTimestamp(value: string | undefined): string | undefin
 }
 
 export const PMX_CANVAS_DIR = '.pmx-canvas';
-const STATE_FILENAME = 'state.json';
 const DB_FILENAME = 'canvas.db';
 const SNAPSHOTS_SUBDIR = 'snapshots';
 const BLOBS_SUBDIR = 'blobs';
-const LEGACY_STATE_FILENAME = '.pmx-canvas.json';
-const LEGACY_SNAPSHOTS_DIR = '.pmx-canvas-snapshots';
 const SAVE_DEBOUNCE_MS = 500;
 const BLOB_JSON_THRESHOLD_BYTES = Number(process.env.PMX_CANVAS_BLOB_THRESHOLD_BYTES ?? '2048');
 const BLOB_DATA_FIELDS = new Set([
@@ -393,10 +382,28 @@ class CanvasStateManager {
   }
 
   // ── Mutation recorder (for undo/redo history) ─────────────
+  //
+  // Single slot BY DESIGN, last-write-wins (plan-009 L5): the only logical
+  // consumer is the `mutationHistory` singleton. Both boot paths install an
+  // identical forwarder to it — `startCanvasServer()` (server.ts) wires it on
+  // every fresh start, and `PmxCanvas.start()` (index.ts) redundantly re-wires
+  // the same forwarder right after calling `startCanvasServer` — so replacement
+  // is observably a no-op today. Because that double-wire sits on the normal
+  // start path, a listener LIST here would record every mutation twice into the
+  // history ring (breaking undo), and a hard error on re-wire would crash
+  // `PmxCanvas.start()`. Do not wire a recorder with different semantics
+  // without first removing the redundant index.ts wire.
   private _mutationRecorder: ((info: MutationRecordInfo) => void) | null = null;
+  // The ONE recording-suppression counter (depth-counted so nested suppressed
+  // scopes compose). Two related mechanisms are deliberately NOT merged into
+  // it: `mutationHistory._replaying` guards direct `record()` calls during
+  // undo/redo replay, and the operation registry's `suppressEmitDepth`
+  // suppresses SSE emits during meta-ops (canvas.batch) — whose sub-ops must
+  // still record history, just as undo/redo still emits SSE while recording is
+  // suppressed here. The three counters are active at different times.
   private _suppressRecordingDepth = 0;
 
-  /** Register a mutation recorder. Used by mutation-history to capture undo/redo closures. */
+  /** Register THE mutation recorder (single slot, last-write-wins — see note above). */
   onMutation(cb: (info: MutationRecordInfo) => void): void {
     this._mutationRecorder = cb;
   }
@@ -617,7 +624,6 @@ class CanvasStateManager {
   }
 
   // ── Persistence ────────────────────────────────────────────
-  private _stateFilePath: string | null = null;
   private _db: import('bun:sqlite').Database | null = null;
   private _saveTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -630,9 +636,9 @@ class CanvasStateManager {
   setWorkspaceRoot(workspaceRoot: string): void {
     this.close();
     this._workspaceRoot = workspaceRoot;
-    this.migrateLegacyLayout(workspaceRoot);
 
-    // Determine DB path
+    // Determine DB path. PMX_CANVAS_DB_PATH wins; PMX_CANVAS_STATE_FILE is
+    // honored only as a legacy alias when it points at a `.db` file.
     const dbOverride = (process.env.PMX_CANVAS_DB_PATH ?? '').trim();
     const stateFileOverride = (process.env.PMX_CANVAS_STATE_FILE ?? '').trim();
     let dbPath: string;
@@ -643,16 +649,20 @@ class CanvasStateManager {
     } else {
       dbPath = join(workspaceRoot, PMX_CANVAS_DIR, DB_FILENAME);
     }
+    if (stateFileOverride && !stateFileOverride.endsWith('.db')) {
+      logCanvasStateWarning(
+        'PMX_CANVAS_STATE_FILE ignored',
+        'legacy JSON state files are no longer supported as of 0.4.0 — use PMX_CANVAS_DB_PATH',
+        { stateFileOverride },
+      );
+    }
 
-    // Keep legacy _stateFilePath for JSON migration detection
-    this._stateFilePath =
-      stateFileOverride && !stateFileOverride.endsWith('.db')
-        ? stateFileOverride
-        : join(workspaceRoot, PMX_CANVAS_DIR, STATE_FILENAME);
-
+    // Legacy pre-0.2 formats (`.pmx-canvas/state.json`, `.pmx-canvas.json`,
+    // `.pmx-canvas-snapshots/`, loose blob files) are no longer imported as of
+    // 0.4.0 — the one-shot boot migration that copied them into SQLite and
+    // renamed the originals to `.bak` was retired.
     try {
       this._db = openCanvasDb(dbPath);
-      this.migrateJsonToSqlite();
     } catch (error) {
       logCanvasStateWarning('open canvas database failed', error, { dbPath });
     }
@@ -745,7 +755,7 @@ class CanvasStateManager {
       }
     }
 
-    // Fallback to filesystem (for legacy blobs not yet migrated)
+    // Fallback to filesystem (legacy on-disk blobs are still readable in place)
     const filePath = this.resolveBlobPath(ref);
     if (!filePath) return ref;
     try {
@@ -804,112 +814,6 @@ class CanvasStateManager {
     };
   }
 
-  /**
-   * One-time migration: rename files from the pre-consolidation layout
-   * (`.pmx-canvas.json` + `.pmx-canvas-snapshots/`) into `.pmx-canvas/`.
-   * No-op when the new layout already exists.
-   */
-  private migrateLegacyLayout(workspaceRoot: string): void {
-    const newDir = join(workspaceRoot, PMX_CANVAS_DIR);
-    const legacyState = join(workspaceRoot, LEGACY_STATE_FILENAME);
-    const newState = join(newDir, STATE_FILENAME);
-    const legacySnapshots = join(workspaceRoot, LEGACY_SNAPSHOTS_DIR);
-    const newSnapshots = join(newDir, SNAPSHOTS_SUBDIR);
-
-    try {
-      if (existsSync(legacyState) && !existsSync(newState)) {
-        mkdirSync(newDir, { recursive: true });
-        renameSync(legacyState, newState);
-      }
-      if (existsSync(legacySnapshots) && !existsSync(newSnapshots)) {
-        mkdirSync(newDir, { recursive: true });
-        renameSync(legacySnapshots, newSnapshots);
-      }
-    } catch (error) {
-      logCanvasStateWarning('legacy layout migration failed', error, {
-        workspaceRoot,
-      });
-    }
-  }
-
-  /**
-   * One-time migration: import state.json + snapshot JSON files + blob files
-   * into the SQLite database. Renames originals to `.bak`.
-   */
-  private migrateJsonToSqlite(): void {
-    if (!this._db || !this._stateFilePath) return;
-    const db = this._db;
-
-    if (isDbPopulated(this._db)) return; // DB already initialized
-
-    if (existsSync(this._stateFilePath)) {
-      try {
-        const raw = readFileSync(this._stateFilePath, 'utf-8');
-        const parsed = JSON.parse(raw) as PersistedCanvasState;
-        if (parsed && parsed.version === 1) {
-          saveStateToDB(db, parsed);
-          renameSync(this._stateFilePath, `${this._stateFilePath}.bak`);
-        }
-      } catch (error) {
-        logCanvasStateWarning('migrate state.json to sqlite failed', error, {
-          path: this._stateFilePath,
-        });
-      }
-    }
-
-    // Migrate snapshot JSON files
-    const snapshotsDir = this.snapshotsDir;
-    if (snapshotsDir && existsSync(snapshotsDir)) {
-      try {
-        const files = readdirSync(snapshotsDir).filter((f) => f.endsWith('.json'));
-        for (const file of files) {
-          try {
-            const filePath = join(snapshotsDir, file);
-            const raw = readFileSync(filePath, 'utf-8');
-            const parsed = JSON.parse(raw) as PersistedCanvasState & { snapshot?: CanvasSnapshot };
-            if (parsed.snapshot && parsed.version === 1) {
-              saveSnapshotToDB(db, parsed.snapshot, parsed);
-              renameSync(filePath, `${filePath}.bak`);
-            }
-          } catch (error) {
-            logCanvasStateWarning('migrate snapshot file to sqlite failed', error, { file });
-          }
-        }
-      } catch (error) {
-        logCanvasStateWarning('migrate snapshots dir failed', error, { snapshotsDir });
-      }
-    }
-
-    // Migrate blob files
-    const blobsDir = this.blobsDir;
-    if (blobsDir && existsSync(blobsDir)) {
-      try {
-        const prefixes = readdirSync(blobsDir).filter((d) => d.length === 2);
-        for (const prefix of prefixes) {
-          const prefixDir = join(blobsDir, prefix);
-          const blobFiles = readdirSync(prefixDir).filter((f) => f.endsWith('.json.gz'));
-          for (const blobFile of blobFiles) {
-            try {
-              const blobPath = join(prefixDir, blobFile);
-              const sha256 = blobFile.replace('.json.gz', '');
-              if (!hasBlobInDB(db, sha256)) {
-                const compressed = readFileSync(blobPath);
-                const json = gunzipSync(compressed).toString('utf-8');
-                writeBlobToDB(db, sha256, json);
-              }
-              const backupPath = `${blobPath}.bak`;
-              if (!existsSync(backupPath)) renameSync(blobPath, backupPath);
-            } catch (error) {
-              logCanvasStateWarning('migrate blob file to sqlite failed', error, { blobFile });
-            }
-          }
-        }
-      } catch (error) {
-        logCanvasStateWarning('migrate blobs dir failed', error, { blobsDir });
-      }
-    }
-  }
-
   getWorkspaceRoot(): string {
     return this._workspaceRoot;
   }
@@ -927,11 +831,12 @@ class CanvasStateManager {
     };
   }
 
-  /** Load canvas state from SQLite (or legacy JSON fallback). Call once on server startup. */
+  /** Load canvas state from SQLite. Call once on server startup. */
   loadFromDisk(options: LoadFromDiskOptions = {}): boolean {
     // Host capability lives in its own table (not snapshotted / not in PmxAxState).
     this.ax.loadHostCapabilityFromDb();
-    // Try SQLite first (only if DB has been populated)
+    // Only a populated DB counts as saved state (legacy `state.json` loading was
+    // retired with the 0.4.0 boot-migration removal).
     if (this._db && isDbPopulated(this._db)) {
       try {
         const state = loadStateFromDB(this._db);
@@ -941,21 +846,6 @@ class CanvasStateManager {
         }
       } catch (error) {
         logCanvasStateWarning('load state from sqlite failed', error, {});
-      }
-    }
-
-    // Fallback to JSON (for edge cases where migration hasn't happened)
-    if (this._stateFilePath && existsSync(this._stateFilePath)) {
-      try {
-        const raw = readFileSync(this._stateFilePath, 'utf-8');
-        const parsed = JSON.parse(raw) as PersistedCanvasState;
-        if (!parsed || parsed.version !== 1) return false;
-        this.applyPersistedState(parsed);
-        return true;
-      } catch (error) {
-        logCanvasStateWarning('load state from json fallback failed', error, {
-          path: this._stateFilePath,
-        });
       }
     }
 
@@ -1015,9 +905,24 @@ class CanvasStateManager {
         ax: this.getAxState(),
       });
       saveStateToDB(this._db, payload);
+      this._lastPersistenceError = null;
     } catch (error) {
+      // Persistence failures are otherwise warn-and-continue (the canvas keeps
+      // working from memory) — record the failure so /health can report a
+      // degraded persistence state instead of silently losing durability (M4).
+      this._lastPersistenceError = {
+        message: error instanceof Error ? error.message : String(error),
+        at: new Date().toISOString(),
+      };
       logCanvasStateWarning('save state to sqlite failed', error, {});
     }
+  }
+
+  private _lastPersistenceError: { message: string; at: string } | null = null;
+
+  /** Health view of state persistence: ok until a save fails, ok again after the next success. */
+  get persistenceHealth(): { ok: boolean; lastError: { message: string; at: string } | null } {
+    return { ok: this._lastPersistenceError === null, lastError: this._lastPersistenceError };
   }
 
   /** Close the SQLite database cleanly. Call on server shutdown. */
@@ -1098,7 +1003,7 @@ class CanvasStateManager {
       if (result) return result;
     }
 
-    // Fallback to filesystem (for legacy snapshots not yet migrated)
+    // Fallback to filesystem (legacy on-disk snapshots are still readable in place)
     const dir = this.snapshotsDir;
     if (!dir || !existsSync(dir)) return null;
 

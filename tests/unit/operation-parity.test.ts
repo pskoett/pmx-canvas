@@ -545,6 +545,7 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     const sse = await connectSse(baseUrl);
     try {
       expect(await sse.waitForCount('canvas-layout-update', 1)).toBe(true);
+      // Deliberate fixed settle: let any in-flight frames land before the zero-event baseline (absence can't be polled).
       await Bun.sleep(150);
       const baseline = sse.count('canvas-layout-update');
 
@@ -557,6 +558,7 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
       sdk.getNode(created.id);
       sdk.getLayout();
 
+      // Deliberate fixed window: proves NO frame arrived for pure reads — absence can't be polled.
       await Bun.sleep(300);
       expect(sse.count('canvas-layout-update')).toBe(baseline);
     } finally {
@@ -568,6 +570,7 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
     const sse = await connectSse(baseUrl);
     try {
       expect(await sse.waitForCount('canvas-layout-update', 1)).toBe(true);
+      // Deliberate fixed settle: let any in-flight frames land before the exactly-one-frame baseline (absence can't be polled).
       await Bun.sleep(150);
       const baseline = sse.count('canvas-layout-update');
       // Three mutating entries: the registry suppresses per-entry emits during

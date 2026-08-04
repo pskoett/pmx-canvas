@@ -22,10 +22,10 @@ import {
   restoreLayout,
   sessionId,
   traceEnabled,
-  updateNode,
   updateNodeData,
 } from './canvas-store';
 import { fetchAxSurfaceState } from './intent-bridge';
+import { DEFAULT_POSITIONS, makeNodeState } from './node-factory';
 import { invalidateTokenCache } from '../theme/tokens';
 import { resetAttentionBridge, syncAttentionFromSse } from './attention-bridge';
 import { dissolveIntent, resetIntents, settleIntent, upsertIntent } from './intent-store';
@@ -36,10 +36,36 @@ let savedLayout: Map<string, Partial<CanvasNodeState>> | null = null;
 let reconnectAttempts = 0;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 
+// ── Proxy-safe polling transport ──────────────────────────────
+// Some proxies (e.g. the Amp orb portal) buffer streaming responses and only
+// flush them on close, so the SSE stream delivers NOTHING — the connection
+// "opens" (headers pass through) but no event ever arrives. Fallback: if the
+// stream produces no event at all within the watchdog window, switch to
+// polling GET /api/workbench/poll, which returns buffered events (or a full
+// connect snapshot) as a normal response every couple of seconds. The same
+// EVENT_HANDLERS map serves both transports. `?transport=poll` forces polling
+// from the start; `?transport=sse` disables the fallback.
+const SSE_FIRST_EVENT_WATCHDOG_MS = 3000;
+const POLL_INTERVAL_MS = 2000;
+const POLL_ERROR_INTERVAL_MS = 5000;
+let pollingMode = false;
+let pollTimer: ReturnType<typeof setTimeout> | null = null;
+let pollSeq: number | null = null;
+let pollGeneration = 0;
+let sseFirstEventWatchdog: ReturnType<typeof setTimeout> | null = null;
+
+function forcedTransport(): 'poll' | 'sse' | null {
+  if (typeof location === 'undefined') return null;
+  const value = new URLSearchParams(location.search).get('transport');
+  return value === 'poll' || value === 'sse' ? value : null;
+}
+
 // Maps responseNodeId → thread prompt node ID so response deltas/completions
 // are routed into the thread's turns array instead of creating separate nodes.
-// Entries are added on response-start and removed on response-complete.
-// Not cleaned on SSE reconnect — orphaned entries are benign (small, bounded by active streams).
+// Entries are added on response-start and removed on response-complete. Streams
+// still in flight when the connection drops would otherwise leak entries, so
+// connectSSE() — the shared entry path for both transports — clears the map
+// alongside the rest of the per-connection state.
 const responseToThreadMap = new Map<string, string>();
 
 // ── Helpers ───────────────────────────────────────────────────
@@ -71,44 +97,15 @@ function applyLayoutOverrides(node: CanvasNodeState): CanvasNodeState {
   };
 }
 
-// ── Default positions by type ─────────────────────────────────
-const DEFAULT_POSITIONS: Record<CanvasNodeState['type'], { x: number; y: number; w: number; h: number }> &
-  Record<'prompt' | 'response', { x: number; y: number; w: number; h: number }> = {
-  status: { x: 40, y: 80, w: 300, h: 120 },
-  markdown: { x: 380, y: 80, w: 720, h: 600 },
-  context: { x: 1130, y: 80, w: 320, h: 400 },
-  'mcp-app': { x: 380, y: 720, w: 960, h: 600 },
-  webpage: { x: 380, y: 80, w: 520, h: 420 },
-  'json-render': { x: 380, y: 720, w: 840, h: 620 },
-  graph: { x: 380, y: 720, w: 760, h: 520 },
-  ledger: { x: 1130, y: 520, w: 320, h: 280 },
-  trace: { x: 40, y: 900, w: 200, h: 56 },
-  file: { x: 380, y: 80, w: 720, h: 600 },
-  image: { x: 380, y: 80, w: 720, h: 520 },
-  html: { x: 380, y: 80, w: 720, h: 640 },
-  group: { x: 220, y: 60, w: 840, h: 560 },
-  prompt: { x: 380, y: 1260, w: 520, h: 400 },
-  response: { x: 380, y: 1480, w: 720, h: 400 },
-};
-
+// Default geometry lives in the shared node factory (node-factory.ts); this
+// wrapper just layers the connection-local saved-layout overrides on top.
 function makeNode(
   id: string,
   type: CanvasNodeState['type'],
   data: Record<string, unknown>,
   dockPosition: 'left' | 'right' | null = null,
 ): CanvasNodeState {
-  const pos = DEFAULT_POSITIONS[type];
-  return applyLayoutOverrides({
-    id,
-    type,
-    position: { x: pos.x, y: pos.y },
-    size: { width: pos.w, height: pos.h },
-    zIndex: type === 'status' ? 0 : 1,
-    collapsed: false,
-    pinned: false,
-    dockPosition,
-    data,
-  });
+  return applyLayoutOverrides(makeNodeState(id, type, data, { dockPosition }));
 }
 
 function getMarkdownPlacement(): { x: number; y: number } {
@@ -205,26 +202,20 @@ function ensureExtAppNode(data: Record<string, unknown>): void {
     customX === undefined || customY === undefined
       ? findOpenCanvasPosition([...nodes.value.values()], width, height)
       : null;
-  const node = applyLayoutOverrides({
-    id,
-    type: 'mcp-app' as const,
-    position: {
-      x: customX ?? autoPos?.x ?? pos.x,
-      y: customY ?? autoPos?.y ?? pos.y,
-    },
-    size: {
-      width,
-      height,
-    },
-    zIndex: 1,
-    collapsed: false,
-    pinned: false,
-    dockPosition: null,
-    data: {
-      mode: 'ext-app',
-      ...data,
-    },
-  });
+  const node = applyLayoutOverrides(
+    makeNodeState(
+      id,
+      'mcp-app',
+      { mode: 'ext-app', ...data },
+      {
+        position: {
+          x: customX ?? autoPos?.x ?? pos.x,
+          y: customY ?? autoPos?.y ?? pos.y,
+        },
+        size: { width, height },
+      },
+    ),
+  );
   addNode(node);
   if (!node.dockPosition) {
     focusNode(id, { recordHistory: false });
@@ -637,24 +628,21 @@ function handleCanvasPromptCreated(data: Record<string, unknown>): void {
   if (!nodes.value.has(nodeId)) {
     const pos = position ?? DEFAULT_POSITIONS.prompt;
     addNode(
-      applyLayoutOverrides({
-        id: nodeId,
-        type: 'prompt' as const,
-        position: { x: pos.x, y: pos.y },
-        size: { width: DEFAULT_POSITIONS.prompt.w, height: 400 },
-        zIndex: 1,
-        collapsed: false,
-        pinned: false,
-        dockPosition: null,
-        data: {
-          text,
-          turns: text ? [{ role: 'user', text, status: 'pending' }] : [],
-          threadStatus: text ? 'pending' : 'draft',
-          status: text ? 'pending' : 'draft',
-          parentNodeId,
-          contextNodeIds,
-        },
-      }),
+      applyLayoutOverrides(
+        makeNodeState(
+          nodeId,
+          'prompt',
+          {
+            text,
+            turns: text ? [{ role: 'user', text, status: 'pending' }] : [],
+            threadStatus: text ? 'pending' : 'draft',
+            status: text ? 'pending' : 'draft',
+            parentNodeId,
+            contextNodeIds,
+          },
+          { position: { x: pos.x, y: pos.y } },
+        ),
+      ),
     );
     focusNode(nodeId);
   }
@@ -706,17 +694,14 @@ function handleCanvasResponseStart(data: Record<string, unknown>): void {
 
   if (!nodes.value.has(responseNodeId)) {
     addNode(
-      applyLayoutOverrides({
-        id: responseNodeId,
-        type: 'response' as const,
-        position: pos,
-        size: { width: DEFAULT_POSITIONS.response.w, height: DEFAULT_POSITIONS.response.h },
-        zIndex: 1,
-        collapsed: false,
-        pinned: false,
-        dockPosition: null,
-        data: { content: '', status: 'streaming', promptNodeId },
-      }),
+      applyLayoutOverrides(
+        makeNodeState(
+          responseNodeId,
+          'response',
+          { content: '', status: 'streaming', promptNodeId },
+          { position: pos },
+        ),
+      ),
     );
   }
 
@@ -991,15 +976,93 @@ export const EVENT_HANDLERS: Record<string, (data: Record<string, unknown>) => v
   'ax-intent-clear': handleAxIntentClear,
 };
 
+/** Dispatch one event (from either transport) through the shared handler map. */
+function dispatchWorkbenchEvent(event: string, payload: unknown): void {
+  const handler = EVENT_HANDLERS[event as keyof typeof EVENT_HANDLERS];
+  if (!handler) return;
+  // The map's handlers each declare their own payload type; over the wire the
+  // payload is untyped JSON either way (SSE previously passed JSON.parse output
+  // straight in). The double cast states that honestly without `any`.
+  const invoke = handler as unknown as (value: unknown) => void;
+  try {
+    invoke(payload);
+  } catch (err) {
+    console.warn(`[sse-bridge] Handler for "${event}" failed:`, err);
+  }
+}
+
+/**
+ * Polling transport loop. Each response is short-lived, so it flushes through
+ * any buffering proxy. Snapshot responses (fresh client / server restart /
+ * ring eviction) carry the same event list an SSE connect sends, so replaying
+ * them through the handlers matches existing reconnect semantics.
+ */
+function startPollingTransport(): () => void {
+  pollingMode = true;
+  pollGeneration += 1;
+  const generation = pollGeneration;
+  connectionStatus.value = 'connecting';
+
+  const pollOnce = async (): Promise<void> => {
+    if (generation !== pollGeneration) return;
+    try {
+      const params = new URLSearchParams();
+      if (pollSeq !== null) params.set('since', String(pollSeq));
+      const sid = sessionId.value;
+      if (sid) params.set('session', sid);
+      const query = params.toString();
+      const response = await fetch(`/api/workbench/poll${query ? `?${query}` : ''}`);
+      if (generation !== pollGeneration) return;
+      if (!response.ok) throw new Error(`poll failed with HTTP ${response.status}`);
+      const body = (await response.json()) as {
+        ok: boolean;
+        seq: number;
+        snapshot: boolean;
+        events: Array<{ event: string; payload: unknown }>;
+      };
+      if (generation !== pollGeneration) return;
+      if (!body.ok) throw new Error('poll returned ok: false');
+      for (const entry of body.events) dispatchWorkbenchEvent(entry.event, entry.payload);
+      pollSeq = body.seq;
+      connectionStatus.value = 'connected';
+      pollTimer = setTimeout(() => void pollOnce(), POLL_INTERVAL_MS);
+    } catch (err) {
+      if (generation !== pollGeneration) return;
+      console.warn('[sse-bridge] poll transport error:', err);
+      connectionStatus.value = 'disconnected';
+      pollTimer = setTimeout(() => void pollOnce(), POLL_ERROR_INTERVAL_MS);
+    }
+  };
+  void pollOnce();
+
+  return () => {
+    pollGeneration += 1;
+    pollingMode = false;
+    pollSeq = null;
+    if (pollTimer) {
+      clearTimeout(pollTimer);
+      pollTimer = null;
+    }
+  };
+}
+
 export function connectSSE(): () => void {
   savedLayout = restoreLayout();
   ensureStatusNode();
   hasInitialServerLayout.value = false;
   resetAttentionBridge();
   resetIntents();
+  // Response→thread routes belong to the dropped connection's in-flight
+  // streams; clear them so orphans can't accumulate across reconnect cycles.
+  responseToThreadMap.clear();
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
+  }
+
+  const transport = forcedTransport();
+  if (transport === 'poll' || pollingMode) {
+    return startPollingTransport();
   }
 
   const sid = sessionId.value;
@@ -1009,10 +1072,28 @@ export function connectSSE(): () => void {
   const source = new EventSource(url);
   eventSource = source;
 
-  for (const [event, handler] of Object.entries(EVENT_HANDLERS)) {
+  // Proxy detection: a buffered stream "opens" (headers pass through) but never
+  // delivers a single event — not even the immediate `connected` frame. Key the
+  // watchdog on the FIRST EVENT, not onopen.
+  let gotFirstEvent = false;
+  if (sseFirstEventWatchdog) clearTimeout(sseFirstEventWatchdog);
+  sseFirstEventWatchdog = null;
+  if (transport !== 'sse') {
+    sseFirstEventWatchdog = setTimeout(() => {
+      sseFirstEventWatchdog = null;
+      if (gotFirstEvent || eventSource !== source) return;
+      console.warn('[sse-bridge] No SSE event within watchdog window — switching to polling transport.');
+      source.close();
+      eventSource = null;
+      startPollingTransport();
+    }, SSE_FIRST_EVENT_WATCHDOG_MS);
+  }
+
+  for (const [event] of Object.entries(EVENT_HANDLERS)) {
     source.addEventListener(event, (e) => {
+      gotFirstEvent = true;
       try {
-        handler(JSON.parse((e as MessageEvent).data));
+        dispatchWorkbenchEvent(event, JSON.parse((e as MessageEvent).data));
       } catch (err) {
         // H5: Surface malformed SSE data during debugging instead of silently swallowing
         console.warn(`[sse-bridge] Failed to parse "${event}" event:`, err);
@@ -1042,6 +1123,19 @@ export function connectSSE(): () => void {
     if (reconnectTimer) {
       clearTimeout(reconnectTimer);
       reconnectTimer = null;
+    }
+    if (sseFirstEventWatchdog) {
+      clearTimeout(sseFirstEventWatchdog);
+      sseFirstEventWatchdog = null;
+    }
+    if (pollingMode) {
+      pollGeneration += 1;
+      pollingMode = false;
+      pollSeq = null;
+      if (pollTimer) {
+        clearTimeout(pollTimer);
+        pollTimer = null;
+      }
     }
     source.close();
     eventSource = null;

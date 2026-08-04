@@ -3,6 +3,58 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Breaking
+
+- **The `canvas_snapshot` MCP tool is now a composite** with actions `save`,
+  `list`, `restore`, `delete`, `gc`, and `diff`, and the 6 deprecated snapshot
+  standalones (`canvas_snapshot` save tool, `canvas_list_snapshots`,
+  `canvas_restore`, `canvas_delete_snapshot`, `canvas_gc_snapshots`,
+  `canvas_diff`) are removed after their deprecated 0.3.x window. The MCP
+  surface is now 22 tools: 16 composites + 6 standalones. Arguments are
+  unchanged apart from adding the `action` field; the CLI and HTTP snapshot
+  surfaces are unaffected.
+- Pre-0.2 legacy layouts (`.pmx-canvas/state.json`, `.pmx-canvas.json`, legacy
+  snapshot dirs and blob files) are no longer imported on boot. Upgrade
+  through a 0.3.x install first if you still have one. `PMX_CANVAS_STATE_FILE`
+  remains only as a `.db`-path alias; other values are ignored with a warning.
+- HTTP error responses are now JSON envelopes (`{ ok: false, error }`) with
+  unchanged status codes, instead of plain text — one error shape across every
+  endpoint.
+
+### Added
+
+- The canvas now works behind proxies that buffer streaming responses (e.g.
+  Amp orb portals): if the live event stream delivers nothing shortly after
+  connecting, the browser switches to a polling transport
+  (`GET /api/workbench/poll`) that carries the same events as ordinary JSON
+  responses. Force a mode with `/workbench?transport=poll` or `?transport=sse`.
+- `crypto.randomUUID` is polyfilled in the browser client, so the canvas also
+  boots in embedded pages served outside a secure context.
+- `/health` reports persistence health: `persistence.ok` turns false after a
+  failed state save (the canvas keeps serving from memory) and true again
+  after the next successful save.
+
+### Changed
+
+- The server now falls back to `PMX_CANVAS_PORT` when `--port` and
+  `PMX_WEB_CANVAS_PORT` are unset, so one variable can point the client and
+  server at the same port.
+
+- `pmx-canvas node update` returns a compact `{ ok, id, position, size,
+  updatedFields }` envelope by default; pass `--full` for the complete node
+  payload (a no-op ext-app resize previously echoed ~940 KB — 0.3.4 report
+  Finding R).
+
+### Fixed
+
+- App documents are made background-transparent so tiles that letterbox at the
+  document level show the theme background instead of black. Narrow or tall
+  Excalidraw tiles can still show the app's own dark fill below the diagram —
+  that part lives inside the hosted app bundle (0.3.4 report Finding Q,
+  documented with a sizing workaround in the skill).
+
 ## [0.3.4] - 2026-08-03
 
 ### Added
