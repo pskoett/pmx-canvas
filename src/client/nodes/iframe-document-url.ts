@@ -73,7 +73,15 @@ export function useIframeDocument(
   // no full workbench reload required.
   const epoch = workbenchConnectionEpoch.value;
   useEffect(() => {
-    if (!src || mode !== 'src' || epoch === mintEpochRef.current) return;
+    if (mode !== 'src' || epoch === mintEpochRef.current) return;
+    if (!src) {
+      // A previous mint failed outright (e.g. the daemon flapped down between
+      // the HEAD 404 and the re-mint POST). A fresh connection epoch means the
+      // server is reachable again — retry the mint instead of stranding the
+      // tile until a manual reload.
+      setRemintNonce((n) => n + 1);
+      return;
+    }
     let cancelled = false;
     void fetch(src, { method: 'HEAD' })
       .then((res) => {
