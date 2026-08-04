@@ -384,15 +384,10 @@ class CanvasStateManager {
   // ── Mutation recorder (for undo/redo history) ─────────────
   //
   // Single slot BY DESIGN, last-write-wins (plan-009 L5): the only logical
-  // consumer is the `mutationHistory` singleton. Both boot paths install an
-  // identical forwarder to it — `startCanvasServer()` (server.ts) wires it on
-  // every fresh start, and `PmxCanvas.start()` (index.ts) redundantly re-wires
-  // the same forwarder right after calling `startCanvasServer` — so replacement
-  // is observably a no-op today. Because that double-wire sits on the normal
-  // start path, a listener LIST here would record every mutation twice into the
-  // history ring (breaking undo), and a hard error on re-wire would crash
-  // `PmxCanvas.start()`. Do not wire a recorder with different semantics
-  // without first removing the redundant index.ts wire.
+  // consumer is the `mutationHistory` singleton, wired by `startCanvasServer()`
+  // (server.ts) on every fresh start. A listener LIST here would record every
+  // mutation twice into the history ring (breaking undo) if a second wire ever
+  // appeared, so keep it a single slot and wire recorders in one place only.
   private _mutationRecorder: ((info: MutationRecordInfo) => void) | null = null;
   // The ONE recording-suppression counter (depth-counted so nested suppressed
   // scopes compose). Two related mechanisms are deliberately NOT merged into

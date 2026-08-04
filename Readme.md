@@ -98,14 +98,14 @@ vendor-specific.
 
 Spatial state auto-saves to `.pmx-canvas/canvas.db` (debounced ~500 ms) —
 git-committable, shareable across machines, and survives both browser
-refresh and server restart. Named [snapshots](docs/mcp.md#standalone-tools), full
+refresh and server restart. Named [snapshots](docs/mcp.md), full
 undo/redo, and an auto-detected code graph (JS/TS, Python, Go, Rust) make
 the canvas durable rather than throwaway. Stop the server before committing
 the DB so SQLite WAL data is checkpointed into the file.
 
 ### 06 / Any agent
 
-Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (27 tools,
+Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (22 tools,
 14 resources, change notifications), the [CLI](docs/cli.md), the
 [HTTP API](docs/http-api.md), or the [Bun SDK](docs/sdk.md) — all
 [environment variables documented here](docs/environment.md). Works with
@@ -265,7 +265,7 @@ the agent can read `canvas://skills` and pull in companion skills
   the three-tier visual matrix (json-render → html → web-artifact)
 - **[CLI reference](docs/cli.md)** — full command surface, daemon mode,
   watch streams, WebView automation
-- **[MCP reference](docs/mcp.md)** — 27 tools, 14 resources, change
+- **[MCP reference](docs/mcp.md)** — 22 tools, 14 resources, change
   notifications, node-type routing
 - **[HTTP API](docs/http-api.md)** — REST endpoints, SSE, batch operations
 - **[AX host-adapter contract](docs/ax-host-adapter-contract.md)** — how native

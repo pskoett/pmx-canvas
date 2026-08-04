@@ -266,6 +266,26 @@ describe('MCP composite tools (plan-006)', () => {
     expect(removedViaAlias.ok).toBe(true);
   }, 30000);
 
+  test('canvas_snapshot diff action takes `snapshot` (the one remapped field)', async () => {
+    const { client } = await createMcpSession();
+    await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Diff base' });
+    const saved = parseJsonText<{ ok?: boolean; id?: string }>(
+      await call(client, 'canvas_snapshot', { action: 'save', name: 'diff-pin' }),
+    );
+    expect(saved.ok).toBe(true);
+    await call(client, 'canvas_node', { action: 'add', type: 'markdown', title: 'Diff extra' });
+
+    // The public field is `snapshot` (id or name), remapped onto the op's `id`.
+    const diff = await call(client, 'canvas_snapshot', { action: 'diff', snapshot: saved.id });
+    expect(diff.isError).toBeFalsy();
+    expect(textOf(diff).length).toBeGreaterThan(0);
+
+    // Passing `id` instead must be the clean pre-dispatch error naming `snapshot`.
+    const wrongField = await call(client, 'canvas_snapshot', { action: 'diff', id: saved.id });
+    expect(wrongField.isError).toBe(true);
+    expect(textOf(wrongField)).toContain('"snapshot"');
+  }, 30000);
+
   test('canvas_group create/ungroup and canvas_view focus/fit/arrange', async () => {
     const { client } = await createMcpSession();
     const node = parseJsonText<{ id: string }>(

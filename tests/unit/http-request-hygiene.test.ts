@@ -97,6 +97,21 @@ test('a malformed batch body returns 400, not a partial-failure envelope', async
   expect(body.error).toContain('Malformed');
 });
 
+test('error responses are JSON envelopes with unchanged codes; non-API routes keep native formats', async () => {
+  // v0.4.0 breaking change: every HTTP error is { ok:false, error } JSON.
+  // Pin a formerly-plaintext route (unknown API path -> catch-all 404) …
+  const notFound = await fetch(`${baseUrl}/api/canvas/definitely-not-a-route`);
+  expect(notFound.status).toBe(404);
+  expect(notFound.headers.get('Content-Type') ?? '').toContain('application/json');
+  const body = (await notFound.json()) as { ok?: boolean; error?: string };
+  expect(body.ok).toBe(false);
+  expect(typeof body.error).toBe('string');
+  // … and pin that non-API success routes stay native (the SPA serves HTML).
+  const spa = await fetch(`${baseUrl}/workbench`);
+  expect(spa.status).toBe(200);
+  expect(spa.headers.get('Content-Type') ?? '').toContain('text/html');
+});
+
 test('HTTP search honors the limit parameter', async () => {
   for (let i = 0; i < 3; i += 1) {
     const res = await fetch(`${baseUrl}/api/canvas/node`, {

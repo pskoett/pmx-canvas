@@ -823,14 +823,6 @@ export function readBlobFromDB(db: Database, sha256: string): string | null {
   return gunzipSync(row.data).toString('utf-8');
 }
 
-export function hasBlobInDB(db: Database, sha256: string): boolean {
-  interface CountRow {
-    c: number;
-  }
-  const row = db.query<CountRow, [string]>('SELECT COUNT(*) as c FROM blobs WHERE sha256 = ?').get(sha256);
-  return (row?.c ?? 0) > 0;
-}
-
 // ── AX Timeline Persistence (NOT snapshotted; bounded by retention) ──
 
 function safeParseJson(raw: string | null | undefined): unknown {

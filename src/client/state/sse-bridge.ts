@@ -1002,6 +1002,11 @@ function startPollingTransport(): () => void {
   pollGeneration += 1;
   const generation = pollGeneration;
   connectionStatus.value = 'connecting';
+  // Server-run identity from the last poll response. The event seq counter
+  // restarts at 0 on every server boot, so a cursor from a previous run can
+  // look "usable" to a new run and silently skip its earlier events.
+  let lastPollSessionId: string | null = null;
+  let dispatchedOnce = false;
 
   const pollOnce = async (): Promise<void> => {
     if (generation !== pollGeneration) return;
@@ -1018,11 +1023,35 @@ function startPollingTransport(): () => void {
         ok: boolean;
         seq: number;
         snapshot: boolean;
+        sessionId?: string;
         events: Array<{ event: string; payload: unknown }>;
       };
       if (generation !== pollGeneration) return;
       if (!body.ok) throw new Error('poll returned ok: false');
+      const priorSession = lastPollSessionId;
+      lastPollSessionId = body.sessionId ?? null;
+      if (priorSession !== null && body.sessionId && priorSession !== body.sessionId && !body.snapshot) {
+        // The server identity changed under our cursor (restart): a non-snapshot
+        // batch may have silently skipped the new run's earlier events. Discard
+        // it, drop the cursor, and re-poll immediately for a full snapshot.
+        pollSeq = null;
+        pollTimer = setTimeout(() => void pollOnce(), 0);
+        return;
+      }
+      if (body.snapshot && dispatchedOnce) {
+        // A mid-polling snapshot (ring eviction or server restart) replaces
+        // client state wholesale — run the same per-connection resets an SSE
+        // reconnect performs so in-flight stream routes and transient state
+        // from the previous window can't leak (H5 orphan class).
+        savedLayout = restoreLayout();
+        ensureStatusNode();
+        hasInitialServerLayout.value = false;
+        resetAttentionBridge();
+        resetIntents();
+        responseToThreadMap.clear();
+      }
       for (const entry of body.events) dispatchWorkbenchEvent(entry.event, entry.payload);
+      dispatchedOnce = true;
       pollSeq = body.seq;
       connectionStatus.value = 'connected';
       pollTimer = setTimeout(() => void pollOnce(), POLL_INTERVAL_MS);

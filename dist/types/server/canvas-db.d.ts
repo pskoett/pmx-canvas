@@ -35,7 +35,6 @@ export declare function listSnapshotsFromDB(db: Database, options?: CanvasSnapsh
 export declare function deleteSnapshotFromDB(db: Database, id: string): boolean;
 export declare function writeBlobToDB(db: Database, sha256: string, jsonValue: string): number;
 export declare function readBlobFromDB(db: Database, sha256: string): string | null;
-export declare function hasBlobInDB(db: Database, sha256: string): boolean;
 export interface AxTimelineQuery {
     limit?: number;
     sessionId?: string;

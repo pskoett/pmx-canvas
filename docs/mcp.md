@@ -295,5 +295,5 @@ CLI and MCP are kept aligned for the main canvas operations: node and edge
 creation, graph/json-render/html/html-primitive nodes, web artifacts, external apps, groups,
 batch builds, layout validation, snapshots, search, focus, pins, undo/redo,
 semantic watch streams, WebView automation, and daemon/server control where
-it applies. A few agent-native capabilities — resource subscriptions and
-`canvas_diff` — remain MCP-only.
+it applies. A few agent-native capabilities — such as resource
+subscriptions — remain MCP-only.

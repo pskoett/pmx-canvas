@@ -439,6 +439,7 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 | `canvas_edge` | `add` · `remove` | Connect / disconnect nodes |
 | `canvas_group` | `create` · `add` · `ungroup` | Manage spatial group containers |
 | `canvas_history` | `undo` · `redo` | Time travel through the mutation ring buffer |
+| `canvas_snapshot` | `save` · `list` · `restore` · `delete` · `gc` · `diff` | Named snapshots: save/list/restore/delete, garbage-collect old ones, diff current canvas vs a snapshot (`diff` takes `snapshot`, not `id`) |
 | `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` | Auto-arrange, pan-to-node, fit viewport, clear the board, delete a human-drawn annotation by id |
 | `canvas_query` | `search` · `layout` · `validate` | Find nodes by keyword, read full layout, or **`validate`** the board for node collisions / group-containment / dangling edges |
 | `canvas_app` | `open-mcp-app` · `diagram` · `build-artifact` | Hosted MCP apps, the Excalidraw diagram preset, and bundled web artifacts (folds `canvas_open_mcp_app` / `canvas_add_diagram` / `canvas_build_web_artifact`) |
@@ -650,7 +651,7 @@ ID extraction for mixed tool responses:
 
 **`canvas_pin_nodes`** (standalone) — Set, add, or remove pinned context nodes. Use `{ nodeIds: [...] }` — the field is `nodeIds`, not `ids`.
 
-**`canvas_diff`** (standalone) — Compare current canvas state with a saved snapshot. Requires `{ snapshot: "<snapshot-id-or-name>" }`; there is no implicit previous-snapshot default.
+**`canvas_snapshot { action: "diff" }`** — Compare current canvas state with a saved snapshot. Requires `{ snapshot: "<snapshot-id-or-name>" }`; there is no implicit previous-snapshot default.
 
 **`canvas_render { action: "describe-schema" }`** — Inspect the running server's create schemas and
 canonical examples. Use before generating structured payloads when you need the authoritative current
@@ -769,7 +770,7 @@ ranked matches with content snippets. Use instead of parsing the full layout to 
 - **`canvas_snapshot { action: "save", name }`** — save a named snapshot. Returns `{ ok, id, snapshot }` (flat `id` aliases `snapshot.id`).
 - **`canvas_snapshot { action: "list" }`** / **`{ action: "gc", keep }`** / **`{ action: "delete", id }`** — manage saved snapshots.
 - **`canvas_snapshot { action: "restore", id }`** — restore from a snapshot.
-- **`canvas_snapshot { action: "diff", id }`** — compare current canvas against a saved snapshot (added/removed/modified nodes & edges).
+- **`canvas_snapshot { action: "diff", snapshot }`** — compare current canvas against a saved snapshot (added/removed/modified nodes & edges). Note the field is `snapshot` (id or name), not `id`.
 
 ### Canvas Management
 
@@ -1408,7 +1409,7 @@ Show two states side by side for the human to compare:
 
 1. Take a snapshot before changes: `canvas_snapshot { action: "save" }` with name "before-X"
 2. Make changes to the canvas
-3. Use `canvas_diff` to show what changed
+3. Use `canvas_snapshot { action: "diff", snapshot }` to show what changed
 4. Or: create two groups ("Before" and "After") with corresponding nodes
 
 ### Save and Start Fresh
@@ -1418,7 +1419,7 @@ When the human wants to explore a different approach without losing current work
 1. **First**, save the current state: `canvas_snapshot { action: "save" }` with a descriptive name
 2. **Then** clear: `canvas_view { action: "clear" }` (never clear without snapshotting first)
 3. Set up the new workspace with initial nodes
-4. Tell the human the snapshot name and that `canvas_restore` can bring everything back
+4. Tell the human the snapshot name and that `canvas_snapshot { action: "restore" }` can bring everything back
 
 ## Best Practices
 

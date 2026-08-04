@@ -172,7 +172,7 @@
       "id": 7,
       "name": "snapshot-before-changes",
       "prompt": "I want to reorganize the canvas to explore a different approach, but I don't want to lose what's there now. Can you save the current state, clear it, and set up a fresh workspace for the new approach? If it doesn't work out I want to go back.",
-      "expected_output": "Takes a named snapshot of current state, then clears the canvas. Mentions that canvas_restore can bring back the old state. Does NOT just clear without snapshotting.",
+      "expected_output": "Takes a named snapshot of current state, then clears the canvas. Mentions that canvas_snapshot { action: \"restore\" } can bring back the old state. Does NOT just clear without snapshotting.",
       "assertions": [
         {
           "name": "takes-snapshot",
@@ -186,7 +186,7 @@
         },
         {
           "name": "mentions-restore",
-          "description": "Tells the user how to restore (canvas_restore) if they want to go back",
+          "description": "Tells the user how to restore (canvas_snapshot action restore) if they want to go back",
           "type": "output_check"
         }
       ]
