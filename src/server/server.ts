@@ -60,6 +60,7 @@ import { buildAgentContextPreamble } from './agent-context.js';
 import { buildCanvasAxSurfaceSnapshot } from './ax-context.js';
 import { resolveNodeAxCapabilities } from './ax-interaction.js';
 import { normalizeCanvasTheme, type CanvasTheme } from './canvas-db.js';
+import { canvasThemeScheme, isCanvasTheme } from '../shared/themes.js';
 import { validateLocalImageFile } from './image-source.js';
 import {
   cancelCodeGraphRecompute,
@@ -984,6 +985,14 @@ function canvasSpaHtml(): string {
       }, 4000);
     })();
   </script>
+  ${
+    // Amp orb services run with AMP_ORB=1. The portal's nested-iframe embed
+    // blocks src-URL child iframes, and the runtime probe is unreliable there
+    // (a tiny probe iframe can load even though node-sized ones will not), so
+    // the client needs to KNOW it is in an orb and force srcdoc mode directly
+    // (see src/client/state/iframe-mode.ts).
+    process.env.AMP_ORB ? '<script>window.__PMX_AMP_ORB = true;</script>' : ''
+  }
   <script type="module" src="/canvas/index.js?v=${CANVAS_ASSET_VERSION}"></script>
 </body>
 </html>`;
@@ -1038,6 +1047,22 @@ function resolveCanvasBundleDir(): string {
   const fallback = candidates[candidates.length - 1];
   _canvasBundleDir = fallback;
   return fallback;
+}
+
+// Memoized surface-theme.css content for inlining into HTML surface documents
+// (srcdoc-rendered surfaces in nested-iframe hosts may fail to load the <link>
+// subresource, leaving them unstyled — dark-on-dark reads as blank). Read from
+// the same bundle root that serves /canvas/surface-theme.css; null keeps the
+// <link> fallback when the asset is missing (e.g. an unbuilt dev tree).
+let _surfaceThemeCss: string | null | undefined;
+function surfaceThemeCssInline(): string | null {
+  if (_surfaceThemeCss !== undefined) return _surfaceThemeCss;
+  try {
+    _surfaceThemeCss = readFileSync(resolve(resolveCanvasBundleDir(), 'surface-theme.css'), 'utf-8');
+  } catch {
+    _surfaceThemeCss = null;
+  }
+  return _surfaceThemeCss;
 }
 
 /**
@@ -1262,6 +1287,9 @@ function handleNodeSurface(pathname: string, url: URL): Response {
       ...(url.searchParams.get('frameToken')
         ? { contentHeightToken: url.searchParams.get('frameToken') as string }
         : {}),
+      // Inline the theme tokens so srcdoc-rendered surfaces (Amp orb portals)
+      // are styled without depending on the <link> subresource.
+      ...(surfaceThemeCssInline() ? { inlineThemeCss: surfaceThemeCssInline() as string } : {}),
     });
     return surfaceHtmlResponse(doc, HTML_SURFACE_SANDBOX);
   }
@@ -1358,8 +1386,14 @@ async function handleJsonRenderView(url: URL): Promise<Response> {
   );
 
   const themeValue = url.searchParams.get('theme');
+  // The viewer bundle themes dark/light/high-contrast directly; other named
+  // canvas themes (midnight, sepia, …) collapse to their dark/light scheme.
   const theme =
-    themeValue === 'dark' || themeValue === 'light' || themeValue === 'high-contrast' ? themeValue : undefined;
+    themeValue === 'dark' || themeValue === 'light' || themeValue === 'high-contrast'
+      ? themeValue
+      : isCanvasTheme(themeValue)
+        ? canvasThemeScheme(themeValue)
+        : undefined;
   const title = (node.data.title as string) || node.id;
   // Devtools panel is double-gated: the operator must opt in via the env flag
   // AND the request must carry ?devtools=1. Off by default in all normal runs.

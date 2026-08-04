@@ -61,6 +61,13 @@ import {
 } from './icons';
 import { invalidateTokenCache } from './theme/tokens';
 import { MOD_KEY } from './utils/platform';
+import {
+  CANVAS_THEMES,
+  CANVAS_THEME_META,
+  type CanvasThemeName,
+  canvasThemeScheme,
+  normalizeCanvasThemeName,
+} from '../shared/themes.js';
 
 function logAppError(action: string, error: unknown): void {
   console.error(`[app] ${action} failed`, error);
@@ -153,8 +160,66 @@ function Toolbar({
       ].join(' · ')
     : 'Syncing canvas…';
 
+  // Popover state: the theme picker (desktop toolbar) and the mobile "More"
+  // menu share one open-slot so at most one popover shows at a time.
+  const [openMenu, setOpenMenu] = useState<null | 'theme' | 'more'>(null);
+  const groupRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!openMenu) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (groupRef.current && e.target instanceof Node && !groupRef.current.contains(e.target)) {
+        setOpenMenu(null);
+      }
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setOpenMenu(null);
+    };
+    document.addEventListener('pointerdown', onPointerDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [openMenu]);
+
+  const applyTheme = (next: CanvasThemeName) => {
+    document.documentElement.setAttribute('data-theme', next);
+    invalidateTokenCache();
+    canvasTheme.value = next;
+    void saveCanvasTheme(next);
+    setOpenMenu(null);
+  };
+
+  const menuAction = (fn: () => void) => () => {
+    fn();
+    setOpenMenu(null);
+  };
+
+  const activeTheme = normalizeCanvasThemeName(canvasTheme.value);
+  const themeMenuItems = CANVAS_THEMES.map((name) => (
+    <button
+      key={name}
+      type="button"
+      role="menuitemradio"
+      aria-checked={activeTheme === name}
+      class={`toolbar-menu-item${activeTheme === name ? ' active' : ''}`}
+      onClick={() => applyTheme(name)}
+    >
+      <span class="theme-swatch" style={{ background: CANVAS_THEME_META[name].swatchBg }}>
+        <span class="theme-swatch-dot" style={{ background: CANVAS_THEME_META[name].swatchAccent }} />
+      </span>
+      <span>{CANVAS_THEME_META[name].label}</span>
+      {activeTheme === name && (
+        <span class="toolbar-menu-check" aria-hidden="true">
+          ✓
+        </span>
+      )}
+    </button>
+  ));
+
   return (
-    <div class="toolbar-group">
+    <div class="toolbar-group" ref={groupRef}>
       {/* ── Navigation Bar ──────────────────────────────────── */}
       <div class="canvas-toolbar">
         <ToolbarHint label="PMX Canvas" detail="Focus Field · spatial workbench for coding agents" align="start">
@@ -213,63 +278,81 @@ function Toolbar({
           {Math.round(v.scale * 100)}%
         </span>
 
-        <div class="separator" />
+        {/* Secondary controls collapse into the More menu on narrow screens. */}
+        <span class="toolbar-collapsible">
+          <div class="separator" />
 
-        <ToolbarHint
-          label="Arrange layout"
-          detail={edgeCount > 0 ? 'Graph-aware layout for connected nodes' : 'Grid layout for loose nodes'}
-        >
-          <button
-            type="button"
-            onClick={() => (edgeCount > 0 ? forceDirectedArrange() : autoArrange())}
-            aria-label="Arrange layout"
+          <ToolbarHint
+            label="Arrange layout"
+            detail={edgeCount > 0 ? 'Graph-aware layout for connected nodes' : 'Grid layout for loose nodes'}
           >
-            <IconArrange />
-          </button>
-        </ToolbarHint>
-        <ToolbarHint label={minimapVisible ? 'Hide minimap' : 'Show minimap'} detail="Quickly navigate large canvases">
-          <button
-            type="button"
-            onClick={onToggleMinimap}
-            aria-label={minimapVisible ? 'Hide minimap' : 'Show minimap'}
-            style={{ color: minimapVisible ? 'var(--c-accent)' : undefined }}
+            <button
+              type="button"
+              onClick={() => (edgeCount > 0 ? forceDirectedArrange() : autoArrange())}
+              aria-label="Arrange layout"
+            >
+              <IconArrange />
+            </button>
+          </ToolbarHint>
+          <ToolbarHint
+            label={minimapVisible ? 'Hide minimap' : 'Show minimap'}
+            detail="Quickly navigate large canvases"
           >
-            <IconMinimap />
-          </button>
-        </ToolbarHint>
-        <ToolbarHint
-          label={`Switch to ${canvasTheme.value === 'dark' ? 'light' : 'dark'} theme`}
-          detail={`Current theme: ${canvasTheme.value}`}
-        >
-          <button
-            type="button"
-            onClick={() => {
-              const next = canvasTheme.value === 'dark' ? 'light' : 'dark';
-              document.documentElement.setAttribute('data-theme', next);
-              invalidateTokenCache();
-              canvasTheme.value = next;
-              void saveCanvasTheme(next);
-            }}
-            aria-label={`Switch to ${canvasTheme.value === 'dark' ? 'light' : 'dark'} theme`}
-          >
-            {canvasTheme.value === 'dark' ? <IconSun /> : <IconMoon />}
-          </button>
-        </ToolbarHint>
-        <ToolbarHint label="Snapshots" detail="Capture and restore canvas states" align="end">
-          <button
-            ref={snapshotBtnRef}
-            type="button"
-            onClick={onToggleSnapshot}
-            aria-label="Snapshots"
-            style={{ color: snapshotOpen ? 'var(--c-accent)' : undefined }}
-          >
-            <IconSnapshot />
-          </button>
-        </ToolbarHint>
+            <button
+              type="button"
+              onClick={onToggleMinimap}
+              aria-label={minimapVisible ? 'Hide minimap' : 'Show minimap'}
+              style={{ color: minimapVisible ? 'var(--c-accent)' : undefined }}
+            >
+              <IconMinimap />
+            </button>
+          </ToolbarHint>
+          <ToolbarHint label="Theme" detail={`Current theme: ${CANVAS_THEME_META[activeTheme].label}`}>
+            <button
+              type="button"
+              onClick={() => setOpenMenu(openMenu === 'theme' ? null : 'theme')}
+              aria-label="Choose theme"
+              aria-haspopup="menu"
+              aria-expanded={openMenu === 'theme'}
+              style={{ color: openMenu === 'theme' ? 'var(--c-accent)' : undefined }}
+            >
+              {canvasThemeScheme(activeTheme) === 'dark' ? <IconSun /> : <IconMoon />}
+            </button>
+          </ToolbarHint>
+          <ToolbarHint label="Snapshots" detail="Capture and restore canvas states" align="end">
+            <button
+              ref={snapshotBtnRef}
+              type="button"
+              onClick={onToggleSnapshot}
+              aria-label="Snapshots"
+              style={{ color: snapshotOpen ? 'var(--c-accent)' : undefined }}
+            >
+              <IconSnapshot />
+            </button>
+          </ToolbarHint>
+        </span>
+
+        {/* Narrow screens: everything collapsed lives in this single menu. */}
+        <span class="toolbar-more">
+          <ToolbarHint label="More" detail="All canvas actions" align="end">
+            <button
+              type="button"
+              onClick={() => setOpenMenu(openMenu === 'more' ? null : 'more')}
+              aria-label="More actions"
+              aria-haspopup="menu"
+              aria-expanded={openMenu === 'more'}
+              style={{ color: openMenu === 'more' ? 'var(--c-accent)' : undefined }}
+            >
+              <span class="toolbar-more-glyph" aria-hidden="true">
+                ⋯
+              </span>
+            </button>
+          </ToolbarHint>
+        </span>
       </div>
 
-      {/* ── Action Bar ──────────────────────────────────────── */}
-      <div class="canvas-toolbar">
+      {/* ── Action Bar (hidden on narrow screens — lives in the More menu) ── */}
+      <div class="canvas-toolbar toolbar-actions-bar">
         <ToolbarHint
           label={isTraceOn ? 'Disable trace' : 'Enable trace'}
           detail={isTraceOn ? 'Stop collecting new trace nodes' : 'Capture agent execution on the canvas'}
@@ -360,6 +443,71 @@ function Toolbar({
           {countsLabel}
         </span>
       </div>
+
+      {openMenu === 'theme' && (
+        <div class="toolbar-menu" role="menu" aria-label="Theme">
+          {themeMenuItems}
+        </div>
+      )}
+      {openMenu === 'more' && (
+        <div class="toolbar-menu" role="menu" aria-label="Canvas actions">
+          <button
+            type="button"
+            class="toolbar-menu-item"
+            onClick={menuAction(() => (edgeCount > 0 ? forceDirectedArrange() : autoArrange()))}
+          >
+            <IconArrange />
+            <span>Arrange layout</span>
+          </button>
+          <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleMinimap)}>
+            <IconMinimap />
+            <span>{minimapVisible ? 'Hide minimap' : 'Show minimap'}</span>
+          </button>
+          <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleSnapshot)}>
+            <IconSnapshot />
+            <span>Snapshots</span>
+          </button>
+          <div class="toolbar-menu-separator" />
+          <button
+            type="button"
+            class="toolbar-menu-item"
+            onClick={menuAction(() => sendIntent('trace-toggle', { enabled: !isTraceOn }))}
+          >
+            <IconTrace />
+            <span>{isTraceOn ? 'Disable trace' : 'Enable trace'}</span>
+          </button>
+          {(isTraceOn || traceNodeCount > 0) && (
+            <button type="button" class="toolbar-menu-item" onClick={menuAction(() => sendIntent('trace-clear'))}>
+              <IconClearTrace />
+              <span>Clear trace</span>
+            </button>
+          )}
+          <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleAnnotationMode)}>
+            <IconPen />
+            <span>{annotationTool === 'pen' ? 'Stop annotating' : 'Annotate canvas'}</span>
+          </button>
+          <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleAnnotationEraser)}>
+            <IconEraser />
+            <span>{annotationTool === 'eraser' ? 'Stop erasing' : 'Erase annotations'}</span>
+          </button>
+          <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleTextAnnotation)}>
+            <IconTextAnnotation />
+            <span>{annotationTool === 'text' ? 'Stop text annotations' : 'Text annotations'}</span>
+          </button>
+          <div class="toolbar-menu-separator" />
+          <button type="button" class="toolbar-menu-item" onClick={menuAction(onOpenPalette)}>
+            <IconSearch />
+            <span>Search nodes and actions</span>
+          </button>
+          <button type="button" class="toolbar-menu-item" onClick={menuAction(onOpenShortcuts)}>
+            <IconShortcuts />
+            <span>Keyboard shortcuts</span>
+          </button>
+          <div class="toolbar-menu-separator" />
+          <div class="toolbar-menu-heading">Theme</div>
+          {themeMenuItems}
+        </div>
+      )}
     </div>
   );
 }

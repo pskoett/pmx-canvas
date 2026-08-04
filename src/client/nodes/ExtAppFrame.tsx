@@ -9,6 +9,7 @@ import {
 } from '../../shared/ax-surface-protocol.js';
 import { extAppToolResultsMatch } from '../../shared/ext-app-tool-result.js';
 import { DEFAULT_EXT_APP_SANDBOX } from '../../shared/surface.js';
+import { canvasThemeScheme } from '../../shared/themes.js';
 import {
   canvasTheme,
   collapseExpandedNode,
@@ -520,7 +521,8 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     [],
   );
 
-  const toMcpTheme = (theme: string): McpUiTheme => (theme === 'light' ? 'light' : 'dark');
+  // MCP apps only understand dark/light — collapse named themes to their scheme.
+  const toMcpTheme = (theme: string): McpUiTheme => canvasThemeScheme(theme);
   const isExpanded = expanded || expandedNodeId.value === nodeId;
 
   latestToolInputRef.current = toolInput;

@@ -6,12 +6,29 @@ import {
 } from '../../src/server/html-surface.ts';
 
 describe('normalizeSurfaceTheme', () => {
-  test('accepts the three known themes, defaults to dark', () => {
+  test('accepts every registered theme, defaults to dark', () => {
     expect(normalizeSurfaceTheme('light')).toBe('light');
     expect(normalizeSurfaceTheme('high-contrast')).toBe('high-contrast');
     expect(normalizeSurfaceTheme('dark')).toBe('dark');
+    // The named themes added in 0.4.x route through the shared registry.
+    expect(normalizeSurfaceTheme('midnight')).toBe('midnight');
+    expect(normalizeSurfaceTheme('sepia')).toBe('sepia');
+    expect(normalizeSurfaceTheme('arctic')).toBe('arctic');
+    expect(normalizeSurfaceTheme('ember')).toBe('ember');
+    expect(normalizeSurfaceTheme('forest')).toBe('forest');
     expect(normalizeSurfaceTheme('nonsense')).toBe('dark');
     expect(normalizeSurfaceTheme(null)).toBe('dark');
+  });
+});
+
+describe('buildHtmlSurfaceDocument inline theme css', () => {
+  test('inlines supplied stylesheet content instead of the link (srcdoc embeds)', () => {
+    const doc = buildHtmlSurfaceDocument('<main>Hi</main>', {
+      theme: 'dark',
+      inlineThemeCss: ':root { --c-bg: #081524; }',
+    });
+    expect(doc).toContain('<style data-pmx-surface-theme>:root { --c-bg: #081524; }</style>');
+    expect(doc).not.toContain(`<link rel="stylesheet" href="${SURFACE_THEME_STYLESHEET}">`);
   });
 });
 

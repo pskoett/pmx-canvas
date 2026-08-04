@@ -1387,7 +1387,9 @@ describe('canvas server HTTP API', () => {
     expect(res.headers.get('referrer-policy')).toBe('no-referrer');
     const body = await res.text();
     expect(body).toContain('Surface body');
-    expect(body).toContain('/canvas/surface-theme.css');
+    // Theme tokens are INLINED (not linked) so srcdoc-rendered surfaces in
+    // nested-iframe hosts stay styled without a subresource load.
+    expect(body).toContain('data-pmx-surface-theme');
     expect(body).toContain('data-theme="light"');
     // The standalone tab title falls back to the node title (Bug #35) so the
     // browser tab shows "Doc" instead of the raw surface URL.
@@ -1397,6 +1399,38 @@ describe('canvas server HTTP API', () => {
       surfaceUrl?: string;
     };
     expect(meta.surfaceUrl).toBe('/api/canvas/surface/surface-html');
+  });
+
+  test('workbench page advertises Amp orb mode only when AMP_ORB is set', async () => {
+    const before = await fetch(`${baseUrl}/workbench`).then((r) => r.text());
+    expect(before).not.toContain('__PMX_AMP_ORB');
+    process.env.AMP_ORB = '1';
+    try {
+      const after = await fetch(`${baseUrl}/workbench`).then((r) => r.text());
+      expect(after).toContain('window.__PMX_AMP_ORB = true');
+    } finally {
+      delete process.env.AMP_ORB;
+    }
+  });
+
+  test('html surfaces render new named themes and keep tokens inline', async () => {
+    canvasState.addNode({
+      id: 'surface-ember',
+      type: 'html',
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: { title: 'Ember doc', html: '<main>Ember surface body</main>' },
+    });
+    const body = await fetch(`${baseUrl}/api/canvas/surface/surface-ember?theme=ember`).then((r) => r.text());
+    expect(body).toContain('data-theme="ember"');
+    expect(body).toContain('data-pmx-surface-theme');
+    // The inlined stylesheet must actually carry the ember token block.
+    expect(body).toContain('data-theme="ember"');
+    expect(body).toContain('#FF5C2E');
   });
 
   test('iframe-probe endpoint serves the tiny embed-detection document', async () => {

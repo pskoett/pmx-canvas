@@ -99,6 +99,10 @@ json-render, a graph, or an HTML primitive is sufficient.
 
 ## Current MCP Composites
 
+The live MCP surface is **22 tools**: the 16 composites below plus 6 standalones (v0.4.x —
+this table is kept in sync with the server's composite registry; `tools/list` on a fresh
+`pmx-canvas --mcp` is always authoritative).
+
 | Composite | Actions |
 |-----------|---------|
 | `canvas_node` | `add`, `get`, `update`, `remove` |
@@ -171,6 +175,12 @@ Use the visible workbench when the human is actively curating layout:
 - Drop files or URLs to create matching nodes.
 - Double-click markdown to edit inline.
 - Use toolbar snapshots before experiments and restore only after confirmation.
+- The toolbar carries view controls (fit, reset, zoom), arrange, minimap, a theme picker (eight
+  themes: dark, light, high-contrast, midnight, sepia, arctic, ember, forest), snapshots, trace,
+  the annotation tools, search (Cmd+K), and shortcuts. On narrow viewports (≤900px — most
+  embedded host panes and mobile) the secondary controls collapse into a single "⋯" More menu at
+  the end of the bar; every action is still there as a labeled row, including the theme list. If
+  an automation script can't find a toolbar button at panel width, open the More menu first.
 
 After changing files under `src/client/`, rebuild with `bun run build` before manual browser
 verification.
@@ -250,9 +260,11 @@ Prefer `canvas_query { action: "search" }` over parsing the full layout.
   iframe) can block child iframes from loading ANY `src` URL, breaking every iframe-backed node
   with a gray placeholder. The canvas probes this at boot and auto-falls back to fetching
   same-origin surfaces and rendering them inline via `srcdoc` (HTML, graph, json-render, frame
-  documents). External app URLs cannot be inlined (cross-origin) and may stay blocked in such
-  hosts. Force a mode with `/workbench?iframe-mode=srcdoc` (or `iframe-mode=src`) when
-  diagnosing.
+  documents). In Amp orbs specifically, the server sees `AMP_ORB` in its environment and stamps
+  the page so the embedded client skips the (there-unreliable) probe and goes straight to
+  `srcdoc`; HTML surfaces also inline their theme stylesheet so they render styled. External app
+  URLs cannot be inlined (cross-origin) and may stay blocked in such hosts. Force a mode with
+  `/workbench?iframe-mode=srcdoc` (or `iframe-mode=src`) when diagnosing.
 - Graph and json-render standalone surfaces use `display=site` and fill the browser viewport, and
   reflow on a live window resize in a normal browser. Some single-tab host browsers historically
   didn't deliver live-resize events (current Codex builds do — the 0.4.0 retest saw a standalone

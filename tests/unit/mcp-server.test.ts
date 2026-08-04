@@ -102,12 +102,12 @@ describe('MCP parity with CLI', () => {
 
     const tools = await session.client.listTools();
     const toolNames = new Set(tools.tools.map((tool) => tool.name));
-    // v0.3.0: the MCP tool surface shrank from 84 to 27 — registry ops folded
-    // into a composite are no longer registered as standalone tools (see
-    // `compositeFoldedOpNames` in src/server/operations/composites.ts). This
-    // list is the 27 survivors: 15 action-discriminated composites + 12
-    // standalones (6 non-snapshot standalones + 6 deprecated-but-retained
-    // snapshot tools).
+    // v0.3.0 shrank the MCP tool surface from 84 to 27; v0.4.0 folded snapshots
+    // into the canvas_snapshot composite and removed the 6 deprecated snapshot
+    // standalones. Registry ops folded into a composite are not registered as
+    // standalone tools (see `compositeFoldedOpNames` in
+    // src/server/operations/composites.ts). This list is the 22-tool surface:
+    // 16 action-discriminated composites + 6 standalones.
     const expectedTools = [
       // Composites (plan-006/plan-007/plan-008).
       'canvas_node',

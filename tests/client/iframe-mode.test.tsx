@@ -100,6 +100,29 @@ describe('resolveIframeMode', () => {
     expect(document.querySelector('iframe[data-pmx-iframe-probe]')).toBeNull();
   });
 
+  test('a known Amp orb host skips the unreliable probe and forces srcdoc when embedded', async () => {
+    // The orb portal's nested embed blocks node-sized src iframes even when the
+    // tiny probe iframe happens to load — AMP_ORB is stamped into the page by
+    // the server, and the resolver must trust it over the probe.
+    (window as Window & { __PMX_AMP_ORB?: boolean }).__PMX_AMP_ORB = true;
+    try {
+      expect(await resolveIframeMode({ embedded: true })).toBe('srcdoc');
+      expect(iframeMode.value).toBe('srcdoc');
+      expect(document.querySelector('iframe[data-pmx-iframe-probe]')).toBeNull();
+    } finally {
+      delete (window as Window & { __PMX_AMP_ORB?: boolean }).__PMX_AMP_ORB;
+    }
+  });
+
+  test('an Amp orb page opened top-level (not embedded) still uses src', async () => {
+    (window as Window & { __PMX_AMP_ORB?: boolean }).__PMX_AMP_ORB = true;
+    try {
+      expect(await resolveIframeMode()).toBe('src');
+    } finally {
+      delete (window as Window & { __PMX_AMP_ORB?: boolean }).__PMX_AMP_ORB;
+    }
+  });
+
   test('embedded documents probe, and the outcome lands in the shared signal memoized', async () => {
     const first = resolveIframeMode({ embedded: true });
     probeElement().dispatchEvent(new Event('load'));

@@ -9,6 +9,7 @@ import { Database } from 'bun:sqlite';
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { gzipSync, gunzipSync } from 'node:zlib';
+import { type CanvasThemeName, normalizeCanvasThemeName } from '../shared/themes.js';
 import type {
   CanvasAnnotation,
   CanvasEdge,
@@ -42,10 +43,10 @@ import {
 
 const SCHEMA_VERSION = 1;
 
-export type CanvasTheme = 'dark' | 'light' | 'high-contrast';
+export type CanvasTheme = CanvasThemeName;
 
 export function normalizeCanvasTheme(value: unknown, fallback: CanvasTheme = 'dark'): CanvasTheme {
-  return value === 'dark' || value === 'light' || value === 'high-contrast' ? value : fallback;
+  return normalizeCanvasThemeName(value, fallback);
 }
 
 const SCHEMA_SQL = `

@@ -14,7 +14,8 @@
  * toggling the attribute (the theme bridge below) — no CSS payload over
  * postMessage required.
  */
-export type SurfaceTheme = 'dark' | 'light' | 'high-contrast';
+import { type CanvasThemeName } from '../shared/themes.js';
+export type SurfaceTheme = CanvasThemeName;
 /** Path the surface document links for its theme tokens (served from dist/canvas). */
 export declare const SURFACE_THEME_STYLESHEET = "/canvas/surface-theme.css";
 /** CSP sandbox tokens for an `html`/`html-primitive` surface — scripts only, opaque origin. */
@@ -77,6 +78,12 @@ export interface HtmlSurfaceOptions {
     axState?: unknown;
     /** Nonce for the content-height reporter (lets the node grow to fit content). */
     contentHeightToken?: string;
+    /**
+     * Contents of surface-theme.css to inline as a <style> instead of the
+     * same-origin <link> — required for srcdoc-rendered surfaces (nested-iframe
+     * hosts) where the stylesheet subresource may not load.
+     */
+    inlineThemeCss?: string;
 }
 /**
  * Wrap author HTML into a complete, themed standalone document. Accepts either a

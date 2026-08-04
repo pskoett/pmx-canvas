@@ -20,7 +20,7 @@ pmx-canvas                            # Start canvas, open browser
 pmx-canvas --demo                     # Start with the saved dashboard demo board
 pmx-canvas --port=8080                # Custom port
 pmx-canvas --no-open                  # Headless (for agents/CI)
-pmx-canvas --theme=light              # dark | light | high-contrast
+pmx-canvas --theme=light              # dark | light | high-contrast | midnight | sepia | arctic | ember | forest
 pmx-canvas --mcp                      # Run as MCP server (stdio)
 pmx-canvas --webview-automation       # Start headless Bun.WebView session
 pmx-canvas open                       # Open the current workbench in a browser

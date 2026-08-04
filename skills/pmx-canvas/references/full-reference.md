@@ -132,7 +132,7 @@ pmx-canvas --theme=light       # Light theme
 pmx-canvas --version           # Print installed version and exit
 ```
 
-`--theme` accepts `dark` (default), `light`, or `high-contrast`. Same value can be set via
+`--theme` accepts `dark` (default), `light`, `high-contrast`, `midnight`, `sepia`, `arctic`, `ember`, or `forest` (0.4.x; the browser toolbar has a matching theme picker). Same value can be set via
 the `PMX_CANVAS_THEME` environment variable, or toggled live in the browser toolbar.
 
 Start the canvas once per session, then reuse it. Use `--no-open` when running as an agent — the
@@ -420,8 +420,8 @@ When you do set a color (group/graph), use this palette consistently to convey m
 
 ## MCP Tools Reference
 
-PMX Canvas exposes **15 action-discriminated composites** (the whole recommended surface) plus a
-set of first-class standalones. The composites fold the older
+PMX Canvas exposes **16 action-discriminated composites** (the whole recommended surface) plus
+**6 first-class standalones** — 22 tools total (v0.4.x). The composites fold the older
 single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) discriminator —
 **field names are unchanged**; only the tool name + the `action`/`kind` selector differ.
 

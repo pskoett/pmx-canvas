@@ -21,8 +21,9 @@ import {
   HTML_SURFACE_PUSH_SOURCE,
 } from '../shared/ax-surface-protocol.js';
 import { contentHeightReporterTag } from '../shared/content-height-reporter.js';
+import { type CanvasThemeName, normalizeCanvasThemeName } from '../shared/themes.js';
 
-export type SurfaceTheme = 'dark' | 'light' | 'high-contrast';
+export type SurfaceTheme = CanvasThemeName;
 
 /** Path the surface document links for its theme tokens (served from dist/canvas). */
 export const SURFACE_THEME_STYLESHEET = '/canvas/surface-theme.css';
@@ -31,7 +32,7 @@ export const SURFACE_THEME_STYLESHEET = '/canvas/surface-theme.css';
 export const HTML_SURFACE_SANDBOX = 'allow-scripts';
 
 export function normalizeSurfaceTheme(value: string | null | undefined): SurfaceTheme {
-  return value === 'light' || value === 'high-contrast' ? value : 'dark';
+  return normalizeCanvasThemeName(value);
 }
 
 /**
@@ -235,6 +236,12 @@ export interface HtmlSurfaceOptions {
   axState?: unknown;
   /** Nonce for the content-height reporter (lets the node grow to fit content). */
   contentHeightToken?: string;
+  /**
+   * Contents of surface-theme.css to inline as a <style> instead of the
+   * same-origin <link> — required for srcdoc-rendered surfaces (nested-iframe
+   * hosts) where the stylesheet subresource may not load.
+   */
+  inlineThemeCss?: string;
 }
 
 /**
@@ -243,7 +250,14 @@ export interface HtmlSurfaceOptions {
  */
 export function buildHtmlSurfaceDocument(userHtml: string, options: HtmlSurfaceOptions): string {
   const themeToken = sanitizeToken(options.themeToken);
-  const link = `<link rel="stylesheet" href="${SURFACE_THEME_STYLESHEET}">`;
+  // Inline the theme tokens when the caller supplies the stylesheet content —
+  // in srcdoc-mode embeds (Amp orb portals) the surface document is rendered
+  // inline and a <link> subresource may not load, leaving the surface unstyled
+  // (dark-on-dark reads as blank). The <link> stays as the fallback for callers
+  // without the content.
+  const link = options.inlineThemeCss
+    ? `<style data-pmx-surface-theme>${options.inlineThemeCss.replace(/<\//g, '<\\/')}</style>`
+    : `<link rel="stylesheet" href="${SURFACE_THEME_STYLESHEET}">`;
   const themeBridge = buildThemeBridge(themeToken);
   const presentationBridge = options.presentation
     ? buildPresentationEscapeBridge(sanitizeToken(options.presentationExitToken))

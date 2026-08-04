@@ -363,6 +363,13 @@ If that iframe never loads, the client switches every same-origin surface
 fetched cross-origin. Force a mode with `/workbench?iframe-mode=srcdoc` (or
 `iframe-mode=src`).
 
+In Amp orbs the probe itself is unreliable (a tiny probe iframe can load even
+though node-sized ones will not), so when the server runs with `AMP_ORB` set
+(orb services always do) it stamps `window.__PMX_AMP_ORB` into the page and
+the embedded client forces `srcdoc` without probing. HTML surface documents
+also inline their theme stylesheet, so srcdoc-rendered surfaces stay styled
+without any subresource load.
+
 `/api/canvas/frame-documents/:id` also answers `HEAD`, which the browser uses
 after every reconnect to detect frame documents lost to a server restart and
 re-mint them automatically (Finding S).

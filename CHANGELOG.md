@@ -3,6 +3,33 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Five new themes — `midnight`, `sepia`, `arctic`, `ember`, and `forest` —
+  alongside `dark`, `light`, and `high-contrast`, selectable from a new theme
+  picker in the toolbar, via `--theme=...`, or `PMX_CANVAS_THEME`.
+- The toolbar now collapses on narrow screens and mobile into a single compact
+  bar with a "⋯" menu holding every secondary action as labeled touch-friendly
+  rows, replacing the wrapped two-bar layout.
+- Amp orbs are auto-detected: when the server runs with `AMP_ORB` set, the
+  embedded canvas skips the (there-unreliable) iframe probe and uses `srcdoc`
+  mode directly.
+
+### Changed
+
+- Refreshed the bundled skill's accuracy: tool tables verified against the
+  live 22-tool MCP surface, stale composite counts corrected, and the browser
+  guidance now documents the toolbar theme picker and the narrow-screen More
+  menu.
+
+### Fixed
+
+- HTML surfaces now inline their theme stylesheet instead of linking it, so
+  srcdoc-rendered surfaces in nested-iframe hosts render styled instead of
+  blank (dark-on-dark).
+
 ## [0.4.1] - 2026-08-04
 
 ### Added

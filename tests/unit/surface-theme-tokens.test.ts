@@ -28,7 +28,16 @@ const CORE_TOKENS = [
   '--c-purple',
 ];
 
-const THEME_SELECTORS = [':root', ':root[data-theme="light"]', ':root[data-theme="high-contrast"]'];
+const THEME_SELECTORS = [
+  ':root',
+  ':root[data-theme="light"]',
+  ':root[data-theme="high-contrast"]',
+  ':root[data-theme="midnight"]',
+  ':root[data-theme="sepia"]',
+  ':root[data-theme="arctic"]',
+  ':root[data-theme="ember"]',
+  ':root[data-theme="forest"]',
+];
 
 function selectorBlock(css: string, selector: string): string {
   const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

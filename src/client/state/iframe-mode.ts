@@ -70,13 +70,24 @@ function isEmbeddedDocument(): boolean {
 }
 
 /**
+ * Amp orb services run with AMP_ORB=1 and the server stamps that into the page
+ * as window.__PMX_AMP_ORB (see canvasSpaHtml). The orb portal's nested-iframe
+ * embed blocks src-URL child iframes, but the probe is unreliable there — a
+ * tiny probe iframe sometimes loads even though node-sized ones will not — so
+ * a known orb host must skip the probe and go straight to srcdoc.
+ */
+function isAmpOrbHost(): boolean {
+  return (window as Window & { __PMX_AMP_ORB?: unknown }).__PMX_AMP_ORB === true;
+}
+
+/**
  * Resolve the boot-wide iframe mode once; all surface hooks share the result.
  * The blocked-src condition only exists when the canvas page itself runs
  * inside an iframe, so top-level documents resolve `src` synchronously — the
  * normal path pays zero probe latency before surfaces mount. Only embedded
  * documents run the probe (`embedded` is overridable for tests).
  */
-export function resolveIframeMode(opts: { embedded?: boolean } = {}): Promise<IframeMode> {
+export function resolveIframeMode(opts: { embedded?: boolean; ampOrb?: boolean } = {}): Promise<IframeMode> {
   if (iframeMode.value) return Promise.resolve(iframeMode.value);
   if (pending) return pending;
   const forced = forcedIframeMode();
@@ -87,6 +98,10 @@ export function resolveIframeMode(opts: { embedded?: boolean } = {}): Promise<If
   if (!(opts.embedded ?? isEmbeddedDocument())) {
     iframeMode.value = 'src';
     return Promise.resolve('src');
+  }
+  if (opts.ampOrb ?? isAmpOrbHost()) {
+    iframeMode.value = 'srcdoc';
+    return Promise.resolve('srcdoc');
   }
   pending = probeSrcIframes().then((srcWorks) => {
     const mode: IframeMode = srcWorks ? 'src' : 'srcdoc';

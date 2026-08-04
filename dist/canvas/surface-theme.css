@@ -121,6 +121,166 @@
   --color-danger: #ff0000;
 }
 
+:root[data-theme="midnight"] {
+  /* ── Core palette (midnight · deep indigo night) ─────────── */
+  --c-bg: #0A0D1C;
+  --c-panel: #12172E;
+  --c-panel-soft: #0D1224;
+  --c-line: #232B4A;
+  --c-text: #E6E9F7;
+  --c-text-soft: #C6CCE8;
+  --c-muted: #8D96BC;
+  --c-dim: #5B6383;
+  --c-accent: #8B96FF;
+  --c-ok: #34D399;
+  --c-warn: #F5C452;
+  --c-warn-alt: #FFB300;
+  --c-danger: #FF6B8A;
+  --c-purple: #B388FF;
+
+  --color-bg: #0A0D1C;
+  --color-panel: #12172E;
+  --color-surface: #0D1224;
+  --color-border: #232B4A;
+  --color-text: #E6E9F7;
+  --color-text-primary: #E6E9F7;
+  --color-text-secondary: #C6CCE8;
+  --color-text-muted: #8D96BC;
+  --color-text-dim: #5B6383;
+  --color-accent: #8B96FF;
+  --color-success: #34D399;
+  --color-warning: #F5C452;
+  --color-danger: #FF6B8A;
+}
+
+:root[data-theme="sepia"] {
+  /* ── Core palette (sepia · warm amber paper) ─────────────── */
+  --c-bg: #F2E7D5;
+  --c-panel: #EBDCC2;
+  --c-panel-soft: #E8D8BC;
+  --c-line: #D3C1A0;
+  --c-text: #2E2416;
+  --c-text-soft: #554833;
+  --c-muted: #77664C;
+  --c-dim: #978870;
+  --c-accent: #B4632C;
+  --c-ok: #3E7D4F;
+  --c-warn: #A97B1E;
+  --c-warn-alt: #8F6A0D;
+  --c-danger: #B3402E;
+  --c-purple: #8456B0;
+
+  --color-bg: #F2E7D5;
+  --color-panel: #EBDCC2;
+  --color-surface: #E8D8BC;
+  --color-border: #D3C1A0;
+  --color-text: #2E2416;
+  --color-text-primary: #2E2416;
+  --color-text-secondary: #554833;
+  --color-text-muted: #77664C;
+  --color-text-dim: #978870;
+  --color-accent: #B4632C;
+  --color-success: #3E7D4F;
+  --color-warning: #A97B1E;
+  --color-danger: #B3402E;
+}
+
+:root[data-theme="arctic"] {
+  /* ── Core palette (arctic · cool slate + ice) ────────────── */
+  --c-bg: #20242E;
+  --c-panel: #2A2F3C;
+  --c-panel-soft: #242936;
+  --c-line: #3A4152;
+  --c-text: #E9EDF4;
+  --c-text-soft: #CBD3E1;
+  --c-muted: #939DB1;
+  --c-dim: #667082;
+  --c-accent: #7FC8DE;
+  --c-ok: #74C596;
+  --c-warn: #E8C476;
+  --c-warn-alt: #E0A93F;
+  --c-danger: #D9707C;
+  --c-purple: #B48EAD;
+
+  --color-bg: #20242E;
+  --color-panel: #2A2F3C;
+  --color-surface: #242936;
+  --color-border: #3A4152;
+  --color-text: #E9EDF4;
+  --color-text-primary: #E9EDF4;
+  --color-text-secondary: #CBD3E1;
+  --color-text-muted: #939DB1;
+  --color-text-dim: #667082;
+  --color-accent: #7FC8DE;
+  --color-success: #74C596;
+  --color-warning: #E8C476;
+  --color-danger: #D9707C;
+}
+
+:root[data-theme="ember"] {
+  /* ── Core palette (ember · charcoal + vivid warm orange) ─── */
+  --c-bg: #0E0E11;
+  --c-panel: #17181D;
+  --c-panel-soft: #121317;
+  --c-line: #2A2C34;
+  --c-text: #ECEDF0;
+  --c-text-soft: #C9CCD4;
+  --c-muted: #8E939F;
+  --c-dim: #5F646E;
+  --c-accent: #FF5C2E;
+  --c-ok: #4CC38A;
+  --c-warn: #F5B944;
+  --c-warn-alt: #FFB300;
+  --c-danger: #F0566A;
+  --c-purple: #A78BFA;
+
+  --color-bg: #0E0E11;
+  --color-panel: #17181D;
+  --color-surface: #121317;
+  --color-border: #2A2C34;
+  --color-text: #ECEDF0;
+  --color-text-primary: #ECEDF0;
+  --color-text-secondary: #C9CCD4;
+  --color-text-muted: #8E939F;
+  --color-text-dim: #5F646E;
+  --color-accent: #FF5C2E;
+  --color-success: #4CC38A;
+  --color-warning: #F5B944;
+  --color-danger: #F0566A;
+}
+
+:root[data-theme="forest"] {
+  /* ── Core palette (forest · deep green) ──────────────────── */
+  --c-bg: #0C1712;
+  --c-panel: #14231B;
+  --c-panel-soft: #101D16;
+  --c-line: #26402F;
+  --c-text: #E4EFE7;
+  --c-text-soft: #C4D6CA;
+  --c-muted: #8BA695;
+  --c-dim: #5D7566;
+  --c-accent: #5CCF8F;
+  --c-ok: #74D99F;
+  --c-warn: #E0B84F;
+  --c-warn-alt: #D9A421;
+  --c-danger: #E57373;
+  --c-purple: #A88FE0;
+
+  --color-bg: #0C1712;
+  --color-panel: #14231B;
+  --color-surface: #101D16;
+  --color-border: #26402F;
+  --color-text: #E4EFE7;
+  --color-text-primary: #E4EFE7;
+  --color-text-secondary: #C4D6CA;
+  --color-text-muted: #8BA695;
+  --color-text-dim: #5D7566;
+  --color-accent: #5CCF8F;
+  --color-success: #74D99F;
+  --color-warning: #E0B84F;
+  --color-danger: #E57373;
+}
+
 html,
 body {
   margin: 0;

@@ -5,6 +5,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { showServeStatus, startDaemonMode, stopServeDaemon } from './daemon.js';
 import { runAgentCli } from './agent.js';
+import { isCanvasTheme } from '../shared/themes.js';
 import { createCanvas } from '../server/index.js';
 import { seedDemoCanvas } from '../server/demo.js';
 import { ensureDefaultDockedNodes } from '../server/server.js';
@@ -231,7 +232,7 @@ if (AGENT_COMMANDS.has(routedCommand) && routedCommand !== 'serve') {
   const daemonWaitMs = readNumberOption('wait-ms') ?? 10_000;
   const webviewBackendOption: 'chrome' | 'webkit' | undefined =
     webviewBackend === 'chrome' || webviewBackend === 'webkit' ? webviewBackend : undefined;
-  if (themeArg && ['dark', 'light', 'high-contrast'].includes(themeArg)) {
+  if (themeArg && isCanvasTheme(themeArg)) {
     process.env.PMX_CANVAS_THEME = themeArg;
   }
   const help = hasFlag('help') || args.includes('-h');
@@ -252,7 +253,7 @@ Server options:
   --log-file=PATH  Daemon log file (default: ./.pmx-canvas/daemon-${port}.log)
   --pid-file=PATH  Optional daemon PID file (default: ./.pmx-canvas/daemon-${port}.pid)
   --wait-ms=MS   Health-check wait budget for daemon mode (default: 10000)
-  --theme=THEME  Theme: dark (default), light, high-contrast
+  --theme=THEME  Theme: dark (default), light, high-contrast, midnight, sepia, arctic, ember, forest
   --webview-automation        Start a headless Bun.WebView automation session for /workbench
   --webview-backend=BACKEND   Bun.WebView backend: chrome or webkit
   --webview-width=PX          Automation WebView width (default: 1280)

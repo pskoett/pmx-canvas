@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from 'preact/hooks';
 import { HTML_SURFACE_PUSH_SOURCE } from '../../shared/ax-surface-protocol.js';
+import { canvasThemeScheme } from '../../shared/themes.js';
 import type { CanvasNodeState } from '../types';
 import { axSurfaceState, canvasTheme } from '../state/canvas-store';
 import { shouldContentFitIframeNode } from '../canvas/auto-fit';
@@ -20,7 +21,9 @@ function withViewerParams(
   if (!url) return url;
   try {
     const resolved = new URL(url, window.location.origin);
-    resolved.searchParams.set('theme', canvasTheme.value === 'light' ? 'light' : 'dark');
+    // The json-render viewer + artifacts understand dark/light — collapse named
+    // themes (sepia → light, midnight/arctic/ember/forest → dark) to a scheme.
+    resolved.searchParams.set('theme', canvasThemeScheme(canvasTheme.value));
     if (expanded) resolved.searchParams.set('display', 'expanded');
     // Streaming json-render nodes bump specVersion as patches accumulate; including
     // it in the src reloads the iframe so it re-reads the latest accumulated spec.

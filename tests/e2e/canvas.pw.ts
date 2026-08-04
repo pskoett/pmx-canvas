@@ -20,6 +20,12 @@ async function clearSnapshots(request: APIRequestContext): Promise<void> {
   }
 }
 
+/** Pick a theme through the real toolbar control (the 0.4.x theme picker menu). */
+async function selectTheme(page: Page, themeLabel: string): Promise<void> {
+  await page.getByRole('button', { name: 'Choose theme' }).click();
+  await page.locator('.toolbar-menu').getByRole('menuitemradio', { name: themeLabel }).click();
+}
+
 async function clearCanvas(request: APIRequestContext): Promise<void> {
   await request.post('/api/canvas/clear');
   await request.post('/api/canvas/context-pins', {
@@ -1409,7 +1415,7 @@ test('html presentation nodes live-update theme inside sandboxed iframes', async
   await expect(htmlNode.frameLocator('iframe').getByText('Theme sentinel')).toBeVisible();
 
   const before = await htmlNode.frameLocator('iframe').locator('#theme-bg').textContent();
-  await page.getByRole('button', { name: /Switch to light theme/ }).click();
+  await selectTheme(page, 'Light');
 
   await expect.poll(async () => htmlNode.frameLocator('iframe').locator('#theme-bg').textContent()).not.toBe(before);
 });
@@ -2564,7 +2570,7 @@ test('light theme uses a high-contrast blue for context-pinned nodes', async ({ 
   // persisted, so a later SSE round-trip (e.g. the pin below now also flips
   // the node's effective pinned flag) would re-apply the server's stored
   // theme and clobber it — flaking this assertion.
-  await page.getByLabel('Switch to light theme').click();
+  await selectTheme(page, 'Light');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 
   const note = page.locator('.canvas-node').filter({ hasText: 'Light theme pin' });
@@ -2664,7 +2670,7 @@ test('can start pen and text annotations over nodes', async ({ page, request }) 
 
 test('annotation toolbar actions preserve the current light theme', async ({ page }) => {
   await page.goto('/workbench');
-  await page.getByLabel('Switch to light theme').click();
+  await selectTheme(page, 'Light');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 
   await page.getByLabel('Annotate canvas').click();
@@ -2678,7 +2684,7 @@ test('annotation toolbar actions preserve the current light theme', async ({ pag
 
 test('theme selection persists for fresh browser sessions', async ({ page, request, context }) => {
   await page.goto('/workbench');
-  await page.getByLabel('Switch to light theme').click();
+  await selectTheme(page, 'Light');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 
   await expect
@@ -2694,7 +2700,7 @@ test('theme selection persists for fresh browser sessions', async ({ page, reque
   await expect(secondPage.locator('html')).toHaveAttribute('data-theme', 'light');
   await secondPage.close();
 
-  await page.getByLabel('Switch to dark theme').click();
+  await selectTheme(page, 'Dark');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
 
   await expect
@@ -2959,4 +2965,34 @@ test('srcdoc iframe mode renders same-origin surfaces inline (nested-embed fallb
   const jsonNode = page.locator('.canvas-node').filter({ hasText: 'Srcdoc JSON target' });
   await expect(jsonNode.locator('iframe')).toHaveAttribute('srcdoc', /./);
   await expect(jsonNode.frameLocator('iframe').getByText('Srcdoc card')).toBeVisible();
+});
+
+test('narrow screens collapse the toolbar into one bar with a More menu (no second bar)', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/workbench');
+
+  // One compact bar: the action bar and secondary controls are gone…
+  await expect(page.locator('.toolbar-actions-bar')).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Arrange layout' })).toBeHidden();
+
+  // …and everything lives in the labeled More menu instead.
+  await page.getByRole('button', { name: 'More actions' }).click();
+  const menu = page.locator('.toolbar-menu');
+  await expect(menu).toBeVisible();
+  await expect(menu.getByText('Arrange layout')).toBeVisible();
+  await expect(menu.getByText('Keyboard shortcuts')).toBeVisible();
+
+  // The theme section applies a named theme directly from the menu.
+  await menu.getByRole('menuitemradio', { name: 'Ember' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'ember');
+  await expect(page.locator('.toolbar-menu')).toHaveCount(0);
+});
+
+test('desktop theme picker lists all eight themes and applies one', async ({ page }) => {
+  await page.goto('/workbench');
+  await page.getByRole('button', { name: 'Choose theme' }).click();
+  const menu = page.locator('.toolbar-menu');
+  await expect(menu.getByRole('menuitemradio')).toHaveCount(8);
+  await menu.getByRole('menuitemradio', { name: 'Midnight' }).click();
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'midnight');
 });
