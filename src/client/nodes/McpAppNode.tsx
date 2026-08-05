@@ -3,6 +3,7 @@ import { HTML_SURFACE_PUSH_SOURCE } from '../../shared/ax-surface-protocol.js';
 import { canvasThemeScheme } from '../../shared/themes.js';
 import type { CanvasNodeState } from '../types';
 import { axSurfaceState, canvasTheme } from '../state/canvas-store';
+import { iframeMode } from '../state/iframe-mode';
 import { shouldContentFitIframeNode } from '../canvas/auto-fit';
 import { ExtAppFrame } from './ExtAppFrame';
 import { useAxSurfaceBridge } from './use-ax-surface-bridge';
@@ -185,7 +186,11 @@ function McpAppViewer({ node, expanded }: { node: CanvasNodeState; expanded: boo
         class="mcp-app-frame"
         sandbox="allow-scripts allow-forms allow-popups allow-popups-to-escape-sandbox"
         allow="clipboard-read; clipboard-write"
-        loading="lazy"
+        // Lazy loading only helps src mode (defers the HTTP request for
+        // off-screen nodes). In srcdoc mode the content is already inline —
+        // lazy would just delay PAINTING until the node scrolls near the
+        // viewport, which reads as "blank until opened" (Amp portal report).
+        loading={iframeMode.value === 'srcdoc' ? undefined : 'lazy'}
         onLoad={pushAxState}
         style={{ flex: 1, minHeight: 0, width: '100%' }}
         title={`MCP App: ${sourceServer}`}

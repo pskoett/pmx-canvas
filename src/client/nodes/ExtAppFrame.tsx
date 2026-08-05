@@ -528,9 +528,17 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   latestToolInputRef.current = toolInput;
   latestToolResultRef.current = toolResult;
 
+  // Finding U (0.4.2 report): a stressed reconnect can leave sessionStatus
+  // 'error' (e.g. "MCP error -32001: Request timed out") while the cached app
+  // document still renders fine below. When content IS available, present the
+  // error as a degraded-interactivity notice, not a full-alarm banner over a
+  // working diagram.
+  const sessionErrorWithContent = sessionStatus === 'error' && typeof html === 'string' && html.length > 0;
   const sessionUnavailableMessage =
     sessionStatus === 'error'
-      ? (sessionError ?? 'Saved app session is unavailable. Reopen the app to restore interactivity.')
+      ? sessionErrorWithContent
+        ? `Live session unavailable — showing saved content. Reopen the app to restore interactivity.${sessionError ? ` (${sessionError})` : ''}`
+        : (sessionError ?? 'Saved app session is unavailable. Reopen the app to restore interactivity.')
       : 'Reconnecting saved app session...';
 
   const flushToolResult = (bridge: AppBridge | null): Promise<void> | null => {
@@ -1040,9 +1048,12 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
           style={{
             padding: '6px 10px',
             fontSize: '11px',
-            background: sessionStatus === 'error' ? 'var(--c-danger-12)' : 'var(--c-warn-10)',
-            color: sessionStatus === 'error' ? 'var(--c-danger)' : 'var(--c-warn)',
-            borderBottom: `1px solid ${sessionStatus === 'error' ? 'var(--c-danger-12)' : 'var(--c-warn-15)'}`,
+            background:
+              sessionStatus === 'error' && !sessionErrorWithContent ? 'var(--c-danger-12)' : 'var(--c-warn-10)',
+            color: sessionStatus === 'error' && !sessionErrorWithContent ? 'var(--c-danger)' : 'var(--c-warn)',
+            borderBottom: `1px solid ${
+              sessionStatus === 'error' && !sessionErrorWithContent ? 'var(--c-danger-12)' : 'var(--c-warn-15)'
+            }`,
           }}
         >
           {sessionUnavailableMessage}

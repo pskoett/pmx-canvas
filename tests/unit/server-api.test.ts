@@ -1401,6 +1401,33 @@ describe('canvas server HTTP API', () => {
     expect(meta.surfaceUrl).toBe('/api/canvas/surface/surface-html');
   });
 
+  test('theme endpoint rejects unknown names instead of soft-accepting (0.4.2 report)', async () => {
+    const bad = await fetch(`${baseUrl}/api/canvas/theme`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ theme: 'not-a-theme' }),
+    });
+    expect(bad.status).toBe(400);
+    const badBody = (await bad.json()) as { ok: boolean; error?: string };
+    expect(badBody.ok).toBe(false);
+    expect(String(badBody.error)).toContain('Unknown theme');
+
+    const good = await fetch(`${baseUrl}/api/canvas/theme`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ theme: 'arctic' }),
+    });
+    expect(good.status).toBe(200);
+    expect(((await good.json()) as { theme?: string }).theme).toBe('arctic');
+
+    // Restore the suite default so later tests see the expected theme.
+    await fetch(`${baseUrl}/api/canvas/theme`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ theme: 'dark' }),
+    });
+  });
+
   test('workbench page advertises Amp orb mode only when AMP_ORB is set', async () => {
     const before = await fetch(`${baseUrl}/workbench`).then((r) => r.text());
     expect(before).not.toContain('__PMX_AMP_ORB');
@@ -1430,7 +1457,7 @@ describe('canvas server HTTP API', () => {
     expect(body).toContain('data-pmx-surface-theme');
     // The inlined stylesheet must actually carry the ember token block.
     expect(body).toContain('data-theme="ember"');
-    expect(body).toContain('#FF5C2E');
+    expect(body).toContain('#F34E1C');
   });
 
   test('iframe-probe endpoint serves the tiny embed-detection document', async () => {

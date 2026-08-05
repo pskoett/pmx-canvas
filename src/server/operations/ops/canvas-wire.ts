@@ -10,7 +10,8 @@ import { z } from 'zod';
 import { normalizeCanvasTheme } from '../../canvas-db.js';
 import { applyCanvasNodeUpdates } from '../../canvas-operations.js';
 import { canvasState } from '../../canvas-state.js';
-import { defineOperation, type Operation } from '../types.js';
+import { CANVAS_THEMES, isCanvasTheme } from '../../../shared/themes.js';
+import { defineOperation, OperationError, type Operation } from '../types.js';
 
 const emptyShape = {};
 const emptySchema = z.looseObject(emptyShape);
@@ -47,6 +48,13 @@ const themeSetOperation = defineOperation<z.infer<typeof themeSetSchema>, Record
     path: '/api/canvas/theme',
   },
   handler: (input, ctx) => {
+    // Reject unknown names instead of silently keeping the prior theme
+    // (0.4.2 report: the soft-accept made typos look like successes).
+    if (input.theme !== undefined && !isCanvasTheme(input.theme)) {
+      throw new OperationError(
+        `Unknown theme ${JSON.stringify(input.theme)}. Valid themes: ${CANVAS_THEMES.join(', ')}.`,
+      );
+    }
     const theme = normalizeCanvasTheme(input.theme, canvasState.theme);
     const next = canvasState.setTheme(theme);
     ctx.emit('theme-changed', { theme: next });

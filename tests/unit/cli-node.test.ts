@@ -2963,7 +2963,9 @@ exit 2
     const extension = readFileSync(join(process.cwd(), '.github/extensions/pmx-canvas/extension.mjs'), 'utf-8');
     expect(extension).toContain('id: "pmx-canvas"');
     expect(extension).toContain('onUserPromptSubmitted');
-    expect(extension).toContain('url: `${pmx.baseUrl}/workbench`');
+    // The panel opens with the light session default matching the Copilot
+    // app's chrome (host-default theming, ?theme= override).
+    expect(extension).toContain('url: `${pmx.baseUrl}/workbench?theme=light`');
     expect(extension).toContain('"/api/canvas/ax/context"');
     expect(extension).toContain('name: "focus_nodes"');
     expect(extension).toContain('name: "send_instruction"');

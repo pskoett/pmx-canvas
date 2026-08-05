@@ -130,7 +130,8 @@ surfaces (the core never imports a host SDK).
 
 - **GitHub Copilot app** — a committed project canvas extension
   (`.github/extensions/pmx-canvas/`) opens the live PMX workbench in a native
-  Copilot panel, injects pinned/focused AX context on prompt submission, and
+  Copilot panel (light-themed by default to match the app, via the `?theme=`
+  session override), injects pinned/focused AX context on prompt submission, and
   exposes actions for focus, session steering, work items, approval gates,
   review annotations, the AX timeline, and host-capability reporting. Install it
   into any repo with `pmx-canvas copilot install-extension` (`--dry-run` to
@@ -142,17 +143,25 @@ surfaces (the core never imports a host SDK).
   (MCP + in-app Browser) are exactly what the canvas requires.
 - **Claude Code desktop app** — the workbench runs in the desktop app's
   built-in browser pane alongside the PMX MCP server, same zero-adapter recipe
-  as Codex: open `http://localhost:4313/workbench` in the app's browser and the
-  live board, pins, and Ghost Cursor all work in-panel.
-- **Amp orb portals** (and other buffering proxies / nested-iframe embeds) —
-  the canvas detects when the live event stream is being buffered by the proxy
-  and automatically switches to a polling transport, so the board boots and
-  stays live through the portal with no proxy shims
-  (`/workbench?transport=poll` forces it). It also detects when the nested
-  iframe embed blocks `src`-URL iframes entirely and renders HTML, graph,
-  json-render, and app surfaces inline via `srcdoc` instead
-  (`?iframe-mode=srcdoc` forces it), so iframe-backed nodes work in the portal
-  too.
+  as Codex: open `http://localhost:4313/workbench?theme=light` (or
+  `?theme=auto` to follow the app's appearance) in the app's browser and the
+  live board, pins, and Ghost Cursor all work in-panel — themed to match the
+  pane without changing what other clients see.
+- **AMPCode orbs + portal** — run the canvas as an orb service and view the
+  live workbench through the Amp portal (the `*.onamp.dev` URL ampcode.com
+  embeds for the thread). Zero configuration: orbs set `AMP_ORB` in the
+  service environment, and the canvas auto-adapts to the portal's constraints
+  — it switches to a polling transport when the portal proxy buffers the live
+  event stream, and renders HTML, graph, json-render, and app surfaces inline
+  via `srcdoc` because the nested-iframe embed blocks `src`-URL child iframes
+  (`/workbench?transport=poll` and `?iframe-mode=srcdoc` force either behavior
+  when diagnosing). The same detection helps other buffering proxies and
+  nested-iframe embeds.
+  <!-- screenshot: docs/screenshots/amp-orb-portal.png — PMX Canvas live inside the Amp portal (to be added) -->
+
+Any other app browser (the ChatGPT desktop app, an IDE webview, …) works the
+same zero-adapter way: open the workbench URL, and add `?theme=<name|auto>` to
+give that panel its own session-local default theme.
 
 The contract is host-agnostic, so a new host plugs in the same way: map its
 hooks, canvas, and session APIs onto PMX's AX primitives — no core changes.
@@ -238,6 +247,19 @@ Agents read pinned/focused context from `canvas://ax-context` /
 `source: "codex"`. See
 [`codex-app-adapter.md`](skills/pmx-canvas/references/codex-app-adapter.md) for
 the full workflow and live-test checklist.
+
+### Use inside AMPCode orbs and the Amp portal
+
+Amp needs no adapter either. Run `pmx-canvas` as an orb service (the orb sets
+`AMP_ORB` in the environment automatically) and open the workbench through the
+thread's portal URL. The canvas detects the orb and the portal's nested-iframe
+embed on its own: live updates arrive over the proxy-safe polling transport,
+and iframe-backed nodes (HTML, graph, json-render, web artifacts) render
+inline via `srcdoc` with their theme styling included. Cross-origin hosted
+apps (e.g. the hosted Excalidraw MCP app) cannot be inlined and may stay
+blocked by the portal embed — everything served from the canvas itself works.
+Debug overrides: `/workbench?transport=poll|sse` and
+`?iframe-mode=srcdoc|src`.
 
 ### Install the agent skill (recommended)
 

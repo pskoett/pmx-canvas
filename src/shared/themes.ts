@@ -48,7 +48,7 @@ export const CANVAS_THEME_META: Record<CanvasThemeName, CanvasThemeMeta> = {
   midnight: { label: 'Midnight', scheme: 'dark', swatchBg: '#0A0D1C', swatchAccent: '#8B96FF' },
   sepia: { label: 'Sepia', scheme: 'light', swatchBg: '#F2E7D5', swatchAccent: '#B4632C' },
   arctic: { label: 'Arctic', scheme: 'dark', swatchBg: '#20242E', swatchAccent: '#7FC8DE' },
-  ember: { label: 'Ember', scheme: 'dark', swatchBg: '#0E0E11', swatchAccent: '#FF5C2E' },
+  ember: { label: 'Ember', scheme: 'dark', swatchBg: '#0B0B0C', swatchAccent: '#F34E1C' },
   forest: { label: 'Forest', scheme: 'dark', swatchBg: '#0C1712', swatchAccent: '#5CCF8F' },
 };
 

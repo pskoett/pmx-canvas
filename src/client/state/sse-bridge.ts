@@ -26,6 +26,7 @@ import {
   workbenchConnectionEpoch,
 } from './canvas-store';
 import { fetchAxSurfaceState } from './intent-bridge';
+import { initSessionThemeOverride, themeOverrideActive } from './theme-override';
 import { DEFAULT_POSITIONS, makeNodeState } from './node-factory';
 import { invalidateTokenCache } from '../theme/tokens';
 import { resetAttentionBridge, syncAttentionFromSse } from './attention-bridge';
@@ -399,7 +400,9 @@ function handleConnected(data: Record<string, unknown>): void {
   connectionStatus.value = 'connected';
   // Reconnect marker for holders of server-minted URLs (Finding S).
   workbenchConnectionEpoch.value += 1;
-  if (typeof data.theme === 'string') {
+  // A ?theme= session override (host-default theming) wins over the
+  // server-global theme for THIS client only.
+  if (typeof data.theme === 'string' && !themeOverrideActive()) {
     applyCanvasTheme(data.theme);
   }
   if (data.ledgerSummary) {
@@ -890,7 +893,7 @@ function handleTraceState(data: Record<string, unknown>): void {
 }
 
 function handleThemeChanged(data: Record<string, unknown>): void {
-  if (typeof data.theme === 'string') {
+  if (typeof data.theme === 'string' && !themeOverrideActive()) {
     applyCanvasTheme(data.theme);
   }
 }
@@ -1082,6 +1085,9 @@ function startPollingTransport(): () => void {
 }
 
 export function connectSSE(): () => void {
+  // Host-default theming: a ?theme= param applies before the first server
+  // frame so an embedding host panel never flashes the server-global theme.
+  initSessionThemeOverride(applyCanvasTheme);
   savedLayout = restoreLayout();
   ensureStatusNode();
   hasInitialServerLayout.value = false;

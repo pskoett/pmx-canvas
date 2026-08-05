@@ -218,32 +218,32 @@
 }
 
 :root[data-theme="ember"] {
-  /* ── Core palette (ember · charcoal + vivid warm orange) ─── */
-  --c-bg: #0E0E11;
-  --c-panel: #17181D;
-  --c-panel-soft: #121317;
-  --c-line: #2A2C34;
-  --c-text: #ECEDF0;
-  --c-text-soft: #C9CCD4;
-  --c-muted: #8E939F;
-  --c-dim: #5F646E;
-  --c-accent: #FF5C2E;
+  /* ── Core palette (ember · neutral charcoal + vivid orange-red) ─── */
+  --c-bg: #0B0B0C;
+  --c-panel: #161618;
+  --c-panel-soft: #101012;
+  --c-line: #29292C;
+  --c-text: #EDEBE6;
+  --c-text-soft: #CBC9C2;
+  --c-muted: #96948D;
+  --c-dim: #66655F;
+  --c-accent: #F34E1C;
   --c-ok: #4CC38A;
   --c-warn: #F5B944;
   --c-warn-alt: #FFB300;
   --c-danger: #F0566A;
   --c-purple: #A78BFA;
 
-  --color-bg: #0E0E11;
-  --color-panel: #17181D;
-  --color-surface: #121317;
-  --color-border: #2A2C34;
-  --color-text: #ECEDF0;
-  --color-text-primary: #ECEDF0;
-  --color-text-secondary: #C9CCD4;
-  --color-text-muted: #8E939F;
-  --color-text-dim: #5F646E;
-  --color-accent: #FF5C2E;
+  --color-bg: #0B0B0C;
+  --color-panel: #161618;
+  --color-surface: #101012;
+  --color-border: #29292C;
+  --color-text: #EDEBE6;
+  --color-text-primary: #EDEBE6;
+  --color-text-secondary: #CBC9C2;
+  --color-text-muted: #96948D;
+  --color-text-dim: #66655F;
+  --color-accent: #F34E1C;
   --color-success: #4CC38A;
   --color-warning: #F5B944;
   --color-danger: #F0566A;

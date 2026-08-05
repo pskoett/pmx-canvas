@@ -1096,8 +1096,17 @@ test('opens an html node as a standalone site with the current theme', async ({ 
   await expect(openButton).toHaveCount(1);
   await expect(htmlNode.getByTitle('Open in system browser')).toHaveCount(0);
 
+  // Contract (0.4.2 semantics): "Open as site" FIRST asks the server to open
+  // the user's system browser via /api/canvas/open-external. This suite runs
+  // with PMX_CANVAS_DISABLE_BROWSER_OPEN=1, so the server reports opened:false
+  // and the documented window.open fallback produces the popup we assert on.
+  // (In a normal run the system browser opens and no Playwright page appears.)
+  const openExternalRequest = page.waitForResponse('**/api/canvas/open-external');
   const popupPromise = context.waitForEvent('page');
   await openButton.click();
+  const openExternal = await openExternalRequest;
+  const openExternalBody = (await openExternal.json()) as { opened?: boolean };
+  expect(openExternalBody.opened).toBe(false);
   const popup = await popupPromise;
 
   // Same stable surface URL the in-canvas iframe loads — one render path.
@@ -3005,4 +3014,61 @@ test('desktop theme picker lists all eight themes and applies one', async ({ pag
   await expect(menu.getByRole('menuitemradio')).toHaveCount(8);
   await menu.getByRole('menuitemradio', { name: 'Midnight' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'midnight');
+});
+
+test('?theme= session override themes one panel without touching the server-global theme', async ({
+  page,
+  request,
+}) => {
+  await page.goto('/workbench?theme=light');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  // The server-global theme is untouched — every other client still gets dark.
+  const shared = (await request.get('/api/canvas/theme').then((r) => r.json())) as { theme?: string };
+  expect(shared.theme).toBe('dark');
+
+  // An explicit pick from the picker ends the override and saves globally.
+  await selectTheme(page, 'Ember');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'ember');
+  await expect
+    .poll(async () => ((await request.get('/api/canvas/theme').then((r) => r.json())) as { theme?: string }).theme)
+    .toBe('ember');
+});
+
+test('?theme=auto follows the host color scheme live', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'light' });
+  await page.goto('/workbench?theme=auto');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await page.emulateMedia({ colorScheme: 'dark' });
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'dark');
+});
+
+test('theme menu opens anchored to the theme button, not the toolbar edge (Finding T)', async ({ page }) => {
+  await page.goto('/workbench');
+  const button = page.getByRole('button', { name: 'Choose theme' });
+  await button.click();
+  const menu = page.locator('.toolbar-menu');
+  await expect(menu).toBeVisible();
+  const buttonBox = await button.boundingBox();
+  const menuBox = await menu.boundingBox();
+  if (!buttonBox || !menuBox) throw new Error('missing bounding boxes');
+  // The 0.4.2 regression anchored the menu to the toolbar-group's right edge,
+  // ~212px right of the control. Correctly anchored, the menu's right edge
+  // sits at the trigger's right edge.
+  expect(Math.abs(menuBox.x + menuBox.width - (buttonBox.x + buttonBox.width))).toBeLessThan(24);
+  // And it must open BELOW the bar, overlapping the button's column.
+  expect(menuBox.y).toBeGreaterThan(buttonBox.y + buttonBox.height);
+  expect(menuBox.x).toBeLessThan(buttonBox.x + buttonBox.width);
+});
+
+test('the More menu opens anchored to the ⋯ button on narrow screens', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/workbench');
+  const button = page.getByRole('button', { name: 'More actions' });
+  await button.click();
+  const menu = page.locator('.toolbar-menu');
+  await expect(menu).toBeVisible();
+  const buttonBox = await button.boundingBox();
+  const menuBox = await menu.boundingBox();
+  if (!buttonBox || !menuBox) throw new Error('missing bounding boxes');
+  expect(Math.abs(menuBox.x + menuBox.width - (buttonBox.x + buttonBox.width))).toBeLessThan(24);
 });

@@ -59,6 +59,7 @@ import {
   IconZoomIn,
   IconZoomOut,
 } from './icons';
+import { clearThemeOverride } from './state/theme-override';
 import { invalidateTokenCache } from './theme/tokens';
 import { MOD_KEY } from './utils/platform';
 import {
@@ -184,6 +185,9 @@ function Toolbar({
   }, [openMenu]);
 
   const applyTheme = (next: CanvasThemeName) => {
+    // An explicit pick ends any ?theme= session override (host default) and
+    // returns this client to the shared server-global theme it just saved.
+    clearThemeOverride();
     document.documentElement.setAttribute('data-theme', next);
     invalidateTokenCache();
     canvasTheme.value = next;
@@ -307,18 +311,27 @@ function Toolbar({
               <IconMinimap />
             </button>
           </ToolbarHint>
-          <ToolbarHint label="Theme" detail={`Current theme: ${CANVAS_THEME_META[activeTheme].label}`}>
-            <button
-              type="button"
-              onClick={() => setOpenMenu(openMenu === 'theme' ? null : 'theme')}
-              aria-label="Choose theme"
-              aria-haspopup="menu"
-              aria-expanded={openMenu === 'theme'}
-              style={{ color: openMenu === 'theme' ? 'var(--c-accent)' : undefined }}
-            >
-              {canvasThemeScheme(activeTheme) === 'dark' ? <IconSun /> : <IconMoon />}
-            </button>
-          </ToolbarHint>
+          {/* Anchor wrapper: the theme menu must open under THIS control, not at
+              the toolbar-group's right edge (0.4.2 report Finding T). */}
+          <span class="toolbar-menu-anchor">
+            <ToolbarHint label="Theme" detail={`Current theme: ${CANVAS_THEME_META[activeTheme].label}`}>
+              <button
+                type="button"
+                onClick={() => setOpenMenu(openMenu === 'theme' ? null : 'theme')}
+                aria-label="Choose theme"
+                aria-haspopup="menu"
+                aria-expanded={openMenu === 'theme'}
+                style={{ color: openMenu === 'theme' ? 'var(--c-accent)' : undefined }}
+              >
+                {canvasThemeScheme(activeTheme) === 'dark' ? <IconSun /> : <IconMoon />}
+              </button>
+            </ToolbarHint>
+            {openMenu === 'theme' && (
+              <div class="toolbar-menu" role="menu" aria-label="Theme">
+                {themeMenuItems}
+              </div>
+            )}
+          </span>
           <ToolbarHint label="Snapshots" detail="Capture and restore canvas states" align="end">
             <button
               ref={snapshotBtnRef}
@@ -333,7 +346,7 @@ function Toolbar({
         </span>
 
         {/* Narrow screens: everything collapsed lives in this single menu. */}
-        <span class="toolbar-more">
+        <span class="toolbar-more toolbar-menu-anchor">
           <ToolbarHint label="More" detail="All canvas actions" align="end">
             <button
               type="button"
@@ -348,6 +361,65 @@ function Toolbar({
               </span>
             </button>
           </ToolbarHint>
+          {openMenu === 'more' && (
+            <div class="toolbar-menu" role="menu" aria-label="Canvas actions">
+              <button
+                type="button"
+                class="toolbar-menu-item"
+                onClick={menuAction(() => (edgeCount > 0 ? forceDirectedArrange() : autoArrange()))}
+              >
+                <IconArrange />
+                <span>Arrange layout</span>
+              </button>
+              <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleMinimap)}>
+                <IconMinimap />
+                <span>{minimapVisible ? 'Hide minimap' : 'Show minimap'}</span>
+              </button>
+              <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleSnapshot)}>
+                <IconSnapshot />
+                <span>Snapshots</span>
+              </button>
+              <div class="toolbar-menu-separator" />
+              <button
+                type="button"
+                class="toolbar-menu-item"
+                onClick={menuAction(() => sendIntent('trace-toggle', { enabled: !isTraceOn }))}
+              >
+                <IconTrace />
+                <span>{isTraceOn ? 'Disable trace' : 'Enable trace'}</span>
+              </button>
+              {(isTraceOn || traceNodeCount > 0) && (
+                <button type="button" class="toolbar-menu-item" onClick={menuAction(() => sendIntent('trace-clear'))}>
+                  <IconClearTrace />
+                  <span>Clear trace</span>
+                </button>
+              )}
+              <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleAnnotationMode)}>
+                <IconPen />
+                <span>{annotationTool === 'pen' ? 'Stop annotating' : 'Annotate canvas'}</span>
+              </button>
+              <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleAnnotationEraser)}>
+                <IconEraser />
+                <span>{annotationTool === 'eraser' ? 'Stop erasing' : 'Erase annotations'}</span>
+              </button>
+              <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleTextAnnotation)}>
+                <IconTextAnnotation />
+                <span>{annotationTool === 'text' ? 'Stop text annotations' : 'Text annotations'}</span>
+              </button>
+              <div class="toolbar-menu-separator" />
+              <button type="button" class="toolbar-menu-item" onClick={menuAction(onOpenPalette)}>
+                <IconSearch />
+                <span>Search nodes and actions</span>
+              </button>
+              <button type="button" class="toolbar-menu-item" onClick={menuAction(onOpenShortcuts)}>
+                <IconShortcuts />
+                <span>Keyboard shortcuts</span>
+              </button>
+              <div class="toolbar-menu-separator" />
+              <div class="toolbar-menu-heading">Theme</div>
+              {themeMenuItems}
+            </div>
+          )}
         </span>
       </div>
 
@@ -443,71 +515,6 @@ function Toolbar({
           {countsLabel}
         </span>
       </div>
-
-      {openMenu === 'theme' && (
-        <div class="toolbar-menu" role="menu" aria-label="Theme">
-          {themeMenuItems}
-        </div>
-      )}
-      {openMenu === 'more' && (
-        <div class="toolbar-menu" role="menu" aria-label="Canvas actions">
-          <button
-            type="button"
-            class="toolbar-menu-item"
-            onClick={menuAction(() => (edgeCount > 0 ? forceDirectedArrange() : autoArrange()))}
-          >
-            <IconArrange />
-            <span>Arrange layout</span>
-          </button>
-          <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleMinimap)}>
-            <IconMinimap />
-            <span>{minimapVisible ? 'Hide minimap' : 'Show minimap'}</span>
-          </button>
-          <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleSnapshot)}>
-            <IconSnapshot />
-            <span>Snapshots</span>
-          </button>
-          <div class="toolbar-menu-separator" />
-          <button
-            type="button"
-            class="toolbar-menu-item"
-            onClick={menuAction(() => sendIntent('trace-toggle', { enabled: !isTraceOn }))}
-          >
-            <IconTrace />
-            <span>{isTraceOn ? 'Disable trace' : 'Enable trace'}</span>
-          </button>
-          {(isTraceOn || traceNodeCount > 0) && (
-            <button type="button" class="toolbar-menu-item" onClick={menuAction(() => sendIntent('trace-clear'))}>
-              <IconClearTrace />
-              <span>Clear trace</span>
-            </button>
-          )}
-          <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleAnnotationMode)}>
-            <IconPen />
-            <span>{annotationTool === 'pen' ? 'Stop annotating' : 'Annotate canvas'}</span>
-          </button>
-          <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleAnnotationEraser)}>
-            <IconEraser />
-            <span>{annotationTool === 'eraser' ? 'Stop erasing' : 'Erase annotations'}</span>
-          </button>
-          <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleTextAnnotation)}>
-            <IconTextAnnotation />
-            <span>{annotationTool === 'text' ? 'Stop text annotations' : 'Text annotations'}</span>
-          </button>
-          <div class="toolbar-menu-separator" />
-          <button type="button" class="toolbar-menu-item" onClick={menuAction(onOpenPalette)}>
-            <IconSearch />
-            <span>Search nodes and actions</span>
-          </button>
-          <button type="button" class="toolbar-menu-item" onClick={menuAction(onOpenShortcuts)}>
-            <IconShortcuts />
-            <span>Keyboard shortcuts</span>
-          </button>
-          <div class="toolbar-menu-separator" />
-          <div class="toolbar-menu-heading">Theme</div>
-          {themeMenuItems}
-        </div>
-      )}
     </div>
   );
 }

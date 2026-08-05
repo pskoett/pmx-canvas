@@ -337,16 +337,16 @@
 }
 
 :root[data-theme="ember"] {
-  /* ── Core palette (ember · charcoal + vivid warm orange) ─── */
-  --c-bg: #0E0E11;
-  --c-panel: #17181D;
-  --c-panel-soft: #121317;
-  --c-line: #2A2C34;
-  --c-text: #ECEDF0;
-  --c-text-soft: #C9CCD4;
-  --c-muted: #8E939F;
-  --c-dim: #5F646E;
-  --c-accent: #FF5C2E;
+  /* ── Core palette (ember · neutral charcoal + vivid orange-red) ─── */
+  --c-bg: #0B0B0C;
+  --c-panel: #161618;
+  --c-panel-soft: #101012;
+  --c-line: #29292C;
+  --c-text: #EDEBE6;
+  --c-text-soft: #CBC9C2;
+  --c-muted: #96948D;
+  --c-dim: #66655F;
+  --c-accent: #F34E1C;
   --c-ok: #4CC38A;
   --c-warn: #F5B944;
   --c-warn-alt: #FFB300;
@@ -354,23 +354,23 @@
   --c-purple: #A78BFA;
   --c-thinking: #A78BFA;
   --c-subagent: #38BDF8;
-  --c-input-bg: #121317;
-  --c-dot-grid: rgba(255, 92, 46, 0.08);
-  --c-panel-overlay: rgba(14, 14, 17, 0.6);
-  --c-panel-glass: rgba(23, 24, 29, 0.92);
+  --c-input-bg: #101012;
+  --c-dot-grid: rgba(243, 78, 28, 0.08);
+  --c-panel-overlay: rgba(11, 11, 12, 0.6);
+  --c-panel-glass: rgba(22, 22, 24, 0.92);
   --c-shadow: rgba(0, 0, 0, 0.3);
   --c-shadow-heavy: rgba(0, 0, 0, 0.5);
-  --c-glow-accent: rgba(255, 92, 46, 0.15);
+  --c-glow-accent: rgba(243, 78, 28, 0.15);
   --c-surface-hover: rgba(255, 255, 255, 0.06);
   --c-surface-subtle: rgba(255, 255, 255, 0.03);
   --c-surface-th: rgba(255, 255, 255, 0.04);
-  --c-accent-8: rgba(255, 92, 46, 0.08);
-  --c-accent-10: rgba(255, 92, 46, 0.1);
-  --c-accent-12: rgba(255, 92, 46, 0.12);
-  --c-accent-15: rgba(255, 92, 46, 0.15);
-  --c-accent-25: rgba(255, 92, 46, 0.25);
-  --c-accent-30: rgba(255, 92, 46, 0.3);
-  --c-accent-40: rgba(255, 92, 46, 0.4);
+  --c-accent-8: rgba(243, 78, 28, 0.08);
+  --c-accent-10: rgba(243, 78, 28, 0.1);
+  --c-accent-12: rgba(243, 78, 28, 0.12);
+  --c-accent-15: rgba(243, 78, 28, 0.15);
+  --c-accent-25: rgba(243, 78, 28, 0.25);
+  --c-accent-30: rgba(243, 78, 28, 0.3);
+  --c-accent-40: rgba(243, 78, 28, 0.4);
   --c-ok-10: rgba(76, 195, 138, 0.1);
   --c-ok-12: rgba(76, 195, 138, 0.12);
   --c-ok-20: rgba(76, 195, 138, 0.2);
@@ -383,12 +383,12 @@
   --c-warn-30: rgba(245, 185, 68, 0.3);
   --c-warn-60: rgba(245, 185, 68, 0.6);
   --c-danger-12: rgba(240, 86, 106, 0.12);
-  --c-line-30: rgba(42, 44, 52, 0.3);
-  --c-contrast-fg: #0E0E11;
-  --c-accent-hover: #FF7A52;
+  --c-line-30: rgba(41, 41, 44, 0.3);
+  --c-contrast-fg: #0B0B0C;
+  --c-accent-hover: #FF6B3A;
   --c-warn-hover: #F7C868;
   --c-canvas-wash: linear-gradient(180deg, rgba(255, 255, 255, 0.02), rgba(0, 0, 0, 0));
-  --c-annotation: #F2F2F4;
+  --c-annotation: #F2F0EB;
 }
 
 :root[data-theme="forest"] {
@@ -944,13 +944,20 @@ body,
 }
 
 .toolbar-group {
-  position: relative;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   min-width: 0;
   max-width: 100%;
+}
+
+/* Positioning parent for a toolbar popover menu. Every menu MUST live inside
+   one of these wrapped around its trigger — anchoring to a wider ancestor
+   opens the menu far from the button (0.4.2 report Finding T). */
+.toolbar-menu-anchor {
+  position: relative;
+  display: inline-flex;
 }
 
 .canvas-toolbar button svg {
@@ -1074,7 +1081,9 @@ body,
   }
 
   .toolbar-more {
-    display: contents;
+    /* inline-flex (NOT contents): this span is also the positioning anchor
+       for the More menu — display:contents cannot anchor absolute children. */
+    display: inline-flex;
   }
 }
 

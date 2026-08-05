@@ -3,6 +3,38 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Host-default theming: open the workbench with `?theme=<name>` (or
+  `?theme=auto` to follow the host's light/dark appearance) and that panel
+  gets its own session-local theme without changing the server-global theme
+  other clients see. Picking a theme from the toolbar ends the override. The
+  bundled GitHub Copilot extension now opens its panel with `?theme=light`.
+
+### Changed
+
+- The `ember` theme was retuned to its intended look: neutral charcoal
+  surfaces, warm off-white text, and a vivid orange-red accent.
+
+### Fixed
+
+- The theme picker and More menus now open anchored to their buttons instead
+  of at the toolbar's right edge (0.4.2 report Finding T).
+- `POST /api/canvas/theme` now rejects unknown theme names with a 400 error
+  instead of silently keeping the previous theme.
+- An app node whose live session errors after a stressed reconnect (0.4.2
+  report Finding U, e.g. "MCP error -32001") now shows a soft
+  degraded-interactivity notice over its still-rendered saved content instead
+  of a red error banner.
+- Graph, json-render, and app nodes no longer stay blank after a refresh in
+  srcdoc mode until scrolled or expanded — inline documents now load eagerly
+  (lazy loading only applies in `src` mode, where it defers a real HTTP
+  request).
+- The npm package's `test` scripts now explain that the test suite is not
+  shipped instead of failing with a confusing "no test files" error.
+
 ## [0.4.2] - 2026-08-04
 
 ### Added

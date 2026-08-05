@@ -252,7 +252,10 @@ function escapeHtml(value) {
 
 function renderShell(instanceId, entry) {
     const status = entry.pmx?.ok ? "Connected" : "Not connected";
-    const frameSrc = entry.pmx?.baseUrl ? `${entry.pmx.baseUrl}/workbench` : "about:blank";
+    // theme=light is a client-local session default matching the Copilot app's
+    // light chrome — it never changes the server-global theme other clients
+    // see, and the in-panel theme picker still overrides it.
+    const frameSrc = entry.pmx?.baseUrl ? `${entry.pmx.baseUrl}/workbench?theme=light` : "about:blank";
     const error = entry.pmx?.error ? `<p class="error">${escapeHtml(entry.pmx.error)}</p>` : "";
     return `<!doctype html>
 <html>
@@ -731,7 +734,7 @@ const pmxCanvas = createCanvas({
             return {
                 title: "PMX Canvas",
                 status: "Connected",
-                url: `${pmx.baseUrl}/workbench`,
+                url: `${pmx.baseUrl}/workbench?theme=light`,
             };
         }
 

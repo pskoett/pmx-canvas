@@ -181,6 +181,10 @@ Use the visible workbench when the human is actively curating layout:
   embedded host panes and mobile) the secondary controls collapse into a single "⋯" More menu at
   the end of the bar; every action is still there as a labeled row, including the theme list. If
   an automation script can't find a toolbar button at panel width, open the More menu first.
+- Embedding hosts can open `/workbench?theme=<name>` (or `?theme=auto` to follow the host's
+  light/dark appearance) for a session-local default theme that never changes the server-global
+  theme other clients see; an explicit pick from the theme menu ends the override. The bundled
+  Copilot extension opens its panel with `?theme=light`.
 
 After changing files under `src/client/`, rebuild with `bun run build` before manual browser
 verification.
