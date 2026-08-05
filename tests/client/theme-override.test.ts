@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import {
   clearThemeOverride,
   initSessionThemeOverride,
+  resetThemeOverrideForTests,
   sessionThemeParam,
   themeOverrideActive,
 } from '../../src/client/state/theme-override.ts';
@@ -20,7 +21,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-  clearThemeOverride();
+  resetThemeOverrideForTests();
 });
 
 describe('sessionThemeParam', () => {
@@ -63,5 +64,19 @@ describe('initSessionThemeOverride', () => {
     const expected = window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
     expect(apply.mock.calls).toEqual([[expected]]);
     expect(themeOverrideActive()).toBe(true);
+  });
+
+  test('an explicitly ended override stays ended across reconnect re-inits', () => {
+    // connectSSE re-runs initSessionThemeOverride on every transport drop and
+    // the URL param survives — but the user's explicit pick must stick for
+    // the page lifetime (only a reload re-activates the host default).
+    setPageUrl('http://localhost:3000/workbench?theme=light');
+    const apply = mock((_theme: string) => {});
+    initSessionThemeOverride(apply);
+    expect(themeOverrideActive()).toBe(true);
+    clearThemeOverride();
+    initSessionThemeOverride(apply);
+    expect(themeOverrideActive()).toBe(false);
+    expect(apply.mock.calls).toEqual([['light']]);
   });
 });

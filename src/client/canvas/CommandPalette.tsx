@@ -11,6 +11,7 @@ import {
 import { createNodeFromClient, saveCanvasTheme } from '../state/intent-bridge';
 import { TYPE_LABELS, type CanvasNodeState } from '../types';
 import { invalidateTokenCache } from '../theme/tokens';
+import { clearThemeOverride } from '../state/theme-override';
 
 import { MOD_KEY } from '../utils/platform';
 
@@ -174,6 +175,9 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
         badge: 'THEME',
         action: () => {
           const next = canvasTheme.value === 'dark' ? 'light' : 'dark';
+          // An explicit pick ends any ?theme= session override, same as the
+          // toolbar picker — otherwise the session stays sticky-overridden.
+          clearThemeOverride();
           document.documentElement.setAttribute('data-theme', next);
           invalidateTokenCache();
           canvasTheme.value = next;

@@ -16,6 +16,10 @@
 import { type CanvasThemeName, isCanvasTheme } from '../../shared/themes.js';
 
 let active = false;
+// Latched when the user explicitly ends the override: the URL param survives
+// reconnects (connectSSE re-inits on every transport drop), but the user's
+// choice must stick for the page lifetime — only a reload re-activates.
+let userEnded = false;
 let schemeQuery: MediaQueryList | null = null;
 let schemeListener: (() => void) | null = null;
 
@@ -23,9 +27,21 @@ export function themeOverrideActive(): boolean {
   return active;
 }
 
-/** The user picked a theme explicitly — the session override ends. */
+/** Test-only: reset the module state, including the page-lifetime latch. */
+export function resetThemeOverrideForTests(): void {
+  active = false;
+  userEnded = false;
+  detachSchemeListener();
+}
+
+/** The user picked a theme explicitly — the session override ends for good. */
 export function clearThemeOverride(): void {
   active = false;
+  userEnded = true;
+  detachSchemeListener();
+}
+
+function detachSchemeListener(): void {
   if (schemeQuery && schemeListener) {
     schemeQuery.removeEventListener('change', schemeListener);
   }
@@ -47,8 +63,12 @@ export function sessionThemeParam(): CanvasThemeName | 'auto' | null {
  * `apply` is the canvas theme applier (client-side only — never saved).
  */
 export function initSessionThemeOverride(apply: (theme: CanvasThemeName) => void): void {
+  if (userEnded) return;
   const param = sessionThemeParam();
   if (!param) return;
+  // Re-init happens on every reconnect — replace any prior listener instead
+  // of accumulating one per reconnect cycle.
+  detachSchemeListener();
   active = true;
   if (param !== 'auto') {
     apply(param);

@@ -15,7 +15,9 @@
  */
 import { type CanvasThemeName } from '../../shared/themes.js';
 export declare function themeOverrideActive(): boolean;
-/** The user picked a theme explicitly — the session override ends. */
+/** Test-only: reset the module state, including the page-lifetime latch. */
+export declare function resetThemeOverrideForTests(): void;
+/** The user picked a theme explicitly — the session override ends for good. */
 export declare function clearThemeOverride(): void;
 export declare function sessionThemeParam(): CanvasThemeName | 'auto' | null;
 /**
