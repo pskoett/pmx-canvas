@@ -50,6 +50,7 @@ const intentSignalSchema = z.looseObject({
   seq: z.number().int().min(0).max(9999).optional(),
   ttlMs: z.number().positive().max(MAX_INTENT_TTL_MS).optional(),
   source: z.string().max(60).optional(),
+  auto: z.boolean().optional(),
 });
 
 const intentUpdateSchema = z.looseObject({
@@ -146,6 +147,7 @@ export class IntentRegistry {
       ...(typeof input.confidence === 'number' ? { confidence: input.confidence } : {}),
       ...(typeof input.seq === 'number' ? { seq: input.seq } : {}),
       ...(input.source ? { source: input.source } : {}),
+      ...(input.auto === true ? { auto: true } : {}),
       createdAt: existing?.createdAt ?? now,
       expiresAt: now + ttl,
     };

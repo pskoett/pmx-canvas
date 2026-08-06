@@ -44,6 +44,11 @@ Humans curate agent context by pinning nodes; agents read that curation through
    human watches intent form and can veto mid-thought. Skip it only for trivial in-place tweaks or
    high-frequency batch churn. The default TTL (~8s) expires between agent turns: signal with
    `ttlMs: 30000` and settle by passing `intentId` on the mutation in the same or next call.
+   Since 0.4.5, an agent mutation WITHOUT a signal still shows a server-synthesized **auto-ghost**
+   (rendered lighter — dimmer, dotted, no veto — and settled instantly). That is a visibility
+   floor, not a replacement: only an explicit signal gives the human a real pre-mutation veto
+   window, your reasoning (`reason`), and staged multi-step previews. Batch and browser-human
+   actions never auto-ghost.
 6. **Mutate through current composites.** Prefer the 16 composite MCP tools below.
 7. **Arrange and validate.** After batch changes, use `canvas_view { action: "arrange" }` when
    appropriate and always finish with `canvas_query { action: "validate" }`.
@@ -236,6 +241,10 @@ Prefer `canvas_query { action: "search" }` over parsing the full layout.
 - Hosted MCP-app/ext-app nodes such as Excalidraw require the in-canvas host bridge and are not
   standalone **Open as site** targets. URL-backed viewers and bundled web artifacts remain
   openable.
+- A standalone html surface (`/api/canvas/surface/:id` opened as a site) is a VISUAL view: it
+  renders the same content and theme, but `window.PMX_AX` is not injected without the canvas
+  iframe's per-mount nonce, so AX buttons only work inside the in-canvas node (0.4.4 Codex note).
+  Do not tell a user a standalone tab's controls will steer the agent.
 - A hosted ext-app (Excalidraw) node that is already on the board when a **WebKit** host panel
   loads (e.g. the GitHub Copilot app's embedded WKWebView) can render as a black tile — a host
   compositor paint race on the nested iframe, **not** a broken node (the session is healthy and
@@ -272,11 +281,12 @@ Prefer `canvas_query { action: "search" }` over parsing the full layout.
   iframe) can block child iframes from loading ANY `src` URL, breaking every iframe-backed node
   with a gray placeholder. The canvas probes this at boot and auto-falls back to fetching
   same-origin surfaces and rendering them inline via `srcdoc` (HTML, graph, json-render, frame
-  documents). In Amp orbs specifically, the server sees `AMP_ORB` in its environment and stamps
-  the page so the embedded client skips the (there-unreliable) probe, goes straight to `srcdoc`,
-  AND defaults to the polling transport (the portal proxy buffers SSE — waiting out the watchdog
-  could trip the boot modal); HTML surfaces also inline their theme stylesheet so they render
-  styled. External app
+  documents). In Amp orbs specifically, the server sees `AMP_ORB` in its environment and adapts
+  end to end: it binds the portal-assigned `$PORT` automatically (no port flag in the service
+  command), stamps the page so the embedded client skips the (there-unreliable) probe, goes
+  straight to `srcdoc`, AND defaults to the polling transport (the portal proxy buffers SSE —
+  waiting out the watchdog could trip the boot modal); HTML surfaces also inline their theme
+  stylesheet so they render styled. External app
   URLs cannot be inlined (cross-origin) and may stay blocked in such hosts. Force a mode with
   `/workbench?iframe-mode=srcdoc` (or `iframe-mode=src`) when diagnosing.
 - Graph and json-render standalone surfaces use `display=site` and fill the browser viewport, and

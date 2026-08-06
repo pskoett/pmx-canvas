@@ -3,6 +3,49 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- Running as an Amp orb service now binds the portal-assigned `$PORT`
+  automatically, so the service command is just `pmx-canvas --no-open` — no
+  port flags or `$PORT` interpolation. Honored only when `AMP_ORB` is set, so
+  a stray `PORT` in normal shells never changes the default. The README now
+  carries the full zero-config orb recipe (setup + services.yaml).
+
+### Changed
+
+- The WebView-automation unavailable error now names the running Bun version
+  and clarifies that the canvas itself keeps working — only automation and
+  screenshots need Bun >= 1.3.12.
+
+## [Unreleased]
+
+### Added
+
+- Auto-ghost: agent mutations that arrive without an explicit `canvas_intent`
+  signal now synthesize a short ghost that settles the moment the mutation
+  lands, so agent activity is visible even when the caller doesn't signal.
+  Auto-ghosts render lighter (dimmer, dotted, no veto) than a deliberate
+  signal; human actions in the browser and `canvas_batch` churn never ghost.
+  Disable with `PMX_CANVAS_AUTO_INTENT=0`.
+- Ghost minimum dwell: a ghost now stays visible for a perceptible floor
+  (~0.65s) even when its mutation settles within milliseconds.
+- The `amp` AX source label, for Amp host adapters and steering loop
+  prevention.
+
+### Changed
+
+- Marking an AX delivery is now compare-and-set: `delivered:true` only on the
+  actual undelivered→delivered transition, so racing adapters can detect lost
+  claims.
+
+### Fixed
+
+- File nodes are no longer created as content-less slivers: they get a real
+  code-preview default size, and untitled file nodes show their filename in
+  the title bar instead of a bare "FILE" chip.
+
 ## [0.4.4] - 2026-08-06
 
 ### Fixed
@@ -18,7 +61,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 ### Added
 
 - A ninth theme, `volt` — built from the Amp app's real palette (green-tinted
-  charcoal neutrals, warm green-white text, coral accent). `ember` stays
+  charcoal neutrals, warm green-white text, cream accent). `ember` stays
   unchanged.
 - `pmx-canvas skills sync --yes` refreshes the pmx-canvas skill copies already
   installed in the workspace — whatever agent layout owns them — by comparing

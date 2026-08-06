@@ -118,7 +118,75 @@ function settledNodeId(result: unknown, intent: PmxAxIntent): string | undefined
   return typeof record.id === 'string' ? record.id : undefined;
 }
 
-export async function executeOperation(name: string, rawInput: unknown): Promise<unknown> {
+/** Verb for the synthesized auto-ghost chip, per intent kind. */
+const AUTO_GHOST_VERBS: Record<string, string> = {
+  create: 'Adding',
+  move: 'Moving',
+  edit: 'Updating',
+  connect: 'Connecting',
+  remove: 'Removing',
+};
+
+const AUTO_GHOST_EDGE_TYPES = new Set(['flow', 'depends-on', 'relation', 'references']);
+
+/**
+ * Build a valid signal input for a synthesized ghost, or null when the raw
+ * input can't satisfy the kind's required fields (e.g. a create with server
+ * auto-placement has no position to ghost at) — in that case the mutation
+ * simply runs unghosted.
+ */
+function autoGhostInput(name: string, rawInput: unknown, kind: string): Record<string, unknown> | null {
+  const body =
+    rawInput && typeof rawInput === 'object' && !Array.isArray(rawInput) ? (rawInput as Record<string, unknown>) : {};
+  const subject =
+    typeof body.title === 'string' && body.title.trim()
+      ? body.title.trim().slice(0, 80)
+      : typeof body.type === 'string'
+        ? `${body.type} node`
+        : typeof body.id === 'string'
+          ? body.id
+          : name.split('.')[0];
+  const base = {
+    kind,
+    label: `${AUTO_GHOST_VERBS[kind] ?? 'Changing'} ${subject}`,
+    ...(typeof body.type === 'string' ? { nodeType: body.type } : {}),
+    source: 'auto',
+    auto: true,
+    ttlMs: 6000,
+  };
+  const position = typeof body.x === 'number' && typeof body.y === 'number' ? { x: body.x, y: body.y } : undefined;
+  switch (kind) {
+    case 'create':
+      return position ? { ...base, position } : null;
+    case 'move':
+      return typeof body.id === 'string' && position ? { ...base, nodeId: body.id, position } : null;
+    case 'edit':
+    case 'remove':
+      return typeof body.id === 'string' ? { ...base, nodeId: body.id } : null;
+    case 'connect': {
+      if (typeof body.from !== 'string' || typeof body.to !== 'string') return null;
+      const edgeType = typeof body.type === 'string' && AUTO_GHOST_EDGE_TYPES.has(body.type) ? body.type : 'flow';
+      return { ...base, nodeType: undefined, edge: { from: body.from, to: body.to, type: edgeType } };
+    }
+    default:
+      return null;
+  }
+}
+
+export interface ExecuteOperationMeta {
+  /**
+   * Skip the synthesized auto-ghost: set by the workbench's own HTTP calls
+   * (a human dragging a node is not agent activity) and by canvas.batch for
+   * its inner dispatches (batch churn is exempt, matching the skill contract).
+   */
+  suppressAutoGhost?: boolean;
+}
+
+export async function executeOperation(
+  name: string,
+  rawInput: unknown,
+  meta: ExecuteOperationMeta = {},
+): Promise<unknown> {
   const op = getOperation(name);
   const intentId = linkedIntentId(rawInput);
   const allowedKinds = intentId ? allowedIntentKinds(name, rawInput) : undefined;
@@ -138,6 +206,41 @@ export async function executeOperation(name: string, rawInput: unknown): Promise
       },
       settledNodeId,
     );
+  }
+
+  // Auto-ghost: an agent-originated visible mutation with NO explicit intent
+  // still shows its move on the canvas — a server-synthesized ghost that
+  // settles the moment the mutation lands (the client's minimum-dwell keeps
+  // the flash perceptible). Explicit canvas_intent signalling stays the
+  // richer path (labels, reasons, a real veto window before the mutation).
+  const autoKinds = allowedIntentKinds(name, rawInput);
+  if (autoKinds && !meta.suppressAutoGhost && process.env.PMX_CANVAS_AUTO_INTENT !== '0') {
+    // Ghost synthesis must NEVER break the mutation: skip silently when the
+    // input can't satisfy a kind's required fields or signalling throws.
+    let ghost: PmxAxIntent | null = null;
+    try {
+      for (const kind of autoKinds) {
+        const input = autoGhostInput(name, rawInput, kind);
+        if (input) {
+          ghost = intentRegistry.signal(input);
+          break;
+        }
+      }
+    } catch {
+      ghost = null;
+    }
+    if (ghost) {
+      const ghostId = ghost.id;
+      try {
+        const result = await op.execute(rawInput, operationContext);
+        if (op.mutates) emitOperationEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+        intentRegistry.clear(ghostId, { settledNodeId: settledNodeId(result, ghost) ?? undefined });
+        return result;
+      } catch (error) {
+        intentRegistry.clear(ghostId);
+        throw error;
+      }
+    }
   }
 
   const result = await op.execute(rawInput, operationContext);

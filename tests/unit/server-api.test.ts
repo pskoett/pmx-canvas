@@ -1460,6 +1460,92 @@ describe('canvas server HTTP API', () => {
     expect(body).toContain('#F34E1C');
   });
 
+  test('agent mutations without an intent synthesize an auto-ghost; workbench + batch calls do not', async () => {
+    const seqOf = async () =>
+      ((await fetch(`${baseUrl}/api/workbench/poll`).then((r) => r.json())) as { seq: number }).seq;
+    const eventsSince = async (seq: number) =>
+      (
+        (await fetch(`${baseUrl}/api/workbench/poll?since=${seq}`).then((r) => r.json())) as {
+          events: Array<{ event: string; payload: Record<string, unknown> }>;
+        }
+      ).events;
+
+    // Agent-originated create (no workbench marker): ax-intent signal with
+    // auto:true, then the settle clear referencing the created node.
+    let seq = await seqOf();
+    const created = (await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Ghosted note', content: 'auto', x: 40, y: 40 }),
+    }).then((r) => r.json())) as { id: string };
+    let events = await eventsSince(seq);
+    const signal = events.find((e) => e.event === 'ax-intent');
+    const clear = events.find((e) => e.event === 'ax-intent-clear');
+    expect((signal?.payload.intent as Record<string, unknown> | undefined)?.auto).toBe(true);
+    expect((signal?.payload.intent as Record<string, unknown> | undefined)?.label).toContain('Ghosted note');
+    expect(clear?.payload.settled).toBe(true);
+    expect(clear?.payload.nodeId).toBe(created.id);
+
+    // Workbench-marked call (human action in the browser): no ghost.
+    seq = await seqOf();
+    await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-PMX-Workbench': '1' },
+      body: JSON.stringify({ type: 'markdown', title: 'Human note', content: 'no ghost', x: 40, y: 240 }),
+    });
+    events = await eventsSince(seq);
+    expect(events.some((e) => e.event === 'ax-intent')).toBe(false);
+
+    // Batch churn: exempt (matches the skill's ghost-cursor batch exemption).
+    seq = await seqOf();
+    await fetch(`${baseUrl}/api/canvas/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ operations: [{ op: 'node.add', type: 'markdown', title: 'Batch note', x: 40, y: 440 }] }),
+    });
+    events = await eventsSince(seq);
+    expect(events.some((e) => e.event === 'ax-intent')).toBe(false);
+
+    // Kill switch.
+    process.env.PMX_CANVAS_AUTO_INTENT = '0';
+    try {
+      seq = await seqOf();
+      await fetch(`${baseUrl}/api/canvas/node`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'markdown', title: 'Silent note', content: 'off', x: 40, y: 640 }),
+      });
+      events = await eventsSince(seq);
+      expect(events.some((e) => e.event === 'ax-intent')).toBe(false);
+    } finally {
+      delete process.env.PMX_CANVAS_AUTO_INTENT;
+    }
+  });
+
+  test('delivery mark is compare-and-set and steering accepts the amp source', async () => {
+    const steer = (await fetch(`${baseUrl}/api/canvas/ax/steer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'CAS mark probe', source: 'amp' }),
+    }).then((r) => r.json())) as { steering: { id: string; source: string } };
+    expect(steer.steering.source).toBe('amp');
+
+    const first = (await fetch(`${baseUrl}/api/canvas/ax/delivery/${steer.steering.id}/mark`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    }).then((r) => r.json())) as { delivered: boolean };
+    expect(first.delivered).toBe(true);
+
+    // Re-mark (or a raced second consumer): NOT the transition — false.
+    const second = (await fetch(`${baseUrl}/api/canvas/ax/delivery/${steer.steering.id}/mark`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: '{}',
+    }).then((r) => r.json())) as { delivered: boolean };
+    expect(second.delivered).toBe(false);
+  });
+
   test('iframe-probe endpoint serves the tiny embed-detection document', async () => {
     // The client boots a hidden iframe against this URL to learn whether the
     // embedding context loads src-URL iframes at all (Amp orb portals block
@@ -2744,7 +2830,9 @@ describe('canvas server HTTP API', () => {
       `/api/canvas/node/${markdownNode.id}`,
     );
     expect(arrangedFile.position).toEqual({ x: 40, y: 80 });
-    expect(arrangedMarkdown.position).toEqual({ x: 40, y: 304 });
+    // 80 + the file node's 360 default height (0.4.5: real code-preview size)
+    // + the column gap.
+    expect(arrangedMarkdown.position).toEqual({ x: 40, y: 464 });
   });
 
   test('group create preserves child positions by default and supports explicit manual frames with child layout', async () => {

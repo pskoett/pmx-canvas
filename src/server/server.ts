@@ -455,7 +455,7 @@ export async function startCanvasAutomationWebView(
   return runCanvasAutomationWebViewTask(async () => {
     const WebView = getCanvasWebViewConstructor();
     if (!WebView) {
-      const message = 'Bun.WebView is not available in this Bun runtime. Bun >=1.3.12 is required.';
+      const message = `Bun.WebView is not available in this Bun runtime (Bun ${Bun.version}). Bun >=1.3.12 is required — the canvas itself keeps working; only WebView automation/screenshots are unavailable.`;
       canvasAutomationWebViewStatus = {
         ...canvasAutomationWebViewStatus,
         lastError: message,
@@ -2999,7 +2999,15 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
   // M11: PMX_WEB_CANVAS_PORT (server-specific) wins, then PMX_CANVAS_PORT — so
   // setting only the client var no longer splits the client and server ports.
   const preferredPort =
-    options.port ?? Number(process.env.PMX_WEB_CANVAS_PORT ?? process.env.PMX_CANVAS_PORT ?? DEFAULT_PORT);
+    options.port ??
+    Number(
+      process.env.PMX_WEB_CANVAS_PORT ??
+        process.env.PMX_CANVAS_PORT ??
+        // Amp orbs assign the portal port via $PORT (gated on AMP_ORB so a
+        // stray PORT in normal shells never shifts the default).
+        (process.env.AMP_ORB ? process.env.PORT || undefined : undefined) ??
+        DEFAULT_PORT,
+    );
   const portCandidates =
     options.port === 0
       ? [0]

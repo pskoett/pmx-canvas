@@ -69,6 +69,11 @@ export function defaultNodeSize(type: string): { width: number; height: number }
   switch (type) {
     case 'html':
       return { width: 720, height: 640 };
+    case 'file':
+      // Code preview needs real width and enough height for the header bar +
+      // a useful snippet — the generic default rendered as a content-less bar
+      // (0.4.4 portal feedback).
+      return { width: 520, height: 360 };
     case 'markdown':
       return MARKDOWN_NODE_DEFAULT_SIZE;
     case 'mcp-app':
@@ -415,7 +420,13 @@ export function createBasicCanvasNode(
   try {
     const { node, needsCodeGraphRecompute } = addCanvasNode({
       type: type as CanvasNodeState['type'],
-      ...(typeof body.title === 'string' ? { title: body.title } : {}),
+      ...(typeof body.title === 'string'
+        ? { title: body.title }
+        : // Untitled file nodes get the filename — otherwise the title bar
+          // reads as a bare "FILE" chip with nothing identifying the file.
+          type === 'file' && typeof content === 'string' && content.trim()
+          ? { title: content.trim().split('/').pop() }
+          : {}),
       ...(typeof content === 'string' ? { content } : {}),
       ...(htmlMergedData && Object.keys(htmlMergedData).length > 0 ? { data: htmlMergedData } : {}),
       ...(type === 'trace' && typeof body.toolName === 'string' ? { toolName: body.toolName } : {}),

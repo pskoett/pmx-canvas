@@ -2,9 +2,18 @@ function logRequestError(action: string, error: unknown): void {
   console.error(`[intent-bridge] ${action} failed`, error);
 }
 
+/**
+ * Every workbench-originated request carries this marker so the server never
+ * synthesizes an auto-ghost for it — a human dragging or editing in the
+ * browser is not agent activity (the ghost cursor shows AGENT moves).
+ */
+function withWorkbenchMarker(init?: RequestInit): RequestInit {
+  return { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), 'X-PMX-Workbench': '1' } };
+}
+
 async function requestJson<T>(action: string, url: string, fallback: T, init?: RequestInit): Promise<T> {
   try {
-    const res = await fetch(url, init);
+    const res = await fetch(url, withWorkbenchMarker(init));
     return (await res.json()) as T;
   } catch (error) {
     logRequestError(action, error);
@@ -14,7 +23,7 @@ async function requestJson<T>(action: string, url: string, fallback: T, init?: R
 
 async function requestOk(action: string, url: string, init?: RequestInit): Promise<{ ok: boolean }> {
   try {
-    const res = await fetch(url, init);
+    const res = await fetch(url, withWorkbenchMarker(init));
     return { ok: res.ok };
   } catch (error) {
     logRequestError(action, error);
@@ -24,7 +33,7 @@ async function requestOk(action: string, url: string, init?: RequestInit): Promi
 
 async function requestBestEffort(action: string, url: string, init?: RequestInit): Promise<void> {
   try {
-    await fetch(url, init);
+    await fetch(url, withWorkbenchMarker(init));
   } catch (error) {
     logRequestError(action, error);
   }

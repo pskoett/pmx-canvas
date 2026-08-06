@@ -128,6 +128,16 @@ surfaces (the core never imports a host SDK).
 </p>
 <p align="center"><sub>The live PMX workbench in the Codex in-app Browser.</sub></p>
 
+<p align="center">
+  <img src="docs/screenshots/claude-code-desktop.png" alt="PMX Canvas in the Claude Code desktop app's built-in browser pane, driven over MCP" width="100%" />
+</p>
+<p align="center"><sub>Claude Code desktop: the workbench in the built-in browser pane, mutated live over MCP.</sub></p>
+
+<p align="center">
+  <img src="docs/screenshots/amp-orb-portal.png" alt="PMX Canvas running as an Amp orb service, viewed through the Amp portal in the Volt theme" width="100%" />
+</p>
+<p align="center"><sub>AMPCode: the canvas as an orb service through the Amp portal (Volt theme).</sub></p>
+
 - **GitHub Copilot app** — a committed project canvas extension
   (`.github/extensions/pmx-canvas/`) opens the live PMX workbench in a native
   Copilot panel (light-themed by default to match the app, via the `?theme=`
@@ -158,7 +168,6 @@ surfaces (the core never imports a host SDK).
   either behavior when diagnosing). Non-orb buffering proxies get the same
   protections via runtime detection: an SSE watchdog that falls back to
   polling, and the boot-time iframe probe.
-  <!-- screenshot: docs/screenshots/amp-orb-portal.png — PMX Canvas live inside the Amp portal (to be added) -->
 
 Any other app browser (the ChatGPT desktop app, an IDE webview, …) works the
 same zero-adapter way: open the workbench URL, and add `?theme=<name|auto>` to
@@ -253,7 +262,29 @@ the full workflow and live-test checklist.
 
 Amp needs no adapter either. Run `pmx-canvas` as an orb service (the orb sets
 `AMP_ORB` in the environment automatically) and open the workbench through the
-thread's portal URL. The canvas detects the orb and the portal's nested-iframe
+thread's portal URL. The zero-config recipe for the repo the orb runs in:
+
+```yaml
+# .amp/services.yaml — supervised portal service
+services:
+  pmx-canvas:
+    command: pmx-canvas --no-open
+    portal: true
+    health: /health
+```
+
+```bash
+# .agents/setup — install the CLI (pin the version for reproducible starts)
+npm install -g pmx-canvas@latest
+```
+
+The server binds the portal-assigned `$PORT` automatically (gated on the
+`AMP_ORB` env the orb always sets, so a stray `PORT` elsewhere never changes
+the default), restores `.pmx-canvas/canvas.db`, and the portal manifest picks
+it up — no port flags or `$PORT` interpolation in the service command. One
+caveat: WebView automation (`pmx-canvas screenshot`) needs Bun >= 1.3.12 in
+the orb image; the canvas itself runs fine without it and says so in the
+error. The canvas detects the orb and the portal's nested-iframe
 embed on its own: live updates arrive over the proxy-safe polling transport,
 and iframe-backed nodes (HTML, graph, json-render, web artifacts) render
 inline via `srcdoc` with their theme styling included. Cross-origin hosted

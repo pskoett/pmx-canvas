@@ -84,7 +84,11 @@ export async function dispatchOperationRoute(req: Request, url: URL): Promise<Re
       const input = route.readInput
         ? await route.readInput(req, params, url)
         : await defaultReadInput(req, params, url);
-      const result = await executeOperation(op.name, input);
+      // The workbench marks its own HTTP calls: a human dragging/editing in
+      // the browser is not agent activity, so it never synthesizes an
+      // auto-ghost. Everything else (CLI, scripts, adapters) counts as agent.
+      const fromWorkbench = req.headers.get('x-pmx-workbench') === '1';
+      const result = await executeOperation(op.name, input, { suppressAutoGhost: fromWorkbench });
       return responseJson(result, route.status ? route.status(result) : 200);
     } catch (error) {
       if (error instanceof OperationError) {

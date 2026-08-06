@@ -140,7 +140,14 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     requestAnimationFrame(() => renameRef.current?.focus());
   }, []);
 
-  const title = (node.data.title as string) || TYPE_LABELS[node.type];
+  const title =
+    (node.data.title as string) ||
+    // Untitled file nodes (created before titles were synthesized server-side)
+    // still show their filename instead of a bare type label.
+    (node.type === 'file'
+      ? (((node.data.path as string) || (node.data.content as string) || '').split('/').pop() ?? '')
+      : '') ||
+    TYPE_LABELS[node.type];
 
   const commitRename = useCallback(
     (value: string) => {

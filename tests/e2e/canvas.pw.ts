@@ -2882,7 +2882,8 @@ test('ghost intents are interactive, reconnect-safe, vetoable, and settle into l
               Math.abs(ghostRect.width - nodeRect.width) + Math.abs(ghostRect.height - nodeRect.height),
             );
           }
-          if ((!ghost && Number.isFinite(bestPositionDelta)) || Date.now() - startedAt > 1000) {
+          // Deadline covers the minimum-dwell floor (~650ms) + the settle morph.
+          if ((!ghost && Number.isFinite(bestPositionDelta)) || Date.now() - startedAt > 2500) {
             resolve({ positionDelta: bestPositionDelta, sizeDelta: bestSizeDelta });
             return;
           }

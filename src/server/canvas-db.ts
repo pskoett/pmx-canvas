@@ -909,7 +909,10 @@ export function appendAxSteeringToDB(db: Database, s: Omit<PmxAxSteeringMessage,
 }
 
 export function markAxSteeringDeliveredInDB(db: Database, id: string): boolean {
-  const r = db.run('UPDATE ax_steering SET delivered = 1 WHERE id = ?', [id]);
+  // Compare-and-set: true ONLY on the undelivered→delivered transition. Two
+  // adapters racing the same steer see exactly one true — the loser (and any
+  // re-mark) gets false and must not treat the message as its own delivery.
+  const r = db.run('UPDATE ax_steering SET delivered = 1 WHERE id = ? AND delivered = 0', [id]);
   return r.changes > 0;
 }
 

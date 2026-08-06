@@ -15,6 +15,12 @@ export interface ClientIntent extends PmxAxIntent {
 export declare const intents: import("@preact/signals-core").Signal<Map<string, ClientIntent>>;
 /** The ghost currently hovered — drives Esc-to-veto. */
 export declare const hoveredIntentId: import("@preact/signals-core").Signal<string | null>;
+/**
+ * Minimum time a ghost stays in its forming state before a settle/dissolve
+ * plays. Fast agents (and every server auto-ghost) signal and settle within
+ * milliseconds — without this floor, correct ghost usage is imperceptible.
+ */
+export declare const MIN_FORMING_MS = 650;
 /** A live `ax-intent` frame: (re)place the ghost in its forming state. */
 export declare function upsertIntent(intent: PmxAxIntent): void;
 export declare function removeIntent(id: string): void;

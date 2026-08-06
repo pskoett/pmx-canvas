@@ -59,8 +59,10 @@ function center(rect: Rect): { x: number; y: number } {
 }
 
 function ghostOpacity(intent: ClientIntent): number {
-  if (typeof intent.confidence !== 'number') return 0.82;
-  return 0.4 + Math.max(0, Math.min(1, intent.confidence)) * 0.55;
+  const base = typeof intent.confidence !== 'number' ? 0.82 : 0.4 + Math.max(0, Math.min(1, intent.confidence)) * 0.55;
+  // Auto-ghosts (server-synthesized, no deliberate signal) read lighter than
+  // an explicit canvas_intent so the two are visually distinguishable.
+  return intent.auto ? base * 0.62 : base;
 }
 
 function bezierPath(a: { x: number; y: number }, b: { x: number; y: number }): string {
@@ -89,7 +91,7 @@ function GhostInfo({ intent }: { intent: ClientIntent }) {
         )}
         <span class="intent-chip-label">{label}</span>
         {confidencePct && <span class="intent-confidence">{confidencePct}</span>}
-        {intent.phase === 'forming' && (
+        {intent.phase === 'forming' && !intent.auto && (
           <button
             type="button"
             class="intent-veto"
@@ -114,7 +116,7 @@ function GhostBox({ intent, rect }: { intent: ClientIntent; rect: Rect }) {
   const typeLabel = isKnownNodeType(intent.nodeType) ? TYPE_LABELS[intent.nodeType] : 'Node';
   return (
     <div
-      class={`intent-ghost intent-ghost-box is-${intent.phase}`}
+      class={`intent-ghost intent-ghost-box is-${intent.phase}${intent.auto ? ' is-auto' : ''}`}
       data-intent-id={intent.id}
       style={{
         left: `${rect.left}px`,
@@ -138,7 +140,7 @@ function GhostBox({ intent, rect }: { intent: ClientIntent; rect: Rect }) {
 function GhostOverlay({ intent, rect, variant }: { intent: ClientIntent; rect: Rect; variant: 'remove' | 'edit' }) {
   return (
     <div
-      class={`intent-ghost intent-ghost-${variant} is-${intent.phase}`}
+      class={`intent-ghost intent-ghost-${variant} is-${intent.phase}${intent.auto ? ' is-auto' : ''}`}
       data-intent-id={intent.id}
       style={{
         left: `${rect.left}px`,
@@ -199,7 +201,7 @@ function renderGhost(intent: ClientIntent) {
       return (
         <div
           key={intent.id}
-          class={`intent-ghost intent-ghost-connect is-${intent.phase}`}
+          class={`intent-ghost intent-ghost-connect is-${intent.phase}${intent.auto ? ' is-auto' : ''}`}
           data-intent-id={intent.id}
           style={{
             left: `${rect.left}px`,

@@ -238,7 +238,9 @@ async function runBatch(operations: BatchEntry[]): Promise<BatchEnvelope> {
         continue;
       }
       const dispatch = resolveDispatch(operation.op, args);
-      const raw = await executeOperation(dispatch.name, dispatch.args);
+      // Batch churn is exempt from auto-ghosts (matches the skill's explicit
+      // ghost-cursor exemption for batch operations).
+      const raw = await executeOperation(dispatch.name, dispatch.args, { suppressAutoGhost: true });
       const result = shapeBatchEntry(operation.op, raw);
       results.push(result);
       if (typeof operation.assign === 'string' && operation.assign.trim().length > 0) {

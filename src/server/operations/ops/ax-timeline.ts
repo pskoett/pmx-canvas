@@ -328,7 +328,8 @@ const axDeliveryMarkOperation = defineOperation<z.infer<typeof axDeliveryMarkSch
   },
   mcp: {
     toolName: 'canvas_mark_ax_delivery',
-    description: 'Mark a PMX AX steering message as delivered so it is not handed out again.',
+    description:
+      'Mark a PMX AX steering message as delivered so it is not handed out again. Compare-and-set: `delivered:true` only on the actual undelivered→delivered transition — a false means the id was unknown OR another consumer already marked it, so do NOT treat the message as your delivery.',
     extraShape: {
       id: z.string().describe('The steering message id to mark delivered.'),
     },

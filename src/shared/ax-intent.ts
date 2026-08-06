@@ -44,6 +44,12 @@ export interface PmxAxIntent {
   seq?: number;
   /** Source label of the surface that signalled the intent (mcp/api/sdk/...). */
   source?: string;
+  /**
+   * Server-synthesized ghost for an agent mutation that arrived WITHOUT an
+   * explicit canvas_intent signal (auto-ghost). Rendered visually lighter than
+   * a deliberate signal, and not vetoable — it settles immediately.
+   */
+  auto?: boolean;
   /** Epoch ms when the intent was first signalled. */
   createdAt: number;
   /** Epoch ms when the intent auto-dissolves if not settled/cleared first. */

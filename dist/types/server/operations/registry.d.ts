@@ -11,5 +11,13 @@ export declare function setOperationEventEmitter(emitter: OperationEventEmitter 
 export declare function isEmitSuppressed(): boolean;
 /** Run `fn` with all operation SSE emits suppressed; restores depth on finally. */
 export declare function runWithSuppressedEmits<T>(fn: () => Promise<T>): Promise<T>;
-export declare function executeOperation(name: string, rawInput: unknown): Promise<unknown>;
+export interface ExecuteOperationMeta {
+    /**
+     * Skip the synthesized auto-ghost: set by the workbench's own HTTP calls
+     * (a human dragging a node is not agent activity) and by canvas.batch for
+     * its inner dispatches (batch churn is exempt, matching the skill contract).
+     */
+    suppressAutoGhost?: boolean;
+}
+export declare function executeOperation(name: string, rawInput: unknown, meta?: ExecuteOperationMeta): Promise<unknown>;
 export {};

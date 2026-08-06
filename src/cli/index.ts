@@ -166,7 +166,13 @@ const serveSubcommand = firstArg === 'serve' ? (args[1] ?? '') : '';
 
 if (firstArg === 'serve' && (serveSubcommand === 'status' || serveSubcommand === 'stop')) {
   const port = parseInt(
-    readOption('port') ?? process.env.PMX_WEB_CANVAS_PORT ?? process.env.PMX_CANVAS_PORT ?? '4313',
+    readOption('port') ??
+      process.env.PMX_WEB_CANVAS_PORT ??
+      process.env.PMX_CANVAS_PORT ??
+      // Amp orbs assign the portal port via $PORT; honored only under AMP_ORB
+      // so a stray PORT in normal shells never shifts the default.
+      (process.env.AMP_ORB ? process.env.PORT || undefined : undefined) ??
+      '4313',
     10,
   );
   const daemonLogFile = resolve(readOption('log-file') ?? `.pmx-canvas/daemon-${port}.log`);
@@ -214,7 +220,13 @@ if (AGENT_COMMANDS.has(routedCommand) && routedCommand !== 'serve') {
 } else {
   // "serve" is also accessible via flags (backward compat)
   const port = parseInt(
-    readOption('port') ?? process.env.PMX_WEB_CANVAS_PORT ?? process.env.PMX_CANVAS_PORT ?? '4313',
+    readOption('port') ??
+      process.env.PMX_WEB_CANVAS_PORT ??
+      process.env.PMX_CANVAS_PORT ??
+      // Amp orbs assign the portal port via $PORT; honored only under AMP_ORB
+      // so a stray PORT in normal shells never shifts the default.
+      (process.env.AMP_ORB ? process.env.PORT || undefined : undefined) ??
+      '4313',
     10,
   );
   const demo = hasFlag('demo');
