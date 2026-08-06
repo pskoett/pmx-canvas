@@ -31,6 +31,7 @@ import './commands/ax.js';
 import './commands/webview.js';
 import './commands/apps.js';
 import './commands/copilot.js';
+import './commands/skills.js';
 
 // Re-exported for existing importers (tests import it from this module).
 export { extractGlobalTargetFlags };

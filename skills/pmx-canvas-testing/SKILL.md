@@ -74,6 +74,10 @@ Prefer extending the existing suites before inventing a one-off script.
 - MCP harnesses using the official SDK must wind down BOTH halves: call `client.close()` AND
   `transport.close()` on the `StdioClientTransport`. Closing only the client leaves the spawned
   stdio server process alive after the test exits (0.4.0 cycle finding)
+- Before a version-test cycle, run `pmx-canvas skills sync --check` in the consumer workspace —
+  exit 1 means the installed skill copies are stale against the package; run
+  `pmx-canvas skills sync` to refresh them (whole trees, whatever agent layout owns them) before
+  trusting skill-guided results
 
 ## Layout And Embedded Content Checks
 

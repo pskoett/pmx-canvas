@@ -3,6 +3,20 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- A ninth theme, `volt` — built from the Amp app's real palette (green-tinted
+  charcoal neutrals, warm green-white text, coral accent). `ember` stays
+  unchanged.
+- `pmx-canvas skills sync` refreshes the pmx-canvas skill copies already
+  installed in the workspace — whatever agent layout owns them — by comparing
+  and replacing whole trees from the installed package; `--check` reports
+  drift and exits 1 without changing anything. It never creates a copy where
+  none is installed. This automates the sync every release test cycle
+  previously did by hand.
+
 ## [0.4.3] - 2026-08-05
 
 ### Added

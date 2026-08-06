@@ -18,6 +18,14 @@ Humans curate agent context by pinning nodes; agents read that curation through
 
 ## Required Operating Sequence
 
+0. **After a `pmx-canvas` upgrade, refresh this skill first.** Run
+   `pmx-canvas skills sync` (`--check` to detect drift; exit 1 when stale) — it finds the skill
+   copies already installed in the workspace (whatever layout your agent uses) and replaces the
+   complete trees from the package, references/evals/fixtures included. Sync ONLY from the
+   installed package, never from a source checkout: this skill documents the runtime it ships
+   with, and a newer repo skill paired with an older installed runtime advertises commands and
+   themes the binary does not have (0.4.3 report skew finding). Also restart the HTTP daemon and
+   any `--mcp` processes; Bun does not hot-reload a running process.
 1. **Open or focus the workbench before mutating.** Reuse one visible canvas surface for the
    session.
 2. **Verify workspace identity.** Read `GET /health` or `pmx-canvas serve status`; the returned
@@ -175,8 +183,8 @@ Use the visible workbench when the human is actively curating layout:
 - Drop files or URLs to create matching nodes.
 - Double-click markdown to edit inline.
 - Use toolbar snapshots before experiments and restore only after confirmation.
-- The toolbar carries view controls (fit, reset, zoom), arrange, minimap, a theme picker (eight
-  themes: dark, light, high-contrast, midnight, sepia, arctic, ember, forest), snapshots, trace,
+- The toolbar carries view controls (fit, reset, zoom), arrange, minimap, a theme picker (nine
+  themes: dark, light, high-contrast, midnight, sepia, arctic, ember, forest, volt), snapshots, trace,
   the annotation tools, search (Cmd+K), and shortcuts. On narrow viewports (≤900px — most
   embedded host panes and mobile) the secondary controls collapse into a single "⋯" More menu at
   the end of the bar; every action is still there as a labeled row, including the theme list. If

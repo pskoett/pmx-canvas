@@ -132,7 +132,7 @@ pmx-canvas --theme=light       # Light theme
 pmx-canvas --version           # Print installed version and exit
 ```
 
-`--theme` accepts `dark` (default), `light`, `high-contrast`, `midnight`, `sepia`, `arctic`, `ember`, or `forest` (0.4.x; the browser toolbar has a matching theme picker). Same value can be set via
+`--theme` accepts `dark` (default), `light`, `high-contrast`, `midnight`, `sepia`, `arctic`, `ember`, `forest`, or `volt` (0.4.x; the browser toolbar has a matching theme picker). Same value can be set via
 the `PMX_CANVAS_THEME` environment variable, or toggled live in the browser toolbar.
 
 Start the canvas once per session, then reuse it. Use `--no-open` when running as an agent — the

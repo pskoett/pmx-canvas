@@ -134,12 +134,20 @@ publishing, update the installed package in the consumer workspace and re-sync
 its four mirrors from `<global npm root>/pmx-canvas/skills/` so the first test
 pass runs against the released skills, not the previous version's guidance.
 
-Sync the **complete tree of every bundled skill** — `pmx-canvas` AND
-`pmx-canvas-testing`, including `references/`, `evals/`, and fixtures — and
-verify by diffing whole directories, not by comparing the `SKILL.md` hash
-alone. The 0.3.4 and 0.4.0 cycles both hit drift where `SKILL.md` matched but
-references/evals were stale, or a newly bundled skill was missing from the
-mirrors entirely.
+This is now one command in the consumer workspace (added post-0.4.3):
+
+```bash
+pmx-canvas skills sync           # refreshes every INSTALLED skill copy from the package
+pmx-canvas skills sync --check   # drift detection only (exit 1 when stale)
+```
+
+It discovers the skill copies already installed in the workspace (whatever
+agent layout owns them — no host list is assumed) and compares/replaces
+**whole trees** — `references/`, `evals/`, fixtures — not `SKILL.md` hashes
+alone (the 0.3.x–0.4.x cycles repeatedly hit drift where the hash matched but
+supporting files were stale). Also re-run
+`pmx-canvas copilot install-extension --yes` in repos that use the Copilot
+adapter so the panel picks up new open-URL behavior.
 
 ## GitHub release
 

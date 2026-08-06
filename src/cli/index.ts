@@ -66,6 +66,7 @@ const AGENT_COMMANDS = new Set([
   'validate',
   'serve',
   'copilot',
+  'skills',
 ]);
 
 const firstArg = args[0] ?? '';
@@ -253,7 +254,7 @@ Server options:
   --log-file=PATH  Daemon log file (default: ./.pmx-canvas/daemon-${port}.log)
   --pid-file=PATH  Optional daemon PID file (default: ./.pmx-canvas/daemon-${port}.pid)
   --wait-ms=MS   Health-check wait budget for daemon mode (default: 10000)
-  --theme=THEME  Theme: dark (default), light, high-contrast, midnight, sepia, arctic, ember, forest
+  --theme=THEME  Theme: dark (default), light, high-contrast, midnight, sepia, arctic, ember, forest, volt
   --webview-automation        Start a headless Bun.WebView automation session for /workbench
   --webview-backend=BACKEND   Bun.WebView backend: chrome or webkit
   --webview-width=PX          Automation WebView width (default: 1280)
@@ -343,6 +344,7 @@ Examples:
   pmx-canvas watch --events context-pin,move-end              Watch semantic deltas
   pmx-canvas clear --dry-run                                  Preview destructive op
   pmx-canvas copilot install-extension --dry-run             Preview Copilot adapter install
+  pmx-canvas skills sync                                     Refresh installed pmx-canvas skill copies in this workspace (--check to detect drift)
 `);
     process.exit(0);
   }

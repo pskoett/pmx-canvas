@@ -20,7 +20,7 @@ pmx-canvas                            # Start canvas, open browser
 pmx-canvas --demo                     # Start with the saved dashboard demo board
 pmx-canvas --port=8080                # Custom port
 pmx-canvas --no-open                  # Headless (for agents/CI)
-pmx-canvas --theme=light              # dark | light | high-contrast | midnight | sepia | arctic | ember | forest
+pmx-canvas --theme=light              # dark | light | high-contrast | midnight | sepia | arctic | ember | forest | volt
 pmx-canvas --mcp                      # Run as MCP server (stdio)
 pmx-canvas --webview-automation       # Start headless Bun.WebView session
 pmx-canvas open                       # Open the current workbench in a browser
@@ -210,6 +210,24 @@ maps onto the same neutral AX surfaces (it never makes the core GitHub-specific)
 pmx-canvas copilot install-extension --dry-run   # Preview target, writes nothing
 pmx-canvas copilot install-extension --yes        # Install/overwrite into .github/extensions/pmx-canvas/
 ```
+
+## Skill sync
+
+Refresh the pmx-canvas skill copies **already installed** in this workspace.
+The command discovers them (any `<agent-dir>/skills/pmx-canvas[-testing]`,
+whichever agent layout the workspace uses) and compares/replaces whole trees —
+references, evals, and fixtures included — so a copy can no longer drift while
+its `SKILL.md` hash matches. It never creates a copy where none is installed
+and makes no assumptions about which agents you use.
+
+```bash
+pmx-canvas skills sync           # Refresh every installed copy from the package
+pmx-canvas skills sync --check   # Report drift only (exit 1 when stale), change nothing
+```
+
+Run `skills sync` (and `copilot install-extension --yes` if the repo uses the
+Copilot adapter) after every `pmx-canvas` upgrade so agents operate on the
+released guidance.
 
 ## WebView automation
 

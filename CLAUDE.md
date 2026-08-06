@@ -157,7 +157,7 @@ State auto-saves every mutation (debounced 500ms) and auto-loads on server start
 
 ## Themes
 
-Eight themes: `dark` (default), `light`, `high-contrast`, `midnight`, `sepia`, `arctic`, `ember`, `forest`. The canonical registry is `src/shared/themes.ts`; per-theme CSS variable blocks live in `src/client/theme/global.css` + `surface-theme.css` (kept in sync by `tests/unit/surface-theme-tokens.test.ts`). Set via:
+Nine themes: `dark` (default), `light`, `high-contrast`, `midnight`, `sepia`, `arctic`, `ember`, `forest`, `volt`. The canonical registry is `src/shared/themes.ts`; per-theme CSS variable blocks live in `src/client/theme/global.css` + `surface-theme.css` (kept in sync by `tests/unit/surface-theme-tokens.test.ts`). Set via:
 - CLI: `--theme=light`
 - Env: `PMX_CANVAS_THEME=light`
 - Browser: toolbar theme picker (sun/moon icon opens the theme menu)

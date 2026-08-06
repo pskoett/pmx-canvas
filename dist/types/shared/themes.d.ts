@@ -9,7 +9,7 @@
  * theme picker, server validation, and surface documents pick it up from this
  * list.
  */
-export declare const CANVAS_THEMES: readonly ["dark", "light", "high-contrast", "midnight", "sepia", "arctic", "ember", "forest"];
+export declare const CANVAS_THEMES: readonly ["dark", "light", "high-contrast", "midnight", "sepia", "arctic", "ember", "forest", "volt"];
 export type CanvasThemeName = (typeof CANVAS_THEMES)[number];
 export declare function isCanvasTheme(value: unknown): value is CanvasThemeName;
 export declare function normalizeCanvasThemeName(value: unknown, fallback?: CanvasThemeName): CanvasThemeName;

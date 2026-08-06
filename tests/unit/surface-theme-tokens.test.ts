@@ -37,6 +37,7 @@ const THEME_SELECTORS = [
   ':root[data-theme="arctic"]',
   ':root[data-theme="ember"]',
   ':root[data-theme="forest"]',
+  ':root[data-theme="volt"]',
 ];
 
 function selectorBlock(css: string, selector: string): string {

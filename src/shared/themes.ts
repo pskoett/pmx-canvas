@@ -19,6 +19,7 @@ export const CANVAS_THEMES = [
   'arctic',
   'ember',
   'forest',
+  'volt',
 ] as const;
 
 export type CanvasThemeName = (typeof CANVAS_THEMES)[number];
@@ -50,6 +51,7 @@ export const CANVAS_THEME_META: Record<CanvasThemeName, CanvasThemeMeta> = {
   arctic: { label: 'Arctic', scheme: 'dark', swatchBg: '#20242E', swatchAccent: '#7FC8DE' },
   ember: { label: 'Ember', scheme: 'dark', swatchBg: '#0B0B0C', swatchAccent: '#F34E1C' },
   forest: { label: 'Forest', scheme: 'dark', swatchBg: '#0C1712', swatchAccent: '#5CCF8F' },
+  volt: { label: 'Volt', scheme: 'dark', swatchBg: '#0B0D0B', swatchAccent: '#F34E3F' },
 };
 
 /** Collapse a theme to the dark/light scheme embedded dark|light-only viewers understand. */

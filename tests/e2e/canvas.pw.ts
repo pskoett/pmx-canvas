@@ -2931,7 +2931,10 @@ test('polling transport boots the board and receives live updates (proxy-safe fa
   await request.post('/api/canvas/node', {
     data: { type: 'markdown', title: 'Poll Live Node', content: 'via incremental poll', x: 80, y: 320 },
   });
-  await expect(page.locator('.canvas-node').filter({ hasText: 'Poll Live Node' })).toBeVisible({ timeout: 10000 });
+  // Generous ceiling: the poll cycle is 2s, but under full-suite CPU load the
+  // rounds stretch — the contract is "arrives via incremental polls", not
+  // "arrives in N seconds". A genuinely broken transport still fails here.
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Poll Live Node' })).toBeVisible({ timeout: 25000 });
 });
 
 test('srcdoc iframe mode renders same-origin surfaces inline (nested-embed fallback)', async ({ page, request }) => {
@@ -3007,11 +3010,11 @@ test('narrow screens collapse the toolbar into one bar with a More menu (no seco
   await expect(page.locator('.toolbar-menu')).toHaveCount(0);
 });
 
-test('desktop theme picker lists all eight themes and applies one', async ({ page }) => {
+test('desktop theme picker lists every registered theme and applies one', async ({ page }) => {
   await page.goto('/workbench');
   await page.getByRole('button', { name: 'Choose theme' }).click();
   const menu = page.locator('.toolbar-menu');
-  await expect(menu.getByRole('menuitemradio')).toHaveCount(8);
+  await expect(menu.getByRole('menuitemradio')).toHaveCount(9);
   await menu.getByRole('menuitemradio', { name: 'Midnight' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'midnight');
 });

@@ -281,6 +281,38 @@
   --color-danger: #E57373;
 }
 
+:root[data-theme="volt"] {
+  /* ── Core palette (volt · green-tinted charcoal + coral) ── */
+  --c-bg: #0B0D0B;
+  --c-panel: #171A17;
+  --c-panel-soft: #111311;
+  --c-line: #272A27;
+  --c-text: #F6FFF5;
+  --c-text-soft: #CBD3CA;
+  --c-muted: #9CA49C;
+  --c-dim: #626962;
+  --c-accent: #F34E3F;
+  --c-ok: #52C880;
+  --c-warn: #E4C465;
+  --c-warn-alt: #FFB300;
+  --c-danger: #D67670;
+  --c-purple: #BC8FB4;
+
+  --color-bg: #0B0D0B;
+  --color-panel: #171A17;
+  --color-surface: #111311;
+  --color-border: #272A27;
+  --color-text: #F6FFF5;
+  --color-text-primary: #F6FFF5;
+  --color-text-secondary: #CBD3CA;
+  --color-text-muted: #9CA49C;
+  --color-text-dim: #626962;
+  --color-accent: #F34E3F;
+  --color-success: #52C880;
+  --color-warning: #E4C465;
+  --color-danger: #D67670;
+}
+
 html,
 body {
   margin: 0;

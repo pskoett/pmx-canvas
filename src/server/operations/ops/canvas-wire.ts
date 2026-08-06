@@ -33,7 +33,7 @@ const themeSetShape = {
     .unknown()
     .optional()
     .describe(
-      'Theme name from the canvas theme registry (e.g. dark, light, high-contrast, midnight, sepia, arctic, ember, forest)',
+      'Theme name from the canvas theme registry (e.g. dark, light, high-contrast, midnight, sepia, arctic, ember, forest, volt)',
     ),
 };
 const themeSetSchema = z.looseObject(themeSetShape);
