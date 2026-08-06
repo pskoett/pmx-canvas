@@ -57,10 +57,17 @@ let pollSeq: number | null = null;
 let pollGeneration = 0;
 let sseFirstEventWatchdog: ReturnType<typeof setTimeout> | null = null;
 
-function forcedTransport(): 'poll' | 'sse' | null {
-  if (typeof location === 'undefined') return null;
+export function forcedTransport(): 'poll' | 'sse' | null {
+  if (typeof location === 'undefined' || typeof window === 'undefined') return null;
   const value = new URLSearchParams(location.search).get('transport');
-  return value === 'poll' || value === 'sse' ? value : null;
+  if (value === 'poll' || value === 'sse') return value;
+  // Amp orbs: the portal proxy buffers SSE, so auto mode burns the 3s
+  // watchdog before falling back — and on slow proxy days that trips the
+  // boot modal. The server stamps the orb flag into the page (canvasSpaHtml);
+  // go straight to the transport that works there. `?transport=sse` above
+  // still overrides for diagnosis.
+  if ((window as Window & { __PMX_AMP_ORB?: unknown }).__PMX_AMP_ORB === true) return 'poll';
+  return null;
 }
 
 // Maps responseNodeId → thread prompt node ID so response deltas/completions
@@ -1124,6 +1131,10 @@ export function connectSSE(): () => void {
       sseFirstEventWatchdog = null;
       if (gotFirstEvent || eventSource !== source) return;
       console.warn('[sse-bridge] No SSE event within watchdog window — switching to polling transport.');
+      // Give the bootstrap card a fresh deadline for the fallback transport so
+      // the "did not finish booting" modal doesn't fire while polling is
+      // already recovering the boot (the inline bootstrap script listens).
+      window.dispatchEvent(new Event('pmx-canvas-boot-extend'));
       source.close();
       eventSource = null;
       startPollingTransport();

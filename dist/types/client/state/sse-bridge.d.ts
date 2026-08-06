@@ -1,3 +1,4 @@
+export declare function forcedTransport(): 'poll' | 'sse' | null;
 /** @internal — exported for testing */
 export declare function hashPath(path: string): string;
 /** @internal — exported for testing */

@@ -977,12 +977,23 @@ function canvasSpaHtml(): string {
           : 'PMX Canvas hit a browser error while loading.';
         actions.hidden = false;
       });
-      setTimeout(function () {
+      var showNotBooted = function () {
         if (!bootstrap || !copy || !actions) return;
         if (bootstrap.classList.contains('ready')) return;
         copy.textContent = 'PMX Canvas did not finish booting. Reload the canvas or restart the server.';
         actions.hidden = false;
-      }, 4000);
+      };
+      var bootDeadline = setTimeout(showNotBooted, 4000);
+      // The client dispatches this when the SSE watchdog falls back to the
+      // polling transport mid-boot (buffering proxies): restart the deadline
+      // instead of alarming while the fallback is already recovering.
+      window.addEventListener('pmx-canvas-boot-extend', function () {
+        if (!bootstrap || bootstrap.classList.contains('ready')) return;
+        clearTimeout(bootDeadline);
+        if (copy) copy.textContent = 'Live stream blocked by a proxy — switching to polling...';
+        if (actions) actions.hidden = true;
+        bootDeadline = setTimeout(showNotBooted, 8000);
+      });
     })();
   </script>
   ${

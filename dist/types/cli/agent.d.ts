@@ -22,5 +22,6 @@ import './commands/ax.js';
 import './commands/webview.js';
 import './commands/apps.js';
 import './commands/copilot.js';
+import './commands/skills.js';
 export { extractGlobalTargetFlags };
 export declare function runAgentCli(rawArgs: string[]): Promise<void>;

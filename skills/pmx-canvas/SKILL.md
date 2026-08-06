@@ -273,8 +273,10 @@ Prefer `canvas_query { action: "search" }` over parsing the full layout.
   with a gray placeholder. The canvas probes this at boot and auto-falls back to fetching
   same-origin surfaces and rendering them inline via `srcdoc` (HTML, graph, json-render, frame
   documents). In Amp orbs specifically, the server sees `AMP_ORB` in its environment and stamps
-  the page so the embedded client skips the (there-unreliable) probe and goes straight to
-  `srcdoc`; HTML surfaces also inline their theme stylesheet so they render styled. External app
+  the page so the embedded client skips the (there-unreliable) probe, goes straight to `srcdoc`,
+  AND defaults to the polling transport (the portal proxy buffers SSE — waiting out the watchdog
+  could trip the boot modal); HTML surfaces also inline their theme stylesheet so they render
+  styled. External app
   URLs cannot be inlined (cross-origin) and may stay blocked in such hosts. Force a mode with
   `/workbench?iframe-mode=srcdoc` (or `iframe-mode=src`) when diagnosing.
 - Graph and json-render standalone surfaces use `display=site` and fill the browser viewport, and

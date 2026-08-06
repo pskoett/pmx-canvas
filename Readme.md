@@ -151,12 +151,13 @@ surfaces (the core never imports a host SDK).
   live workbench through the Amp portal (the `*.onamp.dev` URL ampcode.com
   embeds for the thread). Zero configuration: orbs set `AMP_ORB` in the
   service environment, and the canvas auto-adapts to the portal's constraints
-  — it switches to a polling transport when the portal proxy buffers the live
-  event stream, and renders HTML, graph, json-render, and app surfaces inline
-  via `srcdoc` because the nested-iframe embed blocks `src`-URL child iframes
-  (`/workbench?transport=poll` and `?iframe-mode=srcdoc` force either behavior
-  when diagnosing). The same detection helps other buffering proxies and
-  nested-iframe embeds.
+  — it defaults straight to the proxy-safe polling transport (the portal
+  proxy buffers the live event stream), and renders HTML, graph, json-render,
+  and app surfaces inline via `srcdoc` because the nested-iframe embed blocks
+  `src`-URL child iframes (`?transport=sse` and `?iframe-mode=src` override
+  either behavior when diagnosing). Non-orb buffering proxies get the same
+  protections via runtime detection: an SSE watchdog that falls back to
+  polling, and the boot-time iframe probe.
   <!-- screenshot: docs/screenshots/amp-orb-portal.png — PMX Canvas live inside the Amp portal (to be added) -->
 
 Any other app browser (the ChatGPT desktop app, an IDE webview, …) works the

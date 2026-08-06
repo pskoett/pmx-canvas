@@ -3075,3 +3075,21 @@ test('the More menu opens anchored to the ⋯ button on narrow screens', async (
   if (!buttonBox || !menuBox) throw new Error('missing bounding boxes');
   expect(Math.abs(menuBox.x + menuBox.width - (buttonBox.x + buttonBox.width))).toBeLessThan(24);
 });
+
+test('an Amp orb page boots straight on the polling transport (no SSE attempt)', async ({ page }) => {
+  // The server stamps window.__PMX_AMP_ORB into orb-served pages; simulate it
+  // before any bundle code runs. The portal proxy buffers SSE, so orb pages
+  // must never wait out the SSE watchdog before polling.
+  await page.addInitScript(() => {
+    (window as unknown as { __PMX_AMP_ORB?: boolean }).__PMX_AMP_ORB = true;
+  });
+  let sseRequested = false;
+  page.on('request', (req) => {
+    if (req.url().includes('/api/workbench/events')) sseRequested = true;
+  });
+  const firstPoll = page.waitForRequest('**/api/workbench/poll*');
+  await page.goto('/workbench');
+  await firstPoll;
+  await expect(page.locator('#canvasBootstrap')).toHaveClass(/ready/);
+  expect(sseRequested).toBe(false);
+});

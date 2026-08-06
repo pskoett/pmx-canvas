@@ -5,6 +5,16 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- Amp orb pages now default straight to the polling transport instead of
+  waiting out the 3-second SSE watchdog behind the portal's buffering proxy —
+  on slow proxy days that wait could trip the "did not finish booting" modal.
+  `?transport=sse` still overrides for diagnosis.
+- When the SSE watchdog does fall back to polling mid-boot (non-orb buffering
+  proxies), the boot screen now shows "switching to polling" and restarts its
+  deadline instead of alarming while the fallback is already recovering.
+
 ### Added
 
 - A ninth theme, `volt` — built from the Amp app's real palette (green-tinted

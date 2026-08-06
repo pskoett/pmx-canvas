@@ -341,9 +341,12 @@ Responses are `{ ok, transport: "poll", snapshot, seq, events }` — poll again
 with `since=<seq>` every couple of seconds. A `since` from a previous server
 run or one that fell off the bounded event ring recovers with a fresh
 snapshot. The browser client uses this automatically: if the SSE stream
-produces no event within 3 seconds of connecting, it switches to polling.
-Force a transport with `/workbench?transport=poll` (or `transport=sse` to
-disable the fallback).
+produces no event within 3 seconds of connecting, it switches to polling (and
+tells the boot screen to wait for the fallback instead of alarming). Pages
+served by an Amp orb (`AMP_ORB` set — the same stamp that drives srcdoc mode)
+skip SSE entirely and default straight to polling. Force a transport with
+`/workbench?transport=poll` (or `transport=sse` to disable the fallback /
+override the orb default).
 
 ## Session theme override (host-default theming)
 
