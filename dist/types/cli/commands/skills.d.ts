@@ -24,10 +24,17 @@ export interface SkillMirrorResult {
     host: string;
     skill: string;
     dir: string;
-    status: 'in-sync' | 'synced' | 'drifted';
+    status: 'in-sync' | 'synced' | 'drifted' | 'skipped-not-a-package-copy';
     missingOrDifferent?: string[];
     extra?: string[];
 }
+/**
+ * A mirror is only replaceable when its SKILL.md frontmatter `name:` matches
+ * the bundled skill it sits under. A user's own skill living in a same-named
+ * directory (different frontmatter identity) must never be deleted — these
+ * trees are typically gitignored, so a wrong replace is unrecoverable.
+ */
+export declare function mirrorIdentityMatches(mirrorDir: string, skill: string): boolean;
 /** Sync (or, with check=true, only compare) every INSTALLED mirror against the package trees. */
 export declare function syncInstalledSkillMirrors(packageSkillsRoot: string, workspaceRoot: string, opts: {
     check: boolean;

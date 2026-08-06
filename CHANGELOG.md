@@ -3,7 +3,7 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.4.4] - 2026-08-06
 
 ### Fixed
 
@@ -20,12 +20,14 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - A ninth theme, `volt` — built from the Amp app's real palette (green-tinted
   charcoal neutrals, warm green-white text, coral accent). `ember` stays
   unchanged.
-- `pmx-canvas skills sync` refreshes the pmx-canvas skill copies already
+- `pmx-canvas skills sync --yes` refreshes the pmx-canvas skill copies already
   installed in the workspace — whatever agent layout owns them — by comparing
-  and replacing whole trees from the installed package; `--check` reports
-  drift and exits 1 without changing anything. It never creates a copy where
-  none is installed. This automates the sync every release test cycle
-  previously did by hand.
+  and replacing whole trees from the installed package; `--check` (or running
+  without `--yes`) reports drift and exits 1 without changing anything. A
+  directory whose `SKILL.md` identity doesn't match the bundled skill is
+  skipped, never replaced, and it never creates a copy where none is
+  installed. This automates the sync every release test cycle previously did
+  by hand.
 
 ## [0.4.3] - 2026-08-05
 
@@ -2936,6 +2938,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.4.4]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.4
 [0.4.3]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.3
 [0.4.2]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.2
 [0.4.1]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.1

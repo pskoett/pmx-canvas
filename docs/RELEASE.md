@@ -137,7 +137,7 @@ pass runs against the released skills, not the previous version's guidance.
 This is now one command in the consumer workspace (added post-0.4.3):
 
 ```bash
-pmx-canvas skills sync           # refreshes every INSTALLED skill copy from the package
+pmx-canvas skills sync --yes     # refreshes every INSTALLED skill copy from the package
 pmx-canvas skills sync --check   # drift detection only (exit 1 when stale)
 ```
 

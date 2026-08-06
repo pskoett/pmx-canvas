@@ -344,7 +344,7 @@ Examples:
   pmx-canvas watch --events context-pin,move-end              Watch semantic deltas
   pmx-canvas clear --dry-run                                  Preview destructive op
   pmx-canvas copilot install-extension --dry-run             Preview Copilot adapter install
-  pmx-canvas skills sync                                     Refresh installed pmx-canvas skill copies in this workspace (--check to detect drift)
+  pmx-canvas skills sync --yes                               Refresh installed pmx-canvas skill copies in this workspace (--check to detect drift)
 `);
     process.exit(0);
   }

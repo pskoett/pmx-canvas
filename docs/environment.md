@@ -26,7 +26,7 @@ optional; defaults are listed.
 | Variable | Read by | Effect |
 |---|---|---|
 | `PMX_CANVAS_THEME` | server | Startup theme: `dark` (default), `light`, `high-contrast`, `midnight`, `sepia`, `arctic`, `ember`, `forest`, `volt`. |
-| `AMP_ORB` | server | Set by Amp orb services. When present, the served canvas page tells the browser it is running in an orb, which skips the iframe embed probe and forces `srcdoc` surface rendering when embedded (the orb portal blocks `src`-URL child iframes and the probe is unreliable there). |
+| `AMP_ORB` | server | Set by Amp orb services. When present, the served canvas page tells the browser it is running in an orb, which skips the iframe embed probe, forces `srcdoc` surface rendering when embedded (the orb portal blocks `src`-URL child iframes and the probe is unreliable there), and defaults the event transport to polling instead of SSE (the portal proxy buffers streams; `?transport=sse` overrides for diagnosis). |
 | `PMX_CANVAS_DISABLE_BROWSER_OPEN` | server | `1` suppresses auto-opening the browser (used by tests/CI). |
 | `PMX_CANVAS_DIST` | server | Explicit client bundle directory to serve instead of the packaged `dist/canvas`. |
 | `PMX_CANVAS_WEBVIEW_TIMEOUT_MS` | server | Startup timeout for the Bun.WebView automation session. |

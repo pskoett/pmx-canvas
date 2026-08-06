@@ -8,7 +8,7 @@
 // compares/replaces whole trees — references, evals, fixtures included. It
 // never creates a mirror where none is installed.
 
-import { cpSync, existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, readFileSync, readdirSync, renameSync, rmSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cmd, output, parseFlags, showCommandHelp } from '../shared.js';
@@ -91,9 +91,25 @@ export interface SkillMirrorResult {
   host: string;
   skill: string;
   dir: string;
-  status: 'in-sync' | 'synced' | 'drifted';
+  status: 'in-sync' | 'synced' | 'drifted' | 'skipped-not-a-package-copy';
   missingOrDifferent?: string[];
   extra?: string[];
+}
+
+/**
+ * A mirror is only replaceable when its SKILL.md frontmatter `name:` matches
+ * the bundled skill it sits under. A user's own skill living in a same-named
+ * directory (different frontmatter identity) must never be deleted — these
+ * trees are typically gitignored, so a wrong replace is unrecoverable.
+ */
+export function mirrorIdentityMatches(mirrorDir: string, skill: string): boolean {
+  try {
+    const head = readFileSync(join(mirrorDir, 'SKILL.md'), 'utf-8').slice(0, 2000);
+    const match = /^name:\s*(\S+)\s*$/m.exec(head);
+    return match?.[1] === skill;
+  } catch {
+    return false;
+  }
 }
 
 /** Sync (or, with check=true, only compare) every INSTALLED mirror against the package trees. */
@@ -105,6 +121,10 @@ export function syncInstalledSkillMirrors(
   const results: SkillMirrorResult[] = [];
   for (const mirror of discoverInstalledSkillMirrors(workspaceRoot, packageSkillsRoot)) {
     const source = join(packageSkillsRoot, mirror.skill);
+    if (!mirrorIdentityMatches(mirror.dir, mirror.skill)) {
+      results.push({ ...mirror, status: 'skipped-not-a-package-copy' });
+      continue;
+    }
     const cmp = compareSkillTrees(source, mirror.dir);
     if (cmp.inSync) {
       results.push({ ...mirror, status: 'in-sync' });
@@ -116,9 +136,14 @@ export function syncInstalledSkillMirrors(
     }
     // Full-tree replace: a copy-over would leave deleted package files behind
     // in the mirror, which is exactly the drift class release audits kept
-    // hitting even when SKILL.md hashes matched.
+    // hitting even when SKILL.md hashes matched. Stage the complete new tree
+    // BESIDE the mirror first, so a crash between the rm and the rename leaves
+    // the staged copy on disk as recovery instead of losing the install.
+    const staging = `${mirror.dir}.pmx-sync-staging`;
+    rmSync(staging, { recursive: true, force: true });
+    cpSync(source, staging, { recursive: true });
     rmSync(mirror.dir, { recursive: true, force: true });
-    cpSync(source, mirror.dir, { recursive: true });
+    renameSync(staging, mirror.dir);
     results.push({ ...mirror, status: 'synced' });
   }
   return results;
@@ -128,13 +153,16 @@ export function syncInstalledSkillMirrors(
 cmd(
   'skills sync',
   'Refresh the pmx-canvas skill copies already installed in this workspace (any agent layout)',
-  ['pmx-canvas skills sync', 'pmx-canvas skills sync --check'],
+  ['pmx-canvas skills sync --yes', 'pmx-canvas skills sync --check'],
   async (args) => {
     const { flags } = parseFlags(args);
     if (flags.help || flags.h) return showCommandHelp('skills sync');
 
     const packageSkillsRoot = fileURLToPath(new URL('../../../skills', import.meta.url));
-    const check = flags.check === true;
+    // Replacing a mirror deletes a whole installed tree — destructive, so it
+    // follows the CLI's `--yes` contract. Without --yes (or with --check) the
+    // command only reports drift; exit 1 signals stale either way.
+    const check = flags.check === true || flags.yes !== true;
     const results = syncInstalledSkillMirrors(packageSkillsRoot, process.cwd(), { check });
 
     const drifted = results.filter((r) => r.status === 'drifted');
@@ -145,6 +173,9 @@ cmd(
       packageSkillsRoot,
       mirrorsFound: results.length,
       ...(results.length === 0 ? { note: 'No installed pmx-canvas skill copies found in this workspace.' } : {}),
+      ...(drifted.length > 0 && flags.yes !== true
+        ? { note: 'Drift detected. Re-run with --yes to replace the drifted trees from the installed package.' }
+        : {}),
       results,
     });
     if (!ok) process.exitCode = 1;

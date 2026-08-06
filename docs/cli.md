@@ -221,11 +221,16 @@ its `SKILL.md` hash matches. It never creates a copy where none is installed
 and makes no assumptions about which agents you use.
 
 ```bash
-pmx-canvas skills sync           # Refresh every installed copy from the package
+pmx-canvas skills sync --yes     # Refresh every installed copy from the package
 pmx-canvas skills sync --check   # Report drift only (exit 1 when stale), change nothing
 ```
 
-Run `skills sync` (and `copilot install-extension --yes` if the repo uses the
+Replacing a tree is destructive, so the sync requires `--yes`; without it the
+command only reports drift (like `--check`) and hints at the flag. A directory
+whose `SKILL.md` identity doesn't match the bundled skill is skipped, never
+replaced.
+
+Run `skills sync --yes` (and `copilot install-extension --yes` if the repo uses the
 Copilot adapter) after every `pmx-canvas` upgrade so agents operate on the
 released guidance.
 

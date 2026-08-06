@@ -27,11 +27,15 @@ afterEach(() => {
   tempRoots = [];
 });
 
+function skillMd(skill: string, body: string): string {
+  return `---\nname: ${skill}\ndescription: test fixture\n---\n${body}`;
+}
+
 function makePackageSkills(): string {
   const root = tempDir('pkg');
   for (const skill of ['pmx-canvas', 'pmx-canvas-testing']) {
     mkdirSync(join(root, skill, 'references'), { recursive: true });
-    writeFileSync(join(root, skill, 'SKILL.md'), `# ${skill}\ncurrent guidance`);
+    writeFileSync(join(root, skill, 'SKILL.md'), skillMd(skill, 'current guidance'));
     writeFileSync(join(root, skill, 'references', 'ref.md'), `${skill} reference body`);
   }
   return root;
@@ -40,7 +44,8 @@ function makePackageSkills(): string {
 function installStaleCopy(pkg: string, workspaceRoot: string, hostDir: string, skill: string): string {
   const dir = join(workspaceRoot, hostDir, 'skills', skill);
   mkdirSync(join(dir, 'references'), { recursive: true });
-  writeFileSync(join(dir, 'SKILL.md'), 'STALE old-release skill');
+  // A genuine old package copy: correct frontmatter identity, stale content.
+  writeFileSync(join(dir, 'SKILL.md'), skillMd(skill, 'STALE old-release skill'));
   writeFileSync(join(dir, 'references', 'ref.md'), 'STALE reference');
   return dir;
 }
@@ -94,6 +99,21 @@ describe('syncInstalledSkillMirrors', () => {
     expect(existsSync(join(mirror, 'leftover.md'))).toBe(false);
   });
 
+  test('a user-authored skill in a pmx-canvas-named directory is skipped, never replaced', () => {
+    const pkg = makePackageSkills();
+    const ws = tempDir('ws');
+    // The user's OWN skill happens to live in .claude/skills/pmx-canvas but is
+    // NOT a package copy (different frontmatter identity). It must survive.
+    const dir = join(ws, '.claude', 'skills', 'pmx-canvas');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'SKILL.md'), '---\nname: my-own-canvas-notes\ndescription: personal\n---\nhands off');
+
+    const results = syncInstalledSkillMirrors(pkg, ws, { check: false });
+    expect(results).toHaveLength(1);
+    expect(results[0].status).toBe('skipped-not-a-package-copy');
+    expect(readFileSync(join(dir, 'SKILL.md'), 'utf-8')).toContain('hands off');
+  });
+
   test('the package skills source itself is never treated as a mirror', () => {
     const pkg = makePackageSkills();
     // Workspace root IS the package root parent layout: <root>/skills/<name>.
@@ -111,12 +131,55 @@ describe('syncInstalledSkillMirrors', () => {
   });
 });
 
+describe('skills sync via the real CLI entry', () => {
+  // Flag parsing lives ABOVE the inner functions (LRN-20260708-004): the
+  // --check-eats-a-token bug and the --yes destructive gate are only
+  // observable through src/cli/index.ts, so drive it as a subprocess.
+  const cliEntry = join(import.meta.dir, '..', '..', 'src', 'cli', 'index.ts');
+
+  async function runCli(cwd: string, args: string[]): Promise<{ code: number; stdout: string }> {
+    const proc = Bun.spawn([process.execPath, 'run', cliEntry, 'skills', 'sync', ...args], {
+      cwd,
+      env: { ...process.env },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    const stdout = await new Response(proc.stdout).text();
+    await proc.exited;
+    return { code: proc.exitCode ?? -1, stdout };
+  }
+
+  test('without --yes it reports drift, exits 1, and changes nothing; --yes syncs', async () => {
+    const ws = tempDir('ws-entry');
+    // Install a stale copy of the REAL bundled skill so the packaged source
+    // (the repo's own skills/) drifts against it.
+    const dir = join(ws, '.codex', 'skills', 'pmx-canvas');
+    mkdirSync(dir, { recursive: true });
+    writeFileSync(join(dir, 'SKILL.md'), '---\nname: pmx-canvas\ndescription: stale\n---\nSTALE');
+
+    const report = await runCli(ws, []);
+    expect(report.code).toBe(1);
+    expect(readFileSync(join(dir, 'SKILL.md'), 'utf-8')).toContain('STALE');
+    expect(report.stdout).toContain('--yes');
+
+    // --check with a stray trailing token must stay read-only (check must be
+    // a boolean flag, not consume the token as its value).
+    const strayCheck = await runCli(ws, ['--check', 'stray-token']);
+    expect(strayCheck.code).toBe(1);
+    expect(readFileSync(join(dir, 'SKILL.md'), 'utf-8')).toContain('STALE');
+
+    const synced = await runCli(ws, ['--yes']);
+    expect(synced.code).toBe(0);
+    expect(readFileSync(join(dir, 'SKILL.md'), 'utf-8')).not.toContain('STALE');
+  }, 30000);
+});
+
 describe('compareSkillTrees', () => {
   test('detects byte-level drift and extra files', () => {
     const pkg = makePackageSkills();
     const copy = tempDir('copy');
     mkdirSync(join(copy, 'references'), { recursive: true });
-    writeFileSync(join(copy, 'SKILL.md'), '# pmx-canvas\ncurrent guidance');
+    writeFileSync(join(copy, 'SKILL.md'), skillMd('pmx-canvas', 'current guidance'));
     writeFileSync(join(copy, 'references', 'ref.md'), 'pmx-canvas reference body');
     expect(compareSkillTrees(join(pkg, 'pmx-canvas'), copy).inSync).toBe(true);
 

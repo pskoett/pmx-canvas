@@ -19,7 +19,7 @@ Humans curate agent context by pinning nodes; agents read that curation through
 ## Required Operating Sequence
 
 0. **After a `pmx-canvas` upgrade, refresh this skill first.** Run
-   `pmx-canvas skills sync` (`--check` to detect drift; exit 1 when stale) — it finds the skill
+   `pmx-canvas skills sync --yes` (`--check` to detect drift; exit 1 when stale) — it finds the skill
    copies already installed in the workspace (whatever layout your agent uses) and replaces the
    complete trees from the package, references/evals/fixtures included. Sync ONLY from the
    installed package, never from a source checkout: this skill documents the runtime it ships

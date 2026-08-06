@@ -163,6 +163,7 @@ function parseFlags(args: string[]): { positional: string[]; flags: Record<strin
     'permissions',
     'files',
     'ui-prompts',
+    'check',
   ]);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
