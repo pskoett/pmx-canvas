@@ -12,7 +12,7 @@ This document tracks:
 
 **Implemented** for Phase 1.
 
-The repo now targets Bun `>=1.3.12`, and PMX Canvas ships an opt-in, server-owned WebView automation session that can:
+The repo now targets Bun `>=1.3.14`, and PMX Canvas ships an opt-in, server-owned WebView automation session that can:
 
 - start a headless browser session for `/workbench`
 - report WebView runtime status
@@ -192,7 +192,7 @@ If `chromePath` or `chromeArgv` is provided, PMX Canvas forces a Chrome-backed s
 
 The repo now requires:
 
-- Bun `>=1.3.12`
+- Bun `>=1.3.14`
 
 That change is reflected in:
 
