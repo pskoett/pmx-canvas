@@ -145,7 +145,8 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     // Untitled file nodes (created before titles were synthesized server-side)
     // still show their filename instead of a bare type label.
     (node.type === 'file'
-      ? (((node.data.path as string) || (node.data.content as string) || '').split('/').pop() ?? '')
+      ? // Separator-agnostic: node paths are OS-native (backslashes on Windows).
+        (((node.data.path as string) || (node.data.content as string) || '').split(/[\\/]/).pop() ?? '')
       : '') ||
     TYPE_LABELS[node.type];
 

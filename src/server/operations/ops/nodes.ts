@@ -425,7 +425,10 @@ export function createBasicCanvasNode(
         : // Untitled file nodes get the filename — otherwise the title bar
           // reads as a bare "FILE" chip with nothing identifying the file.
           type === 'file' && typeof content === 'string' && content.trim()
-          ? { title: content.trim().split('/').pop() }
+          ? // Separator-agnostic: Windows paths use backslashes (0.3.2's
+            // basename fix class — a '/'-only split makes the whole path
+            // the title there).
+            { title: content.trim().split(/[\\/]/).pop() }
           : {}),
       ...(typeof content === 'string' ? { content } : {}),
       ...(htmlMergedData && Object.keys(htmlMergedData).length > 0 ? { data: htmlMergedData } : {}),
