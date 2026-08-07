@@ -1,4 +1,4 @@
-export declare const BUNDLED_SKILLS: readonly ["pmx-canvas", "pmx-canvas-testing"];
+export declare const BUNDLED_SKILLS: readonly ["pmx-canvas", "pmx-canvas-testing", "pmx-canvas-orchestration"];
 export interface SkillTreeComparison {
     inSync: boolean;
     /** Files present in the package tree but missing or different in the mirror. */

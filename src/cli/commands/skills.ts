@@ -13,7 +13,7 @@ import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { cmd, output, parseFlags, showCommandHelp } from '../shared.js';
 
-export const BUNDLED_SKILLS = ['pmx-canvas', 'pmx-canvas-testing'] as const;
+export const BUNDLED_SKILLS = ['pmx-canvas', 'pmx-canvas-testing', 'pmx-canvas-orchestration'] as const;
 
 function listFilesRecursive(root: string, prefix = ''): string[] {
   const out: string[] = [];

@@ -178,7 +178,8 @@ const SCHEMA_SQL = `
     node_ids TEXT NOT NULL DEFAULT '[]',
     data TEXT,
     created_at TEXT NOT NULL,
-    source TEXT
+    source TEXT,
+    agent_id TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_ax_events_seq ON ax_events (seq);
 
@@ -202,7 +203,9 @@ const SCHEMA_SQL = `
     message TEXT NOT NULL,
     delivered INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL,
-    source TEXT
+    source TEXT,
+    agent_id TEXT,
+    target TEXT
   );
   CREATE INDEX IF NOT EXISTS idx_ax_steering_seq ON ax_steering (seq);
 
@@ -212,6 +215,16 @@ const SCHEMA_SQL = `
     payload TEXT NOT NULL
   );
 `;
+
+/** Idempotently add a column to an existing table (no prior-migrations system in this repo). */
+function ensureColumn(db: Database, table: string, column: string, ddl: string): void {
+  interface ColumnInfoRow {
+    name: string;
+  }
+  const columns = db.query<ColumnInfoRow, []>(`PRAGMA table_info(${table})`).all();
+  if (columns.some((c) => c.name === column)) return;
+  db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+}
 
 function normalizePositiveInteger(value: number | undefined): number | undefined {
   if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) return undefined;
@@ -257,6 +270,11 @@ export function openCanvasDb(dbPath: string): Database {
   db.exec('PRAGMA synchronous=NORMAL');
   db.exec('PRAGMA busy_timeout=5000');
   db.exec(SCHEMA_SQL);
+
+  // Additive columns for pre-existing DBs (fresh installs already get them via SCHEMA_SQL above).
+  ensureColumn(db, 'ax_events', 'agent_id', 'agent_id TEXT');
+  ensureColumn(db, 'ax_steering', 'agent_id', 'agent_id TEXT');
+  ensureColumn(db, 'ax_steering', 'target', 'target TEXT');
 
   // Set schema version if not present
   const row = db.query<{ value: string }, [string]>('SELECT value FROM meta WHERE key = ?').get('schema_version');
@@ -858,7 +876,7 @@ function readLastSeq(db: Database, table: 'ax_events' | 'ax_evidence' | 'ax_stee
 
 export function appendAxEventToDB(db: Database, ev: Omit<PmxAxEvent, 'seq'>): PmxAxEvent {
   db.run(
-    'INSERT INTO ax_events (id, kind, summary, detail, node_ids, data, created_at, source) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO ax_events (id, kind, summary, detail, node_ids, data, created_at, source, agent_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [
       ev.id,
       ev.kind,
@@ -868,6 +886,7 @@ export function appendAxEventToDB(db: Database, ev: Omit<PmxAxEvent, 'seq'>): Pm
       ev.data ? JSON.stringify(ev.data) : null,
       ev.createdAt,
       ev.source,
+      ev.agentId,
     ],
   );
   const seq = readLastSeq(db, 'ax_events');
@@ -896,13 +915,10 @@ export function appendAxEvidenceToDB(db: Database, ev: Omit<PmxAxEvidence, 'seq'
 }
 
 export function appendAxSteeringToDB(db: Database, s: Omit<PmxAxSteeringMessage, 'seq'>): PmxAxSteeringMessage {
-  db.run('INSERT INTO ax_steering (id, message, delivered, created_at, source) VALUES (?, ?, ?, ?, ?)', [
-    s.id,
-    s.message,
-    s.delivered ? 1 : 0,
-    s.createdAt,
-    s.source,
-  ]);
+  db.run(
+    'INSERT INTO ax_steering (id, message, delivered, created_at, source, agent_id, target) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    [s.id, s.message, s.delivered ? 1 : 0, s.createdAt, s.source, s.agentId, s.target],
+  );
   const seq = readLastSeq(db, 'ax_steering');
   trimAxTable(db, 'ax_steering');
   return { ...s, seq };
@@ -927,6 +943,7 @@ export function loadAxEventsFromDB(db: Database, q: AxTimelineQuery = {}): PmxAx
     data: string | null;
     created_at: string;
     source: string | null;
+    agent_id: string | null;
   }
   const rows = db
     .query<Row, [number]>('SELECT * FROM ax_events ORDER BY seq DESC LIMIT ?')
@@ -938,6 +955,7 @@ export function loadAxEventsFromDB(db: Database, q: AxTimelineQuery = {}): PmxAx
         createdAt: r.created_at,
         nodeIds: safeParseJson(r.node_ids),
         data: safeParseJson(r.data),
+        agentId: r.agent_id,
       }),
     )
     .filter((e): e is PmxAxEvent => e !== null);
@@ -971,58 +989,62 @@ export function loadAxEvidenceFromDB(db: Database, q: AxTimelineQuery = {}): Pmx
     .filter((e): e is PmxAxEvidence => e !== null);
 }
 
+interface AxSteeringRow {
+  seq: number;
+  id: string;
+  message: string;
+  delivered: number;
+  created_at: string;
+  source: string | null;
+  agent_id: string | null;
+  target: string | null;
+}
+
+function mapAxSteeringRow(r: AxSteeringRow): PmxAxSteeringMessage | null {
+  return normalizeAxSteeringMessage({
+    ...r,
+    createdAt: r.created_at,
+    delivered: r.delivered === 1,
+    agentId: r.agent_id,
+  });
+}
+
 export function loadAxSteeringFromDB(
   db: Database,
   q: AxTimelineQuery & { onlyPending?: boolean } = {},
 ): PmxAxSteeringMessage[] {
-  interface Row {
-    seq: number;
-    id: string;
-    message: string;
-    delivered: number;
-    created_at: string;
-    source: string | null;
-  }
   const sql = q.onlyPending
     ? 'SELECT * FROM ax_steering WHERE delivered = 0 ORDER BY seq DESC LIMIT ?'
     : 'SELECT * FROM ax_steering ORDER BY seq DESC LIMIT ?';
-  const rows = db.query<Row, [number]>(sql).all(clampTimelineLimit(q.limit));
-  return rows
-    .map((r) => normalizeAxSteeringMessage({ ...r, createdAt: r.created_at, delivered: r.delivered === 1 }))
-    .filter((s): s is PmxAxSteeringMessage => s !== null);
+  const rows = db.query<AxSteeringRow, [number]>(sql).all(clampTimelineLimit(q.limit));
+  return rows.map(mapAxSteeringRow).filter((s): s is PmxAxSteeringMessage => s !== null);
 }
 
 export function loadPendingAxSteeringFromDB(
   db: Database,
   options: { consumer?: string; limit?: number } = {},
 ): PmxAxSteeringMessage[] {
-  interface Row {
-    seq: number;
-    id: string;
-    message: string;
-    delivered: number;
-    created_at: string;
-    source: string | null;
-  }
-  // FIFO (oldest undelivered first); exclude the consumer's own steering in SQL
-  // so the LIMIT is applied AFTER loop-prevention, not before.
+  // FIFO (oldest undelivered first); exclude the consumer's own steering (loop
+  // prevention) and any steering addressed to a DIFFERENT consumer (target scoping)
+  // in SQL so the LIMIT is applied AFTER both filters, not before.
   const limit = clampTimelineLimit(options.limit);
   const rows = options.consumer
     ? db
-        .query<Row, [string, number]>(
-          'SELECT * FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?) ORDER BY seq ASC LIMIT ?',
+        .query<AxSteeringRow, [string, string, number]>(
+          'SELECT * FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?) AND (target IS NULL OR target = ?) ORDER BY seq ASC LIMIT ?',
         )
-        .all(options.consumer, limit)
-    : db.query<Row, [number]>('SELECT * FROM ax_steering WHERE delivered = 0 ORDER BY seq ASC LIMIT ?').all(limit);
-  return rows
-    .map((r) => normalizeAxSteeringMessage({ ...r, createdAt: r.created_at, delivered: r.delivered === 1 }))
-    .filter((s): s is PmxAxSteeringMessage => s !== null);
+        .all(options.consumer, options.consumer, limit)
+    : db
+        .query<AxSteeringRow, [number]>('SELECT * FROM ax_steering WHERE delivered = 0 ORDER BY seq ASC LIMIT ?')
+        .all(limit);
+  return rows.map(mapAxSteeringRow).filter((s): s is PmxAxSteeringMessage => s !== null);
 }
 
 /**
  * NEWEST undelivered steering first (report #57) for the compact AX context lead
  * block — so a fresh steer is visible even behind a long backlog. Loop-safe: excludes
- * the consumer's own steering in SQL so the LIMIT applies after loop-prevention.
+ * the consumer's own steering and steering targeted at a different consumer in SQL
+ * so the LIMIT applies after both filters.
  * Distinct from loadPendingAxSteeringFromDB (FIFO oldest-first) which the claim/ack
  * delivery queue uses for ordered processing.
  */
@@ -1030,35 +1052,27 @@ export function loadNewestPendingAxSteeringFromDB(
   db: Database,
   options: { consumer?: string; limit?: number } = {},
 ): PmxAxSteeringMessage[] {
-  interface Row {
-    seq: number;
-    id: string;
-    message: string;
-    delivered: number;
-    created_at: string;
-    source: string | null;
-  }
   const limit = clampTimelineLimit(options.limit);
   const rows = options.consumer
     ? db
-        .query<Row, [string, number]>(
-          'SELECT * FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?) ORDER BY seq DESC LIMIT ?',
+        .query<AxSteeringRow, [string, string, number]>(
+          'SELECT * FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?) AND (target IS NULL OR target = ?) ORDER BY seq DESC LIMIT ?',
         )
-        .all(options.consumer, limit)
-    : db.query<Row, [number]>('SELECT * FROM ax_steering WHERE delivered = 0 ORDER BY seq DESC LIMIT ?').all(limit);
-  return rows
-    .map((r) => normalizeAxSteeringMessage({ ...r, createdAt: r.created_at, delivered: r.delivered === 1 }))
-    .filter((s): s is PmxAxSteeringMessage => s !== null);
+        .all(options.consumer, options.consumer, limit)
+    : db
+        .query<AxSteeringRow, [number]>('SELECT * FROM ax_steering WHERE delivered = 0 ORDER BY seq DESC LIMIT ?')
+        .all(limit);
+  return rows.map(mapAxSteeringRow).filter((s): s is PmxAxSteeringMessage => s !== null);
 }
 
-/** Total undelivered steering for a consumer (loop-safe — excludes the consumer's own). */
+/** Total undelivered steering for a consumer (loop-safe — excludes the consumer's own; target-scoped). */
 export function countPendingAxSteeringFromDB(db: Database, consumer?: string): number {
   const n = consumer
     ? db
-        .query<{ n: number }, [string]>(
-          'SELECT COUNT(*) AS n FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?)',
+        .query<{ n: number }, [string, string]>(
+          'SELECT COUNT(*) AS n FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?) AND (target IS NULL OR target = ?)',
         )
-        .get(consumer)?.n
+        .get(consumer, consumer)?.n
     : db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM ax_steering WHERE delivered = 0').get()?.n;
   return Number(n ?? 0);
 }

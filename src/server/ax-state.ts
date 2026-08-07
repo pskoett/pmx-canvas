@@ -39,6 +39,7 @@ export interface PmxAxWorkItem {
   createdAt: string;
   updatedAt: string;
   source: PmxAxSource | null;
+  agentId: string | null;
 }
 
 export interface PmxAxApprovalGate {
@@ -87,6 +88,7 @@ export interface PmxAxEvent {
   data: Record<string, unknown> | null;
   createdAt: string;
   source: PmxAxSource | null;
+  agentId: string | null;
 }
 
 export interface PmxAxEvidence {
@@ -109,6 +111,9 @@ export interface PmxAxSteeringMessage {
   delivered: boolean;
   createdAt: string;
   source: PmxAxSource | null;
+  agentId: string | null;
+  /** The agentId/consumer this steer is addressed to; null = broadcast to all consumers. */
+  target: string | null;
 }
 
 // ── Host/session capability (own table; reported by adapters) ──────
@@ -633,6 +638,7 @@ export function normalizeAxWorkItem(input: unknown, validNodeIds?: Set<string>):
     createdAt,
     updatedAt: normalizeTimestamp(input.updatedAt) ?? createdAt,
     source: normalizeSource(input.source),
+    agentId: optionalString(input.agentId),
   };
 }
 
@@ -726,6 +732,7 @@ export function normalizeAxEvent(input: unknown): PmxAxEvent | null {
     data: boundedRecord(input.data),
     createdAt: normalizeTimestamp(input.createdAt) ?? nowIso(),
     source: normalizeSource(input.source),
+    agentId: optionalString(input.agentId),
   };
 }
 
@@ -756,12 +763,20 @@ export function normalizeAxSteeringMessage(input: unknown): PmxAxSteeringMessage
     delivered: input.delivered === true,
     createdAt: normalizeTimestamp(input.createdAt) ?? nowIso(),
     source: normalizeSource(input.source),
+    agentId: optionalString(input.agentId),
+    target: optionalString(input.target),
   };
 }
 
 // ── Factories ──────────────────────────────────────────────────────
 export function createAxWorkItem(
-  input: { title: string; status?: PmxAxWorkItemStatus; detail?: string | null; nodeIds?: string[] },
+  input: {
+    title: string;
+    status?: PmxAxWorkItemStatus;
+    detail?: string | null;
+    nodeIds?: string[];
+    agentId?: string | null;
+  },
   source: PmxAxSource | null,
   validNodeIds?: Set<string>,
 ): PmxAxWorkItem {
@@ -775,6 +790,7 @@ export function createAxWorkItem(
     createdAt: now,
     updatedAt: now,
     source,
+    agentId: input.agentId ?? null,
   };
 }
 
@@ -840,6 +856,7 @@ export function createAxEvent(
     data?: Record<string, unknown> | null;
   },
   source: PmxAxSource | null,
+  agentId: string | null = null,
 ): Omit<PmxAxEvent, 'seq'> {
   return {
     id: axId('evt'),
@@ -850,6 +867,7 @@ export function createAxEvent(
     data: input.data ?? null,
     createdAt: nowIso(),
     source,
+    agentId,
   };
 }
 
@@ -880,6 +898,8 @@ export function createAxEvidence(
 export function createAxSteeringMessage(
   message: string,
   source: PmxAxSource | null,
+  agentId: string | null = null,
+  target: string | null = null,
 ): Omit<PmxAxSteeringMessage, 'seq'> {
   return {
     id: axId('steer'),
@@ -887,6 +907,8 @@ export function createAxSteeringMessage(
     delivered: false,
     createdAt: nowIso(),
     source,
+    agentId,
+    target,
   };
 }
 

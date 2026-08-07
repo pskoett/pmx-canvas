@@ -261,6 +261,9 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
           })()}
         </span>
         <span class="node-type-badge">{TYPE_LABELS[node.type]}</span>
+        {typeof node.data.axWorkStatus === 'string' && (
+          <span class={`node-ax-status node-ax-status-${node.data.axWorkStatus}`}>{node.data.axWorkStatus}</span>
+        )}
         {renaming ? (
           <input
             ref={renameRef}

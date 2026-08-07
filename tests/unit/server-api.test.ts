@@ -4451,6 +4451,87 @@ describe('canvas server HTTP API', () => {
     expect(reResolve.status).toBe(404);
   });
 
+  test('AX work item agentId round-trips and mirrors status onto linked node data', async () => {
+    const node = await jsonRequest<{ id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'AX agentId node' }),
+    });
+
+    const created = await jsonRequest<{ workItem: { id: string; status: string; agentId: string | null } }>(
+      '/api/canvas/ax/work',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: 'Implement auth',
+          status: 'todo',
+          nodeIds: [node.id],
+          agentId: 'researcher',
+          source: 'api',
+        }),
+      },
+    );
+    expect(created.workItem.agentId).toBe('researcher');
+
+    const stateAfterCreate = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(stateAfterCreate.nodes.find((n) => n.id === node.id)?.data.axWorkStatus).toBe('todo');
+
+    const updated = await jsonRequest<{ workItem: { status: string } }>(`/api/canvas/ax/work/${created.workItem.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'done', source: 'api' }),
+    });
+    expect(updated.workItem.status).toBe('done');
+
+    const stateAfterUpdate = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(stateAfterUpdate.nodes.find((n) => n.id === node.id)?.data.axWorkStatus).toBe('done');
+  });
+
+  test('AX record-event accepts agentId and the timeline read returns it', async () => {
+    const event = await jsonRequest<{ event: { id: string; agentId: string | null } }>('/api/canvas/ax/event', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kind: 'tool-start', summary: 'agentId probe', agentId: 'researcher', source: 'api' }),
+    });
+    expect(event.event.agentId).toBe('researcher');
+
+    const timeline = await jsonRequest<{ events: Array<{ id: string; agentId: string | null }> }>(
+      '/api/canvas/ax/timeline',
+    );
+    expect(timeline.events.find((e) => e.id === event.event.id)?.agentId).toBe('researcher');
+  });
+
+  test('AX steering target scopes delivery to the addressed consumer; a broadcast steer reaches everyone', async () => {
+    const tag = `target-${Date.now()}`;
+    const targeted = await jsonRequest<{ steering: { agentId: string | null; target: string | null } }>(
+      '/api/canvas/ax/steer',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: tag, agentId: 'researcher', target: 'impl-auth', source: 'api' }),
+      },
+    );
+    expect(targeted.steering.agentId).toBe('researcher');
+    expect(targeted.steering.target).toBe('impl-auth');
+
+    const broadcastTag = `${tag}-broadcast`;
+    await fetch(`${baseUrl}/api/canvas/ax/steer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: broadcastTag, source: 'api' }),
+    });
+
+    type Pending = { pending: Array<{ message: string }> };
+    const forTarget = await jsonRequest<Pending>('/api/canvas/ax/delivery/pending?consumer=impl-auth&limit=200');
+    expect(forTarget.pending.some((s) => s.message === tag)).toBe(true);
+    expect(forTarget.pending.some((s) => s.message === broadcastTag)).toBe(true);
+
+    const forOther = await jsonRequest<Pending>('/api/canvas/ax/delivery/pending?consumer=other&limit=200');
+    expect(forOther.pending.some((s) => s.message === tag)).toBe(false);
+    expect(forOther.pending.some((s) => s.message === broadcastTag)).toBe(true);
+  });
+
   test('AX review annotation and host capability endpoints round-trip over HTTP', async () => {
     const review = await jsonRequest<{
       ok: boolean;

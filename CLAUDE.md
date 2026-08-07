@@ -286,7 +286,7 @@ When file nodes are on the canvas, the system auto-detects import dependencies a
 1. **MCP Server** (recommended) — `pmx-canvas --mcp`, auto-starts on first tool call
 2. **HTTP API** — REST + SSE at `localhost:4313`
 3. **JavaScript/TypeScript SDK (Bun runtime)** — `import { createCanvas } from 'pmx-canvas'`
-4. **Agent Skills** — `skills/pmx-canvas/SKILL.md`, `skills/web-artifacts-builder/SKILL.md`, `skills/playwright-cli/SKILL.md`, `skills/pmx-canvas-testing/SKILL.md`, plus repo-local agnostic PMX skills such as `doc-coauthoring`, `data-analysis`, `frontend-design`, `web-design-guidelines`, and `json-render-*`
+4. **Agent Skills** — `skills/pmx-canvas/SKILL.md`, `skills/web-artifacts-builder/SKILL.md`, `skills/playwright-cli/SKILL.md`, `skills/pmx-canvas-testing/SKILL.md`, `skills/pmx-canvas-orchestration/SKILL.md` (multi-agent choreography ON the canvas: host executes, canvas is the graph/state/steering surface), plus repo-local agnostic PMX skills such as `doc-coauthoring`, `data-analysis`, `frontend-design`, `web-design-guidelines`, and `json-render-*`
 
 ## Conventions
 

@@ -7,22 +7,23 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Added
 
+- A third bundled skill, `pmx-canvas-orchestration`: the choreography for
+  multi-agent orchestration ON a canvas board — the agent host executes, the
+  canvas is the shared graph, state, human-steering surface, and audit trail.
+  `pmx-canvas skills sync` installs/refreshes it with the others.
+- Per-agent identity for orchestration: work items, timeline events, and
+  steering messages accept an optional `agentId` (who within the host), on
+  top of the coarse `source` host label.
+- Addressed steering: a steer can carry a `target` agent id — a consumer
+  claiming deliveries only sees steers addressed to it or broadcast steers.
+- Work-item status now mirrors onto linked canvas nodes automatically (an
+  `axWorkStatus` chip on the node), so the board reflects step state without
+  double-writing.
 - Running as an Amp orb service now binds the portal-assigned `$PORT`
   automatically, so the service command is just `pmx-canvas --no-open` — no
   port flags or `$PORT` interpolation. Honored only when `AMP_ORB` is set, so
   a stray `PORT` in normal shells never changes the default. The README now
   carries the full zero-config orb recipe (setup + services.yaml).
-
-### Changed
-
-- The WebView-automation unavailable error now names the running Bun version
-  and clarifies that the canvas itself keeps working — only automation and
-  screenshots need Bun >= 1.3.12.
-
-## [Unreleased]
-
-### Added
-
 - Auto-ghost: agent mutations that arrive without an explicit `canvas_intent`
   signal now synthesize a short ghost that settles the moment the mutation
   lands, so agent activity is visible even when the caller doesn't signal.
@@ -39,6 +40,9 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - Marking an AX delivery is now compare-and-set: `delivered:true` only on the
   actual undelivered→delivered transition, so racing adapters can detect lost
   claims.
+- The WebView-automation unavailable error now names the running Bun version
+  and clarifies that the canvas itself keeps working — only automation and
+  screenshots need Bun >= 1.3.12.
 
 ### Fixed
 

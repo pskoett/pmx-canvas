@@ -57,7 +57,14 @@ import type {
 } from '../../ax-state.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 import { isRecord } from './nodes.js';
-import { AX_SOURCE_SHAPE, AX_SOURCES, axJsonResult, normalizeAxNodeIds, normalizeAxSource } from './ax-shared.js';
+import {
+  AX_AGENT_ID_SHAPE,
+  AX_SOURCE_SHAPE,
+  AX_SOURCES,
+  axJsonResult,
+  normalizeAxNodeIds,
+  normalizeAxSource,
+} from './ax-shared.js';
 
 const AX_WORK_ITEM_STATUSES = new Set(['todo', 'in-progress', 'blocked', 'done', 'cancelled']);
 function normalizeAxWorkItemStatus(value: unknown): PmxAxWorkItemStatus | undefined {
@@ -98,6 +105,7 @@ const axWorkCreateShape = {
   detail: z.unknown().optional().describe('Optional longer description.'),
   nodeIds: z.unknown().optional().describe('Optional node IDs this work item is tied to.'),
   source: z.unknown().optional().describe('Optional host/source label. Defaults to mcp.'),
+  agentId: z.unknown().optional().describe('Optional per-agent identity within the host.'),
 };
 
 const axWorkCreateSchema = z.looseObject(axWorkCreateShape);
@@ -124,6 +132,7 @@ const axWorkCreateOperation = defineOperation<z.infer<typeof axWorkCreateSchema>
       detail: z.string().optional().describe('Optional longer description.'),
       nodeIds: z.array(z.string()).optional().describe('Optional node IDs this work item is tied to.'),
       source: AX_SOURCE_SHAPE,
+      agentId: AX_AGENT_ID_SHAPE,
     },
     buildInput: (input) => ({ ...input, source: normalizeAxSource(input.source, 'mcp') }),
     formatResult: axJsonResult,
@@ -146,6 +155,7 @@ const axWorkCreateOperation = defineOperation<z.infer<typeof axWorkCreateSchema>
         ...(status ? { status } : {}),
         ...(typeof input.detail === 'string' ? { detail: input.detail } : {}),
         ...(Array.isArray(input.nodeIds) ? { nodeIds: normalizeAxNodeIds(input.nodeIds) } : {}),
+        ...(typeof input.agentId === 'string' ? { agentId: input.agentId } : {}),
       },
       { source: normalizeAxSource(input.source, 'api') },
     );
@@ -163,6 +173,7 @@ const axWorkUpdateShape = {
   detail: z.unknown().optional().describe('New detail text.'),
   nodeIds: z.unknown().optional().describe('Replacement node IDs.'),
   source: z.unknown().optional().describe('Optional host/source label. Defaults to mcp.'),
+  agentId: z.unknown().optional().describe('Optional per-agent identity within the host.'),
 };
 
 const axWorkUpdateSchema = z.looseObject(axWorkUpdateShape);
@@ -187,6 +198,7 @@ const axWorkUpdateOperation = defineOperation<z.infer<typeof axWorkUpdateSchema>
       detail: z.string().optional().describe('New detail text.'),
       nodeIds: z.array(z.string()).optional().describe('Replacement node IDs.'),
       source: AX_SOURCE_SHAPE,
+      agentId: AX_AGENT_ID_SHAPE,
     },
     buildInput: (input) => ({ ...input, source: normalizeAxSource(input.source, 'mcp') }),
     formatResult: axJsonResult,
@@ -207,6 +219,7 @@ const axWorkUpdateOperation = defineOperation<z.infer<typeof axWorkUpdateSchema>
         ...(status ? { status } : {}),
         ...(typeof input.detail === 'string' || input.detail === null ? { detail: input.detail as string | null } : {}),
         ...(Array.isArray(input.nodeIds) ? { nodeIds: normalizeAxNodeIds(input.nodeIds) } : {}),
+        ...(typeof input.agentId === 'string' ? { agentId: input.agentId } : {}),
       },
       { source: normalizeAxSource(input.source, 'api') },
     );

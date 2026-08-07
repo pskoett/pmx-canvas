@@ -51,7 +51,13 @@ import { buildPendingAxActivity, isAxEventKind, isAxEvidenceKind } from '../../a
 import type { PmxAxEventKind, PmxAxEvidenceKind } from '../../ax-state.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 import { isRecord } from './nodes.js';
-import { AX_SOURCE_SHAPE, axJsonResult, normalizeAxNodeIds, normalizeAxSource } from './ax-shared.js';
+import {
+  AX_AGENT_ID_SHAPE,
+  AX_SOURCE_SHAPE,
+  axJsonResult,
+  normalizeAxNodeIds,
+  normalizeAxSource,
+} from './ax-shared.js';
 
 const AX_EVENT_KINDS = [
   'prompt',
@@ -73,6 +79,7 @@ const axEventRecordShape = {
   nodeIds: z.unknown().optional().describe('Optional node IDs this event relates to.'),
   data: z.unknown().optional().describe('Optional structured data payload.'),
   source: z.unknown().optional().describe('Optional host/source label. Defaults to mcp.'),
+  agentId: z.unknown().optional().describe('Optional per-agent identity within the host.'),
 };
 
 const axEventRecordSchema = z.looseObject(axEventRecordShape);
@@ -97,6 +104,7 @@ const axEventRecordOperation = defineOperation<z.infer<typeof axEventRecordSchem
       nodeIds: z.array(z.string()).optional().describe('Optional node IDs this event relates to.'),
       data: z.record(z.string(), z.unknown()).optional().describe('Optional structured data payload.'),
       source: AX_SOURCE_SHAPE,
+      agentId: AX_AGENT_ID_SHAPE,
     },
     buildInput: (input) => ({ ...input, source: normalizeAxSource(input.source, 'mcp') }),
     formatResult: axJsonResult,
@@ -113,7 +121,10 @@ const axEventRecordOperation = defineOperation<z.infer<typeof axEventRecordSchem
         nodeIds: normalizeAxNodeIds(input.nodeIds),
         data: isRecord(input.data) ? input.data : null,
       },
-      { source: normalizeAxSource(input.source, 'api') },
+      {
+        source: normalizeAxSource(input.source, 'api'),
+        ...(typeof input.agentId === 'string' ? { agentId: input.agentId } : {}),
+      },
     );
     ctx.emit('ax-event-created', { event });
     return { ok: true, event } as unknown as Record<string, unknown>;
@@ -184,6 +195,8 @@ const axEvidenceAddOperation = defineOperation<z.infer<typeof axEvidenceAddSchem
 const axSteerShape = {
   message: z.unknown().optional().describe('The steering instruction to deliver to the active agent session.'),
   source: z.unknown().optional().describe('Optional host/source label. Defaults to mcp.'),
+  agentId: z.unknown().optional().describe('Optional per-agent identity within the host.'),
+  target: z.unknown().optional().describe('Optional agentId/consumer this steer is addressed to. Omit to broadcast.'),
 };
 
 const axSteerSchema = z.looseObject(axSteerShape);
@@ -204,6 +217,13 @@ const axSteerOperation = defineOperation<z.infer<typeof axSteerSchema>, Record<s
     extraShape: {
       message: z.string().describe('The steering instruction to deliver to the active agent session.'),
       source: AX_SOURCE_SHAPE,
+      agentId: AX_AGENT_ID_SHAPE,
+      target: z
+        .string()
+        .min(1)
+        .max(80)
+        .optional()
+        .describe('The agentId/consumer this steer is addressed to. Omit to broadcast to all consumers.'),
     },
     buildInput: (input) => ({ ...input, source: normalizeAxSource(input.source, 'mcp') }),
     formatResult: axJsonResult,
@@ -214,6 +234,8 @@ const axSteerOperation = defineOperation<z.infer<typeof axSteerSchema>, Record<s
     }
     const steering = canvasState.recordSteeringMessage(input.message, {
       source: normalizeAxSource(input.source, 'api'),
+      ...(typeof input.agentId === 'string' ? { agentId: input.agentId } : {}),
+      ...(typeof input.target === 'string' ? { target: input.target } : {}),
     });
     ctx.emit('ax-event-created', { steering });
     return { ok: true, steering } as unknown as Record<string, unknown>;

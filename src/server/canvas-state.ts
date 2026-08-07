@@ -1716,18 +1716,58 @@ class CanvasStateManager {
   }
 
   addWorkItem(
-    input: { title: string; status?: PmxAxWorkItemStatus; detail?: string | null; nodeIds?: string[] },
+    input: {
+      title: string;
+      status?: PmxAxWorkItemStatus;
+      detail?: string | null;
+      nodeIds?: string[];
+      agentId?: string | null;
+    },
     options: { source?: PmxAxSource } = {},
   ): PmxAxWorkItem {
-    return this.ax.addWorkItem(input, options);
+    const item = this.ax.addWorkItem(input, options);
+    this.mirrorAxWorkStatusToNodes(item.nodeIds, [], item.status);
+    return item;
   }
 
   updateWorkItem(
     id: string,
-    patch: { title?: string; status?: PmxAxWorkItemStatus; detail?: string | null; nodeIds?: string[] },
+    patch: {
+      title?: string;
+      status?: PmxAxWorkItemStatus;
+      detail?: string | null;
+      nodeIds?: string[];
+      agentId?: string | null;
+    },
     options: { source?: PmxAxSource } = {},
   ): PmxAxWorkItem | null {
-    return this.ax.updateWorkItem(id, patch, options);
+    const previousNodeIds = this.ax.getWorkItems().find((w) => w.id === id)?.nodeIds ?? [];
+    const item = this.ax.updateWorkItem(id, patch, options);
+    if (!item) return null;
+    this.mirrorAxWorkStatusToNodes(item.nodeIds, previousNodeIds, item.status);
+    return item;
+  }
+
+  /**
+   * Mirror a work item's status onto every linked canvas node's `data.axWorkStatus`,
+   * through the standard node-update path (persistence + undo/redo, same as any other
+   * node data change). Nodes unlinked by an updateWorkItem nodeIds change have the
+   * mirrored status cleared.
+   */
+  private mirrorAxWorkStatusToNodes(nodeIds: string[], previousNodeIds: string[], status: PmxAxWorkItemStatus): void {
+    for (const nodeId of nodeIds) {
+      const node = this.nodes.get(nodeId);
+      if (!node) continue;
+      this.updateNode(nodeId, { data: { ...node.data, axWorkStatus: status } });
+    }
+    for (const nodeId of previousNodeIds) {
+      if (nodeIds.includes(nodeId)) continue;
+      const node = this.nodes.get(nodeId);
+      if (!node) continue;
+      const data = { ...node.data };
+      delete data.axWorkStatus;
+      this.updateNode(nodeId, { data });
+    }
   }
 
   // ── Approval gates (canvas-bound) ─────────────────────────────────
@@ -1873,7 +1913,7 @@ class CanvasStateManager {
       nodeIds?: string[];
       data?: Record<string, unknown> | null;
     },
-    options: { source?: PmxAxSource } = {},
+    options: { source?: PmxAxSource; agentId?: string | null } = {},
   ): PmxAxEvent {
     return this.ax.recordAxEvent(input, options);
   }
@@ -1892,7 +1932,10 @@ class CanvasStateManager {
     return this.ax.addEvidence(input, options);
   }
 
-  recordSteeringMessage(message: string, options: { source?: PmxAxSource } = {}): PmxAxSteeringMessage {
+  recordSteeringMessage(
+    message: string,
+    options: { source?: PmxAxSource; agentId?: string | null; target?: string | null } = {},
+  ): PmxAxSteeringMessage {
     return this.ax.recordSteeringMessage(message, options);
   }
 

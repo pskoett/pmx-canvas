@@ -25,6 +25,8 @@ export declare const AX_SOURCE_SHAPE: z.ZodOptional<z.ZodEnum<{
     sdk: "sdk";
     system: "system";
 }>>;
+/** Zod schema for the optional `agentId` field shared by AX MCP tool shapes. */
+export declare const AX_AGENT_ID_SHAPE: z.ZodOptional<z.ZodString>;
 /** An absent or unrecognized source falls back to the per-surface default. */
 export declare function normalizeAxSource(value: unknown, fallback: PmxAxSource): PmxAxSource;
 export declare function normalizeAxNodeIds(value: unknown): string[];

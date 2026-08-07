@@ -669,6 +669,29 @@ body,
   flex-shrink: 0;
 }
 
+.canvas-node .node-ax-status {
+  font-size: calc(9px * var(--node-chrome-scale, 1));
+  padding: calc(1px * var(--node-chrome-scale, 1)) calc(6px * var(--node-chrome-scale, 1));
+  border-radius: calc(4px * var(--node-chrome-scale, 1));
+  background: var(--c-panel-overlay);
+  color: var(--c-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+.canvas-node .node-ax-status-in-progress {
+  color: var(--c-accent);
+}
+
+.canvas-node .node-ax-status-done {
+  color: var(--c-ok);
+}
+
+.canvas-node .node-ax-status-blocked {
+  color: var(--c-warn);
+}
+
 .canvas-node .node-controls {
   display: flex;
   align-items: center;

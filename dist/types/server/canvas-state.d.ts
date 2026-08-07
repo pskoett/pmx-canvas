@@ -280,6 +280,7 @@ declare class CanvasStateManager {
         status?: PmxAxWorkItemStatus;
         detail?: string | null;
         nodeIds?: string[];
+        agentId?: string | null;
     }, options?: {
         source?: PmxAxSource;
     }): PmxAxWorkItem;
@@ -288,9 +289,17 @@ declare class CanvasStateManager {
         status?: PmxAxWorkItemStatus;
         detail?: string | null;
         nodeIds?: string[];
+        agentId?: string | null;
     }, options?: {
         source?: PmxAxSource;
     }): PmxAxWorkItem | null;
+    /**
+     * Mirror a work item's status onto every linked canvas node's `data.axWorkStatus`,
+     * through the standard node-update path (persistence + undo/redo, same as any other
+     * node data change). Nodes unlinked by an updateWorkItem nodeIds change have the
+     * mirrored status cleared.
+     */
+    private mirrorAxWorkStatusToNodes;
     getApprovalGates(): PmxAxApprovalGate[];
     requestApproval(input: {
         title: string;
@@ -376,6 +385,7 @@ declare class CanvasStateManager {
         data?: Record<string, unknown> | null;
     }, options?: {
         source?: PmxAxSource;
+        agentId?: string | null;
     }): PmxAxEvent;
     addEvidence(input: {
         kind: PmxAxEvidenceKind;
@@ -389,6 +399,8 @@ declare class CanvasStateManager {
     }): PmxAxEvidence;
     recordSteeringMessage(message: string, options?: {
         source?: PmxAxSource;
+        agentId?: string | null;
+        target?: string | null;
     }): PmxAxSteeringMessage;
     markSteeringDelivered(id: string): boolean;
     ingestActivity(input: {

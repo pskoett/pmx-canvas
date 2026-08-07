@@ -24,6 +24,7 @@ export interface PmxAxWorkItem {
     createdAt: string;
     updatedAt: string;
     source: PmxAxSource | null;
+    agentId: string | null;
 }
 export interface PmxAxApprovalGate {
     id: string;
@@ -67,6 +68,7 @@ export interface PmxAxEvent {
     data: Record<string, unknown> | null;
     createdAt: string;
     source: PmxAxSource | null;
+    agentId: string | null;
 }
 export interface PmxAxEvidence {
     id: string;
@@ -87,6 +89,9 @@ export interface PmxAxSteeringMessage {
     delivered: boolean;
     createdAt: string;
     source: PmxAxSource | null;
+    agentId: string | null;
+    /** The agentId/consumer this steer is addressed to; null = broadcast to all consumers. */
+    target: string | null;
 }
 export interface PmxAxHostCapability {
     host: string | null;
@@ -257,6 +262,7 @@ export declare function createAxWorkItem(input: {
     status?: PmxAxWorkItemStatus;
     detail?: string | null;
     nodeIds?: string[];
+    agentId?: string | null;
 }, source: PmxAxSource | null, validNodeIds?: Set<string>): PmxAxWorkItem;
 export declare function createAxApprovalGate(input: {
     title: string;
@@ -280,7 +286,7 @@ export declare function createAxEvent(input: {
     detail?: string | null;
     nodeIds?: string[];
     data?: Record<string, unknown> | null;
-}, source: PmxAxSource | null): Omit<PmxAxEvent, 'seq'>;
+}, source: PmxAxSource | null, agentId?: string | null): Omit<PmxAxEvent, 'seq'>;
 export declare function createAxEvidence(input: {
     kind: PmxAxEvidenceKind;
     title: string;
@@ -289,7 +295,7 @@ export declare function createAxEvidence(input: {
     nodeIds?: string[];
     data?: Record<string, unknown> | null;
 }, source: PmxAxSource | null): Omit<PmxAxEvidence, 'seq'>;
-export declare function createAxSteeringMessage(message: string, source: PmxAxSource | null): Omit<PmxAxSteeringMessage, 'seq'>;
+export declare function createAxSteeringMessage(message: string, source: PmxAxSource | null, agentId?: string | null, target?: string | null): Omit<PmxAxSteeringMessage, 'seq'>;
 export declare function normalizeAxState(input: unknown, validNodeIds?: Set<string>): PmxAxState;
 export declare function buildAxContext(input: {
     layout: CanvasLayout;

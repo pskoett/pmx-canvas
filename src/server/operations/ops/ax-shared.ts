@@ -28,6 +28,14 @@ export const AX_SOURCES = [
 /** Zod schema for the optional `source` field shared by AX MCP tool shapes. */
 export const AX_SOURCE_SHAPE = z.enum(AX_SOURCES).optional().describe('Optional host/source label. Defaults to mcp.');
 
+/** Zod schema for the optional `agentId` field shared by AX MCP tool shapes. */
+export const AX_AGENT_ID_SHAPE = z
+  .string()
+  .min(1)
+  .max(80)
+  .optional()
+  .describe('Per-agent identity within the host (orchestration); source stays the host label.');
+
 /** An absent or unrecognized source falls back to the per-surface default. */
 export function normalizeAxSource(value: unknown, fallback: PmxAxSource): PmxAxSource {
   return (AX_SOURCES as readonly string[]).includes(value as string) ? (value as PmxAxSource) : fallback;

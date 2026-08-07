@@ -77,6 +77,7 @@ export declare class AxStateManager {
         status?: PmxAxWorkItemStatus;
         detail?: string | null;
         nodeIds?: string[];
+        agentId?: string | null;
     }, options?: {
         source?: PmxAxSource;
     }): PmxAxWorkItem;
@@ -85,6 +86,7 @@ export declare class AxStateManager {
         status?: PmxAxWorkItemStatus;
         detail?: string | null;
         nodeIds?: string[];
+        agentId?: string | null;
     }, options?: {
         source?: PmxAxSource;
     }): PmxAxWorkItem | null;
@@ -173,6 +175,7 @@ export declare class AxStateManager {
         data?: Record<string, unknown> | null;
     }, options?: {
         source?: PmxAxSource;
+        agentId?: string | null;
     }): PmxAxEvent;
     addEvidence(input: {
         kind: PmxAxEvidenceKind;
@@ -186,6 +189,8 @@ export declare class AxStateManager {
     }): PmxAxEvidence;
     recordSteeringMessage(message: string, options?: {
         source?: PmxAxSource;
+        agentId?: string | null;
+        target?: string | null;
     }): PmxAxSteeringMessage;
     markSteeringDelivered(id: string): boolean;
     /**

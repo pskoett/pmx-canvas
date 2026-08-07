@@ -41,11 +41,21 @@ function makeManager(node: CanvasNodeState | undefined) {
         data: input.data ?? null,
         createdAt: 't',
         source: o?.source ?? null,
+        agentId: null,
       };
     },
     recordSteeringMessage: (message, o) => {
       rec('recordSteeringMessage', message, o);
-      return { id: 's1', seq: 1, message, delivered: false, createdAt: 't', source: o?.source ?? null };
+      return {
+        id: 's1',
+        seq: 1,
+        message,
+        delivered: false,
+        createdAt: 't',
+        source: o?.source ?? null,
+        agentId: null,
+        target: null,
+      };
     },
     addWorkItem: (input, o) => {
       rec('addWorkItem', input, o);
@@ -58,6 +68,7 @@ function makeManager(node: CanvasNodeState | undefined) {
         createdAt: 't',
         updatedAt: 't',
         source: o?.source ?? null,
+        agentId: null,
       };
     },
     updateWorkItem: (id, patch, o) => {
@@ -73,6 +84,7 @@ function makeManager(node: CanvasNodeState | undefined) {
             createdAt: 't',
             updatedAt: 't',
             source: o?.source ?? null,
+            agentId: null,
           };
     },
     addEvidence: (input, o) => {
@@ -185,6 +197,7 @@ function makeManager(node: CanvasNodeState | undefined) {
             data: { command: name },
             createdAt: 't',
             source: o?.source ?? null,
+            agentId: null,
           }
         : null;
     },

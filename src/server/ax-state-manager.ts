@@ -239,7 +239,13 @@ export class AxStateManager {
   }
 
   addWorkItem(
-    input: { title: string; status?: PmxAxWorkItemStatus; detail?: string | null; nodeIds?: string[] },
+    input: {
+      title: string;
+      status?: PmxAxWorkItemStatus;
+      detail?: string | null;
+      nodeIds?: string[];
+      agentId?: string | null;
+    },
     options: { source?: PmxAxSource } = {},
   ): PmxAxWorkItem {
     const oldAxState = this.getAxState();
@@ -267,7 +273,13 @@ export class AxStateManager {
 
   updateWorkItem(
     id: string,
-    patch: { title?: string; status?: PmxAxWorkItemStatus; detail?: string | null; nodeIds?: string[] },
+    patch: {
+      title?: string;
+      status?: PmxAxWorkItemStatus;
+      detail?: string | null;
+      nodeIds?: string[];
+      agentId?: string | null;
+    },
     options: { source?: PmxAxSource } = {},
   ): PmxAxWorkItem | null {
     const oldAxState = this.getAxState();
@@ -280,6 +292,7 @@ export class AxStateManager {
       ...(patch.status !== undefined ? { status: patch.status } : {}),
       ...(patch.detail !== undefined ? { detail: patch.detail } : {}),
       ...(patch.nodeIds !== undefined ? { nodeIds: patch.nodeIds.filter((n) => validNodeIds.has(n)) } : {}),
+      ...(patch.agentId !== undefined ? { agentId: patch.agentId } : {}),
       updatedAt: new Date().toISOString(),
       source: options.source ?? existing.source,
     };
@@ -703,9 +716,9 @@ export class AxStateManager {
       nodeIds?: string[];
       data?: Record<string, unknown> | null;
     },
-    options: { source?: PmxAxSource } = {},
+    options: { source?: PmxAxSource; agentId?: string | null } = {},
   ): PmxAxEvent {
-    const draft = createAxEvent(input, options.source ?? 'api');
+    const draft = createAxEvent(input, options.source ?? 'api', options.agentId ?? null);
     const db = this.deps.getDb();
     if (db) {
       try {
@@ -746,8 +759,16 @@ export class AxStateManager {
     return { ...draft, seq: 0 };
   }
 
-  recordSteeringMessage(message: string, options: { source?: PmxAxSource } = {}): PmxAxSteeringMessage {
-    const draft = createAxSteeringMessage(message, options.source ?? 'api');
+  recordSteeringMessage(
+    message: string,
+    options: { source?: PmxAxSource; agentId?: string | null; target?: string | null } = {},
+  ): PmxAxSteeringMessage {
+    const draft = createAxSteeringMessage(
+      message,
+      options.source ?? 'api',
+      options.agentId ?? null,
+      options.target ?? null,
+    );
     const db = this.deps.getDb();
     if (db) {
       try {
