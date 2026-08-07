@@ -223,7 +223,13 @@ function ensureColumn(db: Database, table: string, column: string, ddl: string):
   }
   const columns = db.query<ColumnInfoRow, []>(`PRAGMA table_info(${table})`).all();
   if (columns.some((c) => c.name === column)) return;
-  db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+  try {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${ddl}`);
+  } catch (error) {
+    // Two processes can race the check-then-ALTER on the first post-upgrade
+    // open; the loser's duplicate-column error means the column exists — done.
+    if (!/duplicate column/i.test(error instanceof Error ? error.message : String(error))) throw error;
+  }
 }
 
 function normalizePositiveInteger(value: number | undefined): number | undefined {
@@ -1030,10 +1036,10 @@ export function loadPendingAxSteeringFromDB(
   const limit = clampTimelineLimit(options.limit);
   const rows = options.consumer
     ? db
-        .query<AxSteeringRow, [string, string, number]>(
-          'SELECT * FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?) AND (target IS NULL OR target = ?) ORDER BY seq ASC LIMIT ?',
+        .query<AxSteeringRow, [string, string, string, number]>(
+          'SELECT * FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?) AND (agent_id IS NULL OR agent_id != ?) AND (target IS NULL OR target = ?) ORDER BY seq ASC LIMIT ?',
         )
-        .all(options.consumer, options.consumer, limit)
+        .all(options.consumer, options.consumer, options.consumer, limit)
     : db
         .query<AxSteeringRow, [number]>('SELECT * FROM ax_steering WHERE delivered = 0 ORDER BY seq ASC LIMIT ?')
         .all(limit);
@@ -1055,10 +1061,10 @@ export function loadNewestPendingAxSteeringFromDB(
   const limit = clampTimelineLimit(options.limit);
   const rows = options.consumer
     ? db
-        .query<AxSteeringRow, [string, string, number]>(
-          'SELECT * FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?) AND (target IS NULL OR target = ?) ORDER BY seq DESC LIMIT ?',
+        .query<AxSteeringRow, [string, string, string, number]>(
+          'SELECT * FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?) AND (agent_id IS NULL OR agent_id != ?) AND (target IS NULL OR target = ?) ORDER BY seq DESC LIMIT ?',
         )
-        .all(options.consumer, options.consumer, limit)
+        .all(options.consumer, options.consumer, options.consumer, limit)
     : db
         .query<AxSteeringRow, [number]>('SELECT * FROM ax_steering WHERE delivered = 0 ORDER BY seq DESC LIMIT ?')
         .all(limit);
@@ -1069,10 +1075,10 @@ export function loadNewestPendingAxSteeringFromDB(
 export function countPendingAxSteeringFromDB(db: Database, consumer?: string): number {
   const n = consumer
     ? db
-        .query<{ n: number }, [string, string]>(
-          'SELECT COUNT(*) AS n FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?) AND (target IS NULL OR target = ?)',
+        .query<{ n: number }, [string, string, string]>(
+          'SELECT COUNT(*) AS n FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?) AND (agent_id IS NULL OR agent_id != ?) AND (target IS NULL OR target = ?)',
         )
-        .get(consumer, consumer)?.n
+        .get(consumer, consumer, consumer)?.n
     : db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM ax_steering WHERE delivered = 0').get()?.n;
   return Number(n ?? 0);
 }

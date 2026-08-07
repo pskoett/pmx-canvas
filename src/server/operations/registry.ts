@@ -105,6 +105,19 @@ function allowedIntentKinds(name: string, rawInput: unknown): readonly PmxAxInte
   return INTENT_KINDS_BY_OPERATION[name];
 }
 
+/**
+ * Ops exempt from auto-ghost SYNTHESIS only (explicit intent linking above is
+ * unaffected). Stream appends arrive in rapid succession — a fresh ghost per
+ * chunk is exactly the high-frequency churn class the batch exemption exists
+ * for; the stream's CREATING call (no nodeId yet) still ghosts once.
+ */
+function autoGhostExempt(name: string, rawInput: unknown): boolean {
+  if (name !== 'jsonrender.stream') return false;
+  const input =
+    rawInput && typeof rawInput === 'object' && !Array.isArray(rawInput) ? (rawInput as Record<string, unknown>) : {};
+  return typeof input.nodeId === 'string' && input.nodeId.length > 0;
+}
+
 function settledNodeId(result: unknown, intent: PmxAxIntent): string | undefined {
   if (intent.kind === 'connect' || intent.kind === 'remove') return undefined;
   if (!result || typeof result !== 'object' || Array.isArray(result)) return undefined;
@@ -214,7 +227,12 @@ export async function executeOperation(
   // the flash perceptible). Explicit canvas_intent signalling stays the
   // richer path (labels, reasons, a real veto window before the mutation).
   const autoKinds = allowedIntentKinds(name, rawInput);
-  if (autoKinds && !meta.suppressAutoGhost && process.env.PMX_CANVAS_AUTO_INTENT !== '0') {
+  if (
+    autoKinds &&
+    !meta.suppressAutoGhost &&
+    !autoGhostExempt(name, rawInput) &&
+    process.env.PMX_CANVAS_AUTO_INTENT !== '0'
+  ) {
     // Ghost synthesis must NEVER break the mutation: skip silently when the
     // input can't satisfy a kind's required fields or signalling throws.
     let ghost: PmxAxIntent | null = null;

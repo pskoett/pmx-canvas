@@ -3,14 +3,16 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.4.5] - 2026-08-07
 
 ### Added
 
 - A third bundled skill, `pmx-canvas-orchestration`: the choreography for
   multi-agent orchestration ON a canvas board — the agent host executes, the
   canvas is the shared graph, state, human-steering surface, and audit trail.
-  `pmx-canvas skills sync` installs/refreshes it with the others.
+  It ships in the package's `skills/`; `pmx-canvas skills sync --yes` refreshes
+  installed copies of it like the others (sync never creates a copy — install
+  one the way your agent layout expects first).
 - Per-agent identity for orchestration: work items, timeline events, and
   steering messages accept an optional `agentId` (who within the host), on
   top of the coarse `source` host label.
@@ -37,6 +39,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Changed
 
+- The `volt` theme's accent was retuned from coral to the Amp app's cream
+  (`#DFDFC1`).
 - Marking an AX delivery is now compare-and-set: `delivered:true` only on the
   actual undelivered→delivered transition, so racing adapters can detect lost
   claims.
@@ -65,7 +69,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 ### Added
 
 - A ninth theme, `volt` — built from the Amp app's real palette (green-tinted
-  charcoal neutrals, warm green-white text, cream accent). `ember` stays
+  charcoal neutrals, warm green-white text, coral accent). `ember` stays
   unchanged.
 - `pmx-canvas skills sync --yes` refreshes the pmx-canvas skill copies already
   installed in the workspace — whatever agent layout owns them — by comparing
@@ -2985,6 +2989,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.4.5]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.5
 [0.4.4]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.4
 [0.4.3]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.3
 [0.4.2]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.2

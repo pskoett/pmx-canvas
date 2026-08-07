@@ -26,6 +26,7 @@ import { fileURLToPath } from 'node:url';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
+import { AX_SOURCES } from '../server/operations/ops/ax-shared.js';
 import { canvasState, describeCanvasSchema } from '../server/index.js';
 import { AX_INTERACTION_TYPES } from '../server/ax-interaction.js';
 import { buildPendingAxActivity } from '../server/ax-state.js';
@@ -253,10 +254,7 @@ export async function startMcpServer(): Promise<void> {
         .describe('Type-specific payload, e.g. {"title":"..."} for ax.work.create.'),
       sourceSurface: z.enum(['native-node', 'json-render', 'html-node', 'mcp-app', 'adapter']).optional(),
       correlationId: z.string().optional(),
-      source: z
-        .enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
-        .optional()
-        .describe('Optional host/source label. Defaults to mcp.'),
+      source: z.enum(AX_SOURCES).optional().describe('Optional host/source label. Defaults to mcp.'),
     },
     async ({ type, sourceNodeId, payload, sourceSurface, correlationId, source }) => {
       try {
@@ -345,7 +343,7 @@ export async function startMcpServer(): Promise<void> {
         })
         .optional()
         .describe('Override or suppress the kind-driven default reactions.'),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']).optional(),
+      source: z.enum(AX_SOURCES).optional(),
     },
     async ({ kind, title, summary, outcome, ref, nodeIds, data, reactions, source }) => {
       try {

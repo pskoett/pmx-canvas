@@ -124,6 +124,9 @@ export function dissolveIntent(id: string): void {
 export function resetIntents(): void {
   for (const timer of exitTimers.values()) clearTimeout(timer);
   exitTimers.clear();
+  for (const timer of phaseDelayTimers.values()) clearTimeout(timer);
+  phaseDelayTimers.clear();
+  formedAt.clear();
   if (pruneTimer) {
     clearInterval(pruneTimer);
     pruneTimer = null;

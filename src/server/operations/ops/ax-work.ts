@@ -160,6 +160,13 @@ const axWorkCreateOperation = defineOperation<z.infer<typeof axWorkCreateSchema>
       { source: normalizeAxSource(input.source, 'api') },
     );
     ctx.emit('ax-state-changed', { workItem });
+    // The status mirror writes data.axWorkStatus onto linked nodes, but this
+    // op is mutates:false (AX writes must not spam layout frames) — so emit
+    // the ONE layout frame ourselves when links exist, or open boards never
+    // see the chip until an unrelated mutation happens to refresh them.
+    if (workItem.nodeIds.length > 0) {
+      ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
+    }
     return { ok: true, workItem } as unknown as Record<string, unknown>;
   },
 });
@@ -225,6 +232,12 @@ const axWorkUpdateOperation = defineOperation<z.infer<typeof axWorkUpdateSchema>
     );
     if (!workItem) throw new OperationError('work item not found.', 404);
     ctx.emit('ax-state-changed', { workItem });
+    // Same as create: the mirror touched node data only if the patch carried
+    // status or nodeIds — emit the layout frame those chips need (this op is
+    // mutates:false, so nothing else will).
+    if (input.status !== undefined || input.nodeIds !== undefined) {
+      ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
+    }
     return { ok: true, workItem } as unknown as Record<string, unknown>;
   },
 });

@@ -27,7 +27,7 @@ import { buildCanvasAxContext } from '../../ax-context.js';
 import type { PmxAxPolicy } from '../../ax-state.js';
 import { defineOperation, type Operation } from '../types.js';
 import { isRecord } from './nodes.js';
-import { normalizeAxNodeIds, normalizeAxSource } from './ax-shared.js';
+import { AX_SOURCES, normalizeAxNodeIds, normalizeAxSource } from './ax-shared.js';
 
 // ── ax.get (canvas_get_ax) ────────────────────────────────────
 
@@ -112,7 +112,7 @@ const axFocusSetOperation = defineOperation<z.infer<typeof axFocusSetSchema>, Re
     extraShape: {
       nodeIds: z.array(z.string()).describe('Node IDs to place in the AX focus field. Missing nodes are ignored.'),
       source: z
-        .enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
+        .enum(AX_SOURCES)
         .optional()
         .describe(
           'Optional host/source label for adapter-originated focus. Defaults to mcp. Use codex from the Codex app adapter.',
@@ -167,7 +167,7 @@ const axPolicySetOperation = defineOperation<z.infer<typeof axPolicySetSchema>, 
         })
         .optional(),
       prompt: z.object({ systemAppend: z.string().optional(), mode: z.string().optional() }).optional(),
-      source: z.enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system']).optional(),
+      source: z.enum(AX_SOURCES).optional(),
     },
     // Legacy MCP tool forwarded only the present tools/prompt fields (source split out).
     buildInput: (input) => ({
@@ -236,10 +236,7 @@ const axHostCapabilityReportOperation = defineOperation<
       files: z.boolean().optional(),
       uiPrompts: z.boolean().optional(),
       raw: z.record(z.string(), z.unknown()).optional().describe('Optional raw capability payload for diagnostics.'),
-      source: z
-        .enum(['agent', 'api', 'browser', 'cli', 'codex', 'copilot', 'mcp', 'sdk', 'system'])
-        .optional()
-        .describe('Optional host/source label. Defaults to mcp.'),
+      source: z.enum(AX_SOURCES).optional().describe('Optional host/source label. Defaults to mcp.'),
     },
     buildInput: (input) => ({ ...input, source: normalizeAxSource(input.source, 'mcp') }),
     formatResult: (result) => {

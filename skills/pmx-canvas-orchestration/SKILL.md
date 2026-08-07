@@ -20,8 +20,9 @@ it, or the board silently diverges from reality.
 - One canvas node + one work item per subagent, created BY THE ORCHESTRATOR at spawn time
   (title = the agentId). The subagent updates its own work item; it never creates its own
   identity row.
-- Tag every run: put the same `data.runId` on every node and pass `agentId`-scoped work items
-  a `data.runId` too, so consecutive orchestrations don't interleave in the bounded timeline.
+- Tag every run: put the same `data.runId` on every NODE (work items carry no free-form data —
+  their run scoping comes from the run-prefixed `agentId`, e.g. `run7:impl-auth`), so
+  consecutive orchestrations don't interleave in the bounded timeline.
 
 ## Graph semantics
 
@@ -34,8 +35,8 @@ it, or the board silently diverges from reality.
 
 ## Status discipline
 
-- Work-item status is the single source of step state: `pending → in-progress → done`
-  (or `blocked`). Update the work item FIRST; linked nodes mirror the status automatically
+- Work-item status is the single source of step state: `todo → in-progress → done`
+  (or `blocked` / `cancelled`). Update the work item FIRST; linked nodes mirror the status automatically
   (0.4.5+) — do not hand-edit a status node to fake progress.
 - Signal `canvas_intent` before each phase of visible board mutation (the auto-ghost floor
   covers forgotten signals, but only an explicit signal gives the human a veto window and your

@@ -1758,12 +1758,15 @@ class CanvasStateManager {
     for (const nodeId of nodeIds) {
       const node = this.nodes.get(nodeId);
       if (!node) continue;
+      // No-op guard: a title-/agentId-only work-item patch must not push
+      // history entries and SSE churn for chips that aren't changing.
+      if (node.data.axWorkStatus === status) continue;
       this.updateNode(nodeId, { data: { ...node.data, axWorkStatus: status } });
     }
     for (const nodeId of previousNodeIds) {
       if (nodeIds.includes(nodeId)) continue;
       const node = this.nodes.get(nodeId);
-      if (!node) continue;
+      if (!node || node.data.axWorkStatus === undefined) continue;
       const data = { ...node.data };
       delete data.axWorkStatus;
       this.updateNode(nodeId, { data });

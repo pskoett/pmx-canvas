@@ -4867,6 +4867,30 @@ describe('canvas server HTTP API', () => {
     expect(fifo.totalPending).toBeUndefined(); // delivery shape NOT changed
   });
 
+  test('loop prevention also keys on agentId: a consumer never claims a broadcast steer it originated as an agent', async () => {
+    const tag = `loop-agent-${Date.now()}`;
+    // Orchestrator (agentId within the mcp host) posts a BROADCAST steer.
+    await fetch(`${baseUrl}/api/canvas/ax/steer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: tag, source: 'mcp', agentId: 'orchestrator' }),
+    });
+    type Pending = { pending: Array<{ message: string }> };
+    const pendingFor = async (consumer: string) =>
+      (
+        (await (
+          await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=${consumer}&limit=200`)
+        ).json()) as Pending
+      ).pending.map((s) => s.message);
+
+    // Claiming under its own agentId must NOT surface its own steer…
+    expect(await pendingFor('orchestrator')).not.toContain(tag);
+    // …and claiming under the originating host label stays excluded as before…
+    expect(await pendingFor('mcp')).not.toContain(tag);
+    // …while any other consumer still receives the broadcast.
+    expect(await pendingFor('impl-auth')).toContain(tag);
+  });
+
   test('#68: delivery claim accepts order=newest to surface the latest steering first; default stays oldest-first FIFO', async () => {
     const tag = `s68-${Date.now()}`;
     const n = 8;
