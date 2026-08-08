@@ -121,12 +121,14 @@ const focusOperation = defineOperation<z.infer<typeof focusSchema>, Record<strin
     if (!node) throw new OperationError(`Node "${nodeId}" not found.`, 404);
     const noPan = body.noPan === true;
     if (!noPan) {
-      // Screen-space margins, converted to world units by the current zoom
-      // (0.4.5 report Finding Z): a fixed 100 world-px margin shrank below the
-      // floating HUD toolbar's height at low scales, hiding the focused
-      // node's title bar behind it. 96px clears the 44px toolbar with room.
+      // The viewport is a SCREEN-space translate: screen = world * scale + v
+      // (CanvasViewport's matrix(scale,0,0,scale,x,y)), the same convention
+      // fitCanvasView and the client's focusNode use. So park the node's
+      // top-left at a fixed screen-space margin — 64/96 screen px, which
+      // clears the 44px floating toolbar at ANY zoom (0.4.5 report Finding Z:
+      // the old world-space margin shrank below the toolbar at low scales).
       const scale = canvasState.viewport.scale || 1;
-      canvasState.setViewport({ x: node.position.x - 64 / scale, y: node.position.y - 96 / scale });
+      canvasState.setViewport({ x: 64 - node.position.x * scale, y: 96 - node.position.y * scale });
     } else {
       const maxZ = canvasState.getLayout().nodes.reduce((max, layoutNode) => Math.max(max, layoutNode.zIndex), 0);
       canvasState.updateNode(nodeId, { zIndex: maxZ + 1 });

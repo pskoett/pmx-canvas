@@ -365,11 +365,20 @@ export function buildJsonRenderNodeUpdate(
   if (node.type !== 'json-render') throw new Error(`Node "${node.id}" is not a json-render node.`);
   const spec = normalizeAndValidateJsonRenderSpec(input.spec);
   const title = input.title?.trim() || inferJsonRenderNodeTitle(spec);
+  // Bump specVersion so the viewer URL changes: the iframe src is keyed on
+  // nodeId + ?v=specVersion, and the viewer only reads the spec at document
+  // load. Without the bump the src is byte-identical after a content update,
+  // the iframe never reloads, and the node renders stale forever (the live
+  // workboard's refresh depends on this).
+  const prevVersion = typeof node.data.specVersion === 'number' ? node.data.specVersion : 0;
   return {
     spec,
     data: {
       ...node.data,
-      ...createJsonRenderNodeData(node.id, title, spec, { viewerType: 'json-render' }),
+      ...createJsonRenderNodeData(node.id, title, spec, {
+        viewerType: 'json-render',
+        specVersion: prevVersion + 1,
+      }),
     },
   };
 }

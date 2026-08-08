@@ -1654,9 +1654,13 @@ describe('canvas server HTTP API', () => {
     const state = (await fetch(`${baseUrl}/api/canvas/state`).then((r) => r.json())) as {
       viewport: { x: number; y: number; scale: number };
     };
-    // World margin = screen margin / scale → 96/0.42 ≈ 228 world px above the node.
-    expect(state.viewport.y).toBeCloseTo(5000 - 96 / 0.42, 0);
-    expect(state.viewport.x).toBeCloseTo(5000 - 64 / 0.42, 0);
+    // The real contract (Finding Z): the node must land at a fixed SCREEN
+    // margin at any zoom. screen = world * scale + viewport (the canvas
+    // transform), so assert the node's on-screen position, not raw numbers —
+    // a viewport assertion alone passed while the node sat thousands of px
+    // off-screen.
+    expect(5000 * state.viewport.scale + state.viewport.x).toBeCloseTo(64, 0);
+    expect(5000 * state.viewport.scale + state.viewport.y).toBeCloseTo(96, 0);
 
     await fetch(`${baseUrl}/api/canvas/viewport`, {
       method: 'POST',
@@ -3980,9 +3984,14 @@ describe('canvas server HTTP API', () => {
     expect(focused.focused).toBe(created.id);
 
     const afterFocus = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
-    // Focus margins are screen-space (64px left, 96px top — Finding Z): at
-    // scale 1 that is 640-64 / 480-96.
-    expect(afterFocus.viewport).toEqual({ x: 576, y: 384, scale: 1 });
+    // Focus margins are screen-space (64px left, 96px top — Finding Z):
+    // screen = world * scale + viewport, so the node's top-left lands on the
+    // margin regardless of where it sits in world space.
+    const focusView = afterFocus.viewport;
+    if (!focusView) throw new Error('viewport missing from state');
+    expect(focusView.scale).toBe(1);
+    expect(640 * focusView.scale + focusView.x).toBeCloseTo(64, 0);
+    expect(480 * focusView.scale + focusView.y).toBeCloseTo(96, 0);
 
     const history = await jsonRequest<{
       text: string;
@@ -4007,7 +4016,7 @@ describe('canvas server HTTP API', () => {
     expect(redone.description).toContain('Updated viewport');
 
     const afterRedo = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
-    expect(afterRedo.viewport).toEqual({ x: 576, y: 384, scale: 1 });
+    expect(afterRedo.viewport).toEqual(focusView);
   });
 
   test('updates viewport directly over HTTP', async () => {

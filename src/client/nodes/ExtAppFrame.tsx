@@ -472,6 +472,12 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
         remountQueuedRef.current = false;
         if (unmountedRef.current || expandedNodeId.value === nodeId) {
           extAppRecoveryLog(nodeId, 'remount-skipped');
+          // The ladder left paintPending set on the promise that this remount
+          // would re-enter it via the new frame's settle path. A skip means
+          // that never happens — release the overlay here, or the tile spins
+          // "Finishing paint…" forever with no Retry (the expanded overlay
+          // mounts its own frame, and closing it re-runs the inline ladder).
+          setPaintPending(false);
           return false;
         }
         // Stamp visibility at RUN time, not schedule time: the serialized queue
@@ -1340,7 +1346,10 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
             <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
           </div>
         )}
-        {!isExpanded && (
+        {/* Suppressed while the recovery card is up: the catcher is rendered
+            last and would paint over the centred Retry button, swallowing the
+            click that is the ladder's only actionable terminal rung. */}
+        {!isExpanded && !(recoveryExhausted && !error) && (
           <button
             type="button"
             onClick={(e) => {

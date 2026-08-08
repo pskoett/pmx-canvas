@@ -306,6 +306,18 @@ curl -X DELETE "http://localhost:4313/api/canvas/ax/intent/<id>?settledNodeId=no
 curl -X DELETE "http://localhost:4313/api/canvas/ax/intent/<id>?vetoed=true"
 ```
 
+## Live work board
+
+```bash
+# Materialize (or refresh) the one board node showing all AX work items by status.
+curl -X POST http://localhost:4313/api/canvas/workboard \
+  -H 'Content-Type: application/json' -d '{}'
+```
+
+The board is a `json-render` node tagged `data.workboard: true`. Repeat calls
+are idempotent (`created: false`) and the board refreshes itself whenever a
+work item changes — no polling needed.
+
 ## Diagrams (Excalidraw preset)
 
 ```bash

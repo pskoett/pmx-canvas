@@ -3,7 +3,7 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [Unreleased]
+## [0.4.6] - 2026-08-08
 
 ### Added
 
@@ -19,10 +19,6 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 - The skill now teaches in-view placement and content sizing: focus or fit
   newly created user-facing nodes, use per-type default sizes, and keep AX
   state reads lean.
-- Nodes created with unreadably small explicit sizes are now clamped up to a
-  per-type minimum (pass `strictSize: true` for a genuinely small fixed
-  frame), and `validate` reports any undersized nodes as advisory size
-  warnings.
 - A new `diff` node type: unified diffs render with per-file headers, hunk
   rows, and colored added/removed lines instead of a plain code fence.
 - A new `mermaid` node type: flowcharts, sequence and state diagrams render
@@ -35,6 +31,12 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Changed
 
+- **Nodes created with unreadably small explicit sizes are now clamped up to a
+  per-type minimum.** A request for e.g. 200x100 now yields a readable
+  default-ish size instead; pass `strictSize: true` to keep a genuinely small
+  fixed frame. `validate` reports any undersized nodes as advisory size
+  warnings. Agents doing their own layout arithmetic should read back the
+  created size (or set `strictSize`).
 - The README's MCP and Amp orb setup guides now cover portable configs: pin
   the package version in orb setup scripts and avoid hard-coding an absolute
   `PMX_CANVAS_WORKSPACE_ROOT` in committed MCP configs.
@@ -3042,6 +3044,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.4.6]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.6
 [0.4.5]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.5
 [0.4.4]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.4
 [0.4.3]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.3

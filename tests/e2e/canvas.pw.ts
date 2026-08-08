@@ -2755,18 +2755,20 @@ test('server-side focus updates the browser viewport', async ({ page, request })
     data: { id: created.id },
   });
 
+  // Finding Z, asserted the way it actually matters: the focused node must end
+  // up ON SCREEN at the margin. The previous expectation (836, 604) matched the
+  // server's numbers while putting the node at screen (1736, 1304) — outside a
+  // 1280x720 viewport. screen = world * scale + translate.
   await expect
     .poll(async () => {
       return await page.evaluate(() => {
-        const viewport = document.querySelector(
-          '.canvas-viewport > div[style*="position: absolute"]',
-        ) as HTMLElement | null;
-        return viewport?.style.transform ?? null;
+        const node = document.querySelector('.canvas-node') as HTMLElement | null;
+        if (!node) return null;
+        const box = node.getBoundingClientRect();
+        return { x: Math.round(box.left), y: Math.round(box.top) };
       });
     })
-    // Focus margins are screen-space (64px left, 96px top — Finding Z): at
-    // scale 1 the node at (900, 700) puts the viewport at (836, 604).
-    .toContain('matrix(1, 0, 0, 1, 836, 604)');
+    .toEqual({ x: 64, y: 96 });
 });
 
 test('authoritative viewport updates from the server override browser startup state', async ({ page, request }) => {

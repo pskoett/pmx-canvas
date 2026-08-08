@@ -154,11 +154,13 @@ async function checkNodeLifecycle(invoker: HttpOperationInvoker): Promise<SmokeC
     const node = isRecord(added) && isRecord(added.node) ? added.node : null;
     nodeId = node && typeof node.id === 'string' ? node.id : null;
     if (!nodeId) return { name, ok: false, detail: `node.add returned no node id: ${JSON.stringify(added)}` };
-    if (!(await searchHits()).has(nodeId)) {
-      return { name, ok: false, detail: `search did not find the created node ${nodeId}` };
-    }
+    const found = (await searchHits()).has(nodeId);
+    // Remove BEFORE reporting either way: an early return here (search miss —
+    // exactly the version-skew case this command exists to detect) would skip
+    // the catch-block cleanup and park the temp node on the user's real board.
     await invoker.invoke('node.remove', { id: nodeId });
     nodeId = null;
+    if (!found) return { name, ok: false, detail: 'search did not find the created node' };
     return { name, ok: true, detail: 'create → search → remove round-trip ok' };
   } catch (error) {
     // Best-effort cleanup so a failed smoke never leaves its temp node behind.

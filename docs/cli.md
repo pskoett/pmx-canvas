@@ -201,6 +201,18 @@ pmx-canvas ax policy get
 pmx-canvas ax policy set --excluded-tools shell,write --mode concise
 ```
 
+## Environment smoke check
+
+```bash
+pmx-canvas smoke                 # one-command check of a running canvas
+pmx-canvas smoke --port 4750     # target a specific daemon
+```
+
+Verifies server health + workspace, CLI/server version skew, the MCP
+initialize handshake, a temporary node create/search/remove round-trip (the
+temp node is always removed, including on failure), and board validation.
+Prints a JSON report and exits 1 if any check fails.
+
 ## Copilot adapter
 
 Install the bundled GitHub Copilot extension adapter into a repo. The adapter
