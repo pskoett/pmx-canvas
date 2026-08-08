@@ -53,6 +53,14 @@ export declare function buildAxStateBridge(axToken: string, snapshotJson: string
  * and the json-render injection site stay byte-identical (no drift).
  */
 export declare function buildContentHeightReporter(frameToken: string): string;
+/**
+ * Author-HTML fragment for a `mermaid` node surface: the HTML-escaped diagram
+ * source in a hidden `<pre>` the entry script reads back via textContent, plus
+ * the separately-built renderer bundle (dist/canvas/mermaid-entry.js — kept out
+ * of the main SPA bundle). Escaping is mandatory: the source is arbitrary node
+ * data and must not be parsed as markup.
+ */
+export declare function buildMermaidSurfaceHtml(source: string): string;
 export interface HtmlSurfaceOptions {
     theme: SurfaceTheme;
     /**

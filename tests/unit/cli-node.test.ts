@@ -642,6 +642,32 @@ describe('agent CLI node commands', () => {
     expect(timelineOut.evidence.length).toBeGreaterThan(0);
   });
 
+  test('ax steer forwards --agent-id and --target onto the steering row', async () => {
+    const log = mock((..._args: unknown[]) => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['ax', 'steer', 'wave 2 is unblocked', '--agent-id', 'orchestrator', '--target', 'builder-1']);
+    } finally {
+      console.log = originalLog;
+    }
+
+    const steerOut = JSON.parse(log.mock.calls[0]?.[0] as string) as {
+      ok: boolean;
+      steering: { id: string; message: string; agentId: string | null; target: string | null };
+    };
+    expect(steerOut.steering).toMatchObject({
+      message: 'wave 2 is unblocked',
+      agentId: 'orchestrator',
+      target: 'builder-1',
+    });
+
+    const stored = canvasState.getAxTimeline().steering.find((s) => s.id === steerOut.steering.id);
+    expect(stored?.agentId).toBe('orchestrator');
+    expect(stored?.target).toBe('builder-1');
+  });
+
   test('ax canvas-bound commands manage work items, approvals, reviews, and host capability', async () => {
     const node = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
       method: 'POST',
@@ -761,12 +787,30 @@ describe('agent CLI node commands', () => {
     await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'markdown', title: 'Fit A', x: 100, y: 100, width: 200, height: 100 }),
+      // strictSize: this test asserts fit MATH on exact geometry; the creation
+      // floor clamp (360x180) would otherwise shift the bounds.
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'Fit A',
+        x: 100,
+        y: 100,
+        width: 200,
+        height: 100,
+        strictSize: true,
+      }),
     });
     await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'markdown', title: 'Fit B', x: 700, y: 500, width: 300, height: 200 }),
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'Fit B',
+        x: 700,
+        y: 500,
+        width: 300,
+        height: 200,
+        strictSize: true,
+      }),
     });
 
     const log = mock((..._args: unknown[]) => {});

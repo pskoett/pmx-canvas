@@ -17,6 +17,8 @@ const EXPECTED_FRAMES: Record<CanvasNodeState['type'], { x: number; y: number; w
   ledger: { x: 1130, y: 520, w: 320, h: 280 },
   trace: { x: 40, y: 900, w: 200, h: 56 },
   file: { x: 380, y: 80, w: 720, h: 600 },
+  diff: { x: 380, y: 80, w: 640, h: 420 },
+  mermaid: { x: 380, y: 80, w: 640, h: 460 },
   image: { x: 380, y: 80, w: 720, h: 520 },
   html: { x: 380, y: 80, w: 720, h: 640 },
   group: { x: 220, y: 60, w: 840, h: 560 },

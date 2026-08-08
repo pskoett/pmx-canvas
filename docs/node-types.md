@@ -15,6 +15,8 @@ see [MCP tools](mcp.md), [HTTP API](http-api.md), and [SDK](sdk.md).
 | `ledger` | Execution ledger summary |
 | `trace` | Agent trace pills (tool calls, subagent activity) |
 | `file` | Live file viewer with auto-update on disk changes |
+| `diff` | Unified diff viewer: per-file headers, hunk rows, +/− colored lines |
+| `mermaid` | Mermaid diagram rendered client-side from text (flowchart, sequence, state, …) |
 | `image` | Image viewer (file paths, data URIs, URLs) |
 | `webpage` | Persisted webpage snapshot with stored URL, extracted text, refresh |
 | `mcp-app` | Tool-backed hosted MCP App iframes (Excalidraw, etc.) |

@@ -95,6 +95,9 @@ Prefer extending the existing suites before inventing a one-off script.
 - When checking embedded frame fit manually, start from a clean seeded state, rebuild stale bundles,
   and inspect the actual iframe document in a browser. Server dimensions can look correct while the
   embedded content is still clipped.
+- User-facing creation flows must end with the new nodes visible: after the create (plus the
+  skill-mandated focus/fit), a screenshot must show them without any manual pan. A `panned: true`
+  API result alone is not proof — verify the frame is on-screen and unobscured.
 
 ## Failure Handling
 

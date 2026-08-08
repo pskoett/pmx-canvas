@@ -21,6 +21,7 @@ export const AUTO_FIT_BODY_PADDING = 24;
 function isIframeNode(node: CanvasNodeState): boolean {
   return (
     node.type === 'html' ||
+    node.type === 'mermaid' ||
     node.type === 'json-render' ||
     node.type === 'graph' ||
     node.type === 'mcp-app' ||
@@ -33,6 +34,7 @@ function isIframeNode(node: CanvasNodeState): boolean {
  *  viewers (unbounded/scrolling content that must not drive node height). */
 function isContentFitSurface(node: CanvasNodeState): boolean {
   if (node.type === 'html') return node.data.presentation !== true;
+  if (node.type === 'mermaid') return true;
   if (node.type === 'json-render' || node.type === 'graph') return true;
   if (node.type === 'mcp-app') return node.data.viewerType === 'web-artifact';
   return false;

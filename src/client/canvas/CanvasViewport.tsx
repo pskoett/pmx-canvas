@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { ContextNode } from '../nodes/ContextNode';
+import { DiffNode } from '../nodes/DiffNode';
 import { FileNode } from '../nodes/FileNode';
 import { LedgerNode } from '../nodes/LedgerNode';
 import { MarkdownNode } from '../nodes/MarkdownNode';
+import { MermaidNode } from '../nodes/MermaidNode';
 import { McpAppNode } from '../nodes/McpAppNode';
 import { StatusNode } from '../nodes/StatusNode';
 import { ImageNode } from '../nodes/ImageNode';
@@ -64,6 +66,10 @@ function renderNodeContent(node: CanvasNodeState) {
       return <TraceNode node={node} />;
     case 'file':
       return <FileNode node={node} />;
+    case 'diff':
+      return <DiffNode node={node} />;
+    case 'mermaid':
+      return <MermaidNode node={node} />;
     case 'image':
       return <ImageNode node={node} />;
     case 'html':

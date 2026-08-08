@@ -211,6 +211,17 @@ function escapeSurfaceHtml(value: string): string {
   return value.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 }
 
+/**
+ * Author-HTML fragment for a `mermaid` node surface: the HTML-escaped diagram
+ * source in a hidden `<pre>` the entry script reads back via textContent, plus
+ * the separately-built renderer bundle (dist/canvas/mermaid-entry.js — kept out
+ * of the main SPA bundle). Escaping is mandatory: the source is arbitrary node
+ * data and must not be parsed as markup.
+ */
+export function buildMermaidSurfaceHtml(source: string): string {
+  return `<pre class="mermaid-source" style="display:none">${escapeSurfaceHtml(source)}</pre><script src="/canvas/mermaid-entry.js"></script>`;
+}
+
 export interface HtmlSurfaceOptions {
   theme: SurfaceTheme;
   /**

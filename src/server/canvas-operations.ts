@@ -17,6 +17,7 @@ import {
   type ExternalMcpTransportConfig,
 } from './mcp-app-runtime.js';
 import { mutationHistory } from './mutation-history.js';
+import { clampCreateNodeSize } from './canvas-validation.js';
 import { computeGroupBounds, findOpenCanvasPosition } from './placement.js';
 import { searchNodes } from './spatial-analysis.js';
 import { getCanvasNodeTitle } from './canvas-serialization.js';
@@ -113,6 +114,10 @@ export const MCP_APP_NODE_DEFAULT_SIZE = { width: 960, height: 600 };
 // width bump is the reliable lever.
 export const IMAGE_NODE_DEFAULT_SIZE = { width: 480, height: 360 };
 export const LEDGER_NODE_DEFAULT_SIZE = { width: 420, height: 280 };
+
+// Per-type minimum creation sizes + clamp live in canvas-validation.ts
+// (NODE_MIN_CREATE_SIZES / clampCreateNodeSize) — shared with the validate
+// surface's sizeWarnings.
 
 interface CanvasCreateGroupInput {
   title?: string;
@@ -906,8 +911,12 @@ export function addCanvasNode(input: CanvasAddNodeInput): {
     throw new Error(`Use the dedicated ${input.type} node APIs for structured viewer nodes.`);
   }
 
-  const width = input.width ?? input.defaultWidth ?? 720;
-  const height = input.height ?? input.defaultHeight ?? 600;
+  const { width, height } = clampCreateNodeSize(
+    input.type,
+    input.width ?? input.defaultWidth ?? 720,
+    input.height ?? input.defaultHeight ?? 600,
+    input.strictSize,
+  );
   const position =
     input.x !== undefined && input.y !== undefined
       ? { x: input.x, y: input.y }
@@ -1540,8 +1549,12 @@ export function createCanvasJsonRenderNode(input: JsonRenderNodeInput): {
   node: CanvasNodeState;
 } {
   const spec = normalizeAndValidateJsonRenderSpec(input.spec);
-  const width = input.width ?? JSON_RENDER_NODE_SIZE.width;
-  const height = input.height ?? JSON_RENDER_NODE_SIZE.height;
+  const { width, height } = clampCreateNodeSize(
+    'json-render',
+    input.width ?? JSON_RENDER_NODE_SIZE.width,
+    input.height ?? JSON_RENDER_NODE_SIZE.height,
+    input.strictSize,
+  );
   const position =
     input.x !== undefined && input.y !== undefined
       ? { x: input.x, y: input.y }
@@ -1580,8 +1593,12 @@ export function createCanvasStreamingJsonRenderNode(input: {
   strictSize?: boolean;
 }): { id: string; url: string; spec: JsonRenderSpec; node: CanvasNodeState } {
   const spec = emptyStreamingSpec();
-  const width = input.width ?? JSON_RENDER_NODE_SIZE.width;
-  const height = input.height ?? JSON_RENDER_NODE_SIZE.height;
+  const { width, height } = clampCreateNodeSize(
+    'json-render',
+    input.width ?? JSON_RENDER_NODE_SIZE.width,
+    input.height ?? JSON_RENDER_NODE_SIZE.height,
+    input.strictSize,
+  );
   const position =
     input.x !== undefined && input.y !== undefined
       ? { x: input.x, y: input.y }
@@ -1652,8 +1669,12 @@ export function createCanvasGraphNode(input: GraphNodeInput): {
 } {
   const title = input.title?.trim() || 'Graph';
   const spec = buildGraphSpec(input);
-  const width = input.width ?? GRAPH_NODE_SIZE.width;
-  const height = input.heightPx ?? GRAPH_NODE_SIZE.height;
+  const { width, height } = clampCreateNodeSize(
+    'graph',
+    input.width ?? GRAPH_NODE_SIZE.width,
+    input.heightPx ?? GRAPH_NODE_SIZE.height,
+    input.strictSize,
+  );
   const position =
     input.x !== undefined && input.y !== undefined
       ? { x: input.x, y: input.y }

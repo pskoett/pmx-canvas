@@ -53,6 +53,7 @@ cmd(
   [
     'pmx-canvas ax event add --kind tool-start --summary "ran tests"',
     'pmx-canvas ax event add --kind failure --summary "build broke" --detail "..." node1 node2',
+    'pmx-canvas ax event add --kind tool-start --summary "ran tests" --agent-id builder-1',
   ],
   async (args) => {
     const { positional, flags } = parseFlags(args);
@@ -61,12 +62,14 @@ cmd(
     const kind = requireFlag(flags, 'kind', 'pmx-canvas ax event add --kind <kind> --summary <text>');
     const summary = requireFlag(flags, 'summary', 'pmx-canvas ax event add --kind <kind> --summary <text>');
     const detail = getStringFlag(flags, 'detail');
+    const agentId = getStringFlag(flags, 'agent-id');
 
     output(
       await invokeOperation('ax.event.record', {
         kind,
         summary,
         ...(detail ? { detail } : {}),
+        ...(agentId ? { agentId } : {}),
         ...(positional.length > 0 ? { nodeIds: positional } : {}),
         source: resolveAxSource(flags),
       }),
@@ -77,7 +80,11 @@ cmd(
 cmd(
   'ax steer',
   'Send a steering message to the active agent session',
-  ['pmx-canvas ax steer "focus on the failing test first"', 'pmx-canvas ax steer --message "stop and re-plan"'],
+  [
+    'pmx-canvas ax steer "focus on the failing test first"',
+    'pmx-canvas ax steer --message "stop and re-plan"',
+    'pmx-canvas ax steer "wave 2 is unblocked" --agent-id orchestrator --target builder-1',
+  ],
   async (args) => {
     const { positional, flags } = parseFlags(args);
     if (flags.help || flags.h) return showCommandHelp('ax steer');
@@ -86,8 +93,17 @@ cmd(
     if (!message) {
       die('Missing steering message', 'pmx-canvas ax steer <message>');
     }
+    const agentId = getStringFlag(flags, 'agent-id');
+    const target = getStringFlag(flags, 'target');
 
-    output(await invokeOperation('ax.steer', { message, source: resolveAxSource(flags) }));
+    output(
+      await invokeOperation('ax.steer', {
+        message,
+        ...(agentId ? { agentId } : {}),
+        ...(target ? { target } : {}),
+        source: resolveAxSource(flags),
+      }),
+    );
   },
 );
 
@@ -374,6 +390,7 @@ cmd(
   [
     'pmx-canvas ax work add --title "Wire up auth" --status in-progress',
     'pmx-canvas ax work add --title "Review API" node1 node2',
+    'pmx-canvas ax work add --title "Wire up auth" --agent-id builder-1',
   ],
   async (args) => {
     const { positional, flags } = parseFlags(args);
@@ -382,12 +399,14 @@ cmd(
     const title = requireFlag(flags, 'title', 'pmx-canvas ax work add --title <text>');
     const status = getStringFlag(flags, 'status');
     const detail = getStringFlag(flags, 'detail');
+    const agentId = getStringFlag(flags, 'agent-id');
 
     output(
       await invokeOperation('ax.work.create', {
         title,
         ...(status ? { status } : {}),
         ...(detail ? { detail } : {}),
+        ...(agentId ? { agentId } : {}),
         ...(positional.length > 0 ? { nodeIds: positional } : {}),
         source: resolveAxSource(flags),
       }),
@@ -398,7 +417,11 @@ cmd(
 cmd(
   'ax work update',
   'Update a canvas-bound AX work item by ID',
-  ['pmx-canvas ax work update <id> --status done', 'pmx-canvas ax work update <id> --title "New title" --detail "..."'],
+  [
+    'pmx-canvas ax work update <id> --status done',
+    'pmx-canvas ax work update <id> --title "New title" --detail "..."',
+    'pmx-canvas ax work update <id> --agent-id builder-2',
+  ],
   async (args) => {
     const { positional, flags } = parseFlags(args);
     if (flags.help || flags.h) return showCommandHelp('ax work update');
@@ -408,6 +431,7 @@ cmd(
     const title = getStringFlag(flags, 'title');
     const status = getStringFlag(flags, 'status');
     const detail = getStringFlag(flags, 'detail');
+    const agentId = getStringFlag(flags, 'agent-id');
 
     output(
       await invokeOperation('ax.work.update', {
@@ -415,6 +439,7 @@ cmd(
         ...(title ? { title } : {}),
         ...(status ? { status } : {}),
         ...(detail ? { detail } : {}),
+        ...(agentId ? { agentId } : {}),
         ...(positional.length > 1 ? { nodeIds: positional.slice(1) } : {}),
         source: resolveAxSource(flags),
       }),

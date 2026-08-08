@@ -47,6 +47,7 @@ import {
   buildAxStateBridge,
   buildContentHeightReporter,
   buildHtmlSurfaceDocument,
+  buildMermaidSurfaceHtml,
   HTML_SURFACE_SANDBOX,
   normalizeSurfaceTheme,
 } from './html-surface.js';
@@ -1004,6 +1005,7 @@ function canvasSpaHtml(): string {
     // (see src/client/state/iframe-mode.ts).
     process.env.AMP_ORB ? '<script>window.__PMX_AMP_ORB = true;</script>' : ''
   }
+  <script>window.__PMX_BOOT_SERVER_VERSION = ${JSON.stringify(serverPackageVersion())};</script>
   <script type="module" src="/canvas/index.js?v=${CANVAS_ASSET_VERSION}"></script>
 </body>
 </html>`;
@@ -1271,6 +1273,28 @@ function handleNodeSurface(pathname: string, url: URL): Response {
 
   const theme = normalizeSurfaceTheme(url.searchParams.get('theme'));
 
+  if (node.type === 'mermaid') {
+    const source = typeof node.data.content === 'string' ? node.data.content : '';
+    if (!source.trim()) return responseText('Mermaid node has no content', 404);
+    const surfaceTitle = typeof node.data.title === 'string' && node.data.title.trim() ? node.data.title : node.id;
+    // Display-only surface: same theme/height plumbing as html nodes, but no AX
+    // bridge and no presentation mode — the document is our own wrapper around
+    // escaped diagram source, rendered by /canvas/mermaid-entry.js.
+    const doc = buildHtmlSurfaceDocument(buildMermaidSurfaceHtml(source), {
+      theme,
+      title: surfaceTitle,
+      themeToken: url.searchParams.get('themeToken') ?? undefined,
+      // Content-height reporter nonce (lets the node grow to fit the diagram).
+      ...(url.searchParams.get('frameToken')
+        ? { contentHeightToken: url.searchParams.get('frameToken') as string }
+        : {}),
+      // Inline the theme tokens so srcdoc-rendered surfaces (Amp orb portals)
+      // are styled without depending on the <link> subresource.
+      ...(surfaceThemeCssInline() ? { inlineThemeCss: surfaceThemeCssInline() as string } : {}),
+    });
+    return surfaceHtmlResponse(doc, HTML_SURFACE_SANDBOX);
+  }
+
   if (node.type === 'html') {
     const html =
       typeof node.data.html === 'string'
@@ -1447,6 +1471,23 @@ function responseJson(data: unknown, status = 200): Response {
       'Cache-Control': 'no-store',
     },
   });
+}
+
+// Resolved from the sibling package.json so it stays accurate through bunx,
+// global npm installs, and repo-local runs — same mechanism as --version in
+// src/cli/index.ts and the MCP server. Memoized: /health is polled.
+let cachedPackageVersion: string | null = null;
+function serverPackageVersion(): string {
+  if (cachedPackageVersion !== null) return cachedPackageVersion;
+  try {
+    const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf-8')) as {
+      version?: string;
+    };
+    cachedPackageVersion = pkg.version ?? 'unknown';
+  } catch {
+    cachedPackageVersion = 'unknown';
+  }
+  return cachedPackageVersion;
 }
 
 // v0.4.0 (M4): every hand-written error response is a JSON envelope
@@ -1799,6 +1840,9 @@ function buildWorkbenchConnectSnapshot(
       continuity,
       path: primaryWorkbenchPath,
       theme: canvasState.theme,
+      // Lets a long-lived client detect that the server was upgraded under it
+      // (stale in-memory SPA — 0.4.5 report Finding W) and reload once.
+      version: serverPackageVersion(),
       timestamp: new Date().toISOString(),
     },
   });
@@ -3038,11 +3082,14 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
             // when the pid file is stale (e.g. an adapter respawned the server
             // outside `serve --daemon` — 0.3.2 report Finding P). `persistence`
             // surfaces silent save failures (M4): the canvas keeps serving from
-            // memory, but ok:false means durability is degraded.
+            // memory, but ok:false means durability is degraded. `version` lets
+            // `pmx-canvas smoke` verify the RUNNING server, not just the CLI —
+            // version skew between the two is a known failure mode.
             return responseJson({
               ok: true,
               workspace: activeWorkspaceRoot,
               pid: process.pid,
+              version: serverPackageVersion(),
               persistence: canvasState.persistenceHealth,
             });
           }

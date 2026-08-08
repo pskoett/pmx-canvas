@@ -210,6 +210,39 @@ const CANVAS_CREATE_TYPES: CanvasCreateTypeSchema[] = [
     ],
   },
   {
+    type: 'diff',
+    kind: 'node',
+    description: 'Unified diff viewer with per-file sections and colored add/remove lines.',
+    endpoint: '/api/canvas/node',
+    mcpTool: 'canvas_node (action:"add")',
+    fields: [
+      { name: 'title', type: 'string', required: false, description: 'Optional node title.' },
+      { name: 'content', type: 'string', required: false, description: 'Unified diff text (git or raw hunks).' },
+    ],
+    example: {
+      type: 'diff',
+      title: 'Fix null check',
+      content: '--- a/src/app.ts\n+++ b/src/app.ts\n@@ -1,3 +1,3 @@\n-const a = b.c;\n+const a = b?.c;\n context',
+    },
+  },
+  {
+    type: 'mermaid',
+    kind: 'node',
+    description:
+      'Text-to-diagram node rendered client-side with Mermaid (flowcharts, sequence, state, class diagrams, …).',
+    endpoint: '/api/canvas/node',
+    mcpTool: 'canvas_node (action:"add")',
+    fields: [
+      { name: 'title', type: 'string', required: false, description: 'Optional node title.' },
+      { name: 'content', type: 'string', required: false, description: 'Mermaid diagram source text.' },
+    ],
+    example: {
+      type: 'mermaid',
+      title: 'Request flow',
+      content: 'graph TD; A[Client] --> B[Server]; B --> C[(DB)];',
+    },
+  },
+  {
     type: 'image',
     kind: 'node',
     description: 'Image node backed by a path, URL, or data URI.',

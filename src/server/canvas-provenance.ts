@@ -14,6 +14,8 @@ export type CanvasNodeType =
   | 'ledger'
   | 'trace'
   | 'file'
+  | 'diff'
+  | 'mermaid'
   | 'image'
   | 'html'
   | 'group';

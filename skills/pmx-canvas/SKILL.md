@@ -52,6 +52,10 @@ Humans curate agent context by pinning nodes; agents read that curation through
 6. **Mutate through current composites.** Prefer the 16 composite MCP tools below.
 7. **Arrange and validate.** After batch changes, use `canvas_view { action: "arrange" }` when
    appropriate and always finish with `canvas_query { action: "validate" }`.
+7b. **Show the human.** After creating user-facing output, bring the camera to it: a single node
+   gets `canvas_view { action: "focus", id }` (pans by default), a small cluster gets
+   `canvas_view { action: "fit", nodeIds: [...] }` with exactly the new ids. See
+   **In-View Placement & Sizing** below — auto-placement is board-relative, not camera-relative.
 8. **Verify context pins.** Pin with `canvas_pin_nodes` or the browser's **Pin as context**, then
    read `canvas://pinned-context`.
 9. **Clean up temporary nodes.** Remove retry/test fixtures and restore the baseline snapshot when
@@ -67,6 +71,10 @@ pmx-canvas serve status
 ```
 
 Both surfaces report `workspace`. It must match the intended workspace root.
+For a full environment check in one command (health + workspace, CLI/server
+version skew, MCP initialize handshake, temp-node create/search/remove
+round-trip, board validation), run `pmx-canvas smoke` (0.4.6+) — JSON report,
+exit 1 on failure.
 
 - If `responsive: true` but `pidRunning: false`, treat the listener as potentially stale.
 - On mismatch, do not mutate. Start the intended workspace on an explicit free port:
@@ -97,14 +105,17 @@ Both surfaces report `workspace`. It must match the intended workspace root.
 | Persistent context cards | `context` via `canvas_node` |
 | Event/check stream | `ledger` or `trace` via `canvas_node` |
 | Local source with live updates | `file` via `canvas_node` |
+| Code review / unified diff (0.4.6+) | `diff` via `canvas_node` (content = diff text; link to its file node with a `references` edge) |
+| Flowchart / sequence / state diagram (0.4.6+) | `mermaid` via `canvas_node` (content = mermaid source; renders client-side, no hosted app) |
 | Image | `image` via `canvas_node` |
 | Cached URL content | `webpage` via `canvas_node` |
 | Structured UI | `json-render` via `canvas_render` |
 | Chart | `graph` via `canvas_render` |
+| Live work-item board (0.4.6+) | `canvas_render { action: "workboard" }` — one board node, auto-refreshes on work-item changes |
 | Generated communication surface | HTML primitive via `canvas_node` |
 | Self-contained HTML/JS | `html` via `canvas_node` |
 | Hosted interactive MCP app | `canvas_app { action: "open-mcp-app" }` |
-| Excalidraw diagram | `canvas_app { action: "diagram" }` |
+| Excalidraw diagram (interactive/human drawing) | `canvas_app { action: "diagram" }` — prefer `mermaid` for agent-authored diagrams |
 | Bundled React artifact | `canvas_app { action: "build-artifact" }` |
 
 Use the lightest tier that communicates the result. Do not build a web artifact when markdown,
@@ -163,6 +174,35 @@ v0.4.0 after their deprecated 0.3.x window.
 - Use directed edges for actual relationships, not decoration.
 - Edge types: `flow`, `depends-on`, `relation`, `references`.
 - After manual or batch layout changes, run `canvas_query { action: "validate" }`.
+
+## In-View Placement & Sizing (required for user-facing nodes)
+
+Auto-placement (omitting `x`/`y`) is **board-relative, not camera-relative**: it places right of
+the last node or scans rows from the origin, ignoring where the human is looking. On a board with
+distant nodes, an auto-placed node lands off-camera.
+
+1. Omit `x`/`y` only on an empty or locally dense board. Otherwise place near the human's
+   attention: the pinned/focused neighborhood, or explicit coordinates beside the last
+   user-facing output (gap ≥ 24–48 px).
+2. After creating nodes the human should see, pan the camera (operating-sequence step 7b):
+   `focus` for one node, `fit` with exactly the new `nodeIds` for a cluster. Use `noPan`
+   (`focus --no-pan`) only when you must not steal the camera.
+3. Never fit the whole board to "show" new work — on a board with outliers that miniaturizes
+   everything. Always pass explicit `nodeIds` to `fit`.
+4. Never leave user-facing output at far coordinates without a focus/fit.
+
+**Size for content.** Omitting `width`/`height` gives readable per-type defaults — prefer them:
+markdown 640×420, status 360×200, file 520×360, diff 640×420, mermaid 640×460, html 720×640,
+graph 760×520, mcp-app 960×600, web-artifact 960×720. Since 0.4.6 the server clamps explicit creation sizes UP to per-type
+readability floors (e.g. markdown 360×180, graph/json-render/html 420×280, mcp-app 480×320) —
+a tiny probe size silently becomes the floor. `strictSize: true` is the only opt-out (a fixed
+scrolling frame you genuinely want small). `canvas_query { action: "validate" }` additionally
+reports any node below its floor as an advisory `sizeWarnings` entry — treat a non-empty list
+as layout work left to do.
+
+**Token hygiene.** For routine state checks use `canvas_ax_state { action: "get" }` WITHOUT
+`includeContext` — the full AX context payload is ~10× larger; request it only when you are
+actually consuming context.
 
 ## Context Pins
 
@@ -245,24 +285,21 @@ Prefer `canvas_query { action: "search" }` over parsing the full layout.
   renders the same content and theme, but `window.PMX_AX` is not injected without the canvas
   iframe's per-mount nonce, so AX buttons only work inside the in-canvas node (0.4.4 Codex note).
   Do not tell a user a standalone tab's controls will steer the agent.
-- A hosted ext-app (Excalidraw) node that is already on the board when a **WebKit** host panel
-  loads (e.g. the GitHub Copilot app's embedded WKWebView) can render as a black tile — a host
-  compositor paint race on the nested iframe, **not** a broken node (the session is healthy and
-  `sessionStatus` is `ready`; it renders fine in Chrome, the Codex browser, and for nodes created
-  live after the panel hydrates). Under WebKit the canvas ATTEMPTS auto-recovery: after boot,
-  each present-at-load ext-app is remounted through a serialized, boot-aware queue (one app at a
-  time), with a watchdog retry for iframes that never boot and a re-arm when a panel that loaded
-  hidden becomes visible. Treat the auto-recovery as best-effort, NOT guaranteed — the 0.3.2
-  Copilot-host report shows tiles can still come up black in real WKWebView panels (compositing
-  success is not observable from page JS, so retries are bounded). Since 0.4.1 the canvas also
-  fires a post-boot **repaint nudge** under WebKit (a 1px layout bounce that forces the
-  compositor to re-rasterize the frame — the cheap half of the proven enlarge-close unstick;
-  shows as `repaint-nudge` in the recovery trail). Keep the cautionary behavior anyway:
-  recovery is deterministic via **expand-then-close** of the black tile (forces a fresh mount in
-  the fullscreen overlay, which always paints), or open the workbench in a normal browser
-  (Chrome). Do not diagnose a healthy app session as a broken node. When reporting a black tile,
-  fetch `GET /api/canvas/debug/ext-app-recovery` from the daemon and attach the trace — it shows
-  what the recovery queue actually did in that panel.
+- A hosted ext-app (Excalidraw) node in a **WebKit** host panel (e.g. the GitHub Copilot app's
+  embedded WKWebView) historically could render as a black tile — a host compositor paint race
+  on the nested iframe, **not** a broken node (the session is healthy, `sessionStatus` is
+  `ready`, and it renders fine in Chrome/Codex). Since 0.4.6 the canvas runs a **paint oracle +
+  recovery ladder** under WebKit: present-at-load ext-apps mount strictly one at a time (the
+  cold burst was the trigger), each frame answers a double-rAF **paint probe** after settle, and
+  on silence the ladder escalates — soft-expand cycle (the automatic analogue of the proven
+  enlarge+close) → serialized remount → an explicit "App surface failed to paint / Retry"
+  affordance. The connecting overlay stays up until paint is confirmed, so a black layer is
+  never presented as ready. The recovery trail
+  (`GET /api/canvas/debug/ext-app-recovery` / `window.__PMX_EXTAPP_LOG`) now records
+  `mount-slot`, `paint-ok`, `paint-fail`, `soft-expand-cycle`, and `recovery-exhausted` — when
+  diagnosing, trust `paint-ok`/`paint-fail`, and never assert health from `settled` alone. If a
+  tile still shows the Retry affordance, click Retry (fresh recovery budget) or expand-then-close;
+  attach the recovery trail when reporting.
 - Ext-app frame documents live in server memory. Through 0.4.0, killing/restarting the daemon
   while a panel stays open leaves ext-app tiles on dead frame URLs (`Frame document not found`,
   0.4.0 report Finding S) until a full workbench reload. Since 0.4.1 the browser revalidates its

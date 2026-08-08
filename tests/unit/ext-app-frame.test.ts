@@ -11,7 +11,6 @@ import {
   resolveExtAppDisplayModeRequest,
   resolveExtAppInlineFrameHeight,
   resolveExtAppSandbox,
-  shouldScheduleWebKitRepaint,
   shouldApplyExtAppSizeChange,
   WEBKIT_REMOUNT_SETTLE_MS,
 } from '../../src/client/nodes/ExtAppFrame.tsx';
@@ -109,13 +108,6 @@ describe('ExtAppFrame WebKit-host gate (Finding F)', () => {
     });
     expect(order).toEqual(['remount:next']);
   });
-
-  test('waits for replayed tool output before scheduling the repaint remount', () => {
-    expect(shouldScheduleWebKitRepaint('loading', false)).toBe(false);
-    expect(shouldScheduleWebKitRepaint('ready', false)).toBe(true);
-    expect(shouldScheduleWebKitRepaint('ready', true)).toBe(false);
-    expect(shouldScheduleWebKitRepaint('done', true)).toBe(true);
-  });
 });
 
 describe('ExtAppFrame display mode requests', () => {
@@ -201,6 +193,19 @@ describe('ExtAppFrame boot beacon (WebKit watchdog liveness)', () => {
     const beacon = buildExtAppBootBeaconScript('frame-token', 'node-9');
     const injected = injectExtAppAxBridgeScript('<main>app</main>', beacon);
     expect(injected.indexOf('data-pmx-canvas-boot-beacon')).toBeLessThan(injected.indexOf('<main>'));
+  });
+
+  test('beacon answers paint probes with a double-rAF paint-tick (Finding N oracle)', () => {
+    // The paint oracle: the parent posts a probe; the app document answers with
+    // a paint-tick only after two animation frames — i.e. only when its
+    // rendering pipeline actually runs. Silence drives the recovery ladder.
+    const script = buildExtAppBootBeaconScript('frame-token', 'node-9');
+    expect(script).toContain("source === 'pmx-canvas-ext-app-paint-probe'");
+    expect(script).toContain("kind: 'paint-tick'");
+    // Double rAF — a single rAF can fire without a subsequent composite.
+    expect(script.split('requestAnimationFrame').length - 1).toBe(2);
+    // One unsolicited tick at boot so a healthy frame confirms without a probe.
+    expect(script).toContain('sendPaintTick();');
   });
 });
 

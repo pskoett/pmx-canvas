@@ -307,6 +307,8 @@ function isCanvasNodeType(value: unknown): value is CanvasNodeState['type'] {
     value === 'ledger' ||
     value === 'trace' ||
     value === 'file' ||
+    value === 'diff' ||
+    value === 'mermaid' ||
     value === 'image' ||
     value === 'html' ||
     value === 'group'
@@ -402,11 +404,37 @@ function parseCanvasAnnotation(raw: Record<string, unknown>): CanvasAnnotation |
 }
 
 // ── SSE event handlers ───────────────────────────────────────
+
+/**
+ * Stale-SPA guard (0.4.5 report Finding W): a long-lived host panel keeps its
+ * in-memory bundle across a daemon upgrade — SSE reconnects silently and the
+ * old client renders none of the new release's behavior. The boot HTML stamps
+ * the server version at page-serve time; when a `connected` frame reports a
+ * DIFFERENT version, the server was upgraded under this page — reload once to
+ * pick up the new bundle. Guarded per version so a broken stamp can't loop.
+ */
+const VERSION_RELOAD_KEY = 'pmx-canvas-version-reload';
+function reloadIfServerUpgraded(serverVersion: unknown): void {
+  if (typeof serverVersion !== 'string' || !serverVersion || serverVersion === 'unknown') return;
+  if (typeof window === 'undefined') return;
+  const bootVersion = (window as Window & { __PMX_BOOT_SERVER_VERSION?: unknown }).__PMX_BOOT_SERVER_VERSION;
+  if (typeof bootVersion !== 'string' || !bootVersion || bootVersion === 'unknown') return;
+  if (serverVersion === bootVersion) return;
+  try {
+    if (window.sessionStorage.getItem(VERSION_RELOAD_KEY) === serverVersion) return;
+    window.sessionStorage.setItem(VERSION_RELOAD_KEY, serverVersion);
+  } catch {
+    return; // No sessionStorage loop guard available — never risk a reload loop.
+  }
+  window.location.reload();
+}
+
 function handleConnected(data: Record<string, unknown>): void {
   sessionId.value = (data.sessionId as string) || '';
   connectionStatus.value = 'connected';
   // Reconnect marker for holders of server-minted URLs (Finding S).
   workbenchConnectionEpoch.value += 1;
+  reloadIfServerUpgraded(data.version);
   // A ?theme= session override (host-default theming) wins over the
   // server-global theme for THIS client only.
   if (typeof data.theme === 'string' && !themeOverrideActive()) {

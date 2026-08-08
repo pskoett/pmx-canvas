@@ -175,6 +175,8 @@ export interface CanvasNodeState {
     | 'ledger'
     | 'trace'
     | 'file'
+    | 'diff'
+    | 'mermaid'
     | 'image'
     | 'html'
     | 'group';
@@ -366,6 +368,28 @@ class CanvasStateManager {
       const i = this._changeListeners.indexOf(cb);
       if (i >= 0) this._changeListeners.splice(i, 1);
     };
+  }
+
+  // ── Work-item change listener (single slot, for live workboard refresh) ──
+  private _workItemsChangedListener: (() => void) | null = null;
+
+  /**
+   * Register THE work-item change listener (single slot, last-write-wins).
+   * Fired after addWorkItem/updateWorkItem completes (including the node
+   * status mirror), so live views like the workboard can rebuild from the
+   * fresh work-item list.
+   */
+  setWorkItemsChangedListener(listener: (() => void) | null): void {
+    this._workItemsChangedListener = listener;
+  }
+
+  private notifyWorkItemsChanged(): void {
+    if (!this._workItemsChangedListener) return;
+    try {
+      this._workItemsChangedListener();
+    } catch (error) {
+      logCanvasStateWarning('work-items-changed listener failed', error);
+    }
   }
 
   private notifyChange(type: CanvasChangeType): void {
@@ -1727,6 +1751,7 @@ class CanvasStateManager {
   ): PmxAxWorkItem {
     const item = this.ax.addWorkItem(input, options);
     this.mirrorAxWorkStatusToNodes(item.nodeIds, [], item.status);
+    this.notifyWorkItemsChanged();
     return item;
   }
 
@@ -1745,6 +1770,7 @@ class CanvasStateManager {
     const item = this.ax.updateWorkItem(id, patch, options);
     if (!item) return null;
     this.mirrorAxWorkStatusToNodes(item.nodeIds, previousNodeIds, item.status);
+    this.notifyWorkItemsChanged();
     return item;
   }
 

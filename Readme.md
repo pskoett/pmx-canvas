@@ -228,7 +228,21 @@ Add to your agent's MCP config:
 }
 ```
 
-The canvas auto-starts on first tool call.
+The canvas auto-starts on first tool call. Keep the config portable: commit it
+to the repo and let the workspace default to the launch directory — hard-coding
+an absolute `PMX_CANVAS_WORKSPACE_ROOT` breaks other checkouts and machines.
+Set that env var only when your host spawns the MCP server from an incidental
+directory (e.g. `~/.copilot`) instead of the project root.
+
+Verify any environment in one command against a running server:
+
+```bash
+bunx pmx-canvas smoke
+```
+
+It checks server health + workspace, CLI/server version skew, the MCP stdio
+initialize handshake, a temp-node create/search/remove round-trip, and board
+validation — JSON report, exit 1 on failure.
 
 ### Use inside the GitHub Copilot app
 
@@ -274,8 +288,9 @@ services:
 ```
 
 ```bash
-# .agents/setup — install the CLI (pin the version for reproducible starts)
-npm install -g pmx-canvas@latest
+# .agents/setup — install the CLI (pin the exact version: a fresh orb running
+# @latest can silently pick up a newer release than the one you validated)
+npm install -g pmx-canvas@0.4.5
 ```
 
 The server binds the portal-assigned `$PORT` automatically (gated on the
@@ -291,7 +306,9 @@ inline via `srcdoc` with their theme styling included. Cross-origin hosted
 apps (e.g. the hosted Excalidraw MCP app) cannot be inlined and may stay
 blocked by the portal embed — everything served from the canvas itself works.
 Debug overrides: `/workbench?transport=poll|sse` and
-`?iframe-mode=srcdoc|src`.
+`?iframe-mode=srcdoc|src`. Once the service is up, `pmx-canvas smoke` verifies
+the whole stack (health, versions, MCP handshake, node lifecycle, validation)
+in one command.
 
 ### Install the agent skill (recommended)
 

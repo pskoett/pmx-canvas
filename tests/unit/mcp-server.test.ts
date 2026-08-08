@@ -944,6 +944,8 @@ describe('MCP parity with CLI', () => {
         y: 100,
         width: 200,
         height: 100,
+        // strictSize: fit-math test on exact geometry (creation floor clamp).
+        strictSize: true,
       },
     });
     await session.client.callTool({
@@ -956,6 +958,7 @@ describe('MCP parity with CLI', () => {
         y: 500,
         width: 300,
         height: 200,
+        strictSize: true,
       },
     });
 

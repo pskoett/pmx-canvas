@@ -542,15 +542,22 @@ export class PmxCanvas extends EventEmitter {
       nodeIds?: string[];
       data?: Record<string, unknown> | null;
     },
-    options?: { source?: PmxAxSource },
+    options?: { source?: PmxAxSource; agentId?: string | null },
   ): PmxAxEvent {
-    const event = canvasState.recordAxEvent(input, { source: options?.source ?? 'sdk' });
+    const event = canvasState.recordAxEvent(input, { source: options?.source ?? 'sdk', agentId: options?.agentId });
     emitPrimaryWorkbenchEvent('ax-event-created', { event });
     return event;
   }
 
-  sendSteering(message: string, options?: { source?: PmxAxSource }): PmxAxSteeringMessage {
-    const steering = canvasState.recordSteeringMessage(message, { source: options?.source ?? 'sdk' });
+  sendSteering(
+    message: string,
+    options?: { source?: PmxAxSource; agentId?: string | null; target?: string | null },
+  ): PmxAxSteeringMessage {
+    const steering = canvasState.recordSteeringMessage(message, {
+      source: options?.source ?? 'sdk',
+      agentId: options?.agentId,
+      target: options?.target,
+    });
     emitPrimaryWorkbenchEvent('ax-event-created', { steering });
     return steering;
   }
@@ -604,7 +611,13 @@ export class PmxCanvas extends EventEmitter {
   }
 
   addWorkItem(
-    input: { title: string; status?: PmxAxWorkItemStatus; detail?: string | null; nodeIds?: string[] },
+    input: {
+      title: string;
+      status?: PmxAxWorkItemStatus;
+      detail?: string | null;
+      nodeIds?: string[];
+      agentId?: string | null;
+    },
     options?: { source?: PmxAxSource },
   ): PmxAxWorkItem {
     const workItem = canvasState.addWorkItem(input, { source: options?.source ?? 'sdk' });
@@ -614,7 +627,13 @@ export class PmxCanvas extends EventEmitter {
 
   updateWorkItem(
     id: string,
-    patch: { title?: string; status?: PmxAxWorkItemStatus; detail?: string | null; nodeIds?: string[] },
+    patch: {
+      title?: string;
+      status?: PmxAxWorkItemStatus;
+      detail?: string | null;
+      nodeIds?: string[];
+      agentId?: string | null;
+    },
     options?: { source?: PmxAxSource },
   ): PmxAxWorkItem | null {
     const workItem = canvasState.updateWorkItem(id, patch, { source: options?.source ?? 'sdk' });

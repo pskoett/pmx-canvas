@@ -17,6 +17,8 @@ export function canOpenNodeAsSurface(type: string, data: Record<string, unknown>
         (typeof data.html === 'string' && data.html.length > 0) ||
         (typeof data.content === 'string' && data.content.length > 0)
       );
+    case 'mermaid':
+      return typeof data.content === 'string' && data.content.trim().length > 0;
     case 'json-render':
     case 'graph':
       return true;

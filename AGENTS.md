@@ -24,6 +24,10 @@ Minimum code that solves the problem. Nothing speculative.
 - No "flexibility" or "configurability" that wasn't requested
 - No error handling for impossible scenarios
 - If 200 lines could be 50, rewrite it
+- **No backwards compatibility.** This project does not code for backwards
+  compatibility: no legacy shims, deprecation aliases, dual code paths, or
+  migration scaffolding for old clients/configs. When a behavior changes,
+  change it cleanly and update everything that depends on it.
 
 The test: Would a senior engineer say this is overcomplicated? If yes, simplify.
 
@@ -208,7 +212,7 @@ package in a clean temp consumer instead of the repo dev path.
 
 ## Canvas Types
 
-**Node types:** `markdown`, `status`, `context`, `ledger`, `trace`, `file`, `image`, `html`, `mcp-app`, `webpage`, `json-render`, `graph`, `group`, plus internal thread node types `prompt` and `response`
+**Node types:** `markdown`, `status`, `context`, `ledger`, `trace`, `file`, `diff`, `image`, `html`, `mermaid`, `mcp-app`, `webpage`, `json-render`, `graph`, `group`, plus internal thread node types `prompt` and `response`
 
 **Edge types:** `flow`, `depends-on`, `relation`, `references` — all support labels, styles (solid/dashed/dotted), and animation.
 
@@ -299,11 +303,20 @@ When file nodes are on the canvas, the system auto-detects import dependencies a
 
 ## Adding New Node Types
 
-1. Add the type string to the union in `src/server/canvas-state.ts` (`CanvasNodeState.type`)
+1. Add the type string to the union in `src/server/canvas-state.ts` (`CanvasNodeState.type`),
+   plus `canvas-provenance.ts` (`CanvasNodeType`), `ax-interaction.ts`
+   (`DEFAULT_NODE_AX_CAPABILITIES` — exhaustive record), `canvas-schema.ts` (create schema),
+   `canvas-validation.ts` (`NODE_MIN_CREATE_SIZES` floor)
 2. Create a renderer component in `src/client/nodes/YourNode.tsx`
-3. Add the case to `src/client/canvas/CanvasNode.tsx` switch statement
-4. Add to the MCP tool's `type` enum in `src/mcp/server.ts`
-5. Update `SKILL.md` and `readme.md` with the new type
+3. Add the case to the render switches in `src/client/canvas/CanvasViewport.tsx` AND
+   `ExpandedNodeOverlay.tsx`, plus the exhaustive records in `state/node-factory.ts` and
+   `canvas/Minimap.tsx`, `types.ts` (union, `TYPE_LABELS`, `EXPANDABLE_TYPES`), `icons.tsx`
+4. **Add the type to `isCanvasNodeType` in `src/client/state/sse-bridge.ts`** — this runtime
+   guard silently DROPS unknown types during layout apply, so a missed entry renders nothing
+   in the live workbench even though every unit/client test passes
+5. Add to `NODE_TYPES` + the MCP `extraShape` enum in `src/server/operations/ops/nodes.ts`
+   and a `defaultNodeSize` case
+6. Update `SKILL.md`, `readme.md`, and `docs/node-types.md` with the new type
 
 ## Adding New HTTP Endpoints
 

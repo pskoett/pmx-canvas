@@ -119,7 +119,7 @@ describe('describeCanvasSchema — MCP tool surface', () => {
 });
 
 describe('describeCanvasSchema — node type create schemas', () => {
-  test('advertises exactly the current 16 creatable node types', () => {
+  test('advertises exactly the current 18 creatable node types', () => {
     const types = describeCanvasSchema()
       .nodeTypes.map((entry) => entry.type)
       .sort();
@@ -131,6 +131,8 @@ describe('describeCanvasSchema — node type create schemas', () => {
         'ledger',
         'trace',
         'file',
+        'diff',
+        'mermaid',
         'image',
         'webpage',
         'html',
@@ -160,6 +162,8 @@ describe('describeCanvasSchema — node type create schemas', () => {
       ledger: [],
       trace: [],
       file: ['content'],
+      diff: [],
+      mermaid: [],
       image: ['content'],
       webpage: ['url'],
       html: [],

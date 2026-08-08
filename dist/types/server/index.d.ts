@@ -161,9 +161,12 @@ export declare class PmxCanvas extends EventEmitter {
         data?: Record<string, unknown> | null;
     }, options?: {
         source?: PmxAxSource;
+        agentId?: string | null;
     }): PmxAxEvent;
     sendSteering(message: string, options?: {
         source?: PmxAxSource;
+        agentId?: string | null;
+        target?: string | null;
     }): PmxAxSteeringMessage;
     markSteeringDelivered(id: string): boolean;
     /**
@@ -198,6 +201,7 @@ export declare class PmxCanvas extends EventEmitter {
         status?: PmxAxWorkItemStatus;
         detail?: string | null;
         nodeIds?: string[];
+        agentId?: string | null;
     }, options?: {
         source?: PmxAxSource;
     }): PmxAxWorkItem;
@@ -206,6 +210,7 @@ export declare class PmxCanvas extends EventEmitter {
         status?: PmxAxWorkItemStatus;
         detail?: string | null;
         nodeIds?: string[];
+        agentId?: string | null;
     }, options?: {
         source?: PmxAxSource;
     }): PmxAxWorkItem | null;

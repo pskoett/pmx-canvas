@@ -1,6 +1,6 @@
 import { type CanvasLayout, type CanvasNodeState } from '../../canvas-state.js';
 import { type Operation } from '../types.js';
-export declare const NODE_TYPES: readonly ["markdown", "status", "context", "ledger", "trace", "file", "image", "mcp-app", "webpage", "html", "group"];
+export declare const NODE_TYPES: readonly ["markdown", "status", "context", "ledger", "trace", "file", "diff", "mermaid", "image", "mcp-app", "webpage", "html", "group"];
 /** Per-type default node frame size (formerly copy-pasted ladders). */
 export declare function defaultNodeSize(type: string): {
     width: number;

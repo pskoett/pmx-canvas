@@ -39,6 +39,7 @@ import {
 } from '../../canvas-operations.js';
 import { describeCanvasSchema, validateStructuredCanvasPayload } from '../../canvas-schema.js';
 import { isHtmlPrimitiveKind } from '../../html-primitives.js';
+import { renderWorkboard } from '../../workboard.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 import {
   buildNodeResponse,
@@ -309,6 +310,48 @@ const jsonRenderStreamOperation = defineOperation<z.infer<typeof jsonRenderStrea
     });
   },
   // Wire shape is `{ id, url, ok, applied, ... }` — handler output verbatim.
+});
+
+// ── render.workboard ──────────────────────────────────────────
+
+const workboardRenderShape = {
+  intentId: z
+    .string()
+    .optional()
+    .catch(undefined)
+    .describe('Ghost intent id returned by canvas_intent signal. A vetoed or expired intent blocks this mutation.'),
+  x: z.number().optional().catch(undefined).describe('Optional X position (only used when creating the board)'),
+  y: z.number().optional().catch(undefined).describe('Optional Y position (only used when creating the board)'),
+};
+
+const workboardRenderSchema = z.looseObject(workboardRenderShape);
+
+const workboardRenderOperation = defineOperation<
+  z.infer<typeof workboardRenderSchema>,
+  ReturnType<typeof renderWorkboard>
+>({
+  name: 'render.workboard',
+  mutates: true,
+  input: workboardRenderSchema,
+  inputShape: workboardRenderShape,
+  http: {
+    method: 'POST',
+    path: '/api/canvas/workboard',
+  },
+  mcp: {
+    toolName: 'canvas_render_workboard',
+    description:
+      'Materialize a live work-item board: a json-render node with one column per status (todo → in-progress → blocked → done → cancelled) showing every AX work item as a card (title, agentId chip, detail). Idempotent: rebuilds the existing board node in place when one exists, otherwise creates it. The board auto-refreshes whenever work items change.',
+  },
+  handler: (input) => {
+    const body: Record<string, unknown> = input;
+    const x = pickFiniteNumber(body, 'x');
+    const y = pickFiniteNumber(body, 'y');
+    return renderWorkboard({
+      ...(x !== undefined ? { x } : {}),
+      ...(y !== undefined ? { y } : {}),
+    });
+  },
 });
 
 // ── graph.add ─────────────────────────────────────────────────
@@ -829,6 +872,7 @@ const specValidateOperation = defineOperation<z.infer<typeof specValidateSchema>
 export const jsonRenderOperations: Operation[] = [
   jsonRenderAddOperation,
   jsonRenderStreamOperation,
+  workboardRenderOperation,
   graphAddOperation,
   schemaDescribeOperation,
   specValidateOperation,

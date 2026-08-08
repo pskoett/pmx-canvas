@@ -156,14 +156,15 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
     toolName: 'canvas_render',
     description:
-      'Spec-driven content: discover the schema, validate a payload, or create a json-render / graph node. Action "describe-schema" returns the json-render component catalog + create schemas; "validate" checks a spec or graph payload without creating a node; "add-json-render" creates a json-render node from a complete spec; "stream-json-render" progressively builds one from SpecStream patches (omit nodeId to create, pass it back to append, done=true to finish); "add-graph" creates a chart node (line, bar, pie, area, scatter, radar, stacked-bar, composed, sparkline, dot-plot, bullet, slopegraph).',
-    actionSummary: 'describe-schema | validate | add-json-render | stream-json-render | add-graph',
+      'Spec-driven content: discover the schema, validate a payload, or create a json-render / graph node. Action "describe-schema" returns the json-render component catalog + create schemas; "validate" checks a spec or graph payload without creating a node; "add-json-render" creates a json-render node from a complete spec; "stream-json-render" progressively builds one from SpecStream patches (omit nodeId to create, pass it back to append, done=true to finish); "add-graph" creates a chart node (line, bar, pie, area, scatter, radar, stacked-bar, composed, sparkline, dot-plot, bullet, slopegraph); "workboard" materializes a live AX work-item board (a json-render node with a column per status) that auto-refreshes whenever work items change — idempotent, rebuilding the existing board in place.',
+    actionSummary: 'describe-schema | validate | add-json-render | stream-json-render | add-graph | workboard',
     actions: {
       'describe-schema': 'schema.describe',
       validate: 'spec.validate',
       'add-json-render': 'jsonrender.add',
       'stream-json-render': 'jsonrender.stream',
       'add-graph': 'graph.add',
+      workboard: 'render.workboard',
     },
   },
   {

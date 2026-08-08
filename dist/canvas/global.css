@@ -1895,6 +1895,74 @@ html.is-node-resizing .ext-app-preview-catcher {
   }
 }
 
+/* Diff nodes — unified diff viewer with per-file sections */
+.diff-node {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  height: 100%;
+  overflow: auto;
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--c-text);
+}
+
+.diff-node.diff-node-empty {
+  align-items: center;
+  justify-content: center;
+  color: var(--c-muted);
+}
+
+.diff-node .diff-file {
+  border: 1px solid var(--c-line);
+  border-radius: 6px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.diff-node .diff-file-header {
+  padding: 4px 8px;
+  background: var(--c-panel-overlay);
+  border-bottom: 1px solid var(--c-line);
+  color: var(--c-text-soft);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.diff-node .diff-lines {
+  margin: 0;
+  padding: 4px 0;
+  overflow-x: auto;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: 1.5;
+}
+
+.diff-node .diff-lines > div {
+  padding: 0 8px;
+  white-space: pre;
+}
+
+.diff-node .diff-hunk {
+  color: var(--c-muted);
+}
+
+.diff-node .diff-line-add {
+  color: var(--c-ok);
+  background: var(--c-ok-10);
+}
+
+.diff-node .diff-line-remove {
+  color: var(--c-danger);
+  background: var(--c-danger-12);
+}
+
+.diff-node .diff-line-context {
+  color: var(--c-text-soft);
+}
+
 /* Docked node — compact toolbar-flanking panel */
 .docked-node {
   min-width: 200px;

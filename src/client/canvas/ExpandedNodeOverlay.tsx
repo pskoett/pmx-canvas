@@ -1,9 +1,11 @@
 import { HTML_SURFACE_PUSH_SOURCE } from '../../shared/ax-surface-protocol.js';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { ContextNode } from '../nodes/ContextNode';
+import { DiffNode } from '../nodes/DiffNode';
 import { FileNode } from '../nodes/FileNode';
 import { LedgerNode } from '../nodes/LedgerNode';
 import { MarkdownNode } from '../nodes/MarkdownNode';
+import { MermaidNode } from '../nodes/MermaidNode';
 import { McpAppNode } from '../nodes/McpAppNode';
 import { StatusNode } from '../nodes/StatusNode';
 import { ImageNode } from '../nodes/ImageNode';
@@ -50,6 +52,10 @@ function renderContent(node: CanvasNodeState, expanded: boolean) {
       return <TraceNode node={node} />;
     case 'file':
       return <FileNode node={node} expanded={expanded} />;
+    case 'diff':
+      return <DiffNode node={node} />;
+    case 'mermaid':
+      return <MermaidNode node={node} expanded={expanded} />;
     case 'image':
       return <ImageNode node={node} expanded={expanded} />;
     case 'html':
@@ -63,6 +69,10 @@ function renderContent(node: CanvasNodeState, expanded: boolean) {
 function getNodeTextContent(node: CanvasNodeState): string {
   switch (node.type) {
     case 'markdown':
+      return (node.data.content as string) || '';
+    case 'diff':
+      return (node.data.content as string) || '';
+    case 'mermaid':
       return (node.data.content as string) || '';
     case 'file':
       return (node.data.fileContent as string) || '';

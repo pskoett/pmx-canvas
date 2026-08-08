@@ -3,7 +3,6 @@ import { AppBridge } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type { CanvasNodeState } from '../types';
 type ExtAppBridgeNotifications = Pick<AppBridge, 'sendToolInput' | 'sendToolResult'>;
 type DisplayMode = 'inline' | 'fullscreen' | 'pip';
-type ExtAppFrameStatus = 'loading' | 'ready' | 'done';
 interface ExtAppHostDimensionsTarget {
     clientWidth?: number;
     clientHeight?: number;
@@ -28,7 +27,6 @@ export interface WebkitRemountTask {
 }
 export declare function extAppRecoveryLog(nodeId: string, event: string): void;
 export declare function enqueueWebkitRemount(task: WebkitRemountTask): void;
-export declare function shouldScheduleWebKitRepaint(status: ExtAppFrameStatus, hasReplayToolResult: boolean): boolean;
 export declare function getExtAppBridgeInitKey(node: CanvasNodeState, retryKey: number): string;
 export declare function resolveExtAppDisplayModeRequest(requestedMode: DisplayMode, isExpanded: boolean): {
     nextMode: DisplayMode;

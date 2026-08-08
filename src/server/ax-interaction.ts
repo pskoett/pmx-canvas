@@ -102,6 +102,12 @@ export const DEFAULT_NODE_AX_CAPABILITIES: Record<CanvasNodeType, NodeAxCapabili
     'notify-agent',
   ),
   file: caps(true, ['ax.evidence.add', 'ax.review.add', 'ax.focus.set', 'ax.event.record']),
+  diff: caps(true, ['ax.evidence.add', 'ax.review.add', 'ax.focus.set', 'ax.event.record']),
+  mermaid: caps(
+    true,
+    ['ax.steer', 'ax.work.create', 'ax.evidence.add', 'ax.command.invoke', 'ax.event.record'],
+    'notify-agent',
+  ),
   'json-render': caps(true, [
     'ax.work.create',
     'ax.work.update',

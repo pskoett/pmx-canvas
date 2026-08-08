@@ -67,6 +67,7 @@ const AGENT_COMMANDS = new Set([
   'serve',
   'copilot',
   'skills',
+  'smoke',
 ]);
 
 const firstArg = args[0] ?? '';

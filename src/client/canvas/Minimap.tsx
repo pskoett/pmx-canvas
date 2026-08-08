@@ -36,6 +36,8 @@ function getNodeColors(): Record<CanvasNodeState['type'], string> {
     ledger: t.dim,
     trace: t.purple,
     file: t.accent,
+    diff: t.ok,
+    mermaid: t.purple,
     image: t.ok,
     html: t.warn,
     group: t.dim,

@@ -53,7 +53,7 @@ export interface CanvasSnapshotGcResult {
 }
 export interface CanvasNodeState {
     id: string;
-    type: 'markdown' | 'mcp-app' | 'webpage' | 'json-render' | 'graph' | 'prompt' | 'response' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'image' | 'html' | 'group';
+    type: 'markdown' | 'mcp-app' | 'webpage' | 'json-render' | 'graph' | 'prompt' | 'response' | 'status' | 'context' | 'ledger' | 'trace' | 'file' | 'diff' | 'mermaid' | 'image' | 'html' | 'group';
     position: {
         x: number;
         y: number;
@@ -154,6 +154,15 @@ declare class CanvasStateManager {
      * — e.g. the long-lived MCP subscription — may ignore the return value).
      */
     onChange(cb: (type: CanvasChangeType) => void): () => void;
+    private _workItemsChangedListener;
+    /**
+     * Register THE work-item change listener (single slot, last-write-wins).
+     * Fired after addWorkItem/updateWorkItem completes (including the node
+     * status mirror), so live views like the workboard can rebuild from the
+     * fresh work-item list.
+     */
+    setWorkItemsChangedListener(listener: (() => void) | null): void;
+    private notifyWorkItemsChanged;
     private notifyChange;
     private _mutationRecorder;
     private _suppressRecordingDepth;

@@ -6,6 +6,7 @@ import {
   AX_SURFACE_ACK_SOURCE,
   AX_SURFACE_EMIT_SOURCE,
   EXT_APP_BOOT_BEACON_SOURCE,
+  EXT_APP_PAINT_PROBE_SOURCE,
 } from '../../shared/ax-surface-protocol.js';
 import { extAppToolResultsMatch } from '../../shared/ext-app-tool-result.js';
 import { DEFAULT_EXT_APP_SANDBOX } from '../../shared/surface.js';
@@ -137,10 +138,6 @@ export function enqueueWebkitRemount(task: WebkitRemountTask): void {
     .catch(() => {});
 }
 
-export function shouldScheduleWebKitRepaint(status: ExtAppFrameStatus, hasReplayToolResult: boolean): boolean {
-  return hasReplayToolResult ? status === 'done' : status === 'ready' || status === 'done';
-}
-
 export function getExtAppBridgeInitKey(node: CanvasNodeState, retryKey: number): string {
   const html = typeof node.data.html === 'string' ? node.data.html : '';
   const serverName = typeof node.data.serverName === 'string' ? node.data.serverName : '';
@@ -250,7 +247,27 @@ export function buildExtAppAxBridgeScript(axToken: string, nodeId: string): stri
  */
 export function buildExtAppBootBeaconScript(frameToken: string, nodeId: string): string {
   return `<script data-pmx-canvas-boot-beacon>
-window.parent.postMessage({ source: '${EXT_APP_BOOT_BEACON_SOURCE}', token: ${JSON.stringify(frameToken)}, nodeId: ${JSON.stringify(nodeId)} }, '*');
+(function () {
+  var TOKEN = ${JSON.stringify(frameToken)};
+  var NODE_ID = ${JSON.stringify(nodeId)};
+  window.parent.postMessage({ source: '${EXT_APP_BOOT_BEACON_SOURCE}', token: TOKEN, nodeId: NODE_ID }, '*');
+  // Paint-tick answers (Finding N): a double rAF only fires when this frame's
+  // rendering pipeline is actually running — a frame whose layer WebKit never
+  // composites stays silent, and that silence drives the parent's recovery
+  // ladder. One unsolicited tick at boot, then on-demand answers to probes.
+  function sendPaintTick() {
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        window.parent.postMessage({ source: '${EXT_APP_BOOT_BEACON_SOURCE}', token: TOKEN, nodeId: NODE_ID, kind: 'paint-tick' }, '*');
+      });
+    });
+  }
+  window.addEventListener('message', function (event) {
+    var m = event.data;
+    if (m && m.source === '${EXT_APP_PAINT_PROBE_SOURCE}' && m.token === TOKEN) sendPaintTick();
+  });
+  sendPaintTick();
+})();
 </script>`;
 }
 
@@ -319,8 +336,9 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   const toolResultSendingRef = useRef<Promise<void> | null>(null);
   const bridgeReadyRef = useRef(false);
   const themeUnsubRef = useRef<(() => void) | null>(null);
-  const webkitRepaintDoneRef = useRef(false);
   const webkitRemountAttemptsRef = useRef(0);
+  // Paint oracle (Finding N): resolvers waiting for the frame's next paint-tick.
+  const paintTickWaitersRef = useRef<Array<() => void>>([]);
   // Genuine boot signal: set ONLY when the app completes the ui/initialize
   // handshake (bridge.oninitialized) — NOT by the 1200ms bootstrap fallback,
   // which flips status via notifications that resolve even into a dead iframe.
@@ -338,6 +356,21 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   const [status, setStatus] = useState<ExtAppFrameStatus>('loading');
   const [error, setError] = useState<string | null>(null);
   const [retryKey, setRetryKey] = useState(0);
+  // WebKit paint ladder state: overlay holds until paint is confirmed; when the
+  // ladder exhausts its budget the tile shows an explicit Retry instead of
+  // silent black (Finding N).
+  const [paintPending, setPaintPending] = useState(false);
+  const [recoveryExhausted, setRecoveryExhausted] = useState(false);
+  // Serialized initial mount (Finding N): on WebKit, present-at-load ext-apps
+  // boot strictly one at a time through the shared queue — the cold-hydration
+  // BURST is what overwhelms the compositor. Everywhere else, mount instantly.
+  const [mountGranted, setMountGranted] = useState(
+    () =>
+      expanded ||
+      typeof navigator === 'undefined' ||
+      typeof window === 'undefined' ||
+      !isWebKitOnlyHost(navigator.userAgent),
+  );
 
   const html = node.data.html as string | null;
   const serverName = node.data.serverName as string | undefined;
@@ -360,7 +393,6 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   const maxHeight = node.size.height;
   const nodeId = node.id;
   const frameKey = getExtAppBridgeInitKey(node, retryKey);
-  const hasReplayToolResult = toolResult != null;
   const iframeSandbox = resolveExtAppSandbox(null);
   // Phase 6 — opt-in ext-app AX bridge. When the node sets data.axCapabilities.enabled,
   // inject window.PMX_AX into the app HTML and accept emits below (server re-validates).
@@ -380,14 +412,44 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   useEffect(() => {
     function onBootBeacon(event: MessageEvent) {
       if (event.source !== iframeRef.current?.contentWindow) return;
-      const data = event.data as { source?: string; token?: string; nodeId?: string } | null;
+      const data = event.data as { source?: string; token?: string; nodeId?: string; kind?: string } | null;
       if (!data || data.source !== EXT_APP_BOOT_BEACON_SOURCE || data.token !== axToken || data.nodeId !== nodeId)
         return;
       appScriptsRanRef.current = true;
+      if (data.kind === 'paint-tick') {
+        for (const waiter of paintTickWaitersRef.current.splice(0)) waiter();
+      }
     }
     window.addEventListener('message', onBootBeacon);
     return () => window.removeEventListener('message', onBootBeacon);
   }, [axToken, nodeId]);
+
+  // Acquire a serialized mount slot (Finding N). Reuses the boot-aware queue:
+  // the next present-at-load app's iframe is not even created until this one
+  // has settled (or timed out), so every WebKit boot lands in an idle panel —
+  // the empirically always-successful condition. The expanded overlay instance
+  // and non-WebKit hosts mount immediately (mountGranted starts true).
+  useEffect(() => {
+    if (mountGranted) return;
+    enqueueWebkitRemount({
+      remount: () => {
+        if (unmountedRef.current) return false;
+        extAppRecoveryLog(nodeId, 'mount-slot');
+        setMountGranted(true);
+        return true;
+      },
+      awaitBoot: () =>
+        new Promise<void>((resolve) => {
+          const timer = window.setTimeout(finish, WEBKIT_BOOT_TIMEOUT_MS);
+          function finish() {
+            window.clearTimeout(timer);
+            resolve();
+          }
+          bootWaitersRef.current.push(finish);
+        }),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Ext-app AX emits — the shared sandboxed-surface trust boundary (M2).
   useAxSurfaceBridge({ enabled: axEnabled, token: axToken, nodeId, sourceSurface: 'mcp-app', iframeRef });
@@ -396,12 +458,12 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   // Attempts are capped so a persistently-failing app degrades to the manual
   // fallback (expand+close / Retry) instead of remount-looping forever.
   const WEBKIT_MAX_REMOUNT_ATTEMPTS = 3;
-  const scheduleWebkitRemount = (reason: string): void => {
+  const scheduleWebkitRemount = (reason: string): boolean => {
     if (webkitRemountAttemptsRef.current >= WEBKIT_MAX_REMOUNT_ATTEMPTS) {
       extAppRecoveryLog(nodeId, `remount-cap-hit (${reason})`);
-      return;
+      return false;
     }
-    if (remountQueuedRef.current) return; // an attempt is already queued and has not run yet
+    if (remountQueuedRef.current) return true; // an attempt is already queued and has not run yet
     webkitRemountAttemptsRef.current += 1;
     remountQueuedRef.current = true;
     extAppRecoveryLog(nodeId, `remount-queued #${webkitRemountAttemptsRef.current} (${reason})`);
@@ -437,31 +499,93 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
           bootWaitersRef.current.push(finish);
         }),
     });
+    return true;
   };
 
-  // Finding F (0.2.4/0.2.5, reworked 0.3.1): in a WebKit host panel (e.g. the GitHub
-  // Copilot app's WKWebView, and Bun's headless WebKit WebView) the doubly-nested
-  // ext-app iframe (workbench iframe → mcp-app.html iframe) can come up as a black
-  // tile for nodes present at panel-load. The mcp-app shell loads blank, then the app
-  // boots over the bridge and draws its content AFTER load; under a cold-hydration
-  // burst WebKit does not composite that late draw, so the layer stays black (clean
-  // in Blink, and clean for a node created live into an already-idle panel). A
-  // parent-side transform/src nudge does NOT repair a black layer — only a full
-  // remount (new iframe element + bridge re-init, what expand+close does) does, and
-  // only when it lands in an idle moment. So: once the app has booted — `ready` for
-  // empty apps, `done` for restored apps that must replay saved tool output — under
-  // WebKit only, enqueue ONE recovery remount through the boot-aware queue above, so
-  // concurrent ext-apps remount strictly one at a time instead of re-bursting.
-  // Strict no-op in Blink/Gecko; the e2e engine is unaffected. Inline instance only.
-  useEffect(() => {
-    if (expanded || webkitRepaintDoneRef.current) return;
-    if (!shouldScheduleWebKitRepaint(status, hasReplayToolResult)) return;
+  // ── Paint oracle + recovery ladder (Finding N, 0.4.5 report) ────────────
+  // The old stack keyed recovery off "settled" (bridge ready + bootstrap
+  // replayed) and blind-remounted every booted app once. But Finding N is a
+  // COMPOSITOR failure after all those signals look healthy — the DOM
+  // recovers, the painted layer stays black, and the blind remount both
+  // missed real failures and rebooted healthy apps. The oracle: ask the app
+  // document for a double-rAF paint-tick. A frame whose rendering pipeline is
+  // live answers within a frame or two; silence is the paint-fail signal.
+  // Ladder on silence: soft-expand cycle (the automatic analogue of the
+  // user-proven enlarge+close — a real container size change forces WebKit to
+  // allocate a fresh layer texture, discarding the stale black one) → probe
+  // again → serialized remount (bounded by the shared attempt cap) → explicit
+  // Retry affordance. Never silent eternal black. WebKit inline frames only.
+  const PAINT_TICK_TIMEOUT_MS = 1500;
+  const probePaint = (): Promise<boolean> =>
+    new Promise((resolve) => {
+      const contentWindow = iframeRef.current?.contentWindow;
+      if (!contentWindow || unmountedRef.current) {
+        resolve(false);
+        return;
+      }
+      let settled = false;
+      const timer = window.setTimeout(() => {
+        if (settled) return;
+        settled = true;
+        resolve(false);
+      }, PAINT_TICK_TIMEOUT_MS);
+      paintTickWaitersRef.current.push(() => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        resolve(true);
+      });
+      contentWindow.postMessage({ source: EXT_APP_PAINT_PROBE_SOURCE, token: axToken }, '*');
+    });
+
+  // Force a real layer reallocation: grow the iframe's box meaningfully for two
+  // frames, then restore. Invisible under the paint-pending overlay.
+  const runSoftExpandCycle = (): Promise<void> =>
+    new Promise((resolve) => {
+      const frame = iframeRef.current;
+      if (!frame) {
+        resolve();
+        return;
+      }
+      const previousWidth = frame.style.width;
+      const previousHeight = frame.style.height;
+      frame.style.width = '140%';
+      frame.style.height = '140%';
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          frame.style.width = previousWidth;
+          frame.style.height = previousHeight;
+          extAppRecoveryLog(nodeId, 'soft-expand-cycle');
+          resolve();
+        });
+      });
+    });
+
+  const runPaintLadder = async (): Promise<void> => {
+    if (expanded) return;
     if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
     if (!isWebKitOnlyHost(navigator.userAgent)) return;
-    webkitRepaintDoneRef.current = true;
-    scheduleWebkitRemount('post-boot-repaint');
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, hasReplayToolResult]);
+    setPaintPending(true);
+    if (await probePaint()) {
+      extAppRecoveryLog(nodeId, 'paint-ok');
+      setPaintPending(false);
+      return;
+    }
+    extAppRecoveryLog(nodeId, 'paint-fail');
+    await runSoftExpandCycle();
+    if (await probePaint()) {
+      extAppRecoveryLog(nodeId, 'paint-ok (after soft-expand)');
+      setPaintPending(false);
+      return;
+    }
+    if (unmountedRef.current) return;
+    // The remounted frame re-enters this ladder from its own settle path.
+    if (!scheduleWebkitRemount('paint-fail')) {
+      extAppRecoveryLog(nodeId, 'recovery-exhausted');
+      setPaintPending(false);
+      setRecoveryExhausted(true);
+    }
+  };
 
   // Finding N (0.3.2 report): the Copilot panel can load the canvas while the
   // WKWebView document is HIDDEN (panel backgrounded/occluded). WebKit suppresses
@@ -482,6 +606,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
       // Fresh visibility = fresh recovery budget: the hidden-run attempts were
       // spent without a chance of compositing.
       webkitRemountAttemptsRef.current = 0;
+      setRecoveryExhausted(false);
       extAppRecoveryLog(nodeId, 'visible-again-rearm');
       scheduleWebkitRemount('visible-after-hidden-boot');
     }
@@ -504,19 +629,20 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     if (expanded) return;
     if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
     if (!isWebKitOnlyHost(navigator.userAgent)) return;
-    if (!iframeDocument.ready) return;
+    if (!iframeDocument.ready || !mountGranted) return;
     const timer = window.setTimeout(() => {
       if (appInitializedRef.current || appScriptsRanRef.current || unmountedRef.current) return;
       scheduleWebkitRemount('boot-watchdog');
     }, WEBKIT_BOOT_WATCHDOG_MS);
     return () => window.clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [frameKey, iframeDocument.ready, expanded]);
+  }, [frameKey, iframeDocument.ready, expanded, mountGranted]);
 
   useEffect(
     () => () => {
       unmountedRef.current = true;
       for (const waiter of bootWaitersRef.current.splice(0)) waiter();
+      for (const waiter of paintTickWaitersRef.current.splice(0)) waiter();
     },
     [],
   );
@@ -584,7 +710,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
 
   // Initialize as soon as HTML is mounted; some apps send initialize before iframe load fires.
   useEffect(() => {
-    if (!html || !iframeDocument.ready) return;
+    if (!html || !iframeDocument.ready || !mountGranted) return;
     const iframe = iframeRef.current;
     if (!iframe) return;
     let disposed = false;
@@ -665,29 +791,16 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
         });
       };
 
-      // Finding N best-effort: WKWebView can keep compositing a stale (black)
-      // texture for the doubly-nested app iframe even after a genuine settled
-      // boot — the user-proven unstick is enlarge+close, i.e. a layout-size
-      // change. Mimic the cheap half of that after the scene draw: bounce the
-      // iframe's height by 1px for two frames so WebKit must re-rasterize the
-      // layer. No reload, no app state loss; a healthy frame repaints
-      // identically. Scheduled past the remount queue's settle pause so it
-      // lands after the app has actually drawn.
-      const scheduleWebkitRepaintNudge = () => {
+      // Finding N: run the paint oracle + recovery ladder after the app has had
+      // its post-settle draw window. Scheduled past the remount queue's settle
+      // pause so the probe measures the frame AFTER the scene draw.
+      const schedulePaintLadder = () => {
         if (!isWebKitOnlyHost(navigator.userAgent)) return;
         if (repaintNudgeTimer) clearTimeout(repaintNudgeTimer);
         repaintNudgeTimer = setTimeout(() => {
           repaintNudgeTimer = null;
-          const frame = iframeRef.current;
-          if (disposed || !frame) return;
-          const previous = frame.style.height;
-          frame.style.height = 'calc(100% - 1px)';
-          requestAnimationFrame(() => {
-            requestAnimationFrame(() => {
-              frame.style.height = previous;
-              extAppRecoveryLog(nodeId, 'repaint-nudge');
-            });
-          });
+          if (disposed) return;
+          void runPaintLadder();
         }, WEBKIT_REMOUNT_SETTLE_MS + 200);
       };
 
@@ -842,7 +955,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
             extAppRecoveryLog(nodeId, 'settled');
             for (const waiter of bootWaitersRef.current.splice(0)) waiter();
             nudgeHostContextAfterLayout();
-            scheduleWebkitRepaintNudge();
+            schedulePaintLadder();
           })
           .catch((err) => {
             const msg = err instanceof Error ? err.message : String(err);
@@ -869,7 +982,15 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
             setStatus(bootstrapToolResult ? 'done' : 'ready');
             setError(null);
             nudgeHostContextAfterLayout();
-            scheduleWebkitRepaintNudge();
+            schedulePaintLadder();
+            // Release the serialized queue's boot wait — but ONLY when the boot
+            // beacon proved this frame's scripts ran. A live non-SDK app (never
+            // sends initialized) would otherwise hold every later mount slot
+            // for the full boot timeout; a dead window still runs it.
+            if (appScriptsRanRef.current) {
+              extAppRecoveryLog(nodeId, 'settled (fallback)');
+              for (const waiter of bootWaitersRef.current.splice(0)) waiter();
+            }
           })
           .catch((err) => {
             const msg = err instanceof Error ? err.message : String(err);
@@ -947,7 +1068,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
         transportRef.current = null;
       }
     };
-  }, [frameKey, iframeDocument.key]);
+  }, [frameKey, iframeDocument.key, mountGranted]);
 
   // Forward tool result when it arrives after bridge is ready
   useEffect(() => {
@@ -1117,34 +1238,79 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
           a second time to actually enter edit mode. Routing all inline clicks
           to "expand" makes the flow "open → edit" instead of "edit → expand → edit". */}
       <div style={{ flex: 1, position: 'relative', display: 'flex', minHeight: 0, height: '100%' }}>
-        <iframe
-          key={frameKey}
-          ref={iframeRef}
-          {...iframeDocument.attributes}
-          sandbox={iframeSandbox}
-          allow={buildAllowAttribute(resourceMeta?.permissions)}
-          // NB: do NOT add the `.mcp-app-frame` GPU-layer class (translateZ(0)) here —
-          // it creates a stacking context that breaks the AX emit→ack round-trip in the
-          // expanded ext-app overlay (#55 e2e); the post-boot WebKit repaint remount
-          // below recovers a single present-at-load ext-app without it (Finding F).
-          style={{
-            flex: 1,
-            width: '100%',
-            height: '100%',
-            minHeight: 0,
-            border: 'none',
-            background: 'var(--c-panel)',
-            pointerEvents: isExpanded && status !== 'loading' ? 'auto' : 'none',
-          }}
-          title={`Ext App: ${toolName}`}
-        />
+        {mountGranted && (
+          <iframe
+            key={frameKey}
+            ref={iframeRef}
+            {...iframeDocument.attributes}
+            sandbox={iframeSandbox}
+            allow={buildAllowAttribute(resourceMeta?.permissions)}
+            // NB: do NOT add the `.mcp-app-frame` GPU-layer class (translateZ(0)) here —
+            // it creates a stacking context that breaks the AX emit→ack round-trip in the
+            // expanded ext-app overlay (#55 e2e).
+            style={{
+              flex: 1,
+              width: '100%',
+              height: '100%',
+              minHeight: 0,
+              border: 'none',
+              background: 'var(--c-panel)',
+              pointerEvents: isExpanded && status !== 'loading' ? 'auto' : 'none',
+            }}
+            title={`Ext App: ${toolName}`}
+          />
+        )}
+        {/* Recovery exhausted (Finding N): the paint ladder ran out of budget.
+            Never leave a silent black tile — offer an explicit Retry with a
+            fresh recovery budget (a manual retry mirrors the user-proven
+            expand+close in an idle panel). */}
+        {recoveryExhausted && !error && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '10px',
+              background: 'var(--c-panel)',
+              color: 'var(--c-warn)',
+              fontSize: '12px',
+            }}
+          >
+            <div>App surface failed to paint.</div>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                extAppRecoveryLog(nodeId, 'manual-retry');
+                webkitRemountAttemptsRef.current = 0;
+                setRecoveryExhausted(false);
+                setStatus('loading');
+                setRetryKey((k) => k + 1);
+              }}
+              style={{
+                background: 'var(--c-surface-hover)',
+                border: '1px solid var(--c-warn-15)',
+                borderRadius: '4px',
+                color: 'var(--c-warn)',
+                cursor: 'pointer',
+                fontSize: '11px',
+                padding: '3px 10px',
+              }}
+            >
+              Retry
+            </button>
+          </div>
+        )}
         {/* Connecting overlay: an opaque sibling ABOVE the iframe while this
-            frame boots. During WebKit recovery remounts the iframe's own layer
-            can composite black (Finding N), but sibling DOM always paints — so
-            the multi-second recovery window reads as an intentional loading
+            frame boots — and, on WebKit, until the paint oracle confirms the
+            frame actually composited (Finding N). Sibling DOM always paints,
+            so the boot + recovery window reads as an intentional loading
             state instead of a broken black tile. pointer-events pass through
             so the expand click-catcher keeps working. */}
-        {status === 'loading' && !error && (
+        {(status === 'loading' || paintPending) && !error && !recoveryExhausted && (
           <div
             style={{
               position: 'absolute',
@@ -1170,7 +1336,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
                 animation: 'spin 1s linear infinite',
               }}
             />
-            <div>Connecting to {toolName}...</div>
+            <div>{status === 'loading' ? `Connecting to ${toolName}...` : 'Finishing paint...'}</div>
             <style>{'@keyframes spin { to { transform: rotate(360deg); } }'}</style>
           </div>
         )}

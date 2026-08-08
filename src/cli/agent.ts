@@ -32,6 +32,7 @@ import './commands/webview.js';
 import './commands/apps.js';
 import './commands/copilot.js';
 import './commands/skills.js';
+import './commands/smoke.js';
 
 // Re-exported for existing importers (tests import it from this module).
 export { extractGlobalTargetFlags };
@@ -75,6 +76,7 @@ Canvas commands:
   pmx-canvas arrange [--layout MODE]  Auto-arrange (grid|column|flow)
   pmx-canvas batch [--file FILE]      Run many canvas operations at once
   pmx-canvas validate                 Check collisions and containment issues
+  pmx-canvas smoke                    One-command environment check of a running canvas
   pmx-canvas validate spec            Validate json-render/graph payloads without creating nodes
   pmx-canvas watch [options]          Watch semantic canvas changes over SSE
   pmx-canvas focus <id>               Pan viewport to node

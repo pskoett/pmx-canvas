@@ -21,6 +21,8 @@ export interface CanvasNodeState {
     | 'ledger'
     | 'trace'
     | 'file'
+    | 'diff'
+    | 'mermaid'
     | 'image'
     | 'html'
     | 'group';
@@ -77,6 +79,8 @@ export const TYPE_LABELS: Record<CanvasNodeState['type'], string> = {
   ledger: 'LOG',
   trace: 'TRACE',
   file: 'FILE',
+  diff: 'DIFF',
+  mermaid: 'MERMAID',
   image: 'IMG',
   html: 'HTML',
   group: 'GROUP',
@@ -92,6 +96,8 @@ export const EXPANDABLE_TYPES = new Set<CanvasNodeState['type']>([
   'context',
   'ledger',
   'file',
+  'diff',
+  'mermaid',
   'image',
   'html',
 ]);

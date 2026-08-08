@@ -55,6 +55,8 @@ export const NODE_TYPES = [
   'ledger',
   'trace',
   'file',
+  'diff',
+  'mermaid',
   'image',
   'mcp-app',
   'webpage',
@@ -74,6 +76,10 @@ export function defaultNodeSize(type: string): { width: number; height: number }
       // a useful snippet — the generic default rendered as a content-less bar
       // (0.4.4 portal feedback).
       return { width: 520, height: 360 };
+    case 'diff':
+      return { width: 640, height: 420 };
+    case 'mermaid':
+      return { width: 640, height: 460 };
     case 'markdown':
       return MARKDOWN_NODE_DEFAULT_SIZE;
     case 'mcp-app':
@@ -783,7 +789,7 @@ const nodeAddOperation = defineOperation<z.infer<typeof nodeAddSchema>, NodeAddR
   mcp: {
     toolName: 'canvas_add_node',
     description:
-      'Add a basic node to the canvas. Returns the created node with normalized title/content and rendered geometry. Supported here: markdown, status, context, ledger, trace, file, image, webpage, mcp-app, html, group. Dedicated routes: json-render -> canvas_render {action:"add-json-render"}, graph -> canvas_render {action:"add-graph"}, web-artifact -> canvas_app {action:"build-artifact"}, external apps -> canvas_app {action:"open-mcp-app"}, groups -> canvas_group {action:"create"}. Call canvas_render {action:"describe-schema"} for the full nodeTypeRouting table.',
+      'Add a basic node to the canvas. Returns the created node with normalized title/content and rendered geometry. Supported here: markdown, status, context, ledger, trace, file, diff, mermaid, image, webpage, mcp-app, html, group. Dedicated routes: json-render -> canvas_render {action:"add-json-render"}, graph -> canvas_render {action:"add-graph"}, web-artifact -> canvas_app {action:"build-artifact"}, external apps -> canvas_app {action:"open-mcp-app"}, groups -> canvas_group {action:"create"}. Call canvas_render {action:"describe-schema"} for the full nodeTypeRouting table.',
     extraShape: {
       type: z
         .enum([
@@ -793,6 +799,8 @@ const nodeAddOperation = defineOperation<z.infer<typeof nodeAddSchema>, NodeAddR
           'ledger',
           'trace',
           'file',
+          'diff',
+          'mermaid',
           'image',
           'webpage',
           'mcp-app',

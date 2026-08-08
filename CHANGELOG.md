@@ -3,6 +3,59 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+- A `pmx-canvas smoke` command: one-command check that a running canvas works
+  in the current environment — server health + workspace, CLI/server version
+  skew, MCP initialize handshake, a temporary node create/search/remove
+  round-trip, and board validation. JSON report, exit 1 on failure.
+- The `/health` endpoint now reports the server's package `version`, so tools
+  can detect version skew between a CLI and the daemon it targets.
+- The CLI now accepts `--agent-id` on `ax work add/update` and `ax event add`,
+  and `--agent-id` / `--target` on `ax steer`; the SDK's work, event, and
+  steering methods accept the same identity fields.
+- The skill now teaches in-view placement and content sizing: focus or fit
+  newly created user-facing nodes, use per-type default sizes, and keep AX
+  state reads lean.
+- Nodes created with unreadably small explicit sizes are now clamped up to a
+  per-type minimum (pass `strictSize: true` for a genuinely small fixed
+  frame), and `validate` reports any undersized nodes as advisory size
+  warnings.
+- A new `diff` node type: unified diffs render with per-file headers, hunk
+  rows, and colored added/removed lines instead of a plain code fence.
+- A new `mermaid` node type: flowcharts, sequence and state diagrams render
+  client-side from mermaid text — no hosted app needed; Excalidraw remains
+  for interactive drawing.
+- A live work-item board: `canvas_render { action: "workboard" }` (HTTP
+  `POST /api/canvas/workboard`) materializes one board node showing all AX
+  work items by status, and it refreshes automatically whenever work items
+  change.
+
+### Changed
+
+- The README's MCP and Amp orb setup guides now cover portable configs: pin
+  the package version in orb setup scripts and avoid hard-coding an absolute
+  `PMX_CANVAS_WORKSPACE_ROOT` in committed MCP configs.
+- Focus margins are now screen-space and zoom-aware, so a focused node clears
+  the floating toolbar at any scale.
+
+### Fixed
+
+- A browser panel left open across a `pmx-canvas` upgrade now reloads itself
+  once on reconnect instead of silently running the old client bundle (which
+  hid new client behavior such as the auto-ghost minimum dwell).
+- A batch that pins nodes now updates the browser's pin state immediately —
+  the context menu no longer shows a stale "Pin as context" until reload.
+- The MCP stdio server now exits when its client closes the connection instead
+  of remaining as an orphaned process.
+- Black app tiles in WebKit host panels (e.g. the GitHub Copilot app): hosted
+  app frames now boot one at a time, confirm they actually painted via a paint
+  probe, and recover automatically when they did not — soft resize, then
+  remount, then an explicit Retry button instead of a silent black tile. The
+  loading overlay stays up until the paint is confirmed.
+
 ## [0.4.5] - 2026-08-07
 
 ### Added

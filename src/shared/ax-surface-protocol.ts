@@ -20,3 +20,11 @@ export const HTML_SURFACE_PUSH_SOURCE = 'pmx-canvas-html-node';
 
 /** Ext-app boot beacon: the iframe's scripts executed (WebKit watchdog liveness). */
 export const EXT_APP_BOOT_BEACON_SOURCE = 'pmx-canvas-ext-app-alive';
+
+/**
+ * Parent→ext-app paint probe (Finding N): the parent asks the app document to
+ * answer with a double-rAF `paint-tick` beacon. A frame whose rendering
+ * pipeline is live answers within a frame or two; silence past the timeout is
+ * the paint-fail signal that drives the recovery ladder.
+ */
+export const EXT_APP_PAINT_PROBE_SOURCE = 'pmx-canvas-ext-app-paint-probe';

@@ -27,7 +27,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
 import { AX_SOURCES } from '../server/operations/ops/ax-shared.js';
-import { canvasState, describeCanvasSchema } from '../server/index.js';
+import { canvasState, describeCanvasSchema, stopCanvasServer } from '../server/index.js';
 import { AX_INTERACTION_TYPES } from '../server/ax-interaction.js';
 import { buildPendingAxActivity } from '../server/ax-state.js';
 import { registerOperationTools, registerCompositeTools } from '../server/operations/index.js';
@@ -884,6 +884,24 @@ export async function startMcpServer(): Promise<void> {
   // Connect via stdio
   const transport = new StdioServerTransport();
   await server.connect(transport);
+
+  // Exit when the stdio channel closes (0.4.5 report Finding Y): without this,
+  // a client that completes the official close sequence leaves this process
+  // orphaned — the auto-started canvas server and its timers keep the event
+  // loop alive forever. stopCanvasServer() checkpoints the SQLite DB before
+  // exit and is a no-op when this process only attached to a remote daemon.
+  const shutdown = (): void => {
+    try {
+      stopCanvasServer();
+    } catch {
+      // Exit regardless — a failed cleanup must not resurrect the orphan.
+    }
+    process.exit(0);
+  };
+  server.server.onclose = shutdown;
+  process.stdin.on('end', shutdown);
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
 }
 
 // Allow direct execution: bun run src/mcp/server.ts

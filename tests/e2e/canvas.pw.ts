@@ -2764,7 +2764,9 @@ test('server-side focus updates the browser viewport', async ({ page, request })
         return viewport?.style.transform ?? null;
       });
     })
-    .toContain('matrix(1, 0, 0, 1, 800, 600)');
+    // Focus margins are screen-space (64px left, 96px top — Finding Z): at
+    // scale 1 the node at (900, 700) puts the viewport at (836, 604).
+    .toContain('matrix(1, 0, 0, 1, 836, 604)');
 });
 
 test('authoritative viewport updates from the server override browser startup state', async ({ page, request }) => {
@@ -2911,6 +2913,41 @@ test('ghost intents are interactive, reconnect-safe, vetoable, and settle into l
   expect(observed.positionDelta).toBeLessThan(16);
   expect(observed.sizeDelta).toBeLessThan(24);
   await expect(settleGhost).toHaveCount(0);
+});
+
+test('an unsignalled agent mutation shows an auto-ghost for at least the minimum dwell', async ({ page, request }) => {
+  // Finding W regression: the server signals and settles an auto-ghost within
+  // milliseconds; the CLIENT must hold it visible for MIN_FORMING_MS (650ms).
+  // Consumes the real SSE sequence (ax-intent auto:true → canvas-layout-update
+  // → ax-intent-clear settled) and samples the DOM through the whole window.
+  await page.goto('/workbench');
+  await expect(page.locator('.canvas-viewport')).toBeVisible();
+
+  // In-page sampler: records every observation of an auto-ghost with a timestamp.
+  await page.evaluate(() => {
+    const samples: Array<{ t: number; auto: boolean }> = [];
+    (window as Window & { __ghostSamples?: typeof samples }).__ghostSamples = samples;
+    const started = Date.now();
+    const timer = setInterval(() => {
+      samples.push({ t: Date.now() - started, auto: document.querySelectorAll('.intent-ghost.is-auto').length > 0 });
+      if (Date.now() - started > 4000) clearInterval(timer);
+    }, 40);
+  });
+
+  // Unsignalled mutation: no canvas_intent, no X-PMX-Workbench header.
+  const created = await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Auto-ghost dwell probe', content: 'unsignalled', x: 420, y: 620 },
+  });
+  expect(created.ok()).toBe(true);
+
+  await page.waitForTimeout(2500);
+  const samples = await page.evaluate(
+    () => (window as Window & { __ghostSamples?: Array<{ t: number; auto: boolean }> }).__ghostSamples ?? [],
+  );
+  const seen = samples.filter((sample) => sample.auto);
+  expect(seen.length).toBeGreaterThan(0);
+  // >= 600ms observed window (650ms floor minus sampling slop under load).
+  expect(seen[seen.length - 1].t - seen[0].t).toBeGreaterThanOrEqual(600);
 });
 
 test('polling transport boots the board and receives live updates (proxy-safe fallback)', async ({ page, request }) => {

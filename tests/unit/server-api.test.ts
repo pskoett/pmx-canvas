@@ -519,6 +519,74 @@ describe('canvas server HTTP API', () => {
     expect(layout.edges).toEqual([]);
   });
 
+  test('creates diff nodes with the diff default size and clamps undersized creates', async () => {
+    const diffContent = ['--- a/src/app.ts', '+++ b/src/app.ts', '@@ -1 +1 @@', '-const a = 1;', '+const a = 2;'].join(
+      '\n',
+    );
+    const created = await jsonRequest<{ id: string; type?: string; size: { width: number; height: number } }>(
+      '/api/canvas/node',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'diff', title: 'App fix', content: diffContent }),
+      },
+    );
+    expect(created.size).toEqual({ width: 640, height: 420 });
+    const state = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    const node = state.nodes.find((n) => n.id === created.id);
+    expect(node?.type).toBe('diff');
+    expect(node?.data.content).toBe(diffContent);
+
+    // An undersized explicit create clamps to the diff minimum (420x240).
+    const undersized = await jsonRequest<{ id: string; size: { width: number; height: number } }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'diff', title: 'Tiny', content: diffContent, width: 300, height: 150 }),
+    });
+    expect(undersized.size).toEqual({ width: 420, height: 240 });
+
+    await jsonRequest<{ ok: boolean }>(`/api/canvas/node/${created.id}`, { method: 'DELETE' });
+    await jsonRequest<{ ok: boolean }>(`/api/canvas/node/${undersized.id}`, { method: 'DELETE' });
+  });
+
+  test('creates mermaid nodes with the mermaid default size and serves their surface', async () => {
+    const mermaidSource = 'graph TD; A-->B;';
+    const created = await jsonRequest<{ id: string; type?: string; size: { width: number; height: number } }>(
+      '/api/canvas/node',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'mermaid', title: 'Flow', content: mermaidSource }),
+      },
+    );
+    expect(created.size).toEqual({ width: 640, height: 460 });
+    const state = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    const node = state.nodes.find((n) => n.id === created.id);
+    expect(node?.type).toBe('mermaid');
+    expect(node?.data.content).toBe(mermaidSource);
+
+    // The surface serves the ESCAPED source plus the renderer bundle script.
+    const res = await fetch(`${baseUrl}/api/canvas/surface/${created.id}?theme=dark`);
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-type')).toContain('text/html');
+    expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts');
+    const body = await res.text();
+    expect(body).toContain('graph TD; A--&gt;B;');
+    expect(body).toContain('<pre class="mermaid-source"');
+    expect(body).toContain('<script src="/canvas/mermaid-entry.js"></script>');
+
+    // An undersized explicit create clamps to the mermaid minimum (360x240).
+    const undersized = await jsonRequest<{ id: string; size: { width: number; height: number } }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'mermaid', title: 'Tiny', content: mermaidSource, width: 200, height: 100 }),
+    });
+    expect(undersized.size).toEqual({ width: 360, height: 240 });
+
+    await jsonRequest<{ ok: boolean }>(`/api/canvas/node/${created.id}`, { method: 'DELETE' });
+    await jsonRequest<{ ok: boolean }>(`/api/canvas/node/${undersized.id}`, { method: 'DELETE' });
+  });
+
   test('graph create accepts heightPx / nodeHeight as node-frame-height aliases (#48 follow-up)', async () => {
     const base = { graphType: 'bar', data: [{ label: 'A', value: 1 }], xKey: 'label', yKey: 'value' };
     const viaHeightPx = await jsonRequest<{ id: string; size: { height: number } }>('/api/canvas/graph', {
@@ -1519,6 +1587,179 @@ describe('canvas server HTTP API', () => {
       expect(events.some((e) => e.event === 'ax-intent')).toBe(false);
     } finally {
       delete process.env.PMX_CANVAS_AUTO_INTENT;
+    }
+  });
+
+  test('a batch containing pin ops emits one final context-pins-changed frame', async () => {
+    // Finding X (0.4.5): the batch suppression window swallowed the pins op's
+    // context-pins-changed, leaving client pin state (menus, indicators) stale
+    // until reload. The batch must follow its single layout frame with one
+    // final pins frame carrying the end state.
+    const seq = ((await fetch(`${baseUrl}/api/workbench/poll`).then((r) => r.json())) as { seq: number }).seq;
+    const batch = (await fetch(`${baseUrl}/api/canvas/batch`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        operations: [
+          {
+            op: 'node.add',
+            assign: 'note',
+            args: { type: 'markdown', title: 'Batch pin note', content: 'x', x: 40, y: 900 },
+          },
+          { op: 'pin.add', args: { nodeIds: ['$note'] } },
+        ],
+      }),
+    }).then((r) => r.json())) as { ok: boolean; refs: { note?: { id?: string } } };
+    expect(batch.ok).toBe(true);
+    const nodeId = batch.refs.note?.id ?? '';
+    expect(nodeId).not.toBe('');
+
+    const { events } = (await fetch(`${baseUrl}/api/workbench/poll?since=${seq}`).then((r) => r.json())) as {
+      events: Array<{ event: string; payload: Record<string, unknown> }>;
+    };
+    const pinsFrame = events.find((entry) => entry.event === 'context-pins-changed');
+    expect(pinsFrame).toBeDefined();
+    expect((pinsFrame?.payload.nodeIds as string[]) ?? []).toContain(nodeId);
+
+    // Cleanup: unpin + remove the probe node.
+    await fetch(`${baseUrl}/api/canvas/context-pins`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode: 'remove', nodeIds: [nodeId] }),
+    });
+    await fetch(`${baseUrl}/api/canvas/node/${nodeId}`, { method: 'DELETE' });
+  });
+
+  test('focus margins are screen-space so the target clears the HUD toolbar at any zoom', async () => {
+    // Finding Z (0.4.5): a fixed 100 world-px margin shrank below the floating
+    // toolbar's height at low scales, hiding the focused node's title bar.
+    const created = (await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'status', title: 'Focus margin probe', content: 'x', x: 5000, y: 5000 }),
+    }).then((r) => r.json())) as { id: string };
+
+    await fetch(`${baseUrl}/api/canvas/viewport`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scale: 0.42 }),
+    });
+    const focus = (await fetch(`${baseUrl}/api/canvas/focus`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: created.id }),
+    }).then((r) => r.json())) as { panned: boolean };
+    expect(focus.panned).toBe(true);
+
+    const state = (await fetch(`${baseUrl}/api/canvas/state`).then((r) => r.json())) as {
+      viewport: { x: number; y: number; scale: number };
+    };
+    // World margin = screen margin / scale → 96/0.42 ≈ 228 world px above the node.
+    expect(state.viewport.y).toBeCloseTo(5000 - 96 / 0.42, 0);
+    expect(state.viewport.x).toBeCloseTo(5000 - 64 / 0.42, 0);
+
+    await fetch(`${baseUrl}/api/canvas/viewport`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ scale: 1 }),
+    });
+    await fetch(`${baseUrl}/api/canvas/node/${created.id}`, { method: 'DELETE' });
+  });
+
+  test('the connect snapshot and boot HTML both carry the server version (stale-SPA guard)', async () => {
+    // Finding W (0.4.5): long-lived panels keep an old in-memory bundle across
+    // upgrades. The client compares the boot-stamped version against the
+    // connected frame's version and reloads once on drift.
+    const poll = (await fetch(`${baseUrl}/api/workbench/poll`).then((r) => r.json())) as {
+      events: Array<{ event: string; payload: Record<string, unknown> }>;
+    };
+    const connected = poll.events.find((entry) => entry.event === 'connected');
+    expect(typeof connected?.payload.version).toBe('string');
+    expect(connected?.payload.version as string).toMatch(/^\d+\.\d+\.\d+/);
+
+    const html = await fetch(`${baseUrl}/workbench`).then((r) => r.text());
+    expect(html).toContain(`window.__PMX_BOOT_SERVER_VERSION = ${JSON.stringify(connected?.payload.version)}`);
+  });
+
+  test('undersized explicit creation frames are clamped to type floors; strictSize opts out', async () => {
+    // 0.4.5 report follow-up: agents kept creating unreadably small nodes.
+    const clamped = (await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'Tiny probe',
+        content: 'x',
+        x: 40,
+        y: 1300,
+        width: 180,
+        height: 90,
+      }),
+    }).then((r) => r.json())) as { id: string };
+    const clampedState = (await fetch(`${baseUrl}/api/canvas/node/${clamped.id}`).then((r) => r.json())) as {
+      size: { width: number; height: number };
+    };
+    expect(clampedState.size).toEqual({ width: 360, height: 180 });
+
+    const strict = (await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'Strict tiny',
+        content: 'x',
+        x: 460,
+        y: 1300,
+        width: 180,
+        height: 90,
+        strictSize: true,
+      }),
+    }).then((r) => r.json())) as { id: string };
+    const strictState = (await fetch(`${baseUrl}/api/canvas/node/${strict.id}`).then((r) => r.json())) as {
+      size: { width: number; height: number };
+    };
+    expect(strictState.size).toEqual({ width: 180, height: 90 });
+
+    // Graph creator has its own size path — same floor applies.
+    const graph = (await fetch(`${baseUrl}/api/canvas/graph`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        graphType: 'bar',
+        title: 'Tiny graph',
+        data: [{ label: 'a', value: 1 }],
+        xKey: 'label',
+        yKey: 'value',
+        x: 900,
+        y: 1300,
+        width: 200,
+        nodeHeight: 140,
+      }),
+    }).then((r) => r.json())) as { id: string };
+    const graphState = (await fetch(`${baseUrl}/api/canvas/node/${graph.id}`).then((r) => r.json())) as {
+      size: { width: number; height: number };
+    };
+    expect(graphState.size).toEqual({ width: 420, height: 280 });
+
+    // The update path stays unclamped — but validate reports the undersized
+    // node as an advisory sizeWarning (strictSize nodes are exempt).
+    await fetch(`${baseUrl}/api/canvas/node/${clamped.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ width: 200, height: 100 }),
+    });
+    const validation = (await fetch(`${baseUrl}/api/canvas/validate`).then((r) => r.json())) as {
+      ok: boolean;
+      sizeWarnings: Array<{ id: string; minWidth: number; minHeight: number }>;
+      summary: { sizeWarnings: number };
+    };
+    const warning = validation.sizeWarnings.find((w) => w.id === clamped.id);
+    expect(warning).toMatchObject({ minWidth: 360, minHeight: 180 });
+    expect(validation.sizeWarnings.some((w) => w.id === strict.id)).toBe(false);
+    expect(validation.summary.sizeWarnings).toBeGreaterThanOrEqual(1);
+
+    for (const id of [clamped.id, strict.id, graph.id]) {
+      await fetch(`${baseUrl}/api/canvas/node/${id}`, { method: 'DELETE' });
     }
   });
 
@@ -3739,7 +3980,9 @@ describe('canvas server HTTP API', () => {
     expect(focused.focused).toBe(created.id);
 
     const afterFocus = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
-    expect(afterFocus.viewport).toEqual({ x: 540, y: 380, scale: 1 });
+    // Focus margins are screen-space (64px left, 96px top — Finding Z): at
+    // scale 1 that is 640-64 / 480-96.
+    expect(afterFocus.viewport).toEqual({ x: 576, y: 384, scale: 1 });
 
     const history = await jsonRequest<{
       text: string;
@@ -3764,7 +4007,7 @@ describe('canvas server HTTP API', () => {
     expect(redone.description).toContain('Updated viewport');
 
     const afterRedo = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
-    expect(afterRedo.viewport).toEqual({ x: 540, y: 380, scale: 1 });
+    expect(afterRedo.viewport).toEqual({ x: 576, y: 384, scale: 1 });
   });
 
   test('updates viewport directly over HTTP', async () => {
@@ -3810,12 +4053,30 @@ describe('canvas server HTTP API', () => {
     await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'markdown', title: 'Fit A', x: 100, y: 100, width: 200, height: 100 }),
+      // strictSize: this test asserts fit MATH on exact geometry; without it the
+      // creation floor clamp (360x180) would shift the bounds.
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'Fit A',
+        x: 100,
+        y: 100,
+        width: 200,
+        height: 100,
+        strictSize: true,
+      }),
     });
     await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'markdown', title: 'Fit B', x: 700, y: 500, width: 300, height: 200 }),
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'Fit B',
+        x: 700,
+        y: 500,
+        width: 300,
+        height: 200,
+        strictSize: true,
+      }),
     });
 
     const bodylessFit = await jsonRequest<{
@@ -4486,6 +4747,78 @@ describe('canvas server HTTP API', () => {
 
     const stateAfterUpdate = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
     expect(stateAfterUpdate.nodes.find((n) => n.id === node.id)?.data.axWorkStatus).toBe('done');
+  });
+
+  test('workboard endpoint creates a live board node that auto-refreshes on work-item changes', async () => {
+    interface WorkboardResponse {
+      ok: boolean;
+      id: string;
+      created: boolean;
+      itemCount: number;
+    }
+    const specOf = async (nodeId: string): Promise<string> => {
+      const state = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+      const node = state.nodes.find((n) => n.id === nodeId);
+      expect(node).toBeDefined();
+      expect(node?.data.workboard).toBe(true);
+      return JSON.stringify(node?.data.spec ?? {});
+    };
+
+    // (a) No work items → creates the board with itemCount 0 and an empty-state spec.
+    const first = await jsonRequest<WorkboardResponse>('/api/canvas/workboard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(first.ok).toBe(true);
+    expect(first.created).toBe(true);
+    expect(first.itemCount).toBe(0);
+    expect(await specOf(first.id)).toContain('No work items');
+
+    // (b) Two work items (one with agentId) → second call rebuilds the SAME node.
+    await jsonRequest('/api/canvas/ax/work', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Board item one', status: 'todo', agentId: 'researcher', source: 'api' }),
+    });
+    await jsonRequest('/api/canvas/ax/work', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Board item two', status: 'in-progress', source: 'api' }),
+    });
+    const second = await jsonRequest<WorkboardResponse>('/api/canvas/workboard', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({}),
+    });
+    expect(second.created).toBe(false);
+    expect(second.id).toBe(first.id);
+    expect(second.itemCount).toBe(2);
+    const boardState = await jsonRequest<CanvasStateResponse>('/api/canvas/state');
+    expect(boardState.nodes.filter((n) => n.data.workboard === true)).toHaveLength(1);
+    const rebuiltSpec = await specOf(first.id);
+    expect(rebuiltSpec).toContain('Board item one');
+    expect(rebuiltSpec).toContain('Board item two');
+    expect(rebuiltSpec).toContain('researcher');
+
+    // (c) A third work item added over the AX API auto-refreshes the board
+    // WITHOUT calling the workboard endpoint again.
+    const third = await jsonRequest<{ workItem: { id: string } }>('/api/canvas/ax/work', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Board item three', status: 'todo', source: 'api' }),
+    });
+    expect(await specOf(first.id)).toContain('Board item three');
+
+    // (d) A work-item status update is reflected in the board spec.
+    await jsonRequest(`/api/canvas/ax/work/${third.workItem.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: 'blocked', source: 'api' }),
+    });
+    expect(await specOf(first.id)).toContain('Blocked (1)');
+
+    await jsonRequest(`/api/canvas/node/${first.id}`, { method: 'DELETE' });
   });
 
   test('AX record-event accepts agentId and the timeline read returns it', async () => {

@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import {
   buildHtmlSurfaceDocument,
+  buildMermaidSurfaceHtml,
   normalizeSurfaceTheme,
   SURFACE_THEME_STYLESHEET,
 } from '../../src/server/html-surface.ts';
@@ -29,6 +30,18 @@ describe('buildHtmlSurfaceDocument inline theme css', () => {
     });
     expect(doc).toContain('<style data-pmx-surface-theme>:root { --c-bg: #081524; }</style>');
     expect(doc).not.toContain(`<link rel="stylesheet" href="${SURFACE_THEME_STYLESHEET}">`);
+  });
+});
+
+describe('buildMermaidSurfaceHtml', () => {
+  test('escapes markup in the diagram source so it cannot break out of the <pre>', () => {
+    const html = buildMermaidSurfaceHtml('graph TD; A-->B;</pre><script>alert(1)</script>');
+    expect(html).not.toContain('<script>alert(1)</script>');
+    expect(html).not.toContain('</pre><script>');
+    expect(html).toContain('&lt;/pre&gt;&lt;script&gt;alert(1)&lt;/script&gt;');
+    // The wrapper itself still carries the source pre + renderer bundle script.
+    expect(html).toContain('<pre class="mermaid-source"');
+    expect(html).toContain('<script src="/canvas/mermaid-entry.js"></script>');
   });
 });
 

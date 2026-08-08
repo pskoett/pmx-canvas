@@ -195,6 +195,34 @@ describe('PmxCanvas SDK surface', () => {
     expect(canvas.getNode('missing-node')).toBeUndefined();
   });
 
+  test('AX orchestration identity fields round-trip through the SDK facade', () => {
+    workspaceRoot = createTestWorkspace('pmx-canvas-sdk-ax-identity-');
+    resetCanvasForTests(workspaceRoot);
+    const canvas = createCanvas({ port: 4793 });
+
+    // Work items carry agentId through add + update.
+    const workItem = canvas.addWorkItem({ title: 'Wire auth', agentId: 'builder-1' });
+    expect(workItem.agentId).toBe('builder-1');
+    expect(canvas.listWorkItems().find((w) => w.id === workItem.id)?.agentId).toBe('builder-1');
+    const updated = canvas.updateWorkItem(workItem.id, { status: 'done', agentId: 'builder-2' });
+    expect(updated?.agentId).toBe('builder-2');
+
+    // Timeline events carry agentId.
+    const event = canvas.recordAxEvent({ kind: 'tool-start', summary: 'ran tests' }, { agentId: 'builder-1' });
+    expect(event.agentId).toBe('builder-1');
+
+    // Steering carries agentId + target (addressed steering).
+    const steering = canvas.sendSteering('wave 2 is unblocked', { agentId: 'orchestrator', target: 'builder-1' });
+    expect(steering.agentId).toBe('orchestrator');
+    expect(steering.target).toBe('builder-1');
+
+    const timeline = canvas.getAxTimeline();
+    expect(timeline.events.find((e) => e.id === event.id)?.agentId).toBe('builder-1');
+    const storedSteering = timeline.steering.find((s) => s.id === steering.id);
+    expect(storedSteering?.agentId).toBe('orchestrator');
+    expect(storedSteering?.target).toBe('builder-1');
+  });
+
   test('linked SDK mutations settle only after a successful mutation', () => {
     workspaceRoot = createTestWorkspace('pmx-canvas-sdk-intent-');
     resetCanvasForTests(workspaceRoot);

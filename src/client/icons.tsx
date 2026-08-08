@@ -473,6 +473,10 @@ export function getNodeIcon(type: string): (p: IconProps) => JSX.Element {
       return IconNodeResponse;
     case 'file':
       return IconNodeFile;
+    case 'diff':
+      return IconNodeFile;
+    case 'mermaid':
+      return IconNodeGraph;
     case 'image':
       return IconNodeImage;
     case 'webpage':

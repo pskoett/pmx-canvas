@@ -375,6 +375,14 @@ const batchOperation = defineOperation<z.infer<typeof batchSchema>, BatchEnvelop
     // ctx.emit). After the loop completes, emit ONE final canvas-layout-update.
     const envelope = await runWithSuppressedEmits(() => runBatch(operations));
     ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
+    // The suppression window also swallows the pins op's context-pins-changed
+    // frame, leaving the client's pin state (menus, indicators) stale until
+    // reload (0.4.5 report Finding X). If the batch touched pins, follow the
+    // layout frame with ONE final pins frame carrying the end state.
+    if (operations.some((entry) => entry.op.startsWith('pin.'))) {
+      const nodeIds = Array.from(canvasState.contextPinnedNodeIds);
+      ctx.emit('context-pins-changed', { count: nodeIds.length, nodeIds });
+    }
     return envelope;
   },
 });

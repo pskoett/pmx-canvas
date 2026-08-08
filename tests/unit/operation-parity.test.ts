@@ -344,7 +344,7 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
       content: 'Get body',
       x: 80,
       y: 90,
-      width: 300,
+      width: 360,
       height: 180,
     });
     const expected: NodeView = {
@@ -352,7 +352,7 @@ describe('operation parity across HTTP, MCP, CLI, and SDK surfaces', () => {
       title: 'Get parity',
       content: 'Get body',
       position: { x: 80, y: 90 },
-      size: { width: 300, height: 180 },
+      size: { width: 360, height: 180 },
     };
 
     // HTTP GET returns the serialized node directly (no ok/envelope wrapper).
