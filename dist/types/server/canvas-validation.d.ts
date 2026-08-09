@@ -40,8 +40,8 @@ export interface CanvasValidationResult {
     /**
      * Edges whose endpoint node is DOCKED — it renders in the HUD column, not on
      * the canvas, so the edge visually terminates in empty space even though both
-     * endpoint IDs resolve (0.4.6 orb feedback #1). Same defect class as a missing
-     * endpoint: the edge cannot be drawn, so this fails `ok`.
+     * endpoint IDs resolve (0.4.6 orb feedback #1). Advisory: reported for
+     * diagnosis, but does NOT fail `ok` (see the note at the return site).
      */
     hiddenEdgeEndpoints: CanvasHiddenEdgeEndpoint[];
     /** Nodes below their type's readable minimum (advisory — does not fail `ok`). */

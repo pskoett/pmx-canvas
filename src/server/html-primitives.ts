@@ -1956,7 +1956,7 @@ ${AX_LOOP_PANEL}
     script: `${AX_SURFACE_PRELUDE}
 ${AX_SURFACE_LOOP}
 
-const AX_FLOW_TITLE = ${JSON.stringify(title)};
+const AX_FLOW_TITLE = ${JSON.stringify(title).replace(/</g, '\\u003c')};
 const AX_FLOW_STEPS = Array.isArray(PMX_DATA.steps) ? PMX_DATA.steps : [];
 const AX_FLOW_LOOP = PMX_DATA.loop || {};
 // Step index → the id of the work item bound to that step (created here, or

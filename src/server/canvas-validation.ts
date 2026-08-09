@@ -47,8 +47,8 @@ export interface CanvasValidationResult {
   /**
    * Edges whose endpoint node is DOCKED — it renders in the HUD column, not on
    * the canvas, so the edge visually terminates in empty space even though both
-   * endpoint IDs resolve (0.4.6 orb feedback #1). Same defect class as a missing
-   * endpoint: the edge cannot be drawn, so this fails `ok`.
+   * endpoint IDs resolve (0.4.6 orb feedback #1). Advisory: reported for
+   * diagnosis, but does NOT fail `ok` (see the note at the return site).
    */
   hiddenEdgeEndpoints: CanvasHiddenEdgeEndpoint[];
   /** Nodes below their type's readable minimum (advisory — does not fail `ok`). */
@@ -189,11 +189,12 @@ export function validateCanvasLayout(layout: CanvasLayout): CanvasValidationResu
     });
 
   return {
-    ok:
-      collisions.length === 0 &&
-      containmentViolations.length === 0 &&
-      missingEdgeEndpoints.length === 0 &&
-      hiddenEdgeEndpoints.length === 0,
+    // `hiddenEdgeEndpoints` is ADVISORY (like sizeWarnings): a docked endpoint
+    // is a rendering observation, not a structural defect, and folding it into
+    // `ok` would flip previously-healthy boards to ok:false with no user change
+    // — `ok` is a documented response field of a frozen surface, so that is a
+    // contract break, not a patch. It is still reported for diagnosis.
+    ok: collisions.length === 0 && containmentViolations.length === 0 && missingEdgeEndpoints.length === 0,
     collisions,
     containments,
     containmentViolations,

@@ -1115,7 +1115,7 @@ AX interactions are gated per node type. The lists below are each type's **ceili
 
 | Node type | Allowed AX interaction types |
 |-----------|------------------------------|
-| `markdown` | `ax.steer`, `ax.work.create`, `ax.evidence.add`, `ax.command.invoke`, `ax.event.record` |
+| `markdown` | `ax.steer`, `ax.work.create`, `ax.work.update`, `ax.evidence.add`, `ax.command.invoke`, `ax.event.record` |
 | `context` | `ax.focus.set`, `ax.steer`, `ax.evidence.add`, `ax.command.invoke`, `ax.event.record` |
 | `status` | `ax.work.create`, `ax.work.update`, `ax.approval.request`, `ax.mode.request`, `ax.event.record` |
 | `file` | `ax.evidence.add`, `ax.review.add`, `ax.focus.set`, `ax.event.record` |
@@ -1124,6 +1124,8 @@ AX interactions are gated per node type. The lists below are each type's **ceili
 | `ledger` | `ax.evidence.add`, `ax.event.record` |
 | `trace` | `ax.evidence.add`, `ax.event.record` |
 | `image` | `ax.evidence.add`, `ax.review.add` |
+| `diff` | `ax.evidence.add`, `ax.review.add`, `ax.focus.set`, `ax.event.record` |
+| `mermaid` | `ax.steer`, `ax.work.create`, `ax.evidence.add`, `ax.command.invoke`, `ax.event.record` |
 | `webpage` | `ax.evidence.add`, `ax.review.add`, `ax.focus.set`, `ax.event.record` |
 | `group` | `ax.focus.set`, `ax.work.create`, `ax.command.invoke`, `ax.event.record` |
 

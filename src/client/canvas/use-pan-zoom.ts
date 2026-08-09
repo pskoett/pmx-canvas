@@ -52,6 +52,10 @@ export function usePanZoom({ viewport, onViewportChange, onViewportCommit, disab
    * arrives as ctrl+wheel and is handled alongside this.
    */
   function isMouseWheel(e: WheelEvent): boolean {
+    // Line/page deltaMode is only ever produced by a real wheel (Firefox emits
+    // DOM_DELTA_LINE with deltaY ~3 per notch, which the pixel heuristic below
+    // would never match — wheel zoom simply never fired there).
+    if (e.deltaMode !== 0) return e.deltaX === 0;
     return e.deltaX === 0 && Number.isInteger(e.deltaY) && Math.abs(e.deltaY) >= 50;
   }
 

@@ -39,7 +39,20 @@ export function seedDemoCanvas(): { nodes: number; edges: number; groups: number
     canvasState.setViewport(demoState.viewport);
     // After the nodes exist: the AX partition is normalized against the current
     // node set, so applying it first would strip every work item's `nodeIds`.
-    if (demoState.ax !== undefined) canvasState.applyPersistedAxState(structuredClone(demoState.ax));
+    //
+    // Only when the canvas-bound AX partition is EMPTY. applyPersistedAxState
+    // REPLACES it (work items, gates, review annotations, and the policy
+    // singleton) and the seed is flushed to disk — and the caller's
+    // only-seed-when-empty guard counts NODES only. Work items need no nodes,
+    // so an agent tracking a plan on a bare board would have it destroyed by
+    // `--demo`.
+    const axPartitionEmpty =
+      canvasState.getWorkItems().length === 0 &&
+      canvasState.getApprovalGates().length === 0 &&
+      canvasState.getReviewAnnotations().length === 0;
+    if (demoState.ax !== undefined && axPartitionEmpty) {
+      canvasState.applyPersistedAxState(structuredClone(demoState.ax));
+    }
   });
   canvasState.flushToDisk();
 

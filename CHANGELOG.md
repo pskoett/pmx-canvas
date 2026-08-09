@@ -3,6 +3,66 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.7] - 2026-08-09
+
+### Added
+
+- The flow works without the panel too: materialized step nodes get native
+  Start / Done / Blocked controls, and the first step adds Run loop / Stop and
+  a steer box. That loop runs server-side, so it survives a browser reload and
+  keeps advancing while the tab is closed.
+- Two live AX control surfaces you can put on the board: **`ax-board`** (give
+  the agent tasks, watch their status change as it works, steer it, and run a
+  bounded task loop) and **`ax-flow`** (the same controls drawn as a task flow
+  with a loop-back rail, plus a **Materialize to board** button that lays the
+  flow out as real nodes joined by edges, each tracking its own status).
+- The demo board is a proper showcase now: every node type, every chart type,
+  every HTML primitive, a grouped cluster, labelled edges and context pins —
+  laid out in labelled bands instead of the old three-group OKR dashboard.
+- `GET /api/canvas/file-bytes?nodeId=…` serves a file node's bytes from the
+  workspace (used by the inline PDF viewer); paths outside the workspace, or
+  reached through a symlink out of it, are refused.
+- File nodes now handle more than source code: `.csv` and `.tsv` files render
+  as real tables, PDFs render in an embedded viewer, and other binary files
+  show a name-and-size placeholder instead of decoded gibberish. Text files
+  larger than 2 MB render truncated with a notice rather than being read into
+  memory whole.
+
+### Changed
+
+- The mouse wheel now zooms the canvas (trackpad two-finger scrolling still
+  pans, and the toolbar +/- buttons and their keyboard shortcuts both zoom
+  around the viewport centre).
+- The browser honors the server's readability floor, so content-fit never
+  shrinks a node back below it.
+- `validate` now reports edges whose endpoint node is docked (and therefore
+  cannot be drawn) as an advisory `hiddenEdgeEndpoints` list. Like
+  `sizeWarnings` it does not fail `ok`, so boards that passed before still
+  pass.
+
+### Fixed
+
+- `strictSize` is no longer dropped on file, image and webpage nodes — it used
+  to be honored when sizing the node but never stored, so the browser resized
+  the node anyway.
+- Node chrome no longer crowds out short nodes when you zoom out: the title bar
+  used to grow until it took most of a small node and clipped its text away.
+- Context nodes no longer dock themselves invisibly: a node you create lands on
+  the canvas where you put it, and docking to the HUD column is something you
+  ask for. Previously an agent-created context node existed in the API and
+  passed validation but never rendered, so edges to it trailed off into empty
+  space.
+- `fit` now sizes the board to the connected browser window instead of assuming
+  1440x900, so fitting no longer leaves nodes clipped on both sides.
+- Edges stay legible when you zoom out: strokes, dashes, arrowheads, and labels
+  now hold their on-screen size instead of shrinking to invisible hairlines,
+  and `references` edges use a higher-contrast colour.
+- CLI flag values that begin with a dash now work, so a unified diff starting
+  with `--- a/file` can be passed straight to `--content` (and a bare `--` ends
+  flag parsing).
+- Web-artifact builds now fail fast with a clear message naming the Node.js
+  version they need, instead of an opaque package-manager error.
+
 ## [0.4.6] - 2026-08-08
 
 ### Added
@@ -28,23 +88,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   `POST /api/canvas/workboard`) materializes one board node showing all AX
   work items by status, and it refreshes automatically whenever work items
   change.
-- The flow works without the panel too: materialized step nodes get native
-  Start / Done / Blocked controls, and the first step adds Run loop / Stop and
-  a steer box. That loop runs server-side, so it survives a browser reload and
-  keeps advancing while the tab is closed.
-- Two live AX control surfaces you can put on the board: **`ax-board`** (give
-  the agent tasks, watch their status change as it works, steer it, and run a
-  bounded task loop) and **`ax-flow`** (the same controls drawn as a task flow
-  with a loop-back rail, plus a **Materialize to board** button that lays the
-  flow out as real nodes joined by edges, each tracking its own status).
-- The demo board is a proper showcase now: every node type, every chart type,
-  every HTML primitive, a grouped cluster, labelled edges and context pins —
-  laid out in labelled bands instead of the old three-group OKR dashboard.
-- File nodes now handle more than source code: `.csv` and `.tsv` files render
-  as real tables, PDFs render in an embedded viewer, and other binary files
-  show a name-and-size placeholder instead of decoded gibberish. Text files
-  larger than 2 MB render truncated with a notice rather than being read into
-  memory whole.
+
 
 ### Changed
 
@@ -53,8 +97,7 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   default-ish size instead; pass `strictSize: true` to keep a genuinely small
   fixed frame. `validate` reports any undersized nodes as advisory size
   warnings. Agents doing their own layout arithmetic should read back the
-  created size (or set `strictSize`). The browser honors the same floor, so
-  content-fit never shrinks a node back below it.
+  created size (or set `strictSize`).
 - The README's MCP and Amp orb setup guides now cover portable configs: pin
   the package version in orb setup scripts and avoid hard-coding an absolute
   `PMX_CANVAS_WORKSPACE_ROOT` in committed MCP configs.
@@ -63,28 +106,6 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
-- `strictSize` is no longer dropped on file, image and webpage nodes — it used
-  to be honored when sizing the node but never stored, so the browser resized
-  the node anyway.
-- Node chrome no longer crowds out short nodes when you zoom out: the title bar
-  used to grow until it took most of a small node and clipped its text away.
-- Context nodes no longer dock themselves invisibly: a node you create lands on
-  the canvas where you put it, and docking to the HUD column is something you
-  ask for. Previously an agent-created context node existed in the API and
-  passed validation but never rendered, so edges to it trailed off into empty
-  space.
-- `validate` now reports edges whose endpoint node is docked (and therefore
-  cannot be drawn) instead of passing them as healthy.
-- `fit` now sizes the board to the connected browser window instead of assuming
-  1440x900, so fitting no longer leaves nodes clipped on both sides.
-- Edges stay legible when you zoom out: strokes, dashes, arrowheads, and labels
-  now hold their on-screen size instead of shrinking to invisible hairlines,
-  and `references` edges use a higher-contrast colour.
-- CLI flag values that begin with a dash now work, so a unified diff starting
-  with `--- a/file` can be passed straight to `--content` (and a bare `--` ends
-  flag parsing).
-- Web-artifact builds now fail fast with a clear message naming the Node.js
-  version they need, instead of an opaque package-manager error.
 - A browser panel left open across a `pmx-canvas` upgrade now reloads itself
   once on reconnect instead of silently running the old client bundle (which
   hid new client behavior such as the auto-ghost minimum dwell).
@@ -3084,6 +3105,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.4.7]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.7
 [0.4.6]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.6
 [0.4.5]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.5
 [0.4.4]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.4

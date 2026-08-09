@@ -1,6 +1,6 @@
 {
   "name": "pmx-canvas",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "description": "Spatial canvas workbench for coding agents — infinite 2D canvas with agent-native CLI, MCP integration, nodes, edges, file watching, and snapshots",
   "type": "module",
   "main": "./src/server/index.ts",
@@ -46,7 +46,7 @@
     "test": "if [ -d tests/unit ]; then PMX_MCP_APP_HOST_STATE_FILE=/tmp/pmx-canvas-test-app-host-state.json PMX_CANVAS_DISABLE_BROWSER_OPEN=1 bun test tests/unit; else echo 'tests/ is not shipped in the npm package — clone the repo to run the suite'; fi",
     "test:unit": "PMX_MCP_APP_HOST_STATE_FILE=/tmp/pmx-canvas-test-app-host-state.json PMX_CANVAS_DISABLE_BROWSER_OPEN=1 bun test tests/unit",
     "test:client": "if [ -d tests/client ]; then bun test --preload ./tests/client/setup.ts tests/client; else echo 'tests/ is not shipped in the npm package — clone the repo to run the suite'; fi",
-    "test:coverage": "PMX_MCP_APP_HOST_STATE_FILE=/tmp/pmx-canvas-test-app-host-state.json bun test tests/unit --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir coverage && bun scripts/check-coverage.ts",
+    "test:coverage": "PMX_MCP_APP_HOST_STATE_FILE=/tmp/pmx-canvas-test-app-host-state.json PMX_CANVAS_DISABLE_BROWSER_OPEN=1 bun test tests/unit --coverage --coverage-reporter=text --coverage-reporter=lcov --coverage-dir coverage && bun scripts/check-coverage.ts",
     "test:web-canvas": "PMX_CANVAS_DISABLE_BROWSER_OPEN=1 bun run build && PMX_CANVAS_DISABLE_BROWSER_OPEN=1 bash scripts/run-playwright.sh",
     "test:e2e": "bun run test:web-canvas",
     "test:e2e-cli": "bash scripts/e2e-cli-coverage.sh",

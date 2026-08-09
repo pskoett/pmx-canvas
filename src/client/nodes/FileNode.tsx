@@ -386,6 +386,12 @@ export function FileNode({ node, expanded = false }: { node: CanvasNodeState; ex
             <iframe
               src={bytesUrl}
               title={title}
+              // SECURITY: same-origin URL, so it must be sandboxed like every
+              // other iframe in the client. Without allow-same-origin the frame
+              // gets an opaque origin and cannot reach the canvas API even if
+              // the bytes turn out to be markup. The built-in PDF viewer needs
+              // no script permissions from us.
+              sandbox=""
               style={{ width: '100%', height: '100%', border: 'none', display: 'block' }}
             />
           ))}

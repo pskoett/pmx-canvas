@@ -38,7 +38,7 @@
 
 import { spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { existsSync, readFileSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync, statSync, writeFileSync, appendFileSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { basename, extname, join, relative, resolve } from 'node:path';
 import * as marked from 'marked';
@@ -53,6 +53,7 @@ import {
   normalizeSurfaceTheme,
 } from './html-surface.js';
 import { findCanvasExtAppNodeId as findCanvasExtAppNodeIdShared } from './ext-app-lookup.js';
+import { isPdfFilePath } from './file-content.js';
 import { normalizeExtAppToolResult } from './ext-app-tool-result.js';
 import { getMcpAppHostSnapshot } from './mcp-app-host.js';
 import { closeMcpAppSession, closeAllMcpAppSessions } from './mcp-app-runtime.js';
@@ -628,9 +629,28 @@ function resolveWorkspaceMarkdownPath(pathLike: string): string | null {
 function resolveWorkspaceArtifactPath(pathLike: string): string | null {
   if (!pathLike || typeof pathLike !== 'string') return null;
   const resolved = resolve(pathLike);
-  const workspaceRel = relative(activeWorkspaceRoot, resolved);
+  // Containment must be checked on REAL paths: a lexical resolve() only stops
+  // `..` and absolute escapes, so a symlink INSIDE the workspace pointing at
+  // /etc/passwd or ~/.ssh/id_rsa would pass. Both sides are realpath'd — the
+  // root itself is commonly a symlink (macOS /tmp → /private/tmp), and
+  // comparing a real candidate against a symlinked root would reject
+  // legitimate files.
+  let realResolved = resolved;
+  let realRoot = activeWorkspaceRoot;
+  try {
+    realResolved = realpathSync(resolved);
+  } catch {
+    // Not yet on disk (callers handle existence themselves) — fall back to the
+    // lexical path, whose parent chain is still checked below.
+  }
+  try {
+    realRoot = realpathSync(activeWorkspaceRoot);
+  } catch {
+    // Workspace root unreadable — keep the configured value.
+  }
+  const workspaceRel = relative(realRoot, realResolved);
   const insideWorkspace = !(workspaceRel.startsWith('..') || workspaceRel === '..');
-  return insideWorkspace ? resolved : null;
+  return insideWorkspace ? realResolved : null;
 }
 
 function escapeHtml(text: string): string {
@@ -1413,6 +1433,13 @@ async function handleCanvasImage(pathname: string): Promise<Response> {
 }
 
 // ── Serve raw bytes for file nodes (PDF viewer, downloads) ───
+/**
+ * Ceiling for the raw byte route. The route streams via Bun.file, so this is a
+ * sanity bound (an embedded PDF viewer is the only consumer), not a memory
+ * guard — but it stops a stray multi-GB path from tying up a connection.
+ */
+const FILE_BYTES_MAX = 100 * 1024 * 1024;
+
 async function handleCanvasFileBytes(url: URL): Promise<Response> {
   const nodeId = url.searchParams.get('nodeId') ?? '';
   if (!nodeId) return responseText('Missing nodeId', 400);
@@ -1434,12 +1461,32 @@ async function handleCanvasFileBytes(url: URL): Promise<Response> {
   if (!existsSync(safePath)) {
     return responseText('File not found', 404);
   }
-  const mimeType = typeof node.data.mimeType === 'string' ? node.data.mimeType : 'application/octet-stream';
-  const bytes = await readFile(safePath);
-  return new Response(bytes, {
+  let stats: ReturnType<typeof statSync>;
+  try {
+    stats = statSync(safePath);
+  } catch {
+    return responseText('File not found', 404);
+  }
+  // Regular files only: a directory would throw EISDIR into a 500, and a FIFO
+  // would block the read forever (the server has no request timeout).
+  if (!stats.isFile()) {
+    return responseText('File path is not a regular file', 400);
+  }
+  if (stats.size > FILE_BYTES_MAX) {
+    return responseText(`File is larger than the ${Math.floor(FILE_BYTES_MAX / 1_000_000)} MB byte-route limit`, 413);
+  }
+  // Content-Type is derived from the BYTES, never from node.data.mimeType:
+  // node data is freely writable by any local caller, and this response is
+  // framed same-origin — echoing a caller-chosen `text/html` here would run
+  // attacker markup on the canvas origin. PDFs are the only inline-rendered
+  // type; everything else is an opaque download. nosniff stops the browser
+  // from second-guessing us.
+  const contentType = isPdfFilePath(safePath) ? 'application/pdf' : 'application/octet-stream';
+  return new Response(Bun.file(safePath), {
     headers: {
-      'Content-Type': mimeType,
-      'Content-Disposition': 'inline',
+      'Content-Type': contentType,
+      'Content-Disposition': contentType === 'application/pdf' ? 'inline' : 'attachment',
+      'X-Content-Type-Options': 'nosniff',
       'Cache-Control': 'no-store',
     },
   });

@@ -27,6 +27,12 @@ export type FileNodeContent =
     truncated: boolean;
 };
 /**
+ * PDF check straight from a path, for the byte route's server-derived
+ * Content-Type. Reads only the magic-byte prefix. Any read failure is "not a
+ * PDF" — the caller then serves an opaque download rather than an inline type.
+ */
+export declare function isPdfFilePath(filePath: string): boolean;
+/**
  * Classify a file and read at most `MAX_FILE_TEXT_BYTES` of it.
  *
  * Never throws: an unreadable path is reported as `unavailable`, matching the

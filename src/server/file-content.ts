@@ -31,6 +31,31 @@ function isPdfFile(prefix: Buffer, filePath: string): boolean {
 }
 
 /**
+ * PDF check straight from a path, for the byte route's server-derived
+ * Content-Type. Reads only the magic-byte prefix. Any read failure is "not a
+ * PDF" — the caller then serves an opaque download rather than an inline type.
+ */
+export function isPdfFilePath(filePath: string): boolean {
+  let fd: number | null = null;
+  try {
+    fd = openSync(filePath, 'r');
+    const prefix = Buffer.alloc(PDF_MAGIC.length);
+    const read = readSync(fd, prefix, 0, PDF_MAGIC.length, 0);
+    return isPdfFile(prefix.subarray(0, read), filePath);
+  } catch {
+    return false;
+  } finally {
+    if (fd !== null) {
+      try {
+        closeSync(fd);
+      } catch {
+        // best effort
+      }
+    }
+  }
+}
+
+/**
  * Classify a file and read at most `MAX_FILE_TEXT_BYTES` of it.
  *
  * Never throws: an unreadable path is reported as `unavailable`, matching the

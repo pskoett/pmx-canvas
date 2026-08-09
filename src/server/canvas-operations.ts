@@ -569,6 +569,11 @@ function prepareExtAppNodesForSessionSync(forceRehydrate: boolean): string[] {
 
       const transportConfig = normalizeTransportConfig(node.data.transportConfig);
       if (!transportConfig) {
+        // Only a node that HAD a session has one to fail restoring. A static
+        // ext-app node (no session, no transport — e.g. the demo board's
+        // showcase tile) would otherwise be stamped with a persisted error
+        // banner on every start after the first, for a session it never had.
+        if (!sessionId) continue;
         setExtAppRuntimeState(node.id, {
           appSessionId: null,
           sessionStatus: 'error',

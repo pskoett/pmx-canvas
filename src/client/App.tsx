@@ -652,12 +652,13 @@ export function App() {
         animateViewport({ x: 0, y: 0, scale: 1 }, 250);
       } else if (mod && (e.key === '=' || e.key === '+')) {
         e.preventDefault();
-        const cur = viewport.value;
-        animateViewport({ ...cur, scale: Math.min(4, cur.scale * 1.25) }, 150);
+        // Same centre-anchored zoom as the toolbar +/- buttons these shortcuts
+        // are advertised on (the tooltip names this key) — a raw scale change
+        // is origin-anchored and drifts the board away under the cursor.
+        zoomByFactor(1.25);
       } else if (mod && e.key === '-') {
         e.preventDefault();
-        const cur = viewport.value;
-        animateViewport({ ...cur, scale: Math.max(0.1, cur.scale / 1.25) }, 150);
+        zoomByFactor(1 / 1.25);
       } else if (e.key === 'Escape') {
         if (selectedNodeIds.value.size > 0) {
           clearSelection();

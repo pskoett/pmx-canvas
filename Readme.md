@@ -307,7 +307,7 @@ services:
 ```bash
 # .agents/setup — install the CLI (pin the exact version: a fresh orb running
 # @latest can silently pick up a newer release than the one you validated)
-npm install -g pmx-canvas@0.4.6
+npm install -g pmx-canvas@0.4.7
 ```
 
 The server binds the portal-assigned `$PORT` automatically (gated on the
@@ -381,7 +381,7 @@ the agent can read `canvas://skills` and pull in companion skills
   them; `mcp-app` / `canvas_app { action: "diagram" }` calls go to whatever
   MCP server URL you configure (the Excalidraw preset uses
   `https://mcp.excalidraw.com/mcp`); building a web artifact runs a package
-  manager, which fetches that artifact's declared dependencies from the npm
+  manager, which fetches a React/Tailwind toolchain plus that artifact's declared dependencies (and, if neither pnpm nor bun is present, installs pnpm globally) from the npm
   registry; and `bunx` itself reads the registry on first install. Nothing
   else phones home.
 
