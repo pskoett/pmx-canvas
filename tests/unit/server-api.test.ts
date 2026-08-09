@@ -1866,6 +1866,48 @@ describe('canvas server HTTP API', () => {
     await fetch(`${baseUrl}/api/canvas/node/${wide.id}`, { method: 'DELETE' });
   });
 
+  test('strictSize persists for every node type, not just the generic ones', async () => {
+    // The per-type builders for file/image/webpage return a fresh data object
+    // and used to drop `strictSize`. The creation clamp still honored it (it
+    // reads the input directly), but nothing persisted `data.strictSize`, so
+    // the browser's auto-fit resized the node anyway — the same "server says
+    // one thing, browser undoes it" class as the 0.4.6 Finding AA floor bug.
+    const created: Array<{ type: string; id: string; strictSize: unknown; size: { width: number; height: number } }> =
+      [];
+    const specs = [
+      { type: 'file', title: 'Strict file', content: 'line one\nline two' },
+      {
+        type: 'image',
+        title: 'Strict image',
+        content:
+          'data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI4IiBoZWlnaHQ9IjgiLz4=',
+      },
+      { type: 'markdown', title: 'Strict markdown', content: 'x' },
+      { type: 'trace', title: 'Strict trace', content: 'x' },
+    ];
+    for (const spec of specs) {
+      const node = (await fetch(`${baseUrl}/api/canvas/node`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...spec, strictSize: true, x: 60, y: 4200, width: 200, height: 100 }),
+      }).then((r) => r.json())) as {
+        id: string;
+        node: { data: Record<string, unknown>; size: { width: number; height: number } };
+      };
+      created.push({ type: spec.type, id: node.id, strictSize: node.node.data.strictSize, size: node.node.size });
+    }
+
+    for (const entry of created) {
+      expect(entry.strictSize, `${entry.type} must persist strictSize`).toBe(true);
+      // strictSize also opts out of the readability floor, so the small frame stands.
+      expect(entry.size, `${entry.type} keeps its explicit frame`).toEqual({ width: 200, height: 100 });
+    }
+
+    for (const entry of created) {
+      await fetch(`${baseUrl}/api/canvas/node/${entry.id}`, { method: 'DELETE' });
+    }
+  });
+
   test('delivery mark is compare-and-set and steering accepts the amp source', async () => {
     const steer = (await fetch(`${baseUrl}/api/canvas/ax/steer`, {
       method: 'POST',

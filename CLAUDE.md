@@ -128,7 +128,7 @@ Every mistake is a learning opportunity. Log it, learn from it, prevent it.
 bun install                    # Install dependencies
 bun run build                  # Build client SPA → dist/canvas/
 bun run dev                    # Start server + open browser
-bun run dev:demo               # Start with the saved dashboard demo board
+bun run dev:demo               # Start with the showcase demo board
 bun run start                  # Start headless (no browser)
 pmx-canvas serve --daemon      # Start daemonized server with pid/log tracking
 pmx-canvas serve status        # Check daemon health + pid state

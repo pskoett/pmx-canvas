@@ -21,14 +21,53 @@ import {
   viewport,
 } from '../state/canvas-store';
 import { removeNodeFromClient, updateNodeFromClient } from '../state/intent-bridge';
+import { AxStepControls } from '../nodes/AxStepControls';
 import { canOpenAsSite, openNodeAsSite } from '../nodes/surface-url';
 import { getNodeIcon } from '../icons';
 import { EXPANDABLE_TYPES, TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
-import { computeAutoFitHeight, shouldAutoFitNode } from './auto-fit';
+import { AUTO_FIT_TITLEBAR_HEIGHT, computeAutoFitHeight, shouldAutoFitNode } from './auto-fit';
 import { activeGuides, buildSnapCache, clearSnapCache, snapToGuides } from './snap-guides';
 import { useNodeDrag } from './use-node-drag';
 import { useNodeResize } from './use-node-resize';
+
+/** Fraction of a node's height the title bar may occupy before it starts
+ *  crowding out the content it is labelling. */
+const MAX_TITLEBAR_HEIGHT_RATIO = 0.4;
+/** Fraction of a node's width the fixed title-bar chrome may occupy before it
+ *  starts eating the node's NAME. */
+const MAX_TITLEBAR_CHROME_WIDTH_RATIO = 0.55;
+/** Unscaled width of everything in the bar that is not the title: type icon,
+ *  status/type pill, the control cluster, and the gaps between them. */
+const TITLEBAR_CHROME_BASE_WIDTH = 175;
+
+/**
+ * How much to enlarge node chrome (title bar, badges, icons) when zoomed out so
+ * it stays legible. Full inverse compensation is capped at 2.2x — but the cap
+ * alone ignored the node it is drawn on, so on SHORT nodes the growing bar ate
+ * the body: a 116px-tall section label at 46% zoom gave the title bar 72% of the
+ * node and left 14px for text that needed 41, so the markdown was simply cut off.
+ * The scale is therefore also bounded by the node's own height, keeping the bar
+ * under MAX_TITLEBAR_HEIGHT_RATIO of it. Tall nodes are unaffected (their height
+ * never binds); pass height 0 for collapsed/auto-height nodes to skip the bound.
+ */
+export function nodeChromeScale(viewportScale: number, nodeHeight: number, nodeWidth = 0): number {
+  if (!Number.isFinite(viewportScale) || viewportScale >= 1) return 1;
+  const zoomScale = Math.min(2.2, 1 / Math.max(viewportScale, 0.01));
+  let bounded = zoomScale;
+  if (Number.isFinite(nodeHeight) && nodeHeight > 0) {
+    bounded = Math.min(bounded, (nodeHeight * MAX_TITLEBAR_HEIGHT_RATIO) / AUTO_FIT_TITLEBAR_HEIGHT);
+  }
+  // Width matters as much as height: the icon, pill and control cluster are all
+  // flex-shrink: 0, so the NAME is the only thing that gives way. Unbounded, a
+  // 360px step node at 52% zoom spent 100 of 187 bar pixels on controls alone and
+  // the title collapsed to nothing. Bound the scale so the fixed chrome can never
+  // take more than MAX_TITLEBAR_CHROME_WIDTH_RATIO of the node.
+  if (Number.isFinite(nodeWidth) && nodeWidth > 0) {
+    bounded = Math.min(bounded, (nodeWidth * MAX_TITLEBAR_CHROME_WIDTH_RATIO) / TITLEBAR_CHROME_BASE_WIDTH);
+  }
+  return Math.max(1, bounded);
+}
 
 interface CanvasNodeProps {
   node: CanvasNodeState;
@@ -220,7 +259,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const isGroup = node.type === 'group';
   const isStrictSize = node.data.strictSize === true;
   const viewportScale = Math.max(viewport.value.scale, 0.01);
-  const chromeScale = viewportScale < 1 ? Math.min(2.2, 1 / viewportScale) : 1;
+  const chromeScale = nodeChromeScale(viewportScale, node.collapsed ? 0 : node.size.height, node.size.width);
 
   const groupColor = isGroup && node.data.color ? (node.data.color as string) : undefined;
   const nodeStyle: Record<string, string | number> = {
@@ -261,9 +300,13 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
             return <NodeIcon size={Math.round(14 * chromeScale)} />;
           })()}
         </span>
-        <span class="node-type-badge">{TYPE_LABELS[node.type]}</span>
-        {typeof node.data.axWorkStatus === 'string' && (
+        {/* The icon already says what type this is, so the type badge yields to
+            the status chip rather than stacking two pills in front of the name —
+            on a narrow node that combination pushed the title to an ellipsis. */}
+        {typeof node.data.axWorkStatus === 'string' ? (
           <span class={`node-ax-status node-ax-status-${node.data.axWorkStatus}`}>{node.data.axWorkStatus}</span>
+        ) : (
+          <span class="node-type-badge">{TYPE_LABELS[node.type]}</span>
         )}
         {renaming ? (
           <input
@@ -278,7 +321,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
-          <span class="node-title" onDblClick={handleTitleDblClick} title="Double-click to rename">
+          <span class="node-title" onDblClick={handleTitleDblClick} title={`${title} — double-click to rename`}>
             {title}
           </span>
         )}
@@ -356,6 +399,12 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
       {!node.collapsed && (
         <div ref={bodyRef} class="node-body">
           {children}
+          {/* AX flow step controls — rendered here rather than in a node renderer
+              because a materialized step can be ANY node type, and because the
+              body is what auto-fit measures (a footer outside it would be clipped
+              on a content-fitted node). Renders nothing unless the node carries a
+              `data.axStep` stamp. */}
+          <AxStepControls node={node} />
         </div>
       )}
       {!node.collapsed && (

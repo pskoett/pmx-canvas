@@ -45,6 +45,11 @@
  * This module must never import server.ts or index.ts.
  */
 import { z } from 'zod';
+// Side-effect import: wires the work-item change listener (live workboard refresh
+// + materialized-flow loop advance). Work items are this module's domain, and the
+// ops registry loads it on every entry path (HTTP, MCP, SDK), so the flow loop is
+// armed wherever work items can change.
+import '../../ax-flow-loop.js';
 import { canvasState } from '../../canvas-state.js';
 import type {
   PmxAxMode,

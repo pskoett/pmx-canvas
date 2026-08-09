@@ -28,7 +28,12 @@ import {
   LEDGER_NODE_DEFAULT_SIZE,
 } from '../../canvas-operations.js';
 import { normalizeNodeAxCapabilities } from '../../ax-interaction.js';
-import { buildHtmlPrimitive, getHtmlPrimitiveSemanticMetadata, isHtmlPrimitiveKind } from '../../html-primitives.js';
+import {
+  buildHtmlPrimitive,
+  getHtmlPrimitiveDescriptor,
+  getHtmlPrimitiveSemanticMetadata,
+  isHtmlPrimitiveKind,
+} from '../../html-primitives.js';
 import { closeMcpAppSession } from '../../mcp-app-runtime.js';
 import {
   getCanvasNodeTitle,
@@ -631,6 +636,14 @@ function createHtmlPrimitiveNode(body: Record<string, unknown>): NodeAddResult {
     throw new OperationError(error instanceof Error ? error.message : String(error));
   }
   const geometry = resolveCreateGeometry(body);
+  // `html` is AX-opt-in, so an emitting primitive is inert without capabilities:
+  // apply the ones its descriptor declares. An explicit caller value wins (both are
+  // clamped to the `html` type ceiling by resolveNodeAxCapabilities). The declared
+  // set is copied — the descriptor is a module constant shared by every node.
+  const declared = getHtmlPrimitiveDescriptor(built.kind).axCapabilities;
+  const axCapabilities =
+    normalizeNodeAxCapabilities(body.axCapabilities) ??
+    (declared ? { enabled: declared.enabled, allowed: [...declared.allowed] } : undefined);
   const { node } = addCanvasNode({
     type: 'html',
     title: built.title,
@@ -641,6 +654,7 @@ function createHtmlPrimitiveNode(body: Record<string, unknown>): NodeAddResult {
       description: built.summary,
       agentSummary: typeof data.agentSummary === 'string' ? data.agentSummary : built.summary,
       ...(typeof data.summary === 'string' ? { summary: data.summary } : {}),
+      ...(axCapabilities ? { axCapabilities } : {}),
       ...getHtmlPrimitiveSemanticMetadata(built.data),
     },
     ...(body.strictSize === true ? { strictSize: true } : {}),

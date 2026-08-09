@@ -1721,6 +1721,17 @@ class CanvasStateManager {
     return this.ax.getAxState();
   }
 
+  /**
+   * Replace the canvas-bound AX partition from a persisted blob, normalized against
+   * the current node set — the same operation snapshot restore performs internally
+   * (`applyPersistedState`), exposed for the demo seed. Both restore nodes whose
+   * `data.axStep.workItemId` only resolves if the work items come back with their
+   * original ids, so this preserves them verbatim rather than re-creating them.
+   */
+  applyPersistedAxState(ax: unknown): void {
+    this.ax.applyPersistedAx(ax);
+  }
+
   getAxFocus(): PmxAxFocusState {
     return this.ax.getAxFocus();
   }

@@ -215,7 +215,7 @@ To work on the canvas itself, clone the repo — see [Development](#development)
 
 ```bash
 bunx pmx-canvas              # Start canvas, open browser
-bunx pmx-canvas --demo       # Start with the saved dashboard demo board
+bunx pmx-canvas --demo       # Start with the showcase demo board
 bunx pmx-canvas --no-open    # Headless (good for daemons / CI)
 bunx pmx-canvas --theme=volt # Pick a theme (nine ship; PMX_CANVAS_THEME works too)
 bunx pmx-canvas --mcp        # Run as MCP server (stdio)
@@ -226,8 +226,9 @@ Themes are a toolbar picker away too, and any one panel can override the
 shared theme for itself with `?theme=<name|auto>`.
 
 The canvas opens at `http://localhost:4313`. Try `--demo` first — it seeds a
-saved dashboard with grouped OKR notes, graph panels, context pins, and labeled
-edges.
+showcase board with every node type on it: notes and status, files, a diff, a
+CSV table, charts of every kind, mermaid diagrams, the HTML primitives,
+structured panels, a grouped cluster, labeled edges, and context pins.
 
 ### Connect your agent (MCP)
 
@@ -402,7 +403,7 @@ cd pmx-canvas
 bun install
 bun run build
 bun run dev            # Start + open browser
-bun run dev:demo       # Start with the demo board
+bun run dev:demo       # Start with the showcase demo board
 bun run test           # Unit tests
 bun run test:e2e       # Playwright end-to-end tests
 bun run test:all       # Unit tests + browser smoke

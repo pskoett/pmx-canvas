@@ -466,6 +466,25 @@ function easeOutCubic(t: number): number {
  * Cancels any in-flight animation. Direct manipulation (pan/zoom gestures)
  * should use setViewport() instead for instant response.
  */
+/**
+ * Zoom by a factor about the CENTRE of the viewport.
+ *
+ * The toolbar's +/- used to change `scale` alone and keep `x`/`y`, which anchors
+ * the zoom at the world origin — so zooming in visibly slid the board up-left and
+ * zooming out pushed it down-right, instead of magnifying what you were looking
+ * at. Same correction the pointer-anchored wheel zoom applies, with the viewport
+ * centre as the anchor.
+ */
+export function zoomByFactor(factor: number, duration = 150): void {
+  const v = viewport.value;
+  const scale = Math.min(4, Math.max(0.1, v.scale * factor));
+  if (scale === v.scale) return;
+  const ratio = scale / v.scale;
+  const cx = window.innerWidth / 2;
+  const cy = window.innerHeight / 2;
+  animateViewport({ x: cx - ratio * (cx - v.x), y: cy - ratio * (cy - v.y), scale }, duration);
+}
+
 export function animateViewport(
   target: ViewportState,
   duration = 300,

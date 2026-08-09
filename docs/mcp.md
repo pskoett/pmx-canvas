@@ -227,6 +227,18 @@ interaction against the node's effective capabilities.
 - **Commands:** `canvas_invoke_command` runs a registry command (`pmx.plan`,
   `pmx.execute`, `pmx.promote-context`, `pmx.summarize`, `pmx.review`); unknown
   names are rejected and a successful call records a `command` agent-event.
+  Commands *record* a signal for the agent — they do not execute anything
+  server-side.
+- **`ax.flow.materialize`:** the one interaction that creates canvas nodes, and
+  it is deliberately narrow. The caller supplies text only — up to 12 steps with
+  a title (<= 120 chars) and optional detail — and the SERVER owns the resulting
+  shape: one `markdown` node per step, `flow` edges between them, a dashed
+  `references` loop edge when looping, and one work item per step linked to its
+  node (so the existing status-chip mirroring shows progress). The surface never
+  names a node type, geometry, or node data. Re-materializing replaces the
+  previous flow: the source node keeps a manifest of the ids it created, and
+  only nodes on that manifest that still carry the matching flow id are removed,
+  so a surface can never delete anything it did not create.
 
 ## Change notifications
 

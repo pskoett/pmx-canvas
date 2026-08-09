@@ -28,6 +28,18 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   `POST /api/canvas/workboard`) materializes one board node showing all AX
   work items by status, and it refreshes automatically whenever work items
   change.
+- The flow works without the panel too: materialized step nodes get native
+  Start / Done / Blocked controls, and the first step adds Run loop / Stop and
+  a steer box. That loop runs server-side, so it survives a browser reload and
+  keeps advancing while the tab is closed.
+- Two live AX control surfaces you can put on the board: **`ax-board`** (give
+  the agent tasks, watch their status change as it works, steer it, and run a
+  bounded task loop) and **`ax-flow`** (the same controls drawn as a task flow
+  with a loop-back rail, plus a **Materialize to board** button that lays the
+  flow out as real nodes joined by edges, each tracking its own status).
+- The demo board is a proper showcase now: every node type, every chart type,
+  every HTML primitive, a grouped cluster, labelled edges and context pins —
+  laid out in labelled bands instead of the old three-group OKR dashboard.
 - File nodes now handle more than source code: `.csv` and `.tsv` files render
   as real tables, PDFs render in an embedded viewer, and other binary files
   show a name-and-size placeholder instead of decoded gibberish. Text files
@@ -51,6 +63,11 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
+- `strictSize` is no longer dropped on file, image and webpage nodes — it used
+  to be honored when sizing the node but never stored, so the browser resized
+  the node anyway.
+- Node chrome no longer crowds out short nodes when you zoom out: the title bar
+  used to grow until it took most of a small node and clipped its text away.
 - Context nodes no longer dock themselves invisibly: a node you create lands on
   the canvas where you put it, and docking to the HUD column is something you
   ask for. Previously an agent-created context node existed in the API and

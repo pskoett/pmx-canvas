@@ -1360,6 +1360,279 @@ test('AX read path: an AX-enabled html board reflects live AX state (window.PMX_
   await expect(frame.locator('#c')).toHaveText('work:1');
 });
 
+test('ax-board primitive: clicking Add task creates real AX work and the board reflects it', async ({
+  page,
+  request,
+}) => {
+  // No axCapabilities in the payload: the ax-board DESCRIPTOR declares them, so the
+  // created node is AX-enabled by construction (an html primitive is otherwise inert).
+  const created = await request.post('/api/canvas/node', {
+    data: {
+      type: 'html-primitive',
+      kind: 'ax-board',
+      title: 'AX board e2e',
+      strictSize: true,
+      x: 120,
+      y: 120,
+      width: 900,
+      height: 640,
+    },
+  });
+  const nodeId = ((await created.json()) as { id: string }).id;
+  const boardNode = (await currentCanvasState(request)).nodes.find((node) => node.id === nodeId);
+  expect((boardNode?.data.axCapabilities as { enabled?: boolean } | undefined)?.enabled).toBe(true);
+
+  await page.goto('/workbench');
+  const node = page.locator('.canvas-node').filter({ hasText: 'AX board e2e' });
+  await expect(node).toHaveCount(1);
+  const frame = node.frameLocator('iframe');
+  await expect(frame.locator('#ax-work-list')).toContainText('No work items yet');
+
+  // Drive the REAL controls — type into the real input, click the real button.
+  await frame.locator('#ax-task-title').fill('e2e board task');
+  await frame.getByRole('button', { name: 'Add task' }).click();
+
+  // The click produced real AX state on the server (documented read route).
+  await expect
+    .poll(async () => {
+      const work = await request.get('/api/canvas/ax/work');
+      const body = (await work.json()) as { workItems?: Array<{ title: string; status: string }> };
+      return (body.workItems ?? []).find((item) => item.title === 'e2e board task')?.status;
+    })
+    .toBe('todo');
+
+  // ...and the panel renders it from the live AX push, not from local optimism.
+  const row = frame.locator('.ax-work-row').filter({ hasText: 'e2e board task' });
+  await expect(row).toHaveCount(1);
+  await expect(row.locator('.badge')).toHaveText('todo');
+  await expect(frame.locator('#ax-work-list')).not.toContainText('No work items yet');
+
+  // Per-row status control advances the same work item through ax.work.update.
+  await row.locator('select').selectOption('in-progress');
+  await expect
+    .poll(async () => {
+      const work = await request.get('/api/canvas/ax/work');
+      const body = (await work.json()) as { workItems?: Array<{ title: string; status: string }> };
+      return (body.workItems ?? []).find((item) => item.title === 'e2e board task')?.status;
+    })
+    .toBe('in-progress');
+  await expect(row.locator('.badge')).toHaveText('in-progress');
+
+  await request.delete(`/api/canvas/node/${nodeId}`);
+  await expect(node).toHaveCount(0);
+});
+
+test('ax-board primitive: a bounded loop advances on done, stops on Stop, and never double-advances', async ({
+  page,
+  request,
+}) => {
+  const created = await request.post('/api/canvas/node', {
+    data: {
+      type: 'html-primitive',
+      kind: 'ax-board',
+      title: 'AX loop e2e',
+      strictSize: true,
+      x: 120,
+      y: 120,
+      width: 900,
+      height: 640,
+    },
+  });
+  const nodeId = ((await created.json()) as { id: string }).id;
+
+  const workItems = async (): Promise<Array<{ id: string; title: string }>> => {
+    const response = await request.get('/api/canvas/ax/work');
+    return ((await response.json()) as { workItems?: Array<{ id: string; title: string }> }).workItems ?? [];
+  };
+  const runsNamed = async (fragment: string): Promise<number> =>
+    (await workItems()).filter((item) => item.title.includes(fragment)).length;
+  const markDone = async (fragment: string): Promise<void> => {
+    const item = (await workItems()).find((entry) => entry.title.includes(fragment));
+    await request.patch(`/api/canvas/ax/work/${item?.id}`, { data: { status: 'done' } });
+  };
+
+  await page.goto('/workbench');
+  const node = page.locator('.canvas-node').filter({ hasText: 'AX loop e2e' });
+  await expect(node).toHaveCount(1);
+  const frame = node.frameLocator('iframe');
+  // A loop NEVER auto-starts: the panel is hidden until the human starts one.
+  await expect(frame.locator('#ax-loop-panel')).toBeHidden();
+
+  await frame.locator('#ax-task-title').fill('loop task');
+  await frame.locator('#ax-loop-runs').fill('2');
+  await frame.getByRole('button', { name: 'Start loop' }).click();
+  await expect(frame.locator('#ax-loop-run')).toHaveText('run 1 of 2');
+  await expect.poll(async () => await runsNamed('loop task — run 1/2')).toBe(1);
+
+  // The agent finishing run 1 (observed from live AX state) opens run 2 — exactly once.
+  await markDone('loop task — run 1/2');
+  await expect(frame.locator('#ax-loop-run')).toHaveText('run 2 of 2');
+  await expect.poll(async () => await runsNamed('loop task — run 2/2')).toBe(1);
+  await page.waitForTimeout(500);
+  expect(await runsNamed('loop task — run 2/2')).toBe(1);
+
+  // Stop wins over the cap: finishing run 2 afterwards must not open a run 3.
+  await frame.getByRole('button', { name: 'Stop loop' }).click();
+  await expect(frame.locator('#ax-loop-panel')).toBeHidden();
+  await markDone('loop task — run 2/2');
+  await page.waitForTimeout(600);
+  expect(await runsNamed('loop task — run 3/2')).toBe(0);
+
+  await request.delete(`/api/canvas/node/${nodeId}`);
+});
+
+test('ax-flow primitive: clicking Materialize lays the flow out as real nodes and edges', async ({ page, request }) => {
+  // No axCapabilities in the payload: the ax-flow DESCRIPTOR declares them (including
+  // ax.flow.materialize), so the created node can emit by construction.
+  const created = await request.post('/api/canvas/node', {
+    data: {
+      type: 'html-primitive',
+      kind: 'ax-flow',
+      title: 'AX flow e2e',
+      strictSize: true,
+      data: {
+        steps: [{ title: 'Reproduce' }, { title: 'Fix' }, { title: 'Verify' }],
+        loop: { enabled: true, maxRuns: 2 },
+      },
+      x: 120,
+      y: 120,
+      width: 900,
+      height: 700,
+    },
+  });
+  const nodeId = ((await created.json()) as { id: string }).id;
+
+  await page.goto('/workbench');
+  const node = page.locator('.canvas-node').filter({ hasText: 'AX flow e2e' });
+  await expect(node).toHaveCount(1);
+  const frame = node.frameLocator('iframe');
+  // The diagram draws every step, with the loop-back rail visible.
+  await expect(frame.locator('.ax-flow-step')).toHaveCount(3);
+  await expect(frame.locator('.ax-flow-step').first()).toContainText('not queued');
+  await expect(frame.locator('#ax-flow-wrap')).toHaveClass(/looping/);
+
+  // Drive the REAL control.
+  await frame.getByRole('button', { name: 'Materialize to board' }).click();
+  await expect(frame.locator('#ax-flow-materialize-status')).toContainText('3 step nodes on the board');
+
+  // The click produced real canvas state on the server.
+  const flowId = `axflow-${nodeId}`;
+  await expect
+    .poll(async () => (await currentCanvasState(request)).nodes.filter((n) => n.data.axFlowId === flowId).length)
+    .toBe(3);
+  const state = await currentCanvasState(request);
+  const stepNodes = state.nodes
+    .filter((n) => n.data.axFlowId === flowId)
+    .sort((a, b) => Number(a.data.axFlowStep) - Number(b.data.axFlowStep));
+  expect(stepNodes.map((n) => n.type)).toEqual(['markdown', 'markdown', 'markdown']);
+  expect(stepNodes.map((n) => n.data.title)).toEqual(['1. Reproduce', '2. Fix', '3. Verify']);
+  // Each step node carries its work-item status chip (the existing mirror).
+  expect(stepNodes.map((n) => n.data.axWorkStatus)).toEqual(['todo', 'todo', 'todo']);
+
+  const stepIds = stepNodes.map((n) => n.id);
+  const flowEdges = state.edges.filter((edge) => edge.type === 'flow');
+  expect(flowEdges.map((edge) => [edge.from, edge.to])).toEqual([
+    [stepIds[0], stepIds[1]],
+    [stepIds[1], stepIds[2]],
+  ]);
+  const loopEdge = state.edges.find((edge) => edge.type === 'references');
+  expect([loopEdge?.from, loopEdge?.to]).toEqual([stepIds[2], stepIds[0]]);
+
+  // The step nodes are on the board, and the panel now shows live status per step.
+  await expect(page.locator('.canvas-node').filter({ hasText: '1. Reproduce' })).toHaveCount(1);
+  await expect(frame.locator('.ax-flow-step').first()).toContainText('todo');
+
+  // Re-materializing REPLACES rather than duplicating.
+  await frame.getByRole('button', { name: 'Materialize to board' }).click();
+  await expect(frame.locator('#ax-flow-materialize-status')).toContainText('replaced 3');
+  await expect
+    .poll(async () => (await currentCanvasState(request)).nodes.filter((n) => n.data.axFlowId === flowId).length)
+    .toBe(3);
+
+  for (const id of [nodeId, ...stepIds]) await request.delete(`/api/canvas/node/${id}`);
+  await expect(node).toHaveCount(0);
+});
+
+test('native step controls on a materialized flow node drive the work item and the loop', async ({ page, request }) => {
+  // Materialize a looping flow (the panel's own Materialize button is covered by
+  // the ax-flow primitive test above — this one is about the NODES it produces).
+  const created = await request.post('/api/canvas/node', {
+    data: { type: 'html-primitive', kind: 'ax-flow', title: 'AX native flow e2e', x: 120, y: 120 },
+  });
+  const panelId = ((await created.json()) as { id: string }).id;
+  const materialized = await request.post('/api/canvas/ax/interaction', {
+    data: {
+      type: 'ax.flow.materialize',
+      sourceNodeId: panelId,
+      sourceSurface: 'html-node',
+      payload: {
+        title: 'Native flow',
+        steps: [{ title: 'Reproduce' }, { title: 'Fix' }, { title: 'Verify' }],
+        loop: { enabled: true, maxRuns: 2 },
+      },
+    },
+  });
+  const flow = (await materialized.json()) as {
+    primitive: { steps: Array<{ nodeId: string; workItemId: string }> };
+  };
+  const stepIds = flow.primitive.steps.map((step) => step.nodeId);
+  const workIds = flow.primitive.steps.map((step) => step.workItemId);
+
+  const workStatus = async (id: string): Promise<string | undefined> => {
+    const response = await request.get('/api/canvas/ax/work');
+    const body = (await response.json()) as { workItems?: Array<{ id: string; status: string }> };
+    return (body.workItems ?? []).find((item) => item.id === id)?.status;
+  };
+  const loopRunning = async (): Promise<unknown> => {
+    const state = await currentCanvasState(request);
+    const anchor = state.nodes.find((n) => n.id === stepIds[0]);
+    return (anchor?.data.axFlow as { loop?: { running?: boolean } } | undefined)?.loop?.running;
+  };
+
+  await page.goto('/workbench');
+  const stepNode = (title: string) => page.locator('.canvas-node').filter({ hasText: title });
+  const step1 = stepNode('1. Reproduce');
+  await expect(step1).toHaveCount(1);
+  await expect(step1.locator('.ax-step-controls')).toHaveCount(1);
+  await expect(step1).toContainText('Step 1/3');
+
+  // Drive the REAL native control on the step NODE (not in the panel).
+  await step1.getByRole('button', { name: 'Start' }).click();
+  await expect.poll(async () => workStatus(workIds[0])).toBe('in-progress');
+  // ...and the node's own status chip followed the work item.
+  await expect(step1.locator('.node-ax-status')).toHaveText('in-progress');
+
+  await step1.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect.poll(async () => workStatus(workIds[0])).toBe('done');
+  await expect(step1.locator('.node-ax-status')).toHaveText('done');
+  // The loop is idle, so nothing opened step 2 on its own.
+  expect(await workStatus(workIds[1])).toBe('todo');
+
+  // Run the loop from the anchor node: it persists on the node and opens the
+  // next unfinished step.
+  await step1.getByRole('button', { name: 'Run loop' }).click();
+  await expect.poll(loopRunning).toBe(true);
+  await expect.poll(async () => workStatus(workIds[1])).toBe('in-progress');
+
+  // Completing a step now advances the flow server-side, no panel involved.
+  await stepNode('2. Fix').getByRole('button', { name: 'Done', exact: true }).click();
+  await expect.poll(async () => workStatus(workIds[2])).toBe('in-progress');
+
+  // Completing the LAST step closes run 1 and reopens the flow at step 1.
+  await stepNode('3. Verify').getByRole('button', { name: 'Done', exact: true }).click();
+  await expect.poll(async () => workStatus(workIds[0])).toBe('in-progress');
+  expect(await workStatus(workIds[2])).toBe('todo');
+
+  // Stop is immediate and durable, and the loop no longer advances.
+  await step1.getByRole('button', { name: 'Stop' }).click();
+  await expect.poll(loopRunning).toBe(false);
+  await step1.getByRole('button', { name: 'Done', exact: true }).click();
+  await expect.poll(async () => workStatus(workIds[0])).toBe('done');
+  expect(await workStatus(workIds[1])).toBe('todo');
+
+  for (const id of [panelId, ...stepIds]) await request.delete(`/api/canvas/node/${id}`);
+});
+
 test('file node evidence control records AX evidence', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
     data: { type: 'file', content: 'console.log(1)', data: { path: '/tmp/evidence-file.ts' }, x: 640, y: 260 },

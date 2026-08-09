@@ -13,6 +13,14 @@ interface DemoStateFixture {
   edges: CanvasEdge[];
   annotations?: CanvasAnnotation[];
   contextPins?: string[];
+  /**
+   * Canvas-bound AX state (work items and friends), restored verbatim so the
+   * `data.axStep.workItemId` stamped on the ⑧ agent-at-work step nodes resolves
+   * to a real work item — without it the seeded Start/Done controls 404.
+   * Timeline rows (events/evidence/steering) are deliberately absent: snapshots
+   * do not restore them either.
+   */
+  ax?: unknown;
 }
 
 const demoState = demoStateJson as DemoStateFixture;
@@ -29,6 +37,9 @@ export function seedDemoCanvas(): { nodes: number; edges: number; groups: number
     for (const annotation of annotations) canvasState.addAnnotation(annotation);
     canvasState.setContextPins(pins);
     canvasState.setViewport(demoState.viewport);
+    // After the nodes exist: the AX partition is normalized against the current
+    // node set, so applying it first would strip every work item's `nodeIds`.
+    if (demoState.ax !== undefined) canvasState.applyPersistedAxState(structuredClone(demoState.ax));
   });
   canvasState.flushToDisk();
 

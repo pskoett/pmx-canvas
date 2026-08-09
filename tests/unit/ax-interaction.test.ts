@@ -6,7 +6,7 @@ import {
   resolveNodeAxCapabilities,
   type AxInteractionManager,
 } from '../../src/server/ax-interaction.ts';
-import type { CanvasNodeState } from '../../src/server/canvas-state.ts';
+import type { CanvasEdge, CanvasNodeState } from '../../src/server/canvas-state.ts';
 
 function makeNode(type: CanvasNodeState['type'], data: Record<string, unknown> = {}): CanvasNodeState {
   return {
@@ -27,8 +27,38 @@ function makeNode(type: CanvasNodeState['type'], data: Record<string, unknown> =
 function makeManager(node: CanvasNodeState | undefined) {
   const calls: Array<{ op: string; args: unknown[] }> = [];
   const rec = (op: string, ...args: unknown[]) => calls.push({ op, args });
+  // Minimal canvas surface (ax.flow.materialize reads/writes nodes + edges).
+  const nodes = new Map<string, CanvasNodeState>(node ? [[node.id, node]] : []);
+  const edges = new Map<string, CanvasEdge>();
   const manager: AxInteractionManager = {
     getNode: (id) => (node && node.id === id ? node : undefined),
+    getLayout: () => ({
+      viewport: { x: 0, y: 0, scale: 1 },
+      theme: 'dark',
+      nodes: [...nodes.values()],
+      edges: [...edges.values()],
+      annotations: [],
+    }),
+    addNode: (added) => {
+      rec('addNode', added);
+      nodes.set(added.id, added);
+    },
+    updateNode: (id, patch) => {
+      rec('updateNode', id, patch);
+      const existing = nodes.get(id);
+      if (existing) nodes.set(id, { ...existing, ...patch });
+    },
+    removeNode: (id) => {
+      rec('removeNode', id);
+      nodes.delete(id);
+      for (const [edgeId, edge] of edges) if (edge.from === id || edge.to === id) edges.delete(edgeId);
+    },
+    addEdge: (edge) => {
+      rec('addEdge', edge);
+      if (edge.from === edge.to) return false;
+      edges.set(edge.id, edge);
+      return true;
+    },
     recordAxEvent: (input, o) => {
       rec('recordAxEvent', input, o);
       return {
@@ -263,7 +293,19 @@ describe('applyAxInteraction', () => {
     // defaults nodeIds to the source node
     const addCall = calls.find((c) => c.op === 'addWorkItem');
     expect((addCall?.args[0] as { nodeIds: string[] }).nodeIds).toEqual(['status-1']);
-    // emits an outcome event plus the primitive state event
+    // emits an outcome event, the primitive state event, and — because the work
+    // item is linked to a node, whose data.axWorkStatus chip the mirror just
+    // changed — a layout frame so the browser re-renders that node.
+    expect(events.map((e) => e.event)).toEqual(['ax-interaction', 'ax-state-changed', 'canvas-layout-update']);
+  });
+
+  test('omits the layout frame for a work item that is linked to no node', () => {
+    const { manager } = makeManager(makeNode('status'));
+    const { events } = applyAxInteraction(
+      manager,
+      { type: 'ax.work.create', sourceNodeId: 'status-1', payload: { title: 'Unlinked', nodeIds: [] } },
+      'api',
+    );
     expect(events.map((e) => e.event)).toEqual(['ax-interaction', 'ax-state-changed']);
   });
 

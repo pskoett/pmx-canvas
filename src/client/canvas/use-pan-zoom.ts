@@ -44,13 +44,24 @@ export function usePanZoom({ viewport, onViewportChange, onViewportCommit, disab
     [onViewportCommit],
   );
 
+  /**
+   * A mouse wheel should zoom the canvas; a trackpad two-finger scroll should still
+   * pan. The events are the same type, so distinguish them by shape: wheels emit
+   * coarse, whole-number vertical deltas with no horizontal component, while
+   * trackpads emit small and/or fractional deltas and usually some deltaX. Pinch
+   * arrives as ctrl+wheel and is handled alongside this.
+   */
+  function isMouseWheel(e: WheelEvent): boolean {
+    return e.deltaX === 0 && Number.isInteger(e.deltaY) && Math.abs(e.deltaY) >= 50;
+  }
+
   const handleWheel = useCallback(
     (e: WheelEvent) => {
       if (disabled) return;
       e.preventDefault();
       const v = viewport.value;
 
-      if (e.ctrlKey || e.metaKey) {
+      if (e.ctrlKey || e.metaKey || isMouseWheel(e)) {
         // Zoom centered on pointer
         const rect = containerRef.current?.getBoundingClientRect();
         if (!rect) return;

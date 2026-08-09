@@ -13,6 +13,7 @@ import { WebpageNode } from '../nodes/WebpageNode';
 import { HtmlNode, shouldShowPresentationControls } from '../nodes/HtmlNode';
 import { canOpenAsSite, openNodeAsSite } from '../nodes/surface-url';
 import { PromptNode } from '../nodes/PromptNode';
+import { AxStepControls } from '../nodes/AxStepControls';
 import { ResponseNode } from '../nodes/ResponseNode';
 import { TraceNode } from '../nodes/TraceNode';
 import {
@@ -404,6 +405,16 @@ export function ExpandedNodeOverlay() {
           ) : (
             renderContent(node, true)
           )}
+        </div>
+        {/* AX step controls follow the node into focus mode. Without this,
+            expanding a materialized flow step showed only its text — the
+            Start/Done/Blocked and loop controls live in CanvasNode's body,
+            which the overlay does not render. */}
+        {/* Here the dock is a SIBLING of the padded content area, so it is
+            already flush with the panel: no bleed, and 16px of its own padding
+            to line its labels up with the content above. */}
+        <div style={{ '--ax-dock-bleed': '0px', '--ax-dock-pad': '16px' } as Record<string, string>}>
+          <AxStepControls node={node} />
         </div>
         {canPresent && presenting && (
           <div

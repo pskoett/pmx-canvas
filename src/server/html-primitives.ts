@@ -1,3 +1,5 @@
+import type { AxInteractionType } from './ax-interaction.js';
+
 export const HTML_PRIMITIVE_KINDS = [
   'choice-grid',
   'plan-timeline',
@@ -18,6 +20,8 @@ export const HTML_PRIMITIVE_KINDS = [
   'triage-board',
   'config-editor',
   'prompt-tuner',
+  'ax-board',
+  'ax-flow',
 ] as const;
 
 export type HtmlPrimitiveKind = (typeof HTML_PRIMITIVE_KINDS)[number];
@@ -30,6 +34,14 @@ export interface HtmlPrimitiveDescriptor {
   defaultSize: { width: number; height: number };
   dataShape: string;
   example: Record<string, unknown>;
+  /**
+   * AX capabilities this kind REQUIRES to function. `html` is AX-opt-in, so a
+   * primitive that emits interactions is inert without them — node creation
+   * applies this to `data.axCapabilities` (an explicit caller value still wins,
+   * and the server clamps both to the `html` type ceiling). Only set it on kinds
+   * that actually emit; every other kind stays AX-free.
+   */
+  axCapabilities?: { enabled: true; allowed: AxInteractionType[] };
 }
 
 export interface HtmlPrimitiveInput {
@@ -427,6 +439,53 @@ const DESCRIPTORS: HtmlPrimitiveDescriptor[] = [
         template: 'Explain {{feature}} for {{audience}}.',
         samples: [{ name: 'Engineering', variables: { feature: 'canvas pins', audience: 'backend engineers' } }],
       },
+    },
+  },
+  {
+    kind: 'ax-board',
+    title: 'AX Board',
+    description: 'Live agent work board: hand the agent tasks, watch status, steer, and run bounded task loops.',
+    useWhen: 'Use when the human needs a control surface over the agent queue rather than a static write-up.',
+    defaultSize: { width: 1000, height: 800 },
+    dataShape: '{ note?: string, defaultRuns?: number }',
+    example: {
+      kind: 'ax-board',
+      title: 'Agent Board',
+      data: { note: 'Tasks added here land in the canvas AX work queue.', defaultRuns: 3 },
+    },
+    // The only AX-emitting primitive: it creates and advances work items, steers,
+    // and records loop lifecycle events.
+    axCapabilities: {
+      enabled: true,
+      allowed: ['ax.work.create', 'ax.work.update', 'ax.steer', 'ax.event.record'],
+    },
+  },
+  {
+    kind: 'ax-flow',
+    title: 'AX Flow',
+    description:
+      'Live task-flow control panel: a step diagram with an explicit loop-back, per-step status, and a one-click materialize onto the board.',
+    useWhen:
+      'Use when the work is an ordered sequence (or a repeating loop) the human wants to watch and drive step by step.',
+    defaultSize: { width: 1040, height: 880 },
+    dataShape: '{ note?: string, steps: [{ title, detail? }], loop?: { enabled?: boolean, maxRuns?: number } }',
+    example: {
+      kind: 'ax-flow',
+      title: 'Review Loop',
+      data: {
+        steps: [
+          { title: 'Read the diff', detail: 'Load every changed file before judging any of them.' },
+          { title: 'Run the gates', detail: 'typecheck, unit tests, lint.' },
+          { title: 'Write the review', detail: 'Findings with severity and a fix for each.' },
+        ],
+        loop: { enabled: true, maxRuns: 3 },
+      },
+    },
+    // Same control surface as ax-board, plus the narrowly-scoped materializer that
+    // turns the drawn flow into real canvas nodes and edges.
+    axCapabilities: {
+      enabled: true,
+      allowed: ['ax.work.create', 'ax.work.update', 'ax.steer', 'ax.event.record', 'ax.flow.materialize'],
     },
   },
 ];
@@ -1470,6 +1529,581 @@ renderPreviews();`,
   });
 }
 
+/**
+ * Client-side helpers shared by the AX control surfaces (`ax-board`, `ax-flow`).
+ * No DOM contract of its own: `flash` takes the element id to write into.
+ */
+const AX_SURFACE_PRELUDE = `
+const AX_STATUSES = ['todo', 'in-progress', 'blocked', 'done', 'cancelled'];
+const AX_MAX_RUNS = 20;
+
+const el = (id) => document.getElementById(id);
+const axFlashTimers = {};
+function flash(id, message) {
+  const target = el(id);
+  if (!target) return;
+  target.textContent = message;
+  if (axFlashTimers[id]) clearTimeout(axFlashTimers[id]);
+  axFlashTimers[id] = setTimeout(() => { target.textContent = ''; }, 4000);
+}
+function axWorkItems() {
+  const state = window.PMX_AX && window.PMX_AX.state;
+  return state && Array.isArray(state.workItems) ? state.workItems : [];
+}
+async function axEmit(type, payload) {
+  if (!window.PMX_AX || typeof window.PMX_AX.emit !== 'function') {
+    return { ok: false, code: 'ax-bridge-missing', error: 'AX bridge is not available on this surface.' };
+  }
+  return await window.PMX_AX.emit(type, payload);
+}
+function axFailure(result) {
+  return (result && (result.error || result.code)) || 'unknown error';
+}
+function statusTone(status) {
+  if (status === 'done') return 'ok';
+  if (status === 'blocked' || status === 'cancelled') return 'danger';
+  if (status === 'in-progress') return 'warn';
+  return 'info';
+}
+function elem(tag, className, textContent) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (textContent !== undefined) node.textContent = textContent;
+  return node;
+}
+async function sendSteer() {
+  const message = el('ax-steer-message').value.trim();
+  if (!message) { flash('ax-steer-status', 'Write a steering message first.'); return; }
+  const result = await axEmit('ax.steer', { message });
+  if (result && result.ok) {
+    el('ax-steer-message').value = '';
+    flash('ax-steer-status', 'Queued for the agent\\'s next turn ✓');
+  } else {
+    flash('ax-steer-status', 'Failed: ' + axFailure(result));
+  }
+}`;
+
+/**
+ * The shared bounded-loop engine. Each run is its own work item; the surface
+ * advances when the CURRENT run reaches done in live AX state.
+ *
+ * DOM contract the embedding surface must provide: `#ax-loop-panel`,
+ * `#ax-loop-title`, `#ax-loop-run`, `#ax-loop-status`, plus an `axRenderSurface()`
+ * function (its own list/diagram renderer, which may read `axLoop`).
+ */
+const AX_SURFACE_LOOP = `
+// Loop control is in-memory only (the surface is sandboxed: storage APIs throw).
+let axLoop = null;
+let axAdvancing = false;
+
+function renderLoop() {
+  const panel = el('ax-loop-panel');
+  panel.hidden = !axLoop;
+  if (!axLoop) return;
+  el('ax-loop-title').textContent = axLoop.baseTitle;
+  el('ax-loop-run').textContent = 'run ' + axLoop.run + ' of ' + axLoop.maxRuns;
+}
+async function openRun(session, run) {
+  const result = await axEmit('ax.work.create', {
+    title: session.baseTitle + ' — run ' + run + '/' + session.maxRuns,
+    ...(session.detail ? { detail: session.detail } : {}),
+  });
+  // The human may have stopped the loop while this was in flight.
+  if (axLoop !== session) return false;
+  if (!result || !result.ok || !result.primitive || !result.primitive.id) {
+    flash('ax-loop-status', 'Could not open run ' + run + ': ' + axFailure(result));
+    return false;
+  }
+  session.run = run;
+  session.workItemId = result.primitive.id;
+  renderLoop();
+  axRenderSurface();
+  await axEmit('ax.steer', {
+    message:
+      'Loop run ' + run + ' of ' + session.maxRuns + ' for "' + session.baseTitle +
+      '". Mark work item ' + session.workItemId + ' done when this run is complete.',
+  });
+  return true;
+}
+/**
+ * Start a bounded loop. NEVER auto-started — a human control only. Returns the
+ * clamped run count on success (0 on failure) so the surface can sync its inputs;
+ * \`onStarted\` fires the moment run 1 is open, before the loop's own bookkeeping.
+ */
+async function axStartLoop(baseTitle, detail, requested, onStarted) {
+  if (axLoop) return 0;
+  const maxRuns = Math.min(AX_MAX_RUNS, Math.max(1, Math.round(Number.isFinite(requested) ? requested : 3)));
+  const session = { baseTitle: baseTitle, detail: detail, maxRuns: maxRuns, run: 0, workItemId: null };
+  axLoop = session;
+  renderLoop();
+  if (!(await openRun(session, 1))) {
+    if (axLoop === session) { axLoop = null; renderLoop(); }
+    return 0;
+  }
+  if (onStarted) onStarted(maxRuns);
+  flash('ax-loop-status', requested > AX_MAX_RUNS ? 'Capped at ' + AX_MAX_RUNS + ' runs.' : 'Loop started.');
+  await axEmit('ax.event.record', {
+    kind: 'steering',
+    summary: 'Loop started: ' + baseTitle + ' (max ' + maxRuns + ' runs)',
+  });
+  return maxRuns;
+}
+async function stopLoop() {
+  const session = axLoop;
+  if (!session) return;
+  axLoop = null;
+  renderLoop();
+  axRenderSurface();
+  flash('ax-loop-status', 'Loop stopped at run ' + session.run + ' of ' + session.maxRuns + '.');
+  await axEmit('ax.event.record', {
+    kind: 'steering',
+    summary: 'Loop stopped by human: ' + session.baseTitle + ' at run ' + session.run + ' of ' + session.maxRuns,
+  });
+}
+/**
+ * Advance when the CURRENT run's work item reaches done, observed from live AX
+ * state. Double-advance guards: an in-flight flag, and clearing workItemId before
+ * awaiting so a repeated state push cannot match the same finished run twice.
+ */
+async function maybeAdvanceLoop() {
+  const session = axLoop;
+  if (!session || axAdvancing || !session.workItemId) return;
+  const current = axWorkItems().find((item) => item.id === session.workItemId);
+  if (!current || current.status !== 'done') return;
+  if (session.run >= session.maxRuns) {
+    axLoop = null;
+    renderLoop();
+    axRenderSurface();
+    flash('ax-loop-status', 'Loop finished — ' + session.maxRuns + ' of ' + session.maxRuns + ' runs done.');
+    await axEmit('ax.event.record', {
+      kind: 'steering',
+      summary: 'Loop complete: ' + session.baseTitle + ' (' + session.maxRuns + ' runs)',
+    });
+    return;
+  }
+  axAdvancing = true;
+  session.workItemId = null;
+  try {
+    if (!(await openRun(session, session.run + 1)) && axLoop === session) { axLoop = null; renderLoop(); }
+  } finally {
+    axAdvancing = false;
+  }
+}
+
+function applyAxState() {
+  axRenderSurface();
+  renderLoop();
+  void maybeAdvanceLoop();
+}`;
+
+/** Control-surface chrome shared by both AX primitives. */
+const AX_SURFACE_STYLE = `<style>
+  .ax-field { display: grid; gap: 6px; margin-bottom: 10px; }
+  .ax-row { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ax-work-row { margin-bottom: 10px; padding: 12px 14px; }
+  .ax-work-head { display: flex; gap: 10px; align-items: baseline; justify-content: space-between; }
+  .ax-work-head h3 { margin: 0; }
+  .ax-work-foot { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+  select { border: 1px solid var(--color-border, #263241); border-radius: 999px; padding: 6px 10px; background: var(--color-bg, #0b0f14); color: var(--color-text, #e8edf2); font: inherit; }
+  input[type="number"] { width: 72px; border: 1px solid var(--color-border, #263241); border-radius: 999px; padding: 6px 10px; background: var(--color-bg, #0b0f14); color: var(--color-text, #e8edf2); font: inherit; }
+  #ax-loop-panel[hidden] { display: none; }
+  #ax-offline { border-color: var(--color-danger, #ef4444); margin-bottom: 14px; }
+</style>`;
+
+/** The Steer panel markup — identical on both AX control surfaces. */
+const AX_STEER_PANEL = `<div class="panel">
+    <h2>Steer</h2>
+    <div class="ax-field"><textarea id="ax-steer-message" placeholder="Prioritize the auth refactor" style="min-height:92px"></textarea></div>
+    <div class="ax-row"><button type="button" id="ax-send-steer">Queue steering message</button></div>
+    <p class="small">Queued for the agent's next turn — steering is recorded on the timeline, it does not wake a running agent.</p>
+    <p class="small" id="ax-steer-status"></p>
+  </div>`;
+
+/** The bounded-loop panel markup — identical on both AX control surfaces. */
+const AX_LOOP_PANEL = `<section class="panel" id="ax-loop-panel" hidden style="margin-top:14px">
+  <div class="ax-work-head"><h2 id="ax-loop-title">Loop</h2><span class="badge info" id="ax-loop-run">run 0 of 0</span></div>
+  <p class="small">Each run is its own work item. When you mark the current run <strong>done</strong>, the surface opens the next run and steers again — until the cap or Stop.</p>
+  <div class="ax-row"><button type="button" id="ax-stop-loop">Stop loop</button><span class="small" id="ax-loop-status"></span></div>
+  <p class="small">Loop control lives in this panel, so reloading it stops the loop — the work items stay as the durable record.</p>
+</section>`;
+
+/**
+ * The first AX-emitting primitive. Everything it shows comes from the LIVE AX
+ * snapshot (`window.PMX_AX.state`, refreshed by the `pmx-ax-update` event), so
+ * an agent changing a status elsewhere shows up here with no local mirror to
+ * drift. All state is plain JS variables — the surface is a sandboxed
+ * opaque-origin iframe where storage APIs throw.
+ */
+function renderAxBoard({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
+  const note = text(data.note, 'Tasks you add here go straight into the canvas AX work queue.');
+  const defaultRuns = Math.min(20, Math.max(1, Math.round(number(data.defaultRuns, 3))));
+  const body = `${AX_SURFACE_STYLE}
+<section class="panel" id="ax-offline" hidden><h2>AX bridge unavailable</h2><p class="small">This board is not running as an AX-enabled canvas node, so its controls are inert.</p></section>
+<section class="two">
+  <div class="panel">
+    <h2>Give the agent a task</h2>
+    <p class="small">${escapeHtml(note)}</p>
+    <div class="ax-field"><input type="text" id="ax-task-title" placeholder="What should the agent do?"></div>
+    <div class="ax-field"><textarea id="ax-task-detail" placeholder="Optional detail" style="min-height:64px"></textarea></div>
+    <div class="ax-row"><button type="button" id="ax-add-task">Add task</button><span class="small" id="ax-task-status"></span></div>
+    <div class="ax-row" style="margin-top:10px">
+      <span class="small">or run it as a bounded loop:</span>
+      <label class="small">max runs <input type="number" id="ax-loop-runs" min="1" max="20" step="1" value="${defaultRuns}"></label>
+      <button type="button" id="ax-start-loop">Start loop</button>
+    </div>
+  </div>
+  ${AX_STEER_PANEL}
+</section>
+${AX_LOOP_PANEL}
+<section class="panel" style="margin-top:14px">
+  <div class="ax-work-head"><h2>Work</h2><span class="small" id="ax-work-counts"></span></div>
+  <div id="ax-work-list"></div>
+  <p class="small" id="ax-work-status"></p>
+</section>`;
+  return page({
+    title,
+    kind: 'ax-board',
+    summary: descriptor.description,
+    data: { ...data, note, defaultRuns },
+    body,
+    script: `${AX_SURFACE_PRELUDE}
+${AX_SURFACE_LOOP}
+
+// ── render (live AX state only — no local mirror of the work list) ──
+function renderWork() {
+  const items = axWorkItems();
+  const list = el('ax-work-list');
+  list.textContent = '';
+  el('ax-work-counts').textContent = items.length
+    ? AX_STATUSES.map((s) => s + ' ' + items.filter((item) => item.status === s).length).join('  ·  ')
+    : '';
+  if (items.length === 0) {
+    list.appendChild(elem('p', 'muted', 'No work items yet — add a task above and it shows up here.'));
+    return;
+  }
+  for (const item of items) {
+    const row = elem('article', 'card ax-work-row');
+    row.setAttribute('data-work-id', item.id);
+    const head = elem('div', 'ax-work-head');
+    head.appendChild(elem('h3', '', item.title));
+    head.appendChild(elem('span', 'badge ' + statusTone(item.status), item.status));
+    row.appendChild(head);
+    if (item.detail) row.appendChild(elem('p', 'small', item.detail));
+    const foot = elem('div', 'ax-work-foot');
+    const label = elem('label', 'small', 'Status ');
+    const select = document.createElement('select');
+    select.setAttribute('data-status-for', item.id);
+    for (const status of AX_STATUSES) {
+      const option = document.createElement('option');
+      option.value = status;
+      option.textContent = status;
+      if (status === item.status) option.selected = true;
+      select.appendChild(option);
+    }
+    select.addEventListener('change', () => setWorkStatus(item.id, select.value));
+    label.appendChild(select);
+    foot.appendChild(label);
+    if (item.agentId) foot.appendChild(elem('span', 'small', 'agent: ' + item.agentId));
+    if (axLoop && axLoop.workItemId === item.id) foot.appendChild(elem('span', 'badge info', 'current run'));
+    row.appendChild(foot);
+    list.appendChild(row);
+  }
+}
+function axRenderSurface() { renderWork(); }
+
+// ── actions ──
+async function addTask() {
+  const title = el('ax-task-title').value.trim();
+  if (!title) { flash('ax-task-status', 'Give the task a title first.'); return; }
+  const detail = el('ax-task-detail').value.trim();
+  const result = await axEmit('ax.work.create', detail ? { title, detail } : { title });
+  if (result && result.ok) {
+    el('ax-task-title').value = '';
+    el('ax-task-detail').value = '';
+    flash('ax-task-status', 'Task queued ✓');
+  } else {
+    flash('ax-task-status', 'Failed: ' + axFailure(result));
+  }
+}
+async function setWorkStatus(id, status) {
+  const result = await axEmit('ax.work.update', { id, status });
+  flash('ax-work-status', result && result.ok ? 'Status updated ✓' : 'Update failed: ' + axFailure(result));
+}
+async function startLoop() {
+  if (axLoop) { flash('ax-task-status', 'A loop is already running — stop it first.'); return; }
+  const title = el('ax-task-title').value.trim();
+  if (!title) { flash('ax-task-status', 'Give the task a title first.'); return; }
+  await axStartLoop(title, el('ax-task-detail').value.trim(), Number(el('ax-loop-runs').value), (maxRuns) => {
+    el('ax-task-title').value = '';
+    el('ax-task-detail').value = '';
+    el('ax-loop-runs').value = String(maxRuns);
+  });
+}
+
+el('ax-add-task').addEventListener('click', addTask);
+el('ax-start-loop').addEventListener('click', startLoop);
+el('ax-stop-loop').addEventListener('click', stopLoop);
+el('ax-send-steer').addEventListener('click', sendSteer);
+window.__pmxGetCopyJson = () => ({
+  ...PMX_DATA,
+  workItems: axWorkItems(),
+  loop: axLoop ? { title: axLoop.baseTitle, run: axLoop.run, maxRuns: axLoop.maxRuns } : null,
+});
+if (!window.PMX_AX || typeof window.PMX_AX.emit !== 'function') el('ax-offline').hidden = false;
+// Seeded snapshot first, then every live push. A loop NEVER auto-starts on load.
+window.addEventListener('pmx-ax-update', applyAxState);
+applyAxState();`,
+  });
+}
+
+/** Panel-side cap; matches the `ax.flow.materialize` server bound. */
+const AX_FLOW_MAX_STEPS = 12;
+
+const DEFAULT_AX_FLOW_STEPS: Record<string, unknown>[] = [
+  { title: 'Reproduce', detail: 'Write the failing case before touching the fix.' },
+  { title: 'Fix', detail: 'Smallest change that makes the case pass.' },
+  { title: 'Verify', detail: 'Typecheck, unit tests, lint.' },
+  { title: 'Report', detail: 'What changed, what it proves, what is still open.' },
+];
+
+/**
+ * The second AX-emitting primitive: `ax-board` for a queue, `ax-flow` for an
+ * ordered (optionally looping) sequence. It draws the flow, colours each step
+ * from LIVE AX state — matched by the work-item ID the panel holds for that
+ * step, never by title, since titles are not unique — and can materialize the
+ * same flow as real canvas nodes through `ax.flow.materialize`.
+ */
+function renderAxFlow({ title, data, descriptor }: Parameters<PrimitiveRenderer>[0]): string {
+  const note = text(data.note, 'Each step is a canvas AX work item — the agent sees the same queue you drive here.');
+  const steps = fieldRecords(data, 'steps', DEFAULT_AX_FLOW_STEPS)
+    .slice(0, AX_FLOW_MAX_STEPS)
+    .map((step, index) => {
+      const stepTitle = itemTitle(step, `Step ${index + 1}`).slice(0, 120);
+      const detail = text(step.detail).trim().slice(0, 2000);
+      return detail ? { title: stepTitle, detail } : { title: stepTitle };
+    });
+  const loopRecord = isRecord(data.loop) ? data.loop : {};
+  const loopEnabled = loopRecord.enabled === true;
+  const maxRuns = Math.min(20, Math.max(1, Math.round(number(loopRecord.maxRuns, 3))));
+  const loop = { enabled: loopEnabled, maxRuns };
+
+  const body = `${AX_SURFACE_STYLE}
+<style>
+  /* One left-to-right track that scrolls rather than wrapping: a wrapped row
+     leaves a "→" pointing at nothing at the end of every row. */
+  .ax-flow-scroll { overflow-x: auto; padding: 2px 2px 6px; }
+  /* fit-content: the track fills the panel when the steps fit, and grows to the
+     steps' minimum width (scrolling) when they don't — so the loop rail always
+     spans exactly the flow. */
+  .ax-flow-wrap { position: relative; width: fit-content; min-width: 100%; }
+  .ax-flow-wrap.looping { padding-bottom: 54px; }
+  .ax-flow-diagram { display: flex; align-items: stretch; }
+  .ax-flow-step { flex: 1 1 200px; min-width: 200px; max-width: 360px; border: 1px solid var(--color-border, #263241); border-left-width: 4px; border-radius: 16px; padding: 12px 14px; background: var(--color-surface, #17202b); }
+  .ax-flow-step h3 { margin: 6px 0 6px; font-size: 14px; }
+  .ax-flow-step p { margin: 0 0 10px; }
+  .ax-flow-step.tone-ok { border-left-color: var(--color-success, #22c55e); }
+  .ax-flow-step.tone-warn { border-left-color: var(--color-warning, #eab308); }
+  .ax-flow-step.tone-danger { border-left-color: var(--color-danger, #ef4444); }
+  .ax-flow-step.tone-info { border-left-color: var(--color-accent, #4a9eff); }
+  .ax-flow-step.tone-idle { border-left-color: var(--color-border, #263241); }
+  .ax-flow-num { font-size: 11px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; color: var(--color-text-muted, #7e8a97); }
+  .ax-flow-foot { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .ax-flow-arrow { align-self: center; padding: 0 7px; color: var(--color-accent, #4a9eff); font-weight: 900; }
+  .badge.idle { color: var(--color-text-muted, #7e8a97); background: transparent; border: 1px solid var(--color-border, #263241); }
+  .ax-flow-rail { position: absolute; left: 22px; right: 22px; bottom: 14px; height: 30px; border: 2px dashed var(--color-accent, #4a9eff); border-top: none; border-radius: 0 0 18px 18px; pointer-events: none; }
+  .ax-flow-rail::before { content: '▲'; position: absolute; left: -8px; top: -14px; font-size: 12px; line-height: 1; color: var(--color-accent, #4a9eff); }
+  .ax-flow-rail-label { position: absolute; left: 50%; bottom: -9px; transform: translateX(-50%); background: var(--color-bg, #0b0f14); padding: 0 8px; }
+  .ax-flow-wrap:not(.looping) .ax-flow-rail { display: none; }
+</style>
+<section class="panel" id="ax-offline" hidden><h2>AX bridge unavailable</h2><p class="small">This flow is not running as an AX-enabled canvas node, so its controls are inert.</p></section>
+<section class="panel">
+  <div class="ax-work-head"><h2>${escapeHtml(title)}</h2><span class="small" id="ax-flow-counts"></span></div>
+  <p class="small">${escapeHtml(note)}</p>
+  <div class="ax-flow-scroll">
+    <div class="ax-flow-wrap${loopEnabled ? ' looping' : ''}" id="ax-flow-wrap">
+      <div class="ax-flow-diagram" id="ax-flow-diagram"></div>
+      <div class="ax-flow-rail"><span class="badge info ax-flow-rail-label">loops back to step 1 · max ${maxRuns} runs</span></div>
+    </div>
+  </div>
+</section>
+<section class="two" style="margin-top:14px">
+  <div class="panel">
+    <h2>Run the flow</h2>
+    <div class="ax-row"><button type="button" id="ax-flow-queue-all">Queue every step</button><span class="small" id="ax-flow-status"></span></div>
+    <p class="small">A step is queued once — after that its status control advances it (todo → in-progress → done).</p>
+    <div class="ax-row" style="margin-top:10px">
+      <span class="small">or run the whole flow as a bounded loop:</span>
+      <label class="small">max runs <input type="number" id="ax-loop-runs" min="1" max="20" step="1" value="${maxRuns}"></label>
+      <button type="button" id="ax-start-loop">Start loop</button>
+    </div>
+  </div>
+  ${AX_STEER_PANEL}
+</section>
+${AX_LOOP_PANEL}
+<section class="panel" style="margin-top:14px">
+  <h2>Materialize</h2>
+  <p class="small">Lays this flow out on the canvas: one markdown node per step, joined in order by flow edges${loopEnabled ? ', plus a dashed loop-back edge' : ''}. Each step node gets its own work item, so its status chip tracks the agent.</p>
+  <div class="ax-row"><button type="button" id="ax-flow-materialize">Materialize to board</button><span class="small" id="ax-flow-materialize-status"></span></div>
+  <p class="small">Re-materializing REPLACES the nodes this panel put on the board — it never stacks a second copy. The work items it already created stay as the durable record.</p>
+</section>`;
+
+  return page({
+    title,
+    kind: 'ax-flow',
+    summary: descriptor.description,
+    data: { ...data, note, steps, loop },
+    body,
+    script: `${AX_SURFACE_PRELUDE}
+${AX_SURFACE_LOOP}
+
+const AX_FLOW_TITLE = ${JSON.stringify(title)};
+const AX_FLOW_STEPS = Array.isArray(PMX_DATA.steps) ? PMX_DATA.steps : [];
+const AX_FLOW_LOOP = PMX_DATA.loop || {};
+// Step index → the id of the work item bound to that step (created here, or
+// adopted from a materialize). Matching is by ID ONLY: work-item titles are not
+// unique, so a title match would happily bind the wrong item.
+const axFlowWorkIds = AX_FLOW_STEPS.map(() => null);
+
+function stepWorkItem(index) {
+  const id = axFlowWorkIds[index];
+  return id ? axWorkItems().find((item) => item.id === id) || null : null;
+}
+function stepTone(item) {
+  return item ? statusTone(item.status) : 'idle';
+}
+
+// ── render (live AX state only — no local mirror of step status) ──
+function renderFlow() {
+  const host = el('ax-flow-diagram');
+  host.textContent = '';
+  let bound = 0;
+  let done = 0;
+  AX_FLOW_STEPS.forEach((step, index) => {
+    if (index > 0) host.appendChild(elem('div', 'ax-flow-arrow', '→'));
+    const item = stepWorkItem(index);
+    if (item) bound += 1;
+    if (item && item.status === 'done') done += 1;
+    const card = elem('article', 'ax-flow-step tone-' + stepTone(item));
+    card.setAttribute('data-step', String(index + 1));
+    const head = elem('div', 'ax-work-head');
+    head.appendChild(elem('span', 'ax-flow-num', 'step ' + (index + 1)));
+    head.appendChild(elem('span', 'badge ' + stepTone(item), item ? item.status : 'not queued'));
+    card.appendChild(head);
+    card.appendChild(elem('h3', '', step.title));
+    if (step.detail) card.appendChild(elem('p', 'small', step.detail));
+    const foot = elem('div', 'ax-flow-foot');
+    if (item) {
+      const label = elem('label', 'small', 'status ');
+      const select = document.createElement('select');
+      select.setAttribute('data-status-for', item.id);
+      for (const status of AX_STATUSES) {
+        const option = document.createElement('option');
+        option.value = status;
+        option.textContent = status;
+        if (status === item.status) option.selected = true;
+        select.appendChild(option);
+      }
+      select.addEventListener('change', () => setStepStatus(index, select.value));
+      label.appendChild(select);
+      foot.appendChild(label);
+    } else {
+      const button = elem('button', '', 'Queue step');
+      button.type = 'button';
+      button.setAttribute('data-queue-step', String(index + 1));
+      button.addEventListener('click', () => queueStep(index));
+      foot.appendChild(button);
+    }
+    if (axLoop && item && axLoop.workItemId === item.id) foot.appendChild(elem('span', 'badge info', 'current run'));
+    card.appendChild(foot);
+    host.appendChild(card);
+  });
+  el('ax-flow-counts').textContent =
+    AX_FLOW_STEPS.length + ' steps · ' + bound + ' queued · ' + done + ' done' +
+    (AX_FLOW_LOOP.enabled ? ' · loops' : '');
+}
+function axRenderSurface() { renderFlow(); }
+
+// ── actions ──
+async function queueStep(index) {
+  const step = AX_FLOW_STEPS[index];
+  if (!step || axFlowWorkIds[index]) return false;
+  const result = await axEmit('ax.work.create', {
+    title: AX_FLOW_TITLE + ' — ' + (index + 1) + '. ' + step.title,
+    ...(step.detail ? { detail: step.detail } : {}),
+  });
+  if (!result || !result.ok || !result.primitive || !result.primitive.id) {
+    flash('ax-flow-status', 'Step ' + (index + 1) + ' failed: ' + axFailure(result));
+    return false;
+  }
+  axFlowWorkIds[index] = result.primitive.id;
+  renderFlow();
+  flash('ax-flow-status', 'Step ' + (index + 1) + ' queued ✓');
+  return true;
+}
+async function queueAllSteps() {
+  for (let index = 0; index < AX_FLOW_STEPS.length; index++) {
+    if (!axFlowWorkIds[index] && !(await queueStep(index))) return;
+  }
+  flash('ax-flow-status', 'Every step is queued ✓');
+}
+async function setStepStatus(index, status) {
+  const id = axFlowWorkIds[index];
+  if (!id) return;
+  const result = await axEmit('ax.work.update', { id, status });
+  flash(
+    'ax-flow-status',
+    result && result.ok ? 'Step ' + (index + 1) + ' → ' + status + ' ✓' : 'Update failed: ' + axFailure(result),
+  );
+}
+async function startFlowLoop() {
+  if (axLoop) { flash('ax-flow-status', 'A loop is already running — stop it first.'); return; }
+  await axStartLoop(AX_FLOW_TITLE, AX_FLOW_STEPS.map((step, i) => (i + 1) + '. ' + step.title).join('\\n'),
+    Number(el('ax-loop-runs').value), (maxRuns) => { el('ax-loop-runs').value = String(maxRuns); });
+}
+/**
+ * Hand the flow to the server, which owns the whole materialized shape. We send
+ * TEXT ONLY — no node type, geometry, or node data — and adopt the work-item ids
+ * it links to each step node so this panel and the board show the same status.
+ */
+async function materializeFlow() {
+  const result = await axEmit('ax.flow.materialize', {
+    title: AX_FLOW_TITLE,
+    steps: AX_FLOW_STEPS.map((step) => (step.detail ? { title: step.title, detail: step.detail } : { title: step.title })),
+    loop: { enabled: AX_FLOW_LOOP.enabled === true, maxRuns: Number(el('ax-loop-runs').value) || 3 },
+  });
+  if (!result || !result.ok || !result.primitive) {
+    flash('ax-flow-materialize-status', 'Failed: ' + axFailure(result));
+    return;
+  }
+  for (const step of result.primitive.steps) axFlowWorkIds[step.index - 1] = step.workItemId;
+  renderFlow();
+  flash(
+    'ax-flow-materialize-status',
+    result.primitive.steps.length + ' step nodes on the board ✓' +
+      (result.primitive.replacedNodeCount ? ' (replaced ' + result.primitive.replacedNodeCount + ')' : ''),
+  );
+}
+
+el('ax-flow-queue-all').addEventListener('click', queueAllSteps);
+el('ax-flow-materialize').addEventListener('click', materializeFlow);
+el('ax-start-loop').addEventListener('click', startFlowLoop);
+el('ax-stop-loop').addEventListener('click', stopLoop);
+el('ax-send-steer').addEventListener('click', sendSteer);
+window.__pmxGetCopyJson = () => ({
+  ...PMX_DATA,
+  steps: AX_FLOW_STEPS.map((step, index) => {
+    const item = stepWorkItem(index);
+    return { ...step, workItemId: axFlowWorkIds[index], status: item ? item.status : null };
+  }),
+  loop: axLoop ? { title: axLoop.baseTitle, run: axLoop.run, maxRuns: axLoop.maxRuns } : null,
+});
+if (!window.PMX_AX || typeof window.PMX_AX.emit !== 'function') el('ax-offline').hidden = false;
+// Seeded snapshot first, then every live push. A loop NEVER auto-starts on load.
+window.addEventListener('pmx-ax-update', applyAxState);
+applyAxState();`,
+  });
+}
+
 const RENDERERS: Record<HtmlPrimitiveKind, PrimitiveRenderer> = {
   'choice-grid': renderChoiceGrid,
   'plan-timeline': renderPlanTimeline,
@@ -1490,6 +2124,8 @@ const RENDERERS: Record<HtmlPrimitiveKind, PrimitiveRenderer> = {
   'triage-board': renderTriageBoard,
   'config-editor': renderConfigEditor,
   'prompt-tuner': renderPromptTuner,
+  'ax-board': renderAxBoard,
+  'ax-flow': renderAxFlow,
 };
 
 export function isHtmlPrimitiveKind(value: string): value is HtmlPrimitiveKind {

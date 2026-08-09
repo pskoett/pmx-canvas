@@ -823,7 +823,7 @@ function normalizeTraceNodeData(input: CanvasAddNodeInput): Record<string, unkno
   return data;
 }
 
-function buildNodeData(input: CanvasAddNodeInput): Record<string, unknown> {
+function buildNodeDataForType(input: CanvasAddNodeInput): Record<string, unknown> {
   if (input.type === 'file') return buildFileNodeData(input);
   if (input.type === 'image') return buildImageNodeData(input);
   if (input.type === 'webpage') return buildWebpageNodeData(input);
@@ -832,8 +832,19 @@ function buildNodeData(input: CanvasAddNodeInput): Record<string, unknown> {
     ...(input.data ?? {}),
     ...(input.title ? { title: input.title } : {}),
     ...(input.content ? { content: input.content } : {}),
-    ...(input.strictSize ? { strictSize: true } : {}),
   };
+}
+
+function buildNodeData(input: CanvasAddNodeInput): Record<string, unknown> {
+  const data = buildNodeDataForType(input);
+  // `strictSize` is type-agnostic — it exempts a node from BOTH the creation
+  // size clamp and the browser's auto-fit. It used to be applied inside each
+  // per-type builder, and the file / image / webpage builders return a fresh
+  // object without it, so those three silently dropped the flag: the clamp
+  // honored it (it reads `input.strictSize` directly) but nothing persisted
+  // `data.strictSize`, so auto-fit resized the node in the browser anyway.
+  // Applying it once here makes it uniform for every type.
+  return input.strictSize ? { ...data, strictSize: true } : data;
 }
 
 export function mergeTraceNodeDataFields(

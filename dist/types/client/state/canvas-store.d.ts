@@ -83,6 +83,16 @@ export declare function applyServerCanvasLayout(layout: Pick<CanvasLayout, 'node
  * Cancels any in-flight animation. Direct manipulation (pan/zoom gestures)
  * should use setViewport() instead for instant response.
  */
+/**
+ * Zoom by a factor about the CENTRE of the viewport.
+ *
+ * The toolbar's +/- used to change `scale` alone and keep `x`/`y`, which anchors
+ * the zoom at the world origin — so zooming in visibly slid the board up-left and
+ * zooming out pushed it down-right, instead of magnifying what you were looking
+ * at. Same correction the pointer-anchored wheel zoom applies, with the viewport
+ * centre as the anchor.
+ */
+export declare function zoomByFactor(factor: number, duration?: number): void;
 export declare function animateViewport(target: ViewportState, duration?: number, options?: {
     recordHistory?: boolean;
 }): void;

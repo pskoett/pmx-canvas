@@ -643,6 +643,10 @@ body,
   overflow: hidden;
   text-overflow: ellipsis;
   flex: 1;
+  /* The name is the one thing that must survive a cramped title bar. Everything
+     else in the bar is flex-shrink: 0, so without a floor the title absorbed all
+     the pressure and collapsed to an ellipsis on narrow nodes. */
+  min-width: 9ch;
   min-width: 0;
 }
 
@@ -670,6 +674,13 @@ body,
 }
 
 .canvas-node .node-ax-status {
+  /* A long status ("in-progress") must not push the node's NAME out of the bar;
+     the pill is a glance-level cue, the name is the identity. */
+  max-width: 11ch;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
   font-size: calc(9px * var(--node-chrome-scale, 1));
   padding: calc(1px * var(--node-chrome-scale, 1)) calc(6px * var(--node-chrome-scale, 1));
   border-radius: calc(4px * var(--node-chrome-scale, 1));

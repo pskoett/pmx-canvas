@@ -17,7 +17,7 @@ pmx-canvas --server-url http://127.0.0.1:4750 status  # same, by URL
 
 ```bash
 pmx-canvas                            # Start canvas, open browser
-pmx-canvas --demo                     # Start with the saved dashboard demo board
+pmx-canvas --demo                     # Start with the showcase demo board
 pmx-canvas --port=8080                # Custom port
 pmx-canvas --no-open                  # Headless (for agents/CI)
 pmx-canvas --theme=light              # dark | light | high-contrast | midnight | sepia | arctic | ember | forest | volt

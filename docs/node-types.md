@@ -235,6 +235,36 @@ component gallery, interaction prototype, flowchart, SVG illustration set,
 presentation, explainer, status report, incident report, triage board, config
 editor, or prompt tuner.
 
+Two kinds are **live AX control surfaces** rather than static documents, and are
+the only primitives created with AX enabled:
+
+- **`ax-board`** — give the agent tasks, watch their status change as it works,
+  send steering, and run a bounded task loop. Task rows read from live AX state,
+  so a status the agent sets anywhere shows up here.
+- **`ax-flow`** — the same controls drawn as a task flow with an explicit
+  loop-back rail, plus **Materialize to board**: the flow is laid out as real
+  canvas nodes joined by `flow` edges (and a dashed `references` loop edge),
+  each linked to a work item so the node's status chip tracks progress.
+  Re-materializing replaces the previous flow instead of duplicating it.
+
+A steer emitted from either surface is *queued* on the timeline — it reaches the
+agent on its next turn rather than waking it. Both stop their loop if the panel
+reloads; the work items are the durable record.
+
+### The flow on ordinary nodes
+
+You do not need the panel to drive a flow. A materialized step node carries
+`data.axStep`, and the canvas renders native controls on it — **Start / Done /
+Blocked** on every step, plus **Run loop / Stop** and a steer box on the first
+one. These are canvas chrome, not sandboxed content, so they work on any node
+type carrying the stamp.
+
+The native loop runs **server-side**, which is the one real difference from the
+panel: it advances when a step's work item is completed, survives a browser
+reload, and keeps going while the tab is closed. Same bounds either way — it only
+advances while running, stops at its run cap (hard limit 20), and Stop is
+persisted immediately. `blocked` or `cancelled` halts it without disarming.
+
 ```ts
 canvas_node({
   action: 'add',

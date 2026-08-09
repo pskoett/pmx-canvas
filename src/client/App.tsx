@@ -36,6 +36,7 @@ import {
   traceEnabled,
   viewport,
   walkGraph,
+  zoomByFactor,
 } from './state/canvas-store';
 import { connectSSE } from './state/sse-bridge';
 import { intents } from './state/intent-store';
@@ -258,20 +259,12 @@ function Toolbar({
           </button>
         </ToolbarHint>
         <ToolbarHint label="Zoom in" shortcut={`${MOD_KEY}++`}>
-          <button
-            type="button"
-            onClick={() => animateViewport({ ...v, scale: Math.min(4, v.scale * 1.25) }, 150)}
-            aria-label="Zoom in"
-          >
+          <button type="button" onClick={() => zoomByFactor(1.25)} aria-label="Zoom in">
             <IconZoomIn />
           </button>
         </ToolbarHint>
         <ToolbarHint label="Zoom out" shortcut={`${MOD_KEY}+-`}>
-          <button
-            type="button"
-            onClick={() => animateViewport({ ...v, scale: Math.max(0.1, v.scale / 1.25) }, 150)}
-            aria-label="Zoom out"
-          >
+          <button type="button" onClick={() => zoomByFactor(1 / 1.25)} aria-label="Zoom out">
             <IconZoomOut />
           </button>
         </ToolbarHint>

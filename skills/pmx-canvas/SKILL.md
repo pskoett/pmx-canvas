@@ -114,6 +114,9 @@ exit 1 on failure.
 | Chart | `graph` via `canvas_render` |
 | Live work-item board (0.4.6+) | `canvas_render { action: "workboard" }` — one board node, auto-refreshes on work-item changes |
 | Generated communication surface | HTML primitive via `canvas_node` |
+| Give the agent tasks + watch progress + loop (0.4.7+) | `ax-board` HTML primitive — a live AX control surface, created AX-enabled |
+| The same, drawn as a task flow, and materializable to real nodes+edges (0.4.7+) | `ax-flow` HTML primitive — **Materialize to board** lays the steps out as nodes joined by `flow` edges with a loop-back edge, each linked to a work item |
+| Drive a flow WITHOUT the panel (0.4.7+) | Materialized step nodes carry native Start/Done/Blocked controls, and the anchor adds Run loop/Stop + steer. The native loop runs server-side, so it survives a browser reload and keeps advancing while the tab is closed. |
 | Self-contained HTML/JS | `html` via `canvas_node` |
 | Hosted interactive MCP app | `canvas_app { action: "open-mcp-app" }` |
 | Excalidraw diagram (interactive/human drawing) | `canvas_app { action: "diagram" }` — prefer `mermaid` for agent-authored diagrams |
@@ -271,6 +274,49 @@ or host actions.
 
 Read [AX HTML control surfaces](references/ax-html-control-surface.md) before building an
 interactive AX-enabled HTML node.
+
+### Ready-made control surfaces (0.4.7+) — prefer these over hand-rolling
+
+Two HTML primitives ship AX-enabled, so you do not need to author a control surface or pass
+`axCapabilities` yourself. They are the ONLY primitives created with AX on; every other kind is
+still a static document.
+
+- **`ax-board`** — task list: create tasks, watch status change live, steer, bounded loop.
+- **`ax-flow`** — the same controls drawn as a task flow with a loop-back rail, plus
+  **Materialize to board**.
+
+**`ax.flow.materialize`** is the one interaction that creates canvas nodes, and it is deliberately
+narrow: you supply TEXT ONLY (<= 12 steps, title <= 120 chars) and the server owns the result —
+one `markdown` node per step, `flow` edges between them, a dashed `references` loop edge, and one
+work item per step linked to its node. Re-materializing REPLACES the previous flow (the source
+node keeps a manifest of what it created), so it is safe to call repeatedly.
+
+**The flow also works without the panel.** Materialized step nodes carry `data.axStep`, and the
+canvas renders native Start / Done / Blocked controls on them, with Run loop / Stop and a steer box
+on the anchor (first) step. Those controls also follow the node into focus mode. The native loop
+runs **server-side**: it advances when a step's work item completes, survives a browser reload, and
+keeps going while the tab is closed — unlike the panel's loop, which dies with the iframe. Bounds
+are the same either way: advances only while running, hard cap 20 runs, Stop persists immediately,
+and `blocked`/`cancelled` halts it.
+
+When you want the agent to work through a checklist the human can watch and steer, reach for
+`ax-flow` + materialize rather than a markdown to-do list — the status chips and the loop come free.
+
+### Working a flow: keep the board honest as you go
+
+A materialized flow is only useful if it tracks reality. While you work one:
+
+1. **Move the step to `in-progress` BEFORE you start it, and to `done` when it is actually done** —
+   not in a batch at the end. The human is watching the chips to know where you are; a board that
+   only updates on completion tells them nothing while it matters.
+2. **Pin the in-progress step as context** (`canvas_pin_nodes` with just that node, or
+   `POST /api/canvas/context-pins` mode `set`). This makes the active step the one thing in
+   `canvas://pinned-context`, so the board's "what am I working on" and your own context are the
+   same answer instead of drifting apart. Re-pin as you advance.
+3. **Mark `blocked` rather than going quiet** when you are stuck — a stalled `in-progress` chip is
+   indistinguishable from a crashed agent.
+4. Read steering back with `canvas_ax_delivery` as you go; a human watching a live flow steers
+   mid-run, and a steer you never claim is a correction you ignored.
 
 ## Resources
 

@@ -15,10 +15,10 @@
  * import cycle (canvas-state → canvas-provenance must not pull this in).
  */
 import { z } from 'zod';
-import type { CanvasNodeState } from './canvas-state.js';
+import type { CanvasEdge, CanvasLayout, CanvasNodeState } from './canvas-state.js';
 import type { CanvasNodeType } from './canvas-provenance.js';
 import type { PmxAxApprovalGate, PmxAxElicitation, PmxAxEvent, PmxAxEventKind, PmxAxEvidence, PmxAxEvidenceKind, PmxAxFocusState, PmxAxMode, PmxAxModeRequest, PmxAxReviewAnchorType, PmxAxReviewAnnotation, PmxAxReviewKind, PmxAxReviewRegion, PmxAxReviewSeverity, PmxAxSource, PmxAxSteeringMessage, PmxAxWorkItem, PmxAxWorkItemStatus } from './ax-state.js';
-export declare const AX_INTERACTION_TYPES: readonly ["ax.event.record", "ax.steer", "ax.work.create", "ax.work.update", "ax.evidence.add", "ax.approval.request", "ax.approval.resolve", "ax.review.add", "ax.focus.set", "ax.command.invoke", "ax.elicitation.request", "ax.mode.request"];
+export declare const AX_INTERACTION_TYPES: readonly ["ax.event.record", "ax.steer", "ax.work.create", "ax.work.update", "ax.evidence.add", "ax.approval.request", "ax.approval.resolve", "ax.review.add", "ax.focus.set", "ax.command.invoke", "ax.elicitation.request", "ax.mode.request", "ax.flow.materialize"];
 export type AxInteractionType = (typeof AX_INTERACTION_TYPES)[number];
 export type AxDeliveryMode = 'record-only' | 'notify-agent' | 'send-to-agent';
 export interface NodeAxCapabilities {
@@ -59,6 +59,7 @@ declare const InteractionEnvelopeSchema: z.ZodObject<{
         "ax.command.invoke": "ax.command.invoke";
         "ax.elicitation.request": "ax.elicitation.request";
         "ax.mode.request": "ax.mode.request";
+        "ax.flow.materialize": "ax.flow.materialize";
     }>;
     sourceNodeId: z.ZodString;
     sourceSurface: z.ZodOptional<z.ZodEnum<{
@@ -98,6 +99,13 @@ export interface AxInteractionInput {
  */
 export interface AxInteractionManager {
     getNode(id: string): CanvasNodeState | undefined;
+    /** Canvas read for `ax.flow.materialize` (placement obstacles + stale flow sweep). */
+    getLayout(): CanvasLayout;
+    addNode(node: CanvasNodeState): void;
+    updateNode(id: string, patch: Partial<CanvasNodeState>): void;
+    /** Also drops the node's edges — the flow's replace path relies on that. */
+    removeNode(id: string): void;
+    addEdge(edge: CanvasEdge): boolean;
     recordAxEvent(input: {
         kind: PmxAxEventKind;
         summary: string;
@@ -199,6 +207,17 @@ export type AxInteractionPublicResult = {
 export interface AxInteractionResult {
     result: AxInteractionPublicResult;
     events: AxInteractionEvent[];
+}
+export interface AxFlowMaterializeInput {
+    title?: string;
+    steps: Array<{
+        title: string;
+        detail?: string;
+    }>;
+    loop?: {
+        enabled?: boolean;
+        maxRuns?: number;
+    };
 }
 /**
  * Validate + execute a node-originated AX interaction. Returns the public result
