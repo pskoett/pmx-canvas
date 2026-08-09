@@ -28,6 +28,11 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   `POST /api/canvas/workboard`) materializes one board node showing all AX
   work items by status, and it refreshes automatically whenever work items
   change.
+- File nodes now handle more than source code: `.csv` and `.tsv` files render
+  as real tables, PDFs render in an embedded viewer, and other binary files
+  show a name-and-size placeholder instead of decoded gibberish. Text files
+  larger than 2 MB render truncated with a notice rather than being read into
+  memory whole.
 
 ### Changed
 
@@ -36,7 +41,8 @@ All notable changes to `pmx-canvas` are documented here. This project follows
   default-ish size instead; pass `strictSize: true` to keep a genuinely small
   fixed frame. `validate` reports any undersized nodes as advisory size
   warnings. Agents doing their own layout arithmetic should read back the
-  created size (or set `strictSize`).
+  created size (or set `strictSize`). The browser honors the same floor, so
+  content-fit never shrinks a node back below it.
 - The README's MCP and Amp orb setup guides now cover portable configs: pin
   the package version in orb setup scripts and avoid hard-coding an absolute
   `PMX_CANVAS_WORKSPACE_ROOT` in committed MCP configs.
@@ -45,6 +51,23 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ### Fixed
 
+- Context nodes no longer dock themselves invisibly: a node you create lands on
+  the canvas where you put it, and docking to the HUD column is something you
+  ask for. Previously an agent-created context node existed in the API and
+  passed validation but never rendered, so edges to it trailed off into empty
+  space.
+- `validate` now reports edges whose endpoint node is docked (and therefore
+  cannot be drawn) instead of passing them as healthy.
+- `fit` now sizes the board to the connected browser window instead of assuming
+  1440x900, so fitting no longer leaves nodes clipped on both sides.
+- Edges stay legible when you zoom out: strokes, dashes, arrowheads, and labels
+  now hold their on-screen size instead of shrinking to invisible hairlines,
+  and `references` edges use a higher-contrast colour.
+- CLI flag values that begin with a dash now work, so a unified diff starting
+  with `--- a/file` can be passed straight to `--content` (and a bare `--` ends
+  flag parsing).
+- Web-artifact builds now fail fast with a clear message naming the Node.js
+  version they need, instead of an opaque package-manager error.
 - A browser panel left open across a `pmx-canvas` upgrade now reloads itself
   once on reconnect instead of silently running the old client bundle (which
   hid new client behavior such as the auto-ghost minimum dwell).

@@ -22,6 +22,7 @@
  * - POST /api/canvas/json-render  -> create a native json-render node
  * - POST /api/canvas/graph        -> create a native graph node
  * - GET  /api/canvas/json-render/view?nodeId=... -> local json-render viewer
+ * - GET  /api/canvas/file-bytes?nodeId=... -> raw bytes for a file node
  * - POST /api/canvas/web-artifact -> build bundled HTML artifact + optional canvas node
  * - GET  /api/workbench/events   -> SSE event stream
  * - GET  /api/workbench/poll     -> proxy-safe polling transport (same events, JSON)
@@ -62,6 +63,7 @@ import { buildCanvasAxSurfaceSnapshot } from './ax-context.js';
 import { resolveNodeAxCapabilities } from './ax-interaction.js';
 import { normalizeCanvasTheme, type CanvasTheme } from './canvas-db.js';
 import { canvasThemeScheme, isCanvasTheme } from '../shared/themes.js';
+import { canOpenNodeAsSurface } from '../shared/surface.js';
 import { validateLocalImageFile } from './image-source.js';
 import {
   cancelCodeGraphRecompute,
@@ -1265,6 +1267,14 @@ function isSafeSurfaceRedirect(target: string): boolean {
   return false;
 }
 
+// Why a node has no standalone surface, in one wording shared by the route's own
+// 404 and by open-external's refusal — the two must never disagree about a node.
+function surfaceRefusalMessage(type: string): string {
+  return type === 'mcp-app'
+    ? 'This MCP app renders in the canvas and cannot be opened as a standalone site.'
+    : 'Node type cannot be opened as a site';
+}
+
 function handleNodeSurface(pathname: string, url: URL): Response {
   const nodeId = decodeURIComponent(pathname.slice('/api/canvas/surface/'.length));
   if (!nodeId) return responseText('Missing node id', 400);
@@ -1353,7 +1363,7 @@ function handleNodeSurface(pathname: string, url: URL): Response {
     // `-32601` (report #61). It is intentionally NOT openable as a site — open such
     // apps externally through their own app, or view them in the canvas. (Kept in sync
     // with canOpenNodeAsSurface in src/shared/surface.ts, which hides the UI control.)
-    return responseText('This MCP app renders in the canvas and cannot be opened as a standalone site.', 404);
+    return responseText(surfaceRefusalMessage(node.type), 404);
   }
 
   if (node.type === 'webpage') {
@@ -1363,7 +1373,7 @@ function handleNodeSurface(pathname: string, url: URL): Response {
     return responseText('Webpage node has no url', 404);
   }
 
-  return responseText('Node type cannot be opened as a site', 404);
+  return responseText(surfaceRefusalMessage(node.type), 404);
 }
 
 // ── Serve image file for image nodes ─────────────────────────
@@ -1398,6 +1408,39 @@ async function handleCanvasImage(pathname: string): Promise<Response> {
     headers: {
       'Content-Type': contentType,
       'Cache-Control': 'no-cache',
+    },
+  });
+}
+
+// ── Serve raw bytes for file nodes (PDF viewer, downloads) ───
+async function handleCanvasFileBytes(url: URL): Promise<Response> {
+  const nodeId = url.searchParams.get('nodeId') ?? '';
+  if (!nodeId) return responseText('Missing nodeId', 400);
+  const node = canvasState.getNode(nodeId);
+  if (node?.type !== 'file') {
+    return responseText('File node not found', 404);
+  }
+  const filePath = typeof node.data.path === 'string' ? node.data.path : '';
+  if (!filePath) {
+    return responseText('File node is not backed by a path', 404);
+  }
+  // Same containment guard as the image route: `path` comes from node data,
+  // which any unauthenticated local caller can set, so an unguarded read here
+  // would serve arbitrary host files.
+  const safePath = resolveWorkspaceArtifactPath(filePath);
+  if (!safePath) {
+    return responseText('File path is outside the workspace; the byte route only serves workspace files', 403);
+  }
+  if (!existsSync(safePath)) {
+    return responseText('File not found', 404);
+  }
+  const mimeType = typeof node.data.mimeType === 'string' ? node.data.mimeType : 'application/octet-stream';
+  const bytes = await readFile(safePath);
+  return new Response(bytes, {
+    headers: {
+      'Content-Type': mimeType,
+      'Content-Disposition': 'inline',
+      'Cache-Control': 'no-store',
     },
   });
 }
@@ -2285,6 +2328,11 @@ async function handleOpenExternalSurface(req: Request): Promise<Response> {
   if (!nodeId) return responseJson({ ok: false, error: 'nodeId is required.' }, 400);
   const node = canvasState.getNode(nodeId);
   if (!node) return responseJson({ ok: false, error: `Node "${nodeId}" not found.` }, 404);
+  // Same rule the surface route and the "Open as site" control apply: refuse here
+  // rather than launching a browser at a URL that is guaranteed to 404 (report #61).
+  if (!canOpenNodeAsSurface(node.type, node.data)) {
+    return responseJson({ ok: false, opened: false, error: surfaceRefusalMessage(node.type) }, 400);
+  }
   const port = getCanvasServerPort();
   if (!port) return responseJson({ ok: false, opened: false, error: 'Server port unavailable.' }, 503);
   const defaultSurfacePath = `/api/canvas/surface/${encodeURIComponent(nodeId)}`;
@@ -3199,6 +3247,12 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname.startsWith('/api/canvas/image/') && req.method === 'GET') {
             return await handleCanvasImage(url.pathname);
+          }
+
+          // HEAD answers like GET (see the standalone-surface note above): a PDF
+          // viewer probes this URL for type/length before fetching the bytes.
+          if (url.pathname === '/api/canvas/file-bytes' && (req.method === 'GET' || req.method === 'HEAD')) {
+            return await handleCanvasFileBytes(url);
           }
 
           if (url.pathname === '/api/canvas/open-external' && req.method === 'POST') {

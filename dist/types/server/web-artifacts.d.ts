@@ -53,6 +53,20 @@ export interface WebArtifactCanvasBuildResult extends WebArtifactBuildOutput {
 }
 export declare function resolveWorkspacePath(pathLike: string, cwd?: string): string;
 export declare function resolveWebArtifactScriptPath(kind: 'init' | 'bundle'): string;
+export type NodeVersionCheck = {
+    ok: true;
+} | {
+    ok: false;
+    message: string;
+};
+/**
+ * Pure preflight comparison used before any package-manager invocation.
+ * `detected` is raw `node --version` output ("v20.11.1"), or null when no node
+ * executable answered; `required` is a `major.minor` floor; `packageManager` is
+ * the pin that imposes it (e.g. "pnpm@11.1.2"). Returns an actionable message
+ * instead of throwing so every caller surfaces it on its own error channel.
+ */
+export declare function checkWebArtifactNodeVersion(detected: string | null, required: string, packageManager: string): NodeVersionCheck;
 export declare function executeWebArtifactBuild(input: WebArtifactBuildInput): Promise<WebArtifactBuildOutput>;
 export declare function openWebArtifactInCanvas(input: {
     title: string;

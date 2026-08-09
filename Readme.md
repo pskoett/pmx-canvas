@@ -1,8 +1,8 @@
 # pmx-canvas
 
 **A moldable canvas for agent-assisted thinking.** An infinite 2D surface
-where files, plans, status, charts, fetched web pages, annotations, and
-hand-drawn diagrams live side by side. Every node carries its own renderer; agents
+where files, plans, status, charts, fetched web pages, annotations, code
+diffs, and diagrams live side by side. Every node carries its own renderer; agents
 (and you) build new views in the middle of a session — even streaming a
 structured panel into place as they generate it — not as a separate tooling
 project. Pin what matters and the agent reads your spatial curation as
@@ -35,14 +35,18 @@ neighborhoods) and uses your layout to ground its next action.
 
 ### 02 / Mix any data source
 
-Files, web pages, screenshots, structured panels, charts, hand-drawn
-diagrams, embedded MCP Apps, and bundled web artifacts all live on the same
-surface. Any rich surface — an HTML node or a web artifact — can be **opened as
-a site**, full-page in its own browser tab with one click; the canvas and the
-tab render the same document. The reach of the canvas is the union of its
-[built-in node types](docs/node-types.md) and **whatever your agent's harness
-already has access to** — MCP servers, CLIs, file reads, web fetch, anything
-on its toolbelt.
+Files, web pages, screenshots, structured panels, charts, diagrams, embedded
+MCP Apps, and bundled web artifacts all live on the same surface. A file node
+follows the file on disk as the agent edits it — source with line numbers, a
+CSV as a real table, a PDF inline. Code review has its own node: a unified
+diff with per-file headers and colored added and removed lines. Diagrams can
+be drawn by hand in Excalidraw or written as plain mermaid text and rendered
+on the spot. Any rich surface — an HTML node or a web artifact — can be
+**opened as a site**, full-page in its own browser tab with one click; the
+canvas and the tab render the same document. The reach of the canvas is the
+union of its [built-in node types](docs/node-types.md) and **whatever your
+agent's harness already has access to** — MCP servers, CLIs, file reads, web
+fetch, anything on its toolbelt.
 
 ### 03 / Annotate
 
@@ -67,7 +71,10 @@ canvas into a shared workspace between you and the agent:
   input or approval, or send steering without leaving the board.
 - **Focus** — promote nodes into the agent's active context without moving the viewport.
 - **Work items & approval gates** — track visible tasks tied to nodes, and gate
-  high-impact actions behind a human `pending → approved/rejected` decision.
+  high-impact actions behind a human `pending → approved/rejected` decision. A
+  linked node shows its work item's status on the title bar, and a live work
+  board lays the whole queue out by status and keeps itself current — useful
+  when several agents are working at once.
 - **Steering messages & agent-event timeline** — send instructions to the
   active session, and read a normalized, bounded timeline of prompts, tool
   runs, evidence (logs/diffs/screenshots/test-output), and failures.
@@ -109,8 +116,9 @@ Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (22 tools,
 14 resources, change notifications), the [CLI](docs/cli.md), the
 [HTTP API](docs/http-api.md), or the [Bun SDK](docs/sdk.md) — all
 [environment variables documented here](docs/environment.md). Works with
-Claude Code, GitHub Copilot CLI, Codex, Cursor, Windsurf, or any agent
-that can spawn an MCP stdio server, call a CLI, or hit an HTTP endpoint.
+Claude Code, the GitHub Copilot app and CLI, Codex, Amp, Cursor, Windsurf, or
+any agent that can spawn an MCP stdio server, call a CLI, or hit an HTTP
+endpoint.
 
 ### 07 / Native app adapters
 
@@ -332,7 +340,8 @@ Common harness skill directories: `.claude/skills/` (Claude Code),
 `.github/skills/` or `.copilot/skills/` (Copilot CLI),
 `.agents/skills/` (cross-harness convention). Once the canvas is running,
 the agent can read `canvas://skills` and pull in companion skills
-(`control-session-orchestrator`, `web-artifacts-builder`, `json-render-*`,
+(`pmx-canvas-orchestration` for running several agents on one board,
+`control-session-orchestrator`, `web-artifacts-builder`, `json-render-*`,
 `pmx-canvas-testing`, `playwright-cli`, etc.) as the work demands.
 
 ## Documentation

@@ -19,7 +19,19 @@ export declare function extractGlobalTargetFlags(args: string[]): string[];
 declare function die(message: string, hint?: string): never;
 declare function output(data: unknown): void;
 declare function invokeOperation(name: string, input: Record<string, unknown>): Promise<unknown>;
-declare function parseFlags(args: string[]): {
+/**
+ * `options.boolFlags` marks flags that are boolean FOR THIS COMMAND. Value
+ * flags consume the next token verbatim (so a unified diff beginning with
+ * `--- a/file` survives), which makes a flag that is boolean here and
+ * value-taking elsewhere ambiguous — `--summary` is boolean in `history` /
+ * `layout` / `node get` / `validate spec` but carries text in `node add`.
+ * Without this per-command override, `history --summary --limit 5` would
+ * swallow `--limit` as the summary's value. The global set below holds flags
+ * that are boolean everywhere.
+ */
+declare function parseFlags(args: string[], options?: {
+    boolFlags?: readonly string[];
+}): {
     positional: string[];
     flags: Record<string, string | true>;
 };

@@ -1,4 +1,5 @@
 import type { CanvasNodeState } from '../types';
+import { nodeMinSize } from '../../shared/node-sizes.js';
 
 export const AUTO_FIT_TITLEBAR_HEIGHT = 37;
 export const AUTO_FIT_MAX_HEIGHT = 600;
@@ -60,7 +61,15 @@ export function shouldAutoFitNode(node: CanvasNodeState): boolean {
 
 export function computeAutoFitHeight(node: CanvasNodeState, contentHeight: number): number | null {
   if (!shouldAutoFitNode(node) || contentHeight <= 0) return null;
-  return Math.min(contentHeight + AUTO_FIT_TITLEBAR_HEIGHT, AUTO_FIT_MAX_HEIGHT);
+  const fitted = Math.min(contentHeight + AUTO_FIT_TITLEBAR_HEIGHT, AUTO_FIT_MAX_HEIGHT);
+  // Honor the shared readability floor (0.4.6 report Finding AA): the server
+  // clamps an undersized create up to the floor, then this auto-fit measured
+  // the short content and persisted a SMALLER height — undoing the clamp on
+  // the most common path (a connected workbench). Auto-fit may grow a node and
+  // may shrink it toward its content, but never below the type's floor.
+  // strictSize nodes never reach here (isAutoSizeExempt).
+  const min = nodeMinSize(node.type);
+  return min ? Math.max(fitted, min.height) : fitted;
 }
 
 /** Iframe surfaces that should GROW to fit their reported content height. */

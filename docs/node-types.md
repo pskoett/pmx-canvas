@@ -14,7 +14,7 @@ see [MCP tools](mcp.md), [HTTP API](http-api.md), and [SDK](sdk.md).
 | `context` | Context cards, token usage, workspace grounding |
 | `ledger` | Execution ledger summary |
 | `trace` | Agent trace pills (tool calls, subagent activity) |
-| `file` | Live file viewer with auto-update on disk changes |
+| `file` | Live file viewer with auto-update on disk changes — also renders CSV/TSV as tables and PDFs inline |
 | `diff` | Unified diff viewer: per-file headers, hunk rows, +/− colored lines |
 | `mermaid` | Mermaid diagram rendered client-side from text (flowchart, sequence, state, …) |
 | `image` | Image viewer (file paths, data URIs, URLs) |
@@ -49,6 +49,20 @@ automatically via `fs.watch()`.
 ```ts
 canvas_node({ action: 'add', type: 'file', content: 'src/server/index.ts' })
 ```
+
+The same node type handles non-source files, so you never have to pick a
+different type by extension:
+
+- **`.csv` / `.tsv`** render as a real table (quoted fields, embedded newlines,
+  and escaped quotes are parsed properly) instead of raw delimited text. Very
+  long files render a bounded number of rows and say how many were omitted.
+- **`.pdf`** renders in an embedded viewer, served from
+  `GET /api/canvas/file-bytes?nodeId=…`. In hosts that block src-URL iframes
+  (Amp orb portals) the node offers an "Open PDF" link instead of a blank frame.
+- **Other binary files** show a placeholder with the name and size rather than
+  decoding bytes into mojibake.
+- **Text files over 2 MB** render truncated with a banner saying so, so a huge
+  log can never exhaust memory.
 
 ## Image nodes
 

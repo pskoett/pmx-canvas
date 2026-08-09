@@ -417,7 +417,7 @@
       "id": 17,
       "name": "standalone-surface-open-as-site",
       "prompt": "Open the bar-chart graph node as a standalone full-page site for a screenshot, and also try to open the Excalidraw diagram node the same way. Tell me the correct surface URL for each.",
-      "expected_output": "For the graph/json-render node, uses the stable surface URL /api/canvas/surface/<id> which redirects to the full-viewport display=site viewer (reads surfaceUrl from the node, does not fabricate a path). Recognizes the hosted Excalidraw/ext-app node is NOT an open-as-site target (its surface route returns a clean 404 \u2014 it renders only with the in-canvas host bridge) and does not claim a standalone tab will work. Notes that some host browsers (e.g. the Codex in-app single-tab browser) don't deliver live-resize events, so a system browser is recommended for separate full-page viewing.",
+      "expected_output": "For the graph/json-render node, uses the stable surface URL /api/canvas/surface/<id> which redirects to the full-viewport display=site viewer (reads surfaceUrl from the node, does not fabricate a path). Recognizes the hosted Excalidraw/ext-app node is NOT an open-as-site target (its surface route returns a clean 404 \u2014 it renders only with the in-canvas host bridge, and open-external refuses it with the same message) and does not claim a standalone tab will work. Describes the standalone surface as reflowing live on a window resize; does not claim host browsers leave a resized chart stale until reload, and does not prescribe a system browser as a workaround.",
       "assertions": [
         {
           "name": "graph-site-surface-url",
@@ -430,8 +430,59 @@
           "type": "output_check"
         },
         {
-          "name": "host-browser-caveat",
-          "description": "Recommends a system browser for separate full-page viewing and/or notes single-tab host browsers may not reflow on live resize",
+          "name": "no-stale-resize-claim",
+          "description": "Does not assert that host browsers fail to deliver live resize (current Codex builds do — the 0.4.6 pass saw a standalone graph reflow live with no reload); a system browser may be offered as a viewing preference, never as a resize workaround",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "name": "in-view-placement-after-create",
+      "prompt": "The board already has a cluster of nodes from this morning, way off to the far right. Add a markdown summary of the incident and a status node for the follow-up, and make sure I can actually see them.",
+      "expected_output": "Places the new nodes near the human's attention (pinned/focused neighborhood or beside the last user-facing output) instead of trusting board-relative auto-placement on a spread-out board, then pans the camera: canvas_view {action:focus} for a single node, or canvas_view {action:fit, nodeIds:[...]} with exactly the new ids for the pair. Does not hand-compute the whole board's coordinates and does not fit the whole board to 'show' the new work — an outlier cluster would miniaturize everything.",
+      "assertions": [
+        {
+          "name": "ends-with-focus-or-fit",
+          "description": "Finishes with canvas_view {action:focus} (single node) or {action:fit} after creating the nodes, rather than leaving them off-camera",
+          "type": "output_check"
+        },
+        {
+          "name": "fit-targets-new-ids-only",
+          "description": "Passes exactly the new node ids to fit instead of fitting the whole board (a distant cluster would shrink everything)",
+          "type": "output_check"
+        },
+        {
+          "name": "no-whole-board-coordinate-math",
+          "description": "Places relative to the human's attention or uses create-then-arrange; does not hand-compute a full board layout in pixels",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "name": "node-size-discipline",
+      "prompt": "Add a markdown write-up of the outage and a bar chart of the error counts. Keep them tight — I don't want huge tiles.",
+      "expected_output": "Omits width/height and takes the per-type defaults (markdown 640×420, graph 760×520) rather than passing small probe sizes for human-readable content. Uses strictSize:true only for a deliberately fixed small frame, not to dodge the floor. Reads the size back from the create result or the layout before any layout math, because the server clamps an undersized explicit frame UP to the per-type floor (markdown 360×180, graph 420×280) — the returned size can differ from what was requested.",
+      "assertions": [
+        {
+          "name": "uses-type-defaults",
+          "description": "Omits width/height (or passes a readable size) instead of guessing a frame for readable content",
+          "type": "output_check"
+        },
+        {
+          "name": "no-tiny-probe-sizes",
+          "description": "Does not create human-readable nodes at tiny probe sizes that the floor would silently raise",
+          "type": "output_check"
+        },
+        {
+          "name": "strict-size-only-when-deliberate",
+          "description": "Reaches for strictSize:true only for an intentionally fixed small frame, not as a way around the readability floor",
+          "type": "output_check"
+        },
+        {
+          "name": "reads-back-created-size",
+          "description": "Reads the actual created size from the create result / canvas_query layout before positioning or sizing anything else, rather than assuming the requested size was kept",
           "type": "output_check"
         }
       ]

@@ -1767,6 +1767,105 @@ describe('canvas server HTTP API', () => {
     }
   });
 
+  test('an agent-created context node lands on the canvas, and edges to docked nodes fail validation', async () => {
+    // 0.4.6 orb feedback #1: a context node existed in the API and passed
+    // validation but never rendered (silently auto-docked), so an edge to it
+    // trailed off into empty space.
+    const ctx = (await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'context', title: 'Visible context', content: 'ctx', x: 200, y: 2400 }),
+    }).then((r) => r.json())) as { id: string; node: { dockPosition: string | null } };
+    expect(ctx.node.dockPosition).toBeNull();
+
+    const peer = (await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Edge peer', content: 'x', x: 800, y: 2400 }),
+    }).then((r) => r.json())) as { id: string };
+
+    // An edge between two canvas nodes is clean.
+    const goodEdge = (await fetch(`${baseUrl}/api/canvas/edge`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ from: ctx.id, to: peer.id, type: 'relation' }),
+    }).then((r) => r.json())) as { id: string };
+    let validation = (await fetch(`${baseUrl}/api/canvas/validate`).then((r) => r.json())) as {
+      hiddenEdgeEndpoints: Array<{ edgeId: string; nodeId: string; dockPosition: string }>;
+      summary: { hiddenEdgeEndpoints: number };
+    };
+    expect(validation.hiddenEdgeEndpoints.some((entry) => entry.edgeId === goodEdge.id)).toBe(false);
+
+    // Dock the context node: the edge can no longer be drawn, and validate says so.
+    await fetch(`${baseUrl}/api/canvas/node/${ctx.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dockPosition: 'right' }),
+    });
+    validation = (await fetch(`${baseUrl}/api/canvas/validate`).then((r) => r.json())) as typeof validation;
+    const hidden = validation.hiddenEdgeEndpoints.find((entry) => entry.edgeId === goodEdge.id);
+    expect(hidden).toMatchObject({ nodeId: ctx.id, dockPosition: 'right' });
+    expect(validation.summary.hiddenEdgeEndpoints).toBeGreaterThanOrEqual(1);
+
+    await fetch(`${baseUrl}/api/canvas/edge?id=${goodEdge.id}`, { method: 'DELETE' });
+    for (const id of [ctx.id, peer.id]) {
+      await fetch(`${baseUrl}/api/canvas/node/${id}`, { method: 'DELETE' });
+    }
+  });
+
+  test('fit sizes to the reporting client window instead of a hardcoded 1440x900', async () => {
+    // 0.4.6 orb feedback #2: fit computed a scale for a 1440x900 window the
+    // human did not have, so the board overflowed and clipped on both sides.
+    const wide = (await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        type: 'markdown',
+        title: 'Fit span',
+        content: 'x',
+        x: 0,
+        y: 3000,
+        width: 1440,
+        height: 900,
+      }),
+    }).then((r) => r.json())) as { id: string };
+
+    // The browser reports a SMALLER window; the size-only body must not disturb
+    // the stored viewport.
+    const before = (await fetch(`${baseUrl}/api/canvas/state`).then((r) => r.json())) as {
+      viewport: { x: number; y: number; scale: number };
+    };
+    await fetch(`${baseUrl}/api/canvas/viewport`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clientWidth: 720, clientHeight: 450, recordHistory: false }),
+    });
+    const afterReport = (await fetch(`${baseUrl}/api/canvas/state`).then((r) => r.json())) as typeof before;
+    expect(afterReport.viewport).toEqual(before.viewport);
+
+    const fitted = (await fetch(`${baseUrl}/api/canvas/fit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeIds: [wide.id] }),
+    }).then((r) => r.json())) as { viewport: { scale: number } };
+
+    // Fit is min(w/worldW, h/worldH) over a 1440x900 node plus 2x60 padding:
+    // min(720/1560, 450/1020) → the height binds at ~0.44. The old hardcoded
+    // 1440x900 assumption produced ~0.88 for this board — twice too large, which
+    // is exactly the "clipped on both sides" symptom.
+    expect(fitted.viewport.scale).toBeCloseTo(Math.min(720 / 1560, 450 / 1020), 3);
+
+    // An explicit width still wins over the reported client size.
+    const explicit = (await fetch(`${baseUrl}/api/canvas/fit`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeIds: [wide.id], width: 1560, height: 1020 }),
+    }).then((r) => r.json())) as { viewport: { scale: number } };
+    expect(explicit.viewport.scale).toBeCloseTo(1, 2);
+
+    await fetch(`${baseUrl}/api/canvas/node/${wide.id}`, { method: 'DELETE' });
+  });
+
   test('delivery mark is compare-and-set and steering accepts the amp source', async () => {
     const steer = (await fetch(`${baseUrl}/api/canvas/ax/steer`, {
       method: 'POST',
@@ -3078,6 +3177,70 @@ describe('canvas server HTTP API', () => {
     // 80 + the file node's 360 default height (0.4.5: real code-preview size)
     // + the column gap.
     expect(arrangedMarkdown.position).toEqual({ x: 40, y: 464 });
+  });
+
+  test('binary file nodes carry byte metadata instead of mojibake and serve their bytes', async () => {
+    const pdfBytes = Buffer.concat([
+      Buffer.from('%PDF-1.4\n', 'ascii'),
+      Buffer.from([0x00, 0x01, 0x02, 0x03]),
+      Buffer.from('\n%%EOF\n', 'ascii'),
+    ]);
+    const pdfPath = join(workspaceRoot, 'file-bytes-fixture.pdf');
+    writeFileSync(pdfPath, pdfBytes);
+
+    const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'file', content: pdfPath, title: 'file-bytes-fixture.pdf' }),
+    });
+
+    const node = await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${created.id}`);
+    expect(node.data.binary).toBe(true);
+    expect(node.data.mimeType).toBe('application/pdf');
+    expect(node.data.byteSize).toBe(pdfBytes.length);
+    expect(node.data.fileContent).toBeUndefined();
+    expect(node.data.lineCount).toBeUndefined();
+
+    const bytes = await fetch(`${baseUrl}/api/canvas/file-bytes?nodeId=${created.id}`);
+    expect(bytes.status).toBe(200);
+    expect(bytes.headers.get('content-type')).toBe('application/pdf');
+    expect(bytes.headers.get('content-disposition')).toBe('inline');
+    expect(bytes.headers.get('cache-control')).toBe('no-store');
+    expect(Buffer.from(await bytes.arrayBuffer()).equals(pdfBytes)).toBe(true);
+
+    const head = await fetch(`${baseUrl}/api/canvas/file-bytes?nodeId=${created.id}`, { method: 'HEAD' });
+    expect(head.status).toBe(200);
+    expect(head.headers.get('content-type')).toBe('application/pdf');
+
+    await jsonRequest(`/api/canvas/node/${created.id}`, { method: 'DELETE' });
+    rmSync(pdfPath, { force: true });
+  });
+
+  test('the file-bytes route refuses paths outside the workspace and unknown nodes', async () => {
+    // File node creation does not enforce containment, so the node can be
+    // planted with a path in the parent dir; the byte route must refuse it.
+    const outsidePath = join(workspaceRoot, '..', `pmx-file-bytes-traversal-${Date.now()}.pdf`);
+    writeFileSync(outsidePath, Buffer.from('%PDF-1.4\n', 'ascii'));
+    try {
+      const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'file', content: outsidePath, title: 'outside.pdf' }),
+      });
+
+      const forbidden = await fetch(`${baseUrl}/api/canvas/file-bytes?nodeId=${created.id}`);
+      expect(forbidden.status).toBe(403);
+      const forbiddenPayload = (await forbidden.json()) as { ok: boolean; error: string };
+      expect(forbiddenPayload.ok).toBe(false);
+      expect(forbiddenPayload.error).toContain('outside the workspace');
+
+      const unknown = await fetch(`${baseUrl}/api/canvas/file-bytes?nodeId=node-not-on-canvas`);
+      expect(unknown.status).toBe(404);
+
+      await jsonRequest(`/api/canvas/node/${created.id}`, { method: 'DELETE' });
+    } finally {
+      rmSync(outsidePath, { force: true });
+    }
   });
 
   test('group create preserves child positions by default and supports explicit manual frames with child layout', async () => {
@@ -5347,6 +5510,61 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ nodeId: node.id, url: '/api/canvas/surface/other?theme=light' }),
     });
     expect(wrongNodeUrl.status).toBe(400);
+  });
+
+  test('POST /api/canvas/open-external refuses nodes the surface route cannot serve (#61)', async () => {
+    canvasState.addNode({
+      id: 'open-external-extapp',
+      type: 'mcp-app',
+      position: { x: 0, y: 0 },
+      size: { width: 960, height: 600 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      dockPosition: null,
+      data: { mode: 'ext-app', html: '<!doctype html><html><head></head><body>ext app surface</body></html>' },
+    });
+    // The surface route already refuses a hosted ext-app; open-external must agree
+    // instead of launching a browser at a URL that is guaranteed to 404.
+    const surface = await fetch(`${baseUrl}/api/canvas/surface/open-external-extapp`, { redirect: 'manual' });
+    expect(surface.status).toBe(404);
+    const surfaceBody = (await surface.json()) as { error?: string };
+
+    const refused = await fetch(`${baseUrl}/api/canvas/open-external`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeId: 'open-external-extapp' }),
+    });
+    expect(refused.status).toBe(400);
+    const refusedBody = (await refused.json()) as { ok: boolean; opened?: boolean; error?: string };
+    expect(refusedBody.ok).toBe(false);
+    expect(refusedBody.opened).toBe(false);
+    // One wording for both surfaces, so the refusal reads the same either way.
+    expect(refusedBody.error).toBe(surfaceBody.error);
+    canvasState.removeNode('open-external-extapp');
+
+    // A node type that does have a standalone surface still opens.
+    const graph = await jsonRequest<{ id: string }>('/api/canvas/graph', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: 'Open external graph',
+        graphType: 'bar',
+        data: [{ label: 'A', value: 1 }],
+        xKey: 'label',
+        yKey: 'value',
+      }),
+    });
+    const allowed = await jsonRequest<{ ok: boolean; opened: boolean; url: string }>('/api/canvas/open-external', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nodeId: graph.id }),
+    });
+    expect(allowed.ok).toBe(true);
+    expect(allowed.url).toBe(`/api/canvas/surface/${graph.id}?theme=dark`);
+    // PMX_CANVAS_DISABLE_BROWSER_OPEN=1 keeps the real system browser out of tests.
+    expect(allowed.opened).toBe(false);
+    await jsonRequest<{ ok: boolean }>(`/api/canvas/node/${graph.id}`, { method: 'DELETE' });
   });
 
   test('AX mutations emit ax-event-created and ax-state-changed SSE events', async () => {

@@ -64,6 +64,23 @@ A node creation request must resolve a `type` — pass it in the body (`{ "type"
 ... }`) or as a `?type=` query param. An empty / type-less body returns `400`
 rather than silently creating a markdown node.
 
+### File node content and bytes
+
+A `file` node reads its file server-side. Text is stored on the node as
+`data.fileContent` (with `data.lineCount`); `data.byteSize` is always set.
+Non-text files are never decoded into mojibake — they carry `data.binary: true`
+with no `fileContent`, plus `data.mimeType` when the type is known
+(`application/pdf` for PDFs). A text file larger than 2 MB is stored truncated
+with `data.truncated: true`.
+
+```bash
+# Raw bytes for a binary file node (PDF viewer, downloads)
+curl http://localhost:4313/api/canvas/file-bytes?nodeId=node-abc123
+```
+
+The byte route is workspace-scoped: a file node whose path resolves outside the
+workspace root returns `403`, and an unknown node id returns `404`.
+
 ## Edges
 
 ```bash

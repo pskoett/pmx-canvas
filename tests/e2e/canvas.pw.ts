@@ -383,9 +383,12 @@ test('renders every canvas node type in the browser', async ({ page, request }) 
   await expect(node('All Types Markdown')).toContainText('Markdown renderer body');
   await expect(node('All Types Status')).toContainText('testing');
   await expect(node('All Types Status')).toContainText('status renderer message');
-  await page.getByRole('button', { name: 'Context — 1 item' }).click();
-  await expect(page.locator('.context-dock-panel')).toContainText('Context renderer card');
-  await expect(page.locator('.context-dock-panel')).toContainText('42%');
+  // Docking is explicit (0.4.6 orb feedback #1): a created context node renders
+  // ON THE CANVAS, not as an invisible HUD pill. This is the regression guard —
+  // the old auto-dock made agent-created context nodes exist in the API, pass
+  // validation, and never appear, with edges to them trailing into empty space.
+  await expect(node('All Types Context')).toBeVisible();
+  await expect(node('All Types Context')).toContainText('Context renderer card');
   await expect(node('All Types Ledger')).toContainText('Passed Checks');
   await expect(node('All Types Trace')).toContainText('canvas_render_all_types');
   await expect(node('All Types Trace')).toContainText('trace renderer result');
@@ -3132,4 +3135,51 @@ test('an Amp orb page boots straight on the polling transport (no SSE attempt)',
   await firstPoll;
   await expect(page.locator('#canvasBootstrap')).toHaveClass(/ready/);
   expect(sseRequested).toBe(false);
+});
+
+test('the size floor survives the browser: a clamped node is not shrunk by auto-fit', async ({ page, request }) => {
+  // Finding AA (0.4.6 report): the server clamped a 200x100 markdown create up
+  // to 360x180, then the connected workbench's DOM auto-fit persisted 360x132.
+  //
+  // Scope note: the discriminating guard for that defect is the unit test in
+  // client-auto-fit.test.ts (it fails without the floor, reproducing 132
+  // exactly). The shrink needs a first-paint race — `.node-body` normally
+  // stretches to the node height, so `scrollHeight` cannot fall below it unless
+  // the ResizeObserver fires before the height style lands — which does not
+  // reproduce deterministically here. THIS test covers the end-to-end half the
+  // report asked for: the size the server still holds after a real browser has
+  // rendered the node and auto-fit has settled.
+  await page.goto('/workbench');
+  await expect(page.locator('.canvas-viewport')).toBeVisible();
+
+  const created = await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Floor probe', content: 'tiny', x: 220, y: 2600, width: 200, height: 100 },
+  });
+  const { id } = (await created.json()) as { id: string };
+
+  // The creation clamp itself.
+  const afterCreate = (await (await request.get(`/api/canvas/node/${id}`)).json()) as {
+    size: { width: number; height: number };
+  };
+  expect(afterCreate.size).toEqual({ width: 360, height: 180 });
+
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Floor probe' })).toBeVisible();
+
+  // Auto-fit runs on a ResizeObserver and persists through a debounced write.
+  // Deliberately WAIT for that to settle and then assert once: polling until
+  // the height is >= 180 would pass on the first sample (the node starts at
+  // 180) and never observe the shrink this test exists to catch.
+  await page.waitForTimeout(2500);
+  const settled = (await (await request.get(`/api/canvas/node/${id}`)).json()) as {
+    size: { width: number; height: number };
+  };
+  expect(settled.size.height).toBeGreaterThanOrEqual(180);
+
+  // And validate must not report it as undersized.
+  const validation = (await (await request.get('/api/canvas/validate')).json()) as {
+    sizeWarnings: Array<{ id: string }>;
+  };
+  expect(validation.sizeWarnings.some((w) => w.id === id)).toBe(false);
+
+  await request.delete(`/api/canvas/node/${id}`);
 });

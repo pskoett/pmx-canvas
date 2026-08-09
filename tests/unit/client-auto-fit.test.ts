@@ -41,6 +41,21 @@ describe('client auto-fit helpers', () => {
     expect(computeAutoFitHeight(markdown, 900)).toBe(600);
   });
 
+  test('never shrinks below the shared readability floor (Finding AA)', () => {
+    // The server clamps an undersized create UP to the floor (markdown 360x180);
+    // auto-fit then measured the short content and persisted 360x132, undoing
+    // the clamp on the most common path. Auto-fit must respect the same floor.
+    const markdown = makeNode({ type: 'markdown', size: { width: 360, height: 180 } });
+    expect(computeAutoFitHeight(markdown, 95)).toBe(180);
+
+    // Content taller than the floor still fits to the content, not the floor.
+    expect(computeAutoFitHeight(markdown, 300)).toBe(300 + AUTO_FIT_TITLEBAR_HEIGHT);
+
+    // A type without a floor is unaffected (trace is small by design).
+    const trace = makeNode({ type: 'trace', size: { width: 220, height: 64 } });
+    expect(computeAutoFitHeight(trace, 40)).toBe(40 + AUTO_FIT_TITLEBAR_HEIGHT);
+  });
+
   test('does not auto-fit strict-size content nodes', () => {
     const markdown = makeNode({ type: 'markdown', size: { width: 360, height: 160 }, data: { strictSize: true } });
 

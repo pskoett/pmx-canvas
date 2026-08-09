@@ -952,12 +952,15 @@ the host's embedded browser (e.g. Codex) opens `_blank` tabs in-place.
   renders with the in-canvas host bridge — a bare tab has no peer, so the surface route
   returns `404` ("This MCP app renders in the canvas and cannot be opened as a standalone
   site"); view/edit them in the canvas, or open them externally through their own app
-  (report #61). Only bundled `web-artifact` apps (redirect to `/artifact`) and URL-backed
-  `mcp-app` / `webpage` viewers redirect to their external site.
+  (report #61). `POST /api/canvas/open-external` refuses those nodes with the same message
+  instead of launching a browser at a URL that 404s. Only bundled `web-artifact` apps
+  (redirect to `/artifact`) and URL-backed `mcp-app` / `webpage` viewers redirect to their
+  external site.
 - `graph` / `json-render` nodes redirect to the full-viewport `display=site` viewer; the chart
-  fills the window and reflows on a live resize in a normal browser. Single-tab host browsers
-  that don't deliver live-resize events (e.g. the Codex in-app browser) can leave a resized chart
-  stale until reload — recommend a system browser for separate full-page viewing (report #67).
+  fills the window and reflows on a live resize. Current Codex builds deliver live-resize events —
+  the 0.4.6 pass watched a standalone graph reflow live (SVG 1550×783 → 850×483 on a
+  1600×900 → 900×600 window resize) with no reload — so do not present a system browser as a
+  workaround for stale resizing (report #67).
 - This is additive — opening a site never evicts or replaces canvas nodes.
 
 ### Choosing the Right Visual Tier

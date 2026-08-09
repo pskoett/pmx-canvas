@@ -27,6 +27,19 @@ const LEGACY_SKILL_WEB_ARTIFACT_SCRIPTS_DIR = join(
 );
 const DEFAULT_TIMEOUT_MS = 10 * 60_000;
 const DEFAULT_PACKAGE_MANAGER = 'pnpm@10.33.0';
+const NODE_VERSION_PROBE_TIMEOUT_MS = 15_000;
+/**
+ * Minimum Node.js (`major.minor`) each pnpm major declares in its published
+ * `engines.node` — pnpm 10.x is `>=18.12`, pnpm 11.x is `>=22.13`. The pnpm that
+ * runs a build is not a local dependency (the scripts take it from PATH, `bun x`,
+ * or a global install), so its engines field cannot be read from disk; this table
+ * carries the same constraint keyed by the pinned major. An unlisted major
+ * imposes no preflight floor rather than an invented one.
+ */
+const PNPM_MAJOR_MIN_NODE: Record<string, string> = {
+  '10': '18.12',
+  '11': '22.13',
+};
 const DEFAULT_WEB_ARTIFACT_NODE_SIZE = { width: 960, height: 720 };
 const FALLBACK_PATH_DIRS = ['/opt/homebrew/bin', '/usr/local/bin', '/usr/bin', '/bin'];
 const WEB_ARTIFACT_CONTEXT_MAX_LENGTH = 1200;
@@ -470,6 +483,101 @@ function summarizeArtifactLog(text: string): WebArtifactLogSummary | undefined {
   };
 }
 
+export type NodeVersionCheck = { ok: true } | { ok: false; message: string };
+
+function parseMajorMinor(value: string): { major: number; minor: number } | null {
+  const match = /^v?(\d+)\.(\d+)/.exec(value.trim());
+  if (!match) return null;
+  return { major: Number(match[1]), minor: Number(match[2]) };
+}
+
+/**
+ * Pure preflight comparison used before any package-manager invocation.
+ * `detected` is raw `node --version` output ("v20.11.1"), or null when no node
+ * executable answered; `required` is a `major.minor` floor; `packageManager` is
+ * the pin that imposes it (e.g. "pnpm@11.1.2"). Returns an actionable message
+ * instead of throwing so every caller surfaces it on its own error channel.
+ */
+export function checkWebArtifactNodeVersion(
+  detected: string | null,
+  required: string,
+  packageManager: string,
+): NodeVersionCheck {
+  const requiredParts = parseMajorMinor(required);
+  if (!requiredParts) return { ok: true };
+
+  const detectedLabel = detected === null ? null : detected.trim();
+  const detectedParts = detectedLabel === null ? null : parseMajorMinor(detectedLabel);
+  if (
+    detectedParts &&
+    (detectedParts.major > requiredParts.major ||
+      (detectedParts.major === requiredParts.major && detectedParts.minor >= requiredParts.minor))
+  ) {
+    return { ok: true };
+  }
+
+  const found =
+    detectedLabel && detectedParts
+      ? `the build environment has Node.js ${detectedLabel}`
+      : 'no usable `node` executable was found on the build PATH';
+  return {
+    ok: false,
+    message:
+      `Web-artifact build preflight failed: ${packageManager} requires Node.js >= ${required}, but ${found}. ` +
+      `Run PMX Canvas under Node.js ${required} or newer, then retry the build.`,
+  };
+}
+
+/** `node --version` as the build subprocesses see it, or null when node is unavailable. */
+async function detectSubprocessNodeVersion(cwd: string): Promise<string | null> {
+  try {
+    const { stdout } = await runProcess('node', ['--version'], { cwd, timeoutMs: NODE_VERSION_PROBE_TIMEOUT_MS });
+    return stdout.trim() || null;
+  } catch {
+    // A missing or non-runnable node IS the preflight failure — reported below
+    // with the required version, not rethrown as a spawn error here.
+    return null;
+  }
+}
+
+/**
+ * The `packageManager` pin that governs this build: a reused artifact project
+ * carries its own pin, a fresh one gets the bundled default that init-artifact.sh
+ * and ensurePackageManagerBoundary write.
+ */
+function resolvePinnedPackageManager(projectPath: string): string {
+  const packageJsonPath = join(projectPath, 'package.json');
+  if (!existsSync(packageJsonPath)) return DEFAULT_PACKAGE_MANAGER;
+  try {
+    const parsed: unknown = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const pinned = (parsed as Record<string, unknown>).packageManager;
+      if (typeof pinned === 'string' && pinned.includes('@')) return pinned;
+    }
+  } catch {
+    // A corrupt project package.json is the init script's problem; the preflight
+    // falls back to the pin PMX Canvas would write anyway.
+  }
+  return DEFAULT_PACKAGE_MANAGER;
+}
+
+/**
+ * Fail fast when the Node.js available to the build subprocesses is older than
+ * the pinned package manager supports. Without this, pnpm's engine error lands
+ * deep inside the init/bundle script output and reads as an unrelated build
+ * failure (reported: pnpm 11 needs Node 22.13+, the build ran on Node 20).
+ */
+async function preflightBuildRuntime(cwd: string, projectPath: string): Promise<void> {
+  const packageManager = resolvePinnedPackageManager(projectPath);
+  const [name, version] = packageManager.split('@');
+  if (name !== 'pnpm') return;
+  const required = PNPM_MAJOR_MIN_NODE[version.split('.')[0]];
+  if (!required) return;
+
+  const check = checkWebArtifactNodeVersion(await detectSubprocessNodeVersion(cwd), required, packageManager);
+  if (!check.ok) throw new Error(check.message);
+}
+
 export async function executeWebArtifactBuild(input: WebArtifactBuildInput): Promise<WebArtifactBuildOutput> {
   const workspaceRoot = currentWorkspaceRoot();
   const artifactsDir = ensureArtifactsDir(workspaceRoot);
@@ -490,6 +598,7 @@ export async function executeWebArtifactBuild(input: WebArtifactBuildInput): Pro
   const parentDir = dirname(projectPath);
   mkdirSync(parentDir, { recursive: true });
   ensurePackageManagerBoundary(parentDir);
+  await preflightBuildRuntime(parentDir, projectPath);
 
   let stdout = '';
   let stderr = '';

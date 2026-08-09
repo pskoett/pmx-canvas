@@ -47,6 +47,13 @@ export function extractGlobalTargetFlags(args: string[]): string[] {
     const arg = args[i];
     let name: 'port' | 'server-url' | null = null;
     let value: string | undefined;
+    if (arg === '--') {
+      // End of flags: everything after a bare `--` is an operand, so a literal
+      // `--port`-looking value is never mistaken for the global target flag.
+      // The separator itself is kept so parseFlags stops there too.
+      rest.push(...args.slice(i));
+      break;
+    }
     if (arg === '--port' || arg === '--server-url') {
       name = arg.slice(2) as 'port' | 'server-url';
       value = args[i + 1];
@@ -125,11 +132,25 @@ async function invokeOperation(name: string, input: Record<string, unknown>): Pr
 
 // ── Flag parsing ─────────────────────────────────────────────
 
-function parseFlags(args: string[]): { positional: string[]; flags: Record<string, string | true> } {
+/**
+ * `options.boolFlags` marks flags that are boolean FOR THIS COMMAND. Value
+ * flags consume the next token verbatim (so a unified diff beginning with
+ * `--- a/file` survives), which makes a flag that is boolean here and
+ * value-taking elsewhere ambiguous — `--summary` is boolean in `history` /
+ * `layout` / `node get` / `validate spec` but carries text in `node add`.
+ * Without this per-command override, `history --summary --limit 5` would
+ * swallow `--limit` as the summary's value. The global set below holds flags
+ * that are boolean everywhere.
+ */
+function parseFlags(
+  args: string[],
+  options: { boolFlags?: readonly string[] } = {},
+): { positional: string[]; flags: Record<string, string | true> } {
   const positional: string[] = [];
   const flags: Record<string, string | true> = {};
   // Boolean-only flags (never take a value argument)
-  const BOOL_FLAGS = new Set([
+  const BOOL_FLAGS = new Set<string>([
+    ...(options.boolFlags ?? []),
     'help',
     'h',
     'ids',
@@ -168,14 +189,22 @@ function parseFlags(args: string[]): { positional: string[]; flags: Record<strin
   ]);
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
+    // Conventional end-of-flags separator: the rest is positional, never flags.
+    if (arg === '--') {
+      positional.push(...args.slice(i + 1));
+      break;
+    }
     if (arg.startsWith('--')) {
       const eq = arg.indexOf('=');
       if (eq !== -1) {
         flags[arg.slice(2, eq)] = arg.slice(eq + 1);
       } else {
         const key = arg.slice(2);
-        // If not a boolean flag and next arg exists and isn't a flag, consume it as value
-        if (!BOOL_FLAGS.has(key) && i + 1 < args.length && !args[i + 1].startsWith('-')) {
+        // A value flag consumes the very next token VERBATIM — including one
+        // that starts with `-`/`--`. Unified diffs legitimately begin with
+        // `--- a/file`, and the old "next token must not look like a flag"
+        // heuristic silently dropped that content.
+        if (!BOOL_FLAGS.has(key) && i + 1 < args.length) {
           flags[key] = args[++i];
         } else {
           flags[key] = true;
@@ -183,7 +212,7 @@ function parseFlags(args: string[]): { positional: string[]; flags: Record<strin
       }
     } else if (arg.startsWith('-') && arg.length === 2) {
       const key = arg.slice(1);
-      if (!BOOL_FLAGS.has(key) && i + 1 < args.length && !args[i + 1].startsWith('-')) {
+      if (!BOOL_FLAGS.has(key) && i + 1 < args.length) {
         flags[key] = args[++i];
       } else {
         flags[key] = true;

@@ -25,7 +25,7 @@ import {
   updateNodeData,
   workbenchConnectionEpoch,
 } from './canvas-store';
-import { fetchAxSurfaceState } from './intent-bridge';
+import { fetchAxSurfaceState, reportClientViewportSize } from './intent-bridge';
 import { initSessionThemeOverride, themeOverrideActive } from './theme-override';
 import { DEFAULT_POSITIONS, makeNodeState } from './node-factory';
 import { invalidateTokenCache } from '../theme/tokens';
@@ -435,6 +435,9 @@ function handleConnected(data: Record<string, unknown>): void {
   // Reconnect marker for holders of server-minted URLs (Finding S).
   workbenchConnectionEpoch.value += 1;
   reloadIfServerUpgraded(data.version);
+  // Tell the server how big this window actually is, so an agent `fit` sizes
+  // the board to the human's window (0.4.6 orb feedback #2).
+  void reportClientViewportSize();
   // A ?theme= session override (host-default theming) wins over the
   // server-global theme for THIS client only.
   if (typeof data.theme === 'string' && !themeOverrideActive()) {

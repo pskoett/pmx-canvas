@@ -691,7 +691,7 @@ cmd(
     'pmx-canvas node schema --summary',
   ],
   async (args) => {
-    const { flags } = parseFlags(args);
+    const { flags } = parseFlags(args, { boolFlags: ['summary'] });
     if (flags.help || flags.h) return showCommandHelp('node schema');
 
     const result = await loadCanvasSchema();
@@ -783,7 +783,7 @@ cmd(
     'pmx-canvas node get node-abc123 --field title --field graphConfig',
   ],
   async (args) => {
-    const { positional, flags } = parseFlags(args);
+    const { positional, flags } = parseFlags(args, { boolFlags: ['summary'] });
     if (flags.help || flags.h) return showCommandHelp('node get');
 
     const id = positional[0];

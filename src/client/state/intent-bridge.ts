@@ -376,10 +376,42 @@ export async function updateViewportFromClient(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         ...viewport,
+        ...clientWindowSize(),
         ...(options.recordHistory === false ? { recordHistory: false } : {}),
       }),
     },
   );
+}
+
+/**
+ * This window's size, sent alongside every viewport write so a later agent
+ * `fit` computes against the human's REAL window instead of a hardcoded
+ * 1440x900 (0.4.6 orb feedback #2: fit clipped nodes on both sides).
+ */
+function clientWindowSize(): { clientWidth: number; clientHeight: number } | Record<string, never> {
+  if (typeof window === 'undefined') return {};
+  const clientWidth = window.innerWidth;
+  const clientHeight = window.innerHeight;
+  if (!clientWidth || !clientHeight) return {};
+  return { clientWidth, clientHeight };
+}
+
+/**
+ * Report this window's size WITHOUT touching the stored viewport. The
+ * viewport op defaults every omitted coordinate to the server's CURRENT
+ * viewport, so a body carrying only the size records the size and leaves the
+ * viewport exactly as it was — never echoing a stale client viewport back over
+ * the server's. Called on connect and on resize so an agent `fit` has the real
+ * window size before the human ever pans or zooms.
+ */
+export async function reportClientViewportSize(): Promise<void> {
+  const size = clientWindowSize();
+  if (!('clientWidth' in size)) return;
+  await requestBestEffort('reportClientViewportSize', '/api/canvas/viewport', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...size, recordHistory: false }),
+  });
 }
 
 // ── Group API ─────────────────────────────────────────────────

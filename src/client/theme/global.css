@@ -1846,10 +1846,11 @@ html.is-node-resizing .ext-app-preview-catcher {
   border-radius: 999px;
 }
 
-/* Edge labels */
+/* Edge labels — --edge-chrome-scale is set on the edge <svg> so labels keep a
+   constant screen size while zoomed out (see edgeChromeScale in EdgeLayer). */
 .edge-label {
   font-family: var(--font);
-  font-size: 11px;
+  font-size: calc(11px * var(--edge-chrome-scale, 1));
   pointer-events: none;
   user-select: none;
 }
@@ -1857,7 +1858,7 @@ html.is-node-resizing .ext-app-preview-catcher {
 .edge-label-bg {
   fill: var(--c-panel-glass);
   stroke: var(--c-line);
-  stroke-width: 0.5;
+  stroke-width: calc(0.5 * var(--edge-chrome-scale, 1));
 }
 
 /* Trace nodes — compact pills for agent tool/subagent visualization */
@@ -1961,6 +1962,92 @@ html.is-node-resizing .ext-app-preview-catcher {
 
 .diff-node .diff-line-context {
   color: var(--c-text-soft);
+}
+
+/* File nodes — delimited-data tables and non-text placeholders */
+.file-table-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+
+.file-node-notice {
+  flex-shrink: 0;
+  padding: 4px 10px;
+  color: var(--c-muted);
+  font-size: 10px;
+}
+
+/* Own scroll port so a wide CSV scrolls inside the node instead of blowing out
+   the layout — and so the sticky header row has something to stick to. */
+.file-table-wrap {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* The shell/wrap prefix is load-bearing: these rules must out-specify the markdown
+   table styles (`.canvas-node .node-body table` / `th` / `td`), whose 0.5em
+   margin and translucent header background break the sticky header. Borders are
+   separate, not collapsed — collapsed borders belong to the table element, so
+   the header leaks the rows scrolling beneath it. */
+.file-table-shell .file-table-wrap .file-table {
+  margin: 0;
+  border-collapse: separate;
+  border-spacing: 0;
+  width: max-content;
+  min-width: 100%;
+  font-family: var(--mono);
+  color: var(--c-text);
+}
+
+.file-table-shell .file-table-wrap .file-table th,
+.file-table-shell .file-table-wrap .file-table td {
+  max-width: 320px;
+  padding: 3px 8px;
+  border: none;
+  border-right: 1px solid var(--c-line);
+  border-bottom: 1px solid var(--c-line);
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-table-shell .file-table-wrap .file-table th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  /* Opaque in every theme — rows must not bleed through while scrolling. */
+  background: var(--c-panel);
+  color: var(--c-text-soft);
+  font-weight: 600;
+}
+
+.file-table-shell .file-table-wrap .file-table tbody tr:nth-child(even) {
+  background: var(--c-surface-subtle);
+}
+
+.file-node-placeholder {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  height: 100%;
+  padding: 16px;
+  color: var(--c-muted);
+  text-align: center;
+}
+
+.file-node-placeholder-name {
+  color: var(--c-text-soft);
+  word-break: break-all;
+}
+
+.file-node-link {
+  color: var(--c-accent);
 }
 
 /* Docked node — compact toolbar-flanking panel */

@@ -22,6 +22,7 @@
  * - POST /api/canvas/json-render  -> create a native json-render node
  * - POST /api/canvas/graph        -> create a native graph node
  * - GET  /api/canvas/json-render/view?nodeId=... -> local json-render viewer
+ * - GET  /api/canvas/file-bytes?nodeId=... -> raw bytes for a file node
  * - POST /api/canvas/web-artifact -> build bundled HTML artifact + optional canvas node
  * - GET  /api/workbench/events   -> SSE event stream
  * - GET  /api/workbench/poll     -> proxy-safe polling transport (same events, JSON)

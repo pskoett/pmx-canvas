@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import {
   buildWebArtifactOnCanvas,
+  checkWebArtifactNodeVersion,
   executeWebArtifactBuild,
   resolveWebArtifactScriptPath,
 } from '../../src/server/web-artifacts.ts';
@@ -406,6 +407,41 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
       ).rejects.toThrow(/must resolve inside the workspace/);
     } finally {
       process.chdir(originalCwd);
+    }
+  });
+});
+
+// Node-version preflight (pure comparison). The reported failure was pnpm 11
+// bailing out on Node 20 from deep inside the bundled build scripts, where the
+// engine error read as an unrelated build failure.
+describe('web artifact node-version preflight', () => {
+  test('accepts a runtime at or above the required floor', () => {
+    expect(checkWebArtifactNodeVersion('v22.13.0', '22.13', 'pnpm@11.1.2')).toEqual({ ok: true });
+    expect(checkWebArtifactNodeVersion('v24.2.0', '22.13', 'pnpm@11.1.2')).toEqual({ ok: true });
+    expect(checkWebArtifactNodeVersion('v20.11.1', '18.12', 'pnpm@10.33.0')).toEqual({ ok: true });
+  });
+
+  test('rejects a runtime below the required floor with detected, required, and remedy', () => {
+    const check = checkWebArtifactNodeVersion('v20.11.1', '22.13', 'pnpm@11.1.2');
+    expect(check.ok).toBe(false);
+    const message = check.ok ? '' : check.message;
+    expect(message).toContain('v20.11.1');
+    expect(message).toContain('22.13');
+    expect(message).toContain('pnpm@11.1.2');
+    expect(message).toContain('Run PMX Canvas under Node.js 22.13 or newer');
+  });
+
+  test('compares the minor component, not just the major', () => {
+    expect(checkWebArtifactNodeVersion('v22.12.0', '22.13', 'pnpm@11.1.2').ok).toBe(false);
+    expect(checkWebArtifactNodeVersion('v22.13.0', '22.13', 'pnpm@11.1.2').ok).toBe(true);
+    expect(checkWebArtifactNodeVersion('v18.11.0', '18.12', 'pnpm@10.33.0').ok).toBe(false);
+  });
+
+  test('treats a missing or unreadable node as the failure itself', () => {
+    for (const detected of [null, 'command not found']) {
+      const check = checkWebArtifactNodeVersion(detected, '18.12', 'pnpm@10.33.0');
+      expect(check.ok).toBe(false);
+      expect(check.ok ? '' : check.message).toContain('no usable `node` executable');
     }
   });
 });

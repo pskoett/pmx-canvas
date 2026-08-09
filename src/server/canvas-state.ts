@@ -1320,16 +1320,15 @@ class CanvasStateManager {
   }
 
   addNode(node: CanvasNodeState): void {
-    // Context nodes default to a right-docked, collapsed pill when created without
-    // an explicit dock position. CREATE-time default only — once placed, updates
-    // (including undock → dockPosition null) are respected (see normalizeNode).
-    // Skip during suppressed replay (undo/redo re-add) so a deliberately-undocked
-    // context node is restored verbatim instead of being snapped back to the dock.
-    const seeded =
-      node.type === 'context' && node.dockPosition == null && this._suppressRecordingDepth === 0
-        ? { ...node, dockPosition: 'right' as const, collapsed: true }
-        : node;
-    const cloned = structuredClone(this.normalizeNode(seeded));
+    // Docking is EXPLICIT (0.4.6). Context nodes used to auto-dock to a collapsed
+    // right-hand pill when created without a dock position, which meant an agent
+    // creating a context node — even at explicit coordinates — got a node that
+    // existed in the API and passed validation but never rendered on the canvas,
+    // and any edge to it terminated in empty space (0.4.6 orb feedback #1). The
+    // seeded HUD widgets (status-main / context-main) pass `dockPosition` on
+    // create, so the docked pills are unaffected; anything else reaches the
+    // canvas where the caller put it. Dock deliberately via node.update.
+    const cloned = structuredClone(this.normalizeNode(node));
     this.nodes.set(node.id, cloned);
     this.scheduleSave();
     this.notifyChange('nodes');

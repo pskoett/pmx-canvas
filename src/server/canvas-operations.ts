@@ -8,6 +8,7 @@ import {
   type CanvasNodeUpdate,
   type CanvasSnapshot,
 } from './canvas-state.js';
+import { applyFileContentToNodeData, readFileNodeContent } from './file-content.js';
 import { rewatchAllFileNodes, unwatchAll, unwatchFileForNode, watchFileForNode } from './file-watcher.js';
 import {
   closeMcpAppSession,
@@ -748,19 +749,8 @@ function buildFileNodeData(input: CanvasAddNodeInput): Record<string, unknown> {
     title: input.title ?? fileName,
   };
 
-  try {
-    if (existsSync(resolved)) {
-      const fileContent = readFileSync(resolved, 'utf-8');
-      const stat = statSync(resolved);
-      data.fileContent = fileContent;
-      data.lineCount = fileContent.split('\n').length;
-      data.updatedAt = new Date(stat.mtimeMs).toISOString();
-    }
-  } catch {
-    // Missing or unreadable files still render as path-backed file nodes.
-  }
-
-  return data;
+  // Missing or unreadable files still render as path-backed file nodes.
+  return applyFileContentToNodeData(data, readFileNodeContent(resolved));
 }
 
 function buildImageNodeData(input: CanvasAddNodeInput): Record<string, unknown> {
@@ -1709,9 +1699,30 @@ export function createCanvasGraphNode(input: GraphNodeInput): {
   return { id, url: String(node.data.url), spec, node };
 }
 
+/**
+ * The connected workbench's actual window size, reported by the client (0.4.6
+ * orb feedback #2). `fit` used to compute against a hardcoded 1440x900, so an
+ * agent calling fit without dimensions produced a scale sized for a window the
+ * human did not have — the board overflowed and clipped on both sides. The
+ * client reports its size on connect and on resize; explicit width/height in a
+ * fit call still win. In-memory only (a live client fact, never persisted);
+ * with several clients connected, the most recent reporter wins.
+ */
+let lastClientViewportSize: { width: number; height: number } | null = null;
+
+export function setClientViewportSize(width: unknown, height: unknown): void {
+  if (typeof width !== 'number' || typeof height !== 'number') return;
+  if (!Number.isFinite(width) || !Number.isFinite(height) || width <= 0 || height <= 0) return;
+  lastClientViewportSize = { width, height };
+}
+
+export function getClientViewportSize(): { width: number; height: number } | null {
+  return lastClientViewportSize ? { ...lastClientViewportSize } : null;
+}
+
 export function fitCanvasView(options: CanvasFitViewOptions = {}): CanvasFitViewResult {
-  const width = positiveNumber(options.width, 1440);
-  const height = positiveNumber(options.height, 900);
+  const width = positiveNumber(options.width, lastClientViewportSize?.width ?? 1440);
+  const height = positiveNumber(options.height, lastClientViewportSize?.height ?? 900);
   const padding = positiveNumber(options.padding, 60);
   const maxScale = positiveNumber(options.maxScale, 1);
   const nodeIdFilter = options.nodeIds && options.nodeIds.length > 0 ? new Set(options.nodeIds) : null;

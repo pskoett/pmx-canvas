@@ -81,7 +81,7 @@ cmd(
   'Show canvas mutation history',
   ['pmx-canvas history', 'pmx-canvas history --summary', 'pmx-canvas history --compact'],
   async (args) => {
-    const { flags } = parseFlags(args);
+    const { flags } = parseFlags(args, { boolFlags: ['summary'] });
     if (flags.help || flags.h) return showCommandHelp('history');
 
     const result = (await invokeOperation('history.get', {})) as Record<string, unknown>;

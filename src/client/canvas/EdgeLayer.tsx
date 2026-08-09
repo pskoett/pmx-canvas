@@ -1,5 +1,5 @@
 import type { Signal } from '@preact/signals';
-import { activeNodeId, draggingEdge, searchHighlightIds } from '../state/canvas-store';
+import { activeNodeId, draggingEdge, searchHighlightIds, viewport } from '../state/canvas-store';
 import type { CanvasEdge, CanvasNodeState } from '../types';
 
 // ── Edge type visual styles ──────────────────────────────────
@@ -7,15 +7,30 @@ const EDGE_COLORS: Record<CanvasEdge['type'], string> = {
   relation: 'var(--c-muted)',
   'depends-on': 'var(--c-warn)',
   flow: 'var(--c-accent)',
-  references: 'var(--c-dim)',
+  // --c-dim is a very low-contrast hairline in dark palettes (forest: #5D7566
+  // on #0C1712); the dashed style is what distinguishes `references`.
+  references: 'var(--c-muted)',
 };
 
 const DIRECTED_TYPES = new Set<CanvasEdge['type']>(['depends-on', 'flow']);
 
-function dashArray(edge: CanvasEdge): string | undefined {
-  if (edge.style === 'dashed') return '8 4';
-  if (edge.style === 'dotted') return '3 3';
-  if (edge.type === 'references' && !edge.style) return '8 4';
+/**
+ * Edges are drawn in world space, so a 1.5px stroke renders as 0.4 screen px at
+ * 26% zoom. Full inverse compensation keeps edge chrome at a constant SCREEN
+ * size while zoomed out (standard graph-editor behaviour). Deliberately
+ * uncapped — the 2.2 cap used for node chrome still leaves hairlines invisible
+ * at overview zoom.
+ */
+export function edgeChromeScale(scale: number): number {
+  if (!Number.isFinite(scale) || scale <= 0) return 1;
+  return scale < 1 ? 1 / scale : 1;
+}
+
+function dashArray(edge: CanvasEdge, scale: number): string | undefined {
+  const dashed = `${8 * scale} ${4 * scale}`;
+  if (edge.style === 'dashed') return dashed;
+  if (edge.style === 'dotted') return `${3 * scale} ${3 * scale}`;
+  if (edge.type === 'references' && !edge.style) return dashed;
   return undefined;
 }
 
@@ -84,9 +99,10 @@ interface EdgePathProps {
   toNode: CanvasNodeState;
   focused: boolean; // connected to the active node
   dimmed: boolean; // active node exists but this edge is NOT connected
+  scale: number; // inverse-viewport compensation, see edgeChromeScale()
 }
 
-function EdgePath({ edge, fromNode, toNode, focused, dimmed }: EdgePathProps) {
+function EdgePath({ edge, fromNode, toNode, focused, dimmed, scale }: EdgePathProps) {
   const start = computeAnchor(fromNode, toNode);
   const end = computeAnchor(toNode, fromNode);
 
@@ -106,7 +122,7 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed }: EdgePathProps) {
   const d = `M ${start.x} ${start.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${end.x} ${end.y}`;
   const color = EDGE_COLORS[edge.type];
   const directed = DIRECTED_TYPES.has(edge.type);
-  const dash = dashArray(edge);
+  const dash = dashArray(edge, scale);
 
   const mid = edge.label ? bezierMidpoint(start.x, start.y, cx1, cy1, cx2, cy2, end.x, end.y) : null;
 
@@ -115,7 +131,7 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed }: EdgePathProps) {
   return (
     <g>
       {/* Invisible wide hitbox for hover/click */}
-      <path d={d} fill="none" stroke="transparent" stroke-width="12" style={{ cursor: 'pointer' }} />
+      <path d={d} fill="none" stroke="transparent" stroke-width={12 * scale} style={{ cursor: 'pointer' }} />
 
       {/* Glow layer for focused edges */}
       {focused && (
@@ -123,29 +139,30 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed }: EdgePathProps) {
           d={d}
           fill="none"
           stroke={color}
-          stroke-width="6"
+          stroke-width={6 * scale}
           stroke-dasharray={dash}
           opacity="0.15"
           style={{ filter: 'blur(3px)' }}
         />
       )}
 
-      {/* Visible edge */}
+      {/* Visible edge — the `edge-arrow` marker uses the default
+          markerUnits="strokeWidth", so the arrowhead scales with this. */}
       <path
         id={pathId}
         d={d}
         fill="none"
         stroke={color}
-        stroke-width={focused ? 2.5 : 1.5}
+        stroke-width={(focused ? 2.5 : 1.5) * scale}
         stroke-dasharray={dash}
         marker-end={directed ? 'url(#edge-arrow)' : undefined}
-        opacity={dimmed ? 0.2 : focused ? 1 : 0.75}
+        opacity={dimmed ? 0.2 : focused ? 1 : 0.85}
         style={{ transition: 'opacity 0.2s, stroke-width 0.2s' }}
       />
 
       {/* Animated pulse dot */}
       {edge.animated && (
-        <circle r="3" fill={color} opacity="0.9">
+        <circle r={3 * scale} fill={color} opacity="0.9">
           <animateMotion dur="2s" repeatCount="indefinite">
             <mpath href={`#${pathId}`} />
           </animateMotion>
@@ -157,13 +174,13 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed }: EdgePathProps) {
         <g transform={`translate(${mid.x}, ${mid.y})`}>
           <rect
             class="edge-label-bg"
-            x={-(edge.label.length * 3.5 + 8)}
-            y="-10"
-            width={edge.label.length * 7 + 16}
-            height="20"
-            rx="4"
+            x={-(edge.label.length * 3.5 + 8) * scale}
+            y={-10 * scale}
+            width={(edge.label.length * 7 + 16) * scale}
+            height={20 * scale}
+            rx={4 * scale}
           />
-          <text class="edge-label" text-anchor="middle" dominant-baseline="central" fill="var(--c-text)" font-size="11">
+          <text class="edge-label" text-anchor="middle" dominant-baseline="central" fill="var(--c-text)">
             {edge.label}
           </text>
         </g>
@@ -185,6 +202,7 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
   const hasFocus = focusId !== null;
   const searchSet = searchHighlightIds.value;
   const hasSearch = searchSet !== null;
+  const scale = edgeChromeScale(viewport.value.scale);
 
   if (edgeList.length === 0) return null;
 
@@ -210,6 +228,7 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
         left: `${minX}px`,
         pointerEvents: 'none',
         overflow: 'visible',
+        '--edge-chrome-scale': scale.toFixed(3),
       }}
     >
       <title>Canvas connections</title>
@@ -240,6 +259,7 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
             toNode={toNode}
             focused={isConnected}
             dimmed={(hasFocus && !isConnected) || searchDimmed}
+            scale={scale}
           />
         );
       })}
@@ -260,7 +280,7 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
                 d={previewD}
                 fill="none"
                 stroke="var(--c-accent)"
-                stroke-width="6"
+                stroke-width={6 * scale}
                 opacity="0.1"
                 style={{ filter: 'blur(3px)' }}
               />
@@ -268,11 +288,11 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
                 d={previewD}
                 fill="none"
                 stroke="var(--c-accent)"
-                stroke-width="2"
-                stroke-dasharray="6 4"
+                stroke-width={2 * scale}
+                stroke-dasharray={`${6 * scale} ${4 * scale}`}
                 opacity="0.8"
               />
-              <circle cx={de.cursorX} cy={de.cursorY} r="5" fill="var(--c-accent)" opacity="0.5" />
+              <circle cx={de.cursorX} cy={de.cursorY} r={5 * scale} fill="var(--c-accent)" opacity="0.5" />
             </g>
           );
         })()}

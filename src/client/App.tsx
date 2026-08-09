@@ -39,7 +39,7 @@ import {
 } from './state/canvas-store';
 import { connectSSE } from './state/sse-bridge';
 import { intents } from './state/intent-store';
-import { saveCanvasTheme } from './state/intent-bridge';
+import { reportClientViewportSize, saveCanvasTheme } from './state/intent-bridge';
 import {
   IconArrange,
   IconClearTrace,
@@ -583,6 +583,25 @@ export function App() {
 
   useEffect(() => {
     return connectSSE();
+  }, []);
+
+  // Keep the server's idea of this window's size current (0.4.6 orb feedback
+  // #2) so an agent `fit` computes a scale that actually fits the human's
+  // window. Connect-time reporting lives in the SSE bridge; this covers resizes.
+  useEffect(() => {
+    let timer: number | null = null;
+    const schedule = () => {
+      if (timer !== null) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        timer = null;
+        void reportClientViewportSize();
+      }, 400);
+    };
+    window.addEventListener('resize', schedule);
+    return () => {
+      if (timer !== null) window.clearTimeout(timer);
+      window.removeEventListener('resize', schedule);
+    };
   }, []);
 
   useEffect(() => {

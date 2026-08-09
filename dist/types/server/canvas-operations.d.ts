@@ -259,5 +259,10 @@ export declare function createCanvasGraphNode(input: GraphNodeInput): {
     spec: JsonRenderSpec;
     node: CanvasNodeState;
 };
+export declare function setClientViewportSize(width: unknown, height: unknown): void;
+export declare function getClientViewportSize(): {
+    width: number;
+    height: number;
+} | null;
 export declare function fitCanvasView(options?: CanvasFitViewOptions): CanvasFitViewResult;
 export {};

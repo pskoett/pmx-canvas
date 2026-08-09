@@ -44,7 +44,7 @@ cmd(
   'Get the full canvas layout (nodes, edges, viewport)',
   ['pmx-canvas layout', 'pmx-canvas layout --summary'],
   async (args) => {
-    const { flags } = parseFlags(args);
+    const { flags } = parseFlags(args, { boolFlags: ['summary'] });
     if (flags.help || flags.h) return showCommandHelp('layout');
 
     if (flags.summary || flags.compact) {

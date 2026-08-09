@@ -6,9 +6,10 @@
  * edits a file, the canvas node updates automatically.
  */
 
-import { watch, existsSync, readFileSync, statSync } from 'node:fs';
+import { watch, existsSync, statSync } from 'node:fs';
 import type { FSWatcher } from 'node:fs';
 import { canvasState } from './canvas-state.js';
+import { applyFileContentToNodeData, readFileNodeContent } from './file-content.js';
 
 function logFileWatcherWarning(action: string, error: unknown, details?: Record<string, unknown>): void {
   console.warn(`[file-watcher] ${action}`, { error, ...(details ?? {}) });
@@ -97,21 +98,17 @@ function handleFileChange(filePath: string): void {
     if (stat.mtimeMs === entry.lastMtime) return;
     entry.lastMtime = stat.mtimeMs;
 
-    const content = readFileSync(filePath, 'utf-8');
-    const lineCount = content.split('\n').length;
-    const updatedAt = new Date(stat.mtimeMs).toISOString();
+    // Shared with node creation, so a file that becomes binary or crosses the
+    // text cap updates the same fields here (and drops stale decoded text).
+    const content = readFileNodeContent(filePath);
+    if (content.kind === 'unavailable') return;
 
     // Update all nodes watching this file
     for (const nodeId of entry.nodeIds) {
       const node = canvasState.getNode(nodeId);
       if (!node) continue;
       canvasState.updateNode(nodeId, {
-        data: {
-          ...node.data,
-          fileContent: content,
-          lineCount,
-          updatedAt,
-        },
+        data: applyFileContentToNodeData({ ...node.data }, content),
       });
       onFileChanged?.(nodeId);
     }

@@ -14,7 +14,7 @@
  */
 import { z } from 'zod';
 import { canvasState } from '../../canvas-state.js';
-import { arrangeCanvasNodes, clearCanvas, fitCanvasView } from '../../canvas-operations.js';
+import { arrangeCanvasNodes, clearCanvas, fitCanvasView, setClientViewportSize } from '../../canvas-operations.js';
 import { validateCanvasLayout } from '../../canvas-validation.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 import { closeNodeAppSession, isRecord } from './nodes.js';
@@ -228,6 +228,8 @@ const viewportSetShape = {
   y: z.unknown().optional().describe('Viewport y offset'),
   scale: z.unknown().optional().describe('Viewport zoom scale'),
   recordHistory: z.unknown().optional().describe('Pass false to skip the undo-history entry'),
+  clientWidth: z.unknown().optional().describe("The reporting client's window width in CSS pixels"),
+  clientHeight: z.unknown().optional().describe("The reporting client's window height in CSS pixels"),
 };
 
 const viewportSetSchema = z.looseObject(viewportSetShape);
@@ -244,6 +246,10 @@ const viewportSetOperation = defineOperation<z.infer<typeof viewportSetSchema>, 
   // Legacy wire: emits canvas-viewport-update (never a layout update).
   handler: (input, ctx) => {
     const body: Record<string, unknown> = input;
+    // The browser piggybacks its real window size here so a later agent `fit`
+    // sizes to the human's actual window instead of a hardcoded 1440x900
+    // (0.4.6 orb feedback #2).
+    setClientViewportSize(body.clientWidth, body.clientHeight);
     const next = {
       x: typeof body.x === 'number' ? body.x : canvasState.viewport.x,
       y: typeof body.y === 'number' ? body.y : canvasState.viewport.y,

@@ -105,6 +105,7 @@ exit 1 on failure.
 | Persistent context cards | `context` via `canvas_node` |
 | Event/check stream | `ledger` or `trace` via `canvas_node` |
 | Local source with live updates | `file` via `canvas_node` |
+| Tabular data (`.csv`/`.tsv`), a PDF, or any other file on disk (0.4.6+) | `file` via `canvas_node` — CSV/TSV render as tables, PDFs render inline, other binaries show a size placeholder. Never paste a CSV into a markdown fence. |
 | Code review / unified diff (0.4.6+) | `diff` via `canvas_node` (content = diff text; link to its file node with a `references` edge) |
 | Flowchart / sequence / state diagram (0.4.6+) | `mermaid` via `canvas_node` (content = mermaid source; renders client-side, no hosted app) |
 | Image | `image` via `canvas_node` |
@@ -190,10 +191,23 @@ distant nodes, an auto-placed node lands off-camera.
 3. Never fit the whole board to "show" new work — on a board with outliers that miniaturizes
    everything. Always pass explicit `nodeIds` to `fit`.
 4. Never leave user-facing output at far coordinates without a focus/fit.
+5. **Do not hand-compute a whole board's coordinates.** Create the nodes (omitting x/y), then
+   `canvas_view { action: "arrange", layout: "grid" | "column" | "flow" }` and finish with a
+   `fit` over the new ids. Manual pixel math is what produces long-line, unbalanced boards.
+6. `fit` sizes itself to the connected browser window (0.4.6+) — you do not need to guess
+   `width`/`height`. Pass them only to fit for a window other than the human's.
+7. **Docking is explicit (0.4.6+).** Nodes render on the canvas where you put them; a node is
+   only a HUD pill if you set `dockPosition`. An edge whose endpoint is docked cannot be drawn —
+   `validate` reports it as `hiddenEdgeEndpoints` and fails `ok`, because the edge visually
+   trails off into empty canvas.
 
 **Size for content.** Omitting `width`/`height` gives readable per-type defaults — prefer them:
 markdown 640×420, status 360×200, file 520×360, diff 640×420, mermaid 640×460, html 720×640,
-graph 760×520, mcp-app 960×600, web-artifact 960×720. Since 0.4.6 the server clamps explicit creation sizes UP to per-type
+graph 760×520, mcp-app 960×600, web-artifact 960×720. A *hosted* app opened with
+`canvas_app { action: "open-mcp-app" | "diagram" }` — including the Excalidraw diagram preset — is
+the exception: it opens at 720×500, not 960×600 (960×600 is the default for an `mcp-app` node you
+create directly). Pass `width`/`height` to that action when you want a bigger diagram tile.
+Since 0.4.6 the server clamps explicit creation sizes UP to per-type
 readability floors (e.g. markdown 360×180, graph/json-render/html 420×280, mcp-app 480×320) —
 a tiny probe size silently becomes the floor. `strictSize: true` is the only opt-out (a fixed
 scrolling frame you genuinely want small). `canvas_query { action: "validate" }` additionally
@@ -308,8 +322,8 @@ Prefer `canvas_query { action: "search" }` over parsing the full layout.
 - A hosted ext-app (Excalidraw) resized NARROW/TALL (e.g. 360x529) can show its diagram in the
   upper region with the app's own dark fill below it — in every engine (0.3.4 report Finding Q).
   This letterboxing lives inside the hosted app bundle's root container, not in PMX (a body-level
-  background override ships but cannot reach the app's inner root). Keep ext-app tiles near the
-  app's aspect (the 960x738 default, or the same ratio), or expand the node — the fullscreen
+  background override ships but cannot reach the app's inner root). Keep ext-app tiles landscape —
+  at or above the 720x500 they open at, or the same ratio — or expand the node: the fullscreen
   overlay renders full-bleed. The durable fix is upstream in the excalidraw-mcp app.
 - Behind proxies that buffer streaming responses (e.g. portal hosts), the workbench auto-falls
   back from SSE to a polling transport within ~3s, so the board still boots and stays live.
@@ -327,10 +341,11 @@ Prefer `canvas_query { action: "search" }` over parsing the full layout.
   URLs cannot be inlined (cross-origin) and may stay blocked in such hosts. Force a mode with
   `/workbench?iframe-mode=srcdoc` (or `iframe-mode=src`) when diagnosing.
 - Graph and json-render standalone surfaces use `display=site` and fill the browser viewport, and
-  reflow on a live window resize in a normal browser. Some single-tab host browsers historically
-  didn't deliver live-resize events (current Codex builds do — the 0.4.0 retest saw a standalone
-  graph reflow on a native viewport resize), so if a resized standalone chart looks stale,
-  reload it or use a system browser for separate full-page viewing.
+  reflow on a live window resize. Some single-tab host browsers historically didn't deliver
+  live-resize events; current Codex builds do — the 0.4.6 pass watched a standalone graph reflow
+  live (SVG 1550×783 → 850×483 on a 1600×900 → 900×600 window resize) with no reload. Do not
+  present a system browser as a workaround for stale resizing; it is only a preference for viewing
+  a full page beside the canvas.
 - Some hosts cannot automate inside sandboxed workbench iframes. Verify those interactions in a
   system browser or through server-side AX state.
 - `pmx-canvas screenshot` requires an active WebView. Start it with

@@ -155,6 +155,15 @@ export declare function updateViewportFromClient(viewport: {
 }): Promise<{
     ok: boolean;
 }>;
+/**
+ * Report this window's size WITHOUT touching the stored viewport. The
+ * viewport op defaults every omitted coordinate to the server's CURRENT
+ * viewport, so a body carrying only the size records the size and leaves the
+ * viewport exactly as it was — never echoing a stale client viewport back over
+ * the server's. Called on connect and on resize so an agent `fit` has the real
+ * window size before the human ever pans or zooms.
+ */
+export declare function reportClientViewportSize(): Promise<void>;
 /** Create a group containing the given child node IDs. */
 export declare function createGroupFromClient(opts: {
     title?: string;

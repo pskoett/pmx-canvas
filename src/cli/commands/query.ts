@@ -65,7 +65,7 @@ cmd(
     'pmx-canvas validate spec --type json-render --spec-file ./dashboard.json --summary',
   ],
   async (args) => {
-    const { flags } = parseFlags(args);
+    const { flags } = parseFlags(args, { boolFlags: ['summary'] });
     if (flags.help || flags.h) return showCommandHelp('validate spec');
 
     const type = getStringFlag(flags, 'type');

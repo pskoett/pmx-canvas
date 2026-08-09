@@ -36,24 +36,28 @@ describe('canvas state manager', () => {
     removeTestWorkspace(workspaceRoot);
   });
 
-  test('context nodes default to a right-docked collapsed pill but can be undocked', () => {
-    // Create-time default: a context node added without a dock position docks
-    // right and starts collapsed (the menu-height pill).
+  test('docking is explicit: a context node lands on the canvas unless asked to dock', () => {
+    // 0.4.6 orb feedback #1: context nodes used to auto-dock to a collapsed
+    // right-hand pill, so an agent-created context node existed in the API and
+    // passed validation but never rendered on the canvas — and any edge to it
+    // trailed off into empty space. Creation now honors what the caller asked for.
     canvasState.addNode(makeNode({ id: 'ctx', type: 'context' }));
     const created = canvasState.getNode('ctx')!;
-    expect(created.dockPosition).toBe('right');
-    expect(created.collapsed).toBe(true);
+    expect(created.dockPosition).toBeNull();
+    expect(created.collapsed).toBe(false);
 
-    // Undock is respected — the node is NOT silently re-forced back to the right
-    // dock on the next write (this is what makes "undock → normal node" work).
+    // Docking on demand still works, and a later data-only update keeps it.
+    canvasState.updateNode('ctx', { dockPosition: 'right', collapsed: true });
+    expect(canvasState.getNode('ctx')!.dockPosition).toBe('right');
+    canvasState.updateNode('ctx', { data: { title: 'Notes' } });
+    expect(canvasState.getNode('ctx')!.dockPosition).toBe('right');
+
+    // Undock returns it to the canvas.
     canvasState.updateNode('ctx', { dockPosition: null });
     expect(canvasState.getNode('ctx')!.dockPosition).toBeNull();
 
-    // A later data-only update must not re-dock it either.
-    canvasState.updateNode('ctx', { data: { title: 'Notes' } });
-    expect(canvasState.getNode('ctx')!.dockPosition).toBeNull();
-
-    // An explicit dock position on create is preserved as-is.
+    // An explicit dock position on create is preserved as-is — this is how the
+    // seeded HUD widgets (status-main / context-main) stay docked.
     canvasState.addNode(makeNode({ id: 'ctx-left', type: 'context', dockPosition: 'left' }));
     expect(canvasState.getNode('ctx-left')!.dockPosition).toBe('left');
   });
@@ -94,10 +98,9 @@ describe('canvas state manager', () => {
         inverse: info.inverse,
       });
     });
-    // Create (auto-docks right) → undock → delete → undo must restore it undocked,
-    // not snap it back to the right dock (the create-time default must not fire on
-    // suppressed undo replay).
-    canvasState.addNode(makeNode({ id: 'ctx-undo', type: 'context' }));
+    // Create docked → undock → delete → undo must restore it UNDOCKED, i.e. undo
+    // replays the node as it was at delete time rather than as it was created.
+    canvasState.addNode(makeNode({ id: 'ctx-undo', type: 'context', dockPosition: 'right' }));
     expect(canvasState.getNode('ctx-undo')?.dockPosition).toBe('right');
     canvasState.updateNode('ctx-undo', { dockPosition: null, collapsed: false });
     canvasState.removeNode('ctx-undo');
