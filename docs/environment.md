@@ -29,6 +29,7 @@ optional; defaults are listed.
 | `AMP_ORB` | server | Set by Amp orb services. When present, the served canvas page tells the browser it is running in an orb, which skips the iframe embed probe, forces `srcdoc` surface rendering when embedded (the orb portal blocks `src`-URL child iframes and the probe is unreliable there), and defaults the event transport to polling instead of SSE (the portal proxy buffers streams; `?transport=sse` overrides for diagnosis). |
 | `PORT` | server | Portal-assigned service port, honored ONLY when `AMP_ORB` is also set (Amp orbs) — after `--port`, `PMX_WEB_CANVAS_PORT`, and `PMX_CANVAS_PORT`, before the 4313 default. A stray `PORT` in normal shells never changes the port. |
 | `PMX_CANVAS_DISABLE_BROWSER_OPEN` | server | `1` suppresses auto-opening the browser (used by tests/CI). |
+| `PMX_CANVAS_AUTO_INTENT` | server | `0` turns off the auto-ghost: agent mutations that arrive without an explicit `canvas_intent` signal stop synthesizing a short ghost cursor. Any other value (or unset) leaves it on. |
 | `PMX_CANVAS_DIST` | server | Explicit client bundle directory to serve instead of the packaged `dist/canvas`. |
 | `PMX_CANVAS_WEBVIEW_TIMEOUT_MS` | server | Startup timeout for the Bun.WebView automation session. |
 

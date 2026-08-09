@@ -38,15 +38,18 @@ neighborhoods) and uses your layout to ground its next action.
 Files, web pages, screenshots, structured panels, charts, diagrams, embedded
 MCP Apps, and bundled web artifacts all live on the same surface. A file node
 follows the file on disk as the agent edits it — source with line numbers, a
-CSV as a real table, a PDF inline. Code review has its own node: a unified
+CSV or TSV as a real table, a PDF inline. Anything else binary shows its name
+and size rather than decoded gibberish, and a very large text file renders
+truncated with a note saying so. Code review has its own node: a unified
 diff with per-file headers and colored added and removed lines. Diagrams can
 be drawn by hand in Excalidraw or written as plain mermaid text and rendered
-on the spot. Any rich surface — an HTML node or a web artifact — can be
-**opened as a site**, full-page in its own browser tab with one click; the
-canvas and the tab render the same document. The reach of the canvas is the
-union of its [built-in node types](docs/node-types.md) and **whatever your
-agent's harness already has access to** — MCP servers, CLIs, file reads, web
-fetch, anything on its toolbelt.
+on the spot. Context cards, execution ledgers, and agent trace pills round out
+the set. Any rich surface — HTML, mermaid, json-render, graph, webpage, or a
+web artifact — can be **opened as a site**, full-page in its own browser tab
+with one click; the canvas and the tab render the same document. The reach of
+the canvas is the union of its [built-in node types](docs/node-types.md) and
+**whatever your agent's harness already has access to** — MCP servers, CLIs,
+file reads, web fetch, anything on its toolbelt.
 
 ### 03 / Annotate
 
@@ -65,10 +68,11 @@ immediately — an explicit, low-noise control over what the agent sees next.
 On top of pins, a host-agnostic **AX (agent-experience) layer** turns the
 canvas into a shared workspace between you and the agent:
 
-- **Agent-native nodes** — create markdown, status, HTML, json-render, graph,
-  web-artifact, or MCP app nodes that can act as interactive controls for the
-  agent. A node can focus context, create or update work, add evidence, request
-  input or approval, or send steering without leaving the board.
+- **Agent-native nodes** — most node types can act as interactive controls for
+  the agent out of the box: a node can focus context, create or update work,
+  add evidence, request input or approval, or send steering without leaving the
+  board. The sandboxed surfaces — HTML nodes and MCP apps — stay off until a
+  node opts in, since their content is author-supplied.
 - **Focus** — promote nodes into the agent's active context without moving the viewport.
 - **Work items & approval gates** — track visible tasks tied to nodes, and gate
   high-impact actions behind a human `pending → approved/rejected` decision. A
@@ -213,9 +217,13 @@ To work on the canvas itself, clone the repo — see [Development](#development)
 bunx pmx-canvas              # Start canvas, open browser
 bunx pmx-canvas --demo       # Start with the saved dashboard demo board
 bunx pmx-canvas --no-open    # Headless (good for daemons / CI)
+bunx pmx-canvas --theme=volt # Pick a theme (nine ship; PMX_CANVAS_THEME works too)
 bunx pmx-canvas --mcp        # Run as MCP server (stdio)
 bunx pmx-canvas --help       # All commands
 ```
+
+Themes are a toolbar picker away too, and any one panel can override the
+shared theme for itself with `?theme=<name|auto>`.
 
 The canvas opens at `http://localhost:4313`. Try `--demo` first — it seeds a
 saved dashboard with grouped OKR notes, graph panels, context pins, and labeled
@@ -298,7 +306,7 @@ services:
 ```bash
 # .agents/setup — install the CLI (pin the exact version: a fresh orb running
 # @latest can silently pick up a newer release than the one you validated)
-npm install -g pmx-canvas@0.4.5
+npm install -g pmx-canvas@0.4.6
 ```
 
 The server binds the portal-assigned `$PORT` automatically (gated on the
@@ -309,10 +317,11 @@ caveat: WebView automation (`pmx-canvas screenshot`) needs Bun >= 1.3.12 in
 the orb image; the canvas itself runs fine without it and says so in the
 error. The canvas detects the orb and the portal's nested-iframe
 embed on its own: live updates arrive over the proxy-safe polling transport,
-and iframe-backed nodes (HTML, graph, json-render, web artifacts) render
-inline via `srcdoc` with their theme styling included. Cross-origin hosted
-apps (e.g. the hosted Excalidraw MCP app) cannot be inlined and may stay
-blocked by the portal embed — everything served from the canvas itself works.
+and iframe-backed nodes (HTML, mermaid, graph, json-render, web artifacts)
+render inline via `srcdoc` with their theme styling included. Two things can't
+be inlined and stay blocked by the portal embed: cross-origin hosted apps (e.g.
+the hosted Excalidraw MCP app), and PDF file nodes — a PDF node offers an
+"Open PDF" link there instead of a preview.
 Debug overrides: `/workbench?transport=poll|sse` and
 `?iframe-mode=srcdoc|src`. Once the service is up, `pmx-canvas smoke` verifies
 the whole stack (health, versions, MCP handshake, node lifecycle, validation)
@@ -367,16 +376,20 @@ the agent can read `canvas://skills` and pull in companion skills
   `.pmx-canvas/canvas.db`.
 - **What leaves your machine.** The core canvas runs entirely on
   `localhost`. Network egress only happens for explicit, opt-in flows:
-  `webpage` nodes fetch the URL you give them; `mcp-app` /
-  `canvas_app { action: "diagram" }` calls go to whatever MCP server URL you
-  configure (the Excalidraw preset uses `https://mcp.excalidraw.com/mcp`);
-  `bunx` itself reads the npm registry on first install. Nothing else phones
-  home.
+  `webpage` nodes and remote-URL `image` nodes fetch the address you give
+  them; `mcp-app` / `canvas_app { action: "diagram" }` calls go to whatever
+  MCP server URL you configure (the Excalidraw preset uses
+  `https://mcp.excalidraw.com/mcp`); building a web artifact runs a package
+  manager, which fetches that artifact's declared dependencies from the npm
+  registry; and `bunx` itself reads the registry on first install. Nothing
+  else phones home.
 
 ## Tech stack
 
 - **Runtime:** [Bun](https://bun.sh)
-- **UI:** [Preact](https://preactjs.com) + [@preact/signals](https://github.com/preactjs/signals)
+- **UI:** [Preact](https://preactjs.com) + [@preact/signals](https://github.com/preactjs/signals);
+  the json-render/graph viewer bundle is React + [recharts](https://recharts.org),
+  and mermaid nodes render with [mermaid](https://mermaid.js.org)
 - **Styling:** CSS custom properties + Tailwind (json-render bundle only)
 - **Server:** Bun.serve (HTTP + SSE)
 - **MCP:** [@modelcontextprotocol/sdk](https://github.com/modelcontextprotocol/typescript-sdk) (stdio)

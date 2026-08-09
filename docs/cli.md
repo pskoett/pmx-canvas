@@ -119,11 +119,28 @@ pmx-canvas watch --events context-pin,move-end
 pmx-canvas watch --json --events context-pin --max-events 1
 ```
 
-## Focus
+## Focus and fit
 
 ```bash
 pmx-canvas focus <node-id>            # Pan viewport to a node
 pmx-canvas focus <node-id> --no-pan   # Select/raise without panning
+pmx-canvas fit                        # Fit the viewport to every node
+pmx-canvas fit <id-a> <id-b>          # Fit to just these nodes
+```
+
+`fit` sizes itself to the connected browser window, so you rarely need to pass
+`--width` / `--height`. After creating output a human should see, focus a single
+node or fit the new ids — auto-placement is board-relative, not camera-relative.
+
+## Snapshots
+
+```bash
+pmx-canvas snapshot save --name "before-refactor"
+pmx-canvas snapshot list
+pmx-canvas snapshot restore <snapshot-id>
+pmx-canvas snapshot delete <snapshot-id>
+pmx-canvas snapshot gc --keep 20      # Delete all but the newest N
+pmx-canvas diff <snapshot-id>         # Compare the canvas against a snapshot
 ```
 
 ## AX context

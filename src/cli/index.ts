@@ -298,19 +298,25 @@ Agent CLI (works against running server):
   validate spec                       Validate json-render/graph payloads without creating nodes
   watch [--json] [--events ...]       Watch low-token semantic canvas changes
   focus <node-id>                     Pan to node
+  fit [node-id ...]                   Fit the viewport to all nodes or a subset
   ax status|context|focus             Inspect AX state and focus
   external-app add                    Add hosted external apps like Excalidraw
   diagram add                         Add an Excalidraw diagram node
+  html primitive add|schema           Add or inspect HTML communication primitives
   pin <ids...> | --list | --clear     Manage context pins
   undo / redo / history               Time travel
   snapshot save|list|restore|diff|delete
                                       Manage snapshots
+  diff <snapshot-id>                  Compare the canvas against a snapshot
   group create|add|remove             Manage groups
   web-artifact build                  Build bundled web artifacts
   clear --yes                         Clear canvas
   code-graph                          File dependencies
   spatial                             Spatial analysis
   watch                               Semantic watch stream
+  smoke                               Check that a running canvas works here
+  skills sync                         Sync installed copies of the bundled skills
+  copilot install-extension           Install the GitHub Copilot app extension
 
 Run any command with --help for details and examples:
   pmx-canvas node add --help
