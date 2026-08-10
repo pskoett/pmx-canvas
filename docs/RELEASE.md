@@ -44,6 +44,25 @@ discovery with a `.esm.preflight` loader error (ERR-20260508-001).
 and exercises the CLI flows from
 [`docs/evals/e2e-cli-coverage.md`](evals/e2e-cli-coverage.md).
 
+**Bump the pinned version examples.** `Readme.md` pins an exact version in
+its install/orb-setup snippets *because* it tells readers to pin. Three
+releases in a row shipped pointing at the previous version — twice the
+surrounding prose described features that pin does not have, so a reader
+following it copy-pasted a broken setup.
+
+```bash
+grep -rn "pmx-canvas@0\." Readme.md docs/    # every hit must be the version you are about to ship
+```
+
+**If this release touches CI or the release workflows, review that as
+release content.** A changed gate gets its first real run *on this
+release*: `e2e-cli` once launched Playwright without installing the
+browser, the publish gate once queried `GITHUB_SHA` (the tag object, not
+the commit) so it would have blocked every annotated tag, and
+`test:coverage` once lacked `PMX_CANVAS_DISABLE_BROWSER_OPEN=1` so it
+failed *and* opened a real browser. Ask what happens on a fresh runner
+and on a tag event, not just on your machine.
+
 ## Versioning
 
 Semantic versioning, in 0.x semver honestly (see `docs/api-stability.md`).
@@ -87,6 +106,23 @@ Don't ship a release without a CHANGELOG entry. The GitHub release
 notes file (`/tmp/pmx-canvas-vX.Y.Z-release-notes.md` by convention)
 expands on the CHANGELOG with examples and migration notes.
 
+**Check the entries are under a NEW heading.** Feature commits land bullets
+at the top of the file, and three times in the 0.3.x–0.4.x cycles they were
+appended under the *already-published* section instead — so the release
+notes shipped empty while the previous release's published history claimed
+features it never had. Before tagging:
+
+```bash
+# every bullet added since the last tag must sit above the last released heading
+git diff v<PREVIOUS>..HEAD -- CHANGELOG.md | grep '^+' | head -40
+grep -n '^## \[' CHANGELOG.md | head -3
+```
+
+Same rule in reverse: never retro-edit a published section to describe new
+behavior (a theme's colour was changed in place once, so the released notes
+described a build that never shipped it). Correct it forward under the new
+version instead.
+
 **Release-blocker gate:** a breaking change without a `### Breaking`
 CHANGELOG entry blocks the release (`docs/api-stability.md`). Check the
 diff against the previous tag for removed/renamed public surface — MCP
@@ -94,6 +130,18 @@ tool names, HTTP routes, SDK exports, CLI flags — before tagging; if
 anything broke and isn't named under `### Breaking`, add the entry first.
 
 ## Tag → publish
+
+**Immediately before tagging, re-read the Test CI conclusion — never assert it
+from memory.** v0.3.2 was tagged and published while its Test run had concluded
+*failure*: an interruption landed between the watch finishing and the tag step,
+and "CI was green" was recalled rather than checked. A `gh run watch` exiting 0
+is only evidence if you actually read its output.
+
+```bash
+gh run view <run-id> --json status,conclusion -q '.status + " / " + .conclusion'
+gh run view <run-id> --json jobs -q '.jobs[] | .name + ": " + .conclusion'
+# every job must read `success` — a matrix job added in THIS release has never run green before
+```
 
 The publish workflow ([`/.github/workflows/publish.yml`](../.github/workflows/publish.yml))
 triggers on tags matching `v*`:

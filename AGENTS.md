@@ -102,7 +102,7 @@ Every mistake is a learning opportunity. Log it, learn from it, prevent it.
 
 2. **SSE-created nodes must sync to server-side canvasState.** When `emitPrimaryWorkbenchEvent` creates nodes on the client via SSE (`workbench-open`, `ext-app-open`), also create them in the server-side `canvasState` singleton. Otherwise `canvas_query { action: "layout" }` returns 0 nodes and `canvas-layout-update` reconciliation deletes client-only nodes.
 
-3. **Rebuild canvas bundle after client source changes.** After modifying any file under `src/client/`, run `bun run build` before testing in the browser. The dist bundle is not auto-built; stale bundles silently hide new features.
+3. **Rebuild canvas bundle after client source changes.** After modifying any file under `src/client/`, run `bun run build` before testing in the browser. The dist bundle is not auto-built; stale bundles silently hide new features. **An already-open tab keeps the old JS even after a rebuild** — `reloadIfServerUpgraded` only fires on a server *version* change, not a dev rebuild. Before believing a UI bug report (yours or the user's), confirm the tab was hard-reloaded; a stale tab reproduces bugs that no longer exist in the source.
 
 4. **Canvas edits happen in place.** The web canvas is a live multi-node workspace. Flows should update the current session without evicting prior nodes (including prior document nodes). Agents must not describe the canvas as requiring reopen/replace for additional documents.
 
@@ -111,6 +111,26 @@ Every mistake is a learning opportunity. Log it, learn from it, prevent it.
 6. **Context pins are the bridge between human and agent.** The human pins nodes in the browser, the agent reads `canvas://pinned-context`. This is the primary communication channel from human spatial curation to agent context. Preserve this flow.
 
 7. **No HTTP server port assumptions.** Default port is 4313 but can be changed via `--port` or `PMX_WEB_CANVAS_PORT` for server startup; when both are unset the server also falls back to `PMX_CANVAS_PORT` (0.4.0), so one variable can point the client and server at the same port. Amp orbs: the portal-assigned `PORT` env is honored after those (only when `AMP_ORB` is set), so an orb service command needs no port flag. `PMX_CANVAS_PORT` otherwise remains the agent CLI's client-side default target port. The server tries fallback ports if the preferred one is taken. **`PMX_CANVAS_WORKSPACE_ROOT`** pins the workspace root for both the MCP same-workspace lookup and the daemon `startCanvasServer` binds, overriding the launch `cwd` — set it when a host spawns `--mcp` from an incidental dir (e.g. `~/.copilot`) so the canvas targets the real project. When the preferred port is held by a *different*-workspace daemon, the MCP server now attaches to it (inherits its workspace) instead of silently splitting to a fallback port; use `PMX_CANVAS_ALLOW_WORKSPACE_SPLIT=1` to force a separate canvas.
+
+8. **Mutation listeners are single-slot.** `canvasState.onMutation` and
+   `setWorkItemsChangedListener` hold exactly ONE callback each — registering a second consumer
+   silently displaces the first. `server.ts` claims `onMutation` whenever a server starts, so
+   whether a side effect fires depends on whether anything booted a server first. Fan out inside
+   the existing registration; never add a competing one.
+
+9. **The viewport is a SCREEN-space translate, not a world-space camera.** The canvas renders
+   `matrix(scale, 0, 0, scale, x, y)`, so `screen = world * scale + viewport`. To put a node at a
+   fixed screen margin, compute `margin - node.position * scale` — what `fitCanvasView` and the
+   client's `focusNode` do. Writing `node.position - margin / scale` mixes conventions and lands
+   the node off-screen at any scale ≠ 1 (it shipped twice: `view.focus` in 0.4.6, and `fit`'s
+   world-space padding, which collapses under the toolbar at fit zoom). Margins that must clear
+   the floating toolbar are screen-space constants.
+
+10. **json-render / graph viewers read their spec once, at document load.** The iframe `src` is
+    keyed on `nodeId + ?v=specVersion`, so any content update MUST bump `specVersion`
+    (`buildJsonRenderNodeUpdate` does). Skip it and the URL is byte-identical, the iframe never
+    reloads, and the node renders stale forever while the server data is correct — the live
+    workboard shipped that way in 0.4.6.
 
 ## Tech Stack
 
@@ -158,6 +178,25 @@ State auto-saves every mutation (debounced 500ms) and auto-loads on server start
 - `--demo` only seeds when canvas is empty (won't clobber restored state)
 - State saves: viewport, nodes, edges, annotations, context pins, snapshots, and large node blobs
 - Stop the server or flush/close the SDK before committing `canvas.db`; shutdown checkpoints SQLite WAL data into the DB file.
+
+## Demo Board
+
+`src/server/demo-state.json` is a **generated fixture — never hand-edit it.** Rebuild it with:
+
+```bash
+bun run scripts/generate-demo-board.ts
+```
+
+The generator builds the board through the real HTTP API, then rewrites live ids and timestamps
+to stable ones so the output is byte-deterministic (run it twice, get the same file). Anything it
+creates must go through the API — that is what keeps the fixture honest about what the product
+actually produces.
+
+The fixture embeds each HTML primitive's generated markup plus the canvas-bound AX partition, so
+it goes stale the moment a renderer, primitive, or node type changes — silently, because counts
+and coverage assertions are just as happy with month-old markup. `tests/unit/demo.test.ts` guards
+this by rebuilding every primitive from the stored `primitiveData` and byte-comparing against the
+current renderer. Regenerate and re-run that test after touching any of the above.
 
 ## Themes
 
@@ -210,6 +249,16 @@ package in a clean temp consumer instead of the repo dev path.
 
 3. **Test MCP server separately.** The MCP server can be tested with `bun run src/mcp/server.ts` and sending JSON-RPC over stdin.
 
+4. **Assert the user-visible effect, not the server number.** When a feature's value IS the
+   rendered result — a viewport move, a node being visible, iframe-backed content refreshing —
+   assert the observable: the node's `getBoundingClientRect()` lands in the viewport, the iframe
+   URL actually changed, the rendered text updated. A viewport tuple, a `panned: true`, or updated
+   `node.data` is an intermediate, and asserting one locks in whatever convention the
+   implementation happened to use. Three features shipped broken with green tests this way
+   (`view.focus`, the live workboard, `fit`) — in two cases the wrong-convention assertions were
+   added by the very commit that introduced the bug. See architecture rules 9 and 10 for the two
+   traps this repo keeps hitting.
+
 ## Canvas Types
 
 **Node types:** `markdown`, `status`, `context`, `ledger`, `trace`, `file`, `diff`, `image`, `html`, `mermaid`, `mcp-app`, `webpage`, `json-render`, `graph`, `group`, plus internal thread node types `prompt` and `response`
@@ -249,6 +298,24 @@ Eligible nodes emit one normalized, zod-validated `PmxAxInteraction` envelope (`
 - **Delivery:** steering can be claimed by adapterless MCP clients (`canvas_ax_delivery { action: "claim" }` / `canvas://ax-pending-steering`) and acknowledged (`canvas_ax_delivery { action: "mark" }`); loop-safe (a consumer never receives steering it originated).
 
 Interactions request PMX-AX primitives only — never arbitrary shell, tool, MCP, or host execution.
+
+#### AX flows (panel and graph)
+
+A task flow exists in two interchangeable forms. The `ax-flow` HTML primitive draws it as a panel;
+`ax.flow.materialize` lays the same steps out as native nodes joined by `flow` edges with a
+loop-back rail, each step linked to a work item. It is the only interaction that creates canvas
+nodes, so it is granted to the `html` ceiling alone.
+
+- Materialized steps carry `data.axStep` and render native Start/Done/Blocked controls
+  (`src/client/nodes/AxStepControls.tsx`) in both the node body and the expanded overlay — the
+  flow is drivable without the panel.
+- Work-item status mirrors onto node status chips (`mirrorAxWorkStatusToNodes`), which is what
+  makes the in-progress node visible on the board while an agent works.
+- `src/server/ax-flow-loop.ts` advances the loop server-side via `setWorkItemsChangedListener`
+  (see architecture rule 8), so it survives a browser reload and keeps running with the tab closed.
+  A module-level `advancing` guard prevents re-entrancy.
+- Step geometry and the shared flow shape live in `src/shared/ax-flow.ts` so server and client
+  cannot drift.
 
 ### Spatial Semantics Layer
 
@@ -317,6 +384,11 @@ When file nodes are on the canvas, the system auto-detects import dependencies a
 5. Add to `NODE_TYPES` + the MCP `extraShape` enum in `src/server/operations/ops/nodes.ts`
    and a `defaultNodeSize` case
 6. Update `SKILL.md`, `readme.md`, and `docs/node-types.md` with the new type
+7. Regenerate the demo board (`bun run scripts/generate-demo-board.ts`) and add the type to it —
+   see [Demo Board](#demo-board)
+8. **Open the type in a real browser before calling it done.** Steps 3–5 can all be complete and
+   every unit and client test green while the node renders nothing (see step 4). A DOM check on a
+   live board is the only thing that catches it.
 
 ## Adding New HTTP Endpoints
 
@@ -325,6 +397,26 @@ When file nodes are on the canvas, the system auto-detects import dependencies a
 3. Add the corresponding method to `PmxCanvas` class in `src/server/index.ts`
 4. Add the MCP tool in `src/mcp/server.ts`
 5. Update `SKILL.md`, `readme.md`, and CLI help text
+6. **Document it in the contract docs** — `docs/http-api.md` (and `docs/mcp.md` / `docs/cli.md`
+   for a tool/action/command). `docs/api-stability.md` defines the public surface as *what those
+   files document*, so an undocumented route is both invisible to agents and outside the
+   stability contract. The same applies to counts and tables agents read as authoritative: the
+   tool count, the composite `action` lists, the theme list, and the AX capability matrix in
+   `skills/pmx-canvas/references/full-reference.md` all went stale mid-cycle at least once.
+
+**Routes that serve raw file bytes need four separate guards** (the 0.4.7 `file-bytes` route
+shipped without any of them):
+- **Confine on REAL paths** — `realpathSync` the candidate *and* the workspace root before
+  comparing. A lexical `resolve()`/`relative()` check stops `..` and absolute escapes but not a
+  symlink inside the workspace; realpath the root too, or a symlinked root (macOS `/tmp`)
+  rejects legitimate files.
+- **Derive `Content-Type` from the bytes**, never from caller-writable node data, and send
+  `X-Content-Type-Options: nosniff` plus a non-inline disposition for anything not deliberately
+  rendered.
+- **Stream** (`Bun.file`) with a size ceiling and an `isFile()` check — a directory 500s and a
+  FIFO hangs a server that has no request timeout.
+- **Sandbox any iframe pointing at it.** If every other iframe in the client is sandboxed, a new
+  unsandboxed one is the bug.
 
 ## Creating a New Skill
 
