@@ -22,6 +22,20 @@ export interface PersistedCanvasState {
 }
 export declare function openCanvasDb(dbPath: string): Database;
 export declare function checkpointCanvasDb(db: Database): void;
+/**
+ * Delete blob rows nothing references any more. Blobs are content-addressed and
+ * written with INSERT OR IGNORE, so editing a node's html supersedes its old blob
+ * and leaves it orphaned — without this, `canvas.db` (which is git-committable)
+ * would grow without bound once externalization applies to ordinary html nodes.
+ *
+ * References are collected by scanning the raw persisted JSON for sha256 fields
+ * rather than parsing every node. That deliberately OVER-approximates: a stray
+ * 64-hex string keeps a blob alive that could have been dropped, which wastes a
+ * little space. The opposite error would delete live content, so the scan is
+ * biased to the safe side on purpose. Snapshot rows are scanned too — a snapshot
+ * restore must still find its blobs.
+ */
+export declare function gcBlobsInDB(db: Database): number;
 export declare function finalizeCanvasDbForClose(db: Database): void;
 export declare function saveStateToDB(db: Database, state: PersistedCanvasState): void;
 /** Check if the DB has been populated with canvas state at least once. */

@@ -273,7 +273,13 @@ export function openCanvasDb(dbPath: string): Database {
 
   const db = new Database(dbPath);
   db.exec('PRAGMA journal_mode=WAL');
-  db.exec('PRAGMA synchronous=NORMAL');
+  // FULL, not NORMAL: under WAL, NORMAL lets a host/OS-level crash lose the most
+  // recent commits (a clean process exit loses nothing either way). The reporter of
+  // issue #22 declined FULL specifically because a save rewrote the whole board, so
+  // an fsync per commit scaled with board size. Saves are incremental now — a
+  // typical save is a row or two — so that objection is gone and the durability is
+  // worth the fsync.
+  db.exec('PRAGMA synchronous=FULL');
   db.exec('PRAGMA busy_timeout=5000');
   db.exec(SCHEMA_SQL);
 
@@ -295,38 +301,107 @@ export function checkpointCanvasDb(db: Database): void {
   db.exec('PRAGMA wal_checkpoint(TRUNCATE)');
 }
 
+/**
+ * Delete blob rows nothing references any more. Blobs are content-addressed and
+ * written with INSERT OR IGNORE, so editing a node's html supersedes its old blob
+ * and leaves it orphaned — without this, `canvas.db` (which is git-committable)
+ * would grow without bound once externalization applies to ordinary html nodes.
+ *
+ * References are collected by scanning the raw persisted JSON for sha256 fields
+ * rather than parsing every node. That deliberately OVER-approximates: a stray
+ * 64-hex string keeps a blob alive that could have been dropped, which wastes a
+ * little space. The opposite error would delete live content, so the scan is
+ * biased to the safe side on purpose. Snapshot rows are scanned too — a snapshot
+ * restore must still find its blobs.
+ */
+export function gcBlobsInDB(db: Database): number {
+  const referenced = new Set<string>();
+  const collect = (sql: string): void => {
+    for (const row of db.query<{ data: string }, []>(sql).all()) {
+      if (!row.data) continue;
+      for (const match of row.data.matchAll(/"sha256"\s*:\s*"([0-9a-f]{64})"/g)) referenced.add(match[1]);
+    }
+  };
+  collect('SELECT data FROM nodes');
+  collect('SELECT data FROM snapshot_nodes');
+
+  const all = db.query<{ sha256: string }, []>('SELECT sha256 FROM blobs').all();
+  const orphans = all.filter((row) => !referenced.has(row.sha256));
+  if (orphans.length === 0) return 0;
+  const remove = db.prepare('DELETE FROM blobs WHERE sha256 = ?');
+  const transaction = db.transaction(() => {
+    for (const row of orphans) remove.run(row.sha256);
+  });
+  transaction();
+  return orphans.length;
+}
+
 export function finalizeCanvasDbForClose(db: Database): void {
+  gcBlobsInDB(db);
   checkpointCanvasDb(db);
   db.exec('PRAGMA journal_mode=DELETE');
 }
 
 // ── State Persistence ───────────────────────────────────────────
 
+/**
+ * Drop rows whose id is no longer in the live state. Reads only the id column
+ * (index-only scan) so it stays cheap on large boards.
+ */
+function deleteMissingRows(
+  db: Database,
+  table: 'nodes' | 'edges' | 'annotations' | 'context_pins',
+  idColumn: 'id' | 'node_id',
+  keep: Set<string>,
+): void {
+  const rows = db.query<{ id: string }, []>(`SELECT ${idColumn} AS id FROM ${table}`).all();
+  if (rows.length === 0) return;
+  const remove = db.prepare(`DELETE FROM ${table} WHERE ${idColumn} = ?`);
+  for (const row of rows) {
+    if (!keep.has(row.id)) remove.run(row.id);
+  }
+}
+
 export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
   const transaction = db.transaction(() => {
-    // Clear current state tables
-    db.run('DELETE FROM nodes');
-    db.run('DELETE FROM edges');
-    db.run('DELETE FROM annotations');
-    db.run('DELETE FROM context_pins');
-    db.run('DELETE FROM ax_state');
-
-    // Save viewport and UI preferences
-    db.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', ['theme', normalizeCanvasTheme(state.theme)]);
-    db.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', ['viewport_x', String(state.viewport.x)]);
-    db.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', ['viewport_y', String(state.viewport.y)]);
-    db.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', ['viewport_scale', String(state.viewport.scale)]);
-
+    // Rows are upserted only when a column actually differs, and rows that are
+    // gone are deleted by id. This used to be DELETE-all + INSERT-all, which
+    // rewrote every row on every debounced save: dragging one node rewrote the
+    // whole board, multi-MB html payloads included, so the write cost scaled
+    // with board size instead of change size (issue #22). The
+    // `WHERE ... IS NOT excluded....` guard makes an unchanged row a true
+    // no-op — SQLite performs no update, so no page is written. The comparison
+    // is against the DB itself rather than an in-memory cache, so nothing can
+    // go stale and silently skip a write that was actually needed.
+    const upsertMeta = db.prepare(
+      `INSERT INTO meta (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value
+       WHERE value IS NOT excluded.value`,
+    );
+    upsertMeta.run('theme', normalizeCanvasTheme(state.theme));
+    upsertMeta.run('viewport_x', String(state.viewport.x));
+    upsertMeta.run('viewport_y', String(state.viewport.y));
+    upsertMeta.run('viewport_scale', String(state.viewport.scale));
     // Mark DB as populated (for migration detection)
-    db.run('INSERT OR REPLACE INTO meta (key, value) VALUES (?, ?)', ['state_populated', '1']);
+    upsertMeta.run('state_populated', '1');
 
     // Save nodes
-    const insertNode = db.prepare(
+    const upsertNode = db.prepare(
       `INSERT INTO nodes (id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, dock_position, data)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         type = excluded.type, pos_x = excluded.pos_x, pos_y = excluded.pos_y,
+         width = excluded.width, height = excluded.height, z_index = excluded.z_index,
+         collapsed = excluded.collapsed, pinned = excluded.pinned,
+         dock_position = excluded.dock_position, data = excluded.data
+       WHERE type IS NOT excluded.type OR pos_x IS NOT excluded.pos_x
+          OR pos_y IS NOT excluded.pos_y OR width IS NOT excluded.width
+          OR height IS NOT excluded.height OR z_index IS NOT excluded.z_index
+          OR collapsed IS NOT excluded.collapsed OR pinned IS NOT excluded.pinned
+          OR dock_position IS NOT excluded.dock_position OR data IS NOT excluded.data`,
     );
     for (const node of state.nodes) {
-      insertNode.run(
+      upsertNode.run(
         node.id,
         node.type,
         node.position.x,
@@ -340,14 +415,21 @@ export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
         JSON.stringify(node.data),
       );
     }
+    deleteMissingRows(db, 'nodes', 'id', new Set(state.nodes.map((node) => node.id)));
 
     // Save edges
-    const insertEdge = db.prepare(
+    const upsertEdge = db.prepare(
       `INSERT INTO edges (id, from_node, to_node, type, label, style, animated)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         from_node = excluded.from_node, to_node = excluded.to_node, type = excluded.type,
+         label = excluded.label, style = excluded.style, animated = excluded.animated
+       WHERE from_node IS NOT excluded.from_node OR to_node IS NOT excluded.to_node
+          OR type IS NOT excluded.type OR label IS NOT excluded.label
+          OR style IS NOT excluded.style OR animated IS NOT excluded.animated`,
     );
     for (const edge of state.edges) {
-      insertEdge.run(
+      upsertEdge.run(
         edge.id,
         edge.from,
         edge.to,
@@ -357,14 +439,24 @@ export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
         edge.animated ? 1 : 0,
       );
     }
+    deleteMissingRows(db, 'edges', 'id', new Set(state.edges.map((edge) => edge.id)));
 
     // Save annotations
-    const insertAnnotation = db.prepare(
+    const annotations = state.annotations ?? [];
+    const upsertAnnotation = db.prepare(
       `INSERT INTO annotations (id, type, points, bounds, color, width, text, label, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+       ON CONFLICT(id) DO UPDATE SET
+         type = excluded.type, points = excluded.points, bounds = excluded.bounds,
+         color = excluded.color, width = excluded.width, text = excluded.text,
+         label = excluded.label, created_at = excluded.created_at
+       WHERE type IS NOT excluded.type OR points IS NOT excluded.points
+          OR bounds IS NOT excluded.bounds OR color IS NOT excluded.color
+          OR width IS NOT excluded.width OR text IS NOT excluded.text
+          OR label IS NOT excluded.label OR created_at IS NOT excluded.created_at`,
     );
-    for (const annotation of state.annotations ?? []) {
-      insertAnnotation.run(
+    for (const annotation of annotations) {
+      upsertAnnotation.run(
         annotation.id,
         annotation.type,
         JSON.stringify(annotation.points),
@@ -376,17 +468,21 @@ export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
         annotation.createdAt,
       );
     }
+    deleteMissingRows(db, 'annotations', 'id', new Set(annotations.map((annotation) => annotation.id)));
 
-    // Save context pins
-    const insertPin = db.prepare('INSERT INTO context_pins (node_id) VALUES (?)');
+    // Save context pins (node_id is the whole row — nothing to update)
+    const insertPin = db.prepare('INSERT OR IGNORE INTO context_pins (node_id) VALUES (?)');
     for (const pinId of state.contextPins) {
       insertPin.run(pinId);
     }
+    deleteMissingRows(db, 'context_pins', 'node_id', new Set(state.contextPins));
 
-    db.run('INSERT INTO ax_state (key, value) VALUES (?, ?)', [
-      'state',
-      JSON.stringify(state.ax ?? createEmptyAxState()),
-    ]);
+    db.run(
+      `INSERT INTO ax_state (key, value) VALUES (?, ?)
+       ON CONFLICT(key) DO UPDATE SET value = excluded.value
+       WHERE value IS NOT excluded.value`,
+      ['state', JSON.stringify(state.ax ?? createEmptyAxState())],
+    );
   });
 
   transaction();
