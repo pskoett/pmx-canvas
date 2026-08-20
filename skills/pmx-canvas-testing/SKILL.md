@@ -30,6 +30,10 @@ bun run test:web-canvas     # Browser smoke against a real running app
 bun run test:all            # Bun suite + browser smoke
 ```
 
+**Never pipe a gating command through `tail`, `head`, or `grep`.** The pipeline reports the exit
+code of the LAST command, so `bun run test | tail -5` exits 0 on a red suite. Redirect to a file
+and check `$?`, then read the file.
+
 ## Which Command To Run
 
 - Server/state/API-only changes: run `bun run test`
@@ -79,6 +83,30 @@ Prefer extending the existing suites before inventing a one-off script.
   `pmx-canvas skills sync --yes` to refresh them (whole trees, whatever agent layout owns them) before
   trusting skill-guided results
 
+## Tests That Cannot Fail
+
+A test that passes against the broken code is worse than no test — it certifies the bug. Every
+regression test must be shown to discriminate: run it against the unfixed code (or hard-code the
+broken value) and watch it go red BEFORE you trust the green.
+
+Four ways a test silently stops discriminating in this repo:
+
+- **Polled assertions pass on the first sample.** `expect.poll(fn).toBeGreaterThanOrEqual(180)`
+  succeeds the instant one sample qualifies, so it never observes the failure window. Wait for the
+  settle condition, then assert once.
+- **Committed fixtures embed generated output.** `src/server/demo-state.json` carries each
+  primitive's generated markup; count and coverage assertions are satisfied by stale markup just
+  as well as fresh. Guard generated fixtures by rebuilding from the generator's INPUT and
+  byte-comparing against the current renderer.
+- **Absolute assertions about globally-wired side effects are order-dependent.** Anything flowing
+  through a single-slot listener (architecture rule 8 in `CLAUDE.md`) is wired or not depending on
+  whether an earlier test file booted a server — so the test passes alone and fails in the suite,
+  or vice versa. Assert DIFFERENTIALLY: run the action disarmed and armed, require the deltas to
+  match. Always run the full suite before trusting a new test; a single-file run hides this.
+- **A new node type passes every test and renders nothing.** Server, API, and client-unit
+  assertions all pass while `isCanvasNodeType` drops the type during layout apply. Only a DOM
+  census on a live board catches it.
+
 ## Layout And Embedded Content Checks
 
 - For seeded or generated boards, add API-level geometry assertions: expected node/edge counts,
@@ -95,6 +123,12 @@ Prefer extending the existing suites before inventing a one-off script.
 - When checking embedded frame fit manually, start from a clean seeded state, rebuild stale bundles,
   and inspect the actual iframe document in a browser. Server dimensions can look correct while the
   embedded content is still clipped.
+- **A node's stored content is not render evidence.** An html/primitive node's stored HTML holds
+  every conditional branch — hidden banners, error states, empty states — so a content-level read
+  (search hit, pinned context, `node get`, any text summary) quotes strings the user never saw.
+  The 0.4.7 report filed an "AX bridge unavailable" banner as a live product gap on exactly this
+  basis; the served surface had the bridge injected ahead of the check and the banner was `hidden`
+  in the document. Before filing a rendering bug, fetch the served surface or inspect the DOM.
 - User-facing creation flows must end with the new nodes visible: after the create (plus the
   skill-mandated focus/fit), a screenshot must show them without any manual pan. A `panned: true`
   API result alone is not proof — verify the frame is on-screen and unobscured.
