@@ -241,6 +241,12 @@ with `ok: true`, the published tarball is intact end-to-end.
   in `Readme.md` actually needs the refresh.
 - **CHANGELOG dates**: use the actual publish date in the
   `## [version] - YYYY-MM-DD` header, not the day you wrote the entry.
+- **npm publish is asynchronous now**: a successful publish prints "Your
+  package is being processed and may take a few minutes to become
+  available" — `npm view` 404s on the new version and `latest` stays on
+  the old one for several minutes (~4 min observed for 0.4.8). Poll
+  before diagnosing a failed publish; the Publish CI step log's
+  `+ pmx-canvas@X.Y.Z` line is the proof it landed.
 - **Node 24 deprecation timeline**: GitHub Actions is migrating
   `actions/checkout`, `setup-node`, `upload-artifact` to Node 24 by
   June 2, 2026. The publish workflow already pins `@v5` of all three.
