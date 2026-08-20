@@ -18,6 +18,38 @@ interface ExtAppHostDimensionsTarget {
  * everywhere we can test (Chrome / Codex / Playwright).
  */
 export declare function isWebKitOnlyHost(userAgent: string): boolean;
+/**
+ * Finding N (0.4.7 report): the GitHub Copilot panel's WKWebView reports
+ * `document.visibilityState === 'hidden'` CONTINUOUSLY — the workbench document
+ * never transitions to 'visible' even with the panel open and on-screen. Two
+ * things break as a result: the `visibilitychange` re-arm below can never fire
+ * (there is no transition to listen for), and `paint-ok` becomes a false green —
+ * the app document happily answers the double-rAF paint probe while the
+ * compositor still shows black. The instrumented trail from that session carries
+ * `visibility: "hidden"` on essentially every recovery event.
+ *
+ * So: when the document CLAIMS hidden but the frame is demonstrably on-screen,
+ * do not trust the claim — spend one more recovery round as if visible. A host
+ * that ever reports 'visible' has a working signal and is left to the
+ * visibilitychange path, which keeps a genuinely backgrounded panel quiet.
+ */
+export declare function shouldAssumeVisibleRearm(options: {
+    userAgent: string;
+    visibilityState: string;
+    rect: {
+        top: number;
+        left: number;
+        bottom: number;
+        right: number;
+        width: number;
+        height: number;
+    };
+    viewport: {
+        width: number;
+        height: number;
+    };
+    alreadyRearmed: boolean;
+}): boolean;
 export declare const WEBKIT_REMOUNT_SETTLE_MS = 1000;
 export interface WebkitRemountTask {
     /** Perform the remount. Return false if the node no longer needs it (skips the boot wait). */

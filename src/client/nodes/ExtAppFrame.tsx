@@ -65,6 +65,36 @@ export function isWebKitOnlyHost(userAgent: string): boolean {
   return /AppleWebKit/.test(userAgent) && !/Chrome|Chromium|CriOS|Edg|Android/.test(userAgent);
 }
 
+/**
+ * Finding N (0.4.7 report): the GitHub Copilot panel's WKWebView reports
+ * `document.visibilityState === 'hidden'` CONTINUOUSLY — the workbench document
+ * never transitions to 'visible' even with the panel open and on-screen. Two
+ * things break as a result: the `visibilitychange` re-arm below can never fire
+ * (there is no transition to listen for), and `paint-ok` becomes a false green —
+ * the app document happily answers the double-rAF paint probe while the
+ * compositor still shows black. The instrumented trail from that session carries
+ * `visibility: "hidden"` on essentially every recovery event.
+ *
+ * So: when the document CLAIMS hidden but the frame is demonstrably on-screen,
+ * do not trust the claim — spend one more recovery round as if visible. A host
+ * that ever reports 'visible' has a working signal and is left to the
+ * visibilitychange path, which keeps a genuinely backgrounded panel quiet.
+ */
+export function shouldAssumeVisibleRearm(options: {
+  userAgent: string;
+  visibilityState: string;
+  rect: { top: number; left: number; bottom: number; right: number; width: number; height: number };
+  viewport: { width: number; height: number };
+  alreadyRearmed: boolean;
+}): boolean {
+  const { userAgent, visibilityState, rect, viewport, alreadyRearmed } = options;
+  if (alreadyRearmed) return false;
+  if (!isWebKitOnlyHost(userAgent)) return false;
+  if (visibilityState !== 'hidden') return false;
+  if (rect.width <= 0 || rect.height <= 0) return false;
+  return rect.bottom > 0 && rect.right > 0 && rect.top < viewport.height && rect.left < viewport.width;
+}
+
 // Finding F (0.2.5, reworked 0.3.1): BOOT-AWARE serialized WebKit remount queue.
 // The black tile is a cold-hydration BURST problem — a single ext-app repaints fine
 // into an idle panel (like a live-created node, or expand+close), but several
@@ -352,6 +382,9 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   // Recovery ran while the document was hidden (compositing suppressed) — re-arm
   // one fresh remount round when the panel becomes visible (Finding N).
   const bootedWhileHiddenRef = useRef(false);
+  // Finding N (0.4.7): at most one "assume visible" round per frame lifetime, so
+  // a host that is hidden forever cannot turn the re-arm into a remount loop.
+  const assumeVisibleRearmDoneRef = useRef(false);
   const unmountedRef = useRef(false);
   const [status, setStatus] = useState<ExtAppFrameStatus>('loading');
   const [error, setError] = useState<string | null>(null);
@@ -567,21 +600,64 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
       });
     });
 
+  // Finding N (0.4.7): the Copilot WKWebView never reports 'visible', so the
+  // visibilitychange re-arm below is dead code there and the ladder's own
+  // paint-ok cannot be trusted. When the document claims hidden but this frame
+  // is on-screen, spend one more full recovery round with a fresh budget —
+  // the same round the visibilitychange path would have run.
+  const ASSUME_VISIBLE_REARM_DELAY_MS = 600;
+  const maybeAssumeVisibleRearm = (): void => {
+    if (typeof document === 'undefined' || typeof navigator === 'undefined' || typeof window === 'undefined') return;
+    const frame = iframeRef.current;
+    if (!frame || unmountedRef.current) return;
+    if (
+      !shouldAssumeVisibleRearm({
+        userAgent: navigator.userAgent,
+        visibilityState: document.visibilityState,
+        rect: frame.getBoundingClientRect(),
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+        alreadyRearmed: assumeVisibleRearmDoneRef.current,
+      })
+    )
+      return;
+    assumeVisibleRearmDoneRef.current = true;
+    // Re-check after a beat: a host whose visibility signal merely lagged the
+    // panel opening resolves itself here, and the visibilitychange path owns it.
+    window.setTimeout(() => {
+      if (unmountedRef.current || document.visibilityState === 'visible') return;
+      webkitRemountAttemptsRef.current = 0;
+      setRecoveryExhausted(false);
+      bootedWhileHiddenRef.current = false;
+      extAppRecoveryLog(nodeId, 'assume-visible-rearm');
+      scheduleWebkitRemount('assume-visible');
+    }, ASSUME_VISIBLE_REARM_DELAY_MS);
+  };
+
+  // A paint-ok collected while the document claims hidden proves only that the
+  // app's rAF pipeline is alive — NOT that anything composited (Finding N,
+  // 0.4.7). Say so in the trail instead of recording an unqualified success.
+  const paintOkLabel = (suffix = ''): string =>
+    typeof document !== 'undefined' && document.visibilityState === 'hidden'
+      ? `paint-ok${suffix} (unverified: host hidden)`
+      : `paint-ok${suffix}`;
+
   const runPaintLadder = async (): Promise<void> => {
     if (expanded) return;
     if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
     if (!isWebKitOnlyHost(navigator.userAgent)) return;
     setPaintPending(true);
     if (await probePaint()) {
-      extAppRecoveryLog(nodeId, 'paint-ok');
+      extAppRecoveryLog(nodeId, paintOkLabel());
       setPaintPending(false);
+      maybeAssumeVisibleRearm();
       return;
     }
     extAppRecoveryLog(nodeId, 'paint-fail');
     await runSoftExpandCycle();
     if (await probePaint()) {
-      extAppRecoveryLog(nodeId, 'paint-ok (after soft-expand)');
+      extAppRecoveryLog(nodeId, paintOkLabel(' (after soft-expand)'));
       setPaintPending(false);
+      maybeAssumeVisibleRearm();
       return;
     }
     if (unmountedRef.current) return;
@@ -590,6 +666,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
       extAppRecoveryLog(nodeId, 'recovery-exhausted');
       setPaintPending(false);
       setRecoveryExhausted(true);
+      maybeAssumeVisibleRearm();
     }
   };
 
