@@ -30,6 +30,12 @@ bun run test:web-canvas     # Browser smoke against a real running app
 bun run test:all            # Bun suite + browser smoke
 ```
 
+**Direct `bun test` is side-effect-guarded by `tests/preload.ts`** (wired via `bunfig.toml`
+`[test].preload`): it defaults `PMX_CANVAS_DISABLE_BROWSER_OPEN=1` so the suite's open-as-site
+tests cannot launch the developer's real browser, whichever way the tests are invoked. The
+preload covers `bun test` only — when you boot a server yourself (`bun run src/cli/index.ts`),
+pass `--no-open` and set `PMX_CANVAS_DISABLE_BROWSER_OPEN=1` explicitly.
+
 **Never pipe a gating command through `tail`, `head`, or `grep`.** The pipeline reports the exit
 code of the LAST command, so `bun run test | tail -5` exits 0 on a red suite. Redirect to a file
 and check `$?`, then read the file.

@@ -356,8 +356,12 @@ Prefer `canvas_query { action: "search" }` over parsing the full layout.
   affordance. The connecting overlay stays up until paint is confirmed, so a black layer is
   never presented as ready. The recovery trail
   (`GET /api/canvas/debug/ext-app-recovery` / `window.__PMX_EXTAPP_LOG`) now records
-  `mount-slot`, `paint-ok`, `paint-fail`, `soft-expand-cycle`, and `recovery-exhausted` — when
-  diagnosing, trust `paint-ok`/`paint-fail`, and never assert health from `settled` alone. If a
+  `mount-slot`, `paint-ok`, `paint-fail`, `soft-expand-cycle`, `recovery-exhausted`, and
+  `assume-visible-rearm` — when diagnosing, trust `paint-ok`/`paint-fail`, and never assert
+  health from `settled` alone. Exception: in a host that reports the document hidden (the
+  GitHub Copilot panel does so continuously), `paint-ok` is recorded as
+  `paint-ok (unverified: host hidden)` — the app answered the paint probe, but nothing is
+  proven composited, so do not treat it as a verified paint. If a
   tile still shows the Retry affordance, click Retry (fresh recovery budget) or expand-then-close;
   attach the recovery trail when reporting.
 - Ext-app frame documents live in server memory. Through 0.4.0, killing/restarting the daemon

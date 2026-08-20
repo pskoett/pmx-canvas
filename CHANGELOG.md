@@ -3,6 +3,22 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.4.8] - 2026-08-20
+
+### Fixed
+
+- Saving now writes only what actually changed instead of rewriting the whole
+  board on every save, so the write cost of dragging one node no longer grows
+  with board size ([#22](https://github.com/pskoett/pmx-canvas/issues/22)).
+- Saves are now fsynced (`synchronous=FULL`), so an abrupt host crash no longer
+  loses the most recent saves — affordable now that saves are incremental.
+- Orphaned large-content blobs are removed on shutdown — only when nothing
+  else has the canvas open, so a second live process can never lose content —
+  and `canvas.db` no longer grows without bound as node content is edited.
+- MCP-app tiles now recover from black tiles in embedded hosts that never
+  report the page as visible (e.g. the GitHub Copilot panel), and recovery
+  logs no longer claim an unverified paint as a success there.
+
 ## [0.4.7] - 2026-08-09
 
 ### Added
@@ -3105,6 +3121,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.4.8]: https://github.com/pskoett/pmx-canvas/compare/v0.4.7...v0.4.8
 [0.4.7]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.7
 [0.4.6]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.6
 [0.4.5]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.5

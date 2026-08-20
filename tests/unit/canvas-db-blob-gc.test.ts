@@ -3,7 +3,13 @@ import type { Database } from 'bun:sqlite';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { gcBlobsInDB, openCanvasDb, readBlobFromDB, writeBlobToDB } from '../../src/server/canvas-db.js';
+import {
+  finalizeCanvasDbForClose,
+  gcBlobsInDB,
+  openCanvasDb,
+  readBlobFromDB,
+  writeBlobToDB,
+} from '../../src/server/canvas-db.js';
 
 // Blobs are content-addressed and written with INSERT OR IGNORE, so editing a
 // blob-backed field supersedes the old blob and orphans it. Nothing reclaimed
@@ -92,4 +98,29 @@ describe('gcBlobsInDB', () => {
     expect(readBlobFromDB(db, edited)).toBeTruthy();
     expect(readBlobFromDB(db, LIVE)).toBeNull();
   });
+});
+
+test('close-time GC is skipped while another connection has the canvas open', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'pmx-blob-gc-'));
+  const dbPath = join(dir, 'canvas.db');
+  const db = openCanvasDb(dbPath);
+  // an orphan: no node references this sha
+  const orphanSha = 'a'.repeat(64);
+  db.run('INSERT OR IGNORE INTO blobs (sha256, data, json_bytes) VALUES (?, ?, ?)', [orphanSha, '"x"', 3]);
+
+  // A second live connection — e.g. a daemon that still resolves its nodes'
+  // content-addressed refs lazily from this table. Closing the first process
+  // must NOT reclaim anything while it exists (and must not throw).
+  const second = openCanvasDb(dbPath);
+  finalizeCanvasDbForClose(db);
+  db.close();
+  expect(second.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM blobs').get()?.n).toBe(1);
+
+  // Alone, the same close reclaims the orphan.
+  finalizeCanvasDbForClose(second);
+  second.close();
+  const check = openCanvasDb(dbPath);
+  expect(check.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM blobs').get()?.n).toBe(0);
+  check.close();
+  rmSync(dir, { recursive: true, force: true });
 });

@@ -1,0 +1,4 @@
+[test]
+# Safety defaults for every `bun test` run, including direct invocations that
+# bypass the package.json wrappers. See tests/preload.ts.
+preload = ["./tests/preload.ts"]

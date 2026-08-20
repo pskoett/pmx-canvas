@@ -337,9 +337,19 @@ export function gcBlobsInDB(db: Database): number {
 }
 
 export function finalizeCanvasDbForClose(db: Database): void {
-  gcBlobsInDB(db);
   checkpointCanvasDb(db);
-  db.exec('PRAGMA journal_mode=DELETE');
+  // The WAL→DELETE switch takes an exclusive lock, so it succeeds only when no
+  // other connection has the DB open — and that makes it the GC gate. GC deletes
+  // blob rows a second live process may still depend on: its in-memory nodes
+  // hold content-addressed refs, not content, so a GC'd blob is unrecoverable
+  // once that process re-saves (review of #22, reproduced). Locked ⇒ someone
+  // else is on this canvas: leave WAL in place and keep every blob.
+  try {
+    db.exec('PRAGMA journal_mode=DELETE');
+  } catch {
+    return;
+  }
+  gcBlobsInDB(db);
 }
 
 // ── State Persistence ───────────────────────────────────────────
