@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import type { Database } from 'bun:sqlite';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -10,6 +10,7 @@ import {
   readBlobFromDB,
   writeBlobToDB,
 } from '../../src/server/canvas-db.js';
+import { removeTempDirWithRetry } from './helpers.js';
 
 // Blobs are content-addressed and written with INSERT OR IGNORE, so editing a
 // blob-backed field supersedes the old blob and orphans it. Nothing reclaimed
@@ -48,7 +49,7 @@ beforeEach(() => {
 
 afterEach(() => {
   db.close();
-  rmSync(dir, { recursive: true, force: true });
+  removeTempDirWithRetry(dir);
 });
 
 function blobCount(): number {
@@ -122,5 +123,5 @@ test('close-time GC is skipped while another connection has the canvas open', ()
   const check = openCanvasDb(dbPath);
   expect(check.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM blobs').get()?.n).toBe(0);
   check.close();
-  rmSync(dir, { recursive: true, force: true });
+  removeTempDirWithRetry(dir);
 });

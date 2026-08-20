@@ -1,10 +1,11 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import type { Database } from 'bun:sqlite';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createEmptyAxState } from '../../src/server/ax-state.js';
 import { loadStateFromDB, openCanvasDb, saveStateToDB } from '../../src/server/canvas-db.js';
+import { removeTempDirWithRetry } from './helpers.js';
 import type { PersistedCanvasState } from '../../src/server/canvas-state.js';
 
 // Issue #22: every debounced save used to DELETE and re-INSERT every row, so a
@@ -52,7 +53,7 @@ beforeEach(() => {
 
 afterEach(() => {
   db.close();
-  rmSync(dir, { recursive: true, force: true });
+  removeTempDirWithRetry(dir);
 });
 
 describe('saveStateToDB writes only what changed', () => {

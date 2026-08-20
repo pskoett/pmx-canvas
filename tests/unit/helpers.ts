@@ -99,24 +99,28 @@ set -e
   return { initScriptPath, bundleScriptPath };
 }
 
-export function removeTestWorkspace(workspaceRoot: string): void {
-  canvasState.close();
-  // Windows releases the SQLite WAL/db handles asynchronously after close(),
-  // so an immediate rm can hit EBUSY. Retry briefly, then tolerate: the dir is
-  // an ephemeral temp workspace — leaking it must never fail the suite.
+// Windows releases the SQLite WAL/db handles asynchronously after close(),
+// so an immediate rm can hit EBUSY. Retry briefly, then tolerate: the dir is
+// an ephemeral temp dir — leaking it must never fail the suite.
+export function removeTempDirWithRetry(dir: string): void {
   for (let attempt = 0; attempt < 5; attempt++) {
     try {
-      rmSync(workspaceRoot, { recursive: true, force: true });
+      rmSync(dir, { recursive: true, force: true });
       return;
     } catch {
       Bun.sleepSync(100);
     }
   }
   try {
-    rmSync(workspaceRoot, { recursive: true, force: true });
+    rmSync(dir, { recursive: true, force: true });
   } catch (error) {
-    console.warn(`removeTestWorkspace: leaking ${workspaceRoot} (${String(error)})`);
+    console.warn(`removeTempDirWithRetry: leaking ${dir} (${String(error)})`);
   }
+}
+
+export function removeTestWorkspace(workspaceRoot: string): void {
+  canvasState.close();
+  removeTempDirWithRetry(workspaceRoot);
 }
 
 export function readPersistedCanvasState(workspaceRoot: string): {
