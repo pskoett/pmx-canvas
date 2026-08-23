@@ -9,7 +9,7 @@ import {
   type ViewportState,
 } from '../types';
 import { computeAutoArrange } from '../../shared/auto-arrange';
-import { canvasArea, canvasAreaCenter } from '../canvas/canvas-area';
+import { canvasAreaCenter } from '../canvas/canvas-area';
 import { pushCanvasUpdate, updateViewportFromClient } from './intent-bridge';
 
 function logCanvasStoreError(action: string, error: unknown): void {

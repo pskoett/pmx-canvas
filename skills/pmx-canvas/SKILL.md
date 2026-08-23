@@ -55,7 +55,9 @@ Humans curate agent context by pinning nodes; agents read that curation through
    cursor on the node you last touched plus a phase chip, and every write you make through MCP or
    HTTP is attributed to your session automatically — no per-call labelling needed. The human
    also gets a session panel listing your work items, approval gates (Approve / Reject live
-   there — a rejection reaches you as steering) and the timeline. Report
+   there — a rejection reaches you as steering; an unanswered gate auto-holds after its TTL,
+   which is also a "do not proceed") and the timeline. The human may also fence you to a
+   region: writes outside `policy.scope` come back as 403 — ask, don't retry. Report
    `phase: "thinking"` before a long reasoning stretch if your host gives you a hook for it;
    `tooling` is derived from your writes. Hosts with adapters (the Copilot extension) attach
    for you. Without an attached session the board stays a plain canvas: your writes still show

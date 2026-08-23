@@ -284,6 +284,7 @@ describe('policy (canvas-bound)', () => {
     expect(h.manager.getPolicy()).toEqual({
       tools: { allowed: [], excluded: [], approvalRequired: [] },
       prompt: { systemAppend: null, mode: null },
+      scope: null,
     });
 
     h.manager.setPolicy({ tools: { excluded: ['rm -rf'] } });

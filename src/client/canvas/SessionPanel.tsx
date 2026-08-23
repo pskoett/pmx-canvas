@@ -1,12 +1,17 @@
 import { useEffect, useState } from 'preact/hooks';
 import { agentPhaseLabel } from '../../shared/agent-presence.js';
-import { focusNode } from '../state/canvas-store';
+import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
+import { focusNode, selectedNodeIds } from '../state/canvas-store';
 import { activeSession } from '../state/presence-store';
 import {
   type ApprovalGateView,
+  heldGates,
   pendingGates,
   refreshTimeline,
+  reopenGate,
   resolveGate,
+  scopeFence,
+  setScopeFence,
   sessionWorkItems,
   type TimelineEntry,
   type TimelineEntryKind,
@@ -32,7 +37,18 @@ const WORK_GLYPH: Record<WorkItemStatus, 'queued' | 'running' | 'awaiting' | 'do
   cancelled: 'vetoed',
 };
 
+/** One-second tick shared by every countdown in the panel. */
+function useNow(): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, []);
+  return now;
+}
+
 const TIMELINE_TONE: Record<TimelineEntryKind, string> = {
+  policy: 'warn',
   prompt: 'accent',
   'assistant-message': 'muted',
   'tool-start': 'accent',
@@ -76,7 +92,7 @@ function WorkItemRow({ item }: { item: WorkItemView }) {
   );
 }
 
-function GateRow({ gate }: { gate: ApprovalGateView }) {
+function GateRow({ gate, now }: { gate: ApprovalGateView; now: number }) {
   const [busy, setBusy] = useState<'approved' | 'rejected' | null>(null);
   const decide = async (decision: 'approved' | 'rejected') => {
     setBusy(decision);
@@ -84,6 +100,7 @@ function GateRow({ gate }: { gate: ApprovalGateView }) {
     setBusy(null);
   };
   const nodeId = gate.nodeIds[0];
+  const remaining = gateRemainingMs(gate, now);
   return (
     <li class="session-item status-awaiting session-gate" data-gate-id={gate.id}>
       <span class="session-glyph" aria-hidden="true" />
@@ -98,6 +115,11 @@ function GateRow({ gate }: { gate: ApprovalGateView }) {
           {gate.title}
         </button>
         {gate.detail && <div class="session-item-detail">{gate.detail}</div>}
+        {remaining !== null && (
+          <div class="session-gate-ttl" data-testid="gate-countdown">
+            auto-holds in {formatCountdown(remaining)} if unanswered
+          </div>
+        )}
         <div class="session-gate-actions">
           <button
             type="button"
@@ -122,6 +144,77 @@ function GateRow({ gate }: { gate: ApprovalGateView }) {
   );
 }
 
+function HeldGateRow({ gate }: { gate: ApprovalGateView }) {
+  const [busy, setBusy] = useState(false);
+  return (
+    <li class="session-item status-vetoed session-gate-held" data-gate-id={gate.id}>
+      <span class="session-glyph" aria-hidden="true" />
+      <div class="session-item-main">
+        <span class="session-item-title">{gate.title}</span>
+        <div class="session-item-detail">Auto-held — no answer in time, the action did not proceed.</div>
+        <div class="session-gate-actions">
+          <button
+            type="button"
+            class="session-gate-reject"
+            disabled={busy}
+            onClick={() => {
+              setBusy(true);
+              void reopenGate(gate).finally(() => setBusy(false));
+            }}
+          >
+            {busy ? 'Reopening…' : 'Reopen'}
+          </button>
+        </div>
+      </div>
+      <span class="session-item-status">held</span>
+    </li>
+  );
+}
+
+/**
+ * Scope row under the header: the fence the human granted, or the affordance
+ * to grant one from the current selection. The server refuses agent writes
+ * outside it; reads stay open.
+ */
+function ScopeRow() {
+  const fence = scopeFence.value;
+  const selected = selectedNodeIds.value.size;
+  const [busy, setBusy] = useState(false);
+  const apply = (nodeIds: string[] | null) => {
+    setBusy(true);
+    void setScopeFence(nodeIds).finally(() => setBusy(false));
+  };
+  return (
+    <div class={`session-scope${fence ? ' is-fenced' : ''}`} data-testid="session-scope">
+      <span class="session-scope-dot" aria-hidden="true" />
+      {fence ? (
+        <>
+          <span class="session-scope-text">
+            Scoped to <strong>{fence.nodeIds.length}</strong> node{fence.nodeIds.length === 1 ? '' : 's'} · writes
+            outside are blocked
+          </span>
+          <button type="button" class="session-scope-action" disabled={busy} onClick={() => apply(null)}>
+            Clear
+          </button>
+        </>
+      ) : (
+        <>
+          <span class="session-scope-text">Unscoped — the agent may write anywhere</span>
+          <button
+            type="button"
+            class="session-scope-action"
+            disabled={busy || selected === 0}
+            title={selected === 0 ? 'Select nodes on the canvas first' : 'Fence the agent to the selected nodes'}
+            onClick={() => apply([...selectedNodeIds.value])}
+          >
+            Fence to selection{selected > 0 ? ` (${selected})` : ''}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 function TimelineRow({ entry }: { entry: TimelineEntry }) {
   return (
     <li class={`session-timeline-row tone-${TIMELINE_TONE[entry.kind] ?? 'muted'}`}>
@@ -142,7 +235,9 @@ export function SessionPanel() {
   const session = activeSession.value;
   const items = sessionWorkItems.value;
   const gates = pendingGates.value;
+  const held = heldGates.value;
   const entries = timelineEntries.value;
+  const now = useNow();
 
   // The timeline is read on mount; the SSE bridge refreshes it on every
   // ax-event-created while a session is attached.
@@ -182,15 +277,20 @@ export function SessionPanel() {
         </button>
       </header>
 
+      <ScopeRow />
+
       <div class="session-panel-body">
         <section class="session-section">
           <h3 class="session-section-title">Work items</h3>
-          {gates.length === 0 && items.length === 0 ? (
+          {gates.length === 0 && held.length === 0 && items.length === 0 ? (
             <div class="session-empty">No work items yet — the agent's tasks and gates appear here.</div>
           ) : (
             <ul class="session-list">
               {gates.map((gate) => (
-                <GateRow key={gate.id} gate={gate} />
+                <GateRow key={gate.id} gate={gate} now={now} />
+              ))}
+              {held.map((gate) => (
+                <HeldGateRow key={gate.id} gate={gate} />
               ))}
               {items.map((item) => (
                 <WorkItemRow key={item.id} item={item} />

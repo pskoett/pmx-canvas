@@ -75,6 +75,7 @@ import {
 import { dispatchOperationRoute, setOperationEventEmitter } from './operations/index.js';
 import { intentRegistry } from './intent-registry.js';
 import { agentPresence } from './agent-presence.js';
+import { startGateTtlSweeper, stopGateTtlSweeper } from './ax-gate-ttl.js';
 import { setWebviewRunner } from './operations/webview-runner.js';
 import { closeNodeAppSession, nodeAppSessionId } from './operations/ops/nodes.js';
 import { traceManager } from './trace-manager.js';
@@ -3130,6 +3131,8 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
   canvasState.setWorkspaceRoot(activeWorkspaceRoot);
   canvasState.setTheme(initialCanvasThemeSetting as CanvasTheme);
   const loaded = canvasState.loadFromDisk({ clearExisting: true });
+  // Unattended-approval policy: hold pending gates whose TTL elapsed.
+  startGateTtlSweeper((event, payload) => emitPrimaryWorkbenchEvent(event, payload));
   setCanvasLayoutUpdateEmitter(() => {
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   });
@@ -3341,6 +3344,8 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 }
 
 export function stopCanvasServer(): void {
+  stopGateTtlSweeper();
+  agentPresence.reset();
   intentRegistry.reset();
   canvasState.close();
   closeAllMcpAppSessions();

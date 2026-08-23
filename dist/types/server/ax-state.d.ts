@@ -7,10 +7,11 @@ export interface PmxAxFocusState {
     updatedAt: string | null;
     source: PmxAxSource | null;
 }
-export type PmxAxEventKind = 'prompt' | 'assistant-message' | 'tool-start' | 'tool-result' | 'failure' | 'approval' | 'steering' | 'command' | 'note';
+export type PmxAxEventKind = 'prompt' | 'assistant-message' | 'tool-start' | 'tool-result' | 'failure' | 'approval' | 'steering' | 'command' | 'note' | 'policy';
 export type PmxAxEvidenceKind = 'logs' | 'tool-result' | 'screenshot' | 'file' | 'diff' | 'test-output';
 export type PmxAxWorkItemStatus = 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled';
-export type PmxAxApprovalStatus = 'pending' | 'approved' | 'rejected';
+/** `held` = auto-held by the unattended-approval policy: the action did NOT proceed. */
+export type PmxAxApprovalStatus = 'pending' | 'approved' | 'rejected' | 'held';
 export type PmxAxReviewKind = 'comment' | 'finding';
 export type PmxAxReviewSeverity = 'info' | 'warning' | 'error';
 export type PmxAxReviewStatus = 'open' | 'resolved' | 'dismissed';
@@ -34,6 +35,8 @@ export interface PmxAxApprovalGate {
     status: PmxAxApprovalStatus;
     nodeIds: string[];
     createdAt: string;
+    /** When a still-pending gate auto-holds (unattended-approval policy). */
+    expiresAt: string | null;
     resolvedAt: string | null;
     resolution: string | null;
     source: PmxAxSource | null;
@@ -194,6 +197,16 @@ export interface PmxAxCommandDescriptor {
 export declare const AX_COMMAND_REGISTRY: Record<string, PmxAxCommandDescriptor>;
 export declare function isAxCommand(name: unknown): name is string;
 export declare function listAxCommands(): PmxAxCommandDescriptor[];
+/**
+ * Scope fence (rail-chrome-v2 design item 4): the region an attached agent
+ * may WRITE to — the fenced node set plus `padding` px around its bounding
+ * box for new nodes. Reads are never fenced. `null` = unscoped.
+ */
+export interface PmxAxScopeFence {
+    nodeIds: string[];
+    padding: number;
+}
+export declare const DEFAULT_SCOPE_FENCE_PADDING = 40;
 export interface PmxAxPolicy {
     tools: {
         allowed: string[];
@@ -204,8 +217,10 @@ export interface PmxAxPolicy {
         systemAppend: string | null;
         mode: string | null;
     };
+    scope: PmxAxScopeFence | null;
 }
 export declare function createEmptyAxPolicy(): PmxAxPolicy;
+export declare function normalizeAxScopeFence(input: unknown): PmxAxScopeFence | null;
 export declare function normalizeAxPolicy(input: unknown): PmxAxPolicy;
 export declare function isAxEventKind(value: unknown): value is PmxAxEventKind;
 export declare function isAxEvidenceKind(value: unknown): value is PmxAxEvidenceKind;
@@ -269,7 +284,10 @@ export declare function createAxApprovalGate(input: {
     detail?: string | null;
     action?: string | null;
     nodeIds?: string[];
+    ttlMs?: number;
 }, source: PmxAxSource | null, validNodeIds?: Set<string>): PmxAxApprovalGate;
+/** Server default for a gate's TTL: `PMX_CANVAS_GATE_TTL_MS`, else five minutes. */
+export declare function defaultGateTtlMs(): number;
 export declare function createAxReviewAnnotation(input: {
     body: string;
     kind?: PmxAxReviewKind;

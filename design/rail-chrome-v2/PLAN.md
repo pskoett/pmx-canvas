@@ -95,15 +95,24 @@ is a visible element on today's board that does not yet match the prototypes.
 | Command palette | 560px top-anchored modal over scrim, grouped results, key hints | 7 (item 7) |
 | Annotation (free-floating note) | warm tinted, italic, `rotate(-1deg)` | 4a (same CSS pass) |
 
-### Phase 4 — Session panel — BUILT (core); items 3/4 pending
+### Phase 4 — Session panel — BUILT (incl. items 3 and 4)
 - `SessionPanel.tsx` (320px right column): AX work items with status glyphs, approval gates
   resolving through the existing gate path (reject posts steering feedback), timeline feed,
   collapse, ≤1180 overlay drawer (item 12). Top-bar pending-gate badge. Mounts on
   `sessionActive`; the canvas region re-reports its size when the panel mounts.
 - Presence now counts non-GET AX writes (work items, gates, evidence, steering) as agent
   activity, and re-emits when a gate opens/resolves (the phase derives from pending gates).
-- **Pending:** gate TTL + auto-hold + countdown (item 3); scope fence rendering + server-side
-  mutation check (item 4). Both are server features with their own verification — next.
+- **Item 3 — unattended approval policy:** gates carry `expiresAt` (`ttlMs`, default
+  `PMX_CANVAS_GATE_TTL_MS` = 5 min); a 1s server sweeper (`ax-gate-ttl.ts`) resolves unanswered
+  gates to `held` (non-approval, the action does not proceed), records a `policy` timeline
+  event, and re-emits presence. The panel shows the countdown, held gates with Reopen, and the
+  top-bar badge reads "1 gate · M:SS". Reopen is HTTP/SDK only (a human action).
+- **Item 4 — scope fence:** `policy.scope = { nodeIds, padding }`; `executeOperation` refuses
+  agent-originated layout writes outside it (403 with a reason), the human's workbench writes
+  and all reads pass, batch inner ops are fenced, unknown mutating ops are refused by default.
+  Drawn in the world layer from the shared geometry; the panel's scope row grants it from the
+  current selection and clears it. Not done: the on-node gate countdown (the design draws it in
+  the gate node; ours lives in the panel + badge) — phase 7 polish.
 
 ### Phase 5 — Command bar + session lifecycle
 - `ContextPinBar` evolves into the command bar: pin chips with unpin ×, steering input (posts AX

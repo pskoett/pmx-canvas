@@ -11,7 +11,7 @@
  */
 import type { ZodRawShape } from 'zod';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-export type OperationErrorStatus = 400 | 404 | 409;
+export type OperationErrorStatus = 400 | 403 | 404 | 409;
 /** Operation failure that maps to an HTTP status + `{ ok:false, error }` body and MCP `isError`. */
 export declare class OperationError extends Error {
     readonly status: OperationErrorStatus;

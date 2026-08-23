@@ -16,9 +16,11 @@ export interface ApprovalGateView {
   id: string;
   title: string;
   detail: string | null;
-  status: 'pending' | 'approved' | 'rejected';
+  status: 'pending' | 'approved' | 'rejected' | 'held';
   nodeIds: string[];
   createdAt: string;
+  /** Unattended-approval TTL: when a pending gate auto-holds. */
+  expiresAt: string | null;
 }
 export type AxEventKind =
   | 'prompt'
@@ -29,7 +31,8 @@ export type AxEventKind =
   | 'approval'
   | 'steering'
   | 'command'
-  | 'note';
+  | 'note'
+  | 'policy';
 export interface AxEventView {
   id: string;
   kind: AxEventKind;
@@ -57,9 +60,15 @@ export interface AxSteeringView {
  * attached. Gate decisions go through the existing resolve route.
  */
 
+export interface ScopeFenceView {
+  nodeIds: string[];
+  padding: number;
+}
+
 interface SurfaceView {
   workItems?: WorkItemView[];
   approvalGates?: ApprovalGateView[];
+  policy?: { scope?: ScopeFenceView | null };
 }
 
 function surface(): SurfaceView {
@@ -70,6 +79,31 @@ function surface(): SurfaceView {
 export const sessionWorkItems = computed<WorkItemView[]>(() => surface().workItems ?? []);
 export const sessionGates = computed<ApprovalGateView[]>(() => surface().approvalGates ?? []);
 export const pendingGates = computed(() => sessionGates.value.filter((gate) => gate.status === 'pending'));
+/** The scope fence the human granted the session (null = unscoped). */
+export const scopeFence = computed<ScopeFenceView | null>(() => {
+  const scope = surface().policy?.scope;
+  return scope && Array.isArray(scope.nodeIds) && scope.nodeIds.length > 0
+    ? { nodeIds: scope.nodeIds, padding: typeof scope.padding === 'number' ? scope.padding : 40 }
+    : null;
+});
+
+/** Grant or clear the fence: writes outside it are refused server-side; reads stay open. */
+export async function setScopeFence(nodeIds: string[] | null): Promise<boolean> {
+  try {
+    const response = await fetch('/api/canvas/ax/policy', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
+      body: JSON.stringify({ scope: nodeIds && nodeIds.length > 0 ? { nodeIds } : null, source: 'browser' }),
+    });
+    return response.ok;
+  } catch (error) {
+    console.error('[session-store] setScopeFence failed', error);
+    return false;
+  }
+}
+
+/** Auto-held gates: the policy said no on the human's behalf; they can be reopened. */
+export const heldGates = computed(() => sessionGates.value.filter((gate) => gate.status === 'held'));
 
 export interface AxTimelineView {
   events: AxEventView[];
@@ -99,6 +133,7 @@ const EVENT_LABELS: Record<AxEventKind, string> = {
   steering: 'Steering',
   command: 'Command',
   note: 'Note',
+  policy: 'Policy',
 };
 
 /** One reverse-chronological feed out of the three timeline tables. */
@@ -170,6 +205,21 @@ export async function resolveGate(gate: ApprovalGateView, decision: 'approved' |
     return true;
   } catch (error) {
     console.error('[session-store] resolveGate failed', error);
+    return false;
+  }
+}
+
+/** Reopen an auto-held gate so it can be answered (fresh TTL). */
+export async function reopenGate(gate: ApprovalGateView): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/canvas/ax/approval/${encodeURIComponent(gate.id)}/reopen`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
+      body: JSON.stringify({ source: 'browser' }),
+    });
+    return response.ok;
+  } catch (error) {
+    console.error('[session-store] reopenGate failed', error);
     return false;
   }
 }

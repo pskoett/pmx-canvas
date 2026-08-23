@@ -36,6 +36,7 @@ import type { CanvasAnnotation, CanvasNodeState } from '../types';
 import { FocusFieldLayer } from './FocusFieldLayer';
 import { IntentLayer } from './IntentLayer';
 import { AgentPresenceLayer } from './AgentPresenceLayer';
+import { ScopeFenceLayer } from './ScopeFenceLayer';
 import { CanvasNode } from './CanvasNode';
 import { EdgeLayer } from './EdgeLayer';
 import { AnnotationLayer } from './AnnotationLayer';
@@ -827,6 +828,7 @@ export function CanvasViewport({
         }}
       >
         <FocusFieldLayer />
+        <ScopeFenceLayer />
         <IntentLayer />
         <AgentPresenceLayer />
         <EdgeLayer nodes={nodes} edges={edges} />

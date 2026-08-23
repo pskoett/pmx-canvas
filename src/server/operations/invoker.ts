@@ -40,7 +40,7 @@ export class LocalOperationInvoker implements OperationInvoker {
 }
 
 function toOperationErrorStatus(status: number): OperationErrorStatus {
-  return status === 404 ? 404 : status === 409 ? 409 : 400;
+  return status === 404 ? 404 : status === 409 ? 409 : status === 403 ? 403 : 400;
 }
 
 /** Builds the HTTP request from the op's route template (`:id` from input, GET flags to query). */

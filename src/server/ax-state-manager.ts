@@ -21,6 +21,7 @@
  * `recordMutation`, and a `suppressed` wrapper for history closures.
  */
 
+import { clampGateTtlMs } from '../shared/approval-gates.js';
 import {
   appendAxEventToDB,
   appendAxEvidenceToDB,
@@ -39,6 +40,7 @@ import {
 } from './canvas-db.js';
 import {
   createEmptyAxState,
+  defaultGateTtlMs,
   createEmptyAxHostCapability,
   normalizeAxState,
   normalizeAxHostCapability,
@@ -323,7 +325,7 @@ export class AxStateManager {
   }
 
   requestApproval(
-    input: { title: string; detail?: string | null; action?: string | null; nodeIds?: string[] },
+    input: { title: string; detail?: string | null; action?: string | null; nodeIds?: string[]; ttlMs?: number },
     options: { source?: PmxAxSource } = {},
   ): PmxAxApprovalGate {
     const oldAxState = this.getAxState();
@@ -351,7 +353,7 @@ export class AxStateManager {
 
   resolveApproval(
     id: string,
-    decision: 'approved' | 'rejected',
+    decision: 'approved' | 'rejected' | 'held',
     options: { resolution?: string; source?: PmxAxSource } = {},
   ): PmxAxApprovalGate | null {
     const oldAxState = this.getAxState();
@@ -371,6 +373,43 @@ export class AxStateManager {
     this.deps.recordMutation({
       operationType: 'resolveApproval',
       description: `Resolved approval ${id} -> ${decision}`,
+      forward: this.deps.suppressed(() => {
+        this.applyAxState(applied);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
+      inverse: this.deps.suppressed(() => {
+        this.applyAxState(oldAxState);
+        this.deps.scheduleSave();
+        this.deps.notifyChange('ax');
+      }),
+    });
+    return applied.approvalGates.find((g) => g.id === id) ?? null;
+  }
+
+  /**
+   * Reopen a resolved gate (typically one the unattended-approval policy
+   * auto-held): back to pending with a fresh TTL, so the human can answer it.
+   */
+  reopenApproval(id: string, options: { ttlMs?: number; source?: PmxAxSource } = {}): PmxAxApprovalGate | null {
+    const oldAxState = this.getAxState();
+    const gate = oldAxState.approvalGates.find((g) => g.id === id);
+    if (!gate || gate.status === 'pending') return null;
+    const reopened: PmxAxApprovalGate = {
+      ...gate,
+      status: 'pending',
+      expiresAt: new Date(Date.now() + clampGateTtlMs(options.ttlMs, defaultGateTtlMs())).toISOString(),
+      resolvedAt: null,
+      resolution: null,
+      source: options.source ?? gate.source,
+    };
+    this.applyAxState({ ...oldAxState, approvalGates: replaceById(oldAxState.approvalGates, reopened) });
+    const applied = this.getAxState();
+    this.deps.scheduleSave();
+    this.deps.notifyChange('ax');
+    this.deps.recordMutation({
+      operationType: 'resolveApproval',
+      description: `Reopened approval ${id}`,
       forward: this.deps.suppressed(() => {
         this.applyAxState(applied);
         this.deps.scheduleSave();
@@ -660,13 +699,24 @@ export class AxStateManager {
 
   /** Merge a declarative tool/prompt policy patch (canvas-bound, snapshotted). */
   setPolicy(
-    patch: { tools?: Partial<PmxAxPolicy['tools']>; prompt?: Partial<PmxAxPolicy['prompt']> },
+    patch: {
+      tools?: Partial<PmxAxPolicy['tools']>;
+      prompt?: Partial<PmxAxPolicy['prompt']>;
+      /** Replace semantics: an object sets the fence, `null` clears it, absent leaves it. */
+      scope?: { nodeIds: string[]; padding?: number } | null;
+    },
     _options: { source?: PmxAxSource } = {},
   ): PmxAxPolicy {
     const oldAxState = this.getAxState();
     const merged = normalizeAxPolicy({
       tools: { ...oldAxState.policy.tools, ...(patch.tools ?? {}) },
       prompt: { ...oldAxState.policy.prompt, ...(patch.prompt ?? {}) },
+      scope:
+        patch.scope === undefined
+          ? oldAxState.policy.scope
+          : patch.scope === null
+            ? null
+            : { ...patch.scope, nodeIds: patch.scope.nodeIds.filter((id) => this.deps.getNodeIds().has(id)) },
     });
     this.applyAxState({ ...oldAxState, policy: merged });
     const applied = this.getAxState();

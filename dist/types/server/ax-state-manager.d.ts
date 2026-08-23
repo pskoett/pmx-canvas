@@ -96,11 +96,20 @@ export declare class AxStateManager {
         detail?: string | null;
         action?: string | null;
         nodeIds?: string[];
+        ttlMs?: number;
     }, options?: {
         source?: PmxAxSource;
     }): PmxAxApprovalGate;
-    resolveApproval(id: string, decision: 'approved' | 'rejected', options?: {
+    resolveApproval(id: string, decision: 'approved' | 'rejected' | 'held', options?: {
         resolution?: string;
+        source?: PmxAxSource;
+    }): PmxAxApprovalGate | null;
+    /**
+     * Reopen a resolved gate (typically one the unattended-approval policy
+     * auto-held): back to pending with a fresh TTL, so the human can answer it.
+     */
+    reopenApproval(id: string, options?: {
+        ttlMs?: number;
         source?: PmxAxSource;
     }): PmxAxApprovalGate | null;
     getReviewAnnotations(): PmxAxReviewAnnotation[];
@@ -161,6 +170,11 @@ export declare class AxStateManager {
     setPolicy(patch: {
         tools?: Partial<PmxAxPolicy['tools']>;
         prompt?: Partial<PmxAxPolicy['prompt']>;
+        /** Replace semantics: an object sets the fence, `null` clears it, absent leaves it. */
+        scope?: {
+            nodeIds: string[];
+            padding?: number;
+        } | null;
     }, _options?: {
         source?: PmxAxSource;
     }): PmxAxPolicy;

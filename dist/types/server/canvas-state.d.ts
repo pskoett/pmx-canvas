@@ -323,11 +323,17 @@ declare class CanvasStateManager {
         detail?: string | null;
         action?: string | null;
         nodeIds?: string[];
+        ttlMs?: number;
     }, options?: {
         source?: PmxAxSource;
     }): PmxAxApprovalGate;
-    resolveApproval(id: string, decision: 'approved' | 'rejected', options?: {
+    resolveApproval(id: string, decision: 'approved' | 'rejected' | 'held', options?: {
         resolution?: string;
+        source?: PmxAxSource;
+    }): PmxAxApprovalGate | null;
+    /** Reopen a resolved (typically auto-held) gate with a fresh TTL. */
+    reopenApproval(id: string, options?: {
+        ttlMs?: number;
         source?: PmxAxSource;
     }): PmxAxApprovalGate | null;
     getReviewAnnotations(): PmxAxReviewAnnotation[];
@@ -388,6 +394,10 @@ declare class CanvasStateManager {
     setPolicy(patch: {
         tools?: Partial<PmxAxPolicy['tools']>;
         prompt?: Partial<PmxAxPolicy['prompt']>;
+        scope?: {
+            nodeIds: string[];
+            padding?: number;
+        } | null;
     }, options?: {
         source?: PmxAxSource;
     }): PmxAxPolicy;

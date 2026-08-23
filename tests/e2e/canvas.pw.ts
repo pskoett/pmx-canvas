@@ -3592,7 +3592,7 @@ test('session panel: work items, gate approval from the panel, drawer below 1180
   await expect(panel.locator('.session-item').filter({ hasText: 'Summarize telemetry' })).toHaveClass(/status-done/);
   await expect(panel.locator('.session-item').filter({ hasText: 'Update widgets' })).toHaveClass(/status-running/);
   await expect(panel.locator('.session-gate').filter({ hasText: 'Ship REL-421' })).toHaveCount(1);
-  await expect(page.locator('.gate-badge')).toHaveText('1 gate');
+  await expect(page.locator('.gate-badge')).toHaveText(/^1 gate · \d+:\d\d$/);
   await expect(page.locator('.agent-chip .agent-chip-label')).toHaveText('Waiting on you');
 
   // The panel took 320px from the canvas region (poll: the 180ms mount slide
@@ -3648,6 +3648,122 @@ test('session panel: work items, gate approval from the panel, drawer below 1180
   await request.post('/api/canvas/ax/activity', { data: { kind: 'session-end', title: 'done', source: 'copilot' } });
   await expect(panel).toHaveCount(0);
   await expect(page.locator('.app-shell')).toHaveAttribute('data-session-active', 'false');
+});
+
+test('unattended approval: countdown, auto-hold with a policy entry, reopen from the panel', async ({
+  page,
+  request,
+}) => {
+  const created = await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'TTL target', content: 'x', x: 160, y: 140, width: 320, height: 180 },
+  });
+  const node = (await created.json()) as { id: string };
+  await request.post('/api/canvas/ax/activity', { data: { kind: 'session-start', title: 'Codex', source: 'codex' } });
+  const gateResponse = await request.post('/api/canvas/ax/approval', {
+    data: { title: 'Delete old branches', nodeIds: [node.id], ttlMs: 3000, source: 'codex' },
+  });
+  const gate = (await gateResponse.json()) as { approvalGate: { id: string; expiresAt: string | null } };
+  expect(gate.approvalGate.expiresAt).toBeTruthy();
+
+  await page.goto('/workbench');
+  const panel = page.locator('.session-panel');
+  // The gate card counts down and the top-bar badge carries the same clock.
+  await expect(panel.locator('[data-testid="gate-countdown"]')).toHaveText(/auto-holds in 0:0[0-3] if unanswered/);
+  await expect(page.locator('.gate-badge')).toHaveText(/1 gate · 0:0[0-3]/);
+
+  // Nobody answers → the policy holds it: the card flips to held, the badge
+  // and waiting-approval phase clear, and a Policy entry lands in the timeline.
+  await expect(panel.locator('.session-gate-held').filter({ hasText: 'Delete old branches' })).toHaveCount(1, {
+    timeout: 8000,
+  });
+  await expect(panel.locator('.session-gate')).toHaveCount(0);
+  await expect(page.locator('.gate-badge')).toHaveCount(0);
+  await expect(panel.locator('.session-timeline-label').filter({ hasText: 'Policy' }).first()).toBeVisible();
+  const heldState = await (await request.get(`/api/canvas/ax/approval/${gate.approvalGate.id}`)).json();
+  expect((heldState as { approvalGate: { status: string } }).approvalGate.status).toBe('held');
+
+  // Reopen from the panel → pending again with a fresh clock.
+  await panel.locator('.session-gate-held').getByRole('button', { name: 'Reopen' }).click();
+  await expect(panel.locator('.session-gate').filter({ hasText: 'Delete old branches' })).toHaveCount(1);
+  await expect(panel.locator('[data-testid="gate-countdown"]')).toHaveText(/auto-holds in 4:5[0-9]|auto-holds in 5:00/);
+  await expect(page.locator('.gate-badge')).toHaveText(/1 gate/);
+});
+
+test('scope fence: granted from the selection, drawn around the fenced nodes, enforced on agent writes', async ({
+  page,
+  request,
+}) => {
+  const a = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Fence A', content: 'a', x: 120, y: 120, width: 260, height: 140 },
+    })
+  ).json()) as { id: string };
+  const b = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Fence B', content: 'b', x: 480, y: 160, width: 260, height: 140 },
+    })
+  ).json()) as { id: string };
+  const far = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Far away', content: 'c', x: 1400, y: 900, width: 200, height: 120 },
+    })
+  ).json()) as { id: string };
+  await request.post('/api/canvas/ax/activity', { data: { kind: 'session-start', title: 'Codex', source: 'codex' } });
+
+  await page.goto('/workbench');
+  const panel = page.locator('.session-panel');
+  await expect(panel.locator('[data-testid="session-scope"]')).toContainText('Unscoped');
+  await expect(page.locator('.scope-fence')).toHaveCount(0);
+
+  // Select A and B (shift+click toggles a node into the selection) and fence the agent to them.
+  await page
+    .locator('.canvas-node')
+    .filter({ hasText: 'Fence A' })
+    .locator('.node-body')
+    .click({ modifiers: ['Shift'] });
+  await page
+    .locator('.canvas-node')
+    .filter({ hasText: 'Fence B' })
+    .locator('.node-body')
+    .click({ modifiers: ['Shift'] });
+  await expect(page.locator('.selection-bar')).toBeVisible();
+  await panel.getByRole('button', { name: /Fence to selection \(2\)/ }).click();
+  await expect(panel.locator('[data-testid="session-scope"]')).toContainText('Scoped to 2 nodes');
+
+  // The fence is drawn around exactly those nodes.
+  const fence = page.locator('.scope-fence');
+  await expect(fence).toHaveAttribute('data-fenced-count', '2');
+  const [fenceBox, aBox, bBox, farBox] = await Promise.all([
+    fence.boundingBox(),
+    page.locator('.canvas-node').filter({ hasText: 'Fence A' }).boundingBox(),
+    page.locator('.canvas-node').filter({ hasText: 'Fence B' }).boundingBox(),
+    page.locator('.canvas-node').filter({ hasText: 'Far away' }).boundingBox(),
+  ]);
+  if (!fenceBox || !aBox || !bBox || !farBox) throw new Error('missing boxes');
+  const encloses = (box: { x: number; y: number; width: number; height: number }) =>
+    box.x >= fenceBox.x &&
+    box.y >= fenceBox.y &&
+    box.x + box.width <= fenceBox.x + fenceBox.width &&
+    box.y + box.height <= fenceBox.y + fenceBox.height;
+  expect(encloses(aBox)).toBe(true);
+  expect(encloses(bBox)).toBe(true);
+  expect(encloses(farBox)).toBe(false);
+  await expect(fence.locator('.scope-fence-pill-top')).toHaveText('Agent scope · 2 nodes');
+
+  // The agent is held to it: an outside write is refused, an inside one lands.
+  const blocked = await request.patch(`/api/canvas/node/${far.id}`, { data: { title: 'Agent touched far' } });
+  expect(blocked.status()).toBe(403);
+  const allowed = await request.patch(`/api/canvas/node/${a.id}`, { data: { title: 'Fence A (agent)' } });
+  expect(allowed.ok()).toBe(true);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Fence A (agent)' })).toHaveCount(1);
+  expect(b.id).toBeTruthy();
+
+  // Clear it from the panel.
+  await panel.getByRole('button', { name: 'Clear' }).click();
+  await expect(panel.locator('[data-testid="session-scope"]')).toContainText('Unscoped');
+  await expect(page.locator('.scope-fence')).toHaveCount(0);
+  const freed = await request.patch(`/api/canvas/node/${far.id}`, { data: { title: 'Agent touched far' } });
+  expect(freed.ok()).toBe(true);
 });
 
 test('rail popovers anchor beside their trigger on narrow screens', async ({ page }) => {

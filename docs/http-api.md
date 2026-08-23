@@ -186,14 +186,21 @@ curl -X PATCH http://localhost:4313/api/canvas/ax/work/<id> \
   -d '{"status":"done"}'
 curl http://localhost:4313/api/canvas/ax/work
 
-# Canvas-bound — request / resolve an approval gate (pending → approved/rejected)
+# Canvas-bound — request / resolve an approval gate (pending → approved/rejected/held)
 curl -X POST http://localhost:4313/api/canvas/ax/approval \
   -H "Content-Type: application/json" \
-  -d '{"title":"Deploy to prod","action":"deploy.prod","source":"api"}'
+  -d '{"title":"Deploy to prod","action":"deploy.prod","ttlMs":300000,"source":"api"}'
 curl -X POST http://localhost:4313/api/canvas/ax/approval/<id>/resolve \
   -H "Content-Type: application/json" \
   -d '{"decision":"approved","source":"api"}'
 curl http://localhost:4313/api/canvas/ax/approval
+# Unattended-approval policy: a gate nobody answers within its TTL (default
+# PMX_CANVAS_GATE_TTL_MS = 5 min, max 24 h) resolves to `held` — the action does
+# NOT proceed, an awaiting agent is released with a non-approval, and a
+# `policy` agent-event explains why. Reopen it (fresh TTL) from the session
+# panel or here; this is the human's path, not an MCP tool.
+curl -X POST http://localhost:4313/api/canvas/ax/approval/<id>/reopen \
+  -H "Content-Type: application/json" -d '{"source":"browser"}'
 
 # Canvas-bound — add a review annotation (comment/finding) anchored to node/file/region
 curl -X POST http://localhost:4313/api/canvas/ax/review \
@@ -263,6 +270,25 @@ This is what lets a Copilot/Codex/Claude Code session that writes through MCP
 keep one cursor. Pass `agentId` (sub-agents) or a host label to keep a writer
 separate; with several sessions attached, transport writes stay on their own
 label.
+
+## Scope fence (agent writes)
+
+The policy's `scope` limits what an attached agent may WRITE: existing-node
+writes must target fenced nodes, new nodes must land inside the fenced
+nodes' bounding box plus `padding` px (default 40), and board-wide writes
+(arrange, clear, restore) are refused. Every refusal is HTTP 403 with a reason
+naming the node or position. Reads are never fenced, nor are the human's own
+workbench writes. The fence is visible to the agent in `canvas://ax-context`
+(`policy.scope`) and drawn on the canvas while a session is attached.
+
+```bash
+# Grant (replace semantics) and clear
+curl -X POST http://localhost:4313/api/canvas/ax/policy \
+  -H "Content-Type: application/json" -H "x-pmx-workbench: 1" \
+  -d '{"scope":{"nodeIds":["<node-a>","<node-b>"],"padding":40},"source":"browser"}'
+curl -X POST http://localhost:4313/api/canvas/ax/policy \
+  -H "Content-Type: application/json" -d '{"scope":null}'
+```
 
 ## AX interactions, delivery, elicitation, mode, commands & policy
 

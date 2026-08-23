@@ -1390,6 +1390,14 @@ body,
   border-color: color-mix(in srgb, var(--c-warn) 35%, transparent);
   background: color-mix(in srgb, var(--c-warn) 6%, transparent);
 }
+.session-gate-ttl {
+  margin-top: 4px;
+  font: 10px var(--mono);
+  color: var(--c-warn);
+}
+.session-gate-held {
+  opacity: 0.85;
+}
 .session-gate-actions {
   display: flex;
   gap: 6px;
@@ -1475,6 +1483,92 @@ body,
   line-height: 1.5;
   color: var(--c-text-soft);
   overflow-wrap: anywhere;
+}
+
+/* Scope row (session panel) */
+.session-scope {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px 8px 16px;
+  border-bottom: 1px solid var(--c-line);
+  font-size: 10.5px;
+  color: var(--c-muted);
+}
+.session-scope.is-fenced {
+  background: color-mix(in srgb, var(--c-purple) 8%, transparent);
+  color: var(--c-text-soft);
+}
+.session-scope-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-dim);
+  flex-shrink: 0;
+}
+.session-scope.is-fenced .session-scope-dot {
+  background: var(--c-purple);
+}
+.session-scope-text {
+  flex: 1;
+  min-width: 0;
+}
+.session-scope-text strong {
+  color: var(--c-purple);
+}
+.session-scope-action {
+  padding: 3px 9px;
+  border-radius: 6px;
+  border: 1px solid var(--c-line);
+  background: none;
+  color: var(--c-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.session-scope-action:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--c-purple) 45%, transparent);
+  color: var(--c-purple);
+}
+.session-scope-action:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Scope fence on the canvas (world layer) */
+.scope-fence {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 1;
+  pointer-events: none;
+  border: 1.5px dashed color-mix(in srgb, var(--c-purple) 40%, transparent);
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--c-purple) 3%, transparent);
+}
+.scope-fence-pill {
+  position: absolute;
+  left: 14px;
+  transform-origin: 0 50%;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--c-purple) 35%, transparent);
+  background: color-mix(in srgb, var(--c-panel) 92%, var(--c-purple) 8%);
+  color: var(--c-purple);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+.scope-fence-pill-top {
+  top: -11px;
+}
+.scope-fence-pill-bottom {
+  bottom: -11px;
+  color: var(--c-muted);
+  font-weight: 500;
+  letter-spacing: 0;
 }
 
 /* Top-bar escalation badge while gates are pending */

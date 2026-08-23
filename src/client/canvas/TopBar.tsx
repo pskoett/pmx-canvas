@@ -18,6 +18,7 @@ import { canvasArea } from './canvas-area';
 import { agentPhaseLabel } from '../../shared/agent-presence.js';
 import { activeSession } from '../state/presence-store';
 import { pendingGates } from '../state/session-store';
+import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
 
 function BarHint({
   label,
@@ -64,14 +65,28 @@ function AgentChip() {
   );
 }
 
-/** Amber escalation badge while any approval gate is pending in an attached session. */
+/**
+ * Amber escalation badge while any approval gate is pending in an attached
+ * session: "1 gate · 4:31" — the countdown is the soonest auto-hold.
+ */
 function GateBadge() {
-  if (!activeSession.value) return null;
+  const [now, setNow] = useState(() => Date.now());
   const count = pendingGates.value.length;
-  if (count === 0) return null;
+  const active = activeSession.value !== null && count > 0;
+  useEffect(() => {
+    if (!active) return;
+    const timer = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [active]);
+  if (!active) return null;
+  const soonest = pendingGates.value
+    .map((gate) => gateRemainingMs(gate, now))
+    .filter((ms): ms is number => ms !== null)
+    .sort((a, b) => a - b)[0];
   return (
     <span class="gate-badge" title="Approval gates waiting on you — resolve them in the session panel">
       {count} gate{count === 1 ? '' : 's'}
+      {soonest !== undefined && ` · ${formatCountdown(soonest)}`}
     </span>
   );
 }

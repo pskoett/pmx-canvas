@@ -444,7 +444,7 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 | `canvas_query` | `search` · `layout` · `validate` | Find nodes by keyword, read full layout, or **`validate`** the board for node collisions / group-containment / dangling edges |
 | `canvas_app` | `open-mcp-app` · `diagram` · `build-artifact` | Hosted MCP apps, the Excalidraw diagram preset, and bundled web artifacts (folds `canvas_open_mcp_app` / `canvas_add_diagram` / `canvas_build_web_artifact`) |
 | `canvas_webview` | `status` · `start` · `stop` · `resize` · `evaluate` | Headless Bun.WebView automation for the workbench (folds the `canvas_webview_*` / `canvas_resize` / `canvas_evaluate` tools) |
-| `canvas_ax_state` | `get` · `set-focus` · `set-policy` · `report-capability` · `presence` · `set-presence` | Read AX state; set AX focus; patch tool/prompt policy; report host capability; read / set agent presence (phase, cursor, focus, attached session) |
+| `canvas_ax_state` | `get` · `set-focus` · `set-policy` · `report-capability` · `presence` · `set-presence` | Read AX state; set AX focus; patch tool/prompt policy incl. the scope fence; report host capability; read / set agent presence (phase, cursor, focus, attached session) |
 | `canvas_ax_work` | `add` · `update` · `annotate` | Canvas-bound work items + review annotations |
 | `canvas_ax_gate` | `request` · `resolve` · `await` × `kind` `approval` \| `elicitation` \| `mode` | The human-decision gate machine (request → await → resolve) |
 | `canvas_ax_timeline` | `read` · `record-event` · `add-evidence` · `send-steering` | The bounded AX diagnostics timeline |
@@ -1098,10 +1098,19 @@ nodes.
   `pmx-canvas ax command invoke`; envelope `ax.command.invoke`). Unknown names
   are rejected; an invocation records an `agent-event` of kind `command`.
 - **Policy:** a canvas-bound, snapshotted tool/prompt policy
-  (`tools.allowed|excluded|approvalRequired`, `prompt.systemAppend|mode`) read
-  into `canvas://ax-context`. Patch it with `canvas_ax_state { action: "set-policy" }`
-  (HTTP `GET|POST /api/canvas/ax/policy`; CLI `pmx-canvas ax policy get|set`); patches
-  merge and are normalized server-side.
+  (`tools.allowed|excluded|approvalRequired`, `prompt.systemAppend|mode`, and the
+  **scope fence** `scope: { nodeIds, padding }`) read into `canvas://ax-context`. Patch it
+  with `canvas_ax_state { action: "set-policy" }` (HTTP `GET|POST /api/canvas/ax/policy`;
+  CLI `pmx-canvas ax policy get|set`); patches merge and are normalized server-side.
+  While a fence is set, your canvas WRITES outside it (nodes not in the set, new nodes
+  outside the fenced box, arrange/clear/restore) are refused with HTTP 403 naming the
+  reason; reads are never fenced. Read `policy.scope` before writing and ask the human to
+  widen it rather than retrying.
+- **Unattended approvals:** a pending approval gate carries a TTL (`ttlMs` on the request,
+  default 5 min). If the human does not answer in time it resolves to `held` — a
+  non-approval: do not proceed — and a `policy` agent-event explains why. The human can
+  reopen it from the session panel; an `await` on the gate returns when it leaves
+  `pending`, so treat any status other than `approved` as "do not proceed".
 
 Interactions request PMX-AX primitives only — never arbitrary shell, tool, MCP,
 or host execution.

@@ -21,6 +21,7 @@ optional; defaults are listed.
 | `PMX_CANVAS_STATE_FILE` | server | `.db`-path alias only as of 0.4.0 (non-`.db` values are ignored with a boot warning; the pre-0.2 JSON import was removed). |
 | `PMX_CANVAS_BLOB_THRESHOLD_BYTES` | server | Node payloads above this many JSON bytes are stored as blobs (default `2048`). |
 | `PMX_CANVAS_AGENT_SOURCE` | MCP transport, CLI | Names the agent behind this transport for presence (`codex`, `claude-code`, …) so its writes, attach and cursor share one identity; default is the transport label (`mcp` / `cli`). |
+| `PMX_CANVAS_GATE_TTL_MS` | server | Default TTL for approval gates before the unattended-approval policy auto-holds them (default `300000` = 5 min, clamped to 1 s – 24 h). |
 | `PMX_CANVAS_CONTEXT_BUDGET_TOKENS` | server | `budget.total` in agent presence — the context-budget meter's ceiling for the pinned-context token estimate (default `32000`). |
 
 ## Server behavior

@@ -92,7 +92,11 @@ export async function dispatchOperationRoute(req: Request, url: URL): Promise<Re
       // HTTP callers read as 'api'.
       const sourceHeader = req.headers.get('x-pmx-source');
       const source = sourceHeader && /^[a-z][a-z0-9-]{0,39}$/i.test(sourceHeader) ? sourceHeader : 'api';
-      const result = await executeOperation(op.name, input, { suppressAutoGhost: fromWorkbench, source });
+      const result = await executeOperation(op.name, input, {
+        suppressAutoGhost: fromWorkbench,
+        fromWorkbench,
+        source,
+      });
       return responseJson(result, route.status ? route.status(result) : 200);
     } catch (error) {
       if (error instanceof OperationError) {

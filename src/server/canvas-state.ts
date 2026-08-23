@@ -1815,7 +1815,7 @@ class CanvasStateManager {
   }
 
   requestApproval(
-    input: { title: string; detail?: string | null; action?: string | null; nodeIds?: string[] },
+    input: { title: string; detail?: string | null; action?: string | null; nodeIds?: string[]; ttlMs?: number },
     options: { source?: PmxAxSource } = {},
   ): PmxAxApprovalGate {
     return this.ax.requestApproval(input, options);
@@ -1823,10 +1823,15 @@ class CanvasStateManager {
 
   resolveApproval(
     id: string,
-    decision: 'approved' | 'rejected',
+    decision: 'approved' | 'rejected' | 'held',
     options: { resolution?: string; source?: PmxAxSource } = {},
   ): PmxAxApprovalGate | null {
     return this.ax.resolveApproval(id, decision, options);
+  }
+
+  /** Reopen a resolved (typically auto-held) gate with a fresh TTL. */
+  reopenApproval(id: string, options: { ttlMs?: number; source?: PmxAxSource } = {}): PmxAxApprovalGate | null {
+    return this.ax.reopenApproval(id, options);
   }
 
   // ── Review annotations (canvas-bound) ─────────────────────────────
@@ -1933,7 +1938,11 @@ class CanvasStateManager {
 
   /** Merge a declarative tool/prompt policy patch (canvas-bound, snapshotted). */
   setPolicy(
-    patch: { tools?: Partial<PmxAxPolicy['tools']>; prompt?: Partial<PmxAxPolicy['prompt']> },
+    patch: {
+      tools?: Partial<PmxAxPolicy['tools']>;
+      prompt?: Partial<PmxAxPolicy['prompt']>;
+      scope?: { nodeIds: string[]; padding?: number } | null;
+    },
     options: { source?: PmxAxSource } = {},
   ): PmxAxPolicy {
     return this.ax.setPolicy(patch, options);

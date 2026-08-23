@@ -229,6 +229,11 @@ export declare class PmxCanvas extends EventEmitter {
         resolution?: string;
         source?: PmxAxSource;
     }): PmxAxApprovalGate | null;
+    /** Reopen a resolved (typically auto-held) approval gate with a fresh TTL. */
+    reopenApproval(id: string, options?: {
+        ttlMs?: number;
+        source?: PmxAxSource;
+    }): PmxAxApprovalGate | null;
     addEvidence(input: {
         kind: PmxAxEvidenceKind;
         title: string;

@@ -10,6 +10,7 @@
 import { canvasState } from '../canvas-state.js';
 import { intentRegistry } from '../intent-registry.js';
 import { agentPresence } from '../agent-presence.js';
+import { checkScopeFence } from '../scope-fence.js';
 import type { PmxAxIntent, PmxAxIntentKind } from '../../shared/ax-intent.js';
 import { OperationError, type Operation, type OperationContext } from './types.js';
 
@@ -199,6 +200,12 @@ export interface ExecuteOperationMeta {
    * Defaults to 'api'. Workbench calls (suppressAutoGhost) never touch presence.
    */
   source?: string;
+  /**
+   * The human's own browser issued this call. Distinct from suppressAutoGhost
+   * (which batch also sets for its inner dispatches): the scope fence applies
+   * to agents only, and batch inner writes are always agent-originated.
+   */
+  fromWorkbench?: boolean;
 }
 
 /**
@@ -266,6 +273,12 @@ export async function executeOperation(
   meta: ExecuteOperationMeta = {},
 ): Promise<unknown> {
   const op = getOperation(name);
+  // Scope fence (design item 4): an attached agent's writes must stay inside
+  // the fence the human granted. Reads and the human's own writes pass.
+  if (op.mutates && !meta.fromWorkbench) {
+    const refusal = checkScopeFence(op, rawInput);
+    if (refusal) throw new OperationError(`Outside the agent scope: ${refusal}`, 403);
+  }
   const intentId = linkedIntentId(rawInput);
   const allowedKinds = intentId ? allowedIntentKinds(name, rawInput) : undefined;
   if (intentId && !allowedKinds) {

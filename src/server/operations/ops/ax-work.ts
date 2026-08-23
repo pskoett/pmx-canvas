@@ -379,6 +379,10 @@ const axApprovalRequestShape = {
   detail: z.unknown().optional().describe('Optional explanation of the action and its impact.'),
   action: z.unknown().optional().describe('Optional machine-readable action identifier the approval gates.'),
   nodeIds: z.unknown().optional().describe('Optional node IDs this approval relates to.'),
+  ttlMs: z
+    .unknown()
+    .optional()
+    .describe('Unattended-approval TTL in ms; the gate auto-holds if unanswered (default 5 min, max 24 h).'),
   source: z.unknown().optional().describe('Optional host/source label. Defaults to mcp.'),
 };
 
@@ -402,6 +406,10 @@ const axApprovalRequestOperation = defineOperation<z.infer<typeof axApprovalRequ
       detail: z.string().optional().describe('Optional explanation of the action and its impact.'),
       action: z.string().optional().describe('Optional machine-readable action identifier the approval gates.'),
       nodeIds: z.array(z.string()).optional().describe('Optional node IDs this approval relates to.'),
+      ttlMs: z
+        .number()
+        .optional()
+        .describe('Unattended-approval TTL in ms; the gate auto-holds if unanswered (default 5 min, max 24 h).'),
       source: AX_SOURCE_SHAPE,
     },
     buildInput: (input) => ({ ...input, source: normalizeAxSource(input.source, 'mcp') }),
@@ -411,17 +419,55 @@ const axApprovalRequestOperation = defineOperation<z.infer<typeof axApprovalRequ
     if (typeof input.title !== 'string' || !input.title.trim()) {
       throw new OperationError('approval request requires a title.');
     }
+    const ttlMs = Number(input.ttlMs);
     const approvalGate = canvasState.requestApproval(
       {
         title: input.title,
         ...(typeof input.detail === 'string' ? { detail: input.detail } : {}),
         ...(typeof input.action === 'string' ? { action: input.action } : {}),
         ...(Array.isArray(input.nodeIds) ? { nodeIds: normalizeAxNodeIds(input.nodeIds) } : {}),
+        ...(Number.isFinite(ttlMs) && ttlMs > 0 ? { ttlMs } : {}),
       },
       { source: normalizeAxSource(input.source, 'api') },
     );
     ctx.emit('ax-state-changed', { approvalGate });
     // The attached session's phase derives from pending gates — re-emit presence.
+    agentPresence.refresh();
+    return { ok: true, approvalGate } as unknown as Record<string, unknown>;
+  },
+});
+
+// ── ax.approval.reopen (session panel; human-facing) ──────────
+
+const axApprovalReopenShape = {
+  id: z.unknown().optional().describe('Approval gate id.'),
+  ttlMs: z.unknown().optional().describe('Fresh TTL in ms (default 5 min).'),
+  source: z.unknown().optional().describe('Optional host/source label.'),
+};
+const axApprovalReopenSchema = z.looseObject(axApprovalReopenShape);
+
+/**
+ * Reopen a resolved gate — the unattended-approval policy's "auto-held" exit.
+ * HTTP + SDK only: reopening is the HUMAN answering late, not an agent op.
+ */
+const axApprovalReopenOperation = defineOperation<z.infer<typeof axApprovalReopenSchema>, Record<string, unknown>>({
+  name: 'ax.approval.reopen',
+  mutates: false,
+  input: axApprovalReopenSchema,
+  inputShape: axApprovalReopenShape,
+  http: {
+    method: 'POST',
+    path: '/api/canvas/ax/approval/:id/reopen',
+  },
+  handler: (input, ctx) => {
+    const id = typeof input.id === 'string' ? input.id : '';
+    const ttlMs = Number(input.ttlMs);
+    const approvalGate = canvasState.reopenApproval(id, {
+      ...(Number.isFinite(ttlMs) && ttlMs > 0 ? { ttlMs } : {}),
+      source: normalizeAxSource(input.source, 'browser'),
+    });
+    if (!approvalGate) throw new OperationError(`Approval gate "${id}" is not resolved (or does not exist).`, 404);
+    ctx.emit('ax-state-changed', { approvalGate });
     agentPresence.refresh();
     return { ok: true, approvalGate } as unknown as Record<string, unknown>;
   },
@@ -681,6 +727,7 @@ export const axWorkOperations: Operation[] = [
   axReviewUpdateOperation,
   axApprovalRequestOperation,
   axApprovalResolveOperation,
+  axApprovalReopenOperation,
   axElicitationRequestOperation,
   axElicitationRespondOperation,
   axModeRequestOperation,

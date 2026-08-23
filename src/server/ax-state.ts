@@ -1,4 +1,5 @@
 import type { CanvasLayout, CanvasNodeState } from './canvas-state.js';
+import { clampGateTtlMs, DEFAULT_GATE_TTL_MS } from '../shared/approval-gates.js';
 import type { AgentContextNode } from './agent-context.js';
 
 export type PmxAxSource = 'agent' | 'amp' | 'api' | 'browser' | 'cli' | 'codex' | 'copilot' | 'mcp' | 'sdk' | 'system';
@@ -20,10 +21,12 @@ export type PmxAxEventKind =
   | 'approval'
   | 'steering'
   | 'command'
-  | 'note';
+  | 'note'
+  | 'policy';
 export type PmxAxEvidenceKind = 'logs' | 'tool-result' | 'screenshot' | 'file' | 'diff' | 'test-output';
 export type PmxAxWorkItemStatus = 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled';
-export type PmxAxApprovalStatus = 'pending' | 'approved' | 'rejected';
+/** `held` = auto-held by the unattended-approval policy: the action did NOT proceed. */
+export type PmxAxApprovalStatus = 'pending' | 'approved' | 'rejected' | 'held';
 export type PmxAxReviewKind = 'comment' | 'finding';
 export type PmxAxReviewSeverity = 'info' | 'warning' | 'error';
 export type PmxAxReviewStatus = 'open' | 'resolved' | 'dismissed';
@@ -50,6 +53,8 @@ export interface PmxAxApprovalGate {
   status: PmxAxApprovalStatus;
   nodeIds: string[];
   createdAt: string;
+  /** When a still-pending gate auto-holds (unattended-approval policy). */
+  expiresAt: string | null;
   resolvedAt: string | null;
   resolution: string | null;
   source: PmxAxSource | null;
@@ -322,6 +327,7 @@ const AX_EVENT_KINDS = new Set<PmxAxEventKind>([
   'steering',
   'command',
   'note',
+  'policy',
 ]);
 
 // ── Activity ingestion (harness-forwarded tool/session events) ─────
@@ -396,15 +402,40 @@ export function listAxCommands(): PmxAxCommandDescriptor[] {
 // Declarative policy PMX stores and exposes; host adapters READ and enforce it.
 // PMX does not mutate host prompts or block tools itself. Default = empty (no
 // restrictions) — that is the conservative answer to "how much by default".
+/**
+ * Scope fence (rail-chrome-v2 design item 4): the region an attached agent
+ * may WRITE to — the fenced node set plus `padding` px around its bounding
+ * box for new nodes. Reads are never fenced. `null` = unscoped.
+ */
+export interface PmxAxScopeFence {
+  nodeIds: string[];
+  padding: number;
+}
+
+export const DEFAULT_SCOPE_FENCE_PADDING = 40;
+
 export interface PmxAxPolicy {
   tools: { allowed: string[]; excluded: string[]; approvalRequired: string[] };
   prompt: { systemAppend: string | null; mode: string | null };
+  scope: PmxAxScopeFence | null;
 }
 
 export function createEmptyAxPolicy(): PmxAxPolicy {
   return {
     tools: { allowed: [], excluded: [], approvalRequired: [] },
     prompt: { systemAppend: null, mode: null },
+    scope: null,
+  };
+}
+
+export function normalizeAxScopeFence(input: unknown): PmxAxScopeFence | null {
+  if (!isRecord(input)) return null;
+  const nodeIds = normalizeStringArray(input.nodeIds);
+  if (nodeIds.length === 0) return null;
+  const padding = Number(input.padding);
+  return {
+    nodeIds,
+    padding: Number.isFinite(padding) && padding >= 0 ? Math.min(400, padding) : DEFAULT_SCOPE_FENCE_PADDING,
   };
 }
 
@@ -426,6 +457,7 @@ export function normalizeAxPolicy(input: unknown): PmxAxPolicy {
       systemAppend: optionalString(prompt.systemAppend),
       mode: optionalString(prompt.mode),
     },
+    scope: normalizeAxScopeFence(input.scope),
   };
 }
 const AX_EVIDENCE_KINDS = new Set<PmxAxEvidenceKind>([
@@ -437,7 +469,7 @@ const AX_EVIDENCE_KINDS = new Set<PmxAxEvidenceKind>([
   'test-output',
 ]);
 const AX_WORK_STATUSES = new Set<PmxAxWorkItemStatus>(['todo', 'in-progress', 'blocked', 'done', 'cancelled']);
-const AX_APPROVAL_STATUSES = new Set<PmxAxApprovalStatus>(['pending', 'approved', 'rejected']);
+const AX_APPROVAL_STATUSES = new Set<PmxAxApprovalStatus>(['pending', 'approved', 'rejected', 'held']);
 const AX_REVIEW_KINDS = new Set<PmxAxReviewKind>(['comment', 'finding']);
 const AX_REVIEW_SEVERITIES = new Set<PmxAxReviewSeverity>(['info', 'warning', 'error']);
 const AX_REVIEW_STATUSES = new Set<PmxAxReviewStatus>(['open', 'resolved', 'dismissed']);
@@ -654,6 +686,7 @@ export function normalizeAxApprovalGate(input: unknown, validNodeIds?: Set<strin
       : 'pending',
     nodeIds: normalizeNodeIds(input.nodeIds, validNodeIds),
     createdAt: normalizeTimestamp(input.createdAt) ?? nowIso(),
+    expiresAt: normalizeTimestamp(input.expiresAt),
     resolvedAt: normalizeTimestamp(input.resolvedAt),
     resolution: optionalString(input.resolution),
     source: normalizeSource(input.source),
@@ -795,10 +828,11 @@ export function createAxWorkItem(
 }
 
 export function createAxApprovalGate(
-  input: { title: string; detail?: string | null; action?: string | null; nodeIds?: string[] },
+  input: { title: string; detail?: string | null; action?: string | null; nodeIds?: string[]; ttlMs?: number },
   source: PmxAxSource | null,
   validNodeIds?: Set<string>,
 ): PmxAxApprovalGate {
+  const created = Date.now();
   return {
     id: axId('appr'),
     title: input.title,
@@ -806,11 +840,17 @@ export function createAxApprovalGate(
     action: input.action ?? null,
     status: 'pending',
     nodeIds: normalizeNodeIds(input.nodeIds, validNodeIds),
-    createdAt: nowIso(),
+    createdAt: new Date(created).toISOString(),
+    expiresAt: new Date(created + clampGateTtlMs(input.ttlMs, defaultGateTtlMs())).toISOString(),
     resolvedAt: null,
     resolution: null,
     source,
   };
+}
+
+/** Server default for a gate's TTL: `PMX_CANVAS_GATE_TTL_MS`, else five minutes. */
+export function defaultGateTtlMs(): number {
+  return clampGateTtlMs(process.env.PMX_CANVAS_GATE_TTL_MS, DEFAULT_GATE_TTL_MS);
 }
 
 export function createAxReviewAnnotation(

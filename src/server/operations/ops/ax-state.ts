@@ -140,6 +140,12 @@ const axFocusSetOperation = defineOperation<z.infer<typeof axFocusSetSchema>, Re
 const axPolicySetShape = {
   tools: z.unknown().optional().describe('Tool policy patch: allowed/excluded/approvalRequired arrays.'),
   prompt: z.unknown().optional().describe('Prompt policy patch: systemAppend/mode.'),
+  scope: z
+    .unknown()
+    .optional()
+    .describe(
+      'Scope fence: { nodeIds, padding? } limits agent WRITES to those nodes plus padding px around them for new nodes; null clears it. Reads are never fenced.',
+    ),
   source: z.unknown().optional().describe('Optional host/source label. Defaults to mcp.'),
 };
 
@@ -167,12 +173,18 @@ const axPolicySetOperation = defineOperation<z.infer<typeof axPolicySetSchema>, 
         })
         .optional(),
       prompt: z.object({ systemAppend: z.string().optional(), mode: z.string().optional() }).optional(),
+      scope: z
+        .object({ nodeIds: z.array(z.string()), padding: z.number().optional() })
+        .nullable()
+        .optional()
+        .describe('Scope fence for agent writes: { nodeIds, padding? }; null clears it.'),
       source: z.enum(AX_SOURCES).optional(),
     },
     // Legacy MCP tool forwarded only the present tools/prompt fields (source split out).
     buildInput: (input) => ({
       ...(input.tools ? { tools: input.tools } : {}),
       ...(input.prompt ? { prompt: input.prompt } : {}),
+      ...(input.scope !== undefined ? { scope: input.scope } : {}),
       source: normalizeAxSource(input.source, 'mcp'),
     }),
     formatResult: (result) => {
@@ -183,9 +195,21 @@ const axPolicySetOperation = defineOperation<z.infer<typeof axPolicySetSchema>, 
     },
   },
   handler: (input, ctx) => {
-    const patch: { tools?: Partial<PmxAxPolicy['tools']>; prompt?: Partial<PmxAxPolicy['prompt']> } = {};
+    const patch: {
+      tools?: Partial<PmxAxPolicy['tools']>;
+      prompt?: Partial<PmxAxPolicy['prompt']>;
+      scope?: { nodeIds: string[]; padding?: number } | null;
+    } = {};
     if (isRecord(input.tools)) patch.tools = input.tools as Partial<PmxAxPolicy['tools']>;
     if (isRecord(input.prompt)) patch.prompt = input.prompt as Partial<PmxAxPolicy['prompt']>;
+    if (input.scope === null) patch.scope = null;
+    else if (isRecord(input.scope)) {
+      const nodeIds = Array.isArray(input.scope.nodeIds)
+        ? input.scope.nodeIds.filter((id): id is string => typeof id === 'string')
+        : [];
+      const padding = Number(input.scope.padding);
+      patch.scope = nodeIds.length > 0 ? { nodeIds, ...(Number.isFinite(padding) ? { padding } : {}) } : null;
+    }
     const policy = canvasState.setPolicy(patch, { source: normalizeAxSource(input.source, 'api') });
     ctx.emit('ax-state-changed', { policy });
     return { ok: true, policy } as unknown as Record<string, unknown>;

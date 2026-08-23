@@ -699,6 +699,19 @@ export class PmxCanvas extends EventEmitter {
     return approvalGate;
   }
 
+  /** Reopen a resolved (typically auto-held) approval gate with a fresh TTL. */
+  reopenApproval(id: string, options?: { ttlMs?: number; source?: PmxAxSource }): PmxAxApprovalGate | null {
+    const approvalGate = canvasState.reopenApproval(id, {
+      ...(options?.ttlMs !== undefined ? { ttlMs: options.ttlMs } : {}),
+      source: options?.source ?? 'sdk',
+    });
+    if (approvalGate) {
+      emitPrimaryWorkbenchEvent('ax-state-changed', { approvalGate });
+      agentPresence.refresh();
+    }
+    return approvalGate;
+  }
+
   addEvidence(
     input: {
       kind: PmxAxEvidenceKind;

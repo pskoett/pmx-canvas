@@ -23,6 +23,12 @@ export interface ExecuteOperationMeta {
      * Defaults to 'api'. Workbench calls (suppressAutoGhost) never touch presence.
      */
     source?: string;
+    /**
+     * The human's own browser issued this call. Distinct from suppressAutoGhost
+     * (which batch also sets for its inner dispatches): the scope fence applies
+     * to agents only, and batch inner writes are always agent-originated.
+     */
+    fromWorkbench?: boolean;
 }
 export declare function executeOperation(name: string, rawInput: unknown, meta?: ExecuteOperationMeta): Promise<unknown>;
 export {};

@@ -231,6 +231,72 @@ describe('write attribution over HTTP', () => {
   });
 });
 
+describe('scope fence over HTTP', () => {
+  test('agent writes outside the fence are 403; the human and reads are never fenced', async () => {
+    const inside = (await (
+      await postJson('/api/canvas/node', { type: 'markdown', title: 'In', x: 100, y: 100 })
+    ).json()) as {
+      id: string;
+    };
+    const outside = (await (
+      await postJson('/api/canvas/node', { type: 'markdown', title: 'Out', x: 2000, y: 2000 })
+    ).json()) as {
+      id: string;
+    };
+    const policy = await postJson(
+      '/api/canvas/ax/policy',
+      { scope: { nodeIds: [inside.id] }, source: 'browser' },
+      {
+        'x-pmx-workbench': '1',
+      },
+    );
+    expect(policy.ok).toBe(true);
+
+    const blocked = await fetch(`${baseUrl}/api/canvas/node/${outside.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Agent edit' }),
+    });
+    expect(blocked.status).toBe(403);
+    expect(((await blocked.json()) as { error: string }).error).toMatch(/Outside the agent scope/);
+
+    const allowed = await fetch(`${baseUrl}/api/canvas/node/${inside.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Agent edit inside' }),
+    });
+    expect(allowed.ok).toBe(true);
+
+    const human = await fetch(`${baseUrl}/api/canvas/node/${outside.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
+      body: JSON.stringify({ title: 'Human edit' }),
+    });
+    expect(human.ok).toBe(true);
+
+    const read = await fetch(`${baseUrl}/api/canvas/node/${outside.id}`);
+    expect(read.ok).toBe(true);
+
+    // Batch inner ops are agent writes too — fenced.
+    const batch = await postJson('/api/canvas/batch', {
+      operations: [{ op: 'node.update', args: { id: outside.id, title: 'via batch' } }],
+    });
+    const batchBody = (await batch.json()) as {
+      results?: Array<{ ok?: boolean; error?: string }>;
+      ok?: boolean;
+      error?: string;
+    };
+    const batchText = JSON.stringify(batchBody);
+    expect(batchText).toMatch(/Outside the agent scope/);
+
+    // The fence is visible to the agent through its own context.
+    const context = (await (await fetch(`${baseUrl}/api/canvas/ax/context`)).json()) as Record<string, unknown>;
+    expect(JSON.stringify(context)).toContain(inside.id);
+
+    await postJson('/api/canvas/ax/policy', { scope: null, source: 'browser' }, { 'x-pmx-workbench': '1' });
+  });
+});
+
 describe('agent presence over SSE', () => {
   test('attaching a session broadcasts an agent-presence snapshot with sessionActive', async () => {
     const frame = readSseEvent('agent-presence', (payload) => payload.sessionActive === true);
