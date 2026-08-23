@@ -268,9 +268,9 @@ What the session asks of you:
   non-empty board saved a `Before session · …` snapshot; detaching emits the receipt (items
   done / vetoed, a diff against that snapshot, one-click restore) — an idle timeout delays it.
 - **403 = outside the scope fence.** The human may fence you to a region (`policy.scope`): writes
-  outside it are refused with a reason naming the node or position. Read `policy.scope` in
-  `canvas://ax-context`, ask the human to widen it, never retry blindly. The fence is the
-  human's: `set-policy` does not take `scope`.
+  outside it are refused with a reason naming the node or position (a fenced group frame
+  grants its members too). Read `policy.scope` in `canvas://ax-context`, ask the human to widen
+  it, never retry blindly. The fence is the human's: `set-policy` does not take `scope`.
 - **409 = a human is holding that node** (dragging or editing it right now). Requeue the change
   and retry in a moment. If you had signalled an intent on it, it was vetoed — a `yield` timeline
   event says who took over.
@@ -301,7 +301,9 @@ Use the visible workbench when the human is actively curating layout:
   ⋯ rename / ungroup / pin all) on the top edge. Membership changes only on release while the
   "release to add to <group>" pill shows (Esc keeps it out); dragging a child fully out offers
   "release to remove". A collapsed group is a chip that hides its children (edges to them draw
-  to the chip). G groups the selection, Shift+G ungroups.
+  to the chip). G groups the selection, Shift+G ungroups. Ungroup *dissolves* the frame (children
+  stay, nested children move up one level, one undo step) — and your
+  `canvas_group { action: "ungroup" }` is the same operation with the same result.
 - **Edges**: drag from a node port, or pick the rail's Connect tool (C) and drag from anywhere on
   a node; the target lights up, Esc cancels, L asks for a label on release.
 - The **History** drawer (rail camera button, or the receipt's Full log) lists snapshots and

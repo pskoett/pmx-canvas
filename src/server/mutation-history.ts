@@ -43,7 +43,7 @@ export type MutationOp =
   | 'batch'
   | 'viewport'
   | 'groupNodes'
-  | 'ungroupNodes';
+  | 'releaseGroupChildren';
 
 /** Who made a mutation: the human in the workbench, or an agent through any transport. */
 export type MutationActor = 'human' | 'agent';

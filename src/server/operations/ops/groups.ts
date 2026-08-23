@@ -188,7 +188,7 @@ const groupRemoveOperation = defineOperation<z.infer<typeof groupRemoveSchema>, 
   mcp: {
     toolName: 'canvas_ungroup',
     description:
-      'Remove all children from a group, releasing them as independent nodes. The group node itself remains (delete it separately with canvas_remove_node if desired).',
+      'Dissolve a group: its children become independent nodes (members of the enclosing group when nested) and the frame is removed — one undo step, the same result as the human’s Ungroup.',
     extraShape: {
       groupId: z.string().describe('The group node ID to ungroup'),
     },
@@ -199,9 +199,10 @@ const groupRemoveOperation = defineOperation<z.infer<typeof groupRemoveSchema>, 
   handler: (input) => {
     const groupId = typeof input.groupId === 'string' ? input.groupId : '';
     if (!groupId) throw new OperationError('Missing groupId.');
+    const title = canvasState.getNode(groupId)?.data.title;
     const { ok } = ungroupCanvasNodes(groupId);
-    if (!ok) throw new OperationError('Group not found or empty.');
-    return { ok: true, groupId };
+    if (!ok) throw new OperationError('Group not found.', 404);
+    return { ok: true, groupId, ...(typeof title === 'string' ? { title } : {}) };
   },
 });
 

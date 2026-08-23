@@ -136,7 +136,7 @@ export declare class PmxCanvas extends EventEmitter {
         childLayout?: 'grid' | 'column' | 'flow';
         intentId?: string;
     }): boolean;
-    /** Remove all children from a group (the group node remains). */
+    /** Dissolve a group: children released (into the enclosing group when nested), frame removed — one undo step. */
     ungroupNodes(groupId: string, options?: {
         intentId?: string;
     }): boolean;

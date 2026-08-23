@@ -12,7 +12,7 @@
  * - _replaying flag prevents undo/redo from recording new entries
  */
 import type { CanvasNodeState, CanvasEdge } from './canvas-state.js';
-export type MutationOp = 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'arrange' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'requestElicitation' | 'respondElicitation' | 'requestMode' | 'resolveModeRequest' | 'setPolicy' | 'batch' | 'viewport' | 'groupNodes' | 'ungroupNodes';
+export type MutationOp = 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'arrange' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'requestElicitation' | 'respondElicitation' | 'requestMode' | 'resolveModeRequest' | 'setPolicy' | 'batch' | 'viewport' | 'groupNodes' | 'releaseGroupChildren';
 /** Who made a mutation: the human in the workbench, or an agent through any transport. */
 export type MutationActor = 'human' | 'agent';
 export interface MutationEntry {

@@ -328,7 +328,9 @@ Groups are spatial containers that visually contain other nodes. They render
 as dashed-border frames with a title bar and optional accent color.
 
 - Select 2+ nodes and click "Group" in the selection bar
-- Right-click a group to ungroup
+- Ungroup from the frame's ⋯ menu, the right-click menu, or Shift+G — the frame dissolves and
+  its children stay as independent nodes (one undo step); `canvas_group { action: "ungroup" }`
+  does exactly the same
 - Collapsing a group hides children and shows a summary
 - By default, group creation preserves the children's current positions and
   expands the frame around them

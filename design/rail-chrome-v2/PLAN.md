@@ -211,10 +211,13 @@ is a visible element on today's board that does not yet match the prototypes.
   (the server re-fits on persist). Collapsing a group persists and renders a chip (chevron,
   name, kind dots, count); its children are hidden and edges to them draw to the chip. G groups
   a ≥2 selection (else a new frame), Shift+G ungroups every group the selection touches.
-  Human ungroup (menu, Shift+G, context menu) *dissolves* the frame through `node.remove` —
-  children released, frame gone, one undo step — rather than the agent op `group.remove`,
-  which deliberately leaves the empty frame. Delete/Backspace remove the selection (else the
-  focused node). `bringToFront` keeps a group below its own children.
+  Ungroup *dissolves* the frame — children released (into the enclosing group when nested),
+  frame gone, one undo step — and it is ONE server operation (`group.remove` →
+  `canvasState.ungroupNodes` → `removeNode`) for the human's menu / Shift+G / context menu and
+  the agent's `canvas_group { action: "ungroup" }` alike, so the two sides cannot drift. The
+  old "release children, keep the empty frame" survives only as the internal membership step
+  `releaseGroupChildren` behind PATCH `children`. Delete/Backspace remove the selection (else
+  the focused node). `bringToFront` keeps a group below its own children.
 - **7d (built) — shared undo (item 10):** history entries carry an `actor` (`executeOperation`
   sets human/agent from the workbench marker around each op; SDK writes default to agent) and
   `GET /api/canvas/history` exposes `top` (what Ctrl+Z undoes next). The session panel merges
@@ -310,6 +313,25 @@ steer loop). Defects found and fixed, each with a regression test:
 - Shift+click extended a text selection across cards; a burst of writes replayed stale
   attention toasts for a minute (queue capped at 3); the meter read "0%" with pins (now "<1%");
   the feed subtitle was the mockup's literal "via MCP" (now derived).
+
+### Parity round (2026-08-23, after the QA pass) — ungroup is the same action on both sides
+
+The user's rule for this case: the human's Ungroup and the agent's `canvas_group { action: "ungroup" }`
+must produce the same board. Built as ONE implementation (`group.remove` → `canvasState.ungroupNodes`
+→ `removeNode`): children released (into the enclosing group when nested), frame removed, one undo
+step that re-parents the children, restores the enclosing group's membership, the edges and the
+pin. The human's three paths (⋯ menu, Shift+G, context menu) call that same op. Verified by
+`scratchpad/qa-d.ts` (27 checks: real MCP stdio agent vs headed human — nested, collapsed chip,
+Shift+G across two frames, Delete, `canvas_batch`, `canvas_node remove`, fence, member lock,
+panel undo, snapshot restore both ways), plus unit/SDK/MCP/e2e parity tests. Found on the way:
+
+- `removeNode`'s undo did not re-parent a restored group's children nor restore its pin.
+- The edit lock keyed on `id/nodeId/groupId` only — an agent could dissolve a group (or
+  `group.add`) while the human dragged a member; membership ops now count as writes to members.
+- "Fence to selection" with a frame selected fenced the frame node only; the server now expands
+  group ids to their members (nested included) when the scope is set.
+- Shift+click on a title bar / group edge row started a drag instead of toggling the selection,
+  so a frame could not be put into a multi-selection by clicking it at all.
 
 ## Verification bar (every phase)
 `bun run typecheck` · `bun run build` · `bun run lint` · `bun run test` · `bun run test:client` ·

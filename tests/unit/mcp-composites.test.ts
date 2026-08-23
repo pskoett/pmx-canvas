@@ -307,6 +307,12 @@ describe('MCP composite tools (plan-006)', () => {
       await call(client, 'canvas_group', { action: 'ungroup', groupId }),
     );
     expect(ungrouped.ok).toBe(true);
+    // Dissolved — the same result the human's Ungroup produces: the frame is gone, the child stays.
+    expect((await call(client, 'canvas_node', { action: 'get', id: groupId })).isError).toBe(true);
+    const child = parseJsonText<{ data?: Record<string, unknown> }>(
+      await call(client, 'canvas_node', { action: 'get', id: node.id }),
+    );
+    expect(child.data?.parentGroup).toBeUndefined();
   }, 30000);
 
   test('canvas_history undo/redo reverse the last mutation', async () => {

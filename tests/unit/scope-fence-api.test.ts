@@ -113,6 +113,36 @@ describe('scope fence over HTTP', () => {
     expect(reparent.status).toBe(403);
   });
 
+  test('fencing a group frame grants its members too — nested groups included', async () => {
+    const a = await addNode('A', 100, 100);
+    const b = await addNode('B', 400, 100);
+    const c = await addNode('C', 100, 500);
+    const outside = await addNode('Out', 3000, 3000);
+    const inner = (
+      (await (await postJson('/api/canvas/group', { title: 'Inner', childIds: [a, b] }, WORKBENCH)).json()) as {
+        id: string;
+      }
+    ).id;
+    const outer = (
+      (await (await postJson('/api/canvas/group', { title: 'Outer', childIds: [inner, c] }, WORKBENCH)).json()) as {
+        id: string;
+      }
+    ).id;
+    // "Fence to selection" with just the outer frame selected.
+    await postJson('/api/canvas/ax/policy', { scope: { nodeIds: [outer] } }, WORKBENCH);
+    const policy = (
+      (await (await fetch(`${baseUrl}/api/canvas/ax?includeContext=false`)).json()) as {
+        state: { policy: { scope: { nodeIds: string[] } | null } };
+      }
+    ).state.policy.scope;
+    expect([...(policy?.nodeIds ?? [])].sort()).toEqual([outer, inner, a, b, c].sort());
+    // Members are writable; the node outside the frame is not; the inner frame can be dissolved.
+    expect((await patchNode(a, { title: 'A2' })).ok).toBe(true);
+    expect((await patchNode(c, { title: 'C2' })).ok).toBe(true);
+    expect((await patchNode(outside, { title: 'nope' })).status).toBe(403);
+    expect((await postJson('/api/canvas/group/ungroup', { groupId: inner })).ok).toBe(true);
+  });
+
   test('the fence belongs to the human: an agent cannot set, widen, or clear it', async () => {
     const inside = await addNode('In', 100, 100);
     const outside = await addNode('Out', 2000, 2000);

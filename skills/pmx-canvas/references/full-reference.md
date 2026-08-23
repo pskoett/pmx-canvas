@@ -202,7 +202,7 @@ server and become part of the authoritative canvas state.
   and type-specific actions. (Every node type, **including `status`, has a remove `×`** in its title
   bar and a `Close` menu item.)
 - Right-click a group node — recolor the group using preset swatches or a custom color picker,
-  and ungroup its children
+  or ungroup it (dissolves the frame; children stay)
 - Drag-and-drop files or URLs — add file, image, markdown, or webpage nodes directly
 - Paste URLs — create webpage nodes from the clipboard
 
@@ -692,7 +692,9 @@ In batch/MCP/HTTP payloads, `height` is chart content height and `nodeHeight` is
 
 - **`canvas_group { action: "create", … }`** — visual container; `title`, `childIds` (node IDs), `color`. Auto-sizes to fit children.
 - **`canvas_group { action: "add", groupId, childIds }`** — add nodes to an existing group.
-- **`canvas_group { action: "ungroup", groupId }`** — release all children from a group.
+- **`canvas_group { action: "ungroup", groupId }`** — dissolve the group: its children become
+  independent nodes (members of the enclosing group when nested) and the frame is removed, in one
+  undo step. Exactly what the human's Ungroup does.
 
 ### Group Layout Guidance
 
@@ -1315,7 +1317,7 @@ All POST/PATCH endpoints accept `Content-Type: application/json`. Default base U
 | POST | `/api/canvas/web-artifact` | Build a bundled web artifact and optionally open it on canvas |
 | POST | `/api/canvas/group` | Create group |
 | POST | `/api/canvas/group/add` | Add nodes to group |
-| POST | `/api/canvas/group/ungroup` | Ungroup |
+| POST | `/api/canvas/group/ungroup` | Ungroup (dissolve: children released, frame removed) |
 | POST | `/api/canvas/arrange` | Auto-arrange |
 | POST | `/api/canvas/focus` | Center viewport on node |
 | POST | `/api/canvas/fit` | Fit viewport to canvas bounds or selected nodes |

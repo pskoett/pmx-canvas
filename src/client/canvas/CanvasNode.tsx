@@ -31,6 +31,7 @@ import {
   addToGroupFromClient,
   removeNodeFromClient,
   setGroupChildrenFromClient,
+  ungroupFromClient,
   updateNodeFromClient,
 } from '../state/intent-bridge';
 import { KIND_COLOR } from './kind-colors';
@@ -236,6 +237,15 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
       if (renaming) return;
       if (canvasTool.value === 'connect') {
         startEdgeDrag(e);
+        return;
+      }
+      // Shift+click on the title bar / group edge row toggles the
+      // multi-selection exactly like the body does — for a group frame the
+      // edge row is the only clickable part, so this is how a frame gets
+      // into a selection (fence, group, delete) at all.
+      if (e.shiftKey) {
+        e.stopPropagation();
+        toggleSelected(node.id);
         return;
       }
       bringToFront(node.id);
@@ -598,9 +608,9 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                   onClick={(e) => {
                     e.stopPropagation();
                     setGroupMenuOpen(false);
-                    // Dissolve the frame: removing a group releases its children.
+                    // Dissolve — the same op an agent's ungroup runs.
                     removeNode(node.id);
-                    void removeNodeFromClient(node.id);
+                    void ungroupFromClient(node.id);
                   }}
                 >
                   Ungroup

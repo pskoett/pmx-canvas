@@ -113,11 +113,13 @@ export function describeWrite(
     case 'group.create':
       return { summary: `Grouped nodes into ${quote(title, 'a group')}`, nodeId };
     case 'group.add':
-    case 'group.remove':
       return {
         summary: `Changed membership of ${quote(nodeTitle(str(input.groupId)), 'a group')}`,
         nodeId: str(input.groupId) || null,
       };
+    case 'group.remove':
+      // The frame is gone by now — the op returns the title it had.
+      return { summary: `Dissolved group ${quote(str(res.title) || null, 'a group')}`, nodeId: null };
     case 'arrange':
       return { summary: `Arranged the board${str(input.layout) ? ` (${str(input.layout)})` : ''}`, nodeId: null };
     case 'canvas.clear':

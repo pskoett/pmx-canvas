@@ -46,7 +46,12 @@ import {
 import { connectSSE } from './state/sse-bridge';
 import { intents } from './state/intent-store';
 import { sessionActive } from './state/presence-store';
-import { createGroupFromClient, removeNodeFromClient, reportClientViewportSize } from './state/intent-bridge';
+import {
+  createGroupFromClient,
+  removeNodeFromClient,
+  reportClientViewportSize,
+  ungroupFromClient,
+} from './state/intent-bridge';
 import type { AnnotationTool } from './types';
 
 function logAppError(action: string, error: unknown): void {
@@ -236,12 +241,12 @@ export function App() {
             );
           }
         } else if (key === 'g' && e.shiftKey) {
-          // Shift+G dissolves every group the selection touches: removing the
-          // frame releases its children (one undoable mutation).
+          // Shift+G dissolves every group the selection touches — the same
+          // `group.remove` op an agent runs (children released, frame gone).
           e.preventDefault();
           for (const groupId of groupsOfSelection()) {
             removeNode(groupId);
-            void removeNodeFromClient(groupId).catch((error) => logAppError('ungroup', error));
+            void ungroupFromClient(groupId).catch((error) => logAppError('ungroup', error));
           }
           clearSelection();
         } else if (key === 'i' && !e.shiftKey) {

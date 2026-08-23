@@ -3765,6 +3765,25 @@ test('scope fence: granted from the selection, drawn around the fenced nodes, en
   await expect(page.locator('.scope-fence')).toHaveCount(0);
   const freed = await request.patch(`/api/canvas/node/${far.id}`, { data: { title: 'Agent touched far' } });
   expect(freed.ok()).toBe(true);
+
+  // Fencing a group FRAME grants its members: select the frame alone, fence, and
+  // the agent may edit the members (and dissolve the frame) but not the node outside.
+  const group = (await (
+    await request.post('/api/canvas/group', { data: { title: 'Fence frame', childIds: [a.id, b.id] } })
+  ).json()) as { id: string };
+  await page.keyboard.press('Escape');
+  await page
+    .locator('.canvas-node.group-node')
+    .filter({ hasText: 'Fence frame' })
+    .locator('.group-edge-row')
+    .click({ position: { x: 240, y: 6 }, modifiers: ['Shift'] });
+  await panel.getByRole('button', { name: /Fence to selection \(1\)/ }).click();
+  await expect(panel.locator('[data-testid="session-scope"]')).toContainText('Scoped to 3 nodes');
+  await expect(page.locator('.scope-fence')).toHaveAttribute('data-fenced-count', '3');
+  expect((await request.patch(`/api/canvas/node/${b.id}`, { data: { title: 'Fence B (agent)' } })).ok()).toBe(true);
+  expect((await request.patch(`/api/canvas/node/${far.id}`, { data: { title: 'nope' } })).status()).toBe(403);
+  expect((await request.post('/api/canvas/group/ungroup', { data: { groupId: group.id } })).ok()).toBe(true);
+  await expect(page.locator('.canvas-node.group-node')).toHaveCount(0);
 });
 
 test('human-started session: start from the quiet board, steer from the command bar, end to a receipt', async ({
@@ -4221,6 +4240,93 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
   await expect(page.locator('.canvas-node').filter({ hasText: 'Loose note' })).toHaveCount(0);
 });
 
+test('ungroup is the same action for the human and the agent: dissolve, children released, one undo step each', async ({
+  page,
+  request,
+}) => {
+  // Two identical collapsed groups; the human dissolves one from the ⋯ menu,
+  // the agent dissolves the other over HTTP as claude-code.
+  const build = async (tag: string, x: number) => {
+    const note = async (title: string, nx: number, ny: number) =>
+      (
+        await (
+          await request.post('/api/canvas/node', {
+            data: { type: 'markdown', title, content: title, x: nx, y: ny, width: 240, height: 120 },
+          })
+        ).json()
+      ).id as string;
+    const a = await note(`${tag} A`, x, 100);
+    const b = await note(`${tag} B`, x + 300, 100);
+    const group = (
+      await (await request.post('/api/canvas/group', { data: { title: `${tag} group`, childIds: [a, b] } })).json()
+    ).id as string;
+    await request.patch(`/api/canvas/node/${group}`, { data: { collapsed: true } });
+    return { a, b, group };
+  };
+  const human = await build('H', 100);
+  const agent = await build('G', 1000);
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 0.8 } });
+  await page.goto('/workbench');
+  const chips = page.locator('[data-testid="group-chip"]');
+  await expect(chips).toHaveCount(2);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'H A' })).toHaveCount(0);
+
+  // Human: expand the chip, ⋯ → Ungroup.
+  await chips
+    .filter({ hasText: 'H group' })
+    .getByRole('button', { name: /Expand group/ })
+    .click();
+  const frame = page.locator('.canvas-node.group-node').filter({ hasText: 'H group' });
+  await frame.getByRole('button', { name: 'Group menu' }).click();
+  await frame.getByRole('menuitem', { name: 'Ungroup' }).click();
+  // Agent: the same op, no browser involved.
+  const response = await request.post('/api/canvas/group/ungroup', {
+    data: { groupId: agent.group },
+    headers: { 'x-pmx-source': 'claude-code' },
+  });
+  expect((await response.json()).title).toBe('G group');
+
+  // Both frames gone, all four children visible and free.
+  await expect(page.locator('.canvas-node.group-node')).toHaveCount(0);
+  await expect(chips).toHaveCount(0);
+  for (const title of ['H A', 'H B', 'G A', 'G B']) {
+    await expect(page.locator('.canvas-node').filter({ hasText: title })).toBeVisible();
+  }
+  const state = (await (await request.get('/api/canvas/state')).json()) as {
+    nodes: Array<{ id: string; type: string; data: Record<string, unknown> }>;
+  };
+  expect(state.nodes.filter((node) => node.type === 'group')).toHaveLength(0);
+  expect(state.nodes.map((node) => node.data.parentGroup ?? null)).toEqual([null, null, null, null]);
+  const history = (await (await request.get('/api/canvas/history')).json()) as {
+    entries: Array<{ description: string; actor?: string }>;
+  };
+  // The history ring buffer outlives the board clear between tests — look at OUR two frames only.
+  const dissolves = history.entries.filter((entry) => /^Dissolved group "[HG] group"/.test(entry.description));
+  expect(dissolves.map((entry) => [entry.description, entry.actor]).sort()).toEqual([
+    ['Dissolved group "G group" — 2 nodes released', 'agent'],
+    ['Dissolved group "H group" — 2 nodes released', 'human'],
+  ]);
+
+  // One shared stack: undo the agent's dissolve, the human's dissolve, then the
+  // human's chip expand. Both collapsed chips hide their children again — which
+  // only happens if the undo re-parented the children to the restored frames.
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(chips).toHaveCount(1);
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(
+    page.locator('.canvas-node.group-node').filter({ hasText: 'H group' }).locator('.group-count'),
+  ).toHaveText('2');
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(chips).toHaveCount(2);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'G A' })).toHaveCount(0);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'H A' })).toHaveCount(0);
+  const restored = (await (await request.get('/api/canvas/state')).json()) as {
+    nodes: Array<{ id: string; data: Record<string, unknown> }>;
+  };
+  expect(restored.nodes.find((node) => node.id === human.a)?.data.parentGroup).toBe(human.group);
+  expect(restored.nodes.find((node) => node.id === agent.b)?.data.parentGroup).toBe(agent.group);
+});
+
 test('minimap v2: true-scale rects from the store, selection mirrored, click jumps, hover magnifies', async ({
   page,
   request,
@@ -4316,9 +4422,13 @@ test('external steering: indicator + activity feed + writers sheet for session-l
   await expect(feed.locator('[data-testid="activity-row"] .activity-writer').nth(0)).toHaveText('api');
   await expect(feed.locator('[data-testid="activity-row"] .activity-writer').nth(1)).toHaveText('claude-code');
 
-  // Per-writer filter.
+  // Per-writer filter: only claude-code rows remain (earlier tests' claude-code
+  // writes may still be in the feed), ours on top.
   await feed.locator('.activity-filter', { hasText: 'claude-code' }).click();
-  await expect(rows).toHaveText(['Created markdown “sse-bridge”']);
+  await expect(rows.first()).toHaveText('Created markdown “sse-bridge”');
+  await expect
+    .poll(async () => new Set(await feed.locator('[data-testid="activity-row"] .activity-writer').allInnerTexts()))
+    .toEqual(new Set(['claude-code']));
 
   // The feed is live: a new write lands at the top without a reload.
   await feed.locator('.activity-filter', { hasText: 'All' }).click();

@@ -151,6 +151,25 @@ const axPolicySetShape = {
 
 const axPolicySetSchema = z.looseObject(axPolicySetShape);
 
+/**
+ * A fence is a granted REGION: fencing a group frame grants everything inside
+ * it, so group ids expand to their members (nested groups included). Without
+ * this, "Fence to selection" on a frame lets the agent touch the frame only.
+ */
+function withGroupMembers(nodeIds: string[]): string[] {
+  const out = new Set<string>();
+  const visit = (id: string) => {
+    if (out.has(id)) return;
+    out.add(id);
+    const node = canvasState.getNode(id);
+    if (node?.type === 'group' && Array.isArray(node.data.children)) {
+      for (const child of node.data.children) if (typeof child === 'string') visit(child);
+    }
+  };
+  for (const id of nodeIds) visit(id);
+  return [...out];
+}
+
 const axPolicySetOperation = defineOperation<z.infer<typeof axPolicySetSchema>, Record<string, unknown>>({
   name: 'ax.policy.set',
   mutates: false,
@@ -200,9 +219,11 @@ const axPolicySetOperation = defineOperation<z.infer<typeof axPolicySetSchema>, 
     if (isRecord(input.prompt)) patch.prompt = input.prompt as Partial<PmxAxPolicy['prompt']>;
     if (input.scope === null) patch.scope = null;
     else if (isRecord(input.scope)) {
-      const nodeIds = Array.isArray(input.scope.nodeIds)
-        ? input.scope.nodeIds.filter((id): id is string => typeof id === 'string')
-        : [];
+      const nodeIds = withGroupMembers(
+        Array.isArray(input.scope.nodeIds)
+          ? input.scope.nodeIds.filter((id): id is string => typeof id === 'string')
+          : [],
+      );
       const padding = Number(input.scope.padding);
       patch.scope = nodeIds.length > 0 ? { nodeIds, ...(Number.isFinite(padding) ? { padding } : {}) } : null;
     }

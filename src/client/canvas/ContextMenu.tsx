@@ -20,6 +20,7 @@ import {
   refreshWebpageNodeFromClient,
   removeNodeFromClient,
   sendIntent,
+  ungroupFromClient,
   updateNodeFromClient,
 } from '../state/intent-bridge';
 import { EXPANDABLE_TYPES } from '../types';
@@ -558,10 +559,10 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
     if (childIds.length > 0) {
       items.push({
         label: `Ungroup (${childIds.length} node${childIds.length !== 1 ? 's' : ''})`,
-        // Dissolve the frame: removing a group releases its children.
+        // Dissolve — the same op an agent's ungroup runs.
         action: () => {
           removeNode(node.id);
-          void removeNodeFromClient(node.id);
+          void ungroupFromClient(node.id);
         },
       });
     }

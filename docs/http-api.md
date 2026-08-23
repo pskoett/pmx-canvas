@@ -327,8 +327,10 @@ Every open workbench tab reports itself; the server fans the set out as
 `human-presence` SSE frames so tabs see each other's cursors. A node a human
 is holding (dragging) is an edit lock: an agent write targeting it is refused
 with **409** ("being edited by <name> — requeue") until the grab is released
-or goes stale (8 s without renewal). Human heartbeats never count as agent
-activity.
+or goes stale (8 s without renewal). Membership changes count as targeting the
+member: dissolving the group a held node belongs to (`group.remove`, or
+`node.remove` on the group) or pulling it into another group is refused the
+same way. Human heartbeats never count as agent activity.
 
 ```bash
 curl http://localhost:4313/api/canvas/human-presence
@@ -345,8 +347,10 @@ writes must target fenced nodes, new nodes must land inside the fenced
 nodes' bounding box plus `padding` px (default 40), and board-wide writes
 (arrange, clear, restore) are refused. Every refusal is HTTP 403 with a reason
 naming the node or position. Reads are never fenced, nor are the human's own
-workbench writes. The fence is visible to the agent in `canvas://ax-context`
-(`policy.scope`) and drawn on the canvas while a session is attached.
+workbench writes. A fence is a granted region: a group id in `nodeIds` expands
+to the frame plus every member (nested groups included) when the scope is set.
+The fence is visible to the agent in `canvas://ax-context` (`policy.scope`) and
+drawn on the canvas while a session is attached.
 
 The fence belongs to the human: only workbench calls (`x-pmx-workbench: 1`) may
 set, replace, or clear `scope`. An agent call to `POST /api/canvas/ax/policy`

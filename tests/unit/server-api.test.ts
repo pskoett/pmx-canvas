@@ -5711,21 +5711,61 @@ describe('canvas server HTTP API', () => {
         .parentGroup,
     ).toBe(createdGroup.id);
 
-    const ungrouped = await jsonRequest<{ ok: boolean; groupId: string }>('/api/canvas/group/ungroup', {
+    // Ungroup dissolves: children released, the frame gone — one undo step.
+    const ungrouped = await jsonRequest<{ ok: boolean; groupId: string; title?: string }>('/api/canvas/group/ungroup', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ groupId: createdGroup.id }),
     });
-    expect(ungrouped.groupId).toBe(createdGroup.id);
-
-    const ungroupedGroup = await jsonRequest<{ id: string; data: Record<string, unknown> }>(
-      `/api/canvas/node/${createdGroup.id}`,
+    expect(ungrouped).toMatchObject({ ok: true, groupId: createdGroup.id, title: 'API Group' });
+    expect((await fetch(`${baseUrl}/api/canvas/node/${createdGroup.id}`)).status).toBe(404);
+    for (const id of [firstNode.id, secondNode.id]) {
+      expect(
+        (await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${id}`)).data.parentGroup,
+      ).toBeUndefined();
+    }
+    const history = await jsonRequest<{ entries: Array<{ description: string }>; top: { description: string } | null }>(
+      '/api/canvas/history',
     );
-    expect(ungroupedGroup.data.children).toEqual([]);
+    expect(history.top?.description).toBe('Dissolved group "API Group" — 2 nodes released');
+
+    // Undo brings the frame back WITH its membership; redo dissolves again.
+    await jsonRequest('/api/canvas/undo', { method: 'POST' });
+    const restored = await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${createdGroup.id}`);
+    expect(restored.data.children).toEqual([firstNode.id, secondNode.id]);
+    for (const id of [firstNode.id, secondNode.id]) {
+      expect((await jsonRequest<{ data: Record<string, unknown> }>(`/api/canvas/node/${id}`)).data.parentGroup).toBe(
+        createdGroup.id,
+      );
+    }
+    await jsonRequest('/api/canvas/redo', { method: 'POST' });
+    expect((await fetch(`${baseUrl}/api/canvas/node/${createdGroup.id}`)).status).toBe(404);
+
+    // An empty frame dissolves too; a non-group is refused.
+    const empty = await jsonRequest<{ id: string }>('/api/canvas/group', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Empty', x: 900, y: 900, width: 300, height: 200 }),
+    });
     expect(
-      (await jsonRequest<{ id: string; data: Record<string, unknown> }>(`/api/canvas/node/${firstNode.id}`)).data
-        .parentGroup,
-    ).toBeUndefined();
+      (
+        await jsonRequest<{ ok: boolean }>('/api/canvas/group/ungroup', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ groupId: empty.id }),
+        })
+      ).ok,
+    ).toBe(true);
+    expect((await fetch(`${baseUrl}/api/canvas/node/${empty.id}`)).status).toBe(404);
+    expect(
+      (
+        await fetch(`${baseUrl}/api/canvas/group/ungroup`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ groupId: firstNode.id }),
+        })
+      ).status,
+    ).toBe(404);
 
     const missingGroup = await fetch(`${baseUrl}/api/canvas/group/add`, {
       method: 'POST',
@@ -5733,6 +5773,111 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ groupId: '', childIds: [] }),
     });
     expect(missingGroup.status).toBe(400);
+  });
+
+  test('ungroup is the same operation for the human and the agent, nested groups included', async () => {
+    // Build the same board twice: Outer ⊃ { Inner ⊃ {A, B}, C }, an edge to Inner, Inner pinned.
+    const build = async () => {
+      const node = async (title: string, x: number, y: number) =>
+        (
+          await jsonRequest<{ id: string }>('/api/canvas/node', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: 'markdown', title, content: title, x, y, width: 200, height: 120 }),
+          })
+        ).id;
+      const a = await node('A', 100, 100);
+      const b = await node('B', 400, 100);
+      const c = await node('C', 100, 500);
+      const group = async (title: string, childIds: string[]) =>
+        (
+          await jsonRequest<{ id: string }>('/api/canvas/group', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, childIds }),
+          })
+        ).id;
+      const inner = await group('Inner', [a, b]);
+      const outer = await group('Outer', [inner, c]);
+      await jsonRequest('/api/canvas/edge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ from: c, to: inner, type: 'relation' }),
+      });
+      await jsonRequest('/api/canvas/context-pins', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodeIds: [inner] }),
+      });
+      return { a, b, c, inner, outer };
+    };
+    const normalize = async (ids: Record<string, string>) => {
+      const state = await jsonRequest<{
+        nodes: Array<{ id: string; type: string; data: Record<string, unknown> }>;
+        edges: Array<{ from: string; to: string }>;
+        contextPinnedNodeIds?: string[];
+      }>('/api/canvas/state');
+      const name = (id: string) => Object.entries(ids).find(([, value]) => value === id)?.[0] ?? id;
+      return {
+        nodes: state.nodes
+          .map((node) => ({
+            id: name(node.id),
+            type: node.type,
+            parent: node.data.parentGroup ? name(node.data.parentGroup as string) : null,
+            children: Array.isArray(node.data.children) ? (node.data.children as string[]).map(name) : null,
+          }))
+          .sort((x, y) => x.id.localeCompare(y.id)),
+        edges: state.edges.map((edge) => [name(edge.from), name(edge.to)]),
+        pins: (await jsonRequest<{ nodes: Array<{ id: string }> }>('/api/canvas/pinned-context')).nodes.map((n) =>
+          name(n.id),
+        ),
+      };
+    };
+
+    // The human dissolves Inner (workbench marker), …
+    const human = await build();
+    await jsonRequest('/api/canvas/group/ungroup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
+      body: JSON.stringify({ groupId: human.inner }),
+    });
+    const afterHuman = await normalize(human);
+    canvasState.clear();
+    // … the agent dissolves Inner over MCP/HTTP as claude-code.
+    const agent = await build();
+    await jsonRequest('/api/canvas/group/ungroup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-pmx-source': 'claude-code' },
+      body: JSON.stringify({ groupId: agent.inner }),
+    });
+    const afterAgent = await normalize(agent);
+
+    expect(afterAgent).toEqual(afterHuman);
+    // A and B moved up into Outer (in Inner's slot), the edge to Inner and its pin are gone.
+    expect(afterAgent).toEqual({
+      nodes: [
+        { id: 'a', type: 'markdown', parent: 'outer', children: null },
+        { id: 'b', type: 'markdown', parent: 'outer', children: null },
+        { id: 'c', type: 'markdown', parent: 'outer', children: null },
+        { id: 'outer', type: 'group', parent: null, children: ['a', 'b', 'c'] },
+      ],
+      edges: [],
+      pins: [],
+    });
+
+    // Undo restores the nesting, the edge and the pin — identically.
+    await jsonRequest('/api/canvas/undo', { method: 'POST' });
+    expect(await normalize(agent)).toEqual({
+      nodes: [
+        { id: 'a', type: 'markdown', parent: 'inner', children: null },
+        { id: 'b', type: 'markdown', parent: 'inner', children: null },
+        { id: 'c', type: 'markdown', parent: 'outer', children: null },
+        { id: 'inner', type: 'group', parent: 'outer', children: ['a', 'b'] },
+        { id: 'outer', type: 'group', parent: null, children: ['inner', 'c'] },
+      ],
+      edges: [['c', 'inner']],
+      pins: ['inner'],
+    });
   });
 
   test('covers duplicate, self-edge, and delete edge HTTP behavior', async () => {

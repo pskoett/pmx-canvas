@@ -93,8 +93,10 @@ describe('PmxCanvas SDK surface', () => {
     expect(restored.ok).toBe(true);
     expect(canvas.getNode(secondId)?.data.title).toBe('Second note');
 
+    // Ungroup dissolves: the frame is gone, the children stay as independent nodes.
     expect(canvas.ungroupNodes(groupId)).toBe(true);
-    expect((canvas.getNode(groupId)?.data.children as string[]) ?? []).toEqual([]);
+    expect(canvas.getNode(groupId)).toBeUndefined();
+    expect(canvas.getNode(secondId)?.data.parentGroup).toBeUndefined();
   });
 
   test('SDK writes register agent presence and are attributed to the attached session', () => {

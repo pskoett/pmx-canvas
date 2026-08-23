@@ -220,14 +220,28 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
+const isString = (value: unknown): value is string => typeof value === 'string';
+
+/** Ops that change which group a node belongs to — a held member is a held target. */
+const MEMBERSHIP_OPS = new Set(['node.remove', 'group.remove', 'group.add', 'group.create']);
+
 /** The node an agent write targets, if a human currently holds it. */
-function heldByHuman(rawInput: unknown): { nodeId: string; name: string } | null {
+function heldByHuman(name: string, rawInput: unknown): { nodeId: string; name: string } | null {
   const locked = humanPresence.lockedNodes();
   if (locked.size === 0) return null;
   const input = asRecord(rawInput);
-  const ids = [input.id, input.nodeId, input.groupId, input.from, input.to].filter(
-    (value): value is string => typeof value === 'string',
-  );
+  const ids = [input.id, input.nodeId, input.groupId, input.from, input.to].filter(isString);
+  if (MEMBERSHIP_OPS.has(name)) {
+    for (const key of ['childIds', 'children']) {
+      const list = input[key];
+      if (Array.isArray(list)) ids.push(...list.filter(isString));
+    }
+    // Removing a group dissolves it: every member changes hands too.
+    for (const id of [...ids]) {
+      const node = canvasState.getNode(id);
+      if (node?.type === 'group' && Array.isArray(node.data.children)) ids.push(...node.data.children.filter(isString));
+    }
+  }
   for (const id of ids) {
     const name = locked.get(id);
     if (name) return { nodeId: id, name };
@@ -322,7 +336,7 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
     // User wins (item 6): a node a human is holding right now is not the
     // agent's to change — refuse with 409 so the agent requeues the edit.
     if (op.mutates) {
-      const held = heldByHuman(rawInput);
+      const held = heldByHuman(name, rawInput);
       if (held) {
         throw new OperationError(
           `Node "${held.nodeId}" is being edited by ${held.name} right now — requeue this change and try again in a moment.`,

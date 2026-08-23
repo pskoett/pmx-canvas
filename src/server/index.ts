@@ -527,7 +527,7 @@ export class PmxCanvas extends EventEmitter {
     );
   }
 
-  /** Remove all children from a group (the group node remains). */
+  /** Dissolve a group: children released (into the enclosing group when nested), frame removed — one undo step. */
   ungroupNodes(groupId: string, options?: { intentId?: string }): boolean {
     assertInsideFence('group.remove', { nodeIds: [groupId] });
     return this.runIntentCommit(

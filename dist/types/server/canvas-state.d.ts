@@ -122,7 +122,7 @@ export interface CanvasNodeUpdate {
 }
 export type CanvasChangeType = 'pins' | 'nodes' | 'ax' | 'ax-timeline';
 export interface MutationRecordInfo {
-    operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'requestElicitation' | 'respondElicitation' | 'requestMode' | 'resolveModeRequest' | 'setPolicy' | 'arrange' | 'batch' | 'groupNodes' | 'ungroupNodes' | 'viewport';
+    operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'requestElicitation' | 'respondElicitation' | 'requestMode' | 'resolveModeRequest' | 'setPolicy' | 'arrange' | 'batch' | 'groupNodes' | 'releaseGroupChildren' | 'viewport';
     description: string;
     forward: () => void;
     inverse: () => void;
@@ -479,8 +479,19 @@ declare class CanvasStateManager {
     clearContextPins(): void;
     /** Move child nodes into a group. Sets data.parentGroup on children and data.children on the group. */
     groupNodes(groupId: string, childIds: string[], options?: GroupNodesOptions): boolean;
-    /** Remove all children from a group, clearing their parentGroup. */
+    /**
+     * Ungroup = dissolve: the children become independent nodes (members of the
+     * enclosing group when nested) and the frame is removed, in one undo step.
+     * Delegates to `removeNode` so the human's Ungroup and the agent's
+     * `group.remove` are the same operation. False when `groupId` is not a group.
+     */
     ungroupNodes(groupId: string): boolean;
+    /**
+     * Internal membership step: release every child but keep the frame (the
+     * first half of "set this group's children to …"). Not an ungroup — a
+     * human or agent ungroup dissolves the frame (`ungroupNodes`).
+     */
+    releaseGroupChildren(groupId: string): boolean;
     clear(): void;
 }
 export declare const canvasState: CanvasStateManager;

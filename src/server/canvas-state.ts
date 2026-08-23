@@ -266,7 +266,7 @@ export interface MutationRecordInfo {
     | 'arrange'
     | 'batch'
     | 'groupNodes'
-    | 'ungroupNodes'
+    | 'releaseGroupChildren'
     | 'viewport';
   description: string;
   forward: () => void;
@@ -1369,28 +1369,34 @@ class CanvasStateManager {
     const connectedEdges = existing ? this.getEdgesForNode(id).map((e) => structuredClone(e)) : [];
     const cloned = existing ? structuredClone(existing) : null;
     const oldAxState = this.getAxState();
+    const wasPinned = this._contextPinnedNodeIds.has(id);
+    // The enclosing group's membership before this removal — restored verbatim on undo.
+    let enclosingBefore: { id: string; children: string[] } | null = null;
+    // A removed group DISSOLVES: its children are released — into the enclosing
+    // group when nested, else to the board. This is the one implementation of
+    // ungroup, so the human's Ungroup and the agent's `group.remove` cannot differ.
+    let released: string[] = [];
 
-    // Prune from parent group's children list
     if (existing) {
       const parentGroupId = existing.data.parentGroup as string | undefined;
-      if (parentGroupId) {
-        const parent = this.nodes.get(parentGroupId);
-        if (parent && parent.type === 'group') {
-          const children = (parent.data.children as string[]) ?? [];
-          const pruned = children.filter((cid) => cid !== id);
-          this.nodes.set(parentGroupId, { ...parent, data: { ...parent.data, children: pruned } });
-        }
-      }
-      // If removing a group, clear parentGroup on all its children
+      const parent = parentGroupId ? this.nodes.get(parentGroupId) : undefined;
+      const enclosing = parent && parent.type === 'group' ? parent : null;
+      if (enclosing)
+        enclosingBefore = { id: enclosing.id, children: ((enclosing.data.children as string[]) ?? []).slice() };
       if (existing.type === 'group') {
-        const childIds = (existing.data.children as string[]) ?? [];
-        for (const cid of childIds) {
-          const child = this.nodes.get(cid);
-          if (!child) continue;
+        released = ((existing.data.children as string[]) ?? []).filter((cid) => this.nodes.has(cid));
+        for (const cid of released) {
+          const child = this.nodes.get(cid)!;
           const d = { ...child.data };
-          delete d.parentGroup;
+          if (enclosing) d.parentGroup = enclosing.id;
+          else delete d.parentGroup;
           this.nodes.set(cid, { ...child, data: d });
         }
+      }
+      if (enclosing && enclosingBefore) {
+        // The removed node leaves the enclosing group; a dissolved group's children take its place.
+        const children = enclosingBefore.children.flatMap((cid) => (cid === id ? released : [cid]));
+        this.nodes.set(enclosing.id, { ...enclosing, data: { ...enclosing.data, children } });
       }
     }
 
@@ -1434,15 +1440,36 @@ class CanvasStateManager {
       );
     }
     if (cloned) {
+      const title = (cloned.data.title as string) ?? id;
       this.recordMutation({
         operationType: 'removeNode',
-        description: `Removed ${cloned.type} node "${(cloned.data.title as string) ?? id}"`,
+        description:
+          cloned.type === 'group'
+            ? `Dissolved group "${title}" — ${released.length} node${released.length === 1 ? '' : 's'} released`
+            : `Removed ${cloned.type} node "${title}"`,
         forward: this.suppressed(() => this.removeNode(id)),
         inverse: this.suppressed(() => {
           this.addNode(structuredClone(cloned));
+          // A restored group takes its children back; the enclosing group's membership is restored verbatim.
+          for (const cid of released) {
+            const child = this.nodes.get(cid);
+            if (child) this.nodes.set(cid, { ...child, data: { ...child.data, parentGroup: id } });
+          }
+          if (enclosingBefore) {
+            const enclosing = this.nodes.get(enclosingBefore.id);
+            if (enclosing) {
+              this.nodes.set(enclosing.id, {
+                ...enclosing,
+                data: { ...enclosing.data, children: enclosingBefore.children },
+              });
+            }
+          }
           for (const edge of connectedEdges) this.addEdge(structuredClone(edge));
+          if (wasPinned) this._contextPinnedNodeIds.add(id);
           this.ax.applyPersistedAx(oldAxState);
           this.scheduleSave();
+          this.notifyChange('nodes');
+          this.notifyChange('pins');
           this.notifyChange('ax');
         }),
       });
@@ -2130,8 +2157,25 @@ class CanvasStateManager {
     return true;
   }
 
-  /** Remove all children from a group, clearing their parentGroup. */
+  /**
+   * Ungroup = dissolve: the children become independent nodes (members of the
+   * enclosing group when nested) and the frame is removed, in one undo step.
+   * Delegates to `removeNode` so the human's Ungroup and the agent's
+   * `group.remove` are the same operation. False when `groupId` is not a group.
+   */
   ungroupNodes(groupId: string): boolean {
+    const group = this.nodes.get(groupId);
+    if (!group || group.type !== 'group') return false;
+    this.removeNode(groupId);
+    return true;
+  }
+
+  /**
+   * Internal membership step: release every child but keep the frame (the
+   * first half of "set this group's children to …"). Not an ungroup — a
+   * human or agent ungroup dissolves the frame (`ungroupNodes`).
+   */
+  releaseGroupChildren(groupId: string): boolean {
     const group = this.nodes.get(groupId);
     if (!group || group.type !== 'group') return false;
 
@@ -2140,9 +2184,7 @@ class CanvasStateManager {
 
     const snapshot = childIds.slice();
 
-    // Clear children from group
     this.nodes.set(groupId, { ...group, data: { ...group.data, children: [] } });
-    // Clear parentGroup from each child
     for (const id of childIds) {
       const child = this.nodes.get(id);
       if (!child) continue;
@@ -2154,9 +2196,9 @@ class CanvasStateManager {
     this.scheduleSave();
     this.notifyChange('nodes');
     this.recordMutation({
-      operationType: 'ungroupNodes',
-      description: `Ungrouped ${childIds.length} nodes from "${(group.data.title as string) ?? groupId}"`,
-      forward: this.suppressed(() => this.ungroupNodes(groupId)),
+      operationType: 'releaseGroupChildren',
+      description: `Released ${childIds.length} nodes from "${(group.data.title as string) ?? groupId}"`,
+      forward: this.suppressed(() => this.releaseGroupChildren(groupId)),
       inverse: this.suppressed(() => this.groupNodes(groupId, snapshot)),
     });
     return true;

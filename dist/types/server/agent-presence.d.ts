@@ -123,6 +123,12 @@ export declare class AgentPresenceRegistry {
      * that is itself attached, keep their own key.
      */
     private attributedKey;
+    /**
+     * Fold an unattached writer into a session: its ops and feed entries were
+     * the session's work all along. A human-started session still carrying its
+     * placeholder label takes the writer's name.
+     */
+    private fold;
     /** Touch a writer: upsert, bump lastSeen, apply the patch. Derived `tooling` decays on its own. */
     touch(input: PresenceTouch, now?: number): AgentPresence;
     /**

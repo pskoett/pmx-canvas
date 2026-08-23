@@ -193,6 +193,14 @@ export declare function addToGroupFromClient(groupId: string, childIds: string[]
 export declare function setGroupChildrenFromClient(groupId: string, children: string[]): Promise<{
     ok: boolean;
 }>;
+/**
+ * Ungroup = dissolve (children released, frame removed). The SAME server op
+ * an agent's `canvas_group { action: "ungroup" }` runs, so both sides get the
+ * identical board and one undo step.
+ */
+export declare function ungroupFromClient(groupId: string): Promise<{
+    ok: boolean;
+}>;
 export interface CanvasSnapshotInfo {
     id: string;
     name: string;

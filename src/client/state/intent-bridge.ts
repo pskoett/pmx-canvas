@@ -471,6 +471,24 @@ export async function setGroupChildrenFromClient(groupId: string, children: stri
   return updateNodeFromClient(groupId, { children });
 }
 
+/**
+ * Ungroup = dissolve (children released, frame removed). The SAME server op
+ * an agent's `canvas_group { action: "ungroup" }` runs, so both sides get the
+ * identical board and one undo step.
+ */
+export async function ungroupFromClient(groupId: string): Promise<{ ok: boolean }> {
+  return requestJson(
+    'ungroupFromClient',
+    '/api/canvas/group/ungroup',
+    { ok: false },
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ groupId }),
+    },
+  );
+}
+
 // ── Snapshot API ──────────────────────────────────────────────
 
 export interface CanvasSnapshotInfo {

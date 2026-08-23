@@ -241,7 +241,7 @@ export function setGroupChildrenFromApi(groupId: string, childIds: string[]): bo
     if (currentChildIds.length !== dataChildIds.length || currentChildIds.some((id) => !dataChildIds.includes(id))) {
       canvasState.updateNode(groupId, { data: { ...group.data, children: currentChildIds } });
     }
-    canvasState.ungroupNodes(groupId);
+    canvasState.releaseGroupChildren(groupId);
   }
   if (childIds.length === 0) return true;
 

@@ -65,6 +65,54 @@ describe('human presence over HTTP', () => {
     await post('/api/canvas/clear', {}, { 'x-pmx-workbench': '1' });
   });
 
+  test('dissolving or re-grouping around a held node is refused too — the member changes hands', async () => {
+    const mk = async (title: string, x: number) =>
+      (
+        (await (
+          await post(
+            '/api/canvas/node',
+            { type: 'markdown', title, x, y: 10, width: 200, height: 100 },
+            { 'x-pmx-workbench': '1' },
+          )
+        ).json()) as { id: string }
+      ).id;
+    const held = await mk('Held', 10);
+    const other = await mk('Other', 400);
+    const group = (
+      (await (
+        await post('/api/canvas/group', { title: 'G', childIds: [held] }, { 'x-pmx-workbench': '1' })
+      ).json()) as {
+        id: string;
+      }
+    ).id;
+    await post(
+      '/api/canvas/human-presence',
+      { clientId: 'tab-a', name: 'mia', grabbingNodeId: held },
+      { 'x-pmx-workbench': '1' },
+    );
+
+    // Agent ungroup / remove of the group the held node belongs to → 409, frame intact.
+    for (const path of ['/api/canvas/group/ungroup', `/api/canvas/node/${group}`]) {
+      const response = await fetch(`${baseUrl}${path}`, {
+        method: path.endsWith('ungroup') ? 'POST' : 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: path.endsWith('ungroup') ? JSON.stringify({ groupId: group }) : undefined,
+      });
+      expect(response.status).toBe(409);
+    }
+    expect((await fetch(`${baseUrl}/api/canvas/node/${group}`)).status).toBe(200);
+    // Pulling the held node into another group → 409; an unrelated membership change is fine.
+    const other2 = (
+      (await (await post('/api/canvas/group', { title: 'G2', childIds: [] }, { 'x-pmx-workbench': '1' })).json()) as {
+        id: string;
+      }
+    ).id;
+    expect((await post('/api/canvas/group/add', { groupId: other2, childIds: [held] })).status).toBe(409);
+    expect((await post('/api/canvas/group/add', { groupId: other2, childIds: [other] })).ok).toBe(true);
+    // The human's own ungroup is never blocked.
+    expect((await post('/api/canvas/group/ungroup', { groupId: group }, { 'x-pmx-workbench': '1' })).ok).toBe(true);
+  });
+
   test('an agent write to a node a human is holding is refused with 409; the human and other nodes are fine', async () => {
     const held = (await (
       await post('/api/canvas/node', { type: 'markdown', title: 'Held', x: 10, y: 10 }, { 'x-pmx-workbench': '1' })
