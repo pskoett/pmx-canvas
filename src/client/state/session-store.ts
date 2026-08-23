@@ -2,6 +2,7 @@ import { computed, signal } from '@preact/signals';
 import type { AxApprovalStatus, AxEventKind, AxWorkItemStatus } from '../../shared/ax-kinds.js';
 import { axSurfaceState } from './canvas-store';
 import { requestBestEffort, requestJson, requestOk } from './intent-bridge';
+import { agentActivity } from './presence-store';
 
 // Structural views of the AX wire shapes (the client never imports server
 // modules; the status/kind unions come from shared/). Only the fields the
@@ -100,7 +101,7 @@ export interface AxTimelineView {
 
 export const axTimeline = signal<AxTimelineView>({ events: [], evidence: [], steering: [] });
 
-export type TimelineEntryKind = AxEventKind | 'evidence' | 'steer';
+export type TimelineEntryKind = AxEventKind | 'evidence' | 'steer' | 'update';
 
 export interface TimelineEntry {
   id: string;
@@ -108,7 +109,18 @@ export interface TimelineEntry {
   label: string;
   body: string;
   createdAt: string;
+  /** Item 10: this agent edit is the top of the shared undo stack — "↩ undo this edit". */
+  undoable?: boolean;
 }
+
+/** Ops that change the board (the ones an undo can revert). */
+const LAYOUT_OPS =
+  /^(node|edge|group|annotation|jsonrender|graph|render)\.|^arrange$|^canvas\.clear$|^snapshot\.restore$/;
+
+/** The entry Ctrl+Z would undo next, from GET /api/canvas/history. */
+export const historyTop = signal<{ id: string; actor: 'human' | 'agent'; description: string } | null>(null);
+/** Agent edits undone from the panel this page-life — rendered "undone · steering sent". */
+export const undoneActivityIds = signal<Set<string>>(new Set());
 
 const EVENT_LABELS: Record<AxEventKind, string> = {
   prompt: 'Prompt',
@@ -123,9 +135,28 @@ const EVENT_LABELS: Record<AxEventKind, string> = {
   policy: 'Policy',
 };
 
-/** One reverse-chronological feed out of the three timeline tables. */
-export function mergeTimeline(timeline: AxTimelineView, limit = 40): TimelineEntry[] {
+/**
+ * One reverse-chronological feed out of the three timeline tables plus the
+ * agent's board writes (the presence activity feed), so the panel shows what
+ * the agent DID between its tool runs and gates. The newest agent write gets
+ * the undo affordance when it is also the top of the shared undo stack.
+ */
+export function mergeTimeline(
+  timeline: AxTimelineView,
+  limit = 40,
+  writes: Array<{ id: string; at: string; op: string; summary: string }> = [],
+  top: { actor: 'human' | 'agent' } | null = null,
+): TimelineEntry[] {
+  const newestWrite = writes.find((write) => LAYOUT_OPS.test(write.op));
   const entries: TimelineEntry[] = [
+    ...writes.map((write) => ({
+      id: `update-${write.id}`,
+      kind: 'update' as const,
+      label: 'Update',
+      body: write.summary,
+      createdAt: write.at,
+      ...(top?.actor === 'agent' && newestWrite?.id === write.id ? { undoable: true } : {}),
+    })),
     ...timeline.events.map((event) => ({
       id: `event-${event.id}`,
       kind: event.kind,
@@ -152,20 +183,56 @@ export function mergeTimeline(timeline: AxTimelineView, limit = 40): TimelineEnt
   return entries.slice(0, limit);
 }
 
-export const timelineEntries = computed(() => mergeTimeline(axTimeline.value));
+export const timelineEntries = computed(() =>
+  mergeTimeline(axTimeline.value, 40, agentActivity.value, historyTop.value),
+);
 
 export async function refreshTimeline(): Promise<void> {
-  const data = await requestJson<Partial<AxTimelineView> | null>(
-    'refreshTimeline',
-    '/api/canvas/ax/timeline?limit=40',
-    null,
-  );
+  const [data, history] = await Promise.all([
+    requestJson<Partial<AxTimelineView> | null>('refreshTimeline', '/api/canvas/ax/timeline?limit=40', null),
+    requestJson<{ top?: { id: string; actor: 'human' | 'agent'; description: string } | null } | null>(
+      'refreshHistoryTop',
+      '/api/canvas/history',
+      null,
+    ),
+  ]);
+  if (history) historyTop.value = history.top ?? null;
   if (!data) return;
   axTimeline.value = {
     events: Array.isArray(data.events) ? data.events : [],
     evidence: Array.isArray(data.evidence) ? data.evidence : [],
     steering: Array.isArray(data.steering) ? data.steering : [],
   };
+}
+
+/**
+ * Undo the agent's latest edit through the ONE shared undo stack (the same
+ * POST /api/canvas/undo Ctrl+Z uses), then tell the agent: steering feedback
+ * goes out through the same path a veto takes.
+ */
+export async function undoAgentEdit(entry: TimelineEntry): Promise<boolean> {
+  const result = await requestOk('undoAgentEdit', '/api/canvas/undo', { method: 'POST' });
+  if (!result.ok) return false;
+  undoneActivityIds.value = new Set([...undoneActivityIds.value, entry.id]);
+  await requestBestEffort('undoAgentEditSteering', '/api/canvas/ax/steer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      message: `Undid your edit: ${entry.body} — it was reverted on the board.`,
+      source: 'browser',
+    }),
+  });
+  void refreshTimeline();
+  return true;
+}
+
+/** Ctrl+Z / Ctrl+Shift+Z: whichever op is top of the shared stack, agent or human. */
+export async function undoFromKeyboard(redo = false): Promise<boolean> {
+  const result = await requestOk(redo ? 'redo' : 'undo', redo ? '/api/canvas/redo' : '/api/canvas/undo', {
+    method: 'POST',
+  });
+  if (result.ok) void refreshTimeline();
+  return result.ok;
 }
 
 /**
@@ -264,6 +331,8 @@ export function dismissSessionReceipt(): void {
 }
 
 export function resetSessionStore(): void {
+  historyTop.value = null;
+  undoneActivityIds.value = new Set();
   sessionReceipt.value = null;
   axTimeline.value = { events: [], evidence: [], steering: [] };
 }

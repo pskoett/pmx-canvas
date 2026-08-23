@@ -18,6 +18,7 @@ import { clearThemeOverride } from '../state/theme-override';
 import { getNodeIcon, IconArrange, IconFitAll, IconMinimap, IconMoon, IconNodeMarkdown, IconSteer } from '../icons';
 
 import { MOD_KEY } from '../utils/platform';
+import { useFocusTrap } from './use-focus-trap';
 
 // ── Types ───────────────────────────────────────────────────
 interface PaletteItem {
@@ -106,6 +107,8 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef, true, { initial: inputRef });
 
   // Autofocus
   useEffect(() => {
@@ -338,8 +341,10 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
   return (
     <div class="command-palette-backdrop" onMouseDown={onClose}>
       <div
+        ref={dialogRef}
         class="command-palette"
         role="dialog"
+        aria-modal="true"
         aria-label="Search and commands"
         onMouseDown={(e) => e.stopPropagation()}
       >

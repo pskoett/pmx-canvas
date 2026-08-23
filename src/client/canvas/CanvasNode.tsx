@@ -44,6 +44,40 @@ import { activeGuides, buildSnapCache, clearSnapCache, snapToGuides } from './sn
 import { useNodeDrag } from './use-node-drag';
 import { useNodeResize } from './use-node-resize';
 
+const ARROW_DIRS: Record<string, { dx: number; dy: number }> = {
+  ArrowLeft: { dx: -1, dy: 0 },
+  ArrowRight: { dx: 1, dy: 0 },
+  ArrowUp: { dx: 0, dy: -1 },
+  ArrowDown: { dx: 0, dy: 1 },
+};
+
+/** The closest node whose centre lies in `dir` from `from` (a 90° cone, weighted toward the axis). */
+export function nearestNodeInDirection(
+  from: CanvasNodeState,
+  dir: { dx: number; dy: number },
+  candidates: Iterable<CanvasNodeState>,
+): CanvasNodeState | null {
+  const fx = from.position.x + from.size.width / 2;
+  const fy = from.position.y + from.size.height / 2;
+  let best: CanvasNodeState | null = null;
+  let bestScore = Number.POSITIVE_INFINITY;
+  for (const node of candidates) {
+    if (node.id === from.id) continue;
+    const dx = node.position.x + node.size.width / 2 - fx;
+    const dy = node.position.y + node.size.height / 2 - fy;
+    const along = dx * dir.dx + dy * dir.dy;
+    if (along <= 0) continue;
+    const across = Math.abs(dx * dir.dy) + Math.abs(dy * dir.dx);
+    if (across > along) continue; // outside the 90° cone
+    const score = along + across * 2;
+    if (score < bestScore) {
+      bestScore = score;
+      best = node;
+    }
+  }
+  return best;
+}
+
 /** Fraction of a node's height the title bar may occupy before it starts
  *  crowding out the content it is labelling. */
 const MAX_TITLEBAR_HEIGHT_RATIO = 0.4;
@@ -212,6 +246,30 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
       if (onContextMenu) onContextMenu(e, node.id);
     },
     [onContextMenu, node.id],
+  );
+
+  // ── Keyboard (item 18): roving focus across nodes ─────
+  // Arrow keys move focus to the nearest node in that direction (world
+  // space); Enter opens the focused node in focus mode.
+  const handleNodeKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && target !== e.currentTarget && target.closest('input, textarea, [contenteditable="true"]')) return;
+      const dir = ARROW_DIRS[e.key];
+      if (dir) {
+        e.preventDefault();
+        const next = nearestNodeInDirection(node, dir, nodes.value.values());
+        if (!next) return;
+        bringToFront(next.id);
+        requestAnimationFrame(() => {
+          document.querySelector<HTMLElement>(`.canvas-node[data-node-id="${CSS.escape(next.id)}"]`)?.focus();
+        });
+      } else if (e.key === 'Enter' && e.target === e.currentTarget && EXPANDABLE_TYPES.has(node.type)) {
+        e.preventDefault();
+        expandNode(node.id);
+      }
+    },
+    [node],
   );
 
   // ── Double-click rename ───────────────────────────────
@@ -390,7 +448,10 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     <div
       class={`${nodeClass}${isDropTarget ? ' is-drop-target' : ''}${isDropSource ? ' is-drop-source' : ''}`}
       data-node-type={node.type}
+      data-node-id={node.id}
       style={nodeStyle}
+      tabIndex={isActive ? 0 : -1}
+      onKeyDown={handleNodeKeyDown}
       onPointerDown={handlePointerDown}
       onContextMenu={handleContextMenuEvent}
     >

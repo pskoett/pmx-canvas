@@ -1,4 +1,4 @@
-import { useEffect } from 'preact/hooks';
+import { useEffect, useRef } from 'preact/hooks';
 import type { AgentPresence } from '../../shared/agent-presence.js';
 import { vetoGhostIntent } from '../state/intent-bridge';
 import { type ClientIntent, intents, removeIntent } from '../state/intent-store';
@@ -16,6 +16,7 @@ import {
 } from '../state/presence-store';
 import { scopeFence, pendingGates, startSession } from '../state/session-store';
 import { sessionId } from '../state/canvas-store';
+import { useFocusTrap } from './use-focus-trap';
 import { useNow } from './use-now';
 
 /**
@@ -235,6 +236,8 @@ function sessionConfig(): string {
 export function WritersSheet() {
   const open = writersSheetOpen.value;
   const now = useNow(open ? 10_000 : 0);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(sheetRef, open);
   if (!open) return null;
   const sessions = agentPresences.value.filter((presence) => presence.attached);
   const external = agentPresences.value.filter((presence) => !presence.attached);
@@ -244,7 +247,14 @@ export function WritersSheet() {
   return (
     <>
       <div class="writers-scrim" onClick={close} aria-hidden="true" />
-      <div class="writers-sheet" data-testid="writers-sheet" role="dialog" aria-label="Connected writers">
+      <div
+        ref={sheetRef}
+        class="writers-sheet"
+        data-testid="writers-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Connected writers"
+      >
         <div class="writers-head">
           <span class="writers-title">Connected writers</span>
           <span class="writers-board">{sessionId.value.slice(0, 12)}</span>

@@ -180,6 +180,7 @@ const historyGetOperation = defineOperation<z.infer<typeof historyGetSchema>, Re
   handler: () => ({
     text: mutationHistory.toHumanReadable(),
     entries: mutationHistory.getSummaries(),
+    top: mutationHistory.top(),
     canUndo: mutationHistory.canUndo(),
     canRedo: mutationHistory.canRedo(),
   }),

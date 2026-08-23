@@ -538,7 +538,15 @@ re-mint them automatically (Finding S).
 curl -X POST http://localhost:4313/api/canvas/undo
 curl -X POST http://localhost:4313/api/canvas/redo
 curl http://localhost:4313/api/canvas/history
+# → { text, entries: [{ id, timestamp, description, actor, operationType, isCurrent, isUndone }],
+#     top: { …the entry undo would revert next… } | null, canUndo, canRedo }
 ```
+
+One shared undo stack, agent and human alike. Each entry's `actor` is `human`
+for workbench writes (`x-pmx-workbench: 1`) and `agent` for everything else;
+`top` is what the next undo reverts. The session panel uses this to offer
+"undo this edit" on the agent's latest board write and tells the agent through
+steering when the human takes it.
 
 ## WebView automation
 

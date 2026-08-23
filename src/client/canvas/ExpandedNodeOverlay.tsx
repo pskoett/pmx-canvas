@@ -25,6 +25,7 @@ import {
   toggleContextPin,
 } from '../state/canvas-store';
 import { getNodeIcon } from '../icons';
+import { useFocusTrap } from './use-focus-trap';
 import { TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
 
@@ -232,6 +233,15 @@ export function ExpandedNodeOverlay() {
     };
   }, [handlePresentationKeyDown, presentationExitToken, presenting]);
 
+  // Focus trap (item 18): restore to the node this overlay opened from — its
+  // world element is unmounted while expanded and remounted on close.
+  const panelRef = useRef<HTMLDivElement>(null);
+  const restoreToNode = useCallback(
+    () => (nodeId ? document.querySelector<HTMLElement>(`.canvas-node[data-node-id="${CSS.escape(nodeId)}"]`) : null),
+    [nodeId],
+  );
+  useFocusTrap(panelRef, node !== undefined, { restoreTo: restoreToNode });
+
   if (!node) return null;
 
   const title = (node.data.title as string) || (node.data.path as string)?.split('/').pop() || TYPE_LABELS[node.type];
@@ -266,8 +276,10 @@ export function ExpandedNodeOverlay() {
       style={{ pointerEvents: pendingClose ? 'none' : 'auto' }}
     >
       <div
+        ref={panelRef}
         class={`expanded-overlay-panel${isCtxPinned ? ' is-pinned' : ''}`}
         role="dialog"
+        aria-modal="true"
         aria-label={title}
         data-testid="expanded-node"
       >

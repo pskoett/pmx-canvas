@@ -173,7 +173,7 @@ is a visible element on today's board that does not yet match the prototypes.
   for the 90 s activity TTL — it now removes the presence like `session-end` does. Per-writer
   colors come from the accent set, violet first, stable for the page's life.
 
-### Phase 7 — Canvas quality wave (independent items, any order)
+### Phase 7 — Canvas quality wave — BUILT (7a–7d)
 - **7a (built):** empty state replacing WelcomeCard (item 11 — four live starter actions: the
   M note, a file picker onto the viewport's import path (`import-files.ts`, shared with the drop
   zone), the webpage prompt, Start agent session; the vestigial client-side `status-main` seeding
@@ -212,9 +212,21 @@ is a visible element on today's board that does not yet match the prototypes.
   name, kind dots, count); its children are hidden and edges to them draw to the chip. G groups
   a ≥2 selection (else a new frame), Shift+G ungroups every group the selection touches.
   `bringToFront` keeps a group below its own children.
-- Per-entry undo of agent ops through shared history + steering feedback (item 10).
-- A11y sweep: focus-visible rings, focus traps, `aria-live` on gates/timeline, roving tabindex
-  (item 18 — partially delivered inside each phase, swept here).
+- **7d (built) — shared undo (item 10):** history entries carry an `actor` (`executeOperation`
+  sets human/agent from the workbench marker around each op; SDK writes default to agent) and
+  `GET /api/canvas/history` exposes `top` (what Ctrl+Z undoes next). The session panel merges
+  the agent's board writes (presence activity) into the timeline as Update rows; the newest
+  board write shows "↩ undo this edit" only while an agent edit tops the stack. Undo goes
+  through the one shared `POST /api/canvas/undo`, marks the row "undone · steering sent", and
+  posts steering ("Undid your edit: …"). Ctrl+Z / Ctrl+Shift+Z work the same stack, agent or
+  human. A new agent write refreshes the panel's view of the stack.
+- **7d (built) — a11y sweep (item 18):** one `:focus-visible` ring (2px accent, 2px offset) on
+  every rail/bar/panel/overlay control; nodes are focusable with roving tabindex (the active node
+  is the tab stop), arrow keys move focus to the nearest node in a 90° cone, Enter opens focus
+  mode; `useFocusTrap` on the palette, the expanded node (restores to the node it opened from —
+  its world element is remounted on close) and the writers sheet; `aria-live="polite"` on the
+  gates/work-item list and the timeline; Esc closes overlays top-most first (already);
+  reduced motion disables the new pulses, shimmer, glide, progress and panel transitions.
 
 ### Phase 8 — Multi-client presence (needs sync infra that doesn't exist yet)
 - Human collaborator cursors (item 5), user-wins yield + requeue (item 6), edge-creation drag +

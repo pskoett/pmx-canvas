@@ -28,7 +28,7 @@ import {
   reconnectDelay,
 } from './canvas-store';
 import { fetchAgentPresence, fetchAxSurfaceState, reportClientViewportSize } from './intent-bridge';
-import { applyPresenceSnapshot, sessionActive } from './presence-store';
+import { agentActivity, applyPresenceSnapshot, sessionActive } from './presence-store';
 import { applySessionReceipt, refreshTimeline } from './session-store';
 import { initSessionThemeOverride, themeOverrideActive } from './theme-override';
 import { DEFAULT_POSITIONS, makeNodeState } from './node-factory';
@@ -423,7 +423,11 @@ function reloadIfServerUpgraded(serverVersion: unknown): void {
 }
 
 function handleAgentPresence(data: Record<string, unknown>): void {
+  const previousTopWrite = agentActivity.value[0]?.id;
   applyPresenceSnapshot(data as Partial<AgentPresenceSnapshot>);
+  // A new agent write moved the shared undo stack: refresh the panel's view
+  // of it (history top + timeline) — cursor-only frames cost nothing.
+  if (sessionActive.value && agentActivity.value[0]?.id !== previousTopWrite) void refreshTimeline();
 }
 
 function handleAgentSessionEnded(data: Record<string, unknown>): void {

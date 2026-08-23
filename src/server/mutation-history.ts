@@ -45,11 +45,15 @@ export type MutationOp =
   | 'groupNodes'
   | 'ungroupNodes';
 
+/** Who made a mutation: the human in the workbench, or an agent through any transport. */
+export type MutationActor = 'human' | 'agent';
+
 export interface MutationEntry {
   id: string;
   timestamp: string;
   description: string;
   operationType: MutationOp;
+  actor: MutationActor;
   forward: () => void;
   inverse: () => void;
 }
@@ -58,6 +62,7 @@ export interface MutationSummary {
   id: string;
   timestamp: string;
   description: string;
+  actor: MutationActor;
   operationType: MutationOp;
   isCurrent: boolean;
   isUndone: boolean;
@@ -103,11 +108,12 @@ class MutationHistory {
    * Record a new mutation. Truncates any redo-able future, then appends.
    * If called while replaying (undo/redo), the call is silently ignored.
    */
-  record(entry: Omit<MutationEntry, 'id' | 'timestamp'>): void {
+  record(entry: Omit<MutationEntry, 'id' | 'timestamp' | 'actor'> & { actor?: MutationActor }): void {
     if (this._replaying) return;
 
     const full: MutationEntry = {
       ...entry,
+      actor: entry.actor ?? currentActor ?? 'agent',
       id: `mut-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
       timestamp: new Date().toISOString(),
     };
@@ -169,10 +175,27 @@ class MutationHistory {
       id: e.id,
       timestamp: e.timestamp,
       description: e.description,
+      actor: e.actor,
       operationType: e.operationType,
       isCurrent: i === this.cursor,
       isUndone: i > this.cursor,
     }));
+  }
+
+  /** The entry Ctrl+Z would undo next (top of the shared stack), or null. */
+  top(): MutationSummary | null {
+    const entry = this.entries[this.cursor];
+    return entry
+      ? {
+          id: entry.id,
+          timestamp: entry.timestamp,
+          description: entry.description,
+          actor: entry.actor,
+          operationType: entry.operationType,
+          isCurrent: true,
+          isUndone: false,
+        }
+      : null;
   }
 
   /** Human-readable timeline for the canvas://history resource. */
@@ -383,3 +406,15 @@ export function formatDiff(diff: SnapshotDiffResult): string {
 // ── Singleton ────────────────────────────────────────────────────────
 
 export const mutationHistory = new MutationHistory();
+
+/**
+ * Actor context for entries recorded while an operation runs. executeOperation
+ * sets it from the workbench marker around each op; writes outside the
+ * registry (the sync SDK) default to `agent`. Only the undo affordance reads
+ * it, so an async op interleaving with another request costs at most a
+ * mislabelled row — never a wrong undo.
+ */
+let currentActor: MutationActor | null = null;
+export function setMutationActor(actor: MutationActor | null): void {
+  currentActor = actor;
+}

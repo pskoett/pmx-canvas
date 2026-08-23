@@ -13,11 +13,14 @@
  */
 import type { CanvasNodeState, CanvasEdge } from './canvas-state.js';
 export type MutationOp = 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'arrange' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'requestElicitation' | 'respondElicitation' | 'requestMode' | 'resolveModeRequest' | 'setPolicy' | 'batch' | 'viewport' | 'groupNodes' | 'ungroupNodes';
+/** Who made a mutation: the human in the workbench, or an agent through any transport. */
+export type MutationActor = 'human' | 'agent';
 export interface MutationEntry {
     id: string;
     timestamp: string;
     description: string;
     operationType: MutationOp;
+    actor: MutationActor;
     forward: () => void;
     inverse: () => void;
 }
@@ -25,6 +28,7 @@ export interface MutationSummary {
     id: string;
     timestamp: string;
     description: string;
+    actor: MutationActor;
     operationType: MutationOp;
     isCurrent: boolean;
     isUndone: boolean;
@@ -71,7 +75,9 @@ declare class MutationHistory {
      * Record a new mutation. Truncates any redo-able future, then appends.
      * If called while replaying (undo/redo), the call is silently ignored.
      */
-    record(entry: Omit<MutationEntry, 'id' | 'timestamp'>): void;
+    record(entry: Omit<MutationEntry, 'id' | 'timestamp' | 'actor'> & {
+        actor?: MutationActor;
+    }): void;
     /** Undo the last applied mutation. Returns the entry that was undone, or null. */
     undo(): MutationEntry | null;
     /** Redo the next undone mutation. Returns the entry that was redone, or null. */
@@ -80,6 +86,8 @@ declare class MutationHistory {
     canRedo(): boolean;
     /** Get all entries with current/undone status for display. */
     getSummaries(): MutationSummary[];
+    /** The entry Ctrl+Z would undo next (top of the shared stack), or null. */
+    top(): MutationSummary | null;
     /** Human-readable timeline for the canvas://history resource. */
     toHumanReadable(): string;
     /** Number of recorded entries. */
@@ -102,4 +110,5 @@ export declare function diffLayouts(snapshotName: string, snapshotLayout: {
  */
 export declare function formatDiff(diff: SnapshotDiffResult): string;
 export declare const mutationHistory: MutationHistory;
+export declare function setMutationActor(actor: MutationActor | null): void;
 export {};

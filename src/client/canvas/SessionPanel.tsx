@@ -18,6 +18,8 @@ import {
   type TimelineEntry,
   type TimelineEntryKind,
   timelineEntries,
+  undoAgentEdit,
+  undoneActivityIds,
   type WorkItemStatus,
   type WorkItemView,
 } from '../state/session-store';
@@ -52,6 +54,7 @@ const TIMELINE_TONE: Record<TimelineEntryKind, string> = {
   note: 'muted',
   evidence: 'ok',
   steer: 'purple',
+  update: 'purple',
 };
 
 function clock(iso: string): string {
@@ -208,6 +211,7 @@ function ScopeRow() {
 }
 
 function TimelineRow({ entry }: { entry: TimelineEntry }) {
+  const undone = undoneActivityIds.value.has(entry.id);
   return (
     <li class={`session-timeline-row tone-${TIMELINE_TONE[entry.kind] ?? 'muted'}`}>
       <span class="session-timeline-dot" aria-hidden="true" />
@@ -217,6 +221,19 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
           <span class="session-item-time">{clock(entry.createdAt)}</span>
         </div>
         <div class="session-timeline-body">{entry.body}</div>
+        {/* Item 10: one shared undo stack — the agent's latest edit can be
+            undone from here; the agent hears about it as steering. */}
+        {entry.undoable && !undone && (
+          <button
+            type="button"
+            class="session-timeline-undo"
+            data-testid="timeline-undo"
+            onClick={() => void undoAgentEdit(entry)}
+          >
+            ↩ undo this edit
+          </button>
+        )}
+        {undone && <div class="session-timeline-undone">undone · steering sent</div>}
       </div>
     </li>
   );
@@ -249,7 +266,7 @@ export function SessionPanel() {
   }
 
   return (
-    <aside class="session-panel" aria-label="Session" aria-live="polite">
+    <aside class="session-panel" aria-label="Session">
       <header class="session-panel-header">
         <span class="session-panel-title">Session</span>
         {session && (
@@ -287,7 +304,7 @@ export function SessionPanel() {
           {gates.length === 0 && held.length === 0 && items.length === 0 ? (
             <div class="session-empty">No work items yet — the agent's tasks and gates appear here.</div>
           ) : (
-            <ul class="session-list">
+            <ul class="session-list" aria-live="polite" aria-label="Work items and gates">
               {gates.map((gate) => (
                 <GateRow key={gate.id} gate={gate} now={now} />
               ))}
@@ -306,7 +323,7 @@ export function SessionPanel() {
           {entries.length === 0 ? (
             <div class="session-empty">Nothing recorded yet.</div>
           ) : (
-            <ul class="session-list session-timeline">
+            <ul class="session-list session-timeline" aria-live="polite" aria-label="Timeline">
               {entries.map((entry) => (
                 <TimelineRow key={entry.id} entry={entry} />
               ))}

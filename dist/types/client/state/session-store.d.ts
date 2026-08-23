@@ -62,18 +62,48 @@ export interface AxTimelineView {
     steering: AxSteeringView[];
 }
 export declare const axTimeline: import("@preact/signals-core").Signal<AxTimelineView>;
-export type TimelineEntryKind = AxEventKind | 'evidence' | 'steer';
+export type TimelineEntryKind = AxEventKind | 'evidence' | 'steer' | 'update';
 export interface TimelineEntry {
     id: string;
     kind: TimelineEntryKind;
     label: string;
     body: string;
     createdAt: string;
+    /** Item 10: this agent edit is the top of the shared undo stack — "↩ undo this edit". */
+    undoable?: boolean;
 }
-/** One reverse-chronological feed out of the three timeline tables. */
-export declare function mergeTimeline(timeline: AxTimelineView, limit?: number): TimelineEntry[];
+/** The entry Ctrl+Z would undo next, from GET /api/canvas/history. */
+export declare const historyTop: import("@preact/signals-core").Signal<{
+    id: string;
+    actor: "human" | "agent";
+    description: string;
+} | null>;
+/** Agent edits undone from the panel this page-life — rendered "undone · steering sent". */
+export declare const undoneActivityIds: import("@preact/signals-core").Signal<Set<string>>;
+/**
+ * One reverse-chronological feed out of the three timeline tables plus the
+ * agent's board writes (the presence activity feed), so the panel shows what
+ * the agent DID between its tool runs and gates. The newest agent write gets
+ * the undo affordance when it is also the top of the shared undo stack.
+ */
+export declare function mergeTimeline(timeline: AxTimelineView, limit?: number, writes?: Array<{
+    id: string;
+    at: string;
+    op: string;
+    summary: string;
+}>, top?: {
+    actor: 'human' | 'agent';
+} | null): TimelineEntry[];
 export declare const timelineEntries: import("@preact/signals-core").ReadonlySignal<TimelineEntry[]>;
 export declare function refreshTimeline(): Promise<void>;
+/**
+ * Undo the agent's latest edit through the ONE shared undo stack (the same
+ * POST /api/canvas/undo Ctrl+Z uses), then tell the agent: steering feedback
+ * goes out through the same path a veto takes.
+ */
+export declare function undoAgentEdit(entry: TimelineEntry): Promise<boolean>;
+/** Ctrl+Z / Ctrl+Shift+Z: whichever op is top of the shared stack, agent or human. */
+export declare function undoFromKeyboard(redo?: boolean): Promise<boolean>;
 /**
  * Resolve a gate through the existing AX path. A rejection also posts steering
  * feedback so the agent learns WHY its next turn — the same `vetoGhostSteering`

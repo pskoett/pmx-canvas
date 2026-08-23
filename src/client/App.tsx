@@ -9,6 +9,7 @@ import { CommandPalette } from './canvas/CommandPalette';
 import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
 import { ContextPinBar } from './canvas/ContextPinBar';
 import { EmptyState } from './canvas/EmptyState';
+import { undoFromKeyboard } from './state/session-store';
 import { ActivityFeed, WritersSheet } from './canvas/ExternalWriters';
 import { ExpandedNodeOverlay } from './canvas/ExpandedNodeOverlay';
 import { Minimap } from './canvas/Minimap';
@@ -163,7 +164,12 @@ export function App() {
         return;
       }
 
-      if (mod && e.key === '0') {
+      if (mod && (e.key === 'z' || e.key === 'Z')) {
+        // One shared undo stack (item 10): Ctrl+Z undoes whichever op is on
+        // top, agent or human; Shift redoes.
+        e.preventDefault();
+        void undoFromKeyboard(e.shiftKey);
+      } else if (mod && e.key === '0') {
         e.preventDefault();
         animateViewport({ x: 0, y: 0, scale: 1 }, 250);
       } else if (mod && (e.key === '=' || e.key === '+')) {

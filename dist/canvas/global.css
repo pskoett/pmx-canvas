@@ -1474,6 +1474,26 @@ body,
   font-weight: 600;
   color: var(--tone);
 }
+.session-timeline-undo {
+  margin-top: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--c-line);
+  border-radius: 999px;
+  background: none;
+  color: var(--c-muted);
+  font-size: 9.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.session-timeline-undo:hover {
+  border-color: color-mix(in srgb, var(--c-accent) 40%, transparent);
+  color: var(--c-accent);
+}
+.session-timeline-undone {
+  margin-top: 2px;
+  font: 9px var(--mono);
+  color: var(--c-dim);
+}
 .session-timeline-body {
   font-size: 10.5px;
   line-height: 1.5;
@@ -2154,6 +2174,61 @@ body,
   bottom: 3px;
   font: 8px var(--mono);
   color: var(--c-dim);
+}
+
+/* ── Accessibility sweep (rail-chrome-v2 item 18) ───────────────
+   One focus ring for every chrome control; nodes are focusable for the
+   keyboard (arrow keys traverse, Enter opens); reduced motion below. */
+.tool-rail button:focus-visible,
+.top-bar button:focus-visible,
+.connection-banner button:focus-visible,
+.session-panel button:focus-visible,
+.session-panel input:focus-visible,
+.command-bar button:focus-visible,
+.command-bar-input:focus-visible,
+.selection-bar button:focus-visible,
+.activity-feed button:focus-visible,
+.writers-sheet button:focus-visible,
+.empty-state button:focus-visible,
+.session-receipt button:focus-visible,
+.snapshot-panel button:focus-visible,
+.expanded-header button:focus-visible,
+.group-action:focus-visible,
+.group-menu button:focus-visible,
+.command-palette-item:focus-visible,
+.canvas-node:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 2px;
+}
+.command-bar-input:focus-visible {
+  outline: none;
+}
+.canvas-node:focus {
+  outline: none;
+}
+.canvas-node:focus-visible {
+  outline: 2px solid var(--c-accent);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .connection-banner-progress-fill,
+  .connection-dot,
+  .external-indicator-dot,
+  .group-chip-expand,
+  .start-session-dot {
+    animation: none;
+  }
+  .command-palette,
+  .snapshot-panel,
+  .session-receipt,
+  .canvas-node.group-node,
+  .activity-feed,
+  .writers-sheet,
+  .context-budget-fill {
+    animation: none;
+    transition: none;
+  }
 }
 
 /* Quiet-board affordance in the top bar */

@@ -9,6 +9,7 @@
  */
 import { canvasState } from '../canvas-state.js';
 import { intentRegistry } from '../intent-registry.js';
+import { setMutationActor } from '../mutation-history.js';
 import { agentPresence, describeWrite } from '../agent-presence.js';
 import { checkScopeFence, checkScopeOwnership } from '../scope-fence.js';
 import type { PmxAxIntent, PmxAxIntentKind } from '../../shared/ax-intent.js';
@@ -274,6 +275,17 @@ export async function executeOperation(
   rawInput: unknown,
   meta: ExecuteOperationMeta = {},
 ): Promise<unknown> {
+  // History entries recorded while this op runs carry who made them (item
+  // 10: the session panel offers undo on the agent's latest edit).
+  setMutationActor(meta.fromWorkbench ? 'human' : 'agent');
+  try {
+    return await executeOperationInner(name, rawInput, meta);
+  } finally {
+    setMutationActor(null);
+  }
+}
+
+async function executeOperationInner(name: string, rawInput: unknown, meta: ExecuteOperationMeta): Promise<unknown> {
   const op = getOperation(name);
   // Scope fence (design item 4): an attached agent's writes must stay inside
   // the fence the human granted. Reads and the human's own writes pass, and

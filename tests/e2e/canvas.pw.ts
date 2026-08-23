@@ -3835,6 +3835,98 @@ test('human-started session: start from the quiet board, steer from the command 
   await expect(receipt).toHaveCount(0);
 });
 
+test('shared undo: the panel undoes the agent’s latest edit and tells it; Ctrl+Z works the same stack', async ({
+  page,
+  request,
+}) => {
+  // rail-chrome-v2 phase 7, item 10.
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Human note', content: 'mine', x: 120, y: 120, width: 300, height: 160 },
+    headers: { 'x-pmx-workbench': '1' },
+  });
+  await request.post('/api/canvas/ax/activity', {
+    data: { kind: 'session-start', title: 'Claude', source: 'copilot' },
+  });
+  await page.goto('/workbench');
+  await expect(page.locator('.session-panel')).toBeVisible();
+
+  // The agent writes: the timeline shows it as an Update with the undo affordance.
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Agent draft', content: 'draft', x: 520, y: 120, width: 300, height: 160 },
+  });
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Agent draft' })).toHaveCount(1);
+  const row = page.locator('.session-timeline-row').filter({ hasText: 'Created markdown “Agent draft”' });
+  await expect(row).toHaveCount(1);
+  await row.getByTestId('timeline-undo').click();
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Agent draft' })).toHaveCount(0);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Human note' })).toHaveCount(1);
+  await expect(row.locator('.session-timeline-undone')).toHaveText('undone · steering sent');
+  await expect
+    .poll(async () => {
+      const body = (await (await request.get('/api/canvas/ax/timeline?limit=20')).json()) as {
+        steering: Array<{ message: string }>;
+      };
+      return body.steering.some((entry) => entry.message.startsWith('Undid your edit: Created markdown “Agent draft”'));
+    })
+    .toBe(true);
+
+  // A human edit on top: no undo affordance on the agent row; Ctrl+Z undoes the human's.
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Human second', content: 'x', x: 120, y: 420, width: 300, height: 160 },
+    headers: { 'x-pmx-workbench': '1' },
+  });
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Human second' })).toHaveCount(1);
+  await expect(page.locator('[data-testid="timeline-undo"]')).toHaveCount(0);
+  await page.locator('.canvas-viewport').click({ position: { x: 900, y: 700 } });
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Human second' })).toHaveCount(0);
+  await page.keyboard.press('ControlOrMeta+Shift+z');
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Human second' })).toHaveCount(1);
+
+  await request.post('/api/canvas/ax/activity', { data: { kind: 'session-end', title: 'done', source: 'copilot' } });
+});
+
+test('keyboard: arrow keys traverse nodes spatially, Enter opens, overlays trap and restore focus', async ({
+  page,
+  request,
+}) => {
+  // rail-chrome-v2 item 18.
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Key A', content: 'a', x: 100, y: 100, width: 240, height: 120 },
+  });
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Key B', content: 'b', x: 500, y: 110, width: 240, height: 120 },
+  });
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Key C', content: 'c', x: 120, y: 400, width: 240, height: 120 },
+  });
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  await page.goto('/workbench');
+
+  const a = page.locator('.canvas-node').filter({ hasText: 'Key A' });
+  await a.click({ position: { x: 120, y: 90 } });
+  await a.focus();
+  await expect(a).toBeFocused();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Key B' })).toBeFocused();
+  await page.keyboard.press('ArrowLeft');
+  await expect(a).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  const c = page.locator('.canvas-node').filter({ hasText: 'Key C' });
+  await expect(c).toBeFocused();
+
+  // Enter opens the focused node; the overlay traps focus and Esc restores it.
+  await page.keyboard.press('Enter');
+  const overlay = page.locator('.expanded-overlay-panel');
+  await expect(overlay).toBeVisible();
+  await expect(overlay.locator(':focus')).toHaveCount(1);
+  for (let i = 0; i < 12; i += 1) await page.keyboard.press('Tab');
+  await expect(overlay.locator(':focus')).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(overlay).toHaveCount(0);
+  await expect(c).toBeFocused();
+});
+
 test('groups v2: membership only on release with the pill, esc keeps it out, collapse to a chip, header actions, G / Shift+G', async ({
   page,
   request,

@@ -136,6 +136,23 @@ describe('agent presence over HTTP', () => {
     expect(typeof snapshot.activity[0]?.at).toBe('string');
   });
 
+  test('history entries carry who made them; the top of the shared stack is exposed', async () => {
+    await postJson('/api/canvas/node', { type: 'markdown', title: 'Agent made', x: 10, y: 10 });
+    let history = (await (await fetch(`${baseUrl}/api/canvas/history`)).json()) as {
+      top: { actor: string; description: string } | null;
+      entries: Array<{ actor: string }>;
+    };
+    expect(history.top).toMatchObject({ actor: 'agent', description: expect.stringContaining('Agent made') });
+    await postJson(
+      '/api/canvas/node',
+      { type: 'markdown', title: 'Human made', x: 400, y: 10 },
+      { 'x-pmx-workbench': '1' },
+    );
+    history = (await (await fetch(`${baseUrl}/api/canvas/history`)).json()) as typeof history;
+    expect(history.top?.actor).toBe('human');
+    expect(history.entries.slice(-2).map((entry) => entry.actor)).toEqual(['agent', 'human']);
+  });
+
   test('reads never count as presence', async () => {
     const response = await fetch(`${baseUrl}/api/canvas/state`);
     expect(response.ok).toBe(true);
