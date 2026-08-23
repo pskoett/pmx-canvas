@@ -26,7 +26,8 @@ import {
   workbenchConnectionEpoch,
 } from './canvas-store';
 import { fetchAgentPresence, fetchAxSurfaceState, reportClientViewportSize } from './intent-bridge';
-import { applyPresenceSnapshot } from './presence-store';
+import { applyPresenceSnapshot, sessionActive } from './presence-store';
+import { refreshTimeline } from './session-store';
 import { initSessionThemeOverride, themeOverrideActive } from './theme-override';
 import { DEFAULT_POSITIONS, makeNodeState } from './node-factory';
 import { invalidateTokenCache } from '../theme/tokens';
@@ -447,6 +448,13 @@ function handleConnected(data: Record<string, unknown>): void {
   // Agent presence: read the snapshot on (re)connect; `agent-presence` frames
   // keep it live from here on.
   void fetchAgentPresence().then(applyPresenceSnapshot);
+  // The AX surface snapshot (work items, gates) likewise — it used to arrive
+  // only on the first ax-state-changed, so a fresh load showed an empty
+  // session panel while persisted work items existed.
+  void fetchAxSurfaceState().then((state) => {
+    axSurfaceState.value = state;
+    if (sessionActive.value) void refreshTimeline();
+  });
   // A ?theme= session override (host-default theming) wins over the
   // server-global theme for THIS client only.
   if (typeof data.theme === 'string' && !themeOverrideActive()) {
@@ -963,6 +971,8 @@ function handleAxStateChanged(): void {
     void fetchAxSurfaceState().then((state) => {
       axSurfaceState.value = state;
     });
+    // The session panel's timeline — only worth fetching while it is mounted.
+    if (sessionActive.value) void refreshTimeline();
   }, 150);
 }
 

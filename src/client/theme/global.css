@@ -546,9 +546,11 @@ body,
 /* Node card shared styles */
 .canvas-node {
   position: absolute;
+  /* Standard card shell (rail-chrome-v2): node surface, 12px radius, soft
+     shadow. Every node kind shares it; the kind shows in the icon color. */
   background: var(--c-panel);
   border: 1px solid var(--c-line);
-  border-radius: var(--radius);
+  border-radius: 12px;
   box-shadow: 0 4px 24px var(--c-shadow);
   display: flex;
   flex-direction: column;
@@ -623,7 +625,7 @@ body,
   display: flex;
   align-items: center;
   gap: calc(8px * var(--node-chrome-scale, 1));
-  padding: calc(8px * var(--node-chrome-scale, 1)) calc(12px * var(--node-chrome-scale, 1));
+  padding: calc(7px * var(--node-chrome-scale, 1)) calc(12px * var(--node-chrome-scale, 1));
   background: var(--c-panel-overlay);
   border-bottom: 1px solid var(--c-line);
   cursor: grab;
@@ -638,7 +640,7 @@ body,
 .canvas-node .node-title {
   font-size: calc(12px * var(--node-chrome-scale, 1));
   font-weight: 600;
-  color: var(--c-muted);
+  color: var(--c-text-soft);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -654,12 +656,26 @@ body,
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: calc(18px * var(--node-chrome-scale, 1));
-  height: calc(18px * var(--node-chrome-scale, 1));
-  border-radius: calc(4px * var(--node-chrome-scale, 1));
-  color: var(--c-accent);
-  background: var(--c-accent-10);
+  width: calc(14px * var(--node-chrome-scale, 1));
+  height: calc(14px * var(--node-chrome-scale, 1));
+  color: var(--kind-accent, var(--c-accent));
   flex-shrink: 0;
+}
+
+/* Node kind accents (rail-chrome-v2): the icon carries the kind. */
+.canvas-node[data-node-type='image'],
+.canvas-node[data-node-type='mermaid'] {
+  --kind-accent: var(--c-warn);
+}
+.canvas-node[data-node-type='webpage'],
+.canvas-node[data-node-type='status'],
+.canvas-node[data-node-type='trace'] {
+  --kind-accent: var(--c-ok);
+}
+.canvas-node[data-node-type='context'],
+.canvas-node[data-node-type='prompt'],
+.canvas-node[data-node-type='response'] {
+  --kind-accent: var(--c-purple);
 }
 
 .canvas-node .node-type-badge {
@@ -713,7 +729,7 @@ body,
 .canvas-node .node-controls button {
   background: none;
   border: none;
-  color: var(--c-muted);
+  color: var(--c-dim);
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -734,8 +750,11 @@ body,
 .canvas-node .node-body {
   flex: 1;
   overflow: auto;
-  padding: 12px;
+  padding: 10px 14px;
   min-height: 0;
+  font-size: 11px;
+  line-height: 1.6;
+  color: var(--c-text-soft);
 }
 
 /* Markdown rendered content inside nodes */
@@ -840,7 +859,7 @@ body,
   align-items: center;
   gap: 4px;
   padding: 10px 0;
-  background: var(--c-panel);
+  background: var(--c-panel-soft);
   border-right: 1px solid var(--c-line);
   overflow-y: auto;
   scrollbar-width: none;
@@ -919,7 +938,7 @@ body,
   align-items: center;
   gap: 12px;
   padding: 0 14px;
-  background: var(--c-panel-glass);
+  background: color-mix(in srgb, var(--c-panel-soft) 92%, transparent);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--c-line);
   overflow: hidden;
@@ -1165,6 +1184,344 @@ body,
   }
   .canvas-node.agent-mutating {
     background-image: none;
+  }
+}
+
+/* ── Session panel (rail-chrome-v2 phase 4) ─────────────────────
+   Right sibling of the centre column while a session is attached. Below
+   1180px it becomes a fixed overlay drawer and the canvas reclaims its width. */
+.session-panel {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--c-panel-soft);
+  border-left: 1px solid var(--c-line);
+  min-height: 0;
+  z-index: 9997;
+  animation: session-panel-in 180ms ease;
+}
+.session-panel.is-collapsed {
+  width: 28px;
+  align-items: center;
+  padding-top: 10px;
+  gap: 10px;
+}
+.session-collapsed-label {
+  writing-mode: vertical-rl;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-dim);
+}
+
+.session-panel-header {
+  height: var(--hud-bar-height);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px 0 16px;
+  border-bottom: 1px solid var(--c-line);
+}
+.session-panel-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-text);
+}
+.session-live {
+  --presence-color: var(--c-dim);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: 10px var(--mono);
+  color: var(--c-muted);
+}
+.session-live.phase-thinking {
+  --presence-color: var(--c-purple);
+}
+.session-live.phase-tooling {
+  --presence-color: var(--c-accent);
+}
+.session-live.phase-waiting-approval {
+  --presence-color: var(--c-warn);
+}
+.session-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--presence-color);
+}
+.session-live.phase-thinking .session-live-dot,
+.session-live.phase-tooling .session-live-dot {
+  animation: presence-pulse 1.4s ease-in-out infinite;
+}
+.session-collapse {
+  width: 26px;
+  height: 26px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  background: none;
+  color: var(--c-muted);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.session-collapse:hover {
+  background: var(--c-surface-hover);
+  color: var(--c-text);
+}
+
+.session-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 12px 12px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.session-section-title {
+  margin: 0 0 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-dim);
+}
+.session-empty {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--c-dim);
+}
+.session-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+/* Work items + gates */
+.session-item {
+  --glyph: var(--c-dim);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid var(--c-line);
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--c-panel) 70%, transparent);
+}
+.session-item.status-running {
+  --glyph: var(--c-accent);
+}
+.session-item.status-awaiting {
+  --glyph: var(--c-warn);
+}
+.session-item.status-done {
+  --glyph: var(--c-ok);
+}
+.session-item.status-vetoed {
+  --glyph: var(--c-danger);
+}
+.session-glyph {
+  width: 7px;
+  height: 7px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--glyph);
+  flex-shrink: 0;
+}
+.session-item.status-running .session-glyph {
+  animation: presence-pulse 1.4s ease-in-out infinite;
+}
+.session-item-main {
+  flex: 1;
+  min-width: 0;
+}
+.session-item-title {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-text-soft);
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.session-item-title:disabled {
+  cursor: default;
+}
+.session-item-title:not(:disabled):hover {
+  color: var(--c-text);
+}
+.session-item-detail {
+  margin-top: 2px;
+  font-size: 10.5px;
+  line-height: 1.45;
+  color: var(--c-muted);
+}
+.session-item-status {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--glyph);
+  flex-shrink: 0;
+  margin-top: 3px;
+}
+.session-item-time {
+  font: 9px var(--mono);
+  color: var(--c-dim);
+  flex-shrink: 0;
+  margin-top: 4px;
+}
+.session-gate {
+  border-color: color-mix(in srgb, var(--c-warn) 35%, transparent);
+  background: color-mix(in srgb, var(--c-warn) 6%, transparent);
+}
+.session-gate-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.session-gate-approve,
+.session-gate-reject {
+  padding: 4px 12px;
+  border-radius: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.session-gate-approve {
+  border: 1px solid transparent;
+  background: color-mix(in srgb, var(--c-ok) 15%, transparent);
+  color: var(--c-ok);
+}
+.session-gate-approve:hover {
+  background: color-mix(in srgb, var(--c-ok) 25%, transparent);
+}
+.session-gate-reject {
+  border: 1px solid var(--c-line);
+  background: none;
+  color: var(--c-muted);
+}
+.session-gate-reject:hover {
+  border-color: color-mix(in srgb, var(--c-danger) 45%, transparent);
+  color: var(--c-danger);
+}
+.session-gate-approve:disabled,
+.session-gate-reject:disabled {
+  opacity: 0.6;
+  cursor: progress;
+}
+
+/* Timeline */
+.session-timeline-row {
+  --tone: var(--c-muted);
+  display: flex;
+  gap: 8px;
+  padding: 4px 2px;
+}
+.session-timeline-row.tone-accent {
+  --tone: var(--c-accent);
+}
+.session-timeline-row.tone-ok {
+  --tone: var(--c-ok);
+}
+.session-timeline-row.tone-warn {
+  --tone: var(--c-warn);
+}
+.session-timeline-row.tone-danger {
+  --tone: var(--c-danger);
+}
+.session-timeline-row.tone-purple {
+  --tone: var(--c-purple);
+}
+.session-timeline-dot {
+  width: 6px;
+  height: 6px;
+  margin-top: 5px;
+  border-radius: 50%;
+  background: var(--tone);
+  flex-shrink: 0;
+}
+.session-timeline-main {
+  flex: 1;
+  min-width: 0;
+}
+.session-timeline-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.session-timeline-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--tone);
+}
+.session-timeline-body {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--c-text-soft);
+  overflow-wrap: anywhere;
+}
+
+/* Top-bar escalation badge while gates are pending */
+.gate-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--c-warn) 35%, transparent);
+  background: color-mix(in srgb, var(--c-warn) 12%, transparent);
+  color: var(--c-warn);
+  font: 11px var(--mono);
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+@keyframes session-panel-in {
+  from {
+    opacity: 0;
+    transform: translateX(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Below 1180px the panel floats over the canvas as a drawer (design item 12). */
+@media (max-width: 1180px) {
+  .session-panel:not(.is-collapsed) {
+    position: fixed;
+    top: var(--hud-bar-height);
+    right: 0;
+    bottom: 0;
+    width: 312px;
+    box-shadow: -16px 0 40px rgba(0, 0, 0, 0.5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .session-panel {
+    animation: none;
+  }
+  .session-live-dot,
+  .session-item.status-running .session-glyph {
+    animation: none;
   }
 }
 
@@ -3230,9 +3587,9 @@ html.is-node-resizing .ext-app-preview-catcher {
 
 /* ── Group node — spatial container/frame ─────────────────────── */
 .canvas-node.group-node {
-  background: transparent;
-  border: 2px dashed var(--group-color, var(--c-accent));
-  border-radius: 12px;
+  background: color-mix(in srgb, var(--group-color, var(--c-accent)) 3%, transparent);
+  border: 1.5px dashed color-mix(in srgb, var(--group-color, var(--c-accent)) 35%, transparent);
+  border-radius: 14px;
   box-shadow: none;
   overflow: visible;
   min-width: 200px;

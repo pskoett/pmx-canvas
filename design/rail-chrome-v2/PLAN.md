@@ -83,9 +83,9 @@ is a visible element on today's board that does not yet match the prototypes.
 
 | Old-style element today | Design replacement | Phase |
 |---|---|---|
-| **Node card shell** (every node: titlebar, radius, shadow, body type) | Standard card shell — node surface, 12px radius, `0 4px 24px` shadow, 7×12 header with kind icon in the kind's accent, 11–12px/600 title, ⋯ trailing menu, body 10.5–11px / 1.55–1.6 | **4a** — CSS-only, pulled forward; first thing in phase 4 |
+| **Node card shell** (every node: titlebar, radius, shadow, body type) | Standard card shell — node surface, 12px radius, `0 4px 24px` shadow, 7×12 header with kind icon in the kind's accent, 11–12px/600 title, body 11px / 1.6 | **4a — BUILT** (type badge dropped, `data-node-type` carries the kind; ⋯ consolidation of the controls stays with phase 7) |
 | **Docked CONTEXT pill** (`context-main`, top-right HUD) | Pinned-context chips in the command bar (Focus Session); on the quiet board the pin bar stays as the minimal affordance | 5 |
-| **Docked STATUS pill** (`status-main`, top-left HUD) | Top-bar agent chip (done) + session panel work list / timeline | 4 |
+| **Docked STATUS pill** (`status-main`, top-left HUD) | Top-bar agent chip (done) + session panel work list / timeline (done) — the pill itself is removed with the context pill in phase 5 | 5 |
 | `ContextPinBar` ("✦ N nodes in context") | Command bar row 1 chips with `×`, budget meter | 5 |
 | `SelectionBar` | Bottom-centre floating bar restyle (count, align, distribute, arrange, group, pin, delete) | 7 (item 13) |
 | `WelcomeCard` | Centred empty state: ghost mark, "Nothing on this board yet", 2×2 starters | 7 (item 11) |
@@ -95,11 +95,15 @@ is a visible element on today's board that does not yet match the prototypes.
 | Command palette | 560px top-anchored modal over scrim, grouped results, key hints | 7 (item 7) |
 | Annotation (free-floating note) | warm tinted, italic, `rotate(-1deg)` | 4a (same CSS pass) |
 
-### Phase 4 — Session panel
+### Phase 4 — Session panel — BUILT (core); items 3/4 pending
 - `SessionPanel.tsx` (320px right column): AX work items with status glyphs, approval gates
-  resolving through the existing gate path (reject posts `vetoGhostSteering` feedback), timeline
-  feed. Gate TTL + auto-hold + top-bar escalation badge (item 3). Scope fence rendering +
-  server-side mutation check (item 4). ≤1180: overlay drawer (item 12).
+  resolving through the existing gate path (reject posts steering feedback), timeline feed,
+  collapse, ≤1180 overlay drawer (item 12). Top-bar pending-gate badge. Mounts on
+  `sessionActive`; the canvas region re-reports its size when the panel mounts.
+- Presence now counts non-GET AX writes (work items, gates, evidence, steering) as agent
+  activity, and re-emits when a gate opens/resolves (the phase derives from pending gates).
+- **Pending:** gate TTL + auto-hold + countdown (item 3); scope fence rendering + server-side
+  mutation check (item 4). Both are server features with their own verification — next.
 
 ### Phase 5 — Command bar + session lifecycle
 - `ContextPinBar` evolves into the command bar: pin chips with unpin ×, steering input (posts AX

@@ -222,6 +222,20 @@ function touchedNodeId(rawInput: unknown, result: unknown): string | null {
   return typeof node.id === 'string' ? node.id : null;
 }
 
+/**
+ * Ops that are writes for PRESENCE purposes but must not touch it themselves:
+ * the presence endpoint (it IS the explicit phase — a derived `tooling` touch
+ * would clobber it) and activity ingest (observeActivity already mapped it,
+ * and re-touching after a `session-end` would resurrect the writer).
+ */
+const PRESENCE_EXEMPT_OPS = new Set(['ax.presence.set', 'ax.presence.get', 'ax.activity.ingest']);
+
+/** Layout mutations AND non-GET AX writes (work items, gates, evidence, steering) are agent activity. */
+function isPresenceWrite(op: Operation): boolean {
+  if (PRESENCE_EXEMPT_OPS.has(op.name)) return false;
+  return op.mutates || (op.http != null && op.http.method !== 'GET');
+}
+
 function notePresence(
   name: string,
   rawInput: unknown,
@@ -229,7 +243,7 @@ function notePresence(
   op: Operation,
   result: unknown,
 ): void {
-  if (!op.mutates || meta.suppressAutoGhost) return;
+  if (!isPresenceWrite(op) || meta.suppressAutoGhost) return;
   const input = asRecord(rawInput);
   try {
     const focusNodeId = touchedNodeId(rawInput, result);

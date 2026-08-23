@@ -214,6 +214,14 @@ export class AgentPresenceRegistry {
     }
   }
 
+  /**
+   * Re-emit the snapshot after something the phase is DERIVED from changed
+   * (a gate opened or resolved) without any writer being touched.
+   */
+  refresh(): void {
+    if (this.presences.size > 0) this.scheduleEmit();
+  }
+
   /** Remove a writer (session-end). */
   detach(sessionId: string): boolean {
     const removed = this.presences.delete(sessionId);

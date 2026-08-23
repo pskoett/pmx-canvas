@@ -1066,7 +1066,7 @@ test('renders html nodes from server state in the workbench', async ({ page, req
 
   const htmlNode = page.locator('.canvas-node').filter({ hasText: 'HTML render target' });
   await expect(htmlNode).toHaveCount(1);
-  await expect(htmlNode.locator('.node-type-badge')).toHaveText('HTML');
+  await expect(htmlNode).toHaveAttribute('data-node-type', 'html');
   await expect(htmlNode.locator('iframe')).toHaveAttribute('sandbox', 'allow-scripts');
   await expect(htmlNode.locator('iframe')).not.toHaveAttribute('sandbox', /allow-same-origin/);
   await expect(htmlNode.frameLocator('iframe').getByText('HTML render sentinel')).toBeVisible();
@@ -3553,6 +3553,100 @@ test('agent presence surfaces: cursor + chip on attach, shimmer on mutation, byt
   await expect(page.locator('.agent-chip')).toHaveCount(0);
   await expect(page.locator('.agent-cursor')).toHaveCount(0);
   await expect(page.locator('.agent-mutating')).toHaveCount(0);
+  await expect(page.locator('.app-shell')).toHaveAttribute('data-session-active', 'false');
+});
+
+test('session panel: work items, gate approval from the panel, drawer below 1180px, gone on detach', async ({
+  page,
+  request,
+}) => {
+  const created = await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Gate target', content: 'ship it', x: 160, y: 140, width: 360, height: 200 },
+  });
+  const node = (await created.json()) as { id: string };
+  await request.post('/api/canvas/ax/activity', {
+    data: { kind: 'session-start', title: 'Claude · sonnet', source: 'copilot' },
+  });
+  await request.post('/api/canvas/ax/work', {
+    data: { title: 'Summarize telemetry', status: 'done', nodeIds: [node.id], source: 'copilot' },
+  });
+  await request.post('/api/canvas/ax/work', {
+    data: {
+      title: 'Update widgets',
+      status: 'in-progress',
+      detail: 'rewriting the tile',
+      nodeIds: [node.id],
+      source: 'copilot',
+    },
+  });
+  const gateResponse = await request.post('/api/canvas/ax/approval', {
+    data: { title: 'Ship REL-421', detail: 'tags the build', nodeIds: [node.id], source: 'copilot' },
+  });
+  const gate = (await gateResponse.json()) as { approvalGate: { id: string } };
+
+  await page.goto('/workbench');
+  const panel = page.locator('.session-panel');
+  await expect(panel).toBeVisible();
+
+  // Persisted state shows on a FRESH load (the snapshot is read on connect).
+  await expect(panel.locator('.session-item').filter({ hasText: 'Summarize telemetry' })).toHaveClass(/status-done/);
+  await expect(panel.locator('.session-item').filter({ hasText: 'Update widgets' })).toHaveClass(/status-running/);
+  await expect(panel.locator('.session-gate').filter({ hasText: 'Ship REL-421' })).toHaveCount(1);
+  await expect(page.locator('.gate-badge')).toHaveText('1 gate');
+  await expect(page.locator('.agent-chip .agent-chip-label')).toHaveText('Waiting on you');
+
+  // The panel took 320px from the canvas region (poll: the 180ms mount slide
+  // means a single sample can land mid-animation).
+  await expect
+    .poll(async () => {
+      const region = await page.locator('.canvas-region').boundingBox();
+      const panelBox = await panel.boundingBox();
+      if (!region || !panelBox) return null;
+      return {
+        edge: Math.round(region.x + region.width) === Math.round(panelBox.x),
+        width: Math.round(panelBox.width),
+      };
+    })
+    .toEqual({ edge: true, width: 320 });
+
+  // Approve from the panel: resolves the same AX gate the agent awaits.
+  await panel.locator('.session-gate').getByRole('button', { name: 'Approve' }).click();
+  await expect
+    .poll(async () => {
+      const response = await request.get(`/api/canvas/ax/approval/${gate.approvalGate.id}`);
+      const body = (await response.json()) as { approvalGate?: { status: string } };
+      return body.approvalGate?.status;
+    })
+    .toBe('approved');
+  await expect(panel.locator('.session-gate')).toHaveCount(0);
+  await expect(page.locator('.gate-badge')).toHaveCount(0);
+  // …and the derived phase leaves waiting-approval.
+  await expect(page.locator('.agent-chip .agent-chip-label')).not.toHaveText('Waiting on you');
+
+  // A rejection posts steering feedback to the agent.
+  const second = await request.post('/api/canvas/ax/approval', {
+    data: { title: 'Delete the prod DB', nodeIds: [node.id], source: 'copilot' },
+  });
+  expect(second.ok()).toBe(true);
+  await panel.locator('.session-gate').getByRole('button', { name: 'Reject' }).click();
+  await expect
+    .poll(async () => {
+      const response = await request.get('/api/canvas/ax/timeline?limit=20');
+      const body = (await response.json()) as { steering: Array<{ message: string }> };
+      return body.steering.some((steer) => steer.message.includes('Rejected gate "Delete the prod DB"'));
+    })
+    .toBe(true);
+
+  // Below 1180px the panel becomes a fixed drawer and the canvas reclaims its width.
+  await page.setViewportSize({ width: 1000, height: 800 });
+  await expect.poll(async () => panel.evaluate((el) => getComputedStyle(el).position)).toBe('fixed');
+  const wideRegion = await page.locator('.canvas-region').boundingBox();
+  if (!wideRegion) throw new Error('missing region');
+  expect(Math.round(wideRegion.x + wideRegion.width)).toBe(1000);
+
+  // Detach → the panel unmounts and the board is quiet again.
+  await request.post('/api/canvas/ax/activity', { data: { kind: 'session-end', title: 'done', source: 'copilot' } });
+  await expect(panel).toHaveCount(0);
   await expect(page.locator('.app-shell')).toHaveAttribute('data-session-active', 'false');
 });
 

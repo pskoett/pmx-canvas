@@ -10,6 +10,7 @@ import { DockedNode } from './canvas/DockedNode';
 import { ExpandedNodeOverlay } from './canvas/ExpandedNodeOverlay';
 import { Minimap } from './canvas/Minimap';
 import { SelectionBar } from './canvas/SelectionBar';
+import { SessionPanel } from './canvas/SessionPanel';
 import { ShortcutOverlay } from './canvas/ShortcutOverlay';
 import { SnapshotPanel } from './canvas/SnapshotPanel';
 import { promptedCreate, ToolRail } from './canvas/ToolRail';
@@ -87,6 +88,10 @@ export function App() {
   const snapshotBtnRef = useRef<HTMLButtonElement>(null);
   const { menu, openNodeMenu, openCanvasMenu, closeMenu } = useContextMenu();
   const hasInitialLayout = hasInitialServerLayout.value;
+  // rail-chrome-v2: the one selector every agent surface mounts on. Exposed
+  // as a data attribute so styling and tests can key on it; the quiet board
+  // (no attached session) must stay byte-clean of agent chrome.
+  const sessionIsActive = sessionActive.value;
 
   const handleToggleMinimap = useCallback(() => setMinimapVisible((v) => !v), []);
   const handleToggleSnapshot = useCallback(() => setSnapshotOpen((v) => !v), []);
@@ -265,6 +270,13 @@ export function App() {
     };
   }, [annotationTool, closeMenu, paletteOpen, shortcutsOpen]);
 
+  // The session panel takes 320px from the canvas region: re-report the
+  // region size so an agent `fit` keeps fitting the visible canvas.
+  useEffect(() => {
+    const timer = window.setTimeout(() => void reportClientViewportSize(), 250);
+    return () => window.clearTimeout(timer);
+  }, [sessionIsActive]);
+
   useEffect(() => {
     if (!hasInitialLayout) return;
     const ready = (window as Window & { __pmxCanvasBootstrapReady?: () => void }).__pmxCanvasBootstrapReady;
@@ -281,11 +293,6 @@ export function App() {
     });
 
   const area = canvasArea();
-
-  // rail-chrome-v2: the one selector every agent surface mounts on. Exposed
-  // as a data attribute so styling and tests can key on it; the quiet board
-  // (no attached session) must stay byte-clean of agent chrome.
-  const sessionIsActive = sessionActive.value;
 
   return (
     <div class="app-shell" data-session-active={sessionIsActive ? 'true' : 'false'}>
@@ -338,6 +345,7 @@ export function App() {
           )}
         </div>
       </div>
+      {sessionIsActive && <SessionPanel />}
       {expandedNodeId.value && <ExpandedNodeOverlay />}
       <SnapshotPanel open={snapshotOpen} onClose={handleCloseSnapshot} anchorRef={snapshotBtnRef} />
       {menu && <ContextMenu menu={menu} onClose={closeMenu} />}

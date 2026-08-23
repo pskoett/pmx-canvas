@@ -42,6 +42,11 @@ export declare class AgentPresenceRegistry {
         agentId?: string | null;
         title: string;
     }, now?: number): void;
+    /**
+     * Re-emit the snapshot after something the phase is DERIVED from changed
+     * (a gate opened or resolved) without any writer being touched.
+     */
+    refresh(): void;
     /** Remove a writer (session-end). */
     detach(sessionId: string): boolean;
     snapshot(now?: number): AgentPresenceSnapshot;

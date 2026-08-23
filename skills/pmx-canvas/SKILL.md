@@ -53,7 +53,9 @@ Humans curate agent context by pinning nodes; agents read that curation through
    `canvas_ax_state { action: "set-presence", attached: true, label: "<who you are>" }` and at
    the end `{ action: "set-presence", attached: false }`. While attached, the canvas shows your
    cursor on the node you last touched plus a phase chip, and every write you make through MCP or
-   HTTP is attributed to your session automatically — no per-call labelling needed. Report
+   HTTP is attributed to your session automatically — no per-call labelling needed. The human
+   also gets a session panel listing your work items, approval gates (Approve / Reject live
+   there — a rejection reaches you as steering) and the timeline. Report
    `phase: "thinking"` before a long reasoning stretch if your host gives you a hook for it;
    `tooling` is derived from your writes. Hosts with adapters (the Copilot extension) attach
    for you. Without an attached session the board stays a plain canvas: your writes still show

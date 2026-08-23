@@ -297,7 +297,13 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     .join(' ');
 
   return (
-    <div class={nodeClass} style={nodeStyle} onPointerDown={handlePointerDown} onContextMenu={handleContextMenuEvent}>
+    <div
+      class={nodeClass}
+      data-node-type={node.type}
+      style={nodeStyle}
+      onPointerDown={handlePointerDown}
+      onContextMenu={handleContextMenuEvent}
+    >
       <div class="node-titlebar" onPointerDown={handleTitlePointerDown}>
         <span class="node-type-icon" aria-hidden="true">
           {(() => {
@@ -305,13 +311,11 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
             return <NodeIcon size={Math.round(14 * chromeScale)} />;
           })()}
         </span>
-        {/* The icon already says what type this is, so the type badge yields to
-            the status chip rather than stacking two pills in front of the name —
-            on a narrow node that combination pushed the title to an ellipsis. */}
-        {typeof node.data.axWorkStatus === 'string' ? (
+        {/* The kind-colored icon says what type this is (rail-chrome-v2 card
+            shell: icon · title · controls, no type badge). Only the AX status
+            chip joins it, and only when there is a status to show. */}
+        {typeof node.data.axWorkStatus === 'string' && (
           <span class={`node-ax-status node-ax-status-${node.data.axWorkStatus}`}>{node.data.axWorkStatus}</span>
-        ) : (
-          <span class="node-type-badge">{TYPE_LABELS[node.type]}</span>
         )}
         {renaming ? (
           <input

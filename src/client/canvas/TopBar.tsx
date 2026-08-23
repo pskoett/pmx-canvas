@@ -17,6 +17,7 @@ import { MOD_KEY } from '../utils/platform';
 import { canvasArea } from './canvas-area';
 import { agentPhaseLabel } from '../../shared/agent-presence.js';
 import { activeSession } from '../state/presence-store';
+import { pendingGates } from '../state/session-store';
 
 function BarHint({
   label,
@@ -59,6 +60,18 @@ function AgentChip() {
       <span class="agent-chip-dot" aria-hidden="true" />
       <span class="agent-chip-label">{label}</span>
       <span class="agent-chip-who hud-collapsible-text">{session.label}</span>
+    </span>
+  );
+}
+
+/** Amber escalation badge while any approval gate is pending in an attached session. */
+function GateBadge() {
+  if (!activeSession.value) return null;
+  const count = pendingGates.value.length;
+  if (count === 0) return null;
+  return (
+    <span class="gate-badge" title="Approval gates waiting on you — resolve them in the session panel">
+      {count} gate{count === 1 ? '' : 's'}
     </span>
   );
 }
@@ -133,6 +146,7 @@ export function TopBar() {
       <span class="top-bar-spacer" />
 
       <AgentChip />
+      <GateBadge />
 
       <div class="top-bar-sep" />
 

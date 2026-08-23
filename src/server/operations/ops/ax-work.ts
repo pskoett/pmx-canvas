@@ -45,6 +45,7 @@
  * This module must never import server.ts or index.ts.
  */
 import { z } from 'zod';
+import { agentPresence } from '../../agent-presence.js';
 // Side-effect import: wires the work-item change listener (live workboard refresh
 // + materialized-flow loop advance). Work items are this module's domain, and the
 // ops registry loads it on every entry path (HTTP, MCP, SDK), so the flow loop is
@@ -420,6 +421,8 @@ const axApprovalRequestOperation = defineOperation<z.infer<typeof axApprovalRequ
       { source: normalizeAxSource(input.source, 'api') },
     );
     ctx.emit('ax-state-changed', { approvalGate });
+    // The attached session's phase derives from pending gates — re-emit presence.
+    agentPresence.refresh();
     return { ok: true, approvalGate } as unknown as Record<string, unknown>;
   },
 });
@@ -468,6 +471,8 @@ const axApprovalResolveOperation = defineOperation<z.infer<typeof axApprovalReso
     });
     if (!approvalGate) throw new OperationError('approval gate not found or already resolved.', 404);
     ctx.emit('ax-state-changed', { approvalGate });
+    // The attached session's phase derives from pending gates — re-emit presence.
+    agentPresence.refresh();
     return { ok: true, approvalGate } as unknown as Record<string, unknown>;
   },
 });
