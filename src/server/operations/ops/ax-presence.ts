@@ -6,9 +6,8 @@
  * This module must never import server.ts or index.ts.
  */
 import { z } from 'zod';
-import { agentPresence, PRESENCE_SET_SHAPE } from '../../agent-presence.js';
+import { agentPresence, SOURCE_LABEL_RE, PRESENCE_SET_SHAPE } from '../../agent-presence.js';
 import { defineOperation, type Operation, type OperationContext } from '../types.js';
-import { normalizeAxSource } from './ax-shared.js';
 
 const emptyShape = {};
 const emptySchema = z.looseObject(emptyShape);
@@ -50,7 +49,12 @@ const presenceSetOperation = defineOperation<z.infer<typeof presenceSetSchema>, 
   },
   handler: (input, _ctx: OperationContext) => {
     const { source, ...rest } = input;
-    const presence = agentPresence.set(rest, normalizeAxSource(source, 'api'));
+    // The presence label is a WRITER label, not an AX source enum value: an
+    // adapter or an MCP server running with PMX_CANVAS_AGENT_SOURCE=claude-code
+    // must attach under the same label its writes carry (SOURCE_LABEL_RE), or
+    // the session and the writer split into two cursors.
+    const label = typeof source === 'string' && SOURCE_LABEL_RE.test(source) ? source : 'api';
+    const presence = agentPresence.set(rest, label);
     return { ok: true, presence, ...agentPresence.snapshot() };
   },
 });

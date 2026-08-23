@@ -159,6 +159,34 @@ describe('agent presence over HTTP', () => {
     expect((await getPresence()).presences).toEqual([]);
   });
 
+  test('a custom writer label attaches under itself, so its own writes fold into the session (live-board finding)', async () => {
+    // PMX_CANVAS_AGENT_SOURCE=claude-code: the MCP server labels its writes
+    // `claude-code` AND attaches under it. Normalizing the attach through the
+    // AX source enum dropped it to `api` and split one agent into two cursors.
+    const attach = await postJson('/api/canvas/ax/presence', {
+      source: 'claude-code',
+      attached: true,
+      label: 'Claude Code',
+    });
+    expect(attach.ok).toBe(true);
+    const create = await postJson(
+      '/api/canvas/node',
+      { type: 'markdown', title: 'From MCP' },
+      { 'x-pmx-source': 'claude-code' },
+    );
+    const { id } = (await create.json()) as { id: string };
+    const snapshot = await getPresence();
+    expect(snapshot.presences).toHaveLength(1);
+    expect(snapshot.presences[0]).toMatchObject({
+      sessionId: 'claude-code',
+      source: 'claude-code',
+      attached: true,
+      opCount: 1,
+      focusNodeId: id,
+    });
+    await postJson('/api/canvas/ax/presence', { source: 'claude-code', attached: false });
+  });
+
   test('an adapter identifies itself with x-pmx-source', async () => {
     const response = await postJson(
       '/api/canvas/node',
