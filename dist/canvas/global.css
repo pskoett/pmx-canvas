@@ -823,43 +823,380 @@ body,
 
 /* HUD layer — [left-dock] [toolbar] [right-dock]. Wraps onto multiple rows in a
    narrow embedding panel (e.g. the Copilot side panel) instead of clipping. */
-.hud-layer {
-  position: fixed;
-  top: 12px;
-  left: 12px;
-  right: 12px;
+/* ── App shell: rail + top bar + canvas region (rail-chrome-v2) ── */
+.app-shell {
   display: flex;
-  flex-wrap: wrap;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 8px;
-  z-index: 9999;
-  pointer-events: none;
-}
-.hud-layer > * {
-  pointer-events: auto;
-}
-.hud-left,
-.hud-right {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: var(--c-bg);
 }
 
-/* Toolbar */
-.canvas-toolbar {
+.tool-rail {
+  width: 52px;
+  flex-shrink: 0;
   display: flex;
-  flex-wrap: wrap;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 6px 10px;
-  min-height: var(--hud-bar-height);
-  max-width: 100%;
-  box-sizing: border-box;
+  gap: 4px;
+  padding: 10px 0;
+  background: var(--c-panel);
+  border-right: 1px solid var(--c-line);
+  overflow-y: auto;
+  scrollbar-width: none;
+  /* The rail is a stacking context: its popovers can only win against the
+     canvas region's overlays (annotation capture layer at 9996) if the rail
+     ITSELF stacks above them — a child's z-index never escapes this context. */
+  z-index: 9999;
+}
+.tool-rail::-webkit-scrollbar {
+  display: none;
+}
+
+.rail-brand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  color: var(--c-accent);
+  flex-shrink: 0;
+}
+
+.rail-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--c-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.rail-btn svg {
+  display: block;
+}
+.rail-btn:hover {
+  background: var(--c-surface-hover);
+  color: var(--c-text);
+}
+.rail-btn.active {
+  background: var(--c-accent-10);
+  border-color: var(--c-accent-25);
+  color: var(--c-accent);
+}
+.rail-btn.active:hover {
+  background: var(--c-accent-15, var(--c-accent-10));
+}
+
+.rail-divider {
+  width: 24px;
+  height: 1px;
+  background: var(--c-line);
+  flex-shrink: 0;
+  margin: 3px 0;
+}
+
+.rail-spacer {
+  flex: 1;
+  min-height: 8px;
+}
+
+.app-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.top-bar {
+  height: var(--hud-bar-height);
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
   background: var(--c-panel-glass);
   backdrop-filter: blur(12px);
-  border: 1px solid var(--c-line);
-  border-radius: var(--radius);
+  border-bottom: 1px solid var(--c-line);
+  overflow: hidden;
+  min-width: 0;
+  z-index: 9998;
+}
+
+.top-bar-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 60px;
+  flex-shrink: 1;
+}
+
+.top-bar-meta {
+  font: 11px var(--mono);
+  color: var(--c-dim);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.top-bar-spacer {
+  flex: 1;
+  min-width: 0;
+}
+
+.top-bar-sep {
+  width: 1px;
+  height: 20px;
+  background: var(--c-line);
+  flex-shrink: 0;
+}
+
+.top-bar-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 8px;
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--c-muted);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.top-bar-btn svg {
+  display: block;
+}
+.top-bar-btn:hover {
+  background: var(--c-surface-hover);
+  color: var(--c-text);
+  border-color: var(--c-line);
+}
+
+.top-bar-zoom-label {
+  min-width: 38px;
+  text-align: center;
+  font: 11px var(--mono);
+  color: var(--c-muted);
+  background: none;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 6px 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.top-bar-zoom-label:hover {
+  background: var(--c-surface-hover);
+  color: var(--c-text);
+}
+
+.canvas-region {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+  overflow: hidden;
+}
+
+/* ── Agent presence (rail-chrome-v2 phase 3) ────────────────────
+   Every surface below mounts only while a session is attached. Phase colors
+   are tokens so all nine themes agree: thinking=purple, tooling=accent,
+   waiting=warn, idle=dim. */
+.agent-chip,
+.agent-cursor {
+  --presence-color: var(--c-dim);
+}
+.agent-chip.phase-thinking,
+.agent-cursor.phase-thinking {
+  --presence-color: var(--c-purple);
+}
+.agent-chip.phase-tooling,
+.agent-cursor.phase-tooling {
+  --presence-color: var(--c-accent);
+}
+.agent-chip.phase-waiting-approval,
+.agent-cursor.phase-waiting-approval {
+  --presence-color: var(--c-warn);
+}
+
+/* Top-bar chip */
+.agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--presence-color) 35%, transparent);
+  background: color-mix(in srgb, var(--presence-color) 12%, transparent);
+  color: var(--presence-color);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+  min-width: 0;
+  max-width: 280px;
+}
+.agent-chip.phase-idle {
+  background: none;
+  border-color: var(--c-line);
+}
+.agent-chip-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--presence-color);
+  flex-shrink: 0;
+}
+.agent-chip.phase-thinking .agent-chip-dot,
+.agent-chip.phase-tooling .agent-chip-dot {
+  animation: presence-pulse 1.4s ease-in-out infinite;
+}
+.agent-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  min-width: 0;
+}
+.agent-chip-who {
+  font: 10px var(--mono);
+  font-weight: 400;
+  color: var(--c-muted);
+  white-space: nowrap;
+}
+
+/* On-canvas cursor + phase chip (world layer; counter-scaled inner) */
+.agent-presence-layer {
+  display: contents;
+}
+.agent-cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 9000;
+  pointer-events: none;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  color: var(--presence-color);
+}
+.agent-cursor-inner {
+  position: relative;
+  transform-origin: 0 0;
+}
+.agent-cursor-glyph {
+  display: block;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35));
+}
+.agent-cursor-chip {
+  position: absolute;
+  left: 14px;
+  top: 18px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--presence-color) 35%, transparent);
+  background: color-mix(in srgb, var(--c-panel) 92%, var(--presence-color) 8%);
+  color: var(--presence-color);
+  font-size: 10.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+.agent-cursor-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--presence-color);
+}
+.agent-cursor.phase-thinking .agent-cursor-dot,
+.agent-cursor.phase-tooling .agent-cursor-dot {
+  animation: presence-pulse 1.4s ease-in-out infinite;
+}
+.agent-cursor-who {
+  font: 9.5px var(--mono);
+  font-weight: 400;
+  color: var(--c-muted);
+}
+
+/* Node shimmer: the node an attached agent is mutating right now */
+.canvas-node.agent-mutating {
+  border-color: color-mix(in srgb, var(--c-accent) 45%, transparent) !important;
+  background-image: linear-gradient(
+    100deg,
+    transparent 20%,
+    color-mix(in srgb, var(--c-accent) 13%, transparent) 50%,
+    transparent 80%
+  );
+  background-size: 200% 100%;
+  animation: presence-shimmer 1.6s linear infinite;
+}
+
+@keyframes presence-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+@keyframes presence-shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+/* Reduced motion: keep every static color state, drop the motion. */
+@media (prefers-reduced-motion: reduce) {
+  .agent-cursor {
+    transition: none;
+  }
+  .agent-chip-dot,
+  .agent-cursor-dot,
+  .canvas-node.agent-mutating {
+    animation: none;
+  }
+  .canvas-node.agent-mutating {
+    background-image: none;
+  }
+}
+
+/* Pan tool / held Space: the world layer goes pointer-inert so drags land on
+   the viewport container itself and pan — nodes cannot swallow the drag. */
+.canvas-viewport.pan-mode .canvas-world {
+  pointer-events: none;
+}
+.canvas-viewport.pan-mode:active {
+  cursor: grabbing;
+}
+
+/* Docked node pills live at the canvas region's top corners. */
+.hud-left,
+.hud-right {
+  position: absolute;
+  top: 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  z-index: 40;
+  max-height: calc(100% - 20px);
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+.hud-left {
+  left: 10px;
+}
+.hud-right {
+  right: 10px;
+  align-items: flex-end;
 }
 
 .toolbar-tooltip-anchor {
@@ -971,54 +1308,21 @@ body,
   white-space: nowrap;
 }
 
-.canvas-toolbar button {
-  background: none;
-  border: 1px solid transparent;
-  color: var(--c-muted);
-  padding: 6px 10px;
-  border-radius: var(--radius-sm);
-  font: inherit;
-  font-size: 14px;
-  cursor: pointer;
-}
-
-.canvas-toolbar button:hover {
-  background: var(--c-surface-hover);
-  color: var(--c-text);
-  border-color: var(--c-line);
-}
-
-.canvas-toolbar .separator {
-  width: 1px;
-  height: 20px;
-  background: var(--c-line);
-}
-
-.canvas-toolbar .canvas-brand {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 28px;
-  height: 28px;
-  color: var(--c-accent);
-  flex-shrink: 0;
-}
-
-.canvas-toolbar .connection-dot {
+.connection-dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.canvas-toolbar .connection-dot.connected {
+.connection-dot.connected {
   background: var(--c-ok);
 }
-.canvas-toolbar .connection-dot.connecting {
+.connection-dot.connecting {
   background: var(--c-warn);
   animation: pulse 1.5s infinite;
 }
-.canvas-toolbar .connection-dot.disconnected {
+.connection-dot.disconnected {
   background: var(--c-danger);
 }
 
@@ -1032,14 +1336,6 @@ body,
   }
 }
 
-.toolbar-group {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  max-width: 100%;
-}
 
 /* Positioning parent for a toolbar popover menu. Every menu MUST live inside
    one of these wrapped around its trigger — anchoring to a wider ancestor
@@ -1049,16 +1345,15 @@ body,
   display: inline-flex;
 }
 
-.canvas-toolbar button svg {
-  display: block;
-}
 
 /* ── Toolbar popover menus (theme picker + narrow-screen More menu) ── */
 .toolbar-menu {
   position: absolute;
   top: calc(100% + 8px);
   right: 0;
-  z-index: 1200;
+  /* Above the annotation capture layer (9996) — rail popovers overlap the
+     canvas region and must stay clickable while an annotation tool is armed. */
+  z-index: 9999;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1141,40 +1436,6 @@ body,
   border-radius: 50%;
 }
 
-.toolbar-more-glyph {
-  display: block;
-  font-size: 16px;
-  font-weight: 700;
-  line-height: 1;
-}
-
-/* Wide screens: the full two-bar toolbar; the More trigger stays hidden. */
-.toolbar-collapsible {
-  display: contents;
-}
-
-.toolbar-more {
-  display: none;
-}
-
-/* Narrow screens / embedded panels: ONE compact bar (brand, status, view
-   controls) — every secondary control folds into the More menu instead of
-   wrapping into a second toolbar row. */
-@media (max-width: 900px) {
-  .toolbar-collapsible {
-    display: none;
-  }
-
-  .toolbar-actions-bar {
-    display: none;
-  }
-
-  .toolbar-more {
-    /* inline-flex (NOT contents): this span is also the positioning anchor
-       for the More menu — display:contents cannot anchor absolute children. */
-    display: inline-flex;
-  }
-}
 
 @media (max-width: 900px) {
   .toolbar-tooltip {
@@ -1193,10 +1454,10 @@ body,
   }
 }
 
-/* Narrow embedding panels: drop low-value text from the HUD so the icon controls
-   fit in fewer rows. Buttons keep their aria-labels + tooltips, so nothing is
-   lost for a11y or discovery. */
-@media (max-width: 720px) {
+/* Below 1180px the top bar drops its low-value meta text (board id, counts).
+   Buttons keep their aria-labels + tooltips, so nothing is lost for a11y or
+   discovery. */
+@media (max-width: 1180px) {
   .hud-collapsible-text {
     display: none;
   }

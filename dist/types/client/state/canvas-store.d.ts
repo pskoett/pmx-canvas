@@ -26,6 +26,11 @@ export declare const draggingEdge: import("@preact/signals-core").Signal<{
 export declare const searchHighlightIds: import("@preact/signals-core").Signal<Set<string> | null>;
 export declare const selectedNodeIds: import("@preact/signals-core").Signal<Set<string>>;
 export declare const contextPinnedNodeIds: import("@preact/signals-core").Signal<Set<string>>;
+export type CanvasTool = 'select' | 'pan';
+export declare const canvasTool: import("@preact/signals-core").Signal<CanvasTool>;
+/** Held-Space temporary pan — same semantics as the pan tool while held. */
+export declare const spacePanHeld: import("@preact/signals-core").Signal<boolean>;
+export declare function isPanModeActive(): boolean;
 export declare function getNeighborNodeIds(nodeId: string | null, edgeMap: Map<string, CanvasEdge>): Set<string>;
 export declare const activeNeighborNodeIds: import("@preact/signals-core").ReadonlySignal<Set<string>>;
 export declare function toggleSelected(id: string): void;

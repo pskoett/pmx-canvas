@@ -1,0 +1,457 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body { margin:0; background:#081524; font-family:"IBM Plex Sans",system-ui,sans-serif; }
+a { color:#4BBCFF; text-decoration:none; } a:hover { text-decoration:underline; }
+@media (max-width: 1180px) { .hud-collapsible { display:none !important; } }
+::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-thumb { background:#1b2c44; border-radius:3px; }
+</style>
+</helmet>
+<div data-screen-label="Quiet Board v2 (no agent)" style="display:flex; width:100%; height:100vh; min-height:760px; overflow:hidden; background:#081524; color:#e6eef7; font:13px/1.5 'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased;">
+
+  <!-- ═══ Left rail — identity + full node palette ═══ -->
+  <div style="width:52px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 0; background:#0a1729; border-right:1px solid #1b2c44; z-index:60; overflow-y:auto;">
+    <span style="display:flex; width:36px; height:36px; align-items:center; justify-content:center; color:#4BBCFF; margin-bottom:6px; flex-shrink:0;" title="PMX Canvas">
+      <svg width="24" height="24" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="8" y="8" width="48" height="48" rx="7" opacity="0.35"></rect><rect x="16" y="16" width="32" height="32" rx="5" opacity="0.6"></rect><rect x="24" y="24" width="16" height="16" rx="3"></rect><rect x="29" y="29" width="6" height="6" rx="1" fill="currentColor" stroke="none"></rect></svg>
+    </span>
+    <div style="width:24px; height:1px; background:#1b2c44; margin-bottom:4px; flex-shrink:0;"></div>
+    <button title="Select (V)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:rgba(75,188,255,0.12); border:1px solid rgba(75,188,255,0.3); border-radius:8px; color:#4BBCFF; cursor:pointer;" style-hover="background:rgba(75,188,255,0.2)"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 2 L13 8 L8.5 9.5 L6.5 14 Z"></path></svg></button>
+    <button title="Pan (Space)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 7V3.5a1 1 0 0 1 2 0V7 M7 6.5V2.5a1 1 0 0 1 2 0V7 M9 6.5V3.5a1 1 0 0 1 2 0V8.5 M11 7.5c1-.8 2.2-.4 1.8.8L11.5 12A3.5 3.5 0 0 1 8 14.5 4.6 4.6 0 0 1 4 12L3 9c-.3-1 .8-1.6 1.6-.8L5 9"></path></svg></button>
+    <button title="Connect (C)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="4" cy="4" r="2"></circle><circle cx="12" cy="12" r="2"></circle><path d="M5.5 5.5 C 8 8, 8 8, 10.5 10.5"></path></svg></button>
+    <div style="width:24px; height:1px; background:#1b2c44; margin:4px 0; flex-shrink:0;"></div>
+    <button title="Markdown note (M)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="1.5" y="3" width="13" height="10" rx="1.5"></rect><path d="M4 10.5 L4 5.5 L6 8 L8 5.5 L8 10.5"></path><path d="M11 10.5 L11 5.5 M9.5 9 L11 10.5 L12.5 9"></path></svg></button>
+    <button title="Image (I)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"></rect><circle cx="5.5" cy="6" r="1.3"></circle><path d="M2.5 12 L6.5 8.5 L9 10.5 L11.5 8 L13.5 10"></path></svg></button>
+    <button title="File (Shift+F)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M4 1.5 H9.5 L13 5 V14.5 H4 Z"></path><path d="M9.5 1.5 V5 H13"></path></svg></button>
+    <button title="Webpage (W)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"></circle><path d="M2 8 H14 M8 2 C 5.5 5, 5.5 11, 8 14 C 10.5 11, 10.5 5, 8 2 Z"></path></svg></button>
+    <button title="HTML surface (H)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 4 L2.5 8 L6 12 M10 4 L13.5 8 L10 12"></path></svg></button>
+    <button title="Group (G)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2.5"><rect x="1.5" y="1.5" width="13" height="13" rx="2"></rect></svg></button>
+    <button title="Annotate (A)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l2.8-.7L13 5.1 10.9 3 3.7 10.2 3 13Z"></path><path d="M9.8 4.1l2.1 2.1"></path></svg></button>
+    <div style="flex:1; min-height:8px;"></div>
+    <button title="Snapshots + history" onClick="{{ openHistory }}" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1" y="4" width="14" height="10" rx="1.5"></rect><path d="M5.5 4 L6.5 2.5 H9.5 L10.5 4"></path><circle cx="8" cy="9" r="2.3"></circle></svg></button>
+    <button title="Theme" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"></circle><path d="M8 2 A 6 6 0 0 1 8 14 Z" fill="currentColor" stroke="none"></path></svg></button>
+    <button title="Shortcuts (?)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1" y="3" width="14" height="10" rx="1.5"></rect><line x1="4" y1="6" x2="5" y2="6"></line><line x1="7.5" y1="6" x2="8.5" y2="6"></line><line x1="11" y1="6" x2="12" y2="6"></line><line x1="4" y1="10" x2="12" y2="10"></line></svg></button>
+  </div>
+
+  <!-- ═══ Center column ═══ -->
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column; position:relative;">
+
+    <!-- Top bar: no agent chip, no budget — quiet -->
+    <div style="display:flex; align-items:center; gap:12px; height:44px; padding:0 14px; background:rgba(10,23,41,0.92); backdrop-filter:blur(12px); border-bottom:1px solid #1b2c44; z-index:55; overflow:hidden; min-width:0;">
+      <span style="width:8px; height:8px; border-radius:50%; background:{{ connDotColor }}; flex-shrink:0;" title="{{ connTitle }}"></span>
+      <span style="font-size:13px; font-weight:600; color:#e6eef7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; flex-shrink:1;">Reactive canvas — architecture</span>
+      <span class="hud-collapsible" style="font:11px 'IBM Plex Mono',monospace; color:#5c6b80; white-space:nowrap;">pmx-k2f8dnal</span>
+      <div style="flex:1; min-width:8px;"></div>
+      <!-- collapsed agent affordance: no session running -->
+      <sc-if value="{{ showAgentAffordance }}" hint-placeholder-val="{{ true }}">
+        <button onClick="{{ startSession }}" title="Attach an agent to this board" style="display:flex; align-items:center; gap:7px; padding:5px 12px; background:none; border:1px solid #1b2c44; border-radius:999px; color:#8ea3bd; cursor:pointer; white-space:nowrap; flex-shrink:0;" style-hover="border-color:rgba(179,136,255,0.4); color:#B388FF">
+          <span style="width:7px; height:7px; border-radius:50%; background:#5c6b80;"></span>
+          <span style="font-size:11px; font-weight:600;">{{ agentAffordanceLabel }}</span>
+        </button>
+      </sc-if>
+      <span style="width:1px; height:20px; background:#1b2c44;"></span>
+      <button onClick="{{ zoomOut }}" style="background:none; border:1px solid transparent; color:#8ea3bd; padding:5px 8px; border-radius:6px; cursor:pointer; display:flex;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7" title="Zoom out"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14.5" y2="14.5"></line><line x1="5" y1="7" x2="9" y2="7"></line></svg></button>
+      <span style="font:11px 'IBM Plex Mono',monospace; color:#8ea3bd; min-width:38px; text-align:center;">{{ zoomLabel }}</span>
+      <button onClick="{{ zoomIn }}" style="background:none; border:1px solid transparent; color:#8ea3bd; padding:5px 8px; border-radius:6px; cursor:pointer; display:flex;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7" title="Zoom in"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14.5" y2="14.5"></line><line x1="5" y1="7" x2="9" y2="7"></line><line x1="7" y1="5" x2="7" y2="9"></line></svg></button>
+      <button style="background:none; border:1px solid transparent; color:#8ea3bd; padding:5px 8px; border-radius:6px; cursor:pointer; display:flex;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7" title="Fit all (F)"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 5 1 1 5 1"></polyline><polyline points="11 1 15 1 15 5"></polyline><polyline points="15 11 15 15 11 15"></polyline><polyline points="5 15 1 15 1 11"></polyline><rect x="4" y="4" width="8" height="8" rx="1"></rect></svg></button>
+    </div>
+
+    <!-- degraded-state banners -->
+    <sc-if value="{{ connReconnecting }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex; align-items:center; gap:9px; padding:7px 14px; background:rgba(244,197,66,0.1); border-bottom:1px solid rgba(244,197,66,0.35); z-index:54;">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#f4c542" stroke-width="1.5" stroke-linecap="round"><path d="M13.5 8 A5.5 5.5 0 1 1 8 2.5"></path><path d="M8 0.5 L8 4.5 L11 2.5 Z" fill="#f4c542" stroke="none"></path></svg>
+        <span style="font-size:11.5px; color:#f4c542;"><b>Reconnecting…</b> your edits queue locally and sync when the stream returns.</span>
+        <div style="flex:1;"></div>
+        <span style="font:9.5px 'IBM Plex Mono',monospace; color:#8ea3bd;">retry 2 · 3s</span>
+      </div>
+    </sc-if>
+    <sc-if value="{{ connResyncing }}" hint-placeholder-val="{{ false }}">
+      <div style="display:flex; align-items:center; gap:9px; padding:7px 14px; background:rgba(75,188,255,0.08); border-bottom:1px solid rgba(75,188,255,0.3); z-index:54;">
+        <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5" stroke-linecap="round"><rect x="1" y="4" width="14" height="10" rx="1.5"></rect><path d="M5.5 4 L6.5 2.5 H9.5 L10.5 4"></path><circle cx="8" cy="9" r="2.3"></circle></svg>
+        <span style="font-size:11.5px; color:#4BBCFF;"><b>Resyncing from snapshot</b> — the event cursor went stale; the board reloads without losing local edits.</span>
+        <div style="flex:1;"></div>
+        <div style="width:90px; height:4px; border-radius:2px; background:#1b2c44; overflow:hidden;"><div style="width:64%; height:100%; background:#4BBCFF;"></div></div>
+      </div>
+    </sc-if>
+
+    <!-- Canvas: full width — no session panel, no command bar -->
+    <div style="flex:1; position:relative; overflow:hidden; background-image:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0)),radial-gradient(circle,rgba(75,188,255,0.08) 1px,transparent 1px); background-size:auto,24px 24px;">
+
+      <!-- edges -->
+      <svg style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none;" aria-hidden="true">
+        <path d="M 420 190 C 470 200, 500 210, 545 235" fill="none" stroke="#4BBCFF" stroke-opacity="0.35" stroke-width="1.5"></path>
+        <path d="M 420 260 C 460 320, 480 350, 520 400" fill="none" stroke="#8ea3bd" stroke-opacity="0.3" stroke-width="1.5"></path>
+        <path d="M 860 300 C 890 330, 900 350, 910 380" fill="none" stroke="#4BBCFF" stroke-opacity="0.3" stroke-width="1.5" stroke-dasharray="5 4"></path>
+        <path d="M 300 480 C 380 500, 440 505, 515 505" fill="none" stroke="#8ea3bd" stroke-opacity="0.3" stroke-width="1.5"></path>
+      </svg>
+
+      <!-- ── Group: State layer (dashed frame with children) ── -->
+      <div style="position:absolute; left:520px; top:210px; width:430px; height:330px; border:1.5px dashed {{ groupBorder }}; border-radius:14px; background:{{ groupBg }}; transition:border-color 150ms ease, background 150ms ease;">
+        <div style="position:absolute; top:-12px; left:12px; right:12px; display:flex; align-items:center; gap:6px;">
+          <span style="display:inline-flex; align-items:center; gap:6px; padding:2px 10px; border-radius:999px; background:#0a1729; border:1px solid rgba(75,188,255,0.35);">
+            <span style="font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#4BBCFF;">State layer</span>
+            <span style="font:9px 'IBM Plex Mono',monospace; color:#5c6b80;">3</span>
+          </span>
+          <div style="flex:1;"></div>
+          <span style="display:inline-flex; gap:1px; padding:2px 4px; border-radius:999px; background:#0a1729; border:1px solid #1b2c44;">
+            <button title="Auto-arrange children" style="display:flex; width:20px; height:20px; align-items:center; justify-content:center; background:none; border:none; border-radius:99px; color:#8ea3bd; cursor:pointer;" style-hover="color:#4BBCFF"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="1.5" width="5" height="5" rx="1"></rect><rect x="9.5" y="1.5" width="5" height="5" rx="1"></rect><rect x="1.5" y="9.5" width="5" height="5" rx="1"></rect><rect x="9.5" y="9.5" width="5" height="5" rx="1"></rect></svg></button>
+            <button title="Collapse group" style="display:flex; width:20px; height:20px; align-items:center; justify-content:center; background:none; border:none; border-radius:99px; color:#8ea3bd; cursor:pointer;" style-hover="color:#4BBCFF"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10 L8 5 L13 10"></path></svg></button>
+            <button title="Rename · Ungroup · Pin all to context" style="display:flex; width:20px; height:20px; align-items:center; justify-content:center; background:none; border:none; border-radius:99px; color:#8ea3bd; cursor:pointer; font-size:11px; line-height:1;" style-hover="color:#e6eef7">⋯</button>
+          </span>
+        </div>
+        <!-- Markdown node inside group -->
+        <div style="position:absolute; left:22px; top:26px; width:185px; height:130px; display:flex; flex-direction:column; background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.3); overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5"><rect x="1.5" y="3" width="13" height="10" rx="1.5"></rect><path d="M4 10.5 L4 5.5 L6 8 L8 5.5 L8 10.5"></path></svg>
+            <span style="flex:1; font-size:11px; font-weight:600; color:#c7d3ea; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">canvas-store</span>
+            <span style="color:#5c6b80; font-size:12px; cursor:pointer;">⋯</span>
+          </div>
+          <div style="flex:1; padding:9px 12px; font-size:10.5px; line-height:1.55; color:#c7d3ea;">Single source of truth. Nodes, edges, viewport. Mutations flow through the ops registry only.</div>
+        </div>
+        <!-- Markdown node inside group -->
+        <div style="position:absolute; left:225px; top:26px; width:185px; height:130px; display:flex; flex-direction:column; background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.3); overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5"><rect x="1.5" y="3" width="13" height="10" rx="1.5"></rect><path d="M4 10.5 L4 5.5 L6 8 L8 5.5 L8 10.5"></path></svg>
+            <span style="flex:1; font-size:11px; font-weight:600; color:#c7d3ea; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">sse-bridge</span>
+            <span style="color:#5c6b80; font-size:12px; cursor:pointer;">⋯</span>
+          </div>
+          <div style="flex:1; padding:9px 12px; font-size:10.5px; line-height:1.55; color:#c7d3ea;">Server push → store. Seq-cursor resync on restart. Snapshot fallback when the cursor goes stale.</div>
+        </div>
+        <!-- Status node inside group -->
+        <div style="position:absolute; left:22px; top:172px; width:388px; height:130px; display:flex; flex-direction:column; background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.3); overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#2fd07f" stroke-width="1.5"><circle cx="8" cy="8" r="6"></circle><path d="M5.5 8 L7.2 9.8 L10.8 6"></path></svg>
+            <span style="flex:1; font-size:11px; font-weight:600; color:#c7d3ea;">Store health</span>
+            <span style="font-size:9px; font-weight:600; padding:2px 7px; border-radius:999px; background:rgba(47,208,127,0.15); color:#2fd07f;">live</span>
+          </div>
+          <div style="flex:1; padding:10px 14px; display:flex; gap:10px;">
+            <div style="flex:1; padding:8px 10px; border:1px solid #1b2c44; border-radius:8px; background:rgba(8,21,36,0.55);"><div style="font-size:9px; color:#5c6b80;">Nodes</div><div style="font:700 15px 'IBM Plex Mono',monospace; color:#4BBCFF;">142</div></div>
+            <div style="flex:1; padding:8px 10px; border:1px solid #1b2c44; border-radius:8px; background:rgba(8,21,36,0.55);"><div style="font-size:9px; color:#5c6b80;">SSE lag</div><div style="font:700 15px 'IBM Plex Mono',monospace; color:#2fd07f;">12ms</div></div>
+            <div style="flex:1; padding:8px 10px; border:1px solid #1b2c44; border-radius:8px; background:rgba(8,21,36,0.55);"><div style="font-size:9px; color:#5c6b80;">Undo depth</div><div style="font:700 15px 'IBM Plex Mono',monospace; color:#c7d3ea;">37</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── Collapsed group chip ── -->
+      <div title="Expand group" style="position:absolute; left:1005px; top:238px; display:flex; align-items:center; gap:10px; padding:10px 14px; border:1.5px dashed rgba(75,188,255,0.35); border-radius:12px; background:rgba(75,188,255,0.04); cursor:pointer;" style-hover="border-color:rgba(75,188,255,0.6); background:rgba(75,188,255,0.08)">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3 L11 8 L6 13"></path></svg>
+        <div>
+          <div style="font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#4BBCFF;">Research</div>
+          <div style="display:flex; align-items:center; gap:5px; margin-top:4px;">
+            <span style="width:6px; height:6px; border-radius:2px; background:#4BBCFF; opacity:0.8;"></span>
+            <span style="width:6px; height:6px; border-radius:2px; background:#2fd07f; opacity:0.8;"></span>
+            <span style="width:6px; height:6px; border-radius:2px; background:#f4c542; opacity:0.8;"></span>
+            <span style="font:9px 'IBM Plex Mono',monospace; color:#5c6b80;">5 nodes</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- drop-into-group demo: node dragged over the boundary -->
+      <sc-if value="{{ dropDemoOn }}" hint-placeholder-val="{{ true }}">
+        <div style="position:absolute; left:872px; top:466px; width:180px; z-index:7; transform:rotate(1.5deg); opacity:0.88; pointer-events:none;">
+          <div style="display:flex; align-items:center; gap:8px; padding:9px 12px; background:#0f1d31; border:1px solid rgba(75,188,255,0.5); border-radius:10px; box-shadow:0 14px 40px rgba(0,0,0,0.5);">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5"><rect x="1.5" y="3" width="13" height="10" rx="1.5"></rect><path d="M4 10.5 L4 5.5 L6 8 L8 5.5 L8 10.5"></path></svg>
+            <span style="font-size:11px; font-weight:600; color:#c7d3ea;">retry-budget notes</span>
+          </div>
+          <svg style="position:absolute; left:-8px; top:-8px;" width="16" height="16" viewBox="0 0 16 16" fill="#e6eef7" stroke="#081524" stroke-width="1"><path d="M3 2 L13 8 L8.5 9.5 L6.5 14 Z"></path></svg>
+        </div>
+        <div style="position:absolute; left:812px; top:548px; z-index:7; display:inline-flex; align-items:center; gap:6px; padding:3px 10px; border-radius:999px; background:rgba(15,29,49,0.96); border:1px solid rgba(75,188,255,0.4); pointer-events:none;">
+          <span style="font-size:10px; font-weight:600; color:#4BBCFF;">release to add to State layer</span>
+          <span style="font:9px 'IBM Plex Mono',monospace; color:#5c6b80;">esc keeps it out</span>
+        </div>
+      </sc-if>
+
+      <!-- ── Markdown node: proposal notes ── -->
+      <div style="position:absolute; left:90px; top:80px; width:330px; height:210px; display:flex; flex-direction:column; background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.3); overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5"><rect x="1.5" y="3" width="13" height="10" rx="1.5"></rect><path d="M4 10.5 L4 5.5 L6 8 L8 5.5 L8 10.5"></path></svg>
+          <span style="flex:1; font-size:12px; font-weight:600; color:#c7d3ea;">Reactive canvas — proposal</span>
+          <span style="color:#5c6b80; font-size:12px; cursor:pointer;">⋯</span>
+        </div>
+        <div style="flex:1; padding:12px 16px; overflow:hidden;">
+          <div style="font-size:15px; font-weight:700; letter-spacing:-0.01em;">Why reactive nodes?</div>
+          <div style="margin-top:6px; font-size:11px; line-height:1.6; color:#c7d3ea;">Surfaces should re-render from data, not be repainted by hand. A node declares its inputs; the store pushes deltas; the surface stays live.</div>
+          <ul style="margin:8px 0 0; padding-left:16px; font-size:11px; line-height:1.7; color:#8ea3bd;">
+            <li>Declarative bindings over imperative repaint</li>
+            <li>One delta path shared with the SSE bridge</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ── Image node: whiteboard photo ── -->
+      <div style="position:absolute; left:90px; top:330px; width:210px; height:190px; display:flex; flex-direction:column; background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.3); overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#f4c542" stroke-width="1.5"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"></rect><circle cx="5.5" cy="6" r="1.3"></circle><path d="M2.5 12 L6.5 8.5 L9 10.5 L11.5 8 L13.5 10"></path></svg>
+          <span style="flex:1; font-size:12px; font-weight:600; color:#c7d3ea; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">whiteboard-2026-08.jpg</span>
+          <span style="color:#5c6b80; font-size:12px; cursor:pointer;">⋯</span>
+        </div>
+        <div style="flex:1; position:relative; background:linear-gradient(135deg,#16283f,#0d1a2c); display:flex; align-items:center; justify-content:center;">
+          <svg width="120" height="90" viewBox="0 0 120 90" fill="none" opacity="0.5"><rect x="8" y="8" width="46" height="30" rx="4" stroke="#4BBCFF" stroke-width="1.5"></rect><rect x="66" y="20" width="46" height="30" rx="4" stroke="#f4c542" stroke-width="1.5"></rect><path d="M54 23 H66" stroke="#8ea3bd" stroke-width="1.5"></path><path d="M31 38 V62 H66" stroke="#8ea3bd" stroke-width="1.5" stroke-dasharray="4 3"></path><rect x="66" y="56" width="40" height="24" rx="4" stroke="#2fd07f" stroke-width="1.5"></rect></svg>
+          <span style="position:absolute; bottom:8px; right:10px; font:9px 'IBM Plex Mono',monospace; color:#5c6b80;">1.2 MB</span>
+        </div>
+      </div>
+
+      <!-- ── File node: ADR doc ── -->
+      <div style="position:absolute; left:90px; top:560px; width:210px; height:76px; display:flex; align-items:center; gap:12px; padding:0 14px; background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.3);">
+        <span style="display:flex; width:36px; height:36px; align-items:center; justify-content:center; border-radius:9px; background:rgba(75,188,255,0.1); flex-shrink:0;"><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5" stroke-linejoin="round"><path d="M4 1.5 H9.5 L13 5 V14.5 H4 Z"></path><path d="M9.5 1.5 V5 H13"></path></svg></span>
+        <div style="min-width:0;">
+          <div style="font-size:12px; font-weight:600; color:#c7d3ea; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">reactive-canvas-proposal.md</div>
+          <div style="font:10px 'IBM Plex Mono',monospace; color:#5c6b80;">docs · 18 KB</div>
+        </div>
+      </div>
+
+      <!-- ── Webpage node ── -->
+      <div style="position:absolute; left:640px; top:70px; width:310px; height:110px; display:flex; flex-direction:column; background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.3); overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#2fd07f" stroke-width="1.5"><circle cx="8" cy="8" r="6"></circle><path d="M2 8 H14 M8 2 C 5.5 5, 5.5 11, 8 14 C 10.5 11, 10.5 5, 8 2 Z"></path></svg>
+          <span style="flex:1; font:11px 'IBM Plex Mono',monospace; color:#8ea3bd; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">signals.dev/deep-dive</span>
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#5c6b80" stroke-width="1.5" stroke-linecap="round"><path d="M6 3 H3 V13 H13 V10"></path><path d="M9 2 H14 V7 M14 2 L7.5 8.5"></path></svg>
+        </div>
+        <div style="flex:1; padding:10px 14px;">
+          <div style="font-size:12px; font-weight:600; color:#e6eef7;">Signals and fine-grained reactivity</div>
+          <div style="margin-top:3px; font-size:10.5px; line-height:1.5; color:#8ea3bd;">Reference reading for the delta-subscription model — pinned for Thursday's review.</div>
+        </div>
+      </div>
+
+      <!-- ── Annotation ── -->
+      <div style="position:absolute; left:340px; top:565px; padding:8px 14px; background:rgba(244,197,66,0.1); border:1px solid rgba(244,197,66,0.35); border-radius:10px; max-width:260px; transform:rotate(-1deg);">
+        <div style="font-size:11px; line-height:1.5; color:#f4c542; font-style:italic;">Decide: does the ledger node subscribe directly, or through the store like everything else?</div>
+        <div style="margin-top:3px; font:9px 'IBM Plex Mono',monospace; color:#8ea3bd;">peter · yesterday</div>
+      </div>
+
+      <!-- selection: 2 nodes selected -->
+      <div style="position:absolute; left:88px; top:78px; width:334px; height:214px; border:1.5px solid #4BBCFF; border-radius:13px; pointer-events:none; box-shadow:0 0 0 3px rgba(75,188,255,0.1); z-index:4;">
+        <span style="position:absolute; left:-4px; top:-4px; width:7px; height:7px; background:#081524; border:1.5px solid #4BBCFF; border-radius:2px;"></span>
+        <span style="position:absolute; right:-4px; top:-4px; width:7px; height:7px; background:#081524; border:1.5px solid #4BBCFF; border-radius:2px;"></span>
+        <span style="position:absolute; left:-4px; bottom:-4px; width:7px; height:7px; background:#081524; border:1.5px solid #4BBCFF; border-radius:2px;"></span>
+        <span style="position:absolute; right:-4px; bottom:-4px; width:7px; height:7px; background:#081524; border:1.5px solid #4BBCFF; border-radius:2px;"></span>
+      </div>
+      <div style="position:absolute; left:88px; top:328px; width:214px; height:194px; border:1.5px solid #4BBCFF; border-radius:13px; pointer-events:none; box-shadow:0 0 0 3px rgba(75,188,255,0.1); z-index:4;">
+        <span style="position:absolute; left:-4px; top:-4px; width:7px; height:7px; background:#081524; border:1.5px solid #4BBCFF; border-radius:2px;"></span>
+        <span style="position:absolute; right:-4px; top:-4px; width:7px; height:7px; background:#081524; border:1.5px solid #4BBCFF; border-radius:2px;"></span>
+        <span style="position:absolute; left:-4px; bottom:-4px; width:7px; height:7px; background:#081524; border:1.5px solid #4BBCFF; border-radius:2px;"></span>
+        <span style="position:absolute; right:-4px; bottom:-4px; width:7px; height:7px; background:#081524; border:1.5px solid #4BBCFF; border-radius:2px;"></span>
+      </div>
+
+      <!-- selection bar -->
+      <div style="position:absolute; bottom:18px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:2px; padding:6px 8px; background:rgba(15,29,49,0.97); border:1px solid #1b2c44; border-radius:10px; box-shadow:0 12px 40px rgba(0,0,0,0.5); z-index:66;">
+        <span style="font-size:11px; font-weight:600; color:#4BBCFF; padding:0 8px; white-space:nowrap;">2 selected</span>
+        <span style="width:1px; height:18px; background:#1b2c44; margin:0 4px;"></span>
+        <button title="Align left" style="display:flex; width:28px; height:28px; align-items:center; justify-content:center; background:none; border:none; border-radius:6px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2.5" y1="2" x2="2.5" y2="14"></line><rect x="5" y="3.5" width="8" height="3.5" rx="1"></rect><rect x="5" y="9" width="5" height="3.5" rx="1"></rect></svg></button>
+        <button title="Align top" style="display:flex; width:28px; height:28px; align-items:center; justify-content:center; background:none; border:none; border-radius:6px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><line x1="2" y1="2.5" x2="14" y2="2.5"></line><rect x="3.5" y="5" width="3.5" height="8" rx="1"></rect><rect x="9" y="5" width="3.5" height="5" rx="1"></rect></svg></button>
+        <button title="Distribute" style="display:flex; width:28px; height:28px; align-items:center; justify-content:center; background:none; border:none; border-radius:6px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="5" width="3.5" height="6" rx="1"></rect><rect x="6.25" y="5" width="3.5" height="6" rx="1"></rect><rect x="11" y="5" width="3.5" height="6" rx="1"></rect></svg></button>
+        <button title="Auto-arrange" style="display:flex; width:28px; height:28px; align-items:center; justify-content:center; background:none; border:none; border-radius:6px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="1.5" width="5" height="5" rx="1"></rect><rect x="9.5" y="1.5" width="5" height="5" rx="1"></rect><rect x="1.5" y="9.5" width="5" height="5" rx="1"></rect><rect x="9.5" y="9.5" width="5" height="5" rx="1"></rect></svg></button>
+        <span style="width:1px; height:18px; background:#1b2c44; margin:0 4px;"></span>
+        <button title="Group (G)" style="display:flex; align-items:center; gap:5px; height:28px; padding:0 9px; background:none; border:none; border-radius:6px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2.5"><rect x="1.5" y="1.5" width="13" height="13" rx="2"></rect></svg><span style="font-size:11px; font-weight:600;">Group</span></button>
+        <button title="Pin to agent context" style="display:flex; align-items:center; gap:5px; height:28px; padding:0 9px; background:none; border:none; border-radius:6px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(244,197,66,0.1); color:#f4c542"><span style="font-size:12px;">✦</span><span style="font-size:11px; font-weight:600;">Pin</span></button>
+        <span style="width:1px; height:18px; background:#1b2c44; margin:0 4px;"></span>
+        <button title="Delete selection" style="display:flex; width:28px; height:28px; align-items:center; justify-content:center; background:none; border:none; border-radius:6px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,107,107,0.12); color:#ff6b6b"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M2.5 4 H13.5"></path><path d="M5.5 4 V2.5 H10.5 V4"></path><path d="M4 4 L4.8 13.5 H11.2 L12 4"></path><line x1="6.5" y1="6.5" x2="6.8" y2="11"></line><line x1="9.5" y1="6.5" x2="9.2" y2="11"></line></svg></button>
+      </div>
+
+      <!-- command palette (⌘K) -->
+      <sc-if value="{{ paletteOpen }}" hint-placeholder-val="{{ false }}">
+      <div onClick="{{ closePalette }}" style="position:absolute; inset:0; background:rgba(4,10,18,0.55); z-index:80;"></div>
+      <div style="position:absolute; top:56px; left:50%; transform:translateX(-50%); width:min(560px, calc(100% - 48px)); background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 24px 60px rgba(0,0,0,0.6); z-index:81; overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:10px; padding:12px 14px; border-bottom:1px solid #1b2c44;">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14.5" y2="14.5"></line></svg>
+          <input placeholder="Search nodes, run actions, jump to…" style="flex:1; background:none; border:none; outline:none; color:#e6eef7; font:13px 'IBM Plex Sans',sans-serif;">
+          <span style="padding:2px 7px; border:1px solid #1b2c44; border-radius:5px; font:9.5px 'IBM Plex Mono',monospace; color:#5c6b80;">esc</span>
+        </div>
+        <div style="padding:6px 6px 4px;">
+          <div style="padding:4px 10px; font-size:9px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#5c6b80;">Actions</div>
+          <div style="display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:8px; background:rgba(75,188,255,0.12); cursor:pointer;">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5"><rect x="1.5" y="3" width="13" height="10" rx="1.5"></rect><path d="M4 10.5 L4 5.5 L6 8 L8 5.5 L8 10.5"></path></svg>
+            <span style="flex:1; font-size:12px; color:#e6eef7;">New markdown note</span>
+            <span style="padding:1px 6px; border:1px solid #1b2c44; border-radius:4px; font:9.5px 'IBM Plex Mono',monospace; color:#8ea3bd;">M</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:8px; cursor:pointer;" style-hover="background:rgba(255,255,255,0.05)">
+            <span style="width:14px; height:14px; display:flex;"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#B388FF" stroke-width="1.5" stroke-linecap="round"><path d="M2 13 L2 4 A2 2 0 0 1 4 2 L12 2 A2 2 0 0 1 14 4 L14 9 A2 2 0 0 1 12 11 L5 11 Z"></path></svg></span>
+            <span style="flex:1; font-size:12px; color:#c7d3ea;">Start agent session</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:8px; cursor:pointer;" style-hover="background:rgba(255,255,255,0.05)">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#8ea3bd" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 5 1 1 5 1"></polyline><polyline points="11 1 15 1 15 5"></polyline><polyline points="15 11 15 15 11 15"></polyline><polyline points="5 15 1 15 1 11"></polyline></svg>
+            <span style="flex:1; font-size:12px; color:#c7d3ea;">Fit view</span>
+            <span style="padding:1px 6px; border:1px solid #1b2c44; border-radius:4px; font:9.5px 'IBM Plex Mono',monospace; color:#8ea3bd;">F</span>
+          </div>
+          <div style="padding:8px 10px 4px; font-size:9px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#5c6b80;">Jump to</div>
+          <div style="display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:8px; cursor:pointer;" style-hover="background:rgba(255,255,255,0.05)">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5" stroke-dasharray="3 2.5"><rect x="1.5" y="1.5" width="13" height="13" rx="2"></rect></svg>
+            <span style="flex:1; font-size:12px; color:#c7d3ea;">State layer <span style="color:#5c6b80;">— group · 3 nodes</span></span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:8px; cursor:pointer;" style-hover="background:rgba(255,255,255,0.05)">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#f4c542" stroke-width="1.5"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"></rect><circle cx="5.5" cy="6" r="1.3"></circle><path d="M2.5 12 L6.5 8.5 L9 10.5 L11.5 8 L13.5 10"></path></svg>
+            <span style="flex:1; font-size:12px; color:#c7d3ea;">whiteboard-2026-08.jpg</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:8px; cursor:pointer; margin-bottom:2px;" style-hover="background:rgba(255,255,255,0.05)">
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5" stroke-linejoin="round"><path d="M4 1.5 H9.5 L13 5 V14.5 H4 Z"></path><path d="M9.5 1.5 V5 H13"></path></svg>
+            <span style="flex:1; font-size:12px; color:#c7d3ea;">reactive-canvas-proposal.md</span>
+          </div>
+        </div>
+        <div style="display:flex; gap:14px; padding:8px 14px; border-top:1px solid #1b2c44; background:rgba(8,21,36,0.5); font:9.5px 'IBM Plex Mono',monospace; color:#5c6b80;">
+          <span>↑↓ navigate</span><span>↵ open</span><span>esc close</span>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- session history drawer (snapshots + session receipts) -->
+      <sc-if value="{{ historyOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute; top:0; right:0; bottom:0; width:300px; background:#0a1729; border-left:1px solid #1b2c44; box-shadow:-16px 0 40px rgba(0,0,0,0.45); z-index:75; display:flex; flex-direction:column;">
+        <div style="display:flex; align-items:center; gap:8px; height:44px; padding:0 14px; border-bottom:1px solid #1b2c44; flex-shrink:0;">
+          <span style="font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#e6eef7;">History</span>
+          <span style="font-size:10px; color:#5c6b80;">snapshots + sessions</span>
+          <div style="flex:1;"></div>
+          <button onClick="{{ closeHistory }}" style="background:none; border:none; color:#8ea3bd; font-size:14px; cursor:pointer; padding:0 2px;">×</button>
+        </div>
+        <div style="flex:1; overflow-y:auto; padding:10px 12px; display:flex; flex-direction:column; gap:8px;">
+          <div style="padding:10px 12px; border:1px solid rgba(179,136,255,0.3); border-radius:10px; background:rgba(179,136,255,0.05);">
+            <div style="display:flex; align-items:center; gap:7px;">
+              <span style="width:7px; height:7px; border-radius:50%; background:#B388FF;"></span>
+              <span style="flex:1; font-size:11.5px; font-weight:600; color:#e6eef7;">Agent session — Claude</span>
+              <span style="font:9px 'IBM Plex Mono',monospace; color:#5c6b80;">14:07</span>
+            </div>
+            <div style="margin-top:4px; font-size:10.5px; color:#8ea3bd;">14 items · 12 done · 2 vetoed · snapshot at detach</div>
+            <div style="display:flex; gap:6px; margin-top:8px;">
+              <button style="flex:1; padding:5px 0; font:600 10.5px 'IBM Plex Sans',sans-serif; background:rgba(75,188,255,0.12); border:1px solid rgba(75,188,255,0.3); border-radius:6px; color:#4BBCFF; cursor:pointer;" style-hover="background:rgba(75,188,255,0.2)">View diff</button>
+              <button style="flex:1; padding:5px 0; font:600 10.5px 'IBM Plex Sans',sans-serif; background:none; border:1px solid #1b2c44; border-radius:6px; color:#8ea3bd; cursor:pointer;" style-hover="color:#e6eef7">Restore pre-state</button>
+            </div>
+          </div>
+          <div style="padding:10px 12px; border:1px solid #1b2c44; border-radius:10px;">
+            <div style="display:flex; align-items:center; gap:7px;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#8ea3bd" stroke-width="1.5" stroke-linecap="round"><rect x="1" y="4" width="14" height="10" rx="1.5"></rect><path d="M5.5 4 L6.5 2.5 H9.5 L10.5 4"></path><circle cx="8" cy="9" r="2.3"></circle></svg>
+              <span style="flex:1; font-size:11.5px; font-weight:600; color:#c7d3ea;">Manual snapshot</span>
+              <span style="font:9px 'IBM Plex Mono',monospace; color:#5c6b80;">13:40</span>
+            </div>
+            <div style="margin-top:3px; font-size:10.5px; color:#8ea3bd;">142 nodes · before restructure</div>
+          </div>
+          <div style="padding:10px 12px; border:1px solid #1b2c44; border-radius:10px;">
+            <div style="display:flex; align-items:center; gap:7px;">
+              <span style="width:7px; height:7px; border-radius:50%; background:#5c6b80;"></span>
+              <span style="flex:1; font-size:11.5px; font-weight:600; color:#c7d3ea;">Agent session — research-bot</span>
+              <span style="font:9px 'IBM Plex Mono',monospace; color:#5c6b80;">11:18</span>
+            </div>
+            <div style="margin-top:3px; font-size:10.5px; color:#8ea3bd;">6 items · 1 vetoed</div>
+          </div>
+          <div style="padding:10px 12px; border:1px solid #1b2c44; border-radius:10px;">
+            <div style="display:flex; align-items:center; gap:7px;">
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#8ea3bd" stroke-width="1.5" stroke-linecap="round"><rect x="1" y="4" width="14" height="10" rx="1.5"></rect><path d="M5.5 4 L6.5 2.5 H9.5 L10.5 4"></path><circle cx="8" cy="9" r="2.3"></circle></svg>
+              <span style="flex:1; font-size:11.5px; font-weight:600; color:#c7d3ea;">Auto snapshot</span>
+              <span style="font:9px 'IBM Plex Mono',monospace; color:#5c6b80;">11:02</span>
+            </div>
+            <div style="margin-top:3px; font-size:10.5px; color:#8ea3bd;">session start · research-bot</div>
+          </div>
+        </div>
+        <div style="padding:9px 14px; border-top:1px solid #1b2c44; font-size:9.5px; color:#5c6b80; flex-shrink:0;">Every session detach writes a snapshot automatically.</div>
+      </div>
+      </sc-if>
+
+      <!-- session receipt (last session ended) -->
+      <sc-if value="{{ receiptVisible }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute; top:14px; right:16px; width:290px; background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,0.5); z-index:65; overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:8px; padding:9px 13px; border-bottom:1px solid #1b2c44; background:rgba(8,21,36,0.6);">
+          <span style="width:7px; height:7px; border-radius:50%; background:#5c6b80;"></span>
+          <span style="flex:1; font-size:11.5px; font-weight:600; color:#e6eef7;">Session ended · 2m ago</span>
+          <button onClick="{{ dismissReceipt }}" style="background:none; border:none; color:#8ea3bd; font-size:14px; cursor:pointer; padding:0 2px;">×</button>
+        </div>
+        <div style="padding:10px 13px; display:flex; flex-direction:column; gap:8px;">
+          <div style="display:flex; gap:8px;">
+            <div style="flex:1; padding:7px 9px; border:1px solid #1b2c44; border-radius:8px; background:rgba(8,21,36,0.55);"><div style="font-size:9px; color:#5c6b80;">Items</div><div style="font:700 14px 'IBM Plex Mono',monospace; color:#e6eef7;">14</div></div>
+            <div style="flex:1; padding:7px 9px; border:1px solid #1b2c44; border-radius:8px; background:rgba(8,21,36,0.55);"><div style="font-size:9px; color:#5c6b80;">Done</div><div style="font:700 14px 'IBM Plex Mono',monospace; color:#2fd07f;">12</div></div>
+            <div style="flex:1; padding:7px 9px; border:1px solid #1b2c44; border-radius:8px; background:rgba(8,21,36,0.55);"><div style="font-size:9px; color:#5c6b80;">Vetoed</div><div style="font:700 14px 'IBM Plex Mono',monospace; color:#ff6b6b;">2</div></div>
+          </div>
+          <div style="display:flex; align-items:center; gap:6px; font-size:10.5px; color:#8ea3bd;">
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#2fd07f" stroke-width="1.5" stroke-linecap="round"><rect x="1" y="4" width="14" height="10" rx="1.5"></rect><path d="M5.5 4 L6.5 2.5 H9.5 L10.5 4"></path><circle cx="8" cy="9" r="2.3"></circle></svg>
+            Snapshot saved at detach — board state is restorable
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button style="flex:1; padding:6px 0; font:600 11px 'IBM Plex Sans',sans-serif; background:rgba(75,188,255,0.12); border:1px solid rgba(75,188,255,0.3); border-radius:7px; color:#4BBCFF; cursor:pointer;" style-hover="background:rgba(75,188,255,0.2)">View diff</button>
+            <button onClick="{{ openHistory }}" style="flex:1; padding:6px 0; font:600 11px 'IBM Plex Sans',sans-serif; background:none; border:1px solid #1b2c44; border-radius:7px; color:#8ea3bd; cursor:pointer;" style-hover="color:#e6eef7">Full log</button>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- minimap -->
+      <sc-if value="{{ minimapOn }}" hint-placeholder-val="{{ true }}">
+      <div title="Click to jump · drag the frame to pan" style="position:absolute; bottom:18px; right:16px; width:168px; height:112px; border:1px solid #1b2c44; border-radius:8px; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,0.35); background:rgba(10,23,41,0.94); backdrop-filter:blur(8px); z-index:60; opacity:0.85; transform-origin:bottom right; transition:transform 160ms ease, opacity 120ms ease; cursor:crosshair;" style-hover="opacity:1; transform:scale(1.7); box-shadow:0 12px 40px rgba(0,0,0,0.55)">
+        <div style="position:absolute; left:4px; top:5px; width:43px; height:27px; background:#4BBCFF; opacity:0.55; border-radius:1.5px; outline:1px solid #4BBCFF;"></div>
+        <div style="position:absolute; left:4px; top:38px; width:27px; height:25px; background:#f4c542; opacity:0.55; border-radius:1.5px; outline:1px solid #4BBCFF;"></div>
+        <div style="position:absolute; left:4px; top:68px; width:27px; height:10px; background:#8ea3bd; opacity:0.4; border-radius:1.5px;"></div>
+        <div style="position:absolute; left:75px; top:4px; width:40px; height:14px; background:#2fd07f; opacity:0.4; border-radius:1.5px;"></div>
+        <div style="position:absolute; left:60px; top:22px; width:56px; height:43px; border:1px dashed rgba(75,188,255,0.55); border-radius:2px; background:rgba(75,188,255,0.04);"></div>
+        <div style="position:absolute; left:63px; top:25px; width:24px; height:17px; background:#4BBCFF; opacity:0.45; border-radius:1.5px;"></div>
+        <div style="position:absolute; left:92px; top:25px; width:24px; height:17px; background:#4BBCFF; opacity:0.45; border-radius:1.5px;"></div>
+        <div style="position:absolute; left:63px; top:44px; width:50px; height:17px; background:#2fd07f; opacity:0.45; border-radius:1.5px;"></div>
+        <div style="position:absolute; left:36px; top:68px; width:26px; height:6px; background:#f4c542; opacity:0.35; border-radius:1.5px; transform:rotate(-1deg);"></div>
+        <div style="position:absolute; left:2px; top:2px; width:152px; height:94px; border:1.5px solid rgba(75,188,255,0.85); border-radius:2px; background:rgba(75,188,255,0.05); cursor:grab;"></div>
+        <span style="position:absolute; right:5px; bottom:3px; font:8px 'IBM Plex Mono',monospace; color:#5c6b80;">{{ zoomLabel }}</span>
+      </div>
+      </sc-if>
+
+      <!-- toast after clicking "Start agent session" -->
+      <sc-if value="{{ sessionToast }}" hint-placeholder-val="{{ false }}">
+        <div style="position:absolute; bottom:24px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:10px; padding:10px 16px; background:rgba(15,29,49,0.97); border:1px solid rgba(179,136,255,0.4); border-radius:10px; box-shadow:0 12px 40px rgba(0,0,0,0.5); z-index:70;">
+          <span style="width:8px; height:8px; border-radius:50%; background:#B388FF;"></span>
+          <span style="font-size:12px; color:#e6eef7;">Agent surfaces appear when a session attaches — see the <b>Focus Session</b> prototype for the live state.</span>
+          <button onClick="{{ dismissToast }}" style="background:none; border:none; color:#8ea3bd; font-size:13px; cursor:pointer; padding:0 2px;">×</button>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:860},&quot;groupDropDemo&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Groups&quot;},&quot;connection&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;connected&quot;,&quot;options&quot;:[&quot;connected&quot;,&quot;reconnecting&quot;,&quot;resyncing&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Connection&quot;},&quot;agentAffordance&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Agent&quot;},&quot;affordanceLabel&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Start agent session&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Agent&quot;},&quot;showReceipt&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Agent&quot;},&quot;showPalette&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Overlays&quot;},&quot;showMinimap&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Canvas&quot;}}">
+class Component extends DCLogic {
+  state = { zoom: 100, sessionToast: false, receiptDismissed: false, paletteOverride: null, historyOpen: false };
+  componentDidMount() {
+    this._kd = (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        this.setState(s => ({ paletteOverride: !(s.paletteOverride ?? (this.props.showPalette ?? false)) }));
+      } else if (e.key === 'Escape') this.setState({ paletteOverride: false, historyOpen: false });
+    };
+    window.addEventListener('keydown', this._kd);
+  }
+  componentWillUnmount() { window.removeEventListener('keydown', this._kd); }
+  renderVals() {
+    const s = this.state;
+    const conn = this.props.connection ?? 'connected';
+    const dropDemo = this.props.groupDropDemo ?? true;
+    return {
+      dropDemoOn: dropDemo,
+      groupBorder: dropDemo ? 'rgba(75,188,255,0.8)' : 'rgba(75,188,255,0.35)',
+      groupBg: dropDemo ? 'rgba(75,188,255,0.07)' : 'rgba(75,188,255,0.03)',
+      zoomLabel: s.zoom + '%',
+      zoomIn: () => this.setState({ zoom: Math.min(400, Math.round(s.zoom * 1.25)) }),
+      zoomOut: () => this.setState({ zoom: Math.max(10, Math.round(s.zoom / 1.25)) }),
+      minimapOn: this.props.showMinimap ?? true,
+      showAgentAffordance: this.props.agentAffordance ?? true,
+      agentAffordanceLabel: this.props.affordanceLabel ?? 'Start agent session',
+      sessionToast: s.sessionToast,
+      receiptVisible: (this.props.showReceipt ?? true) && !s.receiptDismissed,
+      dismissReceipt: () => this.setState({ receiptDismissed: true }),
+      paletteOpen: s.paletteOverride ?? (this.props.showPalette ?? false),
+      connDotColor: conn === 'connected' ? '#2fd07f' : (conn === 'reconnecting' ? '#f4c542' : '#4BBCFF'),
+      connTitle: conn === 'connected' ? 'Connected' : (conn === 'reconnecting' ? 'Reconnecting' : 'Resyncing from snapshot'),
+      connReconnecting: conn === 'reconnecting',
+      connResyncing: conn === 'resyncing',
+      closePalette: () => this.setState({ paletteOverride: false }),
+      historyOpen: s.historyOpen,
+      openHistory: () => this.setState({ historyOpen: true }),
+      closeHistory: () => this.setState({ historyOpen: false }),
+      startSession: () => this.setState({ sessionToast: true }),
+      dismissToast: () => this.setState({ sessionToast: false }),
+    };
+  }
+}
+</script>
+</body>
+</html>

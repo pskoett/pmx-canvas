@@ -26,6 +26,12 @@ async function selectTheme(page: Page, themeLabel: string): Promise<void> {
   await page.locator('.toolbar-menu').getByRole('menuitemradio', { name: themeLabel }).click();
 }
 
+/** Pick an annotation tool through the rail's Annotate popover. */
+async function pickAnnotateTool(page: Page, itemLabel: string | RegExp): Promise<void> {
+  await page.getByRole('button', { name: 'Annotate (A)' }).click();
+  await page.locator('.toolbar-menu').getByRole('button', { name: itemLabel }).click();
+}
+
 async function clearCanvas(request: APIRequestContext): Promise<void> {
   await request.post('/api/canvas/clear');
   await request.post('/api/canvas/context-pins', {
@@ -1918,6 +1924,10 @@ test('MCP App node resize corner stays above iframe preview overlays', async ({ 
 
   const appNode = page.locator('.canvas-node').filter({ hasText: 'Resize Handle App' });
   await expect(appNode).toHaveCount(1);
+  // The minimap floats at the region's bottom-right, where the app-open fit
+  // can land this node's corner — hide it so elementFromPoint probes the
+  // node's own stacking (what this test is about), not an unrelated overlay.
+  await page.getByRole('button', { name: 'Hide minimap' }).click();
   const handle = appNode.locator('.node-resize-handle');
 
   const hitTarget = await handle.evaluate((element) => {
@@ -2258,10 +2268,7 @@ test('restores snapshots from the toolbar only after confirmation', async ({ pag
 test('toolbar tooltips dismiss after pointer-triggered actions', async ({ page }) => {
   await page.goto('/workbench');
 
-  const buttons = [
-    page.getByRole('button', { name: 'Arrange layout' }),
-    page.getByRole('button', { name: /minimap/i }),
-  ];
+  const buttons = [page.getByRole('button', { name: 'Zoom in' }), page.getByRole('button', { name: 'Fit canvas' })];
 
   for (const button of buttons) {
     await button.hover();
@@ -2901,8 +2908,9 @@ test('annotations use theme contrast colors and can be erased', async ({ page, r
   });
   await expect(annotation).toHaveCSS('stroke', 'rgb(8, 21, 36)');
 
-  await page.getByLabel('Erase annotations').click();
-  await page.mouse.click(160, 120);
+  await pickAnnotateTool(page, 'Eraser');
+  // World (160,120) renders at region origin (rail 52px, bar 44px) + world.
+  await page.mouse.click(212, 164);
 
   await expect(annotation).toHaveCount(0);
   await expect
@@ -2930,14 +2938,14 @@ test('can start pen and text annotations over nodes', async ({ page, request }) 
   await page.goto('/workbench');
   await expect(page.locator('.canvas-node').filter({ hasText: 'Annotate target' })).toHaveCount(1);
 
-  await page.getByLabel('Annotate canvas').click();
+  await pickAnnotateTool(page, 'Draw (A)');
   await page.mouse.move(220, 190);
   await page.mouse.down();
   await page.mouse.move(300, 230, { steps: 6 });
   await page.mouse.up();
   await expect(page.locator('.annotation-layer path')).toHaveCount(1);
 
-  await page.getByLabel('Text annotations').click();
+  await pickAnnotateTool(page, 'Text note');
   await page.mouse.click(240, 260);
   await page.locator('.annotation-text-input').fill('Intent note');
   await page.keyboard.press('Enter');
@@ -2958,12 +2966,12 @@ test('annotation toolbar actions preserve the current light theme', async ({ pag
   await selectTheme(page, 'Light');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 
-  await page.getByLabel('Annotate canvas').click();
+  await pickAnnotateTool(page, 'Draw (A)');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
-  await page.getByLabel('Stop annotating').click();
+  await pickAnnotateTool(page, 'Stop annotating');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 
-  await page.getByLabel('Erase annotations').click();
+  await pickAnnotateTool(page, 'Eraser');
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
 });
 
@@ -3039,9 +3047,11 @@ test('server-side focus updates the browser viewport', async ({ page, request })
     .poll(async () => {
       return await page.evaluate(() => {
         const node = document.querySelector('.canvas-node') as HTMLElement | null;
-        if (!node) return null;
+        const region = document.querySelector('.canvas-region');
+        if (!node || !region) return null;
         const box = node.getBoundingClientRect();
-        return { x: Math.round(box.left), y: Math.round(box.top) };
+        const area = region.getBoundingClientRect();
+        return { x: Math.round(box.left - area.left), y: Math.round(box.top - area.top) };
       });
     })
     .toEqual({ x: 64, y: 96 });
@@ -3305,23 +3315,24 @@ test('srcdoc iframe mode renders same-origin surfaces inline (nested-embed fallb
   await expect(jsonNode.frameLocator('iframe').getByText('Srcdoc card')).toBeVisible();
 });
 
-test('narrow screens collapse the toolbar into one bar with a More menu (no second bar)', async ({ page }) => {
+test('narrow screens keep the rail chrome fully usable with meta collapsed', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/workbench');
 
-  // One compact bar: the action bar and secondary controls are gone…
-  await expect(page.locator('.toolbar-actions-bar')).toBeHidden();
-  await expect(page.getByRole('button', { name: 'Arrange layout' })).toBeHidden();
+  // The rail keeps every control reachable; the top bar sheds only meta text.
+  await expect(page.locator('.tool-rail')).toBeVisible();
+  await expect(page.locator('.top-bar')).toBeVisible();
+  await expect(page.locator('.top-bar .hud-collapsible-text').first()).toBeHidden();
+  await expect(page.getByRole('button', { name: 'Select (V)' })).toBeVisible();
 
-  // …and everything lives in the labeled More menu instead.
-  await page.getByRole('button', { name: 'More actions' }).click();
-  const menu = page.locator('.toolbar-menu');
-  await expect(menu).toBeVisible();
-  await expect(menu.getByText('Arrange layout')).toBeVisible();
-  await expect(menu.getByText('Keyboard shortcuts')).toBeVisible();
+  // The top bar never wraps: its content stays within the 44px row.
+  const bar = await page.locator('.top-bar').boundingBox();
+  if (!bar) throw new Error('missing top bar box');
+  expect(bar.height).toBeLessThanOrEqual(44);
 
-  // The theme section applies a named theme directly from the menu.
-  await menu.getByRole('menuitemradio', { name: 'Ember' }).click();
+  // The theme picker applies a named theme directly from the rail.
+  await page.getByRole('button', { name: 'Choose theme' }).click();
+  await page.locator('.toolbar-menu').getByRole('menuitemradio', { name: 'Ember' }).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme', 'ember');
   await expect(page.locator('.toolbar-menu')).toHaveCount(0);
 });
@@ -3370,26 +3381,192 @@ test('theme menu opens anchored to the theme button, not the toolbar edge (Findi
   const buttonBox = await button.boundingBox();
   const menuBox = await menu.boundingBox();
   if (!buttonBox || !menuBox) throw new Error('missing bounding boxes');
-  // The 0.4.2 regression anchored the menu to the toolbar-group's right edge,
-  // ~212px right of the control. Correctly anchored, the menu's right edge
-  // sits at the trigger's right edge.
-  expect(Math.abs(menuBox.x + menuBox.width - (buttonBox.x + buttonBox.width))).toBeLessThan(24);
-  // And it must open BELOW the bar, overlapping the button's column.
-  expect(menuBox.y).toBeGreaterThan(buttonBox.y + buttonBox.height);
-  expect(menuBox.x).toBeLessThan(buttonBox.x + buttonBox.width);
+  // The 0.4.2 regression anchored the menu to a distant ancestor edge instead
+  // of its trigger. In the rail chrome the menu opens immediately to the RIGHT
+  // of the trigger, bottom-aligned with it (bottom utility cluster).
+  expect(Math.abs(menuBox.x - (buttonBox.x + buttonBox.width + 8))).toBeLessThan(24);
+  expect(Math.abs(menuBox.y + menuBox.height - (buttonBox.y + buttonBox.height))).toBeLessThan(24);
 });
 
-test('the More menu opens anchored to the ⋯ button on narrow screens', async ({ page }) => {
+test('select tool lassos on background drag; pan tool and Space pan instead', async ({ page, request }) => {
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Lasso A', content: 'a', x: 120, y: 80, width: 200, height: 120 },
+  });
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Lasso B', content: 'b', x: 380, y: 160, width: 200, height: 120 },
+  });
+
+  await page.goto('/workbench');
+  await expect(page.locator('.canvas-node')).toHaveCount(2);
+
+  // Select tool (default): plain background drag draws a lasso and selects.
+  // Region origin is (52,44); start above-left of both nodes, sweep past them.
+  await page.mouse.move(60, 52);
+  await page.mouse.down();
+  await page.mouse.move(700, 460, { steps: 8 });
+  await page.mouse.up();
+  await expect(page.locator('.selection-bar')).toBeVisible();
+  const zoomBefore = await page.locator('.top-bar-zoom-label').textContent();
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.selection-bar')).toHaveCount(0);
+
+  // Held Space: the same drag pans the viewport instead of selecting.
+  const worldBefore = await page.evaluate(
+    () => (document.querySelector('.canvas-world') as HTMLElement).style.transform,
+  );
+  await page.keyboard.down(' ');
+  await page.mouse.move(400, 300);
+  await page.mouse.down();
+  await page.mouse.move(560, 380, { steps: 5 });
+  await page.mouse.up();
+  await page.keyboard.up(' ');
+  const worldAfterSpace = await page.evaluate(
+    () => (document.querySelector('.canvas-world') as HTMLElement).style.transform,
+  );
+  expect(worldAfterSpace).not.toBe(worldBefore);
+  await expect(page.locator('.selection-bar')).toHaveCount(0);
+  // Panning must not zoom.
+  await expect(page.locator('.top-bar-zoom-label')).toHaveText(zoomBefore ?? '100%');
+
+  // Pan tool: dragging ANYWHERE pans — including starting on a node, which
+  // must neither drag the node nor select it.
+  const nodeState = await request.get('/api/canvas/state');
+  const before = (await nodeState.json()) as { nodes: Array<{ id: string; position: { x: number; y: number } }> };
+  await page.getByRole('button', { name: 'Pan (Space)' }).click();
+  const nodeBox = await page.locator('.canvas-node').first().boundingBox();
+  if (!nodeBox) throw new Error('missing node box');
+  await page.mouse.move(nodeBox.x + nodeBox.width / 2, nodeBox.y + nodeBox.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(nodeBox.x + 120, nodeBox.y + 90, { steps: 5 });
+  await page.mouse.up();
+  const worldAfterPanTool = await page.evaluate(
+    () => (document.querySelector('.canvas-world') as HTMLElement).style.transform,
+  );
+  expect(worldAfterPanTool).not.toBe(worldAfterSpace);
+  const after = (await (await request.get('/api/canvas/state')).json()) as {
+    nodes: Array<{ id: string; position: { x: number; y: number } }>;
+  };
+  for (const node of after.nodes) {
+    const prev = before.nodes.find((entry) => entry.id === node.id);
+    expect(node.position).toEqual(prev?.position);
+  }
+
+  // Back to select for later tests.
+  await page.getByRole('button', { name: 'Select (V)' }).click();
+});
+
+test('agent presence reaches the browser: sessionActive flips on attach and back on detach', async ({
+  page,
+  request,
+}) => {
+  await page.goto('/workbench');
+  const shell = page.locator('.app-shell');
+  await expect(shell).toHaveAttribute('data-session-active', 'false');
+
+  // An external writer (agent mutation, no session) must NOT activate a session.
+  await request.post('/api/canvas/node', { data: { type: 'markdown', title: 'External write' } });
+  await expect(page.locator('.canvas-node').filter({ hasText: 'External write' })).toHaveCount(1);
+  await expect(shell).toHaveAttribute('data-session-active', 'false');
+
+  // session-start on the activity feed attaches → the single gate flips.
+  const start = await request.post('/api/canvas/ax/activity', {
+    data: { kind: 'session-start', title: 'Copilot session', source: 'copilot' },
+  });
+  expect(start.ok()).toBe(true);
+  await expect(shell).toHaveAttribute('data-session-active', 'true');
+
+  // session-end detaches → back to the quiet board.
+  const end = await request.post('/api/canvas/ax/activity', {
+    data: { kind: 'session-end', title: 'done', source: 'copilot' },
+  });
+  expect(end.ok()).toBe(true);
+  await expect(shell).toHaveAttribute('data-session-active', 'false');
+});
+
+test('agent presence surfaces: cursor + chip on attach, shimmer on mutation, byte-clean on detach', async ({
+  page,
+  request,
+}) => {
+  const created = await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Presence target', content: 'watch me', x: 200, y: 160, width: 360, height: 200 },
+  });
+  const node = (await created.json()) as { id: string };
+
+  await page.goto('/workbench');
+  const target = page.locator('.canvas-node').filter({ hasText: 'Presence target' });
+  await expect(target).toHaveCount(1);
+
+  // Quiet board: no agent chrome at all, even though an external writer
+  // (the create above) is live.
+  await expect(page.locator('.agent-chip')).toHaveCount(0);
+  await expect(page.locator('.agent-cursor')).toHaveCount(0);
+
+  // Attach a thinking session focused on the node.
+  const attach = await request.post('/api/canvas/ax/presence', {
+    data: { source: 'copilot', label: 'Claude · sonnet', attached: true, phase: 'thinking', focusNodeId: node.id },
+  });
+  expect(attach.ok()).toBe(true);
+  await expect(page.locator('.agent-chip .agent-chip-label')).toHaveText('Thinking');
+  await expect(page.locator('.agent-chip')).toHaveClass(/phase-thinking/);
+
+  // The cursor is ON the focused node (user-visible placement, not a tuple).
+  const cursor = page.locator('.agent-cursor');
+  await expect(cursor).toHaveCount(1);
+  const [cursorBox, nodeBox] = await Promise.all([cursor.boundingBox(), target.boundingBox()]);
+  if (!cursorBox || !nodeBox) throw new Error('missing boxes');
+  expect(cursorBox.x).toBeGreaterThanOrEqual(nodeBox.x);
+  expect(cursorBox.x).toBeLessThanOrEqual(nodeBox.x + nodeBox.width);
+  expect(cursorBox.y).toBeGreaterThanOrEqual(nodeBox.y);
+  expect(cursorBox.y).toBeLessThanOrEqual(nodeBox.y + nodeBox.height);
+
+  // An agent mutation through a plain transport (no session label) is
+  // ATTRIBUTED to the attached session: the node shimmers for at least the
+  // ghost's minimum dwell and the session's chip follows the tooling phase.
+  const patch = await request.patch(`/api/canvas/node/${node.id}`, { data: { title: 'Presence target (edited)' } });
+  expect(patch.ok()).toBe(true);
+  await expect(target).toHaveClass(/agent-mutating/);
+  await expect(page.locator('.agent-chip .agent-chip-label')).toHaveText(/Running node\.update/);
+  await expect(target).not.toHaveClass(/agent-mutating/, { timeout: 5000 });
+  // Still exactly one cursor — the transport write did not spawn a second writer.
+  await expect(cursor).toHaveCount(1);
+
+  // The cursor FOLLOWS the session's work: a new node written over the same
+  // transport pulls the cursor onto it.
+  const second = await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Second target', content: 'next', x: 700, y: 420, width: 300, height: 160 },
+  });
+  expect(second.ok()).toBe(true);
+  const secondNode = page.locator('.canvas-node').filter({ hasText: 'Second target' });
+  await expect(secondNode).toHaveCount(1);
+  await expect
+    .poll(async () => {
+      const [c, n] = await Promise.all([cursor.boundingBox(), secondNode.boundingBox()]);
+      if (!c || !n) return false;
+      return c.x >= n.x && c.x <= n.x + n.width && c.y >= n.y && c.y <= n.y + n.height;
+    })
+    .toBe(true);
+
+  // Detach → the board is byte-clean of agent chrome again.
+  const detach = await request.post('/api/canvas/ax/presence', { data: { source: 'copilot', attached: false } });
+  expect(detach.ok()).toBe(true);
+  await expect(page.locator('.agent-chip')).toHaveCount(0);
+  await expect(page.locator('.agent-cursor')).toHaveCount(0);
+  await expect(page.locator('.agent-mutating')).toHaveCount(0);
+  await expect(page.locator('.app-shell')).toHaveAttribute('data-session-active', 'false');
+});
+
+test('rail popovers anchor beside their trigger on narrow screens', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/workbench');
-  const button = page.getByRole('button', { name: 'More actions' });
+  const button = page.getByRole('button', { name: 'Annotate (A)' });
   await button.click();
   const menu = page.locator('.toolbar-menu');
   await expect(menu).toBeVisible();
   const buttonBox = await button.boundingBox();
   const menuBox = await menu.boundingBox();
   if (!buttonBox || !menuBox) throw new Error('missing bounding boxes');
-  expect(Math.abs(menuBox.x + menuBox.width - (buttonBox.x + buttonBox.width))).toBeLessThan(24);
+  expect(Math.abs(menuBox.x - (buttonBox.x + buttonBox.width + 8))).toBeLessThan(24);
 });
 
 test('an Amp orb page boots straight on the polling transport (no SSE attempt)', async ({ page }) => {

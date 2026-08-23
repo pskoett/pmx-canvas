@@ -29,11 +29,13 @@ import {
   viewport,
   createAnnotationFromClient,
   removeAnnotationFromClient,
+  isPanModeActive,
 } from '../state/canvas-store';
 import { createEdgeFromClient, createNodeFromClient } from '../state/intent-bridge';
 import type { CanvasAnnotation, CanvasNodeState } from '../types';
 import { FocusFieldLayer } from './FocusFieldLayer';
 import { IntentLayer } from './IntentLayer';
+import { AgentPresenceLayer } from './AgentPresenceLayer';
 import { CanvasNode } from './CanvasNode';
 import { EdgeLayer } from './EdgeLayer';
 import { AnnotationLayer } from './AnnotationLayer';
@@ -318,7 +320,12 @@ export function CanvasViewport({
 
       if (annotationTool === 'eraser') {
         const target = e.target instanceof Element ? e.target : null;
-        if (target?.closest('.hud-layer, .snapshot-panel, .context-menu, .command-palette')) return;
+        if (
+          target?.closest(
+            '.tool-rail, .top-bar, .hud-left, .hud-right, .snapshot-panel, .context-menu, .command-palette',
+          )
+        )
+          return;
         e.preventDefault();
         e.stopPropagation();
         const rect = container.getBoundingClientRect();
@@ -334,7 +341,12 @@ export function CanvasViewport({
 
       if (annotationTool === 'text') {
         const target = e.target instanceof Element ? e.target : null;
-        if (target?.closest('.hud-layer, .snapshot-panel, .context-menu, .command-palette')) return;
+        if (
+          target?.closest(
+            '.tool-rail, .top-bar, .hud-left, .hud-right, .snapshot-panel, .context-menu, .command-palette',
+          )
+        )
+          return;
         e.preventDefault();
         e.stopPropagation();
         activeNodeId.value = null;
@@ -351,7 +363,12 @@ export function CanvasViewport({
 
       if (annotationTool === 'pen') {
         const target = e.target instanceof Element ? e.target : null;
-        if (target?.closest('.hud-layer, .snapshot-panel, .context-menu, .command-palette')) return;
+        if (
+          target?.closest(
+            '.tool-rail, .top-bar, .hud-left, .hud-right, .snapshot-panel, .context-menu, .command-palette',
+          )
+        )
+          return;
         e.preventDefault();
         e.stopPropagation();
         activeNodeId.value = null;
@@ -379,14 +396,17 @@ export function CanvasViewport({
 
       if (e.target !== container) return;
 
-      if (!e.shiftKey) {
-        if (!lassoRef.current) {
+      // Pan tool / held Space: usePanZoom owns this drag.
+      if (isPanModeActive() || e.button === 1) {
+        if (!e.shiftKey && !lassoRef.current) {
           activeNodeId.value = null;
           clearSelection();
         }
         return;
       }
 
+      // Select tool: plain background drag draws the lasso. A sub-threshold
+      // drag (a click) falls through in handlePointerUp and clears selection.
       e.preventDefault();
       e.stopPropagation();
       isLassoing.current = true;
@@ -460,6 +480,12 @@ export function CanvasViewport({
     const minY = Math.min(current.startY, current.currentY);
     const maxY = Math.max(current.startY, current.currentY);
 
+    // A sub-threshold lasso is a background CLICK: clear the selection —
+    // pre-rail chrome this was the plain-pointerdown path.
+    if (maxX - minX <= 5 && maxY - minY <= 5) {
+      activeNodeId.value = null;
+      clearSelection();
+    }
     // Only commit if the lasso was dragged at least a few pixels
     if (maxX - minX > 5 || maxY - minY > 5) {
       // Convert screen lasso rect to world-space
@@ -757,7 +783,7 @@ export function CanvasViewport({
 
   return (
     <div
-      class="canvas-viewport"
+      class={`canvas-viewport${isPanModeActive() ? ' pan-mode' : ''}`}
       ref={containerRef}
       tabIndex={0}
       onPointerDown={handlePointerDown}
@@ -781,13 +807,16 @@ export function CanvasViewport({
               ? 'text'
               : annotationMode || draggingEdge.value || isLassoing.current
                 ? 'crosshair'
-                : 'grab',
+                : isPanModeActive()
+                  ? 'grab'
+                  : 'default',
       }}
     >
       {/* D4: CSS matrix(a,b,c,d,tx,ty) — scale uniformly (a=d=scale, b=c=0)
           then translate (tx=v.x, ty=v.y). transformOrigin: '0 0' ensures
           the scale pivot is the top-left corner of the world layer. */}
       <div
+        class="canvas-world"
         style={{
           transform: `matrix(${v.scale}, 0, 0, ${v.scale}, ${v.x}, ${v.y})`,
           transformOrigin: '0 0',
@@ -799,6 +828,7 @@ export function CanvasViewport({
       >
         <FocusFieldLayer />
         <IntentLayer />
+        <AgentPresenceLayer />
         <EdgeLayer nodes={nodes} edges={edges} />
         <AnnotationLayer annotations={Array.from(annotations.value.values())} />
         {draftAnnotation && draftAnnotation.points.length >= 2 && <AnnotationLayer annotations={[draftAnnotation]} />}

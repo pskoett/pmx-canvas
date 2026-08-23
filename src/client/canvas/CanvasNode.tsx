@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { mutatingNodeIds, sessionActive } from '../state/presence-store';
 import { attentionPrimaryNodeIds, attentionPulseNodeIds, attentionSecondaryNodeIds } from '../state/attention-store';
 import {
   activeNodeId,
@@ -271,6 +272,9 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     '--node-chrome-scale': chromeScale.toFixed(3),
     ...(groupColor ? { '--group-color': groupColor } : {}),
   };
+  // Shimmer while an attached agent is mutating this node (rail-chrome-v2
+  // phase 3). Gated on sessionActive: the quiet board never shimmers.
+  const isAgentMutating = sessionActive.value && mutatingNodeIds.value.has(node.id);
   const nodeClass = [
     'canvas-node',
     isActive ? 'active' : '',
@@ -287,6 +291,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     isTraceRunning ? 'trace-running' : '',
     isGroup ? 'group-node' : '',
     isStrictSize ? 'strict-size' : '',
+    isAgentMutating ? 'agent-mutating' : '',
   ]
     .filter(Boolean)
     .join(' ');

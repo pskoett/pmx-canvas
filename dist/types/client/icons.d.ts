@@ -42,6 +42,15 @@ export declare function IconPin(p: IconProps): JSX.Element;
 /** Focus Field — PMX Canvas brand mark (concentric rounded squares → lit core). */
 export declare function IconLogo({ size, class: className }: IconProps): JSX.Element;
 /** Framed document with lines — markdown */
+export declare function IconCursorTool({ size }: {
+    size?: number;
+}): JSX.Element;
+export declare function IconHandTool({ size }: {
+    size?: number;
+}): JSX.Element;
+export declare function IconNodeHtml({ size }: {
+    size?: number;
+}): JSX.Element;
 export declare function IconNodeMarkdown(p: IconProps): JSX.Element;
 /** Framed prompt with chevron and reply tail — prompt */
 export declare function IconNodePrompt(p: IconProps): JSX.Element;

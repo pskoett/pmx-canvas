@@ -123,8 +123,10 @@ Every mistake is a learning opportunity. Log it, learn from it, prevent it.
    fixed screen margin, compute `margin - node.position * scale` — what `fitCanvasView` and the
    client's `focusNode` do. Writing `node.position - margin / scale` mixes conventions and lands
    the node off-screen at any scale ≠ 1 (it shipped twice: `view.focus` in 0.4.6, and `fit`'s
-   world-space padding, which collapses under the toolbar at fit zoom). Margins that must clear
-   the floating toolbar are screen-space constants.
+   world-space padding, which collapses under floating chrome at fit zoom). Margins that must
+   clear overlays are screen-space constants. Since the rail-chrome restructure the canvas region
+   itself excludes the rail/top bar — screen-space math anchors on `canvasArea()`
+   (`src/client/canvas/canvas-area.ts`), never `window.innerWidth`.
 
 10. **json-render / graph viewers read their spec once, at document load.** The iframe `src` is
     keyed on `nodeId + ?v=specVersion`, so any content update MUST bump `specVersion`
@@ -203,7 +205,7 @@ current renderer. Regenerate and re-run that test after touching any of the abov
 Nine themes: `dark` (default), `light`, `high-contrast`, `midnight`, `sepia`, `arctic`, `ember`, `forest`, `volt`. The canonical registry is `src/shared/themes.ts`; per-theme CSS variable blocks live in `src/client/theme/global.css` + `surface-theme.css` (kept in sync by `tests/unit/surface-theme-tokens.test.ts`). Set via:
 - CLI: `--theme=light`
 - Env: `PMX_CANVAS_THEME=light`
-- Browser: toolbar theme picker (sun/moon icon opens the theme menu)
+- Browser: rail theme picker (sun/moon button in the left tool rail opens the theme menu)
 
 Embedded dark/light-only viewers (json-render, MCP apps) collapse named themes to their scheme via `canvasThemeScheme` (e.g. `sepia` → light, `ember` → dark).
 
@@ -284,6 +286,8 @@ Neutral, agent-agnostic agent-experience primitives. The core never imports a ho
 - **Host/session** (`host-capability`): reported by adapters into its own table, exposed for diagnostics, survives `canvas_view { action: "clear" }`. Read via `canvas_ax_state { action: "get" }`.
 
 Approval gates implement PMX approvals first (`pending → approved/rejected`); host permission hooks are mapped only where low-risk.
+
+- **Agent presence** (`src/server/agent-presence.ts`, shape in `src/shared/agent-presence.ts`): in-memory and TTL-swept like `IntentRegistry`, never persisted. Derived from feeds that already exist — every agent-originated mutation through `executeOperation` (no `x-pmx-workbench` marker) touches its caller as `tooling`; `ax.activity.ingest` kinds `session-start`/`session-end` attach/detach and `tool-start`/`tool-result` drive the phase; `POST /api/canvas/ax/presence` (`canvas_ax_state { action: "set-presence" }`) is the explicit path for `thinking`, cursor, focus. Transport-labelled writes (`api`/`mcp`/`sdk`/`cli`, no `agentId`) are **attributed to the single attached session** so one agent writing through MCP keeps one cursor; identified writers and multi-session boards stay separate. One `agent-presence` SSE frame carries the full snapshot on every change including expiry. **`sessionActive` (any attached presence) is the single gate for all agent chrome** — the quiet board must stay byte-clean of agent surfaces when it is false. Plan: `design/rail-chrome-v2/PLAN.md`.
 
 Additional canvas-bound primitives: `elicitation` (request structured human input → respond), `mode-request` (request a plan/execute/autonomous transition → resolve), and a single `policy` singleton (tool/prompt policy: `tools.allowed|excluded|approvalRequired`, `prompt.systemAppend|mode`). All snapshot/restore with the rest of `PmxAxState` and are read via `canvas_ax_state { action: "get" }` / `canvas://ax-work` / `canvas://ax-context`.
 

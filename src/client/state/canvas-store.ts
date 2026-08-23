@@ -9,6 +9,7 @@ import {
   type ViewportState,
 } from '../types';
 import { computeAutoArrange } from '../../shared/auto-arrange';
+import { canvasArea, canvasAreaCenter } from '../canvas/canvas-area';
 import { pushCanvasUpdate, updateViewportFromClient } from './intent-bridge';
 
 function logCanvasStoreError(action: string, error: unknown): void {
@@ -66,6 +67,17 @@ export const selectedNodeIds = signal<Set<string>>(new Set());
 
 // ── Context pins (persistent context for agent queries) ──────
 export const contextPinnedNodeIds = signal<Set<string>>(new Set());
+
+// ── Chrome tool state (rail) ─────────────────────────────────
+// 'select': background drag lassos, clicks select. 'pan': dragging anywhere
+// pans — the world layer goes pointer-inert so nodes cannot swallow the drag.
+export type CanvasTool = 'select' | 'pan';
+export const canvasTool = signal<CanvasTool>('select');
+/** Held-Space temporary pan — same semantics as the pan tool while held. */
+export const spacePanHeld = signal<boolean>(false);
+export function isPanModeActive(): boolean {
+  return canvasTool.value === 'pan' || spacePanHeld.value;
+}
 
 export function getNeighborNodeIds(nodeId: string | null, edgeMap: Map<string, CanvasEdge>): Set<string> {
   if (!nodeId) return new Set();
@@ -380,8 +392,9 @@ export function undockNode(id: string): void {
   if (!existing) return;
   // Place at center of current viewport in world-space
   const v = viewport.value;
-  const cx = (window.innerWidth / 2 - v.x) / v.scale;
-  const cy = (window.innerHeight / 2 - v.y) / v.scale;
+  const centre = canvasAreaCenter();
+  const cx = (centre.x - v.x) / v.scale;
+  const cy = (centre.y - v.y) / v.scale;
   updateNode(id, {
     dockPosition: null,
     position: { x: cx - existing.size.width / 2, y: cy - existing.size.height / 2 },
@@ -480,8 +493,7 @@ export function zoomByFactor(factor: number, duration = 150): void {
   const scale = Math.min(4, Math.max(0.1, v.scale * factor));
   if (scale === v.scale) return;
   const ratio = scale / v.scale;
-  const cx = window.innerWidth / 2;
-  const cy = window.innerHeight / 2;
+  const { x: cx, y: cy } = canvasAreaCenter();
   animateViewport({ x: cx - ratio * (cx - v.x), y: cy - ratio * (cy - v.y), scale }, duration);
 }
 
@@ -641,10 +653,11 @@ export function focusNode(id: string, options: { recordHistory?: boolean } = {})
   const v = viewport.value;
   const cx = node.position.x + node.size.width / 2;
   const cy = node.position.y + node.size.height / 2;
+  const centre = canvasAreaCenter();
   animateViewport(
     {
-      x: window.innerWidth / 2 - cx * v.scale,
-      y: window.innerHeight / 2 - cy * v.scale,
+      x: centre.x - cx * v.scale,
+      y: centre.y - cy * v.scale,
       scale: v.scale,
     },
     300,

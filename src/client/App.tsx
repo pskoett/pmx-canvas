@@ -1,7 +1,7 @@
-import type { ComponentChildren } from 'preact';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { AttentionHistory } from './canvas/AttentionHistory';
 import { AttentionToast } from './canvas/AttentionToast';
+import { registerCanvasArea, canvasArea } from './canvas/canvas-area';
 import { CanvasViewport } from './canvas/CanvasViewport';
 import { CommandPalette } from './canvas/CommandPalette';
 import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
@@ -12,505 +12,39 @@ import { Minimap } from './canvas/Minimap';
 import { SelectionBar } from './canvas/SelectionBar';
 import { ShortcutOverlay } from './canvas/ShortcutOverlay';
 import { SnapshotPanel } from './canvas/SnapshotPanel';
+import { promptedCreate, ToolRail } from './canvas/ToolRail';
+import { TopBar } from './canvas/TopBar';
 import {
   activeNodeId,
   animateViewport,
-  autoArrange,
-  canvasTheme,
+  canvasTool,
   clearSelection,
   collapseExpandedNode,
-  connectionStatus,
   contextPinnedNodeIds,
   cycleActiveNode,
   edges,
   expandedNodeId,
   fitAll,
-  forceDirectedArrange,
   hasInitialServerLayout,
   nodes,
   pendingExpandedNodeCloseId,
-  persistLayout,
   selectedNodeIds,
-  sessionId,
-  setViewport,
-  traceEnabled,
+  spacePanHeld,
   viewport,
   walkGraph,
   zoomByFactor,
 } from './state/canvas-store';
 import { connectSSE } from './state/sse-bridge';
 import { intents } from './state/intent-store';
-import { reportClientViewportSize, saveCanvasTheme } from './state/intent-bridge';
-import {
-  IconArrange,
-  IconClearTrace,
-  IconEraser,
-  IconFitAll,
-  IconLogo,
-  IconMinimap,
-  IconMoon,
-  IconPen,
-  IconResetView,
-  IconSearch,
-  IconShortcuts,
-  IconSnapshot,
-  IconSun,
-  IconTextAnnotation,
-  IconTrace,
-  IconZoomIn,
-  IconZoomOut,
-} from './icons';
-import { clearThemeOverride } from './state/theme-override';
-import { invalidateTokenCache } from './theme/tokens';
+import { sessionActive } from './state/presence-store';
+import { createNodeFromClient, reportClientViewportSize } from './state/intent-bridge';
 import { MOD_KEY } from './utils/platform';
-import {
-  CANVAS_THEMES,
-  CANVAS_THEME_META,
-  type CanvasThemeName,
-  canvasThemeScheme,
-  normalizeCanvasThemeName,
-} from '../shared/themes.js';
 
 function logAppError(action: string, error: unknown): void {
   console.error(`[app] ${action} failed`, error);
 }
 
-function sendIntent(type: string, payload: Record<string, unknown> = {}): void {
-  fetch(`/api/workbench/intent?_ts=${Date.now()}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ type, payload }),
-  }).catch((error) => {
-    logAppError('sendIntent', error);
-  });
-}
-
 type AnnotationTool = 'pen' | 'eraser' | 'text' | null;
-
-function ToolbarHint({
-  label,
-  detail,
-  shortcut,
-  align = 'center',
-  children,
-}: {
-  label: string;
-  detail?: string;
-  shortcut?: string;
-  align?: 'start' | 'center' | 'end';
-  children: ComponentChildren;
-}) {
-  return (
-    <span class={`toolbar-tooltip-anchor toolbar-tooltip-anchor-${align}`}>
-      {children}
-      <span class="toolbar-tooltip" role="tooltip">
-        <span class="toolbar-tooltip-label">{label}</span>
-        {(detail || shortcut) && (
-          <span class="toolbar-tooltip-meta">
-            {detail && <span>{detail}</span>}
-            {shortcut && <kbd class="toolbar-tooltip-shortcut">{shortcut}</kbd>}
-          </span>
-        )}
-      </span>
-    </span>
-  );
-}
-
-function Toolbar({
-  minimapVisible,
-  onToggleMinimap,
-  snapshotOpen,
-  onToggleSnapshot,
-  snapshotBtnRef,
-  onOpenPalette,
-  onOpenShortcuts,
-  annotationTool,
-  onToggleAnnotationMode,
-  onToggleAnnotationEraser,
-  onToggleTextAnnotation,
-}: {
-  minimapVisible: boolean;
-  onToggleMinimap: () => void;
-  snapshotOpen: boolean;
-  onToggleSnapshot: () => void;
-  snapshotBtnRef: { current: HTMLButtonElement | null };
-  onOpenPalette: () => void;
-  onOpenShortcuts: () => void;
-  annotationTool: AnnotationTool;
-  onToggleAnnotationMode: () => void;
-  onToggleAnnotationEraser: () => void;
-  onToggleTextAnnotation: () => void;
-}) {
-  const status = connectionStatus.value;
-  const hasSynced = hasInitialServerLayout.value;
-  const v = viewport.value;
-  const nodeCount = nodes.value.size;
-  const edgeCount = edges.value.size;
-  const isTraceOn = traceEnabled.value;
-  const traceNodeCount = Array.from(nodes.value.values()).filter((n) => n.type === 'trace').length;
-  const statusTitle = status === 'connected' && !hasSynced ? 'syncing' : status;
-  const statusLabel = statusTitle.charAt(0).toUpperCase() + statusTitle.slice(1);
-  const countsLabel = hasSynced
-    ? [
-        `${nodeCount} node${nodeCount !== 1 ? 's' : ''}`,
-        ...(edgeCount > 0 ? [`${edgeCount} edge${edgeCount !== 1 ? 's' : ''}`] : []),
-        ...(traceNodeCount > 0
-          ? [`${traceNodeCount} trace${traceNodeCount !== 1 ? 's' : ''}`]
-          : isTraceOn
-            ? ['trace armed']
-            : []),
-      ].join(' · ')
-    : 'Syncing canvas…';
-
-  // Popover state: the theme picker (desktop toolbar) and the mobile "More"
-  // menu share one open-slot so at most one popover shows at a time.
-  const [openMenu, setOpenMenu] = useState<null | 'theme' | 'more'>(null);
-  const groupRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!openMenu) return;
-    const onPointerDown = (e: PointerEvent) => {
-      if (groupRef.current && e.target instanceof Node && !groupRef.current.contains(e.target)) {
-        setOpenMenu(null);
-      }
-    };
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setOpenMenu(null);
-    };
-    document.addEventListener('pointerdown', onPointerDown);
-    document.addEventListener('keydown', onKeyDown);
-    return () => {
-      document.removeEventListener('pointerdown', onPointerDown);
-      document.removeEventListener('keydown', onKeyDown);
-    };
-  }, [openMenu]);
-
-  const applyTheme = (next: CanvasThemeName) => {
-    // An explicit pick ends any ?theme= session override (host default) and
-    // returns this client to the shared server-global theme it just saved.
-    clearThemeOverride();
-    document.documentElement.setAttribute('data-theme', next);
-    invalidateTokenCache();
-    canvasTheme.value = next;
-    void saveCanvasTheme(next);
-    setOpenMenu(null);
-  };
-
-  const menuAction = (fn: () => void) => () => {
-    fn();
-    setOpenMenu(null);
-  };
-
-  const activeTheme = normalizeCanvasThemeName(canvasTheme.value);
-  const themeMenuItems = CANVAS_THEMES.map((name) => (
-    <button
-      key={name}
-      type="button"
-      role="menuitemradio"
-      aria-checked={activeTheme === name}
-      class={`toolbar-menu-item${activeTheme === name ? ' active' : ''}`}
-      onClick={() => applyTheme(name)}
-    >
-      <span class="theme-swatch" style={{ background: CANVAS_THEME_META[name].swatchBg }}>
-        <span class="theme-swatch-dot" style={{ background: CANVAS_THEME_META[name].swatchAccent }} />
-      </span>
-      <span>{CANVAS_THEME_META[name].label}</span>
-      {activeTheme === name && (
-        <span class="toolbar-menu-check" aria-hidden="true">
-          ✓
-        </span>
-      )}
-    </button>
-  ));
-
-  return (
-    <div class="toolbar-group" ref={groupRef}>
-      {/* ── Navigation Bar ──────────────────────────────────── */}
-      <div class="canvas-toolbar">
-        <ToolbarHint label="PMX Canvas" detail="Focus Field · spatial workbench for coding agents" align="start">
-          <span class="canvas-brand" aria-label="PMX Canvas">
-            <IconLogo size={22} />
-          </span>
-        </ToolbarHint>
-
-        <div class="separator" />
-
-        <ToolbarHint
-          label="Canvas status"
-          detail={hasSynced ? statusLabel : 'Syncing canvas from server'}
-          align="start"
-        >
-          <span class={`connection-dot ${status}`} aria-label={`Canvas status: ${statusTitle}`} />
-        </ToolbarHint>
-        <span class="hud-collapsible-text" style={{ fontSize: '11px', color: 'var(--c-muted)' }}>
-          {sessionId.value ? sessionId.value.slice(0, 12) : '…'}
-        </span>
-
-        <div class="separator" />
-
-        <ToolbarHint label="Fit canvas" detail="Frame every node on screen">
-          <button type="button" onClick={() => fitAll(window.innerWidth, window.innerHeight)} aria-label="Fit canvas">
-            <IconFitAll />
-          </button>
-        </ToolbarHint>
-        <ToolbarHint label="Reset view" shortcut={`${MOD_KEY}+0`}>
-          <button type="button" onClick={() => animateViewport({ x: 0, y: 0, scale: 1 }, 250)} aria-label="Reset view">
-            <IconResetView />
-          </button>
-        </ToolbarHint>
-        <ToolbarHint label="Zoom in" shortcut={`${MOD_KEY}++`}>
-          <button type="button" onClick={() => zoomByFactor(1.25)} aria-label="Zoom in">
-            <IconZoomIn />
-          </button>
-        </ToolbarHint>
-        <ToolbarHint label="Zoom out" shortcut={`${MOD_KEY}+-`}>
-          <button type="button" onClick={() => zoomByFactor(1 / 1.25)} aria-label="Zoom out">
-            <IconZoomOut />
-          </button>
-        </ToolbarHint>
-        <span
-          class="hud-collapsible-text"
-          style={{ fontSize: '10px', color: 'var(--c-dim)', minWidth: '36px', textAlign: 'center' }}
-        >
-          {Math.round(v.scale * 100)}%
-        </span>
-
-        {/* Secondary controls collapse into the More menu on narrow screens. */}
-        <span class="toolbar-collapsible">
-          <div class="separator" />
-
-          <ToolbarHint
-            label="Arrange layout"
-            detail={edgeCount > 0 ? 'Graph-aware layout for connected nodes' : 'Grid layout for loose nodes'}
-          >
-            <button
-              type="button"
-              onClick={() => (edgeCount > 0 ? forceDirectedArrange() : autoArrange())}
-              aria-label="Arrange layout"
-            >
-              <IconArrange />
-            </button>
-          </ToolbarHint>
-          <ToolbarHint
-            label={minimapVisible ? 'Hide minimap' : 'Show minimap'}
-            detail="Quickly navigate large canvases"
-          >
-            <button
-              type="button"
-              onClick={onToggleMinimap}
-              aria-label={minimapVisible ? 'Hide minimap' : 'Show minimap'}
-              style={{ color: minimapVisible ? 'var(--c-accent)' : undefined }}
-            >
-              <IconMinimap />
-            </button>
-          </ToolbarHint>
-          {/* Anchor wrapper: the theme menu must open under THIS control, not at
-              the toolbar-group's right edge (0.4.2 report Finding T). */}
-          <span class="toolbar-menu-anchor">
-            <ToolbarHint label="Theme" detail={`Current theme: ${CANVAS_THEME_META[activeTheme].label}`}>
-              <button
-                type="button"
-                onClick={() => setOpenMenu(openMenu === 'theme' ? null : 'theme')}
-                aria-label="Choose theme"
-                aria-haspopup="menu"
-                aria-expanded={openMenu === 'theme'}
-                style={{ color: openMenu === 'theme' ? 'var(--c-accent)' : undefined }}
-              >
-                {canvasThemeScheme(activeTheme) === 'dark' ? <IconSun /> : <IconMoon />}
-              </button>
-            </ToolbarHint>
-            {openMenu === 'theme' && (
-              <div class="toolbar-menu" role="menu" aria-label="Theme">
-                {themeMenuItems}
-              </div>
-            )}
-          </span>
-          <ToolbarHint label="Snapshots" detail="Capture and restore canvas states" align="end">
-            <button
-              ref={snapshotBtnRef}
-              type="button"
-              onClick={onToggleSnapshot}
-              aria-label="Snapshots"
-              style={{ color: snapshotOpen ? 'var(--c-accent)' : undefined }}
-            >
-              <IconSnapshot />
-            </button>
-          </ToolbarHint>
-        </span>
-
-        {/* Narrow screens: everything collapsed lives in this single menu. */}
-        <span class="toolbar-more toolbar-menu-anchor">
-          <ToolbarHint label="More" detail="All canvas actions" align="end">
-            <button
-              type="button"
-              onClick={() => setOpenMenu(openMenu === 'more' ? null : 'more')}
-              aria-label="More actions"
-              aria-haspopup="menu"
-              aria-expanded={openMenu === 'more'}
-              style={{ color: openMenu === 'more' ? 'var(--c-accent)' : undefined }}
-            >
-              <span class="toolbar-more-glyph" aria-hidden="true">
-                ⋯
-              </span>
-            </button>
-          </ToolbarHint>
-          {openMenu === 'more' && (
-            <div class="toolbar-menu" role="menu" aria-label="Canvas actions">
-              <button
-                type="button"
-                class="toolbar-menu-item"
-                onClick={menuAction(() => (edgeCount > 0 ? forceDirectedArrange() : autoArrange()))}
-              >
-                <IconArrange />
-                <span>Arrange layout</span>
-              </button>
-              <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleMinimap)}>
-                <IconMinimap />
-                <span>{minimapVisible ? 'Hide minimap' : 'Show minimap'}</span>
-              </button>
-              <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleSnapshot)}>
-                <IconSnapshot />
-                <span>Snapshots</span>
-              </button>
-              <div class="toolbar-menu-separator" />
-              <button
-                type="button"
-                class="toolbar-menu-item"
-                onClick={menuAction(() => sendIntent('trace-toggle', { enabled: !isTraceOn }))}
-              >
-                <IconTrace />
-                <span>{isTraceOn ? 'Disable trace' : 'Enable trace'}</span>
-              </button>
-              {(isTraceOn || traceNodeCount > 0) && (
-                <button type="button" class="toolbar-menu-item" onClick={menuAction(() => sendIntent('trace-clear'))}>
-                  <IconClearTrace />
-                  <span>Clear trace</span>
-                </button>
-              )}
-              <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleAnnotationMode)}>
-                <IconPen />
-                <span>{annotationTool === 'pen' ? 'Stop annotating' : 'Annotate canvas'}</span>
-              </button>
-              <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleAnnotationEraser)}>
-                <IconEraser />
-                <span>{annotationTool === 'eraser' ? 'Stop erasing' : 'Erase annotations'}</span>
-              </button>
-              <button type="button" class="toolbar-menu-item" onClick={menuAction(onToggleTextAnnotation)}>
-                <IconTextAnnotation />
-                <span>{annotationTool === 'text' ? 'Stop text annotations' : 'Text annotations'}</span>
-              </button>
-              <div class="toolbar-menu-separator" />
-              <button type="button" class="toolbar-menu-item" onClick={menuAction(onOpenPalette)}>
-                <IconSearch />
-                <span>Search nodes and actions</span>
-              </button>
-              <button type="button" class="toolbar-menu-item" onClick={menuAction(onOpenShortcuts)}>
-                <IconShortcuts />
-                <span>Keyboard shortcuts</span>
-              </button>
-              <div class="toolbar-menu-separator" />
-              <div class="toolbar-menu-heading">Theme</div>
-              {themeMenuItems}
-            </div>
-          )}
-        </span>
-      </div>
-
-      {/* ── Action Bar (hidden on narrow screens — lives in the More menu) ── */}
-      <div class="canvas-toolbar toolbar-actions-bar">
-        <ToolbarHint
-          label={isTraceOn ? 'Disable trace' : 'Enable trace'}
-          detail={isTraceOn ? 'Stop collecting new trace nodes' : 'Capture agent execution on the canvas'}
-        >
-          <button
-            type="button"
-            onClick={() => sendIntent('trace-toggle', { enabled: !isTraceOn })}
-            aria-label={isTraceOn ? 'Disable trace' : 'Enable trace'}
-            style={{ color: isTraceOn ? 'var(--c-purple)' : undefined }}
-          >
-            <IconTrace />
-          </button>
-        </ToolbarHint>
-        {(isTraceOn || traceNodeCount > 0) && (
-          <ToolbarHint
-            label="Clear trace"
-            detail={
-              traceNodeCount > 0
-                ? `Remove ${traceNodeCount} trace node${traceNodeCount === 1 ? '' : 's'}`
-                : 'Trace is enabled but still empty'
-            }
-          >
-            <button type="button" onClick={() => sendIntent('trace-clear')} aria-label="Clear trace">
-              <IconClearTrace />
-            </button>
-          </ToolbarHint>
-        )}
-
-        <div class="separator" />
-
-        <ToolbarHint
-          label={annotationTool === 'pen' ? 'Stop annotating' : 'Annotate canvas'}
-          detail="Draw directly on the canvas for human-visible markup"
-        >
-          <button
-            type="button"
-            onClick={onToggleAnnotationMode}
-            aria-label={annotationTool === 'pen' ? 'Stop annotating' : 'Annotate canvas'}
-            aria-pressed={annotationTool === 'pen'}
-            style={{ color: annotationTool === 'pen' ? 'var(--c-accent)' : undefined }}
-          >
-            <IconPen />
-          </button>
-        </ToolbarHint>
-        <ToolbarHint
-          label={annotationTool === 'eraser' ? 'Stop erasing' : 'Erase annotations'}
-          detail="Click a drawn annotation to remove it"
-        >
-          <button
-            type="button"
-            onClick={onToggleAnnotationEraser}
-            aria-label={annotationTool === 'eraser' ? 'Stop erasing' : 'Erase annotations'}
-            aria-pressed={annotationTool === 'eraser'}
-            style={{ color: annotationTool === 'eraser' ? 'var(--c-accent)' : undefined }}
-          >
-            <IconEraser />
-          </button>
-        </ToolbarHint>
-        <ToolbarHint
-          label={annotationTool === 'text' ? 'Stop text annotations' : 'Text annotations'}
-          detail="Click anywhere to type an intent note"
-        >
-          <button
-            type="button"
-            onClick={onToggleTextAnnotation}
-            aria-label={annotationTool === 'text' ? 'Stop text annotations' : 'Text annotations'}
-            aria-pressed={annotationTool === 'text'}
-            style={{ color: annotationTool === 'text' ? 'var(--c-accent)' : undefined }}
-          >
-            <IconTextAnnotation />
-          </button>
-        </ToolbarHint>
-
-        <div class="separator" />
-
-        <ToolbarHint label="Search nodes and actions" shortcut={`${MOD_KEY}+K`}>
-          <button type="button" onClick={onOpenPalette} aria-label="Search nodes and actions">
-            <IconSearch />
-          </button>
-        </ToolbarHint>
-        <ToolbarHint label="Keyboard shortcuts" shortcut="?" align="end">
-          <button type="button" onClick={onOpenShortcuts} aria-label="Keyboard shortcuts">
-            <IconShortcuts />
-          </button>
-        </ToolbarHint>
-
-        <span class="hud-collapsible-text" style={{ fontSize: '10px', color: 'var(--c-dim)' }}>
-          {countsLabel}
-        </span>
-      </div>
-    </div>
-  );
-}
 
 function WelcomeCard({ onOpenPalette }: { onOpenPalette: () => void }) {
   return (
@@ -531,7 +65,7 @@ function WelcomeCard({ onOpenPalette }: { onOpenPalette: () => void }) {
           <span>Add evidence to the board</span>
         </div>
         <div class="welcome-hint">
-          <kbd>{'\u2726'}</kbd>
+          <kbd>{'✦'}</kbd>
           <span>Pin important nodes</span>
         </div>
         <div class="welcome-hint">
@@ -557,18 +91,7 @@ export function App() {
   const handleToggleMinimap = useCallback(() => setMinimapVisible((v) => !v), []);
   const handleToggleSnapshot = useCallback(() => setSnapshotOpen((v) => !v), []);
   const handleCloseSnapshot = useCallback(() => setSnapshotOpen(false), []);
-  const handleToggleAnnotationMode = useCallback(
-    () => setAnnotationTool((tool) => (tool === 'pen' ? null : 'pen')),
-    [],
-  );
-  const handleToggleAnnotationEraser = useCallback(
-    () => setAnnotationTool((tool) => (tool === 'eraser' ? null : 'eraser')),
-    [],
-  );
-  const handleToggleTextAnnotation = useCallback(
-    () => setAnnotationTool((tool) => (tool === 'text' ? null : 'text')),
-    [],
-  );
+  const handleSetAnnotationTool = useCallback((tool: AnnotationTool) => setAnnotationTool(tool), []);
 
   const handleMinimapNavigate = useCallback((x: number, y: number) => {
     animateViewport({ x, y, scale: viewport.value.scale }, 200);
@@ -580,7 +103,8 @@ export function App() {
 
   // Keep the server's idea of this window's size current (0.4.6 orb feedback
   // #2) so an agent `fit` computes a scale that actually fits the human's
-  // window. Connect-time reporting lives in the SSE bridge; this covers resizes.
+  // canvas region. Connect-time reporting lives in the SSE bridge; this covers
+  // resizes. The report itself reads canvasArea(), so it reflects the region.
   useEffect(() => {
     let timer: number | null = null;
     const schedule = () => {
@@ -636,9 +160,20 @@ export function App() {
         return;
       }
 
-      // Ignore other shortcuts when inside inputs
-      const tag = (e.target as HTMLElement)?.tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+      // Ignore other shortcuts when inside inputs or editable content — the
+      // single-key rail shortcuts below would otherwise eat characters typed
+      // into the inline markdown editor (contenteditable), which INPUT/TEXTAREA
+      // checks alone do not cover.
+      const target = e.target as HTMLElement | null;
+      const tag = target?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || target?.isContentEditable) return;
+
+      // Held Space = temporary pan tool (released on keyup below).
+      if (e.key === ' ' && !e.repeat && !mod) {
+        e.preventDefault();
+        spacePanHeld.value = true;
+        return;
+      }
 
       // ? toggles shortcut overlay
       if (e.key === '?' || (e.key === '/' && e.shiftKey)) {
@@ -652,7 +187,7 @@ export function App() {
         animateViewport({ x: 0, y: 0, scale: 1 }, 250);
       } else if (mod && (e.key === '=' || e.key === '+')) {
         e.preventDefault();
-        // Same centre-anchored zoom as the toolbar +/- buttons these shortcuts
+        // Same centre-anchored zoom as the top-bar +/- buttons these shortcuts
         // are advertised on (the tooltip names this key) — a raw scale change
         // is origin-anchored and drifts the board away under the cursor.
         zoomByFactor(1.25);
@@ -673,12 +208,60 @@ export function App() {
         e.preventDefault();
         const dir = e.key.replace('Arrow', '').toLowerCase() as 'up' | 'down' | 'left' | 'right';
         walkGraph(dir);
+      } else if (!mod && !e.altKey) {
+        // Rail shortcuts — the rail buttons advertise these in their titles.
+        const key = e.key.toLowerCase();
+        if (key === 'v' && !e.shiftKey) {
+          canvasTool.value = 'select';
+        } else if (key === 'm' && !e.shiftKey) {
+          e.preventDefault();
+          void createNodeFromClient({ type: 'markdown', title: 'New note', width: 520, height: 360 }).catch((error) =>
+            logAppError('create markdown', error),
+          );
+        } else if (key === 'a' && !e.shiftKey) {
+          e.preventDefault();
+          setAnnotationTool((tool) => (tool === 'pen' ? null : 'pen'));
+        } else if (key === 'g' && !e.shiftKey) {
+          e.preventDefault();
+          void createNodeFromClient({ type: 'group', title: 'Group' }).catch((error) =>
+            logAppError('create group', error),
+          );
+        } else if (key === 'i' && !e.shiftKey) {
+          e.preventDefault();
+          promptedCreate('image');
+        } else if (key === 'w' && !e.shiftKey) {
+          e.preventDefault();
+          promptedCreate('webpage');
+        } else if (key === 'h' && !e.shiftKey) {
+          e.preventDefault();
+          void createNodeFromClient({ type: 'html', title: 'HTML surface' }).catch((error) =>
+            logAppError('create html', error),
+          );
+        } else if (key === 'f' && e.shiftKey) {
+          e.preventDefault();
+          promptedCreate('file');
+        } else if (key === 'f' && !e.shiftKey) {
+          e.preventDefault();
+          const area = canvasArea();
+          fitAll(area.width, area.height);
+        }
       }
     };
 
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key === ' ') spacePanHeld.value = false;
+    };
+    const handleBlur = () => {
+      spacePanHeld.value = false;
+    };
+
     document.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
     };
   }, [annotationTool, closeMenu, paletteOpen, shortcutsOpen]);
 
@@ -697,58 +280,66 @@ export function App() {
       return (order[a.type] ?? 2) - (order[b.type] ?? 2);
     });
 
+  const area = canvasArea();
+
+  // rail-chrome-v2: the one selector every agent surface mounts on. Exposed
+  // as a data attribute so styling and tests can key on it; the quiet board
+  // (no attached session) must stay byte-clean of agent chrome.
+  const sessionIsActive = sessionActive.value;
+
   return (
-    <div style={{ width: '100%', height: '100%', position: 'relative' }}>
-      <div class="hud-layer">
-        <div class="hud-left">
-          {dockedLeft.map((n) => (
-            <DockedNode key={n.id} node={n} />
-          ))}
-        </div>
-        <Toolbar
-          minimapVisible={minimapVisible}
-          onToggleMinimap={handleToggleMinimap}
-          snapshotOpen={snapshotOpen}
-          onToggleSnapshot={handleToggleSnapshot}
-          snapshotBtnRef={snapshotBtnRef}
-          onOpenPalette={() => setPaletteOpen(true)}
-          onOpenShortcuts={() => setShortcutsOpen((v) => !v)}
-          annotationTool={annotationTool}
-          onToggleAnnotationMode={handleToggleAnnotationMode}
-          onToggleAnnotationEraser={handleToggleAnnotationEraser}
-          onToggleTextAnnotation={handleToggleTextAnnotation}
-        />
-        <div class="hud-right">
-          {dockedRight.map((n) => (
-            <DockedNode key={n.id} node={n} />
-          ))}
+    <div class="app-shell" data-session-active={sessionIsActive ? 'true' : 'false'}>
+      <ToolRail
+        minimapVisible={minimapVisible}
+        onToggleMinimap={handleToggleMinimap}
+        snapshotOpen={snapshotOpen}
+        onToggleSnapshot={handleToggleSnapshot}
+        snapshotBtnRef={snapshotBtnRef}
+        onOpenPalette={() => setPaletteOpen(true)}
+        onOpenShortcuts={() => setShortcutsOpen((v) => !v)}
+        annotationTool={annotationTool}
+        onSetAnnotationTool={handleSetAnnotationTool}
+      />
+      <div class="app-main">
+        <TopBar />
+        <div class="canvas-region" ref={(el) => registerCanvasArea(el)}>
+          <CanvasViewport
+            onNodeContextMenu={openNodeMenu}
+            onCanvasContextMenu={openCanvasMenu}
+            annotationMode={annotationTool !== null}
+            annotationTool={annotationTool}
+          />
+          <div class="hud-left">
+            {dockedLeft.map((n) => (
+              <DockedNode key={n.id} node={n} />
+            ))}
+          </div>
+          <div class="hud-right">
+            {dockedRight.map((n) => (
+              <DockedNode key={n.id} node={n} />
+            ))}
+          </div>
+          <AttentionToast />
+          <AttentionHistory />
+          {hasInitialLayout && allNodes.filter((n) => !n.dockPosition).length === 0 && intents.value.size === 0 && (
+            <WelcomeCard onOpenPalette={() => setPaletteOpen(true)} />
+          )}
+          {selectedNodeIds.value.size > 0 && <SelectionBar />}
+          {contextPinnedNodeIds.value.size > 0 && <ContextPinBar />}
+          {minimapVisible && (
+            <Minimap
+              viewport={viewport}
+              nodes={nodes}
+              edges={edges}
+              onNavigate={handleMinimapNavigate}
+              containerWidth={area.width}
+              containerHeight={area.height}
+            />
+          )}
         </div>
       </div>
-      <AttentionToast />
-      <AttentionHistory />
-      <CanvasViewport
-        onNodeContextMenu={openNodeMenu}
-        onCanvasContextMenu={openCanvasMenu}
-        annotationMode={annotationTool !== null}
-        annotationTool={annotationTool}
-      />
-      {hasInitialLayout && allNodes.filter((n) => !n.dockPosition).length === 0 && intents.value.size === 0 && (
-        <WelcomeCard onOpenPalette={() => setPaletteOpen(true)} />
-      )}
-      {selectedNodeIds.value.size > 0 && <SelectionBar />}
-      {contextPinnedNodeIds.value.size > 0 && <ContextPinBar />}
       {expandedNodeId.value && <ExpandedNodeOverlay />}
       <SnapshotPanel open={snapshotOpen} onClose={handleCloseSnapshot} anchorRef={snapshotBtnRef} />
-      {minimapVisible && (
-        <Minimap
-          viewport={viewport}
-          nodes={nodes}
-          edges={edges}
-          onNavigate={handleMinimapNavigate}
-          containerWidth={window.innerWidth}
-          containerHeight={window.innerHeight}
-        />
-      )}
       {menu && <ContextMenu menu={menu} onClose={closeMenu} />}
       {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} onToggleMinimap={handleToggleMinimap} />}
       {shortcutsOpen && <ShortcutOverlay onClose={() => setShortcutsOpen(false)} />}

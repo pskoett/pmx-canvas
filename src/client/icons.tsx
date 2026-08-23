@@ -277,6 +277,60 @@ export function IconLogo({ size = 22, class: className }: IconProps): JSX.Elemen
 /* ── Node-type icons · Focus Field family ─────────────────── */
 
 /** Framed document with lines — markdown */
+export function IconCursorTool({ size = 15 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M3 2l10 5.5-4.2 1.3L7.5 13z" />
+    </svg>
+  );
+}
+
+export function IconHandTool({ size = 15 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M5 7.5V3.8a1 1 0 0 1 2 0V7m0-3.9a1 1 0 0 1 2 0V7m0-2.7a1 1 0 0 1 2 0V7.4m0-.9a1 1 0 0 1 2 0v3.2A4.3 4.3 0 0 1 8.7 14H8a4.3 4.3 0 0 1-3.6-2L2.7 9.3a1 1 0 0 1 1.6-1.2L5 9.2" />
+    </svg>
+  );
+}
+
+export function IconNodeHtml({ size = 15 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="currentColor"
+      stroke-width="1.5"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 4.5L2.5 8 6 11.5M10 4.5L13.5 8 10 11.5" />
+    </svg>
+  );
+}
+
 export function IconNodeMarkdown(p: IconProps): JSX.Element {
   return (
     <Icon {...p}>

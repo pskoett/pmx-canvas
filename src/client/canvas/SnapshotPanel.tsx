@@ -108,10 +108,13 @@ export function SnapshotPanel({
 
   if (!open) return null;
 
-  // Position below toolbar button
+  // The anchor lives in the rail's bottom utility cluster: open to the RIGHT
+  // of the button, clamped so the panel never extends past the window bottom
+  // (opening downward from a bottom-cluster anchor put it off-screen).
+  const PANEL_MAX_HEIGHT = 480;
   const anchorRect = anchorRef.current?.getBoundingClientRect();
-  const left = anchorRect ? Math.max(8, anchorRect.left - 120) : 100;
-  const top = anchorRect ? anchorRect.bottom + 8 : 48;
+  const left = anchorRect ? anchorRect.right + 10 : 100;
+  const top = anchorRect ? Math.max(8, Math.min(anchorRect.top, window.innerHeight - PANEL_MAX_HEIGHT - 8)) : 48;
 
   return (
     <div ref={panelRef} class="snapshot-panel" style={{ left: `${left}px`, top: `${top}px` }}>

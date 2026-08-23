@@ -222,7 +222,7 @@ bunx pmx-canvas --mcp        # Run as MCP server (stdio)
 bunx pmx-canvas --help       # All commands
 ```
 
-Themes are a toolbar picker away too, and any one panel can override the
+Themes are a tool-rail picker away too, and any one panel can override the
 shared theme for itself with `?theme=<name|auto>`.
 
 The canvas opens at `http://localhost:4313`. Try `--demo` first — it seeds a

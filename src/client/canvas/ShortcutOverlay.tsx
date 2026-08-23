@@ -7,11 +7,20 @@ interface ShortcutGroup {
 
 const GROUPS: ShortcutGroup[] = [
   {
+    title: 'Tools',
+    shortcuts: [
+      { keys: 'V', desc: 'Select tool — drag empty space to lasso' },
+      { keys: 'Space (hold)', desc: 'Pan — drag anywhere moves the board' },
+      { keys: 'A', desc: 'Annotate — draw on the canvas' },
+    ],
+  },
+  {
     title: 'Navigation',
     shortcuts: [
       { keys: `${MOD}+K`, desc: 'Command palette — search nodes & actions' },
       { keys: 'Tab / Shift+Tab', desc: 'Cycle through nodes' },
       { keys: '\u2190 \u2191 \u2192 \u2193', desc: 'Walk graph along edges (when node focused)' },
+      { keys: 'F', desc: 'Fit all nodes on screen' },
       { keys: `${MOD}+0`, desc: 'Reset viewport to origin' },
       { keys: `${MOD}++ / ${MOD}+\u2212`, desc: 'Zoom in / out' },
     ],
@@ -19,6 +28,10 @@ const GROUPS: ShortcutGroup[] = [
   {
     title: 'Creation',
     shortcuts: [
+      { keys: 'M', desc: 'New markdown note' },
+      { keys: 'I / W / H', desc: 'New image / webpage / HTML surface' },
+      { keys: 'Shift+F', desc: 'New file node (workspace path)' },
+      { keys: 'G', desc: 'New group frame' },
       { keys: 'Double-click', desc: 'Create new markdown note on canvas' },
       { keys: 'Drag port \u2192 node', desc: 'Connect two nodes (hover to reveal ports)' },
     ],
@@ -28,7 +41,7 @@ const GROUPS: ShortcutGroup[] = [
     shortcuts: [
       { keys: 'Click', desc: 'Focus node (highlights neighbors & edges)' },
       { keys: 'Shift+Click', desc: 'Toggle node in multi-selection' },
-      { keys: 'Shift+Drag', desc: 'Lasso select multiple nodes' },
+      { keys: 'Drag empty space', desc: 'Lasso select multiple nodes' },
       { keys: 'Esc', desc: 'Clear selection / close overlay' },
     ],
   },
@@ -36,7 +49,7 @@ const GROUPS: ShortcutGroup[] = [
     title: 'View',
     shortcuts: [
       { keys: '?', desc: 'Toggle this shortcut overlay' },
-      { keys: 'Minimap', desc: 'Click/drag to navigate (toggle in toolbar)' },
+      { keys: 'Minimap', desc: 'Click/drag to navigate (toggle in the rail)' },
       { keys: 'Right-click', desc: 'Context menu — dock, focus, connect' },
     ],
   },

@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body { margin:0; background:#081524; font-family:"IBM Plex Sans",system-ui,sans-serif; }
+a { color:#4BBCFF; text-decoration:none; } a:hover { text-decoration:underline; }
+@keyframes agent-glide {
+  0%   { transform:translate(690px,520px); }
+  22%  { transform:translate(760px,430px); }
+  45%  { transform:translate(742px,415px); }
+  70%  { transform:translate(560px,300px); }
+  100% { transform:translate(690px,520px); }
+}
+@keyframes shimmer { 0%{transform:translateX(-100%);opacity:.2} 50%{opacity:1} 100%{transform:translateX(240%);opacity:.2} }
+@keyframes dot-pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:.35;transform:scale(.8)} }
+@keyframes ring-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(179,136,255,.35)} 50%{box-shadow:0 0 0 6px rgba(179,136,255,0)} }
+@keyframes entry-in { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+@keyframes human-drift { 0%,100% { transform:translate(850px,430px); } 40% { transform:translate(700px,395px); } 70% { transform:translate(795px,475px); } }
+@media (max-width: 1180px) {
+  .hud-collapsible { display:none !important; }
+  .session-drawer { position:fixed !important; right:0; top:44px; bottom:0; z-index:80; box-shadow:-16px 0 40px rgba(0,0,0,0.5); }
+}
+::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-thumb { background:#1b2c44; border-radius:3px; }
+</style>
+</helmet>
+<div data-screen-label="Focus Session v2" style="display:flex; width:100%; height:100vh; min-height:760px; overflow:hidden; background:#081524; color:#e6eef7; font:13px/1.5 'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased;">
+
+  <!-- ═══ Left rail — identity + tools ═══ -->
+  <div style="width:52px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 0; background:#0a1729; border-right:1px solid #1b2c44; z-index:60;">
+    <span style="display:flex; width:36px; height:36px; align-items:center; justify-content:center; color:#4BBCFF; margin-bottom:6px;" title="PMX Canvas">
+      <svg width="24" height="24" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="8" y="8" width="48" height="48" rx="7" opacity="0.35"></rect><rect x="16" y="16" width="32" height="32" rx="5" opacity="0.6"></rect><rect x="24" y="24" width="16" height="16" rx="3"></rect><rect x="29" y="29" width="6" height="6" rx="1" fill="currentColor" stroke="none"></rect></svg>
+    </span>
+    <div style="width:24px; height:1px; background:#1b2c44; margin-bottom:4px;"></div>
+    <button title="Select (V)" style="display:flex; width:36px; height:36px; align-items:center; justify-content:center; background:rgba(75,188,255,0.12); border:1px solid rgba(75,188,255,0.3); border-radius:8px; color:#4BBCFF; cursor:pointer;" style-hover="background:rgba(75,188,255,0.2)"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 2 L13 8 L8.5 9.5 L6.5 14 Z"></path></svg></button>
+    <button title="Pan (Space)" style="display:flex; width:36px; height:36px; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 7V3.5a1 1 0 0 1 2 0V7 M7 6.5V2.5a1 1 0 0 1 2 0V7 M9 6.5V3.5a1 1 0 0 1 2 0V8.5 M11 7.5c1-.8 2.2-.4 1.8.8L11.5 12A3.5 3.5 0 0 1 8 14.5 4.6 4.6 0 0 1 4 12L3 9c-.3-1 .8-1.6 1.6-.8L5 9"></path></svg></button>
+    <button title="Annotate (A)" style="display:flex; width:36px; height:36px; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l2.8-.7L13 5.1 10.9 3 3.7 10.2 3 13Z"></path><path d="M9.8 4.1l2.1 2.1"></path></svg></button>
+    <button title="Text note (T)" style="display:flex; width:36px; height:36px; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M3 4h10"></path><path d="M8 4v8"></path><path d="M6 12h4"></path></svg></button>
+    <button title="Connect (C)" style="display:flex; width:36px; height:36px; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="4" cy="4" r="2"></circle><circle cx="12" cy="12" r="2"></circle><path d="M5.5 5.5 C 8 8, 8 8, 10.5 10.5"></path></svg></button>
+    <div style="flex:1;"></div>
+    <button title="Snapshots" style="display:flex; width:36px; height:36px; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1" y="4" width="14" height="10" rx="1.5"></rect><path d="M5.5 4 L6.5 2.5 H9.5 L10.5 4"></path><circle cx="8" cy="9" r="2.3"></circle></svg></button>
+    <button title="Theme" style="display:flex; width:36px; height:36px; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"></circle><path d="M8 2 A 6 6 0 0 1 8 14 Z" fill="currentColor" stroke="none"></path></svg></button>
+    <button title="Shortcuts (?)" style="display:flex; width:36px; height:36px; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1" y="3" width="14" height="10" rx="1.5"></rect><line x1="4" y1="6" x2="5" y2="6"></line><line x1="7.5" y1="6" x2="8.5" y2="6"></line><line x1="11" y1="6" x2="12" y2="6"></line><line x1="4" y1="10" x2="12" y2="10"></line></svg></button>
+  </div>
+
+  <!-- ═══ Center column ═══ -->
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column; position:relative;">
+
+    <!-- Top bar: board name · agent status · view controls -->
+    <div style="display:flex; align-items:center; gap:12px; height:44px; padding:0 14px; background:rgba(10,23,41,0.92); backdrop-filter:blur(12px); border-bottom:1px solid #1b2c44; z-index:55; overflow:hidden; min-width:0;">
+      <span style="width:8px; height:8px; border-radius:50%; background:#2fd07f; flex-shrink:0;" title="Connected"></span>
+      <span style="font-size:13px; font-weight:600; color:#e6eef7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; flex-shrink:1;">Release readiness board</span>
+      <span class="hud-collapsible" style="font:11px 'IBM Plex Mono',monospace; color:#5c6b80; white-space:nowrap;">pmx-moa8wbrx</span>
+      <div style="flex:1; min-width:8px;"></div>
+      <!-- agent status chip -->
+      <div style="display:flex; align-items:center; gap:8px; padding:5px 12px 5px 8px; background:rgba(179,136,255,0.1); border:1px solid rgba(179,136,255,0.3); border-radius:999px; white-space:nowrap; overflow:hidden; flex-shrink:1; min-width:0;">
+        <span style="width:8px; height:8px; border-radius:50%; background:#B388FF; animation:dot-pulse 2s ease-in-out infinite; flex-shrink:0;"></span>
+        <span style="font-size:11px; font-weight:600; color:#B388FF; white-space:nowrap; min-width:0; overflow:hidden; text-overflow:ellipsis;">{{ agentName }} · {{ agentPhase }}</span>
+        <span class="hud-collapsible" style="font-size:10px; color:#8ea3bd; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">{{ agentDetail }}</span>
+      </div>
+      <sc-if value="{{ gatePending }}" hint-placeholder-val="{{ true }}">
+        <button title="An approval gate is waiting — unanswered gates auto-hold when the timer runs out" style="display:flex; align-items:center; gap:6px; padding:5px 10px; background:rgba(244,197,66,0.12); border:1px solid rgba(244,197,66,0.4); border-radius:999px; color:#f4c542; cursor:pointer; white-space:nowrap; flex-shrink:0;" style-hover="background:rgba(244,197,66,0.2)">
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"></circle><path d="M8 5 V8.5 L10.5 10"></path></svg>
+          <span style="font-size:11px; font-weight:600;">1 gate · {{ gateTtlLabel }}</span>
+        </button>
+      </sc-if>
+      <!-- context budget -->
+      <div style="display:flex; align-items:center; gap:8px; flex-shrink:0;" title="Share of the agent's context window used by pinned nodes">
+        <span class="hud-collapsible" style="font-size:10px; font-weight:600; letter-spacing:0.06em; text-transform:uppercase; color:#8ea3bd;">Context</span>
+        <div style="width:72px; height:5px; border-radius:3px; background:#1b2c44; overflow:hidden;"><div style="height:100%; background:linear-gradient(90deg,#4BBCFF,#f4c542); width:{{ budgetPct }};"></div></div>
+        <span style="font:11px 'IBM Plex Mono',monospace; color:#c7d3ea;">{{ budgetLabel }}</span>
+      </div>
+      <span style="width:1px; height:20px; background:#1b2c44;"></span>
+      <button onClick="{{ zoomOut }}" style="background:none; border:1px solid transparent; color:#8ea3bd; padding:5px 8px; border-radius:6px; cursor:pointer; display:flex;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7" title="Zoom out"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14.5" y2="14.5"></line><line x1="5" y1="7" x2="9" y2="7"></line></svg></button>
+      <span style="font:11px 'IBM Plex Mono',monospace; color:#8ea3bd; min-width:38px; text-align:center;">{{ zoomLabel }}</span>
+      <button onClick="{{ zoomIn }}" style="background:none; border:1px solid transparent; color:#8ea3bd; padding:5px 8px; border-radius:6px; cursor:pointer; display:flex;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7" title="Zoom in"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14.5" y2="14.5"></line><line x1="5" y1="7" x2="9" y2="7"></line><line x1="7" y1="5" x2="7" y2="9"></line></svg></button>
+      <button style="background:none; border:1px solid transparent; color:#8ea3bd; padding:5px 8px; border-radius:6px; cursor:pointer; display:flex;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7" title="Fit all (F)"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 5 1 1 5 1"></polyline><polyline points="11 1 15 1 15 5"></polyline><polyline points="15 11 15 15 11 15"></polyline><polyline points="5 15 1 15 1 11"></polyline><rect x="4" y="4" width="8" height="8" rx="1"></rect></svg></button>
+      <button onClick="{{ togglePanel }}" style="background:none; border:1px solid transparent; color:{{ panelBtnColor }}; padding:5px 8px; border-radius:6px; cursor:pointer; display:flex;" style-hover="background:rgba(255,255,255,0.06)" title="Session panel"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="14" height="12" rx="1.5"></rect><line x1="10" y1="2" x2="10" y2="14"></line></svg></button>
+    </div>
+
+    <!-- Canvas -->
+    <div style="flex:1; position:relative; overflow:hidden; background-image:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0)),radial-gradient(circle,rgba(75,188,255,0.08) 1px,transparent 1px); background-size:auto,24px 24px;">
+
+      <!-- focus field glow -->
+      <div style="position:absolute; left:60px; top:40px; width:640px; height:520px; pointer-events:none; background:radial-gradient(circle at 30% 35%, rgba(244,197,66,0.11), transparent 62%); filter:blur(20px);"></div>
+
+      <!-- agent scope fence -->
+      <div style="position:absolute; left:330px; top:88px; width:610px; height:560px; border:1.5px dashed rgba(179,136,255,0.4); border-radius:16px; background:rgba(179,136,255,0.02); pointer-events:none;">
+        <span style="position:absolute; top:-10px; left:16px; display:inline-flex; align-items:center; gap:5px; padding:1px 10px; border-radius:999px; background:#0a1729; border:1px solid rgba(179,136,255,0.4); font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#B388FF;">
+          <svg width="10" height="10" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5.5 7 V5 a2.5 2.5 0 0 1 5 0 V7"></path></svg>
+          Agent scope
+        </span>
+        <span style="position:absolute; bottom:-9px; right:16px; padding:1px 8px; border-radius:999px; background:#0a1729; border:1px solid #1b2c44; font:9px 'IBM Plex Mono',monospace; color:#5c6b80;">writes outside are blocked · reads allowed</span>
+      </div>
+
+      <!-- edges -->
+      <svg style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none;" aria-hidden="true">
+        <path d="M 400 210 C 440 240, 460 260, 480 290" fill="none" stroke="#4BBCFF" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="5 4"></path>
+        <path d="M 250 330 C 270 360, 290 380, 310 400" fill="none" stroke="#8ea3bd" stroke-opacity="0.3" stroke-width="1.5"></path>
+        <path d="M 640 420 C 680 430, 700 440, 720 450" fill="none" stroke="#4BBCFF" stroke-opacity="0.3" stroke-width="1.5" stroke-dasharray="5 4"></path>
+      </svg>
+
+      <!-- ── Node: Delivery Control Room (pinned) ── -->
+      <div onClick="{{ selectControl }}" style="position:absolute; left:100px; top:70px; width:360px; height:240px; display:flex; flex-direction:column; background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.3); overflow:hidden; cursor:default;">
+        <sc-if value="{{ pinControl }}" hint-placeholder-val="{{ true }}"><div style="position:absolute; inset:0; border-radius:12px; pointer-events:none; box-shadow:inset 0 0 0 1.5px #f4c542, 0 0 14px rgba(244,197,66,0.25); z-index:2;"></div></sc-if>
+        <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5"><rect x="1.5" y="1.5" width="13" height="13" rx="2"></rect><path d="M4 11 L4 6 L6 8.5 L8 6 L8 11"></path><path d="M10 11 L10 6 L12.5 11 L12.5 6"></path></svg>
+          <span style="flex:1; font-size:12px; font-weight:600; color:#c7d3ea; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Delivery Control Room</span>
+          <button onClick="{{ togglePinControl }}" title="Pin to agent context" style="background:none; border:none; cursor:pointer; padding:2px 4px; font-size:13px; line-height:1; color:{{ pinControlColor }};">✦</button>
+          <button onClick="{{ openExpand }}" title="Expand node" style="background:none; border:none; cursor:pointer; padding:2px 4px; color:#5c6b80; display:flex;" style-hover="color:#4BBCFF"><svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M9 2 H14 V7 M14 2 L9.5 6.5"></path><path d="M7 14 H2 V9 M2 14 L6.5 9.5"></path></svg></button>
+          <span style="color:#5c6b80; font-size:12px; cursor:pointer;">⋯</span>
+        </div>
+        <div style="flex:1; overflow:hidden; padding:14px 16px; background:linear-gradient(160deg, rgba(47,208,127,0.05), rgba(8,21,36,0.4));">
+          <div style="font:600 9px 'IBM Plex Mono',monospace; letter-spacing:0.14em; text-transform:uppercase; color:#f4c542;">Published Consumer Fixture</div>
+          <div style="margin-top:4px; font-size:20px; font-weight:700; letter-spacing:-0.01em;">Delivery Control Room</div>
+          <div style="margin-top:10px; display:flex; gap:8px;">
+            <div style="flex:1; padding:8px 12px; border:1px solid #1b2c44; border-radius:8px; background:rgba(8,21,36,0.55);">
+              <div style="font-size:9px; color:#5c6b80;">Release posture</div>
+              <div style="font-size:12px; font-weight:700;">Steady, queue pressure</div>
+            </div>
+            <div style="flex:1; padding:8px 12px; border:1px solid #1b2c44; border-radius:8px; background:rgba(8,21,36,0.55);">
+              <div style="font-size:9px; color:#5c6b80;">Median lead time</div>
+              <div style="font-size:16px; font-weight:700; color:#4BBCFF;">19h</div>
+            </div>
+          </div>
+          <div style="margin-top:8px; font-size:10px; color:#8ea3bd;">Queueing still dominates the tail.</div>
+        </div>
+      </div>
+
+      <!-- ── Node: Defects by Stage (pinned) ── -->
+      <div style="position:absolute; left:100px; top:340px; width:230px; height:180px; display:flex; flex-direction:column; background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.3); overflow:hidden;">
+        <sc-if value="{{ pinDefects }}" hint-placeholder-val="{{ true }}"><div style="position:absolute; inset:0; border-radius:12px; pointer-events:none; box-shadow:inset 0 0 0 1.5px #f4c542, 0 0 14px rgba(244,197,66,0.25); z-index:2;"></div></sc-if>
+        <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#b07aff" stroke-width="1.5"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"></rect><path d="M3.5 10.5 L6 6.5 L8.5 9.5 L12.5 5"></path></svg>
+          <span style="flex:1; font-size:12px; font-weight:600; color:#c7d3ea;">Defects by Stage</span>
+          <button onClick="{{ togglePinDefects }}" title="Pin to agent context" style="background:none; border:none; cursor:pointer; padding:2px 4px; font-size:13px; line-height:1; color:{{ pinDefectsColor }};">✦</button>
+          <span style="color:#5c6b80; font-size:12px; cursor:pointer;">⋯</span>
+        </div>
+        <div style="flex:1; padding:10px 12px; background:#0a1729;">
+          <svg viewBox="0 0 200 105" style="width:100%; height:100%;">
+            <text x="2" y="12" fill="#5c6b80" font-size="8">20</text><text x="2" y="55" fill="#5c6b80" font-size="8">12</text><text x="2" y="98" fill="#5c6b80" font-size="8">4</text>
+            <rect x="24" y="38" width="22" height="60" rx="2" fill="#f4795b"></rect>
+            <rect x="56" y="50" width="22" height="48" rx="2" fill="#f4795b"></rect>
+            <rect x="88" y="24" width="22" height="74" rx="2" fill="#f4795b"></rect>
+            <rect x="120" y="46" width="22" height="52" rx="2" fill="#f4795b"></rect>
+            <rect x="152" y="78" width="22" height="20" rx="2" fill="#f4795b"></rect>
+          </svg>
+        </div>
+      </div>
+
+      <!-- ── Node: Control Tower (agent editing — shimmer) ── -->
+      <div style="position:absolute; left:360px; top:340px; width:260px; height:220px; display:flex; flex-direction:column; background:#0f1d31; border:1px solid rgba(179,136,255,0.5); border-radius:12px; box-shadow:0 0 0 1px rgba(179,136,255,0.25), 0 4px 24px rgba(0,0,0,0.3); overflow:hidden;">
+        <div style="position:absolute; top:0; left:0; height:2.5px; width:40%; background:linear-gradient(90deg,transparent,#B388FF,transparent); animation:shimmer 1.6s ease-in-out infinite; z-index:3;"></div>
+        <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"></rect><path d="M7 5.5 C 5.5 5.5 5.5 8 4 8 C 5.5 8 5.5 10.5 7 10.5"></path><path d="M9 5.5 C 10.5 5.5 10.5 8 12 8 C 10.5 8 10.5 10.5 9 10.5"></path></svg>
+          <span style="flex:1; font-size:12px; font-weight:600; color:#c7d3ea;">Control Tower Widgets</span>
+          <span style="font-size:9px; font-weight:600; padding:2px 7px; border-radius:999px; background:rgba(179,136,255,0.15); color:#B388FF; white-space:nowrap;">agent editing</span>
+          <sc-if value="{{ pinTower }}" hint-placeholder-val="{{ true }}"><span style="color:#f4c542; font-size:13px;">✦</span></sc-if>
+        </div>
+        <div style="flex:1; overflow:hidden; padding:10px 12px; display:flex; flex-direction:column; gap:7px;">
+          <div style="font-size:11px; line-height:1.5; color:#c7d3ea;">Lead time is improving, but integration queue volatility is still the gating constraint.</div>
+          <div style="display:flex; flex-wrap:wrap; gap:4px;">
+            <span style="font-size:9px; padding:2px 7px; border-radius:999px; background:rgba(47,208,127,0.15); color:#2fd07f; border:1px solid rgba(47,208,127,0.25);">Release train green</span>
+            <span style="font-size:9px; padding:2px 7px; border-radius:999px; background:rgba(255,255,255,0.04); color:#8ea3bd; border:1px solid #1b2c44;">Queue variance high</span>
+          </div>
+          <div style="padding:7px 9px; border-radius:7px; background:rgba(244,120,66,0.12); border:1px solid rgba(244,120,66,0.4);">
+            <div style="font-size:10px; font-weight:600; color:#f49466;">Integration queue saturation</div>
+            <div style="font-size:9.5px; color:#c7d3ea;">Checkout and identity exceeded the retry budget in the last rehearsal.</div>
+          </div>
+          <div style="font-size:10px; color:#8ea3bd;">78% of release gates pass on the first attempt</div>
+          <div style="height:4px; border-radius:2px; background:#1b2c44; overflow:hidden;"><div style="width:78%; height:100%; background:#4BBCFF;"></div></div>
+        </div>
+      </div>
+
+      <!-- ── Node: Release Gate Intake (approval gate) ── -->
+      <div style="position:absolute; left:650px; top:120px; width:270px; height:200px; display:flex; flex-direction:column; background:#0f1d31; border:1px solid rgba(244,197,66,0.5); border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.3); overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#f4c542" stroke-width="1.5"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"></rect><circle cx="4.5" cy="8" r="1.1" fill="#f4c542" stroke="none"></circle><line x1="6.5" y1="6.5" x2="12.5" y2="6.5"></line><line x1="6.5" y1="8" x2="11" y2="8"></line><line x1="6.5" y1="9.5" x2="12" y2="9.5"></line></svg>
+          <span style="flex:1; font-size:12px; font-weight:600; color:#c7d3ea;">Approval · Ship REL-421</span>
+          <span style="font-size:9px; font-weight:600; padding:2px 7px; border-radius:999px; background:{{ gateBadgeBg }}; color:{{ gateBadgeColor }}; white-space:nowrap;">{{ gateBadge }}</span>
+        </div>
+        <div style="flex:1; padding:12px 14px; display:flex; flex-direction:column; gap:8px;">
+          <div style="font-size:11px; line-height:1.5; color:#c7d3ea;">The agent wants to mark <b style="color:#e6eef7;">REL-421</b> ready for the release train and notify the checkout team. Risk band: <b style="color:#2fd07f;">low</b>.</div>
+          <div style="font-size:10px; color:#8ea3bd;">Evidence · 14 unit suites green · rollback rehearsed · queue depth 3</div>
+          <sc-if value="{{ gatePending }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex; align-items:center; gap:6px; font:10px 'IBM Plex Mono',monospace; color:#f4c542;">
+              <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"></circle><path d="M8 5 V8.5 L10.5 10"></path></svg>
+              auto-holds in {{ gateTtlLabel }} if unanswered
+            </div>
+          </sc-if>
+          <div style="flex:1;"></div>
+          <sc-if value="{{ gatePending }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex; gap:8px;">
+              <button onClick="{{ approveGate }}" style="flex:1; padding:7px 0; font:600 12px 'IBM Plex Sans',sans-serif; background:#2fd07f; border:1px solid #2fd07f; border-radius:7px; color:#081524; cursor:pointer;" style-hover="background:#4adf95">Approve</button>
+              <button onClick="{{ rejectGate }}" style="flex:1; padding:7px 0; font:600 12px 'IBM Plex Sans',sans-serif; background:rgba(255,106,127,0.12); border:1px solid rgba(255,106,127,0.4); border-radius:7px; color:#ff6a7f; cursor:pointer;" style-hover="background:rgba(255,106,127,0.22)">Reject</button>
+            </div>
+          </sc-if>
+          <sc-if value="{{ gateDecided }}" hint-placeholder-val="{{ false }}">
+            <div style="font-size:11px; font-weight:600; color:{{ gateDecisionColor }};">{{ gateDecisionText }}</div>
+          </sc-if>
+        </div>
+      </div>
+
+      <!-- ── Node: Service Readiness (compact) ── -->
+      <div style="position:absolute; left:650px; top:350px; width:270px; height:170px; display:flex; flex-direction:column; background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.3); overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"></rect><line x1="4" y1="6" x2="12" y2="6"></line><line x1="4" y1="8.5" x2="10" y2="8.5"></line><line x1="4" y1="11" x2="11" y2="11"></line></svg>
+          <span style="flex:1; font-size:12px; font-weight:600; color:#c7d3ea;">Service Readiness</span>
+          <span style="color:#5c6b80; font-size:12px; cursor:pointer;">⋯</span>
+        </div>
+        <div style="flex:1; padding:10px 14px; display:flex; flex-direction:column; gap:6px; font-size:11px;">
+          <div style="display:flex; justify-content:space-between;"><span style="color:#c7d3ea;">Checkout</span><span style="font:600 11px 'IBM Plex Mono',monospace; color:#f4c542;">68%</span></div>
+          <div style="display:flex; justify-content:space-between;"><span style="color:#c7d3ea;">Identity</span><span style="font:600 11px 'IBM Plex Mono',monospace; color:#f4c542;">74%</span></div>
+          <div style="display:flex; justify-content:space-between;"><span style="color:#c7d3ea;">Catalog</span><span style="font:600 11px 'IBM Plex Mono',monospace; color:#2fd07f;">88%</span></div>
+          <div style="display:flex; justify-content:space-between;"><span style="color:#c7d3ea;">Observability</span><span style="font:600 11px 'IBM Plex Mono',monospace; color:#2fd07f;">93%</span></div>
+        </div>
+      </div>
+
+      <!-- ── Agent cursor (live presence) ── -->
+      <sc-if value="{{ showCursor }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute; left:0; top:0; z-index:70; pointer-events:none; animation:agent-glide 14s ease-in-out infinite;">
+        <svg width="18" height="18" viewBox="0 0 16 16" fill="#B388FF" stroke="#081524" stroke-width="1"><path d="M3 2 L13 8 L8.5 9.5 L6.5 14 Z"></path></svg>
+        <div style="margin-left:12px; margin-top:-2px; display:inline-flex; align-items:center; gap:5px; padding:3px 9px; background:rgba(179,136,255,0.92); border-radius:999px; white-space:nowrap;">
+          <span style="font:600 10px 'IBM Plex Sans',sans-serif; color:#081524;">{{ agentName }}</span>
+          <span style="font:10px 'IBM Plex Sans',sans-serif; color:rgba(8,21,36,0.7);">{{ cursorAction }}</span>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ── Human collaborator cursor (multiplayer presence) ── -->
+      <sc-if value="{{ showHuman }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute; left:0; top:0; z-index:69; pointer-events:none; animation:human-drift 9s ease-in-out infinite;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="#2fd07f" stroke="#081524" stroke-width="1"><path d="M3 2 L13 8 L8.5 9.5 L6.5 14 Z"></path></svg>
+        <div style="margin-left:11px; margin-top:-2px; display:inline-flex; padding:3px 9px; background:rgba(47,208,127,0.92); border-radius:999px; white-space:nowrap;">
+          <span style="font:600 10px 'IBM Plex Sans',sans-serif; color:#081524;">mia</span>
+        </div>
+      </div>
+      <!-- concurrent-edit yield: mia took over a node the agent was editing -->
+      <div style="position:absolute; left:662px; top:509px; z-index:5; display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; background:#0a1729; border:1px solid rgba(244,197,66,0.4);">
+        <span style="width:6px; height:6px; border-radius:50%; background:#f4c542;"></span>
+        <span style="font-size:9.5px; font-weight:600; color:#f4c542;">mia took over — agent yielded</span>
+      </div>
+      </sc-if>
+
+      <!-- ── Ghost intent (pre-commit move) ── -->
+      <div style="position:absolute; left:700px; top:560px; width:220px; height:64px; border:1.5px dashed #4BBCFF; border-radius:10px; background:rgba(75,188,255,0.08); pointer-events:none;">
+        <div style="display:flex; align-items:center; gap:6px; padding:8px 10px; color:#4BBCFF;">
+          <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"></rect><line x1="4" y1="6" x2="10" y2="6"></line><line x1="4" y1="8.5" x2="8" y2="8.5"></line></svg>
+          <span style="font-size:10px; font-weight:600; letter-spacing:0.02em; text-transform:uppercase; opacity:0.85;">creating · rollback checklist</span>
+        </div>
+        <div style="position:absolute; top:100%; left:0; margin-top:6px; display:inline-flex; align-items:center; gap:6px; padding:3px 8px; border-radius:999px; background:rgba(15,29,49,0.95); border:1px solid rgba(75,188,255,0.25); pointer-events:auto;">
+          <span style="display:inline-flex; align-items:center; justify-content:center; min-width:16px; height:16px; border-radius:999px; background:#4BBCFF; color:#081524; font-size:10px; font-weight:700;">1</span>
+          <span style="font-size:11px; font-weight:600; color:#e6eef7;">Rollback checklist</span>
+          <span style="font:10px 'IBM Plex Mono',monospace; color:#8ea3bd;">0.86</span>
+          <button title="Veto this move" style="display:inline-flex; width:16px; height:16px; align-items:center; justify-content:center; border:none; border-radius:999px; background:transparent; color:#8ea3bd; font-size:11px; cursor:pointer;" style-hover="background:rgba(255,106,127,0.18); color:#ff6a7f">×</button>
+        </div>
+      </div>
+
+      <!-- expanded node view -->
+      <sc-if value="{{ expandOpen }}" hint-placeholder-val="{{ false }}">
+      <div onClick="{{ closeExpand }}" style="position:absolute; inset:0; background:rgba(4,10,18,0.6); z-index:90;"></div>
+      <div style="position:absolute; inset:36px 48px; background:#0f1d31; border:1px solid #1b2c44; border-radius:14px; box-shadow:0 24px 80px rgba(0,0,0,0.6); z-index:91; display:flex; flex-direction:column; overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:10px; height:46px; padding:0 16px; border-bottom:1px solid #1b2c44; background:rgba(8,21,36,0.6); flex-shrink:0;">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5"><rect x="1.5" y="1.5" width="13" height="13" rx="2"></rect><path d="M4 11 L4 6 L6 8.5 L8 6 L8 11"></path><path d="M10 11 L10 6 L12.5 11 L12.5 6"></path></svg>
+          <span style="font-size:13px; font-weight:600; color:#e6eef7;">Delivery Control Room</span>
+          <span style="font-size:9px; font-weight:600; padding:2px 8px; border-radius:999px; border:1px solid #1b2c44; color:#8ea3bd;">Html surface</span>
+          <span style="font-size:12px; color:#f4c542;">✦</span>
+          <div style="flex:1;"></div>
+          <button style="display:flex; align-items:center; gap:6px; padding:4px 11px; background:none; border:1px solid #1b2c44; border-radius:7px; color:#8ea3bd; font:600 10.5px 'IBM Plex Sans',sans-serif; cursor:pointer;" style-hover="color:#e6eef7; border-color:#31456a"><svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 3 H3 V13 H13 V10"></path><path d="M9 2 H14 V7 M14 2 L7.5 8.5"></path></svg>Open in tab</button>
+          <button onClick="{{ closeExpand }}" style="background:none; border:none; color:#8ea3bd; font-size:16px; cursor:pointer; padding:0 4px;" style-hover="color:#e6eef7">×</button>
+        </div>
+        <div style="flex:1; overflow:auto; padding:26px 30px; background:linear-gradient(160deg, rgba(47,208,127,0.04), rgba(8,21,36,0.4));">
+          <div style="font:600 10px 'IBM Plex Mono',monospace; letter-spacing:0.14em; text-transform:uppercase; color:#f4c542;">Published Consumer Fixture</div>
+          <div style="margin-top:6px; font-size:28px; font-weight:700; letter-spacing:-0.01em;">Delivery Control Room</div>
+          <div style="margin-top:18px; display:flex; gap:12px; max-width:760px;">
+            <div style="flex:1; padding:14px 16px; border:1px solid #1b2c44; border-radius:10px; background:rgba(8,21,36,0.55);">
+              <div style="font-size:10px; color:#5c6b80;">Release posture</div>
+              <div style="margin-top:3px; font-size:15px; font-weight:700;">Steady, queue pressure</div>
+            </div>
+            <div style="flex:1; padding:14px 16px; border:1px solid #1b2c44; border-radius:10px; background:rgba(8,21,36,0.55);">
+              <div style="font-size:10px; color:#5c6b80;">Median lead time</div>
+              <div style="margin-top:3px; font-size:22px; font-weight:700; color:#4BBCFF;">19h</div>
+            </div>
+            <div style="flex:1; padding:14px 16px; border:1px solid #1b2c44; border-radius:10px; background:rgba(8,21,36,0.55);">
+              <div style="font-size:10px; color:#5c6b80;">Gates first-pass</div>
+              <div style="margin-top:3px; font-size:22px; font-weight:700; color:#2fd07f;">78%</div>
+            </div>
+          </div>
+          <div style="margin-top:14px; max-width:760px; font-size:12px; line-height:1.6; color:#c7d3ea;">Queueing still dominates the tail. Integration queue volatility remains the gating constraint — checkout and identity exceeded the retry budget in the last rehearsal.</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:12px; padding:8px 16px; border-top:1px solid #1b2c44; background:rgba(8,21,36,0.5); font:9.5px 'IBM Plex Mono',monospace; color:#5c6b80; flex-shrink:0;">
+          <span>fixture · published 14:02 · v12</span>
+          <div style="flex:1;"></div>
+          <span>esc or click outside to close</span>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- ── Command bar (bottom center) ── -->
+      <div style="position:absolute; bottom:18px; left:50%; transform:translateX(-50%); width:min(560px, calc(100% - 48px)); z-index:65;">
+        <sc-if value="{{ hasPins }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; align-items:center; gap:6px; margin-bottom:6px; flex-wrap:wrap;">
+            <sc-for list="{{ pinChips }}" as="chip" hint-placeholder-count="3">
+              <span style="display:inline-flex; align-items:center; gap:5px; padding:2px 9px; border-radius:999px; background:rgba(244,197,66,0.12); border:1px solid rgba(244,197,66,0.35); font-size:10px; font-weight:600; color:#f4c542;">✦ {{ chip }}</span>
+            </sc-for>
+            <span style="font-size:10px; color:#5c6b80;">in agent context</span>
+          </div>
+        </sc-if>
+        <div style="display:flex; align-items:center; gap:10px; padding:10px 14px; background:rgba(15,29,49,0.95); backdrop-filter:blur(16px); border:1px solid #1b2c44; border-radius:12px; box-shadow:0 12px 40px rgba(0,0,0,0.5);">
+          <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="#B388FF" stroke-width="1.5"><path d="M2 13 L2 4 A2 2 0 0 1 4 2 L12 2 A2 2 0 0 1 14 4 L14 9 A2 2 0 0 1 12 11 L5 11 Z"></path></svg>
+          <input value="{{ draft }}" onInput="{{ setDraft }}" onKeyDown="{{ draftKey }}" placeholder="Steer the agent, or ⌘K to search the board…" style="flex:1; background:none; border:none; outline:none; color:#e6eef7; font:13px 'IBM Plex Sans',sans-serif;">
+          <button onClick="{{ sendSteer }}" style="padding:5px 14px; font:600 11px 'IBM Plex Sans',sans-serif; background:#4BBCFF; border:none; border-radius:7px; color:#081524; cursor:pointer;" style-hover="background:#6ECAFF">Send</button>
+        </div>
+      </div>
+
+      <!-- minimap (hover to expand feel: static here) -->
+      <sc-if value="{{ minimapOn }}" hint-placeholder-val="{{ true }}">
+      <div title="Click to jump · drag the frame to pan" style="position:absolute; bottom:18px; right:16px; width:168px; height:112px; border:1px solid #1b2c44; border-radius:8px; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,0.35); background:rgba(10,23,41,0.94); backdrop-filter:blur(8px); z-index:60; opacity:0.85; transform-origin:bottom right; transition:transform 160ms ease, opacity 120ms ease; cursor:crosshair;" style-hover="opacity:1; transform:scale(1.7); box-shadow:0 12px 40px rgba(0,0,0,0.55)">
+        <div style="position:absolute; left:35px; top:6px; width:79px; height:73px; border:1px dashed rgba(179,136,255,0.45); border-radius:2px; background:rgba(179,136,255,0.03);"></div>
+        <div style="position:absolute; left:5px; top:4px; width:47px; height:31px; background:#2fd07f; opacity:0.5; border-radius:1.5px; outline:1px solid #f4c542;"></div>
+        <div style="position:absolute; left:5px; top:39px; width:30px; height:23px; background:#b07aff; opacity:0.5; border-radius:1.5px; outline:1px solid #f4c542;"></div>
+        <div style="position:absolute; left:39px; top:39px; width:34px; height:29px; background:#4BBCFF; opacity:0.55; border-radius:1.5px;"></div>
+        <span style="position:absolute; left:68px; top:36px; width:5px; height:5px; border-radius:50%; background:#B388FF; animation:dot-pulse 2s ease-in-out infinite;"></span>
+        <div style="position:absolute; left:77px; top:10px; width:35px; height:26px; background:#f4c542; opacity:0.55; border-radius:1.5px;"></div>
+        <div style="position:absolute; left:77px; top:40px; width:35px; height:22px; background:#4BBCFF; opacity:0.35; border-radius:1.5px;"></div>
+        <div style="position:absolute; left:83px; top:68px; width:29px; height:8px; border:1px dashed rgba(75,188,255,0.6); border-radius:1.5px;"></div>
+        <div style="position:absolute; left:2px; top:2px; width:152px; height:94px; border:1.5px solid rgba(75,188,255,0.85); border-radius:2px; background:rgba(75,188,255,0.05); cursor:grab;"></div>
+        <span style="position:absolute; right:5px; bottom:3px; font:8px 'IBM Plex Mono',monospace; color:#5c6b80;">{{ zoomLabel }}</span>
+      </div>
+      </sc-if>
+    </div>
+  </div>
+
+  <!-- ═══ Right panel — Session ═══ -->
+  <sc-if value="{{ panelOpen }}" hint-placeholder-val="{{ true }}">
+  <div class="session-drawer" style="width:312px; flex-shrink:0; display:flex; flex-direction:column; background:#0a1729; border-left:1px solid #1b2c44; z-index:60;">
+    <div style="display:flex; align-items:center; gap:8px; height:44px; padding:0 14px; border-bottom:1px solid #1b2c44;">
+      <span style="font-size:11px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#e6eef7;">Session</span>
+      <span style="font-size:10px; color:#5c6b80;">live</span>
+      <div style="flex:1;"></div>
+      <span style="width:7px; height:7px; border-radius:50%; background:#B388FF; animation:dot-pulse 2s ease-in-out infinite;"></span>
+    </div>
+    <div style="display:flex; align-items:center; gap:7px; padding:8px 14px; border-bottom:1px solid #1b2c44; background:rgba(179,136,255,0.04);">
+      <svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="#B388FF" stroke-width="1.8"><rect x="3" y="7" width="10" height="7" rx="1.5"></rect><path d="M5.5 7 V5 a2.5 2.5 0 0 1 5 0 V7"></path></svg>
+      <span style="font-size:10.5px; color:#c7d3ea;">Scoped to <b style="color:#B388FF;">Agent scope</b> fence</span>
+      <div style="flex:1;"></div>
+      <button style="background:none; border:none; color:#5c6b80; font-size:10px; cursor:pointer; padding:0;" style-hover="color:#8ea3bd">edit</button>
+    </div>
+
+    <!-- work items -->
+    <div style="padding:12px 14px; border-bottom:1px solid #1b2c44;">
+      <div style="font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#8ea3bd; margin-bottom:8px;">Work items</div>
+      <div style="display:flex; flex-direction:column; gap:6px;">
+        <div style="display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:8px; background:rgba(15,29,49,0.8); border:1px solid #1b2c44;">
+          <span style="width:7px; height:7px; border-radius:50%; background:#2fd07f;"></span>
+          <span style="flex:1; font-size:11px; color:#c7d3ea;">Summarize release telemetry</span>
+          <span style="font-size:9px; color:#2fd07f; font-weight:600;">done</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:8px; background:rgba(15,29,49,0.8); border:1px solid rgba(179,136,255,0.35);">
+          <span style="width:7px; height:7px; border-radius:50%; background:#B388FF; animation:dot-pulse 2s infinite;"></span>
+          <span style="flex:1; font-size:11px; color:#c7d3ea;">Update Control Tower widgets</span>
+          <span style="font-size:9px; color:#B388FF; font-weight:600;">running</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px; padding:7px 10px; border-radius:8px; background:rgba(15,29,49,0.8); border:1px solid {{ gateItemBorder }};">
+          <span style="width:7px; height:7px; border-radius:50%; background:{{ gateItemDot }};"></span>
+          <span style="flex:1; font-size:11px; color:#c7d3ea;">Ship REL-421 to release train</span>
+          <span style="font-size:9px; color:{{ gateItemDot }}; font-weight:600;">{{ gateItemLabel }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- timeline -->
+    <div style="flex:1; min-height:0; display:flex; flex-direction:column; padding:12px 0 8px;">
+      <div style="font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#8ea3bd; padding:0 14px; margin-bottom:8px;">Timeline</div>
+      <div style="flex:1; overflow-y:auto; padding:0 14px; display:flex; flex-direction:column; gap:2px;">
+        <sc-for list="{{ timeline }}" as="t" hint-placeholder-count="6">
+          <div style="display:flex; gap:10px; padding:6px 0; animation:entry-in 0.25s ease-out;">
+            <div style="display:flex; flex-direction:column; align-items:center; flex-shrink:0; width:14px;">
+              <span style="width:8px; height:8px; border-radius:50%; margin-top:4px; background:{{ t.color }};"></span>
+              <span style="flex:1; width:1px; background:#1b2c44; margin-top:3px;"></span>
+            </div>
+            <div style="min-width:0; padding-bottom:4px;">
+              <div style="display:flex; align-items:baseline; gap:8px;">
+                <span style="font-size:11px; font-weight:600; color:{{ t.color }};">{{ t.kind }}</span>
+                <span style="font:9px 'IBM Plex Mono',monospace; color:#5c6b80;">{{ t.time }}</span>
+              </div>
+              <div style="font-size:11px; line-height:1.45; color:#c7d3ea; overflow-wrap:break-word;">{{ t.text }}</div>
+              <sc-if value="{{ t.showUndo }}" hint-placeholder-val="{{ false }}">
+                <button onClick="{{ t.onUndo }}" style="margin-top:3px; padding:2px 8px; font:600 9.5px 'IBM Plex Sans',sans-serif; background:none; border:1px solid #1b2c44; border-radius:999px; color:#8ea3bd; cursor:pointer;" style-hover="border-color:rgba(75,188,255,0.4); color:#4BBCFF">↩ undo this edit</button>
+              </sc-if>
+              <sc-if value="{{ t.isUndone }}" hint-placeholder-val="{{ false }}">
+                <div style="margin-top:2px; font:9px 'IBM Plex Mono',monospace; color:#5c6b80;">undone · steering sent</div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+  </div>
+  </sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:860},&quot;agentName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Claude&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Agent&quot;},&quot;agentPresence&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;present&quot;,&quot;options&quot;:[&quot;present&quot;,&quot;ambient&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Agent&quot;},&quot;showHumans&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Collaboration&quot;},&quot;showMinimap&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Canvas&quot;}}">
+class Component extends DCLogic {
+  state = {
+    pins: { control: true, defects: true, tower: true },
+    gate: 'pending', // pending | approved | rejected | held (TTL expired)
+    gateTtl: 272,
+    panelOpen: true,
+    expandOpen: false,
+    zoom: 100,
+    draft: '',
+    phaseIdx: 0,
+    timeline: [
+      { kind: 'Prompt', time: '14:02', text: 'Get REL-421 ready for the afternoon release train.', color: '#4BBCFF' },
+      { kind: 'Tool run', time: '14:02', text: 'read canvas://pinned-context — 3 nodes, 57% budget', color: '#8ea3bd' },
+      { kind: 'Evidence', time: '14:04', text: '14 unit suites green · attached test output to board', color: '#2fd07f' },
+      { kind: 'Yield', time: '14:05', text: 'mia grabbed Service Readiness mid-edit — agent yielded, change requeued', color: '#f4c542' },
+      { kind: 'Update', time: '14:06', text: 'Rewrote Control Tower summary from fresh telemetry', color: '#B388FF', undoable: true },
+      { kind: 'Approval', time: '14:07', text: 'Requested sign-off: Ship REL-421 to release train', color: '#f4c542' },
+    ],
+  };
+  phases = [
+    ['tooling', 'reading pinned context', 'reading pinned nodes'],
+    ['drafting', 'updating Control Tower', 'editing Control Tower'],
+    ['thinking', 'weighing queue risk', 'inspecting Defects by Stage'],
+    ['waiting-approval', 'REL-421 gate', 'awaiting your decision'],
+  ];
+  componentDidMount() {
+    this._t = setInterval(() => this.setState(s => ({ phaseIdx: (s.phaseIdx + 1) % this.phases.length })), 4200);
+    this._ttl = setInterval(() => {
+      const s = this.state;
+      if (s.gate !== 'pending') return;
+      if (s.gateTtl <= 1) { this.setState({ gate: 'held', gateTtl: 0 }); this.addEntry('Policy', 'Gate unanswered — REL-421 auto-held (safe default)', '#f4c542'); }
+      else this.setState({ gateTtl: s.gateTtl - 1 });
+    }, 1000);
+  }
+  componentWillUnmount() { clearInterval(this._t); clearInterval(this._ttl); }
+  now() { const d = new Date(); return String(d.getHours()).padStart(2,'0') + ':' + String(d.getMinutes()).padStart(2,'0'); }
+  addEntry(kind, text, color) {
+    this.setState(s => ({ timeline: [...s.timeline, { kind, time: this.now(), text, color }] }));
+  }
+  togglePin(key) { this.setState(s => ({ pins: { ...s.pins, [key]: !s.pins[key] } })); }
+  undoEntry(i) {
+    this.setState(s => ({ timeline: s.timeline.map((t, j) => j === i ? { ...t, undone: true } : t) }));
+    this.addEntry('Undo', 'You undid: Control Tower rewrite — one shared undo stack, steering sent', '#4BBCFF');
+  }
+  renderVals() {
+    const s = this.state;
+    const pinCount = Object.values(s.pins).filter(Boolean).length;
+    const budget = pinCount * 19;
+    const ph = this.phases[s.phaseIdx];
+    const pending = s.gate === 'pending';
+    const approved = s.gate === 'approved';
+    const held = s.gate === 'held';
+    const ttlLabel = Math.floor(s.gateTtl / 60) + ':' + String(s.gateTtl % 60).padStart(2, '0');
+    const chips = [];
+    if (s.pins.control) chips.push('Control Room');
+    if (s.pins.defects) chips.push('Defects by Stage');
+    if (s.pins.tower) chips.push('Control Tower');
+    return {
+      agentName: this.props.agentName ?? 'Claude',
+      showCursor: (this.props.agentPresence ?? 'present') === 'present',
+      minimapOn: this.props.showMinimap ?? true,
+      agentPhase: ph[0], agentDetail: ph[1], cursorAction: ph[2],
+      budgetPct: budget + '%', budgetLabel: budget + '%',
+      zoomLabel: s.zoom + '%',
+      zoomIn: () => this.setState({ zoom: Math.min(400, Math.round(s.zoom * 1.25)) }),
+      zoomOut: () => this.setState({ zoom: Math.max(10, Math.round(s.zoom / 1.25)) }),
+      panelOpen: s.panelOpen,
+      panelBtnColor: s.panelOpen ? '#4BBCFF' : '#8ea3bd',
+      togglePanel: () => this.setState({ panelOpen: !s.panelOpen }),
+      pinControl: s.pins.control, pinDefects: s.pins.defects, pinTower: s.pins.tower,
+      pinControlColor: s.pins.control ? '#f4c542' : '#5c6b80',
+      pinDefectsColor: s.pins.defects ? '#f4c542' : '#5c6b80',
+      togglePinControl: (e) => { e.stopPropagation(); this.togglePin('control'); },
+      togglePinDefects: (e) => { e.stopPropagation(); this.togglePin('defects'); },
+      selectControl: () => {},
+      expandOpen: s.expandOpen,
+      openExpand: (e) => { e.stopPropagation(); this.setState({ expandOpen: true }); },
+      closeExpand: () => this.setState({ expandOpen: false }),
+      hasPins: pinCount > 0, pinChips: chips,
+      gatePending: pending, gateDecided: !pending,
+      gateTtlLabel: ttlLabel,
+      showHuman: this.props.showHumans ?? true,
+      gateBadge: pending ? 'needs approval' : (approved ? 'approved' : (held ? 'auto-held' : 'rejected')),
+      gateBadgeBg: pending ? 'rgba(244,197,66,0.15)' : (approved ? 'rgba(47,208,127,0.15)' : (held ? 'rgba(244,197,66,0.15)' : 'rgba(255,106,127,0.15)')),
+      gateBadgeColor: pending ? '#f4c542' : (approved ? '#2fd07f' : (held ? '#f4c542' : '#ff6a7f')),
+      gateDecisionText: approved ? '✓ Approved — the agent is shipping REL-421.' : (held ? '⏱ Timed out — REL-421 auto-held. Reopen from the session panel.' : '× Rejected — the agent will hold the release.'),
+      gateDecisionColor: approved ? '#2fd07f' : (held ? '#f4c542' : '#ff6a7f'),
+      gateItemBorder: pending ? 'rgba(244,197,66,0.35)' : '#1b2c44',
+      gateItemDot: pending ? '#f4c542' : (approved ? '#2fd07f' : (held ? '#f4c542' : '#ff6a7f')),
+      gateItemLabel: pending ? 'gated' : (approved ? 'approved' : (held ? 'auto-held' : 'rejected')),
+      approveGate: () => { this.setState({ gate: 'approved' }); this.addEntry('Decision', 'You approved: Ship REL-421 to release train', '#2fd07f'); },
+      rejectGate: () => { this.setState({ gate: 'rejected' }); this.addEntry('Decision', 'You rejected: Ship REL-421 — release held', '#ff6a7f'); },
+      timeline: s.timeline.map((t, i) => ({ ...t, showUndo: !!t.undoable && !t.undone, isUndone: !!t.undone, onUndo: () => this.undoEntry(i) })),
+      draft: s.draft,
+      setDraft: (e) => this.setState({ draft: e.target.value }),
+      draftKey: (e) => { if (e.key === 'Enter') this.sendSteer(); },
+      sendSteer: () => this.sendSteer(),
+    };
+  }
+  sendSteer() {
+    const text = this.state.draft.trim();
+    if (!text) return;
+    this.addEntry('Steering', text, '#4BBCFF');
+    this.setState({ draft: '' });
+  }
+}
+</script>
+</body>
+</html>

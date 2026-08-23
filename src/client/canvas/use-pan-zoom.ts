@@ -1,4 +1,5 @@
 import type { Signal } from '@preact/signals';
+import { isPanModeActive } from '../state/canvas-store';
 import { useCallback, useEffect, useRef } from 'preact/hooks';
 import type { ViewportState } from '../types';
 
@@ -100,9 +101,19 @@ export function usePanZoom({ viewport, onViewportChange, onViewportCommit, disab
   const handlePointerDown = useCallback(
     (e: PointerEvent) => {
       if (disabled) return;
-      // Only pan when clicking the canvas background (not nodes)
       const container = containerRef.current;
-      if (!container || e.target !== container) return;
+      if (!container) return;
+      // Middle-drag pans from anywhere, any tool — standard canvas UX.
+      if (e.button === 1) {
+        e.preventDefault();
+      } else if (isPanModeActive()) {
+        // Pan tool / held Space: the world layer is pointer-inert (CSS), so
+        // the event target is the container even over nodes.
+        if (e.target !== container) return;
+      } else {
+        // Select tool: background drag belongs to the lasso (CanvasViewport).
+        return;
+      }
       isPanning.current = true;
       lastPointer.current = { x: e.clientX, y: e.clientY };
       container.setPointerCapture(e.pointerId);

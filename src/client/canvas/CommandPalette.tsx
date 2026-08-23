@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { canvasArea } from './canvas-area';
 import {
   autoArrange,
   canvasTheme,
@@ -142,7 +143,7 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
         label: 'Fit all nodes',
         badge: 'VIEW',
         action: () => {
-          fitAll(window.innerWidth, window.innerHeight);
+          fitAll(canvasArea().width, canvasArea().height);
           onClose();
         },
       },

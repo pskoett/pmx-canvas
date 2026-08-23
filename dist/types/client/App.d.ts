@@ -1,1 +1,1 @@
-export declare function App(): import("preact").JSX.Element;
+export declare function App(): import("preact/src").JSX.Element;

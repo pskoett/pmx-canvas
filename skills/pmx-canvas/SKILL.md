@@ -49,7 +49,16 @@ Humans curate agent context by pinning nodes; agents read that curation through
    floor, not a replacement: only an explicit signal gives the human a real pre-mutation veto
    window, your reasoning (`reason`), and staged multi-step previews. Batch and browser-human
    actions never auto-ghost.
-6. **Mutate through current composites.** Prefer the 16 composite MCP tools below.
+6. **Attach a session so the human can see you (0.4.8).** At the start of board work call
+   `canvas_ax_state { action: "set-presence", attached: true, label: "<who you are>" }` and at
+   the end `{ action: "set-presence", attached: false }`. While attached, the canvas shows your
+   cursor on the node you last touched plus a phase chip, and every write you make through MCP or
+   HTTP is attributed to your session automatically — no per-call labelling needed. Report
+   `phase: "thinking"` before a long reasoning stretch if your host gives you a hook for it;
+   `tooling` is derived from your writes. Hosts with adapters (the Copilot extension) attach
+   for you. Without an attached session the board stays a plain canvas: your writes still show
+   as ghosts, but there is no cursor and no session chrome.
+7. **Mutate through current composites.** Prefer the 16 composite MCP tools below.
 7. **Arrange and validate.** After batch changes, use `canvas_view { action: "arrange" }` when
    appropriate and always finish with `canvas_query { action: "validate" }`.
 7b. **Show the human.** After creating user-facing output, bring the camera to it: a single node
@@ -238,19 +247,23 @@ title-bar × control, or the **Close** context-menu action.
 Use the visible workbench when the human is actively curating layout:
 
 - Drag nodes to move them.
-- Shift+drag empty space to lasso-select.
+- Drag empty space to lasso-select (Select tool, the default); hold Space or pick the rail's Pan
+  tool to pan instead — the Pan tool pans even when the drag starts on a node.
 - Use the selection bar for Pin as context, Group, Connect, and Clear.
 - Right-click a node for context pinning, position locking, focus, collapse, connect, refresh,
   open, close, and type-specific actions.
 - Drop files or URLs to create matching nodes.
 - Double-click markdown to edit inline.
-- Use toolbar snapshots before experiments and restore only after confirmation.
-- The toolbar carries view controls (fit, reset, zoom), arrange, minimap, a theme picker (nine
-  themes: dark, light, high-contrast, midnight, sepia, arctic, ember, forest, volt), snapshots, trace,
-  the annotation tools, search (Cmd+K), and shortcuts. On narrow viewports (≤900px — most
-  embedded host panes and mobile) the secondary controls collapse into a single "⋯" More menu at
-  the end of the bar; every action is still there as a labeled row, including the theme list. If
-  an automation script can't find a toolbar button at panel width, open the More menu first.
+- Use rail snapshots (camera button in the left tool rail) before experiments and restore only after confirmation.
+- The chrome is a persistent 52px left tool rail plus a slim 44px top bar (0.4.8, replacing the
+  floating HUD). The rail carries the tools (Select V, Pan Space), node creation (markdown M,
+  image I, file Shift+F, webpage W, HTML surface H, group G, annotate A — a popover with draw /
+  text / eraser), and utilities: search (Cmd+K), arrange, trace, minimap, snapshots, the theme
+  picker (nine themes: dark, light, high-contrast, midnight, sepia, arctic, ember, forest, volt),
+  and shortcuts (?). The top bar holds the connection dot, workspace title, and the zoom cluster
+  (zoom out, % label = reset, zoom in, fit F). Every rail button's `title` names its shortcut.
+  On viewports ≤1180px the top bar drops its meta text (board id, counts); every control stays in
+  the rail at any width — there is no separate mobile menu.
 - Embedding hosts can open `/workbench?theme=<name>` (or `?theme=auto` to follow the host's
   light/dark appearance) for a session-local default theme that never changes the server-global
   theme other clients see; an explicit pick from the theme menu ends the override. The bundled

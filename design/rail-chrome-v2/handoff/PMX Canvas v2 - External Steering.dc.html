@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+body { margin:0; background:#081524; font-family:"IBM Plex Sans",system-ui,sans-serif; }
+a { color:#4BBCFF; text-decoration:none; } a:hover { text-decoration:underline; }
+@media (max-width: 1180px) { .hud-collapsible { display:none !important; } }
+@keyframes extPulse { 0%,100% { opacity:1; } 50% { opacity:0.45; } }
+::-webkit-scrollbar { width:6px; } ::-webkit-scrollbar-thumb { background:#1b2c44; border-radius:3px; }
+</style>
+</helmet>
+<div data-screen-label="External Steering v2 (agent writes, no session)" style="display:flex; width:100%; height:100vh; min-height:760px; overflow:hidden; background:#081524; color:#e6eef7; font:13px/1.5 'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased;">
+
+  <!-- ═══ Left rail (identical to Quiet Board) ═══ -->
+  <div style="width:52px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; gap:4px; padding:10px 0; background:#0a1729; border-right:1px solid #1b2c44; z-index:60; overflow-y:auto;">
+    <span style="display:flex; width:36px; height:36px; align-items:center; justify-content:center; color:#4BBCFF; margin-bottom:6px; flex-shrink:0;" title="PMX Canvas">
+      <svg width="24" height="24" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="8" y="8" width="48" height="48" rx="7" opacity="0.35"></rect><rect x="16" y="16" width="32" height="32" rx="5" opacity="0.6"></rect><rect x="24" y="24" width="16" height="16" rx="3"></rect><rect x="29" y="29" width="6" height="6" rx="1" fill="currentColor" stroke="none"></rect></svg>
+    </span>
+    <div style="width:24px; height:1px; background:#1b2c44; margin-bottom:4px; flex-shrink:0;"></div>
+    <button title="Select (V)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:rgba(75,188,255,0.12); border:1px solid rgba(75,188,255,0.3); border-radius:8px; color:#4BBCFF; cursor:pointer;" style-hover="background:rgba(75,188,255,0.2)"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M3 2 L13 8 L8.5 9.5 L6.5 14 Z"></path></svg></button>
+    <button title="Pan (Space)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M5 7V3.5a1 1 0 0 1 2 0V7 M7 6.5V2.5a1 1 0 0 1 2 0V7 M9 6.5V3.5a1 1 0 0 1 2 0V8.5 M11 7.5c1-.8 2.2-.4 1.8.8L11.5 12A3.5 3.5 0 0 1 8 14.5 4.6 4.6 0 0 1 4 12L3 9c-.3-1 .8-1.6 1.6-.8L5 9"></path></svg></button>
+    <button title="Connect (C)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="4" cy="4" r="2"></circle><circle cx="12" cy="12" r="2"></circle><path d="M5.5 5.5 C 8 8, 8 8, 10.5 10.5"></path></svg></button>
+    <div style="width:24px; height:1px; background:#1b2c44; margin:4px 0; flex-shrink:0;"></div>
+    <button title="Markdown note (M)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="1.5" y="3" width="13" height="10" rx="1.5"></rect><path d="M4 10.5 L4 5.5 L6 8 L8 5.5 L8 10.5"></path><path d="M11 10.5 L11 5.5 M9.5 9 L11 10.5 L12.5 9"></path></svg></button>
+    <button title="Image (I)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"></rect><circle cx="5.5" cy="6" r="1.3"></circle><path d="M2.5 12 L6.5 8.5 L9 10.5 L11.5 8 L13.5 10"></path></svg></button>
+    <button title="File (Shift+F)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"><path d="M4 1.5 H9.5 L13 5 V14.5 H4 Z"></path><path d="M9.5 1.5 V5 H13"></path></svg></button>
+    <button title="Webpage (W)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"></circle><path d="M2 8 H14 M8 2 C 5.5 5, 5.5 11, 8 14 C 10.5 11, 10.5 5, 8 2 Z"></path></svg></button>
+    <button title="HTML surface (H)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M6 4 L2.5 8 L6 12 M10 4 L13.5 8 L10 12"></path></svg></button>
+    <button title="Group (G)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 2.5"><rect x="1.5" y="1.5" width="13" height="13" rx="2"></rect></svg></button>
+    <button title="Annotate (A)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l2.8-.7L13 5.1 10.9 3 3.7 10.2 3 13Z"></path><path d="M9.8 4.1l2.1 2.1"></path></svg></button>
+    <div style="flex:1; min-height:8px;"></div>
+    <button title="Snapshots" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1" y="4" width="14" height="10" rx="1.5"></rect><path d="M5.5 4 L6.5 2.5 H9.5 L10.5 4"></path><circle cx="8" cy="9" r="2.3"></circle></svg></button>
+    <button title="Theme" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"></circle><path d="M8 2 A 6 6 0 0 1 8 14 Z" fill="currentColor" stroke="none"></path></svg></button>
+    <button title="Shortcuts (?)" style="display:flex; width:36px; height:36px; flex-shrink:0; align-items:center; justify-content:center; background:none; border:1px solid transparent; border-radius:8px; color:#8ea3bd; cursor:pointer;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1" y="3" width="14" height="10" rx="1.5"></rect><line x1="4" y1="6" x2="5" y2="6"></line><line x1="7.5" y1="6" x2="8.5" y2="6"></line><line x1="11" y1="6" x2="12" y2="6"></line><line x1="4" y1="10" x2="12" y2="10"></line></svg></button>
+  </div>
+
+  <!-- ═══ Center column ═══ -->
+  <div style="flex:1; min-width:0; display:flex; flex-direction:column; position:relative;">
+
+    <!-- Top bar: quiet chrome + passive external-writer indicator -->
+    <div style="display:flex; align-items:center; gap:12px; height:44px; padding:0 14px; background:rgba(10,23,41,0.92); backdrop-filter:blur(12px); border-bottom:1px solid #1b2c44; z-index:55; overflow:hidden; min-width:0;">
+      <span style="width:8px; height:8px; border-radius:50%; background:#2fd07f; flex-shrink:0;" title="Connected"></span>
+      <span style="font-size:13px; font-weight:600; color:#e6eef7; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:60px; flex-shrink:1;">Reactive canvas — architecture</span>
+      <span class="hud-collapsible" style="font:11px 'IBM Plex Mono',monospace; color:#5c6b80; white-space:nowrap;">pmx-k2f8dnal</span>
+      <div style="flex:1; min-width:8px;"></div>
+      <!-- external writer indicator: passive, NOT a session -->
+      <button onClick="{{ toggleFeed }}" title="3 external writers on this board via MCP — click for activity" style="display:flex; align-items:center; gap:8px; padding:4px 12px 4px 6px; background:rgba(179,136,255,0.08); border:1px solid rgba(179,136,255,0.35); border-radius:999px; color:#B388FF; cursor:pointer; white-space:nowrap; flex-shrink:0;" style-hover="background:rgba(179,136,255,0.15)">
+        <span style="display:flex; align-items:center;">
+          <span style="display:flex; width:18px; height:18px; align-items:center; justify-content:center; border-radius:50%; background:#B388FF; border:1.5px solid #0a1729; font:700 8.5px 'IBM Plex Sans',sans-serif; color:#081524; z-index:3;">C</span>
+          <span style="display:flex; width:18px; height:18px; align-items:center; justify-content:center; border-radius:50%; background:#4BBCFF; border:1.5px solid #0a1729; font:700 8.5px 'IBM Plex Sans',sans-serif; color:#081524; margin-left:-6px; z-index:2;">R</span>
+          <span style="display:flex; width:18px; height:18px; align-items:center; justify-content:center; border-radius:50%; background:#2fd07f; border:1.5px solid #0a1729; font:700 8.5px 'IBM Plex Sans',sans-serif; color:#081524; margin-left:-6px; z-index:1;">M</span>
+        </span>
+        <span style="font-size:11px; font-weight:600;">3 writers</span>
+        <span class="hud-collapsible" style="font:10px 'IBM Plex Mono',monospace; color:#8ea3bd;">21 ops</span>
+        <span style="width:7px; height:7px; border-radius:50%; background:#B388FF; animation:extPulse 1.4s ease-in-out infinite;"></span>
+      </button>
+      <button title="Attach a full agent session (adds panel + command bar)" style="display:flex; align-items:center; gap:7px; padding:5px 12px; background:none; border:1px solid #1b2c44; border-radius:999px; color:#8ea3bd; cursor:pointer; white-space:nowrap; flex-shrink:0;" style-hover="border-color:rgba(179,136,255,0.4); color:#B388FF">
+        <span style="font-size:11px; font-weight:600;">Start session</span>
+      </button>
+      <span style="width:1px; height:20px; background:#1b2c44;"></span>
+      <button onClick="{{ zoomOut }}" style="background:none; border:1px solid transparent; color:#8ea3bd; padding:5px 8px; border-radius:6px; cursor:pointer; display:flex;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7" title="Zoom out"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14.5" y2="14.5"></line><line x1="5" y1="7" x2="9" y2="7"></line></svg></button>
+      <span style="font:11px 'IBM Plex Mono',monospace; color:#8ea3bd; min-width:38px; text-align:center;">{{ zoomLabel }}</span>
+      <button onClick="{{ zoomIn }}" style="background:none; border:1px solid transparent; color:#8ea3bd; padding:5px 8px; border-radius:6px; cursor:pointer; display:flex;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7" title="Zoom in"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14.5" y2="14.5"></line><line x1="5" y1="7" x2="9" y2="7"></line><line x1="7" y1="5" x2="7" y2="9"></line></svg></button>
+      <button style="background:none; border:1px solid transparent; color:#8ea3bd; padding:5px 8px; border-radius:6px; cursor:pointer; display:flex;" style-hover="background:rgba(255,255,255,0.06); color:#e6eef7" title="Fit all (F)"><svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 5 1 1 5 1"></polyline><polyline points="11 1 15 1 15 5"></polyline><polyline points="15 11 15 15 11 15"></polyline><polyline points="5 15 1 15 1 11"></polyline><rect x="4" y="4" width="8" height="8" rx="1"></rect></svg></button>
+    </div>
+
+    <!-- Canvas: full width, no session panel / command bar -->
+    <div style="flex:1; position:relative; overflow:hidden; background-image:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0)),radial-gradient(circle,rgba(75,188,255,0.08) 1px,transparent 1px); background-size:auto,24px 24px;">
+
+      <!-- activity feed popover (anchored under the indicator) -->
+      <sc-if value="{{ feedOpen }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute; top:10px; right:14px; width:304px; background:#0f1d31; border:1px solid rgba(179,136,255,0.3); border-radius:10px; box-shadow:0 12px 40px rgba(0,0,0,0.5); z-index:70; overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:8px; padding:9px 13px; border-bottom:1px solid #1b2c44; background:rgba(8,21,36,0.6);">
+          <span style="width:7px; height:7px; border-radius:50%; background:#B388FF; animation:extPulse 1.4s ease-in-out infinite;"></span>
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:11.5px; font-weight:600; color:#e6eef7;">External activity — 3 writers</div>
+            <div style="font:9px 'IBM Plex Mono',monospace; color:#5c6b80;">via MCP · no session attached</div>
+          </div>
+          <button onClick="{{ toggleFeed }}" style="background:none; border:none; color:#8ea3bd; font-size:14px; cursor:pointer; padding:0 2px;">×</button>
+        </div>
+        <div style="display:flex; gap:4px; padding:7px 10px; border-bottom:1px solid #1b2c44;">
+          <button onClick="{{ setFilterAll }}" style="padding:2px 9px; border-radius:999px; border:1px solid {{ aBorder }}; background:{{ aBg }}; color:{{ aColor }}; font-size:10px; font-weight:600; cursor:pointer;">All</button>
+          <button onClick="{{ setFilterCC }}" style="padding:2px 9px; border-radius:999px; border:1px solid {{ cBorder }}; background:{{ cBg }}; color:{{ cColor }}; font-size:10px; font-weight:600; cursor:pointer;">claude-code</button>
+          <button onClick="{{ setFilterRB }}" style="padding:2px 9px; border-radius:999px; border:1px solid {{ rBorder }}; background:{{ rBg }}; color:{{ rColor }}; font-size:10px; font-weight:600; cursor:pointer;">research-bot</button>
+          <button onClick="{{ setFilterMS }}" style="padding:2px 9px; border-radius:999px; border:1px solid {{ mBorder }}; background:{{ mBg }}; color:{{ mColor }}; font-size:10px; font-weight:600; cursor:pointer;">mcp-sync</button>
+        </div>
+        <div style="display:flex; flex-direction:column;">
+          <sc-if value="{{ pendingRowOn }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; gap:9px; padding:9px 13px; border-bottom:1px solid #1b2c44; background:rgba(179,136,255,0.05);">
+            <svg style="flex-shrink:0; margin-top:1px;" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#B388FF" stroke-width="1.5" stroke-dasharray="2.5 2"><rect x="2" y="2" width="12" height="12" rx="2.5"></rect></svg>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:11px; font-weight:600; color:#c7d3ea;">Proposing: <span style="color:#B388FF;">ledger-flow</span> node</div>
+              <div style="font-size:10px; line-height:1.45; color:#8ea3bd;">Auto-ghost — mutation arrived without intent signal · <span style="color:#B388FF;">claude-code</span></div>
+              <div style="display:flex; gap:6px; margin-top:6px;">
+                <button onClick="{{ vetoPending }}" style="padding:3px 10px; border-radius:7px; background:none; border:1px solid rgba(255,107,107,0.4); color:#ff6b6b; font-size:10.5px; font-weight:600; cursor:pointer;" style-hover="background:rgba(255,107,107,0.1)">Veto</button>
+                <span style="font:9px 'IBM Plex Mono',monospace; color:#5c6b80; align-self:center;">or hover ghost + Esc</span>
+              </div>
+            </div>
+            <span style="font:9px 'IBM Plex Mono',monospace; color:#5c6b80; flex-shrink:0;">now</span>
+          </div>
+          </sc-if>
+          <sc-if value="{{ vetoedRowOn }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex; gap:9px; padding:9px 13px; border-bottom:1px solid #1b2c44;">
+            <svg style="flex-shrink:0; margin-top:1px;" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#ff6b6b" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"></circle><line x1="5.5" y1="5.5" x2="10.5" y2="10.5"></line><line x1="10.5" y1="5.5" x2="5.5" y2="10.5"></line></svg>
+            <div style="flex:1; min-width:0;">
+              <div style="font-size:11px; font-weight:600; color:#c7d3ea;">Vetoed: ledger-flow node</div>
+              <div style="font-size:10px; color:#8ea3bd;">Steering feedback sent to claude-code</div>
+            </div>
+            <span style="font:9px 'IBM Plex Mono',monospace; color:#5c6b80; flex-shrink:0;">now</span>
+          </div>
+          </sc-if>
+          <sc-if value="{{ fCC }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; gap:9px; padding:9px 13px; border-bottom:1px solid #1b2c44;">
+            <svg style="flex-shrink:0; margin-top:1px;" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#2fd07f" stroke-width="1.5" stroke-linecap="round"><path d="M8 3 V13 M3 8 H13"></path></svg>
+            <div style="flex:1; min-width:0;"><div style="font-size:11px; color:#c7d3ea;">Created <b>sse-bridge</b> note in State layer</div><div style="font:8.5px 'IBM Plex Mono',monospace; color:#B388FF;">claude-code</div></div>
+            <span style="font:9px 'IBM Plex Mono',monospace; color:#5c6b80; flex-shrink:0;">2m</span>
+          </div>
+          </sc-if>
+          <sc-if value="{{ fRB }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; gap:9px; padding:9px 13px; border-bottom:1px solid #1b2c44;">
+            <svg style="flex-shrink:0; margin-top:1px;" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 13l2.8-.7L13 5.1 10.9 3 3.7 10.2 3 13Z"></path></svg>
+            <div style="flex:1; min-width:0;"><div style="font-size:11px; color:#c7d3ea;">Updated <b>canvas-store</b> body text</div><div style="font:8.5px 'IBM Plex Mono',monospace; color:#4BBCFF;">research-bot</div></div>
+            <span style="font:9px 'IBM Plex Mono',monospace; color:#5c6b80; flex-shrink:0;">6m</span>
+          </div>
+          </sc-if>
+          <sc-if value="{{ fMS }}" hint-placeholder-val="{{ true }}">
+          <div style="display:flex; gap:9px; padding:9px 13px;">
+            <svg style="flex-shrink:0; margin-top:1px;" width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#f4c542" stroke-width="1.5" stroke-linecap="round"><path d="M8 2 L8 10 M8 2 L5 5 M8 2 L11 5"></path><path d="M3 13 H13"></path></svg>
+            <div style="flex:1; min-width:0;"><div style="font-size:11px; color:#c7d3ea;">Updated <b>Store health</b> metrics</div><div style="font:8.5px 'IBM Plex Mono',monospace; color:#2fd07f;">mcp-sync</div></div>
+            <span style="font:9px 'IBM Plex Mono',monospace; color:#5c6b80; flex-shrink:0;">9m</span>
+          </div>
+          </sc-if>
+        </div>
+        <div style="padding:8px 13px; border-top:1px solid #1b2c44; background:rgba(8,21,36,0.5); display:flex; align-items:center; gap:10px;">
+          <span style="flex:1; font-size:10px; color:#5c6b80;">All writes ghost first · Esc vetoes</span>
+          <button onClick="{{ openPerms }}" style="background:none; border:none; color:#8ea3bd; font-size:10.5px; font-weight:600; cursor:pointer; padding:0;" style-hover="color:#e6eef7">Writers</button>
+          <button style="background:none; border:none; color:#B388FF; font-size:10.5px; font-weight:600; cursor:pointer; padding:0;" style-hover="text-decoration:underline">Start session ↗</button>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- board access / permissions sheet -->
+      <sc-if value="{{ permsOpen }}" hint-placeholder-val="{{ false }}">
+      <div onClick="{{ closePerms }}" style="position:absolute; inset:0; background:rgba(4,10,18,0.55); z-index:85;"></div>
+      <div style="position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); width:400px; max-width:calc(100% - 48px); background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 24px 60px rgba(0,0,0,0.6); z-index:86; overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:8px; padding:11px 14px; border-bottom:1px solid #1b2c44; background:rgba(8,21,36,0.6);">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5" stroke-linecap="round"><circle cx="4" cy="4" r="2"></circle><circle cx="12" cy="12" r="2"></circle><path d="M5.5 5.5 C 8 8, 8 8, 10.5 10.5"></path></svg>
+          <span style="flex:1; font-size:12px; font-weight:600; color:#e6eef7;">Connected writers</span>
+          <span style="font:9px 'IBM Plex Mono',monospace; color:#5c6b80;">pmx-k2f8dnal</span>
+          <button onClick="{{ closePerms }}" style="background:none; border:none; color:#8ea3bd; font-size:14px; cursor:pointer; padding:0 2px;">×</button>
+        </div>
+        <div style="padding:10px 14px; display:flex; flex-direction:column; gap:4px;">
+          <div style="padding:4px 0 2px; font-size:9px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#5c6b80;">Agent sessions</div>
+          <div style="display:flex; align-items:center; gap:9px; padding:6px 0;">
+            <span style="display:flex; width:20px; height:20px; align-items:center; justify-content:center; border-radius:50%; background:#B388FF; font:700 9px 'IBM Plex Sans',sans-serif; color:#081524;">C</span>
+            <span style="flex:1; font-size:11.5px; color:#c7d3ea;">Claude <span style="color:#5c6b80;">— when attached</span></span>
+            <span style="font-size:9.5px; font-weight:600; padding:2px 8px; border-radius:999px; background:rgba(179,136,255,0.12); color:#B388FF;">scoped + gated</span>
+          </div>
+          <div style="padding:8px 0 2px; font-size:9px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#5c6b80;">External writers · MCP</div>
+          <div style="display:flex; align-items:center; gap:9px; padding:6px 0;">
+            <span style="display:flex; width:20px; height:20px; align-items:center; justify-content:center; border-radius:50%; background:#B388FF; font:700 9px 'IBM Plex Sans',sans-serif; color:#081524;">C</span>
+            <span style="flex:1; font:11px 'IBM Plex Mono',monospace; color:#c7d3ea;">claude-code</span>
+            <span style="font:9.5px 'IBM Plex Mono',monospace; color:#5c6b80;">mcp · stdio · wrote 2m ago</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:9px; padding:6px 0;">
+            <span style="display:flex; width:20px; height:20px; align-items:center; justify-content:center; border-radius:50%; background:#4BBCFF; font:700 9px 'IBM Plex Sans',sans-serif; color:#081524;">R</span>
+            <span style="flex:1; font:11px 'IBM Plex Mono',monospace; color:#c7d3ea;">research-bot</span>
+            <span style="font:9.5px 'IBM Plex Mono',monospace; color:#5c6b80;">mcp · sse · wrote 6m ago</span>
+          </div>
+          <div style="display:flex; align-items:center; gap:9px; padding:6px 0;">
+            <span style="display:flex; width:20px; height:20px; align-items:center; justify-content:center; border-radius:50%; background:#2fd07f; font:700 9px 'IBM Plex Sans',sans-serif; color:#081524;">M</span>
+            <span style="flex:1; font:11px 'IBM Plex Mono',monospace; color:#c7d3ea;">mcp-sync</span>
+            <span style="font:9.5px 'IBM Plex Mono',monospace; color:#5c6b80;">mcp · stdio · wrote 9m ago</span>
+          </div>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; padding:10px 14px; border-top:1px solid #1b2c44; background:rgba(8,21,36,0.5);">
+          <span style="flex:1; font-size:10px; color:#5c6b80;">Local-first: any process on this machine can connect and write. Every write ghosts first — veto is the control, not permissions.</span>
+          <button onClick="{{ closePerms }}" style="padding:5px 14px; font:600 11px 'IBM Plex Sans',sans-serif; background:#4BBCFF; border:none; border-radius:7px; color:#081524; cursor:pointer;" style-hover="background:#6ECAFF">Done</button>
+        </div>
+      </div>
+      </sc-if>
+
+      <!-- edges -->
+      <svg style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none;" aria-hidden="true">
+        <path d="M 420 185 C 475 195, 505 250, 542 301" fill="none" stroke="#4BBCFF" stroke-opacity="0.4" stroke-width="1.5"></path>
+        <circle cx="420" cy="185" r="3" fill="#4BBCFF" opacity="0.5"></circle><circle cx="542" cy="301" r="3" fill="#4BBCFF" opacity="0.5"></circle>
+        <path d="M 255 290 C 240 305, 215 315, 195 330" fill="none" stroke="#8ea3bd" stroke-opacity="0.35" stroke-width="1.5"></path>
+        <circle cx="255" cy="290" r="3" fill="#8ea3bd" opacity="0.45"></circle><circle cx="195" cy="330" r="3" fill="#8ea3bd" opacity="0.45"></circle>
+        <path d="M 300 368 C 390 392, 465 422, 542 447" fill="none" stroke="#8ea3bd" stroke-opacity="0.35" stroke-width="1.5"></path>
+        <circle cx="300" cy="368" r="3" fill="#8ea3bd" opacity="0.45"></circle><circle cx="542" cy="447" r="3" fill="#8ea3bd" opacity="0.45"></circle>
+        <path d="M 950 302 C 970 303, 982 306, 1000 309" fill="none" stroke="#B388FF" stroke-opacity="0.5" stroke-width="1.5" stroke-dasharray="5 4"></path>
+        <circle cx="950" cy="302" r="3" fill="#B388FF" opacity="0.5"></circle><circle cx="1000" cy="309" r="3" fill="#B388FF" opacity="0.5"></circle>
+        <path d="M 795 180 C 760 202, 700 218, 638 233" fill="none" stroke="#4BBCFF" stroke-opacity="0.75" stroke-width="1.5" stroke-dasharray="6 5"></path>
+        <circle cx="795" cy="180" r="4" fill="#081524" stroke="#4BBCFF" stroke-width="1.5"></circle>
+        <circle cx="634" cy="236" r="6" fill="none" stroke="#4BBCFF" stroke-width="1.5" opacity="0.9"></circle>
+        <circle cx="634" cy="236" r="2.5" fill="#4BBCFF"></circle>
+      </svg>
+
+      <!-- edge-drag in progress: cursor + hint -->
+      <div style="position:absolute; left:664px; top:206px; z-index:6; pointer-events:none;">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="#e6eef7" stroke="#081524" stroke-width="1"><path d="M3 2 L13 8 L8.5 9.5 L6.5 14 Z"></path></svg>
+        <div style="margin-left:12px; margin-top:-2px; display:inline-flex; align-items:center; gap:6px; padding:3px 9px; background:rgba(15,29,49,0.96); border:1px solid rgba(75,188,255,0.35); border-radius:999px; white-space:nowrap;">
+          <span style="font-size:10px; font-weight:600; color:#4BBCFF;">release to connect</span>
+          <span style="font:9px 'IBM Plex Mono',monospace; color:#5c6b80;">esc cancels · L labels</span>
+        </div>
+      </div>
+
+      <!-- ── Group: State layer ── -->
+      <div style="position:absolute; left:520px; top:210px; width:430px; height:330px; border:1.5px dashed rgba(75,188,255,0.35); border-radius:14px; background:rgba(75,188,255,0.03);">
+        <span style="position:absolute; top:-10px; left:14px; padding:1px 10px; border-radius:999px; background:#0a1729; border:1px solid rgba(75,188,255,0.35); font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; color:#4BBCFF;">State layer</span>
+        <div style="position:absolute; left:22px; top:26px; width:185px; height:130px; display:flex; flex-direction:column; background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.3); overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5"><rect x="1.5" y="3" width="13" height="10" rx="1.5"></rect><path d="M4 10.5 L4 5.5 L6 8 L8 5.5 L8 10.5"></path></svg>
+            <span style="flex:1; font-size:11px; font-weight:600; color:#c7d3ea; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">canvas-store</span>
+            <span style="color:#5c6b80; font-size:12px; cursor:pointer;">⋯</span>
+          </div>
+          <div style="flex:1; padding:9px 12px; font-size:10.5px; line-height:1.55; color:#c7d3ea;">Single source of truth. Nodes, edges, viewport. Mutations flow through the ops registry only.</div>
+        </div>
+        <!-- freshly written by external agent: settled highlight -->
+        <div style="position:absolute; left:225px; top:26px; width:185px; height:130px; display:flex; flex-direction:column; background:#0f1d31; border:1px solid rgba(179,136,255,0.45); border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.3); overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5"><rect x="1.5" y="3" width="13" height="10" rx="1.5"></rect><path d="M4 10.5 L4 5.5 L6 8 L8 5.5 L8 10.5"></path></svg>
+            <span style="flex:1; font-size:11px; font-weight:600; color:#c7d3ea; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">sse-bridge</span>
+            <span style="font-size:9px; font-weight:600; padding:2px 7px; border-radius:999px; background:rgba(179,136,255,0.12); color:#B388FF; white-space:nowrap;">just written</span>
+          </div>
+          <div style="flex:1; padding:9px 12px; font-size:10.5px; line-height:1.55; color:#c7d3ea;">Server push → store. Seq-cursor resync on restart. Snapshot fallback when the cursor goes stale.</div>
+        </div>
+        <div style="position:absolute; left:22px; top:172px; width:388px; height:130px; display:flex; flex-direction:column; background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.3); overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#2fd07f" stroke-width="1.5"><circle cx="8" cy="8" r="6"></circle><path d="M5.5 8 L7.2 9.8 L10.8 6"></path></svg>
+            <span style="flex:1; font-size:11px; font-weight:600; color:#c7d3ea;">Store health</span>
+            <span style="font-size:9px; font-weight:600; padding:2px 7px; border-radius:999px; background:rgba(47,208,127,0.15); color:#2fd07f;">live</span>
+          </div>
+          <div style="flex:1; padding:10px 14px; display:flex; gap:10px;">
+            <div style="flex:1; padding:8px 10px; border:1px solid #1b2c44; border-radius:8px; background:rgba(8,21,36,0.55);"><div style="font-size:9px; color:#5c6b80;">Nodes</div><div style="font:700 15px 'IBM Plex Mono',monospace; color:#4BBCFF;">143</div></div>
+            <div style="flex:1; padding:8px 10px; border:1px solid #1b2c44; border-radius:8px; background:rgba(8,21,36,0.55);"><div style="font-size:9px; color:#5c6b80;">SSE lag</div><div style="font:700 15px 'IBM Plex Mono',monospace; color:#2fd07f;">12ms</div></div>
+            <div style="flex:1; padding:8px 10px; border:1px solid #1b2c44; border-radius:8px; background:rgba(8,21,36,0.55);"><div style="font-size:9px; color:#5c6b80;">Undo depth</div><div style="font:700 15px 'IBM Plex Mono',monospace; color:#c7d3ea;">38</div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── auto-ghost: proposed node from external writer ── -->
+      <sc-if value="{{ ghostVisible }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute; left:1000px; top:250px; width:210px; opacity:0.8;">
+        <div style="height:118px; border:1.5px dashed rgba(179,136,255,0.6); border-radius:12px; background:rgba(179,136,255,0.05); display:flex; flex-direction:column; overflow:hidden;">
+          <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; border-bottom:1px dashed rgba(179,136,255,0.3);">
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="#B388FF" stroke-width="1.5"><rect x="1.5" y="3" width="13" height="10" rx="1.5"></rect><path d="M4 10.5 L4 5.5 L6 8 L8 5.5 L8 10.5"></path></svg>
+            <span style="flex:1; font-size:11px; font-weight:600; color:#B388FF; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">ledger-flow</span>
+            <span style="font-size:9px; font-weight:600; padding:2px 7px; border-radius:999px; border:1px dashed rgba(179,136,255,0.5); color:#B388FF;">proposed</span>
+          </div>
+          <div style="flex:1; padding:8px 12px; font-size:10.5px; line-height:1.5; color:#8ea3bd;">How ledger entries flow through the ops registry into the store.</div>
+        </div>
+        <div style="margin-top:5px; font-size:10px; line-height:1.45; color:#8ea3bd;"><span style="color:#B388FF;">claude-code</span>: documenting the ledger path next to the state group</div>
+        <div style="margin-top:3px; font:9px 'IBM Plex Mono',monospace; color:#5c6b80;">hover · Esc to veto · lands in 8s</div>
+      </div>
+      </sc-if>
+
+      <!-- ── Webpage node (source of the edge drag) ── -->
+      <div style="position:absolute; left:640px; top:70px; width:310px; height:110px; display:flex; flex-direction:column; background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.3); overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#2fd07f" stroke-width="1.5"><circle cx="8" cy="8" r="6"></circle><path d="M2 8 H14 M8 2 C 5.5 5, 5.5 11, 8 14 C 10.5 11, 10.5 5, 8 2 Z"></path></svg>
+          <span style="flex:1; font:11px 'IBM Plex Mono',monospace; color:#8ea3bd; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">signals.dev/deep-dive</span>
+          <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="#5c6b80" stroke-width="1.5" stroke-linecap="round"><path d="M6 3 H3 V13 H13 V10"></path><path d="M9 2 H14 V7 M14 2 L7.5 8.5"></path></svg>
+        </div>
+        <div style="flex:1; padding:10px 14px;">
+          <div style="font-size:12px; font-weight:600; color:#e6eef7;">Signals and fine-grained reactivity</div>
+          <div style="margin-top:3px; font-size:10.5px; line-height:1.5; color:#8ea3bd;">Reference reading for the delta-subscription model.</div>
+        </div>
+      </div>
+
+      <!-- ── Markdown node: proposal notes ── -->
+      <div style="position:absolute; left:90px; top:80px; width:330px; height:210px; display:flex; flex-direction:column; background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.3); overflow:hidden;">
+        <div style="display:flex; align-items:center; gap:8px; padding:7px 12px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5"><rect x="1.5" y="3" width="13" height="10" rx="1.5"></rect><path d="M4 10.5 L4 5.5 L6 8 L8 5.5 L8 10.5"></path></svg>
+          <span style="flex:1; font-size:12px; font-weight:600; color:#c7d3ea;">Reactive canvas — proposal</span>
+          <span style="color:#5c6b80; font-size:12px; cursor:pointer;">⋯</span>
+        </div>
+        <div style="flex:1; padding:12px 16px; overflow:hidden;">
+          <div style="font-size:15px; font-weight:700; letter-spacing:-0.01em;">Why reactive nodes?</div>
+          <div style="margin-top:6px; font-size:11px; line-height:1.6; color:#c7d3ea;">Surfaces should re-render from data, not be repainted by hand. A node declares its inputs; the store pushes deltas; the surface stays live.</div>
+          <ul style="margin:8px 0 0; padding-left:16px; font-size:11px; line-height:1.7; color:#8ea3bd;">
+            <li>Declarative bindings over imperative repaint</li>
+            <li>One delta path shared with the SSE bridge</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- ── File node ── -->
+      <div style="position:absolute; left:90px; top:330px; width:210px; height:76px; display:flex; align-items:center; gap:12px; padding:0 14px; background:#0f1d31; border:1px solid #1b2c44; border-radius:12px; box-shadow:0 4px 24px rgba(0,0,0,0.3);">
+        <span style="display:flex; width:36px; height:36px; align-items:center; justify-content:center; border-radius:9px; background:rgba(75,188,255,0.1); flex-shrink:0;"><svg width="17" height="17" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5" stroke-linejoin="round"><path d="M4 1.5 H9.5 L13 5 V14.5 H4 Z"></path><path d="M9.5 1.5 V5 H13"></path></svg></span>
+        <div style="min-width:0;">
+          <div style="font-size:12px; font-weight:600; color:#c7d3ea; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">reactive-canvas-proposal.md</div>
+          <div style="font:10px 'IBM Plex Mono',monospace; color:#5c6b80;">docs · 18 KB</div>
+        </div>
+      </div>
+
+      <!-- minimap: true-scale node map · hover to magnify · click to jump -->
+      <div title="Click to jump · drag the frame to pan" style="position:absolute; bottom:18px; right:16px; width:168px; height:112px; border:1px solid #1b2c44; border-radius:8px; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,0.35); background:rgba(10,23,41,0.94); backdrop-filter:blur(8px); z-index:60; opacity:0.85; transform-origin:bottom right; transition:transform 160ms ease, opacity 120ms ease; cursor:crosshair;" style-hover="opacity:1; transform:scale(1.7); box-shadow:0 12px 40px rgba(0,0,0,0.55)">
+        <div style="position:absolute; left:4px; top:5px; width:43px; height:27px; background:#4BBCFF; opacity:0.45; border-radius:1.5px;"></div>
+        <div style="position:absolute; left:4px; top:38px; width:27px; height:10px; background:#8ea3bd; opacity:0.4; border-radius:1.5px;"></div>
+        <div style="position:absolute; left:75px; top:4px; width:40px; height:14px; background:#2fd07f; opacity:0.4; border-radius:1.5px;"></div>
+        <div style="position:absolute; left:60px; top:22px; width:56px; height:43px; border:1px dashed rgba(75,188,255,0.55); border-radius:2px; background:rgba(75,188,255,0.04);"></div>
+        <div style="position:absolute; left:63px; top:25px; width:24px; height:17px; background:#4BBCFF; opacity:0.45; border-radius:1.5px;"></div>
+        <div style="position:absolute; left:92px; top:25px; width:24px; height:17px; background:#B388FF; opacity:0.55; border-radius:1.5px;"></div>
+        <div style="position:absolute; left:63px; top:44px; width:50px; height:17px; background:#2fd07f; opacity:0.45; border-radius:1.5px;"></div>
+        <div style="position:absolute; left:122px; top:27px; width:27px; height:15px; border:1px dashed rgba(179,136,255,0.75); border-radius:1.5px; background:rgba(179,136,255,0.06);"></div>
+        <span style="position:absolute; left:134px; top:24px; width:5px; height:5px; border-radius:50%; background:#B388FF; animation:extPulse 1.4s ease-in-out infinite;"></span>
+        <div style="position:absolute; left:2px; top:2px; width:152px; height:94px; border:1.5px solid rgba(75,188,255,0.85); border-radius:2px; background:rgba(75,188,255,0.05); cursor:grab;"></div>
+        <span style="position:absolute; right:5px; bottom:3px; font:8px 'IBM Plex Mono',monospace; color:#5c6b80;">{{ zoomLabel }}</span>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:860},&quot;feedOpen&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;External writers&quot;},&quot;showGhost&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;External writers&quot;}}">
+class Component extends DCLogic {
+  state = { zoom: 100, feedOpen: true, vetoed: false, filter: 'all', permsOpen: false };
+  renderVals() {
+    const s = this.state;
+    const on = (w) => s.filter === 'all' || s.filter === w;
+    const chip = (w) => ({
+      bg: s.filter === w ? 'rgba(179,136,255,0.18)' : 'transparent',
+      color: s.filter === w ? '#B388FF' : '#8ea3bd',
+      border: s.filter === w ? 'rgba(179,136,255,0.45)' : '#1b2c44',
+    });
+    const a = chip('all'), c = chip('claude-code'), r = chip('research-bot'), m = chip('mcp-sync');
+    return {
+      zoomLabel: s.zoom + '%',
+      zoomIn: () => this.setState({ zoom: Math.min(400, Math.round(s.zoom * 1.25)) }),
+      zoomOut: () => this.setState({ zoom: Math.max(10, Math.round(s.zoom / 1.25)) }),
+      feedOpen: (this.props.feedOpen ?? true) && s.feedOpen,
+      toggleFeed: () => this.setState({ feedOpen: !s.feedOpen }),
+      pendingRowOn: !s.vetoed && on('claude-code'),
+      vetoedRowOn: s.vetoed && on('claude-code'),
+      fCC: on('claude-code'), fRB: on('research-bot'), fMS: on('mcp-sync'),
+      ghostVisible: (this.props.showGhost ?? true) && !s.vetoed,
+      vetoPending: () => this.setState({ vetoed: true }),
+      permsOpen: s.permsOpen,
+      openPerms: () => this.setState({ permsOpen: true }),
+      closePerms: () => this.setState({ permsOpen: false }),
+      setFilterAll: () => this.setState({ filter: 'all' }),
+      setFilterCC: () => this.setState({ filter: 'claude-code' }),
+      setFilterRB: () => this.setState({ filter: 'research-bot' }),
+      setFilterMS: () => this.setState({ filter: 'mcp-sync' }),
+      aBg: a.bg, aColor: a.color, aBorder: a.border,
+      cBg: c.bg, cColor: c.color, cBorder: c.border,
+      rBg: r.bg, rColor: r.color, rBorder: r.border,
+      mBg: m.bg, mColor: m.color, mBorder: m.border,
+    };
+  }
+}
+</script>
+</body>
+</html>

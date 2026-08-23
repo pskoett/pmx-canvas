@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+@keyframes pmx-pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+body { margin:0; background:#081524; font-family:"IBM Plex Sans",system-ui,sans-serif; }
+a { color:#4BBCFF; text-decoration:none; } a:hover { text-decoration:underline; }
+</style>
+</helmet>
+<div style="width:100%; overflow:hidden;">
+<div data-screen-label="Workbench (current)" ref="{{ stageRef }}" style="position:relative; width:1600px; height:900px; transform-origin:0 0; overflow:hidden; background-color:#081524; background-image:linear-gradient(180deg,rgba(255,255,255,0.02),rgba(0,0,0,0)),radial-gradient(circle,rgba(75,188,255,0.08) 1px,transparent 1px); background-size:auto,24px 24px; color:#e6eef7; font:14px/1.55 'IBM Plex Sans',system-ui,sans-serif; -webkit-font-smoothing:antialiased;">
+
+  <!-- focus field warm glow behind pinned cluster -->
+  <div style="position:absolute; left:380px; top:70px; width:740px; height:560px; pointer-events:none; background:radial-gradient(circle at 30% 35%, rgba(244,197,66,0.13), transparent 62%), linear-gradient(135deg, rgba(244,197,66,0.07), rgba(75,188,255,0.04)); border:1px solid rgba(244,197,66,0.18); filter:blur(18px); opacity:.8;"></div>
+
+  <!-- edge layer -->
+  <svg style="position:absolute; inset:0; width:100%; height:100%; pointer-events:none;" aria-hidden="true">
+    <path d="M 760 340 C 780 300, 800 280, 830 250" fill="none" stroke="#4BBCFF" stroke-opacity="0.35" stroke-width="1.5" stroke-dasharray="5 4"></path>
+    <path d="M 938 258 C 920 300, 890 330, 870 352" fill="none" stroke="#4BBCFF" stroke-opacity="0.3" stroke-width="1.5"></path>
+    <path d="M 762 594 C 790 600, 830 605, 860 612" fill="none" stroke="#8ea3bd" stroke-opacity="0.3" stroke-width="1.5" stroke-dasharray="5 4"></path>
+    <path d="M 540 520 C 530 550, 525 580, 522 606" fill="none" stroke="#5c6b80" stroke-opacity="0.3" stroke-width="1.5"></path>
+    <path d="M 700 760 C 690 775, 680 785, 672 794" fill="none" stroke="#8ea3bd" stroke-opacity="0.3" stroke-width="1.5" stroke-dasharray="5 4"></path>
+  </svg>
+
+  <!-- ═══ Group frame: Structured UI Surfaces ═══ -->
+  <div style="position:absolute; left:402px; top:82px; width:702px; height:730px; border:2px dashed rgba(244,197,66,0.6); border-radius:12px; background:rgba(244,197,66,0.02);">
+    <div style="position:absolute; top:-11px; left:10px; display:flex; align-items:center; gap:6px; padding:2px 8px; background:#0f1d31; border:1px solid #1b2c44; border-radius:6px; font-size:10px; color:#8ea3bd;">
+      <span style="padding:0 5px; border-radius:4px; background:rgba(244,197,66,0.15); color:#f4c542; text-transform:uppercase; letter-spacing:0.04em; font-weight:600;">Group</span>
+      <span style="font-weight:600; color:#c7d3ea;">Structured UI Surfaces</span>
+    </div>
+    <div style="position:absolute; top:8px; left:12px; font-size:10px; color:#8ea3bd;"><b style="color:#f4c542;">11 nodes</b> · 1 mcp-app, 7 json-render, 3 graph</div>
+  </div>
+
+  <!-- ═══ SDLC Control Room (pinned) ═══ -->
+  <div data-screen-label="Control Room node" style="position:absolute; left:422px; top:112px; width:392px; height:246px; display:flex; flex-direction:column; overflow:hidden; background:#0f1d31; border:1px solid rgba(244,197,66,0.6); border-radius:10px; box-shadow:0 0 0 2px #f4c542, 0 0 8px rgba(244,197,66,0.3);">
+    <div style="display:flex; align-items:center; gap:8px; padding:6px 10px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44; flex-shrink:0;">
+      <span style="font-size:9px; padding:1px 6px; border-radius:4px; background:rgba(244,197,66,0.15); color:#f4c542; text-transform:uppercase; letter-spacing:0.04em; font-weight:600;">App</span>
+      <span style="flex:1; min-width:0; font-size:11px; font-weight:600; color:#8ea3bd; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">SDLC Control Room Artifact</span>
+      <span style="color:#f4c542; font-size:10px;">✦</span>
+      <span style="display:flex; gap:4px; color:#8ea3bd; font-size:11px;"><span>⤢</span><span>↗</span><span>—</span><span>×</span></span>
+    </div>
+    <div style="flex:1; overflow:hidden; padding:14px 16px; background:linear-gradient(160deg, rgba(47,208,127,0.05), rgba(8,21,36,0.4));">
+      <div style="font:600 8px 'IBM Plex Mono',monospace; letter-spacing:0.14em; text-transform:uppercase; color:#f4c542;">Published Consumer Fixture</div>
+      <div style="margin-top:4px; font-size:21px; font-weight:700; letter-spacing:-0.01em; color:#e6eef7;">Delivery Control Room</div>
+      <div style="margin-top:4px; font-size:10px; line-height:1.5; color:#8ea3bd;">A deliberately dense SDLC cockpit built through the packaged PMX Canvas API, rendered as a bundled artifact, and backed by synthetic release telemetry.</div>
+      <div style="margin-top:10px; padding:8px 12px; border:1px solid #1b2c44; border-radius:8px; background:rgba(8,21,36,0.55);">
+        <div style="font:600 7px 'IBM Plex Mono',monospace; letter-spacing:0.12em; text-transform:uppercase; color:#5c6b80;">Release Posture</div>
+        <div style="font-size:11px; font-weight:700; color:#e6eef7;">Steady with queue pressure</div>
+      </div>
+      <div style="margin-top:8px; padding:8px 12px; border:1px solid #1b2c44; border-radius:8px; background:rgba(8,21,36,0.55);">
+        <div style="font-size:8px; color:#5c6b80;">Median lead time</div>
+        <div style="font-size:16px; font-weight:700; color:#4BBCFF;">19h</div>
+        <div style="font-size:9px; color:#8ea3bd;">Queueing still dominates the tail.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Lead Time Trend ═══ -->
+  <div style="position:absolute; left:832px; top:112px; width:212px; height:168px; display:flex; flex-direction:column; overflow:hidden; background:#0f1d31; border:1px solid #1b2c44; border-radius:10px; box-shadow:0 4px 24px rgba(0,0,0,0.3);">
+    <div style="display:flex; align-items:center; gap:6px; padding:5px 10px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+      <span style="font-size:9px; padding:1px 6px; border-radius:4px; background:rgba(176,122,255,0.15); color:#b07aff; text-transform:uppercase; font-weight:600;">Graph</span>
+      <span style="flex:1; font-size:11px; font-weight:600; color:#8ea3bd; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">Lead Time Trend</span>
+      <span style="display:flex; gap:4px; color:#8ea3bd; font-size:11px;"><span>⤢</span><span>—</span><span>×</span></span>
+    </div>
+    <div style="flex:1; padding:10px 12px; background:#0a1729;">
+      <div style="font-size:11px; font-weight:600; color:#e6eef7;">Lead Time Trend</div>
+      <svg viewBox="0 0 180 90" style="width:100%; height:86px; margin-top:6px;">
+        <text x="2" y="14" fill="#5c6b80" font-size="7">26</text>
+        <text x="2" y="50" fill="#5c6b80" font-size="7">21</text>
+        <text x="2" y="86" fill="#5c6b80" font-size="7">14</text>
+        <polyline points="18,18 50,28 85,38 120,44 158,48" fill="none" stroke="#f4c542" stroke-width="1.5"></polyline>
+        <circle cx="18" cy="18" r="2.4" fill="#f4c542"></circle><circle cx="50" cy="28" r="2.4" fill="#f4c542"></circle><circle cx="85" cy="38" r="2.4" fill="#f4c542"></circle><circle cx="120" cy="44" r="2.4" fill="#f4c542"></circle><circle cx="158" cy="48" r="2.4" fill="#f4c542"></circle>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ═══ Defects by Stage (pinned) ═══ -->
+  <div style="position:absolute; left:422px; top:372px; width:222px; height:170px; display:flex; flex-direction:column; overflow:hidden; background:#0f1d31; border:1px solid rgba(244,197,66,0.6); border-radius:10px; box-shadow:0 0 0 2px #f4c542, 0 0 8px rgba(244,197,66,0.3);">
+    <div style="display:flex; align-items:center; gap:6px; padding:5px 10px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+      <span style="font-size:9px; padding:1px 6px; border-radius:4px; background:rgba(244,197,66,0.15); color:#f4c542; text-transform:uppercase; font-weight:600;">Graph</span>
+      <span style="flex:1; font-size:11px; font-weight:600; color:#8ea3bd;">Defects by Stage</span>
+      <span style="color:#f4c542; font-size:10px;">✦</span>
+      <span style="display:flex; gap:4px; color:#8ea3bd; font-size:11px;"><span>⤢</span><span>—</span><span>×</span></span>
+    </div>
+    <div style="flex:1; padding:10px 12px; background:#0a1729;">
+      <div style="font-size:11px; font-weight:600; color:#e6eef7;">Defects by Stage</div>
+      <svg viewBox="0 0 190 95" style="width:100%; height:92px; margin-top:4px;">
+        <text x="2" y="12" fill="#5c6b80" font-size="7">20</text>
+        <text x="2" y="45" fill="#5c6b80" font-size="7">15</text>
+        <text x="2" y="80" fill="#5c6b80" font-size="7">9</text>
+        <rect x="22" y="35" width="20" height="55" fill="#f4795b"></rect>
+        <rect x="52" y="45" width="20" height="45" fill="#f4795b"></rect>
+        <rect x="82" y="22" width="20" height="68" fill="#f4795b"></rect>
+        <rect x="112" y="42" width="20" height="48" fill="#f4795b"></rect>
+        <rect x="142" y="72" width="20" height="18" fill="#f4795b"></rect>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ═══ Control Tower Widgets (pinned) ═══ -->
+  <div style="position:absolute; left:656px; top:372px; width:214px; height:246px; display:flex; flex-direction:column; overflow:hidden; background:#0f1d31; border:1px solid rgba(244,197,66,0.6); border-radius:10px; box-shadow:0 0 0 2px #f4c542, 0 0 8px rgba(244,197,66,0.3);">
+    <div style="display:flex; align-items:center; gap:6px; padding:5px 10px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+      <span style="font-size:9px; padding:1px 6px; border-radius:4px; background:rgba(244,197,66,0.15); color:#f4c542; text-transform:uppercase; font-weight:600;">JR</span>
+      <span style="flex:1; font-size:11px; font-weight:600; color:#8ea3bd;">Control Tower Widgets</span>
+      <span style="color:#f4c542; font-size:10px;">✦</span>
+      <span style="display:flex; gap:4px; color:#8ea3bd; font-size:11px;"><span>⤢</span><span>—</span><span>×</span></span>
+    </div>
+    <div style="flex:1; overflow:hidden; padding:10px 12px; display:flex; flex-direction:column; gap:7px;">
+      <div style="font-size:11px; font-weight:600; color:#e6eef7;">Control Tower Widgets</div>
+      <div style="font-size:8.5px; color:#5c6b80;">Synthetic SDLC telemetry rendered with native json-render components.</div>
+      <div style="font-size:10px; line-height:1.45; color:#c7d3ea;">Lead time is improving, but integration queue volatility is still the gating constraint.</div>
+      <div style="display:flex; flex-wrap:wrap; gap:4px;">
+        <span style="font-size:7.5px; padding:2px 6px; border-radius:999px; background:rgba(47,208,127,0.15); color:#2fd07f; border:1px solid rgba(47,208,127,0.25);">Release train green</span>
+        <span style="font-size:7.5px; padding:2px 6px; border-radius:999px; background:rgba(255,255,255,0.04); color:#8ea3bd; border:1px solid #1b2c44;">Queue variance high</span>
+        <span style="font-size:7.5px; padding:2px 6px; border-radius:999px; background:rgba(255,255,255,0.04); color:#8ea3bd; border:1px solid #1b2c44;">Rollback rehearsed</span>
+      </div>
+      <div style="padding:6px 8px; border-radius:6px; background:rgba(244,120,66,0.12); border:1px solid rgba(244,120,66,0.4);">
+        <div style="font-size:9px; font-weight:600; color:#f49466;">Integration queue saturation</div>
+        <div style="font-size:8px; color:#c7d3ea;">Checkout and identity both exceeded the synthetic retry budget during the last rehearsal.</div>
+      </div>
+      <div style="font-size:8.5px; color:#8ea3bd;">78% of release gates are passing on the first attempt</div>
+      <div style="height:4px; border-radius:2px; background:#1b2c44; overflow:hidden;"><div style="width:78%; height:100%; background:#4BBCFF;"></div></div>
+      <div style="font-size:8px; color:#8ea3bd;">
+        <div style="display:grid; grid-template-columns:1fr 1fr 0.7fr 0.6fr; gap:2px 6px; border-bottom:1px solid #1b2c44; padding-bottom:2px; color:#5c6b80;"><span>Gate</span><span>Owner</span><span>Status</span><span>Delta</span></div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 0.7fr 0.6fr; gap:2px 6px; padding-top:2px;"><span>Compile</span><span>Platform</span><span style="color:#2fd07f;">Pass</span><span>+1m</span></div>
+        <div style="display:grid; grid-template-columns:1fr 1fr 0.7fr 0.6fr; gap:2px 6px;"><span>Unit tests</span><span>Checkout</span><span style="color:#2fd07f;">Pass</span><span>-12%</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ Release Gate Intake ═══ -->
+  <div style="position:absolute; left:882px; top:372px; width:208px; height:246px; display:flex; flex-direction:column; overflow:hidden; background:#0f1d31; border:1px solid #1b2c44; border-radius:10px; box-shadow:0 4px 24px rgba(0,0,0,0.3);">
+    <div style="display:flex; align-items:center; gap:6px; padding:5px 10px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+      <span style="font-size:9px; padding:1px 6px; border-radius:4px; background:rgba(75,188,255,0.12); color:#4BBCFF; text-transform:uppercase; font-weight:600;">JR</span>
+      <span style="flex:1; font-size:11px; font-weight:600; color:#8ea3bd;">Release Gate Intake</span>
+      <span style="display:flex; gap:4px; color:#8ea3bd; font-size:11px;"><span>⤢</span><span>—</span><span>×</span></span>
+    </div>
+    <div style="flex:1; overflow:hidden; padding:10px 12px; display:flex; flex-direction:column; gap:6px;">
+      <div style="font-size:11px; font-weight:600; color:#e6eef7;">Release Gate Intake</div>
+      <div style="font-size:8px; line-height:1.4; color:#5c6b80;">Interactive control inputs for the published-consumer test surface. This node intentionally covers a broad set of json-render form controls.</div>
+      <div style="font-size:8.5px; color:#8ea3bd;">Change ticket</div>
+      <div style="padding:4px 8px; border:1px solid #1b2c44; border-radius:5px; background:#0a1729; font:9px 'IBM Plex Mono',monospace; color:#c7d3ea;">REL-421</div>
+      <div style="font-size:8.5px; color:#8ea3bd;">Operator notes</div>
+      <div style="padding:4px 8px; border:1px solid #1b2c44; border-radius:5px; background:#0a1729; font-size:8.5px; color:#5c6b80;">Describe the current release posture</div>
+      <div style="font-size:8.5px; color:#8ea3bd;">Target environment</div>
+      <div style="display:flex; justify-content:space-between; align-items:center; padding:4px 8px; border:1px solid #1b2c44; border-radius:5px; background:#0a1729; font-size:8.5px; color:#5c6b80;"><span>Choose environment</span><span>▾</span></div>
+      <div style="font-size:8.5px; color:#8ea3bd;">Risk band</div>
+      <div style="display:flex; flex-direction:column; gap:2px; font-size:8.5px; color:#c7d3ea;">
+        <span style="display:flex; align-items:center; gap:5px;"><span style="width:8px; height:8px; border-radius:50%; border:1px solid #4BBCFF; background:#4BBCFF; box-shadow:inset 0 0 0 2px #0f1d31;"></span>low</span>
+        <span style="display:flex; align-items:center; gap:5px;"><span style="width:8px; height:8px; border-radius:50%; border:1px solid #5c6b80;"></span>medium</span>
+        <span style="display:flex; align-items:center; gap:5px;"><span style="width:8px; height:8px; border-radius:50%; border:1px solid #5c6b80;"></span>high</span>
+      </div>
+      <div style="display:flex; justify-content:space-between; align-items:center; font-size:8.5px; color:#8ea3bd;"><span>Release freeze override</span><span style="width:20px; height:11px; border-radius:6px; background:#1b2c44; position:relative;"><span style="position:absolute; left:1px; top:1px; width:9px; height:9px; border-radius:50%; background:#5c6b80;"></span></span></div>
+    </div>
+  </div>
+
+  <!-- ═══ Operational Load ═══ -->
+  <div style="position:absolute; left:422px; top:632px; width:222px; height:170px; display:flex; flex-direction:column; overflow:hidden; background:#0f1d31; border:1px solid #1b2c44; border-radius:10px; box-shadow:0 4px 24px rgba(0,0,0,0.3);">
+    <div style="display:flex; align-items:center; gap:6px; padding:5px 10px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+      <span style="font-size:9px; padding:1px 6px; border-radius:4px; background:rgba(176,122,255,0.15); color:#b07aff; text-transform:uppercase; font-weight:600;">Graph</span>
+      <span style="flex:1; font-size:11px; font-weight:600; color:#8ea3bd;">Operational Load</span>
+      <span style="display:flex; gap:4px; color:#8ea3bd; font-size:11px;"><span>⤢</span><span>—</span><span>×</span></span>
+    </div>
+    <div style="flex:1; padding:8px 12px; background:#0a1729;">
+      <div style="font-size:11px; font-weight:600; color:#e6eef7;">Operational Load</div>
+      <svg viewBox="0 0 190 100" style="width:100%; height:96px;">
+        <g transform="translate(85,52)">
+          <path d="M0 -34 A34 34 0 0 1 32 -11 L0 0 Z" fill="#4B9BFF"></path>
+          <path d="M32 -11 A34 34 0 0 1 21 27 L0 0 Z" fill="#b07aff"></path>
+          <path d="M21 27 A34 34 0 0 1 -21 27 L0 0 Z" fill="#f4795b"></path>
+          <path d="M-21 27 A34 34 0 0 1 -33 -8 L0 0 Z" fill="#2fd07f"></path>
+          <path d="M-33 -8 A34 34 0 0 1 0 -34 L0 0 Z" fill="#f4c542"></path>
+        </g>
+        <text x="128" y="18" fill="#8ea3bd" font-size="7">34</text>
+        <text x="18" y="42" fill="#8ea3bd" font-size="7">22</text>
+        <text x="42" y="94" fill="#8ea3bd" font-size="7">18</text>
+        <text x="102" y="97" fill="#8ea3bd" font-size="7">16</text>
+        <text x="140" y="72" fill="#8ea3bd" font-size="7">10</text>
+      </svg>
+    </div>
+  </div>
+
+  <!-- ═══ Service Readiness Matrix ═══ -->
+  <div style="position:absolute; left:656px; top:632px; width:434px; height:148px; display:flex; flex-direction:column; overflow:hidden; background:#0f1d31; border:1px solid #1b2c44; border-radius:10px; box-shadow:0 4px 24px rgba(0,0,0,0.3);">
+    <div style="display:flex; align-items:center; gap:6px; padding:5px 10px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+      <span style="font-size:9px; padding:1px 6px; border-radius:4px; background:rgba(75,188,255,0.12); color:#4BBCFF; text-transform:uppercase; font-weight:600;">JR</span>
+      <span style="flex:1; font-size:11px; font-weight:600; color:#8ea3bd;">Service Readiness Matrix</span>
+      <span style="display:flex; gap:4px; color:#8ea3bd; font-size:11px;"><span>⤢</span><span>—</span><span>×</span></span>
+    </div>
+    <div style="flex:1; overflow:hidden; padding:8px 12px;">
+      <div style="font-size:11px; font-weight:600; color:#e6eef7;">Service Readiness Matrix</div>
+      <div style="font-size:8px; color:#5c6b80; margin-bottom:4px;">Compact structured panel that turns fake service posture into a quick scan table.</div>
+      <div style="display:grid; grid-template-columns:1fr 0.8fr 2.6fr; gap:1px 10px; font-size:8.5px;">
+        <span style="color:#5c6b80; border-bottom:1px solid #1b2c44; padding-bottom:2px;">Service</span><span style="color:#5c6b80; border-bottom:1px solid #1b2c44;">Readiness</span><span style="color:#5c6b80; border-bottom:1px solid #1b2c44;">Note</span>
+        <span style="color:#c7d3ea; padding-top:2px;">Checkout</span><span style="color:#f4c542;">68%</span><span style="color:#8ea3bd;">Integration retries elevated on coupon paths.</span>
+        <span style="color:#c7d3ea;">Identity</span><span style="color:#f4c542;">74%</span><span style="color:#8ea3bd;">Contract drift from token refresh branch.</span>
+        <span style="color:#c7d3ea;">Catalog</span><span style="color:#2fd07f;">88%</span><span style="color:#8ea3bd;">Healthy after index rebuild.</span>
+        <span style="color:#c7d3ea;">Observability</span><span style="color:#2fd07f;">93%</span><span style="color:#8ea3bd;">Rollback and alerting posture both green.</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- bottom cut-off nodes -->
+  <div style="position:absolute; left:422px; top:818px; width:200px; height:60px; background:#0f1d31; border:1px solid #1b2c44; border-radius:10px 10px 0 0; overflow:hidden;">
+    <div style="display:flex; align-items:center; gap:6px; padding:5px 10px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+      <span style="font-size:9px; padding:1px 6px; border-radius:4px; background:rgba(75,188,255,0.12); color:#4BBCFF; text-transform:uppercase; font-weight:600;">UI</span>
+      <span style="flex:1; font-size:11px; font-weight:600; color:#8ea3bd;">User Profile Card</span>
+      <span style="display:flex; gap:4px; color:#8ea3bd; font-size:11px;"><span>⤢</span><span>—</span><span>×</span></span>
+    </div>
+  </div>
+  <div style="position:absolute; left:656px; top:818px; width:200px; height:60px; background:#0f1d31; border:1px solid #1b2c44; border-radius:10px 10px 0 0; overflow:hidden;">
+    <div style="display:flex; align-items:center; gap:6px; padding:5px 10px; background:rgba(8,21,36,0.6); border-bottom:1px solid #1b2c44;">
+      <span style="font-size:9px; padding:1px 6px; border-radius:4px; background:rgba(75,188,255,0.12); color:#4BBCFF; text-transform:uppercase; font-weight:600;">UI</span>
+      <span style="flex:1; font-size:11px; font-weight:600; color:#8ea3bd;">Account Settings</span>
+      <span style="display:flex; gap:4px; color:#8ea3bd; font-size:11px;"><span>⤢</span><span>—</span><span>×</span></span>
+    </div>
+  </div>
+
+  <!-- edge label pills -->
+  <div style="position:absolute; left:770px; top:355px; padding:1px 7px; background:rgba(15,29,49,0.92); border:1px solid #1b2c44; border-radius:5px; font-size:8px; color:#8ea3bd;">summarized as</div>
+  <div style="position:absolute; left:880px; top:622px; padding:1px 7px; background:rgba(15,29,49,0.92); border:1px solid #1b2c44; border-radius:5px; font-size:8px; color:#8ea3bd;">updates readiness</div>
+  <div style="position:absolute; left:640px; top:800px; padding:1px 7px; background:rgba(15,29,49,0.92); border:1px solid #1b2c44; border-radius:5px; font-size:8px; color:#8ea3bd;">persona reference</div>
+
+  <!-- ═══ HUD layer ═══ -->
+  <div style="position:absolute; top:12px; left:12px; right:12px; display:flex; align-items:flex-start; justify-content:center; gap:8px; z-index:50;">
+    <!-- nav toolbar -->
+    <div style="display:flex; align-items:center; gap:6px; padding:6px 10px; min-height:44px; background:rgba(15,29,49,0.92); backdrop-filter:blur(12px); border:1px solid #1b2c44; border-radius:10px;">
+      <span style="display:inline-flex; width:28px; height:28px; align-items:center; justify-content:center; color:#4BBCFF;">
+        <svg width="22" height="22" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="8" y="8" width="48" height="48" rx="7" opacity="0.35"></rect><rect x="16" y="16" width="32" height="32" rx="5" opacity="0.6"></rect><rect x="24" y="24" width="16" height="16" rx="3"></rect><rect x="29" y="29" width="6" height="6" rx="1" fill="currentColor" stroke="none"></rect></svg>
+      </span>
+      <span style="width:1px; height:20px; background:#1b2c44;"></span>
+      <span style="width:8px; height:8px; border-radius:50%; background:#2fd07f;"></span>
+      <span style="font-size:11px; color:#8ea3bd;">pmx-moa8wbrx</span>
+      <span style="width:1px; height:20px; background:#1b2c44;"></span>
+      <button style="background:none; border:1px solid transparent; color:#8ea3bd; padding:6px 10px; border-radius:6px; cursor:pointer; display:flex;" title="Fit canvas"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 5 1 1 5 1"></polyline><polyline points="11 1 15 1 15 5"></polyline><polyline points="15 11 15 15 11 15"></polyline><polyline points="5 15 1 15 1 11"></polyline><rect x="4" y="4" width="8" height="8" rx="1"></rect></svg></button>
+      <button style="background:none; border:1px solid transparent; color:#8ea3bd; padding:6px 10px; border-radius:6px; cursor:pointer; display:flex;" title="Reset view"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="2" y="2" width="12" height="12" rx="2"></rect><line x1="8" y1="4.5" x2="8" y2="6.5"></line><line x1="8" y1="9.5" x2="8" y2="11.5"></line><line x1="4.5" y1="8" x2="6.5" y2="8"></line><line x1="9.5" y1="8" x2="11.5" y2="8"></line><circle cx="8" cy="8" r="1" fill="currentColor" stroke="none"></circle></svg></button>
+      <button style="background:none; border:1px solid transparent; color:#8ea3bd; padding:6px 10px; border-radius:6px; cursor:pointer; display:flex;" title="Zoom in"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14.5" y2="14.5"></line><line x1="5" y1="7" x2="9" y2="7"></line><line x1="7" y1="5" x2="7" y2="9"></line></svg></button>
+      <button style="background:none; border:1px solid transparent; color:#8ea3bd; padding:6px 10px; border-radius:6px; cursor:pointer; display:flex;" title="Zoom out"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14.5" y2="14.5"></line><line x1="5" y1="7" x2="9" y2="7"></line></svg></button>
+      <span style="font-size:10px; color:#5c6b80; min-width:36px; text-align:center;">43%</span>
+      <span style="width:1px; height:20px; background:#1b2c44;"></span>
+      <button style="background:none; border:1px solid transparent; color:#8ea3bd; padding:6px 10px; border-radius:6px; cursor:pointer; display:flex;" title="Arrange layout"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1.5" y="1.5" width="5" height="5" rx="1"></rect><rect x="9.5" y="1.5" width="5" height="5" rx="1"></rect><rect x="1.5" y="9.5" width="5" height="5" rx="1"></rect><rect x="9.5" y="9.5" width="5" height="5" rx="1"></rect><line x1="6.5" y1="4" x2="9.5" y2="4"></line><line x1="6.5" y1="12" x2="9.5" y2="12"></line><line x1="4" y1="6.5" x2="4" y2="9.5"></line><line x1="12" y1="6.5" x2="12" y2="9.5"></line></svg></button>
+      <button style="background:none; border:1px solid transparent; color:#4BBCFF; padding:6px 10px; border-radius:6px; cursor:pointer; display:flex;" title="Minimap"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="1" y="2" width="14" height="12" rx="1.5"></rect><rect x="8" y="7" width="6" height="6" rx="1" fill="currentColor" fill-opacity="0.2"></rect></svg></button>
+      <button style="background:none; border:1px solid transparent; color:#8ea3bd; padding:6px 10px; border-radius:6px; cursor:pointer; display:flex;" title="Theme"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="3"></circle><line x1="8" y1="1" x2="8" y2="3"></line><line x1="8" y1="13" x2="8" y2="15"></line><line x1="1" y1="8" x2="3" y2="8"></line><line x1="13" y1="8" x2="15" y2="8"></line><line x1="3.05" y1="3.05" x2="4.46" y2="4.46"></line><line x1="11.54" y1="11.54" x2="12.95" y2="12.95"></line><line x1="3.05" y1="12.95" x2="4.46" y2="11.54"></line><line x1="11.54" y1="4.46" x2="12.95" y2="3.05"></line></svg></button>
+      <button style="background:none; border:1px solid transparent; color:#8ea3bd; padding:6px 10px; border-radius:6px; cursor:pointer; display:flex;" title="Snapshots"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1" y="4" width="14" height="10" rx="1.5"></rect><path d="M5.5 4 L6.5 2.5 H9.5 L10.5 4"></path><circle cx="8" cy="9" r="2.3"></circle></svg></button>
+    </div>
+    <!-- action toolbar -->
+    <div style="display:flex; align-items:center; gap:6px; padding:6px 10px; min-height:44px; background:rgba(15,29,49,0.92); backdrop-filter:blur(12px); border:1px solid #1b2c44; border-radius:10px;">
+      <button style="background:none; border:1px solid transparent; color:#8ea3bd; padding:6px 10px; border-radius:6px; cursor:pointer; display:flex;" title="Trace"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="8" cy="8" r="6"></circle><circle cx="8" cy="8" r="3"></circle><circle cx="8" cy="8" r="0.8" fill="currentColor" stroke="none"></circle></svg></button>
+      <button style="background:none; border:1px solid transparent; color:#8ea3bd; padding:6px 10px; border-radius:6px; cursor:pointer; display:flex;" title="Clear trace"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="8" cy="8" r="6"></circle><line x1="5.5" y1="5.5" x2="10.5" y2="10.5"></line><line x1="10.5" y1="5.5" x2="5.5" y2="10.5"></line></svg></button>
+      <span style="width:1px; height:20px; background:#1b2c44;"></span>
+      <button style="background:none; border:1px solid transparent; color:#8ea3bd; padding:6px 10px; border-radius:6px; cursor:pointer; display:flex;" title="Search"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><circle cx="7" cy="7" r="4.5"></circle><line x1="10.5" y1="10.5" x2="14.5" y2="14.5"></line></svg></button>
+      <button style="background:none; border:1px solid transparent; color:#8ea3bd; padding:6px 10px; border-radius:6px; cursor:pointer; display:flex;" title="Shortcuts"><svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><rect x="1" y="3" width="14" height="10" rx="1.5"></rect><line x1="4" y1="6" x2="5" y2="6"></line><line x1="7.5" y1="6" x2="8.5" y2="6"></line><line x1="11" y1="6" x2="12" y2="6"></line><line x1="4" y1="10" x2="12" y2="10"></line></svg></button>
+      <span style="font-size:10px; color:#5c6b80;">25 nodes · 15 edges · 3 traces</span>
+    </div>
+    <!-- pinned pill -->
+    <div style="display:flex; align-items:center; gap:6px; padding:5px 10px; min-height:44px; background:rgba(15,29,49,0.92); backdrop-filter:blur(12px); border:1px solid rgba(244,197,66,0.3); border-radius:10px;">
+      <span style="font-size:11px; font-weight:600; color:#f4c542;">✦ 3 in context</span>
+      <button style="background:none; border:none; color:#8ea3bd; font-size:14px; padding:0 2px; cursor:pointer; line-height:1;">×</button>
+    </div>
+    <!-- context docked pill -->
+    <div style="display:flex; align-items:center; gap:6px; padding:0 10px; height:44px; background:rgba(15,29,49,0.92); backdrop-filter:blur(16px); border:1px solid #1b2c44; border-radius:10px; box-shadow:0 12px 40px rgba(0,0,0,0.5);">
+      <span style="font-size:10px; padding:1px 6px; border-radius:4px; background:rgba(75,188,255,0.12); color:#4BBCFF; text-transform:uppercase; letter-spacing:0.04em; font-weight:600;">Context</span>
+      <span style="font-size:11px; color:#c7d3ea;">Active Agent Context · 57%</span>
+      <button style="background:none; border:1px solid #4BBCFF; border-radius:4px; color:#4BBCFF; padding:1px 5px; font-size:11px; cursor:pointer;">▸</button>
+      <button style="background:none; border:none; color:#8ea3bd; font-size:13px; cursor:pointer;">⊙</button>
+    </div>
+  </div>
+
+  <!-- CHANGED tab (right edge) -->
+  <button style="position:absolute; top:146px; right:0; display:flex; align-items:center; gap:8px; padding:8px 12px 8px 14px; background:rgba(15,29,49,0.96); backdrop-filter:blur(16px); border:1px solid rgba(244,197,66,0.25); border-right:0; border-radius:14px 0 0 14px; box-shadow:0 12px 36px rgba(0,0,0,0.3); color:#e6eef7; cursor:pointer; font:600 11px 'IBM Plex Sans',sans-serif; letter-spacing:0.08em; text-transform:uppercase; z-index:40;">
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="#4BBCFF" stroke-width="1.5"><rect x="2" y="5" width="12" height="9" rx="1.5"></rect><line x1="11" y1="1.5" x2="11" y2="5"></line><circle cx="11" cy="4.5" r="1.6" fill="#4BBCFF" stroke="none"></circle></svg>
+    <span>Changed</span>
+    <span style="min-width:18px; height:18px; padding:0 5px; display:inline-flex; align-items:center; justify-content:center; border-radius:9px; background:#f4c542; color:#081524; font-size:10px; font-weight:700; letter-spacing:0; text-transform:none;">1</span>
+  </button>
+
+  <!-- context pin bar (bottom center) -->
+  <div style="position:absolute; bottom:20px; left:50%; transform:translateX(-50%); display:flex; align-items:center; gap:8px; padding:8px 14px; background:rgba(15,29,49,0.92); backdrop-filter:blur(12px); border:1px solid #f4c542; border-radius:10px; box-shadow:0 8px 32px rgba(0,0,0,0.3), 0 0 0 1px rgba(244,197,66,0.15); z-index:45; white-space:nowrap;">
+    <span style="font-size:12px; font-weight:600; color:#f4c542;">✦ 3 nodes in context</span>
+    <button style="background:none; border:none; color:#8ea3bd; font-size:16px; padding:2px 6px; cursor:pointer; line-height:1;">×</button>
+  </div>
+
+  <!-- minimap -->
+  <div style="position:absolute; bottom:16px; right:16px; width:180px; height:120px; border:1px solid #1b2c44; border-radius:6px; overflow:hidden; box-shadow:0 4px 16px rgba(0,0,0,0.3); background:rgba(15,29,49,0.85); z-index:40;">
+    <div style="position:absolute; left:8px; top:14px; width:14px; height:26px; border:1.5px solid #4BBCFF;"></div>
+    <div style="position:absolute; left:34px; top:20px; width:26px; height:16px; background:#2fd07f; opacity:0.6;"></div>
+    <div style="position:absolute; left:34px; top:40px; width:13px; height:11px; background:#b07aff; opacity:0.6;"></div>
+    <div style="position:absolute; left:50px; top:40px; width:13px; height:15px; background:#2fd07f; opacity:0.6;"></div>
+    <div style="position:absolute; left:66px; top:40px; width:12px; height:15px; background:#2fd07f; opacity:0.6;"></div>
+    <div style="position:absolute; left:34px; top:57px; width:13px; height:11px; background:#b07aff; opacity:0.6;"></div>
+    <div style="position:absolute; left:50px; top:59px; width:28px; height:9px; background:#2fd07f; opacity:0.6;"></div>
+    <div style="position:absolute; left:34px; top:72px; width:12px; height:8px; background:#2fd07f; opacity:0.6;"></div>
+    <div style="position:absolute; left:50px; top:72px; width:12px; height:8px; background:#2fd07f; opacity:0.6;"></div>
+  </div>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  stageRef = (el) => { this._stage = el; this.fit(); };
+  fit() {
+    if (!this._stage) return;
+    const w = this._stage.parentElement ? this._stage.parentElement.clientWidth : window.innerWidth;
+    const s = Math.min(1, w / 1600);
+    this._stage.style.transform = 'scale(' + s + ')';
+    this._stage.parentElement.style.height = (900 * s) + 'px';
+  }
+  componentDidMount() {
+    this._onResize = () => this.fit();
+    window.addEventListener('resize', this._onResize);
+    this.fit();
+  }
+  componentWillUnmount() { window.removeEventListener('resize', this._onResize); }
+  renderVals() { return { stageRef: this.stageRef }; }
+}
+</script>
+</body>
+</html>
