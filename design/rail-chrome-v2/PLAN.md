@@ -247,7 +247,20 @@ is a visible element on today's board that does not yet match the prototypes.
   cursor ("release to connect · esc cancels · L labels"), Esc cancels, L asks for a label on
   release. The preview curve now draws on a board with no edges yet (it did not).
 
-### Phase 9 — Skills refresh (last; closes the redesign)
+### Phase 9 — Skills refresh (last; closes the redesign) — BUILT
+Done 2026-08-23: `skills/pmx-canvas/SKILL.md` gained a consolidated **Sessions & the human**
+section (the three board modes, what a session asks of the agent: detach, 403 fence, 409 edit
+lock, held gates, undo steering, where steering arrives) and a browser-workflows rewrite for the
+redesigned chrome (selection bar, groups v2, edges + Connect tool, History drawer, minimap,
+connection banner, human cursors, keyboard); `references/full-reference.md` got the new chrome
+and presence selectors (and `data-node-id`); the orchestration skill gained a Presence section
+(who attaches, agentId per sub-agent, fence/409/held etiquette, where steering comes from); the
+testing skill gained the presence/e2e patterns; `docs/mcp.md` / `docs/cli.md` lost the last
+toolbar wording; `docs/http-api.md` documents human presence, the history actors and the
+session lifecycle; CLAUDE.md/AGENTS.md describe human presence, the edit lock and the actor-
+tagged undo stack. The demo fixture was regenerated through the API and the README screenshot
+re-taken with the showcase seeding the board as the human (its writes no longer read as an
+external agent). The 22-tool / 14-resource MCP counts are unchanged (pinned by tests).
 Bring every skill in the repo up to date with everything the phases changed, so an agent
 reading a skill cold gets the board as it is now, not as it was in 0.4.7:
 - `skills/pmx-canvas/SKILL.md` + `references/full-reference.md`: presence/session lifecycle

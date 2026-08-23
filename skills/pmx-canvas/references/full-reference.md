@@ -132,8 +132,8 @@ pmx-canvas --theme=light       # Light theme
 pmx-canvas --version           # Print installed version and exit
 ```
 
-`--theme` accepts `dark` (default), `light`, `high-contrast`, `midnight`, `sepia`, `arctic`, `ember`, `forest`, or `volt` (0.4.x; the browser toolbar has a matching theme picker). Same value can be set via
-the `PMX_CANVAS_THEME` environment variable, or toggled live in the browser toolbar.
+`--theme` accepts `dark` (default), `light`, `high-contrast`, `midnight`, `sepia`, `arctic`, `ember`, `forest`, or `volt` (0.4.x; the rail's theme picker lists the same nine). Same value can be set via
+the `PMX_CANVAS_THEME` environment variable, or picked live from the left tool rail.
 
 Start the canvas once per session, then reuse it. Use `--no-open` when running as an agent — the
 human can open the browser URL themselves.
@@ -827,10 +827,20 @@ Useful workbench selectors:
 - Annotations: `.annotation-layer path` renders human-drawn freehand ink. Use WebView
   to inspect or screenshot annotation shapes; MCP/context resources only expose compact
   annotation target summaries, not the raw visual shape. Humans can remove marks with
-  the eraser toolbar button; agents can remove a known annotation ID with
+  the eraser in the rail's Annotate popover; agents can remove a known annotation ID with
   `canvas_view { action: "remove-annotation" }`.
-- Canvas chrome: `.hud-layer`, `.canvas-toolbar`, `.connection-dot`, `.canvas-bootstrap-card`
-- Nodes do not expose stable `data-node-id` attributes. Use `canvas_query` (`layout` / `search`) or MCP resource data for exact node IDs.
+- Canvas chrome (rail-chrome-v2): `.tool-rail`, `.top-bar` (`.connection-dot`, `.agent-chip`,
+  `.gate-badge`, `.context-budget`, `.external-indicator`, `.start-session-btn`),
+  `.connection-banner`, `.canvas-region`, `.session-panel`, `.command-bar`, `.selection-bar`,
+  `.activity-feed`, `.writers-sheet`, `.session-receipt`, `.snapshot-panel` (the History
+  drawer), `.minimap`, `.empty-state`, `.command-palette`, `.expanded-overlay-panel`.
+- Presence: `.agent-cursor` (attached agent), `.human-cursor` (other tabs), `.scope-fence`,
+  `.canvas-node.agent-mutating` (shimmer), `.node-yield-pill`.
+- Groups: `.canvas-node.group-node` with `.group-name-pill`, `.group-actions`, `.group-chip`
+  (collapsed); `.drop-pill` while a dragged node would join/leave a group; `.edge-hint-pill`
+  during an edge drag.
+- Every `.canvas-node` carries `data-node-id` and `data-node-type` (rail-chrome redesign); `canvas_query`
+  (`layout` / `search`) remains the reliable way to get ids without a browser.
 
 Async script example:
 

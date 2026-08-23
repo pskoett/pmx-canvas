@@ -49,30 +49,11 @@ Humans curate agent context by pinning nodes; agents read that curation through
    floor, not a replacement: only an explicit signal gives the human a real pre-mutation veto
    window, your reasoning (`reason`), and staged multi-step previews. Batch and browser-human
    actions never auto-ghost.
-6. **Attach a session so the human can see you (0.4.8).** At the start of board work call
-   `canvas_ax_state { action: "set-presence", attached: true, label: "<who you are>" }` and at
-   the end `{ action: "set-presence", attached: false }`. While attached, the canvas shows your
-   cursor on the node you last touched plus a phase chip, and every write you make through MCP or
-   HTTP is attributed to your session automatically — no per-call labelling needed. The human
-   also gets a session panel listing your work items, approval gates (Approve / Reject live
-   there — a rejection reaches you as steering; an unanswered gate auto-holds after its TTL,
-   which is also a "do not proceed") and the timeline. The human may also fence you to a
-   region: writes outside `policy.scope` come back as 403 — ask, don't retry. A **409** on a
-   node write means a human is holding that node right now (dragging or editing): requeue the
-   change and retry in a moment; if you had signalled an intent on it, it was vetoed and a
-   `yield` event explains why. Report
-   `phase: "thinking"` before a long reasoning stretch if your host gives you a hook for it;
-   `tooling` is derived from your writes. Hosts with adapters (the Copilot extension) attach
-   for you. Without an attached session the board stays a plain canvas: your writes still show
-   as ghosts, but there is no cursor and no session chrome. Attaching over a non-empty board
-   saves a `Before session · …` snapshot, and detaching hands the human a receipt (work items
-   done / vetoed, a diff against that snapshot, one-click restore) — so always detach
-   explicitly rather than letting the session idle out. The human can also start a session
-   from the board's *Start agent session* button; your transport writes are then attributed
-   to it without any call on your side. Without a session your writes still reach the human:
-   the board shows a passive "external writers" indicator with an activity feed listing each
-   write under your label — identify yourself (`PMX_CANVAS_AGENT_SOURCE`, or `x-pmx-source` on
-   HTTP) so the feed and the writers sheet name you rather than the transport.
+6. **Attach a session so the human can see you (0.4.8+).** Start board work with
+   `canvas_ax_state { action: "set-presence", attached: true, label: "<who you are>" }` and end
+   it with `{ attached: false }` — detaching hands the human a receipt. Everything the session
+   gives you and asks of you (cursor + phase chip, the session panel, steering, the scope fence's
+   403s, the human edit lock's 409s, unattended approvals) is in **Sessions & the human** below.
 7. **Mutate through current composites.** Prefer the 16 composite MCP tools below.
 7. **Arrange and validate.** After batch changes, use `canvas_view { action: "arrange" }` when
    appropriate and always finish with `canvas_query { action: "validate" }`.
@@ -256,6 +237,47 @@ Do not confuse context pinning with **Lock position**, which only excludes a nod
 Every node type, including `status`, can be removed through `canvas_node { action: "remove" }`, the
 title-bar × control, or the **Close** context-menu action.
 
+## Sessions & the human
+
+The board has three modes, all gated on one fact — whether a session is attached:
+
+- **Quiet board** (nobody attached, nobody writing): a plain canvas. Your writes still show as
+  ghosts, nothing else changes.
+- **External steering** (you write with no session attached): the top bar shows a passive
+  writers indicator with an activity feed listing each write under your label, plus a
+  connected-writers sheet. Identify yourself (`PMX_CANVAS_AGENT_SOURCE`, or `x-pmx-source` on
+  HTTP) so the feed names you, not the transport. Pending explicit intents carry an inline Veto
+  there.
+- **Focus session** (attached): your cursor sits on the node you last touched with a phase chip
+  (`idle` / `thinking` / `tooling` / `waiting-approval`); every MCP/HTTP write is attributed to
+  your session automatically (pass `agentId` only to keep a sub-agent separate); the human gets
+  the session panel (work items, approval gates, timeline of your tool runs, board writes,
+  evidence and steering), a command bar that posts steering you read on your next turn, and a
+  context-budget meter. Report `phase: "thinking"` before a long reasoning stretch if your host
+  gives you a hook; `tooling` is derived from your writes. Hosts with adapters (the Copilot
+  extension) attach for you; the human can also start a session from the board's *Start agent
+  session* button and your transport writes are attributed to it.
+
+What the session asks of you:
+
+- **Detach explicitly** (`attached: false` or a `session-end` activity). Attaching over a
+  non-empty board saved a `Before session · …` snapshot; detaching emits the receipt (items
+  done / vetoed, a diff against that snapshot, one-click restore) — an idle timeout delays it.
+- **403 = outside the scope fence.** The human may fence you to a region (`policy.scope`): writes
+  outside it are refused with a reason naming the node or position. Read `policy.scope` in
+  `canvas://ax-context`, ask the human to widen it, never retry blindly. The fence is the
+  human's: `set-policy` does not take `scope`.
+- **409 = a human is holding that node** (dragging or editing it right now). Requeue the change
+  and retry in a moment. If you had signalled an intent on it, it was vetoed — a `yield` timeline
+  event says who took over.
+- **A gate you do not answer auto-holds** (`held`, default TTL 5 min). `held` is a non-approval:
+  do not proceed; the human can reopen it from the panel. A rejection reaches you as steering.
+- **Your latest edit can be undone from the panel.** One shared undo stack: when the human undoes
+  it you get steering ("Undid your edit: …"); treat the board as the truth, not your last write.
+- **Steering arrives as `steering-message` rows** in `canvas://ax-timeline` (or claim them via
+  `canvas_ax_delivery`). The command bar, gate rejections, undo and take-overs all speak through
+  it.
+
 ## Browser Workflows
 
 Use the visible workbench when the human is actively curating layout:
@@ -263,21 +285,42 @@ Use the visible workbench when the human is actively curating layout:
 - Drag nodes to move them.
 - Drag empty space to lasso-select (Select tool, the default); hold Space or pick the rail's Pan
   tool to pan instead — the Pan tool pans even when the drag starts on a node.
-- Use the selection bar for Pin as context, Group, Connect, and Clear.
+- The selection bar (floating bottom-center) offers count, align left/top, distribute,
+  auto-arrange, Group (G), Connect, Pin as context, delete and clear; selected nodes show an
+  accent outline with corner handles.
 - Right-click a node for context pinning, position locking, focus, collapse, connect, refresh,
   open, close, and type-specific actions.
-- Drop files or URLs to create matching nodes.
+- Drop files or URLs to create matching nodes; an empty board shows starter actions (new note,
+  pick files, paste a link, start an agent session).
 - Double-click markdown to edit inline.
-- Use rail snapshots (camera button in the left tool rail) before experiments and restore only after confirmation.
-- The chrome is a persistent 52px left tool rail plus a slim 44px top bar (0.4.8, replacing the
-  floating HUD). The rail carries the tools (Select V, Pan Space), node creation (markdown M,
-  image I, file Shift+F, webpage W, HTML surface H, group G, annotate A — a popover with draw /
-  text / eraser), and utilities: search (Cmd+K), arrange, trace, minimap, snapshots, the theme
-  picker (nine themes: dark, light, high-contrast, midnight, sepia, arctic, ember, forest, volt),
-  and shortcuts (?). The top bar holds the connection dot, workspace title, and the zoom cluster
+- **Groups** are frames with the name pill and an action cluster (auto-arrange children, collapse,
+  ⋯ rename / ungroup / pin all) on the top edge. Membership changes only on release while the
+  "release to add to <group>" pill shows (Esc keeps it out); dragging a child fully out offers
+  "release to remove". A collapsed group is a chip that hides its children (edges to them draw
+  to the chip). G groups the selection, Shift+G ungroups.
+- **Edges**: drag from a node port, or pick the rail's Connect tool (C) and drag from anywhere on
+  a node; the target lights up, Esc cancels, L asks for a label on release.
+- The **History** drawer (rail camera button, or the receipt's Full log) lists snapshots and
+  agent sessions in one timeline; save a snapshot there before experiments and restore only after
+  confirmation. Ctrl/Cmd+Z and Shift+Z work the shared undo stack.
+- The **minimap** (bottom-right of the canvas) is a true-scale map; hover magnifies it, click
+  jumps, drag pans. A banner under the top bar reports a dropped stream (reconnecting) or a
+  post-reconnect resync; edits still save over HTTP meanwhile.
+- Other open tabs appear as green cursors with a name tag (`/workbench?name=mia` sets yours);
+  a node you drag is locked for agents until you release it.
+- The chrome is a persistent 52px left tool rail plus a slim 44px top bar (0.4.8+). The rail
+  carries the tools (Select V, Pan Space, Connect C), node creation (markdown M, image I, file
+  Shift+F, webpage W, HTML surface H, group G, annotate A — a popover with draw / text / eraser),
+  and utilities: search & commands (Cmd+K — actions with shortcuts, then jump-to-node), arrange,
+  trace, minimap, history, the theme picker (nine themes: dark, light, high-contrast, midnight,
+  sepia, arctic, ember, forest, volt), and shortcuts (?). The top bar holds the connection dot,
+  workspace title, the session chip / gate badge / context meter while a session is attached
+  (or the external-writers indicator and *Start agent session* otherwise), and the zoom cluster
   (zoom out, % label = reset, zoom in, fit F). Every rail button's `title` names its shortcut.
-  On viewports ≤1180px the top bar drops its meta text (board id, counts); every control stays in
-  the rail at any width — there is no separate mobile menu.
+  On viewports ≤1180px the top bar drops its meta text and the session panel becomes a drawer;
+  every control stays in the rail at any width — there is no separate mobile menu.
+- Keyboard: nodes are focusable — arrow keys move to the nearest node, Enter opens it in focus
+  mode (a scrim + inset view with Open in tab), Esc closes the top-most overlay.
 - Embedding hosts can open `/workbench?theme=<name>` (or `?theme=auto` to follow the host's
   light/dark appearance) for a session-local default theme that never changes the server-global
   theme other clients see; an explicit pick from the theme menu ends the override. The bundled

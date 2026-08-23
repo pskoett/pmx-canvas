@@ -157,3 +157,20 @@ Before marking work done, report:
 
 For non-trivial changes, the default expectation is `bun run test:all` unless there is a clear
 reason to scope verification more narrowly.
+
+## Presence, sessions, and the redesigned chrome (rail-chrome-v2)
+
+- Agent/human presence is in-memory and TTL-swept. An e2e reset must detach any attached
+  session (`POST /api/canvas/ax/presence { attached: false }` per attached presence), clear the
+  scope fence, and mark its own writes with `x-pmx-workbench: 1` — otherwise the harness reads
+  as an external writer and a leftover fence refuses the next test's `clear`. Unattached writers
+  from earlier tests can still be live (90 s): assert about YOUR writers, not exact totals.
+- Assert SSE frames as received (`readSseEvent` in `tests/unit/agent-presence-api.test.ts`), not
+  the object handed to the emitter — the envelope overwrites `sessionId` and `timestamp`.
+- Two-tab behaviour (human cursors, the edit lock) needs two browser contexts; name them with
+  `/workbench?name=…` so assertions can target a cursor by its tag.
+- The Browser pane reports `visibility: hidden` and never fires rAF: drags, drop pills, edge
+  previews and presence animations only work under Playwright. Use the pane for static checks.
+- Selection is shift-click on the node BODY (the titlebar drags); groups have no ports and
+  their drag handle is the edge row; the selection bar and command bar both float bottom-center
+  (the selection bar lifts during a session).

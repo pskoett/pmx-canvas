@@ -24,6 +24,23 @@ it, or the board silently diverges from reality.
   their run scoping comes from the run-prefixed `agentId`, e.g. `run7:impl-auth`), so
   consecutive orchestrations don't interleave in the bounded timeline.
 
+## Presence (rail-chrome-v2)
+
+- The ORCHESTRATOR attaches the session: `canvas_ax_state { action: "set-presence",
+  attached: true, label: "<run label>" }` at run start and `{ attached: false }` at the end
+  (the human gets a receipt: items done / vetoed, a diff against the pre-run snapshot, one-click
+  restore). Subagents never attach — writes they make through MCP/HTTP with no `agentId` are
+  attributed to the orchestrator's session; a subagent that passes `agentId` shows as its own
+  writer. Pick one: a single cursor for the run (no `agentId` on board writes) or one per
+  subagent (`agentId` everywhere, also in the writers sheet).
+- The board may be fenced (`policy.scope`). A 403 from any participant means "outside the
+  fence": report it to the orchestrator, who asks the human — never widen it yourself (the
+  fence is the human's; `set-policy` cannot set it).
+- A 409 means a human is holding that node right now: requeue that step's write and retry
+  after the next steering poll. A `yield` timeline event names who took over.
+- Unanswered gates auto-hold (`held`) after their TTL: treat `held` as "do not proceed" and
+  keep the subagent's step `blocked` until the human reopens and answers.
+
 ## Graph semantics
 
 - `flow` edges = planned sequence. `depends-on` edges = blocking dependency (the visual DAG).
@@ -62,6 +79,10 @@ it, or the board silently diverges from reality.
   targeted at their own `agentId`.
 - Mark delivery ONLY after acting on the message. The mark is compare-and-set: a
   `delivered:false` response means another consumer owned it — drop it, do not act twice.
+- Steering comes from more places than the command bar: a gate rejection, the human undoing
+  one of your board edits ("Undid your edit: …"), a take-over of a node you were editing, and
+  vetoed ghost intents all arrive as steering. The orchestrator re-routes them to the subagent
+  whose node they name.
 
 ## Run lifecycle
 

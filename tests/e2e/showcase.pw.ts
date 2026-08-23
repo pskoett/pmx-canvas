@@ -6,9 +6,12 @@ import { expect, test, type APIRequestContext } from '@playwright/test';
 
 // ── Helpers ──────────────────────────────────────────────────
 
+/** The showcase seeds the board AS THE HUMAN: its writes must not read as an external agent. */
+const WORKBENCH = { 'x-pmx-workbench': '1' };
+
 async function clear(request: APIRequestContext): Promise<void> {
-  await request.post('/api/canvas/clear');
-  await request.post('/api/canvas/context-pins', { data: { nodeIds: [] } });
+  await request.post('/api/canvas/clear', { headers: WORKBENCH });
+  await request.post('/api/canvas/context-pins', { data: { nodeIds: [] }, headers: WORKBENCH });
 }
 
 type PwRequest = APIRequestContext;
@@ -32,7 +35,7 @@ async function postOrThrow<T extends Record<string, unknown>>(
   idField?: keyof T,
   context?: string,
 ): Promise<T> {
-  const r = await request.post(endpoint, { data: body });
+  const r = await request.post(endpoint, { data: body, headers: WORKBENCH });
   const payload = (await r.json()) as T & { ok?: boolean; error?: string };
   const idValue = idField ? (payload[idField] as unknown) : 'ok';
   const ok = r.ok() && (idField ? typeof idValue === 'string' && idValue.length > 0 : true);
@@ -55,7 +58,7 @@ async function addNode(request: PwRequest, body: Record<string, unknown>): Promi
 }
 
 async function patchNode(request: PwRequest, id: string, body: Record<string, unknown>): Promise<void> {
-  await request.patch(`/api/canvas/node/${id}`, { data: body });
+  await request.patch(`/api/canvas/node/${id}`, { data: body, headers: WORKBENCH });
 }
 
 async function addEdge(request: PwRequest, body: Record<string, unknown>): Promise<string> {
@@ -1026,6 +1029,7 @@ body { margin: 0; background: #0f0f1a; }
 
   await request.post('/api/canvas/context-pins', {
     data: { nodeIds: [article, codeFile, gateBoard] },
+    headers: WORKBENCH,
   });
 
   // ═══════════════════════════════════════════════════════════

@@ -277,8 +277,8 @@ keep annotation context compact: agents see annotation counts, bounds, and targe
 summaries such as the node or empty canvas region that was marked, but not the
 raw stroke geometry or visual shape.
 
-Annotations are a browser-visible markup layer. Use the pen toolbar button to
-draw and the eraser toolbar button to remove an annotation again; agents can also
+Annotations are a browser-visible markup layer. Humans draw with the rail's
+Annotate popover (pen / text / eraser — the eraser removes a mark); agents can also
 remove a known annotation ID with `canvas_view { action: "remove-annotation", id }`.
 
 Use WebView automation when an agent needs to actually see annotations as drawn.
