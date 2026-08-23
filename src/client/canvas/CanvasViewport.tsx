@@ -30,6 +30,8 @@ import {
   createAnnotationFromClient,
   removeAnnotationFromClient,
   isPanModeActive,
+  dragDropTarget,
+  hiddenByCollapsedGroup,
 } from '../state/canvas-store';
 import { createEdgeFromClient, createNodeFromClient } from '../state/intent-bridge';
 import type { AnnotationTool, CanvasAnnotation, CanvasNodeState } from '../types';
@@ -217,10 +219,13 @@ function isEditableElement(element: Element | null): boolean {
 export function getRenderableWorldNodes(
   allNodes: Iterable<CanvasNodeState>,
   focusedNodeId: string | null,
+  hiddenIds: ReadonlySet<string> = new Set(),
 ): CanvasNodeState[] {
   const worldNodes: CanvasNodeState[] = [];
   let insertIdx = 0; // groups fill from the front
   for (const n of allNodes) {
+    // Children of a collapsed group are hidden behind its chip.
+    if (hiddenIds.has(n.id)) continue;
     // Focus mode renders the node inside the overlay. Skip the original world
     // instance so embedded apps do not mount twice.
     if (focusedNodeId && n.id === focusedNodeId) continue;
@@ -691,7 +696,14 @@ export function CanvasViewport({
   // reorder DOM children when bringToFront() changes zIndex, causing browsers to
   // detach/reattach iframe elements (which forces them to reload/reconnect).
   // Group nodes render first (behind) so they serve as visual containers.
-  const worldNodes = getRenderableWorldNodes(nodes.value.values(), expandedNodeId.value);
+  const worldNodes = getRenderableWorldNodes(
+    nodes.value.values(),
+    expandedNodeId.value,
+    new Set(hiddenByCollapsedGroup.value.keys()),
+  );
+  const dropTarget = dragDropTarget.value;
+  const dropTargetGroup = dropTarget ? nodes.value.get(dropTarget.groupId) : undefined;
+  const draggedNode = dropTarget ? nodes.value.get(dropTarget.nodeId) : undefined;
 
   // Compute lasso overlay rect in screen space
   let lassoStyle: Record<string, string> | null = null;
@@ -760,6 +772,23 @@ export function CanvasViewport({
         <IntentLayer />
         <AgentPresenceLayer />
         <EdgeLayer nodes={nodes} edges={edges} />
+        {dropTarget && dropTargetGroup && draggedNode && (
+          <div
+            class="drop-pill"
+            data-testid="drop-pill"
+            style={{
+              left: `${draggedNode.position.x}px`,
+              top: `${draggedNode.position.y + draggedNode.size.height + 10}px`,
+            }}
+          >
+            <span class="drop-pill-text">
+              {dropTarget.mode === 'add'
+                ? `release to add to ${String(dropTargetGroup.data.title ?? 'group')}`
+                : `release to remove from ${String(dropTargetGroup.data.title ?? 'group')}`}
+            </span>
+            <span class="drop-pill-hint">{dropTarget.mode === 'add' ? 'esc keeps it out' : 'esc keeps it in'}</span>
+          </div>
+        )}
         <AnnotationLayer annotations={Array.from(annotations.value.values())} />
         {draftAnnotation && draftAnnotation.points.length >= 2 && <AnnotationLayer annotations={[draftAnnotation]} />}
         {worldNodes.map((node) => (

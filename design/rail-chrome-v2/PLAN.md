@@ -199,8 +199,19 @@ is a visible element on today's board that does not yet match the prototypes.
   reverse-chronological list; a session's entry IS its `Before session · …` snapshot, with View
   diff inline and Restore pre-state; manual snapshots keep Restore/Delete; the save form stays;
   opened from the rail's Snapshots button or the receipt's Full log).
-- Groups v2: membership only via release-pill, collapse chip, auto-grow, frame-move semantics,
-  G/Shift+G (item 20 — the largest single item).
+- **7c (built) — Groups v2 (item 20):** the frame's name pill + child count and the action
+  cluster (auto-arrange children via `group.add childLayout`, collapse, ⋯ menu: rename /
+  ungroup / pin all to context / remove) sit ON the top edge (the edge row is the whole-frame
+  drag handle; groups drop their connection ports, which sat exactly where the row now is, and
+  drop paint containment so the row can hang outside). Membership feedback lives in the store:
+  `trackDragMembership` runs on every drag move, sets `dragDropTarget` (the frame brightens,
+  a release pill under the node says "release to add to <group> · esc keeps it out" or the
+  inverse), and membership changes ONLY on release while the pill shows — Esc during the drag
+  suppresses it for that drag. A fit-mode parent grows live as a child is dragged against it
+  (the server re-fits on persist). Collapsing a group persists and renders a chip (chevron,
+  name, kind dots, count); its children are hidden and edges to them draw to the chip. G groups
+  a ≥2 selection (else a new frame), Shift+G ungroups every group the selection touches.
+  `bringToFront` keeps a group below its own children.
 - Per-entry undo of agent ops through shared history + steering feedback (item 10).
 - A11y sweep: focus-visible rings, focus traps, `aria-live` on gates/timeline, roving tabindex
   (item 18 — partially delivered inside each phase, swept here).

@@ -43,6 +43,31 @@ export declare const activeNeighborNodeIds: import("@preact/signals-core").Reado
 export declare function toggleSelected(id: string): void;
 export declare function selectNodes(ids: string[]): void;
 export declare function clearSelection(): void;
+/**
+ * Membership feedback while a node is being dragged: the group it would join
+ * on release (`add`), or the parent it would leave (`remove`). Membership
+ * changes ONLY on release while this is set — never silently by geometry.
+ * Esc during the drag clears it and keeps it cleared for that drag.
+ */
+export declare const dragDropTarget: import("@preact/signals-core").Signal<{
+    nodeId: string;
+    groupId: string;
+    mode: "add" | "remove";
+} | null>;
+export declare function suppressDropForDrag(): void;
+export declare function endDropTracking(): void;
+/**
+ * Called on every drag move of `nodeId`: updates the drop target and grows a
+ * fit-mode parent frame live so a child dragged against it never clips
+ * (the server re-fits on persist; shrinking happens there).
+ */
+export declare function trackDragMembership(nodeId: string): void;
+/** Children of collapsed groups are hidden; edges to them point at the chip. */
+export declare const hiddenByCollapsedGroup: import("@preact/signals-core").ReadonlySignal<Map<string, string>>;
+/** The node that stands in for `id` on the canvas: itself, or its collapsed group's chip. */
+export declare function visibleNodeFor(id: string): CanvasNodeState | undefined;
+/** Collapsed groups render as a chip; children keep their positions for restore. */
+export declare function groupsOfSelection(): string[];
 export declare function alignSelection(edge: 'left' | 'top'): void;
 /** Even horizontal gaps between the selected nodes, first and last staying put. */
 export declare function distributeSelection(): void;

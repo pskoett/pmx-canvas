@@ -1,5 +1,5 @@
 import type { Signal } from '@preact/signals';
-import { activeNodeId, draggingEdge, searchHighlightIds, viewport } from '../state/canvas-store';
+import { activeNodeId, draggingEdge, searchHighlightIds, viewport, visibleNodeFor } from '../state/canvas-store';
 import type { CanvasEdge, CanvasNodeState } from '../types';
 
 // ── Edge type visual styles ──────────────────────────────────
@@ -246,9 +246,10 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
         </marker>
       </defs>
       {edgeList.map((edge) => {
-        const fromNode = nodeMap.get(edge.from);
-        const toNode = nodeMap.get(edge.to);
-        if (!fromNode || !toNode) return null;
+        // An endpoint hidden behind a collapsed group's chip is drawn to the chip.
+        const fromNode = visibleNodeFor(edge.from);
+        const toNode = visibleNodeFor(edge.to);
+        if (!fromNode || !toNode || fromNode.id === toNode.id) return null;
         const isConnected = hasFocus && (edge.from === focusId || edge.to === focusId);
         const searchDimmed = hasSearch && !(searchSet.has(edge.from) || searchSet.has(edge.to));
         return (

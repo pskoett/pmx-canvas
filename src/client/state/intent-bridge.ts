@@ -264,6 +264,8 @@ export async function updateNodeFromClient(
     title?: string;
     content?: string;
     data?: Record<string, unknown>;
+    /** Groups: replace the membership list (positions preserved). */
+    children?: string[];
   },
 ): Promise<{ ok: boolean; id?: string }> {
   return requestJson(
@@ -446,8 +448,12 @@ export async function createGroupFromClient(opts: {
   );
 }
 
-/** Add nodes to an existing group. */
-export async function addToGroupFromClient(groupId: string, childIds: string[]): Promise<{ ok: boolean }> {
+/** Add nodes to an existing group; `childLayout` packs the children (the header's auto-arrange). */
+export async function addToGroupFromClient(
+  groupId: string,
+  childIds: string[],
+  childLayout?: 'grid' | 'column' | 'flow',
+): Promise<{ ok: boolean }> {
   return requestJson(
     'addToGroupFromClient',
     '/api/canvas/group/add',
@@ -455,9 +461,14 @@ export async function addToGroupFromClient(groupId: string, childIds: string[]):
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ groupId, childIds }),
+      body: JSON.stringify({ groupId, childIds, ...(childLayout ? { childLayout } : {}) }),
     },
   );
+}
+
+/** Replace a group's membership (positions preserved) — how a single child leaves. */
+export async function setGroupChildrenFromClient(groupId: string, children: string[]): Promise<{ ok: boolean }> {
+  return updateNodeFromClient(groupId, { children });
 }
 
 /** Ungroup all children from a group. */

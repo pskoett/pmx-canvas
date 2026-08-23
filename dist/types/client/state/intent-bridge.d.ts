@@ -110,6 +110,8 @@ export declare function updateNodeFromClient(id: string, patch: {
     title?: string;
     content?: string;
     data?: Record<string, unknown>;
+    /** Groups: replace the membership list (positions preserved). */
+    children?: string[];
 }): Promise<{
     ok: boolean;
     id?: string;
@@ -183,8 +185,12 @@ export declare function createGroupFromClient(opts: {
     ok: boolean;
     id?: string;
 }>;
-/** Add nodes to an existing group. */
-export declare function addToGroupFromClient(groupId: string, childIds: string[]): Promise<{
+/** Add nodes to an existing group; `childLayout` packs the children (the header's auto-arrange). */
+export declare function addToGroupFromClient(groupId: string, childIds: string[], childLayout?: 'grid' | 'column' | 'flow'): Promise<{
+    ok: boolean;
+}>;
+/** Replace a group's membership (positions preserved) — how a single child leaves. */
+export declare function setGroupChildrenFromClient(groupId: string, children: string[]): Promise<{
     ok: boolean;
 }>;
 /** Ungroup all children from a group. */

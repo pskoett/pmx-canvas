@@ -38,11 +38,17 @@ import {
   viewport,
   walkGraph,
   zoomByFactor,
+  groupsOfSelection,
 } from './state/canvas-store';
 import { connectSSE } from './state/sse-bridge';
 import { intents } from './state/intent-store';
 import { sessionActive } from './state/presence-store';
-import { createNodeFromClient, reportClientViewportSize } from './state/intent-bridge';
+import {
+  createGroupFromClient,
+  createNodeFromClient,
+  reportClientViewportSize,
+  ungroupFromClient,
+} from './state/intent-bridge';
 import type { AnnotationTool } from './types';
 
 function logAppError(action: string, error: unknown): void {
@@ -197,10 +203,26 @@ export function App() {
           e.preventDefault();
           setAnnotationTool((tool) => (tool === 'pen' ? null : 'pen'));
         } else if (key === 'g' && !e.shiftKey) {
+          // Groups v2: G groups the selection (≥2 nodes); otherwise a new empty frame.
           e.preventDefault();
-          void createNodeFromClient({ type: 'group', title: 'Group' }).catch((error) =>
-            logAppError('create group', error),
-          );
+          const ids = Array.from(selectedNodeIds.value);
+          if (ids.length >= 2) {
+            void createGroupFromClient({ title: 'Group', childIds: ids }).catch((error) =>
+              logAppError('group selection', error),
+            );
+            clearSelection();
+          } else {
+            void createNodeFromClient({ type: 'group', title: 'Group' }).catch((error) =>
+              logAppError('create group', error),
+            );
+          }
+        } else if (key === 'g' && e.shiftKey) {
+          // Shift+G ungroups every group the selection touches.
+          e.preventDefault();
+          for (const groupId of groupsOfSelection()) {
+            void ungroupFromClient(groupId).catch((error) => logAppError('ungroup', error));
+          }
+          clearSelection();
         } else if (key === 'i' && !e.shiftKey) {
           e.preventDefault();
           promptedCreate('image');

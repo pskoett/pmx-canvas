@@ -414,7 +414,7 @@ test('renders every canvas node type in the browser', async ({ page, request }) 
   await expect(node('All Types Webpage')).toContainText('Local webpage renderer description.');
   await expect(node('All Types Prompt')).toContainText('Prompt renderer question');
   await expect(node('All Types Response')).toContainText('Response renderer answer');
-  await expect(node('All Types Group')).toContainText('Drag nodes here');
+  await expect(node('All Types Group')).toContainText('Drop nodes here');
 
   await expect(
     node('All Types HTML').frameLocator('iframe').getByRole('heading', { name: 'HTML Renderer' }),
@@ -2726,7 +2726,9 @@ test('group context menu updates the group accent color', async ({ page, request
     })
     .toBe('#22c55e');
 
-  await expect(group).toHaveCSS('border-top-color', 'rgb(34, 197, 94)');
+  // Groups v2 tints the frame from --group-color (a color-mix), so assert the
+  // accent reached the border rather than a solid channel value.
+  await expect(group).toHaveCSS('border-top-color', /34, 197, 94|0\.13333\d* 0\.77254\d* 0\.36862\d*/);
 });
 
 test('restored grouped nodes can be dragged without snapping back', async ({ page, request }) => {
@@ -3831,6 +3833,116 @@ test('human-started session: start from the quiet board, steer from the command 
 
   await receipt.getByRole('button', { name: 'Dismiss receipt' }).click();
   await expect(receipt).toHaveCount(0);
+});
+
+test('groups v2: membership only on release with the pill, esc keeps it out, collapse to a chip, header actions, G / Shift+G', async ({
+  page,
+  request,
+}) => {
+  // rail-chrome-v2 phase 7, item 20.
+  const group = (await (
+    await request.post('/api/canvas/group', {
+      data: { title: 'State layer', x: 100, y: 100, width: 600, height: 360 },
+    })
+  ).json()) as { id: string };
+  const loose = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Loose note', content: 'l', x: 900, y: 120, width: 240, height: 120 },
+    })
+  ).json()) as { id: string };
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  await page.goto('/workbench');
+
+  const frame = page.locator('.canvas-node.group-node').filter({ hasText: 'State layer' });
+  await expect(frame.locator('.group-name')).toHaveText('State layer');
+  await expect(frame.locator('.group-count')).toHaveText('0');
+  const looseNode = page.locator('.canvas-node').filter({ hasText: 'Loose note' });
+
+  // Drag the loose node over the frame and press Esc: the pill disappears and
+  // membership is NOT changed on release.
+  const grab = async () => {
+    const bar = await looseNode.locator('.node-titlebar').boundingBox();
+    await page.mouse.move(bar!.x + bar!.width / 2, bar!.y + bar!.height / 2);
+    await page.mouse.down();
+  };
+  await grab();
+  await page.mouse.move(400, 320, { steps: 10 });
+  await expect(page.locator('[data-testid="drop-pill"]')).toHaveText(/release to add to State layer/);
+  await expect(frame).toHaveClass(/is-drop-target/);
+  await page.keyboard.press('Escape');
+  await expect(page.locator('[data-testid="drop-pill"]')).toHaveCount(0);
+  await page.mouse.move(420, 330, { steps: 3 });
+  await page.mouse.up();
+  await expect
+    .poll(
+      async () =>
+        ((await (await request.get(`/api/canvas/node/${group.id}`)).json()) as { data: { children: string[] } }).data
+          .children,
+    )
+    .toEqual([]);
+
+  // Drag again without Esc: release while the pill shows → it joins.
+  await grab();
+  await page.mouse.move(380, 300, { steps: 10 });
+  await expect(page.locator('[data-testid="drop-pill"]')).toBeVisible();
+  await page.mouse.up();
+  await expect
+    .poll(
+      async () =>
+        ((await (await request.get(`/api/canvas/node/${group.id}`)).json()) as { data: { children: string[] } }).data
+          .children,
+    )
+    .toEqual([loose.id]);
+  await expect(frame.locator('.group-count')).toHaveText('1');
+
+  // Drag it fully out: the inverse pill, and it leaves on release.
+  await grab();
+  await page.mouse.move(1100, 700, { steps: 12 });
+  await expect(page.locator('[data-testid="drop-pill"]')).toHaveText(/release to remove from State layer/);
+  await page.mouse.up();
+  await expect
+    .poll(
+      async () =>
+        ((await (await request.get(`/api/canvas/node/${group.id}`)).json()) as { data: { children: string[] } }).data
+          .children,
+    )
+    .toEqual([]);
+
+  // G groups a selection; the frame header collapses to a chip that hides the children.
+  const second = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'status', title: 'Second note', content: 's', x: 1300, y: 700, width: 260, height: 140 },
+    })
+  ).json()) as { id: string };
+  await looseNode.click({ position: { x: 80, y: 80 }, modifiers: ['Shift'] });
+  await page
+    .locator('.canvas-node')
+    .filter({ hasText: 'Second note' })
+    .click({ position: { x: 80, y: 80 }, modifiers: ['Shift'] });
+  await page.keyboard.press('g');
+  const made = page.locator('.canvas-node.group-node').filter({ hasText: 'Group' }).first();
+  await expect(made.locator('.group-count')).toHaveText('2');
+  expect(second.id).toBeTruthy();
+
+  await made.getByRole('button', { name: 'Collapse group' }).click();
+  const chip = page.locator('[data-testid="group-chip"]');
+  await expect(chip).toBeVisible();
+  await expect(chip.locator('.group-chip-count')).toHaveText('2 nodes');
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Loose note' })).toHaveCount(0);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Second note' })).toHaveCount(0);
+  await chip.getByRole('button', { name: /Expand group/ }).click();
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Loose note' })).toHaveCount(1);
+
+  // Shift+G ungroups the selection's group; the ⋯ menu pins all children.
+  await made.getByRole('button', { name: 'Group menu' }).click();
+  await made.getByRole('menuitem', { name: 'Pin all to context' }).click();
+  await expect(page.locator('.context-pin-bar')).toContainText('2 nodes in context');
+  await page
+    .locator('.canvas-node')
+    .filter({ hasText: 'Loose note' })
+    .click({ position: { x: 80, y: 80 }, modifiers: ['Shift'] });
+  await page.keyboard.press('Shift+G');
+  await expect(made.locator('.group-count')).toHaveText('0');
 });
 
 test('minimap v2: true-scale rects from the store, selection mirrored, click jumps, hover magnifies', async ({

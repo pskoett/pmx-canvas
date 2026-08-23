@@ -4,9 +4,12 @@ import { attentionPrimaryNodeIds, attentionPulseNodeIds, attentionSecondaryNodeI
 import {
   activeNodeId,
   activeNeighborNodeIds,
+  addContextPins,
   bringToFront,
   contextPinnedNodeIds,
+  dragDropTarget,
   draggingEdge,
+  endDropTracking,
   expandNode,
   nodes,
   persistLayout,
@@ -14,14 +17,23 @@ import {
   resizeNode,
   searchHighlightIds,
   selectedNodeIds,
+  suppressDropForDrag,
   toggleCollapsed,
   toggleContextPin,
   toggleSelected,
+  trackDragMembership,
   updateNode,
   updateNodeData,
   viewport,
 } from '../state/canvas-store';
-import { removeNodeFromClient, updateNodeFromClient } from '../state/intent-bridge';
+import {
+  addToGroupFromClient,
+  removeNodeFromClient,
+  setGroupChildrenFromClient,
+  ungroupFromClient,
+  updateNodeFromClient,
+} from '../state/intent-bridge';
+import { KIND_COLOR } from './kind-colors';
 import { AxStepControls } from '../nodes/AxStepControls';
 import { canOpenAsSite, openNodeAsSite } from '../nodes/surface-url';
 import { getNodeIcon } from '../icons';
@@ -90,7 +102,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const [renaming, setRenaming] = useState(false);
   const renameRef = useRef<HTMLInputElement>(null);
 
-  // ── Drag (with snap alignment) ──────────────────────
+  // ── Drag (with snap alignment + group membership feedback) ──
   const handleMove = useCallback(
     (id: string, x: number, y: number) => {
       const snap = snapToGuides(x, y, node.size.width, node.size.height);
@@ -101,15 +113,37 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
       }
       updateNode(id, { position: { x: snap.x, y: snap.y } });
       activeGuides.value = snap.guides.length > 0 ? snap.guides : null;
+      // Groups v2: the release pill + live auto-grow of a fit-mode parent.
+      trackDragMembership(id);
     },
     [node.size.width, node.size.height],
   );
 
+  // Esc while dragging keeps the node out of (or in) the group it hovers.
+  const escListener = useRef<((e: KeyboardEvent) => void) | null>(null);
+
   const handleDragEnd = useCallback(() => {
     clearSnapCache();
     activeGuides.value = null;
+    if (escListener.current) {
+      document.removeEventListener('keydown', escListener.current);
+      escListener.current = null;
+    }
     persistLayout();
-  }, []);
+    // Membership changes ONLY here, and only while the pill was showing.
+    const target = dragDropTarget.value;
+    endDropTracking();
+    if (!target || target.nodeId !== node.id) return;
+    if (target.mode === 'add') {
+      void addToGroupFromClient(target.groupId, [node.id]);
+    } else {
+      const group = nodes.value.get(target.groupId);
+      const remaining = Array.isArray(group?.data.children)
+        ? group.data.children.filter((id): id is string => typeof id === 'string' && id !== node.id)
+        : [];
+      void setGroupChildrenFromClient(target.groupId, remaining);
+    }
+  }, [node.id]);
 
   const startDrag = useNodeDrag({
     nodeId: node.id,
@@ -149,9 +183,16 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
       if (renaming) return;
       bringToFront(node.id);
       buildSnapCache(node.id, nodes.value.values());
+      if (node.type !== 'group') {
+        const onKey = (ev: KeyboardEvent) => {
+          if (ev.key === 'Escape') suppressDropForDrag();
+        };
+        escListener.current = onKey;
+        document.addEventListener('keydown', onKey);
+      }
       startDrag(e, node.position.x, node.position.y);
     },
-    [node.id, node.position.x, node.position.y, startDrag, renaming],
+    [node.id, node.type, node.position.x, node.position.y, startDrag, renaming],
   );
 
   const handlePointerDown = useCallback(
@@ -287,115 +328,318 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     .filter(Boolean)
     .join(' ');
 
+  // ── Groups v2 (rail-chrome-v2 phase 7, item 20) ──────────
+  const groupChildren = isGroup
+    ? (Array.isArray(node.data.children) ? node.data.children : []).filter(
+        (id): id is string => typeof id === 'string' && nodes.value.has(id),
+      )
+    : [];
+  const [groupMenuOpen, setGroupMenuOpen] = useState(false);
+  const dropTarget = dragDropTarget.value;
+  const isDropTarget = isGroup && dropTarget?.groupId === node.id && dropTarget.mode === 'add';
+  const isDropSource = isGroup && dropTarget?.groupId === node.id && dropTarget.mode === 'remove';
+  const groupKindDots = isGroup
+    ? [
+        ...new Set(
+          groupChildren.map((id) => nodes.value.get(id)?.type).filter((t): t is CanvasNodeState['type'] => !!t),
+        ),
+      ].slice(0, 4)
+    : [];
+
+  if (isGroup && node.collapsed) {
+    // Collapsed group: a compact chip. Children keep their positions for restore.
+    return (
+      <div
+        class={`${nodeClass} group-chip`}
+        data-node-type={node.type}
+        style={{ ...nodeStyle, width: 'auto', height: 'auto' }}
+        onPointerDown={handlePointerDown}
+        onContextMenu={handleContextMenuEvent}
+        title="Expand group"
+        data-testid="group-chip"
+      >
+        <div class="node-titlebar group-chip-inner" onPointerDown={handleTitlePointerDown}>
+          <button
+            type="button"
+            class="group-chip-expand"
+            aria-label={`Expand group ${title}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleCollapsed(node.id);
+            }}
+          >
+            ▸
+          </button>
+          <div class="group-chip-text">
+            <div class="group-chip-name">{title}</div>
+            <div class="group-chip-meta">
+              {groupKindDots.map((kind) => (
+                <span key={kind} class="group-kind-dot" style={{ background: KIND_COLOR[kind] }} aria-hidden="true" />
+              ))}
+              <span class="group-chip-count">
+                {groupChildren.length} node{groupChildren.length === 1 ? '' : 's'}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
-      class={nodeClass}
+      class={`${nodeClass}${isDropTarget ? ' is-drop-target' : ''}${isDropSource ? ' is-drop-source' : ''}`}
       data-node-type={node.type}
       style={nodeStyle}
       onPointerDown={handlePointerDown}
       onContextMenu={handleContextMenuEvent}
     >
-      <div class="node-titlebar" onPointerDown={handleTitlePointerDown}>
-        <span class="node-type-icon" aria-hidden="true">
-          {(() => {
-            const NodeIcon = getNodeIcon(node.type);
-            return <NodeIcon size={Math.round(14 * chromeScale)} />;
-          })()}
-        </span>
-        {/* The kind-colored icon says what type this is (rail-chrome-v2 card
+      {isGroup && (
+        <div class="node-titlebar group-edge-row" onPointerDown={handleTitlePointerDown}>
+          <span class="group-name-pill">
+            {renaming ? (
+              <input
+                ref={renameRef}
+                class="node-title-input group-title-input"
+                value={title}
+                onBlur={(e) => commitRename((e.target as HTMLInputElement).value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') commitRename((e.target as HTMLInputElement).value);
+                  if (e.key === 'Escape') setRenaming(false);
+                }}
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span class="group-name" onDblClick={handleTitleDblClick} title={`${title} — double-click to rename`}>
+                {title}
+              </span>
+            )}
+            <span class="group-count">{groupChildren.length}</span>
+          </span>
+          <span class="group-edge-spacer" />
+          <span class="group-actions" role="toolbar" aria-label={`${title} actions`}>
+            <button
+              type="button"
+              class="group-action"
+              title="Auto-arrange children"
+              aria-label="Auto-arrange children"
+              disabled={groupChildren.length === 0}
+              onClick={(e) => {
+                e.stopPropagation();
+                void addToGroupFromClient(node.id, groupChildren, 'grid');
+              }}
+            >
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+                aria-hidden="true"
+              >
+                <rect x="1.5" y="1.5" width="5" height="5" rx="1" />
+                <rect x="9.5" y="1.5" width="5" height="5" rx="1" />
+                <rect x="1.5" y="9.5" width="5" height="5" rx="1" />
+                <rect x="9.5" y="9.5" width="5" height="5" rx="1" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="group-action"
+              title="Collapse group"
+              aria-label="Collapse group"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleCollapsed(node.id);
+              }}
+            >
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 10 L8 5 L13 10" />
+              </svg>
+            </button>
+            <button
+              type="button"
+              class="group-action"
+              title="Rename · Ungroup · Pin all to context"
+              aria-label="Group menu"
+              aria-expanded={groupMenuOpen}
+              onClick={(e) => {
+                e.stopPropagation();
+                setGroupMenuOpen((open) => !open);
+              }}
+            >
+              ⋯
+            </button>
+            {groupMenuOpen && (
+              <div class="group-menu" role="menu" onPointerDown={(e) => e.stopPropagation()}>
+                <button
+                  type="button"
+                  role="menuitem"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setGroupMenuOpen(false);
+                    setRenaming(true);
+                    requestAnimationFrame(() => renameRef.current?.focus());
+                  }}
+                >
+                  Rename
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={groupChildren.length === 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setGroupMenuOpen(false);
+                    void ungroupFromClient(node.id);
+                  }}
+                >
+                  Ungroup
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  disabled={groupChildren.length === 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setGroupMenuOpen(false);
+                    addContextPins(groupChildren);
+                  }}
+                >
+                  Pin all to context
+                </button>
+                <button
+                  type="button"
+                  role="menuitem"
+                  class="is-danger"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setGroupMenuOpen(false);
+                    removeNode(node.id);
+                    void removeNodeFromClient(node.id);
+                  }}
+                >
+                  Remove group
+                </button>
+              </div>
+            )}
+          </span>
+        </div>
+      )}
+      {!isGroup && (
+        <div class="node-titlebar" onPointerDown={handleTitlePointerDown}>
+          <span class="node-type-icon" aria-hidden="true">
+            {(() => {
+              const NodeIcon = getNodeIcon(node.type);
+              return <NodeIcon size={Math.round(14 * chromeScale)} />;
+            })()}
+          </span>
+          {/* The kind-colored icon says what type this is (rail-chrome-v2 card
             shell: icon · title · controls, no type badge). Only the AX status
             chip joins it, and only when there is a status to show. */}
-        {typeof node.data.axWorkStatus === 'string' && (
-          <span class={`node-ax-status node-ax-status-${node.data.axWorkStatus}`}>{node.data.axWorkStatus}</span>
-        )}
-        {renaming ? (
-          <input
-            ref={renameRef}
-            class="node-title-input"
-            value={title}
-            onBlur={(e) => commitRename((e.target as HTMLInputElement).value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') commitRename((e.target as HTMLInputElement).value);
-              if (e.key === 'Escape') setRenaming(false);
-            }}
-            onClick={(e) => e.stopPropagation()}
-          />
-        ) : (
-          <span class="node-title" onDblClick={handleTitleDblClick} title={`${title} — double-click to rename`}>
-            {title}
-          </span>
-        )}
-        <div class="node-controls">
-          {isPinned && (
-            <span class="pin-indicator" title="Pinned">
-              ⊙
+          {typeof node.data.axWorkStatus === 'string' && (
+            <span class={`node-ax-status node-ax-status-${node.data.axWorkStatus}`}>{node.data.axWorkStatus}</span>
+          )}
+          {renaming ? (
+            <input
+              ref={renameRef}
+              class="node-title-input"
+              value={title}
+              onBlur={(e) => commitRename((e.target as HTMLInputElement).value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') commitRename((e.target as HTMLInputElement).value);
+                if (e.key === 'Escape') setRenaming(false);
+              }}
+              onClick={(e) => e.stopPropagation()}
+            />
+          ) : (
+            <span class="node-title" onDblClick={handleTitleDblClick} title={`${title} — double-click to rename`}>
+              {title}
             </span>
           )}
-          <button
-            type="button"
-            class={`ctx-pin-btn${isContextPinned ? ' ctx-pin-active' : ''}`}
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleContextPin(node.id);
-            }}
-            title={isContextPinned ? 'Remove from context' : 'Add to context'}
-          >
-            {'\u2726'}
-          </button>
-          {/* Open as site — full-page standalone view of this node's surface,
+          <div class="node-controls">
+            {isPinned && (
+              <span class="pin-indicator" title="Pinned">
+                ⊙
+              </span>
+            )}
+            <button
+              type="button"
+              class={`ctx-pin-btn${isContextPinned ? ' ctx-pin-active' : ''}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleContextPin(node.id);
+              }}
+              title={isContextPinned ? 'Remove from context' : 'Add to context'}
+            >
+              {'\u2726'}
+            </button>
+            {/* Open as site — full-page standalone view of this node's surface,
               served from /api/canvas/surface/:id (same document as the canvas
               iframe). Opens via the system browser so embedded hosts do not trap
               it in their own webview. */}
-          {canOpenAsSite(node) && (
+            {canOpenAsSite(node) && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void openNodeAsSite(node);
+                }}
+                title="Open as site"
+              >
+                ↗
+              </button>
+            )}
+            {/* Expand — opens node as full-viewport overlay for focused work */}
+            {EXPANDABLE_TYPES.has(node.type) && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  expandNode(node.id);
+                }}
+                title="Expand (focus mode)"
+              >
+                ⤢
+              </button>
+            )}
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation();
-                void openNodeAsSite(node);
+                toggleCollapsed(node.id);
               }}
-              title="Open as site"
+              title={node.collapsed ? 'Expand' : 'Collapse'}
             >
-              ↗
+              {node.collapsed ? '▸' : '▾'}
             </button>
-          )}
-          {/* Expand — opens node as full-viewport overlay for focused work */}
-          {EXPANDABLE_TYPES.has(node.type) && (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                expandNode(node.id);
-              }}
-              title="Expand (focus mode)"
-            >
-              ⤢
-            </button>
-          )}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              toggleCollapsed(node.id);
-            }}
-            title={node.collapsed ? 'Expand' : 'Collapse'}
-          >
-            {node.collapsed ? '▸' : '▾'}
-          </button>
-          {/* Report #64: status nodes get the same remove control as every other
+            {/* Report #64: status nodes get the same remove control as every other
               node type (backend removal + undo/history handle status uniformly). */}
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              removeNode(node.id);
-              void removeNodeFromClient(node.id);
-            }}
-            title="Close"
-          >
-            ×
-          </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                removeNode(node.id);
+                void removeNodeFromClient(node.id);
+              }}
+              title="Close"
+            >
+              ×
+            </button>
+          </div>
         </div>
-      </div>
+      )}
       {!node.collapsed && (
         <div ref={bodyRef} class="node-body">
           {children}
@@ -414,47 +658,50 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         (['tl', 'tr', 'bl', 'br'] as const).map((corner) => (
           <span key={corner} class={`node-selection-handle is-${corner}`} aria-hidden="true" />
         ))}
-      {/* Connection port handles — visible on hover, drag to connect */}
-      {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
-        <div
-          key={side}
-          class={`node-port node-port-${side}`}
-          onPointerDown={(e) => {
-            e.stopPropagation();
-            e.preventDefault();
-            const cx = node.position.x + node.size.width / 2;
-            const cy = node.position.y + node.size.height / 2;
-            const hw = node.size.width / 2;
-            const hh = node.size.height / 2;
-            let px: number, py: number;
-            switch (side) {
-              case 'top':
-                px = cx;
-                py = cy - hh;
-                break;
-              case 'bottom':
-                px = cx;
-                py = cy + hh;
-                break;
-              case 'left':
-                px = cx - hw;
-                py = cy;
-                break;
-              case 'right':
-                px = cx + hw;
-                py = cy;
-                break;
-            }
-            draggingEdge.value = {
-              fromId: node.id,
-              fromX: px,
-              fromY: py,
-              cursorX: px,
-              cursorY: py,
-            };
-          }}
-        />
-      ))}
+      {/* Connection port handles — visible on hover, drag to connect. Groups
+          are frames, not endpoints: no ports (and the edge row sits on the top
+          edge where the port would be). */}
+      {!isGroup &&
+        (['top', 'right', 'bottom', 'left'] as const).map((side) => (
+          <div
+            key={side}
+            class={`node-port node-port-${side}`}
+            onPointerDown={(e) => {
+              e.stopPropagation();
+              e.preventDefault();
+              const cx = node.position.x + node.size.width / 2;
+              const cy = node.position.y + node.size.height / 2;
+              const hw = node.size.width / 2;
+              const hh = node.size.height / 2;
+              let px: number, py: number;
+              switch (side) {
+                case 'top':
+                  px = cx;
+                  py = cy - hh;
+                  break;
+                case 'bottom':
+                  px = cx;
+                  py = cy + hh;
+                  break;
+                case 'left':
+                  px = cx - hw;
+                  py = cy;
+                  break;
+                case 'right':
+                  px = cx + hw;
+                  py = cy;
+                  break;
+              }
+              draggingEdge.value = {
+                fromId: node.id,
+                fromX: px,
+                fromY: py,
+                cursorX: px,
+                cursorY: py,
+              };
+            }}
+          />
+        ))}
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { selectedNodeIds } from '../state/canvas-store';
 import { agentPresences, presenceWorldPosition, sessionActive } from '../state/presence-store';
 import { scopeFence } from '../state/session-store';
 import type { CanvasEdge, CanvasNodeState, ViewportState } from '../types';
+import { KIND_COLOR } from './kind-colors';
 
 /**
  * Minimap v2 (rail-chrome-v2 phase 7, design item 19): a true-scale node map
@@ -31,27 +32,6 @@ interface MinimapFrame {
   bounds: MinimapBounds;
   scale: number;
 }
-
-/** Kind color per node type, as CSS tokens so every theme keeps its palette. */
-const KIND_COLOR: Record<CanvasNodeState['type'], string> = {
-  markdown: 'var(--c-accent)',
-  'mcp-app': 'var(--c-ok)',
-  webpage: 'var(--c-warn)',
-  'json-render': 'var(--c-ok)',
-  graph: 'var(--c-purple)',
-  prompt: 'var(--c-accent)',
-  response: 'var(--c-ok)',
-  status: 'var(--c-warn)',
-  context: 'var(--c-muted)',
-  ledger: 'var(--c-dim)',
-  trace: 'var(--c-purple)',
-  file: 'var(--c-accent)',
-  diff: 'var(--c-ok)',
-  mermaid: 'var(--c-purple)',
-  image: 'var(--c-ok)',
-  html: 'var(--c-warn)',
-  group: 'var(--c-accent)',
-};
 
 export function computeMinimapFrame(
   nodeMap: Map<string, CanvasNodeState>,

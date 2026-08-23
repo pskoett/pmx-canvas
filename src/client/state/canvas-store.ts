@@ -134,6 +134,122 @@ export function clearSelection(): void {
   selectedNodeIds.value = new Set();
 }
 
+// ── Groups v2 (rail-chrome-v2 phase 7, item 20) ──────────────────────
+
+/**
+ * Membership feedback while a node is being dragged: the group it would join
+ * on release (`add`), or the parent it would leave (`remove`). Membership
+ * changes ONLY on release while this is set — never silently by geometry.
+ * Esc during the drag clears it and keeps it cleared for that drag.
+ */
+export const dragDropTarget = signal<{ nodeId: string; groupId: string; mode: 'add' | 'remove' } | null>(null);
+let dropSuppressedForDrag = false;
+
+export function suppressDropForDrag(): void {
+  dropSuppressedForDrag = true;
+  dragDropTarget.value = null;
+}
+
+export function endDropTracking(): void {
+  dropSuppressedForDrag = false;
+  dragDropTarget.value = null;
+}
+
+function rectOf(node: CanvasNodeState): { x: number; y: number; w: number; h: number } {
+  return { x: node.position.x, y: node.position.y, w: node.size.width, h: node.size.height };
+}
+
+function contains(outer: CanvasNodeState, x: number, y: number): boolean {
+  const r = rectOf(outer);
+  return x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
+}
+
+function fullyOutside(inner: CanvasNodeState, outer: CanvasNodeState): boolean {
+  const a = rectOf(inner);
+  const b = rectOf(outer);
+  return a.x + a.w < b.x || a.x > b.x + b.w || a.y + a.h < b.y || a.y > b.y + b.h;
+}
+
+/**
+ * Called on every drag move of `nodeId`: updates the drop target and grows a
+ * fit-mode parent frame live so a child dragged against it never clips
+ * (the server re-fits on persist; shrinking happens there).
+ */
+export function trackDragMembership(nodeId: string): void {
+  const node = nodes.value.get(nodeId);
+  if (!node || node.type === 'group') return;
+  const parentId = typeof node.data.parentGroup === 'string' ? node.data.parentGroup : null;
+  const parent = parentId ? nodes.value.get(parentId) : undefined;
+  const cx = node.position.x + node.size.width / 2;
+  const cy = node.position.y + node.size.height / 2;
+  let candidate: CanvasNodeState | null = null;
+  for (const other of nodes.value.values()) {
+    if (other.type !== 'group' || other.id === parentId || other.collapsed) continue;
+    if (contains(other, cx, cy)) candidate = other;
+  }
+  if (!dropSuppressedForDrag) {
+    const next = candidate
+      ? { nodeId, groupId: candidate.id, mode: 'add' as const }
+      : parent && fullyOutside(node, parent)
+        ? { nodeId, groupId: parent.id, mode: 'remove' as const }
+        : null;
+    const current = dragDropTarget.value;
+    if ((current?.groupId ?? null) !== (next?.groupId ?? null) || current?.mode !== next?.mode) {
+      dragDropTarget.value = next;
+    }
+  }
+  if (parent && parent.data.frameMode !== 'manual' && !fullyOutside(node, parent)) {
+    const pad = 22;
+    const left = Math.min(parent.position.x, node.position.x - pad);
+    const top = Math.min(parent.position.y, node.position.y - pad - 32);
+    const right = Math.max(parent.position.x + parent.size.width, node.position.x + node.size.width + pad);
+    const bottom = Math.max(parent.position.y + parent.size.height, node.position.y + node.size.height + pad);
+    if (
+      left !== parent.position.x ||
+      top !== parent.position.y ||
+      right !== parent.position.x + parent.size.width ||
+      bottom !== parent.position.y + parent.size.height
+    ) {
+      updateNodeWithOptions(
+        parent.id,
+        { position: { x: left, y: top }, size: { width: right - left, height: bottom - top } },
+        { skipGroupChildTranslation: true },
+      );
+    }
+  }
+}
+
+/** Children of collapsed groups are hidden; edges to them point at the chip. */
+export const hiddenByCollapsedGroup = computed(() => {
+  const hidden = new Map<string, string>();
+  for (const node of nodes.value.values()) {
+    if (node.type !== 'group' || !node.collapsed) continue;
+    const children = Array.isArray(node.data.children) ? node.data.children : [];
+    for (const childId of children) {
+      if (typeof childId === 'string') hidden.set(childId, node.id);
+    }
+  }
+  return hidden;
+});
+
+/** The node that stands in for `id` on the canvas: itself, or its collapsed group's chip. */
+export function visibleNodeFor(id: string): CanvasNodeState | undefined {
+  const chipId = hiddenByCollapsedGroup.value.get(id);
+  return nodes.value.get(chipId ?? id);
+}
+
+/** Collapsed groups render as a chip; children keep their positions for restore. */
+export function groupsOfSelection(): string[] {
+  const ids = new Set<string>();
+  for (const id of selectedNodeIds.value) {
+    const node = nodes.value.get(id);
+    if (!node) continue;
+    if (node.type === 'group') ids.add(node.id);
+    else if (typeof node.data.parentGroup === 'string') ids.add(node.data.parentGroup);
+  }
+  return [...ids];
+}
+
 // ── Selection bar geometry actions (rail-chrome-v2 phase 7, item 13) ──
 // Each works on the current selection in world space and persists through the
 // same path a drag does (store update + persistLayout → /api/canvas/update).
@@ -407,7 +523,15 @@ export function resizeNode(id: string, size: { width: number; height: number }):
 export function bringToFront(id: string): void {
   const existing = nodes.value.get(id);
   if (!existing) return;
-  updateNode(id, { zIndex: maxZ++ });
+  batch(() => {
+    updateNode(id, { zIndex: maxZ++ });
+    // A group is a frame: it must never stack above its own children.
+    if (existing.type === 'group' && Array.isArray(existing.data.children)) {
+      for (const childId of existing.data.children) {
+        if (typeof childId === 'string' && nodes.value.has(childId)) updateNode(childId, { zIndex: maxZ++ });
+      }
+    }
+  });
   activeNodeId.value = id;
 }
 
@@ -415,6 +539,9 @@ export function toggleCollapsed(id: string): void {
   const existing = nodes.value.get(id);
   if (!existing) return;
   updateNode(id, { collapsed: !existing.collapsed });
+  // Collapse is board state (a collapsed group hides its children for every
+  // viewer and survives reload), not a per-tab preference.
+  persistLayout();
 }
 
 // ── Viewport ──────────────────────────────────────────────────

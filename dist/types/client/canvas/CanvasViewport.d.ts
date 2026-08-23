@@ -5,6 +5,6 @@ interface CanvasViewportProps {
     annotationMode?: boolean;
     annotationTool?: AnnotationTool;
 }
-export declare function getRenderableWorldNodes(allNodes: Iterable<CanvasNodeState>, focusedNodeId: string | null): CanvasNodeState[];
+export declare function getRenderableWorldNodes(allNodes: Iterable<CanvasNodeState>, focusedNodeId: string | null, hiddenIds?: ReadonlySet<string>): CanvasNodeState[];
 export declare function CanvasViewport({ onNodeContextMenu, onCanvasContextMenu, annotationMode, annotationTool, }: CanvasViewportProps): import("preact/src").JSX.Element;
 export {};
