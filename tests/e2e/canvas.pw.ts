@@ -47,12 +47,8 @@ async function clearCanvas(request: APIRequestContext): Promise<void> {
   }
   await request.post('/api/canvas/ax/policy', { data: { scope: null }, headers: { 'x-pmx-workbench': '1' } });
   await request.post('/api/canvas/clear', { headers: { 'x-pmx-workbench': '1' } });
-  await request.post('/api/canvas/context-pins', {
-    data: { nodeIds: [] },
-  });
-  await request.post('/api/canvas/theme', {
-    data: { theme: 'dark' },
-  });
+  await request.post('/api/canvas/context-pins', { data: { nodeIds: [] }, headers: { 'x-pmx-workbench': '1' } });
+  await request.post('/api/canvas/theme', { data: { theme: 'dark' }, headers: { 'x-pmx-workbench': '1' } });
 }
 
 async function currentCanvasState(request: APIRequestContext): Promise<{
@@ -3816,6 +3812,77 @@ test('human-started session: start from the quiet board, steer from the command 
   );
   await receipt.getByRole('button', { name: 'Dismiss receipt' }).click();
   await expect(receipt).toHaveCount(0);
+});
+
+test('external steering: indicator + activity feed + writers sheet for session-less writers, gone once a session attaches', async ({
+  page,
+  request,
+}) => {
+  // rail-chrome-v2 phase 6. Two external writers (an identified MCP agent and
+  // a plain HTTP caller) write with no session attached. Unattached writers
+  // from earlier tests may still be live (in-memory, 90 s TTL), so the
+  // assertions below are about OUR writers, not exact totals.
+  await page.goto('/workbench');
+
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'sse-bridge', content: 'notes', x: 120, y: 120, width: 280, height: 140 },
+    headers: { 'x-pmx-source': 'claude-code' },
+  });
+  await request.post('/api/canvas/node', {
+    data: { type: 'status', title: 'Store health', content: 'ok', x: 480, y: 120, width: 260, height: 140 },
+  });
+
+  const indicator = page.locator('[data-testid="external-indicator"]');
+  await expect(indicator).toBeVisible();
+  await expect(indicator.locator('.external-indicator-label')).toHaveText(/^\d+ writers$/);
+  await expect(indicator.locator('.external-indicator-ops')).toHaveText(/^\d+ ops$/);
+  // Still the quiet board: no session chrome.
+  await expect(page.locator('.app-shell')).toHaveAttribute('data-session-active', 'false');
+  await expect(page.locator('.session-panel')).toHaveCount(0);
+
+  await indicator.click();
+  const feed = page.locator('[data-testid="activity-feed"]');
+  await expect(feed).toBeVisible();
+  await expect(feed.locator('.activity-feed-title')).toHaveText(/^External activity — \d+ writers$/);
+  const rows = feed.locator('[data-testid="activity-row"] .activity-text');
+  await expect(rows.nth(0)).toHaveText('Created status “Store health”');
+  await expect(rows.nth(1)).toHaveText('Created markdown “sse-bridge”');
+  await expect(feed.locator('[data-testid="activity-row"] .activity-writer').nth(0)).toHaveText('api');
+  await expect(feed.locator('[data-testid="activity-row"] .activity-writer').nth(1)).toHaveText('claude-code');
+
+  // Per-writer filter.
+  await feed.locator('.activity-filter', { hasText: 'claude-code' }).click();
+  await expect(rows).toHaveText(['Created markdown “sse-bridge”']);
+
+  // The feed is live: a new write lands at the top without a reload.
+  await feed.locator('.activity-filter', { hasText: 'All' }).click();
+  await request.patch(`/api/canvas/node/${(await (await request.get('/api/canvas/state')).json()).nodes[0].id}`, {
+    data: { title: 'sse-bridge (v2)' },
+    headers: { 'x-pmx-source': 'claude-code' },
+  });
+  await expect(rows.first()).toHaveText('Updated “sse-bridge (v2)”');
+
+  // Writers sheet: visibility only.
+  await feed.getByRole('button', { name: 'Writers' }).click();
+  const sheet = page.locator('[data-testid="writers-sheet"]');
+  await expect(sheet).toBeVisible();
+  await expect(sheet.locator('.writers-row', { hasText: 'claude-code' }).locator('.writers-meta')).toHaveText(
+    /^wrote (now|\d+s) ago$/,
+  );
+  await expect(sheet.locator('.writers-row', { hasText: 'api' })).toHaveCount(1);
+  await page.keyboard.press('Escape');
+  await expect(sheet).toHaveCount(0);
+  await expect(feed).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(feed).toHaveCount(0);
+
+  // Upgrading to a session retires the indicator: the chip takes over.
+  await indicator.click();
+  await feed.getByRole('button', { name: 'Start session ↗' }).click();
+  await expect(page.locator('.app-shell')).toHaveAttribute('data-session-active', 'true');
+  await expect(page.locator('[data-testid="external-indicator"]')).toHaveCount(0);
+  await expect(feed).toHaveCount(0);
+  await expect(page.locator('.agent-chip')).toBeVisible();
 });
 
 test('rail popovers anchor beside their trigger on narrow screens', async ({ page }) => {

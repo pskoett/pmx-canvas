@@ -116,6 +116,26 @@ describe('agent presence over HTTP', () => {
     expect(afterHuman.presences[0]?.opCount).toBe(1);
   });
 
+  test('agent writes feed the activity list with a summary and the writer', async () => {
+    const created = await postJson('/api/canvas/node', { type: 'markdown', title: 'Plan', x: 10, y: 10 });
+    const { id } = (await created.json()) as { id: string };
+    await postJson(
+      '/api/canvas/node',
+      { type: 'markdown', title: 'Human note', x: 400, y: 10 },
+      { 'x-pmx-workbench': '1' },
+    );
+    const snapshot = await getPresence();
+    expect(snapshot.activity).toHaveLength(1);
+    expect(snapshot.activity[0]).toMatchObject({
+      sessionId: 'api',
+      label: 'api',
+      op: 'node.add',
+      summary: 'Created markdown “Plan”',
+      nodeId: id,
+    });
+    expect(typeof snapshot.activity[0]?.at).toBe('string');
+  });
+
   test('reads never count as presence', async () => {
     const response = await fetch(`${baseUrl}/api/canvas/state`);
     expect(response.ok).toBe(true);

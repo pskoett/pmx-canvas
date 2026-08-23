@@ -66,7 +66,10 @@ Humans curate agent context by pinning nodes; agents read that curation through
    done / vetoed, a diff against that snapshot, one-click restore) — so always detach
    explicitly rather than letting the session idle out. The human can also start a session
    from the board's *Start agent session* button; your transport writes are then attributed
-   to it without any call on your side.
+   to it without any call on your side. Without a session your writes still reach the human:
+   the board shows a passive "external writers" indicator with an activity feed listing each
+   write under your label — identify yourself (`PMX_CANVAS_AGENT_SOURCE`, or `x-pmx-source` on
+   HTTP) so the feed and the writers sheet name you rather than the transport.
 7. **Mutate through current composites.** Prefer the 16 composite MCP tools below.
 7. **Arrange and validate.** After batch changes, use `canvas_view { action: "arrange" }` when
    appropriate and always finish with `canvas_query { action: "validate" }`.

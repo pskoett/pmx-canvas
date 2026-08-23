@@ -1107,6 +1107,12 @@ nodes.
   reason; reads are never fenced. The fence is the human's: `set-policy` does not take
   `scope`, and an HTTP policy call that includes it is refused (403). Read `policy.scope`
   before writing and ask the human to widen it rather than retrying.
+- **External steering (no session):** a writer with no attached session is shown passively —
+  a top-bar indicator (avatars, "N writers · M ops"), a click-to-open activity feed (one row
+  per write: "Created markdown “…”" under the writer's label, per-writer filters, inline Veto
+  on your pending explicit intents) and a connected-writers sheet. Pure visibility: pmx-canvas
+  is local-first and veto/ghosting is the safety model, not permissions. The feed is
+  `activity` on `GET /api/canvas/ax/presence` (`canvas_ax_state { action: "presence" }`).
 - **Session receipt:** attaching a session (`set-presence { attached: true }` or a
   `session-start` activity) over a non-empty board saves a `Before session · <label> · HH:MM`
   snapshot; ending it (`attached: false`, `session-end`, or idle expiry) emits one

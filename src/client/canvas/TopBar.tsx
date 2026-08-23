@@ -15,6 +15,8 @@ import {
 } from '../state/canvas-store';
 import { MOD_KEY } from '../utils/platform';
 import { canvasArea } from './canvas-area';
+import { ExternalWriterIndicator } from './ExternalWriters';
+import { useNow } from './use-now';
 import { agentPhaseLabel } from '../../shared/agent-presence.js';
 import { activeSession, contextBudget } from '../state/presence-store';
 import { pendingGates, startSession } from '../state/session-store';
@@ -70,14 +72,9 @@ function AgentChip() {
  * session: "1 gate · 4:31" — the countdown is the soonest auto-hold.
  */
 function GateBadge() {
-  const [now, setNow] = useState(() => Date.now());
   const count = pendingGates.value.length;
   const active = activeSession.value !== null && count > 0;
-  useEffect(() => {
-    if (!active) return;
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, [active]);
+  const now = useNow(active ? 1000 : 0);
   if (!active) return null;
   const soonest = pendingGates.value
     .map((gate) => gateRemainingMs(gate, now))
@@ -220,6 +217,7 @@ export function TopBar() {
       <AgentChip />
       <GateBadge />
       <ContextBudget />
+      <ExternalWriterIndicator />
       <StartSessionButton />
 
       <div class="top-bar-sep" />

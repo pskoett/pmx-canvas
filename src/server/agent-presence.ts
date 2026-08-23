@@ -15,6 +15,7 @@
 import { z } from 'zod';
 import {
   AGENT_PHASES,
+  type AgentActivityEntry,
   type AgentPhase,
   type AgentPresence,
   type AgentPresenceSnapshot,
@@ -22,6 +23,7 @@ import {
   type ContextBudget,
   estimateTokens,
   isSessionActive,
+  MAX_ACTIVITY_ENTRIES,
   MAX_PRESENCES,
   PRESENCE_ACTIVITY_TTL_MS,
   PRESENCE_ATTACHED_IDLE_TTL_MS,
@@ -49,6 +51,97 @@ export interface PresenceTouch {
   attached?: boolean;
   /** Count this touch as an agent write. */
   op?: boolean;
+  /** What the write did, for the activity feed (only meaningful with `op`). */
+  activity?: { op: string; summary: string; nodeId: string | null };
+}
+
+/** Title a write's summary can name, or a type-based fallback. */
+function nodeTitle(nodeId: string | null | undefined): string | null {
+  const node = nodeId ? canvasState.getNode(nodeId) : undefined;
+  if (!node) return null;
+  const title = typeof node.data.title === 'string' ? node.data.title.trim() : '';
+  return title || `${node.type} node`;
+}
+
+function quote(title: string | null, fallback: string): string {
+  return title ? `“${title}”` : fallback;
+}
+
+/**
+ * One sentence for the activity feed, from the op name plus whatever the
+ * input/result name. Titles are read AFTER the op ran, so creates and updates
+ * resolve; removes describe what is gone by id.
+ */
+export function describeWrite(
+  op: string,
+  rawInput: unknown,
+  result: unknown,
+): { summary: string; nodeId: string | null } {
+  const input = rawInput && typeof rawInput === 'object' ? (rawInput as Record<string, unknown>) : {};
+  const res = result && typeof result === 'object' ? (result as Record<string, unknown>) : {};
+  const resNode = res.node && typeof res.node === 'object' ? (res.node as Record<string, unknown>) : {};
+  const nodeId =
+    (typeof input.id === 'string' && input.id) ||
+    (typeof input.nodeId === 'string' && input.nodeId) ||
+    (typeof res.id === 'string' && res.id) ||
+    (typeof resNode.id === 'string' && resNode.id) ||
+    null;
+  const title = nodeTitle(nodeId);
+  const str = (value: unknown): string => (typeof value === 'string' ? value : '');
+  switch (op) {
+    case 'node.add':
+      return { summary: `Created ${str(input.type) || 'a'} ${quote(title, 'node')}`, nodeId };
+    case 'jsonrender.add':
+    case 'graph.add':
+      return { summary: `Created ${quote(title, 'a rendered node')}`, nodeId };
+    case 'jsonrender.stream':
+      return { summary: `Streamed into ${quote(title, 'a rendered node')}`, nodeId };
+    case 'node.update':
+      return { summary: `Updated ${quote(title, 'a node')}`, nodeId };
+    case 'node.remove':
+      return { summary: 'Removed a node', nodeId };
+    case 'edge.add':
+      return {
+        summary: `Connected ${quote(nodeTitle(str(input.from)), 'a node')} → ${quote(nodeTitle(str(input.to)), 'a node')}`,
+        nodeId: str(input.to) || null,
+      };
+    case 'edge.remove':
+      return { summary: 'Removed an edge', nodeId: null };
+    case 'group.create':
+      return { summary: `Grouped nodes into ${quote(title, 'a group')}`, nodeId };
+    case 'group.add':
+    case 'group.remove':
+      return {
+        summary: `Changed membership of ${quote(nodeTitle(str(input.groupId)), 'a group')}`,
+        nodeId: str(input.groupId) || null,
+      };
+    case 'arrange':
+      return { summary: `Arranged the board${str(input.layout) ? ` (${str(input.layout)})` : ''}`, nodeId: null };
+    case 'canvas.clear':
+      return { summary: 'Cleared the board', nodeId: null };
+    case 'snapshot.restore':
+      return { summary: 'Restored a snapshot', nodeId: null };
+    case 'annotation.add':
+      return { summary: 'Drew an annotation', nodeId: null };
+    case 'ax.work.create':
+      return { summary: `Opened work item ${quote(str(input.title) || null, '')}`.trimEnd(), nodeId };
+    case 'ax.work.update':
+      return { summary: `Updated a work item${str(input.status) ? ` → ${str(input.status)}` : ''}`, nodeId };
+    case 'ax.approval.request':
+      return { summary: `Requested approval: ${quote(str(input.title) || null, 'a gate')}`, nodeId };
+    case 'ax.approval.resolve':
+      return { summary: `Resolved a gate${str(input.decision) ? ` → ${str(input.decision)}` : ''}`, nodeId };
+    case 'ax.evidence.add':
+      return { summary: 'Attached evidence', nodeId };
+    case 'ax.steer':
+      return { summary: 'Posted steering', nodeId: null };
+    case 'ax.focus.set':
+      return { summary: 'Set the AX focus', nodeId: null };
+    case 'ax.policy.set':
+      return { summary: 'Updated the tool policy', nodeId: null };
+    default:
+      return { summary: op.replace(/\./g, ' '), nodeId };
+  }
 }
 
 /**
@@ -106,6 +199,9 @@ type SessionEndListener = (presence: AgentPresence, startSnapshotId: string | nu
 
 export class AgentPresenceRegistry {
   private readonly presences = new Map<string, StoredPresence>();
+  /** Newest first; bounded. Survives a writer fading — the feed is history, the writer list is presence. */
+  private activity: AgentActivityEntry[] = [];
+  private activitySeq = 0;
   private emit: PresenceEmitter = () => {};
   /** Single slots (like the emitter): server.ts owns the pre-session snapshot + receipt. */
   private onSessionStart: SessionStartListener = () => null;
@@ -163,7 +259,16 @@ export class AgentPresenceRegistry {
       if (shadow && !shadow.attached) {
         this.presences.delete(own);
         const session = this.presences.get(key);
-        if (session) session.opCount += shadow.opCount;
+        if (session) {
+          session.opCount += shadow.opCount;
+          // Its feed entries were the session's work all along.
+          for (const entry of this.activity) {
+            if (entry.sessionId === own) {
+              entry.sessionId = key;
+              entry.label = session.label;
+            }
+          }
+        }
       }
     }
     const existing = this.presences.get(key);
@@ -187,13 +292,33 @@ export class AgentPresenceRegistry {
     stored.lastSeenMs = now;
     stored.lastSeenAt = new Date(now).toISOString();
     if (input.label) stored.label = input.label;
-    if (input.op) stored.opCount += 1;
+    if (input.op) {
+      stored.opCount += 1;
+      if (input.activity) {
+        this.activitySeq += 1;
+        this.activity.unshift({
+          id: `act-${this.activitySeq}`,
+          at: stored.lastSeenAt,
+          sessionId: key,
+          label: stored.label,
+          op: input.activity.op,
+          summary: input.activity.summary,
+          nodeId: input.activity.nodeId,
+        });
+        if (this.activity.length > MAX_ACTIVITY_ENTRIES) this.activity.length = MAX_ACTIVITY_ENTRIES;
+      }
+    }
     if (input.attached !== undefined) stored.attached = input.attached;
     if (!wasAttached && input.attached === true)
       stored.startSnapshotId = this.onSessionStart(this.publicView(stored, now));
     if (wasAttached && input.attached === false) {
       this.onSessionEnd(this.publicView(stored, now), stored.startSnapshotId);
-      stored.startSnapshotId = null;
+      // An ended session is gone — like `session-end` on the activity feed, it
+      // must not linger as an "external writer" until the activity TTL.
+      this.presences.delete(key);
+      this.maybeStopSweeper();
+      this.scheduleEmit();
+      return this.publicView({ ...stored, startSnapshotId: null }, now);
     }
     if (input.focusNodeId !== undefined) stored.focusNodeId = input.focusNodeId;
     if (input.cursor !== undefined) stored.cursor = input.cursor;
@@ -284,12 +409,18 @@ export class AgentPresenceRegistry {
   snapshot(now = Date.now()): AgentPresenceSnapshot {
     this.sweep(now, { emit: false });
     const presences = [...this.presences.values()].map((stored) => this.publicView(stored, now));
-    return { presences, budget: estimateContextBudget(), sessionActive: isSessionActive(presences) };
+    return {
+      presences,
+      budget: estimateContextBudget(),
+      sessionActive: isSessionActive(presences),
+      activity: this.activity.map((entry) => ({ ...entry })),
+    };
   }
 
   /** Test / shutdown hook. */
   reset(): void {
     this.presences.clear();
+    this.activity = [];
     if (this.emitTimer) {
       clearTimeout(this.emitTimer);
       this.emitTimer = null;

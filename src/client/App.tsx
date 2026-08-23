@@ -7,6 +7,7 @@ import { CommandBar } from './canvas/CommandBar';
 import { CommandPalette } from './canvas/CommandPalette';
 import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
 import { ContextPinBar } from './canvas/ContextPinBar';
+import { ActivityFeed, WritersSheet } from './canvas/ExternalWriters';
 import { ExpandedNodeOverlay } from './canvas/ExpandedNodeOverlay';
 import { Minimap } from './canvas/Minimap';
 import { SelectionBar } from './canvas/SelectionBar';
@@ -311,6 +312,8 @@ export function App() {
           />
           <AttentionToast />
           <AttentionHistory />
+          <ActivityFeed />
+          <WritersSheet />
           {hasInitialLayout && allNodes.length === 0 && intents.value.size === 0 && (
             <WelcomeCard onOpenPalette={() => setPaletteOpen(true)} />
           )}

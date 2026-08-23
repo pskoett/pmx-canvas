@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { AgentPresenceRegistry, estimateContextBudget } from '../../src/server/agent-presence.ts';
+import { AgentPresenceRegistry, describeWrite, estimateContextBudget } from '../../src/server/agent-presence.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import {
   CONTEXT_BUDGET_DEFAULT_TOKENS,
+  MAX_ACTIVITY_ENTRIES,
   MAX_PRESENCES,
   PRESENCE_ACTIVITY_TTL_MS,
   PRESENCE_ATTACHED_IDLE_TTL_MS,
@@ -215,6 +216,8 @@ describe('session lifecycle (pre-session snapshot + receipt)', () => {
     expect(starts).toEqual(['copilot']);
     registry.touch({ source: 'copilot', attached: false }, T0 + 30);
     expect(ends).toEqual([{ sessionId: 'copilot', startSnapshotId: 'snap-1' }]);
+    // An explicit detach removes the writer outright — it is not demoted to an external writer.
+    expect(registry.snapshot(T0 + 30).presences).toHaveLength(0);
     registry.touch({ source: 'copilot', attached: true }, T0 + 40); // a new session gets a new snapshot
     expect(starts).toEqual(['copilot', 'copilot']);
   });
@@ -228,6 +231,95 @@ describe('session lifecycle (pre-session snapshot + receipt)', () => {
     registry.touch({ source: 'api', op: true }, T0);
     registry.snapshot(T0 + PRESENCE_ATTACHED_IDLE_TTL_MS + 1);
     expect(ends.map((end) => end.sessionId)).toEqual(['codex', 'copilot']);
+  });
+});
+
+describe('activity feed (External Steering, phase 6)', () => {
+  test('every counted write lands as a feed entry, newest first, bounded', () => {
+    registry.touch(
+      { source: 'mcp', op: true, activity: { op: 'node.add', summary: 'Created markdown “A”', nodeId: 'a' } },
+      T0,
+    );
+    registry.touch(
+      { source: 'mcp', op: true, activity: { op: 'node.update', summary: 'Updated “A”', nodeId: 'a' } },
+      T0 + 1,
+    );
+    registry.touch({ source: 'mcp', op: true }, T0 + 2); // counted, but nothing to describe
+    const { activity } = registry.snapshot(T0 + 2);
+    expect(activity.map((entry) => entry.summary)).toEqual(['Updated “A”', 'Created markdown “A”']);
+    expect(activity[0]).toMatchObject({ sessionId: 'mcp', label: 'mcp', op: 'node.update', nodeId: 'a' });
+    for (let i = 0; i < MAX_ACTIVITY_ENTRIES + 5; i += 1) {
+      registry.touch(
+        { source: 'mcp', op: true, activity: { op: 'node.update', summary: `w${i}`, nodeId: null } },
+        T0 + 10 + i,
+      );
+    }
+    expect(registry.snapshot(T0 + 100).activity).toHaveLength(MAX_ACTIVITY_ENTRIES);
+  });
+
+  test('entries of a shadow writer are re-attributed when it folds into the session', () => {
+    registry.touch(
+      { source: 'api', op: true, activity: { op: 'node.add', summary: 'Created “pre”', nodeId: 'p' } },
+      T0,
+    );
+    registry.touch({ source: 'copilot', label: 'Copilot', attached: true }, T0 + 1);
+    registry.touch(
+      { source: 'api', op: true, activity: { op: 'node.update', summary: 'Updated “pre”', nodeId: 'p' } },
+      T0 + 2,
+    );
+    const { activity } = registry.snapshot(T0 + 2);
+    expect(activity.map((entry) => [entry.sessionId, entry.label])).toEqual([
+      ['copilot', 'Copilot'],
+      ['copilot', 'Copilot'],
+    ]);
+  });
+
+  test('the feed is history: it outlives a writer that fades, and reset clears it', () => {
+    registry.touch({ source: 'mcp', op: true, activity: { op: 'node.add', summary: 'Created “A”', nodeId: 'a' } }, T0);
+    const later = registry.snapshot(T0 + PRESENCE_ACTIVITY_TTL_MS + 1);
+    expect(later.presences).toHaveLength(0);
+    expect(later.activity).toHaveLength(1);
+    registry.reset();
+    expect(registry.snapshot(T0).activity).toHaveLength(0);
+  });
+});
+
+describe('describeWrite', () => {
+  test('names what the op did, reading titles after the op ran', () => {
+    canvasState.addNode({
+      id: 'n1',
+      type: 'markdown',
+      position: { x: 0, y: 0 },
+      size: { width: 200, height: 100 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      data: { title: 'Release plan' },
+    });
+    canvasState.addNode({
+      id: 'n2',
+      type: 'status',
+      position: { x: 300, y: 0 },
+      size: { width: 200, height: 100 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      data: {},
+    });
+    expect(describeWrite('node.add', { type: 'markdown' }, { id: 'n1' })).toEqual({
+      summary: 'Created markdown “Release plan”',
+      nodeId: 'n1',
+    });
+    expect(describeWrite('node.update', { id: 'n2' }, {})).toEqual({ summary: 'Updated “status node”', nodeId: 'n2' });
+    expect(describeWrite('edge.add', { from: 'n1', to: 'n2' }, {}).summary).toBe(
+      'Connected “Release plan” → “status node”',
+    );
+    expect(describeWrite('node.remove', { id: 'gone' }, {})).toEqual({ summary: 'Removed a node', nodeId: 'gone' });
+    expect(describeWrite('arrange', { layout: 'grid' }, {}).summary).toBe('Arranged the board (grid)');
+    expect(describeWrite('ax.approval.request', { title: 'Ship it' }, {}).summary).toBe(
+      'Requested approval: “Ship it”',
+    );
+    expect(describeWrite('something.new', {}, {}).summary).toBe('something new');
   });
 });
 

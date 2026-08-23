@@ -1,5 +1,5 @@
 import type { PmxAxIntent } from '../../shared/ax-intent.js';
-import { type AgentPresence, type AgentPresenceSnapshot, type ContextBudget } from '../../shared/agent-presence.js';
+import { type AgentActivityEntry, type AgentPresence, type AgentPresenceSnapshot, type ContextBudget } from '../../shared/agent-presence.js';
 /**
  * Agent presence (rail-chrome-v2 phase 2). Fed by the server's `agent-presence`
  * SSE snapshot (every change, including TTL expiry) and the connect-time read,
@@ -10,6 +10,18 @@ import { type AgentPresence, type AgentPresenceSnapshot, type ContextBudget } fr
  */
 export declare const agentPresences: import("@preact/signals-core").Signal<AgentPresence[]>;
 export declare const contextBudget: import("@preact/signals-core").Signal<ContextBudget>;
+/** Recent agent writes, newest first — the External Steering activity feed. */
+export declare const agentActivity: import("@preact/signals-core").Signal<AgentActivityEntry[]>;
+/** External Steering chrome (phase 6): the feed popover and the writers sheet. */
+export declare const activityFeedOpen: import("@preact/signals-core").Signal<boolean>;
+export declare const writersSheetOpen: import("@preact/signals-core").Signal<boolean>;
+/** Feed filter: a writer's sessionId, or null for all. */
+export declare const activityFilter: import("@preact/signals-core").Signal<string | null>;
+export declare function writerColor(sessionId: string): string;
+/** Avatar initial: first letter of the label, upper-cased. */
+export declare function writerInitial(label: string): string;
+/** Compact relative age for feed rows and the writers sheet: now · 12s · 4m · 2h. */
+export declare function relativeAge(iso: string, now?: number): string;
 /** Master gate for every agent surface: an attached session exists. */
 export declare const sessionActive: import("@preact/signals-core").ReadonlySignal<boolean>;
 /** Live writers with no attached session — the External Steering mode. */

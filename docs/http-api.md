@@ -239,7 +239,8 @@ without a `session-end`.
 curl http://localhost:4313/api/canvas/ax/presence
 # → { ok, presences: [{ sessionId, source, agentId, label, phase, detail,
 #      focusNodeId, cursor, attached, opCount, lastSeenAt }],
-#     budget: { used, total }, sessionActive }
+#     budget: { used, total }, sessionActive,
+#     activity: [{ id, at, sessionId, label, op, summary, nodeId }] }  # newest first, last 50
 
 # Attach a session and report a phase (idle | thinking | tooling | waiting-approval)
 curl -X POST http://localhost:4313/api/canvas/ax/presence \
@@ -256,9 +257,16 @@ curl -X POST http://localhost:4313/api/canvas/ax/presence \
 
 `sessionActive` is true when any presence is attached — it is the single gate
 for the agent chrome (session panel, command bar, presence layer). Live but
-unattached writers are the *external steering* case. `budget` is a token
-estimate of the `pinned-context` payload against
-`PMX_CANVAS_CONTEXT_BUDGET_TOKENS` (default 32000).
+unattached writers are the *external steering* case: the browser shows a
+passive top-bar indicator (writers + op count) with an activity feed and a
+connected-writers sheet — visibility only, never permissions. `activity` is
+that feed: one entry per agent write with a human summary ("Created markdown
+“Release plan”"), attributed to the writer (re-attributed to the session when
+a transport writer folds into it), bounded to the last 50 and kept after a
+writer fades. `budget` is a token estimate of the `pinned-context` payload
+against `PMX_CANVAS_CONTEXT_BUDGET_TOKENS` (default 32000). Detaching
+(`attached: false`, `session-end`) removes the presence outright — an ended
+session never lingers as an external writer.
 
 **Writer identity and attribution.** Plain HTTP callers read as source `api`,
 the CLI sends `x-pmx-source: cli`, the MCP server sends `mcp` (or

@@ -1727,6 +1727,362 @@ body,
   text-align: right;
 }
 
+/* ── External Steering (rail-chrome-v2 phase 6) ───────────────
+   External writers, no session: a passive top-bar indicator, the activity
+   feed popover under it, and the connected-writers sheet. Quiet otherwise. */
+.writer-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1.5px solid var(--c-panel-soft);
+  color: var(--c-bg);
+  font-size: 8.5px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.external-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 12px 4px 6px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--c-purple) 35%, transparent);
+  background: color-mix(in srgb, var(--c-purple) 8%, transparent);
+  color: var(--c-purple);
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  font: inherit;
+}
+.external-indicator:hover,
+.external-indicator[aria-expanded='true'] {
+  background: color-mix(in srgb, var(--c-purple) 15%, transparent);
+}
+.external-indicator-avatars {
+  display: inline-flex;
+  align-items: center;
+}
+.external-indicator-avatars .writer-avatar + .writer-avatar {
+  margin-left: -6px;
+}
+.external-indicator-label {
+  font-size: 11px;
+  font-weight: 600;
+}
+.external-indicator-ops {
+  font: 10px var(--mono);
+  color: var(--c-muted);
+}
+.external-indicator-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c-purple);
+  flex-shrink: 0;
+  animation: presence-pulse 1.4s ease-in-out infinite;
+}
+
+.activity-feed {
+  position: absolute;
+  top: 10px;
+  right: 14px;
+  width: min(304px, calc(100% - 28px));
+  max-height: calc(100% - 20px);
+  display: flex;
+  flex-direction: column;
+  background: var(--c-panel);
+  border: 1px solid color-mix(in srgb, var(--c-purple) 30%, transparent);
+  border-radius: 10px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  /* Popover-level like the rail menus: above the minimap, below the rail. */
+  z-index: 9999;
+  overflow: hidden;
+}
+.activity-feed-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 13px;
+  border-bottom: 1px solid var(--c-line);
+  background: color-mix(in srgb, var(--c-bg) 60%, transparent);
+}
+.activity-feed-titles {
+  flex: 1;
+  min-width: 0;
+}
+.activity-feed-title {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+.activity-feed-sub {
+  font: 9px var(--mono);
+  color: var(--c-dim);
+}
+.activity-feed-close {
+  background: none;
+  border: none;
+  color: var(--c-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0 2px;
+}
+.activity-feed-close:hover {
+  color: var(--c-text);
+}
+.activity-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--c-line);
+}
+.activity-filter {
+  --writer: var(--c-purple);
+  padding: 2px 9px;
+  border-radius: 999px;
+  border: 1px solid var(--c-line);
+  background: none;
+  color: var(--c-muted);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.activity-filter.is-active {
+  border-color: color-mix(in srgb, var(--writer) 45%, transparent);
+  background: color-mix(in srgb, var(--writer) 14%, transparent);
+  color: var(--writer);
+}
+.activity-rows {
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  min-height: 0;
+}
+.activity-row {
+  display: flex;
+  gap: 9px;
+  padding: 9px 13px;
+  border-bottom: 1px solid var(--c-line);
+}
+.activity-row:last-child {
+  border-bottom: none;
+}
+.activity-row.is-pending {
+  background: color-mix(in srgb, var(--c-purple) 5%, transparent);
+}
+.activity-glyph {
+  flex-shrink: 0;
+  width: 13px;
+  margin-top: 1px;
+  text-align: center;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.3;
+}
+.activity-glyph.tone-ok {
+  color: var(--c-ok);
+}
+.activity-glyph.tone-danger {
+  color: var(--c-danger);
+}
+.activity-glyph.tone-accent {
+  color: var(--c-accent);
+}
+.activity-glyph.tone-purple {
+  color: var(--c-purple);
+}
+.activity-main {
+  flex: 1;
+  min-width: 0;
+}
+.activity-text {
+  font-size: 11px;
+  color: var(--c-text-soft);
+  overflow-wrap: anywhere;
+}
+.activity-meta {
+  font-size: 10px;
+  line-height: 1.45;
+  color: var(--c-muted);
+}
+.activity-writer {
+  font: 8.5px var(--mono);
+}
+.activity-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+.activity-veto {
+  padding: 3px 10px;
+  border-radius: 7px;
+  background: none;
+  border: 1px solid color-mix(in srgb, var(--c-danger) 40%, transparent);
+  color: var(--c-danger);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.activity-veto:hover {
+  background: color-mix(in srgb, var(--c-danger) 10%, transparent);
+}
+.activity-hint,
+.activity-age {
+  font: 9px var(--mono);
+  color: var(--c-dim);
+  flex-shrink: 0;
+}
+.activity-empty {
+  padding: 14px 13px;
+  font-size: 11px;
+  color: var(--c-dim);
+}
+.activity-feed-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 13px;
+  border-top: 1px solid var(--c-line);
+  background: color-mix(in srgb, var(--c-bg) 50%, transparent);
+}
+.activity-feed-note {
+  flex: 1;
+  font-size: 10px;
+  color: var(--c-dim);
+}
+.activity-feed-link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--c-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.activity-feed-link:hover {
+  color: var(--c-text);
+}
+.activity-feed-link.is-accent {
+  color: var(--c-purple);
+}
+.activity-feed-link.is-accent:hover {
+  text-decoration: underline;
+}
+
+.writers-scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 10, 18, 0.55);
+  z-index: 9999;
+}
+.writers-sheet {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 400px;
+  max-width: calc(100% - 48px);
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: 12px;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
+  z-index: 10000;
+  overflow: hidden;
+}
+.writers-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-bottom: 1px solid var(--c-line);
+  background: color-mix(in srgb, var(--c-bg) 60%, transparent);
+}
+.writers-title {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+.writers-board {
+  font: 9px var(--mono);
+  color: var(--c-dim);
+}
+.writers-body {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 10px 14px;
+}
+.writers-section {
+  padding: 8px 0 2px;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-dim);
+}
+.writers-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 6px 0;
+}
+.writers-name {
+  flex: 1;
+  font-size: 11.5px;
+  color: var(--c-text-soft);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.writers-name.is-mono {
+  font: 11px var(--mono);
+}
+.writers-config {
+  font-size: 9.5px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--c-purple) 12%, transparent);
+  color: var(--c-purple);
+}
+.writers-meta {
+  font: 9.5px var(--mono);
+  color: var(--c-dim);
+}
+.writers-empty {
+  font-size: 10.5px;
+  color: var(--c-dim);
+  padding: 4px 0;
+}
+.writers-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-top: 1px solid var(--c-line);
+  background: color-mix(in srgb, var(--c-bg) 50%, transparent);
+}
+.writers-note {
+  flex: 1;
+  font-size: 10px;
+  color: var(--c-dim);
+}
+.writers-done {
+  padding: 5px 14px;
+  border: none;
+  border-radius: 7px;
+  background: var(--c-accent);
+  color: var(--c-bg);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
 /* Quiet-board affordance in the top bar */
 .start-session-btn {
   display: inline-flex;
@@ -1931,7 +2287,8 @@ body,
     animation: none;
   }
   .session-live-dot,
-  .session-item.status-running .session-glyph {
+  .session-item.status-running .session-glyph,
+  .external-indicator-dot {
     animation: none;
   }
 }

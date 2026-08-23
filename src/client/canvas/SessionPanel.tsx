@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'preact/hooks';
+import { useNow } from './use-now';
 import { agentPhaseLabel } from '../../shared/agent-presence.js';
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
 import { focusNode, selectedNodeIds } from '../state/canvas-store';
@@ -37,16 +38,6 @@ const WORK_GLYPH: Record<WorkItemStatus, 'queued' | 'running' | 'awaiting' | 'do
   done: 'done',
   cancelled: 'vetoed',
 };
-
-/** One-second tick shared by every countdown in the panel. */
-function useNow(): number {
-  const [now, setNow] = useState(() => Date.now());
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-  return now;
-}
 
 const TIMELINE_TONE: Record<TimelineEntryKind, string> = {
   policy: 'warn',

@@ -47,15 +47,15 @@ export declare function normalizeNodeAxCapabilities(value: unknown): Partial<Nod
 export declare function resolveNodeAxCapabilities(node: CanvasNodeState): NodeAxCapabilities;
 declare const InteractionEnvelopeSchema: z.ZodObject<{
     type: z.ZodEnum<{
-        "ax.event.record": "ax.event.record";
-        "ax.steer": "ax.steer";
         "ax.work.create": "ax.work.create";
         "ax.work.update": "ax.work.update";
-        "ax.evidence.add": "ax.evidence.add";
         "ax.approval.request": "ax.approval.request";
         "ax.approval.resolve": "ax.approval.resolve";
-        "ax.review.add": "ax.review.add";
+        "ax.evidence.add": "ax.evidence.add";
+        "ax.steer": "ax.steer";
         "ax.focus.set": "ax.focus.set";
+        "ax.event.record": "ax.event.record";
+        "ax.review.add": "ax.review.add";
         "ax.command.invoke": "ax.command.invoke";
         "ax.elicitation.request": "ax.elicitation.request";
         "ax.mode.request": "ax.mode.request";

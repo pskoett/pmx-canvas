@@ -32,7 +32,22 @@ export interface PresenceTouch {
     attached?: boolean;
     /** Count this touch as an agent write. */
     op?: boolean;
+    /** What the write did, for the activity feed (only meaningful with `op`). */
+    activity?: {
+        op: string;
+        summary: string;
+        nodeId: string | null;
+    };
 }
+/**
+ * One sentence for the activity feed, from the op name plus whatever the
+ * input/result name. Titles are read AFTER the op ran, so creates and updates
+ * resolve; removes describe what is gone by id.
+ */
+export declare function describeWrite(op: string, rawInput: unknown, result: unknown): {
+    summary: string;
+    nodeId: string | null;
+};
 /**
  * The one validation schema for an explicit presence update. The HTTP/MCP op
  * spreads these fields into its tool shape so the two cannot drift.
@@ -67,6 +82,9 @@ type SessionStartListener = (presence: AgentPresence) => string | null;
 type SessionEndListener = (presence: AgentPresence, startSnapshotId: string | null) => void;
 export declare class AgentPresenceRegistry {
     private readonly presences;
+    /** Newest first; bounded. Survives a writer fading — the feed is history, the writer list is presence. */
+    private activity;
+    private activitySeq;
     private emit;
     /** Single slots (like the emitter): server.ts owns the pre-session snapshot + receipt. */
     private onSessionStart;

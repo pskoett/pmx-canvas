@@ -9,7 +9,7 @@
  */
 import { canvasState } from '../canvas-state.js';
 import { intentRegistry } from '../intent-registry.js';
-import { agentPresence } from '../agent-presence.js';
+import { agentPresence, describeWrite } from '../agent-presence.js';
 import { checkScopeFence, checkScopeOwnership } from '../scope-fence.js';
 import type { PmxAxIntent, PmxAxIntentKind } from '../../shared/ax-intent.js';
 import { OperationError, type Operation, type OperationContext } from './types.js';
@@ -254,6 +254,7 @@ function notePresence(
   const input = asRecord(rawInput);
   try {
     const focusNodeId = touchedNodeId(rawInput, result);
+    const { summary, nodeId } = describeWrite(name, rawInput, result);
     agentPresence.touch({
       source: meta.source ?? 'api',
       agentId: typeof input.agentId === 'string' ? input.agentId : null,
@@ -261,6 +262,7 @@ function notePresence(
       detail: name,
       ...(focusNodeId ? { focusNodeId } : {}),
       op: true,
+      activity: { op: name, summary, nodeId },
     });
   } catch {
     // never let presence bookkeeping fail a mutation

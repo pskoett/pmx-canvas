@@ -155,10 +155,23 @@ is a visible element on today's board that does not yet match the prototypes.
   now as ordinary expanded cards. The attention history lost its "collapse the context panel"
   coupling. Demo fixture regenerated through the API.
 
-### Phase 6 — External steering surfaces
-- Top-bar passive indicator (writer count + op count) + activity feed popover with per-writer
-  filters and inline Veto on pending auto-ghosts (items 1, 9). Connected-writers sheet — pure
-  visibility, no permissions (item 17).
+### Phase 6 — External steering surfaces — BUILT
+- Top-bar passive indicator (avatar cluster, writer label or count, op total, pulsing dot) +
+  activity feed popover (304px under the indicator; per-writer filter chips; rows with op glyph,
+  summary, writer in its identity color, relative age; footer Writers / Start session ↗) +
+  connected-writers sheet (scrim + 400px card: agent sessions with their steering config,
+  external writers with transport + last write; local-first note). Items 1, 9, 17.
+- **Data:** one new field, `activity`, on the presence snapshot — derived from the presence
+  touch every agent write already makes (`describeWrite` turns op + input/result into a
+  sentence; titles read after the op ran), bounded to 50, re-attributed when a shadow writer
+  folds into a session, kept after a writer fades. No second log.
+- **Deviation, per the plan's own rule ("trust the code over the prototypes' ghost
+  treatment"):** auto-ghosts settle immediately and are not vetoable, so the feed's vetoable
+  rows are pending EXPLICIT intents (`canvas_intent`), vetoed through the existing
+  `vetoGhostIntent` path; settled auto-ghosts appear as activity rows.
+- **Fixed on the way:** an explicit `attached: false` left the session as an unattached writer
+  for the 90 s activity TTL — it now removes the presence like `session-end` does. Per-writer
+  colors come from the accent set, violet first, stable for the page's life.
 
 ### Phase 7 — Canvas quality wave (independent items, any order)
 - Groups v2: membership only via release-pill, collapse chip, auto-grow, frame-move semantics,

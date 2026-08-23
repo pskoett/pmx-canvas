@@ -38,12 +38,33 @@ export interface ContextBudget {
     used: number;
     total: number;
 }
+/**
+ * One agent write, as the External Steering activity feed lists it. Derived
+ * from the same presence touch every agent-originated operation already
+ * makes — not a second log.
+ */
+export interface AgentActivityEntry {
+    id: string;
+    at: string;
+    /** Writer key after attribution (the session's when the write was folded into it). */
+    sessionId: string;
+    label: string;
+    /** Registry operation name (node.add, edge.remove, ax.work.create, …). */
+    op: string;
+    /** Human sentence: "Created markdown “Release plan”". */
+    summary: string;
+    nodeId: string | null;
+}
 export interface AgentPresenceSnapshot {
     presences: AgentPresence[];
     budget: ContextBudget;
     /** True when any presence is attached — the master gate for agent chrome. */
     sessionActive: boolean;
+    /** Most recent agent writes, newest first (bounded by MAX_ACTIVITY_ENTRIES). */
+    activity: AgentActivityEntry[];
 }
+/** Activity entries kept for the feed — oldest fall off. */
+export declare const MAX_ACTIVITY_ENTRIES = 50;
 /** Unattached writers fade this long after their last write. */
 export declare const PRESENCE_ACTIVITY_TTL_MS = 90000;
 /** Attached sessions expire after this much quiet without a `session-end`. */

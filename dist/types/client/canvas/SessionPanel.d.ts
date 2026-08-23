@@ -1,1 +1,1 @@
-export declare function SessionPanel(): import("preact/jsx-runtime").JSX.Element;
+export declare function SessionPanel(): import("preact/src").JSX.Element;
