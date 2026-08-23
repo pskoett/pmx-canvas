@@ -19,7 +19,6 @@ function makeNode(overrides: Partial<CanvasNodeState> & Pick<CanvasNodeState, 't
     zIndex: overrides.zIndex ?? 1,
     collapsed: overrides.collapsed ?? false,
     pinned: overrides.pinned ?? false,
-    dockPosition: overrides.dockPosition ?? null,
     data: overrides.data ?? {},
   };
 }
@@ -92,10 +91,9 @@ describe('iframe content-fit (grow-only)', () => {
     expect(shouldContentFitIframeNode(makeNode({ type: 'markdown' }))).toBe(false);
   });
 
-  test('exempt: strictSize, user-resized, docked, collapsed', () => {
+  test('exempt: strictSize, user-resized, collapsed', () => {
     expect(shouldContentFitIframeNode(makeNode({ type: 'graph', data: { strictSize: true } }))).toBe(false);
     expect(shouldContentFitIframeNode(makeNode({ type: 'graph', data: { userResized: true } }))).toBe(false);
-    expect(shouldContentFitIframeNode(makeNode({ type: 'graph', dockPosition: 'right' }))).toBe(false);
     expect(shouldContentFitIframeNode(makeNode({ type: 'graph', collapsed: true }))).toBe(false);
   });
 

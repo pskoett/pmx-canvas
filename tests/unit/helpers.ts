@@ -172,7 +172,6 @@ export function makeNode(overrides: Partial<CanvasNodeState> & Pick<CanvasNodeSt
     zIndex: overrides.zIndex ?? (overrides.type === 'group' ? 0 : 1),
     collapsed: overrides.collapsed ?? false,
     pinned: overrides.pinned ?? false,
-    dockPosition: overrides.dockPosition ?? null,
     data: overrides.data ?? {},
   };
 }

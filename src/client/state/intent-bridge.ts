@@ -202,7 +202,6 @@ export async function pushCanvasUpdate(
     position?: { x: number; y: number };
     size?: { width: number; height: number };
     collapsed?: boolean;
-    dockPosition?: 'left' | 'right' | null;
   }>,
   options: { recordHistory?: boolean } = {},
 ): Promise<void> {
@@ -262,7 +261,6 @@ export async function updateNodeFromClient(
     size?: { width: number; height: number };
     collapsed?: boolean;
     pinned?: boolean;
-    dockPosition?: 'left' | 'right' | null;
     title?: string;
     content?: string;
     data?: Record<string, unknown>;

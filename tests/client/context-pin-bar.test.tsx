@@ -2,28 +2,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } fr
 import { act, cleanup, fireEvent, render } from '@testing-library/preact';
 import { ContextPinBar } from '../../src/client/canvas/ContextPinBar.tsx';
 import { closeAttentionHistory, openAttentionHistory } from '../../src/client/state/attention-store.ts';
-import {
-  contextPinnedNodeIds,
-  nodes,
-  replaceContextPinsFromServer,
-  toggleCollapsed,
-} from '../../src/client/state/canvas-store.ts';
-import type { CanvasNodeState } from '../../src/client/types.ts';
-
-function makeContextNode(overrides: Partial<CanvasNodeState> = {}): CanvasNodeState {
-  return {
-    id: 'ctx-panel',
-    type: 'context',
-    position: { x: 0, y: 0 },
-    size: { width: 320, height: 400 },
-    zIndex: 1,
-    collapsed: false,
-    pinned: false,
-    dockPosition: 'right',
-    data: {},
-    ...overrides,
-  };
-}
+import { contextPinnedNodeIds, nodes, replaceContextPinsFromServer } from '../../src/client/state/canvas-store.ts';
 
 // Clearing pins fires a best-effort (caught) sync to the server; stub fetch so
 // happy-dom's relative-URL rejection doesn't spam the test output.
@@ -88,20 +67,6 @@ describe('ContextPinBar', () => {
 
     act(() => {
       closeAttentionHistory();
-    });
-    expect(getByText(/1 node in context/)).toBeTruthy();
-  });
-
-  test('hides while a docked context panel is expanded', () => {
-    act(() => {
-      nodes.value = new Map([['ctx-panel', makeContextNode()]]);
-      replaceContextPinsFromServer(['ctx-panel']);
-    });
-    const { container, getByText } = render(<ContextPinBar />);
-    expect(container.innerHTML).toBe('');
-
-    act(() => {
-      toggleCollapsed('ctx-panel');
     });
     expect(getByText(/1 node in context/)).toBeTruthy();
   });

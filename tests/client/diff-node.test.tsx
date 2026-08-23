@@ -12,7 +12,6 @@ function makeDiffNode(data: Record<string, unknown>): CanvasNodeState {
     zIndex: 1,
     collapsed: false,
     pinned: false,
-    dockPosition: null,
     data,
   };
 }

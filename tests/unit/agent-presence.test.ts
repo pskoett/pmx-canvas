@@ -92,7 +92,6 @@ describe('phase derivation', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { title: 'Gate target' },
     });
     canvasState.requestApproval({ title: 'Ship it?', nodeIds: ['gate-node'] }, { source: 'mcp' });
@@ -262,7 +261,6 @@ describe('context budget', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { title: 'Pinned', content: 'word '.repeat(400) },
     });
     canvasState.setContextPins(['pinned-a']);

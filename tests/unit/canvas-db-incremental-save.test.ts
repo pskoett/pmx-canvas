@@ -28,7 +28,6 @@ function makeState(nodeCount: number, htmlBytes = 64): PersistedCanvasState {
       zIndex: 0,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { html: 'x'.repeat(htmlBytes) },
     })),
     edges: [{ id: 'e0', from: 'n0', to: 'n1', type: 'flow' as const, animated: false }],
@@ -115,7 +114,6 @@ describe('saveStateToDB writes only what changed', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { content: 'hello' },
     } as unknown as (typeof state.nodes)[number]);
     state.edges = [

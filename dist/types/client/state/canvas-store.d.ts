@@ -41,7 +41,6 @@ export declare function toggleContextPin(id: string): void;
 export declare function addContextPins(ids: string[]): void;
 export declare function clearContextPins(): void;
 export declare function replaceContextPinsFromServer(ids: string[]): void;
-export declare function getContextPinnedNodes(): CanvasNodeState[];
 export declare function addNode(node: CanvasNodeState): void;
 export declare function updateNode(id: string, patch: Partial<CanvasNodeState>): void;
 export declare function updateNodeData(id: string, dataPatch: Record<string, unknown>): void;
@@ -70,10 +69,6 @@ export declare function resizeNode(id: string, size: {
 }): void;
 export declare function bringToFront(id: string): void;
 export declare function toggleCollapsed(id: string): void;
-export declare function collapseDockedContextNodes(): void;
-export declare const hasOpenDockedContextPanel: import("@preact/signals-core").ReadonlySignal<boolean>;
-export declare function dockNode(id: string, position: 'left' | 'right'): void;
-export declare function undockNode(id: string): void;
 export declare function setViewport(v: Partial<ViewportState>): void;
 export declare function replaceViewport(next: ViewportState): void;
 export declare function commitViewport(next: ViewportState): void;

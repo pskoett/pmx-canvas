@@ -101,7 +101,6 @@ class TraceManager {
       zIndex: 0,
       collapsed: false,
       pinned: true,
-      dockPosition: null,
       data: {
         toolName: payload.name,
         category,
@@ -199,7 +198,6 @@ class TraceManager {
       zIndex: 0,
       collapsed: false,
       pinned: true,
-      dockPosition: null,
       data: {
         toolName: payload.agentDisplayName ?? payload.agentName,
         category: 'subagent' as TraceCategory,

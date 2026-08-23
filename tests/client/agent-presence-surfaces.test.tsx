@@ -35,7 +35,6 @@ function makeNode(id: string): CanvasNodeState {
     zIndex: 1,
     collapsed: false,
     pinned: false,
-    dockPosition: null,
     data: { title: id },
   };
 }

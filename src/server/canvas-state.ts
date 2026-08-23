@@ -185,7 +185,6 @@ export interface CanvasNodeState {
   zIndex: number;
   collapsed: boolean;
   pinned: boolean;
-  dockPosition: 'left' | 'right' | null;
   data: Record<string, unknown>;
 }
 
@@ -235,7 +234,6 @@ export interface CanvasNodeUpdate {
   position?: { x: number; y: number };
   size?: { width: number; height: number };
   collapsed?: boolean;
-  dockPosition?: 'left' | 'right' | null;
 }
 
 export type CanvasChangeType = 'pins' | 'nodes' | 'ax' | 'ax-timeline';
@@ -288,20 +286,17 @@ function formatBatchUpdateDescription(updates: CanvasNodeUpdate[]): string {
   let moved = 0;
   let resized = 0;
   let collapsed = 0;
-  let docked = 0;
 
   for (const update of updates) {
     if (update.position) moved++;
     if (update.size) resized++;
     if (update.collapsed !== undefined) collapsed++;
-    if (update.dockPosition !== undefined) docked++;
   }
 
   const parts: string[] = [];
   if (moved > 0) parts.push(`${moved} moved`);
   if (resized > 0) parts.push(`${resized} resized`);
   if (collapsed > 0) parts.push(`${collapsed} collapsed`);
-  if (docked > 0) parts.push(`${docked} docked`);
 
   const prefix = `Updated ${updates.length} node${updates.length === 1 ? '' : 's'}`;
   return parts.length > 0 ? `${prefix} (${parts.join(', ')})` : prefix;
@@ -506,10 +501,6 @@ class CanvasStateManager {
   }
 
   private normalizeNode(node: CanvasNodeState): CanvasNodeState {
-    // Context nodes default to a right-docked, collapsed pill (see DockedNode.tsx),
-    // but that default is applied at CREATE time only — it must not be re-forced on
-    // every write, or the node could never be undocked. Undocking (dockPosition →
-    // null) is a deliberate user action and is respected here.
     return {
       ...node,
       data: normalizeCanvasNodeData(node.type, node.data),
@@ -872,16 +863,6 @@ class CanvasStateManager {
       this.applyPersistedState(this.emptyPersistedState());
     }
     return false;
-  }
-
-  /**
-   * Whether this workspace's canvas DB already holds saved state. Used to gate
-   * brand-new-workspace seeding (e.g. the default docked status/context widgets)
-   * so we never add nodes to a canvas that already has content. Reflects the
-   * pre-run persisted flag until the next save.
-   */
-  hasPersistedState(): boolean {
-    return this._db ? isDbPopulated(this._db) : false;
   }
 
   /** Debounced save — coalesces rapid mutations into a single write. */
@@ -1320,14 +1301,6 @@ class CanvasStateManager {
   }
 
   addNode(node: CanvasNodeState): void {
-    // Docking is EXPLICIT (0.4.6). Context nodes used to auto-dock to a collapsed
-    // right-hand pill when created without a dock position, which meant an agent
-    // creating a context node — even at explicit coordinates — got a node that
-    // existed in the API and passed validation but never rendered on the canvas,
-    // and any edge to it terminated in empty space (0.4.6 orb feedback #1). The
-    // seeded HUD widgets (status-main / context-main) pass `dockPosition` on
-    // create, so the docked pills are unaffected; anything else reaches the
-    // canvas where the caller put it. Dock deliberately via node.update.
     const cloned = structuredClone(this.normalizeNode(node));
     this.nodes.set(node.id, cloned);
     this.scheduleSave();
@@ -1611,9 +1584,6 @@ class CanvasStateManager {
       }
       if (update.collapsed !== undefined && update.collapsed !== existing.collapsed) {
         nextPatch.collapsed = update.collapsed;
-      }
-      if (update.dockPosition !== undefined && update.dockPosition !== existing.dockPosition) {
-        nextPatch.dockPosition = update.dockPosition;
       }
       if (Object.keys(nextPatch).length === 0) {
         skipped++;

@@ -20,7 +20,6 @@ beforeEach(() => {
     zIndex: 1,
     collapsed: false,
     pinned: false,
-    dockPosition: null,
     data: { title: 'Gate target' },
   });
 });

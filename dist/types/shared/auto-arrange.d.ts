@@ -12,7 +12,6 @@ export interface ArrangeNode {
     position: ArrangePosition;
     size: ArrangeSize;
     pinned: boolean;
-    dockPosition: 'left' | 'right' | null;
     data: Record<string, unknown>;
 }
 export interface ArrangeEdge {

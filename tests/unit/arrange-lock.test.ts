@@ -83,13 +83,13 @@ describe('arrange exclusions', () => {
     expect(canvasState.getNode(other.id)?.position).toEqual({ x: 40, y: 80 });
   });
 
-  test('keeps grid-arranged nodes out of a group preserved by a docked child', () => {
-    const dockedChild = makeNode({
-      id: 'docked-child',
+  test('keeps grid-arranged nodes out of a group preserved by a pinned child', () => {
+    const pinnedChild = makeNode({
+      id: 'pinned-child',
       type: 'markdown',
       position: { x: 40, y: 80 },
       size: { width: 360, height: 200 },
-      data: { title: 'Docked child' },
+      data: { title: 'Pinned child' },
     });
     const groupedChild = makeNode({
       id: 'grouped-child',
@@ -106,12 +106,12 @@ describe('arrange exclusions', () => {
       data: { title: 'Graph' },
     });
 
-    canvasState.addNode(dockedChild);
+    canvasState.addNode(pinnedChild);
     canvasState.addNode(groupedChild);
     canvasState.addNode(graph);
     const { id: groupId } = createCanvasGroup({
-      title: 'Group with docked child',
-      childIds: [dockedChild.id, groupedChild.id],
+      title: 'Group with pinned child',
+      childIds: [pinnedChild.id, groupedChild.id],
     });
 
     const group = canvasState.getNode(groupId);
@@ -120,7 +120,7 @@ describe('arrange exclusions', () => {
     }
     const originalGroupPosition = { ...group.position };
     const originalGroupedChildPosition = { ...groupedChild.position };
-    canvasState.updateNode(dockedChild.id, { dockPosition: 'right' });
+    canvasState.updateNode(pinnedChild.id, { pinned: true });
 
     const result = arrangeCanvasNodes('grid');
     const updatedGroup = canvasState.getNode(groupId);

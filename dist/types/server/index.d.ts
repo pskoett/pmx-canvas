@@ -415,7 +415,6 @@ export declare class PmxCanvas extends EventEmitter {
             height: number;
         };
         collapsed?: boolean;
-        dockPosition?: 'left' | 'right' | null;
     }>): {
         applied: number;
         skipped: number;

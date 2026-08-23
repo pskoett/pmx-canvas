@@ -27,7 +27,6 @@ interface CanvasStateResponse {
     type: string;
     kind?: string;
     pinned?: boolean;
-    dockPosition?: 'left' | 'right' | null;
     position?: { x: number; y: number };
     data: Record<string, unknown>;
   }>;
@@ -1444,7 +1443,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { title: 'Doc', html: '<main>Surface body</main>' },
     });
     const res = await fetch(`${baseUrl}/api/canvas/surface/surface-html?theme=light`);
@@ -1517,7 +1515,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { title: 'Ember doc', html: '<main>Ember surface body</main>' },
     });
     const body = await fetch(`${baseUrl}/api/canvas/surface/surface-ember?theme=ember`).then((r) => r.text());
@@ -1767,7 +1764,7 @@ describe('canvas server HTTP API', () => {
     }
   });
 
-  test('an agent-created context node lands on the canvas, and edges to docked nodes fail validation', async () => {
+  test('an agent-created context node lands on the canvas where it was put, expanded', async () => {
     // 0.4.6 orb feedback #1: a context node existed in the API and passed
     // validation but never rendered (silently auto-docked), so an edge to it
     // trailed off into empty space.
@@ -1775,8 +1772,9 @@ describe('canvas server HTTP API', () => {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ type: 'context', title: 'Visible context', content: 'ctx', x: 200, y: 2400 }),
-    }).then((r) => r.json())) as { id: string; node: { dockPosition: string | null } };
-    expect(ctx.node.dockPosition).toBeNull();
+    }).then((r) => r.json())) as { id: string; node: { position: { x: number; y: number }; collapsed: boolean } };
+    expect(ctx.node.position).toEqual({ x: 200, y: 2400 });
+    expect(ctx.node.collapsed).toBe(false);
 
     const peer = (await fetch(`${baseUrl}/api/canvas/node`, {
       method: 'POST',
@@ -1784,28 +1782,17 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ type: 'markdown', title: 'Edge peer', content: 'x', x: 800, y: 2400 }),
     }).then((r) => r.json())) as { id: string };
 
-    // An edge between two canvas nodes is clean.
     const goodEdge = (await fetch(`${baseUrl}/api/canvas/edge`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ from: ctx.id, to: peer.id, type: 'relation' }),
     }).then((r) => r.json())) as { id: string };
-    let validation = (await fetch(`${baseUrl}/api/canvas/validate`).then((r) => r.json())) as {
-      hiddenEdgeEndpoints: Array<{ edgeId: string; nodeId: string; dockPosition: string }>;
-      summary: { hiddenEdgeEndpoints: number };
+    const validation = (await fetch(`${baseUrl}/api/canvas/validate`).then((r) => r.json())) as {
+      ok: boolean;
+      missingEdgeEndpoints: unknown[];
     };
-    expect(validation.hiddenEdgeEndpoints.some((entry) => entry.edgeId === goodEdge.id)).toBe(false);
-
-    // Dock the context node: the edge can no longer be drawn, and validate says so.
-    await fetch(`${baseUrl}/api/canvas/node/${ctx.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dockPosition: 'right' }),
-    });
-    validation = (await fetch(`${baseUrl}/api/canvas/validate`).then((r) => r.json())) as typeof validation;
-    const hidden = validation.hiddenEdgeEndpoints.find((entry) => entry.edgeId === goodEdge.id);
-    expect(hidden).toMatchObject({ nodeId: ctx.id, dockPosition: 'right' });
-    expect(validation.summary.hiddenEdgeEndpoints).toBeGreaterThanOrEqual(1);
+    expect(validation.ok).toBe(true);
+    expect(validation.missingEdgeEndpoints).toEqual([]);
 
     await fetch(`${baseUrl}/api/canvas/edge?id=${goodEdge.id}`, { method: 'DELETE' });
     for (const id of [ctx.id, peer.id]) {
@@ -1953,7 +1940,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { title: '   ', html: '<main>Body</main>' }, // whitespace-only → falls back to id
     });
     const res = await fetch(`${baseUrl}/api/canvas/surface/surface-untitled`);
@@ -1972,7 +1958,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: {
         title: 'HEAD probe graph',
         viewerType: 'graph',
@@ -2109,7 +2094,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { content: '# hi' },
     });
     const md = await fetch(`${baseUrl}/api/canvas/surface/surface-md`);
@@ -2125,7 +2109,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { url: `${webpageOrigin}/article` },
     });
     const res = await fetch(`${baseUrl}/api/canvas/surface/surface-web`, { redirect: 'manual' });
@@ -2142,7 +2125,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { viewerType: 'web-artifact', path: '/tmp/does-not-matter.html', url: '/artifact?path=x' },
     });
     const res = await fetch(`${baseUrl}/api/canvas/surface/surface-artifact`, { redirect: 'manual' });
@@ -2159,7 +2141,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { viewerType: 'json-render', spec: { root: 'x', elements: {} } },
     });
     const res = await fetch(`${baseUrl}/api/canvas/surface/surface-jsonrender?theme=dark`, { redirect: 'manual' });
@@ -2181,7 +2162,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: {
         viewerType: 'graph',
         graphConfig: { graphType: 'bar', height: 320 },
@@ -2205,7 +2185,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { mode: 'ext-app', html: '<!doctype html><html><head></head><body>ext app surface</body></html>' },
     });
     // A hosted ext-app is a live MCP-app shell needing the in-canvas AppBridge host; a
@@ -2224,7 +2203,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { url: 'javascript:alert(1)' },
     });
     const res = await fetch(`${baseUrl}/api/canvas/surface/surface-bad-url`, { redirect: 'manual' });
@@ -2240,7 +2218,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { html: '<main>x</main>' },
     });
     expect((await (await fetch(`${baseUrl}/api/canvas/surface/surf-ax-off`)).text()).includes('window.PMX_AX')).toBe(
@@ -2255,7 +2232,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { html: '<main>x</main>', axCapabilities: { enabled: true, allowed: ['ax.work.create'] } },
     });
     const on = await (await fetch(`${baseUrl}/api/canvas/surface/surf-ax-on?axToken=ax-test`)).text();
@@ -2272,7 +2248,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { content: '<main>from content</main>' },
     });
     const c = await fetch(`${baseUrl}/api/canvas/surface/surf-content`);
@@ -2287,7 +2262,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: {},
     });
     expect((await fetch(`${baseUrl}/api/canvas/surface/surf-empty`)).status).toBe(404);
@@ -2302,7 +2276,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { title: 'Build' },
     });
     const res = await fetch(`${baseUrl}/api/canvas/ax/interaction`, {
@@ -2332,7 +2305,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { path: '/tmp/x.ts' },
     });
     const res = await fetch(`${baseUrl}/api/canvas/ax/interaction`, {
@@ -2353,7 +2325,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { html: '<main>x</main>' },
     });
     const off = await fetch(`${baseUrl}/api/canvas/ax/interaction`, {
@@ -2372,7 +2343,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { html: '<main>x</main>', axCapabilities: { enabled: true, allowed: ['ax.work.create'] } },
     });
     const on = await fetch(`${baseUrl}/api/canvas/ax/interaction`, {
@@ -2399,7 +2369,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: {},
     });
     const bad = await fetch(`${baseUrl}/api/canvas/ax/interaction`, {
@@ -2599,7 +2568,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: {
         mode: 'ext-app',
         title: 'Diagram',
@@ -2638,7 +2606,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: {
         mode: 'ext-app',
         title: 'Counter',
@@ -2905,7 +2872,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: {
         mode: 'ext-app',
         title: 'Pending Diagram',
@@ -3042,7 +3008,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: {
         title: 'Large ext-app blob',
         mode: 'ext-app',
@@ -3890,7 +3855,7 @@ describe('canvas server HTTP API', () => {
     expect(updated.size).toEqual(MARKDOWN_NODE_DEFAULT_SIZE);
   });
 
-  test('persists node pinned and dock state through single-node patch and batch updates', async () => {
+  test('persists node pinned state through single-node patch and batch updates', async () => {
     const created = await jsonRequest<{ ok: boolean; id: string }>('/api/canvas/node', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -3900,22 +3865,20 @@ describe('canvas server HTTP API', () => {
     await jsonRequest<{ ok: boolean; id: string }>(`/api/canvas/node/${created.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pinned: true, dockPosition: 'left' }),
+      body: JSON.stringify({ pinned: true }),
     });
 
     const patched = await jsonRequest<{
       id: string;
       pinned: boolean;
-      dockPosition: 'left' | 'right' | null;
     }>(`/api/canvas/node/${created.id}`);
     expect(patched.pinned).toBe(true);
-    expect(patched.dockPosition).toBe('left');
 
     const batchResult = await jsonRequest<{ ok: boolean; applied: number; skipped: number }>('/api/canvas/update', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        updates: [{ id: created.id, position: { x: 240, y: 320 }, collapsed: true, dockPosition: null }],
+        updates: [{ id: created.id, position: { x: 240, y: 320 }, collapsed: true }],
       }),
     });
     expect(batchResult.applied).toBe(1);
@@ -3924,11 +3887,9 @@ describe('canvas server HTTP API', () => {
       id: string;
       position: { x: number; y: number };
       collapsed: boolean;
-      dockPosition: 'left' | 'right' | null;
     }>(`/api/canvas/node/${created.id}`);
     expect(updated.position).toEqual({ x: 240, y: 320 });
     expect(updated.collapsed).toBe(true);
-    expect(updated.dockPosition).toBeNull();
   });
 
   test('records batch updates in history and supports undo/redo over HTTP', async () => {
@@ -4110,7 +4071,6 @@ describe('canvas server HTTP API', () => {
         zIndex: 1,
         collapsed: false,
         pinned: false,
-        dockPosition: null,
         data: { mode: 'ext-app', toolCallId: 'redo-sync', serverName: 'Fixture', toolName: 'show_counter' },
       });
     });
@@ -4721,7 +4681,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: {
         title: 'Pinned Artifact Kind',
         viewerType: 'web-artifact',
@@ -4739,7 +4698,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: {
         title: 'Pinned External App Kind',
         mode: 'ext-app',
@@ -5563,7 +5521,6 @@ describe('canvas server HTTP API', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: { mode: 'ext-app', html: '<!doctype html><html><head></head><body>ext app surface</body></html>' },
     });
     // The surface route already refuses a hosted ext-app; open-external must agree

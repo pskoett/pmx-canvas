@@ -34,8 +34,8 @@ let nodeSeq = 0;
 function addNodeRow(data: string): void {
   nodeSeq += 1;
   db.run(
-    `INSERT INTO nodes (id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, dock_position, data)
-     VALUES (?, 'mcp-app', 0, 0, 100, 100, 0, 0, 0, NULL, ?)`,
+    `INSERT INTO nodes (id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, data)
+     VALUES (?, 'mcp-app', 0, 0, 100, 100, 0, 0, 0, ?)`,
     [`node-${nodeSeq}`, data],
   );
 }
@@ -69,8 +69,8 @@ describe('gcBlobsInDB', () => {
   test('never reclaims a blob a snapshot still needs', () => {
     addNodeRow(ref(LIVE));
     db.run(
-      `INSERT INTO snapshot_nodes (snapshot_id, id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, dock_position, data)
-       VALUES ('snap-1', 'n-snap', 'mcp-app', 0, 0, 100, 100, 0, 0, 0, NULL, ?)`,
+      `INSERT INTO snapshot_nodes (snapshot_id, id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, data)
+       VALUES ('snap-1', 'n-snap', 'mcp-app', 0, 0, 100, 100, 0, 0, 0, ?)`,
       [ref(SNAP)],
     );
     // The snapshot holds the ONLY reference to SNAP — restoring it must still work.

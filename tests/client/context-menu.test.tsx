@@ -19,7 +19,6 @@ function makeNode(id: string, overrides: Partial<CanvasNodeState> = {}): CanvasN
     zIndex: 1,
     collapsed: false,
     pinned: false,
-    dockPosition: null,
     data: {},
     ...overrides,
   };

@@ -2,11 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { getRenderableWorldNodes } from '../../src/client/canvas/CanvasViewport.tsx';
 import type { CanvasNodeState } from '../../src/client/types.ts';
 
-function makeNode(
-  id: string,
-  type: CanvasNodeState['type'],
-  dockPosition: CanvasNodeState['dockPosition'] = null,
-): CanvasNodeState {
+function makeNode(id: string, type: CanvasNodeState['type']): CanvasNodeState {
   return {
     id,
     type,
@@ -15,7 +11,6 @@ function makeNode(
     zIndex: 1,
     collapsed: false,
     pinned: false,
-    dockPosition,
     data: {},
   };
 }
@@ -27,14 +22,14 @@ describe('CanvasViewport world node selection', () => {
     expect(getRenderableWorldNodes(nodes, 'app-1').map((node) => node.id)).toEqual(['group-1', 'md-1']);
   });
 
-  test('keeps docked nodes out and preserves group-first ordering', () => {
+  test('renders every node, groups first', () => {
     const nodes = [
       makeNode('md-1', 'markdown'),
-      makeNode('ctx-1', 'context', 'right'),
+      makeNode('ctx-1', 'context'),
       makeNode('group-1', 'group'),
       makeNode('img-1', 'image'),
     ];
 
-    expect(getRenderableWorldNodes(nodes, null).map((node) => node.id)).toEqual(['group-1', 'md-1', 'img-1']);
+    expect(getRenderableWorldNodes(nodes, null).map((node) => node.id)).toEqual(['group-1', 'md-1', 'ctx-1', 'img-1']);
   });
 });

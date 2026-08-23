@@ -12,7 +12,6 @@ function makeNode(id: string, x: number, y: number, width = 200, height = 120): 
     zIndex: 1,
     collapsed: false,
     pinned: false,
-    dockPosition: null,
     data: {},
   };
 }

@@ -308,7 +308,6 @@ export function compactNodePayload(node: CanvasNodeState | undefined): Record<st
     size: serialized.size,
     pinned: serialized.pinned,
     collapsed: serialized.collapsed,
-    dockPosition: serialized.dockPosition,
     provenance: serialized.provenance,
   };
 }
@@ -482,9 +481,6 @@ export function buildNodePatch(
   const patch: Record<string, unknown> = resolvePatchGeometry(body, existing);
   if (body.collapsed !== undefined) patch.collapsed = body.collapsed;
   if (body.pinned !== undefined) patch.pinned = Boolean(body.pinned);
-  if (body.dockPosition === null || body.dockPosition === 'left' || body.dockPosition === 'right') {
-    patch.dockPosition = body.dockPosition;
-  }
   if (hasStructuredNodeUpdateFields(body)) {
     try {
       patch.data = buildStructuredNodeUpdate(existing, body).data;
@@ -995,10 +991,6 @@ const nodeUpdateShape = {
   resultSummary: z.string().optional().catch(undefined).describe('Trace node result summary'),
   error: z.string().optional().catch(undefined).describe('Trace node error message'),
   collapsed: z.unknown().optional().describe('Collapse or expand the node'),
-  dockPosition: z
-    .unknown()
-    .optional()
-    .describe('Dock the node to the left/right HUD column, or pass null to return it to the canvas'),
   pinned: z.unknown().optional().describe('Pin or unpin the node to exclude it from auto-arrange'),
   arrangeLocked: z
     .boolean()
@@ -1039,7 +1031,7 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
   },
   mcp: {
     toolName: 'canvas_update_node',
-    description: 'Update an existing node. You can change its content, title, position, size, dock placement, or data.',
+    description: 'Update an existing node. You can change its content, title, position, size, or data.',
     extraShape: {
       title: z.string().optional().describe('New title'),
       content: z.string().optional().describe('New content'),
@@ -1053,11 +1045,6 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
       yKey: z.string().optional().describe('Graph y/value key'),
       chartHeight: z.number().optional().describe('Graph chart content height, distinct from node height'),
       collapsed: z.boolean().optional().describe('Collapse or expand the node'),
-      dockPosition: z
-        .enum(['left', 'right'])
-        .nullable()
-        .optional()
-        .describe('Dock the node to the left/right HUD column, or pass null to return it to the canvas'),
       pinned: z.boolean().optional().describe('Pin or unpin the node to exclude it from auto-arrange'),
       arrangeLocked: z
         .boolean()

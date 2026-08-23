@@ -44,11 +44,10 @@ describe('node-factory defaults', () => {
       expect(node.zIndex).toBe(type === 'status' ? 0 : 1);
       expect(node.collapsed).toBe(false);
       expect(node.pinned).toBe(false);
-      expect(node.dockPosition).toBe(null);
     }
   });
 
-  test('explicit position, size, and dockPosition win over defaults', () => {
+  test('explicit position and size win over defaults', () => {
     const node = makeNodeState(
       'n-custom',
       'markdown',
@@ -56,12 +55,10 @@ describe('node-factory defaults', () => {
       {
         position: { x: 7, y: 9 },
         size: { width: 111, height: 222 },
-        dockPosition: 'right',
       },
     );
     expect(node.position).toEqual({ x: 7, y: 9 });
     expect(node.size).toEqual({ width: 111, height: 222 });
-    expect(node.dockPosition).toBe('right');
   });
 
   test('data is passed through by reference, not cloned', () => {

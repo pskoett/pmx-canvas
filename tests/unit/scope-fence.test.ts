@@ -20,7 +20,6 @@ function addNode(id: string, x: number, y: number): void {
     zIndex: 1,
     collapsed: false,
     pinned: false,
-    dockPosition: null,
     data: { title: id },
   });
 }

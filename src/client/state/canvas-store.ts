@@ -167,14 +167,6 @@ export function replaceContextPinsFromServer(ids: string[]): void {
   contextPinnedNodeIds.value = new Set(ids);
 }
 
-export function getContextPinnedNodes(): CanvasNodeState[] {
-  const pins = contextPinnedNodeIds.value;
-  if (pins.size === 0) return [];
-  return Array.from(pins)
-    .map((id) => nodes.value.get(id))
-    .filter((n): n is CanvasNodeState => n !== undefined);
-}
-
 function syncContextPinsToServer(ids: Set<string>): void {
   fetch('/api/canvas/context-pins', {
     method: 'POST',
@@ -358,50 +350,6 @@ export function toggleCollapsed(id: string): void {
   updateNode(id, { collapsed: !existing.collapsed });
 }
 
-// Collapse every docked context node. Used to enforce mutual exclusion between
-// the Context side panel and the Updates side panel (they share the same
-// right-edge anchor and would otherwise visually collide).
-export function collapseDockedContextNodes(): void {
-  for (const node of nodes.value.values()) {
-    if (node.type === 'context' && node.dockPosition === 'right' && !node.collapsed) {
-      updateNode(node.id, { collapsed: true });
-    }
-  }
-}
-
-// True iff at least one docked context node is currently expanded. Used by the
-// Updates pill to hide itself while the Context panel is open.
-export const hasOpenDockedContextPanel = computed(() => {
-  for (const node of nodes.value.values()) {
-    if (node.type === 'context' && node.dockPosition === 'right' && !node.collapsed) {
-      return true;
-    }
-  }
-  return false;
-});
-
-export function dockNode(id: string, position: 'left' | 'right'): void {
-  const existing = nodes.value.get(id);
-  if (!existing) return;
-  updateNode(id, { dockPosition: position });
-  persistLayout();
-}
-
-export function undockNode(id: string): void {
-  const existing = nodes.value.get(id);
-  if (!existing) return;
-  // Place at center of current viewport in world-space
-  const v = viewport.value;
-  const centre = canvasAreaCenter();
-  const cx = (centre.x - v.x) / v.scale;
-  const cy = (centre.y - v.y) / v.scale;
-  updateNode(id, {
-    dockPosition: null,
-    position: { x: cx - existing.size.width / 2, y: cy - existing.size.height / 2 },
-  });
-  persistLayout();
-}
-
 // ── Viewport ──────────────────────────────────────────────────
 export function setViewport(v: Partial<ViewportState>): void {
   viewport.value = { ...viewport.value, ...v };
@@ -548,7 +496,6 @@ export function persistLayout(options: { recordHistory?: boolean } = {}): void {
       position: n.position,
       size: n.size,
       collapsed: n.collapsed,
-      dockPosition: n.dockPosition,
     }));
     const layout = {
       viewport: viewport.value,
@@ -559,7 +506,6 @@ export function persistLayout(options: { recordHistory?: boolean } = {}): void {
         size: n.size,
         collapsed: n.collapsed,
         pinned: n.pinned,
-        dockPosition: n.dockPosition,
       })),
       edges: Array.from(edges.value.values()).map((e) => ({
         id: e.id,
@@ -591,7 +537,6 @@ export function restoreLayout(): Map<string, Partial<CanvasNodeState>> | null {
         size?: CanvasNodeState['size'];
         collapsed?: boolean;
         pinned?: boolean;
-        dockPosition?: CanvasNodeState['dockPosition'];
       }>;
     };
     const savedNodes = Array.isArray(layout.nodes) ? layout.nodes : [];
@@ -605,7 +550,6 @@ export function restoreLayout(): Map<string, Partial<CanvasNodeState>> | null {
         ...(node.size ? { size: node.size } : {}),
         ...(node.collapsed !== undefined ? { collapsed: node.collapsed } : {}),
         ...(node.pinned !== undefined ? { pinned: node.pinned } : {}),
-        ...(node.dockPosition !== undefined ? { dockPosition: node.dockPosition } : {}),
       });
     }
 

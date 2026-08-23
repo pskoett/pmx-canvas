@@ -946,7 +946,6 @@ export function addCanvasNode(input: CanvasAddNodeInput): {
     zIndex: 1,
     collapsed: false,
     pinned: false,
-    dockPosition: null,
     data,
   };
 
@@ -1133,7 +1132,7 @@ export function removeCanvasNode(id: string): {
 }
 
 function isArrangeLocked(node: CanvasNodeState): boolean {
-  return node.pinned || node.dockPosition !== null || node.data.arrangeLocked === true;
+  return node.pinned || node.data.arrangeLocked === true;
 }
 
 function collectArrangeExcludedNodeIds(nodes: CanvasNodeState[]): Set<string> {
@@ -1219,7 +1218,7 @@ function rectsOverlap(a: ArrangeObstacleRect, b: ArrangeObstacleRect): boolean {
 
 function collectGridArrangeObstacles(nodes: CanvasNodeState[], excludedIds: Set<string>): ArrangeObstacleRect[] {
   return nodes
-    .filter((node) => excludedIds.has(node.id) && node.dockPosition === null)
+    .filter((node) => excludedIds.has(node.id))
     .map((node) => ({
       id: node.id,
       position: { ...node.position },
@@ -1247,7 +1246,7 @@ function shiftGridUpdatesBelowObstacles(
 ): CanvasNodeUpdate[] {
   if (updates.length === 0 || obstacles.length === 0) return updates;
 
-  // Grid arrange only sees movable nodes, so preserved locked/docked-group frames
+  // Grid arrange only sees movable nodes, so preserved locked-group frames
   // need a separate obstacle pass before applying the planned positions.
   const nodesById = new Map(nodes.map((node) => [node.id, node]));
   let shifted = updates;
@@ -1512,7 +1511,6 @@ export function createCanvasGroup(input: CanvasCreateGroupInput): { id: string; 
     zIndex: 0,
     collapsed: false,
     pinned: false,
-    dockPosition: null,
     data,
   });
 
@@ -1583,7 +1581,6 @@ export function createCanvasJsonRenderNode(input: JsonRenderNodeInput): {
     zIndex: 1,
     collapsed: false,
     pinned: false,
-    dockPosition: null,
     data: createJsonRenderNodeData(id, input.title?.trim() || inferJsonRenderNodeTitle(spec), spec, {
       viewerType: 'json-render',
       ...(input.strictSize ? { strictSize: true } : {}),
@@ -1627,7 +1624,6 @@ export function createCanvasStreamingJsonRenderNode(input: {
     zIndex: 1,
     collapsed: false,
     pinned: false,
-    dockPosition: null,
     data: createJsonRenderNodeData(id, input.title?.trim() || 'Streaming', spec, {
       viewerType: 'json-render',
       streamStatus: 'open',
@@ -1703,7 +1699,6 @@ export function createCanvasGraphNode(input: GraphNodeInput): {
     zIndex: 1,
     collapsed: false,
     pinned: false,
-    dockPosition: null,
     data: createJsonRenderNodeData(id, title, spec, {
       viewerType: 'graph',
       graphConfig: buildGraphConfig(input),

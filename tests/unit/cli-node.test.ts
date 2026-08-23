@@ -1036,7 +1036,6 @@ describe('agent CLI node commands', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: {
         title: 'Artifact',
         hostMode: 'hosted',
@@ -1068,7 +1067,6 @@ describe('agent CLI node commands', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: {
         title: 'Artifact Kind',
         viewerType: 'web-artifact',
@@ -1151,25 +1149,6 @@ describe('agent CLI node commands', () => {
 
     const node = await jsonRequest<{ pinned: boolean }>(`/api/canvas/node/${created.id}`);
     expect(node.pinned).toBe(false);
-  });
-
-  test('node update --dock-position docks and undocks a node via the CLI (#40)', async () => {
-    const created = await jsonRequest<{ id: string }>('/api/canvas/node', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ type: 'status', title: 'Dock me' }),
-    });
-
-    await runAgentCli(['node', 'update', created.id, '--dock-position', 'left']);
-    expect((await jsonRequest<{ dockPosition: string | null }>(`/api/canvas/node/${created.id}`)).dockPosition).toBe(
-      'left',
-    );
-
-    // The crux of #40: `none` must reach the server as a real null (undock).
-    await runAgentCli(['node', 'update', created.id, '--dock-position', 'none']);
-    expect(
-      (await jsonRequest<{ dockPosition: string | null }>(`/api/canvas/node/${created.id}`)).dockPosition,
-    ).toBeNull();
   });
 
   test('node add supports graph nodes from a JSON data file', async () => {
@@ -1512,7 +1491,6 @@ describe('agent CLI node commands', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: {
         title: 'CLI Pinned Artifact Kind',
         viewerType: 'web-artifact',
@@ -1530,7 +1508,6 @@ describe('agent CLI node commands', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: {
         title: 'CLI Pinned External App Kind',
         mode: 'ext-app',

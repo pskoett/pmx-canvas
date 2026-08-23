@@ -45,11 +45,7 @@ function isContentFitSurface(node: CanvasNodeState): boolean {
  *  whose height is controlled elsewhere. */
 function isAutoSizeExempt(node: CanvasNodeState): boolean {
   return (
-    node.collapsed === true ||
-    node.dockPosition != null ||
-    node.data.strictSize === true ||
-    node.data.userResized === true ||
-    node.type === 'group'
+    node.collapsed === true || node.data.strictSize === true || node.data.userResized === true || node.type === 'group'
   );
 }
 

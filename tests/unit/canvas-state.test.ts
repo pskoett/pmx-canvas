@@ -4,7 +4,6 @@ import { Database } from 'bun:sqlite';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { loadStateFromDB } from '../../src/server/canvas-db.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
-import { ensureDefaultDockedNodes } from '../../src/server/server.ts';
 import { AX_TIMELINE_RETENTION } from '../../src/server/ax-state.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { computeGroupBounds, findOpenCanvasPosition } from '../../src/server/placement.ts';
@@ -36,60 +35,20 @@ describe('canvas state manager', () => {
     removeTestWorkspace(workspaceRoot);
   });
 
-  test('docking is explicit: a context node lands on the canvas unless asked to dock', () => {
+  test('a context node lands on the canvas where it was created, expanded', () => {
     // 0.4.6 orb feedback #1: context nodes used to auto-dock to a collapsed
     // right-hand pill, so an agent-created context node existed in the API and
-    // passed validation but never rendered on the canvas — and any edge to it
-    // trailed off into empty space. Creation now honors what the caller asked for.
-    canvasState.addNode(makeNode({ id: 'ctx', type: 'context' }));
+    // passed validation but never rendered on the canvas. Creation honors what
+    // the caller asked for — and since 5c there is no HUD to hide in at all.
+    canvasState.addNode(makeNode({ id: 'ctx', type: 'context', position: { x: 300, y: 200 } }));
     const created = canvasState.getNode('ctx')!;
-    expect(created.dockPosition).toBeNull();
+    expect(created.position).toEqual({ x: 300, y: 200 });
     expect(created.collapsed).toBe(false);
-
-    // Docking on demand still works, and a later data-only update keeps it.
-    canvasState.updateNode('ctx', { dockPosition: 'right', collapsed: true });
-    expect(canvasState.getNode('ctx')!.dockPosition).toBe('right');
     canvasState.updateNode('ctx', { data: { title: 'Notes' } });
-    expect(canvasState.getNode('ctx')!.dockPosition).toBe('right');
-
-    // Undock returns it to the canvas.
-    canvasState.updateNode('ctx', { dockPosition: null });
-    expect(canvasState.getNode('ctx')!.dockPosition).toBeNull();
-
-    // An explicit dock position on create is preserved as-is — this is how the
-    // seeded HUD widgets (status-main / context-main) stay docked.
-    canvasState.addNode(makeNode({ id: 'ctx-left', type: 'context', dockPosition: 'left' }));
-    expect(canvasState.getNode('ctx-left')!.dockPosition).toBe('left');
+    expect(canvasState.getNode('ctx')!.position).toEqual({ x: 300, y: 200 });
   });
 
-  test('ensureDefaultDockedNodes seeds a docked status + context on a fresh canvas, idempotently', () => {
-    expect(canvasState.getLayout().nodes).toHaveLength(0);
-    expect(ensureDefaultDockedNodes()).toBe(true);
-    expect(canvasState.getNode('status-main')?.dockPosition).toBe('left');
-    expect(canvasState.getNode('context-main')?.dockPosition).toBe('right');
-    expect(canvasState.getNode('status-main')?.collapsed).toBe(true);
-    expect(canvasState.getNode('context-main')?.collapsed).toBe(true);
-    // Create-if-missing — a second call never duplicates the seeded widgets.
-    ensureDefaultDockedNodes();
-    expect(
-      canvasState
-        .getLayout()
-        .nodes.map((n) => n.id)
-        .sort(),
-    ).toEqual(['context-main', 'status-main']);
-  });
-
-  test('ensureDefaultDockedNodes never seeds (or re-seeds) a canvas with persisted state', () => {
-    expect(ensureDefaultDockedNodes()).toBe(true); // fresh workspace → seeds
-    canvasState.flushToDisk(); // persist → state_populated flag set
-    expect(canvasState.hasPersistedState()).toBe(true);
-    // Deleting a seeded widget on a populated canvas must NOT bring it back.
-    canvasState.removeNode('context-main');
-    expect(ensureDefaultDockedNodes()).toBe(false);
-    expect(canvasState.getNode('context-main')).toBeUndefined();
-  });
-
-  test('undo of a context delete preserves a deliberately-undocked position', () => {
+  test('undo of a delete restores the node as it was at delete time, not as created', () => {
     canvasState.onMutation((info) => {
       mutationHistory.record({
         description: info.description,
@@ -98,16 +57,14 @@ describe('canvas state manager', () => {
         inverse: info.inverse,
       });
     });
-    // Create docked → undock → delete → undo must restore it UNDOCKED, i.e. undo
-    // replays the node as it was at delete time rather than as it was created.
-    canvasState.addNode(makeNode({ id: 'ctx-undo', type: 'context', dockPosition: 'right' }));
-    expect(canvasState.getNode('ctx-undo')?.dockPosition).toBe('right');
-    canvasState.updateNode('ctx-undo', { dockPosition: null, collapsed: false });
+    canvasState.addNode(makeNode({ id: 'ctx-undo', type: 'context', collapsed: true }));
+    expect(canvasState.getNode('ctx-undo')?.collapsed).toBe(true);
+    canvasState.updateNode('ctx-undo', { collapsed: false, position: { x: 640, y: 80 } });
     canvasState.removeNode('ctx-undo');
     mutationHistory.undo();
     const restored = canvasState.getNode('ctx-undo')!;
-    expect(restored.dockPosition).toBeNull();
     expect(restored.collapsed).toBe(false);
+    expect(restored.position).toEqual({ x: 640, y: 80 });
   });
 
   test('groups nodes, prunes removed children, and persists canvas state', async () => {

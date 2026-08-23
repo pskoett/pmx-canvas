@@ -12,7 +12,6 @@ function makeNode(data: Record<string, unknown>, type: CanvasNodeState['type'] =
     zIndex: 1,
     collapsed: false,
     pinned: false,
-    dockPosition: null,
     data,
   };
 }

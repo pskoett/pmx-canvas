@@ -183,9 +183,7 @@ function endBand(contentTop: number, contentHeight: number): void {
 // ── board content ─────────────────────────────────────────────
 
 async function buildBoard(): Promise<void> {
-  // A fresh workspace seeds the docked HUD widgets (status-main / context-main).
-  // They belong to every canvas, not to the demo board — clearing first means
-  // the export is exactly what this script created.
+  // Clear first so the export is exactly what this script created.
   await api('POST', '/api/canvas/clear', {});
   // Left column: the narrative half — read it top to bottom.
   startColumn(LEFT_COLUMN_X);

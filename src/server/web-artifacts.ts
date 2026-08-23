@@ -716,7 +716,6 @@ export function openWebArtifactInCanvas(input: {
     zIndex: 1,
     collapsed: false,
     pinned: false,
-    dockPosition: null,
     data: {
       title: input.title,
       ...(typeof input.content === 'string' ? { content: input.content } : {}),

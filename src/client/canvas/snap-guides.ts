@@ -81,7 +81,7 @@ export function buildSnapCache(dragId: string, allNodes: Iterable<CanvasNodeStat
   const nodeList = Array.from(allNodes);
   const excludedIds = collectExcludedReferenceIds(dragId, nodeList);
   for (const n of nodeList) {
-    if (excludedIds.has(n.id) || n.dockPosition !== null) continue;
+    if (excludedIds.has(n.id)) continue;
     const l = n.position.x;
     const r = n.position.x + n.size.width;
     const cx = n.position.x + n.size.width / 2;

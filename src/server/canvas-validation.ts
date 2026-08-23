@@ -31,26 +31,12 @@ export interface CanvasSizeWarning {
   minHeight: number;
 }
 
-export interface CanvasHiddenEdgeEndpoint {
-  edgeId: string;
-  nodeId: string;
-  nodeTitle: string | null;
-  dockPosition: 'left' | 'right';
-}
-
 export interface CanvasValidationResult {
   ok: boolean;
   collisions: CanvasValidationPair[];
   containments: CanvasContainmentIssue[];
   containmentViolations: CanvasContainmentIssue[];
   missingEdgeEndpoints: Array<{ edgeId: string; from: string; to: string }>;
-  /**
-   * Edges whose endpoint node is DOCKED — it renders in the HUD column, not on
-   * the canvas, so the edge visually terminates in empty space even though both
-   * endpoint IDs resolve (0.4.6 orb feedback #1). Advisory: reported for
-   * diagnosis, but does NOT fail `ok` (see the note at the return site).
-   */
-  hiddenEdgeEndpoints: CanvasHiddenEdgeEndpoint[];
   /** Nodes below their type's readable minimum (advisory — does not fail `ok`). */
   sizeWarnings: CanvasSizeWarning[];
   summary: {
@@ -60,7 +46,6 @@ export interface CanvasValidationResult {
     containments: number;
     containmentViolations: number;
     missingEdgeEndpoints: number;
-    hiddenEdgeEndpoints: number;
     sizeWarnings: number;
   };
 }
@@ -72,10 +57,6 @@ function overlaps(a: CanvasNodeState, b: CanvasNodeState): boolean {
     a.position.y < b.position.y + b.size.height &&
     a.position.y + a.size.height > b.position.y
   );
-}
-
-function participatesInCanvasCollisionValidation(node: CanvasNodeState): boolean {
-  return node.dockPosition === null;
 }
 
 function fullyContains(group: CanvasNodeState, child: CanvasNodeState): boolean {
@@ -119,10 +100,8 @@ export function validateCanvasLayout(layout: CanvasLayout): CanvasValidationResu
 
   for (let i = 0; i < layout.nodes.length; i++) {
     const a = layout.nodes[i]!;
-    if (!participatesInCanvasCollisionValidation(a)) continue;
     for (let j = i + 1; j < layout.nodes.length; j++) {
       const b = layout.nodes[j]!;
-      if (!participatesInCanvasCollisionValidation(b)) continue;
       if (!overlaps(a, b)) continue;
 
       if (isGroupChildPair(a, b)) {
@@ -143,35 +122,13 @@ export function validateCanvasLayout(layout: CanvasLayout): CanvasValidationResu
     .filter((edge) => !nodeIds.has(edge.from) || !nodeIds.has(edge.to))
     .map((edge) => ({ edgeId: edge.id, from: edge.from, to: edge.to }));
 
-  // An edge to a DOCKED node cannot be drawn: docked nodes live in the HUD
-  // column, and the world-space edge layer skips them, so the edge trails off
-  // into empty canvas. Structural validation used to miss this entirely because
-  // both endpoint IDs resolve (0.4.6 orb feedback #1).
-  const dockedById = new Map(
-    layout.nodes.filter((node) => node.dockPosition != null).map((node) => [node.id, node] as const),
-  );
-  const hiddenEdgeEndpoints: CanvasHiddenEdgeEndpoint[] = layout.edges.flatMap((edge) =>
-    [edge.from, edge.to].flatMap((nodeId) => {
-      const docked = dockedById.get(nodeId);
-      if (!docked || docked.dockPosition == null) return [];
-      return [
-        {
-          edgeId: edge.id,
-          nodeId,
-          nodeTitle: getCanvasNodeTitle(docked),
-          dockPosition: docked.dockPosition,
-        },
-      ];
-    }),
-  );
-
   // Advisory: nodes below their type's readable floor (clipped/unreadable
   // content — 0.4.5 report follow-up). Creation clamps these, but resized or
   // strictSize-created nodes can still be undersized; surface them so an
-  // agent's validate pass sees the problem. Collapsed/docked nodes render as
-  // bars, and strictSize is the deliberate opt-out — all skipped.
+  // agent's validate pass sees the problem. Collapsed nodes render as bars,
+  // and strictSize is the deliberate opt-out — both skipped.
   const sizeWarnings: CanvasSizeWarning[] = layout.nodes
-    .filter((node) => !node.collapsed && node.dockPosition == null && node.data?.strictSize !== true)
+    .filter((node) => !node.collapsed && node.data?.strictSize !== true)
     .flatMap((node) => {
       const min = nodeMinSize(node.type);
       if (!min || (node.size.width >= min.width && node.size.height >= min.height)) return [];
@@ -189,17 +146,11 @@ export function validateCanvasLayout(layout: CanvasLayout): CanvasValidationResu
     });
 
   return {
-    // `hiddenEdgeEndpoints` is ADVISORY (like sizeWarnings): a docked endpoint
-    // is a rendering observation, not a structural defect, and folding it into
-    // `ok` would flip previously-healthy boards to ok:false with no user change
-    // — `ok` is a documented response field of a frozen surface, so that is a
-    // contract break, not a patch. It is still reported for diagnosis.
     ok: collisions.length === 0 && containmentViolations.length === 0 && missingEdgeEndpoints.length === 0,
     collisions,
     containments,
     containmentViolations,
     missingEdgeEndpoints,
-    hiddenEdgeEndpoints,
     sizeWarnings,
     summary: {
       nodes: layout.nodes.length,
@@ -208,7 +159,6 @@ export function validateCanvasLayout(layout: CanvasLayout): CanvasValidationResu
       containments: containments.length,
       containmentViolations: containmentViolations.length,
       missingEdgeEndpoints: missingEdgeEndpoints.length,
-      hiddenEdgeEndpoints: hiddenEdgeEndpoints.length,
       sizeWarnings: sizeWarnings.length,
     },
   };

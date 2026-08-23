@@ -25,5 +25,4 @@ export declare function makeNodeState(id: string, type: CanvasNodeState['type'],
         width: number;
         height: number;
     };
-    dockPosition?: 'left' | 'right' | null;
 }): CanvasNodeState;

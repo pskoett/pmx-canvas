@@ -10,7 +10,7 @@ interface Rect {
 
 function getNodeRect(nodeId: string): Rect | null {
   const node = nodes.value.get(nodeId);
-  if (!node || node.dockPosition !== null) return null;
+  if (!node) return null;
   return {
     left: node.position.x,
     top: node.position.y,

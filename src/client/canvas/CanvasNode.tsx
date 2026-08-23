@@ -243,16 +243,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         autoFitPersistTimer.current = null;
       }
     };
-  }, [
-    node.id,
-    node.type,
-    node.data.mode,
-    node.data.strictSize,
-    node.collapsed,
-    node.dockPosition,
-    node.size.width,
-    node.size.height,
-  ]);
+  }, [node.id, node.type, node.data.mode, node.data.strictSize, node.collapsed, node.size.width, node.size.height]);
 
   const isPinned = node.pinned;
   const isTrace = node.type === 'trace';

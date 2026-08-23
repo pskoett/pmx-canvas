@@ -124,7 +124,6 @@ function summarizeNodeResult(node: Record<string, unknown>): Record<string, unkn
     ...(node.size !== undefined ? { size: node.size } : {}),
     ...(node.collapsed !== undefined ? { collapsed: node.collapsed } : {}),
     ...(node.pinned !== undefined ? { pinned: node.pinned } : {}),
-    ...(node.dockPosition !== undefined ? { dockPosition: node.dockPosition } : {}),
     ...(node.path !== undefined ? { path: node.path } : {}),
     ...(node.url !== undefined ? { url: node.url } : {}),
     ...(node.provenance !== undefined ? { provenance: node.provenance } : {}),
@@ -827,8 +826,6 @@ cmd(
     'pmx-canvas node update <node-id> --spec-file ./dashboard.json',
     'pmx-canvas node update <graph-id> --data-file ./metrics.json --chart-height 420',
     'pmx-canvas node update <node-id> --pinned true',
-    'pmx-canvas node update <node-id> --dock-position right',
-    'pmx-canvas node update <node-id> --dock-position none   # undock back to the canvas',
     'pmx-canvas node update <node-id> --lock-arrange',
     'pmx-canvas node update <node-id> --width 840 --full   # full node payload instead of the compact envelope',
   ],
@@ -910,25 +907,10 @@ cmd(
 
     if (pinned !== undefined) body.pinned = pinned;
 
-    // --dock-position left|right|none : dock a node into the top HUD or undock it.
-    // `none`/`null`/empty map to JS null (undock). Assigned with a !== undefined
-    // guard so the null survives JSON.stringify to the server (which accepts a
-    // top-level dockPosition: null). HTTP PATCH already supports this; this is the
-    // CLI path the report (#40) found missing.
-    const dockRaw = getStringFlag(flags, 'dock-position', 'dockPosition');
-    let dockPosition: 'left' | 'right' | null | undefined;
-    if (dockRaw !== undefined) {
-      const v = dockRaw.trim().toLowerCase();
-      if (v === 'left' || v === 'right') dockPosition = v;
-      else if (v === 'none' || v === 'null' || v === '') dockPosition = null;
-      else die(`Invalid --dock-position "${dockRaw}".`, 'Use left, right, or none (to undock).');
-    }
-    if (dockPosition !== undefined) body.dockPosition = dockPosition;
-
     if (Object.keys(body).length === 0) {
       die(
         'No updates specified',
-        'Use --title, --content, --x, --y, --width, --height, --strict-size, --pinned, --dock-position, trace fields, --lock-arrange, --unlock-arrange, or --stdin',
+        'Use --title, --content, --x, --y, --width, --height, --strict-size, --pinned, trace fields, --lock-arrange, --unlock-arrange, or --stdin',
       );
     }
 

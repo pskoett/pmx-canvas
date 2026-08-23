@@ -50,7 +50,7 @@ function isKnownNodeType(value: string | undefined): value is CanvasNodeState['t
 function getNodeRect(nodeId: string | undefined): Rect | null {
   if (!nodeId) return null;
   const node = nodes.value.get(nodeId);
-  if (!node || node.dockPosition !== null) return null;
+  if (!node) return null;
   return { left: node.position.x, top: node.position.y, width: node.size.width, height: node.size.height };
 }
 

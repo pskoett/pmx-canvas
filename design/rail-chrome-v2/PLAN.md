@@ -114,7 +114,7 @@ is a visible element on today's board that does not yet match the prototypes.
   current selection and clears it. Not done: the on-node gate countdown (the design draws it in
   the gate node; ours lives in the panel + badge) — phase 7 polish.
 
-### Phase 5 — Command bar + session lifecycle — 5a/5b BUILT, 5c pending
+### Phase 5 — Command bar + session lifecycle — BUILT
 - **5a — command bar (built):** replaces `ContextPinBar` while a session is attached (the quiet
   board keeps the minimal pin bar). Built to the Focus Session mockup, not the README's prose:
   a floating composer centered at the bottom of the canvas region (560px max, 12px radius, blur +
@@ -144,12 +144,16 @@ is a visible element on today's board that does not yet match the prototypes.
   (its methods bypass the registry); restored pending gates with an elapsed TTL get a fresh
   clock; presence re-emits through one `canvasState.onChange` subscription instead of
   per-site refresh calls; the Copilot extension's shutdown detach is bounded (800 ms).
-- **5c — retire the docked pills:** the HUD pill layer and `DockedNode` go away; nothing is
-  seeded on first run; `dockPosition` is removed from the model and everything that keyed on it
-  (`undockNode`, `hasOpenDockedContextPanel`, the validator's hidden-endpoint rule, `hud-left/right`
-  CSS, docked-node CSS, demo fixture). Legacy host events (`canvas-status`, `execution-phase`,
-  `context-cards`) keep creating their `status-main` / `context-main` nodes, now as ordinary
-  cards. Done as its own commit — a removal cascade, reviewed on its own.
+- **5c — retire the docked pills (built, own commit):** the HUD pill layer and `DockedNode` are
+  gone; nothing is seeded on first run (`ensureDefaultDockedNodes` / `hasPersistedState`
+  deleted); `dockPosition` is removed from the model end to end — server state, SQLite columns
+  (existing DBs keep a dead `dock_position` column; no migration, per the no-compat rule), the
+  HTTP/MCP `node.update` input, the CLI `--dock-position` flag, the SDK, the client types/store/
+  bridges, the validator's `hiddenEdgeEndpoints` rule, the context-menu dock items, and the
+  `hud-left/right` + docked-node + context-dock CSS. Legacy host events (`canvas-status`,
+  `execution-phase`, `context-cards`, `aux-open`) keep creating `status-main` / `context-main`,
+  now as ordinary expanded cards. The attention history lost its "collapse the context panel"
+  coupling. Demo fixture regenerated through the API.
 
 ### Phase 6 — External steering surfaces
 - Top-bar passive indicator (writer count + op count) + activity feed popover with per-writer

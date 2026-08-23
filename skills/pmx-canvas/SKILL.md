@@ -217,10 +217,9 @@ distant nodes, an auto-placed node lands off-camera.
    `fit` over the new ids. Manual pixel math is what produces long-line, unbalanced boards.
 6. `fit` sizes itself to the connected browser window (0.4.6+) — you do not need to guess
    `width`/`height`. Pass them only to fit for a window other than the human's.
-7. **Docking is explicit (0.4.6+).** Nodes render on the canvas where you put them; a node is
-   only a HUD pill if you set `dockPosition`. An edge whose endpoint is docked cannot be drawn —
-   `validate` reports it as `hiddenEdgeEndpoints` and fails `ok`, because the edge visually
-   trails off into empty canvas.
+7. **Every node is a canvas card.** Nodes render on the canvas where you put them — there is
+   no docked/HUD placement and no `dockPosition` (removed in the rail-chrome redesign); `status`
+   and `context` nodes are ordinary cards like the rest.
 
 **Size for content.** Omitting `width`/`height` gives readable per-type defaults — prefer them:
 markdown 640×420, status 360×200, file 520×360, diff 640×420, mermaid 640×460, html 720×640,

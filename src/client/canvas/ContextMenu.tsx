@@ -2,7 +2,6 @@ import type { ComponentChildren } from 'preact';
 import { useCallback, useEffect, useState } from 'preact/hooks';
 import {
   contextPinnedNodeIds,
-  dockNode,
   edges,
   expandNode,
   focusNode,
@@ -12,7 +11,6 @@ import {
   removeNode,
   toggleCollapsed,
   toggleContextPin,
-  undockNode,
   updateNode,
 } from '../state/canvas-store';
 import {
@@ -562,26 +560,6 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
       items.push({
         label: `Ungroup (${childIds.length} node${childIds.length !== 1 ? 's' : ''})`,
         action: () => ungroupFromClient(node.id),
-      });
-    }
-  }
-
-  // Dock/undock for status and ledger nodes
-  if (node.type === 'status' || node.type === 'ledger') {
-    items.push({ separator: true });
-    if (node.dockPosition !== null) {
-      items.push({
-        label: 'Undock to canvas',
-        action: () => undockNode(node.id),
-      });
-    } else {
-      items.push({
-        label: 'Dock left of toolbar',
-        action: () => dockNode(node.id, 'left'),
-      });
-      items.push({
-        label: 'Dock right of toolbar',
-        action: () => dockNode(node.id, 'right'),
       });
     }
   }

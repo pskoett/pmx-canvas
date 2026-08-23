@@ -29,7 +29,6 @@ function makeNode(spec: NodeSpec): CanvasNodeState {
     zIndex: 1,
     collapsed: false,
     pinned: false,
-    dockPosition: null,
     data: { ...(spec.title !== undefined ? { title: spec.title } : {}), ...spec.data },
   };
 }

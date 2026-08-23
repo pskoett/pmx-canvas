@@ -106,19 +106,13 @@ function applyLayoutOverrides(node: CanvasNodeState): CanvasNodeState {
     size: overrides.size ?? node.size,
     collapsed: overrides.collapsed ?? node.collapsed,
     pinned: overrides.pinned ?? node.pinned,
-    dockPosition: overrides.dockPosition !== undefined ? overrides.dockPosition : node.dockPosition,
   };
 }
 
 // Default geometry lives in the shared node factory (node-factory.ts); this
 // wrapper just layers the connection-local saved-layout overrides on top.
-function makeNode(
-  id: string,
-  type: CanvasNodeState['type'],
-  data: Record<string, unknown>,
-  dockPosition: 'left' | 'right' | null = null,
-): CanvasNodeState {
-  return applyLayoutOverrides(makeNodeState(id, type, data, { dockPosition }));
+function makeNode(id: string, type: CanvasNodeState['type'], data: Record<string, unknown>): CanvasNodeState {
+  return applyLayoutOverrides(makeNodeState(id, type, data));
 }
 
 function getMarkdownPlacement(): { x: number; y: number } {
@@ -129,7 +123,7 @@ function getMarkdownPlacement(): { x: number; y: number } {
 function ensureStatusNode(): void {
   const id = 'status-main';
   if (!nodes.value.has(id)) {
-    addNode(makeNode(id, 'status', { phase: 'idle', message: '', elapsed: 0 }, 'left'));
+    addNode(makeNode(id, 'status', { phase: 'idle', message: '', elapsed: 0 }));
   }
 }
 
@@ -144,9 +138,7 @@ function ensureMarkdownNode(path: string, title: string): void {
     const node = makeNode(id, 'markdown', { path, title, content: '', rendered: '' });
     node.position = placement;
     addNode(node);
-    if (!node.dockPosition) {
-      focusNode(id);
-    }
+    focusNode(id);
   }
 }
 
@@ -230,9 +222,7 @@ function ensureExtAppNode(data: Record<string, unknown>): void {
     ),
   );
   addNode(node);
-  if (!node.dockPosition) {
-    focusNode(id, { recordHistory: false });
-  }
+  focusNode(id, { recordHistory: false });
 }
 
 function findExtAppNodeId(toolCallId: string): string | null {
@@ -280,7 +270,7 @@ function ensureLedgerNode(summary: Record<string, unknown>): void {
   if (existing) {
     updateNodeData(id, summary);
   } else {
-    const node = makeNode(id, 'ledger', summary, 'right');
+    const node = makeNode(id, 'ledger', summary);
     node.collapsed = true;
     addNode(node);
   }
@@ -350,7 +340,6 @@ function parseCanvasNode(raw: Record<string, unknown>): CanvasNodeState | null {
   const size = parseCanvasSize(raw.size);
   if (!position || !size) return null;
 
-  const dockPosition = raw.dockPosition === 'left' || raw.dockPosition === 'right' ? raw.dockPosition : null;
   const data = raw.data && typeof raw.data === 'object' ? Object.fromEntries(Object.entries(raw.data)) : {};
 
   return {
@@ -361,7 +350,6 @@ function parseCanvasNode(raw: Record<string, unknown>): CanvasNodeState | null {
     zIndex: typeof raw.zIndex === 'number' ? raw.zIndex : 1,
     collapsed: raw.collapsed === true,
     pinned: raw.pinned === true,
-    dockPosition,
     data,
   };
 }

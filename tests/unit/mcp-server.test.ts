@@ -442,7 +442,6 @@ describe('MCP parity with CLI', () => {
     const tools = await session.client.listTools();
     const updateTool = tools.tools.find((tool) => tool.name === 'canvas_node');
     expect(updateTool?.inputSchema.properties).toHaveProperty('arrangeLocked');
-    expect(updateTool?.inputSchema.properties).toHaveProperty('dockPosition');
     expect(updateTool?.inputSchema.properties).toHaveProperty('pinned');
 
     const added = (await session.client.callTool({
@@ -471,7 +470,6 @@ describe('MCP parity with CLI', () => {
         action: 'update',
         id,
         arrangeLocked: true,
-        dockPosition: 'right',
         pinned: true,
       },
     })) as ToolResultShape;
@@ -486,12 +484,10 @@ describe('MCP parity with CLI', () => {
       arguments: { action: 'get', id, full: true },
     })) as ToolResultShape;
     const node = parseJsonText<{
-      dockPosition?: 'left' | 'right' | null;
       pinned?: boolean;
       data?: { arrangeLocked?: boolean };
     }>(fetched);
     expect(node.data?.arrangeLocked).toBe(true);
-    expect(node.dockPosition).toBe('right');
     expect(node.pinned).toBe(true);
   });
 

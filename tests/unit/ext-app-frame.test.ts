@@ -241,7 +241,6 @@ describe('ExtAppFrame iframe lifetime', () => {
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: {
         html: '<main>app</main>',
         serverName: 'Fixture',

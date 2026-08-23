@@ -65,7 +65,6 @@ const SCHEMA_SQL = `
     z_index INTEGER NOT NULL DEFAULT 0,
     collapsed INTEGER NOT NULL DEFAULT 0,
     pinned INTEGER NOT NULL DEFAULT 0,
-    dock_position TEXT,
     data TEXT NOT NULL
   );
 
@@ -119,7 +118,6 @@ const SCHEMA_SQL = `
     z_index INTEGER NOT NULL DEFAULT 0,
     collapsed INTEGER NOT NULL DEFAULT 0,
     pinned INTEGER NOT NULL DEFAULT 0,
-    dock_position TEXT,
     data TEXT NOT NULL,
     PRIMARY KEY (snapshot_id, id)
   );
@@ -397,18 +395,17 @@ export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
 
     // Save nodes
     const upsertNode = db.prepare(
-      `INSERT INTO nodes (id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, dock_position, data)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO nodes (id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, data)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON CONFLICT(id) DO UPDATE SET
          type = excluded.type, pos_x = excluded.pos_x, pos_y = excluded.pos_y,
          width = excluded.width, height = excluded.height, z_index = excluded.z_index,
-         collapsed = excluded.collapsed, pinned = excluded.pinned,
-         dock_position = excluded.dock_position, data = excluded.data
+         collapsed = excluded.collapsed, pinned = excluded.pinned, data = excluded.data
        WHERE type IS NOT excluded.type OR pos_x IS NOT excluded.pos_x
           OR pos_y IS NOT excluded.pos_y OR width IS NOT excluded.width
           OR height IS NOT excluded.height OR z_index IS NOT excluded.z_index
           OR collapsed IS NOT excluded.collapsed OR pinned IS NOT excluded.pinned
-          OR dock_position IS NOT excluded.dock_position OR data IS NOT excluded.data`,
+          OR data IS NOT excluded.data`,
     );
     for (const node of state.nodes) {
       upsertNode.run(
@@ -421,7 +418,6 @@ export function saveStateToDB(db: Database, state: PersistedCanvasState): void {
         node.zIndex,
         node.collapsed ? 1 : 0,
         node.pinned ? 1 : 0,
-        node.dockPosition,
         JSON.stringify(node.data),
       );
     }
@@ -535,7 +531,6 @@ export function loadStateFromDB(db: Database): PersistedCanvasState | null {
     z_index: number;
     collapsed: number;
     pinned: number;
-    dock_position: string | null;
     data: string;
   }
   const nodeRows = db.query<NodeRow, []>('SELECT * FROM nodes').all();
@@ -547,7 +542,6 @@ export function loadStateFromDB(db: Database): PersistedCanvasState | null {
     zIndex: row.z_index,
     collapsed: row.collapsed === 1,
     pinned: row.pinned === 1,
-    dockPosition: row.dock_position as CanvasNodeState['dockPosition'],
     data: JSON.parse(row.data) as Record<string, unknown>,
   }));
 
@@ -655,8 +649,8 @@ export function saveSnapshotToDB(db: Database, snapshot: CanvasSnapshot, state: 
 
     // Insert snapshot nodes
     const insertNode = db.prepare(
-      `INSERT INTO snapshot_nodes (snapshot_id, id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, dock_position, data)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO snapshot_nodes (snapshot_id, id, type, pos_x, pos_y, width, height, z_index, collapsed, pinned, data)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     );
     for (const node of state.nodes) {
       insertNode.run(
@@ -670,7 +664,6 @@ export function saveSnapshotToDB(db: Database, snapshot: CanvasSnapshot, state: 
         node.zIndex,
         node.collapsed ? 1 : 0,
         node.pinned ? 1 : 0,
-        node.dockPosition,
         JSON.stringify(node.data),
       );
     }
@@ -780,7 +773,6 @@ export function loadSnapshotFromDB(
     z_index: number;
     collapsed: number;
     pinned: number;
-    dock_position: string | null;
     data: string;
   }
   const nodeRows = db
@@ -794,7 +786,6 @@ export function loadSnapshotFromDB(
     zIndex: row.z_index,
     collapsed: row.collapsed === 1,
     pinned: row.pinned === 1,
-    dockPosition: row.dock_position as CanvasNodeState['dockPosition'],
     data: JSON.parse(row.data) as Record<string, unknown>,
   }));
 

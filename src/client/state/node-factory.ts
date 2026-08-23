@@ -13,12 +13,8 @@ import type { CanvasNodeState } from '../types';
 //   /api/canvas/node) and get the SERVER's `defaultNodeSize`
 //   (src/server/operations/ops/nodes.ts), which differs from this table for
 //   most types (e.g. its fallback is 360x200). The server half of H5
-//   (`syncEventToCanvasState`, `ensureDefaultDockedNodes`) is deliberately
-//   deferred — do not "fix" that mismatch from this file.
-// - The server seeds `status-main`/`context-main` docked AND collapsed
-//   (`ensureDefaultDockedNodes` in src/server/server.ts); the SSE bridge
-//   creates the same ids expanded, with `context-main` undocked. Client
-//   behavior is preserved as-is.
+//   (`syncEventToCanvasState`) is deliberately deferred — do not "fix" that
+//   mismatch from this file.
 // - sse-bridge's prompt literal hardcoded `height: 400` beside a table entry
 //   of the same value; both now read the table (no rendering change).
 
@@ -56,7 +52,6 @@ export function makeNodeState(
   options: {
     position?: { x: number; y: number };
     size?: { width: number; height: number };
-    dockPosition?: 'left' | 'right' | null;
   } = {},
 ): CanvasNodeState {
   const defaults = DEFAULT_POSITIONS[type];
@@ -68,7 +63,6 @@ export function makeNodeState(
     zIndex: type === 'status' ? 0 : 1,
     collapsed: false,
     pinned: false,
-    dockPosition: options.dockPosition ?? null,
     data,
   };
 }

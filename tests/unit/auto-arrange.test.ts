@@ -8,7 +8,6 @@ function makeNode(overrides: Partial<ArrangeNode> & Pick<ArrangeNode, 'id' | 'ty
     position: overrides.position ?? { x: 0, y: 0 },
     size: overrides.size ?? { width: 320, height: 180 },
     pinned: overrides.pinned ?? false,
-    dockPosition: overrides.dockPosition ?? null,
     data: overrides.data ?? {},
   };
 }

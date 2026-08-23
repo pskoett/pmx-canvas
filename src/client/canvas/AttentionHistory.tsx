@@ -5,7 +5,6 @@ import {
   closeAttentionHistory,
   openAttentionHistory,
 } from '../state/attention-store';
-import { collapseDockedContextNodes, hasOpenDockedContextPanel } from '../state/canvas-store';
 
 function formatTimestamp(timestamp: number): string {
   return new Date(timestamp).toLocaleTimeString([], {
@@ -15,9 +14,6 @@ function formatTimestamp(timestamp: number): string {
 }
 
 function handleOpenUpdates(): void {
-  // Mutual exclusion with the Context panel — only one side panel open at a
-  // time (they share the same right-edge anchor).
-  collapseDockedContextNodes();
   openAttentionHistory();
 }
 
@@ -27,12 +23,6 @@ export function AttentionHistory() {
 
   const isOpen = attentionHistoryOpen.value;
   const unread = attentionHistoryUnread.value;
-  // Hide the collapsed Updates pill while the Context side panel is open —
-  // the panel sits at the same right-edge and would visually cover the pill.
-  // Mutual exclusion guarantees both can't be expanded simultaneously, so the
-  // pill only needs to hide while context is expanded.
-  if (!isOpen && hasOpenDockedContextPanel.value) return null;
-
   if (!isOpen) {
     return (
       <button

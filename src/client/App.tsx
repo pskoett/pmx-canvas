@@ -7,7 +7,6 @@ import { CommandBar } from './canvas/CommandBar';
 import { CommandPalette } from './canvas/CommandPalette';
 import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
 import { ContextPinBar } from './canvas/ContextPinBar';
-import { DockedNode } from './canvas/DockedNode';
 import { ExpandedNodeOverlay } from './canvas/ExpandedNodeOverlay';
 import { Minimap } from './canvas/Minimap';
 import { SelectionBar } from './canvas/SelectionBar';
@@ -285,13 +284,6 @@ export function App() {
   }, [hasInitialLayout]);
 
   const allNodes = Array.from(nodes.value.values());
-  const dockedLeft = allNodes.filter((n) => n.dockPosition === 'left');
-  const dockedRight = allNodes
-    .filter((n) => n.dockPosition === 'right')
-    .sort((a, b) => {
-      const order: Record<string, number> = { context: 0, ledger: 1 };
-      return (order[a.type] ?? 2) - (order[b.type] ?? 2);
-    });
 
   const area = canvasArea();
 
@@ -317,19 +309,9 @@ export function App() {
             annotationMode={annotationTool !== null}
             annotationTool={annotationTool}
           />
-          <div class="hud-left">
-            {dockedLeft.map((n) => (
-              <DockedNode key={n.id} node={n} />
-            ))}
-          </div>
-          <div class="hud-right">
-            {dockedRight.map((n) => (
-              <DockedNode key={n.id} node={n} />
-            ))}
-          </div>
           <AttentionToast />
           <AttentionHistory />
-          {hasInitialLayout && allNodes.filter((n) => !n.dockPosition).length === 0 && intents.value.size === 0 && (
+          {hasInitialLayout && allNodes.length === 0 && intents.value.size === 0 && (
             <WelcomeCard onOpenPalette={() => setPaletteOpen(true)} />
           )}
           {selectedNodeIds.value.size > 0 && <SelectionBar />}

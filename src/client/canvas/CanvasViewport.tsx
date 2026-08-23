@@ -229,7 +229,6 @@ export function getRenderableWorldNodes(
   const worldNodes: CanvasNodeState[] = [];
   let insertIdx = 0; // groups fill from the front
   for (const n of allNodes) {
-    if (n.dockPosition !== null) continue;
     // Focus mode renders the node inside the overlay. Skip the original world
     // instance so embedded apps do not mount twice.
     if (focusedNodeId && n.id === focusedNodeId) continue;
@@ -319,12 +318,7 @@ export function CanvasViewport({
 
       if (annotationTool === 'eraser') {
         const target = e.target instanceof Element ? e.target : null;
-        if (
-          target?.closest(
-            '.tool-rail, .top-bar, .hud-left, .hud-right, .snapshot-panel, .context-menu, .command-palette',
-          )
-        )
-          return;
+        if (target?.closest('.tool-rail, .top-bar, .snapshot-panel, .context-menu, .command-palette')) return;
         e.preventDefault();
         e.stopPropagation();
         const rect = container.getBoundingClientRect();
@@ -340,12 +334,7 @@ export function CanvasViewport({
 
       if (annotationTool === 'text') {
         const target = e.target instanceof Element ? e.target : null;
-        if (
-          target?.closest(
-            '.tool-rail, .top-bar, .hud-left, .hud-right, .snapshot-panel, .context-menu, .command-palette',
-          )
-        )
-          return;
+        if (target?.closest('.tool-rail, .top-bar, .snapshot-panel, .context-menu, .command-palette')) return;
         e.preventDefault();
         e.stopPropagation();
         activeNodeId.value = null;
@@ -362,12 +351,7 @@ export function CanvasViewport({
 
       if (annotationTool === 'pen') {
         const target = e.target instanceof Element ? e.target : null;
-        if (
-          target?.closest(
-            '.tool-rail, .top-bar, .hud-left, .hud-right, .snapshot-panel, .context-menu, .command-palette',
-          )
-        )
-          return;
+        if (target?.closest('.tool-rail, .top-bar, .snapshot-panel, .context-menu, .command-palette')) return;
         e.preventDefault();
         e.stopPropagation();
         activeNodeId.value = null;
@@ -497,7 +481,6 @@ export function CanvasViewport({
       // Find intersecting nodes (AABB intersection)
       const hits: string[] = [];
       for (const node of nodes.value.values()) {
-        if (node.dockPosition !== null) continue;
         const nx = node.position.x;
         const ny = node.position.y;
         if (nx + node.size.width > worldMinX && nx < worldMaxX && ny + node.size.height > worldMinY && ny < worldMaxY) {
@@ -570,7 +553,7 @@ export function CanvasViewport({
       const wy = (e.clientY - rect.top - v.y) / v.scale;
 
       for (const node of nodes.value.values()) {
-        if (node.id === drag.fromId || node.dockPosition !== null) continue;
+        if (node.id === drag.fromId) continue;
         if (
           wx >= node.position.x &&
           wx <= node.position.x + node.size.width &&
@@ -756,7 +739,6 @@ export function CanvasViewport({
     };
   }, [containerRef, createWebpageNodes]);
 
-  // Only render world-space nodes (dockPosition === null); docked nodes are in the HUD layer.
   // Do NOT sort by zIndex here — CSS z-index handles visual stacking. Sorting would
   // reorder DOM children when bringToFront() changes zIndex, causing browsers to
   // detach/reattach iframe elements (which forces them to reload/reconnect).

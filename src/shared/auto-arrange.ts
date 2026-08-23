@@ -14,7 +14,6 @@ export interface ArrangeNode {
   position: ArrangePosition;
   size: ArrangeSize;
   pinned: boolean;
-  dockPosition: 'left' | 'right' | null;
   data: Record<string, unknown>;
 }
 
@@ -88,7 +87,7 @@ function buildArrangeUnits(allNodes: ArrangeNode[]): {
   nodesById: Map<string, ArrangeNode>;
   nodeToUnit: Map<string, string>;
 } {
-  const movable = allNodes.filter((node) => !node.pinned && node.dockPosition === null);
+  const movable = allNodes.filter((node) => !node.pinned);
   const nodesById = new Map(movable.map((node) => [node.id, node]));
   const nodeToUnit = new Map<string, string>();
   const units: ArrangeUnit[] = [];

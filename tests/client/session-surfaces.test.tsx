@@ -20,7 +20,6 @@ function makeNode(id: string, title?: string): CanvasNodeState {
     zIndex: 1,
     collapsed: false,
     pinned: false,
-    dockPosition: null,
     data: title === undefined ? {} : { title },
   };
 }

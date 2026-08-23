@@ -626,7 +626,6 @@ function materializeFlow(
       zIndex: 1,
       collapsed: false,
       pinned: false,
-      dockPosition: null,
       data: nodeData,
     });
     const workItem = manager.addWorkItem(

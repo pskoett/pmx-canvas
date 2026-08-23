@@ -21,12 +21,6 @@ export interface CanvasSizeWarning {
     minWidth: number;
     minHeight: number;
 }
-export interface CanvasHiddenEdgeEndpoint {
-    edgeId: string;
-    nodeId: string;
-    nodeTitle: string | null;
-    dockPosition: 'left' | 'right';
-}
 export interface CanvasValidationResult {
     ok: boolean;
     collisions: CanvasValidationPair[];
@@ -37,13 +31,6 @@ export interface CanvasValidationResult {
         from: string;
         to: string;
     }>;
-    /**
-     * Edges whose endpoint node is DOCKED — it renders in the HUD column, not on
-     * the canvas, so the edge visually terminates in empty space even though both
-     * endpoint IDs resolve (0.4.6 orb feedback #1). Advisory: reported for
-     * diagnosis, but does NOT fail `ok` (see the note at the return site).
-     */
-    hiddenEdgeEndpoints: CanvasHiddenEdgeEndpoint[];
     /** Nodes below their type's readable minimum (advisory — does not fail `ok`). */
     sizeWarnings: CanvasSizeWarning[];
     summary: {
@@ -53,7 +40,6 @@ export interface CanvasValidationResult {
         containments: number;
         containmentViolations: number;
         missingEdgeEndpoints: number;
-        hiddenEdgeEndpoints: number;
         sizeWarnings: number;
     };
 }

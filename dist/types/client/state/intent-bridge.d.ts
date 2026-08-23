@@ -74,7 +74,6 @@ export declare function pushCanvasUpdate(updates: Array<{
         height: number;
     };
     collapsed?: boolean;
-    dockPosition?: 'left' | 'right' | null;
 }>, options?: {
     recordHistory?: boolean;
 }): Promise<void>;
@@ -108,7 +107,6 @@ export declare function updateNodeFromClient(id: string, patch: {
     };
     collapsed?: boolean;
     pinned?: boolean;
-    dockPosition?: 'left' | 'right' | null;
     title?: string;
     content?: string;
     data?: Record<string, unknown>;

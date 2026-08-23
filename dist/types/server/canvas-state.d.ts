@@ -65,7 +65,6 @@ export interface CanvasNodeState {
     zIndex: number;
     collapsed: boolean;
     pinned: boolean;
-    dockPosition: 'left' | 'right' | null;
     data: Record<string, unknown>;
 }
 export interface ViewportState {
@@ -120,7 +119,6 @@ export interface CanvasNodeUpdate {
         height: number;
     };
     collapsed?: boolean;
-    dockPosition?: 'left' | 'right' | null;
 }
 export type CanvasChangeType = 'pins' | 'nodes' | 'ax' | 'ax-timeline';
 export interface MutationRecordInfo {
@@ -202,13 +200,6 @@ declare class CanvasStateManager {
     private emptyPersistedState;
     /** Load canvas state from SQLite. Call once on server startup. */
     loadFromDisk(options?: LoadFromDiskOptions): boolean;
-    /**
-     * Whether this workspace's canvas DB already holds saved state. Used to gate
-     * brand-new-workspace seeding (e.g. the default docked status/context widgets)
-     * so we never add nodes to a canvas that already has content. Reflects the
-     * pre-run persisted flag until the next save.
-     */
-    hasPersistedState(): boolean;
     /** Debounced save — coalesces rapid mutations into a single write. */
     private scheduleSave;
     flushToDisk(): void;
