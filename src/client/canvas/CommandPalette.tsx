@@ -10,9 +10,12 @@ import {
   searchHighlightIds,
 } from '../state/canvas-store';
 import { createNodeFromClient, saveCanvasTheme } from '../state/intent-bridge';
+import { sessionActive } from '../state/presence-store';
+import { startSession } from '../state/session-store';
 import { TYPE_LABELS, type CanvasNodeState } from '../types';
 import { invalidateTokenCache } from '../theme/tokens';
 import { clearThemeOverride } from '../state/theme-override';
+import { getNodeIcon, IconArrange, IconFitAll, IconMinimap, IconMoon, IconNodeMarkdown, IconSteer } from '../icons';
 
 import { MOD_KEY } from '../utils/platform';
 
@@ -22,8 +25,10 @@ interface PaletteItem {
   kind: 'node' | 'action';
   label: string;
   description?: string;
-  badge: string;
-  badgeClass?: string;
+  /** Keyboard shortcut shown as a kbd on action rows. */
+  shortcut?: string;
+  icon: (p: { size?: number; class?: string }) => preact.JSX.Element;
+  iconTone?: 'accent' | 'purple' | 'muted';
   nodeType?: CanvasNodeState['type'];
   action: () => void;
 }
@@ -115,12 +120,20 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
     for (const node of nodes.value.values()) {
       const title = (node.data.title as string) || TYPE_LABELS[node.type];
       const content = (node.data.content as string) || (node.data.path as string) || '';
+      const childCount = node.type === 'group' && Array.isArray(node.data.children) ? node.data.children.length : 0;
       items.push({
         id: `node:${node.id}`,
         kind: 'node',
         label: title,
-        description: content.length > 80 ? content.slice(0, 80) + '...' : content || undefined,
-        badge: TYPE_LABELS[node.type],
+        description:
+          node.type === 'group'
+            ? `group · ${childCount} node${childCount === 1 ? '' : 's'}`
+            : content.length > 60
+              ? `${TYPE_LABELS[node.type].toLowerCase()} · ${content.slice(0, 60)}…`
+              : content
+                ? `${TYPE_LABELS[node.type].toLowerCase()} · ${content}`
+                : TYPE_LABELS[node.type].toLowerCase(),
+        icon: getNodeIcon(node.type),
         nodeType: node.type,
         action: () => {
           focusNode(node.id);
@@ -130,18 +143,41 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
     }
 
     // Action items
-    const actions: Array<{ label: string; badge: string; action: () => void }> = [
+    const actions: Array<{
+      label: string;
+      shortcut?: string;
+      icon: PaletteItem['icon'];
+      iconTone?: PaletteItem['iconTone'];
+      action: () => void;
+    }> = [
       {
-        label: 'New note (markdown node)',
-        badge: 'CREATE',
+        label: 'New markdown note',
+        shortcut: 'M',
+        icon: IconNodeMarkdown,
+        iconTone: 'accent',
         action: () => {
           createNodeFromClient({ type: 'markdown', title: 'New note', width: 520, height: 360 });
           onClose();
         },
       },
+      ...(sessionActive.value
+        ? []
+        : [
+            {
+              label: 'Start agent session',
+              icon: IconSteer,
+              iconTone: 'purple' as const,
+              action: () => {
+                void startSession();
+                onClose();
+              },
+            },
+          ]),
       {
-        label: 'Fit all nodes',
-        badge: 'VIEW',
+        label: 'Fit view',
+        shortcut: 'F',
+        icon: IconFitAll,
+        iconTone: 'muted',
         action: () => {
           fitAll(canvasArea().width, canvasArea().height);
           onClose();
@@ -149,7 +185,8 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
       },
       {
         label: 'Auto-arrange (grid)',
-        badge: 'LAYOUT',
+        icon: IconArrange,
+        iconTone: 'muted',
         action: () => {
           autoArrange();
           onClose();
@@ -157,7 +194,8 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
       },
       {
         label: 'Auto-arrange (graph-aware)',
-        badge: 'LAYOUT',
+        icon: IconArrange,
+        iconTone: 'muted',
         action: () => {
           forceDirectedArrange();
           onClose();
@@ -165,7 +203,8 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
       },
       {
         label: 'Toggle minimap',
-        badge: 'VIEW',
+        icon: IconMinimap,
+        iconTone: 'muted',
         action: () => {
           onToggleMinimap();
           onClose();
@@ -173,7 +212,8 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
       },
       {
         label: 'Toggle theme (dark/light)',
-        badge: 'THEME',
+        icon: IconMoon,
+        iconTone: 'muted',
         action: () => {
           const next = canvasTheme.value === 'dark' ? 'light' : 'dark';
           // An explicit pick ends any ?theme= session override, same as the
@@ -193,8 +233,9 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
         id: `action:${a.label}`,
         kind: 'action',
         label: a.label,
-        badge: a.badge,
-        badgeClass: 'command-palette-badge--action',
+        ...(a.shortcut ? { shortcut: a.shortcut } : {}),
+        icon: a.icon,
+        ...(a.iconTone ? { iconTone: a.iconTone } : {}),
         action: a.action,
       });
     }
@@ -230,6 +271,9 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
     // Sort by score descending
     filtered.sort((a, b) => b.score - a.score);
   }
+  // Grouped render order (design item 7): Actions first, then Jump to.
+  filtered = [...filtered.filter((item) => item.kind === 'action'), ...filtered.filter((item) => item.kind === 'node')];
+  const firstNodeIndex = filtered.findIndex((item) => item.kind === 'node');
 
   // ── Sync spatial search highlights to canvas ──────────────
   useEffect(() => {
@@ -293,48 +337,72 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
 
   return (
     <div class="command-palette-backdrop" onMouseDown={onClose}>
-      <div class="command-palette" onMouseDown={(e) => e.stopPropagation()}>
-        <input
-          ref={inputRef}
-          type="text"
-          class="command-palette-input"
-          value={query}
-          onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
-          onKeyDown={handleKeyDown}
-          placeholder={`Search nodes and actions... (${MOD_KEY}+K)`}
-        />
-        <div class="command-palette-hint">
-          <span>
-            <kbd>{'\u2191'}</kbd>
-            <kbd>{'\u2193'}</kbd> navigate
-          </span>
-          <span>
-            <kbd>{'\u21B5'}</kbd> select
-          </span>
-          <span>
-            <kbd>esc</kbd> close
-          </span>
-          <span>
-            <kbd>type:</kbd> filter by type
-          </span>
+      <div
+        class="command-palette"
+        role="dialog"
+        aria-label="Search and commands"
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div class="command-palette-search">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <circle cx="7" cy="7" r="4.5" />
+            <line x1="10.5" y1="10.5" x2="14.5" y2="14.5" />
+          </svg>
+          <input
+            ref={inputRef}
+            type="text"
+            class="command-palette-input"
+            value={query}
+            onInput={(e) => setQuery((e.target as HTMLInputElement).value)}
+            onKeyDown={handleKeyDown}
+            placeholder="Search nodes, run actions, jump to…"
+            aria-label="Search nodes, run actions, jump to"
+          />
+          <kbd class="command-palette-esc">esc</kbd>
         </div>
         <div class="command-palette-results" ref={listRef}>
           {filtered.length === 0 && <div class="command-palette-empty">No matching nodes or actions</div>}
-          {filtered.map((item, i) => (
-            <button
-              key={item.id}
-              type="button"
-              class={`command-palette-item${i === clampedIndex ? ' selected' : ''}`}
-              onMouseEnter={() => setSelectedIndex(i)}
-              onClick={() => item.action()}
-            >
-              <span class={`command-palette-badge${item.badgeClass ? ` ${item.badgeClass}` : ''}`}>{item.badge}</span>
-              <span class="command-palette-label">
-                {item.indices.length > 0 ? highlightMatch(item.label, item.indices) : item.label}
-              </span>
-              {item.description && <span class="command-palette-desc">{item.description}</span>}
-            </button>
-          ))}
+          {filtered.map((item, i) => {
+            const Icon = item.icon;
+            const heading = i === 0 && item.kind === 'action' ? 'Actions' : i === firstNodeIndex ? 'Jump to' : null;
+            return (
+              <div key={item.id} class="command-palette-row">
+                {heading && <div class="command-palette-group">{heading}</div>}
+                <button
+                  type="button"
+                  class={`command-palette-item${i === clampedIndex ? ' selected' : ''}`}
+                  onMouseEnter={() => setSelectedIndex(i)}
+                  onClick={() => item.action()}
+                >
+                  <span class={`command-palette-icon tone-${item.iconTone ?? 'kind'}`} aria-hidden="true">
+                    <Icon size={14} />
+                  </span>
+                  <span class="command-palette-label">
+                    {item.indices.length > 0 ? highlightMatch(item.label, item.indices) : item.label}
+                    {item.description && <span class="command-palette-desc"> — {item.description}</span>}
+                  </span>
+                  {item.shortcut && <kbd class="command-palette-kbd">{item.shortcut}</kbd>}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+        <div class="command-palette-hint">
+          <span>↑↓ navigate</span>
+          <span>↵ open</span>
+          <span>esc close</span>
+          <span>type: filter</span>
+          <span class="command-palette-hint-spacer" />
+          <span>{MOD_KEY}K</span>
         </div>
       </div>
     </div>

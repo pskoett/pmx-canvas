@@ -34,6 +34,7 @@ import {
 import { createEdgeFromClient, createNodeFromClient } from '../state/intent-bridge';
 import type { AnnotationTool, CanvasAnnotation, CanvasNodeState } from '../types';
 import { FocusFieldLayer } from './FocusFieldLayer';
+import { importFiles } from './import-files';
 import { IntentLayer } from './IntentLayer';
 import { AgentPresenceLayer } from './AgentPresenceLayer';
 import { ScopeFenceLayer } from './ScopeFenceLayer';
@@ -161,8 +162,6 @@ interface CanvasViewportProps {
   annotationTool?: AnnotationTool;
 }
 
-const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico', 'avif']);
-const MD_EXTS = new Set(['md', 'mdx', 'markdown']);
 const WEBPAGE_NODE_SIZE = { width: 520, height: 420 };
 
 function normalizeUrlCandidate(raw: string): string | null {
@@ -213,13 +212,6 @@ function hasUrlPayload(dataTransfer: DataTransfer | null): boolean {
 function isEditableElement(element: Element | null): boolean {
   if (!(element instanceof HTMLElement)) return false;
   return Boolean(element.closest('input, textarea, select, [contenteditable="true"], [contenteditable=""]'));
-}
-
-function nodeTypeFromFilename(name: string): 'image' | 'markdown' | 'file' {
-  const ext = name.split('.').pop()?.toLowerCase() ?? '';
-  if (IMAGE_EXTS.has(ext)) return 'image';
-  if (MD_EXTS.has(ext)) return 'markdown';
-  return 'file';
 }
 
 export function getRenderableWorldNodes(
@@ -662,51 +654,7 @@ export function CanvasViewport({
         await createWebpageNodes(urls, baseWx, baseWy);
         return;
       }
-
-      const nodeW = 400;
-      const nodeH = 300;
-      const spacing = 20;
-      const cols = Math.ceil(Math.sqrt(files.length));
-
-      for (let i = 0; i < files.length; i++) {
-        const file = files[i];
-        const col = i % cols;
-        const row = Math.floor(i / cols);
-        const wx = baseWx - (cols * (nodeW + spacing)) / 2 + col * (nodeW + spacing);
-        const wy = baseWy - nodeH / 2 + row * (nodeH + spacing);
-
-        const type = nodeTypeFromFilename(file.name);
-        const fileName = file.name;
-
-        if (type === 'image') {
-          const reader = new FileReader();
-          const dataUri: string = await new Promise((resolve) => {
-            reader.onload = () => resolve(reader.result as string);
-            reader.readAsDataURL(file);
-          });
-          await createNodeFromClient({
-            type: 'image',
-            title: fileName,
-            content: dataUri,
-            x: wx,
-            y: wy,
-            width: nodeW,
-            height: nodeH,
-          });
-        } else {
-          const text = await file.text();
-          const isWide = type === 'markdown' || type === 'file';
-          await createNodeFromClient({
-            type,
-            title: fileName,
-            content: text,
-            x: wx,
-            y: wy,
-            width: isWide ? 720 : nodeW,
-            height: isWide ? 500 : nodeH,
-          });
-        }
-      }
+      await importFiles(files, baseWx, baseWy);
     },
     [containerRef, createWebpageNodes],
   );

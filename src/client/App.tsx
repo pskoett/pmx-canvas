@@ -4,9 +4,11 @@ import { AttentionToast } from './canvas/AttentionToast';
 import { registerCanvasArea, canvasArea } from './canvas/canvas-area';
 import { CanvasViewport } from './canvas/CanvasViewport';
 import { CommandBar } from './canvas/CommandBar';
+import { ConnectionBanner } from './canvas/ConnectionBanner';
 import { CommandPalette } from './canvas/CommandPalette';
 import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
 import { ContextPinBar } from './canvas/ContextPinBar';
+import { EmptyState } from './canvas/EmptyState';
 import { ActivityFeed, WritersSheet } from './canvas/ExternalWriters';
 import { ExpandedNodeOverlay } from './canvas/ExpandedNodeOverlay';
 import { Minimap } from './canvas/Minimap';
@@ -42,42 +44,9 @@ import { intents } from './state/intent-store';
 import { sessionActive } from './state/presence-store';
 import { createNodeFromClient, reportClientViewportSize } from './state/intent-bridge';
 import type { AnnotationTool } from './types';
-import { MOD_KEY } from './utils/platform';
 
 function logAppError(action: string, error: unknown): void {
   console.error(`[app] ${action} failed`, error);
-}
-
-function WelcomeCard({ onOpenPalette }: { onOpenPalette: () => void }) {
-  return (
-    <div class="welcome-card">
-      <div class="welcome-icon">◇</div>
-      <div class="welcome-title">Shape What The Agent Sees</div>
-      <div class="welcome-subtitle">
-        Lay out notes, files, and evidence. Bring related nodes together. Pin what matters. The board will reflect the
-        active focus.
-      </div>
-      <div class="welcome-hints">
-        <button type="button" class="welcome-hint" onClick={onOpenPalette}>
-          <kbd>{MOD_KEY}+K</kbd>
-          <span>Create a note</span>
-        </button>
-        <div class="welcome-hint">
-          <kbd>Drop files</kbd>
-          <span>Add evidence to the board</span>
-        </div>
-        <div class="welcome-hint">
-          <kbd>{'✦'}</kbd>
-          <span>Pin important nodes</span>
-        </div>
-        <div class="welcome-hint">
-          <kbd>Move nearby</kbd>
-          <span>Shape the focus field</span>
-        </div>
-      </div>
-      <div class="welcome-footer">The canvas is a shared attention surface, not just an editor.</div>
-    </div>
-  );
 }
 
 export function App() {
@@ -303,6 +272,7 @@ export function App() {
       />
       <div class="app-main">
         <TopBar />
+        <ConnectionBanner />
         <div class="canvas-region" ref={(el) => registerCanvasArea(el)}>
           <CanvasViewport
             onNodeContextMenu={openNodeMenu}
@@ -315,11 +285,12 @@ export function App() {
           <ActivityFeed />
           <WritersSheet />
           {hasInitialLayout && allNodes.length === 0 && intents.value.size === 0 && (
-            <WelcomeCard onOpenPalette={() => setPaletteOpen(true)} />
+            <EmptyState onOpenPalette={() => setPaletteOpen(true)} />
           )}
           {selectedNodeIds.value.size > 0 && <SelectionBar />}
           {sessionIsActive ? <CommandBar /> : contextPinnedNodeIds.value.size > 0 && <ContextPinBar />}
           <SessionReceipt onOpenSnapshots={() => setSnapshotOpen(true)} />
+          {expandedNodeId.value && <ExpandedNodeOverlay />}
           {minimapVisible && (
             <Minimap
               viewport={viewport}
@@ -333,7 +304,6 @@ export function App() {
         </div>
       </div>
       {sessionIsActive && <SessionPanel />}
-      {expandedNodeId.value && <ExpandedNodeOverlay />}
       <SnapshotPanel open={snapshotOpen} onClose={handleCloseSnapshot} anchorRef={snapshotBtnRef} />
       {menu && <ContextMenu menu={menu} onClose={closeMenu} />}
       {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} onToggleMinimap={handleToggleMinimap} />}

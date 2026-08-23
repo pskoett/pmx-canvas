@@ -410,6 +410,10 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
       {!node.collapsed && (
         <div class="node-resize-handle" onPointerDown={(e) => startResize(e, node.size.width, node.size.height)} />
       )}
+      {isSelected &&
+        (['tl', 'tr', 'bl', 'br'] as const).map((corner) => (
+          <span key={corner} class={`node-selection-handle is-${corner}`} aria-hidden="true" />
+        ))}
       {/* Connection port handles — visible on hover, drag to connect */}
       {(['top', 'right', 'bottom', 'left'] as const).map((side) => (
         <div

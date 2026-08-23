@@ -431,13 +431,13 @@ test('renders every canvas node type in the browser', async ({ page, request }) 
 test('creates a markdown note from the canvas background', async ({ page, request }) => {
   await page.goto('/workbench');
 
-  await expect(page.locator('.welcome-card')).toBeVisible();
+  await expect(page.locator('.empty-state')).toBeVisible();
 
   await page.mouse.dblclick(1180, 360);
 
   const note = page.locator('.canvas-node').filter({ hasText: 'New note' });
   await expect(note).toHaveCount(1);
-  await expect(page.locator('.welcome-card')).toBeHidden();
+  await expect(page.locator('.empty-state')).toBeHidden();
 
   await expect
     .poll(async () => {
@@ -447,13 +447,13 @@ test('creates a markdown note from the canvas background', async ({ page, reques
     .toBe(1);
 });
 
-test('#J: the welcome card yields to a live ghost intent so the cursor is visible on an empty board', async ({
+test('#J: the empty state yields to a live ghost intent so the cursor is visible on an empty board', async ({
   page,
   request,
 }) => {
   await page.goto('/workbench');
-  // Empty board → the welcome card is shown.
-  await expect(page.locator('.welcome-card')).toBeVisible();
+  // Empty board → the empty state is shown.
+  await expect(page.locator('.empty-state')).toBeVisible();
 
   // A ghost intent on the empty board must be visible, not occluded by the card
   // (Finding J): the card is suppressed while a ghost is animating.
@@ -469,12 +469,12 @@ test('#J: the welcome card yields to a live ghost intent so the cursor is visibl
     },
   });
   await expect(page.locator('[data-intent-id="e2e-j-ghost"]')).toBeVisible();
-  await expect(page.locator('.welcome-card')).toBeHidden();
+  await expect(page.locator('.empty-state')).toBeHidden();
 
-  // Clearing the intent on a still-empty board restores the welcome card.
+  // Clearing the intent on a still-empty board restores the empty state.
   await request.delete('/api/canvas/ax/intent/e2e-j-ghost', { data: {} });
   await expect(page.locator('[data-intent-id="e2e-j-ghost"]')).toHaveCount(0);
-  await expect(page.locator('.welcome-card')).toBeVisible();
+  await expect(page.locator('.empty-state')).toBeVisible();
 });
 
 test('canvas background context menu exposes user-creatable nodes', async ({ page, request }) => {
@@ -1031,7 +1031,7 @@ test('renders html nodes from server state in the workbench', async ({ page, req
   const overlay = page.locator('.expanded-overlay-panel');
   await expect(overlay).toBeVisible();
   await expect(overlay.getByRole('button', { name: 'Present' })).toHaveCount(0);
-  await expect(overlay.getByRole('button', { name: 'Open as site' })).toHaveCount(1);
+  await expect(overlay.getByRole('button', { name: 'Open in tab ↗' })).toHaveCount(1);
   await expect(overlay.getByRole('button', { name: 'Open in system browser' })).toHaveCount(0);
   await page.getByTitle('Close (Esc)').click();
 });
@@ -2445,8 +2445,11 @@ test('expanded graph nodes stretch chart content to the overlay frame', async ({
     };
   });
 
+  // The overlay insets 36/48px inside the canvas region (rail-chrome-v2 item
+  // 16), so at the 900px test viewport the frame is ~680px tall; the point is
+  // that the chart fills it, not the absolute size.
   expect(metrics.iframeWidth).toBeGreaterThan(900);
-  expect(metrics.iframeHeight).toBeGreaterThan(700);
+  expect(metrics.iframeHeight).toBeGreaterThan(600);
   expect(chartMetrics.surfaceHeight).toBeGreaterThan(metrics.iframeHeight * 0.7);
   expect(chartMetrics.surfaceHeight).toBeLessThanOrEqual(chartMetrics.viewportHeight);
 });

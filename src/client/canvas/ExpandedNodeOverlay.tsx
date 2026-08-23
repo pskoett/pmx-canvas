@@ -24,6 +24,7 @@ import {
   pendingExpandedNodeCloseId,
   toggleContextPin,
 } from '../state/canvas-store';
+import { getNodeIcon } from '../icons';
 import { TYPE_LABELS } from '../types';
 import type { CanvasNodeState } from '../types';
 
@@ -243,95 +244,56 @@ export function ExpandedNodeOverlay() {
     node.type === 'mcp-app' || node.type === 'webpage' || node.type === 'json-render' || node.type === 'graph';
   const canPresent = shouldShowPresentationControls(node);
 
+  const NodeIcon = getNodeIcon(node.type);
+  const provenance =
+    node.data.provenance && typeof node.data.provenance === 'object'
+      ? (node.data.provenance as { sourceKind?: string; sourceUri?: string; syncedAt?: string })
+      : null;
+  const provenanceLabel = provenance
+    ? [
+        provenance.sourceKind,
+        provenance.sourceUri,
+        provenance.syncedAt ? `synced ${provenance.syncedAt.slice(11, 16)}` : null,
+      ]
+        .filter((part): part is string => typeof part === 'string' && part.length > 0)
+        .join(' · ')
+    : null;
+
   return (
     <div
       class="expanded-overlay-backdrop"
       onPointerDown={handleBackdropPointerDown}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 10001,
-        background: 'rgba(10,14,30,0.85)',
-        backdropFilter: 'blur(8px)',
-        display: 'flex',
-        alignItems: 'stretch',
-        justifyContent: 'center',
-        padding: '32px',
-        pointerEvents: pendingClose ? 'none' : 'auto',
-      }}
+      style={{ pointerEvents: pendingClose ? 'none' : 'auto' }}
     >
       <div
-        class="expanded-overlay-panel"
-        style={{
-          flex: 1,
-          maxWidth: '1200px',
-          display: 'flex',
-          flexDirection: 'column',
-          background: 'var(--c-panel)',
-          border: `1px solid ${isCtxPinned ? 'var(--c-warn)' : 'var(--c-accent)'}`,
-          borderRadius: 'var(--radius)',
-          boxShadow: `0 0 0 1px ${isCtxPinned ? 'var(--c-warn)' : 'var(--c-accent)'}, 0 24px 80px rgba(0,0,0,0.6)`,
-          overflow: 'hidden',
-        }}
+        class={`expanded-overlay-panel${isCtxPinned ? ' is-pinned' : ''}`}
+        role="dialog"
+        aria-label={title}
+        data-testid="expanded-node"
       >
-        {/* Title bar */}
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px',
-            padding: '10px 16px',
-            background: 'var(--c-panel-glass)',
-            borderBottom: '1px solid var(--c-line)',
-            flexShrink: 0,
-          }}
-        >
-          <span
-            style={{
-              fontSize: '10px',
-              padding: '1px 6px',
-              borderRadius: '4px',
-              background: 'var(--c-accent-12)',
-              color: 'var(--c-accent)',
-              textTransform: 'uppercase',
-              letterSpacing: '0.04em',
-            }}
-          >
-            {TYPE_LABELS[node.type]}
+        {/* Header: kind icon · title · kind pill · pin state · actions · close */}
+        <div class="expanded-header">
+          <span class="expanded-kind-icon" aria-hidden="true">
+            <NodeIcon size={15} />
           </span>
-          <span
-            style={{
-              flex: 1,
-              fontSize: '13px',
-              fontWeight: 600,
-              color: 'var(--c-text)',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
+          <span class="expanded-title">{title}</span>
+          <span class="expanded-kind-pill">{TYPE_LABELS[node.type]}</span>
+          <button
+            type="button"
+            class={`expanded-pin${isCtxPinned ? ' is-on' : ''}`}
+            onClick={handleToggleCtxPin}
+            title={isCtxPinned ? 'In agent context — click to unpin' : 'Pin as agent context'}
+            aria-pressed={isCtxPinned}
           >
-            {title}
-          </span>
-
-          {/* Action buttons */}
+            ✦
+          </button>
+          <span class="expanded-spacer" />
           <div class="expanded-actions">
-            {/* Context pin toggle */}
-            <button
-              type="button"
-              class={`expanded-action-btn ${isCtxPinned ? 'expanded-action-active' : ''}`}
-              onClick={handleToggleCtxPin}
-              title={isCtxPinned ? 'Remove from context' : 'Pin as context'}
-            >
-              {isCtxPinned ? '\u2726 In context' : '\u2726 Pin as context'}
-            </button>
-
-            {/* Copy content */}
             {hasText && (
               <button type="button" class="expanded-action-btn" onClick={handleCopy} title="Copy content to clipboard">
                 {copied ? 'Copied!' : 'Copy'}
               </button>
             )}
-
             {canOpenAsSite(node) && (
               <button
                 type="button"
@@ -339,10 +301,9 @@ export function ExpandedNodeOverlay() {
                 onClick={() => void openNodeAsSite(node)}
                 title="Open as a full-page site in the system browser"
               >
-                Open as site
+                Open in tab ↗
               </button>
             )}
-
             {canPresent && (
               <button
                 type="button"
@@ -353,53 +314,14 @@ export function ExpandedNodeOverlay() {
                 Present
               </button>
             )}
-
-            {/* Word count */}
-            {words > 0 && (
-              <span class="expanded-meta">
-                {words.toLocaleString()} word{words !== 1 ? 's' : ''}
-              </span>
-            )}
           </div>
-
-          <span style={{ fontSize: '10px', color: pendingClose ? 'var(--c-warn)' : 'var(--c-muted)' }}>
-            {pendingClose ? 'Saving edits...' : 'Esc to close'}
-          </span>
-          <button
-            type="button"
-            onClick={handleClose}
-            style={{
-              background: 'none',
-              border: 'none',
-              color: 'var(--c-muted)',
-              cursor: 'pointer',
-              padding: '2px 6px',
-              fontSize: '16px',
-              lineHeight: 1,
-              borderRadius: '4px',
-            }}
-            onMouseEnter={(e) => {
-              (e.target as HTMLElement).style.color = 'var(--c-text)';
-            }}
-            onMouseLeave={(e) => {
-              (e.target as HTMLElement).style.color = 'var(--c-muted)';
-            }}
-            title="Close (Esc)"
-          >
+          <button type="button" class="expanded-close" onClick={handleClose} title="Close (Esc)" aria-label="Close">
             ×
           </button>
         </div>
 
-        {/* Content area — full height */}
-        <div
-          style={{
-            flex: 1,
-            overflow: 'auto',
-            padding: '16px',
-            minHeight: 0,
-            ...(isEmbeddedViewer ? { display: 'flex', flexDirection: 'column' } : {}),
-          }}
-        >
+        {/* Body: the surface at full size */}
+        <div class={`expanded-body${isEmbeddedViewer ? ' is-embedded' : ''}`}>
           {isEmbeddedViewer ? (
             <div style={{ flex: 1, minHeight: 0, display: 'flex' }}>{renderContent(node, true)}</div>
           ) : (
@@ -415,6 +337,18 @@ export function ExpandedNodeOverlay() {
             to line its labels up with the content above. */}
         <div style={{ '--ax-dock-bleed': '0px', '--ax-dock-pad': '16px' } as Record<string, string>}>
           <AxStepControls node={node} />
+        </div>
+        {/* Footer strip: provenance + how to close */}
+        <div class="expanded-footer">
+          <span class="expanded-footer-meta">
+            {[provenanceLabel, words > 0 ? `${words.toLocaleString()} word${words !== 1 ? 's' : ''}` : null]
+              .filter(Boolean)
+              .join(' · ') || TYPE_LABELS[node.type].toLowerCase()}
+          </span>
+          <span class="expanded-spacer" />
+          <span class={`expanded-footer-hint${pendingClose ? ' is-saving' : ''}`}>
+            {pendingClose ? 'Saving edits…' : 'esc or click outside to close'}
+          </span>
         </div>
         {canPresent && presenting && (
           <div

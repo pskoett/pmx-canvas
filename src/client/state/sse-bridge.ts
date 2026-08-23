@@ -24,6 +24,8 @@ import {
   traceEnabled,
   updateNodeData,
   workbenchConnectionEpoch,
+  reconnectAttempt,
+  reconnectDelay,
 } from './canvas-store';
 import { fetchAgentPresence, fetchAxSurfaceState, reportClientViewportSize } from './intent-bridge';
 import { applyPresenceSnapshot, sessionActive } from './presence-store';
@@ -1104,7 +1106,6 @@ function startPollingTransport(): () => void {
         // reconnect performs so in-flight stream routes and transient state
         // from the previous window can't leak (H5 orphan class).
         savedLayout = restoreLayout();
-        ensureStatusNode();
         hasInitialServerLayout.value = false;
         resetAttentionBridge();
         resetIntents();
@@ -1113,12 +1114,16 @@ function startPollingTransport(): () => void {
       for (const entry of body.events) dispatchWorkbenchEvent(entry.event, entry.payload);
       dispatchedOnce = true;
       pollSeq = body.seq;
+      reconnectAttempt.value = 0;
+      reconnectDelay.value = 0;
       connectionStatus.value = 'connected';
       pollTimer = setTimeout(() => void pollOnce(), POLL_INTERVAL_MS);
     } catch (err) {
       if (generation !== pollGeneration) return;
       console.warn('[sse-bridge] poll transport error:', err);
       connectionStatus.value = 'disconnected';
+      reconnectAttempt.value += 1;
+      reconnectDelay.value = POLL_ERROR_INTERVAL_MS;
       pollTimer = setTimeout(() => void pollOnce(), POLL_ERROR_INTERVAL_MS);
     }
   };
@@ -1140,7 +1145,6 @@ export function connectSSE(): () => void {
   // frame so an embedding host panel never flashes the server-global theme.
   initSessionThemeOverride(applyCanvasTheme);
   savedLayout = restoreLayout();
-  ensureStatusNode();
   hasInitialServerLayout.value = false;
   resetAttentionBridge();
   resetIntents();
@@ -1200,6 +1204,8 @@ export function connectSSE(): () => void {
   source.onopen = () => {
     if (eventSource !== source) return;
     reconnectAttempts = 0;
+    reconnectAttempt.value = 0;
+    reconnectDelay.value = 0;
     connectionStatus.value = 'connected';
   };
 
@@ -1209,10 +1215,13 @@ export function connectSSE(): () => void {
     source.close();
     eventSource = null;
     reconnectAttempts += 1;
+    const delay = reconnectDelayMs(reconnectAttempts);
+    reconnectAttempt.value = reconnectAttempts;
+    reconnectDelay.value = delay;
     reconnectTimer = setTimeout(() => {
       reconnectTimer = null;
       connectSSE();
-    }, reconnectDelayMs(reconnectAttempts));
+    }, delay);
   };
 
   return () => {

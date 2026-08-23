@@ -1,7 +1,22 @@
 import { useCallback } from 'preact/hooks';
-import { addContextPins, clearSelection, selectedNodeIds } from '../state/canvas-store';
-import { createEdgeFromClient, createGroupFromClient } from '../state/intent-bridge';
+import { IconArrange } from '../icons';
+import {
+  addContextPins,
+  alignSelection,
+  arrangeSelection,
+  clearSelection,
+  distributeSelection,
+  removeNode,
+  selectedNodeIds,
+} from '../state/canvas-store';
+import { createEdgeFromClient, createGroupFromClient, removeNodeFromClient } from '../state/intent-bridge';
 
+/**
+ * Floating bottom-center bar for a multi-selection (rail-chrome-v2 phase 7,
+ * design item 13): count, align left/top, distribute, auto-arrange, Group (G),
+ * Connect, Pin to agent context, delete. Restyle over the existing handlers —
+ * the geometry actions live in the store and persist like a drag does.
+ */
 export function SelectionBar() {
   const count = selectedNodeIds.value.size;
 
@@ -29,33 +44,157 @@ export function SelectionBar() {
     clearSelection();
   }, []);
 
+  const handleDelete = useCallback(() => {
+    const ids = Array.from(selectedNodeIds.value);
+    for (const id of ids) {
+      removeNode(id);
+      void removeNodeFromClient(id);
+    }
+    clearSelection();
+  }, []);
+
   if (count === 0) return null;
+  const many = count >= 2;
 
   return (
-    <div class="selection-bar">
+    <div class="selection-bar" role="toolbar" aria-label="Selection">
       <span class="selection-bar-count">
-        {'\u2726'} {count} node{count !== 1 ? 's' : ''} selected
+        {count} node{count !== 1 ? 's' : ''} selected
       </span>
-      <button type="button" class="selection-bar-btn selection-bar-pin-ctx" onClick={handlePinContext}>
+      {many && (
+        <>
+          <span class="selection-bar-sep" />
+          <button
+            type="button"
+            class="selection-bar-icon"
+            title="Align left"
+            aria-label="Align left"
+            onClick={() => alignSelection('left')}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <line x1="2.5" y1="2" x2="2.5" y2="14" />
+              <rect x="5" y="3.5" width="8" height="3.5" rx="1" />
+              <rect x="5" y="9" width="5" height="3.5" rx="1" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="selection-bar-icon"
+            title="Align top"
+            aria-label="Align top"
+            onClick={() => alignSelection('top')}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              aria-hidden="true"
+            >
+              <line x1="2" y1="2.5" x2="14" y2="2.5" />
+              <rect x="3.5" y="5" width="3.5" height="8" rx="1" />
+              <rect x="9" y="5" width="3.5" height="5" rx="1" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="selection-bar-icon"
+            title="Distribute horizontally"
+            aria-label="Distribute"
+            disabled={count < 3}
+            onClick={() => distributeSelection()}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              aria-hidden="true"
+            >
+              <rect x="1.5" y="5" width="3.5" height="6" rx="1" />
+              <rect x="6.25" y="5" width="3.5" height="6" rx="1" />
+              <rect x="11" y="5" width="3.5" height="6" rx="1" />
+            </svg>
+          </button>
+          <button
+            type="button"
+            class="selection-bar-icon"
+            title="Auto-arrange selection"
+            aria-label="Auto-arrange"
+            onClick={() => arrangeSelection()}
+          >
+            <IconArrange size={14} />
+          </button>
+          <span class="selection-bar-sep" />
+          <button type="button" class="selection-bar-action" title="Group (G)" onClick={handleGroup}>
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-dasharray="3 2.5"
+              aria-hidden="true"
+            >
+              <rect x="1.5" y="1.5" width="13" height="13" rx="2" />
+            </svg>
+            Group
+          </button>
+          <button type="button" class="selection-bar-action" title="Connect every pair" onClick={handleConnect}>
+            Connect
+          </button>
+        </>
+      )}
+      <button type="button" class="selection-bar-action is-pin" title="Pin to agent context" onClick={handlePinContext}>
+        <span aria-hidden="true">✦</span>
         Pin as context
       </button>
-      {count >= 2 && (
-        <button type="button" class="selection-bar-btn" onClick={handleGroup}>
-          Group
-        </button>
-      )}
-      {count >= 2 && (
-        <button type="button" class="selection-bar-btn" onClick={handleConnect}>
-          Connect
-        </button>
-      )}
+      <span class="selection-bar-sep" />
       <button
         type="button"
-        class="selection-bar-btn selection-bar-clear"
+        class="selection-bar-icon is-danger"
+        title="Delete selection"
+        aria-label="Delete selection"
+        onClick={handleDelete}
+      >
+        <svg
+          width="14"
+          height="14"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <path d="M2.5 4 H13.5" />
+          <path d="M5.5 4 V2.5 H10.5 V4" />
+          <path d="M4 4 L4.8 13.5 H11.2 L12 4" />
+        </svg>
+      </button>
+      <button
+        type="button"
+        class="selection-bar-icon"
         onClick={clearSelection}
         title="Clear selection"
+        aria-label="Clear selection"
       >
-        {'\u00d7'}
+        ×
       </button>
     </div>
   );

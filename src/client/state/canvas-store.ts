@@ -28,6 +28,13 @@ export const connectionStatus = signal<ConnectionStatus>('connecting');
 // a server restart invalidates in-memory resources like frame documents
 // (Finding S) while the browser keeps the stale URLs alive.
 export const workbenchConnectionEpoch = signal<number>(0);
+/**
+ * Degraded-connection detail (rail-chrome-v2 phase 7, design item 14):
+ * the reconnect attempt and the delay before the next try while the stream is
+ * down. Both reset to 0 when a transport is back.
+ */
+export const reconnectAttempt = signal<number>(0);
+export const reconnectDelay = signal<number>(0);
 export const sessionId = signal<string>('');
 export const traceEnabled = signal<boolean>(false);
 export const canvasTheme = signal<string>('dark');
@@ -125,6 +132,66 @@ export function selectNodes(ids: string[]): void {
 export function clearSelection(): void {
   if (selectedNodeIds.value.size === 0) return;
   selectedNodeIds.value = new Set();
+}
+
+// ── Selection bar geometry actions (rail-chrome-v2 phase 7, item 13) ──
+// Each works on the current selection in world space and persists through the
+// same path a drag does (store update + persistLayout → /api/canvas/update).
+
+export function alignSelection(edge: 'left' | 'top'): void {
+  const selected = getSelectedNodes();
+  if (selected.length < 2) return;
+  const target = Math.min(...selected.map((n) => (edge === 'left' ? n.position.x : n.position.y)));
+  batch(() => {
+    for (const node of selected) {
+      updateNode(node.id, {
+        position: edge === 'left' ? { x: target, y: node.position.y } : { x: node.position.x, y: target },
+      });
+    }
+  });
+  persistLayout();
+}
+
+/** Even horizontal gaps between the selected nodes, first and last staying put. */
+export function distributeSelection(): void {
+  const selected = getSelectedNodes().sort((a, b) => a.position.x - b.position.x);
+  if (selected.length < 3) return;
+  const first = selected[0]!;
+  const last = selected[selected.length - 1]!;
+  const span = last.position.x - (first.position.x + first.size.width);
+  const inner = selected.slice(1, -1);
+  const innerWidth = inner.reduce((sum, n) => sum + n.size.width, 0);
+  const gap = (span - innerWidth) / (inner.length + 1);
+  let cursor = first.position.x + first.size.width + gap;
+  batch(() => {
+    for (const node of inner) {
+      updateNode(node.id, { position: { x: cursor, y: node.position.y } });
+      cursor += node.size.width + gap;
+    }
+  });
+  persistLayout();
+}
+
+/** Grid the selection in reading order from its own top-left corner. */
+export function arrangeSelection(gap = 24): void {
+  const selected = getSelectedNodes().sort((a, b) => a.position.y - b.position.y || a.position.x - b.position.x);
+  if (selected.length < 2) return;
+  const originX = Math.min(...selected.map((n) => n.position.x));
+  const originY = Math.min(...selected.map((n) => n.position.y));
+  const cols = Math.ceil(Math.sqrt(selected.length));
+  const colWidth = Math.max(...selected.map((n) => n.size.width));
+  const rowHeight = Math.max(...selected.map((n) => n.size.height));
+  batch(() => {
+    selected.forEach((node, index) => {
+      updateNode(node.id, {
+        position: {
+          x: originX + (index % cols) * (colWidth + gap),
+          y: originY + Math.floor(index / cols) * (rowHeight + gap),
+        },
+      });
+    });
+  });
+  persistLayout();
 }
 
 export function getSelectedNodes(): CanvasNodeState[] {

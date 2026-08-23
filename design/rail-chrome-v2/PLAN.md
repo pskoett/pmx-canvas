@@ -174,12 +174,24 @@ is a visible element on today's board that does not yet match the prototypes.
   colors come from the accent set, violet first, stable for the page's life.
 
 ### Phase 7 — Canvas quality wave (independent items, any order)
+- **7a (built):** empty state replacing WelcomeCard (item 11 — four live starter actions: the
+  M note, a file picker onto the viewport's import path (`import-files.ts`, shared with the drop
+  zone), the webpage prompt, Start agent session; the vestigial client-side `status-main` seeding
+  at connect is gone so a fresh board never flashes a status card); command palette restyle
+  (item 7 — 560px at 56px, search row, Actions with kbds then Jump to with kind icons, footer
+  hints, Start agent session off-session only); selection bar restyle (item 13 — floating
+  bottom-center in the canvas region: count · align left/top · distribute · auto-arrange ·
+  Group · Connect · Pin · delete · ×, accent outline + corner handles on selected nodes; the
+  geometry actions live in the store and persist like a drag); degraded-connection banner
+  (item 14 — `degradedState` derives reconnecting from a dropped transport with the bridge's
+  retry count/delay, and resyncing from a post-reconnect snapshot apply; the top-bar dot
+  follows; worded truthfully: edits still save over HTTP, the board may be stale); expanded
+  node view (item 16 — scrim + 36/48px inset INSIDE the canvas region, header with kind
+  icon/pill/pin state/Open in tab, footer with provenance + close hint). The attention
+  toast/tab now stack below modal overlays.
 - Groups v2: membership only via release-pill, collapse chip, auto-grow, frame-move semantics,
   G/Shift+G (item 20 — the largest single item).
 - Minimap v2: true-scale rects, hover magnify, presence dots (item 19).
-- Selection bar restyle on existing handlers (item 13). Expanded-node overlay restyle (item 16).
-- Empty state replacing WelcomeCard, dark+light (item 11). Command palette restyle/grouping (7).
-- Degraded-connection banner mapped to the existing resync/snapshot-fallback path (item 14).
 - Per-entry undo of agent ops through shared history + steering feedback (item 10).
 - A11y sweep: focus-visible rings, focus traps, `aria-live` on gates/timeline, roving tabindex
   (item 18 — partially delivered inside each phase, swept here).

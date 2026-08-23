@@ -6,6 +6,13 @@ export declare const annotations: import("@preact/signals-core").Signal<Map<stri
 export declare const activeNodeId: import("@preact/signals-core").Signal<string | null>;
 export declare const connectionStatus: import("@preact/signals-core").Signal<ConnectionStatus>;
 export declare const workbenchConnectionEpoch: import("@preact/signals-core").Signal<number>;
+/**
+ * Degraded-connection detail (rail-chrome-v2 phase 7, design item 14):
+ * the reconnect attempt and the delay before the next try while the stream is
+ * down. Both reset to 0 when a transport is back.
+ */
+export declare const reconnectAttempt: import("@preact/signals-core").Signal<number>;
+export declare const reconnectDelay: import("@preact/signals-core").Signal<number>;
 export declare const sessionId: import("@preact/signals-core").Signal<string>;
 export declare const traceEnabled: import("@preact/signals-core").Signal<boolean>;
 export declare const canvasTheme: import("@preact/signals-core").Signal<string>;
@@ -36,6 +43,11 @@ export declare const activeNeighborNodeIds: import("@preact/signals-core").Reado
 export declare function toggleSelected(id: string): void;
 export declare function selectNodes(ids: string[]): void;
 export declare function clearSelection(): void;
+export declare function alignSelection(edge: 'left' | 'top'): void;
+/** Even horizontal gaps between the selected nodes, first and last staying put. */
+export declare function distributeSelection(): void;
+/** Grid the selection in reading order from its own top-left corner. */
+export declare function arrangeSelection(gap?: number): void;
 export declare function getSelectedNodes(): CanvasNodeState[];
 export declare function toggleContextPin(id: string): void;
 export declare function addContextPins(ids: string[]): void;

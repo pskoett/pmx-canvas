@@ -15,6 +15,7 @@ import {
 } from '../state/canvas-store';
 import { MOD_KEY } from '../utils/platform';
 import { canvasArea } from './canvas-area';
+import { degradedState } from './ConnectionBanner';
 import { ExternalWriterIndicator } from './ExternalWriters';
 import { useNow } from './use-now';
 import { agentPhaseLabel } from '../../shared/agent-presence.js';
@@ -181,7 +182,8 @@ export function TopBar() {
     };
   }, []);
 
-  const statusTitle = status === 'connected' && !hasSynced ? 'syncing' : status;
+  const degraded = degradedState.value;
+  const statusTitle = degraded ?? (status === 'connected' && !hasSynced ? 'syncing' : status);
   const countsLabel = hasSynced
     ? [
         `${nodeCount} node${nodeCount !== 1 ? 's' : ''}`,
@@ -202,7 +204,7 @@ export function TopBar() {
   return (
     <div class="top-bar">
       <span
-        class={`connection-dot ${status}`}
+        class={`connection-dot ${degraded ?? status}`}
         title={`Canvas status: ${statusTitle}`}
         aria-label={`Canvas status: ${statusTitle}`}
       />
