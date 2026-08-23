@@ -189,6 +189,49 @@ describe('lifetime discipline', () => {
   });
 });
 
+describe('session lifecycle (pre-session snapshot + receipt)', () => {
+  // rail-chrome-v2 phase 5: server.ts snapshots the board when a session
+  // ATTACHES and emits the receipt when it ends. The registry's contract is
+  // exactly one start per attach and one end per attached session, whichever
+  // way it ends.
+  let starts: string[];
+  let ends: Array<{ sessionId: string; startSnapshotId: string | null }>;
+
+  beforeEach(() => {
+    starts = [];
+    ends = [];
+    registry.setSessionStartListener((presence) => {
+      starts.push(presence.sessionId);
+      return `snap-${starts.length}`;
+    });
+    registry.setSessionEndListener((presence, startSnapshotId) =>
+      ends.push({ sessionId: presence.sessionId, startSnapshotId }),
+    );
+  });
+
+  test('start fires once per attach and its snapshot id comes back at the explicit end', () => {
+    registry.touch({ source: 'copilot', attached: true }, T0);
+    registry.touch({ source: 'copilot', attached: true, op: true }, T0 + 10); // still attached: no second start
+    registry.touch({ source: 'copilot', op: true }, T0 + 20);
+    expect(starts).toEqual(['copilot']);
+    registry.touch({ source: 'copilot', attached: false }, T0 + 30);
+    expect(ends).toEqual([{ sessionId: 'copilot', startSnapshotId: 'snap-1' }]);
+    registry.touch({ source: 'copilot', attached: true }, T0 + 40); // a new session gets a new snapshot
+    expect(starts).toEqual(['copilot', 'copilot']);
+  });
+
+  test('detach and the idle-TTL sweep end an attached session too; unattached writers never do', () => {
+    registry.touch({ source: 'codex', attached: true }, T0);
+    registry.detach('codex');
+    expect(ends).toEqual([{ sessionId: 'codex', startSnapshotId: 'snap-1' }]);
+
+    registry.touch({ source: 'copilot', attached: true }, T0);
+    registry.touch({ source: 'api', op: true }, T0);
+    registry.snapshot(T0 + PRESENCE_ATTACHED_IDLE_TTL_MS + 1);
+    expect(ends.map((end) => end.sessionId)).toEqual(['codex', 'copilot']);
+  });
+});
+
 describe('transport', () => {
   test('every change emits one coalesced agent-presence snapshot frame', async () => {
     registry.touch({ source: 'mcp', op: true });

@@ -13,7 +13,7 @@ function withWorkbenchMarker(init?: RequestInit): RequestInit {
   return { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), 'X-PMX-Workbench': '1' } };
 }
 
-async function requestJson<T>(action: string, url: string, fallback: T, init?: RequestInit): Promise<T> {
+export async function requestJson<T>(action: string, url: string, fallback: T, init?: RequestInit): Promise<T> {
   try {
     const res = await fetch(url, withWorkbenchMarker(init));
     return (await res.json()) as T;
@@ -23,7 +23,7 @@ async function requestJson<T>(action: string, url: string, fallback: T, init?: R
   }
 }
 
-async function requestOk(action: string, url: string, init?: RequestInit): Promise<{ ok: boolean }> {
+export async function requestOk(action: string, url: string, init?: RequestInit): Promise<{ ok: boolean }> {
   try {
     const res = await fetch(url, withWorkbenchMarker(init));
     return { ok: res.ok };
@@ -33,7 +33,7 @@ async function requestOk(action: string, url: string, init?: RequestInit): Promi
   }
 }
 
-async function requestBestEffort(action: string, url: string, init?: RequestInit): Promise<void> {
+export async function requestBestEffort(action: string, url: string, init?: RequestInit): Promise<void> {
   try {
     await fetch(url, withWorkbenchMarker(init));
   } catch (error) {

@@ -50,6 +50,8 @@ export interface CanvasAnnotation {
     label?: string;
     createdAt: string;
 }
+/** The rail's annotate modes; null = not annotating. */
+export type AnnotationTool = 'pen' | 'eraser' | 'text' | null;
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 export declare const TYPE_LABELS: Record<CanvasNodeState['type'], string>;
 /** Node types that support the full-viewport expand/focus overlay. */

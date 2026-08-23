@@ -1,4 +1,4 @@
-type AnnotationTool = 'pen' | 'eraser' | 'text' | null;
+import type { AnnotationTool } from '../types';
 /** Prompt-driven creates for node kinds that need a source (url / path). */
 export declare function promptedCreate(kind: 'image' | 'file' | 'webpage'): void;
 /**
@@ -19,4 +19,3 @@ export declare function ToolRail({ minimapVisible, onToggleMinimap, snapshotOpen
     annotationTool: AnnotationTool;
     onSetAnnotationTool: (tool: AnnotationTool) => void;
 }): import("preact/src").JSX.Element;
-export {};

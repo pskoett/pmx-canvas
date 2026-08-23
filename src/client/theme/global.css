@@ -56,9 +56,8 @@
   --mono: "IBM Plex Mono", "SF Mono", "Fira Code", monospace;
   --radius: 10px;
   --radius-sm: 6px;
-  /* Shared height for the top HUD row so the toolbar and the collapsed docked
-     status/context widgets that flank it line up to the same height. Matches the
-     toolbar's natural content height (icon buttons at 6px padding). */
+  /* Shared height of the top bar, the session panel header, and (until phase 5c
+     retires them) the collapsed docked pills, so the top row reads as one bar. */
   --hud-bar-height: 44px;
 }
 
@@ -1571,6 +1570,327 @@ body,
   letter-spacing: 0;
 }
 
+/* ── Command bar (rail-chrome-v2 phase 5) ─────────────────────
+   The human's steering surface while a session is attached: the design's
+   floating composer, centered at the bottom of the canvas region, with the
+   pinned-context chips floating above it. */
+.command-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  width: min(560px, calc(100% - 48px));
+  z-index: 65;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.command-bar-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.command-bar-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 240px;
+  padding: 2px 5px 2px 9px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--c-warn) 35%, transparent);
+  background: color-mix(in srgb, var(--c-warn) 12%, transparent);
+  color: var(--c-warn);
+  font-size: 10px;
+  font-weight: 600;
+}
+.command-bar-chip-glyph {
+  font-size: 10px;
+  line-height: 1;
+}
+.command-bar-chip-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.command-bar-chip-unpin {
+  width: 14px;
+  height: 14px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--c-warn);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.7;
+}
+.command-bar-chip-unpin:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--c-warn) 25%, transparent);
+}
+.command-bar-chips-note {
+  font-size: 10px;
+  color: var(--c-dim);
+}
+.command-bar-composer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--c-line);
+  background: color-mix(in srgb, var(--c-panel) 95%, transparent);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+}
+.command-bar-icon {
+  flex-shrink: 0;
+  color: var(--c-purple);
+}
+.command-bar-input {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  border: none;
+  outline: none;
+  background: none;
+  color: var(--c-text);
+  font: 13px var(--font);
+}
+.command-bar-input::placeholder {
+  color: var(--c-dim);
+}
+.command-bar-composer:focus-within {
+  border-color: color-mix(in srgb, var(--c-accent) 45%, var(--c-line));
+}
+.command-bar-send {
+  flex-shrink: 0;
+  padding: 5px 14px;
+  border-radius: 7px;
+  border: none;
+  background: var(--c-accent);
+  color: var(--c-bg);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.command-bar-send:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--c-accent) 80%, white);
+}
+.command-bar-send:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* Context-budget meter in the top bar (session-only) */
+.context-budget {
+  --tone: var(--c-ok);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.context-budget.tone-warn {
+  --tone: var(--c-warn);
+}
+.context-budget.tone-danger {
+  --tone: var(--c-danger);
+}
+.context-budget-caption {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+}
+.context-budget-track {
+  display: block;
+  width: 72px;
+  height: 5px;
+  border-radius: 3px;
+  background: var(--c-line);
+  overflow: hidden;
+}
+.context-budget-fill {
+  display: block;
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--c-accent), var(--c-warn));
+  transition: width 180ms ease;
+}
+.context-budget.tone-warn .context-budget-fill,
+.context-budget.tone-danger .context-budget-fill {
+  background: var(--tone);
+}
+.context-budget-label {
+  font: 11px var(--mono);
+  color: var(--c-text-soft);
+  min-width: 30px;
+  text-align: right;
+}
+
+/* Quiet-board affordance in the top bar */
+.start-session-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--c-line);
+  background: none;
+  color: var(--c-muted);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.start-session-btn:hover {
+  border-color: color-mix(in srgb, var(--c-purple) 40%, transparent);
+  color: var(--c-purple);
+}
+.start-session-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c-dim);
+}
+.start-session-btn:hover .start-session-dot {
+  background: var(--c-purple);
+}
+.session-end {
+  padding: 3px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--c-line);
+  background: none;
+  color: var(--c-muted);
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.session-end:hover {
+  border-color: color-mix(in srgb, var(--c-danger) 45%, transparent);
+  color: var(--c-danger);
+}
+
+/* Session receipt (design item 2) */
+.session-receipt {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  width: 290px;
+  z-index: 9998;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--c-line);
+  background: color-mix(in srgb, var(--c-panel) 96%, transparent);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  animation: session-panel-in 180ms ease;
+}
+.session-receipt-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.session-receipt-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c-dim);
+}
+.session-receipt-title {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+.session-receipt-close {
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--c-muted);
+  font-size: 14px;
+  cursor: pointer;
+}
+.session-receipt-close:hover {
+  background: var(--c-surface-hover);
+  color: var(--c-text);
+}
+.session-receipt-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+.session-receipt-tile {
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--c-line);
+  background: color-mix(in srgb, var(--c-panel-soft) 70%, transparent);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.session-receipt-tile-label {
+  font-size: 9.5px;
+  color: var(--c-dim);
+}
+.session-receipt-tile-value {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+.session-receipt-tile-value.tone-ok {
+  color: var(--c-ok);
+}
+.session-receipt-tile-value.tone-danger {
+  color: var(--c-danger);
+}
+.session-receipt-note,
+.session-receipt-diff {
+  margin-top: 10px;
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--c-muted);
+}
+.session-receipt-diff {
+  color: var(--c-text-soft);
+}
+.session-receipt-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.session-receipt-primary,
+.session-receipt-secondary {
+  flex: 1;
+  padding: 7px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.session-receipt-primary {
+  border: 1px solid var(--c-accent-25);
+  background: var(--c-accent-12);
+  color: var(--c-accent);
+}
+.session-receipt-primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.session-receipt-secondary {
+  border: 1px solid var(--c-line);
+  background: none;
+  color: var(--c-muted);
+}
+.session-receipt-secondary:hover {
+  color: var(--c-text);
+}
+
 /* Top-bar escalation badge while gates are pending */
 .gate-badge {
   display: inline-flex;
@@ -3056,6 +3376,11 @@ html.is-node-resizing .ext-app-preview-catcher {
 }
 
 /* Selection action bar — fixed bottom-center */
+/* In a session the command bar owns the bottom-center slot — lift the
+   selection bar clear of it (composer + chips row). */
+[data-session-active='true'] .selection-bar {
+  bottom: 124px;
+}
 .selection-bar {
   position: fixed;
   bottom: 60px;
@@ -3301,11 +3626,13 @@ html.is-node-resizing .ext-app-preview-catcher {
   box-shadow: 0 0 24px rgba(75, 188, 255, 0.12);
 }
 
+/* Anchored to the canvas region (not the window): since the rail-chrome
+   restructure the session panel owns the window's right edge. */
 .attention-toast {
-  position: fixed;
-  top: 76px;
+  position: absolute;
+  top: 18px;
   right: 18px;
-  max-width: min(260px, calc(100vw - 24px));
+  max-width: min(260px, calc(100% - 24px));
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -3449,10 +3776,10 @@ html.is-node-resizing .ext-app-preview-catcher {
 }
 
 .attention-history {
-  position: fixed;
-  top: 146px;
+  position: absolute;
+  top: 60px;
   right: 18px;
-  width: min(320px, calc(100vw - 24px));
+  width: min(320px, calc(100% - 24px));
   display: flex;
   flex-direction: column;
   gap: 10px;

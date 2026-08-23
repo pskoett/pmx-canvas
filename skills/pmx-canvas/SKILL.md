@@ -61,7 +61,12 @@ Humans curate agent context by pinning nodes; agents read that curation through
    `phase: "thinking"` before a long reasoning stretch if your host gives you a hook for it;
    `tooling` is derived from your writes. Hosts with adapters (the Copilot extension) attach
    for you. Without an attached session the board stays a plain canvas: your writes still show
-   as ghosts, but there is no cursor and no session chrome.
+   as ghosts, but there is no cursor and no session chrome. Attaching over a non-empty board
+   saves a `Before session · …` snapshot, and detaching hands the human a receipt (work items
+   done / vetoed, a diff against that snapshot, one-click restore) — so always detach
+   explicitly rather than letting the session idle out. The human can also start a session
+   from the board's *Start agent session* button; your transport writes are then attributed
+   to it without any call on your side.
 7. **Mutate through current composites.** Prefer the 16 composite MCP tools below.
 7. **Arrange and validate.** After batch changes, use `canvas_view { action: "arrange" }` when
    appropriate and always finish with `canvas_query { action: "validate" }`.

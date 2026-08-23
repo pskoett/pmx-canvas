@@ -32,7 +32,7 @@ import {
   isPanModeActive,
 } from '../state/canvas-store';
 import { createEdgeFromClient, createNodeFromClient } from '../state/intent-bridge';
-import type { CanvasAnnotation, CanvasNodeState } from '../types';
+import type { AnnotationTool, CanvasAnnotation, CanvasNodeState } from '../types';
 import { FocusFieldLayer } from './FocusFieldLayer';
 import { IntentLayer } from './IntentLayer';
 import { AgentPresenceLayer } from './AgentPresenceLayer';
@@ -153,8 +153,6 @@ const ANNOTATION_COLOR = 'currentColor';
 const ANNOTATION_WIDTH = 4;
 const TEXT_ANNOTATION_WIDTH = 24;
 const ERASER_HIT_RADIUS = 14;
-
-type AnnotationTool = 'pen' | 'eraser' | 'text' | null;
 
 interface CanvasViewportProps {
   onNodeContextMenu?: (e: MouseEvent, nodeId: string) => void;

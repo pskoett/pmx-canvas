@@ -144,7 +144,7 @@ const axPolicySetShape = {
     .unknown()
     .optional()
     .describe(
-      'Scope fence: { nodeIds, padding? } limits agent WRITES to those nodes plus padding px around them for new nodes; null clears it. Reads are never fenced.',
+      'Scope fence (human-owned, set from the workbench): { nodeIds, padding? } limits agent WRITES to those nodes plus padding px around them; null clears it. Agent calls that include it are refused (403) — read policy.scope instead.',
     ),
   source: z.unknown().optional().describe('Optional host/source label. Defaults to mcp.'),
 };
@@ -173,18 +173,14 @@ const axPolicySetOperation = defineOperation<z.infer<typeof axPolicySetSchema>, 
         })
         .optional(),
       prompt: z.object({ systemAppend: z.string().optional(), mode: z.string().optional() }).optional(),
-      scope: z
-        .object({ nodeIds: z.array(z.string()), padding: z.number().optional() })
-        .nullable()
-        .optional()
-        .describe('Scope fence for agent writes: { nodeIds, padding? }; null clears it.'),
       source: z.enum(AX_SOURCES).optional(),
     },
     // Legacy MCP tool forwarded only the present tools/prompt fields (source split out).
+    // The scope fence is human-owned (see checkScopeOwnership) — MCP callers
+    // are agents, so the tool neither advertises nor forwards `scope`.
     buildInput: (input) => ({
       ...(input.tools ? { tools: input.tools } : {}),
       ...(input.prompt ? { prompt: input.prompt } : {}),
-      ...(input.scope !== undefined ? { scope: input.scope } : {}),
       source: normalizeAxSource(input.source, 'mcp'),
     }),
     formatResult: (result) => {
@@ -212,6 +208,22 @@ const axPolicySetOperation = defineOperation<z.infer<typeof axPolicySetSchema>, 
     }
     const policy = canvasState.setPolicy(patch, { source: normalizeAxSource(input.source, 'api') });
     ctx.emit('ax-state-changed', { policy });
+    if (patch.scope !== undefined) {
+      // The agent reads the timeline — tell it the fence moved, and why its
+      // next write outside it will be refused.
+      const event = canvasState.recordAxEvent(
+        {
+          kind: 'policy',
+          summary: policy.scope
+            ? `Scope fence set: agent writes limited to ${policy.scope.nodeIds.length} node${policy.scope.nodeIds.length === 1 ? '' : 's'} (reads unaffected).`
+            : 'Scope fence cleared: the agent may write anywhere on the board.',
+          nodeIds: policy.scope?.nodeIds ?? [],
+          data: { policy: 'scope-fence', nodeIds: policy.scope?.nodeIds ?? [] },
+        },
+        { source: normalizeAxSource(input.source, 'browser') },
+      );
+      ctx.emit('ax-event-created', { event });
+    }
     return { ok: true, policy } as unknown as Record<string, unknown>;
   },
 });

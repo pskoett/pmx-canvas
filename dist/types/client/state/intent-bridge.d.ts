@@ -1,4 +1,9 @@
 import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js';
+export declare function requestJson<T>(action: string, url: string, fallback: T, init?: RequestInit): Promise<T>;
+export declare function requestOk(action: string, url: string, init?: RequestInit): Promise<{
+    ok: boolean;
+}>;
+export declare function requestBestEffort(action: string, url: string, init?: RequestInit): Promise<void>;
 /** Dispatch user intents from the canvas to the server (for TUI consumption). */
 export declare function sendIntent(type: string, payload?: Record<string, unknown>): Promise<{
     ok: boolean;

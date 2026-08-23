@@ -5,6 +5,7 @@ import { focusNode, selectedNodeIds } from '../state/canvas-store';
 import { activeSession } from '../state/presence-store';
 import {
   type ApprovalGateView,
+  endSession,
   heldGates,
   pendingGates,
   refreshTimeline,
@@ -267,6 +268,16 @@ export function SessionPanel() {
           </span>
         )}
         <span class="top-bar-spacer" />
+        {session && (
+          <button
+            type="button"
+            class="session-end"
+            title="End this session — a receipt and a snapshot of the board follow"
+            onClick={() => void endSession(session)}
+          >
+            End
+          </button>
+        )}
         <button
           type="button"
           class="session-collapse"

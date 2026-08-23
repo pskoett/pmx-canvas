@@ -33,7 +33,20 @@ async function pickAnnotateTool(page: Page, itemLabel: string | RegExp): Promise
 }
 
 async function clearCanvas(request: APIRequestContext): Promise<void> {
-  await request.post('/api/canvas/clear');
+  // Reset as the workbench: a scope fence left by a prior test refuses agent
+  // board-wide writes, and an attached session left behind (presence is
+  // in-memory, TTL-swept) would make the next test's board not quiet.
+  const presence = (await (await request.get('/api/canvas/ax/presence')).json()) as {
+    presences: Array<{ source: string; agentId: string | null; attached: boolean }>;
+  };
+  for (const entry of presence.presences.filter((p) => p.attached)) {
+    await request.post('/api/canvas/ax/presence', {
+      data: { source: entry.source, agentId: entry.agentId, attached: false },
+      headers: { 'x-pmx-workbench': '1' },
+    });
+  }
+  await request.post('/api/canvas/ax/policy', { data: { scope: null }, headers: { 'x-pmx-workbench': '1' } });
+  await request.post('/api/canvas/clear', { headers: { 'x-pmx-workbench': '1' } });
   await request.post('/api/canvas/context-pins', {
     data: { nodeIds: [] },
   });
@@ -3764,6 +3777,98 @@ test('scope fence: granted from the selection, drawn around the fenced nodes, en
   await expect(page.locator('.scope-fence')).toHaveCount(0);
   const freed = await request.patch(`/api/canvas/node/${far.id}`, { data: { title: 'Agent touched far' } });
   expect(freed.ok()).toBe(true);
+});
+
+test('human-started session: start from the quiet board, steer from the command bar, end to a receipt', async ({
+  page,
+  request,
+}) => {
+  // rail-chrome-v2 phase 5: the whole loop without an adapter — the human
+  // attaches a session, the board flips to a Focus Session, agent writes are
+  // attributed to it, steering goes out from the command bar, and ending it
+  // leaves a receipt whose View diff is the session's own changes.
+  const spec = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Spec', content: 'the plan', x: 120, y: 120, width: 300, height: 160 },
+    })
+  ).json()) as { id: string };
+  await request.post('/api/canvas/context-pins', { data: { nodeIds: [spec.id] } });
+
+  await page.goto('/workbench');
+  const shell = page.locator('.app-shell');
+  await expect(shell).toHaveAttribute('data-session-active', 'false');
+  await expect(page.locator('.context-pin-bar')).toBeVisible();
+  await expect(page.locator('.command-bar')).toHaveCount(0);
+  const start = page.getByRole('button', { name: 'Start agent session' });
+  await expect(start).toBeVisible();
+
+  await start.click();
+  await expect(shell).toHaveAttribute('data-session-active', 'true');
+  await expect(start).toHaveCount(0);
+  await expect(page.locator('.session-panel')).toBeVisible();
+  await expect(page.locator('.agent-chip .agent-chip-who')).toHaveText('Agent session');
+  // The pin bar hands over to the command bar, pins as chips.
+  await expect(page.locator('.context-pin-bar')).toHaveCount(0);
+  const bar = page.locator('.command-bar');
+  await expect(bar).toBeVisible();
+  await expect(bar.locator('.command-bar-chip-label')).toHaveText(['Spec']);
+
+  // Attaching over a non-empty board took the pre-session snapshot.
+  const snapshots = (await (await request.get('/api/canvas/snapshots?all=true')).json()) as Array<{ name: string }>;
+  expect(snapshots.some((entry) => entry.name.startsWith('Before session · Agent session · '))).toBe(true);
+
+  // A transport write is the session's own work now: its cursor parks on the new node.
+  const added = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Agent note', content: 'draft', x: 520, y: 120, width: 260, height: 140 },
+    })
+  ).json()) as { id: string };
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Agent note' })).toHaveCount(1);
+  await expect(page.locator('.agent-cursor')).toHaveCount(1);
+  await expect
+    .poll(async () => {
+      const body = (await (await request.get('/api/canvas/ax/presence')).json()) as {
+        presences: Array<{ attached: boolean; focusNodeId: string | null; opCount: number }>;
+      };
+      return body.presences.find((entry) => entry.attached)?.focusNodeId;
+    })
+    .toBe(added.id);
+
+  // Steer from the command bar.
+  const steer = bar.getByLabel('Steer the agent');
+  await steer.fill('Keep the spec node as the source of truth');
+  await steer.press('Enter');
+  await expect(steer).toHaveValue('');
+  await expect
+    .poll(async () => {
+      const body = (await (await request.get('/api/canvas/ax/timeline?limit=20')).json()) as {
+        steering: Array<{ message: string }>;
+      };
+      return body.steering.some((entry) => entry.message === 'Keep the spec node as the source of truth');
+    })
+    .toBe(true);
+  await expect(
+    page.locator('.session-panel .session-timeline-row').filter({ hasText: 'Keep the spec node' }),
+  ).toHaveCount(1);
+
+  // End it from the panel → quiet board + receipt.
+  await page.locator('.session-panel').getByRole('button', { name: 'End' }).click();
+  await expect(shell).toHaveAttribute('data-session-active', 'false');
+  await expect(page.locator('.session-panel')).toHaveCount(0);
+  await expect(page.locator('.command-bar')).toHaveCount(0);
+  await expect(page.locator('.context-pin-bar')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Start agent session' })).toBeVisible();
+  const receipt = page.locator('[data-testid="session-receipt"]');
+  await expect(receipt).toBeVisible();
+  await expect(receipt.locator('.session-receipt-tile-value')).toHaveText(['0', '0', '0']);
+
+  // View diff = what the session did: one node added, nothing removed.
+  await receipt.getByRole('button', { name: 'View diff' }).click();
+  await expect(receipt.locator('[data-testid="session-receipt-diff"]')).toHaveText(
+    'This session: 1 added · 0 removed · 0 modified',
+  );
+  await receipt.getByRole('button', { name: 'Dismiss receipt' }).click();
+  await expect(receipt).toHaveCount(0);
 });
 
 test('rail popovers anchor beside their trigger on narrow screens', async ({ page }) => {

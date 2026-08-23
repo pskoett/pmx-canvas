@@ -239,7 +239,9 @@ async function runBatch(operations: BatchEntry[]): Promise<BatchEnvelope> {
       }
       const dispatch = resolveDispatch(operation.op, args);
       // Batch churn is exempt from auto-ghosts (matches the skill's explicit
-      // ghost-cursor exemption for batch operations).
+      // ghost-cursor exemption for batch operations). No `fromWorkbench`: the
+      // browser never issues batches, so inner writes are agent writes and the
+      // scope fence applies to each of them.
       const raw = await executeOperation(dispatch.name, dispatch.args, { suppressAutoGhost: true });
       const result = shapeBatchEntry(operation.op, raw);
       results.push(result);

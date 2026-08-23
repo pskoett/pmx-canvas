@@ -271,6 +271,28 @@ keep one cursor. Pass `agentId` (sub-agents) or a host label to keep a writer
 separate; with several sessions attached, transport writes stay on their own
 label.
 
+**Session lifecycle: pre-session snapshot and receipt.** When a session
+attaches (`attached: true`, or `session-start` on the activity feed) over a
+non-empty board, the server saves a snapshot named
+`Before session · <label> · HH:MM` — the board before the agent touched it.
+When that session ends (`attached: false`, `session-end`, or the idle expiry)
+the stream carries one `agent-session-ended` frame:
+
+```json
+{ "label": "Copilot", "endedAt": "…", "counts": { "items": 4, "done": 3, "vetoed": 1 },
+  "snapshot": { "id": "…", "name": "Before session · Copilot · 14:00" } }
+```
+
+`items`/`done` count the work items on the board; `vetoed` counts cancelled
+items plus rejected or held gates. `snapshot` is null when the board was
+empty at attach. The browser renders this as the session receipt; its *View
+diff* is `GET /api/canvas/snapshots/<id>/diff` against that snapshot, and
+restoring the snapshot undoes the session. Adapters should end their session
+explicitly so the human gets the receipt promptly rather than after the idle
+expiry. The browser's *Start agent session* button is this same endpoint
+(`source: "browser"`, `attached: true`) — subsequent transport writes are
+attributed to that session.
+
 ## Scope fence (agent writes)
 
 The policy's `scope` limits what an attached agent may WRITE: existing-node
@@ -281,13 +303,18 @@ naming the node or position. Reads are never fenced, nor are the human's own
 workbench writes. The fence is visible to the agent in `canvas://ax-context`
 (`policy.scope`) and drawn on the canvas while a session is attached.
 
+The fence belongs to the human: only workbench calls (`x-pmx-workbench: 1`) may
+set, replace, or clear `scope`. An agent call to `POST /api/canvas/ax/policy`
+that includes `scope` is refused with 403, and the MCP `set-policy` action does
+not take it.
+
 ```bash
-# Grant (replace semantics) and clear
+# Grant (replace semantics) and clear — workbench calls
 curl -X POST http://localhost:4313/api/canvas/ax/policy \
   -H "Content-Type: application/json" -H "x-pmx-workbench: 1" \
   -d '{"scope":{"nodeIds":["<node-a>","<node-b>"],"padding":40},"source":"browser"}'
 curl -X POST http://localhost:4313/api/canvas/ax/policy \
-  -H "Content-Type: application/json" -d '{"scope":null}'
+  -H "Content-Type: application/json" -H "x-pmx-workbench: 1" -d '{"scope":null}'
 ```
 
 ## AX interactions, delivery, elicitation, mode, commands & policy
@@ -428,7 +455,12 @@ all consume this stream. Auto-reconnect with exponential backoff.
 
 `agent-presence` frames carry the full presence snapshot (the same body as
 `GET /api/canvas/ax/presence`) on every change, including TTL expiry — a
-client never needs its own expiry timer.
+client never needs its own expiry timer. `agent-session-ended` carries the
+session receipt (see [Agent presence](#agent-presence)).
+
+Every frame's payload is wrapped in an envelope that sets `sessionId` (the
+workbench session, used for reconnect/reload detection) and `timestamp` —
+payload keys of those names are overwritten, so event bodies never use them.
 
 ## Polling transport (proxy-safe)
 

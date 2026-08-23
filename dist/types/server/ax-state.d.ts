@@ -1,4 +1,5 @@
 import type { CanvasLayout, CanvasNodeState } from './canvas-state.js';
+import type { AxApprovalStatus, AxEventKind, AxWorkItemStatus } from '../shared/ax-kinds.js';
 import type { AgentContextNode } from './agent-context.js';
 export type PmxAxSource = 'agent' | 'amp' | 'api' | 'browser' | 'cli' | 'codex' | 'copilot' | 'mcp' | 'sdk' | 'system';
 export interface PmxAxFocusState {
@@ -7,11 +8,10 @@ export interface PmxAxFocusState {
     updatedAt: string | null;
     source: PmxAxSource | null;
 }
-export type PmxAxEventKind = 'prompt' | 'assistant-message' | 'tool-start' | 'tool-result' | 'failure' | 'approval' | 'steering' | 'command' | 'note' | 'policy';
+export type PmxAxEventKind = AxEventKind;
 export type PmxAxEvidenceKind = 'logs' | 'tool-result' | 'screenshot' | 'file' | 'diff' | 'test-output';
-export type PmxAxWorkItemStatus = 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled';
-/** `held` = auto-held by the unattended-approval policy: the action did NOT proceed. */
-export type PmxAxApprovalStatus = 'pending' | 'approved' | 'rejected' | 'held';
+export type PmxAxWorkItemStatus = AxWorkItemStatus;
+export type PmxAxApprovalStatus = AxApprovalStatus;
 export type PmxAxReviewKind = 'comment' | 'finding';
 export type PmxAxReviewSeverity = 'info' | 'warning' | 'error';
 export type PmxAxReviewStatus = 'open' | 'resolved' | 'dismissed';

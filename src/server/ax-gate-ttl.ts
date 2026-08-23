@@ -10,7 +10,6 @@
  * workbench emitter so this module never imports server.ts.
  */
 import { formatCountdown } from '../shared/approval-gates.js';
-import { agentPresence } from './agent-presence.js';
 import { canvasState } from './canvas-state.js';
 
 type GateEmitter = (event: string, payload: Record<string, unknown>) => void;
@@ -45,7 +44,6 @@ export function sweepExpiredGates(now = Date.now()): string[] {
     emit('ax-state-changed', { approvalGate: resolved });
     emit('ax-event-created', { event });
   }
-  if (held.length > 0) agentPresence.refresh();
   return held;
 }
 

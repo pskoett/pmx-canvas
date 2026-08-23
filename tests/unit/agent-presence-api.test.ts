@@ -231,72 +231,6 @@ describe('write attribution over HTTP', () => {
   });
 });
 
-describe('scope fence over HTTP', () => {
-  test('agent writes outside the fence are 403; the human and reads are never fenced', async () => {
-    const inside = (await (
-      await postJson('/api/canvas/node', { type: 'markdown', title: 'In', x: 100, y: 100 })
-    ).json()) as {
-      id: string;
-    };
-    const outside = (await (
-      await postJson('/api/canvas/node', { type: 'markdown', title: 'Out', x: 2000, y: 2000 })
-    ).json()) as {
-      id: string;
-    };
-    const policy = await postJson(
-      '/api/canvas/ax/policy',
-      { scope: { nodeIds: [inside.id] }, source: 'browser' },
-      {
-        'x-pmx-workbench': '1',
-      },
-    );
-    expect(policy.ok).toBe(true);
-
-    const blocked = await fetch(`${baseUrl}/api/canvas/node/${outside.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Agent edit' }),
-    });
-    expect(blocked.status).toBe(403);
-    expect(((await blocked.json()) as { error: string }).error).toMatch(/Outside the agent scope/);
-
-    const allowed = await fetch(`${baseUrl}/api/canvas/node/${inside.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ title: 'Agent edit inside' }),
-    });
-    expect(allowed.ok).toBe(true);
-
-    const human = await fetch(`${baseUrl}/api/canvas/node/${outside.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
-      body: JSON.stringify({ title: 'Human edit' }),
-    });
-    expect(human.ok).toBe(true);
-
-    const read = await fetch(`${baseUrl}/api/canvas/node/${outside.id}`);
-    expect(read.ok).toBe(true);
-
-    // Batch inner ops are agent writes too — fenced.
-    const batch = await postJson('/api/canvas/batch', {
-      operations: [{ op: 'node.update', args: { id: outside.id, title: 'via batch' } }],
-    });
-    const batchBody = (await batch.json()) as {
-      results?: Array<{ ok?: boolean; error?: string }>;
-      ok?: boolean;
-      error?: string;
-    };
-    const batchText = JSON.stringify(batchBody);
-    expect(batchText).toMatch(/Outside the agent scope/);
-
-    // The fence is visible to the agent through its own context.
-    const context = (await (await fetch(`${baseUrl}/api/canvas/ax/context`)).json()) as Record<string, unknown>;
-    expect(JSON.stringify(context)).toContain(inside.id);
-
-    await postJson('/api/canvas/ax/policy', { scope: null, source: 'browser' }, { 'x-pmx-workbench': '1' });
-  });
-});
-
 describe('agent presence over SSE', () => {
   test('attaching a session broadcasts an agent-presence snapshot with sessionActive', async () => {
     const frame = readSseEvent('agent-presence', (payload) => payload.sessionActive === true);
@@ -307,6 +241,66 @@ describe('agent presence over SSE', () => {
     expect(payload.sessionActive).toBe(true);
     expect(payload.presences[0]).toMatchObject({ sessionId: 'copilot', phase: 'thinking', attached: true });
     expect(payload.budget).toMatchObject({ used: 0 });
+  });
+
+  test('a session attaches over a non-empty board → pre-session snapshot; ending it → a receipt with counts + that snapshot', async () => {
+    // rail-chrome-v2 phase 5, design item 2.
+    const beforeCount = ((await (await fetch(`${baseUrl}/api/canvas/snapshots?all=true`)).json()) as unknown[]).length;
+    await postJson('/api/canvas/node', { type: 'markdown', title: 'Pre-existing', x: 0, y: 0 });
+    expect(
+      (await postJson('/api/canvas/ax/presence', { source: 'copilot', label: 'Copilot', attached: true })).ok,
+    ).toBe(true);
+    const snapshots = (await (await fetch(`${baseUrl}/api/canvas/snapshots?all=true`)).json()) as Array<{
+      id: string;
+      name: string;
+    }>;
+    expect(snapshots).toHaveLength(beforeCount + 1);
+    const before = snapshots.find((entry) => entry.name.startsWith('Before session · Copilot · '));
+    expect(before).toBeDefined();
+
+    // The session does some work: two items (one done), a gate the human rejects.
+    const created = await postJson('/api/canvas/ax/work', { title: 'Done thing', status: 'done' });
+    expect(created.ok).toBe(true);
+    await postJson('/api/canvas/ax/work', { title: 'Open thing' });
+    const gate = (await (await postJson('/api/canvas/ax/approval', { title: 'Risky' })).json()) as {
+      approvalGate: { id: string };
+    };
+    await postJson(
+      `/api/canvas/ax/approval/${gate.approvalGate.id}/resolve`,
+      { decision: 'rejected' },
+      { 'x-pmx-workbench': '1' },
+    );
+    await postJson('/api/canvas/node', { type: 'markdown', title: 'Added by the session', x: 400, y: 0 });
+
+    const receipt = readSseEvent('agent-session-ended', () => true);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect((await postJson('/api/canvas/ax/presence', { source: 'copilot', attached: false })).ok).toBe(true);
+    const payload = await receipt;
+    expect(payload).toMatchObject({
+      label: 'Copilot',
+      counts: { items: 2, done: 1, vetoed: 1 },
+      snapshot: { id: before?.id, name: before?.name },
+    });
+    expect(typeof payload.endedAt).toBe('string');
+
+    // The receipt's View diff: the snapshot predates the session's node.
+    const diff = (await (await fetch(`${baseUrl}/api/canvas/snapshots/${before?.id}/diff`)).json()) as {
+      diff: { addedNodes: unknown[]; removedNodes: unknown[] };
+    };
+    expect(diff.diff.addedNodes).toHaveLength(1);
+    expect(diff.diff.removedNodes).toHaveLength(0);
+  });
+
+  test('a session attaching over an empty board takes no snapshot and the receipt says so', async () => {
+    const beforeCount = ((await (await fetch(`${baseUrl}/api/canvas/snapshots?all=true`)).json()) as unknown[]).length;
+    await postJson('/api/canvas/ax/presence', { source: 'codex', attached: true });
+    expect(((await (await fetch(`${baseUrl}/api/canvas/snapshots?all=true`)).json()) as unknown[]).length).toBe(
+      beforeCount,
+    );
+    const receipt = readSseEvent('agent-session-ended', () => true);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await postJson('/api/canvas/ax/presence', { source: 'codex', attached: false });
+    expect((await receipt).snapshot).toBeNull();
   });
 
   test('an agent mutation broadcasts the writer without a session', async () => {

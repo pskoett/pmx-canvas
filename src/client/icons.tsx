@@ -34,20 +34,6 @@ export function IconFitAll(p: IconProps): JSX.Element {
   );
 }
 
-/** Framed crosshair — reset view 1:1 */
-export function IconResetView(p: IconProps): JSX.Element {
-  return (
-    <Icon {...p}>
-      <rect x="2" y="2" width="12" height="12" rx="2" />
-      <line x1="8" y1="4.5" x2="8" y2="6.5" />
-      <line x1="8" y1="9.5" x2="8" y2="11.5" />
-      <line x1="4.5" y1="8" x2="6.5" y2="8" />
-      <line x1="9.5" y1="8" x2="11.5" y2="8" />
-      <circle cx="8" cy="8" r="1" fill="currentColor" stroke="none" />
-    </Icon>
-  );
-}
-
 /** Magnifier with + */
 export function IconZoomIn(p: IconProps): JSX.Element {
   return (
@@ -214,12 +200,11 @@ export function IconShortcuts(p: IconProps): JSX.Element {
   );
 }
 
-/** Half-lit circle — theme toggle (generic). */
-export function IconTheme(p: IconProps): JSX.Element {
+/** Speech bubble — steer the agent (command bar composer). */
+export function IconSteer(p: IconProps): JSX.Element {
   return (
     <Icon {...p}>
-      <circle cx="8" cy="8" r="6" />
-      <path d="M8 2 A 6 6 0 0 1 8 14 Z" fill="currentColor" stroke="none" />
+      <path d="M2 13 L2 4 A2 2 0 0 1 4 2 L12 2 A2 2 0 0 1 14 4 L14 9 A2 2 0 0 1 12 11 L5 11 Z" />
     </Icon>
   );
 }

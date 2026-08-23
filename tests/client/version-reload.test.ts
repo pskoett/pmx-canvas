@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { EVENT_HANDLERS } from '../../src/client/state/sse-bridge.ts';
 
 // Stale-SPA guard (0.4.5 report Finding W): a long-lived panel keeps its
@@ -8,6 +8,17 @@ import { EVENT_HANDLERS } from '../../src/client/state/sse-bridge.ts';
 
 const RELOAD_KEY = 'pmx-canvas-version-reload';
 let reload: ReturnType<typeof mock>;
+
+// `connected` kicks off the connect-time requests (viewport report, presence,
+// AX snapshot); stub fetch so happy-dom does not hit a real socket.
+const realFetch = globalThis.fetch;
+beforeAll(() => {
+  globalThis.fetch = (async () =>
+    new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })) as unknown as typeof fetch;
+});
+afterAll(() => {
+  globalThis.fetch = realFetch;
+});
 
 function connected(version?: unknown): void {
   EVENT_HANDLERS.connected({ sessionId: 's1', ...(version !== undefined ? { version } : {}) });

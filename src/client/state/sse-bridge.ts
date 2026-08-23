@@ -27,7 +27,7 @@ import {
 } from './canvas-store';
 import { fetchAgentPresence, fetchAxSurfaceState, reportClientViewportSize } from './intent-bridge';
 import { applyPresenceSnapshot, sessionActive } from './presence-store';
-import { refreshTimeline } from './session-store';
+import { applySessionReceipt, refreshTimeline } from './session-store';
 import { initSessionThemeOverride, themeOverrideActive } from './theme-override';
 import { DEFAULT_POSITIONS, makeNodeState } from './node-factory';
 import { invalidateTokenCache } from '../theme/tokens';
@@ -434,6 +434,10 @@ function reloadIfServerUpgraded(serverVersion: unknown): void {
 
 function handleAgentPresence(data: Record<string, unknown>): void {
   applyPresenceSnapshot(data as Partial<AgentPresenceSnapshot>);
+}
+
+function handleAgentSessionEnded(data: Record<string, unknown>): void {
+  applySessionReceipt(data);
 }
 
 function handleConnected(data: Record<string, unknown>): void {
@@ -1041,6 +1045,7 @@ export const EVENT_HANDLERS: Record<string, (data: Record<string, unknown>) => v
   'ax-intent': handleAxIntent,
   'ax-intent-clear': handleAxIntentClear,
   'agent-presence': handleAgentPresence,
+  'agent-session-ended': handleAgentSessionEnded,
 };
 
 /** Dispatch one event (from either transport) through the shared handler map. */

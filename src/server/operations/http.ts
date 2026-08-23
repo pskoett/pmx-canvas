@@ -7,6 +7,7 @@
  * the remaining legacy routes.
  */
 import { executeOperation, listOperations } from './registry.js';
+import { SOURCE_LABEL_RE } from '../agent-presence.js';
 import { OperationError } from './types.js';
 
 function responseJson(data: unknown, status = 200): Response {
@@ -91,7 +92,7 @@ export async function dispatchOperationRoute(req: Request, url: URL): Promise<Re
       // Presence writer label: adapters/CLI may identify themselves; plain
       // HTTP callers read as 'api'.
       const sourceHeader = req.headers.get('x-pmx-source');
-      const source = sourceHeader && /^[a-z][a-z0-9-]{0,39}$/i.test(sourceHeader) ? sourceHeader : 'api';
+      const source = sourceHeader && SOURCE_LABEL_RE.test(sourceHeader) ? sourceHeader : 'api';
       const result = await executeOperation(op.name, input, {
         suppressAutoGhost: fromWorkbench,
         fromWorkbench,

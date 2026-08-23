@@ -1,9 +1,12 @@
 import { computed, signal } from '@preact/signals';
+import type { AxApprovalStatus, AxEventKind, AxWorkItemStatus } from '../../shared/ax-kinds.js';
 import { axSurfaceState } from './canvas-store';
+import { requestBestEffort, requestJson, requestOk } from './intent-bridge';
 
 // Structural views of the AX wire shapes (the client never imports server
-// modules). Only the fields the panel renders.
-export type WorkItemStatus = 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled';
+// modules; the status/kind unions come from shared/). Only the fields the
+// panel renders.
+export type WorkItemStatus = AxWorkItemStatus;
 export interface WorkItemView {
   id: string;
   title: string;
@@ -16,23 +19,12 @@ export interface ApprovalGateView {
   id: string;
   title: string;
   detail: string | null;
-  status: 'pending' | 'approved' | 'rejected' | 'held';
+  status: AxApprovalStatus;
   nodeIds: string[];
   createdAt: string;
   /** Unattended-approval TTL: when a pending gate auto-holds. */
   expiresAt: string | null;
 }
-export type AxEventKind =
-  | 'prompt'
-  | 'assistant-message'
-  | 'tool-start'
-  | 'tool-result'
-  | 'failure'
-  | 'approval'
-  | 'steering'
-  | 'command'
-  | 'note'
-  | 'policy';
 export interface AxEventView {
   id: string;
   kind: AxEventKind;
@@ -89,17 +81,12 @@ export const scopeFence = computed<ScopeFenceView | null>(() => {
 
 /** Grant or clear the fence: writes outside it are refused server-side; reads stay open. */
 export async function setScopeFence(nodeIds: string[] | null): Promise<boolean> {
-  try {
-    const response = await fetch('/api/canvas/ax/policy', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
-      body: JSON.stringify({ scope: nodeIds && nodeIds.length > 0 ? { nodeIds } : null, source: 'browser' }),
-    });
-    return response.ok;
-  } catch (error) {
-    console.error('[session-store] setScopeFence failed', error);
-    return false;
-  }
+  const result = await requestOk('setScopeFence', '/api/canvas/ax/policy', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ scope: nodeIds && nodeIds.length > 0 ? { nodeIds } : null, source: 'browser' }),
+  });
+  return result.ok;
 }
 
 /** Auto-held gates: the policy said no on the human's behalf; they can be reopened. */
@@ -168,18 +155,17 @@ export function mergeTimeline(timeline: AxTimelineView, limit = 40): TimelineEnt
 export const timelineEntries = computed(() => mergeTimeline(axTimeline.value));
 
 export async function refreshTimeline(): Promise<void> {
-  try {
-    const response = await fetch('/api/canvas/ax/timeline?limit=40', { headers: { 'x-pmx-workbench': '1' } });
-    if (!response.ok) return;
-    const data = (await response.json()) as Partial<AxTimelineView>;
-    axTimeline.value = {
-      events: Array.isArray(data.events) ? data.events : [],
-      evidence: Array.isArray(data.evidence) ? data.evidence : [],
-      steering: Array.isArray(data.steering) ? data.steering : [],
-    };
-  } catch (error) {
-    console.error('[session-store] refreshTimeline failed', error);
-  }
+  const data = await requestJson<Partial<AxTimelineView> | null>(
+    'refreshTimeline',
+    '/api/canvas/ax/timeline?limit=40',
+    null,
+  );
+  if (!data) return;
+  axTimeline.value = {
+    events: Array.isArray(data.events) ? data.events : [],
+    evidence: Array.isArray(data.evidence) ? data.evidence : [],
+    steering: Array.isArray(data.steering) ? data.steering : [],
+  };
 }
 
 /**
@@ -188,42 +174,96 @@ export async function refreshTimeline(): Promise<void> {
  * contract ghost vetoes use.
  */
 export async function resolveGate(gate: ApprovalGateView, decision: 'approved' | 'rejected'): Promise<boolean> {
-  try {
-    const response = await fetch(`/api/canvas/ax/approval/${encodeURIComponent(gate.id)}/resolve`, {
+  const result = await requestOk('resolveGate', `/api/canvas/ax/approval/${encodeURIComponent(gate.id)}/resolve`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ decision, source: 'browser' }),
+  });
+  if (!result.ok) return false;
+  if (decision === 'rejected') {
+    await requestBestEffort('rejectGateSteering', '/api/canvas/ax/steer', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
-      body: JSON.stringify({ decision, source: 'browser' }),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: `Rejected gate "${gate.title}" — do not proceed with it.`, source: 'browser' }),
     });
-    if (!response.ok) return false;
-    if (decision === 'rejected') {
-      await fetch('/api/canvas/ax/steer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
-        body: JSON.stringify({ message: `Rejected gate "${gate.title}" — do not proceed with it.`, source: 'browser' }),
-      }).catch(() => {});
-    }
-    return true;
-  } catch (error) {
-    console.error('[session-store] resolveGate failed', error);
-    return false;
   }
+  return true;
 }
 
 /** Reopen an auto-held gate so it can be answered (fresh TTL). */
 export async function reopenGate(gate: ApprovalGateView): Promise<boolean> {
-  try {
-    const response = await fetch(`/api/canvas/ax/approval/${encodeURIComponent(gate.id)}/reopen`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
-      body: JSON.stringify({ source: 'browser' }),
-    });
-    return response.ok;
-  } catch (error) {
-    console.error('[session-store] reopenGate failed', error);
-    return false;
-  }
+  const result = await requestOk('reopenGate', `/api/canvas/ax/approval/${encodeURIComponent(gate.id)}/reopen`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source: 'browser' }),
+  });
+  return result.ok;
+}
+
+/** Post a steering message the agent reads on its next turn. */
+export async function sendSteering(message: string): Promise<boolean> {
+  const result = await requestOk('sendSteering', '/api/canvas/ax/steer', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message, source: 'browser' }),
+  });
+  return result.ok;
+}
+
+// ── Session lifecycle (rail-chrome-v2 phase 5) ────────────────
+
+/** Attach a human-started session; the agent's writes are attributed to it. */
+export async function startSession(): Promise<boolean> {
+  const result = await requestOk('startSession', '/api/canvas/ax/presence', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source: 'browser', label: 'Agent session', attached: true, phase: 'idle' }),
+  });
+  return result.ok;
+}
+
+/** End the attached session (whoever attached it) — the server answers with a receipt. */
+export async function endSession(session: { source: string; agentId: string | null }): Promise<boolean> {
+  const result = await requestOk('endSession', '/api/canvas/ax/presence', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ source: session.source, agentId: session.agentId, attached: false }),
+  });
+  return result.ok;
+}
+
+export interface SessionReceipt {
+  label: string;
+  endedAt: string;
+  counts: { items: number; done: number; vetoed: number };
+  snapshot: { id: string; name: string } | null;
+}
+
+/** The last ended session's receipt (design item 2); client-side, cleared on dismiss. */
+export const sessionReceipt = signal<SessionReceipt | null>(null);
+
+export function applySessionReceipt(data: Record<string, unknown>): void {
+  const counts = data.counts as Partial<SessionReceipt['counts']> | undefined;
+  const snapshot = data.snapshot as SessionReceipt['snapshot'] | undefined;
+  if (typeof data.label !== 'string' || typeof data.endedAt !== 'string') return;
+  sessionReceipt.value = {
+    label: data.label,
+    endedAt: data.endedAt,
+    counts: {
+      items: Number(counts?.items ?? 0) || 0,
+      done: Number(counts?.done ?? 0) || 0,
+      vetoed: Number(counts?.vetoed ?? 0) || 0,
+    },
+    snapshot:
+      snapshot && typeof snapshot.id === 'string' ? { id: snapshot.id, name: String(snapshot.name ?? '') } : null,
+  };
+}
+
+export function dismissSessionReceipt(): void {
+  sessionReceipt.value = null;
 }
 
 export function resetSessionStore(): void {
+  sessionReceipt.value = null;
   axTimeline.value = { events: [], evidence: [], steering: [] };
 }

@@ -35,6 +35,9 @@ import { OperationError } from './operations/types.js';
 
 type PresenceEmitter = (event: string, payload: Record<string, unknown>) => void;
 
+/** A legal writer label: short, alphanumeric/dash, letter-first (header and env values). */
+export const SOURCE_LABEL_RE = /^[a-z][a-z0-9-]{0,39}$/i;
+
 export interface PresenceTouch {
   source: string;
   agentId?: string | null;
@@ -48,7 +51,16 @@ export interface PresenceTouch {
   op?: boolean;
 }
 
-const presenceSetSchema = z.object({
+/**
+ * The one validation schema for an explicit presence update. The HTTP/MCP op
+ * spreads these fields into its tool shape so the two cannot drift.
+ *
+ * Identity note: presence is a UX signal, not an authenticated identity — any
+ * local process can assert any `source`/`agentId` (the single-workspace trust
+ * model). It shows the human WHO claims to be working; it grants no write
+ * capability that the caller did not already have.
+ */
+export const PRESENCE_SET_SHAPE = {
   source: z.string().min(1).max(40).optional(),
   agentId: z.string().min(1).max(80).nullable().optional(),
   label: z.string().min(1).max(120).optional(),
@@ -57,12 +69,15 @@ const presenceSetSchema = z.object({
   focusNodeId: z.string().max(200).nullable().optional(),
   cursor: z.object({ x: z.number().finite(), y: z.number().finite() }).nullable().optional(),
   attached: z.boolean().optional(),
-});
+};
+const presenceSetSchema = z.object(PRESENCE_SET_SHAPE);
 
 interface StoredPresence extends AgentPresence {
   lastSeenMs: number;
   /** Explicit phases (`thinking`) hold until the next touch; derived `tooling` decays. */
   toolingUntilMs: number | null;
+  /** Snapshot of the board taken when this session attached (the receipt diffs against it). */
+  startSnapshotId: string | null;
 }
 
 function presenceKey(source: string, agentId: string | null | undefined): string {
@@ -85,15 +100,39 @@ export function estimateContextBudget(): ContextBudget {
   return { used: nodes.length === 0 ? 0 : estimateTokens(JSON.stringify(payload)), total: contextBudgetTotal() };
 }
 
+/** Returns the id of the pre-session snapshot the server took, if any. */
+type SessionStartListener = (presence: AgentPresence) => string | null;
+type SessionEndListener = (presence: AgentPresence, startSnapshotId: string | null) => void;
+
 export class AgentPresenceRegistry {
   private readonly presences = new Map<string, StoredPresence>();
   private emit: PresenceEmitter = () => {};
+  /** Single slots (like the emitter): server.ts owns the pre-session snapshot + receipt. */
+  private onSessionStart: SessionStartListener = () => null;
+  private onSessionEnd: SessionEndListener = () => {};
   private sweepTimer: ReturnType<typeof setInterval> | null = null;
   private emitTimer: ReturnType<typeof setTimeout> | null = null;
 
   /** Inject the workbench SSE emitter (server.ts wires this at module load). */
   setEmitter(emitter: PresenceEmitter | null): void {
     this.emit = emitter ?? (() => {});
+  }
+
+  /**
+   * Fires when a session attaches (false → true). The listener may snapshot the
+   * board and return the snapshot id; the receipt at session end diffs against it.
+   */
+  setSessionStartListener(listener: SessionStartListener | null): void {
+    this.onSessionStart = listener ?? (() => null);
+  }
+
+  /**
+   * Fires once when an ATTACHED session ends — by `session-end`, by an explicit
+   * `attached: false`, or by the idle-TTL sweep — with the presence as it was
+   * and the pre-session snapshot id. Unattached writers fading away never fire it.
+   */
+  setSessionEndListener(listener: SessionEndListener | null): void {
+    this.onSessionEnd = listener ?? (() => {});
   }
 
   /**
@@ -142,12 +181,20 @@ export class AgentPresenceRegistry {
       lastSeenAt: new Date(now).toISOString(),
       lastSeenMs: now,
       toolingUntilMs: null,
+      startSnapshotId: null,
     };
+    const wasAttached = stored.attached;
     stored.lastSeenMs = now;
     stored.lastSeenAt = new Date(now).toISOString();
     if (input.label) stored.label = input.label;
     if (input.op) stored.opCount += 1;
     if (input.attached !== undefined) stored.attached = input.attached;
+    if (!wasAttached && input.attached === true)
+      stored.startSnapshotId = this.onSessionStart(this.publicView(stored, now));
+    if (wasAttached && input.attached === false) {
+      this.onSessionEnd(this.publicView(stored, now), stored.startSnapshotId);
+      stored.startSnapshotId = null;
+    }
     if (input.focusNodeId !== undefined) stored.focusNodeId = input.focusNodeId;
     if (input.cursor !== undefined) stored.cursor = input.cursor;
     if (input.phase !== undefined) {
@@ -224,8 +271,12 @@ export class AgentPresenceRegistry {
 
   /** Remove a writer (session-end). */
   detach(sessionId: string): boolean {
+    const stored = this.presences.get(sessionId);
     const removed = this.presences.delete(sessionId);
-    if (removed) this.scheduleEmit();
+    if (removed) {
+      if (stored?.attached) this.onSessionEnd(this.publicView(stored, Date.now()), stored.startSnapshotId);
+      this.scheduleEmit();
+    }
     this.maybeStopSweeper();
     return removed;
   }
@@ -247,7 +298,7 @@ export class AgentPresenceRegistry {
   }
 
   private publicView(stored: StoredPresence, now: number): AgentPresence {
-    const { lastSeenMs: _lastSeenMs, toolingUntilMs, ...presence } = stored;
+    const { lastSeenMs: _lastSeenMs, toolingUntilMs, startSnapshotId: _startSnapshotId, ...presence } = stored;
     let phase = presence.phase;
     let detail = presence.detail;
     if (phase === 'tooling' && toolingUntilMs !== null && toolingUntilMs <= now) {
@@ -290,6 +341,7 @@ export class AgentPresenceRegistry {
       const ttl = presence.attached ? PRESENCE_ATTACHED_IDLE_TTL_MS : PRESENCE_ACTIVITY_TTL_MS;
       if (presence.lastSeenMs + ttl <= now) {
         this.presences.delete(key);
+        if (presence.attached) this.onSessionEnd(this.publicView(presence, now), presence.startSnapshotId);
         changed = true;
         continue;
       }
@@ -331,3 +383,11 @@ export class AgentPresenceRegistry {
 
 /** Process-wide singleton, shared across HTTP handlers, MCP ops, and the SDK. */
 export const agentPresence = new AgentPresenceRegistry();
+
+// The attached session's phase and budget DERIVE from AX state (pending gates)
+// and context pins. Re-emit on every AX / pin change — whatever transport made
+// it — so no caller has to remember to refresh, and the SDK paths that bypass
+// the operation registry are covered too.
+canvasState.onChange((type) => {
+  if (type === 'ax' || type === 'pins') agentPresence.refresh();
+});

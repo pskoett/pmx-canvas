@@ -62,6 +62,9 @@ export interface CanvasAnnotation {
   createdAt: string;
 }
 
+/** The rail's annotate modes; null = not annotating. */
+export type AnnotationTool = 'pen' | 'eraser' | 'text' | null;
+
 export type ConnectionStatus = 'connecting' | 'connected' | 'disconnected';
 
 // ── Shared constants for node type display ──────────────────

@@ -806,9 +806,14 @@ copilotSession = await joinSession({
 void postPresence(resolve(copilotSession?.workspacePath ?? PROJECT_ROOT), { attached: true, phase: "idle" });
 
 async function shutdown() {
-    // Detach the presence first (short timeout) so the canvas returns to the
-    // quiet board the moment the host goes away, then stop any managed server.
-    await postPresence(resolve(copilotSession?.workspacePath ?? PROJECT_ROOT), { attached: false }, { timeoutMs: 500 });
+    // Detach the presence first so the canvas returns to the quiet board the
+    // moment the host goes away, then stop any managed server. The whole
+    // detach is capped at 800ms (server probing + the POST) so a host with a
+    // short SIGTERM grace window can never be held past it.
+    await Promise.race([
+        postPresence(resolve(copilotSession?.workspacePath ?? PROJECT_ROOT), { attached: false }, { timeoutMs: 500 }),
+        delay(800),
+    ]);
     stopManagedServer();
     process.exit(0);
 }

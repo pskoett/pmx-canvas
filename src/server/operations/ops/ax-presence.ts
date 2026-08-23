@@ -6,10 +6,9 @@
  * This module must never import server.ts or index.ts.
  */
 import { z } from 'zod';
-import { agentPresence } from '../../agent-presence.js';
-import { AGENT_PHASES } from '../../../shared/agent-presence.js';
+import { agentPresence, PRESENCE_SET_SHAPE } from '../../agent-presence.js';
 import { defineOperation, type Operation, type OperationContext } from '../types.js';
-import { AX_AGENT_ID_SHAPE, normalizeAxSource } from './ax-shared.js';
+import { normalizeAxSource } from './ax-shared.js';
 
 const emptyShape = {};
 const emptySchema = z.looseObject(emptyShape);
@@ -26,22 +25,16 @@ const presenceGetOperation = defineOperation<z.infer<typeof emptySchema>, Record
   handler: () => ({ ok: true, ...agentPresence.snapshot() }),
 });
 
+// One schema (agent-presence.ts) — only the descriptions are added here.
 const presenceSetShape = {
-  source: z.unknown().optional().describe('Host label (copilot, codex, mcp, …); defaults to the transport'),
-  agentId: AX_AGENT_ID_SHAPE,
-  label: z.string().min(1).max(120).optional().describe('Display name for this writer'),
-  phase: z
-    .enum(AGENT_PHASES as ['idle', 'thinking', 'tooling', 'waiting-approval'])
-    .optional()
-    .describe('idle | thinking | tooling | waiting-approval'),
-  detail: z.string().max(200).nullable().optional().describe('Tool / step name shown beside the phase'),
-  focusNodeId: z.string().max(200).nullable().optional().describe('Node the agent is working on'),
-  cursor: z
-    .object({ x: z.number(), y: z.number() })
-    .nullable()
-    .optional()
-    .describe('Agent cursor in world coordinates'),
-  attached: z.boolean().optional().describe('true attaches a session (Focus Session chrome); false detaches it'),
+  source: PRESENCE_SET_SHAPE.source.describe('Host label (copilot, codex, mcp, …); defaults to the transport'),
+  agentId: PRESENCE_SET_SHAPE.agentId.describe('Per-agent identity within the host (sub-agents keep their own cursor)'),
+  label: PRESENCE_SET_SHAPE.label.describe('Display name for this writer'),
+  phase: PRESENCE_SET_SHAPE.phase.describe('idle | thinking | tooling | waiting-approval'),
+  detail: PRESENCE_SET_SHAPE.detail.describe('Tool / step name shown beside the phase'),
+  focusNodeId: PRESENCE_SET_SHAPE.focusNodeId.describe('Node the agent is working on'),
+  cursor: PRESENCE_SET_SHAPE.cursor.describe('Agent cursor in world coordinates'),
+  attached: PRESENCE_SET_SHAPE.attached.describe('true attaches a session (Focus Session chrome); false detaches it'),
 };
 const presenceSetSchema = z.looseObject(presenceSetShape);
 

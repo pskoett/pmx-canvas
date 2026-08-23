@@ -1,14 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { agentPresence } from './agent-presence.js';
-
-/** Presence `detail` for SDK writes, by the intent kind the wrapper commits. */
-const SDK_PRESENCE_DETAIL: Record<PmxAxIntentKind, string> = {
-  create: 'node.add',
-  move: 'node.move',
-  edit: 'node.update',
-  remove: 'node.remove',
-  connect: 'edge.add',
-};
+import { checkFenceTarget, type FenceTarget } from './scope-fence.js';
 import type { AgentPhase, AgentPresence, AgentPresenceSnapshot } from '../shared/agent-presence.js';
 import { canvasState, IMAGE_MIME_MAP } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
@@ -142,6 +134,31 @@ export type SdkCanvasNode = SerializedCanvasNode & { nodeId: string };
 function toSdkNode(node: CanvasNodeState): SdkCanvasNode {
   return { ...serializeCanvasNode(node), nodeId: node.id };
 }
+
+/**
+ * The SDK bypasses the operation registry, so each mutation describes what it
+ * writes to the same fence core the registry uses (scope-fence.ts). Reads and
+ * presence/AX calls are never fenced.
+ */
+function assertInsideFence(opName: string, target: FenceTarget): void {
+  const refusal = checkFenceTarget(target, opName);
+  if (refusal) throw new Error(`Outside the agent scope: ${refusal}`);
+}
+
+function createTarget(input: { x?: number; y?: number }, nodeIds: string[] = []): FenceTarget {
+  return typeof input.x === 'number' && typeof input.y === 'number'
+    ? { points: [{ x: input.x, y: input.y }], nodeIds }
+    : { unplacedCreate: true, nodeIds };
+}
+
+/** Presence `detail` for SDK writes, by the intent kind the wrapper commits. */
+const SDK_PRESENCE_DETAIL: Record<PmxAxIntentKind, string> = {
+  create: 'node.add',
+  move: 'node.move',
+  edit: 'node.update',
+  remove: 'node.remove',
+  connect: 'edge.add',
+};
 
 export class PmxCanvas extends EventEmitter {
   private _port: number;
@@ -278,6 +295,10 @@ export class PmxCanvas extends EventEmitter {
     height?: number;
     strictSize?: boolean;
   }): SdkCanvasNode {
+    assertInsideFence(
+      'node.add',
+      createTarget(input, input.type === 'group' ? (input.childIds ?? input.children ?? []) : []),
+    );
     return this.runIntentCommit(
       input.intentId,
       ['create'],
@@ -328,6 +349,7 @@ export class PmxCanvas extends EventEmitter {
     height?: number;
     strictSize?: boolean;
   }): Promise<{ ok: boolean; id: string; error?: string; fetch: { ok: boolean; error?: string } }> {
+    assertInsideFence('node.add', createTarget(input));
     const mutate = async () => {
       const { id } = addCanvasNode({
         type: 'webpage',
@@ -362,6 +384,7 @@ export class PmxCanvas extends EventEmitter {
   }
 
   updateNode(id: string, patch: Partial<CanvasNodeState> & Record<string, unknown>): void {
+    assertInsideFence('node.update', { nodeIds: [id] });
     const intentId = typeof patch.intentId === 'string' ? patch.intentId : undefined;
     this.runIntentCommit(
       intentId,
@@ -386,6 +409,7 @@ export class PmxCanvas extends EventEmitter {
 
   /** Remove a node. Missing id throws (plan-005 unifies this across surfaces). */
   removeNode(id: string, options?: { intentId?: string }): void {
+    assertInsideFence('node.remove', { nodeIds: [id] });
     this.runIntentCommit(
       options?.intentId,
       ['remove'],
@@ -414,6 +438,7 @@ export class PmxCanvas extends EventEmitter {
     style?: CanvasEdge['style'];
     animated?: boolean;
   }): string {
+    assertInsideFence('edge.add', { nodeIds: [input.from ?? '', input.to ?? ''] });
     return this.runIntentCommit(
       input.intentId,
       ['connect'],
@@ -444,6 +469,8 @@ export class PmxCanvas extends EventEmitter {
   }
 
   removeEdge(id: string): void {
+    const edge = canvasState.getEdges().find((entry) => entry.id === id);
+    if (edge) assertInsideFence('edge.remove', { nodeIds: [edge.from, edge.to] });
     removeCanvasEdge(id);
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   }
@@ -463,6 +490,7 @@ export class PmxCanvas extends EventEmitter {
     color?: string;
     childLayout?: 'grid' | 'column' | 'flow';
   }): string {
+    assertInsideFence('group.create', { nodeIds: input.childIds ?? [] });
     return this.runIntentCommit(
       input.intentId,
       ['create'],
@@ -481,6 +509,7 @@ export class PmxCanvas extends EventEmitter {
     childIds: string[],
     options?: { childLayout?: 'grid' | 'column' | 'flow'; intentId?: string },
   ): boolean {
+    assertInsideFence('group.add', { nodeIds: [groupId, ...childIds] });
     return this.runIntentCommit(
       options?.intentId,
       ['edit'],
@@ -500,6 +529,7 @@ export class PmxCanvas extends EventEmitter {
 
   /** Remove all children from a group (the group node remains). */
   ungroupNodes(groupId: string, options?: { intentId?: string }): boolean {
+    assertInsideFence('group.remove', { nodeIds: [groupId] });
     return this.runIntentCommit(
       options?.intentId,
       ['edit'],
@@ -518,6 +548,7 @@ export class PmxCanvas extends EventEmitter {
   }
 
   clear(): void {
+    assertInsideFence('canvas.clear', { boardWide: true });
     for (const node of canvasState.getLayout().nodes) {
       if (node.type !== 'mcp-app') continue;
       const sessionId = typeof node.data.appSessionId === 'string' ? node.data.appSessionId : '';
@@ -528,6 +559,7 @@ export class PmxCanvas extends EventEmitter {
   }
 
   arrange(layout?: 'grid' | 'column' | 'flow'): void {
+    assertInsideFence('arrange', { boardWide: true });
     arrangeCanvasNodes(layout ?? 'grid');
     emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
   }
@@ -705,10 +737,7 @@ export class PmxCanvas extends EventEmitter {
       ...(options?.ttlMs !== undefined ? { ttlMs: options.ttlMs } : {}),
       source: options?.source ?? 'sdk',
     });
-    if (approvalGate) {
-      emitPrimaryWorkbenchEvent('ax-state-changed', { approvalGate });
-      agentPresence.refresh();
-    }
+    if (approvalGate) emitPrimaryWorkbenchEvent('ax-state-changed', { approvalGate });
     return approvalGate;
   }
 
@@ -1029,6 +1058,7 @@ export class PmxCanvas extends EventEmitter {
       dockPosition?: 'left' | 'right' | null;
     }>,
   ): { applied: number; skipped: number } {
+    assertInsideFence('node.update', { nodeIds: updates.map((update) => update.id) });
     return applyCanvasNodeUpdates(updates);
   }
 
@@ -1047,6 +1077,7 @@ export class PmxCanvas extends EventEmitter {
   }
 
   async restoreSnapshot(id: string): Promise<{ ok: boolean }> {
+    assertInsideFence('snapshot.restore', { boardWide: true });
     const result = await restoreCanvasSnapshot(id);
     if (result.ok) {
       emitPrimaryWorkbenchEvent('canvas-layout-update', { layout: canvasState.getLayout() });
@@ -1145,6 +1176,7 @@ export class PmxCanvas extends EventEmitter {
     url: string;
     spec: JsonRenderSpec;
   } {
+    assertInsideFence('jsonrender.add', createTarget(input));
     return this.runIntentCommit(
       input.intentId,
       ['create'],
@@ -1229,6 +1261,7 @@ export class PmxCanvas extends EventEmitter {
      *  the html capability ceiling server-side; cannot escalate. */
     axCapabilities?: { enabled?: boolean; allowed?: string[] };
   }): SdkCanvasNode {
+    assertInsideFence('node.add', createTarget(input));
     return this.runIntentCommit(
       input.intentId,
       ['create'],
@@ -1275,6 +1308,7 @@ export class PmxCanvas extends EventEmitter {
     height?: number;
     strictSize?: boolean;
   }): { id: string; kind: HtmlPrimitiveKind; title: string; htmlBytes: number } {
+    assertInsideFence('node.add', createTarget(input));
     return this.runIntentCommit(
       input.intentId,
       ['create'],
@@ -1312,6 +1346,7 @@ export class PmxCanvas extends EventEmitter {
   }
 
   addGraphNode(input: GraphNodeInput & { intentId?: string }): { id: string; url: string; spec: JsonRenderSpec } {
+    assertInsideFence('graph.add', createTarget(input));
     return this.runIntentCommit(
       input.intentId,
       ['create'],

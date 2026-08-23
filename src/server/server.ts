@@ -121,6 +121,38 @@ agentPresence.setEmitter((event, payload) => {
   emitPrimaryWorkbenchEvent(event, payload);
 });
 
+// Session receipt (rail-chrome-v2 phase 5, design item 2). The snapshot is
+// taken when a session ATTACHES — the board before the agent touched it — so
+// the receipt's View diff shows exactly what the session did and a restore
+// undoes it. (A detach-time snapshot would equal the current board.)
+agentPresence.setSessionStartListener((presence) => {
+  if (canvasState.getLayout().nodes.length === 0) return null;
+  const startedAt = new Date().toISOString();
+  return canvasState.saveSnapshot(`Before session · ${presence.label} · ${startedAt.slice(11, 16)}`)?.id ?? null;
+});
+agentPresence.setSessionEndListener((presence, startSnapshotId) => {
+  const ax = canvasState.getAxState();
+  const endedAt = new Date().toISOString();
+  const snapshot = startSnapshotId
+    ? (canvasState.listSnapshots({ all: true }).find((entry) => entry.id === startSnapshotId) ?? null)
+    : null;
+  const counts = {
+    items: ax.workItems.length,
+    done: ax.workItems.filter((item) => item.status === 'done').length,
+    vetoed:
+      ax.workItems.filter((item) => item.status === 'cancelled').length +
+      ax.approvalGates.filter((gate) => gate.status === 'rejected' || gate.status === 'held').length,
+  };
+  // No agent `sessionId` here: the SSE envelope reserves that key for the
+  // workbench session and would overwrite it. The label is what the receipt shows.
+  emitPrimaryWorkbenchEvent('agent-session-ended', {
+    label: presence.label,
+    endedAt,
+    counts,
+    snapshot: snapshot ? { id: snapshot.id, name: snapshot.name } : null,
+  });
+});
+
 // Webview-runner wiring (plan-008 Wave 3): the webview ops never import this
 // module — the Bun.WebView automation runner is injected here, mirroring the
 // setOperationEventEmitter pattern. The closures call the real automation

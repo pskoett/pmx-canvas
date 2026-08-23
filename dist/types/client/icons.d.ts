@@ -5,8 +5,6 @@ interface IconProps {
 }
 /** Expand-arrows — fit all nodes */
 export declare function IconFitAll(p: IconProps): JSX.Element;
-/** Framed crosshair — reset view 1:1 */
-export declare function IconResetView(p: IconProps): JSX.Element;
 /** Magnifier with + */
 export declare function IconZoomIn(p: IconProps): JSX.Element;
 /** Magnifier with - */
@@ -35,8 +33,8 @@ export declare function IconClearTrace(p: IconProps): JSX.Element;
 export declare function IconSearch(p: IconProps): JSX.Element;
 /** Keyboard — shortcuts */
 export declare function IconShortcuts(p: IconProps): JSX.Element;
-/** Half-lit circle — theme toggle (generic). */
-export declare function IconTheme(p: IconProps): JSX.Element;
+/** Speech bubble — steer the agent (command bar composer). */
+export declare function IconSteer(p: IconProps): JSX.Element;
 /** Framed pin — context pinning. */
 export declare function IconPin(p: IconProps): JSX.Element;
 /** Focus Field — PMX Canvas brand mark (concentric rounded squares → lit core). */

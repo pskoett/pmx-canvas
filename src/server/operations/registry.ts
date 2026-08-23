@@ -10,7 +10,7 @@
 import { canvasState } from '../canvas-state.js';
 import { intentRegistry } from '../intent-registry.js';
 import { agentPresence } from '../agent-presence.js';
-import { checkScopeFence } from '../scope-fence.js';
+import { checkScopeFence, checkScopeOwnership } from '../scope-fence.js';
 import type { PmxAxIntent, PmxAxIntentKind } from '../../shared/ax-intent.js';
 import { OperationError, type Operation, type OperationContext } from './types.js';
 
@@ -274,9 +274,14 @@ export async function executeOperation(
 ): Promise<unknown> {
   const op = getOperation(name);
   // Scope fence (design item 4): an attached agent's writes must stay inside
-  // the fence the human granted. Reads and the human's own writes pass.
-  if (op.mutates && !meta.fromWorkbench) {
-    const refusal = checkScopeFence(op, rawInput);
+  // the fence the human granted. Reads and the human's own writes pass, and
+  // the fence itself is the human's to set — an agent cannot clear or widen it.
+  if (!meta.fromWorkbench) {
+    const refusal = op.mutates
+      ? checkScopeFence(op, rawInput)
+      : name === 'ax.policy.set'
+        ? checkScopeOwnership(rawInput)
+        : null;
     if (refusal) throw new OperationError(`Outside the agent scope: ${refusal}`, 403);
   }
   const intentId = linkedIntentId(rawInput);

@@ -34,6 +34,7 @@ import {
 import { createNodeFromClient, saveCanvasTheme } from '../state/intent-bridge';
 import { clearThemeOverride } from '../state/theme-override';
 import { invalidateTokenCache } from '../theme/tokens';
+import type { AnnotationTool } from '../types';
 import { MOD_KEY } from '../utils/platform';
 import {
   CANVAS_THEMES,
@@ -42,8 +43,6 @@ import {
   canvasThemeScheme,
   normalizeCanvasThemeName,
 } from '../../shared/themes.js';
-
-type AnnotationTool = 'pen' | 'eraser' | 'text' | null;
 
 function logRailError(action: string, error: unknown): void {
   console.error(`[tool-rail] ${action} failed`, error);

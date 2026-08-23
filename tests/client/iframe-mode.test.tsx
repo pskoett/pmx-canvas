@@ -37,6 +37,10 @@ const originalFetch = globalThis.fetch;
 
 beforeEach(() => {
   setPageUrl('http://localhost:3000/workbench');
+  // Default stub for the connect-time requests (viewport report, presence, AX
+  // snapshot); tests that assert on fetch install their own.
+  globalThis.fetch = (async () =>
+    new Response('{}', { status: 200, headers: { 'Content-Type': 'application/json' } })) as unknown as typeof fetch;
 });
 
 afterEach(() => {

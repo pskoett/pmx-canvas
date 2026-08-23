@@ -1,4 +1,5 @@
-export type WorkItemStatus = 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled';
+import type { AxApprovalStatus, AxEventKind, AxWorkItemStatus } from '../../shared/ax-kinds.js';
+export type WorkItemStatus = AxWorkItemStatus;
 export interface WorkItemView {
     id: string;
     title: string;
@@ -11,13 +12,12 @@ export interface ApprovalGateView {
     id: string;
     title: string;
     detail: string | null;
-    status: 'pending' | 'approved' | 'rejected' | 'held';
+    status: AxApprovalStatus;
     nodeIds: string[];
     createdAt: string;
     /** Unattended-approval TTL: when a pending gate auto-holds. */
     expiresAt: string | null;
 }
-export type AxEventKind = 'prompt' | 'assistant-message' | 'tool-start' | 'tool-result' | 'failure' | 'approval' | 'steering' | 'command' | 'note' | 'policy';
 export interface AxEventView {
     id: string;
     kind: AxEventKind;
@@ -82,4 +82,30 @@ export declare function refreshTimeline(): Promise<void>;
 export declare function resolveGate(gate: ApprovalGateView, decision: 'approved' | 'rejected'): Promise<boolean>;
 /** Reopen an auto-held gate so it can be answered (fresh TTL). */
 export declare function reopenGate(gate: ApprovalGateView): Promise<boolean>;
+/** Post a steering message the agent reads on its next turn. */
+export declare function sendSteering(message: string): Promise<boolean>;
+/** Attach a human-started session; the agent's writes are attributed to it. */
+export declare function startSession(): Promise<boolean>;
+/** End the attached session (whoever attached it) — the server answers with a receipt. */
+export declare function endSession(session: {
+    source: string;
+    agentId: string | null;
+}): Promise<boolean>;
+export interface SessionReceipt {
+    label: string;
+    endedAt: string;
+    counts: {
+        items: number;
+        done: number;
+        vetoed: number;
+    };
+    snapshot: {
+        id: string;
+        name: string;
+    } | null;
+}
+/** The last ended session's receipt (design item 2); client-side, cleared on dismiss. */
+export declare const sessionReceipt: import("@preact/signals-core").Signal<SessionReceipt | null>;
+export declare function applySessionReceipt(data: Record<string, unknown>): void;
+export declare function dismissSessionReceipt(): void;
 export declare function resetSessionStore(): void;

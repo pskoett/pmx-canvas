@@ -3,6 +3,7 @@
  * JSON body the HTTP route serves), so MCP/CLI callers format one shape
  * regardless of transport. Failures throw `OperationError`.
  */
+import { SOURCE_LABEL_RE } from '../agent-presence.js';
 import { executeOperation, getOperation } from './registry.js';
 import { OperationError, type OperationErrorStatus } from './types.js';
 
@@ -17,7 +18,7 @@ export interface OperationInvoker {
  */
 export function agentSourceLabel(fallback: string): string {
   const raw = process.env.PMX_CANVAS_AGENT_SOURCE?.trim();
-  return raw && /^[a-z][a-z0-9-]{0,39}$/i.test(raw) ? raw : fallback;
+  return raw && SOURCE_LABEL_RE.test(raw) ? raw : fallback;
 }
 
 /** `ax.presence.set` without an explicit source attaches under the caller's own label. */

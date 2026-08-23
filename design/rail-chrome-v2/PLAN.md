@@ -86,7 +86,7 @@ is a visible element on today's board that does not yet match the prototypes.
 | **Node card shell** (every node: titlebar, radius, shadow, body type) | Standard card shell — node surface, 12px radius, `0 4px 24px` shadow, 7×12 header with kind icon in the kind's accent, 11–12px/600 title, body 11px / 1.6 | **4a — BUILT** (type badge dropped, `data-node-type` carries the kind; ⋯ consolidation of the controls stays with phase 7) |
 | **Docked CONTEXT pill** (`context-main`, top-right HUD) | Pinned-context chips in the command bar (Focus Session); on the quiet board the pin bar stays as the minimal affordance | 5 |
 | **Docked STATUS pill** (`status-main`, top-left HUD) | Top-bar agent chip (done) + session panel work list / timeline (done) — the pill itself is removed with the context pill in phase 5 | 5 |
-| `ContextPinBar` ("✦ N nodes in context") | Command bar row 1 chips with `×`, budget meter | 5 |
+| `ContextPinBar` ("✦ N nodes in context") | Command bar chips with `×` above the floating composer; budget meter in the top bar | 5 |
 | `SelectionBar` | Bottom-centre floating bar restyle (count, align, distribute, arrange, group, pin, delete) | 7 (item 13) |
 | `WelcomeCard` | Centred empty state: ghost mark, "Nothing on this board yet", 2×2 starters | 7 (item 11) |
 | Minimap | Minimap v2: true-scale rects, hover magnify, presence dots | 7 (item 19) |
@@ -114,11 +114,42 @@ is a visible element on today's board that does not yet match the prototypes.
   current selection and clears it. Not done: the on-node gate countdown (the design draws it in
   the gate node; ours lives in the panel + badge) — phase 7 polish.
 
-### Phase 5 — Command bar + session lifecycle
-- `ContextPinBar` evolves into the command bar: pin chips with unpin ×, steering input (posts AX
-  steering), budget meter recomputing locally on pin toggle. "Start agent session" affordance
-  appears (attach flow now exists); detach → auto-snapshot + receipt card (item 2); session
-  history drawer unifying snapshots + receipts (item 8).
+### Phase 5 — Command bar + session lifecycle — 5a/5b BUILT, 5c pending
+- **5a — command bar (built):** replaces `ContextPinBar` while a session is attached (the quiet
+  board keeps the minimal pin bar). Built to the Focus Session mockup, not the README's prose:
+  a floating composer centered at the bottom of the canvas region (560px max, 12px radius, blur +
+  shadow, violet bubble glyph, borderless input "Steer the agent, or ⌘K to search the board…",
+  solid-accent Send) with the pinned context floating above it as gold `✦` chips + "in agent
+  context" (the README's unpin `×` kept on each chip). The **budget meter lives in the top bar**
+  (`Context` · 72×5 track · mono %), where the mockup places it — session-only, fed by the
+  presence snapshot so it moves within a frame of a pin toggle; README tone thresholds kept
+  (solid warn ≥70%, danger >90%). The selection bar lifts clear of the composer while a session
+  is active. "Start agent session" in the top bar attaches a `browser`-keyed session (label
+  "Agent session") — the agent's MCP/HTTP writes are attributed to it by the phase-2 rule; "End"
+  in the panel header detaches. The attention toast/history now anchor to the canvas region
+  (they were window-anchored and landed on the session panel).
+- **5b — session receipt (item 2) (built):** the snapshot is taken at ATTACH, not detach — a
+  detach-time snapshot would equal the current board and View diff would be empty. Named
+  `Before session · <label> · HH:MM`, skipped on an empty board. On detach (explicit, activity
+  `session-end`, or idle expiry) the server emits `agent-session-ended` `{ label, endedAt,
+  counts: { items, done, vetoed }, snapshot }`; the client shows the dismissible receipt with
+  View diff (`snapshots/:id/diff`) and Full log (snapshots panel; the unified history drawer is
+  item 8, later). No agent `sessionId` in the payload — the SSE envelope reserves that key
+  (LRN-20260823-003).
+- **Hardening landed with 5a/5b (from the simplify/harden audits):** the scope fence is
+  human-owned — `ax.policy.set` with `scope` from a non-workbench caller is 403 and the MCP
+  `set-policy` action no longer takes `scope`; fence checks cover group membership
+  (`node.add`/`node.update` children), `jsonrender.stream` by `nodeId`, and fail closed on
+  search-resolved edge endpoints; the SDK enforces the same fence through `assertInsideFence`
+  (its methods bypass the registry); restored pending gates with an elapsed TTL get a fresh
+  clock; presence re-emits through one `canvasState.onChange` subscription instead of
+  per-site refresh calls; the Copilot extension's shutdown detach is bounded (800 ms).
+- **5c — retire the docked pills:** the HUD pill layer and `DockedNode` go away; nothing is
+  seeded on first run; `dockPosition` is removed from the model and everything that keyed on it
+  (`undockNode`, `hasOpenDockedContextPanel`, the validator's hidden-endpoint rule, `hud-left/right`
+  CSS, docked-node CSS, demo fixture). Legacy host events (`canvas-status`, `execution-phase`,
+  `context-cards`) keep creating their `status-main` / `context-main` nodes, now as ordinary
+  cards. Done as its own commit — a removal cascade, reviewed on its own.
 
 ### Phase 6 — External steering surfaces
 - Top-bar passive indicator (writer count + op count) + activity feed popover with per-writer
@@ -140,6 +171,27 @@ is a visible element on today's board that does not yet match the prototypes.
 - Human collaborator cursors (item 5), user-wins yield + requeue (item 6), edge-creation drag +
   the rail's Connect tool (item 15). These need client-presence broadcast and edit-lock
   semantics — scoped last deliberately.
+
+### Phase 9 — Skills refresh (last; closes the redesign)
+Bring every skill in the repo up to date with everything the phases changed, so an agent
+reading a skill cold gets the board as it is now, not as it was in 0.4.7:
+- `skills/pmx-canvas/SKILL.md` + `references/full-reference.md`: presence/session lifecycle
+  (attach → snapshot → receipt), the human-owned scope fence, unattended approvals, the command
+  bar as the human's steering channel, the retired docked pills (no `dockPosition`, no
+  `status-main`/`context-main` HUD semantics), rail tools and shortcuts, the tool/action
+  counts and the AX capability matrix — every count and table agents read as authoritative.
+- `skills/pmx-canvas-orchestration/SKILL.md`: session attach/detach as part of the choreography,
+  steering delivery, fence etiquette for sub-agents (`agentId`).
+- `skills/pmx-canvas-testing/SKILL.md`: the presence/session e2e patterns (reset detaches
+  sessions and clears the fence as the workbench; assert SSE frames as received; the browser
+  pane never fires rAF).
+- The `.github/extensions/pmx-canvas` adapter docs and `docs/ax-host-adapter-contract.md`
+  (detach on shutdown; presence hooks), and `docs/mcp.md` / `docs/http-api.md` / `docs/cli.md`
+  cross-checked against the registry (`docs/api-stability.md` defines the surface as what
+  those files document).
+- Regenerate the demo board and the README screenshot last, after 5c and the phase-7 restyles.
+- Verify: `bun run validate:agent-skills`, the skill-validation rules in CLAUDE.md, and a
+  cold read of each skill by a fresh agent against a live board.
 
 ## Verification bar (every phase)
 `bun run typecheck` · `bun run build` · `bun run lint` · `bun run test` · `bun run test:client` ·

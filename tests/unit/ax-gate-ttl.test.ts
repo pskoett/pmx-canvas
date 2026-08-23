@@ -92,6 +92,30 @@ describe('approval gate TTL', () => {
   });
 });
 
+describe('restored gates', () => {
+  test('a pending gate whose TTL elapsed while snapshotted gets a fresh clock on restore', () => {
+    const gate = canvasState.requestApproval(
+      { title: 'Ship?', nodeIds: ['gate-node'], ttlMs: 1_000 },
+      { source: 'mcp' },
+    );
+    // A snapshot taken minutes ago, restored now: its pending gate's deadline is in the past.
+    const stale = { ...gate, expiresAt: new Date(Date.now() - 60_000).toISOString() };
+    canvasState.applyPersistedAxState({ ...canvasState.getAxState(), approvalGates: [stale] });
+
+    const restored = canvasState.getApprovalGates().find((entry) => entry.id === gate.id);
+    expect(restored?.status).toBe('pending');
+    // Not the stale deadline: a full default TTL from now, so the next sweeper
+    // tick cannot hold it before the human who restored it can answer.
+    expect(gateRemainingMs(restored!)).toBeGreaterThan(60_000);
+    expect(sweepExpiredGates(Date.now())).toEqual([]);
+
+    // A deadline still in the future is kept as-is.
+    const fresh = { ...gate, expiresAt: new Date(Date.now() + 30_000).toISOString() };
+    canvasState.applyPersistedAxState({ ...canvasState.getAxState(), approvalGates: [fresh] });
+    expect(gateRemainingMs(canvasState.getApprovalGates()[0]!)).toBeLessThanOrEqual(30_000);
+  });
+});
+
 describe('formatCountdown', () => {
   test('renders M:SS, rounding up partial seconds, never negative', () => {
     expect(formatCountdown(271_000)).toBe('4:31');

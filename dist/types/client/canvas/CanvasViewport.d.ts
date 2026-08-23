@@ -1,5 +1,4 @@
-import type { CanvasNodeState } from '../types';
-type AnnotationTool = 'pen' | 'eraser' | 'text' | null;
+import type { AnnotationTool, CanvasNodeState } from '../types';
 interface CanvasViewportProps {
     onNodeContextMenu?: (e: MouseEvent, nodeId: string) => void;
     onCanvasContextMenu?: (e: MouseEvent, canvasX: number, canvasY: number) => void;

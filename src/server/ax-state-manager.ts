@@ -143,7 +143,20 @@ export class AxStateManager {
 
   /** Replace the canvas-bound partition from a persisted/restored blob, normalized against current nodes. */
   applyPersistedAx(ax: unknown): void {
-    this._axState = this.normalizeForCurrentNodes(ax);
+    const normalized = this.normalizeForCurrentNodes(ax);
+    // A pending gate restored from a snapshot (or loaded on boot) may carry an
+    // already-elapsed TTL; holding it on the next sweeper tick would be safe
+    // but would rob the human who just restored it of any window to answer.
+    // Restart the clock from now.
+    const now = Date.now();
+    this._axState = {
+      ...normalized,
+      approvalGates: normalized.approvalGates.map((gate) =>
+        gate.status === 'pending' && (!gate.expiresAt || Date.parse(gate.expiresAt) <= now)
+          ? { ...gate, expiresAt: new Date(now + defaultGateTtlMs()).toISOString() }
+          : gate,
+      ),
+    };
   }
 
   /** Load the host-capability row from its own table (own partition; not snapshotted). */

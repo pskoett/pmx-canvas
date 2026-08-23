@@ -16,8 +16,8 @@ import {
 import { MOD_KEY } from '../utils/platform';
 import { canvasArea } from './canvas-area';
 import { agentPhaseLabel } from '../../shared/agent-presence.js';
-import { activeSession } from '../state/presence-store';
-import { pendingGates } from '../state/session-store';
+import { activeSession, contextBudget } from '../state/presence-store';
+import { pendingGates, startSession } from '../state/session-store';
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
 
 function BarHint({
@@ -88,6 +88,63 @@ function GateBadge() {
       {count} gate{count === 1 ? '' : 's'}
       {soonest !== undefined && ` · ${formatCountdown(soonest)}`}
     </span>
+  );
+}
+
+function budgetTone(ratio: number): 'ok' | 'warn' | 'danger' {
+  if (ratio > 0.9) return 'danger';
+  if (ratio >= 0.7) return 'warn';
+  return 'ok';
+}
+
+/**
+ * Context-budget meter (rail-chrome-v2 phase 5): the share of the agent's
+ * context window the pinned nodes take, from the presence snapshot — so it
+ * moves within a frame of a pin toggling. Session-only, like the chip.
+ */
+function ContextBudget() {
+  if (!activeSession.value) return null;
+  const budget = contextBudget.value;
+  const ratio = budget.total > 0 ? Math.min(1, budget.used / budget.total) : 0;
+  const pct = Math.round(ratio * 100);
+  return (
+    <span
+      class={`context-budget tone-${budgetTone(ratio)}`}
+      title={`Share of the agent's context window used by pinned nodes — ${budget.used} of ${budget.total} tokens`}
+    >
+      <span class="context-budget-caption hud-collapsible-text">Context</span>
+      <span class="context-budget-track" aria-hidden="true">
+        <span class="context-budget-fill" style={{ width: `${pct}%` }} />
+      </span>
+      <span class="context-budget-label" data-testid="budget-label">
+        {pct}%
+      </span>
+    </span>
+  );
+}
+
+/**
+ * Quiet-board affordance (rail-chrome-v2 phase 5): attach a human-started
+ * session. The agent's subsequent MCP/HTTP writes are attributed to it, which
+ * is what turns the quiet board into a Focus Session with a cursor and panel.
+ */
+function StartSessionButton() {
+  const [busy, setBusy] = useState(false);
+  if (activeSession.value) return null;
+  return (
+    <button
+      type="button"
+      class="start-session-btn"
+      disabled={busy}
+      title="Attach an agent session to this board"
+      onClick={() => {
+        setBusy(true);
+        void startSession().finally(() => setBusy(false));
+      }}
+    >
+      <span class="start-session-dot" aria-hidden="true" />
+      Start agent session
+    </button>
   );
 }
 
@@ -162,6 +219,8 @@ export function TopBar() {
 
       <AgentChip />
       <GateBadge />
+      <ContextBudget />
+      <StartSessionButton />
 
       <div class="top-bar-sep" />
 

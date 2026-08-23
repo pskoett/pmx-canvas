@@ -3,6 +3,7 @@ import { AttentionHistory } from './canvas/AttentionHistory';
 import { AttentionToast } from './canvas/AttentionToast';
 import { registerCanvasArea, canvasArea } from './canvas/canvas-area';
 import { CanvasViewport } from './canvas/CanvasViewport';
+import { CommandBar } from './canvas/CommandBar';
 import { CommandPalette } from './canvas/CommandPalette';
 import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
 import { ContextPinBar } from './canvas/ContextPinBar';
@@ -11,6 +12,7 @@ import { ExpandedNodeOverlay } from './canvas/ExpandedNodeOverlay';
 import { Minimap } from './canvas/Minimap';
 import { SelectionBar } from './canvas/SelectionBar';
 import { SessionPanel } from './canvas/SessionPanel';
+import { SessionReceipt } from './canvas/SessionReceipt';
 import { ShortcutOverlay } from './canvas/ShortcutOverlay';
 import { SnapshotPanel } from './canvas/SnapshotPanel';
 import { promptedCreate, ToolRail } from './canvas/ToolRail';
@@ -39,13 +41,12 @@ import { connectSSE } from './state/sse-bridge';
 import { intents } from './state/intent-store';
 import { sessionActive } from './state/presence-store';
 import { createNodeFromClient, reportClientViewportSize } from './state/intent-bridge';
+import type { AnnotationTool } from './types';
 import { MOD_KEY } from './utils/platform';
 
 function logAppError(action: string, error: unknown): void {
   console.error(`[app] ${action} failed`, error);
 }
-
-type AnnotationTool = 'pen' | 'eraser' | 'text' | null;
 
 function WelcomeCard({ onOpenPalette }: { onOpenPalette: () => void }) {
   return (
@@ -332,7 +333,8 @@ export function App() {
             <WelcomeCard onOpenPalette={() => setPaletteOpen(true)} />
           )}
           {selectedNodeIds.value.size > 0 && <SelectionBar />}
-          {contextPinnedNodeIds.value.size > 0 && <ContextPinBar />}
+          {sessionIsActive ? <CommandBar /> : contextPinnedNodeIds.value.size > 0 && <ContextPinBar />}
+          <SessionReceipt onOpenSnapshots={() => setSnapshotOpen(true)} />
           {minimapVisible && (
             <Minimap
               viewport={viewport}
