@@ -63,6 +63,6 @@ describe('client performance helpers', () => {
       maxX: 1160,
       maxY: 850,
     });
-    expect(frame.scale).toBeCloseTo(Math.min(180 / 1120, 120 / 850), 8);
+    expect(frame.scale).toBeCloseTo(Math.min(168 / 1120, 112 / 850), 8);
   });
 });

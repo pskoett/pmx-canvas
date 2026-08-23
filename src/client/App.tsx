@@ -291,6 +291,7 @@ export function App() {
           {sessionIsActive ? <CommandBar /> : contextPinnedNodeIds.value.size > 0 && <ContextPinBar />}
           <SessionReceipt onOpenSnapshots={() => setSnapshotOpen(true)} />
           {expandedNodeId.value && <ExpandedNodeOverlay />}
+          <SnapshotPanel open={snapshotOpen} onClose={handleCloseSnapshot} anchorRef={snapshotBtnRef} />
           {minimapVisible && (
             <Minimap
               viewport={viewport}
@@ -304,7 +305,6 @@ export function App() {
         </div>
       </div>
       {sessionIsActive && <SessionPanel />}
-      <SnapshotPanel open={snapshotOpen} onClose={handleCloseSnapshot} anchorRef={snapshotBtnRef} />
       {menu && <ContextMenu menu={menu} onClose={closeMenu} />}
       {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} onToggleMinimap={handleToggleMinimap} />}
       {shortcutsOpen && <ShortcutOverlay onClose={() => setShortcutsOpen(false)} />}

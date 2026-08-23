@@ -1,12 +1,23 @@
 import type { Signal } from '@preact/signals';
-import { useSignalEffect } from '@preact/signals';
-import { useCallback, useEffect, useRef } from 'preact/hooks';
-import { canvasTheme } from '../state/canvas-store';
-import { getCanvasTokens } from '../theme/tokens';
+import { useCallback, useRef } from 'preact/hooks';
+import { fenceRectFromNodes } from '../../shared/scope-fence.js';
+import { selectedNodeIds } from '../state/canvas-store';
+import { agentPresences, presenceWorldPosition, sessionActive } from '../state/presence-store';
+import { scopeFence } from '../state/session-store';
 import type { CanvasEdge, CanvasNodeState, ViewportState } from '../types';
 
-const MINIMAP_W = 180;
-const MINIMAP_H = 120;
+/**
+ * Minimap v2 (rail-chrome-v2 phase 7, design item 19): a true-scale node map
+ * rendered from the store — each node a scaled rect in its kind color, groups
+ * and the scope fence as dashed outlines, the viewport frame with a grab
+ * cursor, the zoom % in the corner, selection outlines mirrored, and a pulsing
+ * violet dot where an attached agent is. 168×112 at rest; hovering magnifies
+ * the whole map ×1.7 from the bottom-right corner (CSS). Click jumps the
+ * viewport; dragging pans.
+ */
+
+export const MINIMAP_W = 168;
+export const MINIMAP_H = 112;
 const PADDING = 20;
 
 interface MinimapBounds {
@@ -21,38 +32,26 @@ interface MinimapFrame {
   scale: number;
 }
 
-function getNodeColors(): Record<CanvasNodeState['type'], string> {
-  const t = getCanvasTokens();
-  return {
-    markdown: t.accent,
-    'mcp-app': t.ok,
-    webpage: t.warn,
-    'json-render': t.ok,
-    graph: t.purple,
-    prompt: t.accent,
-    response: t.ok,
-    status: t.warn,
-    context: t.muted,
-    ledger: t.dim,
-    trace: t.purple,
-    file: t.accent,
-    diff: t.ok,
-    mermaid: t.purple,
-    image: t.ok,
-    html: t.warn,
-    group: t.dim,
-  };
-}
-
-function getEdgeColors(): Record<CanvasEdge['type'], string> {
-  const t = getCanvasTokens();
-  return {
-    relation: t.muted,
-    'depends-on': t.warn,
-    flow: t.accent,
-    references: t.dim,
-  };
-}
+/** Kind color per node type, as CSS tokens so every theme keeps its palette. */
+const KIND_COLOR: Record<CanvasNodeState['type'], string> = {
+  markdown: 'var(--c-accent)',
+  'mcp-app': 'var(--c-ok)',
+  webpage: 'var(--c-warn)',
+  'json-render': 'var(--c-ok)',
+  graph: 'var(--c-purple)',
+  prompt: 'var(--c-accent)',
+  response: 'var(--c-ok)',
+  status: 'var(--c-warn)',
+  context: 'var(--c-muted)',
+  ledger: 'var(--c-dim)',
+  trace: 'var(--c-purple)',
+  file: 'var(--c-accent)',
+  diff: 'var(--c-ok)',
+  mermaid: 'var(--c-purple)',
+  image: 'var(--c-ok)',
+  html: 'var(--c-warn)',
+  group: 'var(--c-accent)',
+};
 
 export function computeMinimapFrame(
   nodeMap: Map<string, CanvasNodeState>,
@@ -110,139 +109,32 @@ interface MinimapProps {
   containerHeight: number;
 }
 
-export function Minimap({ viewport, nodes, edges, onNavigate, containerWidth, containerHeight }: MinimapProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+export function Minimap({ viewport, nodes, onNavigate, containerWidth, containerHeight }: MinimapProps) {
+  const mapRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
-  const frameRef = useRef<MinimapFrame | null>(null);
-  const drawRafId = useRef<number | null>(null);
 
-  const draw = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    const nodeMap = nodes.value;
-    const edgeMap = edges.value;
-    const currentViewport = viewport.value;
-
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = MINIMAP_W * dpr;
-    canvas.height = MINIMAP_H * dpr;
-    ctx.scale(dpr, dpr);
-
-    // Clear
-    ctx.clearRect(0, 0, MINIMAP_W, MINIMAP_H);
-    const t = getCanvasTokens();
-    ctx.fillStyle = t.panel + 'd9'; // panel color with ~85% alpha
-    ctx.fillRect(0, 0, MINIMAP_W, MINIMAP_H);
-
-    const frame = computeMinimapFrame(nodeMap, currentViewport, containerWidth, containerHeight);
-    frameRef.current = frame;
-    const { bounds, scale } = frame;
-
-    const toMiniX = (x: number) => (x - bounds.minX) * scale;
-    const toMiniY = (y: number) => (y - bounds.minY) * scale;
-
-    // Draw nodes
-    const all = Array.from(nodeMap.values());
-    const nodeColors = getNodeColors();
-    for (const n of all) {
-      ctx.fillStyle = nodeColors[n.type] ?? t.muted;
-      ctx.globalAlpha = 0.6;
-      ctx.fillRect(
-        toMiniX(n.position.x),
-        toMiniY(n.position.y),
-        Math.max(4, n.size.width * scale),
-        Math.max(3, n.size.height * scale),
-      );
-    }
-
-    const edgeColors = getEdgeColors();
-    for (const edge of edgeMap.values()) {
-      const fromNode = nodeMap.get(edge.from);
-      const toNode = nodeMap.get(edge.to);
-      if (!fromNode || !toNode) continue;
-      const fromCx = toMiniX(fromNode.position.x + fromNode.size.width / 2);
-      const fromCy = toMiniY(fromNode.position.y + fromNode.size.height / 2);
-      const toCx = toMiniX(toNode.position.x + toNode.size.width / 2);
-      const toCy = toMiniY(toNode.position.y + toNode.size.height / 2);
-      ctx.beginPath();
-      ctx.moveTo(fromCx, fromCy);
-      ctx.lineTo(toCx, toCy);
-      ctx.strokeStyle = edgeColors[edge.type] ?? t.muted;
-      ctx.globalAlpha = 0.3;
-      ctx.lineWidth = 0.5;
-      ctx.stroke();
-    }
-
-    // Draw viewport rectangle
-    const vpLeft = -currentViewport.x / currentViewport.scale;
-    const vpTop = -currentViewport.y / currentViewport.scale;
-    const vpW = containerWidth / currentViewport.scale;
-    const vpH = containerHeight / currentViewport.scale;
-
-    ctx.globalAlpha = 1;
-    ctx.strokeStyle = t.accent;
-    ctx.lineWidth = 1.5;
-    ctx.strokeRect(toMiniX(vpLeft), toMiniY(vpTop), vpW * scale, vpH * scale);
-  }, [nodes, edges, viewport, containerWidth, containerHeight]);
-
-  const drawRef = useRef(draw);
-  drawRef.current = draw;
-
-  const scheduleDraw = useCallback(() => {
-    if (drawRafId.current !== null) return;
-    drawRafId.current = window.requestAnimationFrame(() => {
-      drawRafId.current = null;
-      drawRef.current();
-    });
-  }, []);
-
-  // Redraw on state changes (including theme)
-  useSignalEffect(() => {
-    void canvasTheme.value;
-    void nodes.value;
-    void edges.value;
-    void viewport.value;
-    scheduleDraw();
-  });
-
-  useEffect(() => {
-    scheduleDraw();
-  }, [containerWidth, containerHeight, scheduleDraw]);
-
-  useEffect(
-    () => () => {
-      if (drawRafId.current !== null) {
-        window.cancelAnimationFrame(drawRafId.current);
-        drawRafId.current = null;
-      }
-    },
-    [],
-  );
+  const nodeMap = nodes.value;
+  const v = viewport.value;
+  const frame = computeMinimapFrame(nodeMap, v, containerWidth, containerHeight);
+  const { bounds, scale } = frame;
+  const toX = (x: number) => (x - bounds.minX) * scale;
+  const toY = (y: number) => (y - bounds.minY) * scale;
 
   const handleNavigateFromEvent = useCallback(
     (e: MouseEvent | PointerEvent) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-
-      const rect = canvas.getBoundingClientRect();
-      const mx = e.clientX - rect.left;
-      const my = e.clientY - rect.top;
-
-      const frame =
-        frameRef.current ?? computeMinimapFrame(nodes.value, viewport.value, containerWidth, containerHeight);
-      frameRef.current = frame;
-      const { bounds, scale } = frame;
-
-      const v = viewport.value;
-      const vpW = containerWidth / v.scale;
-      const vpH = containerHeight / v.scale;
-
-      // Center viewport on clicked point
-      const worldX = mx / scale + bounds.minX;
-      const worldY = my / scale + bounds.minY;
-      onNavigate(-(worldX - vpW / 2) * v.scale, -(worldY - vpH / 2) * v.scale);
+      const map = mapRef.current;
+      if (!map) return;
+      // The map may be magnified (hover): read the rendered size, not the logical one.
+      const rect = map.getBoundingClientRect();
+      const mx = ((e.clientX - rect.left) / rect.width) * MINIMAP_W;
+      const my = ((e.clientY - rect.top) / rect.height) * MINIMAP_H;
+      const current = computeMinimapFrame(nodes.value, viewport.value, containerWidth, containerHeight);
+      const vp = viewport.value;
+      const vpW = containerWidth / vp.scale;
+      const vpH = containerHeight / vp.scale;
+      const worldX = mx / current.scale + current.bounds.minX;
+      const worldY = my / current.scale + current.bounds.minY;
+      onNavigate(-(worldX - vpW / 2) * vp.scale, -(worldY - vpH / 2) * vp.scale);
     },
     [nodes, viewport, containerWidth, containerHeight, onNavigate],
   );
@@ -250,50 +142,94 @@ export function Minimap({ viewport, nodes, edges, onNavigate, containerWidth, co
   const handlePointerDown = useCallback(
     (e: PointerEvent) => {
       e.stopPropagation();
+      e.preventDefault();
       isDragging.current = true;
       handleNavigateFromEvent(e);
-
       const onPointerMove = (ev: PointerEvent) => {
         if (isDragging.current) handleNavigateFromEvent(ev);
       };
-
       const onPointerUp = () => {
         isDragging.current = false;
         document.removeEventListener('pointermove', onPointerMove);
         document.removeEventListener('pointerup', onPointerUp);
       };
-
       document.addEventListener('pointermove', onPointerMove);
       document.addEventListener('pointerup', onPointerUp);
     },
     [handleNavigateFromEvent],
   );
 
+  const selected = selectedNodeIds.value;
+  const fence = scopeFence.value;
+  const fenceRect = fence
+    ? fenceRectFromNodes(
+        fence.nodeIds.map((id) => nodeMap.get(id)).filter((node): node is CanvasNodeState => node !== undefined),
+        fence.padding,
+      )
+    : null;
+  const presenceDots = sessionActive.value
+    ? agentPresences.value
+        .filter((presence) => presence.attached)
+        .map((presence) => ({ id: presence.sessionId, at: presenceWorldPosition(presence, (id) => nodeMap.get(id)) }))
+        .filter((dot): dot is { id: string; at: { x: number; y: number } } => dot.at !== null)
+    : [];
+
+  const vpLeft = -v.x / v.scale;
+  const vpTop = -v.y / v.scale;
+
   return (
     <div
-      style={{
-        position: 'fixed',
-        bottom: '16px',
-        right: '16px',
-        zIndex: 9998,
-        border: '1px solid var(--c-line)',
-        borderRadius: 'var(--radius-sm)',
-        overflow: 'hidden',
-        boxShadow: '0 4px 16px var(--c-shadow)',
-      }}
+      ref={mapRef}
+      class="minimap"
+      data-testid="minimap"
+      title="Click to jump · drag the frame to pan"
+      onPointerDown={handlePointerDown}
     >
-      <canvas
-        ref={canvasRef}
-        width={MINIMAP_W}
-        height={MINIMAP_H}
+      {Array.from(nodeMap.values()).map((node) => {
+        const isGroup = node.type === 'group';
+        return (
+          <span
+            key={node.id}
+            class={`minimap-node${isGroup ? ' is-group' : ''}${selected.has(node.id) ? ' is-selected' : ''}`}
+            data-kind={node.type}
+            style={{
+              left: `${toX(node.position.x)}px`,
+              top: `${toY(node.position.y)}px`,
+              width: `${Math.max(isGroup ? 6 : 4, node.size.width * scale)}px`,
+              height: `${Math.max(isGroup ? 5 : 3, node.size.height * scale)}px`,
+              '--kind': KIND_COLOR[node.type],
+            }}
+          />
+        );
+      })}
+      {fenceRect && (
+        <span
+          class="minimap-fence"
+          style={{
+            left: `${toX(fenceRect.x)}px`,
+            top: `${toY(fenceRect.y)}px`,
+            width: `${fenceRect.width * scale}px`,
+            height: `${fenceRect.height * scale}px`,
+          }}
+        />
+      )}
+      {presenceDots.map((dot) => (
+        <span
+          key={dot.id}
+          class="minimap-presence"
+          style={{ left: `${toX(dot.at.x) - 2.5}px`, top: `${toY(dot.at.y) - 2.5}px` }}
+        />
+      ))}
+      <span
+        class="minimap-frame"
         style={{
-          width: `${MINIMAP_W}px`,
-          height: `${MINIMAP_H}px`,
-          display: 'block',
-          cursor: 'pointer',
+          left: `${toX(vpLeft)}px`,
+          top: `${toY(vpTop)}px`,
+          width: `${(containerWidth / v.scale) * scale}px`,
+          height: `${(containerHeight / v.scale) * scale}px`,
         }}
-        onPointerDown={handlePointerDown}
       />
+      <span class="minimap-zoom">{Math.round(v.scale * 100)}%</span>
     </div>
   );
 }

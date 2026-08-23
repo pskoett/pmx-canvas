@@ -9,14 +9,14 @@ import { dismissSessionReceipt, sessionReceipt } from '../state/session-store';
  * (the snapshots panel). Client-side state, cleared on dismiss.
  */
 
-interface DiffSummary {
+export interface DiffSummary {
   added: number;
   removed: number;
   modified: number;
 }
 
 /** The wire shape is SnapshotDiffResult (addedNodes/removedNodes/modifiedNodes/addedEdges/removedEdges). */
-function summarizeDiff(diff: unknown): DiffSummary | null {
+export function summarizeDiff(diff: unknown): DiffSummary | null {
   if (!diff || typeof diff !== 'object') return null;
   const d = diff as Record<string, unknown>;
   const count = (value: unknown): number => (Array.isArray(value) ? value.length : 0);

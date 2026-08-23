@@ -189,9 +189,18 @@ is a visible element on today's board that does not yet match the prototypes.
   node view (item 16 — scrim + 36/48px inset INSIDE the canvas region, header with kind
   icon/pill/pin state/Open in tab, footer with provenance + close hint). The attention
   toast/tab now stack below modal overlays.
+- **7b (built):** Minimap v2 (item 19 — a DOM render from the store, not a canvas drawing:
+  168×112 anchored in the canvas region at z 60, node rects in kind colors, groups and the
+  scope fence as dashed outlines, selection outlines mirrored, pulsing presence dots for
+  attached sessions, the viewport frame with a grab cursor, zoom % in the corner; hover
+  magnifies ×1.7 from the bottom-right; click jumps, drag pans — hit-testing reads the rendered
+  size so the magnified map maps correctly). History drawer (item 8 — the snapshot popover
+  became a 300px right drawer in the canvas region: snapshots + sessions in one
+  reverse-chronological list; a session's entry IS its `Before session · …` snapshot, with View
+  diff inline and Restore pre-state; manual snapshots keep Restore/Delete; the save form stays;
+  opened from the rail's Snapshots button or the receipt's Full log).
 - Groups v2: membership only via release-pill, collapse chip, auto-grow, frame-move semantics,
   G/Shift+G (item 20 — the largest single item).
-- Minimap v2: true-scale rects, hover magnify, presence dots (item 19).
 - Per-entry undo of agent ops through shared history + steering feedback (item 10).
 - A11y sweep: focus-visible rings, focus traps, `aria-live` on gates/timeline, roving tabindex
   (item 18 — partially delivered inside each phase, swept here).

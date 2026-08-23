@@ -3813,8 +3813,83 @@ test('human-started session: start from the quiet board, steer from the command 
   await expect(receipt.locator('[data-testid="session-receipt-diff"]')).toHaveText(
     'This session: 1 added · 0 removed · 0 modified',
   );
+
+  // Full log opens the History drawer (item 8): the session is an entry with
+  // the same diff and a pre-state restore.
+  await receipt.getByRole('button', { name: 'Full log' }).click();
+  const drawer = page.locator('[data-testid="history-drawer"]');
+  await expect(drawer).toBeVisible();
+  const entry = drawer.locator('[data-testid="history-session"]').first();
+  await expect(entry.locator('.snapshot-item-name')).toHaveText('Agent session — Agent session');
+  await entry.getByRole('button', { name: 'View diff' }).click();
+  await expect(entry.locator('.snapshot-item-diff')).toContainText('1 added · 0 removed · 0 modified');
+  await entry.getByRole('button', { name: 'Restore pre-state' }).click();
+  await entry.getByRole('button', { name: 'Confirm' }).click();
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Agent note' })).toHaveCount(0);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Spec' })).toHaveCount(1);
+  await expect(drawer).toHaveCount(0);
+
   await receipt.getByRole('button', { name: 'Dismiss receipt' }).click();
   await expect(receipt).toHaveCount(0);
+});
+
+test('minimap v2: true-scale rects from the store, selection mirrored, click jumps, hover magnifies', async ({
+  page,
+  request,
+}) => {
+  // rail-chrome-v2 phase 7, item 19.
+  const a = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Map A', content: 'a', x: 100, y: 100, width: 300, height: 200 },
+    })
+  ).json()) as { id: string };
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Map B', content: 'b', x: 2400, y: 1600, width: 300, height: 200 },
+  });
+  await request.post('/api/canvas/node', {
+    data: { type: 'group', title: 'Map group', x: 900, y: 900, width: 600, height: 400, children: [] },
+  });
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  await page.goto('/workbench');
+
+  const minimap = page.locator('[data-testid="minimap"]');
+  await expect(minimap).toBeVisible();
+  await expect(minimap.locator('.minimap-node')).toHaveCount(3);
+  await expect(minimap.locator('.minimap-node.is-group')).toHaveCount(1);
+  await expect(minimap.locator('.minimap-zoom')).toHaveText('100%');
+  const rest = await minimap.boundingBox();
+  expect(Math.round(rest!.width)).toBe(168);
+  expect(Math.round(rest!.height)).toBe(112);
+
+  // The map is true-scale: A (300×200 at 100,100) and B (same size) render the same size.
+  const rects = await minimap
+    .locator('.minimap-node:not(.is-group)')
+    .evaluateAll((els) =>
+      els.map((el) => ({ w: (el as HTMLElement).offsetWidth, h: (el as HTMLElement).offsetHeight })),
+    );
+  expect(Math.abs(rects[0]!.w - rects[1]!.w)).toBeLessThanOrEqual(1);
+  expect(Math.abs(rects[0]!.h - rects[1]!.h)).toBeLessThanOrEqual(1);
+
+  // Selection outlines mirror onto the map.
+  await page
+    .locator('.canvas-node')
+    .filter({ hasText: 'Map A' })
+    .click({ position: { x: 150, y: 120 }, modifiers: ['Shift'] });
+  await expect(minimap.locator('.minimap-node.is-selected')).toHaveCount(1);
+  expect(a.id).toBeTruthy();
+
+  // Clicking the far corner jumps the viewport toward B.
+  const before = await page.locator('.canvas-node').filter({ hasText: 'Map B' }).boundingBox();
+  await minimap.hover();
+  await expect.poll(async () => Math.round((await minimap.boundingBox())!.width)).toBeGreaterThan(260);
+  const box = await minimap.boundingBox();
+  await page.mouse.click(box!.x + box!.width - 8, box!.y + box!.height - 8);
+  await expect
+    .poll(async () => {
+      const after = await page.locator('.canvas-node').filter({ hasText: 'Map B' }).boundingBox();
+      return after && before ? after.x < before.x : false;
+    })
+    .toBe(true);
 });
 
 test('external steering: indicator + activity feed + writers sheet for session-less writers, gone once a session attaches', async ({
