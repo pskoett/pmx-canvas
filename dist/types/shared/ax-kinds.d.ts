@@ -6,4 +6,6 @@
 export type AxWorkItemStatus = 'todo' | 'in-progress' | 'blocked' | 'done' | 'cancelled';
 /** `held` = auto-held by the unattended-approval policy: the action did NOT proceed. */
 export type AxApprovalStatus = 'pending' | 'approved' | 'rejected' | 'held';
-export type AxEventKind = 'prompt' | 'assistant-message' | 'tool-start' | 'tool-result' | 'failure' | 'approval' | 'steering' | 'command' | 'note' | 'policy';
+export type AxEventKind = 'prompt' | 'assistant-message' | 'tool-start' | 'tool-result' | 'failure' | 'approval' | 'steering' | 'command' | 'note' | 'policy'
+/** A human took over a node the agent was editing; the agent yielded (rail-chrome-v2 item 6). */
+ | 'yield';

@@ -318,6 +318,7 @@ const AX_EVENT_KINDS = new Set<PmxAxEventKind>([
   'command',
   'note',
   'policy',
+  'yield',
 ]);
 
 // ── Activity ingestion (harness-forwarded tool/session events) ─────

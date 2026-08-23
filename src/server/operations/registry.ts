@@ -9,6 +9,7 @@
  */
 import { canvasState } from '../canvas-state.js';
 import { intentRegistry } from '../intent-registry.js';
+import { humanPresence } from '../human-presence.js';
 import { setMutationActor } from '../mutation-history.js';
 import { agentPresence, describeWrite } from '../agent-presence.js';
 import { checkScopeFence, checkScopeOwnership } from '../scope-fence.js';
@@ -219,6 +220,21 @@ function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 }
 
+/** The node an agent write targets, if a human currently holds it. */
+function heldByHuman(rawInput: unknown): { nodeId: string; name: string } | null {
+  const locked = humanPresence.lockedNodes();
+  if (locked.size === 0) return null;
+  const input = asRecord(rawInput);
+  const ids = [input.id, input.nodeId, input.groupId, input.from, input.to].filter(
+    (value): value is string => typeof value === 'string',
+  );
+  for (const id of ids) {
+    const name = locked.get(id);
+    if (name) return { nodeId: id, name };
+  }
+  return null;
+}
+
 /** The node an operation touched — the agent cursor glides there. */
 function touchedNodeId(rawInput: unknown, result: unknown): string | null {
   const input = asRecord(rawInput);
@@ -236,7 +252,13 @@ function touchedNodeId(rawInput: unknown, result: unknown): string | null {
  * would clobber it) and activity ingest (observeActivity already mapped it,
  * and re-touching after a `session-end` would resurrect the writer).
  */
-const PRESENCE_EXEMPT_OPS = new Set(['ax.presence.set', 'ax.presence.get', 'ax.activity.ingest']);
+const PRESENCE_EXEMPT_OPS = new Set([
+  'ax.presence.set',
+  'ax.presence.get',
+  'ax.activity.ingest',
+  'human.presence.set',
+  'human.presence.get',
+]);
 
 /** Layout mutations AND non-GET AX writes (work items, gates, evidence, steering) are agent activity. */
 function isPresenceWrite(op: Operation): boolean {
@@ -297,6 +319,17 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
         ? checkScopeOwnership(rawInput)
         : null;
     if (refusal) throw new OperationError(`Outside the agent scope: ${refusal}`, 403);
+    // User wins (item 6): a node a human is holding right now is not the
+    // agent's to change — refuse with 409 so the agent requeues the edit.
+    if (op.mutates) {
+      const held = heldByHuman(rawInput);
+      if (held) {
+        throw new OperationError(
+          `Node "${held.nodeId}" is being edited by ${held.name} right now — requeue this change and try again in a moment.`,
+          409,
+        );
+      }
+    }
   }
   const intentId = linkedIntentId(rawInput);
   const allowedKinds = intentId ? allowedIntentKinds(name, rawInput) : undefined;

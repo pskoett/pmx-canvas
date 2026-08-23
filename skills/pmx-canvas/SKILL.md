@@ -57,7 +57,10 @@ Humans curate agent context by pinning nodes; agents read that curation through
    also gets a session panel listing your work items, approval gates (Approve / Reject live
    there — a rejection reaches you as steering; an unanswered gate auto-holds after its TTL,
    which is also a "do not proceed") and the timeline. The human may also fence you to a
-   region: writes outside `policy.scope` come back as 403 — ask, don't retry. Report
+   region: writes outside `policy.scope` come back as 403 — ask, don't retry. A **409** on a
+   node write means a human is holding that node right now (dragging or editing): requeue the
+   change and retry in a moment; if you had signalled an intent on it, it was vetoed and a
+   `yield` event explains why. Report
    `phase: "thinking"` before a long reasoning stretch if your host gives you a hook for it;
    `tooling` is derived from your writes. Hosts with adapters (the Copilot extension) attach
    for you. Without an attached session the board stays a plain canvas: your writes still show

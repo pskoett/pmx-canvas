@@ -25,6 +25,7 @@ import {
   updateNode,
   updateNodeData,
   viewport,
+  canvasTool,
 } from '../state/canvas-store';
 import {
   addToGroupFromClient,
@@ -34,6 +35,7 @@ import {
   updateNodeFromClient,
 } from '../state/intent-bridge';
 import { KIND_COLOR } from './kind-colors';
+import { reportHumanGrab, takeOverNode, yieldedNodes } from '../state/human-store';
 import { AxStepControls } from '../nodes/AxStepControls';
 import { canOpenAsSite, openNodeAsSite } from '../nodes/surface-url';
 import { getNodeIcon } from '../icons';
@@ -159,6 +161,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const handleDragEnd = useCallback(() => {
     clearSnapCache();
     activeGuides.value = null;
+    reportHumanGrab(null);
     if (escListener.current) {
       document.removeEventListener('keydown', escListener.current);
       escListener.current = null;
@@ -212,10 +215,34 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   });
 
   // ── Title bar interactions ────────────────────────────
+  // Connect tool (item 15): a drag from anywhere on the node draws an edge.
+  const startEdgeDrag = useCallback(
+    (e: PointerEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      draggingEdge.value = {
+        fromId: node.id,
+        fromX: node.position.x + node.size.width / 2,
+        fromY: node.position.y + node.size.height / 2,
+        cursorX: node.position.x + node.size.width / 2,
+        cursorY: node.position.y + node.size.height / 2,
+        targetId: null,
+      };
+    },
+    [node.id, node.position.x, node.position.y, node.size.width, node.size.height],
+  );
+
   const handleTitlePointerDown = useCallback(
     (e: PointerEvent) => {
       if (renaming) return;
+      if (canvasTool.value === 'connect') {
+        startEdgeDrag(e);
+        return;
+      }
       bringToFront(node.id);
+      // User wins (phase 8): hold the node for the drag; an agent mid-edit yields.
+      reportHumanGrab(node.id);
+      takeOverNode(node.id, typeof node.data.title === 'string' && node.data.title ? node.data.title : node.type);
       buildSnapCache(node.id, nodes.value.values());
       if (node.type !== 'group') {
         const onKey = (ev: KeyboardEvent) => {
@@ -226,19 +253,23 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
       }
       startDrag(e, node.position.x, node.position.y);
     },
-    [node.id, node.type, node.position.x, node.position.y, startDrag, renaming],
+    [node.id, node.type, node.data.title, node.position.x, node.position.y, startDrag, renaming, startEdgeDrag],
   );
 
   const handlePointerDown = useCallback(
     (e: PointerEvent) => {
       e.stopPropagation();
+      if (canvasTool.value === 'connect') {
+        startEdgeDrag(e);
+        return;
+      }
       if (e.shiftKey) {
         toggleSelected(node.id);
         return;
       }
       bringToFront(node.id);
     },
-    [node.id],
+    [node.id, startEdgeDrag],
   );
 
   const handleContextMenuEvent = useCallback(
@@ -396,6 +427,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
   const dropTarget = dragDropTarget.value;
   const isDropTarget = isGroup && dropTarget?.groupId === node.id && dropTarget.mode === 'add';
   const isDropSource = isGroup && dropTarget?.groupId === node.id && dropTarget.mode === 'remove';
+  const isEdgeTarget = draggingEdge.value?.targetId === node.id;
   const groupKindDots = isGroup
     ? [
         ...new Set(
@@ -446,7 +478,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
 
   return (
     <div
-      class={`${nodeClass}${isDropTarget ? ' is-drop-target' : ''}${isDropSource ? ' is-drop-source' : ''}`}
+      class={`${nodeClass}${isDropTarget ? ' is-drop-target' : ''}${isDropSource ? ' is-drop-source' : ''}${isEdgeTarget ? ' is-edge-target' : ''}`}
       data-node-type={node.type}
       data-node-id={node.id}
       style={nodeStyle}
@@ -719,6 +751,12 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         (['tl', 'tr', 'bl', 'br'] as const).map((corner) => (
           <span key={corner} class={`node-selection-handle is-${corner}`} aria-hidden="true" />
         ))}
+      {yieldedNodes.value.has(node.id) && (
+        <span class="node-yield-pill" data-testid="yield-pill">
+          <span class="node-yield-dot" aria-hidden="true" />
+          {yieldedNodes.value.get(node.id)} took over — agent yielded
+        </span>
+      )}
       {/* Connection port handles — visible on hover, drag to connect. Groups
           are frames, not endpoints: no ports (and the edge row sits on the top
           edge where the port would be). */}

@@ -301,6 +301,23 @@ expiry. The browser's *Start agent session* button is this same endpoint
 (`source: "browser"`, `attached: true`) — subsequent transport writes are
 attributed to that session.
 
+## Human presence (collaborators)
+
+Every open workbench tab reports itself; the server fans the set out as
+`human-presence` SSE frames so tabs see each other's cursors. A node a human
+is holding (dragging) is an edit lock: an agent write targeting it is refused
+with **409** ("being edited by <name> — requeue") until the grab is released
+or goes stale (8 s without renewal). Human heartbeats never count as agent
+activity.
+
+```bash
+curl http://localhost:4313/api/canvas/human-presence
+# → { ok, humans: [{ clientId, name, cursor, grabbingNodeId, lastSeenAt }] }
+curl -X POST http://localhost:4313/api/canvas/human-presence \
+  -H "Content-Type: application/json" -H "x-pmx-workbench: 1" \
+  -d '{"clientId":"tab-1","name":"mia","cursor":{"x":320,"y":140},"grabbingNodeId":"<node-id>"}'
+```
+
 ## Scope fence (agent writes)
 
 The policy's `scope` limits what an attached agent may WRITE: existing-node

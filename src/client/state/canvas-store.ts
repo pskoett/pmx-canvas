@@ -64,6 +64,10 @@ export const draggingEdge = signal<{
   fromY: number;
   cursorX: number;
   cursorY: number;
+  /** Node under the cursor that would receive the edge on release (item 15). */
+  targetId?: string | null;
+  /** L was pressed during the drag: ask for a label on release. */
+  withLabel?: boolean;
 } | null>(null);
 
 // ── Spatial search highlight (command palette live results) ──
@@ -78,7 +82,8 @@ export const contextPinnedNodeIds = signal<Set<string>>(new Set());
 // ── Chrome tool state (rail) ─────────────────────────────────
 // 'select': background drag lassos, clicks select. 'pan': dragging anywhere
 // pans — the world layer goes pointer-inert so nodes cannot swallow the drag.
-export type CanvasTool = 'select' | 'pan';
+/** `connect` (rail-chrome-v2 item 15): drag from anywhere on a node to draw an edge. */
+export type CanvasTool = 'select' | 'pan' | 'connect';
 export const canvasTool = signal<CanvasTool>('select');
 /** Held-Space temporary pan — same semantics as the pan tool while held. */
 export const spacePanHeld = signal<boolean>(false);

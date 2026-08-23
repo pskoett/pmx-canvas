@@ -228,10 +228,24 @@ is a visible element on today's board that does not yet match the prototypes.
   gates/work-item list and the timeline; Esc closes overlays top-most first (already);
   reduced motion disables the new pulses, shimmer, glide, progress and panel transitions.
 
-### Phase 8 — Multi-client presence (needs sync infra that doesn't exist yet)
-- Human collaborator cursors (item 5), user-wins yield + requeue (item 6), edge-creation drag +
-  the rail's Connect tool (item 15). These need client-presence broadcast and edit-lock
-  semantics — scoped last deliberately.
+### Phase 8 — Multi-client presence — BUILT
+- **Sync infra (new, small):** `src/server/human-presence.ts` — an in-memory, TTL-swept registry
+  of open workbench tabs mirroring the agent one: each tab reports `{ clientId, name, cursor,
+  grabbingNodeId }` through `POST /api/canvas/human-presence` (throttled cursor, 3 s heartbeat,
+  `left` on pagehide via sendBeacon); the server fans one coalesced `human-presence` SSE frame
+  on every change. Heartbeats never count as agent activity.
+- **Human cursors (item 5):** `HumanPresenceLayer` is the second render style of the presence
+  layer — green arrow + name tag (" · editing" while holding a node), never a phase chip; shows
+  every OTHER tab, session or not. Names come from `?name=` / localStorage, else `guest-xxxx`.
+- **User wins (item 6):** a drag holds the node (`grabbingNodeId`); `executeOperation` refuses
+  an agent write to a held node with 409 ("being edited by mia — requeue") until release or the
+  8 s grab TTL; grabbing a node with a pending explicit agent intent vetoes it through the
+  normal veto path (steering), records a `yield` timeline event (new AX event kind) and shows
+  "<name> took over — agent yielded" on the node for a moment.
+- **Edge creation (item 15):** the rail's Connect (C) tool drags an edge from anywhere on a
+  node; during any edge drag the target lights up (ring + ports), a hint pill follows the
+  cursor ("release to connect · esc cancels · L labels"), Esc cancels, L asks for a label on
+  release. The preview curve now draws on a board with no edges yet (it did not).
 
 ### Phase 9 — Skills refresh (last; closes the redesign)
 Bring every skill in the repo up to date with everything the phases changed, so an agent

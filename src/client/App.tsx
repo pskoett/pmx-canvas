@@ -200,6 +200,9 @@ export function App() {
         const key = e.key.toLowerCase();
         if (key === 'v' && !e.shiftKey) {
           canvasTool.value = 'select';
+        } else if (key === 'c' && !e.shiftKey && !mod) {
+          e.preventDefault();
+          canvasTool.value = canvasTool.value === 'connect' ? 'select' : 'connect';
         } else if (key === 'm' && !e.shiftKey) {
           e.preventDefault();
           void createNodeFromClient({ type: 'markdown', title: 'New note', width: 520, height: 360 }).catch((error) =>

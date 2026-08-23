@@ -135,6 +135,15 @@ export function describeWrite(
       return { summary: 'Attached evidence', nodeId };
     case 'ax.steer':
       return { summary: 'Posted steering', nodeId: null };
+    case 'intent.signal':
+      return {
+        summary: `Proposed ${quote(str(input.label) || null, 'a change')}${str(input.kind) ? ` (${str(input.kind)})` : ''}`,
+        nodeId,
+      };
+    case 'intent.update':
+      return { summary: 'Updated a proposal', nodeId };
+    case 'intent.clear':
+      return { summary: 'Withdrew a proposal', nodeId };
     case 'ax.focus.set':
       return { summary: 'Set the AX focus', nodeId: null };
     case 'ax.policy.set':

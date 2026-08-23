@@ -75,6 +75,7 @@ import {
 import { dispatchOperationRoute, setOperationEventEmitter } from './operations/index.js';
 import { intentRegistry } from './intent-registry.js';
 import { agentPresence } from './agent-presence.js';
+import { humanPresence } from './human-presence.js';
 import { startGateTtlSweeper, stopGateTtlSweeper } from './ax-gate-ttl.js';
 import { setWebviewRunner } from './operations/webview-runner.js';
 import { closeNodeAppSession, nodeAppSessionId } from './operations/ops/nodes.js';
@@ -118,6 +119,9 @@ intentRegistry.setEmitter((event, payload) => {
 // frames the same way — including TTL-expiry sweeps, so clients never run
 // their own expiry ticker.
 agentPresence.setEmitter((event, payload) => {
+  emitPrimaryWorkbenchEvent(event, payload);
+});
+humanPresence.setEmitter((event, payload) => {
   emitPrimaryWorkbenchEvent(event, payload);
 });
 
@@ -3320,6 +3324,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 export function stopCanvasServer(): void {
   stopGateTtlSweeper();
   agentPresence.reset();
+  humanPresence.reset();
   intentRegistry.reset();
   canvasState.close();
   closeAllMcpAppSessions();

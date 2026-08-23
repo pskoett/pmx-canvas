@@ -29,11 +29,16 @@ export declare const draggingEdge: import("@preact/signals-core").Signal<{
     fromY: number;
     cursorX: number;
     cursorY: number;
+    /** Node under the cursor that would receive the edge on release (item 15). */
+    targetId?: string | null;
+    /** L was pressed during the drag: ask for a label on release. */
+    withLabel?: boolean;
 } | null>;
 export declare const searchHighlightIds: import("@preact/signals-core").Signal<Set<string> | null>;
 export declare const selectedNodeIds: import("@preact/signals-core").Signal<Set<string>>;
 export declare const contextPinnedNodeIds: import("@preact/signals-core").Signal<Set<string>>;
-export type CanvasTool = 'select' | 'pan';
+/** `connect` (rail-chrome-v2 item 15): drag from anywhere on a node to draw an edge. */
+export type CanvasTool = 'select' | 'pan' | 'connect';
 export declare const canvasTool: import("@preact/signals-core").Signal<CanvasTool>;
 /** Held-Space temporary pan — same semantics as the pan tool while held. */
 export declare const spacePanHeld: import("@preact/signals-core").Signal<boolean>;

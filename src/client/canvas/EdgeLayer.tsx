@@ -204,10 +204,12 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
   const hasSearch = searchSet !== null;
   const scale = edgeChromeScale(viewport.value.scale);
 
-  if (edgeList.length === 0) return null;
+  // A drag-to-connect preview must draw on a board with no edges yet.
+  if (edgeList.length === 0 && !draggingEdge.value) return null;
 
   const PAD = 96;
   const worldNodes = Array.from(nodeMap.values());
+  if (worldNodes.length === 0) return null;
   const minX = Math.min(...worldNodes.map((node) => node.position.x)) - PAD;
   const minY = Math.min(...worldNodes.map((node) => node.position.y)) - PAD;
   const maxX = Math.max(...worldNodes.map((node) => node.position.x + node.size.width)) + PAD;

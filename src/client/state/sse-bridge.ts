@@ -27,8 +27,10 @@ import {
   reconnectAttempt,
   reconnectDelay,
 } from './canvas-store';
-import { fetchAgentPresence, fetchAxSurfaceState, reportClientViewportSize } from './intent-bridge';
+import { fetchAgentPresence, fetchAxSurfaceState, reportClientViewportSize, requestJson } from './intent-bridge';
 import { agentActivity, applyPresenceSnapshot, sessionActive } from './presence-store';
+import { applyHumanSnapshot, startHumanPresence } from './human-store';
+import type { HumanPresenceSnapshot } from '../../shared/human-presence.js';
 import { applySessionReceipt, refreshTimeline } from './session-store';
 import { initSessionThemeOverride, themeOverrideActive } from './theme-override';
 import { DEFAULT_POSITIONS, makeNodeState } from './node-factory';
@@ -434,6 +436,12 @@ function handleAgentSessionEnded(data: Record<string, unknown>): void {
   applySessionReceipt(data);
 }
 
+let stopHumanPresence: (() => void) | null = null;
+
+function handleHumanPresence(data: Record<string, unknown>): void {
+  applyHumanSnapshot(data as Partial<HumanPresenceSnapshot>);
+}
+
 function handleConnected(data: Record<string, unknown>): void {
   sessionId.value = (data.sessionId as string) || '';
   connectionStatus.value = 'connected';
@@ -446,6 +454,14 @@ function handleConnected(data: Record<string, unknown>): void {
   // Agent presence: read the snapshot on (re)connect; `agent-presence` frames
   // keep it live from here on.
   void fetchAgentPresence().then(applyPresenceSnapshot);
+  // Human collaborators (phase 8): announce this tab and read who else is here.
+  stopHumanPresence?.();
+  stopHumanPresence = startHumanPresence();
+  void requestJson<Partial<HumanPresenceSnapshot> | null>(
+    'fetchHumanPresence',
+    '/api/canvas/human-presence',
+    null,
+  ).then(applyHumanSnapshot);
   // The AX surface snapshot (work items, gates) likewise — it used to arrive
   // only on the first ax-state-changed, so a fresh load showed an empty
   // session panel while persisted work items existed.
@@ -1039,6 +1055,7 @@ export const EVENT_HANDLERS: Record<string, (data: Record<string, unknown>) => v
   'ax-intent': handleAxIntent,
   'ax-intent-clear': handleAxIntentClear,
   'agent-presence': handleAgentPresence,
+  'human-presence': handleHumanPresence,
   'agent-session-ended': handleAgentSessionEnded,
 };
 

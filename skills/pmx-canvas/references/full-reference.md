@@ -1120,6 +1120,10 @@ nodes.
   snapshot }` — which the browser shows as a receipt with *View diff* (the session's own
   changes) and a restore path. End your session explicitly so the receipt is prompt. The
   human's *Start agent session* button is the same attach with `source: "browser"`.
+- **Human collaborators / user wins:** every open workbench tab is a presence (`GET
+  /api/canvas/human-presence`); a node a human is dragging is locked — an agent write to it is
+  refused with 409 until release (requeue and retry), and a pending explicit intent on it is
+  vetoed with a `yield` timeline event.
 - **Unattended approvals:** a pending approval gate carries a TTL (`ttlMs` on the request,
   default 5 min). If the human does not answer in time it resolves to `held` — a
   non-approval: do not proceed — and a `policy` agent-event explains why. The human can

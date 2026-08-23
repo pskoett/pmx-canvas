@@ -133,6 +133,7 @@ const EVENT_LABELS: Record<AxEventKind, string> = {
   command: 'Command',
   note: 'Note',
   policy: 'Policy',
+  yield: 'Yield',
 };
 
 /**

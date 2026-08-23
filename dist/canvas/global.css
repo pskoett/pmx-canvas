@@ -2212,6 +2212,9 @@ body,
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .human-cursor {
+    transition: none;
+  }
   .connection-banner-progress-fill,
   .connection-dot,
   .external-indicator-dot,
@@ -2229,6 +2232,99 @@ body,
     animation: none;
     transition: none;
   }
+}
+
+/* ── Edge creation (rail-chrome-v2 item 15) ───────────────────── */
+.canvas-node.is-edge-target {
+  box-shadow: 0 0 0 2px var(--c-accent), 0 0 0 6px color-mix(in srgb, var(--c-accent) 18%, transparent);
+}
+.canvas-node.is-edge-target .node-port {
+  opacity: 1;
+  background: var(--c-accent);
+}
+.edge-hint-pill {
+  position: absolute;
+  z-index: 10000;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--c-panel) 96%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c-accent) 40%, transparent);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.edge-hint-main {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--c-accent);
+}
+.edge-hint-keys {
+  font: 9px var(--mono);
+  color: var(--c-dim);
+}
+
+/* ── Human collaborator presence (rail-chrome-v2 phase 8) ─────── */
+.human-presence-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  pointer-events: none;
+  z-index: 69;
+}
+.human-cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  color: var(--c-ok);
+  transition: transform 120ms linear;
+}
+.human-cursor-inner {
+  transform-origin: top left;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+.human-cursor-tag {
+  margin-left: 11px;
+  margin-top: -2px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--c-ok) 92%, transparent);
+  color: var(--c-bg);
+  font-size: 10px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.human-cursor.is-grabbing .human-cursor-tag::after {
+  content: ' · editing';
+  font-weight: 500;
+  opacity: 0.8;
+}
+.node-yield-pill {
+  /* Inside the card (paint containment clips anything outside it). */
+  position: absolute;
+  left: 10px;
+  bottom: 8px;
+  z-index: 5;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: var(--c-panel-soft);
+  border: 1px solid color-mix(in srgb, var(--c-warn) 40%, transparent);
+  color: var(--c-warn);
+  font-size: 9.5px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.node-yield-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--c-warn);
 }
 
 /* Quiet-board affordance in the top bar */

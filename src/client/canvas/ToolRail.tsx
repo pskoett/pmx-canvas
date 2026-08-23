@@ -201,6 +201,22 @@ export function ToolRail({
       <RailButton label="Pan (Space)" active={tool === 'pan'} onClick={() => (canvasTool.value = 'pan')}>
         <IconHandTool />
       </RailButton>
+      <RailButton label="Connect (C)" active={tool === 'connect'} onClick={() => (canvasTool.value = 'connect')}>
+        <svg
+          width="15"
+          height="15"
+          viewBox="0 0 16 16"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="1.5"
+          stroke-linecap="round"
+          aria-hidden="true"
+        >
+          <circle cx="4" cy="4" r="2" />
+          <circle cx="12" cy="12" r="2" />
+          <path d="M5.5 5.5 C 8 8, 8 8, 10.5 10.5" />
+        </svg>
+      </RailButton>
 
       <div class="rail-divider" />
 

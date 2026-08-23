@@ -18,4 +18,6 @@ export type AxEventKind =
   | 'steering'
   | 'command'
   | 'note'
-  | 'policy';
+  | 'policy'
+  /** A human took over a node the agent was editing; the agent yielded (rail-chrome-v2 item 6). */
+  | 'yield';

@@ -55,6 +55,7 @@ const TIMELINE_TONE: Record<TimelineEntryKind, string> = {
   evidence: 'ok',
   steer: 'purple',
   update: 'purple',
+  yield: 'warn',
 };
 
 function clock(iso: string): string {

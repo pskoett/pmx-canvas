@@ -32,6 +32,7 @@ import {
   isPanModeActive,
   dragDropTarget,
   hiddenByCollapsedGroup,
+  canvasTool,
 } from '../state/canvas-store';
 import { createEdgeFromClient, createNodeFromClient } from '../state/intent-bridge';
 import type { AnnotationTool, CanvasAnnotation, CanvasNodeState } from '../types';
@@ -39,6 +40,8 @@ import { FocusFieldLayer } from './FocusFieldLayer';
 import { importFiles } from './import-files';
 import { IntentLayer } from './IntentLayer';
 import { AgentPresenceLayer } from './AgentPresenceLayer';
+import { HumanPresenceLayer } from './HumanPresenceLayer';
+import { reportHumanCursor } from '../state/human-store';
 import { ScopeFenceLayer } from './ScopeFenceLayer';
 import { CanvasNode } from './CanvasNode';
 import { EdgeLayer } from './EdgeLayer';
@@ -403,6 +406,18 @@ export function CanvasViewport({
 
   const handlePointerMove = useCallback(
     (e: PointerEvent) => {
+      // Human presence (phase 8): other tabs see this pointer in world space.
+      {
+        const container = containerRef.current;
+        if (container) {
+          const rect = container.getBoundingClientRect();
+          const vp = viewport.value;
+          reportHumanCursor({
+            x: (e.clientX - rect.left - vp.x) / vp.scale,
+            y: (e.clientY - rect.top - vp.y) / vp.scale,
+          });
+        }
+      }
       if (isAnnotating.current) {
         const container = containerRef.current;
         if (!container) return;
@@ -521,53 +536,69 @@ export function CanvasViewport({
     if (annotationTool !== 'text' && textDraft) setTextDraft(null);
   }, [annotationTool, setTextDraft, textDraft]);
 
-  // ── Drag-to-connect: track cursor in world space, hit-test on drop ──
+  // ── Drag-to-connect (item 15): the target lights up under the cursor,
+  // Esc cancels, L asks for a label on release. ──
   useEffect(() => {
-    function handleMove(e: PointerEvent) {
-      if (!draggingEdge.value) return;
-      const container = containerRef.current;
-      if (!container) return;
-      const rect = container.getBoundingClientRect();
-      const v = viewport.value;
-      draggingEdge.value = {
-        ...draggingEdge.value,
-        cursorX: (e.clientX - rect.left - v.x) / v.scale,
-        cursorY: (e.clientY - rect.top - v.y) / v.scale,
-      };
-    }
-
-    function handleUp(e: PointerEvent) {
-      const drag = draggingEdge.value;
-      if (!drag) return;
-      draggingEdge.value = null;
-
-      // Hit-test: find node under cursor
-      const container = containerRef.current;
-      if (!container) return;
-      const rect = container.getBoundingClientRect();
-      const v = viewport.value;
-      const wx = (e.clientX - rect.left - v.x) / v.scale;
-      const wy = (e.clientY - rect.top - v.y) / v.scale;
-
+    const nodeAt = (wx: number, wy: number, exceptId: string): string | null => {
+      let hit: string | null = null;
       for (const node of nodes.value.values()) {
-        if (node.id === drag.fromId) continue;
+        if (node.id === exceptId || node.type === 'group') continue;
         if (
           wx >= node.position.x &&
           wx <= node.position.x + node.size.width &&
           wy >= node.position.y &&
           wy <= node.position.y + node.size.height
         ) {
-          createEdgeFromClient(drag.fromId, node.id, 'relation');
-          return;
+          hit = node.id;
         }
+      }
+      return hit;
+    };
+
+    function handleMove(e: PointerEvent) {
+      if (!draggingEdge.value) return;
+      const container = containerRef.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      const v = viewport.value;
+      const cursorX = (e.clientX - rect.left - v.x) / v.scale;
+      const cursorY = (e.clientY - rect.top - v.y) / v.scale;
+      draggingEdge.value = {
+        ...draggingEdge.value,
+        cursorX,
+        cursorY,
+        targetId: nodeAt(cursorX, cursorY, draggingEdge.value.fromId),
+      };
+    }
+
+    function handleUp() {
+      const drag = draggingEdge.value;
+      if (!drag) return;
+      draggingEdge.value = null;
+      if (!drag.targetId) return;
+      const label = drag.withLabel ? window.prompt('Edge label', '')?.trim() || undefined : undefined;
+      createEdgeFromClient(drag.fromId, drag.targetId, 'relation', label);
+    }
+
+    function handleKey(e: KeyboardEvent) {
+      const drag = draggingEdge.value;
+      if (!drag) return;
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        draggingEdge.value = null;
+      } else if (e.key === 'l' || e.key === 'L') {
+        e.preventDefault();
+        draggingEdge.value = { ...drag, withLabel: !drag.withLabel };
       }
     }
 
     document.addEventListener('pointermove', handleMove);
     document.addEventListener('pointerup', handleUp);
+    document.addEventListener('keydown', handleKey);
     return () => {
       document.removeEventListener('pointermove', handleMove);
       document.removeEventListener('pointerup', handleUp);
+      document.removeEventListener('keydown', handleKey);
     };
   }, [containerRef]);
 
@@ -729,6 +760,7 @@ export function CanvasViewport({
       tabIndex={0}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
+      onPointerLeave={() => reportHumanCursor(null)}
       onPointerUp={handlePointerUp}
       onContextMenu={handleContextMenu}
       onDblClick={handleDblClick}
@@ -746,7 +778,7 @@ export function CanvasViewport({
             ? 'cell'
             : annotationTool === 'text'
               ? 'text'
-              : annotationMode || draggingEdge.value || isLassoing.current
+              : annotationMode || draggingEdge.value || isLassoing.current || canvasTool.value === 'connect'
                 ? 'crosshair'
                 : isPanModeActive()
                   ? 'grab'
@@ -771,7 +803,22 @@ export function CanvasViewport({
         <ScopeFenceLayer />
         <IntentLayer />
         <AgentPresenceLayer />
+        <HumanPresenceLayer />
         <EdgeLayer nodes={nodes} edges={edges} />
+        {draggingEdge.value && (
+          <div
+            class="edge-hint-pill"
+            data-testid="edge-hint"
+            style={{ left: `${draggingEdge.value.cursorX + 14}px`, top: `${draggingEdge.value.cursorY + 14}px` }}
+          >
+            <span class="edge-hint-main">
+              {draggingEdge.value.targetId ? 'release to connect' : 'drag onto a node'}
+            </span>
+            <span class="edge-hint-keys">
+              esc cancels · L labels{draggingEdge.value.withLabel ? ' · label on' : ''}
+            </span>
+          </div>
+        )}
         {dropTarget && dropTargetGroup && draggedNode && (
           <div
             class="drop-pill"

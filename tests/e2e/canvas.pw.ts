@@ -3927,6 +3927,131 @@ test('keyboard: arrow keys traverse nodes spatially, Enter opens, overlays trap 
   await expect(c).toBeFocused();
 });
 
+test('human presence: two tabs see each other’s cursors, a grab locks the node for agents and yields an agent intent', async ({
+  browser,
+  request,
+}) => {
+  // rail-chrome-v2 phase 8, items 5 and 6.
+  const node = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Shared note', content: 'x', x: 200, y: 160, width: 300, height: 160 },
+    })
+  ).json()) as { id: string };
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+
+  const mia = await browser.newContext();
+  const sam = await browser.newContext();
+  const miaPage = await mia.newPage();
+  const samPage = await sam.newPage();
+  await miaPage.goto('/workbench?name=mia');
+  await samPage.goto('/workbench?name=sam');
+  await expect(miaPage.locator('.canvas-node').filter({ hasText: 'Shared note' })).toHaveCount(1);
+  await expect(samPage.locator('.canvas-node').filter({ hasText: 'Shared note' })).toHaveCount(1);
+
+  // mia moves her pointer: sam sees a green cursor tagged "mia" (never his own).
+  const region = await miaPage.locator('.canvas-region').boundingBox();
+  await miaPage.mouse.move(region!.x + 600, region!.y + 500);
+  await miaPage.mouse.move(region!.x + 620, region!.y + 520);
+  const miaCursor = samPage.locator('.human-cursor').filter({ hasText: 'mia' });
+  await expect(miaCursor).toHaveCount(1);
+  await expect(samPage.locator('.human-cursor').filter({ hasText: 'sam' })).toHaveCount(0);
+  await expect(miaPage.locator('.human-cursor').filter({ hasText: 'mia' })).toHaveCount(0);
+
+  // An agent signals an edit on the note; mia grabs it mid-edit → the agent
+  // yields (intent vetoed, Yield in the timeline) and the node wears the pill.
+  await request.post('/api/canvas/ax/activity', {
+    data: { kind: 'session-start', title: 'Claude', source: 'copilot' },
+  });
+  await request.post('/api/canvas/ax/intent', {
+    data: { id: 'e2e-yield', kind: 'edit', nodeId: node.id, label: 'Rewrite the note', ttlMs: 30000 },
+  });
+  await expect(miaPage.locator('.intent-ghost, .ghost-intent, [data-intent-id="e2e-yield"]').first()).toBeVisible();
+  const bar = await miaPage
+    .locator('.canvas-node')
+    .filter({ hasText: 'Shared note' })
+    .locator('.node-titlebar')
+    .boundingBox();
+  await miaPage.mouse.move(bar!.x + bar!.width / 2, bar!.y + bar!.height / 2);
+  await miaPage.mouse.down();
+  await miaPage.mouse.move(bar!.x + bar!.width / 2 + 30, bar!.y + bar!.height / 2 + 10, { steps: 4 });
+  await expect(miaPage.locator('[data-testid="yield-pill"]')).toHaveText('mia took over — agent yielded');
+
+  // While she holds it, an agent write to that node is refused (409); others pass.
+  const blocked = await request.patch(`/api/canvas/node/${node.id}`, { data: { title: 'Agent retitle' } });
+  expect(blocked.status()).toBe(409);
+  await miaPage.mouse.up();
+  await expect
+    .poll(async () =>
+      (await request.patch(`/api/canvas/node/${node.id}`, { data: { title: 'Agent retitle' } })).status(),
+    )
+    .toBe(200);
+  await expect
+    .poll(async () => {
+      const body = (await (await request.get('/api/canvas/ax/timeline?limit=20')).json()) as {
+        events: Array<{ kind: string; summary: string }>;
+        steering: Array<{ message: string }>;
+      };
+      return (
+        body.events.some((event) => event.kind === 'yield' && event.summary.includes('mia grabbed')) &&
+        body.steering.some((steer) => steer.message.includes('took over'))
+      );
+    })
+    .toBe(true);
+  // The vetoed intent is gone from every tab (the server cleared it).
+  await expect(samPage.locator('[data-intent-id="e2e-yield"]')).toHaveCount(0);
+
+  await request.post('/api/canvas/ax/activity', { data: { kind: 'session-end', title: 'done', source: 'copilot' } });
+  await mia.close();
+  await sam.close();
+});
+
+test('edge creation: Connect tool drags an edge from a node body, the target lights up, L labels it, Esc cancels', async ({
+  page,
+  request,
+}) => {
+  // rail-chrome-v2 item 15.
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Edge A', content: 'a', x: 120, y: 120, width: 260, height: 140 },
+  });
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'Edge B', content: 'b', x: 620, y: 140, width: 260, height: 140 },
+  });
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
+  await page.goto('/workbench');
+  await page.getByRole('button', { name: 'Connect (C)' }).click();
+  const a = page.locator('.canvas-node').filter({ hasText: 'Edge A' });
+  const b = page.locator('.canvas-node').filter({ hasText: 'Edge B' });
+  const aBox = await a.boundingBox();
+  const bBox = await b.boundingBox();
+  await page.mouse.move(aBox!.x + 120, aBox!.y + 90);
+  await page.mouse.down();
+  await page.mouse.move(aBox!.x + 300, aBox!.y + 100, { steps: 6 });
+  await expect(page.locator('[data-testid="edge-hint"]')).toContainText('drag onto a node');
+  await page.mouse.move(bBox!.x + 120, bBox!.y + 90, { steps: 6 });
+  await expect(page.locator('[data-testid="edge-hint"]')).toContainText('release to connect');
+  await expect(b).toHaveClass(/is-edge-target/);
+  // Esc cancels — nothing is created.
+  await page.keyboard.press('Escape');
+  await page.mouse.up();
+  expect(((await (await request.get('/api/canvas/state')).json()) as { edges: unknown[] }).edges).toHaveLength(0);
+
+  // Again, with L: the label prompt fills the edge label.
+  page.once('dialog', (dialog) => void dialog.accept('depends'));
+  await page.mouse.move(aBox!.x + 120, aBox!.y + 90);
+  await page.mouse.down();
+  await page.mouse.move(bBox!.x + 120, bBox!.y + 90, { steps: 6 });
+  await page.keyboard.press('l');
+  await expect(page.locator('[data-testid="edge-hint"]')).toContainText('label on');
+  await page.mouse.up();
+  await expect
+    .poll(async () => {
+      const state = (await (await request.get('/api/canvas/state')).json()) as { edges: Array<{ label?: string }> };
+      return state.edges.map((edge) => edge.label ?? '').join(',');
+    })
+    .toBe('depends');
+  await page.keyboard.press('v');
+});
+
 test('groups v2: membership only on release with the pill, esc keeps it out, collapse to a chip, header actions, G / Shift+G', async ({
   page,
   request,
