@@ -447,6 +447,46 @@ test('creates a markdown note from the canvas background', async ({ page, reques
     .toBe(1);
 });
 
+test('rail and keyboard creates land in the current viewport, not at the board origin', async ({ page, request }) => {
+  // A busy board whose free space is far from where the human is looking: the
+  // server's auto-placement would put the new node off-screen.
+  for (let i = 0; i < 6; i++) {
+    await request.post('/api/canvas/node', {
+      data: {
+        type: 'markdown',
+        title: `Filler ${i}`,
+        content: 'f',
+        x: (i % 3) * 420,
+        y: Math.floor(i / 3) * 300,
+        width: 380,
+        height: 260,
+      },
+    });
+  }
+  // Pan the human far away from the filler.
+  await request.post('/api/canvas/viewport', { data: { x: -4000, y: -3000, scale: 0.8 } });
+  await page.goto('/workbench');
+  await expect(page.locator('.canvas-node')).toHaveCount(6);
+
+  const inRegion = async (title: string) => {
+    const card = page.locator('.canvas-node').filter({ hasText: title }).first();
+    await expect(card).toHaveCount(1);
+    const box = (await card.boundingBox())!;
+    const region = (await page.locator('.canvas-region').boundingBox())!;
+    return (
+      box.x >= region.x &&
+      box.y >= region.y &&
+      box.x + box.width <= region.x + region.width &&
+      box.y + box.height <= region.y + region.height
+    );
+  };
+
+  await page.getByRole('button', { name: 'Group (G)' }).click();
+  expect(await inRegion('Group')).toBe(true);
+  await page.keyboard.press('m');
+  expect(await inRegion('New note')).toBe(true);
+});
+
 test('#J: the empty state yields to a live ghost intent so the cursor is visible on an empty board', async ({
   page,
   request,
@@ -4150,7 +4190,8 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
   await chip.getByRole('button', { name: /Expand group/ }).click();
   await expect(page.locator('.canvas-node').filter({ hasText: 'Loose note' })).toHaveCount(1);
 
-  // Shift+G ungroups the selection's group; the ⋯ menu pins all children.
+  // The ⋯ menu pins all children; Shift+G dissolves the selection's group —
+  // the frame goes, the children stay, and one Ctrl+Z brings the frame back.
   await made.getByRole('button', { name: 'Group menu' }).click();
   await made.getByRole('menuitem', { name: 'Pin all to context' }).click();
   await expect(page.locator('.context-pin-bar')).toContainText('2 nodes in context');
@@ -4159,7 +4200,25 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
     .filter({ hasText: 'Loose note' })
     .click({ position: { x: 80, y: 80 }, modifiers: ['Shift'] });
   await page.keyboard.press('Shift+G');
-  await expect(made.locator('.group-count')).toHaveText('0');
+  await expect(made).toHaveCount(0);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Loose note' })).toHaveCount(1);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Second note' })).toHaveCount(1);
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(made.locator('.group-count')).toHaveText('2');
+
+  // Delete removes the selection from the keyboard; Backspace does the same for the focused node.
+  await page
+    .locator('.canvas-node')
+    .filter({ hasText: 'Second note' })
+    .click({ position: { x: 80, y: 80 }, modifiers: ['Shift'] });
+  await page.keyboard.press('Delete');
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Second note' })).toHaveCount(0);
+  await page
+    .locator('.canvas-node')
+    .filter({ hasText: 'Loose note' })
+    .click({ position: { x: 80, y: 80 } });
+  await page.keyboard.press('Backspace');
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Loose note' })).toHaveCount(0);
 });
 
 test('minimap v2: true-scale rects from the store, selection mirrored, click jumps, hover magnifies', async ({

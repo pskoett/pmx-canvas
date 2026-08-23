@@ -31,7 +31,8 @@ import {
   nodes,
   traceEnabled,
 } from '../state/canvas-store';
-import { createNodeFromClient, saveCanvasTheme } from '../state/intent-bridge';
+import { saveCanvasTheme } from '../state/intent-bridge';
+import { createNodeInView } from './create-in-view';
 import { clearThemeOverride } from '../state/theme-override';
 import { invalidateTokenCache } from '../theme/tokens';
 import type { AnnotationTool } from '../types';
@@ -57,9 +58,7 @@ export function promptedCreate(kind: 'image' | 'file' | 'webpage'): void {
   };
   const value = window.prompt(ask[kind].message, '');
   if (!value || !value.trim()) return;
-  void createNodeFromClient({ type: kind, content: value.trim() }).catch((error) =>
-    logRailError(`create ${kind}`, error),
-  );
+  void createNodeInView({ type: kind, content: value.trim() }).catch((error) => logRailError(`create ${kind}`, error));
 }
 
 function RailButton({
@@ -223,7 +222,7 @@ export function ToolRail({
       <RailButton
         label="Markdown note (M)"
         onClick={() =>
-          void createNodeFromClient({ type: 'markdown', title: 'New note', width: 520, height: 360 }).catch((error) =>
+          void createNodeInView({ type: 'markdown', title: 'New note', width: 520, height: 360 }).catch((error) =>
             logRailError('create markdown', error),
           )
         }
@@ -242,7 +241,7 @@ export function ToolRail({
       <RailButton
         label="HTML surface (H)"
         onClick={() =>
-          void createNodeFromClient({ type: 'html', title: 'HTML surface' }).catch((error) =>
+          void createNodeInView({ type: 'html', title: 'HTML surface' }).catch((error) =>
             logRailError('create html', error),
           )
         }
@@ -252,9 +251,7 @@ export function ToolRail({
       <RailButton
         label="Group (G)"
         onClick={() =>
-          void createNodeFromClient({ type: 'group', title: 'Group' }).catch((error) =>
-            logRailError('create group', error),
-          )
+          void createNodeInView({ type: 'group', title: 'Group' }).catch((error) => logRailError('create group', error))
         }
       >
         <IconNodeGroup size={15} />

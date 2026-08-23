@@ -7,6 +7,7 @@ import {
   selectNodes,
   selectedNodeIds,
 } from '../../src/client/state/canvas-store.ts';
+import { applyPresenceSnapshot } from '../../src/client/state/presence-store.ts';
 
 // Pinning fires a best-effort (caught) sync to the server; stub fetch so
 // happy-dom's relative-URL rejection doesn't spam the test output.
@@ -22,6 +23,8 @@ afterAll(() => {
 beforeEach(() => {
   selectedNodeIds.value = new Set();
   contextPinnedNodeIds.value = new Set();
+  // Quiet board: another test file may have left a session attached.
+  applyPresenceSnapshot({ presences: [] });
 });
 
 afterEach(cleanup);
@@ -103,5 +106,26 @@ describe('SelectionBar', () => {
     expect(Array.from(contextPinnedNodeIds.value).sort()).toEqual(['n1', 'n2']);
     expect(selectedNodeIds.value.size).toBe(0);
     expect(container.innerHTML).toBe('');
+  });
+
+  // The quiet board's pin bar shares the bottom-center slot; with pins on the
+  // board the bar must sit above it or the pin bar swallows its clicks.
+  test('sits above the pin bar while the quiet board has context pins', () => {
+    act(() => {
+      selectNodes(['n1', 'n2']);
+    });
+    const { container } = render(<SelectionBar />);
+    const bar = () => container.querySelector('.selection-bar')!;
+    expect(bar().classList.contains('is-above-pin-bar')).toBe(false);
+
+    act(() => {
+      contextPinnedNodeIds.value = new Set(['n3']);
+    });
+    expect(bar().classList.contains('is-above-pin-bar')).toBe(true);
+
+    act(() => {
+      contextPinnedNodeIds.value = new Set();
+    });
+    expect(bar().classList.contains('is-above-pin-bar')).toBe(false);
   });
 });

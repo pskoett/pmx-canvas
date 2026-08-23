@@ -95,6 +95,13 @@ export const CONTEXT_BUDGET_DEFAULT_TOKENS = 32_000;
  */
 export const TRANSPORT_SOURCES: readonly string[] = ['api', 'mcp', 'sdk', 'cli'];
 
+/**
+ * The label a human-started session (*Start agent session* in the browser)
+ * carries until an agent writes into it — the session is a placeholder for
+ * whichever agent comes next, so the first identified writer names it.
+ */
+export const HUMAN_STARTED_SESSION_LABEL = 'Agent session';
+
 /** The one selector every agent surface reads. */
 export function isSessionActive(presences: readonly AgentPresence[]): boolean {
   return presences.some((presence) => presence.attached);

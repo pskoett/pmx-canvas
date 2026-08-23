@@ -272,8 +272,11 @@ is a token estimate (chars ÷ 4) of the `pinned-context` payload against
 would cost the agent, not the agent's live window; the top bar labels it
 **Pins**. A host that knows the agent's real usage reports it on the presence
 (`contextUsage: { used, total }` on `POST /api/canvas/ax/presence` /
-`set-presence`); the top bar then shows **Context** with those numbers. No
-bundled adapter reports it yet.
+`set-presence`); the top bar then shows **Context** with those numbers. The
+bundled Copilot extension reports it from the SDK's `session.usage_info`
+event (root agent, coalesced to one report per 500 ms); the legacy
+`context-usage` workbench event feeds the single attached session the same
+way.
 
 ```bash
 curl -X POST http://localhost:4313/api/canvas/ax/presence \
@@ -290,7 +293,11 @@ the touched node, its phase reads `tooling`, and no second writer appears.
 This is what lets a Copilot/Codex/Claude Code session that writes through MCP
 keep one cursor. Pass `agentId` (sub-agents) or a host label to keep a writer
 separate; with several sessions attached, transport writes stay on their own
-label.
+label. A session the human started (*Start agent session*, `source: "browser"`)
+is a placeholder for whichever agent comes next: it absorbs agent-less writes
+under *any* label — a host label included — and takes that agent's name. If
+exactly one such writer is already on the board when the human starts the
+session, it is adopted on the spot.
 
 **Session lifecycle: pre-session snapshot and receipt.** When a session
 attaches (`attached: true`, or `session-start` on the activity feed) over a
@@ -311,8 +318,8 @@ diff* is `GET /api/canvas/snapshots/<id>/diff` against that snapshot, and
 restoring the snapshot undoes the session. Adapters should end their session
 explicitly so the human gets the receipt promptly rather than after the idle
 expiry. The browser's *Start agent session* button is this same endpoint
-(`source: "browser"`, `attached: true`) — subsequent transport writes are
-attributed to that session.
+(`source: "browser"`, `attached: true`) — subsequent agent-less writes are
+attributed to that session, and the first named agent renames it.
 
 ## Human presence (collaborators)
 

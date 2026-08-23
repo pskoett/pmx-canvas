@@ -22,6 +22,7 @@ import {
   CONTEXT_BUDGET_DEFAULT_TOKENS,
   type ContextBudget,
   estimateTokens,
+  HUMAN_STARTED_SESSION_LABEL,
   isSessionActive,
   MAX_ACTIVITY_ENTRIES,
   MAX_PRESENCES,
@@ -249,20 +250,43 @@ export class AgentPresenceRegistry {
   }
 
   /**
-   * Attribute a transport-labelled, agent-less write to the one attached
-   * session, so the session's cursor and phase follow its own work no matter
-   * which transport carried it. Ambiguous (several sessions) or identified
-   * (agentId / host label) writes keep their own key.
+   * Attribute an agent-less write to the one attached session, so the
+   * session's cursor and phase follow its own work no matter which transport
+   * carried it. An agent-started session absorbs transport labels only
+   * (api/mcp/sdk/cli); a human-started one (`browser`, *Start agent session*)
+   * is a placeholder for whichever agent comes next and absorbs any label.
+   * Ambiguous (several sessions) or identified (agentId) writes, and a writer
+   * that is itself attached, keep their own key.
    */
   private attributedKey(input: PresenceTouch): string {
     const own = presenceKey(input.source, input.agentId);
     // Identified writers and lifecycle touches (attach/detach) keep their key.
-    if (input.agentId?.trim() || input.attached !== undefined) return own;
-    // Only transport labels are attributable — and a transport label that is
-    // itself the attached session (an MCP agent that attached as 'mcp') stays.
-    if (!TRANSPORT_SOURCES.includes(input.source) || this.presences.get(own)?.attached) return own;
+    if (input.agentId?.trim() || input.attached !== undefined || this.presences.get(own)?.attached) return own;
     const attached = [...this.presences.values()].filter((presence) => presence.attached);
-    return attached.length === 1 ? attached[0]!.sessionId : own;
+    if (attached.length !== 1) return own;
+    const session = attached[0]!;
+    return session.source === 'browser' || TRANSPORT_SOURCES.includes(input.source) ? session.sessionId : own;
+  }
+
+  /**
+   * Fold an unattached writer into a session: its ops and feed entries were
+   * the session's work all along. A human-started session still carrying its
+   * placeholder label takes the writer's name.
+   */
+  private fold(shadowKey: string, session: StoredPresence): void {
+    const shadow = this.presences.get(shadowKey);
+    if (!shadow || shadow.attached) return;
+    this.presences.delete(shadowKey);
+    if (session.label === HUMAN_STARTED_SESSION_LABEL && !TRANSPORT_SOURCES.includes(shadow.source)) {
+      session.label = shadow.label;
+    }
+    session.opCount += shadow.opCount;
+    for (const entry of this.activity) {
+      if (entry.sessionId === shadowKey) {
+        entry.sessionId = session.sessionId;
+        entry.label = session.label;
+      }
+    }
   }
 
   /** Touch a writer: upsert, bump lastSeen, apply the patch. Derived `tooling` decays on its own. */
@@ -270,22 +294,15 @@ export class AgentPresenceRegistry {
     const key = this.attributedKey(input);
     const own = presenceKey(input.source, input.agentId);
     if (key !== own) {
-      // The write was attributed to the session: fold any unattached shadow
-      // writer the same transport left behind (pre-attach writes) into it.
-      const shadow = this.presences.get(own);
-      if (shadow && !shadow.attached) {
-        this.presences.delete(own);
-        const session = this.presences.get(key);
-        if (session) {
-          session.opCount += shadow.opCount;
-          // Its feed entries were the session's work all along.
-          for (const entry of this.activity) {
-            if (entry.sessionId === own) {
-              entry.sessionId = key;
-              entry.label = session.label;
-            }
-          }
+      const session = this.presences.get(key);
+      if (session) {
+        // A human-started session takes the name of the agent that fills it.
+        if (session.label === HUMAN_STARTED_SESSION_LABEL && !TRANSPORT_SOURCES.includes(input.source)) {
+          session.label = input.label ?? input.source;
         }
+        // The write was attributed to the session: fold any unattached shadow
+        // writer the same label left behind (pre-attach writes) into it.
+        this.fold(own, session);
       }
     }
     const existing = this.presences.get(key);
@@ -327,8 +344,15 @@ export class AgentPresenceRegistry {
       }
     }
     if (input.attached !== undefined) stored.attached = input.attached;
-    if (!wasAttached && input.attached === true)
+    if (!wasAttached && input.attached === true) {
+      // *Start agent session* with one agent-less writer already on the board
+      // adopts that writer — the human is claiming the agent they can see.
+      if (stored.source === 'browser') {
+        const loose = [...this.presences.values()].filter((presence) => !presence.attached && !presence.agentId);
+        if (loose.length === 1) this.fold(loose[0]!.sessionId, stored);
+      }
       stored.startSnapshotId = this.onSessionStart(this.publicView(stored, now));
+    }
     if (wasAttached && input.attached === false) {
       this.onSessionEnd(this.publicView(stored, now), stored.startSnapshotId);
       // An ended session is gone — like `session-end` on the activity feed, it
@@ -353,6 +377,19 @@ export class AgentPresenceRegistry {
     this.ensureSweeper();
     this.scheduleEmit();
     return this.publicView(stored, now);
+  }
+
+  /**
+   * A host reported the agent's real context window without naming the
+   * writer (the legacy `context-usage` workbench event): it belongs to the
+   * single attached session, if there is exactly one. Returns false otherwise.
+   */
+  reportContextUsage(usage: { used: number; total: number }): boolean {
+    const attached = [...this.presences.values()].filter((presence) => presence.attached);
+    if (attached.length !== 1) return false;
+    const session = attached[0]!;
+    this.touch({ source: session.source, agentId: session.agentId, contextUsage: usage });
+    return true;
   }
 
   /** Explicit update from an adapter / MCP client (validated). */

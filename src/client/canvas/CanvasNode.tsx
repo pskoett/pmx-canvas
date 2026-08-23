@@ -31,7 +31,6 @@ import {
   addToGroupFromClient,
   removeNodeFromClient,
   setGroupChildrenFromClient,
-  ungroupFromClient,
   updateNodeFromClient,
 } from '../state/intent-bridge';
 import { KIND_COLOR } from './kind-colors';
@@ -485,6 +484,11 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
       tabIndex={isActive ? 0 : -1}
       onKeyDown={handleNodeKeyDown}
       onPointerDown={handlePointerDown}
+      // Shift+click toggles multi-selection; the browser would otherwise extend
+      // a text selection from the previous card across this one.
+      onMouseDown={(e) => {
+        if (e.shiftKey) e.preventDefault();
+      }}
       onContextMenu={handleContextMenuEvent}
     >
       {isGroup && (
@@ -591,11 +595,12 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                 <button
                   type="button"
                   role="menuitem"
-                  disabled={groupChildren.length === 0}
                   onClick={(e) => {
                     e.stopPropagation();
                     setGroupMenuOpen(false);
-                    void ungroupFromClient(node.id);
+                    // Dissolve the frame: removing a group releases its children.
+                    removeNode(node.id);
+                    void removeNodeFromClient(node.id);
                   }}
                 >
                   Ungroup
@@ -611,19 +616,6 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                   }}
                 >
                   Pin all to context
-                </button>
-                <button
-                  type="button"
-                  role="menuitem"
-                  class="is-danger"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setGroupMenuOpen(false);
-                    removeNode(node.id);
-                    void removeNodeFromClient(node.id);
-                  }}
-                >
-                  Remove group
                 </button>
               </div>
             )}

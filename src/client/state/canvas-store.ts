@@ -10,7 +10,7 @@ import {
 } from '../types';
 import { computeAutoArrange } from '../../shared/auto-arrange';
 import { canvasAreaCenter } from '../canvas/canvas-area';
-import { pushCanvasUpdate, updateViewportFromClient } from './intent-bridge';
+import { pushCanvasUpdate, requestBestEffort, requestOk, updateViewportFromClient } from './intent-bridge';
 
 function logCanvasStoreError(action: string, error: unknown): void {
   console.error(`[canvas-store] ${action} failed`, error);
@@ -356,12 +356,12 @@ export function replaceContextPinsFromServer(ids: string[]): void {
 }
 
 function syncContextPinsToServer(ids: Set<string>): void {
-  fetch('/api/canvas/context-pins', {
+  // Through the bridge so the write carries the workbench marker — a bare
+  // fetch makes the human's pin look like an anonymous `api` agent.
+  void requestBestEffort('syncContextPinsToServer', '/api/canvas/context-pins', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ nodeIds: Array.from(ids) }),
-  }).catch((error) => {
-    logCanvasStoreError('syncContextPinsToServer', error);
   });
 }
 
@@ -493,30 +493,19 @@ export async function createAnnotationFromClient(input: {
   text?: string;
   label?: string;
 }): Promise<{ ok: boolean }> {
-  try {
-    const res = await fetch('/api/canvas/annotation', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(input),
-    });
-    return { ok: res.ok };
-  } catch (error) {
-    logCanvasStoreError('createAnnotationFromClient', error);
-    return { ok: false };
-  }
+  return requestOk('createAnnotationFromClient', '/api/canvas/annotation', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
 }
 
 export async function removeAnnotationFromClient(id: string): Promise<{ ok: boolean }> {
-  try {
-    const res = await fetch(`/api/canvas/annotation/${encodeURIComponent(id)}`, {
-      method: 'DELETE',
-    });
-    if (res.ok) removeAnnotation(id);
-    return { ok: res.ok };
-  } catch (error) {
-    logCanvasStoreError('removeAnnotationFromClient', error);
-    return { ok: false };
-  }
+  const result = await requestOk('removeAnnotationFromClient', `/api/canvas/annotation/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  if (result.ok) removeAnnotation(id);
+  return result;
 }
 
 export function resizeNode(id: string, size: { width: number; height: number }): void {

@@ -114,14 +114,26 @@ export declare class AgentPresenceRegistry {
      */
     setSessionEndListener(listener: SessionEndListener | null): void;
     /**
-     * Attribute a transport-labelled, agent-less write to the one attached
-     * session, so the session's cursor and phase follow its own work no matter
-     * which transport carried it. Ambiguous (several sessions) or identified
-     * (agentId / host label) writes keep their own key.
+     * Attribute an agent-less write to the one attached session, so the
+     * session's cursor and phase follow its own work no matter which transport
+     * carried it. An agent-started session absorbs transport labels only
+     * (api/mcp/sdk/cli); a human-started one (`browser`, *Start agent session*)
+     * is a placeholder for whichever agent comes next and absorbs any label.
+     * Ambiguous (several sessions) or identified (agentId) writes, and a writer
+     * that is itself attached, keep their own key.
      */
     private attributedKey;
     /** Touch a writer: upsert, bump lastSeen, apply the patch. Derived `tooling` decays on its own. */
     touch(input: PresenceTouch, now?: number): AgentPresence;
+    /**
+     * A host reported the agent's real context window without naming the
+     * writer (the legacy `context-usage` workbench event): it belongs to the
+     * single attached session, if there is exactly one. Returns false otherwise.
+     */
+    reportContextUsage(usage: {
+        used: number;
+        total: number;
+    }): boolean;
     /** Explicit update from an adapter / MCP client (validated). */
     set(raw: unknown, fallbackSource: string): AgentPresence;
     /** Map an AX activity ingest onto presence — the feed that already exists. */

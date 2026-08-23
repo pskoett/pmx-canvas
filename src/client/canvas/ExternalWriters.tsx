@@ -84,6 +84,11 @@ function opGlyph(op: string): { glyph: string; tone: string } {
   return { glyph: '✎', tone: 'accent' };
 }
 
+/** ISO timestamp of the most recent write across the writers. */
+function latestWrite(writers: readonly AgentPresence[]): string {
+  return writers.reduce((latest, writer) => (writer.lastSeenAt > latest ? writer.lastSeenAt : latest), '');
+}
+
 /** Pending explicit intents from external writers — the rows that carry an inline Veto. */
 function pendingProposals(): ClientIntent[] {
   return [...intents.value.values()].filter((intent) => !intent.auto && intent.phase === 'forming');
@@ -131,7 +136,10 @@ export function ActivityFeed() {
           <div class="activity-feed-title">
             External activity — {writers.length} writer{writers.length === 1 ? '' : 's'}
           </div>
-          <div class="activity-feed-sub">via MCP · no session attached</div>
+          <div class="activity-feed-sub">
+            {writers.reduce((sum, writer) => sum + writer.opCount, 0)} writes · last{' '}
+            {relativeAge(latestWrite(writers), now)} · no session attached
+          </div>
         </div>
         <button
           type="button"

@@ -75,6 +75,7 @@ import {
 import { dispatchOperationRoute, setOperationEventEmitter } from './operations/index.js';
 import { intentRegistry } from './intent-registry.js';
 import { agentPresence } from './agent-presence.js';
+import { HUMAN_STARTED_SESSION_LABEL } from '../shared/agent-presence.js';
 import { humanPresence } from './human-presence.js';
 import { startGateTtlSweeper, stopGateTtlSweeper } from './ax-gate-ttl.js';
 import { setWebviewRunner } from './operations/webview-runner.js';
@@ -140,6 +141,12 @@ agentPresence.setSessionEndListener((presence, startSnapshotId) => {
   const snapshot = startSnapshotId
     ? (canvasState.listSnapshots({ all: true }).find((entry) => entry.id === startSnapshotId) ?? null)
     : null;
+  // A human-started session was named after the agent that filled it; the
+  // snapshot taken at attach still carries the placeholder — settle it now.
+  if (snapshot?.name.includes(HUMAN_STARTED_SESSION_LABEL) && presence.label !== HUMAN_STARTED_SESSION_LABEL) {
+    const name = snapshot.name.replace(HUMAN_STARTED_SESSION_LABEL, presence.label);
+    if (canvasState.renameSnapshot(snapshot.id, name)) snapshot.name = name;
+  }
   const counts = {
     items: ax.workItems.length,
     done: ax.workItems.filter((item) => item.status === 'done').length,
@@ -2825,6 +2832,12 @@ function syncEventToCanvasState(event: string, payload: PrimaryWorkbenchEventPay
       utilization: payload.utilization,
       nearLimit: payload.nearLimit,
     });
+    // The same numbers feed the top-bar context meter of the attached session.
+    const used = Number(payload.currentTokens);
+    const total = Number(payload.tokenLimit);
+    if (Number.isFinite(used) && Number.isFinite(total) && total > 0) {
+      agentPresence.reportContextUsage({ used: Math.max(0, used), total });
+    }
   } else if (event === 'aux-open') {
     const existing = canvasState.getNode('context-main');
     const auxTabs = Array.isArray(existing?.data.auxTabs)

@@ -47,6 +47,7 @@ export declare function loadSnapshotFromDB(db: Database, idOrName: string): {
     state: PersistedCanvasState;
 } | null;
 export declare function listSnapshotsFromDB(db: Database, options?: CanvasSnapshotListOptions): CanvasSnapshot[];
+export declare function renameSnapshotInDB(db: Database, id: string, name: string): boolean;
 export declare function deleteSnapshotFromDB(db: Database, id: string): boolean;
 export declare function writeBlobToDB(db: Database, sha256: string, jsonValue: string): number;
 export declare function readBlobFromDB(db: Database, sha256: string): string | null;

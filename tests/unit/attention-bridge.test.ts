@@ -105,4 +105,33 @@ describe('attention bridge', () => {
     expect(attentionHistory.value[0]?.title).toBe('Neighborhood changed');
     expect(attentionHistory.value[0]?.detail).toContain('auth.ts');
   });
+
+  test('a burst of changes shows the newest toasts, not a minute-long replay of stale ones', async () => {
+    syncAttentionFromSse({
+      event: 'canvas-layout-update',
+      data: {
+        layout: makeLayout([{ id: 'a', type: 'markdown', data: { title: 'Bug report' } }]),
+        timestamp: '2026-04-18T10:00:00.000Z',
+      },
+    });
+    // Nine pin toggles in a burst: the first shows immediately, the queue keeps only the last three.
+    for (let i = 0; i < 9; i++) {
+      syncAttentionFromSse({
+        event: 'context-pins-changed',
+        data: {
+          nodeIds: i % 2 === 0 ? ['a'] : [],
+          count: i % 2 === 0 ? 1 : 0,
+          timestamp: `2026-04-18T10:00:0${i}.000Z`,
+        },
+      });
+    }
+    const first = attentionToast.value?.id;
+    expect(first).toBeTruthy();
+    // History is newest-first: [8, 7, 6, 5, 4, 3] — the 7th change is history[2].
+    const seventh = attentionHistory.value[2]?.id;
+    expect(seventh).toBeTruthy();
+    await new Promise((resolve) => setTimeout(resolve, 3000));
+    expect(attentionToast.value?.id).not.toBe(first);
+    expect(attentionToast.value?.id).toBe(seventh);
+  });
 });

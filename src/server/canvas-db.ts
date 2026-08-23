@@ -909,6 +909,10 @@ export function listSnapshotsFromDB(db: Database, options: CanvasSnapshotListOpt
   }));
 }
 
+export function renameSnapshotInDB(db: Database, id: string, name: string): boolean {
+  return db.run('UPDATE snapshots SET name = ? WHERE id = ?', [name, id]).changes > 0;
+}
+
 export function deleteSnapshotFromDB(db: Database, id: string): boolean {
   const transaction = db.transaction(() => {
     db.run('DELETE FROM snapshot_nodes WHERE snapshot_id = ?', [id]);

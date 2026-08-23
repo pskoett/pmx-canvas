@@ -25,6 +25,7 @@ import {
   loadSnapshotFromDB,
   listSnapshotsFromDB,
   deleteSnapshotFromDB,
+  renameSnapshotInDB,
   writeBlobToDB,
   readBlobFromDB,
   isDbPopulated,
@@ -1253,6 +1254,16 @@ class CanvasStateManager {
   }
 
   /** Delete a snapshot. */
+  renameSnapshot(id: string, name: string): boolean {
+    if (!this._db) return false;
+    try {
+      return renameSnapshotInDB(this._db, id, name);
+    } catch (error) {
+      logCanvasStateWarning('rename snapshot failed', error, { id, name });
+      return false;
+    }
+  }
+
   deleteSnapshot(id: string): boolean {
     // Try SQLite first
     if (this._db) {

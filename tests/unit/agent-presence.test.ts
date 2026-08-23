@@ -3,6 +3,7 @@ import { AgentPresenceRegistry, describeWrite, estimateContextBudget } from '../
 import { canvasState } from '../../src/server/canvas-state.ts';
 import {
   CONTEXT_BUDGET_DEFAULT_TOKENS,
+  HUMAN_STARTED_SESSION_LABEL,
   MAX_ACTIVITY_ENTRIES,
   MAX_PRESENCES,
   PRESENCE_ACTIVITY_TTL_MS,
@@ -153,6 +154,74 @@ describe("write attribution (the cursor follows the session's own work)", () => 
       .presences.map((p) => p.sessionId)
       .sort();
     expect(ids).toEqual(['codex', 'copilot', 'subagent-2']);
+  });
+
+  test('a human-started session absorbs any agent-less writer and takes its name', () => {
+    // *Start agent session* in the browser, then an agent identified by a host
+    // label (PMX_CANVAS_AGENT_SOURCE=claude-code) writes through HTTP.
+    registry.touch({ source: 'browser', label: HUMAN_STARTED_SESSION_LABEL, attached: true }, T0);
+    registry.touch(
+      { source: 'claude-code', op: true, activity: { op: 'node.add', summary: 'Added "Plan"', nodeId: 'n1' } },
+      T0 + 1,
+    );
+    registry.touch({ source: 'mcp', op: true }, T0 + 2);
+    const { presences, activity } = registry.snapshot(T0 + 2);
+    expect(presences.map((p) => [p.sessionId, p.label, p.opCount])).toEqual([['browser', 'claude-code', 2]]);
+    expect(activity.map((entry) => [entry.sessionId, entry.label])).toEqual([['browser', 'claude-code']]);
+    // A sub-agent (agentId) is still its own writer.
+    registry.touch({ source: 'claude-code', agentId: 'reviewer', op: true }, T0 + 3);
+    expect(
+      registry
+        .snapshot(T0 + 3)
+        .presences.map((p) => p.sessionId)
+        .sort(),
+    ).toEqual(['browser', 'reviewer']);
+  });
+
+  test('*Start agent session* with one loose writer on the board adopts it at attach time', () => {
+    registry.touch(
+      { source: 'claude-code', op: true, activity: { op: 'node.add', summary: 'Added "Plan"', nodeId: 'n1' } },
+      T0,
+    );
+    registry.touch({ source: 'browser', label: HUMAN_STARTED_SESSION_LABEL, attached: true }, T0 + 1);
+    const { presences, activity } = registry.snapshot(T0 + 1);
+    expect(presences.map((p) => [p.sessionId, p.label, p.attached, p.opCount])).toEqual([
+      ['browser', 'claude-code', true, 1],
+    ]);
+    expect(activity.map((entry) => entry.sessionId)).toEqual(['browser']);
+  });
+
+  test('*Start agent session* with several loose writers adopts none (ambiguous) — sub-agents never', () => {
+    registry.touch({ source: 'claude-code', op: true }, T0);
+    registry.touch({ source: 'codex', op: true }, T0);
+    registry.touch({ source: 'browser', label: HUMAN_STARTED_SESSION_LABEL, attached: true }, T0 + 1);
+    expect(
+      registry
+        .snapshot(T0 + 1)
+        .presences.map((p) => p.sessionId)
+        .sort(),
+    ).toEqual(['browser', 'claude-code', 'codex']);
+    registry.reset();
+    registry.touch({ source: 'mcp', agentId: 'reviewer', op: true }, T0);
+    registry.touch({ source: 'browser', label: HUMAN_STARTED_SESSION_LABEL, attached: true }, T0 + 1);
+    expect(
+      registry
+        .snapshot(T0 + 1)
+        .presences.map((p) => [p.sessionId, p.label])
+        .sort(),
+    ).toEqual([
+      ['browser', HUMAN_STARTED_SESSION_LABEL],
+      ['reviewer', 'reviewer'],
+    ]);
+  });
+
+  test('a human-started session keeps the name of the first agent that filled it', () => {
+    registry.touch({ source: 'browser', label: HUMAN_STARTED_SESSION_LABEL, attached: true }, T0);
+    registry.touch({ source: 'claude-code', op: true }, T0 + 1);
+    registry.touch({ source: 'codex', op: true }, T0 + 2);
+    expect(registry.snapshot(T0 + 2).presences.map((p) => [p.sessionId, p.label])).toEqual([
+      ['browser', 'claude-code'],
+    ]);
   });
 
   test('an MCP agent that attached itself as mcp keeps accumulating on its own key', () => {
@@ -324,6 +393,15 @@ describe('describeWrite', () => {
 });
 
 describe('real context window (host-reported)', () => {
+  test('an unattributed report lands on the single attached session only', () => {
+    expect(registry.reportContextUsage({ used: 10, total: 100 })).toBe(false); // nobody attached
+    registry.touch({ source: 'copilot', attached: true }, T0);
+    expect(registry.reportContextUsage({ used: 10, total: 100 })).toBe(true);
+    expect(registry.snapshot(T0).presences[0]?.contextUsage).toEqual({ used: 10, total: 100 });
+    registry.touch({ source: 'codex', attached: true }, T0);
+    expect(registry.reportContextUsage({ used: 20, total: 100 })).toBe(false); // ambiguous
+  });
+
   test('contextUsage is null until a host reports it, then rides the presence', () => {
     registry.touch({ source: 'copilot', attached: true }, T0);
     expect(registry.snapshot(T0).presences[0]?.contextUsage).toBeNull();

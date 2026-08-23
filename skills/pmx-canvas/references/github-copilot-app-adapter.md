@@ -40,6 +40,11 @@ panel.
 
 ## Agent presence (automatic)
 
+The extension also reports Copilot's real context window: the SDK's `session.usage_info`
+event (`currentTokens` / `tokenLimit`, root agent only) is posted to the presence as
+`contextUsage`, so the board's top-bar meter reads **Context** with the live numbers rather
+than the pinned-context estimate (**Pins**).
+
 The extension attaches a Copilot session to the canvas when it joins the host session, flips the
 phase to `thinking` on every submitted prompt, and detaches on exit. While attached the workbench
 shows the Copilot cursor on the node the agent last touched plus a phase chip, and the agent's

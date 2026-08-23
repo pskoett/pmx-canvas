@@ -127,7 +127,7 @@ function ContextBudget() {
         <span class="context-budget-fill" style={{ width: `${pct}%` }} />
       </span>
       <span class="context-budget-label" data-testid="budget-label">
-        {pct}%
+        {used > 0 && pct === 0 ? '<1' : pct}%
       </span>
     </span>
   );

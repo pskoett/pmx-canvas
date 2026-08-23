@@ -128,6 +128,10 @@ describe('activity feed', () => {
     });
     const { getAllByTestId, getByText, queryByText, getByTestId } = render(<ActivityFeed />);
     expect(getByTestId('activity-feed').textContent).toContain('External activity — 2 writers');
+    // The subtitle is derived, not the mockup's literal "via MCP".
+    expect(getByTestId('activity-feed').querySelector('.activity-feed-sub')?.textContent).toBe(
+      '6 writes · last 2m · no session attached',
+    );
     const rows = getAllByTestId('activity-row');
     expect(rows.map((row) => row.querySelector('.activity-text')?.textContent)).toEqual([
       'Updated “canvas-store”',

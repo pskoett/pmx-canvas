@@ -256,10 +256,11 @@ The board has three modes, all gated on one fact — whether a session is attach
   context meter. That meter is the pinned-context payload estimated against a configured budget
   ("Pins") unless your host reports your real token usage on the presence
   (`set-presence { contextUsage: { used, total } }`) — then it shows your actual window
-  ("Context"). Report `phase: "thinking"` before a long reasoning stretch if your host
+  ("Context"). The Copilot extension reports it automatically; other hosts report it themselves. Report `phase: "thinking"` before a long reasoning stretch if your host
   gives you a hook; `tooling` is derived from your writes. Hosts with adapters (the Copilot
   extension) attach for you; the human can also start a session from the board's *Start agent
-  session* button and your transport writes are attributed to it.
+  session* button — your writes (transport or `PMX_CANVAS_AGENT_SOURCE` label alike) are
+  attributed to it and it takes your name.
 
 What the session asks of you:
 

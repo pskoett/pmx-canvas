@@ -9,7 +9,8 @@ import {
   nodes,
   searchHighlightIds,
 } from '../state/canvas-store';
-import { createNodeFromClient, saveCanvasTheme } from '../state/intent-bridge';
+import { saveCanvasTheme } from '../state/intent-bridge';
+import { createNodeInView } from './create-in-view';
 import { sessionActive } from '../state/presence-store';
 import { startSession } from '../state/session-store';
 import { TYPE_LABELS, type CanvasNodeState } from '../types';
@@ -159,7 +160,7 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
         icon: IconNodeMarkdown,
         iconTone: 'accent',
         action: () => {
-          createNodeFromClient({ type: 'markdown', title: 'New note', width: 520, height: 360 });
+          void createNodeInView({ type: 'markdown', title: 'New note', width: 520, height: 360 });
           onClose();
         },
       },

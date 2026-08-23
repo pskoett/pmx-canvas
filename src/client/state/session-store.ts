@@ -1,5 +1,6 @@
 import { computed, signal } from '@preact/signals';
 import type { AxApprovalStatus, AxEventKind, AxWorkItemStatus } from '../../shared/ax-kinds.js';
+import { HUMAN_STARTED_SESSION_LABEL } from '../../shared/agent-presence.js';
 import { axSurfaceState } from './canvas-store';
 import { requestBestEffort, requestJson, requestOk } from './intent-bridge';
 import { agentActivity } from './presence-store';
@@ -285,7 +286,7 @@ export async function startSession(): Promise<boolean> {
   const result = await requestOk('startSession', '/api/canvas/ax/presence', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ source: 'browser', label: 'Agent session', attached: true, phase: 'idle' }),
+    body: JSON.stringify({ source: 'browser', label: HUMAN_STARTED_SESSION_LABEL, attached: true, phase: 'idle' }),
   });
   return result.ok;
 }

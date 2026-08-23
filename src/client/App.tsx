@@ -9,6 +9,7 @@ import { CommandPalette } from './canvas/CommandPalette';
 import { ContextMenu, useContextMenu } from './canvas/ContextMenu';
 import { ContextPinBar } from './canvas/ContextPinBar';
 import { EmptyState } from './canvas/EmptyState';
+import { createNodeInView } from './canvas/create-in-view';
 import { undoFromKeyboard } from './state/session-store';
 import { ActivityFeed, WritersSheet } from './canvas/ExternalWriters';
 import { ExpandedNodeOverlay } from './canvas/ExpandedNodeOverlay';
@@ -34,6 +35,7 @@ import {
   hasInitialServerLayout,
   nodes,
   pendingExpandedNodeCloseId,
+  removeNode,
   selectedNodeIds,
   spacePanHeld,
   viewport,
@@ -44,12 +46,7 @@ import {
 import { connectSSE } from './state/sse-bridge';
 import { intents } from './state/intent-store';
 import { sessionActive } from './state/presence-store';
-import {
-  createGroupFromClient,
-  createNodeFromClient,
-  reportClientViewportSize,
-  ungroupFromClient,
-} from './state/intent-bridge';
+import { createGroupFromClient, removeNodeFromClient, reportClientViewportSize } from './state/intent-bridge';
 import type { AnnotationTool } from './types';
 
 function logAppError(action: string, error: unknown): void {
@@ -191,6 +188,19 @@ export function App() {
       } else if (e.key === 'Tab') {
         e.preventDefault();
         cycleActiveNode(e.shiftKey ? -1 : 1);
+      } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        // Delete the selection, else the focused node — what the selection
+        // bar's delete and the card's × do, from the keyboard.
+        const ids =
+          selectedNodeIds.value.size > 0 ? [...selectedNodeIds.value] : activeNodeId.value ? [activeNodeId.value] : [];
+        if (ids.length === 0) return;
+        e.preventDefault();
+        for (const id of ids) {
+          removeNode(id);
+          void removeNodeFromClient(id).catch((error) => logAppError('delete', error));
+        }
+        clearSelection();
+        activeNodeId.value = null;
       } else if (activeNodeId.value && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(e.key)) {
         e.preventDefault();
         const dir = e.key.replace('Arrow', '').toLowerCase() as 'up' | 'down' | 'left' | 'right';
@@ -205,7 +215,7 @@ export function App() {
           canvasTool.value = canvasTool.value === 'connect' ? 'select' : 'connect';
         } else if (key === 'm' && !e.shiftKey) {
           e.preventDefault();
-          void createNodeFromClient({ type: 'markdown', title: 'New note', width: 520, height: 360 }).catch((error) =>
+          void createNodeInView({ type: 'markdown', title: 'New note', width: 520, height: 360 }).catch((error) =>
             logAppError('create markdown', error),
           );
         } else if (key === 'a' && !e.shiftKey) {
@@ -221,15 +231,17 @@ export function App() {
             );
             clearSelection();
           } else {
-            void createNodeFromClient({ type: 'group', title: 'Group' }).catch((error) =>
+            void createNodeInView({ type: 'group', title: 'Group' }).catch((error) =>
               logAppError('create group', error),
             );
           }
         } else if (key === 'g' && e.shiftKey) {
-          // Shift+G ungroups every group the selection touches.
+          // Shift+G dissolves every group the selection touches: removing the
+          // frame releases its children (one undoable mutation).
           e.preventDefault();
           for (const groupId of groupsOfSelection()) {
-            void ungroupFromClient(groupId).catch((error) => logAppError('ungroup', error));
+            removeNode(groupId);
+            void removeNodeFromClient(groupId).catch((error) => logAppError('ungroup', error));
           }
           clearSelection();
         } else if (key === 'i' && !e.shiftKey) {
@@ -240,7 +252,7 @@ export function App() {
           promptedCreate('webpage');
         } else if (key === 'h' && !e.shiftKey) {
           e.preventDefault();
-          void createNodeFromClient({ type: 'html', title: 'HTML surface' }).catch((error) =>
+          void createNodeInView({ type: 'html', title: 'HTML surface' }).catch((error) =>
             logAppError('create html', error),
           );
         } else if (key === 'f' && e.shiftKey) {

@@ -238,6 +238,7 @@ declare class CanvasStateManager {
         annotations: CanvasAnnotation[];
     } | null;
     /** Delete a snapshot. */
+    renameSnapshot(id: string, name: string): boolean;
     deleteSnapshot(id: string): boolean;
     /** Remove all snapshots from the DB. Used by test teardown. */
     clearAllSnapshots(): void;

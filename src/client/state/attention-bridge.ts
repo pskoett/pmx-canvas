@@ -266,6 +266,9 @@ function flushToastQueue(): void {
 
 function enqueueToast(entry: AttentionEntry): void {
   toastQueue.push(entry);
+  // A burst of writes must not replay as a minute of stale toasts — keep the
+  // newest few; the history drawer still has every entry.
+  if (toastQueue.length > 3) toastQueue.splice(0, toastQueue.length - 3);
   flushToastQueue();
 }
 

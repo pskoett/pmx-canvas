@@ -1,7 +1,7 @@
 import { useRef } from 'preact/hooks';
 import { IconNodeMarkdown, IconNodeWebpage, IconSteer } from '../icons';
 import { viewport } from '../state/canvas-store';
-import { createNodeFromClient } from '../state/intent-bridge';
+import { createNodeInView } from './create-in-view';
 import { startSession } from '../state/session-store';
 import { MOD_KEY } from '../utils/platform';
 import { canvasAreaCenter } from './canvas-area';
@@ -19,7 +19,7 @@ import { promptedCreate } from './ToolRail';
 export function EmptyState({ onOpenPalette }: { onOpenPalette: () => void }) {
   const fileInput = useRef<HTMLInputElement>(null);
   const newNote = () => {
-    void createNodeFromClient({ type: 'markdown', title: 'New note', width: 520, height: 360 }).catch(() => {});
+    void createNodeInView({ type: 'markdown', title: 'New note', width: 520, height: 360 }).catch(() => {});
   };
   const pickFiles = async (files: FileList | null) => {
     if (!files || files.length === 0) return;

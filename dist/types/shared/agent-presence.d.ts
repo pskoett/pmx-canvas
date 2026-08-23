@@ -91,6 +91,12 @@ export declare const CONTEXT_BUDGET_DEFAULT_TOKENS = 32000;
  * Code all write via MCP or HTTP while their host holds the session).
  */
 export declare const TRANSPORT_SOURCES: readonly string[];
+/**
+ * The label a human-started session (*Start agent session* in the browser)
+ * carries until an agent writes into it — the session is a placeholder for
+ * whichever agent comes next, so the first identified writer names it.
+ */
+export declare const HUMAN_STARTED_SESSION_LABEL = "Agent session";
 /** The one selector every agent surface reads. */
 export declare function isSessionActive(presences: readonly AgentPresence[]): boolean;
 /** Writers that are live but not attached — the External Steering mode. */

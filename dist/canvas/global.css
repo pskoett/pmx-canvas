@@ -3941,9 +3941,13 @@ html.is-node-resizing .ext-app-preview-catcher {
 /* Selection action bar — floating bottom-center of the canvas region
    (rail-chrome-v2 phase 7, item 13). */
 /* In a session the command bar owns the bottom-center slot — lift the
-   selection bar clear of it (composer + chips row). */
+   selection bar clear of it (composer + chips row); on the quiet board the
+   pin bar does, so lift past that instead. */
 [data-session-active='true'] .selection-bar {
   bottom: 124px;
+}
+.selection-bar.is-above-pin-bar {
+  bottom: 70px;
 }
 .selection-bar {
   position: absolute;
@@ -4726,8 +4730,8 @@ html.is-node-resizing .ext-app-preview-catcher {
 
 /* ── Context pin bar — persistent floating indicator ─────────── */
 .context-pin-bar {
-  position: fixed;
-  bottom: 20px;
+  position: absolute;
+  bottom: 18px;
   left: 50%;
   transform: translateX(-50%);
   display: flex;
@@ -4739,7 +4743,7 @@ html.is-node-resizing .ext-app-preview-catcher {
   border: 1px solid var(--c-warn);
   border-radius: var(--radius);
   box-shadow: 0 8px 32px var(--c-shadow), 0 0 0 1px var(--c-warn-15);
-  z-index: 10000;
+  z-index: 64;
   white-space: nowrap;
 }
 

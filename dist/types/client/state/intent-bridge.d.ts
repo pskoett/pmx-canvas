@@ -193,10 +193,6 @@ export declare function addToGroupFromClient(groupId: string, childIds: string[]
 export declare function setGroupChildrenFromClient(groupId: string, children: string[]): Promise<{
     ok: boolean;
 }>;
-/** Ungroup all children from a group. */
-export declare function ungroupFromClient(groupId: string): Promise<{
-    ok: boolean;
-}>;
 export interface CanvasSnapshotInfo {
     id: string;
     name: string;

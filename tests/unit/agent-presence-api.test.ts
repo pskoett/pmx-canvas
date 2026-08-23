@@ -356,6 +356,45 @@ describe('agent presence over SSE', () => {
     expect(diff.diff.removedNodes).toHaveLength(0);
   });
 
+  test('a human-started session takes the name of the agent that fills it — receipt and snapshot included', async () => {
+    await postJson(
+      '/api/canvas/node',
+      { type: 'markdown', title: 'Pre-existing', x: 0, y: 0 },
+      { 'x-pmx-workbench': '1' },
+    );
+    // *Start agent session* in the browser …
+    expect(
+      (await postJson('/api/canvas/ax/presence', { source: 'browser', label: 'Agent session', attached: true })).ok,
+    ).toBe(true);
+    // … then an agent identified by a host label writes through HTTP.
+    expect(
+      (
+        await postJson(
+          '/api/canvas/node',
+          { type: 'markdown', title: 'By the agent', x: 400, y: 0 },
+          { 'x-pmx-source': 'claude-code' },
+        )
+      ).ok,
+    ).toBe(true);
+    const presence = (await (await fetch(`${baseUrl}/api/canvas/ax/presence`)).json()) as AgentPresenceSnapshot;
+    expect(presence.presences.map((p) => [p.sessionId, p.label, p.attached])).toEqual([
+      ['browser', 'claude-code', true],
+    ]);
+
+    const receipt = readSseEvent('agent-session-ended', () => true);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await postJson('/api/canvas/ax/presence', { source: 'browser', attached: false });
+    const payload = await receipt;
+    expect(payload.label).toBe('claude-code');
+    const snapshot = payload.snapshot as { id: string; name: string };
+    expect(snapshot.name.startsWith('Before session · claude-code · ')).toBe(true);
+    const listed = (await (await fetch(`${baseUrl}/api/canvas/snapshots?all=true`)).json()) as Array<{
+      id: string;
+      name: string;
+    }>;
+    expect(listed.find((entry) => entry.id === snapshot.id)?.name).toBe(snapshot.name);
+  });
+
   test('a session attaching over an empty board takes no snapshot and the receipt says so', async () => {
     const beforeCount = ((await (await fetch(`${baseUrl}/api/canvas/snapshots?all=true`)).json()) as unknown[]).length;
     await postJson('/api/canvas/ax/presence', { source: 'codex', attached: true });

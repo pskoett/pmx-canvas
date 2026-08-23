@@ -805,6 +805,36 @@ copilotSession = await joinSession({
 // yet — the prompt hook above re-attaches lazily in that case).
 void postPresence(resolve(copilotSession?.workspacePath ?? PROJECT_ROOT), { attached: true, phase: "idle" });
 
+// Real context window (rail-chrome-v2): Copilot emits `session.usage_info`
+// with the live token count and the model's window after each turn. Report it
+// on the presence so the board's top-bar meter shows the agent's ACTUAL window
+// instead of the pinned-context estimate. Root agent only — sub-agent events
+// carry an `agentId` and have their own windows. Coalesced to one POST per
+// 500ms: a turn can emit several usage events back to back.
+let usageFlush = null;
+let pendingUsage = null;
+function reportContextUsage(event) {
+    const data = event?.data;
+    if (event?.agentId || !data || typeof data.currentTokens !== "number" || typeof data.tokenLimit !== "number" || data.tokenLimit <= 0) {
+        return;
+    }
+    pendingUsage = { used: Math.max(0, Math.round(data.currentTokens)), total: Math.round(data.tokenLimit) };
+    if (usageFlush) return;
+    usageFlush = setTimeout(() => {
+        usageFlush = null;
+        const usage = pendingUsage;
+        pendingUsage = null;
+        if (usage) void postPresence(resolve(copilotSession?.workspacePath ?? PROJECT_ROOT), { contextUsage: usage });
+    }, 500);
+}
+if (typeof copilotSession?.on === "function") {
+    try {
+        copilotSession.on("session.usage_info", reportContextUsage);
+    } catch {
+        // An SDK without the event keeps the estimate — the meter says so.
+    }
+}
+
 async function shutdown() {
     // Detach the presence first so the canvas returns to the quiet board the
     // moment the host goes away, then stop any managed server. The whole

@@ -1,15 +1,18 @@
 import { useCallback } from 'preact/hooks';
 import { IconArrange } from '../icons';
+import { attentionHistoryOpen } from '../state/attention-store';
 import {
   addContextPins,
   alignSelection,
   arrangeSelection,
   clearSelection,
+  contextPinnedNodeIds,
   distributeSelection,
   removeNode,
   selectedNodeIds,
 } from '../state/canvas-store';
 import { createEdgeFromClient, createGroupFromClient, removeNodeFromClient } from '../state/intent-bridge';
+import { sessionActive } from '../state/presence-store';
 
 /**
  * Floating bottom-center bar for a multi-selection (rail-chrome-v2 phase 7,
@@ -55,9 +58,12 @@ export function SelectionBar() {
 
   if (count === 0) return null;
   const many = count >= 2;
+  // The quiet board's pin bar shares the bottom-center slot (same rule as
+  // `ContextPinBar`'s own visibility) — sit above it rather than under it.
+  const abovePinBar = !sessionActive.value && contextPinnedNodeIds.value.size > 0 && !attentionHistoryOpen.value;
 
   return (
-    <div class="selection-bar" role="toolbar" aria-label="Selection">
+    <div class={`selection-bar${abovePinBar ? ' is-above-pin-bar' : ''}`} role="toolbar" aria-label="Selection">
       <span class="selection-bar-count">
         {count} node{count !== 1 ? 's' : ''} selected
       </span>

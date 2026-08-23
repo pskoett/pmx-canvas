@@ -201,7 +201,7 @@ is a visible element on today's board that does not yet match the prototypes.
   opened from the rail's Snapshots button or the receipt's Full log).
 - **7c (built) — Groups v2 (item 20):** the frame's name pill + child count and the action
   cluster (auto-arrange children via `group.add childLayout`, collapse, ⋯ menu: rename /
-  ungroup / pin all to context / remove) sit ON the top edge (the edge row is the whole-frame
+  ungroup / pin all to context) sit ON the top edge (the edge row is the whole-frame
   drag handle; groups drop their connection ports, which sat exactly where the row now is, and
   drop paint containment so the row can hang outside). Membership feedback lives in the store:
   `trackDragMembership` runs on every drag move, sets `dragDropTarget` (the frame brightens,
@@ -211,7 +211,10 @@ is a visible element on today's board that does not yet match the prototypes.
   (the server re-fits on persist). Collapsing a group persists and renders a chip (chevron,
   name, kind dots, count); its children are hidden and edges to them draw to the chip. G groups
   a ≥2 selection (else a new frame), Shift+G ungroups every group the selection touches.
-  `bringToFront` keeps a group below its own children.
+  Human ungroup (menu, Shift+G, context menu) *dissolves* the frame through `node.remove` —
+  children released, frame gone, one undo step — rather than the agent op `group.remove`,
+  which deliberately leaves the empty frame. Delete/Backspace remove the selection (else the
+  focused node). `bringToFront` keeps a group below its own children.
 - **7d (built) — shared undo (item 10):** history entries carry an `actor` (`executeOperation`
   sets human/agent from the workbench marker around each op; SDK writes default to agent) and
   `GET /api/canvas/history` exposes `top` (what Ctrl+Z undoes next). The session panel merges
@@ -280,6 +283,33 @@ reading a skill cold gets the board as it is now, not as it was in 0.4.7:
 - Regenerate the demo board and the README screenshot last, after 5c and the phase-7 restyles.
 - Verify: `bun run validate:agent-skills`, the skill-validation rules in CLAUDE.md, and a
   cold read of each skill by a fresh agent against a live board.
+
+### Post-build QA pass (2026-08-23) — hands-on, human side and agent side
+
+Driven as the human in a headed browser (every rail / top-bar / card / selection-bar / group
+header / panel / receipt button, the composer, keyboard) against an agent writing over HTTP as
+`claude-code` and claiming the composer's steering through `ax.delivery`. Scripts:
+`scratchpad/qa-a.ts` (quiet board), `qa-b.ts` (session surfaces), `qa-c.ts` (every button +
+steer loop). Defects found and fixed, each with a regression test:
+
+- **Rail/keyboard/palette/empty-state creates landed off-screen** on a busy board (server
+  auto-placement) → `createNodeInView` centres human creates in the current viewport.
+- **A human-started session never captured an agent identified by a host label**
+  (`PMX_CANVAS_AGENT_SOURCE=claude-code`, which the skill recommends): the writer stayed an
+  "external writer" and lingered after End. A `browser` session now absorbs agent-less writes
+  under any label, takes the writer's name (`HUMAN_STARTED_SESSION_LABEL`), adopts a single
+  loose writer at attach, and the pre-session snapshot is renamed at end.
+- **The human's own pins and annotations showed up as a phantom `api` agent** (three bare
+  `fetch` calls in `canvas-store.ts` lacked the workbench marker) — they lit the External
+  Steering indicator and appeared as "pin set" rows in the session timeline.
+- **Pin bar and selection bar shared the bottom-centre slot**; the pin bar (window-anchored,
+  z 10000) swallowed the bar's geometry buttons → region-anchored, and the bar lifts above it.
+- **Ungroup left an empty frame** (the agent op's documented semantic) → human ungroup
+  dissolves via `node.remove`; no Delete/Backspace shortcut existed → added; the ⋯ menu's
+  redundant "Remove group" dropped.
+- Shift+click extended a text selection across cards; a burst of writes replayed stale
+  attention toasts for a minute (queue capped at 3); the meter read "0%" with pins (now "<1%");
+  the feed subtitle was the mockup's literal "via MCP" (now derived).
 
 ## Verification bar (every phase)
 `bun run typecheck` · `bun run build` · `bun run lint` · `bun run test` · `bun run test:client` ·

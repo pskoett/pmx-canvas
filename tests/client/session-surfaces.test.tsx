@@ -133,6 +133,11 @@ describe('top-bar context budget', () => {
     expect(label()).toBe('0%');
     expect(meter().className).toContain('tone-ok');
 
+    // A couple of tiny pins round to 0% — say "<1%" rather than looking empty.
+    act(() => applyPresenceSnapshot({ budget: { used: 12, total: 10_000 } }));
+    rerender(<TopBar />);
+    expect(label()).toBe('<1%');
+
     act(() => applyPresenceSnapshot({ budget: { used: 7_500, total: 10_000 } }));
     rerender(<TopBar />);
     expect(label()).toBe('75%');
