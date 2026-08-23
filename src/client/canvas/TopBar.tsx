@@ -95,22 +95,34 @@ function budgetTone(ratio: number): 'ok' | 'warn' | 'danger' {
   return 'ok';
 }
 
+function formatTokens(value: number): string {
+  return value >= 1000 ? `${(value / 1000).toFixed(value >= 10_000 ? 0 : 1)}k` : String(value);
+}
+
 /**
- * Context-budget meter (rail-chrome-v2 phase 5): the share of the agent's
- * context window the pinned nodes take, from the presence snapshot — so it
- * moves within a frame of a pin toggling. Session-only, like the chip.
+ * Context meter (rail-chrome-v2 phase 5). Two honest modes:
+ * - the host reported the agent's REAL window (`contextUsage` on its presence)
+ *   → "Context": used / window, with the pinned payload as a note;
+ * - nothing reported (no adapter does yet) → "Pins": the pinned-context
+ *   payload estimate against the configured budget
+ *   (PMX_CANVAS_CONTEXT_BUDGET_TOKENS). Never presented as the agent's window.
+ * Session-only, like the chip; the estimate moves within a frame of a pin toggle.
  */
 function ContextBudget() {
-  if (!activeSession.value) return null;
+  const session = activeSession.value;
+  if (!session) return null;
   const budget = contextBudget.value;
-  const ratio = budget.total > 0 ? Math.min(1, budget.used / budget.total) : 0;
+  const real = session.contextUsage;
+  const used = real ? real.used : budget.used;
+  const total = real ? real.total : budget.total;
+  const ratio = total > 0 ? Math.min(1, used / total) : 0;
   const pct = Math.round(ratio * 100);
+  const title = real
+    ? `Context window reported by ${session.label}: ${formatTokens(real.used)} of ${formatTokens(real.total)} tokens · pinned nodes ≈ ${formatTokens(budget.used)}`
+    : `Pinned context ≈ ${formatTokens(budget.used)} of a ${formatTokens(budget.total)}-token budget (PMX_CANVAS_CONTEXT_BUDGET_TOKENS). The agent's real window is shown here only when its host reports it.`;
   return (
-    <span
-      class={`context-budget tone-${budgetTone(ratio)}`}
-      title={`Share of the agent's context window used by pinned nodes — ${budget.used} of ${budget.total} tokens`}
-    >
-      <span class="context-budget-caption hud-collapsible-text">Context</span>
+    <span class={`context-budget tone-${budgetTone(ratio)}`} title={title} data-mode={real ? 'window' : 'pins'}>
+      <span class="context-budget-caption hud-collapsible-text">{real ? 'Context' : 'Pins'}</span>
       <span class="context-budget-track" aria-hidden="true">
         <span class="context-budget-fill" style={{ width: `${pct}%` }} />
       </span>

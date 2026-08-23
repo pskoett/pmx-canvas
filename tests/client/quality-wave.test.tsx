@@ -175,6 +175,7 @@ describe('command palette', () => {
             cursor: null,
             attached: true,
             opCount: 0,
+            contextUsage: null,
             lastSeenAt: new Date().toISOString(),
           },
         ],

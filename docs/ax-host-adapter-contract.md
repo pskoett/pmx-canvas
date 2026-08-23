@@ -24,7 +24,7 @@ surface each one binds to.
 | `ingestActivity(event)` | `POST /api/canvas/ax/activity` · `canvas_ingest_activity` — board auto-reacts | Forwarding the host's tool/session hooks |
 | `awaitGate(id)` | `GET /api/canvas/ax/{approval\|elicitation\|mode}/<id>?waitMs=` · `canvas_ax_gate { kind: "approval"\|"elicitation"\|"mode", action: "await" }` | Optionally surfacing a native modal; the agent must await PMX |
 | `mirrorLog(event)` *(optional)* | `GET /api/canvas/ax/timeline` · `canvas://ax-timeline` | Writing AX events into the host's own chat/session log |
-| `presence()` | `POST /api/canvas/ax/presence` · `canvas_ax_state { action: "set-presence" }` — or simply `ingestActivity` with `session-start` / `session-end` / `tool-start` / `tool-result` | Calling it from the host's session and tool hooks. Attach saves a pre-session snapshot; detach emits the `agent-session-ended` receipt — detach on shutdown (bounded, best-effort) so the human gets it promptly |
+| `presence()` | `POST /api/canvas/ax/presence` · `canvas_ax_state { action: "set-presence" }` — or simply `ingestActivity` with `session-start` / `session-end` / `tool-start` / `tool-result` | Calling it from the host's session and tool hooks. Attach saves a pre-session snapshot; detach emits the `agent-session-ended` receipt — detach on shutdown (bounded, best-effort) so the human gets it promptly. If the host knows the model's token usage, report it as `contextUsage: { used, total }` — the top-bar meter then shows the real window instead of the pinned-context estimate |
 
 ### Presence: the cursor works for every adapter
 

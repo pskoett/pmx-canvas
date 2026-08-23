@@ -49,6 +49,8 @@ export interface PresenceTouch {
   focusNodeId?: string | null;
   cursor?: { x: number; y: number } | null;
   attached?: boolean;
+  /** The host's real token usage for this agent, if it knows it. */
+  contextUsage?: { used: number; total: number } | null;
   /** Count this touch as an agent write. */
   op?: boolean;
   /** What the write did, for the activity feed (only meaningful with `op`). */
@@ -132,9 +134,11 @@ export function describeWrite(
     case 'ax.approval.resolve':
       return { summary: `Resolved a gate${str(input.decision) ? ` → ${str(input.decision)}` : ''}`, nodeId };
     case 'ax.evidence.add':
-      return { summary: 'Attached evidence', nodeId };
+    case 'ax.event.record':
     case 'ax.steer':
-      return { summary: 'Posted steering', nodeId: null };
+      // Already first-class timeline rows (Evidence / the event kind / Steer):
+      // an empty summary keeps them out of the activity feed.
+      return { summary: '', nodeId };
     case 'intent.signal':
       return {
         summary: `Proposed ${quote(str(input.label) || null, 'a change')}${str(input.kind) ? ` (${str(input.kind)})` : ''}`,
@@ -171,6 +175,10 @@ export const PRESENCE_SET_SHAPE = {
   focusNodeId: z.string().max(200).nullable().optional(),
   cursor: z.object({ x: z.number().finite(), y: z.number().finite() }).nullable().optional(),
   attached: z.boolean().optional(),
+  contextUsage: z
+    .object({ used: z.number().finite().min(0), total: z.number().finite().positive() })
+    .nullable()
+    .optional(),
 };
 const presenceSetSchema = z.object(PRESENCE_SET_SHAPE);
 
@@ -292,6 +300,7 @@ export class AgentPresenceRegistry {
       cursor: null,
       attached: false,
       opCount: 0,
+      contextUsage: null,
       lastSeenAt: new Date(now).toISOString(),
       lastSeenMs: now,
       toolingUntilMs: null,
@@ -303,7 +312,7 @@ export class AgentPresenceRegistry {
     if (input.label) stored.label = input.label;
     if (input.op) {
       stored.opCount += 1;
-      if (input.activity) {
+      if (input.activity?.summary) {
         this.activitySeq += 1;
         this.activity.unshift({
           id: `act-${this.activitySeq}`,
@@ -331,6 +340,7 @@ export class AgentPresenceRegistry {
     }
     if (input.focusNodeId !== undefined) stored.focusNodeId = input.focusNodeId;
     if (input.cursor !== undefined) stored.cursor = input.cursor;
+    if (input.contextUsage !== undefined) stored.contextUsage = input.contextUsage;
     if (input.phase !== undefined) {
       stored.phase = input.phase;
       stored.detail = input.detail !== undefined ? input.detail : input.phase === 'tooling' ? stored.detail : null;
@@ -365,6 +375,7 @@ export class AgentPresenceRegistry {
       ...(input.focusNodeId !== undefined ? { focusNodeId: input.focusNodeId } : {}),
       ...(input.cursor !== undefined ? { cursor: input.cursor } : {}),
       ...(input.attached !== undefined ? { attached: input.attached } : {}),
+      ...(input.contextUsage !== undefined ? { contextUsage: input.contextUsage } : {}),
     });
   }
 

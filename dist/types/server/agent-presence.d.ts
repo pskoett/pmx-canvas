@@ -30,6 +30,11 @@ export interface PresenceTouch {
         y: number;
     } | null;
     attached?: boolean;
+    /** The host's real token usage for this agent, if it knows it. */
+    contextUsage?: {
+        used: number;
+        total: number;
+    } | null;
     /** Count this touch as an agent write. */
     op?: boolean;
     /** What the write did, for the activity feed (only meaningful with `op`). */
@@ -74,6 +79,10 @@ export declare const PRESENCE_SET_SHAPE: {
         y: z.ZodNumber;
     }, z.core.$strip>>>;
     attached: z.ZodOptional<z.ZodBoolean>;
+    contextUsage: z.ZodOptional<z.ZodNullable<z.ZodObject<{
+        used: z.ZodNumber;
+        total: z.ZodNumber;
+    }, z.core.$strip>>>;
 };
 /** Token estimate of the pinned-context payload — the same serialization the MCP resource ships. */
 export declare function estimateContextBudget(): ContextBudget;

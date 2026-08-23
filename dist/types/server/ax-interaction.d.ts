@@ -52,9 +52,9 @@ declare const InteractionEnvelopeSchema: z.ZodObject<{
         "ax.approval.request": "ax.approval.request";
         "ax.approval.resolve": "ax.approval.resolve";
         "ax.evidence.add": "ax.evidence.add";
+        "ax.event.record": "ax.event.record";
         "ax.steer": "ax.steer";
         "ax.focus.set": "ax.focus.set";
-        "ax.event.record": "ax.event.record";
         "ax.review.add": "ax.review.add";
         "ax.command.invoke": "ax.command.invoke";
         "ax.elicitation.request": "ax.elicitation.request";

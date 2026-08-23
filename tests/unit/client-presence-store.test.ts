@@ -22,6 +22,7 @@ function presence(overrides: Partial<AgentPresence>): AgentPresence {
     cursor: null,
     attached: false,
     opCount: 0,
+    contextUsage: null,
     lastSeenAt: '2026-08-23T00:00:00.000Z',
     ...overrides,
   };

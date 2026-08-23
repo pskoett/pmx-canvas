@@ -323,6 +323,18 @@ describe('describeWrite', () => {
   });
 });
 
+describe('real context window (host-reported)', () => {
+  test('contextUsage is null until a host reports it, then rides the presence', () => {
+    registry.touch({ source: 'copilot', attached: true }, T0);
+    expect(registry.snapshot(T0).presences[0]?.contextUsage).toBeNull();
+    registry.set({ source: 'copilot', contextUsage: { used: 42_800, total: 128_000 } }, 'api');
+    expect(registry.snapshot(T0).presences[0]?.contextUsage).toEqual({ used: 42_800, total: 128_000 });
+    expect(() => registry.set({ source: 'copilot', contextUsage: { used: -1, total: 0 } }, 'api')).toThrow(
+      /Invalid presence/,
+    );
+  });
+});
+
 describe('transport', () => {
   test('every change emits one coalesced agent-presence snapshot frame', async () => {
     registry.touch({ source: 'mcp', op: true });

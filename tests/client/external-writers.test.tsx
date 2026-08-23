@@ -30,6 +30,7 @@ function writer(overrides: Partial<AgentPresence>): AgentPresence {
     cursor: null,
     attached: false,
     opCount: 3,
+    contextUsage: null,
     lastSeenAt: new Date(Date.now() - 120_000).toISOString(),
     ...overrides,
   };

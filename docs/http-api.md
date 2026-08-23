@@ -238,7 +238,7 @@ without a `session-end`.
 # Read the snapshot (the browser does this on connect)
 curl http://localhost:4313/api/canvas/ax/presence
 # → { ok, presences: [{ sessionId, source, agentId, label, phase, detail,
-#      focusNodeId, cursor, attached, opCount, lastSeenAt }],
+#      focusNodeId, cursor, attached, opCount, contextUsage, lastSeenAt }],
 #     budget: { used, total }, sessionActive,
 #     activity: [{ id, at, sessionId, label, op, summary, nodeId }] }  # newest first, last 50
 
@@ -263,10 +263,23 @@ connected-writers sheet — visibility only, never permissions. `activity` is
 that feed: one entry per agent write with a human summary ("Created markdown
 “Release plan”"), attributed to the writer (re-attributed to the session when
 a transport writer folds into it), bounded to the last 50 and kept after a
-writer fades. `budget` is a token estimate of the `pinned-context` payload
-against `PMX_CANVAS_CONTEXT_BUDGET_TOKENS` (default 32000). Detaching
-(`attached: false`, `session-end`) removes the presence outright — an ended
-session never lingers as an external writer.
+writer fades. Detaching (`attached: false`, `session-end`) removes the
+presence outright — an ended session never lingers as an external writer.
+
+**The context meter is an estimate unless the host says otherwise.** `budget`
+is a token estimate (chars ÷ 4) of the `pinned-context` payload against
+`PMX_CANVAS_CONTEXT_BUDGET_TOKENS` (default 32000) — what the human's pins
+would cost the agent, not the agent's live window; the top bar labels it
+**Pins**. A host that knows the agent's real usage reports it on the presence
+(`contextUsage: { used, total }` on `POST /api/canvas/ax/presence` /
+`set-presence`); the top bar then shows **Context** with those numbers. No
+bundled adapter reports it yet.
+
+```bash
+curl -X POST http://localhost:4313/api/canvas/ax/presence \
+  -H "Content-Type: application/json" \
+  -d '{"source":"copilot","contextUsage":{"used":42800,"total":128000}}'
+```
 
 **Writer identity and attribution.** Plain HTTP callers read as source `api`,
 the CLI sends `x-pmx-source: cli`, the MCP server sends `mcp` (or

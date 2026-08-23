@@ -118,6 +118,7 @@ describe('top-bar context budget', () => {
     cursor: null,
     attached: true,
     opCount: 0,
+    contextUsage: null,
     lastSeenAt: '2026-08-23T00:00:00.000Z',
   };
 
@@ -142,6 +143,23 @@ describe('top-bar context budget', () => {
     expect(label()).toBe('95%');
     expect(meter().className).toContain('tone-danger');
     expect((container.querySelector('.context-budget-fill') as HTMLElement).style.width).toBe('95%');
+  });
+
+  test('reads "Pins" (estimate) until the host reports the real window, then "Context" with the reported numbers', () => {
+    act(() => applyPresenceSnapshot({ presences: [attached], budget: { used: 3_100, total: 32_000 } }));
+    const { container, rerender } = render(<TopBar />);
+    const meter = () => container.querySelector('.context-budget')!;
+    expect(meter().getAttribute('data-mode')).toBe('pins');
+    expect(container.querySelector('.context-budget-caption')?.textContent).toBe('Pins');
+    expect(meter().getAttribute('title')).toContain('Pinned context ≈ 3.1k of a 32k-token budget');
+    expect(container.querySelector('[data-testid="budget-label"]')?.textContent).toBe('10%');
+
+    act(() => applyPresenceSnapshot({ presences: [{ ...attached, contextUsage: { used: 42_800, total: 128_000 } }] }));
+    rerender(<TopBar />);
+    expect(meter().getAttribute('data-mode')).toBe('window');
+    expect(container.querySelector('.context-budget-caption')?.textContent).toBe('Context');
+    expect(meter().getAttribute('title')).toContain('Context window reported by Agent session: 43k of 128k tokens');
+    expect(container.querySelector('[data-testid="budget-label"]')?.textContent).toBe('33%');
   });
 });
 

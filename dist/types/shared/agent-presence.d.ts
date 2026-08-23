@@ -31,6 +31,16 @@ export interface AgentPresence {
     attached: boolean;
     /** Agent writes observed for this writer — feeds the external-steering indicator. */
     opCount: number;
+    /**
+     * The agent's REAL context window, when its host reports it (tokens used /
+     * window size). Null when no adapter reports — the top-bar meter then shows
+     * the pinned-context estimate against the configured budget instead, and
+     * says so.
+     */
+    contextUsage: {
+        used: number;
+        total: number;
+    } | null;
     lastSeenAt: string;
 }
 export interface ContextBudget {

@@ -253,7 +253,10 @@ The board has three modes, all gated on one fact — whether a session is attach
   your session automatically (pass `agentId` only to keep a sub-agent separate); the human gets
   the session panel (work items, approval gates, timeline of your tool runs, board writes,
   evidence and steering), a command bar that posts steering you read on your next turn, and a
-  context-budget meter. Report `phase: "thinking"` before a long reasoning stretch if your host
+  context meter. That meter is the pinned-context payload estimated against a configured budget
+  ("Pins") unless your host reports your real token usage on the presence
+  (`set-presence { contextUsage: { used, total } }`) — then it shows your actual window
+  ("Context"). Report `phase: "thinking"` before a long reasoning stretch if your host
   gives you a hook; `tooling` is derived from your writes. Hosts with adapters (the Copilot
   extension) attach for you; the human can also start a session from the board's *Start agent
   session* button and your transport writes are attributed to it.
