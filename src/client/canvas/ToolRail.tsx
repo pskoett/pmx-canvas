@@ -61,40 +61,85 @@ export function promptedCreate(kind: 'image' | 'file' | 'webpage'): void {
   void createNodeInView({ type: kind, content: value.trim() }).catch((error) => logRailError(`create ${kind}`, error));
 }
 
+/**
+ * A rail button with its hover/focus tooltip (label + shortcut key cap, the
+ * top bar's `BarHint` look). The rail scrolls (overflow-y:auto), so a CSS-only
+ * tooltip would be clipped inside the 52px column — like the side menus, the
+ * tooltip is positioned FIXED from the button's rect. No native `title`: it
+ * would double the tooltip a second later (and never shows in some embedded
+ * browser panes at all). The accessible name keeps the "Label (Shortcut)" form.
+ */
 function RailButton({
   label,
+  shortcut,
+  detail,
   ariaLabel,
   active,
+  menuOpen,
   onClick,
   btnRef,
   children,
 }: {
   label: string;
+  shortcut?: string;
+  detail?: string;
   ariaLabel?: string;
   active?: boolean;
+  /** The button's own popover is open — its tooltip would sit on top of it. */
+  menuOpen?: boolean;
   onClick: (e: MouseEvent) => void;
   btnRef?: { current: HTMLButtonElement | null };
   children: preact.ComponentChildren;
 }) {
+  const [hint, setHint] = useState<{ left: number; top: number } | null>(null);
+  const show = (e: Event) => {
+    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+    setHint({ left: rect.right + 10, top: rect.top + rect.height / 2 });
+  };
+  const hide = () => setHint(null);
+  const name = ariaLabel ?? (shortcut ? `${label} (${shortcut})` : detail ? `${label} (${detail})` : label);
   return (
-    <button
-      ref={btnRef}
-      type="button"
-      class={`rail-btn${active ? ' active' : ''}`}
-      title={label}
-      aria-label={ariaLabel ?? label}
-      aria-pressed={active === undefined ? undefined : active}
-      onClick={onClick}
-    >
-      {children}
-    </button>
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        class={`rail-btn${active ? ' active' : ''}`}
+        aria-label={name}
+        aria-pressed={active === undefined ? undefined : active}
+        onClick={(e) => {
+          hide();
+          onClick(e);
+        }}
+        onPointerEnter={show}
+        onPointerLeave={hide}
+        onFocus={show}
+        onBlur={hide}
+      >
+        {children}
+      </button>
+      {hint && !menuOpen && (
+        <span
+          class="toolbar-tooltip rail-tooltip"
+          role="tooltip"
+          data-testid="rail-tooltip"
+          style={{ left: `${hint.left}px`, top: `${hint.top}px` }}
+        >
+          <span class="toolbar-tooltip-label">{label}</span>
+          {(shortcut || detail) && (
+            <span class="toolbar-tooltip-meta">
+              {shortcut ? <kbd class="toolbar-tooltip-shortcut">{shortcut}</kbd> : <span>{detail}</span>}
+            </span>
+          )}
+        </span>
+      )}
+    </>
   );
 }
 
 /**
  * The persistent 52px left tool rail (rail-chrome-v2 phase 1): brand → tools →
- * node palette → utilities. Every button's `title` carries its shortcut — the
- * rail is the shortcut discovery surface.
+ * node palette → utilities. Every button shows a hover/focus tooltip with its
+ * shortcut (`RailButton`) — the rail is the shortcut discovery surface.
  */
 export function ToolRail({
   minimapVisible,
@@ -194,13 +239,18 @@ export function ToolRail({
 
       <div class="rail-divider" />
 
-      <RailButton label="Select (V)" active={tool === 'select'} onClick={() => (canvasTool.value = 'select')}>
+      <RailButton label="Select" shortcut="V" active={tool === 'select'} onClick={() => (canvasTool.value = 'select')}>
         <IconCursorTool />
       </RailButton>
-      <RailButton label="Pan (Space)" active={tool === 'pan'} onClick={() => (canvasTool.value = 'pan')}>
+      <RailButton label="Pan" shortcut="Space" active={tool === 'pan'} onClick={() => (canvasTool.value = 'pan')}>
         <IconHandTool />
       </RailButton>
-      <RailButton label="Connect (C)" active={tool === 'connect'} onClick={() => (canvasTool.value = 'connect')}>
+      <RailButton
+        label="Connect"
+        shortcut="C"
+        active={tool === 'connect'}
+        onClick={() => (canvasTool.value = 'connect')}
+      >
         <svg
           width="15"
           height="15"
@@ -220,7 +270,8 @@ export function ToolRail({
       <div class="rail-divider" />
 
       <RailButton
-        label="Markdown note (M)"
+        label="Markdown note"
+        shortcut="M"
         onClick={() =>
           void createNodeInView({ type: 'markdown', title: 'New note', width: 520, height: 360 }).catch((error) =>
             logRailError('create markdown', error),
@@ -229,17 +280,18 @@ export function ToolRail({
       >
         <IconNodeMarkdown size={15} />
       </RailButton>
-      <RailButton label="Image (I)" onClick={() => promptedCreate('image')}>
+      <RailButton label="Image" shortcut="I" onClick={() => promptedCreate('image')}>
         <IconNodeImage size={15} />
       </RailButton>
-      <RailButton label="File (Shift+F)" onClick={() => promptedCreate('file')}>
+      <RailButton label="File" shortcut="Shift+F" onClick={() => promptedCreate('file')}>
         <IconNodeFile size={15} />
       </RailButton>
-      <RailButton label="Webpage (W)" onClick={() => promptedCreate('webpage')}>
+      <RailButton label="Webpage" shortcut="W" onClick={() => promptedCreate('webpage')}>
         <IconNodeWebpage size={15} />
       </RailButton>
       <RailButton
-        label="HTML surface (H)"
+        label="HTML surface"
+        shortcut="H"
         onClick={() =>
           void createNodeInView({ type: 'html', title: 'HTML surface' }).catch((error) =>
             logRailError('create html', error),
@@ -249,7 +301,8 @@ export function ToolRail({
         <IconNodeHtml />
       </RailButton>
       <RailButton
-        label="Group (G)"
+        label="Group"
+        shortcut="G"
         onClick={() =>
           void createNodeInView({ type: 'group', title: 'Group' }).catch((error) => logRailError('create group', error))
         }
@@ -257,7 +310,13 @@ export function ToolRail({
         <IconNodeGroup size={15} />
       </RailButton>
       <span class="toolbar-menu-anchor">
-        <RailButton label="Annotate (A)" active={annotationTool !== null} onClick={toggleMenu('annotate')}>
+        <RailButton
+          label="Annotate"
+          shortcut="A"
+          active={annotationTool !== null}
+          menuOpen={openMenu === 'annotate'}
+          onClick={toggleMenu('annotate')}
+        >
           {annotationTool === 'eraser' ? (
             <IconEraser />
           ) : annotationTool === 'text' ? (
@@ -307,11 +366,12 @@ export function ToolRail({
 
       <div class="rail-spacer" />
 
-      <RailButton label={`Search & commands (${MOD_KEY}+K)`} onClick={onOpenPalette}>
+      <RailButton label="Search & commands" shortcut={`${MOD_KEY}+K`} onClick={onOpenPalette}>
         <IconSearch />
       </RailButton>
       <RailButton
-        label={edgeCount > 0 ? 'Arrange (graph-aware)' : 'Arrange (grid)'}
+        label="Arrange"
+        detail={edgeCount > 0 ? 'graph-aware' : 'grid'}
         onClick={() => (edgeCount > 0 ? forceDirectedArrange() : autoArrange())}
       >
         <IconArrange />
@@ -340,7 +400,9 @@ export function ToolRail({
       </RailButton>
       <span class="toolbar-menu-anchor">
         <RailButton
-          label={`Theme (${CANVAS_THEME_META[activeTheme].label})`}
+          label="Theme"
+          detail={CANVAS_THEME_META[activeTheme].label}
+          menuOpen={openMenu === 'theme'}
           ariaLabel="Choose theme"
           active={openMenu === 'theme'}
           onClick={toggleMenu('theme')}
@@ -372,7 +434,7 @@ export function ToolRail({
           </div>
         )}
       </span>
-      <RailButton label="Shortcuts (?)" onClick={onOpenShortcuts}>
+      <RailButton label="Shortcuts" shortcut="?" onClick={onOpenShortcuts}>
         <IconShortcuts />
       </RailButton>
     </div>

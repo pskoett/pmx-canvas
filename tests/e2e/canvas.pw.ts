@@ -3316,6 +3316,42 @@ test('srcdoc iframe mode renders same-origin surfaces inline (nested-embed fallb
   await expect(jsonNode.frameLocator('iframe').getByText('Srcdoc card')).toBeVisible();
 });
 
+test('rail tooltips: hover shows the label and shortcut beside the rail, hidden while the button’s menu is open', async ({
+  page,
+}) => {
+  await page.goto('/workbench');
+  const tip = page.locator('[data-testid="rail-tooltip"]');
+  await expect(tip).toHaveCount(0);
+
+  const file = page.getByRole('button', { name: 'File (Shift+F)' });
+  await file.hover();
+  await expect(tip).toBeVisible();
+  await expect(tip.locator('.toolbar-tooltip-label')).toHaveText('File');
+  await expect(tip.locator('kbd')).toHaveText('Shift+F');
+  // Beside the rail, not clipped by it: the tooltip's box starts right of the button
+  // (measured after its 140 ms slide-in settles).
+  await page.waitForTimeout(250);
+  const [tipBox, btnBox, rail] = await Promise.all([
+    tip.boundingBox(),
+    file.boundingBox(),
+    page.locator('.tool-rail').boundingBox(),
+  ]);
+  if (!tipBox || !btnBox || !rail) throw new Error('missing boxes');
+  expect(tipBox.x).toBeGreaterThan(rail.x + rail.width);
+  expect(Math.abs(tipBox.y + tipBox.height / 2 - (btnBox.y + btnBox.height / 2))).toBeLessThan(4);
+
+  await page.mouse.move(700, 500);
+  await expect(tip).toHaveCount(0);
+
+  // The theme button's tooltip yields to its own menu.
+  const theme = page.getByRole('button', { name: 'Choose theme' });
+  await theme.hover();
+  await expect(tip.locator('.toolbar-tooltip-label')).toHaveText('Theme');
+  await theme.click();
+  await expect(page.getByRole('menu', { name: 'Theme' })).toBeVisible();
+  await expect(tip).toHaveCount(0);
+});
+
 test('narrow screens keep the rail chrome fully usable with meta collapsed', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/workbench');

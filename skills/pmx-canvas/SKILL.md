@@ -322,7 +322,8 @@ Use the visible workbench when the human is actively curating layout:
   sepia, arctic, ember, forest, volt), and shortcuts (?). The top bar holds the connection dot,
   workspace title, the session chip / gate badge / context meter while a session is attached
   (or the external-writers indicator and *Start agent session* otherwise), and the zoom cluster
-  (zoom out, % label = reset, zoom in, fit F). Every rail button's `title` names its shortcut.
+  (zoom out, % label = reset, zoom in, fit F). Hovering a rail button shows a tooltip with its
+  shortcut.
   On viewports ≤1180px the top bar drops its meta text and the session panel becomes a drawer;
   every control stays in the rail at any width — there is no separate mobile menu.
 - Keyboard: nodes are focusable — arrow keys move to the nearest node, Enter opens it in focus

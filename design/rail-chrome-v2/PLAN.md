@@ -42,7 +42,9 @@ client rendering over state that already flows.
 - `src/client/canvas/ToolRail.tsx` (new): brand → Select(V)/Pan(Space) → divider → node palette
   Markdown(M) · Image(I) · File(⇧F) · Webpage(W) · HTML(H) · Group(G) · Annotate(A, popover) →
   spacer → Snapshots · Theme (existing menu) · Trace · Minimap · Shortcuts(?). 52px, 36px buttons,
-  tokens throughout, `title` carries the shortcut (rail = shortcut discovery surface).
+  tokens throughout, a hover/focus tooltip carries the shortcut (rail = shortcut discovery
+  surface; it is rendered fixed beside the button because the rail's scroll clip would hide a
+  CSS-only one, and there is no native `title` — it never showed in embedded browser panes).
 - `src/client/canvas/TopBar.tsx` (new): connection dot · board title · board id
   (`.hud-collapsible`) · counts (`.hud-collapsible`) · spacer · zoom− · zoom% (click = 100%) ·
   zoom+ · fit-all. 44px, blur, `overflow:hidden`/`min-width:0` discipline, ellipsis on title.
