@@ -1,4 +1,15 @@
 import { EventEmitter } from 'node:events';
+import { agentPresence } from './agent-presence.js';
+
+/** Presence `detail` for SDK writes, by the intent kind the wrapper commits. */
+const SDK_PRESENCE_DETAIL: Record<PmxAxIntentKind, string> = {
+  create: 'node.add',
+  move: 'node.move',
+  edit: 'node.update',
+  remove: 'node.remove',
+  connect: 'edge.add',
+};
+import type { AgentPhase, AgentPresence, AgentPresenceSnapshot } from '../shared/agent-presence.js';
 import { canvasState, IMAGE_MIME_MAP } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout, ViewportState } from './canvas-state.js';
 import { buildCanvasAxContext } from './ax-context.js';
@@ -142,6 +153,27 @@ export class PmxCanvas extends EventEmitter {
   }
 
   private runIntentCommit<T>(
+    intentId: string | undefined,
+    allowedKinds: readonly PmxAxIntentKind[],
+    mutate: () => T,
+    settledNodeId: (result: T) => string | undefined,
+  ): T {
+    const result = this.runIntentCommitInner(intentId, allowedKinds, mutate, settledNodeId);
+    // SDK writes bypass executeOperation, so they register agent presence
+    // here — the same derived `tooling` + focus-node touch the HTTP/MCP
+    // transports get, attributed to the attached session by the registry.
+    const focusNodeId = settledNodeId(result);
+    agentPresence.touch({
+      source: 'sdk',
+      phase: 'tooling',
+      detail: SDK_PRESENCE_DETAIL[allowedKinds[0] ?? 'edit'],
+      ...(focusNodeId ? { focusNodeId } : {}),
+      op: true,
+    });
+    return result;
+  }
+
+  private runIntentCommitInner<T>(
     intentId: string | undefined,
     allowedKinds: readonly PmxAxIntentKind[],
     mutate: () => T,
@@ -724,6 +756,30 @@ export class PmxCanvas extends EventEmitter {
     const host = canvasState.setHostCapability(input, { source: options?.source ?? 'sdk' });
     emitPrimaryWorkbenchEvent('ax-state-changed', { host });
     return host;
+  }
+
+  /** Who is writing to this board right now, their phase, and the context budget. */
+  getAgentPresence(): AgentPresenceSnapshot {
+    return agentPresence.snapshot();
+  }
+
+  /**
+   * Update this SDK caller's presence (rail-chrome-v2 phase 2): phase, detail,
+   * focus node, cursor, and `attached` (true starts a session, false ends it).
+   */
+  setAgentPresence(
+    input: {
+      agentId?: string | null;
+      label?: string;
+      phase?: AgentPhase;
+      detail?: string | null;
+      focusNodeId?: string | null;
+      cursor?: { x: number; y: number } | null;
+      attached?: boolean;
+    },
+    options?: { source?: PmxAxSource },
+  ): AgentPresence {
+    return agentPresence.set(input, options?.source ?? 'sdk');
   }
 
   listElicitations(): PmxAxElicitation[] {

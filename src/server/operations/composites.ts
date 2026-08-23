@@ -250,13 +250,15 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
     toolName: 'canvas_ax_state',
     description:
-      'Read or set host-agnostic PMX AX state. Action "get" reads the AX state + agent-ready context (pinned/focused context, focus field); "set-focus" places node IDs in the AX focus field (nodeIds); "set-policy" patches the tool/prompt policy (tools.allowed|excluded|approvalRequired, prompt.systemAppend|mode — merges with existing); "report-capability" records a host/session capability for diagnostics. Adapters may pass a source label (e.g. codex).',
-    actionSummary: 'get | set-focus | set-policy | report-capability',
+      'Read or set host-agnostic PMX AX state. Action "get" reads the AX state + agent-ready context (pinned/focused context, focus field); "set-focus" places node IDs in the AX focus field (nodeIds); "set-policy" patches the tool/prompt policy (tools.allowed|excluded|approvalRequired, prompt.systemAppend|mode — merges with existing); "report-capability" records a host/session capability for diagnostics; "presence" reads agent presence (who is writing, phase, attached session, context budget); "set-presence" updates this caller\'s presence (phase idle|thinking|tooling|waiting-approval, detail, focusNodeId, cursor, attached — attached:true starts a session, false ends it). Adapters may pass a source label (e.g. codex).',
+    actionSummary: 'get | set-focus | set-policy | report-capability | presence | set-presence',
     actions: {
       get: 'ax.get',
       'set-focus': 'ax.focus.set',
       'set-policy': 'ax.policy.set',
       'report-capability': 'ax.host-capability.report',
+      presence: 'ax.presence.get',
+      'set-presence': 'ax.presence.set',
     },
   },
   {

@@ -88,7 +88,11 @@ export async function dispatchOperationRoute(req: Request, url: URL): Promise<Re
       // the browser is not agent activity, so it never synthesizes an
       // auto-ghost. Everything else (CLI, scripts, adapters) counts as agent.
       const fromWorkbench = req.headers.get('x-pmx-workbench') === '1';
-      const result = await executeOperation(op.name, input, { suppressAutoGhost: fromWorkbench });
+      // Presence writer label: adapters/CLI may identify themselves; plain
+      // HTTP callers read as 'api'.
+      const sourceHeader = req.headers.get('x-pmx-source');
+      const source = sourceHeader && /^[a-z][a-z0-9-]{0,39}$/i.test(sourceHeader) ? sourceHeader : 'api';
+      const result = await executeOperation(op.name, input, { suppressAutoGhost: fromWorkbench, source });
       return responseJson(result, route.status ? route.status(result) : 200);
     } catch (error) {
       if (error instanceof OperationError) {

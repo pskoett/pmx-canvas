@@ -24,6 +24,20 @@ surface each one binds to.
 | `ingestActivity(event)` | `POST /api/canvas/ax/activity` · `canvas_ingest_activity` — board auto-reacts | Forwarding the host's tool/session hooks |
 | `awaitGate(id)` | `GET /api/canvas/ax/{approval\|elicitation\|mode}/<id>?waitMs=` · `canvas_ax_gate { kind: "approval"\|"elicitation"\|"mode", action: "await" }` | Optionally surfacing a native modal; the agent must await PMX |
 | `mirrorLog(event)` *(optional)* | `GET /api/canvas/ax/timeline` · `canvas://ax-timeline` | Writing AX events into the host's own chat/session log |
+| `presence()` | `POST /api/canvas/ax/presence` · `canvas_ax_state { action: "set-presence" }` — or simply `ingestActivity` with `session-start` / `session-end` / `tool-start` / `tool-result` | Calling it from the host's session and tool hooks |
+
+### Presence: the cursor works for every adapter
+
+An adapter does not need per-call labelling for the canvas to show its agent's
+cursor. Attach once (`attached: true`, or a `session-start` activity) and detach
+on exit; from then on every canvas write the agent makes — through MCP, HTTP,
+the CLI or the SDK, under any transport label — is attributed to that session
+while it is the only one attached. The cursor moves to the node each write
+touched and the phase reads `tooling` during work, `waiting-approval` while a
+gate is pending. Report `thinking` from a prompt/turn hook when the host has one
+(the Copilot extension does); name the agent with `PMX_CANVAS_AGENT_SOURCE` on
+the MCP server when the host runs several agents side by side, and pass
+`agentId` for sub-agents that should keep their own cursor.
 
 ## Steering is gated, not pushed (#54)
 

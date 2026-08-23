@@ -216,6 +216,54 @@ reject an unknown `status` with 400 (the tokens are `todo`, `in-progress`,
 and `PATCH /ax/review/:id` return 404 for unknown IDs; approval resolve returns
 404 if the gate is missing or already resolved.
 
+## Agent presence
+
+Who is writing to the board right now, in what phase, and whether a session
+is attached. Presence is *derived*: every agent-originated mutation (anything
+without the workbench's own `x-pmx-workbench: 1` marker) registers its caller
+as a `tooling` writer, the activity feed drives attach/detach and phase
+(`session-start`, `session-end`, `tool-start`, `tool-result`), and adapters
+with richer hooks can set a phase, cursor, or focus explicitly. Writers fade
+90 s after their last write; attached sessions expire after 30 min of quiet
+without a `session-end`.
+
+```bash
+# Read the snapshot (the browser does this on connect)
+curl http://localhost:4313/api/canvas/ax/presence
+# → { ok, presences: [{ sessionId, source, agentId, label, phase, detail,
+#      focusNodeId, cursor, attached, opCount, lastSeenAt }],
+#     budget: { used, total }, sessionActive }
+
+# Attach a session and report a phase (idle | thinking | tooling | waiting-approval)
+curl -X POST http://localhost:4313/api/canvas/ax/presence \
+  -H "Content-Type: application/json" \
+  -d '{"source":"copilot","attached":true,"phase":"thinking","detail":"planning"}'
+
+# Point the agent cursor at a node, then detach
+curl -X POST http://localhost:4313/api/canvas/ax/presence \
+  -H "Content-Type: application/json" \
+  -d '{"source":"copilot","focusNodeId":"<node-id>","cursor":{"x":320,"y":140}}'
+curl -X POST http://localhost:4313/api/canvas/ax/presence \
+  -H "Content-Type: application/json" -d '{"source":"copilot","attached":false}'
+```
+
+`sessionActive` is true when any presence is attached — it is the single gate
+for the agent chrome (session panel, command bar, presence layer). Live but
+unattached writers are the *external steering* case. `budget` is a token
+estimate of the `pinned-context` payload against
+`PMX_CANVAS_CONTEXT_BUDGET_TOKENS` (default 32000).
+
+**Writer identity and attribution.** Plain HTTP callers read as source `api`,
+the CLI sends `x-pmx-source: cli`, the MCP server sends `mcp` (or
+`PMX_CANVAS_AGENT_SOURCE` when set), the SDK is `sdk`. Those are *transport*
+labels, not agents — so while exactly one session is attached, a transport
+write with no `agentId` is attributed to that session: its cursor moves to
+the touched node, its phase reads `tooling`, and no second writer appears.
+This is what lets a Copilot/Codex/Claude Code session that writes through MCP
+keep one cursor. Pass `agentId` (sub-agents) or a host label to keep a writer
+separate; with several sessions attached, transport writes stay on their own
+label.
+
 ## AX interactions, delivery, elicitation, mode, commands & policy
 
 Node interactions are one normalized, capability-gated envelope that maps onto an
@@ -351,6 +399,10 @@ curl -N http://localhost:4313/api/workbench/events
 
 The browser, the CLI `watch` command, and the MCP resource notifications
 all consume this stream. Auto-reconnect with exponential backoff.
+
+`agent-presence` frames carry the full presence snapshot (the same body as
+`GET /api/canvas/ax/presence`) on every change, including TTL expiry — a
+client never needs its own expiry timer.
 
 ## Polling transport (proxy-safe)
 

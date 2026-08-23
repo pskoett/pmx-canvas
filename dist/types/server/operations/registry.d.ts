@@ -18,6 +18,11 @@ export interface ExecuteOperationMeta {
      * its inner dispatches (batch churn is exempt, matching the skill contract).
      */
     suppressAutoGhost?: boolean;
+    /**
+     * Who is calling — the presence writer label ('mcp', 'sdk', 'api', …).
+     * Defaults to 'api'. Workbench calls (suppressAutoGhost) never touch presence.
+     */
+    source?: string;
 }
 export declare function executeOperation(name: string, rawInput: unknown, meta?: ExecuteOperationMeta): Promise<unknown>;
 export {};

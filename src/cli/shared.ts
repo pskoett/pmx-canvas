@@ -118,7 +118,7 @@ function output(data: unknown): void {
 async function invokeOperation(name: string, input: Record<string, unknown>): Promise<unknown> {
   const base = getBaseUrl();
   try {
-    return await new HttpOperationInvoker(base).invoke(name, input);
+    return await new HttpOperationInvoker(base, 'cli').invoke(name, input);
   } catch (error) {
     if (error instanceof OperationError) {
       die(error.message);

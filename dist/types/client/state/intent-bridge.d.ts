@@ -1,3 +1,4 @@
+import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js';
 /** Dispatch user intents from the canvas to the server (for TUI consumption). */
 export declare function sendIntent(type: string, payload?: Record<string, unknown>): Promise<{
     ok: boolean;
@@ -138,6 +139,8 @@ export interface AxInteractionResponse {
 }
 /** Fetch the compact AX state snapshot pushed into AX-enabled surfaces. */
 export declare function fetchAxSurfaceState(): Promise<unknown>;
+/** Connect-time agent-presence read; live updates arrive as `agent-presence` SSE frames. */
+export declare function fetchAgentPresence(): Promise<Partial<AgentPresenceSnapshot> | null>;
 /** Ask the server to open a node's surface in the system browser. */
 export declare function openNodeInSystemBrowserRequest(nodeId: string, url?: string): Promise<{
     ok: boolean;

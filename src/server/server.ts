@@ -74,6 +74,7 @@ import {
 } from './canvas-operations.js';
 import { dispatchOperationRoute, setOperationEventEmitter } from './operations/index.js';
 import { intentRegistry } from './intent-registry.js';
+import { agentPresence } from './agent-presence.js';
 import { setWebviewRunner } from './operations/webview-runner.js';
 import { closeNodeAppSession, nodeAppSessionId } from './operations/ops/nodes.js';
 import { traceManager } from './trace-manager.js';
@@ -109,6 +110,13 @@ setOperationEventEmitter((event, payload) => {
 // pattern as setOperationEventEmitter. Wired at module top level so in-process
 // MCP/SDK intent signals reach the browser without startCanvasServer().
 intentRegistry.setEmitter((event, payload) => {
+  emitPrimaryWorkbenchEvent(event, payload);
+});
+
+// Agent presence (rail-chrome-v2 phase 2) emits its `agent-presence` snapshot
+// frames the same way — including TTL-expiry sweeps, so clients never run
+// their own expiry ticker.
+agentPresence.setEmitter((event, payload) => {
   emitPrimaryWorkbenchEvent(event, payload);
 });
 

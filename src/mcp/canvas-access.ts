@@ -83,7 +83,7 @@ export interface CanvasAccess {
 
 class LocalCanvasAccess implements CanvasAccess {
   readonly remoteBaseUrl = null;
-  private readonly operationInvoker = new LocalOperationInvoker();
+  private readonly operationInvoker = new LocalOperationInvoker('mcp');
 
   constructor(
     private readonly canvas: PmxCanvas,
@@ -192,7 +192,7 @@ class RemoteCanvasAccess implements CanvasAccess {
     this.remoteBaseUrl = baseUrl.replace(/\/$/, '');
     const parsed = new URL(this.remoteBaseUrl);
     this.port = Number(parsed.port || '80');
-    this.operationInvoker = new HttpOperationInvoker(this.remoteBaseUrl);
+    this.operationInvoker = new HttpOperationInvoker(this.remoteBaseUrl, 'mcp');
   }
 
   invoker(): OperationInvoker {

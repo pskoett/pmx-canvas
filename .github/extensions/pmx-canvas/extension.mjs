@@ -467,6 +467,28 @@ async function postAxRecord(ctx, path, payload) {
     }
 }
 
+// Agent presence (rail-chrome-v2): the Copilot session attaches itself so the
+// canvas shows its cursor + phase chip, and the server attributes the agent's
+// MCP/HTTP writes to this session. Best-effort and never blocking the host.
+async function postPresence(workspaceRoot, payload, options = {}) {
+    try {
+        const resolved = await resolvePmxServer(
+            { input: {}, session: { workingDirectory: workspaceRoot } },
+            { autoStart: false },
+        );
+        if (!resolved.ok || !resolved.baseUrl) return false;
+        await fetchJson(resolved.baseUrl, "/api/canvas/ax/presence", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ source: "copilot", label: "GitHub Copilot", ...payload }),
+            timeoutMs: options.timeoutMs ?? 1_500,
+        });
+        return true;
+    } catch {
+        return false;
+    }
+}
+
 // Fire-and-forget mirror of a copilot-originated action onto the AX timeline.
 // Never throws — adapter UX must not depend on the canvas being reachable.
 function recordCopilotSteering(ctx, message) {
@@ -766,6 +788,10 @@ copilotSession = await joinSession({
     hooks: {
         onUserPromptSubmitted: async (input) => {
             const workspaceRoot = resolve(input?.workingDirectory ?? copilotSession?.workspacePath ?? PROJECT_ROOT);
+            // A submitted prompt means the agent is about to think: attach (idempotent)
+            // and flip the phase. The agent's subsequent canvas writes reach the server
+            // as MCP/HTTP tool calls and are attributed to this session.
+            void postPresence(workspaceRoot, { attached: true, phase: "thinking", detail: null });
             const resolved = await resolvePmxServer({ input: {}, session: { workingDirectory: workspaceRoot } }, { autoStart: false });
             if (!resolved.ok || !resolved.baseUrl) return undefined;
             const context = await getAxContext(resolved.baseUrl, workspaceRoot, {});
@@ -775,11 +801,16 @@ copilotSession = await joinSession({
     },
 });
 
-process.once("SIGTERM", () => {
+// Attach the session as soon as the host joins (the canvas may not be running
+// yet — the prompt hook above re-attaches lazily in that case).
+void postPresence(resolve(copilotSession?.workspacePath ?? PROJECT_ROOT), { attached: true, phase: "idle" });
+
+async function shutdown() {
+    // Detach the presence first (short timeout) so the canvas returns to the
+    // quiet board the moment the host goes away, then stop any managed server.
+    await postPresence(resolve(copilotSession?.workspacePath ?? PROJECT_ROOT), { attached: false }, { timeoutMs: 500 });
     stopManagedServer();
     process.exit(0);
-});
-process.once("SIGINT", () => {
-    stopManagedServer();
-    process.exit(0);
-});
+}
+process.once("SIGTERM", () => void shutdown());
+process.once("SIGINT", () => void shutdown());

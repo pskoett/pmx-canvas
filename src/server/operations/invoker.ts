@@ -10,10 +10,32 @@ export interface OperationInvoker {
   invoke(name: string, input: Record<string, unknown>): Promise<unknown>;
 }
 
+/**
+ * The agent-presence label for a transport: `PMX_CANVAS_AGENT_SOURCE` lets a
+ * host name its agent ('codex', 'claude-code', …) so writes, attach and cursor
+ * all key on one identity; otherwise the transport's own label.
+ */
+export function agentSourceLabel(fallback: string): string {
+  const raw = process.env.PMX_CANVAS_AGENT_SOURCE?.trim();
+  return raw && /^[a-z][a-z0-9-]{0,39}$/i.test(raw) ? raw : fallback;
+}
+
+/** `ax.presence.set` without an explicit source attaches under the caller's own label. */
+function defaultPresenceSource(name: string, input: Record<string, unknown>, source: string): Record<string, unknown> {
+  return name === 'ax.presence.set' && typeof input.source !== 'string' ? { ...input, source } : input;
+}
+
 /** Runs operations in-process against the shared canvasState singleton. */
 export class LocalOperationInvoker implements OperationInvoker {
+  private readonly source: string;
+
+  /** `source` labels this caller's agent presence ('mcp', 'sdk', …). */
+  constructor(source = 'api') {
+    this.source = agentSourceLabel(source);
+  }
+
   async invoke(name: string, input: Record<string, unknown>): Promise<unknown> {
-    return await executeOperation(name, input);
+    return await executeOperation(name, defaultPresenceSource(name, input, this.source), { source: this.source });
   }
 }
 
@@ -24,12 +46,16 @@ function toOperationErrorStatus(status: number): OperationErrorStatus {
 /** Builds the HTTP request from the op's route template (`:id` from input, GET flags to query). */
 export class HttpOperationInvoker implements OperationInvoker {
   private readonly baseUrl: string;
+  private readonly source: string;
 
-  constructor(baseUrl: string) {
+  /** `source` labels this caller's agent presence on the server ('cli', 'mcp', …). */
+  constructor(baseUrl: string, source = 'api') {
     this.baseUrl = baseUrl.replace(/\/$/, '');
+    this.source = agentSourceLabel(source);
   }
 
-  async invoke(name: string, input: Record<string, unknown>): Promise<unknown> {
+  async invoke(name: string, rawInput: Record<string, unknown>): Promise<unknown> {
+    const input = defaultPresenceSource(name, rawInput, this.source);
     const op = getOperation(name);
     const route = op.http;
     if (!route) throw new OperationError(`Operation "${name}" has no HTTP route.`, 400);
@@ -52,7 +78,7 @@ export class HttpOperationInvoker implements OperationInvoker {
     }
 
     let url = `${this.baseUrl}${path}`;
-    const init: RequestInit = { method: route.method };
+    const init: RequestInit = { method: route.method, headers: { 'x-pmx-source': this.source } };
     if (route.method === 'GET' || route.method === 'DELETE') {
       const params = new URLSearchParams();
       for (const [key, value] of Object.entries(rest)) {
@@ -61,7 +87,7 @@ export class HttpOperationInvoker implements OperationInvoker {
       const query = params.toString();
       if (query) url += `?${query}`;
     } else {
-      init.headers = { 'Content-Type': 'application/json' };
+      init.headers = { 'Content-Type': 'application/json', 'x-pmx-source': this.source };
       init.body = JSON.stringify(rest);
     }
 

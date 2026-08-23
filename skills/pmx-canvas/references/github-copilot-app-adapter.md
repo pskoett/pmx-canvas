@@ -38,6 +38,15 @@ Open it with:
 Use a different `instanceId` for parallel panels. Reusing an `instanceId` focuses/reloads the same
 panel.
 
+## Agent presence (automatic)
+
+The extension attaches a Copilot session to the canvas when it joins the host session, flips the
+phase to `thinking` on every submitted prompt, and detaches on exit. While attached the workbench
+shows the Copilot cursor on the node the agent last touched plus a phase chip, and the agent's
+canvas writes — which reach the server as MCP or HTTP tool calls, not as `copilot` — are attributed
+to that session by the server. Nothing to configure; `GET /api/canvas/ax/presence` shows the live
+state.
+
 ## What the Adapter Does
 
 - Opens the live PMX workbench directly in a native Copilot canvas panel.

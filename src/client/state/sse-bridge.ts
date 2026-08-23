@@ -25,13 +25,15 @@ import {
   updateNodeData,
   workbenchConnectionEpoch,
 } from './canvas-store';
-import { fetchAxSurfaceState, reportClientViewportSize } from './intent-bridge';
+import { fetchAgentPresence, fetchAxSurfaceState, reportClientViewportSize } from './intent-bridge';
+import { applyPresenceSnapshot } from './presence-store';
 import { initSessionThemeOverride, themeOverrideActive } from './theme-override';
 import { DEFAULT_POSITIONS, makeNodeState } from './node-factory';
 import { invalidateTokenCache } from '../theme/tokens';
 import { resetAttentionBridge, syncAttentionFromSse } from './attention-bridge';
 import { dissolveIntent, resetIntents, settleIntent, upsertIntent } from './intent-store';
 import type { PmxAxIntent } from '../../shared/ax-intent.js';
+import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js';
 import { isCanvasTheme } from '../../shared/themes.js';
 
 let eventSource: EventSource | null = null;
@@ -429,6 +431,10 @@ function reloadIfServerUpgraded(serverVersion: unknown): void {
   window.location.reload();
 }
 
+function handleAgentPresence(data: Record<string, unknown>): void {
+  applyPresenceSnapshot(data as Partial<AgentPresenceSnapshot>);
+}
+
 function handleConnected(data: Record<string, unknown>): void {
   sessionId.value = (data.sessionId as string) || '';
   connectionStatus.value = 'connected';
@@ -438,6 +444,9 @@ function handleConnected(data: Record<string, unknown>): void {
   // Tell the server how big this window actually is, so an agent `fit` sizes
   // the board to the human's window (0.4.6 orb feedback #2).
   void reportClientViewportSize();
+  // Agent presence: read the snapshot on (re)connect; `agent-presence` frames
+  // keep it live from here on.
+  void fetchAgentPresence().then(applyPresenceSnapshot);
   // A ?theme= session override (host-default theming) wins over the
   // server-global theme for THIS client only.
   if (typeof data.theme === 'string' && !themeOverrideActive()) {
@@ -1021,6 +1030,7 @@ export const EVENT_HANDLERS: Record<string, (data: Record<string, unknown>) => v
   'ax-event-created': handleAxStateChanged,
   'ax-intent': handleAxIntent,
   'ax-intent-clear': handleAxIntentClear,
+  'agent-presence': handleAgentPresence,
 };
 
 /** Dispatch one event (from either transport) through the shared handler map. */

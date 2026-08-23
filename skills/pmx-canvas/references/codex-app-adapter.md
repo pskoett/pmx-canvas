@@ -60,6 +60,34 @@ The MCP server auto-starts the HTTP workbench on first tool call. Open the retur
 in the Codex in-app Browser, usually `http://127.0.0.1:4313/workbench` or
 `http://localhost:4313/workbench`.
 
+### Agent presence (cursor + phase chip)
+
+Name the agent on the MCP server so its writes, its session, and its cursor share one identity:
+
+```json
+{
+  "mcpServers": {
+    "canvas": {
+      "command": "bunx",
+      "args": ["pmx-canvas", "--mcp"],
+      "env": { "PMX_CANVAS_AGENT_SOURCE": "codex" }
+    }
+  }
+}
+```
+
+Then attach at the start of a task and detach at the end:
+
+```json
+{ "tool": "canvas_ax_state", "action": "set-presence", "attached": true, "label": "Codex", "phase": "idle" }
+{ "tool": "canvas_ax_state", "action": "set-presence", "attached": false }
+```
+
+While attached the workbench shows the Codex cursor on the node it last touched and a phase chip
+(`thinking` · `tooling` · `waiting-approval` · `idle`). `tooling` and the cursor position are
+derived from Codex's own MCP writes — nothing per call. Even without `PMX_CANVAS_AGENT_SOURCE`,
+writes arriving as plain `mcp` are attributed to the single attached session.
+
 ## Codex-Native Workflow
 
 1. Open `/workbench` in the Codex in-app Browser as the first visible action. If PMX is not running

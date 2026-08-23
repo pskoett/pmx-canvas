@@ -3,6 +3,7 @@ import { createServer } from 'node:net';
 import { createCanvas } from '../../src/server/index.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
 import { intentRegistry } from '../../src/server/intent-registry.ts';
+import { agentPresence } from '../../src/server/agent-presence.ts';
 import { stopCanvasServer } from '../../src/server/server.ts';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
@@ -94,6 +95,42 @@ describe('PmxCanvas SDK surface', () => {
 
     expect(canvas.ungroupNodes(groupId)).toBe(true);
     expect((canvas.getNode(groupId)?.data.children as string[]) ?? []).toEqual([]);
+  });
+
+  test('SDK writes register agent presence and are attributed to the attached session', () => {
+    workspaceRoot = createTestWorkspace('pmx-canvas-sdk-presence-');
+    resetCanvasForTests(workspaceRoot);
+    agentPresence.reset();
+    const canvas = createCanvas({ port: 4790 });
+
+    // A plain SDK write is an unattached 'sdk' writer parked on the node it made.
+    const first = canvas.addNode({ type: 'markdown', title: 'SDK note', content: 'a' });
+    let snapshot = canvas.getAgentPresence();
+    expect(snapshot.sessionActive).toBe(false);
+    expect(snapshot.presences.map((p) => p.sessionId)).toEqual(['sdk']);
+    expect(snapshot.presences[0]).toMatchObject({
+      phase: 'tooling',
+      detail: 'node.add',
+      focusNodeId: first.id,
+      opCount: 1,
+    });
+
+    // Attaching a session folds the transport writer in; later writes move its cursor.
+    canvas.setAgentPresence({ attached: true, label: 'Script agent', phase: 'thinking' }, { source: 'amp' });
+    const second = canvas.addNode({ type: 'markdown', title: 'SDK note 2', content: 'b' });
+    snapshot = canvas.getAgentPresence();
+    expect(snapshot.sessionActive).toBe(true);
+    expect(snapshot.presences.map((p) => p.sessionId)).toEqual(['amp']);
+    expect(snapshot.presences[0]).toMatchObject({
+      attached: true,
+      focusNodeId: second.id,
+      opCount: 2,
+      phase: 'tooling',
+    });
+
+    canvas.setAgentPresence({ attached: false }, { source: 'amp' });
+    expect(canvas.getAgentPresence().sessionActive).toBe(false);
+    agentPresence.reset();
   });
 
   test('combines structured graph updates with metadata and rejects wrong node types', () => {

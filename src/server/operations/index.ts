@@ -22,6 +22,7 @@ import { appOperations } from './ops/app.js';
 import { intentOperations } from './ops/intent.js';
 import { extAppOperations } from './ops/ext-app.js';
 import { axReadOperations } from './ops/ax-read.js';
+import { axPresenceOperations } from './ops/ax-presence.js';
 import { canvasWireOperations } from './ops/canvas-wire.js';
 
 for (const op of [
@@ -44,6 +45,7 @@ for (const op of [
   ...intentOperations,
   ...extAppOperations,
   ...axReadOperations,
+  ...axPresenceOperations,
   ...canvasWireOperations,
 ]) {
   registerOperation(op);

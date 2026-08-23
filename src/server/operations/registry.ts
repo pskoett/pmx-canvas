@@ -9,6 +9,7 @@
  */
 import { canvasState } from '../canvas-state.js';
 import { intentRegistry } from '../intent-registry.js';
+import { agentPresence } from '../agent-presence.js';
 import type { PmxAxIntent, PmxAxIntentKind } from '../../shared/ax-intent.js';
 import { OperationError, type Operation, type OperationContext } from './types.js';
 
@@ -193,6 +194,56 @@ export interface ExecuteOperationMeta {
    * its inner dispatches (batch churn is exempt, matching the skill contract).
    */
   suppressAutoGhost?: boolean;
+  /**
+   * Who is calling — the presence writer label ('mcp', 'sdk', 'api', …).
+   * Defaults to 'api'. Workbench calls (suppressAutoGhost) never touch presence.
+   */
+  source?: string;
+}
+
+/**
+ * Agent presence (rail-chrome-v2 phase 2): every agent-originated MUTATION —
+ * the same calls that synthesize auto-ghosts — touches the caller's presence
+ * as `tooling`. Reads never do (polling an agent's own context is not work).
+ * Presence must never break the mutation, so this is fire-and-forget.
+ */
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+/** The node an operation touched — the agent cursor glides there. */
+function touchedNodeId(rawInput: unknown, result: unknown): string | null {
+  const input = asRecord(rawInput);
+  if (typeof input.id === 'string') return input.id;
+  if (typeof input.nodeId === 'string') return input.nodeId;
+  const res = asRecord(result);
+  if (typeof res.id === 'string') return res.id;
+  const node = asRecord(res.node);
+  return typeof node.id === 'string' ? node.id : null;
+}
+
+function notePresence(
+  name: string,
+  rawInput: unknown,
+  meta: ExecuteOperationMeta,
+  op: Operation,
+  result: unknown,
+): void {
+  if (!op.mutates || meta.suppressAutoGhost) return;
+  const input = asRecord(rawInput);
+  try {
+    const focusNodeId = touchedNodeId(rawInput, result);
+    agentPresence.touch({
+      source: meta.source ?? 'api',
+      agentId: typeof input.agentId === 'string' ? input.agentId : null,
+      phase: 'tooling',
+      detail: name,
+      ...(focusNodeId ? { focusNodeId } : {}),
+      op: true,
+    });
+  } catch {
+    // never let presence bookkeeping fail a mutation
+  }
 }
 
 export async function executeOperation(
@@ -215,6 +266,7 @@ export async function executeOperation(
         if (op.mutates) {
           emitOperationEvent('canvas-layout-update', { layout: canvasState.getLayout() });
         }
+        notePresence(name, rawInput, meta, op, result);
         return result;
       },
       settledNodeId,
@@ -253,6 +305,7 @@ export async function executeOperation(
         const result = await op.execute(rawInput, operationContext);
         if (op.mutates) emitOperationEvent('canvas-layout-update', { layout: canvasState.getLayout() });
         intentRegistry.clear(ghostId, { settledNodeId: settledNodeId(result, ghost) ?? undefined });
+        notePresence(name, rawInput, meta, op, result);
         return result;
       } catch (error) {
         intentRegistry.clear(ghostId);
@@ -263,5 +316,6 @@ export async function executeOperation(
 
   const result = await op.execute(rawInput, operationContext);
   if (op.mutates) emitOperationEvent('canvas-layout-update', { layout: canvasState.getLayout() });
+  notePresence(name, rawInput, meta, op, result);
   return result;
 }

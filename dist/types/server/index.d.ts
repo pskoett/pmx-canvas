@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import type { AgentPhase, AgentPresence, AgentPresenceSnapshot } from '../shared/agent-presence.js';
 import { canvasState } from './canvas-state.js';
 import type { CanvasAnnotation, CanvasNodeState, CanvasEdge, CanvasLayout } from './canvas-state.js';
 import { type AxInteractionInput, type AxInteractionPublicResult } from './ax-interaction.js';
@@ -32,6 +33,7 @@ export declare class PmxCanvas extends EventEmitter {
         port?: number;
     });
     private runIntentCommit;
+    private runIntentCommitInner;
     start(options?: {
         open?: boolean;
         automationWebView?: boolean | CanvasAutomationWebViewOptions;
@@ -262,6 +264,26 @@ export declare class PmxCanvas extends EventEmitter {
     reportHostCapability(input: unknown, options?: {
         source?: PmxAxSource;
     }): PmxAxHostCapability;
+    /** Who is writing to this board right now, their phase, and the context budget. */
+    getAgentPresence(): AgentPresenceSnapshot;
+    /**
+     * Update this SDK caller's presence (rail-chrome-v2 phase 2): phase, detail,
+     * focus node, cursor, and `attached` (true starts a session, false ends it).
+     */
+    setAgentPresence(input: {
+        agentId?: string | null;
+        label?: string;
+        phase?: AgentPhase;
+        detail?: string | null;
+        focusNodeId?: string | null;
+        cursor?: {
+            x: number;
+            y: number;
+        } | null;
+        attached?: boolean;
+    }, options?: {
+        source?: PmxAxSource;
+    }): AgentPresence;
     listElicitations(): PmxAxElicitation[];
     requestElicitation(input: {
         prompt: string;

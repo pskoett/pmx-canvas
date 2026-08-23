@@ -11,6 +11,7 @@
  *
  * This module must never import server.ts or index.ts.
  */
+import { agentPresence } from '../../agent-presence.js';
 import { z } from 'zod';
 import { buildAgentContextPreamble, serializeNodeForAgentContext } from '../../agent-context.js';
 import { buildCanvasAxContext, buildCanvasAxSurfaceSnapshot } from '../../ax-context.js';
@@ -248,6 +249,13 @@ const activityIngestOperation = defineOperation<z.infer<typeof activitySchema>, 
     if (result.workItem) ctx.emit('ax-state-changed', { workItem: result.workItem });
     if (result.evidence) ctx.emit('ax-event-created', { evidence: result.evidence });
     if (result.review) ctx.emit('ax-state-changed', { reviewAnnotation: result.review });
+    // Presence is derived from this feed: session-start attaches, session-end
+    // detaches, tool-start/-result drive the phase (rail-chrome-v2 phase 2).
+    agentPresence.observeActivity(body.kind, {
+      source: normalizeAxSource(body.source, 'api'),
+      agentId: typeof body.agentId === 'string' ? body.agentId : null,
+      title: body.title,
+    });
     return { ok: true, ...result };
   },
 });

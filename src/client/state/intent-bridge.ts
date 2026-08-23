@@ -1,3 +1,5 @@
+import { canvasArea } from '../canvas/canvas-area';
+import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js';
 function logRequestError(action: string, error: unknown): void {
   console.error(`[intent-bridge] ${action} failed`, error);
 }
@@ -331,6 +333,11 @@ export async function fetchAxSurfaceState(): Promise<unknown> {
   return requestJson<unknown>('fetchAxSurfaceState', '/api/canvas/ax/surface-snapshot', null);
 }
 
+/** Connect-time agent-presence read; live updates arrive as `agent-presence` SSE frames. */
+export async function fetchAgentPresence(): Promise<Partial<AgentPresenceSnapshot> | null> {
+  return requestJson<Partial<AgentPresenceSnapshot> | null>('fetchAgentPresence', '/api/canvas/ax/presence', null);
+}
+
 /** Ask the server to open a node's surface in the system browser. */
 export async function openNodeInSystemBrowserRequest(
   nodeId: string,
@@ -390,8 +397,11 @@ export async function updateViewportFromClient(
  */
 function clientWindowSize(): { clientWidth: number; clientHeight: number } | Record<string, never> {
   if (typeof window === 'undefined') return {};
-  const clientWidth = window.innerWidth;
-  const clientHeight = window.innerHeight;
+  // The CANVAS REGION, not the window — with the rail + top-bar shell a
+  // window-sized fit would hide nodes under the chrome.
+  const area = canvasArea();
+  const clientWidth = Math.round(area.width);
+  const clientHeight = Math.round(area.height);
   if (!clientWidth || !clientHeight) return {};
   return { clientWidth, clientHeight };
 }
