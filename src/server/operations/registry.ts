@@ -250,14 +250,29 @@ function heldByHuman(name: string, rawInput: unknown): { nodeId: string; name: s
 }
 
 /** The node an operation touched — the agent cursor glides there. */
+function nodeIdFromResult(record: Record<string, unknown>): string | null {
+  if (typeof record.id === 'string') return record.id;
+  const node = asRecord(record.node);
+  return typeof node.id === 'string' ? node.id : null;
+}
+
 function touchedNodeId(rawInput: unknown, result: unknown): string | null {
   const input = asRecord(rawInput);
   if (typeof input.id === 'string') return input.id;
   if (typeof input.nodeId === 'string') return input.nodeId;
   const res = asRecord(result);
-  if (typeof res.id === 'string') return res.id;
-  const node = asRecord(res.node);
-  return typeof node.id === 'string' ? node.id : null;
+  const direct = nodeIdFromResult(res);
+  if (direct) return direct;
+  // canvas.batch: park the presence cursor on the LAST op that touched a node —
+  // batch-writing agents (ghost-approved creates) otherwise never get a focus,
+  // which left their cursor invisible through entire rounds of work.
+  if (Array.isArray(res.results)) {
+    for (let i = res.results.length - 1; i >= 0; i -= 1) {
+      const id = nodeIdFromResult(asRecord(res.results[i]));
+      if (id) return id;
+    }
+  }
+  return null;
 }
 
 /**

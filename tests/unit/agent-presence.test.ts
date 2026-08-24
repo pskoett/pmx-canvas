@@ -341,6 +341,31 @@ describe('session lifecycle (pre-session snapshot + receipt)', () => {
     );
   });
 
+  test('a real agent attach retires the unused human-started placeholder and inherits its baseline', () => {
+    // Start agent session → placeholder chip. A real agent attaching makes the
+    // placeholder pure noise: it TURNS INTO the agent's session — no third
+    // "Agent session · Idle" chip, no phantom receipt, and the human's Start
+    // moment stays the diff baseline via the inherited snapshot.
+    registry.touch({ source: 'browser', label: 'Agent session', attached: true }, T0);
+    expect(starts).toEqual(['browser']);
+    registry.touch({ source: 'copilot', label: 'GitHub Copilot', attached: true }, T0 + 10);
+    const attached = registry.snapshot(T0 + 20).presences.filter((presence) => presence.attached);
+    expect(attached.map((presence) => presence.sessionId)).toEqual(['copilot']);
+    expect(starts).toEqual(['browser']); // no second pre-session snapshot
+    expect(ends).toEqual([]); // retirement is silent — nothing "ended"
+    registry.touch({ source: 'copilot', attached: false }, T0 + 30);
+    expect(ends).toEqual([{ sessionId: 'copilot', startSnapshotId: 'snap-1' }]);
+  });
+
+  test('a placeholder that already adopted work is a real session and survives an agent attach', () => {
+    registry.touch({ source: 'browser', label: 'Agent session', attached: true }, T0);
+    // A transport write while the placeholder is the only session books onto it.
+    registry.touch({ source: 'mcp', op: true }, T0 + 5);
+    registry.touch({ source: 'copilot', label: 'GitHub Copilot', attached: true }, T0 + 10);
+    const attached = registry.snapshot(T0 + 20).presences.filter((presence) => presence.attached);
+    expect(attached.map((presence) => presence.sessionId).sort()).toEqual(['browser', 'copilot']);
+  });
+
   test('start fires once per attach and its snapshot id comes back at the explicit end', () => {
     registry.touch({ source: 'copilot', attached: true }, T0);
     registry.touch({ source: 'copilot', attached: true, op: true }, T0 + 10); // still attached: no second start

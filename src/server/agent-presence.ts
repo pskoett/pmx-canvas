@@ -392,7 +392,30 @@ export class AgentPresenceRegistry {
         const loose = [...this.presences.values()].filter((presence) => !presence.attached && !presence.agentId);
         if (loose.length === 1) this.fold(loose[0]!.sessionId, stored);
       }
-      stored.startSnapshotId = this.onSessionStart(this.publicView(stored, now));
+      // The human's still-unused placeholder TURNS INTO the first real agent
+      // session that attaches (user call 2026-08-24): a third "Agent session ·
+      // Idle" chip next to the agent's own is noise, and the human's Start
+      // moment stays the receipt baseline via the inherited snapshot. A
+      // placeholder that already adopted work is a real session and stays.
+      let inheritedSnapshotId: string | null = null;
+      if (stored.source !== 'browser') {
+        const placeholder = [...this.presences.values()].find(
+          (presence) =>
+            presence.attached &&
+            presence.sessionId !== key &&
+            presence.source === 'browser' &&
+            presence.label === HUMAN_STARTED_SESSION_LABEL &&
+            presence.opCount === 0,
+        );
+        if (placeholder) {
+          this.presences.delete(placeholder.sessionId);
+          for (const [channel, target] of this.aliases) {
+            if (target === placeholder.sessionId) this.aliases.set(channel, key);
+          }
+          inheritedSnapshotId = placeholder.startSnapshotId;
+        }
+      }
+      stored.startSnapshotId = inheritedSnapshotId ?? this.onSessionStart(this.publicView(stored, now));
     }
     if (wasAttached && input.attached === false) {
       this.onSessionEnd(this.publicView(stored, now), stored.startSnapshotId, input.endedBy ?? 'agent');

@@ -39,6 +39,8 @@ export interface AxSteeringView {
     target?: string | null;
     /** Who sent it — an agent label, or "browser" for the human's composer. */
     source?: string | null;
+    /** False until the target (or any consumer, for broadcasts) claims + marks it. */
+    delivered?: boolean;
 }
 /**
  * Session panel data (rail-chrome-v2 phase 4). Nothing here is a second source

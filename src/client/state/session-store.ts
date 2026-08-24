@@ -48,6 +48,8 @@ export interface AxSteeringView {
   target?: string | null;
   /** Who sent it — an agent label, or "browser" for the human's composer. */
   source?: string | null;
+  /** False until the target (or any consumer, for broadcasts) claims + marks it. */
+  delivered?: boolean;
 }
 
 /**
@@ -196,11 +198,15 @@ export function mergeTimeline(
       // inter-agent coordination is legible; the human's own rows stay clean.
       const from = steer.source && steer.source !== 'browser' ? steer.source : null;
       const to = steer.target ? `→ ${steer.target} · ` : from ? '→ all · ' : '';
+      // Steering is pull-based: an addressed steer sits queued until the
+      // target agent next runs against the canvas. Say so — a silent queued
+      // row reads as "nothing happened".
+      const waiting = steer.target && steer.delivered === false ? ` — waiting for ${steer.target} to pick it up` : '';
       return {
         id: `steer-${steer.id}`,
         kind: 'steer' as const,
         label: 'Steer',
-        body: `${from ? `${from} ` : ''}${to}${steer.message}`,
+        body: `${from ? `${from} ` : ''}${to}${steer.message}${waiting}`,
         createdAt: steer.createdAt,
       };
     }),

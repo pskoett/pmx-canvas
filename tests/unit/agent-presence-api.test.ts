@@ -294,6 +294,30 @@ describe('write attribution over HTTP', () => {
     snapshot = await getPresence();
     expect(snapshot.presences.map((p) => p.sessionId).sort()).toEqual(['codex', 'helper-1']);
   });
+
+  test('a canvas batch parks the cursor on the last node it touched', async () => {
+    // Ghost-approved multi-node creates arrive as one batch — without a focus
+    // derived from the batch result the writer had no cursor through entire
+    // rounds of work (invisible Copilot, 2026-08-24).
+    await postJson('/api/canvas/ax/activity', { kind: 'session-start', title: 'Batcher', source: 'batcher' });
+    const res = await postJson(
+      '/api/canvas/batch',
+      {
+        operations: [
+          { op: 'node.add', args: { type: 'markdown', title: 'Batch one' } },
+          { op: 'node.add', args: { type: 'markdown', title: 'Batch two' } },
+        ],
+      },
+      { 'x-pmx-source': 'batcher' },
+    );
+    expect(res.ok).toBe(true);
+    const body = (await res.json()) as { results: Array<{ id?: string }> };
+    const last = body.results[body.results.length - 1]?.id;
+    expect(typeof last).toBe('string');
+    const snapshot = await getPresence();
+    const batcher = snapshot.presences.find((p) => p.sessionId === 'batcher');
+    expect(batcher?.focusNodeId).toBe(last);
+  });
 });
 
 describe('agent presence over SSE', () => {
