@@ -1145,6 +1145,13 @@ body,
   transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
   color: var(--presence-color);
 }
+.agent-cursor.is-external {
+  opacity: 0.8;
+}
+.agent-cursor.is-external .agent-cursor-chip {
+  border-style: dashed;
+}
+
 .agent-cursor-inner {
   position: relative;
   transform-origin: 0 0;

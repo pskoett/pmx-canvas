@@ -2100,6 +2100,25 @@ function buildWorkbenchConnectSnapshot(
       },
     });
   }
+  // A fresh tab must not start blind to who is on the board: both presence
+  // registries broadcast only on CHANGE, so without these frames a reload
+  // shows no agent cursors/chips and no human cursors until the next move.
+  events.push({
+    event: 'agent-presence',
+    payload: {
+      ...(agentPresence.snapshot() as unknown as Record<string, unknown>),
+      reason: 'connect-snapshot',
+      timestamp: new Date().toISOString(),
+    },
+  });
+  events.push({
+    event: 'human-presence',
+    payload: {
+      ...(humanPresence.snapshot() as unknown as Record<string, unknown>),
+      reason: 'connect-snapshot',
+      timestamp: new Date().toISOString(),
+    },
+  });
   return events;
 }
 

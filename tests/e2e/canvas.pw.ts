@@ -3725,10 +3725,11 @@ test('agent presence surfaces: cursor + chip on attach, shimmer on mutation, byt
   const target = page.locator('.canvas-node').filter({ hasText: 'Presence target' });
   await expect(target).toHaveCount(1);
 
-  // Quiet board: no agent chrome at all, even though an external writer
-  // (the create above) is live.
+  // Quiet board with a live external writer (the create above): panels and
+  // chips stay absent, but the writer's dashed cursor IS painted (amended
+  // 2026-08-24) so the human sees where it worked.
   await expect(page.locator('.agent-chip')).toHaveCount(0);
-  await expect(page.locator('.agent-cursor')).toHaveCount(0);
+  await expect(page.locator('.agent-cursor.is-external')).toHaveCount(1);
 
   // Attach a thinking session focused on the node.
   const attach = await request.post('/api/canvas/ax/presence', {
@@ -3738,8 +3739,10 @@ test('agent presence surfaces: cursor + chip on attach, shimmer on mutation, byt
   await expect(page.locator('.agent-chip .agent-chip-label')).toHaveText('Thinking');
   await expect(page.locator('.agent-chip')).toHaveClass(/phase-thinking/);
 
-  // The cursor is ON the focused node (user-visible placement, not a tuple).
-  const cursor = page.locator('.agent-cursor');
+  // The session's cursor is ON the focused node (user-visible placement, not
+  // a tuple). The pre-attach external writer still paints its own until a
+  // write proves they are the same agent.
+  const cursor = page.locator('.agent-cursor:not(.is-external)');
   await expect(cursor).toHaveCount(1);
   const [cursorBox, nodeBox] = await Promise.all([cursor.boundingBox(), target.boundingBox()]);
   if (!cursorBox || !nodeBox) throw new Error('missing boxes');
@@ -3756,8 +3759,10 @@ test('agent presence surfaces: cursor + chip on attach, shimmer on mutation, byt
   await expect(target).toHaveClass(/agent-mutating/);
   await expect(page.locator('.agent-chip .agent-chip-label')).toHaveText(/Running node\.update/);
   await expect(target).not.toHaveClass(/agent-mutating/, { timeout: 5000 });
-  // Still exactly one cursor — the transport write did not spawn a second writer.
-  await expect(cursor).toHaveCount(1);
+  // The attributed write folded the pre-attach api shadow into the session:
+  // exactly one cursor total now, and no external ones.
+  await expect(page.locator('.agent-cursor')).toHaveCount(1);
+  await expect(page.locator('.agent-cursor.is-external')).toHaveCount(0);
 
   // The cursor FOLLOWS the session's work: a new node written over the same
   // transport pulls the cursor onto it.
@@ -4377,6 +4382,13 @@ test('human presence: two tabs see each other’s cursors, a grab locks the node
   await expect(samPage.locator('.human-cursor').filter({ hasText: 'sam' })).toHaveCount(0);
   await expect(miaPage.locator('.human-cursor').filter({ hasText: 'mia' })).toHaveCount(0);
 
+  // mia pans by trackpad wheel WITHOUT moving her pointer: the world moves
+  // under it, so the cursor sam watches must track to the new world point —
+  // before the viewport-change re-report it froze at the stale one.
+  const frozen = await miaCursor.evaluate((el) => (el as HTMLElement).style.transform);
+  await miaPage.mouse.wheel(0, 240);
+  await expect.poll(() => miaCursor.evaluate((el) => (el as HTMLElement).style.transform)).not.toBe(frozen);
+
   // An agent signals an edit on the note; mia grabs it mid-edit → the agent
   // yields (intent vetoed, Yield in the timeline) and the node wears the pill.
   await request.post('/api/canvas/ax/activity', {
@@ -4423,6 +4435,28 @@ test('human presence: two tabs see each other’s cursors, a grab locks the node
   await request.post('/api/canvas/ax/activity', { data: { kind: 'session-end', title: 'done', source: 'copilot' } });
   await mia.close();
   await sam.close();
+});
+
+test('an external (sessionless) writer paints a dashed cursor parked on the node it wrote', async ({
+  page,
+  request,
+}) => {
+  // No attached session anywhere — a plain HTTP/MCP write books an unattached
+  // presence with the touched node as focus, and the presence layer now paints
+  // it (amended contract 2026-08-24) so the human sees WHERE the agent works.
+  const node = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'External work', content: 'x', x: 420, y: 260, width: 300, height: 160 },
+      headers: { 'x-pmx-source': 'e2e-external' },
+    })
+  ).json()) as { id: string };
+  await page.goto('/workbench');
+  await expect(page.locator('.canvas-node').filter({ hasText: 'External work' })).toHaveCount(1);
+  const cursor = page.locator('.agent-cursor.is-external').filter({ hasText: 'e2e-external' });
+  await expect(cursor).toHaveCount(1);
+  // Parked at the node's top-right anchor: (420 + 300 - 28, 260 + 16).
+  await expect(cursor).toHaveCSS('transform', /matrix/);
+  await request.delete(`/api/canvas/node/${node.id}`, { headers: { 'x-pmx-workbench': '1' } });
 });
 
 test('edge creation: Connect tool drags an edge from a node body, the target lights up, L labels it, Esc cancels', async ({

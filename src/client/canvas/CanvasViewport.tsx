@@ -1,3 +1,4 @@
+import { effect } from '@preact/signals';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
 import { ContextNode } from '../nodes/ContextNode';
 import { DiffNode } from '../nodes/DiffNode';
@@ -249,6 +250,7 @@ export function CanvasViewport({
 }: CanvasViewportProps) {
   const v = viewport.value;
   const isLassoing = useRef(false);
+  const lastPointerScreen = useRef<{ x: number; y: number } | null>(null);
   const isAnnotating = useRef(false);
   const annotationPoints = useRef<Array<{ x: number; y: number }>>([]);
   const [lasso, setLasso] = useState<LassoRect | null>(null);
@@ -404,12 +406,31 @@ export function CanvasViewport({
     [annotationTool, containerRef],
   );
 
+  // Trackpad pans and zooms move the world under a motionless pointer — no
+  // pointermove fires — so other tabs would watch this cursor drift to a stale
+  // world point while this tab navigates. Re-derive the world position from
+  // the last screen point on every viewport change (throttled by the store).
+  useEffect(() => {
+    return effect(() => {
+      const vp = viewport.value;
+      const screen = lastPointerScreen.current;
+      const container = containerRef.current;
+      if (!screen || !container) return;
+      const rect = container.getBoundingClientRect();
+      reportHumanCursor({
+        x: (screen.x - rect.left - vp.x) / vp.scale,
+        y: (screen.y - rect.top - vp.y) / vp.scale,
+      });
+    });
+  }, []);
+
   const handlePointerMove = useCallback(
     (e: PointerEvent) => {
       // Human presence (phase 8): other tabs see this pointer in world space.
       {
         const container = containerRef.current;
         if (container) {
+          lastPointerScreen.current = { x: e.clientX, y: e.clientY };
           const rect = container.getBoundingClientRect();
           const vp = viewport.value;
           reportHumanCursor({
@@ -760,7 +781,10 @@ export function CanvasViewport({
       tabIndex={0}
       onPointerDown={handlePointerDown}
       onPointerMove={handlePointerMove}
-      onPointerLeave={() => reportHumanCursor(null)}
+      onPointerLeave={() => {
+        lastPointerScreen.current = null;
+        reportHumanCursor(null);
+      }}
       onPointerUp={handlePointerUp}
       onContextMenu={handleContextMenu}
       onDblClick={handleDblClick}

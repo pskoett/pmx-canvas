@@ -1,11 +1,11 @@
 import { useRef } from 'preact/hooks';
 import { agentPhaseLabel, type AgentPresence } from '../../shared/agent-presence.js';
 import { nodes, viewport } from '../state/canvas-store';
-import { agentPresences, presenceWorldPosition, sessionActive } from '../state/presence-store';
+import { agentPresences, presenceWorldPosition } from '../state/presence-store';
 
 /**
  * Agent presence layer (rail-chrome-v2 phase 3): one cursor + phase chip per
- * live writer, mounted ONLY while a session is attached. Lives inside the
+ * live writer — attached sessions and external (unattached) writers alike. Lives inside the
  * world layer (like IntentLayer) so it pans and zooms with the board; the
  * glyph itself is counter-scaled so it stays a constant screen size. Moves
  * glide (220ms) — pans and zooms do not, because those move the world layer.
@@ -18,17 +18,18 @@ export function AgentPresenceLayer() {
   // node that was just removed stays where it was instead of vanishing.
   const lastPositions = useRef(new Map<string, { x: number; y: number }>());
 
-  if (!sessionActive.value) return null;
   const scale = viewport.value.scale;
   const nodeMap = nodes.value;
   const counterScale = 1 / Math.max(0.05, scale);
 
-  // Cursors belong to ATTACHED sessions only. An unattached writer is the
-  // External Steering case (phase 6 indicator + ghosts), and a host adapter
-  // that attached a session while its MCP calls write under another source
-  // label would otherwise paint two cursors for one agent.
+  // Every live writer paints a cursor, attached session or not — an external
+  // writer editing a quiet board is exactly when the human needs to see WHERE
+  // it is working (user call, 2026-08-24). Unattached writers get the
+  // `is-external` style; a board with no writers renders nothing. Attached
+  // twins never double-paint (twin-merge folds an agent's channels into one
+  // session), and an external writer's channels appear exactly as the
+  // External-activity panel counts them.
   const cursors = agentPresences.value
-    .filter((presence) => presence.attached)
     .map((presence) => {
       const resolved = presenceWorldPosition(presence, (id) => nodeMap.get(id));
       if (resolved) lastPositions.current.set(presence.sessionId, resolved);
@@ -44,7 +45,7 @@ export function AgentPresenceLayer() {
       {cursors.map(({ presence, position }) => (
         <div
           key={presence.sessionId}
-          class={`agent-cursor phase-${presence.phase}`}
+          class={`agent-cursor phase-${presence.phase}${presence.attached ? '' : ' is-external'}`}
           data-session-id={presence.sessionId}
           style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
         >

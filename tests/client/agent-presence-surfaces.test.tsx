@@ -7,7 +7,8 @@ import { applyPresenceSnapshot, resetPresence } from '../../src/client/state/pre
 import type { CanvasNodeState } from '../../src/client/types.ts';
 import type { AgentPresence } from '../../src/shared/agent-presence.ts';
 
-// rail-chrome-v2 phase 3: the surfaces mount on sessionActive and nothing else.
+// rail-chrome-v2 phase 3 (amended 2026-08-24): panels mount on sessionActive;
+// the presence layer paints EVERY live writer, external ones dashed.
 
 function presence(overrides: Partial<AgentPresence>): AgentPresence {
   return {
@@ -82,15 +83,20 @@ describe('top-bar agent chip', () => {
 });
 
 describe('agent presence layer', () => {
-  test('renders nothing without an attached session — even with a positioned external writer', () => {
+  test('an external (unattached) writer paints a dashed is-external cursor on the quiet board', () => {
+    // No attached session at all — an agent editing through plain MCP/HTTP is
+    // exactly when the human needs to see where it works (user call 2026-08-24).
     applyPresenceSnapshot({
       presences: [presence({ sessionId: 'api', source: 'api', attached: false, cursor: { x: 10, y: 10 } })],
     });
     const { container } = render(<AgentPresenceLayer />);
-    expect(container.querySelector('.agent-cursor')).toBeNull();
+    const cursor = container.querySelector('.agent-cursor') as HTMLElement;
+    expect(cursor).not.toBeNull();
+    expect(cursor.className).toContain('is-external');
+    expect(cursor.style.transform).toBe('translate(10px, 10px)');
   });
 
-  test('renders one cursor per ATTACHED session, parked on its focus node, counter-scaled', () => {
+  test('renders every live writer — attached sessions plain, external writers marked', () => {
     viewport.value = { x: 0, y: 0, scale: 0.5 };
     applyPresenceSnapshot({
       presences: [
@@ -100,15 +106,17 @@ describe('agent presence layer', () => {
     });
     const { container } = render(<AgentPresenceLayer />);
     const cursors = container.querySelectorAll('.agent-cursor');
-    expect(cursors).toHaveLength(1);
-    const cursor = cursors[0] as HTMLElement;
-    expect(cursor.dataset.sessionId).toBe('copilot');
+    expect(cursors).toHaveLength(2);
+    const cursor = [...cursors].find((el) => (el as HTMLElement).dataset.sessionId === 'copilot') as HTMLElement;
     expect(cursor.className).toContain('phase-thinking');
+    expect(cursor.className).not.toContain('is-external');
     // Focus node n1 at (100,50) × 300 wide → anchor (372, 66) in world space.
     expect(cursor.style.transform).toBe('translate(372px, 66px)');
     const inner = cursor.querySelector('.agent-cursor-inner') as HTMLElement;
     expect(inner.style.transform).toBe('scale(2)');
     expect(cursor.querySelector('.agent-cursor-label')?.textContent).toBe('Thinking');
+    const external = [...cursors].find((el) => (el as HTMLElement).dataset.sessionId === 'api') as HTMLElement;
+    expect(external.className).toContain('is-external');
   });
 
   test('keeps the last position when the focus node disappears', () => {
