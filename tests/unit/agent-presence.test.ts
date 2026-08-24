@@ -215,6 +215,54 @@ describe("write attribution (the cursor follows the session's own work)", () => 
     ]);
   });
 
+  test('one agent on two channels: an attach with a matching label merges instead of a second session', () => {
+    // The Copilot extension attaches its own presence…
+    registry.touch({ source: 'copilot', label: 'GitHub Copilot', attached: true, phase: 'thinking' }, T0);
+    // …while a second agent is also on the board (ambiguity is real)…
+    registry.touch({ source: 'claude-code', attached: true }, T0);
+    // …and Copilot's MCP server attaches as its own channel with the same title.
+    registry.touch({ source: 'mcp', label: 'GitHub Copilot', attached: true }, T0 + 1);
+    let presences = registry.snapshot(T0 + 1).presences;
+    expect(presences.map((p) => [p.sessionId, p.label]).sort()).toEqual([
+      ['claude-code', 'claude-code'],
+      ['copilot', 'GitHub Copilot'],
+    ]);
+
+    // The aliased channel's writes land on the merged session even with two
+    // sessions attached (normally ambiguous), and refresh its phase.
+    registry.touch(
+      {
+        source: 'mcp',
+        op: true,
+        phase: 'tooling',
+        detail: 'node.add',
+        activity: { op: 'node.add', summary: 'Added "Note"', nodeId: 'n1' },
+      },
+      T0 + 2,
+    );
+    presences = registry.snapshot(T0 + 2).presences;
+    const copilot = presences.find((p) => p.sessionId === 'copilot');
+    expect(copilot?.opCount).toBe(1);
+    expect(copilot?.phase).toBe('tooling');
+    expect(registry.snapshot(T0 + 2).activity[0]).toMatchObject({ sessionId: 'copilot', label: 'GitHub Copilot' });
+
+    // Detach through the aliased channel ends the ONE merged session.
+    registry.touch({ source: 'mcp', attached: false }, T0 + 3);
+    expect(registry.snapshot(T0 + 3).presences.map((p) => p.sessionId)).toEqual(['claude-code']);
+  });
+
+  test('different labels never twin-merge; identified sub-agents never do', () => {
+    registry.touch({ source: 'copilot', label: 'GitHub Copilot', attached: true }, T0);
+    registry.touch({ source: 'codex', label: 'Codex', attached: true }, T0 + 1);
+    registry.touch({ source: 'mcp', agentId: 'reviewer', label: 'GitHub Copilot', attached: true }, T0 + 2);
+    expect(
+      registry
+        .snapshot(T0 + 2)
+        .presences.map((p) => p.sessionId)
+        .sort(),
+    ).toEqual(['codex', 'copilot', 'reviewer']);
+  });
+
   test('a human-started session keeps the name of the first agent that filled it', () => {
     registry.touch({ source: 'browser', label: HUMAN_STARTED_SESSION_LABEL, attached: true }, T0);
     registry.touch({ source: 'claude-code', op: true }, T0 + 1);

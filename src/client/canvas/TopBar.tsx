@@ -28,6 +28,7 @@ function BarHint({
   shortcut,
   body,
   align = 'center',
+  tapToOpen = false,
   children,
 }: {
   label: string;
@@ -35,10 +36,20 @@ function BarHint({
   /** One or two plain sentences under the label — the explanation a native `title` used to hide. */
   body?: string;
   align?: 'start' | 'center' | 'end';
+  /**
+   * Informational (non-button) content: a click/focus opens the tooltip, so
+   * surfaces that do not forward hover (embedded panes, touch) still reach
+   * the explanation. Never for action buttons — their tooltips must dismiss
+   * after the click, not linger on focus.
+   */
+  tapToOpen?: boolean;
   children: ComponentChildren;
 }) {
   return (
-    <span class={`toolbar-tooltip-anchor toolbar-tooltip-anchor-${align}`}>
+    <span
+      class={`toolbar-tooltip-anchor toolbar-tooltip-anchor-${align}${tapToOpen ? ' toolbar-tooltip-anchor-tap' : ''}`}
+      tabIndex={tapToOpen ? -1 : undefined}
+    >
       {children}
       <span class="toolbar-tooltip" role="tooltip">
         <span class="toolbar-tooltip-label">{label}</span>
@@ -70,6 +81,7 @@ function AgentChip() {
         <BarHint
           key={session.sessionId}
           label={`Agent session — ${session.label}`}
+          tapToOpen
           body="What this attached agent is doing right now: idle, thinking, running a tool, or waiting on your approval. Steer it from the composer below."
         >
           <span class={`agent-chip phase-${session.phase}`} data-phase={session.phase}>
@@ -99,6 +111,7 @@ function GateBadge() {
   return (
     <BarHint
       label="Approval gates waiting on you"
+      tapToOpen
       body="The agent is blocked until you approve or reject in the session panel; unanswered gates auto-hold when the countdown runs out."
     >
       <span class="gate-badge">
@@ -147,7 +160,7 @@ function ContextBudget() {
         body: `The nodes you pinned (✦) are what the agent is asked to carry as context: ≈ ${formatTokens(budget.used)} of a ${formatTokens(budget.total)}-token budget. When the agent's host reports its real context window, this meter switches to showing that instead.`,
       };
   return (
-    <BarHint label={hint.label} body={hint.body}>
+    <BarHint label={hint.label} body={hint.body} tapToOpen>
       <span class={`context-budget tone-${budgetTone(ratio)}`} data-mode={real ? 'window' : 'pins'}>
         <span class="context-budget-caption hud-collapsible-text">{real ? 'Context' : 'Pins'}</span>
         <span class="context-budget-track" aria-hidden="true">
@@ -249,6 +262,7 @@ export function TopBar() {
     <div class="top-bar">
       <BarHint
         label={`Canvas status: ${statusTitle}`}
+        tapToOpen
         body="Live updates stream in over SSE; amber means reconnecting."
         align="start"
       >

@@ -2147,6 +2147,17 @@ test('task checkboxes tick on the CARD and persist to the node content', async (
     );
   // The re-render keeps it ticked; unticking the second one works too.
   await expect(boxes.nth(0)).toBeChecked();
+  // The whole gutter is a target — a click on the row LEFT of the text (not on
+  // the 15px input itself) toggles too, for imprecise surfaces.
+  const row3 = card.locator('.node-body li').nth(2);
+  const rowBox = (await row3.boundingBox())!;
+  await page.mouse.click(rowBox.x + 2, rowBox.y + 10);
+  await expect
+    .poll(async () => {
+      const state = (await (await request.get(`/api/canvas/node/${note.id}`)).json()) as { content?: string };
+      return state.content?.split('\n')[2];
+    })
+    .toBe('- [x] steer loop');
   await boxes.nth(1).click();
   await expect
     .poll(async () => {
@@ -2154,7 +2165,7 @@ test('task checkboxes tick on the CARD and persist to the node content', async (
       return state.content;
     })
     .toBe(
-      '- [x] hover tooltips on a deliberately long task line that wraps within this card\n- [ ] ungroup parity\n- [ ] steer loop',
+      '- [x] hover tooltips on a deliberately long task line that wraps within this card\n- [ ] ungroup parity\n- [x] steer loop',
     );
 });
 
@@ -3918,6 +3929,11 @@ test('addressed steering: the composer lists connected agents, the picked one al
   expect(await claim('codex')).toBe(false);
   expect(await claim('claude-code')).toBe(false);
   await expect(page.locator('.session-timeline')).toContainText('→ copilot · own the CI flake, ignore the rest');
+
+  // The meter tooltip opens on CLICK too (surfaces without hover forwarding).
+  await page.locator('.context-budget').click();
+  await expect(page.locator('.toolbar-tooltip', { hasText: 'Pins — pinned-context size' })).toBeVisible();
+  await page.keyboard.press('Escape');
 
   // Timeline kind filters: "Steer" keeps steering-shaped rows only; "All" restores the mix.
   const filters = page.locator('.session-timeline-filters');

@@ -129,6 +129,10 @@ export declare class AgentPresenceRegistry {
      * placeholder label takes the writer's name.
      */
     private fold;
+    /** Aliased channels: a key that attach-merged into another session (extension + its MCP server). */
+    private aliases;
+    /** Drop aliases that point at a session that no longer exists. */
+    private dropAliasesTo;
     /** Touch a writer: upsert, bump lastSeen, apply the patch. Derived `tooling` decays on its own. */
     touch(input: PresenceTouch, now?: number): AgentPresence;
     /**

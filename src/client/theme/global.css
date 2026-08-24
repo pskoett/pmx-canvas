@@ -804,6 +804,10 @@ body,
   border-radius: 4px;
   background: var(--c-panel);
   cursor: pointer;
+  /* Embedding webviews (Copilot app) force color schemes on form controls —
+     this box is fully custom-drawn, keep its colors ours. */
+  forced-color-adjust: none;
+  color-scheme: light;
 }
 .canvas-node .node-body li > input[type='checkbox']:hover,
 .md-reader-content li > input[type='checkbox']:hover {
@@ -2687,17 +2691,26 @@ body,
   transform: rotate(45deg);
 }
 
+/* :focus-within opens the tooltip only on tap-to-open (informational)
+   anchors — an action button's tooltip must dismiss after its click. */
 .toolbar-tooltip-anchor:hover .toolbar-tooltip,
+.toolbar-tooltip-anchor-tap:focus-within .toolbar-tooltip,
 .toolbar-tooltip-anchor > :focus-visible + .toolbar-tooltip {
   opacity: 1;
   transform: translateX(-50%) translateY(0);
 }
 
 .toolbar-tooltip-anchor-start:hover .toolbar-tooltip,
+.toolbar-tooltip-anchor-start.toolbar-tooltip-anchor-tap:focus-within .toolbar-tooltip,
 .toolbar-tooltip-anchor-start > :focus-visible + .toolbar-tooltip,
 .toolbar-tooltip-anchor-end:hover .toolbar-tooltip,
+.toolbar-tooltip-anchor-end.toolbar-tooltip-anchor-tap:focus-within .toolbar-tooltip,
 .toolbar-tooltip-anchor-end > :focus-visible + .toolbar-tooltip {
   transform: translateX(0) translateY(0);
+}
+
+.toolbar-tooltip-anchor {
+  outline: none;
 }
 
 /* Rail variant: fixed beside the hovered button (the rail's scroll clip would

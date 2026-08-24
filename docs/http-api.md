@@ -297,7 +297,10 @@ label. A session the human started (*Start agent session*, `source: "browser"`)
 is a placeholder for whichever agent comes next: it absorbs agent-less writes
 under *any* label — a host label included — and takes that agent's name. If
 exactly one such writer is already on the board when the human starts the
-session, it is adopted on the spot.
+session, it is adopted on the spot. One agent arriving over two channels —
+an adapter presence plus its own MCP server, both announcing the same label —
+merges into one session at attach, and the merged channel's writes and detach
+keep landing on it.
 
 **Session lifecycle: pre-session snapshot and receipt.** When a session
 attaches (`attached: true`, or `session-start` on the activity feed) over a

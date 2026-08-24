@@ -262,8 +262,14 @@ export class AgentPresenceRegistry {
    */
   private attributedKey(input: PresenceTouch): string {
     const own = presenceKey(input.source, input.agentId);
-    // Identified writers and lifecycle touches (attach/detach) keep their key.
-    if (input.agentId?.trim() || input.attached !== undefined || this.presences.get(own)?.attached) return own;
+    // Identified writers keep their key; attaches run the twin-merge in touch().
+    if (input.agentId?.trim() || input.attached === true || this.presences.get(own)?.attached) return own;
+    // A channel that attach-merged into a session stays that session's — its
+    // writes AND its detach belong to the merged session, however many other
+    // sessions are attached.
+    const alias = this.aliases.get(own);
+    if (alias && this.presences.get(alias)?.attached) return alias;
+    if (input.attached !== undefined) return own;
     const attached = [...this.presences.values()].filter((presence) => presence.attached);
     if (attached.length !== 1) return own;
     const session = attached[0]!;
@@ -291,10 +297,36 @@ export class AgentPresenceRegistry {
     }
   }
 
+  /** Aliased channels: a key that attach-merged into another session (extension + its MCP server). */
+  private aliases = new Map<string, string>();
+
+  /** Drop aliases that point at a session that no longer exists. */
+  private dropAliasesTo(sessionId: string): void {
+    for (const [channel, target] of this.aliases) {
+      if (target === sessionId) this.aliases.delete(channel);
+    }
+  }
+
   /** Touch a writer: upsert, bump lastSeen, apply the patch. Derived `tooling` decays on its own. */
   touch(input: PresenceTouch, now = Date.now()): AgentPresence {
-    const key = this.attributedKey(input);
+    let key = this.attributedKey(input);
     const own = presenceKey(input.source, input.agentId);
+    if (input.attached === true && !input.agentId?.trim()) {
+      // One agent, two channels: an attach whose label matches an ALREADY
+      // attached session (Copilot's extension presence + its MCP server both
+      // announcing "GitHub Copilot") is the same agent — merge instead of
+      // showing a second session, and remember the alias so this channel's
+      // later writes and detach land on the merged session too.
+      const label = input.label ?? input.source;
+      const twin = [...this.presences.values()].find(
+        (presence) => presence.attached && presence.sessionId !== own && !presence.agentId && presence.label === label,
+      );
+      if (twin) {
+        this.aliases.set(own, twin.sessionId);
+        this.fold(own, twin);
+        key = twin.sessionId;
+      }
+    }
     if (key !== own) {
       const session = this.presences.get(key);
       if (session) {
@@ -360,6 +392,7 @@ export class AgentPresenceRegistry {
       // An ended session is gone — like `session-end` on the activity feed, it
       // must not linger as an "external writer" until the activity TTL.
       this.presences.delete(key);
+      this.dropAliasesTo(key);
       this.maybeStopSweeper();
       this.scheduleEmit();
       return this.publicView({ ...stored, startSnapshotId: null }, now);
@@ -458,6 +491,7 @@ export class AgentPresenceRegistry {
     const stored = this.presences.get(sessionId);
     const removed = this.presences.delete(sessionId);
     if (removed) {
+      this.dropAliasesTo(sessionId);
       if (stored?.attached) this.onSessionEnd(this.publicView(stored, Date.now()), stored.startSnapshotId);
       this.scheduleEmit();
     }
@@ -479,6 +513,7 @@ export class AgentPresenceRegistry {
   /** Test / shutdown hook. */
   reset(): void {
     this.presences.clear();
+    this.aliases.clear();
     this.activity = [];
     if (this.emitTimer) {
       clearTimeout(this.emitTimer);
@@ -522,6 +557,7 @@ export class AgentPresenceRegistry {
       }
       if (!oldestKey) break;
       this.presences.delete(oldestKey);
+      this.dropAliasesTo(oldestKey);
     }
   }
 
@@ -531,6 +567,7 @@ export class AgentPresenceRegistry {
       const ttl = presence.attached ? PRESENCE_ATTACHED_IDLE_TTL_MS : PRESENCE_ACTIVITY_TTL_MS;
       if (presence.lastSeenMs + ttl <= now) {
         this.presences.delete(key);
+        this.dropAliasesTo(key);
         if (presence.attached) this.onSessionEnd(this.publicView(presence, now), presence.startSnapshotId);
         changed = true;
         continue;

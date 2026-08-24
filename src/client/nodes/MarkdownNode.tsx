@@ -38,12 +38,23 @@ function RenderedMarkdown({
 
   const handleClick = onTaskToggle
     ? (e: MouseEvent) => {
-        const target = e.target as HTMLElement;
-        if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox') return;
-        e.stopPropagation();
         const container = containerRef.current;
         if (!container) return;
-        const index = [...container.querySelectorAll('input[type="checkbox"]')].indexOf(target);
+        const target = e.target as HTMLElement;
+        // The box itself, or anywhere in the row's checkbox gutter — a 15px
+        // input alone is a miserable target at zoom and in embedded panes
+        // that forward clicks imprecisely.
+        let box: HTMLInputElement | null = null;
+        if (target instanceof HTMLInputElement && target.type === 'checkbox') {
+          box = target;
+        } else {
+          const row = target.closest('li');
+          const rowBox = row?.querySelector<HTMLInputElement>(':scope > input[type="checkbox"]');
+          if (rowBox && e.clientX <= rowBox.getBoundingClientRect().right + 6) box = rowBox;
+        }
+        if (!box) return;
+        e.stopPropagation();
+        const index = [...container.querySelectorAll('input[type="checkbox"]')].indexOf(box);
         if (index >= 0) onTaskToggle(index);
       }
     : undefined;
