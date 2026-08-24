@@ -1480,11 +1480,24 @@ body,
 }
 
 /* Timeline */
+/* One row, always: compact chips, no wrapping, and the row runs full-bleed
+   across the panel's inner padding so all six fit. If a theme/locale ever
+   makes them wider still, the row pans horizontally instead of stacking. */
 .session-timeline-filters {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  margin: 2px 0 8px;
+  flex-wrap: nowrap;
+  gap: 1px;
+  margin: 2px -12px 8px;
+  padding: 0 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.session-timeline-filters::-webkit-scrollbar {
+  display: none;
+}
+.session-timeline-filters .activity-filter {
+  flex-shrink: 0;
+  padding: 2px 5px;
 }
 
 .session-timeline-row {

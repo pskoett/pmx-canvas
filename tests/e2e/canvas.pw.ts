@@ -4062,6 +4062,14 @@ test('addressed steering: the composer lists connected agents, the picked one al
 
   // Timeline kind filters: "Steer" keeps steering-shaped rows only; "All" restores the mix.
   const filters = page.locator('.session-timeline-filters');
+  // All six chips sit on ONE row (they wrapped to two when Assistant landed)
+  // and FIT — the row's overflow escape hatch must not be hiding the last one.
+  const rowTops = await filters
+    .locator('.activity-filter')
+    .evaluateAll((chips) => chips.map((chip) => (chip as HTMLElement).offsetTop));
+  expect(new Set(rowTops).size).toBe(1);
+  const fit = await filters.evaluate((el) => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth }));
+  expect(fit.scrollWidth).toBeLessThanOrEqual(fit.clientWidth);
   await filters.getByRole('button', { name: 'Steer' }).click();
   await expect(page.locator('.session-timeline .session-timeline-label').first()).toHaveText('Steer');
   await expect(page.locator('.session-timeline')).not.toContainText('Update');
