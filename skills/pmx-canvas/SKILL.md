@@ -285,6 +285,12 @@ What the session asks of you:
   the composer, and a claim only returns broadcasts plus messages targeted at your `consumer`
   label — so always claim as yourself (your `PMX_CANVAS_AGENT_SOURCE` label), or addressed
   steering never reaches you.
+- **Steering is also the agent-to-agent mailbox.** To coordinate with another agent on the
+  board, send `canvas_ax_timeline { action: "send-steering", message, target: "<their
+  consumer label>" }` — they claim it once on their next turn, you never receive your own, and
+  the human sees the exchange in the panel as "you → them · message". Read
+  `canvas_ax_state { action: "presence" }` for who is connected. Park shared state in work
+  items and evidence; split territory with group frames rather than editing the same node.
 
 ## Browser Workflows
 

@@ -20,6 +20,7 @@ import { SessionReceipt } from './canvas/SessionReceipt';
 import { ShortcutOverlay } from './canvas/ShortcutOverlay';
 import { SnapshotPanel } from './canvas/SnapshotPanel';
 import { promptedCreate, ToolRail } from './canvas/ToolRail';
+import { TextPrompt } from './canvas/TextPrompt';
 import { TopBar } from './canvas/TopBar';
 import {
   activeNodeId,
@@ -338,6 +339,7 @@ export function App() {
           {selectedNodeIds.value.size > 0 && <SelectionBar />}
           {sessionIsActive ? <CommandBar /> : contextPinnedNodeIds.value.size > 0 && <ContextPinBar />}
           <SessionReceipt onOpenSnapshots={() => setSnapshotOpen(true)} />
+          <TextPrompt />
           {expandedNodeId.value && <ExpandedNodeOverlay />}
           <SnapshotPanel open={snapshotOpen} onClose={handleCloseSnapshot} anchorRef={snapshotBtnRef} />
           {minimapVisible && (

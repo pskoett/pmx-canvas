@@ -42,10 +42,10 @@ describe('mergeTimeline', () => {
     expect(mergeTimeline(timeline, 20, writes, null, 'event').map((entry) => entry.label)).toEqual(['Policy']);
     // The category mapping the chips rely on.
     expect(
-      ['update', 'steer', 'steering', 'yield', 'evidence', 'policy', 'prompt'].map((kind) =>
+      ['update', 'steer', 'steering', 'yield', 'assistant-message', 'evidence', 'policy', 'prompt'].map((kind) =>
         timelineCategory(kind as Parameters<typeof timelineCategory>[0]),
       ),
-    ).toEqual(['update', 'steer', 'steer', 'steer', 'evidence', 'event', 'event']);
+    ).toEqual(['update', 'steer', 'steer', 'steer', 'assistant', 'evidence', 'event', 'event']);
   });
 
   test('interleaves the three tables newest-first with kind labels and bounded length', () => {
@@ -64,6 +64,38 @@ describe('mergeTimeline', () => {
       'Steer:focus on the gate',
       'Tool run:bun test — unit',
       'Evidence:14 suites green',
+    ]);
+
+    // Agent-sent steering names the sender (and the recipient, or "all"):
+    // inter-agent coordination must be legible to the human.
+    const agentToAgent = mergeTimeline(
+      {
+        events: [],
+        evidence: [],
+        steering: [
+          {
+            id: 's2',
+            message: 'lane 2 is yours',
+            createdAt: '2026-08-24T10:00:00.000Z',
+            source: 'claude-code',
+            target: 'copilot',
+          },
+          { id: 's3', message: 'pausing writes', createdAt: '2026-08-24T10:01:00.000Z', source: 'codex', target: null },
+          {
+            id: 's4',
+            message: 'from the composer',
+            createdAt: '2026-08-24T10:02:00.000Z',
+            source: 'browser',
+            target: 'codex',
+          },
+        ],
+      },
+      10,
+    );
+    expect(agentToAgent.map((entry) => entry.body)).toEqual([
+      '→ codex · from the composer',
+      'codex → all · pausing writes',
+      'claude-code → copilot · lane 2 is yours',
     ]);
     expect(merged.every((entry) => entry.id.length > 0)).toBe(true);
   });

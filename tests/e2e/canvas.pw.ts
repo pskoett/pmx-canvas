@@ -487,6 +487,87 @@ test('rail and keyboard creates land in the current viewport, not at the board o
   expect(await inRegion('New note')).toBe(true);
 });
 
+test('Shift+F / W / I open the in-canvas prompt (window.prompt is a no-op in embedded panes) and create the node', async ({
+  page,
+  request,
+}) => {
+  await page.goto('/workbench');
+  await page.locator('[data-testid="empty-state"]').waitFor();
+  // Shift+F → file node by workspace path.
+  await page.keyboard.press('Shift+F');
+  const prompt = page.locator('[data-testid="text-prompt"]');
+  await expect(prompt).toBeVisible();
+  await expect(prompt).toContainText('Workspace file path');
+  // Drive the input directly — autofocus is for humans, not a test dependency.
+  await prompt.locator('input').fill('src/shared/themes.ts');
+  await prompt.locator('input').press('Enter');
+  await expect(prompt).toBeHidden();
+  await expect(page.locator('.canvas-node[data-node-type="file"]')).toHaveCount(1);
+  await expect
+    .poll(async () => {
+      const state = (await (await request.get('/api/canvas/state')).json()) as {
+        nodes: Array<{ type: string; data: Record<string, unknown> }>;
+      };
+      return (
+        state.nodes.find((node) => node.type === 'file')?.data.path ??
+        state.nodes.find((node) => node.type === 'file')?.data.content
+      );
+    })
+    .toContain('src/shared/themes.ts');
+
+  // W opens it too; Esc cancels without creating.
+  await page.keyboard.press('w');
+  await expect(prompt).toContainText('Page URL');
+  await page.keyboard.press('Escape');
+  await expect(prompt).toBeHidden();
+  // I opens the image prompt; backdrop click cancels.
+  await page.keyboard.press('i');
+  await expect(prompt).toContainText('Image URL');
+  await page.locator('.text-prompt-backdrop').click({ position: { x: 10, y: 10 } });
+  await expect(prompt).toBeHidden();
+});
+
+test('right-click Delete: a node deletes; a frame deletes with its children staying', async ({ page, request }) => {
+  const a = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Doomed', content: 'x', x: 200, y: 160, width: 260, height: 140 },
+    })
+  ).json()) as { id: string };
+  const b = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Member', content: 'y', x: 640, y: 160, width: 260, height: 140 },
+    })
+  ).json()) as { id: string };
+  const frame = (await (
+    await request.post('/api/canvas/group', { data: { title: 'Doomed frame', childIds: [b.id] } })
+  ).json()) as { id: string };
+  await page.goto('/workbench');
+  await page.keyboard.press('f');
+
+  const node = page.locator('.canvas-node').filter({ hasText: 'Doomed' }).filter({ hasNotText: 'frame' }).first();
+  await node.click({ button: 'right', position: { x: 80, y: 60 } });
+  const menu = page.locator('.context-menu');
+  await expect(menu.getByRole('button', { name: 'Delete', exact: true })).toBeVisible();
+  await menu.getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Doomed' }).filter({ hasNotText: 'frame' })).toHaveCount(
+    0,
+  );
+
+  // The group frame: right-click its edge row → an honest "Delete frame (children stay)".
+  await page
+    .locator('.canvas-node.group-node')
+    .filter({ hasText: 'Doomed frame' })
+    .locator('.group-edge-row')
+    .click({ button: 'right', position: { x: 200, y: 6 } });
+  await menu.getByRole('button', { name: 'Delete frame (children stay)' }).click();
+  await expect(page.locator('.canvas-node.group-node')).toHaveCount(0);
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Member' })).toHaveCount(1);
+  expect(
+    ((await (await request.get(`/api/canvas/node/${b.id}`)).json()) as { data: Record<string, unknown> }).data
+      .parentGroup,
+  ).toBeUndefined();
+});
+
 test('#J: the empty state yields to a live ghost intent so the cursor is visible on an empty board', async ({
   page,
   request,

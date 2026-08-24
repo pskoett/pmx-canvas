@@ -145,7 +145,7 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
           <button
             key={itemKey}
             type="button"
-            class="context-menu-item"
+            class={`context-menu-item${item.danger ? ' is-danger' : ''}`}
             onClick={() => {
               item.action?.();
               onClose();
@@ -165,6 +165,8 @@ interface MenuItem {
   shortcut?: string;
   action?: () => void;
   separator?: boolean;
+  /** Destructive item — rendered in the danger color. */
+  danger?: boolean;
   render?: (onClose: () => void) => ComponentChildren;
 }
 
@@ -568,10 +570,13 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
     }
   }
 
-  // Report #64: status nodes are removable like any other node type.
+  // Report #64: status nodes are removable like any other node type. Named
+  // "Delete" — "Close" did not read as destructive, and a frame's delete
+  // deserves the honest caveat that its members stay.
   items.push({ separator: true });
   items.push({
-    label: 'Close',
+    label: node.type === 'group' ? 'Delete frame (children stay)' : 'Delete',
+    danger: true,
     action: () => {
       removeNode(node.id);
       void removeNodeFromClient(node.id);

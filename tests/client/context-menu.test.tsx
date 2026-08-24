@@ -54,7 +54,7 @@ describe('ContextMenu', () => {
     expect(getByText('Pin as context')).toBeTruthy();
     expect(getByText('Lock position (no auto-arrange)')).toBeTruthy();
     expect(getByText('Connect from here')).toBeTruthy();
-    expect(getByText('Close')).toBeTruthy();
+    expect(getByText('Delete')).toBeTruthy();
   });
 
   test('offers unpin when the node is already context-pinned', () => {

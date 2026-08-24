@@ -47,6 +47,7 @@ const TIMELINE_FILTERS: Array<{ id: TimelineFilter; label: string }> = [
   { id: 'all', label: 'All' },
   { id: 'update', label: 'Updates' },
   { id: 'steer', label: 'Steer' },
+  { id: 'assistant', label: 'Assistant' },
   { id: 'event', label: 'Events' },
   { id: 'evidence', label: 'Evidence' },
 ];

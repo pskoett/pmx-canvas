@@ -46,6 +46,8 @@ export interface AxSteeringView {
   createdAt: string;
   /** Consumer label this steer was addressed to; null/absent = broadcast. */
   target?: string | null;
+  /** Who sent it — an agent label, or "browser" for the human's composer. */
+  source?: string | null;
 }
 
 /**
@@ -107,13 +109,14 @@ export const axTimeline = signal<AxTimelineView>({ events: [], evidence: [], ste
 export type TimelineEntryKind = AxEventKind | 'evidence' | 'steer' | 'update';
 
 /** Timeline filter chips: a handful of human categories over the many kinds. */
-export type TimelineFilter = 'all' | 'update' | 'steer' | 'event' | 'evidence';
+export type TimelineFilter = 'all' | 'update' | 'steer' | 'assistant' | 'event' | 'evidence';
 export const timelineFilter = signal<TimelineFilter>('all');
 
 /** Which chip an entry belongs to: board writes / steering-shaped rows / evidence / the rest. */
 export function timelineCategory(kind: TimelineEntryKind): Exclude<TimelineFilter, 'all'> {
   if (kind === 'update') return 'update';
   if (kind === 'steer' || kind === 'steering' || kind === 'yield') return 'steer';
+  if (kind === 'assistant-message') return 'assistant';
   if (kind === 'evidence') return 'evidence';
   return 'event';
 }
@@ -188,13 +191,19 @@ export function mergeTimeline(
       body: item.body ? `${item.title} — ${item.body}` : item.title,
       createdAt: item.createdAt,
     })),
-    ...timeline.steering.map((steer) => ({
-      id: `steer-${steer.id}`,
-      kind: 'steer' as const,
-      label: 'Steer',
-      body: steer.target ? `→ ${steer.target} · ${steer.message}` : steer.message,
-      createdAt: steer.createdAt,
-    })),
+    ...timeline.steering.map((steer) => {
+      // Sender shown for agent-sent steering ("claude-code → copilot · …") so
+      // inter-agent coordination is legible; the human's own rows stay clean.
+      const from = steer.source && steer.source !== 'browser' ? steer.source : null;
+      const to = steer.target ? `→ ${steer.target} · ` : from ? '→ all · ' : '';
+      return {
+        id: `steer-${steer.id}`,
+        kind: 'steer' as const,
+        label: 'Steer',
+        body: `${from ? `${from} ` : ''}${to}${steer.message}`,
+        createdAt: steer.createdAt,
+      };
+    }),
   ];
   // Filter BEFORE the cap so "Steer" shows up to `limit` steers, not just the
   // ones that survived a cap over the mixed feed.

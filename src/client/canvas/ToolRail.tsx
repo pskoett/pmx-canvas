@@ -33,6 +33,7 @@ import {
 } from '../state/canvas-store';
 import { saveCanvasTheme } from '../state/intent-bridge';
 import { createNodeInView } from './create-in-view';
+import { askText } from './TextPrompt';
 import { clearThemeOverride } from '../state/theme-override';
 import { invalidateTokenCache } from '../theme/tokens';
 import type { AnnotationTool } from '../types';
@@ -56,9 +57,11 @@ export function promptedCreate(kind: 'image' | 'file' | 'webpage'): void {
     file: { message: 'Workspace file path', placeholder: 'src/server/server.ts' },
     webpage: { message: 'Page URL', placeholder: 'https://example.com' },
   };
-  const value = window.prompt(ask[kind].message, '');
-  if (!value || !value.trim()) return;
-  void createNodeInView({ type: kind, content: value.trim() }).catch((error) => logRailError(`create ${kind}`, error));
+  // In-canvas prompt — `window.prompt` is silently a no-op in embedded panes.
+  void askText(ask[kind].message, ask[kind].placeholder).then((value) => {
+    if (!value) return;
+    void createNodeInView({ type: kind, content: value }).catch((error) => logRailError(`create ${kind}`, error));
+  });
 }
 
 /**

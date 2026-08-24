@@ -3557,6 +3557,10 @@ html.is-node-resizing .ext-app-preview-catcher {
   color: var(--c-accent);
 }
 
+.context-menu-item.is-danger .context-menu-label {
+  color: var(--c-danger, #e5484d);
+}
+
 .context-menu-shortcut {
   color: var(--c-muted);
   font-size: 10px;
@@ -4082,6 +4086,68 @@ html.is-node-resizing .ext-app-preview-catcher {
 
 .snap-guides-svg {
   z-index: 9999;
+}
+
+/* In-canvas text prompt (window.prompt replacement — embedded panes no-op it). */
+.text-prompt-backdrop {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding-top: 18vh;
+  background: color-mix(in srgb, var(--c-bg) 42%, transparent);
+  z-index: 10015;
+}
+.text-prompt {
+  width: min(440px, calc(100% - 48px));
+  padding: 14px;
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: 12px;
+  box-shadow: 0 18px 60px var(--c-shadow-heavy);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.text-prompt-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+.text-prompt-input {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--c-line);
+  border-radius: 8px;
+  background: var(--c-bg);
+  color: var(--c-text);
+  font: 13px/1.4 var(--mono);
+}
+.text-prompt-input:focus {
+  outline: none;
+  border-color: var(--c-accent);
+}
+.text-prompt-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+.text-prompt-cancel,
+.text-prompt-confirm {
+  padding: 5px 12px;
+  border-radius: 7px;
+  border: 1px solid var(--c-line);
+  background: none;
+  color: var(--c-text-soft);
+  cursor: pointer;
+  font-size: 12px;
+}
+.text-prompt-confirm {
+  background: var(--c-accent);
+  border-color: var(--c-accent);
+  color: var(--c-bg);
+  font-weight: 600;
 }
 
 /* Selection action bar — floating bottom-center of the canvas region

@@ -37,6 +37,8 @@ export interface AxSteeringView {
     createdAt: string;
     /** Consumer label this steer was addressed to; null/absent = broadcast. */
     target?: string | null;
+    /** Who sent it — an agent label, or "browser" for the human's composer. */
+    source?: string | null;
 }
 /**
  * Session panel data (rail-chrome-v2 phase 4). Nothing here is a second source
@@ -66,7 +68,7 @@ export interface AxTimelineView {
 export declare const axTimeline: import("@preact/signals-core").Signal<AxTimelineView>;
 export type TimelineEntryKind = AxEventKind | 'evidence' | 'steer' | 'update';
 /** Timeline filter chips: a handful of human categories over the many kinds. */
-export type TimelineFilter = 'all' | 'update' | 'steer' | 'event' | 'evidence';
+export type TimelineFilter = 'all' | 'update' | 'steer' | 'assistant' | 'event' | 'evidence';
 export declare const timelineFilter: import("@preact/signals-core").Signal<TimelineFilter>;
 /** Which chip an entry belongs to: board writes / steering-shaped rows / evidence / the rest. */
 export declare function timelineCategory(kind: TimelineEntryKind): Exclude<TimelineFilter, 'all'>;
