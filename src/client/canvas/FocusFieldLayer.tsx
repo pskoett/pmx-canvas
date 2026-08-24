@@ -55,11 +55,22 @@ export function FocusFieldLayer() {
 
   if (primaryNodeIds.length === 0 && secondaryNodeIds.length === 0) return null;
 
+  // A region that spans (nearly) the whole populated board distinguishes
+  // nothing — pins far apart degrade the glow into a border around
+  // everything. Skip those; the per-node halos still mark the pins.
+  const all = [...nodes.value.values()];
+  const boardArea =
+    all.length > 0
+      ? (Math.max(...all.map((n) => n.position.x + n.size.width)) - Math.min(...all.map((n) => n.position.x))) *
+        (Math.max(...all.map((n) => n.position.y + n.size.height)) - Math.min(...all.map((n) => n.position.y)))
+      : 0;
+
   return (
     <div class="attention-field-layer" aria-hidden="true">
       {regions.map((region) => {
         const rect = getRegionRect(region.nodeIds);
         if (!rect) return null;
+        if (boardArea > 0 && rect.width * rect.height >= boardArea * 0.75) return null;
         return <div key={region.id} class="attention-field-region" style={rectStyle(rect, 42)} />;
       })}
       {secondaryNodeIds.map((nodeId) => {
