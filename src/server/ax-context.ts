@@ -1,5 +1,6 @@
 import { buildAgentContextPreamble, serializeNodeForAgentContext } from './agent-context.js';
 import {
+  type PmxAxHumanAnnotation,
   buildAxContext,
   buildPendingAxActivity,
   AX_CONTEXT_STEERING_LIMIT,
@@ -12,6 +13,7 @@ import {
   type PmxAxModeRequest,
   type PmxAxPolicy,
 } from './ax-state.js';
+import type { CanvasLayout } from './canvas-state.js';
 import { canvasState, type CanvasNodeState } from './canvas-state.js';
 
 /**
@@ -75,6 +77,48 @@ export function buildCanvasAxPinnedContext(): PmxAxPinnedContext {
   };
 }
 
+/**
+ * Human ink → agent context: each annotation, anchored to the nodes whose
+ * padded frame it overlaps. Without this the human's strokes and notes were
+ * invisible to every agent-facing surface — the annotate tool IS the human
+ * writing to the agent (the pins principle, in ink).
+ */
+function buildHumanAnnotations(layout: CanvasLayout): PmxAxHumanAnnotation[] {
+  const PAD = 40;
+  return canvasState.getAnnotations().map((annotation) => {
+    const xs = annotation.points.map((point) => point.x);
+    const ys = annotation.points.map((point) => point.y);
+    const center = xs.length
+      ? {
+          x: Math.round((Math.min(...xs) + Math.max(...xs)) / 2),
+          y: Math.round((Math.min(...ys) + Math.max(...ys)) / 2),
+        }
+      : { x: 0, y: 0 };
+    const onNodes = layout.nodes
+      .filter((node) => {
+        const left = node.position.x - PAD;
+        const top = node.position.y - PAD;
+        const right = node.position.x + node.size.width + PAD;
+        const bottom = node.position.y + node.size.height + PAD;
+        return (
+          xs.length > 0 &&
+          Math.min(...xs) <= right &&
+          Math.max(...xs) >= left &&
+          Math.min(...ys) <= bottom &&
+          Math.max(...ys) >= top
+        );
+      })
+      .map((node) => ({ id: node.id, title: typeof node.data.title === 'string' ? node.data.title : null }));
+    const text =
+      typeof annotation.text === 'string' && annotation.text
+        ? annotation.text
+        : typeof annotation.label === 'string' && annotation.label
+          ? annotation.label
+          : null;
+    return { id: annotation.id, type: annotation.type, text, onNodes, center };
+  });
+}
+
 export function buildCanvasAxContext(consumer?: string): PmxAxContext {
   const layout = canvasState.getLayout();
   const ax = canvasState.getAxState();
@@ -100,6 +144,7 @@ export function buildCanvasAxContext(consumer?: string): PmxAxContext {
     workItems: ax.workItems,
     approvalGates: ax.approvalGates,
     reviewAnnotations: ax.reviewAnnotations,
+    humanAnnotations: buildHumanAnnotations(layout),
     elicitations: ax.elicitations,
     modeRequests: ax.modeRequests,
     policy: ax.policy,

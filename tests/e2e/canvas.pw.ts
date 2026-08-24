@@ -2358,6 +2358,15 @@ test('toolbar tooltips dismiss after pointer-triggered actions', async ({ page }
   for (const button of buttons) {
     await button.hover();
     await expect.poll(async () => tooltipOpacity(button)).toBeGreaterThan(0.9);
+    // Opacity is an intermediate — assert the tooltip actually SHOWS.
+    // toBeInViewport is IntersectionObserver-backed, which accounts for
+    // ancestor clipping: the bar's overflow:hidden shipped fully-clipped
+    // tooltips while the opacity assertion stayed green.
+    await expect(
+      button.locator('xpath=ancestor::*[contains(@class,"toolbar-tooltip-anchor")]').locator('.toolbar-tooltip'),
+    ).toBeInViewport({
+      ratio: 0.9,
+    });
 
     await button.click();
     await page.mouse.move(80, 860);

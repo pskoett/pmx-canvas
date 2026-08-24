@@ -983,7 +983,10 @@ body,
   background: color-mix(in srgb, var(--c-panel-soft) 92%, transparent);
   backdrop-filter: blur(12px);
   border-bottom: 1px solid var(--c-line);
-  overflow: hidden;
+  /* NOT overflow:hidden — the BarHint tooltips hang below the bar and were
+     clipped invisible for everyone (the e2e asserted opacity, which cannot
+     see ancestor clipping). Children ellipsize themselves; the narrow-screen
+     collapse is media-query display, not clipping. */
   min-width: 0;
   z-index: 9998;
 }

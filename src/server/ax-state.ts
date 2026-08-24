@@ -187,6 +187,17 @@ export interface PmxAxDeliveryContext {
   pendingActivity: PendingAxActivityItem[];
 }
 
+/** Human ink on the board — freehand strokes and text notes, anchored to the nodes they overlap. */
+export interface PmxAxHumanAnnotation {
+  id: string;
+  type: string;
+  /** The human's words, when this is a text note (or a labelled stroke). */
+  text: string | null;
+  /** Nodes whose padded frame the annotation overlaps — what it is "on". */
+  onNodes: Array<{ id: string; title: string | null }>;
+  center: { x: number; y: number };
+}
+
 export interface PmxAxContext {
   version: 1;
   generatedAt: string;
@@ -203,6 +214,8 @@ export interface PmxAxContext {
   workItems: PmxAxWorkItem[];
   approvalGates: PmxAxApprovalGate[];
   reviewAnnotations: PmxAxReviewAnnotation[];
+  /** What the human drew/wrote on the board (the annotate tool) — not agent review comments. */
+  humanAnnotations: PmxAxHumanAnnotation[];
   elicitations: PmxAxElicitation[];
   modeRequests: PmxAxModeRequest[];
   policy: PmxAxPolicy;
@@ -984,6 +997,7 @@ export function buildAxContext(input: {
   workItems: PmxAxWorkItem[];
   approvalGates: PmxAxApprovalGate[];
   reviewAnnotations: PmxAxReviewAnnotation[];
+  humanAnnotations: PmxAxHumanAnnotation[];
   elicitations: PmxAxElicitation[];
   modeRequests: PmxAxModeRequest[];
   policy: PmxAxPolicy;
@@ -1006,6 +1020,7 @@ export function buildAxContext(input: {
     workItems: input.workItems,
     approvalGates: input.approvalGates,
     reviewAnnotations: input.reviewAnnotations,
+    humanAnnotations: input.humanAnnotations,
     elicitations: input.elicitations,
     modeRequests: input.modeRequests,
     policy: input.policy,
