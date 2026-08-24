@@ -97,6 +97,73 @@ describe('command bar', () => {
     expect(input.value).toBe('try again');
   });
 
+  const presence = (label: string, attached: boolean) => ({
+    sessionId: label,
+    source: label,
+    agentId: null,
+    label,
+    phase: 'idle' as const,
+    detail: null,
+    focusNodeId: null,
+    cursor: null,
+    attached,
+    opCount: 1,
+    contextUsage: null,
+    lastSeenAt: '2026-08-23T00:00:00.000Z',
+  });
+
+  test('with several connected agents the composer offers a target picker and addresses the steer', async () => {
+    act(() =>
+      applyPresenceSnapshot({
+        presences: [presence('codex', false), presence('claude-code', true), presence('copilot', true)],
+      }),
+    );
+    const { container, getByLabelText } = render(<CommandBar />);
+    const picker = getByLabelText('Steer which agent') as HTMLSelectElement;
+    // Sessions first, live writers after (suffixed), broadcast default.
+    expect([...picker.options].map((option) => option.textContent)).toEqual([
+      'All agents',
+      'claude-code',
+      'copilot',
+      'codex · writer',
+    ]);
+    expect(picker.value).toBe('');
+
+    fireEvent.change(picker, { target: { value: 'copilot' } });
+    const input = getByLabelText('Steer the agent') as HTMLInputElement;
+    expect(input.placeholder).toContain('Steer copilot');
+    fireEvent.input(input, { target: { value: 'fix the CI flake' } });
+    fireEvent.keyDown(input, { key: 'Enter' });
+    await waitFor(() => expect(calls.some((call) => call.url === '/api/canvas/ax/steer')).toBe(true));
+    expect(JSON.parse(String(calls.find((call) => call.url === '/api/canvas/ax/steer')!.init?.body))).toEqual({
+      message: 'fix the CI flake',
+      source: 'browser',
+      target: 'copilot',
+    });
+
+    // The picked agent disconnecting falls back to broadcast — presence is the truth.
+    act(() => applyPresenceSnapshot({ presences: [presence('claude-code', true), presence('codex', false)] }));
+    expect((getByLabelText('Steer which agent') as HTMLSelectElement).value).toBe('');
+    expect((getByLabelText('Steer the agent') as HTMLInputElement).placeholder).toContain('Steer the agent');
+  });
+
+  test('one connected agent (or only the un-adopted placeholder besides it) means no picker', () => {
+    act(() => applyPresenceSnapshot({ presences: [presence('claude-code', true)] }));
+    const { container: one } = render(<CommandBar />);
+    expect(one.querySelector('.command-bar-target')).toBeNull();
+    cleanup();
+    act(() =>
+      applyPresenceSnapshot({
+        presences: [
+          { ...presence('Agent session', true), sessionId: 'browser', source: 'browser' },
+          presence('codex', false),
+        ],
+      }),
+    );
+    const { container: two } = render(<CommandBar />);
+    expect(two.querySelector('.command-bar-target')).toBeNull();
+  });
+
   test('shows the chips as gold ✦ pins with the "in agent context" note and no meter of its own', () => {
     act(() => replaceContextPinsFromServer(['n1']));
     const { container } = render(<CommandBar />);

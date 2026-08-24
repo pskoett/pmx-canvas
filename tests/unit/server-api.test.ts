@@ -5035,6 +5035,32 @@ describe('canvas server HTTP API', () => {
     const forOther = await jsonRequest<Pending>('/api/canvas/ax/delivery/pending?consumer=other&limit=200');
     expect(forOther.pending.some((s) => s.message === tag)).toBe(false);
     expect(forOther.pending.some((s) => s.message === broadcastTag)).toBe(true);
+
+    // A claim that does not identify itself gets broadcasts only — addressed
+    // steering is claimable solely by the consumer it names.
+    const anonymous = await jsonRequest<Pending>('/api/canvas/ax/delivery/pending?limit=200');
+    expect(anonymous.pending.some((s) => s.message === tag)).toBe(false);
+    expect(anonymous.pending.some((s) => s.message === broadcastTag)).toBe(true);
+
+    // The browser composer's addressed form: workbench steer with a target.
+    const composerTag = `${tag}-composer`;
+    await fetch(`${baseUrl}/api/canvas/ax/steer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
+      body: JSON.stringify({ message: composerTag, source: 'browser', target: 'copilot' }),
+    });
+    const forCopilot = await jsonRequest<Pending>('/api/canvas/ax/delivery/pending?consumer=copilot&limit=200');
+    expect(forCopilot.pending.some((s) => s.message === composerTag)).toBe(true);
+    expect(
+      (await jsonRequest<Pending>('/api/canvas/ax/delivery/pending?consumer=impl-auth&limit=200')).pending.some(
+        (s) => s.message === composerTag,
+      ),
+    ).toBe(false);
+    // The timeline row carries the address so the panel can show “→ copilot”.
+    const timeline = await jsonRequest<{ steering: Array<{ message: string; target: string | null }> }>(
+      '/api/canvas/ax/timeline?limit=50',
+    );
+    expect(timeline.steering.find((s) => s.message === composerTag)?.target).toBe('copilot');
   });
 
   test('AX review annotation and host capability endpoints round-trip over HTTP', async () => {

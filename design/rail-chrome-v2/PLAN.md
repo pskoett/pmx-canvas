@@ -335,6 +335,18 @@ panel undo, snapshot restore both ways), plus unit/SDK/MCP/e2e parity tests. Fou
 - Shift+click on a title bar / group edge row started a drag instead of toggling the selection,
   so a frame could not be put into a multi-selection by clicking it at all.
 
+### Addressed steering (2026-08-24) — pick which connected agent the composer steers
+
+With several agents on one board the composer was a pure broadcast. Now `steerableAgents`
+(presence-derived: live presences deduped by label, sessions first, the un-adopted
+"Agent session" placeholder excluded — no consumer ever claims as it) feeds a target picker
+that renders only when there is a real choice (≥2). The steer posts the existing `target`
+field; delivery scopes it (and a consumer-less claim now sees broadcasts ONLY — it used to
+leak addressed steering). A picked agent that detaches or expires falls back to "All agents"
+at render time — presence is the truth for who can still claim. The panel's Steer rows read
+"→ copilot · message". Verified: client picker tests, HTTP scoping tests, and an e2e where
+only the addressed consumer's claim returns the message.
+
 ## Verification bar (every phase)
 `bun run typecheck` · `bun run build` · `bun run lint` · `bun run test` · `bun run test:client` ·
 `PMX_CANVAS_DISABLE_BROWSER_OPEN=1 bun x playwright test` · real-browser screenshot of the actual

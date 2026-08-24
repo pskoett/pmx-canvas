@@ -280,7 +280,10 @@ What the session asks of you:
   it you get steering ("Undid your edit: …"); treat the board as the truth, not your last write.
 - **Steering arrives as `steering-message` rows** in `canvas://ax-timeline` (or claim them via
   `canvas_ax_delivery`). The command bar, gate rejections, undo and take-overs all speak through
-  it.
+  it. Steering may be ADDRESSED: with several agents connected the human picks a recipient in
+  the composer, and a claim only returns broadcasts plus messages targeted at your `consumer`
+  label — so always claim as yourself (your `PMX_CANVAS_AGENT_SOURCE` label), or addressed
+  steering never reaches you.
 
 ## Browser Workflows
 

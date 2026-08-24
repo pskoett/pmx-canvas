@@ -3822,6 +3822,69 @@ test('scope fence: granted from the selection, drawn around the fenced nodes, en
   await expect(page.locator('.canvas-node.group-node')).toHaveCount(0);
 });
 
+test('addressed steering: the composer lists connected agents, the picked one alone claims the message', async ({
+  page,
+  request,
+}) => {
+  // Three connected agents: two sessions and one live writer.
+  for (const [label, attached] of [
+    ['claude-code', true],
+    ['copilot', true],
+  ] as const) {
+    await request.post('/api/canvas/ax/presence', {
+      data: { source: label, attached, phase: 'idle' },
+      headers: { 'x-pmx-source': label },
+    });
+  }
+  await request.post('/api/canvas/node', {
+    data: { type: 'markdown', title: 'By codex', content: 'notes', x: 200, y: 200, width: 240, height: 120 },
+    headers: { 'x-pmx-source': 'codex' },
+  });
+
+  await page.goto('/workbench');
+  const picker = page.getByLabel('Steer which agent');
+  await expect(picker).toBeVisible();
+  // Writers from earlier tests may still be live (in-memory, 90 s TTL) — assert
+  // OUR agents and the ordering rule (sessions before writers), not exact totals.
+  await expect
+    .poll(async () => {
+      const options = await picker.locator('option').allInnerTexts();
+      const wanted = ['All agents', 'claude-code', 'copilot', 'codex · writer'];
+      return (
+        wanted.every((entry) => options.includes(entry)) &&
+        options.indexOf('claude-code') < options.indexOf('codex · writer') &&
+        options.indexOf('copilot') < options.indexOf('codex · writer')
+      );
+    })
+    .toBe(true);
+
+  await picker.selectOption('copilot');
+  const input = page.getByLabel('Steer the agent');
+  await expect(input).toHaveAttribute('placeholder', /Steer copilot/);
+  await input.fill('own the CI flake, ignore the rest');
+  await page.keyboard.press('Enter');
+
+  // Only the addressed consumer can claim it; the panel row names the address.
+  const claim = async (consumer: string) =>
+    (
+      (await (await request.get(`/api/canvas/ax/delivery/pending?consumer=${consumer}&limit=50`)).json()) as {
+        pending: Array<{ message: string }>;
+      }
+    ).pending.some((entry) => entry.message === 'own the CI flake, ignore the rest');
+  await expect.poll(() => claim('copilot')).toBe(true);
+  expect(await claim('codex')).toBe(false);
+  expect(await claim('claude-code')).toBe(false);
+  await expect(page.locator('.session-timeline')).toContainText('→ copilot · own the CI flake, ignore the rest');
+
+  // The picked agent disconnecting falls back to broadcast.
+  await request.post('/api/canvas/ax/presence', {
+    data: { source: 'copilot', attached: false },
+    headers: { 'x-pmx-source': 'copilot' },
+  });
+  await expect(input).toHaveAttribute('placeholder', /Steer the agent/);
+  await expect(picker).toHaveValue('');
+});
+
 test('human-started session: start from the quiet board, steer from the command bar, end to a receipt', async ({
   page,
   request,

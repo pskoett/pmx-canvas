@@ -35,6 +35,8 @@ export interface AxSteeringView {
     id: string;
     message: string;
     createdAt: string;
+    /** Consumer label this steer was addressed to; null/absent = broadcast. */
+    target?: string | null;
 }
 /**
  * Session panel data (rail-chrome-v2 phase 4). Nothing here is a second source
@@ -113,7 +115,7 @@ export declare function resolveGate(gate: ApprovalGateView, decision: 'approved'
 /** Reopen an auto-held gate so it can be answered (fresh TTL). */
 export declare function reopenGate(gate: ApprovalGateView): Promise<boolean>;
 /** Post a steering message the agent reads on its next turn. */
-export declare function sendSteering(message: string): Promise<boolean>;
+export declare function sendSteering(message: string, target?: string | null): Promise<boolean>;
 /** Attach a human-started session; the agent's writes are attributed to it. */
 export declare function startSession(): Promise<boolean>;
 /** End the attached session (whoever attached it) — the server answers with a receipt. */

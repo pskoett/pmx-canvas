@@ -1,6 +1,7 @@
 import { useState } from 'preact/hooks';
 import { IconSteer } from '../icons';
 import { contextPinnedNodeIds, nodes, toggleContextPin } from '../state/canvas-store';
+import { steerableAgents } from '../state/presence-store';
 import { sendSteering } from '../state/session-store';
 import { MOD_KEY } from '../utils/platform';
 
@@ -18,12 +19,19 @@ export function CommandBar() {
   const nodeMap = nodes.value;
   const [draft, setDraft] = useState('');
   const [sending, setSending] = useState(false);
+  // Addressed steering: the picker lists the CONNECTED agents (live presences,
+  // sessions first) and shows only when there is a real choice. A picked agent
+  // that detaches or expires falls back to "All agents" — presence is the
+  // source of truth for who can still claim a delivery.
+  const agents = steerableAgents.value;
+  const [target, setTarget] = useState<string | null>(null);
+  const effectiveTarget = target && agents.some((agent) => agent.label === target) ? target : null;
 
   const submit = async () => {
     const message = draft.trim();
     if (!message || sending) return;
     setSending(true);
-    const ok = await sendSteering(message);
+    const ok = await sendSteering(message, effectiveTarget);
     setSending(false);
     if (ok) setDraft('');
   };
@@ -61,11 +69,27 @@ export function CommandBar() {
       )}
       <div class="command-bar-composer">
         <IconSteer size={15} class="command-bar-icon" />
+        {agents.length >= 2 && (
+          <select
+            class="command-bar-target"
+            aria-label="Steer which agent"
+            title="Connected agents — steering reaches all of them unless you address one"
+            value={effectiveTarget ?? ''}
+            onChange={(e) => setTarget((e.target as HTMLSelectElement).value || null)}
+          >
+            <option value="">All agents</option>
+            {agents.map((agent) => (
+              <option key={agent.label} value={agent.label}>
+                {agent.attached ? agent.label : `${agent.label} · writer`}
+              </option>
+            ))}
+          </select>
+        )}
         <input
           class="command-bar-input"
           type="text"
           value={draft}
-          placeholder={`Steer the agent, or ${MOD_KEY}+K to search the board…`}
+          placeholder={`Steer ${effectiveTarget ?? 'the agent'}, or ${MOD_KEY}+K to search the board…`}
           aria-label="Steer the agent"
           disabled={sending}
           onInput={(e) => setDraft((e.target as HTMLInputElement).value)}

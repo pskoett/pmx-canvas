@@ -2,6 +2,7 @@ import { computed, signal } from '@preact/signals';
 import type { PmxAxIntent } from '../../shared/ax-intent.js';
 import { intents } from './intent-store';
 import {
+  HUMAN_STARTED_SESSION_LABEL,
   type AgentActivityEntry,
   type AgentPresence,
   type AgentPresenceSnapshot,
@@ -68,6 +69,21 @@ export const sessionActive = computed(() => isSessionActive(agentPresences.value
 
 /** Live writers with no attached session — the External Steering mode. */
 export const externalWriterPresences = computed(() => externalWriters(agentPresences.value));
+
+/**
+ * Connected agents the human can ADDRESS from the composer: every live
+ * presence (attached sessions first), deduped by label — the label is the
+ * consumer name an agent claims deliveries with. The un-adopted human-started
+ * placeholder is excluded: no consumer will ever claim as "Agent session".
+ */
+export const steerableAgents = computed(() => {
+  const seen = new Set<string>();
+  return [...agentPresences.value]
+    .filter((presence) => presence.label !== HUMAN_STARTED_SESSION_LABEL)
+    .sort((a, b) => Number(b.attached) - Number(a.attached))
+    .filter((presence) => (seen.has(presence.label) ? false : (seen.add(presence.label), true)))
+    .map((presence) => ({ label: presence.label, attached: presence.attached }));
+});
 
 /** The attached session's presence (first if several hosts attached). */
 export const activeSession = computed<AgentPresence | null>(

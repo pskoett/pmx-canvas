@@ -44,6 +44,8 @@ export interface AxSteeringView {
   id: string;
   message: string;
   createdAt: string;
+  /** Consumer label this steer was addressed to; null/absent = broadcast. */
+  target?: string | null;
 }
 
 /**
@@ -177,7 +179,7 @@ export function mergeTimeline(
       id: `steer-${steer.id}`,
       kind: 'steer' as const,
       label: 'Steer',
-      body: steer.message,
+      body: steer.target ? `→ ${steer.target} · ${steer.message}` : steer.message,
       createdAt: steer.createdAt,
     })),
   ];
@@ -270,11 +272,12 @@ export async function reopenGate(gate: ApprovalGateView): Promise<boolean> {
 }
 
 /** Post a steering message the agent reads on its next turn. */
-export async function sendSteering(message: string): Promise<boolean> {
+export async function sendSteering(message: string, target?: string | null): Promise<boolean> {
   const result = await requestOk('sendSteering', '/api/canvas/ax/steer', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, source: 'browser' }),
+    // `target` addresses one connected agent (its consumer label); omitted = broadcast.
+    body: JSON.stringify({ message, source: 'browser', ...(target ? { target } : {}) }),
   });
   return result.ok;
 }

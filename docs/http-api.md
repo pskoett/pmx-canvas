@@ -164,10 +164,10 @@ curl -X POST http://localhost:4313/api/canvas/ax/event \
   -H "Content-Type: application/json" \
   -d '{"kind":"tool-start","summary":"ran tests","source":"api"}'
 
-# Timeline — send a steering message to the active agent session
+# Timeline — send a steering message; `target` addresses ONE consumer, omit to broadcast
 curl -X POST http://localhost:4313/api/canvas/ax/steer \
   -H "Content-Type: application/json" \
-  -d '{"message":"focus on the failing test first","source":"api"}'
+  -d '{"message":"focus on the failing test first","source":"api","target":"copilot"}'
 
 # Timeline — record an evidence item (logs/tool-result/screenshot/file/diff/test-output)
 curl -X POST http://localhost:4313/api/canvas/ax/evidence \
@@ -379,7 +379,11 @@ curl -X POST http://localhost:4313/api/canvas/ax/interaction \
   -H "Content-Type: application/json" \
   -d '{"type":"ax.work.create","sourceNodeId":"node-1","payload":{"title":"Wire auth"}}'
 
-# Delivery — claim pending steering for a consumer (loop-safe), then mark delivered
+# Delivery — claim pending steering for a consumer (loop-safe), then mark delivered.
+# The claim returns broadcasts plus steering addressed to THIS consumer; a claim
+# with no `consumer` sees broadcasts only. With several agents connected, the
+# browser composer offers a target picker fed by live presence — always claim
+# with your own label or addressed steering never reaches you.
 curl "http://localhost:4313/api/canvas/ax/delivery/pending?consumer=copilot&limit=20"
 curl -X POST http://localhost:4313/api/canvas/ax/delivery/<steering-id>/mark \
   -H "Content-Type: application/json" \

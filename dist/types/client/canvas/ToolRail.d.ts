@@ -3,8 +3,8 @@ import type { AnnotationTool } from '../types';
 export declare function promptedCreate(kind: 'image' | 'file' | 'webpage'): void;
 /**
  * The persistent 52px left tool rail (rail-chrome-v2 phase 1): brand → tools →
- * node palette → utilities. Every button's `title` carries its shortcut — the
- * rail is the shortcut discovery surface.
+ * node palette → utilities. Every button shows a hover/focus tooltip with its
+ * shortcut (`RailButton`) — the rail is the shortcut discovery surface.
  */
 export declare function ToolRail({ minimapVisible, onToggleMinimap, snapshotOpen, onToggleSnapshot, snapshotBtnRef, onOpenPalette, onOpenShortcuts, annotationTool, onSetAnnotationTool, }: {
     minimapVisible: boolean;

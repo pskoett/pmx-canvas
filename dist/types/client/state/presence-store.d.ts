@@ -26,6 +26,16 @@ export declare function relativeAge(iso: string, now?: number): string;
 export declare const sessionActive: import("@preact/signals-core").ReadonlySignal<boolean>;
 /** Live writers with no attached session — the External Steering mode. */
 export declare const externalWriterPresences: import("@preact/signals-core").ReadonlySignal<AgentPresence[]>;
+/**
+ * Connected agents the human can ADDRESS from the composer: every live
+ * presence (attached sessions first), deduped by label — the label is the
+ * consumer name an agent claims deliveries with. The un-adopted human-started
+ * placeholder is excluded: no consumer will ever claim as "Agent session".
+ */
+export declare const steerableAgents: import("@preact/signals-core").ReadonlySignal<{
+    label: string;
+    attached: boolean;
+}[]>;
 /** The attached session's presence (first if several hosts attached). */
 export declare const activeSession: import("@preact/signals-core").ReadonlySignal<AgentPresence | null>;
 /**

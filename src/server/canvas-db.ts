@@ -1142,7 +1142,11 @@ export function loadPendingAxSteeringFromDB(
         )
         .all(options.consumer, options.consumer, options.consumer, limit)
     : db
-        .query<AxSteeringRow, [number]>('SELECT * FROM ax_steering WHERE delivered = 0 ORDER BY seq ASC LIMIT ?')
+        .query<AxSteeringRow, [number]>(
+          // No consumer given: only broadcasts — addressed steering is claimable
+          // solely by the consumer it names.
+          'SELECT * FROM ax_steering WHERE delivered = 0 AND target IS NULL ORDER BY seq ASC LIMIT ?',
+        )
         .all(limit);
   return rows.map(mapAxSteeringRow).filter((s): s is PmxAxSteeringMessage => s !== null);
 }
@@ -1167,7 +1171,9 @@ export function loadNewestPendingAxSteeringFromDB(
         )
         .all(options.consumer, options.consumer, options.consumer, limit)
     : db
-        .query<AxSteeringRow, [number]>('SELECT * FROM ax_steering WHERE delivered = 0 ORDER BY seq DESC LIMIT ?')
+        .query<AxSteeringRow, [number]>(
+          'SELECT * FROM ax_steering WHERE delivered = 0 AND target IS NULL ORDER BY seq DESC LIMIT ?',
+        )
         .all(limit);
   return rows.map(mapAxSteeringRow).filter((s): s is PmxAxSteeringMessage => s !== null);
 }
@@ -1180,7 +1186,8 @@ export function countPendingAxSteeringFromDB(db: Database, consumer?: string): n
           'SELECT COUNT(*) AS n FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?) AND (agent_id IS NULL OR agent_id != ?) AND (target IS NULL OR target = ?)',
         )
         .get(consumer, consumer, consumer)?.n
-    : db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM ax_steering WHERE delivered = 0').get()?.n;
+    : db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM ax_steering WHERE delivered = 0 AND target IS NULL').get()
+        ?.n;
   return Number(n ?? 0);
 }
 
