@@ -778,16 +778,58 @@ body,
   color: var(--c-muted);
 }
 
+/* GFM task lists: custom-drawn checkboxes — native inputs are an 11px target
+   at typical zoom and render inconsistently (or not at all) in embedding
+   apps — and no double marker (• plus box) on task rows. */
+.canvas-node .node-body li:has(> input[type='checkbox']),
+.md-reader-content li:has(> input[type='checkbox']) {
+  list-style: none;
+  /* Reclaim the bullet gutter, then indent the whole item past the box — the
+     box sits OUT of the text flow so wrapped lines align under the first. */
+  margin-left: -1.3em;
+  padding-left: 1.65em;
+  position: relative;
+}
+.canvas-node .node-body li > input[type='checkbox'],
+.md-reader-content li > input[type='checkbox'] {
+  appearance: none;
+  -webkit-appearance: none;
+  position: absolute;
+  left: 0;
+  top: 0.22em;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  border: 1.5px solid var(--c-muted);
+  border-radius: 4px;
+  background: var(--c-panel);
+  cursor: pointer;
+}
+.canvas-node .node-body li > input[type='checkbox']:hover,
+.md-reader-content li > input[type='checkbox']:hover {
+  border-color: var(--c-accent);
+}
+.canvas-node .node-body li > input[type='checkbox']:checked,
+.md-reader-content li > input[type='checkbox']:checked {
+  border-color: var(--c-accent);
+  background-color: var(--c-accent);
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='8'%3E%3Cpath d='M1 4l2.6 2.6L9 1' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+}
+
+/* Hanging indent: with `inside`, a wrapped line falls back to the card edge
+   under the marker instead of aligning with its own first line. */
 .canvas-node .node-body ul,
 .canvas-node .node-body ol {
   margin: 0.4em 0;
-  padding-left: 0.25em;
-  list-style-position: inside;
+  padding-left: 1.3em;
+  list-style-position: outside;
 }
 
 .canvas-node .node-body li {
   margin: 0.2em 0;
-  padding-left: 0.15em;
+  padding-left: 0.1em;
 }
 
 .canvas-node .node-body a {
@@ -2689,6 +2731,12 @@ body,
   }
 }
 
+.toolbar-tooltip-body {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--c-text-soft);
+}
+
 .toolbar-tooltip-label {
   font-size: 13px;
   font-weight: 600;
@@ -2937,6 +2985,29 @@ body,
 }
 
 /* Raw markdown source editor */
+.md-edit-btn {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 3px 8px;
+  font-size: 10px;
+  background: var(--c-panel);
+  border: 1px solid var(--c-line);
+  border-radius: 4px;
+  color: var(--c-text-soft);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.canvas-node:hover .md-edit-btn,
+.md-edit-btn:focus-visible {
+  opacity: 1;
+}
+.md-edit-btn:hover {
+  color: var(--c-text);
+  border-color: var(--c-accent-25);
+}
+
 .md-editor-split {
   display: flex;
   height: 100%;
@@ -4669,6 +4740,14 @@ html.is-node-resizing .ext-app-preview-catcher {
   opacity: 0.35;
   cursor: default;
 }
+/* A group stacks BELOW its children by design (bringToFront re-stacks members
+   above the frame), so the frame's own popover would paint under the member
+   cards. While the ⋯ menu is open, lift the whole frame — !important because
+   the node's z-index is an inline style from the store. */
+.canvas-node.group-menu-open {
+  z-index: 9500 !important;
+}
+
 .group-menu {
   position: absolute;
   top: 26px;

@@ -487,7 +487,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
 
   return (
     <div
-      class={`${nodeClass}${isDropTarget ? ' is-drop-target' : ''}${isDropSource ? ' is-drop-source' : ''}${isEdgeTarget ? ' is-edge-target' : ''}`}
+      class={`${nodeClass}${isDropTarget ? ' is-drop-target' : ''}${isDropSource ? ' is-drop-source' : ''}${isEdgeTarget ? ' is-edge-target' : ''}${isGroup && groupMenuOpen ? ' group-menu-open' : ''}`}
       data-node-type={node.type}
       data-node-id={node.id}
       style={nodeStyle}

@@ -115,23 +115,29 @@ describe('command bar', () => {
   test('with several connected agents the composer offers a target picker and addresses the steer', async () => {
     act(() =>
       applyPresenceSnapshot({
-        presences: [presence('codex', false), presence('claude-code', true), presence('copilot', true)],
+        presences: [
+          presence('codex', false),
+          presence('claude-code', true),
+          // An adapter session: pretty display label, but the CONSUMER key it
+          // claims deliveries with is its source — the steer must target that.
+          { ...presence('copilot', true), label: 'GitHub Copilot' },
+        ],
       }),
     );
     const { container, getByLabelText } = render(<CommandBar />);
     const picker = getByLabelText('Steer which agent') as HTMLSelectElement;
     // Sessions first, live writers after (suffixed), broadcast default.
-    expect([...picker.options].map((option) => option.textContent)).toEqual([
-      'All agents',
-      'claude-code',
-      'copilot',
-      'codex · writer',
+    expect([...picker.options].map((option) => [option.value, option.textContent])).toEqual([
+      ['', 'All agents'],
+      ['claude-code', 'claude-code'],
+      ['copilot', 'GitHub Copilot'],
+      ['codex', 'codex · writer'],
     ]);
     expect(picker.value).toBe('');
 
     fireEvent.change(picker, { target: { value: 'copilot' } });
     const input = getByLabelText('Steer the agent') as HTMLInputElement;
-    expect(input.placeholder).toContain('Steer copilot');
+    expect(input.placeholder).toContain('Steer GitHub Copilot');
     fireEvent.input(input, { target: { value: 'fix the CI flake' } });
     fireEvent.keyDown(input, { key: 'Enter' });
     await waitFor(() => expect(calls.some((call) => call.url === '/api/canvas/ax/steer')).toBe(true));
@@ -189,6 +195,25 @@ describe('top-bar context budget', () => {
     lastSeenAt: '2026-08-23T00:00:00.000Z',
   };
 
+  test('one chip per attached session — a second agent is visible up top, not only on the board', () => {
+    act(() =>
+      applyPresenceSnapshot({
+        presences: [
+          attached,
+          { ...attached, sessionId: 'copilot', source: 'copilot', label: 'GitHub Copilot', phase: 'tooling' as const },
+        ],
+        budget: { used: 0, total: 10_000 },
+      }),
+    );
+    const { container } = render(<TopBar />);
+    const chips = [...container.querySelectorAll('.agent-chip')];
+    expect(chips.map((chip) => chip.querySelector('.agent-chip-who')?.textContent)).toEqual([
+      'Agent session',
+      'GitHub Copilot',
+    ]);
+    expect(chips.map((chip) => chip.getAttribute('data-phase'))).toEqual(['idle', 'tooling']);
+  });
+
   test('is absent on the quiet board; in a session it reads the presence budget and shifts tone at 70% and 90%', () => {
     const { container, rerender } = render(<TopBar />);
     expect(container.querySelector('.context-budget')).toBeNull();
@@ -223,14 +248,18 @@ describe('top-bar context budget', () => {
     const meter = () => container.querySelector('.context-budget')!;
     expect(meter().getAttribute('data-mode')).toBe('pins');
     expect(container.querySelector('.context-budget-caption')?.textContent).toBe('Pins');
-    expect(meter().getAttribute('title')).toContain('Pinned context ≈ 3.1k of a 32k-token budget');
+    // The explanation is a styled tooltip, not a native title (invisible in embedded panes).
+    const tooltip = () => meter().parentElement?.querySelector('.toolbar-tooltip');
+    expect(tooltip()?.textContent).toContain('Pins — pinned-context size (estimate)');
+    expect(tooltip()?.textContent).toContain('≈ 3.1k of a 32k-token budget');
     expect(container.querySelector('[data-testid="budget-label"]')?.textContent).toBe('10%');
 
     act(() => applyPresenceSnapshot({ presences: [{ ...attached, contextUsage: { used: 42_800, total: 128_000 } }] }));
     rerender(<TopBar />);
     expect(meter().getAttribute('data-mode')).toBe('window');
     expect(container.querySelector('.context-budget-caption')?.textContent).toBe('Context');
-    expect(meter().getAttribute('title')).toContain('Context window reported by Agent session: 43k of 128k tokens');
+    expect(tooltip()?.textContent).toContain('Context window — reported by Agent session');
+    expect(tooltip()?.textContent).toContain('43k of 128k tokens');
     expect(container.querySelector('[data-testid="budget-label"]')?.textContent).toBe('33%');
   });
 });

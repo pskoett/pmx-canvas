@@ -2115,6 +2115,49 @@ test('MCP App fullscreen dimensions settle after layout and edits persist (#62)'
   await expect(reopenedFrame.getByText('Saved manual edit')).toBeVisible();
 });
 
+test('task checkboxes tick on the CARD and persist to the node content', async ({ page, request }) => {
+  const note = (await (
+    await request.post('/api/canvas/node', {
+      data: {
+        type: 'markdown',
+        title: 'Checklist',
+        content:
+          '- [ ] hover tooltips on a deliberately long task line that wraps within this card\n- [x] ungroup parity\n- [ ] steer loop',
+        x: 400,
+        y: 200,
+        width: 360,
+        height: 240,
+      },
+    })
+  ).json()) as { id: string };
+  await page.goto('/workbench');
+  const card = page.locator('.canvas-node').filter({ hasText: 'Checklist' });
+  const boxes = card.locator('input[type="checkbox"]');
+  await expect(boxes).toHaveCount(3);
+  await expect(boxes.nth(0)).toBeEnabled();
+
+  await boxes.nth(0).click();
+  await expect
+    .poll(async () => {
+      const state = (await (await request.get(`/api/canvas/node/${note.id}`)).json()) as { content?: string };
+      return state.content;
+    })
+    .toBe(
+      '- [x] hover tooltips on a deliberately long task line that wraps within this card\n- [x] ungroup parity\n- [ ] steer loop',
+    );
+  // The re-render keeps it ticked; unticking the second one works too.
+  await expect(boxes.nth(0)).toBeChecked();
+  await boxes.nth(1).click();
+  await expect
+    .poll(async () => {
+      const state = (await (await request.get(`/api/canvas/node/${note.id}`)).json()) as { content?: string };
+      return state.content;
+    })
+    .toBe(
+      '- [x] hover tooltips on a deliberately long task line that wraps within this card\n- [ ] ungroup parity\n- [ ] steer loop',
+    );
+});
+
 test('markdown edit opens inline WYSIWYG mode, not raw source mode', async ({ page, request }) => {
   await request.post('/api/canvas/node', {
     data: {
@@ -4231,7 +4274,15 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
   ).json()) as { id: string };
   const loose = (await (
     await request.post('/api/canvas/node', {
-      data: { type: 'markdown', title: 'Loose note', content: 'l', x: 900, y: 120, width: 240, height: 120 },
+      data: {
+        type: 'markdown',
+        title: 'Loose note',
+        content: '- a deliberately long bullet line that wraps inside this narrow card\n- second',
+        x: 900,
+        y: 120,
+        width: 240,
+        height: 120,
+      },
     })
   ).json()) as { id: string };
   await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
@@ -4316,6 +4367,25 @@ test('groups v2: membership only on release with the pill, esc keeps it out, col
   await expect(page.locator('.canvas-node').filter({ hasText: 'Second note' })).toHaveCount(0);
   await chip.getByRole('button', { name: /Expand group/ }).click();
   await expect(page.locator('.canvas-node').filter({ hasText: 'Loose note' })).toHaveCount(1);
+
+  // The frame's ⋯ menu must paint ABOVE its member cards (the frame itself
+  // stacks below them by design) — and node-body lists hang-indent their wraps.
+  await made.getByRole('button', { name: 'Group menu' }).click();
+  const onTop = await page.evaluate(() => {
+    const menu = document.querySelector('.group-menu');
+    if (!menu) return 'no menu';
+    const rect = menu.getBoundingClientRect();
+    const hit = document.elementFromPoint(rect.left + 30, rect.top + rect.height / 2);
+    return hit?.closest('.group-menu') ? 'menu' : (hit?.className ?? 'nothing');
+  });
+  expect(onTop).toBe('menu');
+  await made.getByRole('button', { name: 'Group menu' }).click();
+  expect(
+    await page.evaluate(() => {
+      const list = document.querySelector('.canvas-node .node-body ul');
+      return list ? getComputedStyle(list).listStylePosition : 'no list';
+    }),
+  ).toBe('outside');
 
   // The ⋯ menu pins all children; Shift+G dissolves the selection's group —
   // the frame goes, the children stay, and one Ctrl+Z brings the frame back.

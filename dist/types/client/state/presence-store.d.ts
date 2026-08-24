@@ -28,15 +28,23 @@ export declare const sessionActive: import("@preact/signals-core").ReadonlySigna
 export declare const externalWriterPresences: import("@preact/signals-core").ReadonlySignal<AgentPresence[]>;
 /**
  * Connected agents the human can ADDRESS from the composer: every live
- * presence (attached sessions first), deduped by label — the label is the
- * consumer name an agent claims deliveries with. The un-adopted human-started
- * placeholder is excluded: no consumer will ever claim as "Agent session".
+ * presence (attached sessions first). `label` is the display name; `value` is
+ * the CONSUMER key the steer must be targeted at — the identity the agent
+ * claims deliveries with. For an adapter session that is its source key
+ * (Copilot attaches as source "copilot" labelled "GitHub Copilot"); for an
+ * adopted human-started session the sessionId is "browser", so the writer's
+ * label IS its consumer key. Addressing the display label instead would
+ * produce steering nobody can ever claim. The un-adopted placeholder is
+ * excluded: no consumer will ever claim as "Agent session".
  */
 export declare const steerableAgents: import("@preact/signals-core").ReadonlySignal<{
+    value: string;
     label: string;
     attached: boolean;
 }[]>;
 /** The attached session's presence (first if several hosts attached). */
+/** Every attached session, in presence order — the top bar shows one chip each. */
+export declare const attachedSessions: import("@preact/signals-core").ReadonlySignal<AgentPresence[]>;
 export declare const activeSession: import("@preact/signals-core").ReadonlySignal<AgentPresence | null>;
 /**
  * Nodes an agent is mutating RIGHT NOW — drives the shimmer. Derived from the

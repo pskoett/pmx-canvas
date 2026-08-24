@@ -11,10 +11,13 @@ function RenderedMarkdown({
   html,
   className,
   style,
+  onTaskToggle,
 }: {
   html: string;
   className?: string;
   style?: string | JSX.CSSProperties;
+  /** Enables the GFM task checkboxes and reports which one was clicked (document order). */
+  onTaskToggle?: (index: number) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -26,9 +29,36 @@ function RenderedMarkdown({
     const template = document.createElement('template');
     template.innerHTML = html;
     container.append(template.content.cloneNode(true));
-  }, [html]);
+    if (onTaskToggle) {
+      for (const box of container.querySelectorAll('input[type="checkbox"][disabled]')) {
+        box.removeAttribute('disabled');
+      }
+    }
+  }, [html, onTaskToggle]);
 
-  return <div ref={containerRef} class={className} style={style} />;
+  const handleClick = onTaskToggle
+    ? (e: MouseEvent) => {
+        const target = e.target as HTMLElement;
+        if (!(target instanceof HTMLInputElement) || target.type !== 'checkbox') return;
+        e.stopPropagation();
+        const container = containerRef.current;
+        if (!container) return;
+        const index = [...container.querySelectorAll('input[type="checkbox"]')].indexOf(target);
+        if (index >= 0) onTaskToggle(index);
+      }
+    : undefined;
+
+  return <div ref={containerRef} class={className} style={style} onClick={handleClick} />;
+}
+
+/** Flip the index-th GFM task marker in the source (document order matches the rendered boxes). */
+export function toggleTaskMarker(markdown: string, index: number): string {
+  let seen = -1;
+  return markdown.replace(/^(\s*(?:[-*+]|\d+[.)])\s+\[)([ xX])(\])/gm, (match, pre, state, post) => {
+    seen += 1;
+    if (seen !== index) return match;
+    return `${pre}${state === ' ' ? 'x' : ' '}${post}`;
+  });
 }
 
 export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState; expanded?: boolean }) {
@@ -317,34 +347,19 @@ export function MarkdownNode({ node, expanded = false }: { node: CanvasNodeState
       <RenderedMarkdown
         html={rendered}
         style={{ padding: rendered ? '0' : '12px', color: rendered ? undefined : 'var(--c-dim)' }}
+        // Task checkboxes are live on the card itself — no need to expand to tick one.
+        onTaskToggle={(index) => {
+          const next = toggleTaskMarker(content, index);
+          if (next !== content) handleInlineSave(next);
+        }}
       />
       {!loaded && <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>Loading…</div>}
       {loaded && !rendered && (
         <div style={{ color: 'var(--c-dim)', fontStyle: 'italic', padding: '12px' }}>Empty node</div>
       )}
-      <button
-        type="button"
-        onClick={() => expandNode(node.id)}
-        style={{
-          position: 'absolute',
-          top: '4px',
-          right: '4px',
-          padding: '3px 8px',
-          fontSize: '10px',
-          background: 'var(--c-panel-overlay)',
-          border: '1px solid var(--c-line)',
-          borderRadius: '4px',
-          color: 'var(--c-text-soft)',
-          cursor: 'pointer',
-          opacity: 0.7,
-        }}
-        onMouseEnter={(e) => {
-          (e.target as HTMLElement).style.opacity = '1';
-        }}
-        onMouseLeave={(e) => {
-          (e.target as HTMLElement).style.opacity = '0.7';
-        }}
-      >
+      {/* Hover-revealed, solid-backed chip — always-on it sat on the first
+          line of content (double-click edits inline; this is discovery). */}
+      <button type="button" class="md-edit-btn" onClick={() => expandNode(node.id)}>
         Edit
       </button>
     </div>

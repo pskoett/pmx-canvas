@@ -72,20 +72,34 @@ export const externalWriterPresences = computed(() => externalWriters(agentPrese
 
 /**
  * Connected agents the human can ADDRESS from the composer: every live
- * presence (attached sessions first), deduped by label — the label is the
- * consumer name an agent claims deliveries with. The un-adopted human-started
- * placeholder is excluded: no consumer will ever claim as "Agent session".
+ * presence (attached sessions first). `label` is the display name; `value` is
+ * the CONSUMER key the steer must be targeted at — the identity the agent
+ * claims deliveries with. For an adapter session that is its source key
+ * (Copilot attaches as source "copilot" labelled "GitHub Copilot"); for an
+ * adopted human-started session the sessionId is "browser", so the writer's
+ * label IS its consumer key. Addressing the display label instead would
+ * produce steering nobody can ever claim. The un-adopted placeholder is
+ * excluded: no consumer will ever claim as "Agent session".
  */
 export const steerableAgents = computed(() => {
   const seen = new Set<string>();
   return [...agentPresences.value]
     .filter((presence) => presence.label !== HUMAN_STARTED_SESSION_LABEL)
     .sort((a, b) => Number(b.attached) - Number(a.attached))
-    .filter((presence) => (seen.has(presence.label) ? false : (seen.add(presence.label), true)))
-    .map((presence) => ({ label: presence.label, attached: presence.attached }));
+    .map((presence) => ({
+      value: presence.sessionId === 'browser' ? presence.label : presence.sessionId,
+      label: presence.label,
+      attached: presence.attached,
+    }))
+    .filter((agent) => (seen.has(agent.value) ? false : (seen.add(agent.value), true)));
 });
 
 /** The attached session's presence (first if several hosts attached). */
+/** Every attached session, in presence order — the top bar shows one chip each. */
+export const attachedSessions = computed<AgentPresence[]>(() =>
+  agentPresences.value.filter((presence) => presence.attached),
+);
+
 export const activeSession = computed<AgentPresence | null>(
   () => agentPresences.value.find((presence) => presence.attached) ?? null,
 );

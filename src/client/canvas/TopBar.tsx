@@ -19,18 +19,21 @@ import { degradedState } from './ConnectionBanner';
 import { ExternalWriterIndicator } from './ExternalWriters';
 import { useNow } from './use-now';
 import { agentPhaseLabel } from '../../shared/agent-presence.js';
-import { activeSession, contextBudget } from '../state/presence-store';
+import { activeSession, attachedSessions, contextBudget } from '../state/presence-store';
 import { pendingGates, startSession } from '../state/session-store';
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
 
 function BarHint({
   label,
   shortcut,
+  body,
   align = 'center',
   children,
 }: {
   label: string;
   shortcut?: string;
+  /** One or two plain sentences under the label — the explanation a native `title` used to hide. */
+  body?: string;
   align?: 'start' | 'center' | 'end';
   children: ComponentChildren;
 }) {
@@ -39,6 +42,7 @@ function BarHint({
       {children}
       <span class="toolbar-tooltip" role="tooltip">
         <span class="toolbar-tooltip-label">{label}</span>
+        {body && <span class="toolbar-tooltip-body">{body}</span>}
         {shortcut && (
           <span class="toolbar-tooltip-meta">
             <kbd class="toolbar-tooltip-shortcut">{shortcut}</kbd>
@@ -56,15 +60,26 @@ function BarHint({
  * lands the "Start agent session" affordance.
  */
 function AgentChip() {
-  const session = activeSession.value;
-  if (!session) return null;
-  const label = agentPhaseLabel(session);
+  // Every attached session gets its chip — with several agents on the board,
+  // showing only the first hid the rest from the top bar entirely.
+  const sessions = attachedSessions.value;
+  if (sessions.length === 0) return null;
   return (
-    <span class={`agent-chip phase-${session.phase}`} title={`${label} · ${session.label}`} data-phase={session.phase}>
-      <span class="agent-chip-dot" aria-hidden="true" />
-      <span class="agent-chip-label">{label}</span>
-      <span class="agent-chip-who hud-collapsible-text">{session.label}</span>
-    </span>
+    <>
+      {sessions.map((session) => (
+        <BarHint
+          key={session.sessionId}
+          label={`Agent session — ${session.label}`}
+          body="What this attached agent is doing right now: idle, thinking, running a tool, or waiting on your approval. Steer it from the composer below."
+        >
+          <span class={`agent-chip phase-${session.phase}`} data-phase={session.phase}>
+            <span class="agent-chip-dot" aria-hidden="true" />
+            <span class="agent-chip-label">{agentPhaseLabel(session)}</span>
+            <span class="agent-chip-who hud-collapsible-text">{session.label}</span>
+          </span>
+        </BarHint>
+      ))}
+    </>
   );
 }
 
@@ -82,10 +97,15 @@ function GateBadge() {
     .filter((ms): ms is number => ms !== null)
     .sort((a, b) => a - b)[0];
   return (
-    <span class="gate-badge" title="Approval gates waiting on you — resolve them in the session panel">
-      {count} gate{count === 1 ? '' : 's'}
-      {soonest !== undefined && ` · ${formatCountdown(soonest)}`}
-    </span>
+    <BarHint
+      label="Approval gates waiting on you"
+      body="The agent is blocked until you approve or reject in the session panel; unanswered gates auto-hold when the countdown runs out."
+    >
+      <span class="gate-badge">
+        {count} gate{count === 1 ? '' : 's'}
+        {soonest !== undefined && ` · ${formatCountdown(soonest)}`}
+      </span>
+    </BarHint>
   );
 }
 
@@ -117,19 +137,27 @@ function ContextBudget() {
   const total = real ? real.total : budget.total;
   const ratio = total > 0 ? Math.min(1, used / total) : 0;
   const pct = Math.round(ratio * 100);
-  const title = real
-    ? `Context window reported by ${session.label}: ${formatTokens(real.used)} of ${formatTokens(real.total)} tokens · pinned nodes ≈ ${formatTokens(budget.used)}`
-    : `Pinned context ≈ ${formatTokens(budget.used)} of a ${formatTokens(budget.total)}-token budget (PMX_CANVAS_CONTEXT_BUDGET_TOKENS). The agent's real window is shown here only when its host reports it.`;
+  const hint = real
+    ? {
+        label: `Context window — reported by ${session.label}`,
+        body: `${formatTokens(real.used)} of ${formatTokens(real.total)} tokens of the agent's actual context window are used. Your ✦-pinned nodes account for ≈ ${formatTokens(budget.used)} tokens of it.`,
+      }
+    : {
+        label: 'Pins — pinned-context size (estimate)',
+        body: `The nodes you pinned (✦) are what the agent is asked to carry as context: ≈ ${formatTokens(budget.used)} of a ${formatTokens(budget.total)}-token budget. When the agent's host reports its real context window, this meter switches to showing that instead.`,
+      };
   return (
-    <span class={`context-budget tone-${budgetTone(ratio)}`} title={title} data-mode={real ? 'window' : 'pins'}>
-      <span class="context-budget-caption hud-collapsible-text">{real ? 'Context' : 'Pins'}</span>
-      <span class="context-budget-track" aria-hidden="true">
-        <span class="context-budget-fill" style={{ width: `${pct}%` }} />
+    <BarHint label={hint.label} body={hint.body}>
+      <span class={`context-budget tone-${budgetTone(ratio)}`} data-mode={real ? 'window' : 'pins'}>
+        <span class="context-budget-caption hud-collapsible-text">{real ? 'Context' : 'Pins'}</span>
+        <span class="context-budget-track" aria-hidden="true">
+          <span class="context-budget-fill" style={{ width: `${pct}%` }} />
+        </span>
+        <span class="context-budget-label" data-testid="budget-label">
+          {used > 0 && pct === 0 ? '<1' : pct}%
+        </span>
       </span>
-      <span class="context-budget-label" data-testid="budget-label">
-        {used > 0 && pct === 0 ? '<1' : pct}%
-      </span>
-    </span>
+    </BarHint>
   );
 }
 
@@ -142,19 +170,23 @@ function StartSessionButton() {
   const [busy, setBusy] = useState(false);
   if (activeSession.value) return null;
   return (
-    <button
-      type="button"
-      class="start-session-btn"
-      disabled={busy}
-      title="Attach an agent session to this board"
-      onClick={() => {
-        setBusy(true);
-        void startSession().finally(() => setBusy(false));
-      }}
+    <BarHint
+      label="Start an agent session"
+      body="Attaches a session to this board: the next agent that writes here is adopted into it, and you get the panel, composer, and receipt."
     >
-      <span class="start-session-dot" aria-hidden="true" />
-      Start agent session
-    </button>
+      <button
+        type="button"
+        class="start-session-btn"
+        disabled={busy}
+        onClick={() => {
+          setBusy(true);
+          void startSession().finally(() => setBusy(false));
+        }}
+      >
+        <span class="start-session-dot" aria-hidden="true" />
+        Start agent session
+      </button>
+    </BarHint>
   );
 }
 
@@ -215,11 +247,13 @@ export function TopBar() {
 
   return (
     <div class="top-bar">
-      <span
-        class={`connection-dot ${degraded ?? status}`}
-        title={`Canvas status: ${statusTitle}`}
-        aria-label={`Canvas status: ${statusTitle}`}
-      />
+      <BarHint
+        label={`Canvas status: ${statusTitle}`}
+        body="Live updates stream in over SSE; amber means reconnecting."
+        align="start"
+      >
+        <span class={`connection-dot ${degraded ?? status}`} aria-label={`Canvas status: ${statusTitle}`} />
+      </BarHint>
       <span class="top-bar-title" title={workspaceName || 'PMX Canvas'}>
         {workspaceName || 'PMX Canvas'}
       </span>

@@ -25,7 +25,8 @@ export function CommandBar() {
   // source of truth for who can still claim a delivery.
   const agents = steerableAgents.value;
   const [target, setTarget] = useState<string | null>(null);
-  const effectiveTarget = target && agents.some((agent) => agent.label === target) ? target : null;
+  const effective = target ? (agents.find((agent) => agent.value === target) ?? null) : null;
+  const effectiveTarget = effective?.value ?? null;
 
   const submit = async () => {
     const message = draft.trim();
@@ -79,7 +80,7 @@ export function CommandBar() {
           >
             <option value="">All agents</option>
             {agents.map((agent) => (
-              <option key={agent.label} value={agent.label}>
+              <option key={agent.value} value={agent.value}>
                 {agent.attached ? agent.label : `${agent.label} · writer`}
               </option>
             ))}
@@ -89,7 +90,7 @@ export function CommandBar() {
           class="command-bar-input"
           type="text"
           value={draft}
-          placeholder={`Steer ${effectiveTarget ?? 'the agent'}, or ${MOD_KEY}+K to search the board…`}
+          placeholder={`Steer ${effective?.label ?? 'the agent'}, or ${MOD_KEY}+K to search the board…`}
           aria-label="Steer the agent"
           disabled={sending}
           onInput={(e) => setDraft((e.target as HTMLInputElement).value)}
