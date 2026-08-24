@@ -2167,6 +2167,24 @@ test('task checkboxes tick on the CARD and persist to the node content', async (
     .toBe(
       '- [x] hover tooltips on a deliberately long task line that wraps within this card\n- [ ] ungroup parity\n- [x] steer loop',
     );
+
+  // EXPANDED view: ticking works there too (the property must reach the
+  // serialized attribute), and Esc-closing the focused editor must NOT wipe
+  // the document via a detached-blur save.
+  await card.getByTitle('Expand (focus mode)').click();
+  const overlay = page.locator('.expanded-overlay-panel');
+  await expect(overlay).toBeVisible();
+  const expandedBox = overlay.locator('.md-reader-content input[type="checkbox"]').nth(1);
+  await expect(expandedBox).toBeEnabled();
+  await expandedBox.click();
+  await page.waitForTimeout(1000); // debounced editor save
+  await page.keyboard.press('Escape');
+  await expect(overlay).toBeHidden();
+  await page.waitForTimeout(600); // any (wrong) unmount save would land here
+  const finalContent = ((await (await request.get(`/api/canvas/node/${note.id}`)).json()) as { content?: string })
+    .content;
+  expect(finalContent).toContain('[x]  ungroup parity');
+  expect(finalContent?.length ?? 0).toBeGreaterThan(60);
 });
 
 test('markdown edit opens inline WYSIWYG mode, not raw source mode', async ({ page, request }) => {

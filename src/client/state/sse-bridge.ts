@@ -409,15 +409,27 @@ function parseCanvasAnnotation(raw: Record<string, unknown>): CanvasAnnotation |
  * pick up the new bundle. Guarded per version so a broken stamp can't loop.
  */
 const VERSION_RELOAD_KEY = 'pmx-canvas-version-reload';
-function reloadIfServerUpgraded(serverVersion: unknown): void {
-  if (typeof serverVersion !== 'string' || !serverVersion || serverVersion === 'unknown') return;
+function reloadIfServerUpgraded(serverVersion: unknown, bundleStamp: unknown): void {
   if (typeof window === 'undefined') return;
-  const bootVersion = (window as Window & { __PMX_BOOT_SERVER_VERSION?: unknown }).__PMX_BOOT_SERVER_VERSION;
-  if (typeof bootVersion !== 'string' || !bootVersion || bootVersion === 'unknown') return;
-  if (serverVersion === bootVersion) return;
+  const boot = window as Window & { __PMX_BOOT_SERVER_VERSION?: unknown; __PMX_BOOT_BUNDLE_STAMP?: unknown };
+  const changed = (live: unknown, booted: unknown): boolean =>
+    typeof live === 'string' &&
+    live !== '' &&
+    live !== 'unknown' &&
+    typeof booted === 'string' &&
+    booted !== '' &&
+    booted !== 'unknown' &&
+    live !== booted;
+  // Version catches a package upgrade; the bundle stamp catches a dev
+  // rebuild+restart, which never bumps the version — without it a long-lived
+  // tab keeps stale JS through every roll and "reproduces" fixed bugs.
+  if (!changed(serverVersion, boot.__PMX_BOOT_SERVER_VERSION) && !changed(bundleStamp, boot.__PMX_BOOT_BUNDLE_STAMP)) {
+    return;
+  }
+  const marker = `${String(serverVersion)}::${String(bundleStamp)}`;
   try {
-    if (window.sessionStorage.getItem(VERSION_RELOAD_KEY) === serverVersion) return;
-    window.sessionStorage.setItem(VERSION_RELOAD_KEY, serverVersion);
+    if (window.sessionStorage.getItem(VERSION_RELOAD_KEY) === marker) return;
+    window.sessionStorage.setItem(VERSION_RELOAD_KEY, marker);
   } catch {
     return; // No sessionStorage loop guard available — never risk a reload loop.
   }
@@ -447,7 +459,7 @@ function handleConnected(data: Record<string, unknown>): void {
   connectionStatus.value = 'connected';
   // Reconnect marker for holders of server-minted URLs (Finding S).
   workbenchConnectionEpoch.value += 1;
-  reloadIfServerUpgraded(data.version);
+  reloadIfServerUpgraded(data.version, data.bundleStamp);
   // Tell the server how big this window actually is, so an agent `fit` sizes
   // the board to the human's window (0.4.6 orb feedback #2).
   void reportClientViewportSize();

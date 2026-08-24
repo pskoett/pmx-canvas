@@ -46,6 +46,11 @@ export function InlineMarkdownEditor({
     const el = rootRef.current;
     if (!el) return;
     el.innerHTML = initialHtmlRef.current;
+    // GFM task checkboxes are live in the editor too: marked emits them
+    // `disabled`, which also swallows clicks in the expanded view.
+    for (const box of el.querySelectorAll('input[type="checkbox"][disabled]')) {
+      box.removeAttribute('disabled');
+    }
   }, []);
 
   const serialize = useCallback((): string => {
@@ -59,6 +64,10 @@ export function InlineMarkdownEditor({
   }, [onChange, serialize]);
 
   const handleSave = useCallback(() => {
+    // A blur fired by unmounting (Esc closes the overlay while the editor is
+    // focused) reads back an empty tree — saving that would WIPE the document.
+    const el = rootRef.current;
+    if (!el || !el.isConnected || el.innerHTML === '') return;
     onSave?.(serialize());
   }, [onSave, serialize]);
 
@@ -91,6 +100,23 @@ export function InlineMarkdownEditor({
     [handleInput, handleSave],
   );
 
+  // A checkbox click inside contenteditable toggles the DOM property but
+  // fires no `input` event — serialize explicitly (turndown's GFM rule reads
+  // `node.checked`) so the tick persists like any other edit.
+  const handleClick = useCallback(
+    (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (target instanceof HTMLInputElement && target.type === 'checkbox') {
+        // Serialization parses innerHTML — a string, which carries ATTRIBUTES
+        // only. Mirror the clicked property onto the attribute or the tick
+        // vanishes on the next round-trip.
+        target.toggleAttribute('checked', target.checked);
+        handleInput();
+      }
+    },
+    [handleInput],
+  );
+
   // Arbitrary rich HTML (Word, the web) would force turndown to sanitize a
   // far wider surface and tends to lose fidelity — plain text is safer.
   const handlePaste = useCallback(
@@ -114,6 +140,7 @@ export function InlineMarkdownEditor({
         onInput={handleInput}
         onKeyDown={handleKeyDown}
         onPaste={handlePaste}
+        onClick={handleClick}
         onBlur={handleSave}
       />
       <InlineFormatBar hostRef={rootRef} onChange={handleInput} />

@@ -1080,9 +1080,26 @@ function canvasSpaHtml(): string {
     process.env.AMP_ORB ? '<script>window.__PMX_AMP_ORB = true;</script>' : ''
   }
   <script>window.__PMX_BOOT_SERVER_VERSION = ${JSON.stringify(serverPackageVersion())};</script>
+  <script>window.__PMX_BOOT_BUNDLE_STAMP = ${JSON.stringify(canvasBundleStamp())};</script>
   <script type="module" src="/canvas/index.js?v=${CANVAS_ASSET_VERSION}"></script>
 </body>
 </html>`;
+}
+
+/**
+ * Identity of the SERVED client bundle, read once per process: a tab whose
+ * boot stamp differs from the live server's reloads itself on (re)connect.
+ */
+let _bundleStamp: string | null = null;
+function canvasBundleStamp(): string {
+  if (_bundleStamp !== null) return _bundleStamp;
+  try {
+    const stat = statSync(join(resolveCanvasBundleDir(), 'index.js'));
+    _bundleStamp = `${Math.round(stat.mtimeMs)}-${stat.size}`;
+  } catch {
+    _bundleStamp = 'unknown';
+  }
+  return _bundleStamp;
 }
 
 const CANVAS_STATIC_MIME: Record<string, string> = {
@@ -1983,8 +2000,11 @@ function buildWorkbenchConnectSnapshot(
       path: primaryWorkbenchPath,
       theme: canvasState.theme,
       // Lets a long-lived client detect that the server was upgraded under it
-      // (stale in-memory SPA — 0.4.5 report Finding W) and reload once.
+      // (stale in-memory SPA — 0.4.5 report Finding W) and reload once. The
+      // bundle stamp catches DEV rolls too: a rebuild+restart never bumps the
+      // package version, so tabs silently kept month-old JS (rule 3's trap).
       version: serverPackageVersion(),
+      bundleStamp: canvasBundleStamp(),
       timestamp: new Date().toISOString(),
     },
   });
