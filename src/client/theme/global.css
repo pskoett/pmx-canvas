@@ -1483,6 +1483,52 @@ body,
 /* One row, always: compact chips, no wrapping, and the row runs full-bleed
    across the panel's inner padding so all six fit. If a theme/locale ever
    makes them wider still, the row pans horizontally instead of stacking. */
+.session-section-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+.session-work-summary {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 10px/1 var(--mono);
+  color: var(--c-muted);
+}
+.session-work-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c-ok);
+  animation: session-work-pulse 1.6s ease-in-out infinite;
+}
+@keyframes session-work-pulse {
+  0%,
+  100% {
+    opacity: 0.45;
+    transform: scale(0.85);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+.session-section-chevron {
+  color: var(--c-muted);
+  font-size: 13px;
+  transition: transform 0.15s ease;
+}
+.session-section-chevron.is-open {
+  transform: rotate(90deg);
+}
+
 .session-timeline-filters {
   display: flex;
   flex-wrap: nowrap;

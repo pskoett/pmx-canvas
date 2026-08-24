@@ -258,6 +258,7 @@ export function SessionPanel() {
   const gates = pendingGates.value;
   const held = heldGates.value;
   const entries = timelineEntries.value;
+  const [workOpen, setWorkOpen] = useState(false);
   const now = useNow();
 
   // The timeline is read on mount; the SSE bridge refreshes it on every
@@ -312,22 +313,54 @@ export function SessionPanel() {
 
       <div class="session-panel-body">
         <section class="session-section">
-          <h3 class="session-section-title">Work items</h3>
-          {gates.length === 0 && held.length === 0 && items.length === 0 ? (
-            <div class="session-empty">No work items yet — the agent's tasks and gates appear here.</div>
-          ) : (
-            <ul class="session-list" aria-live="polite" aria-label="Work items and gates">
-              {gates.map((gate) => (
-                <GateRow key={gate.id} gate={gate} now={now} />
-              ))}
-              {held.map((gate) => (
-                <HeldGateRow key={gate.id} gate={gate} />
-              ))}
-              {items.map((item) => (
-                <WorkItemRow key={item.id} item={item} />
-              ))}
-            </ul>
-          )}
+          {(() => {
+            // Collapsed by default — the timeline is the panel's main feed and
+            // a stack of done cards buried it. The header keeps the live
+            // signal (pulsing dot + running count); pending gates FORCE the
+            // list open, their approve/reject buttons live here.
+            const running = items.filter((item) => item.status === 'in-progress' || item.status === 'todo').length;
+            const done = items.filter((item) => item.status === 'done').length;
+            const mustShow = gates.length > 0 || held.length > 0;
+            const showList = workOpen || mustShow;
+            const summary =
+              running > 0 ? `${running} running` : items.length > 0 ? `${done}/${items.length} done` : 'none yet';
+            return (
+              <>
+                <button
+                  type="button"
+                  class="session-section-toggle"
+                  aria-expanded={showList}
+                  data-testid="work-items-toggle"
+                  onClick={() => setWorkOpen((open) => !open)}
+                >
+                  <span class="session-section-title">Work items</span>
+                  <span class="session-work-summary">
+                    {running > 0 && <span class="session-work-dot" aria-hidden="true" />}
+                    {summary}
+                  </span>
+                  <span class={`session-section-chevron${showList ? ' is-open' : ''}`} aria-hidden="true">
+                    ›
+                  </span>
+                </button>
+                {showList &&
+                  (gates.length === 0 && held.length === 0 && items.length === 0 ? (
+                    <div class="session-empty">No work items yet — the agent's tasks and gates appear here.</div>
+                  ) : (
+                    <ul class="session-list" aria-live="polite" aria-label="Work items and gates">
+                      {gates.map((gate) => (
+                        <GateRow key={gate.id} gate={gate} now={now} />
+                      ))}
+                      {held.map((gate) => (
+                        <HeldGateRow key={gate.id} gate={gate} />
+                      ))}
+                      {items.map((item) => (
+                        <WorkItemRow key={item.id} item={item} />
+                      ))}
+                    </ul>
+                  ))}
+              </>
+            );
+          })()}
         </section>
 
         <section class="session-section">

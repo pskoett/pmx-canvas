@@ -4060,6 +4060,34 @@ test('addressed steering: the composer lists connected agents, the picked one al
   await expect(page.locator('.toolbar-tooltip', { hasText: 'Pins — pinned-context size' })).toBeVisible();
   await page.keyboard.press('Escape');
 
+  // Work items: collapsed by default with a live summary; a pending gate forces it open.
+  const workToggle = page.locator('[data-testid="work-items-toggle"]');
+  await expect(workToggle).toContainText('none yet');
+  await expect(page.getByRole('list', { name: 'Work items and gates' })).toBeHidden();
+  await request.post('/api/canvas/ax/work', {
+    data: { title: 'Own the CI flake', status: 'in-progress' },
+    headers: { 'x-pmx-source': 'copilot' },
+  });
+  await expect(workToggle).toContainText('1 running');
+  await expect(workToggle.locator('.session-work-dot')).toBeVisible();
+  const workList = page.getByRole('list', { name: 'Work items and gates' });
+  await expect(workList).toBeHidden();
+  await workToggle.click();
+  await expect(workList).toBeVisible();
+  await expect(workList).toContainText('Own the CI flake');
+  await workToggle.click();
+  await expect(workList).toBeHidden();
+  const gateResponse = (await (
+    await request.post('/api/canvas/ax/approval', {
+      data: { title: 'Force-open check', ttlMs: 120000 },
+      headers: { 'x-pmx-source': 'copilot' },
+    })
+  ).json()) as { approvalGate: { id: string } };
+  await expect(page.locator('.session-gate').filter({ hasText: 'Force-open check' })).toBeVisible();
+  await page.locator('.session-gate').getByRole('button', { name: 'Approve' }).click();
+  await expect(page.locator('.session-gate')).toHaveCount(0);
+  expect(gateResponse.approvalGate.id).toBeTruthy();
+
   // Timeline kind filters: "Steer" keeps steering-shaped rows only; "All" restores the mix.
   const filters = page.locator('.session-timeline-filters');
   // All six chips sit on ONE row (they wrapped to two when Assistant landed)
