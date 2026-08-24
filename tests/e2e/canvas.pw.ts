@@ -4036,6 +4036,10 @@ test('addressed steering: the composer lists connected agents, the picked one al
     data: { type: 'markdown', title: 'By codex', content: 'notes', x: 200, y: 200, width: 240, height: 120 },
     headers: { 'x-pmx-source': 'codex' },
   });
+  // A writer with no steering inbox is never offered as a target — codex
+  // claiming deliveries once proves it polls, and only then does the picker
+  // list it (claim-based steerable, 2026-08-24).
+  await request.get('/api/canvas/ax/delivery/pending?consumer=codex');
 
   await page.goto('/workbench');
   const picker = page.getByLabel('Steer which agent');

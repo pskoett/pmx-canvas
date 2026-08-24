@@ -138,6 +138,10 @@ export declare class AgentPresenceRegistry {
     private fold;
     /** Aliased channels: a key that attach-merged into another session (extension + its MCP server). */
     private aliases;
+    /** Consumer keys that have claimed steering deliveries this server-run. */
+    private steeringConsumers;
+    /** A delivery claim proves this consumer polls steering — its presence turns steerable. */
+    noteSteeringConsumer(consumer: string): void;
     /** Drop aliases that point at a session that no longer exists. */
     private dropAliasesTo;
     /** Touch a writer: upsert, bump lastSeen, apply the patch. Derived `tooling` decays on its own. */

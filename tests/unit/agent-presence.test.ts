@@ -35,6 +35,22 @@ afterEach(() => {
   canvasState.withSuppressedRecording(() => canvasState.clear());
 });
 
+describe('steerable', () => {
+  test('attached sessions are steerable; external writers only after their consumer claims', async () => {
+    registry.touch({ source: 'copilot', attached: true }, T0);
+    registry.touch({ source: 'codex-cli', op: true }, T0 + 5);
+    let snap = registry.snapshot(T0 + 10);
+    expect(snap.presences.find((p) => p.sessionId === 'copilot')?.steerable).toBe(true);
+    expect(snap.presences.find((p) => p.sessionId === 'codex-cli')?.steerable).toBe(false);
+    registry.noteSteeringConsumer('codex-cli');
+    snap = registry.snapshot(T0 + 20);
+    expect(snap.presences.find((p) => p.sessionId === 'codex-cli')?.steerable).toBe(true);
+    // The claim broadcast a fresh presence frame so pickers update live.
+    await flushEmits();
+    expect(frames.some((frame) => frame.event === 'agent-presence')).toBe(true);
+  });
+});
+
 describe('sessionActive', () => {
   test('an unattached writer is NOT a session — the quiet board stays quiet', () => {
     registry.touch({ source: 'mcp', op: true }, T0);

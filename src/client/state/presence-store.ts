@@ -83,15 +83,22 @@ export const externalWriterPresences = computed(() => externalWriters(agentPrese
  */
 export const steerableAgents = computed(() => {
   const seen = new Set<string>();
-  return [...agentPresences.value]
-    .filter((presence) => presence.label !== HUMAN_STARTED_SESSION_LABEL)
-    .sort((a, b) => Number(b.attached) - Number(a.attached))
-    .map((presence) => ({
-      value: presence.sessionId === 'browser' ? presence.label : presence.sessionId,
-      label: presence.label,
-      attached: presence.attached,
-    }))
-    .filter((agent) => (seen.has(agent.value) ? false : (seen.add(agent.value), true)));
+  return (
+    [...agentPresences.value]
+      .filter((presence) => presence.label !== HUMAN_STARTED_SESSION_LABEL)
+      // Only writers a steer can actually REACH: attached sessions, or external
+      // writers whose consumer key has claimed deliveries (the server marks
+      // those steerable). A one-shot writer (curl, the CLI under Codex) is
+      // presence without an inbox — never offer it as a target.
+      .filter((presence) => presence.attached || presence.steerable === true)
+      .sort((a, b) => Number(b.attached) - Number(a.attached))
+      .map((presence) => ({
+        value: presence.sessionId === 'browser' ? presence.label : presence.sessionId,
+        label: presence.label,
+        attached: presence.attached,
+      }))
+      .filter((agent) => (seen.has(agent.value) ? false : (seen.add(agent.value), true)))
+  );
 });
 
 /** The attached session's presence (first if several hosts attached). */

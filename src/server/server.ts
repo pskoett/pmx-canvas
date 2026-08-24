@@ -1184,6 +1184,17 @@ function resolveCanvasBundleDir(): string {
 // the same bundle root that serves /canvas/surface-theme.css; null keeps the
 // <link> fallback when the asset is missing (e.g. an unbuilt dev tree).
 let _surfaceThemeCss: string | null | undefined;
+let _mermaidEntryJs: string | null | undefined;
+function mermaidEntryJsInline(): string | null {
+  if (_mermaidEntryJs !== undefined) return _mermaidEntryJs;
+  try {
+    _mermaidEntryJs = readFileSync(resolve(resolveCanvasBundleDir(), 'mermaid-entry.js'), 'utf-8');
+  } catch {
+    _mermaidEntryJs = null;
+  }
+  return _mermaidEntryJs;
+}
+
 function surfaceThemeCssInline(): string | null {
   if (_surfaceThemeCss !== undefined) return _surfaceThemeCss;
   try {
@@ -1413,18 +1424,22 @@ function handleNodeSurface(pathname: string, url: URL): Response {
     // Display-only surface: same theme/height plumbing as html nodes, but no AX
     // bridge and no presentation mode — the document is our own wrapper around
     // escaped diagram source, rendered by /canvas/mermaid-entry.js.
-    const doc = buildHtmlSurfaceDocument(buildMermaidSurfaceHtml(source), {
-      theme,
-      title: surfaceTitle,
-      themeToken: url.searchParams.get('themeToken') ?? undefined,
-      // Content-height reporter nonce (lets the node grow to fit the diagram).
-      ...(url.searchParams.get('frameToken')
-        ? { contentHeightToken: url.searchParams.get('frameToken') as string }
-        : {}),
-      // Inline the theme tokens so srcdoc-rendered surfaces (Amp orb portals)
-      // are styled without depending on the <link> subresource.
-      ...(surfaceThemeCssInline() ? { inlineThemeCss: surfaceThemeCssInline() as string } : {}),
-    });
+    const inlineAssets = url.searchParams.get('inline-assets') === '1';
+    const doc = buildHtmlSurfaceDocument(
+      buildMermaidSurfaceHtml(source, inlineAssets ? mermaidEntryJsInline() : null),
+      {
+        theme,
+        title: surfaceTitle,
+        themeToken: url.searchParams.get('themeToken') ?? undefined,
+        // Content-height reporter nonce (lets the node grow to fit the diagram).
+        ...(url.searchParams.get('frameToken')
+          ? { contentHeightToken: url.searchParams.get('frameToken') as string }
+          : {}),
+        // Inline the theme tokens so srcdoc-rendered surfaces (Amp orb portals)
+        // are styled without depending on the <link> subresource.
+        ...(surfaceThemeCssInline() ? { inlineThemeCss: surfaceThemeCssInline() as string } : {}),
+      },
+    );
     return surfaceHtmlResponse(doc, HTML_SURFACE_SANDBOX);
   }
 

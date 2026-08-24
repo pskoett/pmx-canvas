@@ -574,6 +574,18 @@ describe('canvas server HTTP API', () => {
     expect(body).toContain('<pre class="mermaid-source"');
     expect(body).toContain('<script src="/canvas/mermaid-entry.js"></script>');
 
+    // srcdoc-mode fetches ask for inlined assets: hosts that block sub-frame
+    // documents block the script subresource too, so the renderer is embedded.
+    const inline = await fetch(`${baseUrl}/api/canvas/surface/${created.id}?theme=dark&inline-assets=1`);
+    expect(inline.status).toBe(200);
+    const inlineBody = await inline.text();
+    expect(inlineBody).toContain('<pre class="mermaid-source"');
+    expect(inlineBody).not.toContain('<script src="/canvas/mermaid-entry.js"');
+    // The dist bundle is present in this checkout: embedded as a data: URL
+    // (base64 — parser-safe and unblockable, there is no network request).
+    expect(inlineBody).toContain('<script src="data:text/javascript;charset=utf-8;base64,');
+    expect(inlineBody.length).toBeGreaterThan(1_000_000);
+
     // An undersized explicit create clamps to the mermaid minimum (360x240).
     const undersized = await jsonRequest<{ id: string; size: { width: number; height: number } }>('/api/canvas/node', {
       method: 'POST',

@@ -29,6 +29,9 @@ export interface AgentPresence {
     } | null;
     /** A session is attached: `session-start` (or explicit attach) seen and no `session-end`. */
     attached: boolean;
+    /** True when steering addressed to this writer can actually reach it: it is
+     * an attached session, or its consumer key has claimed deliveries before. */
+    steerable?: boolean;
     /** Agent writes observed for this writer — feeds the external-steering indicator. */
     opCount: number;
     /**

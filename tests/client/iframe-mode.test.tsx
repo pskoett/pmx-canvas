@@ -206,7 +206,7 @@ describe('useSurfaceFrame', () => {
     render(<SurfaceProbe url="/api/canvas/surface/n1?theme=dark&v=abc" />);
     await flush();
 
-    expect(calls).toEqual(['/api/canvas/surface/n1?theme=dark&v=abc']);
+    expect(calls).toEqual(['/api/canvas/surface/n1?theme=dark&v=abc&inline-assets=1']);
     expect(surfaceIframe().getAttribute('srcdoc')).toContain('inline surface');
     expect(surfaceIframe().hasAttribute('src')).toBe(false);
   });

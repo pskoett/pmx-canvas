@@ -307,6 +307,16 @@ export class AgentPresenceRegistry {
   /** Aliased channels: a key that attach-merged into another session (extension + its MCP server). */
   private aliases = new Map<string, string>();
 
+  /** Consumer keys that have claimed steering deliveries this server-run. */
+  private steeringConsumers = new Set<string>();
+
+  /** A delivery claim proves this consumer polls steering — its presence turns steerable. */
+  noteSteeringConsumer(consumer: string): void {
+    if (!consumer || this.steeringConsumers.has(consumer)) return;
+    this.steeringConsumers.add(consumer);
+    this.scheduleEmit();
+  }
+
   /** Drop aliases that point at a session that no longer exists. */
   private dropAliasesTo(sessionId: string): void {
     for (const [channel, target] of this.aliases) {
@@ -543,6 +553,7 @@ export class AgentPresenceRegistry {
 
   /** Test / shutdown hook. */
   reset(): void {
+    this.steeringConsumers.clear();
     this.presences.clear();
     this.aliases.clear();
     this.activity = [];
@@ -569,7 +580,16 @@ export class AgentPresenceRegistry {
       phase = 'waiting-approval';
       detail = null;
     }
-    return { ...presence, phase, detail };
+    // Steerable = a steer addressed to this writer can actually reach it: an
+    // attached session (its adapter loop reads steering), or a consumer key
+    // that has claimed deliveries this server-run. A one-shot writer (curl,
+    // the CLI) is presence without an inbox — offering it as a steer target
+    // reads as steerable while the steer would sit unclaimed forever.
+    const steerable =
+      presence.attached ||
+      this.steeringConsumers.has(presence.sessionId) ||
+      this.steeringConsumers.has(presence.source);
+    return { ...presence, phase, detail, steerable };
   }
 
   private hasPendingGate(): boolean {

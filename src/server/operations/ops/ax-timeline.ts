@@ -46,6 +46,7 @@
  * This module must never import server.ts or index.ts.
  */
 import { z } from 'zod';
+import { agentPresence } from '../../agent-presence.js';
 import { canvasState } from '../../canvas-state.js';
 import { buildPendingAxActivity, isAxEventKind, isAxEvidenceKind } from '../../ax-state.js';
 import type { PmxAxEventKind, PmxAxEvidenceKind } from '../../ax-state.js';
@@ -315,6 +316,9 @@ const axDeliveryPendingOperation = defineOperation<z.infer<typeof axDeliveryPend
   },
   handler: (input) => {
     const consumer = typeof input.consumer === 'string' ? input.consumer : undefined;
+    // A claim is proof this consumer polls steering — its presence (session or
+    // external writer) becomes a legitimate composer steer target.
+    if (consumer) agentPresence.noteSteeringConsumer(consumer);
     const limitRaw = Number(input.limit ?? '');
     const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : undefined;
     // #68: default FIFO (oldest-first) for ordered processing; `order:"newest"`

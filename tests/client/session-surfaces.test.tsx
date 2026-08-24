@@ -116,8 +116,14 @@ describe('command bar', () => {
     act(() =>
       applyPresenceSnapshot({
         presences: [
-          presence('codex', false),
+          // An external writer whose consumer HAS claimed deliveries — the
+          // server marked it steerable, so the picker offers it.
+          { ...presence('codex', false), steerable: true },
           presence('claude-code', true),
+          // A one-shot writer (curl / the CLI): presence without an inbox.
+          // Nothing polls its steering, so it must NOT be offered as a target.
+          { ...presence('api', false) },
+          { ...presence('codex-cli', false) },
           // An adapter session: pretty display label, but the CONSUMER key it
           // claims deliveries with is its source — the steer must target that.
           { ...presence('copilot', true), label: 'GitHub Copilot' },
@@ -126,7 +132,8 @@ describe('command bar', () => {
     );
     const { container, getByLabelText } = render(<CommandBar />);
     const picker = getByLabelText('Steer which agent') as HTMLSelectElement;
-    // Sessions first, live writers after (suffixed), broadcast default.
+    // Sessions first, claim-proven live writers after (suffixed) — writers
+    // with no steering inbox excluded — broadcast default.
     expect([...picker.options].map((option) => [option.value, option.textContent])).toEqual([
       ['', 'All agents'],
       ['claude-code', 'claude-code'],
@@ -148,7 +155,11 @@ describe('command bar', () => {
     });
 
     // The picked agent disconnecting falls back to broadcast — presence is the truth.
-    act(() => applyPresenceSnapshot({ presences: [presence('claude-code', true), presence('codex', false)] }));
+    act(() =>
+      applyPresenceSnapshot({
+        presences: [presence('claude-code', true), { ...presence('codex', false), steerable: true }],
+      }),
+    );
     expect((getByLabelText('Steer which agent') as HTMLSelectElement).value).toBe('');
     expect((getByLabelText('Steer the agent') as HTMLInputElement).placeholder).toContain('Steer the agent');
   });

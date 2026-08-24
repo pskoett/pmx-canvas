@@ -27,7 +27,9 @@ export function useSurfaceFrame(url: string): { src?: string; srcdoc?: string } 
   useEffect(() => {
     if (!wantsSrcdoc) return;
     let cancelled = false;
-    void fetch(url, { credentials: 'same-origin' })
+    // Ask the server to inline bundle assets (the mermaid renderer): hosts
+    // that force srcdoc mode block sub-frame subresource requests too.
+    void fetch(`${url}${url.includes('?') ? '&' : '?'}inline-assets=1`, { credentials: 'same-origin' })
       .then((res) => (res.ok ? res.text() : Promise.reject(new Error(`HTTP ${res.status}`))))
       .then((html) => {
         if (!cancelled) setDoc({ url, html });

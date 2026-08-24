@@ -218,8 +218,17 @@ function escapeSurfaceHtml(value: string): string {
  * of the main SPA bundle). Escaping is mandatory: the source is arbitrary node
  * data and must not be parsed as markup.
  */
-export function buildMermaidSurfaceHtml(source: string): string {
-  return `<pre class="mermaid-source" style="display:none">${escapeSurfaceHtml(source)}</pre><script src="/canvas/mermaid-entry.js"></script>`;
+export function buildMermaidSurfaceHtml(source: string, inlineEntry?: string | null): string {
+  // srcdoc-rendered surfaces in hosts that block sub-frame subresources (the
+  // Claude Code desktop browser blocks the script request too, not just the
+  // frame document) get the renderer embedded as a data: URL — no network
+  // request for the host to block, and base64 has no `<` for the HTML script
+  // parser to trip on (a 3.5MB bundle inlined as literal script text hits the
+  // `<!--` script-data-escaped states and renders as page text).
+  const entry = inlineEntry
+    ? `<script src="data:text/javascript;charset=utf-8;base64,${Buffer.from(inlineEntry, 'utf-8').toString('base64')}"></script>`
+    : '<script src="/canvas/mermaid-entry.js"></script>';
+  return `<pre class="mermaid-source" style="display:none">${escapeSurfaceHtml(source)}</pre>${entry}`;
 }
 
 export interface HtmlSurfaceOptions {
