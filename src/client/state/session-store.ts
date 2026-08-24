@@ -324,7 +324,7 @@ export async function endSession(session: { source: string; agentId: string | nu
   const result = await requestOk('endSession', '/api/canvas/ax/presence', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ source: session.source, agentId: session.agentId, attached: false }),
+    body: JSON.stringify({ source: session.source, agentId: session.agentId, attached: false, endedBy: 'human' }),
   });
   return result.ok;
 }
@@ -332,6 +332,8 @@ export async function endSession(session: { source: string; agentId: string | nu
 export interface SessionReceipt {
   label: string;
   endedAt: string;
+  /** Why it ended — the receipt should answer this, not leave the human asking. */
+  endedBy?: 'human' | 'agent' | 'idle-timeout';
   counts: { items: number; done: number; vetoed: number };
   snapshot: { id: string; name: string } | null;
 }
@@ -346,6 +348,10 @@ export function applySessionReceipt(data: Record<string, unknown>): void {
   sessionReceipt.value = {
     label: data.label,
     endedAt: data.endedAt,
+    endedBy:
+      data.endedBy === 'human' || data.endedBy === 'agent' || data.endedBy === 'idle-timeout'
+        ? data.endedBy
+        : undefined,
     counts: {
       items: Number(counts?.items ?? 0) || 0,
       done: Number(counts?.done ?? 0) || 0,

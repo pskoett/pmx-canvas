@@ -263,6 +263,21 @@ describe("write attribution (the cursor follows the session's own work)", () => 
     ).toEqual(['codex', 'copilot', 'reviewer']);
   });
 
+  test('the idle sweep ends a session with endedBy idle-timeout; an explicit detach defaults to agent', () => {
+    const ends: Array<[string, string]> = [];
+    registry.setSessionEndListener((presence, _snap, endedBy) => ends.push([presence.label, endedBy]));
+    registry.touch({ source: 'copilot', attached: true }, T0);
+    // snapshot() runs the sweep at the given time.
+    registry.snapshot(T0 + PRESENCE_ATTACHED_IDLE_TTL_MS + 1);
+    registry.touch({ source: 'codex', attached: true }, T0 + PRESENCE_ATTACHED_IDLE_TTL_MS + 2);
+    registry.touch({ source: 'codex', attached: false }, T0 + PRESENCE_ATTACHED_IDLE_TTL_MS + 3);
+    registry.setSessionEndListener(null);
+    expect(ends).toEqual([
+      ['copilot', 'idle-timeout'],
+      ['codex', 'agent'],
+    ]);
+  });
+
   test('a human-started session keeps the name of the first agent that filled it', () => {
     registry.touch({ source: 'browser', label: HUMAN_STARTED_SESSION_LABEL, attached: true }, T0);
     registry.touch({ source: 'claude-code', op: true }, T0 + 1);

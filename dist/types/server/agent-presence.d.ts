@@ -30,6 +30,8 @@ export interface PresenceTouch {
         y: number;
     } | null;
     attached?: boolean;
+    /** With `attached: false`: who ended it (receipt transparency). Default 'agent'. */
+    endedBy?: 'human' | 'agent';
     /** The host's real token usage for this agent, if it knows it. */
     contextUsage?: {
         used: number;
@@ -79,6 +81,10 @@ export declare const PRESENCE_SET_SHAPE: {
         y: z.ZodNumber;
     }, z.core.$strip>>>;
     attached: z.ZodOptional<z.ZodBoolean>;
+    endedBy: z.ZodOptional<z.ZodEnum<{
+        agent: "agent";
+        human: "human";
+    }>>;
     contextUsage: z.ZodOptional<z.ZodNullable<z.ZodObject<{
         used: z.ZodNumber;
         total: z.ZodNumber;
@@ -88,7 +94,8 @@ export declare const PRESENCE_SET_SHAPE: {
 export declare function estimateContextBudget(): ContextBudget;
 /** Returns the id of the pre-session snapshot the server took, if any. */
 type SessionStartListener = (presence: AgentPresence) => string | null;
-type SessionEndListener = (presence: AgentPresence, startSnapshotId: string | null) => void;
+export type SessionEndReason = 'human' | 'agent' | 'idle-timeout';
+type SessionEndListener = (presence: AgentPresence, startSnapshotId: string | null, endedBy: SessionEndReason) => void;
 export declare class AgentPresenceRegistry {
     private readonly presences;
     /** Newest first; bounded. Survives a writer fading — the feed is history, the writer list is presence. */

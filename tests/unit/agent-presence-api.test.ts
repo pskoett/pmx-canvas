@@ -343,6 +343,7 @@ describe('agent presence over SSE', () => {
     const payload = await receipt;
     expect(payload).toMatchObject({
       label: 'Copilot',
+      endedBy: 'agent',
       counts: { items: 2, done: 1, vetoed: 1 },
       snapshot: { id: before?.id, name: before?.name },
     });
@@ -393,6 +394,18 @@ describe('agent presence over SSE', () => {
       name: string;
     }>;
     expect(listed.find((entry) => entry.id === snapshot.id)?.name).toBe(snapshot.name);
+  });
+
+  test("the browser's End button stamps the receipt endedBy human", async () => {
+    await postJson('/api/canvas/ax/presence', { source: 'copilot', attached: true });
+    const receipt = readSseEvent('agent-session-ended', () => true);
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    await postJson(
+      '/api/canvas/ax/presence',
+      { source: 'copilot', attached: false, endedBy: 'human' },
+      { 'x-pmx-workbench': '1' },
+    );
+    expect((await receipt).endedBy).toBe('human');
   });
 
   test('a session attaching over an empty board takes no snapshot and the receipt says so', async () => {

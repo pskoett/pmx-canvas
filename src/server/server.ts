@@ -135,7 +135,7 @@ agentPresence.setSessionStartListener((presence) => {
   const startedAt = new Date().toISOString();
   return canvasState.saveSnapshot(`Before session · ${presence.label} · ${startedAt.slice(11, 16)}`)?.id ?? null;
 });
-agentPresence.setSessionEndListener((presence, startSnapshotId) => {
+agentPresence.setSessionEndListener((presence, startSnapshotId, endedBy) => {
   const ax = canvasState.getAxState();
   const endedAt = new Date().toISOString();
   const snapshot = startSnapshotId
@@ -159,6 +159,7 @@ agentPresence.setSessionEndListener((presence, startSnapshotId) => {
   emitPrimaryWorkbenchEvent('agent-session-ended', {
     label: presence.label,
     endedAt,
+    endedBy,
     counts,
     snapshot: snapshot ? { id: snapshot.id, name: snapshot.name } : null,
   });

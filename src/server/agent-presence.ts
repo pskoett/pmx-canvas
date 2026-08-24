@@ -50,6 +50,8 @@ export interface PresenceTouch {
   focusNodeId?: string | null;
   cursor?: { x: number; y: number } | null;
   attached?: boolean;
+  /** With `attached: false`: who ended it (receipt transparency). Default 'agent'. */
+  endedBy?: 'human' | 'agent';
   /** The host's real token usage for this agent, if it knows it. */
   contextUsage?: { used: number; total: number } | null;
   /** Count this touch as an agent write. */
@@ -178,6 +180,10 @@ export const PRESENCE_SET_SHAPE = {
   focusNodeId: z.string().max(200).nullable().optional(),
   cursor: z.object({ x: z.number().finite(), y: z.number().finite() }).nullable().optional(),
   attached: z.boolean().optional(),
+  // Who is ending the session when attached:false — the browser's End button
+  // declares 'human'; anything else defaults to 'agent'. Self-reported, like
+  // the workbench marker (the local trust model).
+  endedBy: z.enum(['human', 'agent']).optional(),
   contextUsage: z
     .object({ used: z.number().finite().min(0), total: z.number().finite().positive() })
     .nullable()
@@ -215,7 +221,8 @@ export function estimateContextBudget(): ContextBudget {
 
 /** Returns the id of the pre-session snapshot the server took, if any. */
 type SessionStartListener = (presence: AgentPresence) => string | null;
-type SessionEndListener = (presence: AgentPresence, startSnapshotId: string | null) => void;
+export type SessionEndReason = 'human' | 'agent' | 'idle-timeout';
+type SessionEndListener = (presence: AgentPresence, startSnapshotId: string | null, endedBy: SessionEndReason) => void;
 
 export class AgentPresenceRegistry {
   private readonly presences = new Map<string, StoredPresence>();
@@ -388,7 +395,7 @@ export class AgentPresenceRegistry {
       stored.startSnapshotId = this.onSessionStart(this.publicView(stored, now));
     }
     if (wasAttached && input.attached === false) {
-      this.onSessionEnd(this.publicView(stored, now), stored.startSnapshotId);
+      this.onSessionEnd(this.publicView(stored, now), stored.startSnapshotId, input.endedBy ?? 'agent');
       // An ended session is gone — like `session-end` on the activity feed, it
       // must not linger as an "external writer" until the activity TTL.
       this.presences.delete(key);
@@ -447,6 +454,7 @@ export class AgentPresenceRegistry {
       ...(input.focusNodeId !== undefined ? { focusNodeId: input.focusNodeId } : {}),
       ...(input.cursor !== undefined ? { cursor: input.cursor } : {}),
       ...(input.attached !== undefined ? { attached: input.attached } : {}),
+      ...(input.endedBy !== undefined ? { endedBy: input.endedBy } : {}),
       ...(input.contextUsage !== undefined ? { contextUsage: input.contextUsage } : {}),
     });
   }
@@ -492,7 +500,7 @@ export class AgentPresenceRegistry {
     const removed = this.presences.delete(sessionId);
     if (removed) {
       this.dropAliasesTo(sessionId);
-      if (stored?.attached) this.onSessionEnd(this.publicView(stored, Date.now()), stored.startSnapshotId);
+      if (stored?.attached) this.onSessionEnd(this.publicView(stored, Date.now()), stored.startSnapshotId, 'agent');
       this.scheduleEmit();
     }
     this.maybeStopSweeper();
@@ -568,7 +576,8 @@ export class AgentPresenceRegistry {
       if (presence.lastSeenMs + ttl <= now) {
         this.presences.delete(key);
         this.dropAliasesTo(key);
-        if (presence.attached) this.onSessionEnd(this.publicView(presence, now), presence.startSnapshotId);
+        if (presence.attached)
+          this.onSessionEnd(this.publicView(presence, now), presence.startSnapshotId, 'idle-timeout');
         changed = true;
         continue;
       }

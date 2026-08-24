@@ -58,7 +58,16 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
     <div class="session-receipt" data-testid="session-receipt" role="status">
       <div class="session-receipt-head">
         <span class="session-receipt-dot" aria-hidden="true" />
-        <span class="session-receipt-title">Session ended{endedLabel ? ` · ${endedLabel}` : ''}</span>
+        <span class="session-receipt-title">
+          {receipt.endedBy === 'human'
+            ? 'Session ended by you'
+            : receipt.endedBy === 'idle-timeout'
+              ? 'Session ended — idle timeout'
+              : receipt.endedBy === 'agent'
+                ? 'Session ended by the agent'
+                : 'Session ended'}
+          {endedLabel ? ` · ${endedLabel}` : ''}
+        </span>
         <button
           type="button"
           class="session-receipt-close"

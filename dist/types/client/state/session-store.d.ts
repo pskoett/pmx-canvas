@@ -133,6 +133,8 @@ export declare function endSession(session: {
 export interface SessionReceipt {
     label: string;
     endedAt: string;
+    /** Why it ended — the receipt should answer this, not leave the human asking. */
+    endedBy?: 'human' | 'agent' | 'idle-timeout';
     counts: {
         items: number;
         done: number;
