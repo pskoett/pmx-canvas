@@ -28,7 +28,10 @@ communication — proximity means relatedness, pinning means *focus here*.
 
 ### 01 / Curate
 
-Drag, group, arrange, and **pin** nodes spatially. Curation is the channel
+Drag, group, arrange, and **pin** nodes spatially. Connect nodes with typed
+edges — flow, depends-on, relation, references — drawn as smooth curves that
+leave each card perpendicular to its border and bend toward their target.
+Curation is the channel
 from human intent to agent context — the agent reads `canvas://pinned-context`
 and `canvas://spatial-context` (proximity clusters, reading order, pinned
 neighborhoods) and uses your layout to ground its next action.
@@ -224,6 +227,10 @@ bunx pmx-canvas --help       # All commands
 
 Themes are a tool-rail picker away too, and any one panel can override the
 shared theme for itself with `?theme=<name|auto>`.
+
+Press `?` on the board for the full keyboard map. Shortcuts follow the
+platform — `⌘` on a Mac, `Ctrl` on Windows and Linux, where `Ctrl+Y` also
+redoes and `Backspace`/`Delete` both delete the selection.
 
 The canvas opens at `http://localhost:4313`. Try `--demo` first — it seeds a
 showcase board with every node type on it: notes and status, files, a diff, a

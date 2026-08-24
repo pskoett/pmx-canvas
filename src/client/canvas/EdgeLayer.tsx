@@ -35,9 +35,12 @@ function dashArray(edge: CanvasEdge, scale: number): string | undefined {
 }
 
 // ── Anchor computation ───────────────────────────────────────
+type Side = 'top' | 'bottom' | 'left' | 'right';
+
 interface Anchor {
   x: number;
   y: number;
+  side: Side;
 }
 
 function computeAnchor(node: CanvasNodeState, target: CanvasNodeState): Anchor {
@@ -62,6 +65,7 @@ function computeAnchor(node: CanvasNodeState, target: CanvasNodeState): Anchor {
     return {
       x: cx + (hh / tanAngle) * (dx > 0 ? 1 : -1),
       y: cy + hh * sign,
+      side: sign > 0 ? 'bottom' : 'top',
     };
   }
 
@@ -70,7 +74,27 @@ function computeAnchor(node: CanvasNodeState, target: CanvasNodeState): Anchor {
   return {
     x: cx + hw * sign,
     y: cy + tanAngle * hw * (dy > 0 ? 1 : -1),
+    side: sign > 0 ? 'right' : 'left',
   };
+}
+
+/**
+ * Control point extending from an anchor along its side's outward normal —
+ * the edge leaves/enters a card perpendicular to the border and bends toward
+ * the other endpoint, instead of degenerating into a straight segment (which
+ * is what control points placed along the direct line produce).
+ */
+function sideControlPoint(anchor: Anchor, curvature: number): { x: number; y: number } {
+  switch (anchor.side) {
+    case 'top':
+      return { x: anchor.x, y: anchor.y - curvature };
+    case 'bottom':
+      return { x: anchor.x, y: anchor.y + curvature };
+    case 'left':
+      return { x: anchor.x - curvature, y: anchor.y };
+    case 'right':
+      return { x: anchor.x + curvature, y: anchor.y };
+  }
 }
 
 // ── Bezier midpoint at t=0.5 ─────────────────────────────────
@@ -109,22 +133,17 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, scale }: EdgePathPr
   const dx = end.x - start.x;
   const dy = end.y - start.y;
   const dist = Math.sqrt(dx * dx + dy * dy);
-  const curvature = Math.min(dist * 0.25, 80);
+  const curvature = Math.min(Math.max(dist * 0.35, 32), 160);
 
-  // Control points: offset perpendicular to direct line
-  const nx = dx / (dist || 1);
-  const ny = dy / (dist || 1);
-  const cx1 = start.x + nx * curvature;
-  const cy1 = start.y + ny * curvature;
-  const cx2 = end.x - nx * curvature;
-  const cy2 = end.y - ny * curvature;
+  const cp1 = sideControlPoint(start, curvature);
+  const cp2 = sideControlPoint(end, curvature);
 
-  const d = `M ${start.x} ${start.y} C ${cx1} ${cy1}, ${cx2} ${cy2}, ${end.x} ${end.y}`;
+  const d = `M ${start.x} ${start.y} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${end.x} ${end.y}`;
   const color = EDGE_COLORS[edge.type];
   const directed = DIRECTED_TYPES.has(edge.type);
   const dash = dashArray(edge, scale);
 
-  const mid = edge.label ? bezierMidpoint(start.x, start.y, cx1, cy1, cx2, cy2, end.x, end.y) : null;
+  const mid = edge.label ? bezierMidpoint(start.x, start.y, cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y) : null;
 
   const pathId = `edge-path-${edge.id}`;
 
