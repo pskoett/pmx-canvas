@@ -135,6 +135,8 @@ export interface SessionReceipt {
     endedAt: string;
     /** Why it ended — the receipt should answer this, not leave the human asking. */
     endedBy?: 'human' | 'agent' | 'idle-timeout';
+    /** The session changed nothing on the board (its pre-session snapshot was dropped). */
+    unchanged?: boolean;
     counts: {
         items: number;
         done: number;

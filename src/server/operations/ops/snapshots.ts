@@ -128,6 +128,22 @@ const snapshotSaveOperation = defineOperation<z.infer<typeof snapshotSaveSchema>
   handler: (input) => {
     const name = typeof input.name === 'string' ? input.name.trim() : '';
     if (!name) throw new OperationError('Missing snapshot name');
+    // A save of an unchanged board reuses the newest snapshot instead of
+    // stacking an identical copy in the History drawer.
+    const newest = canvasState.listSnapshots({ limit: 1 })[0];
+    if (newest) {
+      const newestData = canvasState.getSnapshotData(newest.id);
+      if (newestData) {
+        const diff = diffLayouts(newestData.name, newestData, canvasState.getLayout());
+        const identical =
+          diff.addedNodes.length === 0 &&
+          diff.removedNodes.length === 0 &&
+          diff.modifiedNodes.length === 0 &&
+          diff.addedEdges.length === 0 &&
+          diff.removedEdges.length === 0;
+        if (identical) return { ok: true, id: newest.id, snapshot: newest, reused: true };
+      }
+    }
     const snapshot = saveCanvasSnapshot(name);
     if (!snapshot) throw new OperationError('Failed to save snapshot');
     return { ok: true, id: snapshot.id, snapshot };

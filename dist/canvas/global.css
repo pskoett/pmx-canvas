@@ -5615,6 +5615,15 @@ html.is-node-resizing .ext-app-preview-catcher {
   font-size: 11px;
   color: var(--c-dim);
 }
+.snapshot-section-header {
+  margin: 10px 2px 4px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+}
+
 .snapshot-item {
   padding: 10px 12px;
   border: 1px solid var(--c-line);

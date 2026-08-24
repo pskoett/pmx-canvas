@@ -227,8 +227,24 @@ export function SnapshotPanel({
             No history yet. Save a snapshot, or start an agent session — it snapshots for you.
           </div>
         )}
+        {/* Boards the human saved on purpose come first; the automatic
+            pre-session snapshots live under their own header — mixing them
+            buried the deliberate saves under session churn. */}
         {!loading &&
-          snapshots.map((snap) => {
+          [
+            ...snapshots.filter((snap) => sessionLabel(snap.name) === null),
+            ...(snapshots.some((snap) => sessionLabel(snap.name) !== null)
+              ? [{ id: '__sessions-header__' } as (typeof snapshots)[number]]
+              : []),
+            ...snapshots.filter((snap) => sessionLabel(snap.name) !== null),
+          ].map((snap) => {
+            if (snap.id === '__sessions-header__') {
+              return (
+                <div key={snap.id} class="snapshot-section-header" data-testid="history-sessions-header">
+                  Sessions
+                </div>
+              );
+            }
             const label = sessionLabel(snap.name);
             const diff = diffs[snap.id];
             if (label !== null) {

@@ -2858,6 +2858,12 @@ exit 2
 
   test('snapshot list and gc support bounded cleanup from the CLI', async () => {
     for (const name of ['cli-alpha', 'cli-beta', 'cli-alpha-old']) {
+      // An unchanged board would REUSE the newest snapshot — change it first.
+      await jsonRequest('/api/canvas/node', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'markdown', title: `delta-${name}`, x: 30, y: 30 }),
+      });
       const saved = await jsonRequest<{ ok: boolean; snapshot: { name: string } }>('/api/canvas/snapshots', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2916,6 +2922,11 @@ exit 2
     );
     // Deliberate 5ms gap: the before/after filters compare millisecond createdAt values, which must be strictly ordered.
     await Bun.sleep(5);
+    await jsonRequest('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'delta-second', x: 30, y: 30 }),
+    });
     const second = await jsonRequest<{ ok: boolean; snapshot: { name: string; createdAt: string } }>(
       '/api/canvas/snapshots',
       {
@@ -2926,6 +2937,11 @@ exit 2
     );
     // Deliberate 5ms gap: keeps the third snapshot's createdAt strictly after the second's.
     await Bun.sleep(5);
+    await jsonRequest('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'delta-third', x: 330, y: 30 }),
+    });
     const third = await jsonRequest<{ ok: boolean; snapshot: { name: string; createdAt: string } }>(
       '/api/canvas/snapshots',
       {

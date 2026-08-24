@@ -334,6 +334,8 @@ export interface SessionReceipt {
   endedAt: string;
   /** Why it ended — the receipt should answer this, not leave the human asking. */
   endedBy?: 'human' | 'agent' | 'idle-timeout';
+  /** The session changed nothing on the board (its pre-session snapshot was dropped). */
+  unchanged?: boolean;
   counts: { items: number; done: number; vetoed: number };
   snapshot: { id: string; name: string } | null;
 }
@@ -352,6 +354,7 @@ export function applySessionReceipt(data: Record<string, unknown>): void {
       data.endedBy === 'human' || data.endedBy === 'agent' || data.endedBy === 'idle-timeout'
         ? data.endedBy
         : undefined,
+    unchanged: data.unchanged === true,
     counts: {
       items: Number(counts?.items ?? 0) || 0,
       done: Number(counts?.done ?? 0) || 0,

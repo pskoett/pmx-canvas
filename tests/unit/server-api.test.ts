@@ -4499,6 +4499,12 @@ describe('canvas server HTTP API', () => {
 
   test('limits, filters, and garbage-collects snapshots over HTTP', async () => {
     for (const name of ['http-alpha', 'http-beta', 'http-alpha-old']) {
+      // An unchanged board would REUSE the newest snapshot — change it first.
+      await jsonRequest('/api/canvas/node', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'markdown', title: `gc-${name}`, x: 40, y: 40 }),
+      });
       const saved = await jsonRequest<{ ok: boolean; snapshot: { name: string } }>('/api/canvas/snapshots', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -5799,6 +5805,40 @@ describe('canvas server HTTP API', () => {
       body: JSON.stringify({ groupId: '', childIds: [] }),
     });
     expect(missingGroup.status).toBe(400);
+  });
+
+  test('saving a snapshot of an unchanged board reuses the newest one instead of duplicating it', async () => {
+    await jsonRequest('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Dedupe base', x: 50, y: 50 }),
+    });
+    const first = await jsonRequest<{ ok: boolean; id: string; reused?: boolean }>('/api/canvas/snapshots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'dedupe-one' }),
+    });
+    expect(first.reused).toBeUndefined();
+    const again = await jsonRequest<{ ok: boolean; id: string; reused?: boolean }>('/api/canvas/snapshots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'dedupe-two' }),
+    });
+    expect(again.reused).toBe(true);
+    expect(again.id).toBe(first.id);
+    // A real change makes the next save a real snapshot again.
+    await jsonRequest('/api/canvas/node', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Dedupe delta', x: 400, y: 50 }),
+    });
+    const third = await jsonRequest<{ ok: boolean; id: string; reused?: boolean }>('/api/canvas/snapshots', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: 'dedupe-three' }),
+    });
+    expect(third.reused).toBeUndefined();
+    expect(third.id).not.toBe(first.id);
   });
 
   test('ungroup is the same operation for the human and the agent, nested groups included', async () => {

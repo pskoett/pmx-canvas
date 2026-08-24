@@ -2209,6 +2209,11 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
 
     const savedSnapshots: Array<{ id: string; name: string; createdAt: string }> = [];
     for (const name of ['mcp-alpha', 'mcp-beta', 'mcp-parity-snapshot']) {
+      // An unchanged board would REUSE the newest snapshot — change it first.
+      await session.client.callTool({
+        name: 'canvas_node',
+        arguments: { action: 'add', type: 'markdown', title: `delta-${name}` },
+      });
       const saved = parseJsonText<{
         ok: boolean;
         id: string;

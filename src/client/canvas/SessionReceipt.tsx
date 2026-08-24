@@ -94,7 +94,9 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
       <div class="session-receipt-note">
         {receipt.snapshot
           ? 'A snapshot of the board from before this session is saved — restore it to undo the session.'
-          : 'The board was empty when the session started — nothing to restore.'}
+          : receipt.unchanged
+            ? 'This session changed nothing on the board — no snapshot kept.'
+            : 'The board was empty when the session started — nothing to restore.'}
       </div>
       {diff && (
         <div class="session-receipt-diff" data-testid="session-receipt-diff">

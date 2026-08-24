@@ -76,6 +76,7 @@ import { dispatchOperationRoute, setOperationEventEmitter } from './operations/i
 import { intentRegistry } from './intent-registry.js';
 import { agentPresence } from './agent-presence.js';
 import { HUMAN_STARTED_SESSION_LABEL } from '../shared/agent-presence.js';
+import { diffLayouts } from './mutation-history.js';
 import { humanPresence } from './human-presence.js';
 import { startGateTtlSweeper, stopGateTtlSweeper } from './ax-gate-ttl.js';
 import { setWebviewRunner } from './operations/webview-runner.js';
@@ -138,9 +139,30 @@ agentPresence.setSessionStartListener((presence) => {
 agentPresence.setSessionEndListener((presence, startSnapshotId, endedBy) => {
   const ax = canvasState.getAxState();
   const endedAt = new Date().toISOString();
-  const snapshot = startSnapshotId
+  let snapshot = startSnapshotId
     ? (canvasState.listSnapshots({ all: true }).find((entry) => entry.id === startSnapshotId) ?? null)
     : null;
+  let unchanged = false;
+  // A session that changed NOTHING on the board leaves no snapshot behind —
+  // session churn (idle timeouts, receipt tests, attach/detach cycles) was
+  // flooding the History drawer with identical boards.
+  if (snapshot) {
+    const snapData = canvasState.getSnapshotData(snapshot.id);
+    if (snapData) {
+      const diff = diffLayouts(snapData.name, snapData, canvasState.getLayout());
+      if (
+        diff.addedNodes.length === 0 &&
+        diff.removedNodes.length === 0 &&
+        diff.modifiedNodes.length === 0 &&
+        diff.addedEdges.length === 0 &&
+        diff.removedEdges.length === 0
+      ) {
+        canvasState.deleteSnapshot(snapshot.id);
+        snapshot = null;
+        unchanged = true;
+      }
+    }
+  }
   // A human-started session was named after the agent that filled it; the
   // snapshot taken at attach still carries the placeholder — settle it now.
   if (snapshot?.name.includes(HUMAN_STARTED_SESSION_LABEL) && presence.label !== HUMAN_STARTED_SESSION_LABEL) {
@@ -161,6 +183,7 @@ agentPresence.setSessionEndListener((presence, startSnapshotId, endedBy) => {
     endedAt,
     endedBy,
     counts,
+    unchanged,
     snapshot: snapshot ? { id: snapshot.id, name: snapshot.name } : null,
   });
 });
