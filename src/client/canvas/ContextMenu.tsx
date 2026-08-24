@@ -20,6 +20,7 @@ import {
   refreshWebpageNodeFromClient,
   removeNodeFromClient,
   sendIntent,
+  setGroupChildrenFromClient,
   ungroupFromClient,
   updateNodeFromClient,
 } from '../state/intent-bridge';
@@ -568,6 +569,24 @@ function buildNodeMenuItems(node: CanvasNodeState): MenuItem[] {
         },
       });
     }
+  }
+
+  // A member of a frame can leave it alone — the drag-out gesture ("release
+  // to remove") exists but is easy to miss; this is the discoverable path.
+  const parentGroupId = typeof node.data.parentGroup === 'string' ? node.data.parentGroup : null;
+  const parentGroup = parentGroupId ? nodes.value.get(parentGroupId) : undefined;
+  if (parentGroup && parentGroup.type === 'group') {
+    const parentTitle =
+      typeof parentGroup.data.title === 'string' && parentGroup.data.title ? parentGroup.data.title : 'frame';
+    const siblings = Array.isArray(parentGroup.data.children)
+      ? (parentGroup.data.children as string[]).filter((childId) => childId !== node.id)
+      : [];
+    items.push({
+      label: `Remove from “${parentTitle}”`,
+      action: () => {
+        void setGroupChildrenFromClient(parentGroup.id, siblings);
+      },
+    });
   }
 
   // Report #64: status nodes are removable like any other node type. Named

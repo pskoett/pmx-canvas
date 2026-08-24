@@ -553,6 +553,18 @@ test('right-click Delete: a node deletes; a frame deletes with its children stay
     0,
   );
 
+  // A member leaves its frame from the context menu (the drag-out gesture's discoverable twin).
+  const member = page.locator('.canvas-node').filter({ hasText: 'Member' }).first();
+  await member.click({ button: 'right', position: { x: 80, y: 60 } });
+  await menu.getByRole('button', { name: 'Remove from “Doomed frame”' }).click();
+  await expect
+    .poll(async () => {
+      const state = (await (await request.get(`/api/canvas/node/${b.id}`)).json()) as { data: Record<string, unknown> };
+      return state.data.parentGroup ?? null;
+    })
+    .toBeNull();
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Member' })).toHaveCount(1);
+
   // The group frame: right-click its edge row → an honest "Delete frame (children stay)".
   await page
     .locator('.canvas-node.group-node')
