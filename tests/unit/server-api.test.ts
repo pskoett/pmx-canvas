@@ -1928,7 +1928,11 @@ describe('canvas server HTTP API', () => {
     expect(res.headers.get('content-type')).toContain('text/html');
     expect(res.headers.get('cache-control')).toBe('no-store');
     expect(res.headers.get('content-security-policy')).toBe('sandbox allow-scripts');
-    expect(await res.text()).toContain('pmx-canvas iframe probe');
+    const body = await res.text();
+    expect(body).toContain('pmx-canvas iframe probe');
+    // The handshake script is the actual probe signal — blocked hosts fire
+    // `load` on an error page, so the client only trusts this postMessage.
+    expect(body).toContain(`parent.postMessage({ source: "pmx-canvas-iframe-probe" }, "*")`);
   });
 
   test('surface route falls back to the node id for the tab title when no node title is set', async () => {

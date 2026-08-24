@@ -8,6 +8,7 @@ import {
   resetIframeModeForTests,
   resolveIframeMode,
 } from '../../src/client/state/iframe-mode.ts';
+import { IFRAME_PROBE_MESSAGE_SOURCE } from '../../src/shared/iframe-probe.ts';
 import { useIframeDocument } from '../../src/client/nodes/iframe-document-url.ts';
 import { useSurfaceFrame } from '../../src/client/nodes/use-surface-frame.ts';
 import { workbenchConnectionEpoch } from '../../src/client/state/canvas-store.ts';
@@ -21,6 +22,11 @@ function probeElement(): HTMLIFrameElement {
   const el = document.querySelector<HTMLIFrameElement>('iframe[data-pmx-iframe-probe]');
   if (!el) throw new Error('probe iframe not mounted');
   return el;
+}
+
+/** Simulate the probe document's postMessage handshake arriving from its frame. */
+function dispatchHandshake(el: HTMLIFrameElement, source: Window | null = el.contentWindow): void {
+  window.dispatchEvent(new MessageEvent('message', { data: { source: IFRAME_PROBE_MESSAGE_SOURCE }, source }));
 }
 
 async function flush(): Promise<void> {
@@ -56,14 +62,28 @@ afterEach(() => {
 });
 
 describe('probeSrcIframes', () => {
-  test('resolves src-capable when the probe iframe fires load', async () => {
+  test('resolves src-capable on the probe document handshake', async () => {
     const result = probeSrcIframes(5000);
     const el = probeElement();
     expect(el.getAttribute('src')).toBe(IFRAME_PROBE_PATH);
     expect(el.getAttribute('sandbox')).toBe('allow-scripts');
-    el.dispatchEvent(new Event('load'));
+    dispatchHandshake(el);
     expect(await result).toBe(true);
     expect(document.querySelector('iframe[data-pmx-iframe-probe]')).toBeNull();
+  });
+
+  test('load alone proves nothing — blocked hosts fire it on their error page', async () => {
+    // The Claude Code desktop browser cancels the sub-frame request
+    // (ERR_BLOCKED_BY_CLIENT) yet still fires `load`; only the handshake counts.
+    const result = probeSrcIframes(30);
+    probeElement().dispatchEvent(new Event('load'));
+    expect(await result).toBe(false);
+  });
+
+  test('a handshake from any other window is ignored (surfaces cannot spoof the probe)', async () => {
+    const result = probeSrcIframes(30);
+    dispatchHandshake(probeElement(), window);
+    expect(await result).toBe(false);
   });
 
   test('resolves blocked when neither load nor error fires before the timeout', async () => {
@@ -96,12 +116,21 @@ describe('resolveIframeMode', () => {
     expect(document.querySelector('iframe[data-pmx-iframe-probe]')).toBeNull();
   });
 
-  test('top-level documents resolve src synchronously without probing', async () => {
-    // The blocked-src condition only exists inside a nested iframe embed —
-    // a top-level canvas page must not pay probe latency before surfaces mount.
+  test('top-level documents resolve src synchronously, verified by a background probe', async () => {
+    // Zero probe latency before surfaces mount — but the probe still runs in
+    // the background, because some top-level hosts block sub-frame requests.
     expect(await resolveIframeMode()).toBe('src');
     expect(iframeMode.value).toBe('src');
+    dispatchHandshake(probeElement());
+    await flush();
+    expect(iframeMode.value).toBe('src');
     expect(document.querySelector('iframe[data-pmx-iframe-probe]')).toBeNull();
+  });
+
+  test('a top-level host that blocks sub-frames self-heals to srcdoc when the probe times out', async () => {
+    expect(await resolveIframeMode({ probeTimeoutMs: 20 })).toBe('src');
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    expect(iframeMode.value).toBe('srcdoc');
   });
 
   test('a known Amp orb host skips the unreliable probe and forces srcdoc when embedded', async () => {
@@ -122,6 +151,7 @@ describe('resolveIframeMode', () => {
     (window as Window & { __PMX_AMP_ORB?: boolean }).__PMX_AMP_ORB = true;
     try {
       expect(await resolveIframeMode()).toBe('src');
+      dispatchHandshake(probeElement());
     } finally {
       delete (window as Window & { __PMX_AMP_ORB?: boolean }).__PMX_AMP_ORB;
     }
@@ -129,7 +159,7 @@ describe('resolveIframeMode', () => {
 
   test('embedded documents probe, and the outcome lands in the shared signal memoized', async () => {
     const first = resolveIframeMode({ embedded: true });
-    probeElement().dispatchEvent(new Event('load'));
+    dispatchHandshake(probeElement());
     expect(await first).toBe('src');
     expect(iframeMode.value).toBe('src');
     // Memoized: no new probe iframe on a second call.

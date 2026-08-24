@@ -4,12 +4,15 @@
  * When the canvas page itself runs inside an iframe (ampcode.com embeds the
  * portal URL on *.onamp.dev), Chrome refuses to load child iframes from `src`
  * URLs — even same-origin relative ones — leaving every iframe-backed node a
- * gray "refused to connect" placeholder. Inline documents (`srcdoc`) still
- * render. This module probes the real behavior once per boot: a hidden 1px
- * iframe navigates to the tiny /api/canvas/iframe-probe document; if `load`
- * fires the host is normal (`src` mode), otherwise same-origin surfaces fall
- * back to fetch() + `srcdoc` (see nodes/use-surface-frame.ts and
- * nodes/iframe-document-url.ts).
+ * gray "refused to connect" placeholder. Some TOP-LEVEL hosts (the Claude
+ * Code desktop browser) block sub-frame requests the same way. Inline
+ * documents (`srcdoc`) still render. This module probes the real behavior
+ * once per boot: a hidden 1px iframe navigates to the tiny
+ * /api/canvas/iframe-probe document, which posts a handshake message back —
+ * `load` alone is no signal, because blocked frames fire it on their error
+ * page. Embedded pages block on the probe; top-level pages default to `src`
+ * and self-heal to fetch() + `srcdoc` when the background probe fails (see
+ * nodes/use-surface-frame.ts and nodes/iframe-document-url.ts).
  *
  * `src` stays the default everywhere it works: URL-loaded surfaces keep real
  * document URLs, and the frame-document transport exists precisely because
@@ -19,6 +22,7 @@
  * Force a mode with `?iframe-mode=srcdoc` (or `=src`) for debugging.
  */
 import { signal } from '@preact/signals';
+import { IFRAME_PROBE_MESSAGE_SOURCE } from '../../shared/iframe-probe.js';
 
 export type IframeMode = 'src' | 'srcdoc';
 
@@ -48,11 +52,22 @@ export function probeSrcIframes(timeoutMs = PROBE_TIMEOUT_MS): Promise<boolean> 
     test.setAttribute('sandbox', 'allow-scripts');
     const done = (ok: boolean) => {
       window.clearTimeout(timer);
+      window.removeEventListener('message', onMessage);
       test.remove();
       resolve(ok);
     };
+    // `load` proves nothing: a host that blocks the request (the Claude Code
+    // desktop browser cancels sub-frame loads with ERR_BLOCKED_BY_CLIENT)
+    // still fires `load` on the error page it commits. Only the probe
+    // document executing and posting its handshake back proves src works —
+    // and only from OUR frame, so a surface iframe cannot spoof the probe.
+    const onMessage = (event: MessageEvent) => {
+      if (event.source !== test.contentWindow) return;
+      if ((event.data as { source?: unknown } | null)?.source !== IFRAME_PROBE_MESSAGE_SOURCE) return;
+      done(true);
+    };
     const timer = window.setTimeout(() => done(false), timeoutMs);
-    test.addEventListener('load', () => done(true));
+    window.addEventListener('message', onMessage);
     test.addEventListener('error', () => done(false));
     test.src = IFRAME_PROBE_PATH;
     (document.body ?? document.documentElement).appendChild(test);
@@ -87,7 +102,9 @@ function isAmpOrbHost(): boolean {
  * normal path pays zero probe latency before surfaces mount. Only embedded
  * documents run the probe (`embedded` is overridable for tests).
  */
-export function resolveIframeMode(opts: { embedded?: boolean; ampOrb?: boolean } = {}): Promise<IframeMode> {
+export function resolveIframeMode(
+  opts: { embedded?: boolean; ampOrb?: boolean; probeTimeoutMs?: number } = {},
+): Promise<IframeMode> {
   if (iframeMode.value) return Promise.resolve(iframeMode.value);
   if (pending) return pending;
   const forced = forcedIframeMode();
@@ -96,14 +113,21 @@ export function resolveIframeMode(opts: { embedded?: boolean; ampOrb?: boolean }
     return Promise.resolve(forced);
   }
   if (!(opts.embedded ?? isEmbeddedDocument())) {
+    // Top-level pages default to src with zero latency — but some top-level
+    // hosts (the Claude Code desktop browser) block sub-frame requests
+    // outright, so verify in the background and self-heal: surfaces read the
+    // signal and re-render into fetch()+srcdoc when it flips.
     iframeMode.value = 'src';
+    void probeSrcIframes(opts.probeTimeoutMs).then((srcWorks) => {
+      if (!srcWorks && iframeMode.value === 'src') iframeMode.value = 'srcdoc';
+    });
     return Promise.resolve('src');
   }
   if (opts.ampOrb ?? isAmpOrbHost()) {
     iframeMode.value = 'srcdoc';
     return Promise.resolve('srcdoc');
   }
-  pending = probeSrcIframes().then((srcWorks) => {
+  pending = probeSrcIframes(opts.probeTimeoutMs).then((srcWorks) => {
     const mode: IframeMode = srcWorks ? 'src' : 'srcdoc';
     iframeMode.value = mode;
     return mode;

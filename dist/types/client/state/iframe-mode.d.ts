@@ -21,6 +21,7 @@ export declare function probeSrcIframes(timeoutMs?: number): Promise<boolean>;
 export declare function resolveIframeMode(opts?: {
     embedded?: boolean;
     ampOrb?: boolean;
+    probeTimeoutMs?: number;
 }): Promise<IframeMode>;
 /** Test hook: clear the memoized probe so each test starts unresolved. */
 export declare function resetIframeModeForTests(): void;

@@ -82,6 +82,7 @@ import { startGateTtlSweeper, stopGateTtlSweeper } from './ax-gate-ttl.js';
 import { setWebviewRunner } from './operations/webview-runner.js';
 import { closeNodeAppSession, nodeAppSessionId } from './operations/ops/nodes.js';
 import { traceManager } from './trace-manager.js';
+import { IFRAME_PROBE_MESSAGE_SOURCE } from '../shared/iframe-probe.js';
 import { buildJsonRenderViewerHtml } from '../json-render/server.js';
 import type { JsonRenderSpec } from '../json-render/server.js';
 
@@ -1297,13 +1298,22 @@ function handleFrameDocument(pathname: string): Response {
 // iframe hosts like the Amp orb portal block them, and the client then falls
 // back to fetch() + srcdoc surfaces (see src/client/state/iframe-mode.ts).
 function handleIframeProbe(): Response {
-  return new Response('<!doctype html><title>pmx-canvas iframe probe</title>', {
-    headers: {
-      'Content-Type': 'text/html; charset=utf-8',
-      'Cache-Control': 'no-store',
-      'Content-Security-Policy': 'sandbox allow-scripts',
+  // The postMessage handshake IS the probe signal: hosts that block sub-frame
+  // requests (the Claude Code desktop browser) still fire `load` on the error
+  // page they commit, so only this document actually executing proves that
+  // src-URL iframes work (see src/client/state/iframe-mode.ts).
+  return new Response(
+    `<!doctype html><title>pmx-canvas iframe probe</title><script>parent.postMessage({ source: ${JSON.stringify(
+      IFRAME_PROBE_MESSAGE_SOURCE,
+    )} }, "*")</script>`,
+    {
+      headers: {
+        'Content-Type': 'text/html; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'Content-Security-Policy': 'sandbox allow-scripts',
+      },
     },
-  });
+  );
 }
 
 // ── Ext-app recovery diagnostics (0.3.2 report Finding N) ──────
