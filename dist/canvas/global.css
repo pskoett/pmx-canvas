@@ -1529,6 +1529,38 @@ body,
   transform: rotate(90deg);
 }
 
+.session-undo-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+  border-bottom: 1px solid var(--c-line);
+  background: var(--c-accent-8);
+}
+.session-undo-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  color: var(--c-text-soft);
+}
+.session-undo-btn {
+  flex-shrink: 0;
+  padding: 3px 10px;
+  border: 1px solid var(--c-accent-25);
+  border-radius: 999px;
+  background: none;
+  color: var(--c-accent);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.session-undo-btn:hover {
+  background: var(--c-accent-10);
+}
+
 .session-timeline-filters {
   display: flex;
   flex-wrap: nowrap;

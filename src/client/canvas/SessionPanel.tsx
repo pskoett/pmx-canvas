@@ -310,6 +310,24 @@ export function SessionPanel() {
       </header>
 
       <ScopeRow />
+      {(() => {
+        // Fixed-position undo: the timeline row's "↩ undo this edit" chip
+        // proved unfindable in live testing (three rounds of a user hunting
+        // it). Whenever the agent's edit tops the shared stack, the same
+        // affordance also sits here — always in the same place.
+        const undoable = entries.find((entry) => entry.undoable && !undoneActivityIds.value.has(entry.id));
+        if (!undoable) return null;
+        return (
+          <div class="session-undo-row" data-testid="session-undo-row">
+            <span class="session-undo-text" title={undoable.body}>
+              Agent edit on top: {undoable.body}
+            </span>
+            <button type="button" class="session-undo-btn" onClick={() => void undoAgentEdit(undoable)}>
+              ↩ Undo
+            </button>
+          </div>
+        );
+      })()}
 
       <div class="session-panel-body">
         <section class="session-section">

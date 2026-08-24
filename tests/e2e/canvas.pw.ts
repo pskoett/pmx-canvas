@@ -4100,6 +4100,22 @@ test('addressed steering: the composer lists connected agents, the picked one al
   await expect(page.locator('.session-gate')).toHaveCount(0);
   expect(gateResponse.approvalGate.id).toBeTruthy();
 
+  // The fixed undo row: an agent edit on top of the stack surfaces "↩ Undo" in a
+  // constant position (the timeline chip alone proved unfindable in live use) —
+  // clicking it reverts the edit and the row disappears.
+  const undoTarget = (await (
+    await request.post('/api/canvas/node', {
+      data: { type: 'markdown', title: 'Undo row target', content: 'u', x: 900, y: 640, width: 240, height: 120 },
+      headers: { 'x-pmx-source': 'copilot' },
+    })
+  ).json()) as { id: string };
+  const undoRow = page.locator('[data-testid="session-undo-row"]');
+  await expect(undoRow).toBeVisible();
+  await expect(undoRow).toContainText('Created markdown “Undo row target”');
+  await undoRow.getByRole('button', { name: '↩ Undo' }).click();
+  await expect.poll(async () => (await request.get(`/api/canvas/node/${undoTarget.id}`)).status()).toBe(404);
+  await expect(undoRow).toBeHidden();
+
   // Timeline kind filters: "Steer" keeps steering-shaped rows only; "All" restores the mix.
   const filters = page.locator('.session-timeline-filters');
   // All six chips sit on ONE row (they wrapped to two when Assistant landed)
