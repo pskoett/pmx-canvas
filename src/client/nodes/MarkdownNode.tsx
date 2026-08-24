@@ -20,6 +20,14 @@ function RenderedMarkdown({
   onTaskToggle?: (index: number) => void;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  // The handler lives in a ref so the DOM effect depends on `html` ALONE. With
+  // the inline prop in the deps, every unrelated re-render (bring-to-front on
+  // pointerdown, presence frames) replaced the children — and a HUMAN press is
+  // ~100ms, so the checkbox under the finger was swapped mid-press and the
+  // click never fired. Synthetic test clicks are fast enough to win the race,
+  // which is exactly why this shipped "verified".
+  const onTaskToggleRef = useRef(onTaskToggle);
+  onTaskToggleRef.current = onTaskToggle;
 
   useEffect(() => {
     const container = containerRef.current;
@@ -29,17 +37,18 @@ function RenderedMarkdown({
     const template = document.createElement('template');
     template.innerHTML = html;
     container.append(template.content.cloneNode(true));
-    if (onTaskToggle) {
+    if (onTaskToggleRef.current) {
       for (const box of container.querySelectorAll('input[type="checkbox"][disabled]')) {
         box.removeAttribute('disabled');
       }
     }
-  }, [html, onTaskToggle]);
+  }, [html]);
 
   const handleClick = onTaskToggle
     ? (e: MouseEvent) => {
+        const onToggle = onTaskToggleRef.current;
         const container = containerRef.current;
-        if (!container) return;
+        if (!container || !onToggle) return;
         const target = e.target as HTMLElement;
         // The box itself, or anywhere in the row's checkbox gutter — a 15px
         // input alone is a miserable target at zoom and in embedded panes
@@ -55,7 +64,7 @@ function RenderedMarkdown({
         if (!box) return;
         e.stopPropagation();
         const index = [...container.querySelectorAll('input[type="checkbox"]')].indexOf(box);
-        if (index >= 0) onTaskToggle(index);
+        if (index >= 0) onToggle(index);
       }
     : undefined;
 

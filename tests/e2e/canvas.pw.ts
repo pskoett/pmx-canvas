@@ -2168,6 +2168,23 @@ test('task checkboxes tick on the CARD and persist to the node content', async (
       '- [x] hover tooltips on a deliberately long task line that wraps within this card\n- [ ] ungroup parity\n- [x] steer loop',
     );
 
+  // A HUMAN-speed press: pointer down, ~120ms hold, up. The press itself
+  // re-renders the node (bring-to-front) — if a re-render rebuilds the
+  // markdown DOM, the pressed box is swapped mid-press and no click fires
+  // (fast synthetic clicks win that race, which is how it shipped broken).
+  const slowTarget = boxes.nth(1);
+  const slowBox = (await slowTarget.boundingBox())!;
+  await page.mouse.move(slowBox.x + slowBox.width / 2, slowBox.y + slowBox.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(120);
+  await page.mouse.up();
+  await expect
+    .poll(async () => {
+      const state = (await (await request.get(`/api/canvas/node/${note.id}`)).json()) as { content?: string };
+      return state.content?.split('\n')[1];
+    })
+    .toBe('- [x] ungroup parity');
+
   // EXPANDED view: ticking works there too (the property must reach the
   // serialized attribute), and Esc-closing the focused editor must NOT wipe
   // the document via a detached-blur save.
@@ -2183,7 +2200,7 @@ test('task checkboxes tick on the CARD and persist to the node content', async (
   await page.waitForTimeout(600); // any (wrong) unmount save would land here
   const finalContent = ((await (await request.get(`/api/canvas/node/${note.id}`)).json()) as { content?: string })
     .content;
-  expect(finalContent).toContain('[x]  ungroup parity');
+  expect(finalContent).toContain('[ ]  ungroup parity');
   expect(finalContent?.length ?? 0).toBeGreaterThan(60);
 });
 
