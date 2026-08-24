@@ -313,15 +313,21 @@ describe('session receipt', () => {
     );
     expect(calls[0]?.url).toBe('/api/canvas/snapshots/snap-1/diff');
 
-    fireEvent.click(getByText('Full log'));
+    fireEvent.click(getByText('History'));
     expect(opened).toBe(1);
   });
 
-  test('an empty-board session has no snapshot: View diff is disabled and the note says so', () => {
+  test('a snapshot-less receipt has NO View diff button — the note explains why', () => {
     act(() => applySessionReceipt({ ...ended, snapshot: null }));
-    const { getByText, getByTestId } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
-    expect((getByText('View diff') as HTMLButtonElement).disabled).toBe(true);
+    const { queryByText, getByTestId } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
+    expect(queryByText('View diff')).toBeNull();
     expect(getByTestId('session-receipt').textContent).toContain('nothing to restore');
+    cleanup();
+    // An UNCHANGED session says so instead (its snapshot was dropped on purpose).
+    act(() => applySessionReceipt({ ...ended, snapshot: null, unchanged: true }));
+    const { queryByText: query2, getByTestId: get2 } = render(<SessionReceipt onOpenSnapshots={() => {}} />);
+    expect(query2('View diff')).toBeNull();
+    expect(get2('session-receipt').textContent).toContain('changed nothing on the board — no snapshot kept');
   });
 
   test('dismiss clears the receipt; a malformed frame is ignored', () => {

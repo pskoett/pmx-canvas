@@ -5,7 +5,7 @@ import { dismissSessionReceipt, sessionReceipt } from '../state/session-store';
  * Session receipt (rail-chrome-v2 phase 5, design item 2): a dismissible card
  * at the canvas region's top-right after a session ends — what the session did
  * (items / done / vetoed), the pre-session snapshot (taken at attach, so View
- * diff shows the session's changes and a restore undoes them), and Full log
+ * diff shows the session's changes and a restore undoes them), and History
  * (the snapshots panel). Client-side state, cleared on dismiss.
  */
 
@@ -104,16 +104,20 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
         </div>
       )}
       <div class="session-receipt-actions">
+        {/* No snapshot → no diff will ever exist for this receipt; a forever-
+            disabled button is noise (the note above says why). */}
+        {receipt.snapshot && (
+          <button type="button" class="session-receipt-primary" disabled={loadingDiff} onClick={() => void viewDiff()}>
+            {loadingDiff ? 'Comparing…' : 'View diff'}
+          </button>
+        )}
         <button
           type="button"
-          class="session-receipt-primary"
-          disabled={!receipt.snapshot || loadingDiff}
-          onClick={() => void viewDiff()}
+          class="session-receipt-secondary"
+          title="Open the History drawer — saved boards and past sessions"
+          onClick={onOpenSnapshots}
         >
-          {loadingDiff ? 'Comparing…' : 'View diff'}
-        </button>
-        <button type="button" class="session-receipt-secondary" onClick={onOpenSnapshots}>
-          Full log
+          History
         </button>
       </div>
     </div>

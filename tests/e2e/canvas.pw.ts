@@ -4231,9 +4231,9 @@ test('human-started session: start from the quiet board, steer from the command 
     'This session: 1 added · 0 removed · 0 modified',
   );
 
-  // Full log opens the History drawer (item 8): the session is an entry with
+  // History opens the History drawer (item 8): the session is an entry with
   // the same diff and a pre-state restore.
-  await receipt.getByRole('button', { name: 'Full log' }).click();
+  await receipt.getByRole('button', { name: 'History' }).click();
   const drawer = page.locator('[data-testid="history-drawer"]');
   await expect(drawer).toBeVisible();
   const entry = drawer.locator('[data-testid="history-session"]').first();
