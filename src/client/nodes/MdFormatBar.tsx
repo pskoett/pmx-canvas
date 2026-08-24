@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
-import { isMac } from '../utils/platform';
+import { modChord } from '../utils/platform';
 import { type FormatAction, FORMAT_ACTIONS, getSelectionRect } from './md-format';
 
 const PRIMARY_ACTIONS = FORMAT_ACTIONS.filter((a) => a.shortcut);
@@ -75,8 +75,6 @@ export function MdFormatBar({ textareaRef }: { textareaRef: { current: HTMLTextA
 
   if (!visible) return null;
 
-  const modLabel = isMac ? '⌘' : 'Ctrl';
-
   return (
     <div
       ref={barRef}
@@ -89,7 +87,7 @@ export function MdFormatBar({ textareaRef }: { textareaRef: { current: HTMLTextA
           key={a.key}
           type="button"
           class={`md-format-btn md-format-btn-${a.key}`}
-          title={`${a.label} (${modLabel}+${a.shortcut!.toUpperCase()})`}
+          title={`${a.label} (${modChord(a.shortcut!.toUpperCase())})`}
           onClick={() => runAction(a)}
         >
           {a.icon}

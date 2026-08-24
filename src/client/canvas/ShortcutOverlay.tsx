@@ -1,4 +1,4 @@
-import { MOD_KEY as MOD } from '../utils/platform';
+import { isMac, modChord } from '../utils/platform';
 
 interface ShortcutGroup {
   title: string;
@@ -17,12 +17,12 @@ const GROUPS: ShortcutGroup[] = [
   {
     title: 'Navigation',
     shortcuts: [
-      { keys: `${MOD}+K`, desc: 'Command palette — search nodes & actions' },
+      { keys: modChord('K'), desc: 'Command palette — search nodes & actions' },
       { keys: 'Tab / Shift+Tab', desc: 'Cycle through nodes' },
       { keys: '\u2190 \u2191 \u2192 \u2193', desc: 'Walk graph along edges (when node focused)' },
       { keys: 'F', desc: 'Fit all nodes on screen' },
-      { keys: `${MOD}+0`, desc: 'Reset viewport to origin' },
-      { keys: `${MOD}++ / ${MOD}+\u2212`, desc: 'Zoom in / out' },
+      { keys: modChord('0'), desc: 'Reset viewport to origin' },
+      { keys: `${modChord('+')} / ${modChord('\u2212')}`, desc: 'Zoom in / out' },
     ],
   },
   {
@@ -42,8 +42,8 @@ const GROUPS: ShortcutGroup[] = [
       { keys: 'Click', desc: 'Focus node (highlights neighbors & edges)' },
       { keys: 'Shift+Click', desc: 'Toggle node in multi-selection' },
       { keys: 'Drag empty space', desc: 'Lasso select multiple nodes' },
-      { keys: 'Delete / \u232b', desc: 'Delete the selection (or the focused node)' },
-      { keys: `${MOD}+Z / ${MOD}+Shift+Z`, desc: 'Undo / redo — agent edits included' },
+      { keys: isMac ? 'Delete / \u232b' : 'Delete / Backspace', desc: 'Delete the selection (or the focused node)' },
+      { keys: isMac ? '\u2318Z / \u21e7\u2318Z' : 'Ctrl+Z / Ctrl+Y', desc: 'Undo / redo — agent edits included' },
       { keys: 'Esc', desc: 'Clear selection / close overlay' },
     ],
   },

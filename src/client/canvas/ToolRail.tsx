@@ -37,7 +37,7 @@ import { askText } from './TextPrompt';
 import { clearThemeOverride } from '../state/theme-override';
 import { invalidateTokenCache } from '../theme/tokens';
 import type { AnnotationTool } from '../types';
-import { MOD_KEY } from '../utils/platform';
+import { modChord } from '../utils/platform';
 import {
   CANVAS_THEMES,
   CANVAS_THEME_META,
@@ -371,7 +371,7 @@ export function ToolRail({
 
       <div class="rail-spacer" />
 
-      <RailButton label="Search & commands" shortcut={`${MOD_KEY}+K`} onClick={onOpenPalette}>
+      <RailButton label="Search & commands" shortcut={modChord('K')} onClick={onOpenPalette}>
         <IconSearch />
       </RailButton>
       <RailButton

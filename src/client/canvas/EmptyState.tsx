@@ -3,7 +3,7 @@ import { IconNodeMarkdown, IconNodeWebpage, IconSteer } from '../icons';
 import { viewport } from '../state/canvas-store';
 import { createNodeInView } from './create-in-view';
 import { startSession } from '../state/session-store';
-import { MOD_KEY } from '../utils/platform';
+import { modChord } from '../utils/platform';
 import { canvasAreaCenter } from './canvas-area';
 import { importFiles } from './import-files';
 import { promptedCreate } from './ToolRail';
@@ -64,7 +64,7 @@ export function EmptyState({ onOpenPalette }: { onOpenPalette: () => void }) {
         <button type="button" class="empty-state-action" onClick={() => promptedCreate('webpage')}>
           <IconNodeWebpage size={16} class="tone-ok" />
           <span class="empty-state-action-label">Paste a link</span>
-          <kbd>{MOD_KEY}V</kbd>
+          <kbd>{modChord('V')}</kbd>
         </button>
         <button type="button" class="empty-state-action is-agent" onClick={() => void startSession()}>
           <IconSteer size={16} class="tone-purple" />
@@ -72,7 +72,7 @@ export function EmptyState({ onOpenPalette }: { onOpenPalette: () => void }) {
         </button>
       </div>
       <button type="button" class="empty-state-hint" onClick={onOpenPalette}>
-        ? shortcuts · {MOD_KEY}K palette
+        ? shortcuts · {modChord('K')} palette
       </button>
       <input
         ref={fileInput}

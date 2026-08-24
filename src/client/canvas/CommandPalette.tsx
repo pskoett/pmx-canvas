@@ -18,7 +18,7 @@ import { invalidateTokenCache } from '../theme/tokens';
 import { clearThemeOverride } from '../state/theme-override';
 import { getNodeIcon, IconArrange, IconFitAll, IconMinimap, IconMoon, IconNodeMarkdown, IconSteer } from '../icons';
 
-import { MOD_KEY } from '../utils/platform';
+import { modChord } from '../utils/platform';
 import { useFocusTrap } from './use-focus-trap';
 
 // ── Types ───────────────────────────────────────────────────
@@ -408,7 +408,7 @@ export function CommandPalette({ onClose, onToggleMinimap }: { onClose: () => vo
           <span>esc close</span>
           <span>type: filter</span>
           <span class="command-palette-hint-spacer" />
-          <span>{MOD_KEY}K</span>
+          <span>{modChord('K')}</span>
         </div>
       </div>
     </div>

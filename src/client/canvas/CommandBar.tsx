@@ -3,7 +3,7 @@ import { IconSteer } from '../icons';
 import { contextPinnedNodeIds, nodes, toggleContextPin } from '../state/canvas-store';
 import { steerableAgents } from '../state/presence-store';
 import { sendSteering } from '../state/session-store';
-import { MOD_KEY } from '../utils/platform';
+import { modChord } from '../utils/platform';
 
 /**
  * Command bar (rail-chrome-v2 phase 5): the human's steering surface while a
@@ -90,7 +90,7 @@ export function CommandBar() {
           class="command-bar-input"
           type="text"
           value={draft}
-          placeholder={`Steer ${effective?.label ?? 'the agent'}, or ${MOD_KEY}+K to search the board…`}
+          placeholder={`Steer ${effective?.label ?? 'the agent'}, or ${modChord('K')} to search the board…`}
           aria-label="Steer the agent"
           disabled={sending}
           onInput={(e) => setDraft((e.target as HTMLInputElement).value)}

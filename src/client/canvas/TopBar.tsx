@@ -13,7 +13,7 @@ import {
   viewport,
   zoomByFactor,
 } from '../state/canvas-store';
-import { MOD_KEY } from '../utils/platform';
+import { modChord } from '../utils/platform';
 import { canvasArea } from './canvas-area';
 import { BarHint } from './BarHint';
 import { degradedState } from './ConnectionBanner';
@@ -244,12 +244,12 @@ export function TopBar() {
 
       <div class="top-bar-sep" />
 
-      <BarHint label="Zoom out" shortcut={`${MOD_KEY}+-`}>
+      <BarHint label="Zoom out" shortcut={modChord('\u2212')}>
         <button type="button" class="top-bar-btn" onClick={() => zoomByFactor(1 / 1.25)} aria-label="Zoom out">
           <IconZoomOut />
         </button>
       </BarHint>
-      <BarHint label="Reset zoom" shortcut={`${MOD_KEY}+0`}>
+      <BarHint label="Reset zoom" shortcut={modChord('0')}>
         <button
           type="button"
           class="top-bar-zoom-label"
@@ -259,7 +259,7 @@ export function TopBar() {
           {Math.round(v.scale * 100)}%
         </button>
       </BarHint>
-      <BarHint label="Zoom in" shortcut={`${MOD_KEY}++`}>
+      <BarHint label="Zoom in" shortcut={modChord('+')}>
         <button type="button" class="top-bar-btn" onClick={() => zoomByFactor(1.25)} aria-label="Zoom in">
           <IconZoomIn />
         </button>

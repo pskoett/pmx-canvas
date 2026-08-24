@@ -1,5 +1,6 @@
 import type { RefObject } from 'preact';
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
+import { modChord } from '../utils/platform';
 import { promptAndInsertLink, wrapSelectionInCode } from './inline-editor-commands';
 
 const GAP = 8;
@@ -15,8 +16,8 @@ type Action =
   | { kind: 'link'; icon: string; title: string; dividerBefore?: boolean };
 
 const ACTIONS: Action[] = [
-  { kind: 'exec', command: 'bold', icon: 'B', title: 'Bold (⌘B)' },
-  { kind: 'exec', command: 'italic', icon: 'I', title: 'Italic (⌘I)' },
+  { kind: 'exec', command: 'bold', icon: 'B', title: `Bold (${modChord('B')})` },
+  { kind: 'exec', command: 'italic', icon: 'I', title: `Italic (${modChord('I')})` },
   { kind: 'exec', command: 'strikeThrough', icon: 'S', title: 'Strikethrough' },
   { kind: 'code', icon: '{ }', title: 'Inline code', dividerBefore: true },
   { kind: 'block', tag: 'H1', icon: 'H1', title: 'Heading 1', dividerBefore: true },
@@ -26,7 +27,7 @@ const ACTIONS: Action[] = [
   { kind: 'block', tag: 'BLOCKQUOTE', icon: '❝', title: 'Quote', dividerBefore: true },
   { kind: 'exec', command: 'insertUnorderedList', icon: '•', title: 'Bullet list' },
   { kind: 'exec', command: 'insertOrderedList', icon: '1.', title: 'Numbered list' },
-  { kind: 'link', icon: '🔗', title: 'Link (⌘K)', dividerBefore: true },
+  { kind: 'link', icon: '🔗', title: `Link (${modChord('K')})`, dividerBefore: true },
 ];
 
 function runAction(action: Action): void {

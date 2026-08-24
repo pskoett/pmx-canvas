@@ -108,7 +108,9 @@ export function App() {
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const mod = e.metaKey || e.ctrlKey;
+      // AltGr on European Windows layouts reports Ctrl+Alt — never treat it
+      // as the shortcut modifier, or AltGr+Z (ż, ź…) fires undo.
+      const mod = (e.metaKey || e.ctrlKey) && !e.altKey;
 
       // Cmd/Ctrl+K toggles command palette (works from anywhere, including inputs)
       if (mod && e.key === 'k') {
@@ -172,6 +174,10 @@ export function App() {
         // top, agent or human; Shift redoes.
         e.preventDefault();
         void undoFromKeyboard(e.shiftKey);
+      } else if (mod && (e.key === 'y' || e.key === 'Y')) {
+        // Ctrl+Y — the Windows redo convention.
+        e.preventDefault();
+        void undoFromKeyboard(true);
       } else if (mod && e.key === '0') {
         e.preventDefault();
         animateViewport({ x: 0, y: 0, scale: 1 }, 250);

@@ -4297,6 +4297,11 @@ test('shared undo: the panel undoes the agent’s latest edit and tells it; Ctrl
   await expect(page.locator('.canvas-node').filter({ hasText: 'Human second' })).toHaveCount(0);
   await page.keyboard.press('ControlOrMeta+Shift+z');
   await expect(page.locator('.canvas-node').filter({ hasText: 'Human second' })).toHaveCount(1);
+  // Ctrl+Y — the Windows redo convention — drives the same redo.
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Human second' })).toHaveCount(0);
+  await page.keyboard.press('Control+y');
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Human second' })).toHaveCount(1);
 
   await request.post('/api/canvas/ax/activity', { data: { kind: 'session-end', title: 'done', source: 'copilot' } });
 });
