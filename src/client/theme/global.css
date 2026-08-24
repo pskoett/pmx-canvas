@@ -1431,6 +1431,13 @@ body,
 }
 
 /* Timeline */
+.session-timeline-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 2px 0 8px;
+}
+
 .session-timeline-row {
   --tone: var(--c-muted);
   display: flex;

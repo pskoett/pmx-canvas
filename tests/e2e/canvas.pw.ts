@@ -3876,6 +3876,15 @@ test('addressed steering: the composer lists connected agents, the picked one al
   expect(await claim('claude-code')).toBe(false);
   await expect(page.locator('.session-timeline')).toContainText('→ copilot · own the CI flake, ignore the rest');
 
+  // Timeline kind filters: "Steer" keeps steering-shaped rows only; "All" restores the mix.
+  const filters = page.locator('.session-timeline-filters');
+  await filters.getByRole('button', { name: 'Steer' }).click();
+  await expect(page.locator('.session-timeline .session-timeline-label').first()).toHaveText('Steer');
+  await expect(page.locator('.session-timeline')).not.toContainText('Update');
+  await filters.getByRole('button', { name: 'Updates' }).click();
+  await expect(page.locator('.session-timeline .session-timeline-label').first()).toHaveText('Update');
+  await filters.getByRole('button', { name: 'All' }).click();
+
   // The picked agent disconnecting falls back to broadcast.
   await request.post('/api/canvas/ax/presence', {
     data: { source: 'copilot', attached: false },

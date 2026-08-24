@@ -345,7 +345,10 @@ field; delivery scopes it (and a consumer-less claim now sees broadcasts ONLY �
 leak addressed steering). A picked agent that detaches or expires falls back to "All agents"
 at render time — presence is the truth for who can still claim. The panel's Steer rows read
 "→ copilot · message". Verified: client picker tests, HTTP scoping tests, and an e2e where
-only the addressed consumer's claim returns the message.
+only the addressed consumer's claim returns the message. The session timeline also gained
+kind filter chips (All / Updates / Steer / Events / Evidence — user request while driving the
+session from the board): the filter applies BEFORE the 40-row cap so sparse kinds are never
+starved by a burst of Updates; steering-shaped events (`steering`, `yield`) count as Steer.
 
 ## Verification bar (every phase)
 `bun run typecheck` · `bun run build` · `bun run lint` · `bun run test` · `bun run test:client` ·

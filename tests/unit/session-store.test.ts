@@ -1,7 +1,53 @@
 import { describe, expect, test } from 'bun:test';
-import { mergeTimeline } from '../../src/client/state/session-store.ts';
+import { mergeTimeline, timelineCategory } from '../../src/client/state/session-store.ts';
 
 describe('mergeTimeline', () => {
+  test('a filter keeps only its category and applies BEFORE the cap, so sparse kinds are not starved', () => {
+    const timeline = {
+      events: [
+        {
+          id: 'e1',
+          kind: 'policy' as const,
+          summary: 'Fence set',
+          detail: null,
+          createdAt: '2026-08-23T13:00:00.000Z',
+        },
+        {
+          id: 'e2',
+          kind: 'yield' as const,
+          summary: 'mia took over “Spec”',
+          detail: null,
+          createdAt: '2026-08-23T13:01:00.000Z',
+        },
+      ],
+      evidence: [{ id: 'v1', title: 'tests green', body: null, createdAt: '2026-08-23T13:02:00.000Z' }],
+      steering: [{ id: 's1', message: 'oldest steer', createdAt: '2026-08-23T12:00:00.000Z' }],
+    };
+    // 30 newer Update rows would push the lone steer out of a capped mixed feed…
+    const writes = Array.from({ length: 30 }, (_, i) => ({
+      id: `act-${i}`,
+      at: `2026-08-23T14:${String(i).padStart(2, '0')}:00.000Z`,
+      op: 'node.update',
+      summary: `write ${i}`,
+    }));
+    expect(mergeTimeline(timeline, 20, writes, null).some((entry) => entry.kind === 'steer')).toBe(false);
+    // …but the Steer chip still shows it (and the steering-shaped yield row).
+    const steers = mergeTimeline(timeline, 20, writes, null, 'steer');
+    expect(steers.map((entry) => `${entry.label}:${entry.body}`)).toEqual([
+      'Yield:mia took over “Spec”',
+      'Steer:oldest steer',
+    ]);
+    expect(mergeTimeline(timeline, 20, writes, null, 'update')).toHaveLength(20);
+    expect(mergeTimeline(timeline, 20, writes, null, 'evidence').map((entry) => entry.label)).toEqual(['Evidence']);
+    expect(mergeTimeline(timeline, 20, writes, null, 'event').map((entry) => entry.label)).toEqual(['Policy']);
+    // The category mapping the chips rely on.
+    expect(
+      ['update', 'steer', 'steering', 'yield', 'evidence', 'policy', 'prompt'].map((kind) =>
+        timelineCategory(kind as Parameters<typeof timelineCategory>[0]),
+      ),
+    ).toEqual(['update', 'steer', 'steer', 'steer', 'evidence', 'event', 'event']);
+  });
+
   test('interleaves the three tables newest-first with kind labels and bounded length', () => {
     const merged = mergeTimeline(
       {

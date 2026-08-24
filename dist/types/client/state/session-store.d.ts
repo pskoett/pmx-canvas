@@ -65,6 +65,11 @@ export interface AxTimelineView {
 }
 export declare const axTimeline: import("@preact/signals-core").Signal<AxTimelineView>;
 export type TimelineEntryKind = AxEventKind | 'evidence' | 'steer' | 'update';
+/** Timeline filter chips: a handful of human categories over the many kinds. */
+export type TimelineFilter = 'all' | 'update' | 'steer' | 'event' | 'evidence';
+export declare const timelineFilter: import("@preact/signals-core").Signal<TimelineFilter>;
+/** Which chip an entry belongs to: board writes / steering-shaped rows / evidence / the rest. */
+export declare function timelineCategory(kind: TimelineEntryKind): Exclude<TimelineFilter, 'all'>;
 export interface TimelineEntry {
     id: string;
     kind: TimelineEntryKind;
@@ -95,7 +100,7 @@ export declare function mergeTimeline(timeline: AxTimelineView, limit?: number, 
     summary: string;
 }>, top?: {
     actor: 'human' | 'agent';
-} | null): TimelineEntry[];
+} | null, filter?: TimelineFilter): TimelineEntry[];
 export declare const timelineEntries: import("@preact/signals-core").ReadonlySignal<TimelineEntry[]>;
 export declare function refreshTimeline(): Promise<void>;
 /**

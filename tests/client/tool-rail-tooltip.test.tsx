@@ -40,6 +40,14 @@ describe('tool rail tooltips', () => {
     expect(queryByTestId('rail-tooltip')).toBeNull();
   });
 
+  test('a menu button says what is inside it — shortcut key cap AND the item list', () => {
+    const { getByRole, queryByTestId } = renderRail();
+    fireEvent.pointerEnter(getByRole('button', { name: 'Annotate (A)' }));
+    const tip = queryByTestId('rail-tooltip')!;
+    expect(tip.querySelector('kbd')?.textContent).toBe('A');
+    expect(tip.querySelector('.toolbar-tooltip-meta')?.textContent).toContain('Draw · Text note · Eraser');
+  });
+
   test('keyboard focus shows it too; a detail (not a shortcut) renders as plain text', () => {
     const { getByRole, queryByTestId } = renderRail();
     fireEvent.focus(getByRole('button', { name: 'Arrange (grid)' }));

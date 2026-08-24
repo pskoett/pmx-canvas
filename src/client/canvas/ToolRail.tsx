@@ -127,7 +127,8 @@ function RailButton({
           <span class="toolbar-tooltip-label">{label}</span>
           {(shortcut || detail) && (
             <span class="toolbar-tooltip-meta">
-              {shortcut ? <kbd class="toolbar-tooltip-shortcut">{shortcut}</kbd> : <span>{detail}</span>}
+              {shortcut && <kbd class="toolbar-tooltip-shortcut">{shortcut}</kbd>}
+              {detail && <span>{detail}</span>}
             </span>
           )}
         </span>
@@ -313,6 +314,7 @@ export function ToolRail({
         <RailButton
           label="Annotate"
           shortcut="A"
+          detail="Draw · Text note · Eraser"
           active={annotationTool !== null}
           menuOpen={openMenu === 'annotate'}
           onClick={toggleMenu('annotate')}

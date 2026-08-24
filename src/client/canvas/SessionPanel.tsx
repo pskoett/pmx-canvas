@@ -17,7 +17,9 @@ import {
   sessionWorkItems,
   type TimelineEntry,
   type TimelineEntryKind,
+  type TimelineFilter,
   timelineEntries,
+  timelineFilter,
   undoAgentEdit,
   undoneActivityIds,
   type WorkItemStatus,
@@ -40,6 +42,14 @@ const WORK_GLYPH: Record<WorkItemStatus, 'queued' | 'running' | 'awaiting' | 'do
   done: 'done',
   cancelled: 'vetoed',
 };
+
+const TIMELINE_FILTERS: Array<{ id: TimelineFilter; label: string }> = [
+  { id: 'all', label: 'All' },
+  { id: 'update', label: 'Updates' },
+  { id: 'steer', label: 'Steer' },
+  { id: 'event', label: 'Events' },
+  { id: 'evidence', label: 'Evidence' },
+];
 
 const TIMELINE_TONE: Record<TimelineEntryKind, string> = {
   policy: 'warn',
@@ -321,8 +331,25 @@ export function SessionPanel() {
 
         <section class="session-section">
           <h3 class="session-section-title">Timeline</h3>
+          <div class="session-timeline-filters" role="group" aria-label="Filter timeline">
+            {TIMELINE_FILTERS.map((chip) => (
+              <button
+                key={chip.id}
+                type="button"
+                class={`activity-filter${timelineFilter.value === chip.id ? ' is-active' : ''}`}
+                aria-pressed={timelineFilter.value === chip.id}
+                onClick={() => {
+                  timelineFilter.value = chip.id;
+                }}
+              >
+                {chip.label}
+              </button>
+            ))}
+          </div>
           {entries.length === 0 ? (
-            <div class="session-empty">Nothing recorded yet.</div>
+            <div class="session-empty">
+              {timelineFilter.value === 'all' ? 'Nothing recorded yet.' : 'Nothing of this kind yet.'}
+            </div>
           ) : (
             <ul class="session-list session-timeline" aria-live="polite" aria-label="Timeline">
               {entries.map((entry) => (

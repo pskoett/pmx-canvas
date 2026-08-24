@@ -106,6 +106,18 @@ export const axTimeline = signal<AxTimelineView>({ events: [], evidence: [], ste
 
 export type TimelineEntryKind = AxEventKind | 'evidence' | 'steer' | 'update';
 
+/** Timeline filter chips: a handful of human categories over the many kinds. */
+export type TimelineFilter = 'all' | 'update' | 'steer' | 'event' | 'evidence';
+export const timelineFilter = signal<TimelineFilter>('all');
+
+/** Which chip an entry belongs to: board writes / steering-shaped rows / evidence / the rest. */
+export function timelineCategory(kind: TimelineEntryKind): Exclude<TimelineFilter, 'all'> {
+  if (kind === 'update') return 'update';
+  if (kind === 'steer' || kind === 'steering' || kind === 'yield') return 'steer';
+  if (kind === 'evidence') return 'evidence';
+  return 'event';
+}
+
 export interface TimelineEntry {
   id: string;
   kind: TimelineEntryKind;
@@ -150,6 +162,7 @@ export function mergeTimeline(
   limit = 40,
   writes: Array<{ id: string; at: string; op: string; summary: string }> = [],
   top: { actor: 'human' | 'agent' } | null = null,
+  filter: TimelineFilter = 'all',
 ): TimelineEntry[] {
   const newestWrite = writes.find((write) => LAYOUT_OPS.test(write.op));
   const entries: TimelineEntry[] = [
@@ -183,12 +196,15 @@ export function mergeTimeline(
       createdAt: steer.createdAt,
     })),
   ];
-  entries.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
-  return entries.slice(0, limit);
+  // Filter BEFORE the cap so "Steer" shows up to `limit` steers, not just the
+  // ones that survived a cap over the mixed feed.
+  const kept = filter === 'all' ? entries : entries.filter((entry) => timelineCategory(entry.kind) === filter);
+  kept.sort((a, b) => (a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0));
+  return kept.slice(0, limit);
 }
 
 export const timelineEntries = computed(() =>
-  mergeTimeline(axTimeline.value, 40, agentActivity.value, historyTop.value),
+  mergeTimeline(axTimeline.value, 40, agentActivity.value, historyTop.value, timelineFilter.value),
 );
 
 export async function refreshTimeline(): Promise<void> {
@@ -340,4 +356,5 @@ export function resetSessionStore(): void {
   undoneActivityIds.value = new Set();
   sessionReceipt.value = null;
   axTimeline.value = { events: [], evidence: [], steering: [] };
+  timelineFilter.value = 'all';
 }
