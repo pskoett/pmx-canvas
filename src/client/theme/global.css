@@ -1622,19 +1622,23 @@ body,
   color: var(--tone);
 }
 .session-timeline-undo {
-  margin-top: 4px;
-  padding: 2px 8px;
-  border: 1px solid var(--c-line);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 5px;
+  padding: 4px 12px;
+  border: 1px solid var(--c-accent);
   border-radius: 999px;
-  background: none;
-  color: var(--c-muted);
-  font-size: 9.5px;
-  font-weight: 600;
+  background: var(--c-accent-10);
+  color: var(--c-accent);
+  font-size: 11.5px;
+  font-weight: 700;
   cursor: pointer;
+  animation: session-work-pulse 1.6s ease-in-out 2;
 }
 .session-timeline-undo:hover {
-  border-color: color-mix(in srgb, var(--c-accent) 40%, transparent);
-  color: var(--c-accent);
+  background: var(--c-accent);
+  color: var(--c-bg);
 }
 .session-timeline-undone {
   margin-top: 2px;
