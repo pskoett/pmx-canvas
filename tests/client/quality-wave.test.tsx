@@ -77,13 +77,34 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('selection geometry', () => {
-  test('align left / top snap to the selection’s minimum edge and persist', () => {
+  test('align left / top snap to the minimum edge; a collapsing selection flows instead of overlapping', () => {
+    // a(100,300) b(400,120) c(900,210), 200×100 each. Aligning LEFT makes
+    // b/c overlap vertically (120–220 vs 210–310) → the selection flows into
+    // a left-aligned column in its vertical order: b, c, a.
     selectNodes(['a', 'b', 'c']);
     alignSelection('left');
-    expect([...nodes.value.values()].map((n) => n.position.x)).toEqual([100, 100, 100]);
-    alignSelection('top');
-    expect([...nodes.value.values()].map((n) => n.position.y)).toEqual([120, 120, 120]);
+    const at = (id: string) => nodes.value.get(id)!.position;
+    expect([at('a').x, at('b').x, at('c').x]).toEqual([100, 100, 100]);
+    expect([at('b').y, at('c').y, at('a').y]).toEqual([120, 244, 368]);
     expect(calls.some((call) => call.url === '/api/canvas/update')).toBe(true);
+
+    // Aligning TOP of that column would fully overlap them → flows into a
+    // top-aligned row (x order preserved), no node covering another.
+    alignSelection('top');
+    expect([at('a').y, at('b').y, at('c').y]).toEqual([120, 120, 120]);
+    expect([at('a').x, at('b').x, at('c').x].sort((p, q) => p - q)).toEqual([100, 324, 548]);
+  });
+
+  test('align keeps pure edge-snapping when nothing would overlap', () => {
+    // A clean vertical stack far apart: align-left just sets x, ys untouched.
+    nodes.value = new Map([
+      ['a', node('a', 300, 100)],
+      ['b', node('b', 420, 400)],
+    ]);
+    selectNodes(['a', 'b']);
+    alignSelection('left');
+    expect(nodes.value.get('a')!.position).toEqual({ x: 300, y: 100 });
+    expect(nodes.value.get('b')!.position).toEqual({ x: 300, y: 400 });
   });
 
   test('distribute evens the horizontal gaps, first and last staying put', () => {

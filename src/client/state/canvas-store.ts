@@ -263,11 +263,39 @@ export function alignSelection(edge: 'left' | 'top'): void {
   const selected = getSelectedNodes();
   if (selected.length < 2) return;
   const target = Math.min(...selected.map((n) => (edge === 'left' ? n.position.x : n.position.y)));
+  // Sharing an edge collapses nodes that used to sit side by side ONTO each
+  // other. Aligning must never destroy the layout: when the shared edge makes
+  // any pair overlap, flow the selection along the other axis in its current
+  // order instead — align-left of a row reads as "stack into a left-aligned
+  // column", which is what the gesture means.
+  const GAP = 24;
+  const positions = new Map<string, { x: number; y: number }>();
+  for (const node of selected) {
+    positions.set(node.id, edge === 'left' ? { x: target, y: node.position.y } : { x: node.position.x, y: target });
+  }
+  const overlaps = (
+    a: { x: number; y: number; w: number; h: number },
+    b: { x: number; y: number; w: number; h: number },
+  ) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+  const framed = selected.map((node) => {
+    const at = positions.get(node.id)!;
+    return { node, x: at.x, y: at.y, w: node.size.width, h: node.size.height };
+  });
+  const collides = framed.some((a, i) => framed.some((b, j) => j > i && overlaps(a, b)));
+  if (collides) {
+    const ordered = [...selected].sort((a, b) =>
+      edge === 'left' ? a.position.y - b.position.y : a.position.x - b.position.x,
+    );
+    let cursor =
+      edge === 'left' ? Math.min(...selected.map((n) => n.position.y)) : Math.min(...selected.map((n) => n.position.x));
+    for (const node of ordered) {
+      positions.set(node.id, edge === 'left' ? { x: target, y: cursor } : { x: cursor, y: target });
+      cursor += (edge === 'left' ? node.size.height : node.size.width) + GAP;
+    }
+  }
   batch(() => {
     for (const node of selected) {
-      updateNode(node.id, {
-        position: edge === 'left' ? { x: target, y: node.position.y } : { x: node.position.x, y: target },
-      });
+      updateNode(node.id, { position: positions.get(node.id)! });
     }
   });
   persistLayout();

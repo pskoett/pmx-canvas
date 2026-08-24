@@ -32,7 +32,18 @@ export function TextPrompt() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (request) inputRef.current?.focus();
+    if (!request) return;
+    inputRef.current?.focus();
+    // Esc closes the dialog wherever focus sits (autofocus can lose a race in
+    // a busy tab, and the global shortcut layer must never see this Esc).
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      e.stopPropagation();
+      settle(null);
+    };
+    window.addEventListener('keydown', onKey, { capture: true });
+    return () => window.removeEventListener('keydown', onKey, { capture: true });
   }, [request]);
 
   if (!request) return null;
