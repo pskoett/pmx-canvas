@@ -107,6 +107,24 @@ describe('selection geometry', () => {
     expect(nodes.value.get('b')!.position).toEqual({ x: 300, y: 400 });
   });
 
+  test('distribute on a selection that cannot fit flows into a row instead of squeezing into overlap', () => {
+    // Three 200-wide cards in a near-column: the span between first and last
+    // is far smaller than the middle card — the old math produced a negative
+    // gap and stacked them.
+    nodes.value = new Map([
+      ['a', node('a', 100, 100)],
+      ['b', node('b', 140, 260)],
+      ['c', node('c', 180, 420)],
+    ]);
+    selectNodes(['a', 'b', 'c']);
+    distributeSelection();
+    const at = (id: string) => nodes.value.get(id)!.position;
+    expect([at('a').x, at('b').x, at('c').x]).toEqual([100, 324, 548]);
+    // No pair overlaps horizontally (200 wide + 24 gap).
+    expect(at('b').x - at('a').x).toBeGreaterThanOrEqual(224);
+    expect(at('c').x - at('b').x).toBeGreaterThanOrEqual(224);
+  });
+
   test('distribute evens the horizontal gaps, first and last staying put', () => {
     selectNodes(['a', 'b', 'c']);
     distributeSelection();

@@ -15,6 +15,7 @@ import {
 } from '../state/canvas-store';
 import { MOD_KEY } from '../utils/platform';
 import { canvasArea } from './canvas-area';
+import { BarHint } from './BarHint';
 import { degradedState } from './ConnectionBanner';
 import { ExternalWriterIndicator } from './ExternalWriters';
 import { useNow } from './use-now';
@@ -22,47 +23,6 @@ import { agentPhaseLabel } from '../../shared/agent-presence.js';
 import { activeSession, attachedSessions, contextBudget } from '../state/presence-store';
 import { pendingGates, startSession } from '../state/session-store';
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
-
-function BarHint({
-  label,
-  shortcut,
-  body,
-  align = 'center',
-  tapToOpen = false,
-  children,
-}: {
-  label: string;
-  shortcut?: string;
-  /** One or two plain sentences under the label — the explanation a native `title` used to hide. */
-  body?: string;
-  align?: 'start' | 'center' | 'end';
-  /**
-   * Informational (non-button) content: a click/focus opens the tooltip, so
-   * surfaces that do not forward hover (embedded panes, touch) still reach
-   * the explanation. Never for action buttons — their tooltips must dismiss
-   * after the click, not linger on focus.
-   */
-  tapToOpen?: boolean;
-  children: ComponentChildren;
-}) {
-  return (
-    <span
-      class={`toolbar-tooltip-anchor toolbar-tooltip-anchor-${align}${tapToOpen ? ' toolbar-tooltip-anchor-tap' : ''}`}
-      tabIndex={tapToOpen ? -1 : undefined}
-    >
-      {children}
-      <span class="toolbar-tooltip" role="tooltip">
-        <span class="toolbar-tooltip-label">{label}</span>
-        {body && <span class="toolbar-tooltip-body">{body}</span>}
-        {shortcut && (
-          <span class="toolbar-tooltip-meta">
-            <kbd class="toolbar-tooltip-shortcut">{shortcut}</kbd>
-          </span>
-        )}
-      </span>
-    </span>
-  );
-}
 
 /**
  * The attached session's chip (rail-chrome-v2 phase 3): phase-colored, with a

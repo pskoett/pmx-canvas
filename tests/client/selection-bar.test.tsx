@@ -83,10 +83,10 @@ describe('SelectionBar', () => {
     act(() => {
       selectNodes(['n1', 'n2']);
     });
-    const { container, getByTitle } = render(<SelectionBar />);
+    const { container, getByRole } = render(<SelectionBar />);
 
     act(() => {
-      fireEvent.click(getByTitle('Clear selection'));
+      fireEvent.click(getByRole('button', { name: 'Clear selection' }));
     });
 
     expect(selectedNodeIds.value.size).toBe(0);

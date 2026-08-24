@@ -2753,6 +2753,25 @@ body,
   transform: rotate(45deg);
 }
 
+/* Up variant: bottom-anchored bars (selection bar) open their tooltip above. */
+.toolbar-tooltip-anchor-up .toolbar-tooltip {
+  top: auto;
+  bottom: calc(100% + 10px);
+  transform: translateX(-50%) translateY(-6px);
+}
+.toolbar-tooltip-anchor-up .toolbar-tooltip::after {
+  top: auto;
+  bottom: -5px;
+  border-top: none;
+  border-left: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--c-line) 78%, var(--c-accent) 22%);
+  border-right: 1px solid color-mix(in srgb, var(--c-line) 78%, var(--c-accent) 22%);
+}
+.toolbar-tooltip-anchor-up:hover .toolbar-tooltip,
+.toolbar-tooltip-anchor-up > :focus-visible + .toolbar-tooltip {
+  transform: translateX(-50%) translateY(0);
+}
+
 /* :focus-within opens the tooltip only on tap-to-open (informational)
    anchors — an action button's tooltip must dismiss after its click. */
 .toolbar-tooltip-anchor:hover .toolbar-tooltip,

@@ -311,8 +311,19 @@ export function distributeSelection(): void {
   const inner = selected.slice(1, -1);
   const innerWidth = inner.reduce((sum, n) => sum + n.size.width, 0);
   const gap = (span - innerWidth) / (inner.length + 1);
-  let cursor = first.position.x + first.size.width + gap;
   batch(() => {
+    if (gap < 8) {
+      // The selection doesn't fit between first and last (a column, or an
+      // already-tight row): keeping the ends pinned would SQUEEZE the middle
+      // into overlap. Flow everything after the first into a row instead.
+      let cursor = first.position.x + first.size.width + 24;
+      for (const node of selected.slice(1)) {
+        updateNode(node.id, { position: { x: cursor, y: node.position.y } });
+        cursor += node.size.width + 24;
+      }
+      return;
+    }
+    let cursor = first.position.x + first.size.width + gap;
     for (const node of inner) {
       updateNode(node.id, { position: { x: cursor, y: node.position.y } });
       cursor += node.size.width + gap;
