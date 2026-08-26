@@ -285,6 +285,7 @@ describe('policy (canvas-bound)', () => {
       tools: { allowed: [], excluded: [], approvalRequired: [] },
       prompt: { systemAppend: null, mode: null },
       scope: null,
+      agentScopes: {},
     });
 
     h.manager.setPolicy({ tools: { excluded: ['rm -rf'] } });

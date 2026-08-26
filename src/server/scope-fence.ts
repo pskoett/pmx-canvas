@@ -54,10 +54,16 @@ function inside(rect: FenceRect, x: number, y: number): boolean {
 }
 
 /** Returns a human-readable refusal, or null when the target is inside the fence. */
-export function checkFenceTarget(target: FenceTarget, opName: string): string | null {
-  const fence = canvasState.getPolicy().scope;
+export function checkFenceTarget(target: FenceTarget, opName: string, writerKey?: string): string | null {
+  const policy = canvasState.getPolicy();
+  // Per-agent territory (fleet orchestration) overrides the global fence for
+  // that writer; writers without a territory fall under the global fence.
+  const territory = writerKey ? policy.agentScopes[writerKey] : undefined;
+  const fence = territory ?? policy.scope;
   if (!fence) return null;
-  const describe = `the agent scope fence (${fence.nodeIds.length} node${fence.nodeIds.length === 1 ? '' : 's'}); reads are allowed — ask the human to widen the fence`;
+  const describe = territory
+    ? `your assigned territory (${fence.nodeIds.length} node${fence.nodeIds.length === 1 ? '' : 's'}); reads are allowed — ask the orchestrator or the human to widen it`
+    : `the agent scope fence (${fence.nodeIds.length} node${fence.nodeIds.length === 1 ? '' : 's'}); reads are allowed — ask the human to widen the fence`;
   if (target.boardWide) return `"${opName}" rewrites the whole board, which is outside ${describe}.`;
   if (target.unknown) return `"${target.unknown}" is not fence-aware and was refused under ${describe}.`;
   const fenced = new Set(fence.nodeIds);
@@ -167,17 +173,26 @@ export function describeOpTarget(op: Operation, rawInput: unknown): FenceTarget 
 }
 
 /** Registry entry point: refusal text or null. Only call for mutating, agent-originated ops. */
-export function checkScopeFence(op: Operation, rawInput: unknown): string | null {
-  return checkFenceTarget(describeOpTarget(op, rawInput), op.name);
+export function checkScopeFence(op: Operation, rawInput: unknown, writerKey?: string): string | null {
+  return checkFenceTarget(describeOpTarget(op, rawInput), op.name, writerKey);
 }
 
 /**
- * The fence belongs to the human: an agent must not clear, widen, or replace
- * it through `ax.policy.set`. Returns a refusal when a non-workbench caller
- * touches `scope` while a fence is set (or tries to set one at all).
+ * The GLOBAL fence belongs to the human: an agent must not clear, widen, or
+ * replace it through `ax.policy.set`. Per-agent territories (`agentScopes`)
+ * are the orchestration surface — an agent MAY set territories for OTHER
+ * writers (fencing its workers), but never its own: granting yourself a wider
+ * territory (or deleting it) is escalation.
  */
-export function checkScopeOwnership(rawInput: unknown): string | null {
+export function checkScopeOwnership(rawInput: unknown, writerKey?: string): string | null {
   const input = asRecord(rawInput);
-  if (!('scope' in input)) return null;
-  return 'the scope fence is set and cleared by the human in the session panel, not by the agent.';
+  if ('scope' in input)
+    return 'the scope fence is set and cleared by the human in the session panel, not by the agent.';
+  const agentScopes = input.agentScopes;
+  if (writerKey && agentScopes && typeof agentScopes === 'object' && !Array.isArray(agentScopes)) {
+    if (Object.prototype.hasOwnProperty.call(agentScopes, writerKey)) {
+      return `an agent cannot set or clear its OWN territory ("${writerKey}") — only the human or a different writer (the orchestrator) may.`;
+    }
+  }
+  return null;
 }

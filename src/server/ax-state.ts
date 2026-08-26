@@ -424,6 +424,12 @@ export interface PmxAxPolicy {
   tools: { allowed: string[]; excluded: string[]; approvalRequired: string[] };
   prompt: { systemAppend: string | null; mode: string | null };
   scope: PmxAxScopeFence | null;
+  /**
+   * Per-agent territories (fleet orchestration): writer key (agentId when the
+   * write carries one, else its source label) → fence. Overrides `scope` for
+   * that writer; agents without an entry fall under the global fence.
+   */
+  agentScopes: Record<string, PmxAxScopeFence>;
 }
 
 export function createEmptyAxPolicy(): PmxAxPolicy {
@@ -431,6 +437,7 @@ export function createEmptyAxPolicy(): PmxAxPolicy {
     tools: { allowed: [], excluded: [], approvalRequired: [] },
     prompt: { systemAppend: null, mode: null },
     scope: null,
+    agentScopes: {},
   };
 }
 
@@ -464,7 +471,19 @@ export function normalizeAxPolicy(input: unknown): PmxAxPolicy {
       mode: optionalString(prompt.mode),
     },
     scope: normalizeAxScopeFence(input.scope),
+    agentScopes: normalizeAxAgentScopes(input.agentScopes),
   };
+}
+
+export function normalizeAxAgentScopes(input: unknown): Record<string, PmxAxScopeFence> {
+  if (!isRecord(input)) return {};
+  const out: Record<string, PmxAxScopeFence> = {};
+  for (const [key, value] of Object.entries(input)) {
+    if (!key.trim()) continue;
+    const fence = normalizeAxScopeFence(value);
+    if (fence) out[key.trim()] = fence;
+  }
+  return out;
 }
 const AX_EVIDENCE_KINDS = new Set<PmxAxEvidenceKind>([
   'logs',

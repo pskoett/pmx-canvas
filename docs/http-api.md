@@ -394,9 +394,19 @@ curl "http://localhost:4313/api/canvas/ax/delivery/pending?consumer=copilot&limi
 # hosts whose model only runs while the host gives it a turn. Loop on this
 # instead of tight polling.
 curl "http://localhost:4313/api/canvas/ax/delivery/pending?consumer=copilot&waitMs=120000"
+# Marks are PER CONSUMER for broadcasts: your mark removes the message from
+# YOUR queue only — every other consumer still receives it ("all workers:
+# stop" reaches the whole fleet). Addressed steers stay single-recipient
+# compare-and-set; a consumer-less mark is the anonymous global ack.
 curl -X POST http://localhost:4313/api/canvas/ax/delivery/<steering-id>/mark \
   -H "Content-Type: application/json" \
   -d '{"consumer":"copilot"}'
+
+# Per-agent territories (fleet orchestration): fence a worker to its lane.
+# An agent may fence OTHER writers, never its own key; the human may set any.
+curl -X POST http://localhost:4313/api/canvas/ax/policy \
+  -H "Content-Type: application/json" \
+  -d '{"agentScopes":{"run1:impl":{"nodeIds":["node-a"],"padding":80}}}'
 
 # Elicitation — request structured human input, then respond
 curl -X POST http://localhost:4313/api/canvas/ax/elicitation \

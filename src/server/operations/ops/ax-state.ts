@@ -146,6 +146,12 @@ const axPolicySetShape = {
     .describe(
       'Scope fence (human-owned, set from the workbench): { nodeIds, padding? } limits agent WRITES to those nodes plus padding px around them; null clears it. Agent calls that include it are refused (403) — read policy.scope instead.',
     ),
+  agentScopes: z
+    .unknown()
+    .optional()
+    .describe(
+      'Per-agent territories (fleet orchestration): { "<agentId or source>": { nodeIds, padding? } | null }. Each entry overrides the global fence for that writer; null clears that entry. An agent may fence OTHER writers (its workers) but never its own key.',
+    ),
   source: z.unknown().optional().describe('Optional host/source label. Defaults to mcp.'),
 };
 
@@ -192,14 +198,25 @@ const axPolicySetOperation = defineOperation<z.infer<typeof axPolicySetSchema>, 
         })
         .optional(),
       prompt: z.object({ systemAppend: z.string().optional(), mode: z.string().optional() }).optional(),
+      agentScopes: z
+        .record(
+          z.string(),
+          z.union([z.object({ nodeIds: z.array(z.string()), padding: z.number().optional() }), z.null()]),
+        )
+        .optional()
+        .describe(
+          'Per-agent territories: writer key (agentId or source) → { nodeIds, padding? } | null. The orchestration surface — fence each worker to its lane; you cannot set your own key.',
+        ),
       source: z.enum(AX_SOURCES).optional(),
     },
     // Legacy MCP tool forwarded only the present tools/prompt fields (source split out).
-    // The scope fence is human-owned (see checkScopeOwnership) — MCP callers
-    // are agents, so the tool neither advertises nor forwards `scope`.
+    // The GLOBAL scope fence is human-owned (see checkScopeOwnership) — MCP
+    // callers are agents, so the tool neither advertises nor forwards `scope`.
+    // Per-agent territories ARE the agent surface and forward.
     buildInput: (input) => ({
       ...(input.tools ? { tools: input.tools } : {}),
       ...(input.prompt ? { prompt: input.prompt } : {}),
+      ...(input.agentScopes ? { agentScopes: input.agentScopes } : {}),
       source: normalizeAxSource(input.source, 'mcp'),
     }),
     formatResult: (result) => {
@@ -214,9 +231,26 @@ const axPolicySetOperation = defineOperation<z.infer<typeof axPolicySetSchema>, 
       tools?: Partial<PmxAxPolicy['tools']>;
       prompt?: Partial<PmxAxPolicy['prompt']>;
       scope?: { nodeIds: string[]; padding?: number } | null;
+      agentScopes?: Record<string, { nodeIds: string[]; padding?: number } | null>;
     } = {};
     if (isRecord(input.tools)) patch.tools = input.tools as Partial<PmxAxPolicy['tools']>;
     if (isRecord(input.prompt)) patch.prompt = input.prompt as Partial<PmxAxPolicy['prompt']>;
+    if (isRecord(input.agentScopes)) {
+      const territories: Record<string, { nodeIds: string[]; padding?: number } | null> = {};
+      for (const [key, value] of Object.entries(input.agentScopes)) {
+        if (value === null) {
+          territories[key] = null;
+          continue;
+        }
+        if (!isRecord(value)) continue;
+        const ids = withGroupMembers(
+          Array.isArray(value.nodeIds) ? value.nodeIds.filter((id): id is string => typeof id === 'string') : [],
+        );
+        const pad = Number(value.padding);
+        territories[key] = ids.length > 0 ? { nodeIds: ids, ...(Number.isFinite(pad) ? { padding: pad } : {}) } : null;
+      }
+      patch.agentScopes = territories;
+    }
     if (input.scope === null) patch.scope = null;
     else if (isRecord(input.scope)) {
       const nodeIds = withGroupMembers(
@@ -229,6 +263,20 @@ const axPolicySetOperation = defineOperation<z.infer<typeof axPolicySetSchema>, 
     }
     const policy = canvasState.setPolicy(patch, { source: normalizeAxSource(input.source, 'api') });
     ctx.emit('ax-state-changed', { policy });
+    if (patch.agentScopes && Object.keys(patch.agentScopes).length > 0) {
+      const parts = Object.entries(patch.agentScopes).map(([key, fence]) =>
+        fence ? `${key}: ${fence.nodeIds.length} node${fence.nodeIds.length === 1 ? '' : 's'}` : `${key}: cleared`,
+      );
+      canvasState.recordAxEvent(
+        {
+          kind: 'policy',
+          summary: `Territories updated — ${parts.join('; ')}.`,
+          nodeIds: [],
+          data: { policy: 'agent-scopes', keys: Object.keys(patch.agentScopes) },
+        },
+        { source: normalizeAxSource(input.source, 'api') },
+      );
+    }
     if (patch.scope !== undefined) {
       // The agent reads the timeline — tell it the fence moved, and why its
       // next write outside it will be refused.

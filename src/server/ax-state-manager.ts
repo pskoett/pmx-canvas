@@ -717,10 +717,18 @@ export class AxStateManager {
       prompt?: Partial<PmxAxPolicy['prompt']>;
       /** Replace semantics: an object sets the fence, `null` clears it, absent leaves it. */
       scope?: { nodeIds: string[]; padding?: number } | null;
+      /** Per-key merge: an object sets that agent's territory, `null` clears it, absent keys keep theirs. */
+      agentScopes?: Record<string, { nodeIds: string[]; padding?: number } | null>;
     },
     _options: { source?: PmxAxSource } = {},
   ): PmxAxPolicy {
     const oldAxState = this.getAxState();
+    const nodeIds = this.deps.getNodeIds();
+    const mergedAgentScopes: Record<string, unknown> = { ...oldAxState.policy.agentScopes };
+    for (const [key, fence] of Object.entries(patch.agentScopes ?? {})) {
+      if (fence === null) delete mergedAgentScopes[key];
+      else mergedAgentScopes[key] = { ...fence, nodeIds: fence.nodeIds.filter((id) => nodeIds.has(id)) };
+    }
     const merged = normalizeAxPolicy({
       tools: { ...oldAxState.policy.tools, ...(patch.tools ?? {}) },
       prompt: { ...oldAxState.policy.prompt, ...(patch.prompt ?? {}) },
@@ -729,7 +737,8 @@ export class AxStateManager {
           ? oldAxState.policy.scope
           : patch.scope === null
             ? null
-            : { ...patch.scope, nodeIds: patch.scope.nodeIds.filter((id) => this.deps.getNodeIds().has(id)) },
+            : { ...patch.scope, nodeIds: patch.scope.nodeIds.filter((id) => nodeIds.has(id)) },
+      agentScopes: mergedAgentScopes,
     });
     this.applyAxState({ ...oldAxState, policy: merged });
     const applied = this.getAxState();

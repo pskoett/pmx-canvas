@@ -342,10 +342,14 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
   // the fence the human granted. Reads and the human's own writes pass, and
   // the fence itself is the human's to set — an agent cannot clear or widen it.
   if (!meta.fromWorkbench) {
+    // Fence identity: the same key presence uses — the write's agentId when it
+    // carries one, else its transport/source label.
+    const rawAgentId = asRecord(rawInput).agentId;
+    const writerKey = typeof rawAgentId === 'string' && rawAgentId.trim() ? rawAgentId.trim() : (meta.source ?? 'api');
     const refusal = op.mutates
-      ? checkScopeFence(op, rawInput)
+      ? checkScopeFence(op, rawInput, writerKey)
       : name === 'ax.policy.set'
-        ? checkScopeOwnership(rawInput)
+        ? checkScopeOwnership(rawInput, writerKey)
         : null;
     if (refusal) throw new OperationError(`Outside the agent scope: ${refusal}`, 403);
     // User wins (item 6): a node a human is holding right now is not the

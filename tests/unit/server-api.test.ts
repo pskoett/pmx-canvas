@@ -1931,6 +1931,76 @@ describe('canvas server HTTP API', () => {
     expect(second.delivered).toBe(false);
   });
 
+  test('per-agent territories: a worker is fenced to its lane, others roam, and no agent fences itself', async () => {
+    const mk = async (title: string, x: number, y: number) =>
+      (await (
+        await fetch(`${baseUrl}/api/canvas/node`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
+          body: JSON.stringify({ type: 'markdown', title, content: 'x', x, y, width: 300, height: 160 }),
+        })
+      ).json()) as { id: string };
+    const lane = await mk('Worker lane', 100, 100);
+    const outside = await mk('Elsewhere', 4000, 4000);
+
+    // The orchestrator (a DIFFERENT writer) fences worker run1:impl to its lane.
+    const set = await fetch(`${baseUrl}/api/canvas/ax/policy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-pmx-source': 'copilot' },
+      body: JSON.stringify({ agentScopes: { 'run1:impl': { nodeIds: [lane.id], padding: 80 } } }),
+    });
+    expect(set.status).toBe(200);
+
+    // The worker may write inside its territory…
+    const inside = await fetch(`${baseUrl}/api/canvas/node/${lane.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Worker lane (updated)', agentId: 'run1:impl' }),
+    });
+    expect(inside.status).toBe(200);
+
+    // …but not outside it.
+    const refused = await fetch(`${baseUrl}/api/canvas/node/${outside.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Grabbed', agentId: 'run1:impl' }),
+    });
+    expect(refused.status).toBe(403);
+    expect(((await refused.json()) as { error: string }).error).toContain('territory');
+
+    // A writer WITHOUT a territory is untouched (no global fence set).
+    const roam = await fetch(`${baseUrl}/api/canvas/node/${outside.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', 'x-pmx-source': 'claude-code' },
+      body: JSON.stringify({ title: 'Roamed' }),
+    });
+    expect(roam.status).toBe(200);
+
+    // No agent sets its OWN territory — that is escalation.
+    const selfFence = await fetch(`${baseUrl}/api/canvas/ax/policy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-pmx-source': 'copilot' },
+      body: JSON.stringify({ agentScopes: { copilot: null } }),
+    });
+    expect(selfFence.status).toBe(403);
+
+    // The human clears the worker's territory; the worker roams again.
+    const clear = await fetch(`${baseUrl}/api/canvas/ax/policy`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
+      body: JSON.stringify({ agentScopes: { 'run1:impl': null } }),
+    });
+    expect(clear.status).toBe(200);
+    const freed = await fetch(`${baseUrl}/api/canvas/node/${outside.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ title: 'Freed', agentId: 'run1:impl' }),
+    });
+    expect(freed.status).toBe(200);
+    await fetch(`${baseUrl}/api/canvas/node/${lane.id}`, { method: 'DELETE', headers: { 'x-pmx-workbench': '1' } });
+    await fetch(`${baseUrl}/api/canvas/node/${outside.id}`, { method: 'DELETE', headers: { 'x-pmx-workbench': '1' } });
+  });
+
   test('broadcast steering is delivered PER consumer — one worker marking it leaves it pending for the rest', async () => {
     const steer = (await (
       await fetch(`${baseUrl}/api/canvas/ax/steer`, {
@@ -1942,9 +2012,9 @@ describe('canvas server HTTP API', () => {
     const id = steer.steering.id;
     const pendingFor = async (consumer: string) =>
       (
-        (await (
-          await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=${consumer}&limit=50`)
-        ).json()) as { pending: Array<{ id: string }> }
+        (await (await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=${consumer}&limit=50`)).json()) as {
+          pending: Array<{ id: string }>;
+        }
       ).pending.some((entry) => entry.id === id);
 
     expect(await pendingFor('worker-a')).toBe(true);
