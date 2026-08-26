@@ -158,6 +158,7 @@ function StartSessionButton() {
       >
         <span class="start-session-dot" aria-hidden="true" />
         Start agent session
+        <span class="beta-tag">beta</span>
       </button>
     </BarHint>
   );

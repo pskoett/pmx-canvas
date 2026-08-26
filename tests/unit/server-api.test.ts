@@ -1931,6 +1931,34 @@ describe('canvas server HTTP API', () => {
     expect(second.delivered).toBe(false);
   });
 
+  test('delivery long-poll: ?waitMs parks until steering for the consumer arrives, then returns it', async () => {
+    // The reactive loop for hosts that cannot be woken from outside (Copilot,
+    // Codex): one blocked call instead of tight polling.
+    const t0 = Date.now();
+    const waiting = fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=longpoll-agent&waitMs=8000`);
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    await fetch(`${baseUrl}/api/canvas/ax/steer`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: 'wake up and fix it', source: 'browser', target: 'longpoll-agent' }),
+    });
+    const res = await waiting;
+    const elapsed = Date.now() - t0;
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { pending: Array<{ message: string }> };
+    expect(body.pending.some((entry) => entry.message === 'wake up and fix it')).toBe(true);
+    // Woke on arrival, not on the 8s timeout — and only after the steer landed.
+    expect(elapsed).toBeGreaterThanOrEqual(250);
+    expect(elapsed).toBeLessThan(5000);
+
+    // Timeout path: no steering for this consumer → empty after ~the wait.
+    const t1 = Date.now();
+    const idle = await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=longpoll-agent-2&waitMs=400`);
+    const idleBody = (await idle.json()) as { pending: unknown[] };
+    expect(idleBody.pending).toHaveLength(0);
+    expect(Date.now() - t1).toBeGreaterThanOrEqual(350);
+  });
+
   test('iframe-probe endpoint serves the tiny embed-detection document', async () => {
     // The client boots a hidden iframe against this URL to learn whether the
     // embedding context loads src-URL iframes at all (Amp orb portals block

@@ -74,6 +74,13 @@ it, or the board silently diverges from reality.
   subagent, so everything is pull. Cadence: check `canvas://ax-pending-steering` (or
   `canvas_ax_delivery { action: "claim", consumer: "<agentId or host>" }`) between every major
   step.
+- **Reactive loop (0.4.9+):** pass `timeoutMs` (MCP) / `?waitMs` (HTTP) to the claim and the
+  call BLOCKS until steering for your consumer arrives (capped at 120000ms per call). A host
+  that cannot be woken from outside (Copilot, Codex — their model runs only while the host
+  gives it a turn) reacts to canvas steering by looping on this inside one turn:
+  claim(timeoutMs: 120000) → act on each message → mark → repeat until the human says stop or
+  the turn budget runs out. One standing prompt in the host ("run the canvas steering loop")
+  makes the composer's addressed steers land promptly instead of sitting queued.
 - Address a specific agent with the steering `target` field (0.4.5+). Untargeted steers are
   broadcast: only the ORCHESTRATOR claims them and re-routes; subagents claim only steers
   targeted at their own `agentId`.

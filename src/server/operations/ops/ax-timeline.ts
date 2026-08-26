@@ -50,6 +50,7 @@ import { agentPresence } from '../../agent-presence.js';
 import { canvasState } from '../../canvas-state.js';
 import { buildPendingAxActivity, isAxEventKind, isAxEvidenceKind } from '../../ax-state.js';
 import type { PmxAxEventKind, PmxAxEvidenceKind } from '../../ax-state.js';
+import { waitForAxCondition } from '../../ax-wait.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 import { isRecord } from './nodes.js';
 import {
@@ -284,6 +285,10 @@ const axDeliveryPendingShape = {
   consumer: z.unknown().optional().describe('Consumer/source label to exclude from results (e.g. copilot, mcp).'),
   limit: z.unknown().optional().describe('Max steering messages to return.'),
   order: z.unknown().optional().describe('"oldest" (FIFO, default) or "newest" first.'),
+  timeoutMs: z
+    .unknown()
+    .optional()
+    .describe('Max ms to block until steering arrives (0/omitted = immediate read; capped at 120000).'),
 };
 
 const axDeliveryPendingSchema = z.looseObject(axDeliveryPendingShape);
@@ -296,11 +301,22 @@ const axDeliveryPendingOperation = defineOperation<z.infer<typeof axDeliveryPend
   http: {
     method: 'GET',
     path: '/api/canvas/ax/delivery/pending',
+    // `?waitMs` long-polls like the gate awaits: park until steering for this
+    // consumer arrives or the timeout elapses. Custom readInput replaces the
+    // default query merge, so re-read the standard params here too.
+    readInput: (_req, params, url) => {
+      const raw = Number(url.searchParams.get('waitMs') ?? '');
+      return {
+        ...Object.fromEntries(url.searchParams),
+        ...params,
+        timeoutMs: Number.isFinite(raw) && raw > 0 ? raw : 0,
+      };
+    },
   },
   mcp: {
     toolName: 'canvas_claim_ax_delivery',
     description:
-      'Claim pending PMX AX deliveries for a consumer (adapterless delivery). Returns `pending` undelivered steering (mark each with canvas_mark_ax_delivery after acting) AND `pendingActivity`: open canvas-bound AX items awaiting the agent (open work items, pending approval gates / elicitations / mode requests) — typically created by the human in the browser. Both exclude items the consumer itself originated (loop prevention). `pending` defaults to oldest-first (FIFO, for ordered processing); pass `order:"newest"` to surface the human\'s LATEST in-canvas steering first when a small `limit` would otherwise bury it behind a stale backlog (report #68). pendingActivity is read-only here: resolve each via its own tool (canvas_resolve_approval / canvas_respond_elicitation / canvas_resolve_mode / canvas_update_work_item), not canvas_mark_ax_delivery.',
+      'Claim pending PMX AX deliveries for a consumer (adapterless delivery). Returns `pending` undelivered steering (mark each with canvas_mark_ax_delivery after acting) AND `pendingActivity`: open canvas-bound AX items awaiting the agent (open work items, pending approval gates / elicitations / mode requests) — typically created by the human in the browser. Both exclude items the consumer itself originated (loop prevention). `pending` defaults to oldest-first (FIFO, for ordered processing); pass `order:"newest"` to surface the human\'s LATEST in-canvas steering first when a small `limit` would otherwise bury it behind a stale backlog (report #68). pendingActivity is read-only here: resolve each via its own tool (canvas_resolve_approval / canvas_respond_elicitation / canvas_resolve_mode / canvas_update_work_item), not canvas_mark_ax_delivery. Pass `timeoutMs` to LONG-POLL: the call blocks until steering for the consumer arrives or the timeout elapses (max 120000) — loop on this to react to canvas steering promptly without burning your turn on tight polls.',
     extraShape: {
       consumer: z.string().optional().describe('Consumer/source label to exclude from results (e.g. copilot, mcp).'),
       limit: z.number().optional().describe('Max steering messages to return.'),
@@ -310,11 +326,17 @@ const axDeliveryPendingOperation = defineOperation<z.infer<typeof axDeliveryPend
         .describe(
           'Order of returned steering: "oldest" (FIFO, default) for ordered processing, or "newest" first to see the latest browser action when limited.',
         ),
+      timeoutMs: z
+        .number()
+        .min(0)
+        .max(120000)
+        .optional()
+        .describe('Max ms to block until steering arrives (0/omitted = immediate read).'),
     },
     // `consumer` is a loop-safety scope, not a source label — never defaulted.
     formatResult: axJsonResult,
   },
-  handler: (input) => {
+  handler: async (input) => {
     const consumer = typeof input.consumer === 'string' ? input.consumer : undefined;
     // A claim is proof this consumer polls steering — its presence (session or
     // external writer) becomes a legitimate composer steer target.
@@ -327,7 +349,18 @@ const axDeliveryPendingOperation = defineOperation<z.infer<typeof axDeliveryPend
     // queries apply the same loop-safe consumer filter before the limit.
     const newest = input.order === 'newest';
     const scope = { ...(consumer ? { consumer } : {}), ...(limit ? { limit } : {}) };
-    const pending = newest ? canvasState.getPendingSteeringForContext(scope) : canvasState.getPendingSteering(scope);
+    const readPending = () =>
+      newest ? canvasState.getPendingSteeringForContext(scope) : canvasState.getPendingSteering(scope);
+    let pending = readPending();
+    const timeoutRaw = Number(input.timeoutMs ?? '');
+    const timeoutMs = Number.isFinite(timeoutRaw) && timeoutRaw > 0 ? timeoutRaw : 0;
+    if (pending.length === 0 && timeoutMs > 0) {
+      // Long-poll: hosts that cannot be woken from outside (Copilot, Codex —
+      // their model runs only while the host gives it a turn) park here and
+      // wake the moment steering lands, instead of burning the turn polling.
+      await waitForAxCondition({ ready: () => readPending().length > 0, timeoutMs });
+      pending = readPending();
+    }
     // The MCP tool aggregated pendingActivity; one wire body now serves it over
     // HTTP too (documented broadening). Loop-safe: consumer scopes both queries.
     const pendingActivity = buildPendingAxActivity(canvasState.getAxState(), consumer);

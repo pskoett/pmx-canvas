@@ -21,3 +21,16 @@ export declare function waitForAxResolution<T extends {
     timeoutMs: number;
     signal?: AbortSignal;
 }): Promise<AxWaitResult<T>>;
+/**
+ * Block until `ready()` turns true after a change on `channel` (default
+ * 'ax-timeline'), or the timeout elapses. The steering long-poll: the gate
+ * waiter above is item/status-shaped; this one waits on a plain condition —
+ * the reactive loop for agent hosts that cannot be woken from outside (their
+ * model only runs while their host gives it a turn, so one call parks here
+ * instead of burning that turn on tight polling).
+ */
+export declare function waitForAxCondition(opts: {
+    ready: () => boolean;
+    timeoutMs: number;
+    channel?: string;
+}): Promise<void>;

@@ -54,3 +54,36 @@ export async function waitForAxResolution<T extends { status: string }>(opts: {
     opts.signal?.addEventListener('abort', onSettle, { once: true });
   });
 }
+
+/**
+ * Block until `ready()` turns true after a change on `channel` (default
+ * 'ax-timeline'), or the timeout elapses. The steering long-poll: the gate
+ * waiter above is item/status-shaped; this one waits on a plain condition —
+ * the reactive loop for agent hosts that cannot be woken from outside (their
+ * model only runs while their host gives it a turn, so one call parks here
+ * instead of burning that turn on tight polling).
+ */
+export async function waitForAxCondition(opts: {
+  ready: () => boolean;
+  timeoutMs: number;
+  channel?: string;
+}): Promise<void> {
+  const timeoutMs = Math.max(0, Math.min(opts.timeoutMs, AX_WAIT_MAX_MS));
+  if (timeoutMs === 0 || opts.ready()) return;
+  const channel = opts.channel ?? 'ax-timeline';
+  await new Promise<void>((resolve) => {
+    let done = false;
+    const finish = (): void => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      dispose();
+      resolve();
+    };
+    const check = (type: string): void => {
+      if (type === channel && opts.ready()) finish();
+    };
+    const timer = setTimeout(finish, timeoutMs);
+    const dispose = canvasState.onChange(check);
+  });
+}
