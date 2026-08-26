@@ -846,11 +846,11 @@ export class AxStateManager {
     return { ...draft, seq: 0 };
   }
 
-  markSteeringDelivered(id: string): boolean {
+  markSteeringDelivered(id: string, consumer?: string | null): boolean {
     const db = this.deps.getDb();
     if (!db) return false;
     try {
-      const ok = markAxSteeringDeliveredInDB(db, id);
+      const ok = markAxSteeringDeliveredInDB(db, id, consumer);
       if (ok) this.deps.notifyChange('ax-timeline');
       return ok;
     } catch (error) {

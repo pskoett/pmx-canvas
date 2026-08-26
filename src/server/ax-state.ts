@@ -104,6 +104,8 @@ export interface PmxAxSteeringMessage {
   seq: number;
   message: string;
   delivered: boolean;
+  /** Broadcast pickups: which consumers marked this steer (per-consumer delivery). */
+  deliveredTo?: string[];
   createdAt: string;
   source: PmxAxSource | null;
   agentId: string | null;

@@ -1995,8 +1995,8 @@ class CanvasStateManager {
     return this.ax.recordSteeringMessage(message, options);
   }
 
-  markSteeringDelivered(id: string): boolean {
-    return this.ax.markSteeringDelivered(id);
+  markSteeringDelivered(id: string, consumer?: string | null): boolean {
+    return this.ax.markSteeringDelivered(id, consumer);
   }
 
   ingestActivity(

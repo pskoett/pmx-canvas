@@ -207,6 +207,13 @@ const SCHEMA_SQL = `
   );
   CREATE INDEX IF NOT EXISTS idx_ax_steering_seq ON ax_steering (seq);
 
+  CREATE TABLE IF NOT EXISTS ax_steering_deliveries (
+    steering_id TEXT NOT NULL,
+    consumer TEXT NOT NULL,
+    at TEXT NOT NULL,
+    PRIMARY KEY (steering_id, consumer)
+  );
+
   CREATE TABLE IF NOT EXISTS ax_host_capabilities (
     host TEXT PRIMARY KEY,
     reported_at TEXT NOT NULL,
@@ -974,6 +981,9 @@ function trimAxTable(db: Database, table: 'ax_events' | 'ax_evidence' | 'ax_stee
   db.run(`DELETE FROM ${table} WHERE seq <= (SELECT seq FROM ${table} ORDER BY seq DESC LIMIT 1 OFFSET ?)`, [
     AX_TIMELINE_RETENTION,
   ]);
+  if (table === 'ax_steering') {
+    db.run('DELETE FROM ax_steering_deliveries WHERE steering_id NOT IN (SELECT id FROM ax_steering)');
+  }
 }
 
 function readLastSeq(db: Database, table: 'ax_events' | 'ax_evidence' | 'ax_steering'): number {
@@ -1031,10 +1041,24 @@ export function appendAxSteeringToDB(db: Database, s: Omit<PmxAxSteeringMessage,
   return { ...s, seq };
 }
 
-export function markAxSteeringDeliveredInDB(db: Database, id: string): boolean {
-  // Compare-and-set: true ONLY on the undelivered→delivered transition. Two
-  // adapters racing the same steer see exactly one true — the loser (and any
-  // re-mark) gets false and must not treat the message as its own delivery.
+export function markAxSteeringDeliveredInDB(db: Database, id: string, consumer?: string | null): boolean {
+  // ADDRESSED steer (target set): global compare-and-set as before — one
+  // legitimate recipient, true only on the undelivered→delivered transition.
+  // BROADCAST + consumer: per-consumer delivery ("all workers: stop" must
+  // reach every worker) — the mark records THIS consumer's pickup and the
+  // message stays pending for everyone else; true iff this consumer had not
+  // marked it before. BROADCAST without a consumer: the legacy anonymous ack
+  // (global CAS) that hides it from all consumers.
+  const row = db.query<{ target: string | null }, [string]>('SELECT target FROM ax_steering WHERE id = ?').get(id);
+  if (!row) return false;
+  if (row.target === null && consumer) {
+    const r = db.run('INSERT OR IGNORE INTO ax_steering_deliveries (steering_id, consumer, at) VALUES (?, ?, ?)', [
+      id,
+      consumer,
+      new Date().toISOString(),
+    ]);
+    return r.changes > 0;
+  }
   const r = db.run('UPDATE ax_steering SET delivered = 1 WHERE id = ? AND delivered = 0', [id]);
   return r.changes > 0;
 }
@@ -1124,7 +1148,27 @@ export function loadAxSteeringFromDB(
     ? 'SELECT * FROM ax_steering WHERE delivered = 0 ORDER BY seq DESC LIMIT ?'
     : 'SELECT * FROM ax_steering ORDER BY seq DESC LIMIT ?';
   const rows = db.query<AxSteeringRow, [number]>(sql).all(clampTimelineLimit(q.limit));
-  return rows.map(mapAxSteeringRow).filter((s): s is PmxAxSteeringMessage => s !== null);
+  const deliveredTo = new Map<string, string[]>();
+  for (const row of db
+    .query<{ steering_id: string; consumer: string }, []>('SELECT steering_id, consumer FROM ax_steering_deliveries')
+    .all()) {
+    if (!deliveredTo.has(row.steering_id)) deliveredTo.set(row.steering_id, []);
+    deliveredTo.get(row.steering_id)!.push(row.consumer);
+  }
+  return rows
+    .map((row) => {
+      const mapped = mapAxSteeringRow(row);
+      if (!mapped) return null;
+      const pickups = deliveredTo.get(mapped.id) ?? [];
+      // A broadcast reads as delivered once ANY consumer picked it up; the
+      // per-consumer list is exposed for fleet UIs ("picked up by 3").
+      return {
+        ...mapped,
+        delivered: mapped.delivered || pickups.length > 0,
+        ...(pickups.length > 0 ? { deliveredTo: pickups } : {}),
+      };
+    })
+    .filter((s): s is PmxAxSteeringMessage => s !== null);
 }
 
 export function loadPendingAxSteeringFromDB(
@@ -1137,10 +1181,13 @@ export function loadPendingAxSteeringFromDB(
   const limit = clampTimelineLimit(options.limit);
   const rows = options.consumer
     ? db
-        .query<AxSteeringRow, [string, string, string, number]>(
-          'SELECT * FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?) AND (agent_id IS NULL OR agent_id != ?) AND (target IS NULL OR target = ?) ORDER BY seq ASC LIMIT ?',
+        .query<AxSteeringRow, [string, string, string, string, number]>(
+          // A broadcast stays pending PER CONSUMER: it leaves this consumer's
+          // queue only once THIS consumer marked it (or an anonymous global ack
+          // set delivered).
+          'SELECT * FROM ax_steering s WHERE s.delivered = 0 AND (s.source IS NULL OR s.source != ?) AND (s.agent_id IS NULL OR s.agent_id != ?) AND (s.target IS NULL OR s.target = ?) AND NOT EXISTS (SELECT 1 FROM ax_steering_deliveries d WHERE d.steering_id = s.id AND d.consumer = ?) ORDER BY s.seq ASC LIMIT ?',
         )
-        .all(options.consumer, options.consumer, options.consumer, limit)
+        .all(options.consumer, options.consumer, options.consumer, options.consumer, limit)
     : db
         .query<AxSteeringRow, [number]>(
           // No consumer given: only broadcasts — addressed steering is claimable
@@ -1166,10 +1213,10 @@ export function loadNewestPendingAxSteeringFromDB(
   const limit = clampTimelineLimit(options.limit);
   const rows = options.consumer
     ? db
-        .query<AxSteeringRow, [string, string, string, number]>(
-          'SELECT * FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?) AND (agent_id IS NULL OR agent_id != ?) AND (target IS NULL OR target = ?) ORDER BY seq DESC LIMIT ?',
+        .query<AxSteeringRow, [string, string, string, string, number]>(
+          'SELECT * FROM ax_steering s WHERE s.delivered = 0 AND (s.source IS NULL OR s.source != ?) AND (s.agent_id IS NULL OR s.agent_id != ?) AND (s.target IS NULL OR s.target = ?) AND NOT EXISTS (SELECT 1 FROM ax_steering_deliveries d WHERE d.steering_id = s.id AND d.consumer = ?) ORDER BY s.seq DESC LIMIT ?',
         )
-        .all(options.consumer, options.consumer, options.consumer, limit)
+        .all(options.consumer, options.consumer, options.consumer, options.consumer, limit)
     : db
         .query<AxSteeringRow, [number]>(
           'SELECT * FROM ax_steering WHERE delivered = 0 AND target IS NULL ORDER BY seq DESC LIMIT ?',

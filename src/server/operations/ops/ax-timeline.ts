@@ -372,6 +372,10 @@ const axDeliveryPendingOperation = defineOperation<z.infer<typeof axDeliveryPend
 
 const axDeliveryMarkShape = {
   id: z.string().optional().catch(undefined).describe('The steering message id to mark delivered.'),
+  consumer: z
+    .unknown()
+    .optional()
+    .describe('The marking consumer. Broadcasts are delivered PER consumer — pass your label so the message stays pending for the other agents.'),
 };
 
 const axDeliveryMarkSchema = z.looseObject(axDeliveryMarkShape);
@@ -388,15 +392,20 @@ const axDeliveryMarkOperation = defineOperation<z.infer<typeof axDeliveryMarkSch
   mcp: {
     toolName: 'canvas_mark_ax_delivery',
     description:
-      'Mark a PMX AX steering message as delivered so it is not handed out again. Compare-and-set: `delivered:true` only on the actual undelivered→delivered transition — a false means the id was unknown OR another consumer already marked it, so do NOT treat the message as your delivery.',
+      'Mark a PMX AX steering message as delivered so it is not handed out again. ADDRESSED steers: compare-and-set — `delivered:true` only on the actual undelivered→delivered transition. BROADCASTS are delivered PER consumer: pass `consumer` and your mark removes it from YOUR queue only (every other agent still receives it) — an "all workers: stop" reaches the whole fleet. A false means the id was unknown or you (or, for addressed steers, someone) already marked it.',
     extraShape: {
       id: z.string().describe('The steering message id to mark delivered.'),
+      consumer: z
+        .string()
+        .optional()
+        .describe('Your consumer label — required for per-consumer broadcast delivery.'),
     },
     formatResult: axJsonResult,
   },
   handler: (input, ctx) => {
     const id = typeof input.id === 'string' ? input.id : '';
-    const delivered = canvasState.markSteeringDelivered(id);
+    const consumer = typeof input.consumer === 'string' ? input.consumer : undefined;
+    const delivered = canvasState.markSteeringDelivered(id, consumer);
     // Legacy handleAxDeliveryMark only broadcasts when a message was marked.
     if (delivered) {
       ctx.emit('ax-event-created', { steeringDelivered: id });

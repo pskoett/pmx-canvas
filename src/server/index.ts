@@ -626,8 +626,8 @@ export class PmxCanvas extends EventEmitter {
     return steering;
   }
 
-  markSteeringDelivered(id: string): boolean {
-    const ok = canvasState.markSteeringDelivered(id);
+  markSteeringDelivered(id: string, consumer?: string | null): boolean {
+    const ok = canvasState.markSteeringDelivered(id, consumer);
     if (ok) emitPrimaryWorkbenchEvent('ax-event-created', { steeringDelivered: id });
     return ok;
   }

@@ -1931,9 +1931,69 @@ describe('canvas server HTTP API', () => {
     expect(second.delivered).toBe(false);
   });
 
+  test('broadcast steering is delivered PER consumer — one worker marking it leaves it pending for the rest', async () => {
+    const steer = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/steer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'all workers: stop', source: 'browser' }),
+      })
+    ).json()) as { steering: { id: string } };
+    const id = steer.steering.id;
+    const pendingFor = async (consumer: string) =>
+      (
+        (await (
+          await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=${consumer}&limit=50`)
+        ).json()) as { pending: Array<{ id: string }> }
+      ).pending.some((entry) => entry.id === id);
+
+    expect(await pendingFor('worker-a')).toBe(true);
+    expect(await pendingFor('worker-b')).toBe(true);
+
+    // worker-a marks it — per-consumer CAS: true once, false on re-mark.
+    const mark = async (consumer: string) =>
+      (
+        (await (
+          await fetch(`${baseUrl}/api/canvas/ax/delivery/${id}/mark`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ consumer }),
+          })
+        ).json()) as { delivered: boolean }
+      ).delivered;
+    expect(await mark('worker-a')).toBe(true);
+    expect(await mark('worker-a')).toBe(false);
+
+    // Still pending for worker-b — the whole fleet receives a broadcast.
+    expect(await pendingFor('worker-a')).toBe(false);
+    expect(await pendingFor('worker-b')).toBe(true);
+    expect(await mark('worker-b')).toBe(true);
+    expect(await pendingFor('worker-b')).toBe(false);
+
+    // The timeline shows the pickup list and reads delivered once anyone has it.
+    const timeline = (await (await fetch(`${baseUrl}/api/canvas/ax/timeline?limit=10`)).json()) as {
+      steering: Array<{ id: string; delivered: boolean; deliveredTo?: string[] }>;
+    };
+    const row = timeline.steering.find((entry) => entry.id === id);
+    expect(row?.delivered).toBe(true);
+    expect(row?.deliveredTo?.sort()).toEqual(['worker-a', 'worker-b']);
+  });
+
   test('delivery long-poll: ?waitMs parks until steering for the consumer arrives, then returns it', async () => {
     // The reactive loop for hosts that cannot be woken from outside (Copilot,
-    // Codex): one blocked call instead of tight polling.
+    // Codex): one blocked call instead of tight polling. Broadcasts are now
+    // per-consumer, so drain this consumer's inbox first (what a real agent
+    // loop does) so the wait path actually parks.
+    const backlog = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=longpoll-agent&limit=50`)
+    ).json()) as { pending: Array<{ id: string }> };
+    for (const entry of backlog.pending) {
+      await fetch(`${baseUrl}/api/canvas/ax/delivery/${entry.id}/mark`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consumer: 'longpoll-agent' }),
+      });
+    }
     const t0 = Date.now();
     const waiting = fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=longpoll-agent&waitMs=8000`);
     await new Promise((resolve) => setTimeout(resolve, 300));
@@ -1952,6 +2012,18 @@ describe('canvas server HTTP API', () => {
     expect(elapsed).toBeLessThan(5000);
 
     // Timeout path: no steering for this consumer → empty after ~the wait.
+    // (Drain first — per-consumer broadcasts from earlier tests are pending
+    // for every fresh consumer label.)
+    const backlog2 = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=longpoll-agent-2&limit=50`)
+    ).json()) as { pending: Array<{ id: string }> };
+    for (const entry of backlog2.pending) {
+      await fetch(`${baseUrl}/api/canvas/ax/delivery/${entry.id}/mark`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ consumer: 'longpoll-agent-2' }),
+      });
+    }
     const t1 = Date.now();
     const idle = await fetch(`${baseUrl}/api/canvas/ax/delivery/pending?consumer=longpoll-agent-2&waitMs=400`);
     const idleBody = (await idle.json()) as { pending: unknown[] };
