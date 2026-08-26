@@ -94,8 +94,10 @@ describe('canvas operations', () => {
     const validation = validateCanvasLayout(canvasState.getLayout());
     expect(validation.summary.containmentViolations).toBe(0);
     expect(canvasState.getNode('child-a')?.data.parentGroup).toBe('group-a');
-    expect(canvasState.getNode('group-a')?.position).toEqual({ x: 24, y: 64 });
-    expect(canvasState.getNode('child-a')?.position).toEqual({ x: 80, y: 152 });
+    // Cluster-aware arrange: the group's cluster stays in its neighborhood —
+    // the child does not move, the frame just tightens around it.
+    expect(canvasState.getNode('child-a')?.position).toEqual({ x: 64, y: 84 });
+    expect(canvasState.getNode('group-a')?.position).toEqual({ x: 24, y: 12 });
   });
 
   test('grid arrange preserves grouped child offsets without double translation', () => {
@@ -142,11 +144,14 @@ describe('canvas operations', () => {
     const childA = canvasState.getNode('child-a');
     const childB = canvasState.getNode('child-b');
 
-    expect(group?.position).toEqual({ x: 24, y: 64 });
-    expect(childA?.position.x).toBe((group?.position.x ?? 0) + 56);
-    expect(childA?.position.y).toBe((group?.position.y ?? 0) + 88);
-    expect(childB?.position.x).toBe((group?.position.x ?? 0) + 56);
-    expect(childB?.position.y).toBe((group?.position.y ?? 0) + 388);
+    // Anchored in place — and the ORIGINAL child offsets survive verbatim
+    // (the test's name, finally literally true: no double translation, no
+    // pad-normalization drift).
+    expect(group?.position).toEqual({ x: 0, y: 168 });
+    expect(childA?.position.x).toBe((group?.position.x ?? 0) + 40);
+    expect(childA?.position.y).toBe((group?.position.y ?? 0) + 72);
+    expect(childB?.position.x).toBe((group?.position.x ?? 0) + 40);
+    expect(childB?.position.y).toBe((group?.position.y ?? 0) + 372);
     expect(validateCanvasLayout(canvasState.getLayout()).summary.containmentViolations).toBe(0);
   });
 
@@ -182,7 +187,9 @@ describe('canvas operations', () => {
     arrangeCanvasNodes('grid');
     mutationHistory.undo();
 
-    expect(canvasState.getNode('group-a')?.position).toEqual({ x: -16, y: 152 });
+    // Undo restores the EXACT original frame position now (the old algorithm
+    // left a pad-drifted {-16,152} behind).
+    expect(canvasState.getNode('group-a')?.position).toEqual({ x: 0, y: 168 });
     expect(canvasState.getNode('child-a')?.position).toEqual({ x: 40, y: 240 });
     expect(canvasState.getNode('child-b')?.position).toEqual({ x: 40, y: 540 });
     expect(validateCanvasLayout(canvasState.getLayout()).summary.containmentViolations).toBe(0);

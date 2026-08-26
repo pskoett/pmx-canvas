@@ -52,6 +52,8 @@ const UNIT_GAP_Y = 72;
 const COMPONENT_GAP_X = 220;
 const COMPONENT_GAP_Y = 180;
 const MAX_ROW_WIDTH = 3200;
+/** Units whose rects sit within this distance belong to one spatial cluster. */
+const CLUSTER_JOIN_DISTANCE = 320;
 const GROUP_PAD = 40;
 const GROUP_TITLEBAR_HEIGHT = 32;
 
@@ -361,15 +363,70 @@ function computeGraphComponent(
   };
 }
 
-function placeComponents(components: ComponentLayout[]): Map<string, ArrangePosition> {
+/**
+ * Partition units into SPATIAL clusters of the current layout: units whose
+ * rects sit within CLUSTER_JOIN_DISTANCE of each other, plus units joined by
+ * an edge (a component must lay out together). Arranging then works per
+ * cluster, anchored at the cluster's own neighborhood — a global repack
+ * interleaved unrelated areas of the board (the QA cards and a demo cluster
+ * parked 10k units away) and destroyed spatial memory.
+ */
+function collectSpatialClusters(units: ArrangeUnit[], undirected: Map<string, Set<string>>): ArrangeUnit[][] {
+  const parent = new Map<string, string>(units.map((unit) => [unit.id, unit.id]));
+  const find = (id: string): string => {
+    let root = id;
+    while (parent.get(root) !== root) root = parent.get(root)!;
+    let cursor = id;
+    while (parent.get(cursor) !== cursor) {
+      const next = parent.get(cursor)!;
+      parent.set(cursor, root);
+      cursor = next;
+    }
+    return root;
+  };
+  const union = (a: string, b: string): void => {
+    const ra = find(a);
+    const rb = find(b);
+    if (ra !== rb) parent.set(ra, rb);
+  };
+
+  const pad = CLUSTER_JOIN_DISTANCE / 2;
+  for (let i = 0; i < units.length; i++) {
+    for (let j = i + 1; j < units.length; j++) {
+      const a = units[i];
+      const b = units[j];
+      const near =
+        a.origin.x - pad < b.origin.x + b.size.width + pad &&
+        a.origin.x + a.size.width + pad > b.origin.x - pad &&
+        a.origin.y - pad < b.origin.y + b.size.height + pad &&
+        a.origin.y + a.size.height + pad > b.origin.y - pad;
+      if (near) union(a.id, b.id);
+    }
+  }
+  for (const [from, neighbors] of undirected) {
+    for (const to of neighbors) if (parent.has(from) && parent.has(to)) union(from, to);
+  }
+
+  const byRoot = new Map<string, ArrangeUnit[]>();
+  for (const unit of units) {
+    const root = find(unit.id);
+    if (!byRoot.has(root)) byRoot.set(root, []);
+    byRoot.get(root)!.push(unit);
+  }
+  const clusters = Array.from(byRoot.values());
+  for (const cluster of clusters) cluster.sort((a, b) => a.sortKey.y - b.sortKey.y || a.sortKey.x - b.sortKey.x);
+  return clusters.sort((a, b) => a[0].sortKey.y - b[0].sortKey.y || a[0].sortKey.x - b[0].sortKey.x);
+}
+
+function placeComponents(components: ComponentLayout[], origin: ArrangePosition): Map<string, ArrangePosition> {
   const absolute = new Map<string, ArrangePosition>();
-  let cursorX = START_X;
-  let cursorY = START_Y;
+  let cursorX = origin.x;
+  let cursorY = origin.y;
   let rowHeight = 0;
 
   for (const component of components) {
-    if (cursorX > START_X && cursorX + component.size.width > MAX_ROW_WIDTH) {
-      cursorX = START_X;
+    if (cursorX > origin.x && cursorX - origin.x + component.size.width > MAX_ROW_WIDTH) {
+      cursorX = origin.x;
       cursorY += rowHeight + COMPONENT_GAP_Y;
       rowHeight = 0;
     }
@@ -402,12 +459,64 @@ export function computeAutoArrange(
   }
 
   const { outgoing, undirected, indegree, outdegree } = buildUnitGraphs(units, nodeToUnit, allEdges);
-  const components = collectComponents(units, undirected).map((component) =>
-    mode === 'graph'
-      ? computeGraphComponent(component, outgoing, undirected, indegree, outdegree)
-      : computeGridComponent(component),
-  );
-  const absoluteUnitPositions = placeComponents(components);
+  const clusters = collectSpatialClusters(units, undirected);
+  const absoluteUnitPositions = new Map<string, ArrangePosition>();
+  // Already-packed cluster rects: a cluster that grew past its old bounds is
+  // shifted below earlier clusters instead of overlapping them. Clusters are
+  // processed top-left first, so the cascade is deterministic.
+  const packedRects: Array<ArrangePosition & ArrangeSize> = [];
+
+  for (const clusterUnits of clusters) {
+    const components = collectComponents(clusterUnits, undirected).map((component) =>
+      mode === 'graph'
+        ? computeGraphComponent(component, outgoing, undirected, indegree, outdegree)
+        : computeGridComponent(component),
+    );
+    // Anchor the cluster at its own neighborhood, not a global origin.
+    const origin = {
+      x: Math.min(...clusterUnits.map((unit) => unit.origin.x)),
+      y: Math.min(...clusterUnits.map((unit) => unit.origin.y)),
+    };
+    const placed = placeComponents(components, origin);
+
+    const unitSizes = new Map(clusterUnits.map((unit) => [unit.id, unit.size]));
+    const boundsOf = (positions: Map<string, ArrangePosition>): ArrangePosition & ArrangeSize => {
+      let minX = Number.POSITIVE_INFINITY;
+      let minY = Number.POSITIVE_INFINITY;
+      let maxX = Number.NEGATIVE_INFINITY;
+      let maxY = Number.NEGATIVE_INFINITY;
+      for (const [unitId, position] of positions) {
+        const size = unitSizes.get(unitId);
+        if (!size) continue;
+        minX = Math.min(minX, position.x);
+        minY = Math.min(minY, position.y);
+        maxX = Math.max(maxX, position.x + size.width);
+        maxY = Math.max(maxY, position.y + size.height);
+      }
+      return { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+    };
+
+    let shifted = placed;
+    for (let attempt = 0; attempt <= packedRects.length; attempt++) {
+      const bounds = boundsOf(shifted);
+      const blockers = packedRects.filter(
+        (rect) =>
+          bounds.x < rect.x + rect.width + COMPONENT_GAP_X &&
+          bounds.x + bounds.width + COMPONENT_GAP_X > rect.x &&
+          bounds.y < rect.y + rect.height + COMPONENT_GAP_Y &&
+          bounds.y + bounds.height + COMPONENT_GAP_Y > rect.y,
+      );
+      if (blockers.length === 0) break;
+      const deltaY = Math.max(...blockers.map((rect) => rect.y + rect.height)) + COMPONENT_GAP_Y - bounds.y;
+      if (deltaY <= 0) break;
+      const next = new Map<string, ArrangePosition>();
+      for (const [unitId, position] of shifted) next.set(unitId, { x: position.x, y: position.y + deltaY });
+      shifted = next;
+    }
+
+    for (const [unitId, position] of shifted) absoluteUnitPositions.set(unitId, position);
+    packedRects.push(boundsOf(shifted));
+  }
 
   for (const unit of units) {
     const targetOrigin = absoluteUnitPositions.get(unit.id);

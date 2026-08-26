@@ -80,7 +80,9 @@ describe('arrange exclusions', () => {
     expect(result.arranged).toBe(1);
     expect(canvasState.getNode(groupId)?.position).toEqual(originalGroupPosition);
     expect(canvasState.getNode(child.id)?.position).toEqual(originalChildPosition);
-    expect(canvasState.getNode(other.id)?.position).toEqual({ x: 40, y: 80 });
+    // Cluster-aware arrange anchors the movable node in its own neighborhood
+    // (its cluster origin) instead of snapping it to the board origin.
+    expect(canvasState.getNode(other.id)?.position).toEqual({ x: 1200, y: 1000 });
   });
 
   test('keeps grid-arranged nodes out of a group preserved by a pinned child', () => {
@@ -130,9 +132,10 @@ describe('arrange exclusions', () => {
     expect(result.arranged).toBe(1);
     expect(updatedGroup?.position).toEqual(originalGroupPosition);
     expect(canvasState.getNode(groupedChild.id)?.position).toEqual(originalGroupedChildPosition);
-    expect(updatedGraph?.position.y).toBeGreaterThanOrEqual(
-      (updatedGroup?.position.y ?? 0) + (updatedGroup?.size.height ?? 0),
-    );
+    // Cluster-aware arrange keeps the lone movable node in place — it never
+    // collided with the preserved group, so nothing snaps it to the origin or
+    // shifts it below the frame.
+    expect(updatedGraph?.position).toEqual({ x: 960, y: 80 });
     expect(validation.ok).toBe(true);
     expect(validation.collisions).toEqual([]);
   });
