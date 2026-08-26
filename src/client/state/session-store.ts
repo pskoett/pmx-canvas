@@ -48,6 +48,8 @@ export interface AxSteeringView {
   target?: string | null;
   /** Who sent it — an agent label, or "browser" for the human's composer. */
   source?: string | null;
+  /** Per-agent identity within the host — preferred over `source` for the row's sender. */
+  agentId?: string | null;
   /** False until the target (or any consumer, for broadcasts) claims + marks it. */
   delivered?: boolean;
 }
@@ -196,7 +198,9 @@ export function mergeTimeline(
     ...timeline.steering.map((steer) => {
       // Sender shown for agent-sent steering ("claude-code → copilot · …") so
       // inter-agent coordination is legible; the human's own rows stay clean.
-      const from = steer.source && steer.source !== 'browser' ? steer.source : null;
+      // Prefer the per-agent identity: transport enums ("api", "mcp") tell the
+      // human nothing about WHICH agent spoke.
+      const from = steer.agentId ?? (steer.source && steer.source !== 'browser' ? steer.source : null);
       const to = steer.target ? `→ ${steer.target} · ` : from ? '→ all · ' : '';
       // Steering is pull-based: an addressed steer sits queued until the
       // target agent next runs against the canvas. Say so — a silent queued

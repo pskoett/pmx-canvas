@@ -39,6 +39,8 @@ export interface AxSteeringView {
     target?: string | null;
     /** Who sent it — an agent label, or "browser" for the human's composer. */
     source?: string | null;
+    /** Per-agent identity within the host — preferred over `source` for the row's sender. */
+    agentId?: string | null;
     /** False until the target (or any consumer, for broadcasts) claims + marks it. */
     delivered?: boolean;
 }
