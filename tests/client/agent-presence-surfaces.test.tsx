@@ -82,6 +82,38 @@ describe('top-bar agent chip', () => {
   });
 });
 
+describe('fleet roll-up', () => {
+  test('workers count into their orchestrator chip and wear the is-worker cursor', () => {
+    applyPresenceSnapshot({
+      presences: [
+        presence({ sessionId: 'copilot', phase: 'thinking', focusNodeId: 'n1' }),
+        presence({
+          sessionId: 'run1:impl',
+          source: 'mcp',
+          attached: false,
+          parentAgentId: 'copilot',
+          cursor: { x: 5, y: 5 },
+        }),
+        presence({
+          sessionId: 'run1:test',
+          source: 'mcp',
+          attached: false,
+          parentAgentId: 'copilot',
+          cursor: { x: 9, y: 9 },
+        }),
+      ],
+    });
+    const chips = render(<TopBar />);
+    expect(chips.container.querySelector('.agent-chip-workers')?.textContent).toBe('+2 workers');
+    cleanup();
+    const { container } = render(<AgentPresenceLayer />);
+    expect(container.querySelectorAll('.agent-cursor.is-worker')).toHaveLength(2);
+    expect(
+      [...container.querySelectorAll('.agent-cursor')].filter((el) => el.className.includes('is-worker')).length,
+    ).toBe(2);
+  });
+});
+
 describe('agent presence layer', () => {
   test('an external (unattached) writer paints a dashed is-external cursor on the quiet board', () => {
     // No attached session at all — an agent editing through plain MCP/HTTP is

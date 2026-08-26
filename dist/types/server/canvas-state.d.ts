@@ -421,7 +421,7 @@ declare class CanvasStateManager {
         agentId?: string | null;
         target?: string | null;
     }): PmxAxSteeringMessage;
-    markSteeringDelivered(id: string): boolean;
+    markSteeringDelivered(id: string, consumer?: string | null): boolean;
     ingestActivity(input: {
         kind: PmxAxActivityKind;
         title: string;

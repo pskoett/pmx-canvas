@@ -47,14 +47,16 @@ export interface FenceTarget {
     unknown?: string;
 }
 /** Returns a human-readable refusal, or null when the target is inside the fence. */
-export declare function checkFenceTarget(target: FenceTarget, opName: string): string | null;
+export declare function checkFenceTarget(target: FenceTarget, opName: string, writerKey?: string): string | null;
 /** Describe what a registry op would write, in fence terms. */
 export declare function describeOpTarget(op: Operation, rawInput: unknown): FenceTarget;
 /** Registry entry point: refusal text or null. Only call for mutating, agent-originated ops. */
-export declare function checkScopeFence(op: Operation, rawInput: unknown): string | null;
+export declare function checkScopeFence(op: Operation, rawInput: unknown, writerKey?: string): string | null;
 /**
- * The fence belongs to the human: an agent must not clear, widen, or replace
- * it through `ax.policy.set`. Returns a refusal when a non-workbench caller
- * touches `scope` while a fence is set (or tries to set one at all).
+ * The GLOBAL fence belongs to the human: an agent must not clear, widen, or
+ * replace it through `ax.policy.set`. Per-agent territories (`agentScopes`)
+ * are the orchestration surface — an agent MAY set territories for OTHER
+ * writers (fencing its workers), but never its own: granting yourself a wider
+ * territory (or deleting it) is escalation.
  */
-export declare function checkScopeOwnership(rawInput: unknown): string | null;
+export declare function checkScopeOwnership(rawInput: unknown, writerKey?: string): string | null;

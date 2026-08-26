@@ -48,6 +48,7 @@ export interface PresenceTouch {
   phase?: AgentPhase;
   detail?: string | null;
   focusNodeId?: string | null;
+  parentAgentId?: string | null;
   cursor?: { x: number; y: number } | null;
   attached?: boolean;
   /** With `attached: false`: who ended it (receipt transparency). Default 'agent'. */
@@ -180,6 +181,7 @@ export const PRESENCE_SET_SHAPE = {
   focusNodeId: z.string().max(200).nullable().optional(),
   cursor: z.object({ x: z.number().finite(), y: z.number().finite() }).nullable().optional(),
   attached: z.boolean().optional(),
+  parentAgentId: z.string().min(1).max(80).nullable().optional(),
   // Who is ending the session when attached:false — the browser's End button
   // declares 'human'; anything else defaults to 'agent'. Self-reported, like
   // the workbench marker (the local trust model).
@@ -367,6 +369,7 @@ export class AgentPresenceRegistry {
       focusNodeId: null,
       cursor: null,
       attached: false,
+      parentAgentId: null,
       opCount: 0,
       contextUsage: null,
       lastSeenAt: new Date(now).toISOString(),
@@ -438,6 +441,7 @@ export class AgentPresenceRegistry {
       return this.publicView({ ...stored, startSnapshotId: null }, now);
     }
     if (input.focusNodeId !== undefined) stored.focusNodeId = input.focusNodeId;
+    if (input.parentAgentId !== undefined) stored.parentAgentId = input.parentAgentId;
     if (input.cursor !== undefined) stored.cursor = input.cursor;
     if (input.contextUsage !== undefined) stored.contextUsage = input.contextUsage;
     if (input.phase !== undefined) {
@@ -485,6 +489,7 @@ export class AgentPresenceRegistry {
       ...(input.phase !== undefined ? { phase: input.phase } : {}),
       ...(input.detail !== undefined ? { detail: input.detail } : {}),
       ...(input.focusNodeId !== undefined ? { focusNodeId: input.focusNodeId } : {}),
+      ...(input.parentAgentId !== undefined ? { parentAgentId: input.parentAgentId } : {}),
       ...(input.cursor !== undefined ? { cursor: input.cursor } : {}),
       ...(input.attached !== undefined ? { attached: input.attached } : {}),
       ...(input.endedBy !== undefined ? { endedBy: input.endedBy } : {}),

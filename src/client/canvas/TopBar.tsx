@@ -20,7 +20,7 @@ import { degradedState } from './ConnectionBanner';
 import { ExternalWriterIndicator } from './ExternalWriters';
 import { useNow } from './use-now';
 import { agentPhaseLabel } from '../../shared/agent-presence.js';
-import { activeSession, attachedSessions, contextBudget } from '../state/presence-store';
+import { activeSession, agentPresences, attachedSessions, contextBudget } from '../state/presence-store';
 import { pendingGates, startSession } from '../state/session-store';
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
 
@@ -37,20 +37,34 @@ function AgentChip() {
   if (sessions.length === 0) return null;
   return (
     <>
-      {sessions.map((session) => (
-        <BarHint
-          key={session.sessionId}
-          label={`Agent session — ${session.label}`}
-          tapToOpen
-          body="What this attached agent is doing right now: idle, thinking, running a tool, or waiting on your approval. Steer it from the composer below."
-        >
-          <span class={`agent-chip phase-${session.phase}`} data-phase={session.phase}>
-            <span class="agent-chip-dot" aria-hidden="true" />
-            <span class="agent-chip-label">{agentPhaseLabel(session)}</span>
-            <span class="agent-chip-who hud-collapsible-text">{session.label}</span>
-          </span>
-        </BarHint>
-      ))}
+      {sessions.map((session) => {
+        // Fleet roll-up: workers declaring this session as their parent count
+        // into its chip instead of growing the bar one chip per worker.
+        const workers = agentPresences.value.filter(
+          (presence) =>
+            presence.parentAgentId != null &&
+            (presence.parentAgentId === session.sessionId || presence.parentAgentId === session.source),
+        ).length;
+        return (
+          <BarHint
+            key={session.sessionId}
+            label={`Agent session — ${session.label}`}
+            tapToOpen
+            body="What this attached agent is doing right now: idle, thinking, running a tool, or waiting on your approval. Steer it from the composer below."
+          >
+            <span class={`agent-chip phase-${session.phase}`} data-phase={session.phase}>
+              <span class="agent-chip-dot" aria-hidden="true" />
+              <span class="agent-chip-label">{agentPhaseLabel(session)}</span>
+              <span class="agent-chip-who hud-collapsible-text">{session.label}</span>
+              {workers > 0 && (
+                <span class="agent-chip-workers">
+                  +{workers} worker{workers === 1 ? '' : 's'}
+                </span>
+              )}
+            </span>
+          </BarHint>
+        );
+      })}
     </>
   );
 }

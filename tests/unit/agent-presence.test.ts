@@ -35,6 +35,17 @@ afterEach(() => {
   canvasState.withSuppressedRecording(() => canvasState.clear());
 });
 
+describe('fleet membership', () => {
+  test('parentAgentId round-trips through touch and the snapshot', () => {
+    registry.touch({ source: 'copilot', attached: true }, T0);
+    registry.touch({ source: 'mcp', agentId: 'run1:impl', parentAgentId: 'copilot', op: true }, T0 + 5);
+    const snap = registry.snapshot(T0 + 10);
+    const worker = snap.presences.find((p) => p.sessionId === 'run1:impl');
+    expect(worker?.parentAgentId).toBe('copilot');
+    expect(snap.presences.find((p) => p.sessionId === 'copilot')?.parentAgentId ?? null).toBe(null);
+  });
+});
+
 describe('steerable', () => {
   test('attached sessions are steerable; external writers only after their consumer claims', async () => {
     registry.touch({ source: 'copilot', attached: true }, T0);

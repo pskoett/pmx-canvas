@@ -29,6 +29,8 @@ export interface AgentPresence {
   cursor: { x: number; y: number } | null;
   /** A session is attached: `session-start` (or explicit attach) seen and no `session-end`. */
   attached: boolean;
+  /** Fleet membership: the orchestrating writer's key this worker belongs to (chrome rolls workers up under it). */
+  parentAgentId?: string | null;
   /** True when steering addressed to this writer can actually reach it: it is
    * an attached session, or its consumer key has claimed deliveries before. */
   steerable?: boolean;

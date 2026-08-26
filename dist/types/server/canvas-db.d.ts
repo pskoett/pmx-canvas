@@ -58,7 +58,7 @@ export interface AxTimelineQuery {
 export declare function appendAxEventToDB(db: Database, ev: Omit<PmxAxEvent, 'seq'>): PmxAxEvent;
 export declare function appendAxEvidenceToDB(db: Database, ev: Omit<PmxAxEvidence, 'seq'>): PmxAxEvidence;
 export declare function appendAxSteeringToDB(db: Database, s: Omit<PmxAxSteeringMessage, 'seq'>): PmxAxSteeringMessage;
-export declare function markAxSteeringDeliveredInDB(db: Database, id: string): boolean;
+export declare function markAxSteeringDeliveredInDB(db: Database, id: string, consumer?: string | null): boolean;
 export declare function loadAxEventsFromDB(db: Database, q?: AxTimelineQuery): PmxAxEvent[];
 export declare function loadAxEvidenceFromDB(db: Database, q?: AxTimelineQuery): PmxAxEvidence[];
 export declare function loadAxSteeringFromDB(db: Database, q?: AxTimelineQuery & {

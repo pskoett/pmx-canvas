@@ -45,7 +45,7 @@ export function AgentPresenceLayer() {
       {cursors.map(({ presence, position }) => (
         <div
           key={presence.sessionId}
-          class={`agent-cursor phase-${presence.phase}${presence.attached ? '' : ' is-external'}`}
+          class={`agent-cursor phase-${presence.phase}${presence.attached ? '' : ' is-external'}${presence.parentAgentId ? ' is-worker' : ''}`}
           data-session-id={presence.sessionId}
           style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
         >

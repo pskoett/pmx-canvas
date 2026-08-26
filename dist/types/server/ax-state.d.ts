@@ -90,6 +90,8 @@ export interface PmxAxSteeringMessage {
     seq: number;
     message: string;
     delivered: boolean;
+    /** Broadcast pickups: which consumers marked this steer (per-consumer delivery). */
+    deliveredTo?: string[];
     createdAt: string;
     source: PmxAxSource | null;
     agentId: string | null;
@@ -236,10 +238,17 @@ export interface PmxAxPolicy {
         mode: string | null;
     };
     scope: PmxAxScopeFence | null;
+    /**
+     * Per-agent territories (fleet orchestration): writer key (agentId when the
+     * write carries one, else its source label) → fence. Overrides `scope` for
+     * that writer; agents without an entry fall under the global fence.
+     */
+    agentScopes: Record<string, PmxAxScopeFence>;
 }
 export declare function createEmptyAxPolicy(): PmxAxPolicy;
 export declare function normalizeAxScopeFence(input: unknown): PmxAxScopeFence | null;
 export declare function normalizeAxPolicy(input: unknown): PmxAxPolicy;
+export declare function normalizeAxAgentScopes(input: unknown): Record<string, PmxAxScopeFence>;
 export declare function isAxEventKind(value: unknown): value is PmxAxEventKind;
 export declare function isAxEvidenceKind(value: unknown): value is PmxAxEvidenceKind;
 export declare function createEmptyAxFocusState(): PmxAxFocusState;

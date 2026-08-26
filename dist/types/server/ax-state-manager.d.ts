@@ -175,6 +175,11 @@ export declare class AxStateManager {
             nodeIds: string[];
             padding?: number;
         } | null;
+        /** Per-key merge: an object sets that agent's territory, `null` clears it, absent keys keep theirs. */
+        agentScopes?: Record<string, {
+            nodeIds: string[];
+            padding?: number;
+        } | null>;
     }, _options?: {
         source?: PmxAxSource;
     }): PmxAxPolicy;
@@ -206,7 +211,7 @@ export declare class AxStateManager {
         agentId?: string | null;
         target?: string | null;
     }): PmxAxSteeringMessage;
-    markSteeringDelivered(id: string): boolean;
+    markSteeringDelivered(id: string, consumer?: string | null): boolean;
     /**
      * Ingest a normalized agent activity (a tool/session event a harness forwards)
      * and apply kind-driven board reactions, so the agent's real work flows back into

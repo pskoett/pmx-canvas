@@ -170,7 +170,7 @@ export declare class PmxCanvas extends EventEmitter {
         agentId?: string | null;
         target?: string | null;
     }): PmxAxSteeringMessage;
-    markSteeringDelivered(id: string): boolean;
+    markSteeringDelivered(id: string, consumer?: string | null): boolean;
     /**
      * Ghost Cursor of Intent — announce a spatial move before making it. The ghost
      * is ephemeral presence (auto-expiring, never snapshotted); the registry emits

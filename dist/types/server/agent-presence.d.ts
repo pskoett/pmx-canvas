@@ -25,6 +25,7 @@ export interface PresenceTouch {
     phase?: AgentPhase;
     detail?: string | null;
     focusNodeId?: string | null;
+    parentAgentId?: string | null;
     cursor?: {
         x: number;
         y: number;
@@ -81,6 +82,7 @@ export declare const PRESENCE_SET_SHAPE: {
         y: z.ZodNumber;
     }, z.core.$strip>>>;
     attached: z.ZodOptional<z.ZodBoolean>;
+    parentAgentId: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     endedBy: z.ZodOptional<z.ZodEnum<{
         agent: "agent";
         human: "human";

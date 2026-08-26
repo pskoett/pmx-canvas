@@ -82,8 +82,18 @@ it, or the board silently diverges from reality.
   the turn budget runs out. One standing prompt in the host ("run the canvas steering loop")
   makes the composer's addressed steers land promptly instead of sitting queued.
 - Address a specific agent with the steering `target` field (0.4.5+). Untargeted steers are
-  broadcast: only the ORCHESTRATOR claims them and re-routes; subagents claim only steers
-  targeted at their own `agentId`.
+  broadcast — and delivered PER CONSUMER (0.4.9+): every agent that claims with its own
+  consumer key receives the broadcast, and marking it (`consumer: "<your key>"`) removes it
+  from YOUR queue only. "All workers: stop" reaches the whole fleet; each worker marks its own
+  copy after acting.
+- **Territories (0.4.9+):** the orchestrator fences each worker to its lane with
+  `ax.policy.set { agentScopes: { "<worker agentId>": { nodeIds, padding } } }` — that worker's
+  writes outside the territory are refused (403) while everyone else roams. An agent can fence
+  OTHER writers but never its own key; the human can set or clear any territory.
+- **Fleet chrome:** every worker should declare its orchestrator on set-presence
+  (`parentAgentId: "<orchestrator key>"`): the top bar rolls workers up into the
+  orchestrator's chip ("+N workers") and their cursors render smaller so a big fleet stays
+  legible.
 - Mark delivery ONLY after acting on the message. The mark is compare-and-set: a
   `delivered:false` response means another consumer owned it — drop it, do not act twice.
 - Steering comes from more places than the command bar: a gate rejection, the human undoing
