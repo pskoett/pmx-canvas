@@ -26,6 +26,8 @@ export interface PresenceTouch {
     detail?: string | null;
     focusNodeId?: string | null;
     parentAgentId?: string | null;
+    /** Op-derived tooling: overlay the phase without clobbering the explicit one. */
+    derivedTooling?: boolean;
     cursor?: {
         x: number;
         y: number;

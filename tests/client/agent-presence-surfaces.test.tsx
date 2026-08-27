@@ -82,6 +82,24 @@ describe('top-bar agent chip', () => {
   });
 });
 
+describe('identity colors', () => {
+  test('two agents in the SAME phase wear DIFFERENT identity colors', () => {
+    applyPresenceSnapshot({
+      presences: [
+        presence({ sessionId: 'copilot', phase: 'thinking', cursor: { x: 5, y: 5 } }),
+        presence({ sessionId: 'claude-code', phase: 'thinking', cursor: { x: 50, y: 50 } }),
+      ],
+    });
+    const { container } = render(<AgentPresenceLayer />);
+    const colors = [...container.querySelectorAll('.agent-cursor')].map((el) =>
+      (el as HTMLElement).style.getPropertyValue('--identity-color'),
+    );
+    expect(colors).toHaveLength(2);
+    expect(colors[0]).toBeTruthy();
+    expect(colors[0]).not.toBe(colors[1]);
+  });
+});
+
 describe('fleet roll-up', () => {
   test('workers count into their orchestrator chip and wear the is-worker cursor', () => {
     applyPresenceSnapshot({

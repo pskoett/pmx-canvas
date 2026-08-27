@@ -219,11 +219,5 @@ export interface AxFlowMaterializeInput {
         maxRuns?: number;
     };
 }
-/**
- * Validate + execute a node-originated AX interaction. Returns the public result
- * plus the SSE events the caller should emit (accepted/rejected outcome + the
- * underlying AX state event). Never throws on bad input — returns an `ok: false`
- * result with an appropriate HTTP-ish status.
- */
 export declare function applyAxInteraction(manager: AxInteractionManager, rawBody: unknown, source: PmxAxSource): AxInteractionResult;
 export {};

@@ -81,7 +81,7 @@ export interface AgentPresenceSnapshot {
 /** Activity entries kept for the feed — oldest fall off. */
 export declare const MAX_ACTIVITY_ENTRIES = 50;
 /** Unattached writers fade this long after their last write. */
-export declare const PRESENCE_ACTIVITY_TTL_MS = 90000;
+export declare const PRESENCE_ACTIVITY_TTL_MS: number;
 /** Attached sessions expire after this much quiet without a `session-end`. */
 export declare const PRESENCE_ATTACHED_IDLE_TTL_MS: number;
 /** `tooling` decays to `idle` after this much quiet. */
@@ -110,3 +110,10 @@ export declare function externalWriters(presences: readonly AgentPresence[]): Ag
 export declare function estimateTokens(text: string): number;
 /** Chip label per phase — shared by the top-bar chip and the on-canvas cursor chip. */
 export declare function agentPhaseLabel(presence: Pick<AgentPresence, 'phase' | 'detail'>): string;
+/**
+ * Stable per-agent identity hue (0-359) from the writer key. Phase colors
+ * kept telling the human WHAT an agent is doing while erasing WHO — two
+ * thinking agents rendered identically. Identity rides the glyph/border;
+ * phase stays on dots and labels.
+ */
+export declare function agentIdentityHue(key: string): number;

@@ -1,3 +1,4 @@
+import { agentIdentityHue } from '../../shared/agent-presence.js';
 import type { Signal } from '@preact/signals';
 import { useCallback, useRef } from 'preact/hooks';
 import { fenceRectFromNodes } from '../../shared/scope-fence.js';
@@ -203,7 +204,11 @@ export function Minimap({ viewport, nodes, onNavigate, containerWidth, container
         <span
           key={dot.id}
           class={`minimap-presence phase-${dot.phase}${dot.worker ? ' is-worker' : ''}${dot.external ? ' is-external' : ''}`}
-          style={{ left: `${toX(dot.at.x) - 4}px`, top: `${toY(dot.at.y) - 4}px` }}
+          style={{
+            left: `${toX(dot.at.x) - 4}px`,
+            top: `${toY(dot.at.y) - 4}px`,
+            '--identity-color': `hsl(${agentIdentityHue(dot.id)} 65% 62%)`,
+          }}
         />
       ))}
       <span

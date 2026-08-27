@@ -1172,6 +1172,19 @@ body,
   white-space: nowrap;
 }
 
+.agent-cursor-glyph path {
+  fill: var(--identity-color, currentColor);
+}
+.agent-cursor-chip {
+  border-left: 3px solid var(--identity-color, transparent);
+}
+.agent-chip {
+  border-left: 3px solid var(--identity-color, transparent);
+}
+.minimap-presence {
+  background: var(--identity-color, var(--presence-color));
+}
+
 .agent-cursor.is-external {
   opacity: 0.8;
 }

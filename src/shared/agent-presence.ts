@@ -83,7 +83,9 @@ export interface AgentPresenceSnapshot {
 export const MAX_ACTIVITY_ENTRIES = 50;
 
 /** Unattached writers fade this long after their last write. */
-export const PRESENCE_ACTIVITY_TTL_MS = 90_000;
+// 5 min: 90s swept fleets and demos mid-run — a writer the human is looking
+// at kept vanishing (joint-gaps #1 / orchestration #8).
+export const PRESENCE_ACTIVITY_TTL_MS = 5 * 60_000;
 /** Attached sessions expire after this much quiet without a `session-end`. */
 export const PRESENCE_ATTACHED_IDLE_TTL_MS = 30 * 60_000;
 /** `tooling` decays to `idle` after this much quiet. */
@@ -134,4 +136,16 @@ export function agentPhaseLabel(presence: Pick<AgentPresence, 'phase' | 'detail'
     default:
       return 'Idle';
   }
+}
+
+/**
+ * Stable per-agent identity hue (0-359) from the writer key. Phase colors
+ * kept telling the human WHAT an agent is doing while erasing WHO — two
+ * thinking agents rendered identically. Identity rides the glyph/border;
+ * phase stays on dots and labels.
+ */
+export function agentIdentityHue(key: string): number {
+  let hash = 5381;
+  for (let i = 0; i < key.length; i++) hash = ((hash << 5) + hash + key.charCodeAt(i)) | 0;
+  return ((hash % 360) + 360) % 360;
 }

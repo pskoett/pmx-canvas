@@ -1,5 +1,5 @@
 import { useRef } from 'preact/hooks';
-import { agentPhaseLabel, type AgentPresence } from '../../shared/agent-presence.js';
+import { agentIdentityHue, agentPhaseLabel, type AgentPresence } from '../../shared/agent-presence.js';
 import { nodes, viewport } from '../state/canvas-store';
 import { agentPresences, presenceWorldPosition } from '../state/presence-store';
 
@@ -47,7 +47,10 @@ export function AgentPresenceLayer() {
           key={presence.sessionId}
           class={`agent-cursor phase-${presence.phase}${presence.attached ? '' : ' is-external'}${presence.parentAgentId ? ' is-worker' : ''}`}
           data-session-id={presence.sessionId}
-          style={{ transform: `translate(${position.x}px, ${position.y}px)` }}
+          style={{
+            transform: `translate(${position.x}px, ${position.y}px)`,
+            '--identity-color': `hsl(${agentIdentityHue(presence.sessionId)} 65% 62%)`,
+          }}
         >
           <div class="agent-cursor-inner" style={{ transform: `scale(${counterScale})` }}>
             <svg class="agent-cursor-glyph" width="16" height="18" viewBox="0 0 16 18" aria-hidden="true">

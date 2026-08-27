@@ -49,6 +49,8 @@ export interface PresenceTouch {
   detail?: string | null;
   focusNodeId?: string | null;
   parentAgentId?: string | null;
+  /** Op-derived tooling: overlay the phase without clobbering the explicit one. */
+  derivedTooling?: boolean;
   cursor?: { x: number; y: number } | null;
   attached?: boolean;
   /** With `attached: false`: who ended it (receipt transparency). Default 'agent'. */
@@ -197,6 +199,7 @@ interface StoredPresence extends AgentPresence {
   lastSeenMs: number;
   /** Explicit phases (`thinking`) hold until the next touch; derived `tooling` decays. */
   toolingUntilMs: number | null;
+  lastActivityNodeId: string | null;
   /** Snapshot of the board taken when this session attached (the receipt diffs against it). */
   startSnapshotId: string | null;
 }
@@ -370,6 +373,7 @@ export class AgentPresenceRegistry {
       cursor: null,
       attached: false,
       parentAgentId: null,
+      lastActivityNodeId: null,
       opCount: 0,
       contextUsage: null,
       lastSeenAt: new Date(now).toISOString(),
@@ -394,6 +398,7 @@ export class AgentPresenceRegistry {
           summary: input.activity.summary,
           nodeId: input.activity.nodeId,
         });
+        if (input.activity.nodeId) stored.lastActivityNodeId = input.activity.nodeId;
         if (this.activity.length > MAX_ACTIVITY_ENTRIES) this.activity.length = MAX_ACTIVITY_ENTRIES;
       }
     }
@@ -464,7 +469,14 @@ export class AgentPresenceRegistry {
     if (input.parentAgentId !== undefined) stored.parentAgentId = input.parentAgentId;
     if (input.cursor !== undefined) stored.cursor = input.cursor;
     if (input.contextUsage !== undefined) stored.contextUsage = input.contextUsage;
-    if (input.phase !== undefined) {
+    if (input.phase === 'tooling' && input.derivedTooling) {
+      // Copilot's finding: an op-derived tooling touch used to CLOBBER the
+      // explicit phase, and the sweep then decayed to idle — an agent whose
+      // host said "thinking" read as Idle while hard at work. Derived tooling
+      // is an OVERLAY: bump the window + detail, keep the explicit phase.
+      stored.toolingUntilMs = now + PRESENCE_TOOLING_SETTLE_MS;
+      if (input.detail !== undefined) stored.detail = input.detail;
+    } else if (input.phase !== undefined) {
       stored.phase = input.phase;
       stored.detail = input.detail !== undefined ? input.detail : input.phase === 'tooling' ? stored.detail : null;
       stored.toolingUntilMs = input.phase === 'tooling' ? now + PRESENCE_TOOLING_SETTLE_MS : null;
@@ -590,13 +602,27 @@ export class AgentPresenceRegistry {
   }
 
   private publicView(stored: StoredPresence, now: number): AgentPresence {
-    const { lastSeenMs: _lastSeenMs, toolingUntilMs, startSnapshotId: _startSnapshotId, ...presence } = stored;
+    const {
+      lastSeenMs: _lastSeenMs,
+      toolingUntilMs,
+      startSnapshotId: _startSnapshotId,
+      lastActivityNodeId,
+      ...presence
+    } = stored;
     let phase = presence.phase;
     let detail = presence.detail;
-    if (phase === 'tooling' && toolingUntilMs !== null && toolingUntilMs <= now) {
+    if (toolingUntilMs !== null && toolingUntilMs > now) {
+      // Live tooling overlay (derived or explicit).
+      phase = 'tooling';
+    } else if (phase === 'tooling' && toolingUntilMs !== null && toolingUntilMs <= now) {
+      // Explicit tooling settles to idle; a derived overlay just falls away
+      // and the explicit phase (thinking, waiting…) stands.
       phase = 'idle';
       detail = null;
     }
+    // Park-at fallback (joint-gaps #3): an attached-but-focusless writer is
+    // invisible everywhere — fall back to the last node its activity touched.
+    if (!presence.focusNodeId && lastActivityNodeId) presence.focusNodeId = lastActivityNodeId;
     // An attached session blocked on a human decision reads as waiting — the
     // gate itself lives in the AX state, this is only the presence view of it.
     // It overrides tooling too: the gate REQUEST is itself a write, and the

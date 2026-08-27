@@ -719,6 +719,28 @@ function materializeFlow(
  * underlying AX state event). Never throws on bad input — returns an `ok: false`
  * result with an appropriate HTTP-ish status.
  */
+// ── ax.work.create idempotency window ─────────────
+const WORK_CREATE_DEDUPE_MS = 2_500;
+const recentWorkCreates = new Map<string, { item: PmxAxWorkItem; at: number }>();
+
+function recentWorkCreate(sourceNodeId: string, title: string): PmxAxWorkItem | null {
+  const key = `${sourceNodeId}\u0000${title}`;
+  const hit = recentWorkCreates.get(key);
+  if (hit && Date.now() - hit.at <= WORK_CREATE_DEDUPE_MS) return hit.item;
+  return null;
+}
+
+function rememberWorkCreate(sourceNodeId: string, title: string, item: PmxAxWorkItem): void {
+  const key = `${sourceNodeId}\u0000${title}`;
+  recentWorkCreates.set(key, { item, at: Date.now() });
+  if (recentWorkCreates.size > 64) {
+    const now = Date.now();
+    for (const [k, v] of recentWorkCreates) {
+      if (now - v.at > WORK_CREATE_DEDUPE_MS) recentWorkCreates.delete(k);
+    }
+  }
+}
+
 export function applyAxInteraction(
   manager: AxInteractionManager,
   rawBody: unknown,
@@ -824,6 +846,12 @@ export function applyAxInteraction(
         detail?: string | null;
         nodeIds?: string[];
       };
+      // Idempotency window (joint-gaps bug: a json-render button double-emit
+      // booked two identical work items ~1s apart): the SAME node creating a
+      // work item with the SAME title inside the window gets the first item
+      // back instead of a duplicate.
+      const dupe = recentWorkCreate(sourceNodeId, p.title);
+      if (dupe) return accept(type, sourceNodeId, dupe, 'ax-state-changed', { workItem: dupe });
       const workItem = manager.addWorkItem(
         {
           title: p.title,
@@ -833,6 +861,7 @@ export function applyAxInteraction(
         },
         opts,
       );
+      rememberWorkCreate(sourceNodeId, p.title, workItem);
       return withLayoutBroadcast(accept(type, sourceNodeId, workItem, 'ax-state-changed', { workItem }), manager, [
         workItem,
       ]);

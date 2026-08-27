@@ -304,6 +304,11 @@ function notePresence(
 ): void {
   if (!isPresenceWrite(op) || meta.suppressAutoGhost) return;
   const input = asRecord(rawInput);
+  // Delivery plumbing (claim/mark) must not book an anonymous transport
+  // writer nor spam the timeline: attribute it to the consumer that marked,
+  // and record no activity row — the Steer row flipping to delivered IS the
+  // signal the human reads.
+  const isDeliveryOp = name.startsWith('ax.delivery.');
   try {
     const touched = touchedNodeId(rawInput, result);
     // Work items, gates, and evidence results carry ids too — only a REAL
@@ -311,14 +316,17 @@ function notePresence(
     // the cursor aimed at a work-item id and pointed at nothing).
     const focusNodeId = touched && canvasState.getNode(touched) ? touched : null;
     const { summary, nodeId } = describeWrite(name, rawInput, result);
+    const consumerIdentity =
+      isDeliveryOp && typeof input.consumer === 'string' && input.consumer.trim() ? input.consumer.trim() : null;
     agentPresence.touch({
       source: meta.source ?? 'api',
-      agentId: typeof input.agentId === 'string' ? input.agentId : null,
+      agentId: typeof input.agentId === 'string' ? input.agentId : (consumerIdentity ?? null),
       phase: 'tooling',
+      derivedTooling: true,
       detail: name,
       ...(focusNodeId ? { focusNodeId } : {}),
       op: true,
-      activity: { op: name, summary, nodeId },
+      ...(isDeliveryOp ? {} : { activity: { op: name, summary, nodeId } }),
     });
   } catch {
     // never let presence bookkeeping fail a mutation

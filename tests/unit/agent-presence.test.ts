@@ -35,6 +35,29 @@ afterEach(() => {
   canvasState.withSuppressedRecording(() => canvasState.clear());
 });
 
+describe('phase overlay + identity (joint-gaps presence fixes)', () => {
+  test('a derived tooling touch overlays and then RESTORES the explicit phase — never decays thinking to idle', () => {
+    registry.touch({ source: 'copilot', attached: true, phase: 'thinking' }, T0);
+    // Op-derived tooling (a canvas write mid-turn):
+    registry.touch({ source: 'copilot', phase: 'tooling', derivedTooling: true, op: true }, T0 + 100);
+    expect(registry.snapshot(T0 + 200).presences[0]?.phase).toBe('tooling');
+    // After the settle window the EXPLICIT phase stands again.
+    expect(registry.snapshot(T0 + 100 + 4_500).presences[0]?.phase).toBe('thinking');
+    // Explicit tooling still settles to idle as before.
+    registry.touch({ source: 'copilot', phase: 'tooling' }, T0 + 10_000);
+    expect(registry.snapshot(T0 + 10_000 + 4_500).presences[0]?.phase).toBe('idle');
+  });
+
+  test('an attached writer with no focus parks at the last node its activity touched', () => {
+    registry.touch({ source: 'copilot', attached: true }, T0);
+    registry.touch(
+      { source: 'copilot', op: true, activity: { op: 'node.update', summary: 'edit', nodeId: 'n-42' } },
+      T0 + 10,
+    );
+    expect(registry.snapshot(T0 + 20).presences[0]?.focusNodeId).toBe('n-42');
+  });
+});
+
 describe('worker presence footguns (orchestration review)', () => {
   test('attached:false on a never-attached worker keeps its presence (no silent deletion)', () => {
     registry.touch({ source: 'mcp', agentId: 'luna-sync-a', op: true }, T0);

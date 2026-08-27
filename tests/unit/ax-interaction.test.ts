@@ -309,6 +309,32 @@ describe('applyAxInteraction', () => {
     expect(events.map((e) => e.event)).toEqual(['ax-interaction', 'ax-state-changed', 'canvas-layout-update']);
   });
 
+  test('a double-emitted ax.work.create inside the window returns the FIRST item — no duplicate', () => {
+    // Joint-gaps bug: a json-render button double-emit booked two identical
+    // work items ~1s apart.
+    const { manager, calls } = makeManager(makeNode('status'));
+    const first = applyAxInteraction(
+      manager,
+      { type: 'ax.work.create', sourceNodeId: 'status-1', payload: { title: 'Dedup me' } },
+      'api',
+    );
+    const second = applyAxInteraction(
+      manager,
+      { type: 'ax.work.create', sourceNodeId: 'status-1', payload: { title: 'Dedup me' } },
+      'api',
+    );
+    expect(first.result.ok).toBe(true);
+    expect(second.result.ok).toBe(true);
+    expect(calls.filter((c) => c.op === 'addWorkItem')).toHaveLength(1);
+    // A DIFFERENT title inside the window is a genuine new item.
+    applyAxInteraction(
+      manager,
+      { type: 'ax.work.create', sourceNodeId: 'status-1', payload: { title: 'Other item' } },
+      'api',
+    );
+    expect(calls.filter((c) => c.op === 'addWorkItem')).toHaveLength(2);
+  });
+
   test('omits the layout frame for a work item that is linked to no node', () => {
     const { manager } = makeManager(makeNode('status'));
     const { events } = applyAxInteraction(

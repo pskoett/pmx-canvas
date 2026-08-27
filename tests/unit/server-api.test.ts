@@ -2128,6 +2128,36 @@ describe('canvas server HTTP API', () => {
     await fetch(`${baseUrl}/api/canvas/node/${outside.id}`, { method: 'DELETE', headers: { 'x-pmx-workbench': '1' } });
   });
 
+  test('delivery marks are quiet plumbing: attributed to the consumer, no activity row, no anonymous mcp writer', async () => {
+    const steer = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/steer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: 'quiet-mark probe', source: 'browser' }),
+      })
+    ).json()) as { steering: { id: string } };
+    const before = (await (await fetch(`${baseUrl}/api/canvas/ax/presence`)).json()) as {
+      presences: Array<{ sessionId: string }>;
+      activity?: Array<{ op: string }>;
+    };
+    const mark = await fetch(`${baseUrl}/api/canvas/ax/delivery/${steer.steering.id}/mark`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ consumer: 'quietbot' }),
+    });
+    expect(mark.status).toBe(200);
+    const snap = (await (await fetch(`${baseUrl}/api/canvas/ax/presence`)).json()) as {
+      presences: Array<{ sessionId: string }>;
+      activity?: Array<{ op: string; sessionId?: string }>;
+    };
+    // The mark books the CONSUMER as the writer — never an anonymous transport.
+    expect(snap.presences.some((p) => p.sessionId === 'quietbot')).toBe(true);
+    const hadMcpBefore = before.presences.some((p) => p.sessionId === 'mcp');
+    if (!hadMcpBefore) expect(snap.presences.some((p) => p.sessionId === 'mcp')).toBe(false);
+    // …and adds NO activity row (the Steer row flipping to delivered is the signal).
+    expect((snap.activity ?? []).some((entry) => entry.op === 'ax.delivery.mark')).toBe(false);
+  });
+
   test('broadcast steering is delivered PER consumer — one worker marking it leaves it pending for the rest', async () => {
     const steer = (await (
       await fetch(`${baseUrl}/api/canvas/ax/steer`, {
