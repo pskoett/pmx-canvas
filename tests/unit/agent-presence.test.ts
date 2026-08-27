@@ -35,6 +35,15 @@ afterEach(() => {
   canvasState.withSuppressedRecording(() => canvasState.clear());
 });
 
+describe('worker presence footguns (orchestration review)', () => {
+  test('attached:false on a never-attached worker keeps its presence (no silent deletion)', () => {
+    registry.touch({ source: 'mcp', agentId: 'luna-sync-a', op: true }, T0);
+    registry.touch({ source: 'mcp', agentId: 'luna-sync-a', attached: false }, T0 + 5);
+    const snap = registry.snapshot(T0 + 10);
+    expect(snap.presences.some((p) => p.sessionId === 'luna-sync-a')).toBe(true);
+  });
+});
+
 describe('fleet membership', () => {
   test('parentAgentId round-trips through touch and the snapshot', () => {
     registry.touch({ source: 'copilot', attached: true }, T0);

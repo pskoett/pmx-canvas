@@ -305,7 +305,11 @@ function notePresence(
   if (!isPresenceWrite(op) || meta.suppressAutoGhost) return;
   const input = asRecord(rawInput);
   try {
-    const focusNodeId = touchedNodeId(rawInput, result);
+    const touched = touchedNodeId(rawInput, result);
+    // Work items, gates, and evidence results carry ids too — only a REAL
+    // canvas node may become the cursor's focus (orchestration review #9:
+    // the cursor aimed at a work-item id and pointed at nothing).
+    const focusNodeId = touched && canvasState.getNode(touched) ? touched : null;
     const { summary, nodeId } = describeWrite(name, rawInput, result);
     agentPresence.touch({
       source: meta.source ?? 'api',
@@ -364,7 +368,11 @@ async function executeOperationInner(name: string, rawInput: unknown, meta: Exec
       }
     }
   }
-  const intentId = linkedIntentId(rawInput);
+  const linkedId = linkedIntentId(rawInput);
+  // A ghost that expired QUIETLY (no veto) does not block its mutation — the
+  // write proceeds unlinked (and takes the auto-ghost path below). Vetoed and
+  // already-committing intents still refuse inside runCommit.
+  const intentId = linkedId && intentRegistry.commitDisposition(linkedId) !== 'absent' ? linkedId : undefined;
   const allowedKinds = intentId ? allowedIntentKinds(name, rawInput) : undefined;
   if (intentId && !allowedKinds) {
     throw new OperationError(`Operation "${name}" cannot be committed through a ghost intent.`);

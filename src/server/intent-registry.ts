@@ -223,6 +223,19 @@ export class IntentRegistry {
    * synchronous: once this method has accepted the intent, a later veto cannot
    * race in between the check and the mutation.
    */
+  /**
+   * How a linked commit would fare right now. 'absent' = the ghost expired
+   * quietly (TTL sweep) with no veto — the mutation should proceed UNLINKED
+   * instead of failing: a slow spawn is not a human "no", and inside a batch
+   * the 409 poisoned every sibling op (orchestration review #5).
+   */
+  commitDisposition(id: string): 'live' | 'vetoed' | 'committing' | 'absent' {
+    this.pruneVetoTombstones();
+    if (this.committingIntentIds.has(id)) return 'committing';
+    if (this.vetoedIntentIds.has(id)) return 'vetoed';
+    return this.intents.has(id) ? 'live' : 'absent';
+  }
+
   beginCommit(id: string, allowedKinds: readonly PmxAxIntentKind[]): PmxAxIntent {
     this.pruneVetoTombstones();
     if (this.committingIntentIds.has(id)) {

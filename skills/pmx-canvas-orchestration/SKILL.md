@@ -90,6 +90,17 @@ it, or the board silently diverges from reality.
   `ax.policy.set { agentScopes: { "<worker agentId>": { nodeIds, padding } } }` — that worker's
   writes outside the territory are refused (403) while everyone else roams. An agent can fence
   OTHER writers but never its own key; the human can set or clear any territory.
+- **Spawn-window ghosts:** the default intent TTL (8 s) dies before a spawned worker's first
+  write — signal spawn choreography with `ttlMs: 30000-60000`. A ghost that expires QUIETLY no
+  longer blocks its linked mutation (it proceeds unlinked; only a human veto refuses), so a slow
+  spawn cannot poison a batch.
+- **Identity discipline:** never pass a worker's `agentId` on writes YOU make on its behalf —
+  attribution follows `agentId`, so the activity feed would book your write as the worker's.
+  Create shared scaffolding (lanes, work items) under your own identity, then let each worker
+  write as itself. Workers should OMIT `attached` entirely (they are writers, not sessions).
+- **No MCP in the subagent?** Workers spawned inside a host often lack the canvas MCP — the
+  plain HTTP API is the worker path: POST /api/canvas/node, /api/canvas/ax/presence,
+  /api/canvas/ax/delivery/pending?consumer=<agentId>, /:id/mark. Same identity rules apply.
 - **Fleet chrome:** every worker should declare its orchestrator on set-presence
   (`parentAgentId: "<orchestrator key>"`): the top bar rolls workers up into the
   orchestrator's chip ("+N workers") and their cursors render smaller so a big fleet stays

@@ -1931,6 +1931,93 @@ describe('canvas server HTTP API', () => {
     expect(second.delivered).toBe(false);
   });
 
+  test('a quietly expired ghost does not block its mutation nor poison a batch; vetoes still do', async () => {
+    // Expired (never vetoed): the linked create proceeds unlinked.
+    const ghost = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/intent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'create', label: 'Slow spawn', ttlMs: 60, position: { x: 100, y: 100 } }),
+      })
+    ).json()) as { intent: { id: string } };
+    const expiredId = ghost.intent.id;
+    expect(typeof expiredId).toBe('string');
+    await new Promise((resolve) => setTimeout(resolve, 200));
+    const batch = (await (
+      await fetch(`${baseUrl}/api/canvas/batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operations: [
+            {
+              op: 'node.add',
+              args: { type: 'markdown', title: 'Ghosted create', intentId: expiredId, x: 120, y: 120 },
+            },
+            { op: 'node.add', args: { type: 'markdown', title: 'Sibling create', x: 620, y: 120 } },
+          ],
+        }),
+      })
+    ).json()) as { ok: boolean; results: Array<{ id?: string }> };
+    expect(batch.ok).toBe(true);
+    expect(batch.results).toHaveLength(2);
+
+    // Vetoed: still refused — the human said no.
+    const vetoSignal = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/intent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ kind: 'create', label: 'Vetoed spawn', ttlMs: 30000, position: { x: 100, y: 400 } }),
+      })
+    ).json()) as { intent: { id: string } };
+    const vetoId = vetoSignal.intent.id;
+    const veto = await fetch(`${baseUrl}/api/canvas/ax/intent/${vetoId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vetoed: true }),
+    });
+    expect(veto.status).toBe(200);
+    const blocked = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'markdown', title: 'Should not land', intentId: vetoId, x: 100, y: 400 }),
+    });
+    expect(blocked.status).toBe(409);
+    for (const created of batch.results) {
+      if (created.id)
+        await fetch(`${baseUrl}/api/canvas/node/${created.id}`, {
+          method: 'DELETE',
+          headers: { 'x-pmx-workbench': '1' },
+        });
+    }
+  });
+
+  test('an AX work-item write never becomes the cursor focus — only real nodes do', async () => {
+    const made = (await (
+      await fetch(`${baseUrl}/api/canvas/node`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-pmx-source': 'focus-probe' },
+        body: JSON.stringify({ type: 'markdown', title: 'Focus anchor', content: 'x', x: 40, y: 40 }),
+      })
+    ).json()) as { id: string };
+    const work = (await (
+      await fetch(`${baseUrl}/api/canvas/ax/work`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-pmx-source': 'focus-probe' },
+        body: JSON.stringify({ title: 'Probe item', status: 'in-progress' }),
+      })
+    ).json()) as { workItem: { id: string } };
+    const snap = (await (await fetch(`${baseUrl}/api/canvas/ax/presence`)).json()) as {
+      presences: Array<{ sessionId: string; focusNodeId: string | null }>;
+    };
+    const probe = snap.presences.find((p) => p.sessionId === 'focus-probe');
+    // The node create parked focus on the node; the work-item write must NOT
+    // replace it with a work-item id (review #9 — the cursor aimed at nothing).
+    expect(probe?.focusNodeId).toBe(made.id);
+    expect(probe?.focusNodeId?.startsWith('work-')).toBe(false);
+    expect(work.workItem.id.startsWith('work-')).toBe(true);
+    await fetch(`${baseUrl}/api/canvas/node/${made.id}`, { method: 'DELETE', headers: { 'x-pmx-workbench': '1' } });
+  });
+
   test('per-agent territories: a worker is fenced to its lane, others roam, and no agent fences itself', async () => {
     const mk = async (title: string, x: number, y: number) =>
       (await (
