@@ -13,8 +13,9 @@ maps Copilot SDK features onto PMX AX primitives.
 
 ## Quick Start
 
-1. Install the project adapter by copying the packaged extension into the repository:
-   `mkdir -p .github/extensions/pmx-canvas && cp node_modules/pmx-canvas/.github/extensions/pmx-canvas/extension.mjs .github/extensions/pmx-canvas/extension.mjs`
+1. Install the project adapter with `pmx-canvas copilot install-extension --yes`, or copy the
+   packaged extension directory into the repository:
+   `mkdir -p .github/extensions && cp -R node_modules/pmx-canvas/.github/extensions/pmx-canvas .github/extensions/`
 2. Reload Copilot app extensions with `extensions_reload` so `project:pmx-canvas` is registered.
 3. Start or confirm a PMX Canvas daemon for the workspace: `pmx-canvas serve --daemon`
    and `pmx-canvas serve status`. The adapter can auto-start in many local sessions, but a running
@@ -63,21 +64,28 @@ state.
   `onUserPromptSubmitted`.
 - Exposes adapter actions for status, AX context refresh, AX focus, and explicit session steering.
 
-### Agent behavior — steering is gated, not pushed
+### Agent behavior — steering push with a gated fallback
 
-`onUserPromptSubmitted` injects the whole `/api/canvas/ax/context` (pins, focus, work
-items, approval gates, and the compact `delivery` lead block) as hidden context — but
-only when the **pin/focus gate is open** (`pinned.count > 0 || focus.nodeIds.length > 0`),
-and it is clipped to a char budget. Read steering from **`delivery.pendingSteering`**
-(the compact, count-bearing block — newest-first, capped at 10), not the full
-`timeline.pendingSteering`. Three consequences the adapter/agent must honor:
+The adapter long-polls the consumer-scoped delivery queue, sends each steer through
+`copilotSession.send`, and marks it only after the host accepts the prompt. Browser-originated
+steering therefore creates a Copilot turn without waiting for another chat message. Addressed
+steers follow their target; broadcasts are marked only for the `copilot` consumer; Copilot-origin
+messages are excluded by the queue's loop-safety filter.
 
-1. A steering board must **stay pinned** (or its button must also emit `ax.focus.set`
-   on the board node) to hold the gate open.
-2. A sandbox button click does **not** wake a turn — a human message does. The click
-   only enqueues the steer.
-3. The agent must **act on injected `delivery.pendingSteering` / `pendingActivity` and
-   then ack** (`canvas_ax_delivery { action: "mark" }`), or it re-injects every gated turn.
+On adapter startup, existing backlog is marked for the `copilot` consumer without creating turns.
+Only steers created after that adapter instance started can wake it, so reopening Copilot cannot
+flood the chat with stale instructions from prior sessions.
+
+`onUserPromptSubmitted` remains the fallback. It injects the whole `/api/canvas/ax/context`
+(pins, focus, work items, approval gates, and the compact `delivery` lead block) as hidden context,
+but only when the **pin/focus gate is open** (`pinned.count > 0 || focus.nodeIds.length > 0`), and
+it is clipped to a char budget. Read steering from **`delivery.pendingSteering`** (the compact,
+count-bearing block — newest-first, capped at 10), not the full `timeline.pendingSteering`.
+
+If native send fails, the adapter leaves the steer unmarked and retries. If marking fails after a
+successful send, the in-process pump retries the mark without sending the prompt twice. A process
+restart establishes a new delivery baseline and marks older unacknowledged rows without replaying
+them.
 
 To be robust to the char clip, prefer injecting that compact loop-safe lead block from
 `GET /api/canvas/ax/context?consumer=copilot` (`delivery.pendingSteering` +
@@ -87,15 +95,10 @@ To be robust to the char clip, prefer injecting that compact loop-safe lead bloc
 
 #### Waking the agent from a canvas steer (#59) — adapter-owned
 
-Recording a browser-origin `ax.steer` does **not** wake the active session by itself
-(report #59); PMX only queues it (the `ok:true` emit ack = "recorded", not "delivered").
-To make a canvas **Steer** button actually create a visible turn, the adapter must, on
-its own cadence (e.g. an SSE subscription or poll), **drain**
-`canvas_ax_delivery { action: "claim", consumer: "copilot" }`, call the host's native
-send (`copilotSession.send` / the working `send_instruction` path) with each steer, then
-`canvas_ax_delivery { action: "mark" }` it (loop-safe). This wake is intentionally
-host-owned — PMX never imports the host SDK. Until the adapter wires it, a steering
-button must be labeled "queued for the agent's next turn", not "steer now".
+Recording a browser-origin `ax.steer` queues it in PMX; the Copilot adapter owns the wake. Its
+delivery pump long-polls `…/delivery/pending?consumer=copilot`, calls
+`copilotSession.send`, then marks that consumer's delivery. PMX remains host-agnostic and never
+imports the Copilot SDK.
 
 ### Closing the loop (optional, recommended)
 

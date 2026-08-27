@@ -156,11 +156,11 @@ surfaces (the core never imports a host SDK).
 - **GitHub Copilot app** — a committed project canvas extension
   (`.github/extensions/pmx-canvas/`) opens the live PMX workbench in a native
   Copilot panel (light-themed by default to match the app, via the `?theme=`
-  session override), injects pinned/focused AX context on prompt submission, and
-  exposes actions for focus, session steering, work items, approval gates,
-  review annotations, the AX timeline, and host-capability reporting. Install it
-  into any repo with `pmx-canvas copilot install-extension` (`--dry-run` to
-  preview).
+  session override), wakes Copilot when the board sends a steer, injects
+  pinned/focused AX context on prompt submission, and exposes actions for focus,
+  work items, approval gates, review annotations, the AX timeline, and
+  host-capability reporting. Install it into any repo with
+  `pmx-canvas copilot install-extension` (`--dry-run` to preview).
 - **Codex app** — native through the Codex in-app Browser (opened to
   `/workbench`) plus the PMX MCP server: agents read `canvas://ax-context` /
   `canvas_ax_state { action: "get" }` and label Codex-originated focus with

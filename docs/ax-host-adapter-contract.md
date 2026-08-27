@@ -39,10 +39,13 @@ gate is pending. Report `thinking` from a prompt/turn hook when the host has one
 the MCP server when the host runs several agents side by side, and pass
 `agentId` for sub-agents that should keep their own cursor.
 
-## Steering is gated, not pushed (#54)
+## Steering is queued first, then pushed by capable adapters (#54)
 
-A board action (e.g. an `ax.steer` emit from a surface button) enqueues a steering
-message; it does **not** wake the agent. It reaches the next turn only when:
+A board action (e.g. an `ax.steer` emit from a surface button) always enqueues a steering message
+first. A capable adapter can immediately claim it, call the host's native send, and mark it after
+the host accepts the prompt. The GitHub Copilot reference adapter implements this delivery loop.
+
+When a host cannot wake a turn, queued steering reaches the next turn when:
 
 1. **The pin/focus gate is open.** A typical adapter injects `/api/canvas/ax/context`
    only when something is pinned or focused (`pinned.count > 0 || focus.nodeIds.length > 0`).
@@ -64,17 +67,16 @@ many more are queued so it can drain the FIFO `…/delivery/pending` endpoint wh
 count is non-zero. **Adapters should read `delivery.pendingSteering`** (this compact,
 count-bearing block), not `timeline.pendingSteering`.
 
-### Canvas-origin steering does not wake the agent by itself (#59)
+### Canvas-origin steering requires an adapter-owned wake (#59)
 
-Recording a browser-origin `ax.steer` (and the `ok:true` ack a surface button gets —
-report #55) means the steer is **queued on the timeline**, not delivered into a live
-agent turn. PMX deliberately does not import a host SDK, so the *wake* — turning a
-queued steer into a visible turn — is **adapter-owned**: a cooperating host adapter
-must drain `…/delivery/pending?consumer=<id>` and call its native send (e.g.
-`copilotSession.send`), then `…/delivery/<id>/mark` it. Until an adapter wires that,
-canvas-origin steering is delivered on the next human turn, not pushed. A steering
-surface should therefore label its button honestly ("queued for the agent's next
-turn"), never imply it interrupts the agent now.
+Recording a browser-origin `ax.steer` (and the `ok:true` ack a surface button gets — report #55)
+means the steer is durably queued on the timeline. PMX deliberately does not import a host SDK, so
+the *wake* is adapter-owned: a cooperating host adapter drains
+`…/delivery/pending?consumer=<id>`, calls its native send, then marks the delivery. The GitHub
+Copilot adapter does this with a long-polling pump and `copilotSession.send`. It establishes a
+baseline at adapter startup, marking older backlog without replaying it so stale instructions from
+prior sessions cannot flood a newly opened chat. Adapters without a native send retain
+next-human-turn delivery.
 
 ## The two primitives that close the loop
 

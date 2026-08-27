@@ -5,6 +5,7 @@ import { createServer as createNetServer } from "node:net";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { CanvasError, createCanvas, joinSession } from "@github/copilot-sdk/extension";
+import { createSteeringDeliveryPump } from "./steering-delivery.mjs";
 
 const EXTENSION_DIR = dirname(fileURLToPath(import.meta.url));
 const PROJECT_ROOT = resolve(EXTENSION_DIR, "../../..");
@@ -12,8 +13,10 @@ const DEFAULT_PORT = 4313;
 const MAX_AX_CONTEXT_CHARS = 16_000;
 const MANAGED_START_TIMEOUT_MS = 10_000;
 const HEALTH_TIMEOUT_MS = 500;
+const STEERING_WAIT_MS = 30_000;
 
 let copilotSession;
+let steeringDeliveryPump;
 let managedProcess = null;
 let managedBaseUrl = null;
 let managedWorkspaceRoot = null;
@@ -495,6 +498,48 @@ function recordCopilotSteering(ctx, message) {
     void postAxRecord(ctx, "/api/canvas/ax/steer", { message }).catch(() => {});
 }
 
+async function claimCopilotSteering(consumer) {
+    const workspaceRoot = PROJECT_ROOT;
+    const resolved = await resolvePmxServer(
+        { input: {}, session: { workingDirectory: workspaceRoot } },
+        { autoStart: false },
+    );
+    if (!resolved.ok || !resolved.baseUrl) {
+        throw new Error(resolved.error ?? "PMX Canvas server is unavailable.");
+    }
+    const delivery = await fetchJson(
+        resolved.baseUrl,
+        `/api/canvas/ax/delivery/pending?consumer=${encodeURIComponent(consumer)}&limit=1&order=oldest&waitMs=${STEERING_WAIT_MS}`,
+        { timeoutMs: STEERING_WAIT_MS + 2_000 },
+    );
+    return Array.isArray(delivery.pending) ? delivery.pending : [];
+}
+
+async function markCopilotSteering(id, consumer) {
+    const workspaceRoot = PROJECT_ROOT;
+    const resolved = await resolvePmxServer(
+        { input: {}, session: { workingDirectory: workspaceRoot } },
+        { autoStart: false },
+    );
+    if (!resolved.ok || !resolved.baseUrl) {
+        throw new Error(resolved.error ?? "PMX Canvas server is unavailable.");
+    }
+    await fetchJson(resolved.baseUrl, `/api/canvas/ax/delivery/${encodeURIComponent(id)}/mark`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ consumer }),
+        timeoutMs: 2_000,
+    });
+}
+
+let lastSteeringDeliveryError = null;
+function reportSteeringDeliveryError(error) {
+    const message = error instanceof Error ? error.message : String(error);
+    if (message === lastSteeringDeliveryError) return;
+    lastSteeringDeliveryError = message;
+    process.stderr.write(`[pmx-canvas] Copilot steering delivery retrying: ${message}\n`);
+}
+
 async function getAxTimeline(ctx, limit) {
     const resolved = await resolvePmxServer(ctx, { autoStart: false });
     if (!resolved.ok || !resolved.baseUrl) return { ok: false, error: resolved.error };
@@ -801,9 +846,23 @@ copilotSession = await joinSession({
     },
 });
 
+steeringDeliveryPump = createSteeringDeliveryPump({
+    consumer: "copilot",
+    claim: claimCopilotSteering,
+    send: async (message) => await copilotSession.send({ prompt: message }),
+    mark: markCopilotSteering,
+    shouldSend: (() => {
+        const startedAt = Date.now();
+        return (steering) => Date.parse(steering.createdAt) >= startedAt;
+    })(),
+    pause: delay,
+    onError: reportSteeringDeliveryError,
+});
+void steeringDeliveryPump.start();
+
 // Attach the session as soon as the host joins (the canvas may not be running
 // yet — the prompt hook above re-attaches lazily in that case).
-void postPresence(resolve(copilotSession?.workspacePath ?? PROJECT_ROOT), { attached: true, phase: "idle" });
+void postPresence(resolve(copilotSession?.workspacePath ?? PROJECT_ROOT), { attached: true });
 
 // Real context window (rail-chrome-v2): Copilot emits `session.usage_info`
 // with the live token count and the model's window after each turn. Report it
@@ -836,6 +895,7 @@ if (typeof copilotSession?.on === "function") {
 }
 
 async function shutdown() {
+    steeringDeliveryPump?.stop();
     // Detach the presence first so the canvas returns to the quiet board the
     // moment the host goes away, then stop any managed server. The whole
     // detach is capped at 800ms (server probing + the POST) so a host with a

@@ -262,7 +262,10 @@ describe('AX neutral-primitive parity and host isolation', () => {
       const match = line.match(/from\s+["']([^"']+)["']/);
       expect(match).not.toBeNull();
       const specifier = match![1];
-      const allowed = specifier.startsWith('node:') || specifier.startsWith('@github/copilot-sdk');
+      const allowed =
+        specifier.startsWith('node:') ||
+        specifier.startsWith('@github/copilot-sdk') ||
+        specifier === './steering-delivery.mjs';
       expect(allowed).toBe(true);
     }
   });

@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { Readable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
 import { runAgentCli } from '../../src/cli/agent.ts';
@@ -781,6 +781,23 @@ describe('agent CLI node commands', () => {
     };
     expect(output).toMatchObject({ ok: true, dryRun: true, wrote: false, targetPath: target });
     expect(existsSync(target)).toBe(false);
+  });
+
+  test('copilot install-extension copies the steering delivery runtime', async () => {
+    const target = join(workspaceRoot, '.github', 'extensions', 'pmx-canvas-copy', 'extension.mjs');
+    const deliveryRuntime = join(dirname(target), 'steering-delivery.mjs');
+    const log = mock((..._args: unknown[]) => {});
+    const originalLog = console.log;
+    console.log = log;
+
+    try {
+      await runAgentCli(['copilot', 'install-extension', '--yes', '--target', target]);
+    } finally {
+      console.log = originalLog;
+    }
+
+    expect(existsSync(target)).toBe(true);
+    expect(existsSync(deliveryRuntime)).toBe(true);
   });
 
   test('fit command updates server viewport for canvas bounds', async () => {
@@ -3006,6 +3023,16 @@ exit 2
     expect(extension).toContain('"/api/canvas/ax/context"');
     expect(extension).toContain('name: "focus_nodes"');
     expect(extension).toContain('name: "send_instruction"');
+    expect(extension).toContain('createSteeringDeliveryPump');
+    expect(extension).toContain('/api/canvas/ax/delivery/pending?consumer=');
+    const deliveryRuntime = extension.slice(
+      extension.indexOf('async function claimCopilotSteering'),
+      extension.indexOf('async function getAxTimeline'),
+    );
+    expect(deliveryRuntime).toContain('const workspaceRoot = PROJECT_ROOT;');
+    expect(deliveryRuntime).not.toContain('copilotSession.workspacePath');
+    expect(extension).toContain('{ attached: true });');
+    expect(extension).not.toContain('{ attached: true, phase: "idle" });');
     expect(extension).not.toContain('console.log');
   });
 
