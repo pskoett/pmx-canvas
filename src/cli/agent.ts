@@ -28,6 +28,7 @@ import './commands/query.js';
 import './commands/pins.js';
 import './commands/history.js';
 import './commands/ax.js';
+import './commands/pump.js';
 import './commands/webview.js';
 import './commands/apps.js';
 import './commands/copilot.js';

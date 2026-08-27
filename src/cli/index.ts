@@ -44,6 +44,7 @@ const AGENT_COMMANDS = new Set([
   'screenshot',
   'pin',
   'ax',
+  'pump',
   'undo',
   'redo',
   'history',

@@ -48,6 +48,19 @@ describe('phase overlay + identity (joint-gaps presence fixes)', () => {
     expect(registry.snapshot(T0 + 10_000 + 4_500).presences[0]?.phase).toBe('idle');
   });
 
+  test('explicit thinking that nothing refreshes settles to idle (three silent Thinking chips)', () => {
+    registry.touch({ source: 'codex', attached: true, phase: 'thinking' }, T0);
+    expect(registry.snapshot(T0 + 60_000).presences[0]?.phase).toBe('thinking');
+    // 3+ minutes of silence → the chip stops claiming work is happening.
+    expect(registry.snapshot(T0 + 3 * 60_000 + 5_000).presences[0]?.phase).toBe('idle');
+    // A fresh touch keeps a genuinely-working agent thinking.
+    registry.touch({ source: 'copilot', attached: true, phase: 'thinking' }, T0);
+    registry.touch({ source: 'copilot', op: true }, T0 + 2 * 60_000);
+    expect(registry.snapshot(T0 + 3 * 60_000 + 5_000).presences.find((p) => p.sessionId === 'copilot')?.phase).toBe(
+      'thinking',
+    );
+  });
+
   test('an attached writer with no focus parks at the last node its activity touched', () => {
     registry.touch({ source: 'copilot', attached: true }, T0);
     registry.touch(

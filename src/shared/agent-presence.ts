@@ -90,6 +90,10 @@ export const PRESENCE_ACTIVITY_TTL_MS = 5 * 60_000;
 export const PRESENCE_ATTACHED_IDLE_TTL_MS = 30 * 60_000;
 /** `tooling` decays to `idle` after this much quiet. */
 export const PRESENCE_TOOLING_SETTLE_MS = 4_000;
+/** Explicit `thinking` without any fresh touch settles to idle — hosts set it
+ * at turn start and often never send the turn-end idle, leaving three
+ * "Thinking" chips on a silent board. */
+export const PRESENCE_THINKING_SETTLE_MS = 3 * 60_000;
 export const MAX_PRESENCES = 16;
 /** Default `budget.total` when `PMX_CANVAS_CONTEXT_BUDGET_TOKENS` is unset. */
 export const CONTEXT_BUDGET_DEFAULT_TOKENS = 32_000;

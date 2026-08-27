@@ -28,6 +28,7 @@ import {
   MAX_PRESENCES,
   PRESENCE_ACTIVITY_TTL_MS,
   PRESENCE_ATTACHED_IDLE_TTL_MS,
+  PRESENCE_THINKING_SETTLE_MS,
   PRESENCE_TOOLING_SETTLE_MS,
   TRANSPORT_SOURCES,
 } from '../shared/agent-presence.js';
@@ -674,6 +675,15 @@ export class AgentPresenceRegistry {
           this.onSessionEnd(this.publicView(presence, now), presence.startSnapshotId, 'idle-timeout');
         changed = true;
         continue;
+      }
+      // Explicit thinking that nothing refreshed settles to idle: the host set
+      // it at turn start and never sent the turn-end idle (three "Thinking"
+      // chips on a silent board). Any touch bumps lastSeenMs, so an agent
+      // that IS doing canvas work keeps its thinking chip.
+      if (presence.phase === 'thinking' && now - presence.lastSeenMs > PRESENCE_THINKING_SETTLE_MS) {
+        presence.phase = 'idle';
+        presence.detail = null;
+        changed = true;
       }
       // A decayed `tooling` is a visible change too — emit so the chip settles.
       if (presence.phase === 'tooling' && presence.toolingUntilMs !== null && presence.toolingUntilMs <= now) {

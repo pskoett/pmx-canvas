@@ -1131,6 +1131,18 @@ interface AxSteeringRow {
   target: string | null;
 }
 
+/**
+ * Broadcasts age out of PENDING (they stay on the timeline): per-consumer
+ * delivery otherwise means every broadcast greets every FUTURE consumer key
+ * forever — a brand-new pump inherited two-day-old "all workers" calls.
+ * Addressed steers never expire here; they wait for their named consumer.
+ */
+export const BROADCAST_PENDING_TTL_MS = 15 * 60_000;
+
+function broadcastCutoffIso(): string {
+  return new Date(Date.now() - BROADCAST_PENDING_TTL_MS).toISOString();
+}
+
 function mapAxSteeringRow(r: AxSteeringRow): PmxAxSteeringMessage | null {
   return normalizeAxSteeringMessage({
     ...r,
@@ -1181,20 +1193,20 @@ export function loadPendingAxSteeringFromDB(
   const limit = clampTimelineLimit(options.limit);
   const rows = options.consumer
     ? db
-        .query<AxSteeringRow, [string, string, string, string, number]>(
+        .query<AxSteeringRow, [string, string, string, string, string, number]>(
           // A broadcast stays pending PER CONSUMER: it leaves this consumer's
           // queue only once THIS consumer marked it (or an anonymous global ack
           // set delivered).
-          'SELECT * FROM ax_steering s WHERE s.delivered = 0 AND (s.source IS NULL OR s.source != ?) AND (s.agent_id IS NULL OR s.agent_id != ?) AND (s.target IS NULL OR s.target = ?) AND NOT EXISTS (SELECT 1 FROM ax_steering_deliveries d WHERE d.steering_id = s.id AND d.consumer = ?) ORDER BY s.seq ASC LIMIT ?',
+          'SELECT * FROM ax_steering s WHERE s.delivered = 0 AND (s.source IS NULL OR s.source != ?) AND (s.agent_id IS NULL OR s.agent_id != ?) AND (s.target IS NULL OR s.target = ?) AND (s.target IS NOT NULL OR s.created_at > ?) AND NOT EXISTS (SELECT 1 FROM ax_steering_deliveries d WHERE d.steering_id = s.id AND d.consumer = ?) ORDER BY s.seq ASC LIMIT ?',
         )
-        .all(options.consumer, options.consumer, options.consumer, options.consumer, limit)
+        .all(options.consumer, options.consumer, options.consumer, broadcastCutoffIso(), options.consumer, limit)
     : db
-        .query<AxSteeringRow, [number]>(
+        .query<AxSteeringRow, [string, number]>(
           // No consumer given: only broadcasts — addressed steering is claimable
           // solely by the consumer it names.
-          'SELECT * FROM ax_steering WHERE delivered = 0 AND target IS NULL ORDER BY seq ASC LIMIT ?',
+          'SELECT * FROM ax_steering WHERE delivered = 0 AND target IS NULL AND created_at > ? ORDER BY seq ASC LIMIT ?',
         )
-        .all(limit);
+        .all(broadcastCutoffIso(), limit);
   return rows.map(mapAxSteeringRow).filter((s): s is PmxAxSteeringMessage => s !== null);
 }
 
@@ -1213,10 +1225,10 @@ export function loadNewestPendingAxSteeringFromDB(
   const limit = clampTimelineLimit(options.limit);
   const rows = options.consumer
     ? db
-        .query<AxSteeringRow, [string, string, string, string, number]>(
-          'SELECT * FROM ax_steering s WHERE s.delivered = 0 AND (s.source IS NULL OR s.source != ?) AND (s.agent_id IS NULL OR s.agent_id != ?) AND (s.target IS NULL OR s.target = ?) AND NOT EXISTS (SELECT 1 FROM ax_steering_deliveries d WHERE d.steering_id = s.id AND d.consumer = ?) ORDER BY s.seq DESC LIMIT ?',
+        .query<AxSteeringRow, [string, string, string, string, string, number]>(
+          'SELECT * FROM ax_steering s WHERE s.delivered = 0 AND (s.source IS NULL OR s.source != ?) AND (s.agent_id IS NULL OR s.agent_id != ?) AND (s.target IS NULL OR s.target = ?) AND (s.target IS NOT NULL OR s.created_at > ?) AND NOT EXISTS (SELECT 1 FROM ax_steering_deliveries d WHERE d.steering_id = s.id AND d.consumer = ?) ORDER BY s.seq DESC LIMIT ?',
         )
-        .all(options.consumer, options.consumer, options.consumer, options.consumer, limit)
+        .all(options.consumer, options.consumer, options.consumer, broadcastCutoffIso(), options.consumer, limit)
     : db
         .query<AxSteeringRow, [number]>(
           'SELECT * FROM ax_steering WHERE delivered = 0 AND target IS NULL ORDER BY seq DESC LIMIT ?',

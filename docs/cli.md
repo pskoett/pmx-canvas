@@ -13,6 +13,27 @@ pmx-canvas node list --port 4750                      # target a non-default dae
 pmx-canvas --server-url http://127.0.0.1:4750 status  # same, by URL
 ```
 
+## pump — reactive steering for CLI agents
+
+`pmx-canvas pump` turns any CLI agent (Codex, Amp, a script) into a steerable
+board citizen: it long-polls the per-consumer delivery claim and runs your
+command once per steer, marking per-consumer on success.
+
+```bash
+pmx-canvas pump --consumer codex --exec 'codex exec --full-auto {message}'
+pmx-canvas pump --consumer amp --exec 'amp -x {message}' --parent claude-code
+```
+
+- The steer text reaches the command as `$PMX_STEER_MESSAGE` (env) and stdin;
+  `{message}` in the template expands to the quoted env reference — steer
+  content is never spliced into the shell line.
+- Startup backlog is marked silently (pass `--backlog deliver` to process it).
+- A failing command is retried twice, then marked to unblock the queue.
+- `--parent <key>` rolls the pumped agent up under an orchestrator's chip;
+  `--once` processes a single steer (useful in scripts and tests).
+- Survives daemon restarts; backs off against pre-0.4.9 servers that ignore
+  `waitMs`.
+
 ## Server lifecycle
 
 ```bash

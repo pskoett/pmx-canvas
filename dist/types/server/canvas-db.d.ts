@@ -61,6 +61,13 @@ export declare function appendAxSteeringToDB(db: Database, s: Omit<PmxAxSteering
 export declare function markAxSteeringDeliveredInDB(db: Database, id: string, consumer?: string | null): boolean;
 export declare function loadAxEventsFromDB(db: Database, q?: AxTimelineQuery): PmxAxEvent[];
 export declare function loadAxEvidenceFromDB(db: Database, q?: AxTimelineQuery): PmxAxEvidence[];
+/**
+ * Broadcasts age out of PENDING (they stay on the timeline): per-consumer
+ * delivery otherwise means every broadcast greets every FUTURE consumer key
+ * forever — a brand-new pump inherited two-day-old "all workers" calls.
+ * Addressed steers never expire here; they wait for their named consumer.
+ */
+export declare const BROADCAST_PENDING_TTL_MS: number;
 export declare function loadAxSteeringFromDB(db: Database, q?: AxTimelineQuery & {
     onlyPending?: boolean;
 }): PmxAxSteeringMessage[];
