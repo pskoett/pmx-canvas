@@ -22,7 +22,7 @@ import { useNow } from './use-now';
 import { agentPhaseLabel } from '../../shared/agent-presence.js';
 import { agentIdentityHue } from '../../shared/agent-presence.js';
 import { activeSession, agentPresences, attachedSessions, contextBudget } from '../state/presence-store';
-import { pendingGates, startSession } from '../state/session-store';
+import { endSession, pendingGates, startSession } from '../state/session-store';
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
 
 /**
@@ -66,6 +66,20 @@ function AgentChip() {
                   +{workers} worker{workers === 1 ? '' : 's'}
                 </span>
               )}
+              <button
+                type="button"
+                class="agent-chip-end"
+                aria-label={`End ${session.label} session`}
+                title={`End ${session.label}'s session`}
+                onClick={(e) => {
+                  // The chip sits inside a tap-to-open hint — ending a session
+                  // must not also open it.
+                  e.stopPropagation();
+                  void endSession({ source: session.source, agentId: session.agentId });
+                }}
+              >
+                ×
+              </button>
             </span>
           </BarHint>
         );

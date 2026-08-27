@@ -1239,14 +1239,19 @@ export function loadNewestPendingAxSteeringFromDB(
 
 /** Total undelivered steering for a consumer (loop-safe — excludes the consumer's own; target-scoped). */
 export function countPendingAxSteeringFromDB(db: Database, consumer?: string): number {
+  // Must mirror loadPendingAxSteeringFromDB exactly (per-consumer deliveries,
+  // broadcast TTL) — the roster shows this as "what would this consumer claim".
   const n = consumer
     ? db
-        .query<{ n: number }, [string, string, string]>(
-          'SELECT COUNT(*) AS n FROM ax_steering WHERE delivered = 0 AND (source IS NULL OR source != ?) AND (agent_id IS NULL OR agent_id != ?) AND (target IS NULL OR target = ?)',
+        .query<{ n: number }, [string, string, string, string, string]>(
+          'SELECT COUNT(*) AS n FROM ax_steering s WHERE s.delivered = 0 AND (s.source IS NULL OR s.source != ?) AND (s.agent_id IS NULL OR s.agent_id != ?) AND (s.target IS NULL OR s.target = ?) AND (s.target IS NOT NULL OR s.created_at > ?) AND NOT EXISTS (SELECT 1 FROM ax_steering_deliveries d WHERE d.steering_id = s.id AND d.consumer = ?)',
         )
-        .get(consumer, consumer, consumer)?.n
-    : db.query<{ n: number }, []>('SELECT COUNT(*) AS n FROM ax_steering WHERE delivered = 0 AND target IS NULL').get()
-        ?.n;
+        .get(consumer, consumer, consumer, broadcastCutoffIso(), consumer)?.n
+    : db
+        .query<{ n: number }, [string]>(
+          'SELECT COUNT(*) AS n FROM ax_steering WHERE delivered = 0 AND target IS NULL AND created_at > ?',
+        )
+        .get(broadcastCutoffIso())?.n;
   return Number(n ?? 0);
 }
 

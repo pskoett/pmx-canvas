@@ -219,6 +219,15 @@ export declare function restoreSnapshot(id: string): Promise<{
 export declare function deleteSnapshot(id: string): Promise<{
     ok: boolean;
 }>;
+/** Patch an edge in place (label/type/style/animated) via the server. */
+export declare function updateEdgeFromClient(edgeId: string, patch: {
+    label?: string;
+    type?: string;
+    style?: string;
+    animated?: boolean;
+}): Promise<{
+    ok: boolean;
+}>;
 /** Remove a canvas edge via the server. */
 export declare function removeEdgeFromClient(edgeId: string): Promise<{
     ok: boolean;

@@ -37,6 +37,7 @@ import {
   nodes,
   pendingExpandedNodeCloseId,
   removeNode,
+  selectedEdgeId,
   selectedNodeIds,
   spacePanHeld,
   viewport,
@@ -49,6 +50,7 @@ import { intents } from './state/intent-store';
 import { sessionActive } from './state/presence-store';
 import {
   createGroupFromClient,
+  removeEdgeFromClient,
   removeNodeFromClient,
   reportClientViewportSize,
   ungroupFromClient,
@@ -191,7 +193,7 @@ export function App() {
         e.preventDefault();
         zoomByFactor(1 / 1.25);
       } else if (e.key === 'Escape') {
-        if (selectedNodeIds.value.size > 0) {
+        if (selectedNodeIds.value.size > 0 || selectedEdgeId.value !== null) {
           clearSelection();
           return;
         }
@@ -201,6 +203,15 @@ export function App() {
         e.preventDefault();
         cycleActiveNode(e.shiftKey ? -1 : 1);
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
+        // A click-selected edge deletes first — keyboard parity with the edge
+        // context menu (draw with C, click it, press Delete).
+        if (selectedEdgeId.value !== null) {
+          const edgeId = selectedEdgeId.value;
+          e.preventDefault();
+          selectedEdgeId.value = null;
+          void removeEdgeFromClient(edgeId).catch((error) => logAppError('delete-edge', error));
+          return;
+        }
         // Delete the selection, else the focused node — what the selection
         // bar's delete and the card's × do, from the keyboard.
         const ids =

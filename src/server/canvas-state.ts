@@ -245,6 +245,7 @@ export interface MutationRecordInfo {
     | 'updateNode'
     | 'removeNode'
     | 'addEdge'
+    | 'updateEdge'
     | 'removeEdge'
     | 'addAnnotation'
     | 'removeAnnotation'
@@ -1506,6 +1507,46 @@ class CanvasStateManager {
       inverse: this.suppressed(() => this.removeEdge(edge.id)),
     });
     return true;
+  }
+
+  updateEdge(id: string, patch: Partial<Pick<CanvasEdge, 'type' | 'label' | 'style' | 'animated'>>): CanvasEdge | null {
+    const existing = this.edges.get(id);
+    if (!existing) return null;
+    // Retyping onto an existing from/to/type triple would create the duplicate
+    // addEdge refuses.
+    if (patch.type && patch.type !== existing.type) {
+      for (const other of this.edges.values()) {
+        if (other.id !== id && other.from === existing.from && other.to === existing.to && other.type === patch.type) {
+          return null;
+        }
+      }
+    }
+    const before = structuredClone(existing);
+    const updated: CanvasEdge = { ...existing, ...patch };
+    // An explicit undefined in the patch clears the field (label/style/animated
+    // are optional on the wire shape — never store undefined values).
+    for (const key of ['label', 'style', 'animated'] as const) {
+      if (key in patch && patch[key] === undefined) delete updated[key];
+    }
+    const after = structuredClone(updated);
+    this.edges.set(id, updated);
+    this.scheduleSave();
+    this.notifyChange('nodes');
+    this.recordMutation({
+      operationType: 'updateEdge',
+      description: `Updated ${updated.type} edge ${updated.from} → ${updated.to}`,
+      forward: this.suppressed(() => {
+        this.edges.set(id, structuredClone(after));
+        this.scheduleSave();
+        this.notifyChange('nodes');
+      }),
+      inverse: this.suppressed(() => {
+        this.edges.set(id, structuredClone(before));
+        this.scheduleSave();
+        this.notifyChange('nodes');
+      }),
+    });
+    return structuredClone(updated);
   }
 
   removeEdge(id: string): boolean {

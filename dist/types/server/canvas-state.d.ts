@@ -122,7 +122,7 @@ export interface CanvasNodeUpdate {
 }
 export type CanvasChangeType = 'pins' | 'nodes' | 'ax' | 'ax-timeline';
 export interface MutationRecordInfo {
-    operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'requestElicitation' | 'respondElicitation' | 'requestMode' | 'resolveModeRequest' | 'setPolicy' | 'arrange' | 'batch' | 'groupNodes' | 'releaseGroupChildren' | 'viewport';
+    operationType: 'addNode' | 'updateNode' | 'removeNode' | 'addEdge' | 'updateEdge' | 'removeEdge' | 'addAnnotation' | 'removeAnnotation' | 'clear' | 'restoreSnapshot' | 'setPins' | 'setAxFocus' | 'addWorkItem' | 'updateWorkItem' | 'requestApproval' | 'resolveApproval' | 'addReviewAnnotation' | 'updateReviewAnnotation' | 'requestElicitation' | 'respondElicitation' | 'requestMode' | 'resolveModeRequest' | 'setPolicy' | 'arrange' | 'batch' | 'groupNodes' | 'releaseGroupChildren' | 'viewport';
     description: string;
     forward: () => void;
     inverse: () => void;
@@ -251,6 +251,7 @@ declare class CanvasStateManager {
     getNode(id: string): CanvasNodeState | undefined;
     getNodeForPersistence(id: string): CanvasNodeState | undefined;
     addEdge(edge: CanvasEdge): boolean;
+    updateEdge(id: string, patch: Partial<Pick<CanvasEdge, 'type' | 'label' | 'style' | 'animated'>>): CanvasEdge | null;
     removeEdge(id: string): boolean;
     getEdges(): CanvasEdge[];
     getEdgesForNode(nodeId: string): CanvasEdge[];

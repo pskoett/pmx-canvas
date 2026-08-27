@@ -196,6 +196,7 @@ export declare function addCanvasEdge(input: {
     style?: CanvasEdge['style'];
     animated?: boolean;
 }): CanvasEdge;
+export declare function updateCanvasEdge(id: string, patch: Partial<Pick<CanvasEdge, 'type' | 'label' | 'style' | 'animated'>>): CanvasEdge;
 export declare function removeCanvasEdge(id: string): {
     removed: boolean;
 };

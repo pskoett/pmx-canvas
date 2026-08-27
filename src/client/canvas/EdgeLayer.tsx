@@ -1,5 +1,12 @@
 import type { Signal } from '@preact/signals';
-import { activeNodeId, draggingEdge, searchHighlightIds, viewport, visibleNodeFor } from '../state/canvas-store';
+import {
+  activeNodeId,
+  draggingEdge,
+  searchHighlightIds,
+  selectedEdgeId,
+  viewport,
+  visibleNodeFor,
+} from '../state/canvas-store';
 import type { CanvasEdge, CanvasNodeState } from '../types';
 
 // ── Edge type visual styles ──────────────────────────────────
@@ -123,11 +130,12 @@ interface EdgePathProps {
   toNode: CanvasNodeState;
   focused: boolean; // connected to the active node
   dimmed: boolean; // active node exists but this edge is NOT connected
+  selected: boolean; // click-selected — Delete removes it
   scale: number; // inverse-viewport compensation, see edgeChromeScale()
   onContextMenu?: (e: MouseEvent, edgeId: string) => void;
 }
 
-function EdgePath({ edge, fromNode, toNode, focused, dimmed, scale, onContextMenu }: EdgePathProps) {
+function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, onContextMenu }: EdgePathProps) {
   const start = computeAnchor(fromNode, toNode);
   const end = computeAnchor(toNode, fromNode);
 
@@ -157,26 +165,32 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, scale, onContextMen
   return (
     <g>
       {/* Invisible wide hitbox — the ONE interactive part of the edge layer
-          (the svg itself is pointer-events:none): right-click opens the edge
-          menu, which is how a hand-drawn edge gets deleted again. */}
+          (the svg itself is pointer-events:none): click selects the edge
+          (Delete then removes it), right-click opens the edge menu. */}
       <path
         d={d}
         fill="none"
         stroke="transparent"
         stroke-width={12 * scale}
-        style={{ cursor: 'context-menu', pointerEvents: 'stroke' }}
+        style={{ cursor: 'pointer', pointerEvents: 'stroke' }}
+        onClick={(e) => {
+          // The viewport's background click clears the selection — a click
+          // that LANDED on an edge must not immediately undo itself.
+          e.stopPropagation();
+          selectedEdgeId.value = edge.id;
+        }}
         onContextMenu={onContextMenu ? (e) => onContextMenu(e as unknown as MouseEvent, edge.id) : undefined}
       />
 
-      {/* Glow layer for focused edges */}
-      {focused && (
+      {/* Glow layer for focused or selected edges */}
+      {(focused || selected) && (
         <path
           d={d}
           fill="none"
           stroke={color}
           stroke-width={6 * scale}
           stroke-dasharray={dash}
-          opacity="0.15"
+          opacity={selected ? 0.3 : 0.15}
           style={{ filter: 'blur(3px)' }}
         />
       )}
@@ -186,12 +200,13 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, scale, onContextMen
       <path
         id={pathId}
         d={d}
+        class={selected ? 'edge-selected' : undefined}
         fill="none"
         stroke={color}
-        stroke-width={(focused ? 2.5 : 1.5) * scale}
+        stroke-width={(selected ? 3 : focused ? 2.5 : 1.5) * scale}
         stroke-dasharray={dash}
         marker-end={directed ? 'url(#edge-arrow)' : undefined}
-        opacity={dimmed ? 0.2 : focused ? 1 : 0.85}
+        opacity={selected ? 1 : dimmed ? 0.2 : focused ? 1 : 0.85}
         style={{ transition: 'opacity 0.2s, stroke-width 0.2s' }}
       />
 
@@ -304,6 +319,7 @@ export function EdgeLayer({ nodes, edges, onEdgeContextMenu }: EdgeLayerProps) {
             toNode={toNode}
             focused={isConnected}
             dimmed={(hasFocus && !isConnected) || searchDimmed}
+            selected={selectedEdgeId.value === edge.id}
             scale={scale}
             onContextMenu={onEdgeContextMenu}
           />

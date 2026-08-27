@@ -1953,7 +1953,8 @@ describe('canvas server HTTP API', () => {
     // image + path stays a working compatibility alias (documented).
     // (covered by the existing 'Path image' test — no duplicate here.)
 
-    // patch: file node cannot be re-pointed via path.
+    // patch: `path` on a file node is the REPOINT field (round-2 review) —
+    // valid string moves the node, but an empty one is still rejected loudly.
     const made = (await (
       await fetch(`${baseUrl}/api/canvas/node`, {
         method: 'POST',
@@ -1961,14 +1962,29 @@ describe('canvas server HTTP API', () => {
         body: JSON.stringify({ type: 'file', title: 'Real file', content: 'src/shared/iframe-probe.ts' }),
       })
     ).json()) as { id: string };
-    const repoint = await fetch(`${baseUrl}/api/canvas/node/${made.id}`, {
+    const emptyRepoint = await fetch(`${baseUrl}/api/canvas/node/${made.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: '   ' }),
+    });
+    expect(emptyRepoint.status).toBe(400);
+    expect(((await emptyRepoint.json()) as { error: string }).error).toContain('non-empty');
+    // path on a non-file, non-image node stays dead and loud.
+    const md = (await (
+      await fetch(`${baseUrl}/api/canvas/node`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'markdown', title: 'Doc', content: 'x' }),
+      })
+    ).json()) as { id: string };
+    const mdPath = await fetch(`${baseUrl}/api/canvas/node/${md.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ path: 'readme.md' }),
     });
-    expect(repoint.status).toBe(400);
-    expect(((await repoint.json()) as { error: string }).error).toContain('re-pointed');
+    expect(mdPath.status).toBe(400);
     await fetch(`${baseUrl}/api/canvas/node/${made.id}`, { method: 'DELETE', headers: { 'x-pmx-workbench': '1' } });
+    await fetch(`${baseUrl}/api/canvas/node/${md.id}`, { method: 'DELETE', headers: { 'x-pmx-workbench': '1' } });
   });
 
   test('a quietly expired ghost does not block its mutation nor poison a batch; vetoes still do', async () => {

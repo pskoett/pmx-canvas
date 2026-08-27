@@ -1172,6 +1172,25 @@ body,
   white-space: nowrap;
 }
 
+/* End THIS session — each chip carries its own ×, so a two-agent board can
+   end one writer without hunting for it in the session panel. */
+.agent-chip-end {
+  margin-left: 2px;
+  padding: 0 3px;
+  border: none;
+  background: none;
+  color: var(--c-muted);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 6px;
+}
+
+.agent-chip-end:hover {
+  color: var(--c-danger, #ef4444);
+  background: color-mix(in srgb, currentColor 12%, transparent);
+}
+
 .agent-cursor-glyph path {
   fill: var(--identity-color, currentColor);
 }

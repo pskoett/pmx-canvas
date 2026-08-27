@@ -117,8 +117,9 @@ describe('command bar', () => {
       applyPresenceSnapshot({
         presences: [
           // An external writer whose consumer HAS claimed deliveries — the
-          // server marked it steerable, so the picker offers it.
-          { ...presence('codex', false), steerable: true },
+          // server marked it steerable, so the picker offers it. Its pump
+          // health (recent claim + queue depth) shows at the point of choice.
+          { ...presence('codex', false), steerable: true, pendingSteers: 2, lastClaimAt: new Date().toISOString() },
           presence('claude-code', true),
           // A one-shot writer (curl / the CLI): presence without an inbox.
           // Nothing polls its steering, so it must NOT be offered as a target.
@@ -138,7 +139,7 @@ describe('command bar', () => {
       ['', 'All agents', false],
       ['claude-code', 'claude-code', false],
       ['copilot', 'GitHub Copilot', false],
-      ['codex', 'codex · writer', false],
+      ['codex', 'codex · writer · polling · 2 queued', false],
       ['api', 'api · no inbox', true],
       ['codex-cli', 'codex-cli · no inbox', true],
     ]);

@@ -22,6 +22,8 @@ export const nodes = signal<Map<string, CanvasNodeState>>(new Map());
 export const edges = signal<Map<string, CanvasEdge>>(new Map());
 export const annotations = signal<Map<string, CanvasAnnotation>>(new Map());
 export const activeNodeId = signal<string | null>(null);
+/** Click-selected edge — Delete removes it, Escape/background click clears it. */
+export const selectedEdgeId = signal<string | null>(null);
 export const connectionStatus = signal<ConnectionStatus>('connecting');
 // Bumped on every processed `connected` frame (SSE reconnects and poll snapshot
 // resets alike). Consumers holding server-minted URLs revalidate on change —
@@ -135,6 +137,9 @@ export function selectNodes(ids: string[]): void {
 }
 
 export function clearSelection(): void {
+  // Edge selection rides along: a background click (or any other selection
+  // reset) deselects the edge exactly like it deselects nodes.
+  selectedEdgeId.value = null;
   if (selectedNodeIds.value.size === 0) return;
   selectedNodeIds.value = new Set();
 }

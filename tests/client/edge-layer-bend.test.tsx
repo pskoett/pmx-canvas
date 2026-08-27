@@ -2,7 +2,13 @@ import { beforeEach, describe, expect, test } from 'bun:test';
 import { signal } from '@preact/signals';
 import { render } from 'preact';
 import { EdgeLayer } from '../../src/client/canvas/EdgeLayer.tsx';
-import { activeNodeId, nodes as storeNodes, viewport } from '../../src/client/state/canvas-store.ts';
+import {
+  activeNodeId,
+  clearSelection,
+  selectedEdgeId,
+  nodes as storeNodes,
+  viewport,
+} from '../../src/client/state/canvas-store.ts';
 import type { CanvasEdge, CanvasNodeState } from '../../src/client/types.ts';
 
 function node(id: string, x: number, y: number, width = 200, height = 100): CanvasNodeState {
@@ -78,6 +84,35 @@ describe('edge interactivity', () => {
     expect(hitbox).not.toBeNull();
     hitbox.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
     expect(seen).toEqual(['e9']);
+    render(null, host);
+    host.remove();
+  });
+
+  test('clicking the hitbox selects the edge (keyboard-delete parity) and clearSelection releases it', () => {
+    const a = node('a', 0, 0);
+    const b = node('b', 700, 60);
+    storeNodes.value = new Map([
+      ['a', a],
+      ['b', b],
+    ]);
+    viewport.value = { x: 0, y: 0, scale: 1 };
+    const nodes = signal(storeNodes.value);
+    const edges = signal(
+      new Map<string, CanvasEdge>([['e9', { id: 'e9', from: 'a', to: 'b', type: 'relation' } as CanvasEdge]]),
+    );
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    render(<EdgeLayer nodes={nodes} edges={edges} />, host);
+    const hitbox = host.querySelector('path[stroke="transparent"]') as SVGPathElement;
+    hitbox.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    const afterClick: string | null = selectedEdgeId.value;
+    expect(afterClick).toBe('e9');
+    render(<EdgeLayer nodes={nodes} edges={edges} />, host);
+    // The visible path advertises the selection (bolder stroke, full opacity).
+    expect(host.querySelector('path.edge-selected')?.id).toBe('edge-path-e9');
+    clearSelection();
+    const afterClear: string | null = selectedEdgeId.value;
+    expect(afterClear).toBeNull();
     render(null, host);
     host.remove();
   });

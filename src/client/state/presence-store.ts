@@ -97,6 +97,11 @@ export const steerableAgents = computed(() => {
         label: presence.label,
         attached: presence.attached,
         steerable: presence.attached || presence.steerable === true,
+        pendingSteers: presence.pendingSteers ?? 0,
+        // Proof-of-polling: its consumer key claimed the queue within the last
+        // 5 minutes. Attached ≠ polling — a desktop session can look steerable
+        // while nothing reads its inbox (round-2 Codex finding).
+        polling: presence.lastClaimAt !== undefined && Date.now() - Date.parse(presence.lastClaimAt) < 5 * 60_000,
       }))
       .filter((agent) => (seen.has(agent.value) ? false : (seen.add(agent.value), true)))
   );

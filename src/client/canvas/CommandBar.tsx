@@ -91,15 +91,24 @@ export function CommandBar() {
             onChange={(e) => setTarget((e.target as HTMLSelectElement).value || null)}
           >
             <option value="">All agents</option>
-            {agents.map((agent) => (
-              <option key={agent.value} value={agent.value} disabled={!agent.steerable}>
-                {agent.attached
-                  ? agent.label
-                  : agent.steerable
-                    ? `${agent.label} · writer`
-                    : `${agent.label} · no inbox`}
-              </option>
-            ))}
+            {agents.map((agent) => {
+              // Pump health at the point of choice: unclaimed steers already
+              // sitting in this agent's queue (a growing number means its loop
+              // is not polling), and proof-of-polling when its consumer key
+              // claimed recently — attached alone doesn't mean anyone reads
+              // the inbox.
+              const queued = agent.pendingSteers && agent.pendingSteers > 0 ? ` · ${agent.pendingSteers} queued` : '';
+              const polling = agent.polling ? ' · polling' : '';
+              return (
+                <option key={agent.value} value={agent.value} disabled={!agent.steerable}>
+                  {agent.attached
+                    ? `${agent.label}${polling}${queued}`
+                    : agent.steerable
+                      ? `${agent.label} · writer${polling}${queued}`
+                      : `${agent.label} · no inbox`}
+                </option>
+              );
+            })}
           </select>
         )}
         <input

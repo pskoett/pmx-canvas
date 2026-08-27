@@ -5,7 +5,7 @@
  */
 import { z } from 'zod';
 import type { CanvasEdge } from '../../canvas-state.js';
-import { addCanvasEdge, removeCanvasEdge } from '../../canvas-operations.js';
+import { addCanvasEdge, removeCanvasEdge, updateCanvasEdge } from '../../canvas-operations.js';
 import { readJsonValue } from '../http.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 import { isRecord } from './nodes.js';
@@ -124,6 +124,92 @@ const edgeAddOperation = defineOperation<z.infer<typeof edgeAddSchema>, CanvasEd
   serialize: (edge) => ({ ok: true, ...edge }),
 });
 
+// ── edge.update ───────────────────────────────────────────────
+
+const edgeUpdateShape = {
+  id: z.string().optional().catch(undefined).describe('Edge ID to update'),
+  type: z.unknown().optional().describe('New edge type: flow, depends-on, relation, or references'),
+  label: z.unknown().optional().describe('New label text; empty string or null clears the label'),
+  style: z.unknown().optional().describe('New stroke style: solid, dashed, or dotted'),
+  animated: z.unknown().optional().describe('Animate the edge stroke'),
+};
+
+const edgeUpdateSchema = z.looseObject(edgeUpdateShape);
+
+const edgeUpdateOperation = defineOperation<z.infer<typeof edgeUpdateSchema>, CanvasEdge>({
+  name: 'edge.update',
+  mutates: true,
+  input: edgeUpdateSchema,
+  inputShape: edgeUpdateShape,
+  http: {
+    method: 'PATCH',
+    path: '/api/canvas/edge/:id',
+  },
+  mcp: {
+    toolName: 'canvas_update_edge',
+    description: 'Update an existing edge in place: change its label, type, stroke style, or animation.',
+    extraShape: {
+      id: z.string().describe('Edge ID to update'),
+      type: z.enum(['flow', 'depends-on', 'relation', 'references']).optional().describe('New edge type'),
+      label: z.string().nullable().optional().describe('New label text; empty string or null clears the label'),
+      style: z.enum(['solid', 'dashed', 'dotted']).optional().describe('New stroke style'),
+      animated: z.boolean().optional().describe('Animate the edge stroke'),
+    },
+    formatResult: (result) => {
+      const body = isRecord(result) ? result : {};
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: JSON.stringify(
+              { id: body.id, type: body.type, label: body.label, style: body.style, animated: body.animated },
+              null,
+              2,
+            ),
+          },
+        ],
+      };
+    },
+  },
+  handler: (input) => {
+    const body: Record<string, unknown> = input;
+    const id = typeof body.id === 'string' ? body.id : '';
+    if (!id) {
+      throw new OperationError('Missing required field: id.');
+    }
+    const patch: Partial<Pick<CanvasEdge, 'type' | 'label' | 'style' | 'animated'>> = {};
+    if ('type' in body && body.type !== undefined) {
+      if (typeof body.type !== 'string' || !VALID_EDGE_TYPES.has(body.type)) {
+        throw new OperationError(`Invalid edge type: "${String(body.type)}".`);
+      }
+      patch.type = body.type as CanvasEdge['type'];
+    }
+    if ('label' in body) {
+      // Empty string / null clears the label; the state layer drops undefined.
+      patch.label = typeof body.label === 'string' && body.label.length > 0 ? body.label : undefined;
+    }
+    if ('style' in body && body.style !== undefined) {
+      if (typeof body.style !== 'string' || !VALID_EDGE_STYLES.has(body.style)) {
+        throw new OperationError(`Invalid edge style: "${String(body.style)}". Use solid, dashed, or dotted.`);
+      }
+      patch.style = body.style as CanvasEdge['style'];
+    }
+    if ('animated' in body && body.animated !== undefined) {
+      patch.animated = Boolean(body.animated);
+    }
+    if (Object.keys(patch).length === 0) {
+      throw new OperationError('Nothing to update: provide type, label, style, or animated.');
+    }
+    try {
+      return updateCanvasEdge(id, patch);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Edge update failed.';
+      throw new OperationError(message, message.includes('not found') ? 404 : 400);
+    }
+  },
+  serialize: (edge) => ({ ok: true, ...edge }),
+});
+
 // ── edge.remove ───────────────────────────────────────────────
 
 const edgeRemoveShape = {
@@ -176,4 +262,4 @@ const edgeRemoveOperation = defineOperation<z.infer<typeof edgeRemoveSchema>, Re
   },
 });
 
-export const edgeOperations: Operation[] = [edgeAddOperation, edgeRemoveOperation];
+export const edgeOperations: Operation[] = [edgeAddOperation, edgeUpdateOperation, edgeRemoveOperation];

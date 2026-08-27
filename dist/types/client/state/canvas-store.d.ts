@@ -4,6 +4,8 @@ export declare const nodes: import("@preact/signals-core").Signal<Map<string, Ca
 export declare const edges: import("@preact/signals-core").Signal<Map<string, CanvasEdge>>;
 export declare const annotations: import("@preact/signals-core").Signal<Map<string, CanvasAnnotation>>;
 export declare const activeNodeId: import("@preact/signals-core").Signal<string | null>;
+/** Click-selected edge — Delete removes it, Escape/background click clears it. */
+export declare const selectedEdgeId: import("@preact/signals-core").Signal<string | null>;
 export declare const connectionStatus: import("@preact/signals-core").Signal<ConnectionStatus>;
 export declare const workbenchConnectionEpoch: import("@preact/signals-core").Signal<number>;
 /**

@@ -74,6 +74,17 @@ with no `fileContent`, plus `data.mimeType` when the type is known
 with `data.truncated: true`.
 
 ```bash
+# Repoint a file node at another file — content re-read, watcher rewired,
+# edges/pins/position kept (recreating the node loses all three)
+curl -X PATCH http://localhost:4313/api/canvas/node/node-abc123 \
+  -H "Content-Type: application/json" \
+  -d '{"path":"src/server/canvas-state.ts"}'
+```
+
+The title follows the new filename unless the node was renamed away from the
+old one (or the patch sets `title` explicitly).
+
+```bash
 # Raw bytes for a binary file node (PDF viewer, downloads)
 curl http://localhost:4313/api/canvas/file-bytes?nodeId=node-abc123
 ```
@@ -98,6 +109,16 @@ curl -X POST http://localhost:4313/api/canvas/edge \
 Search-based edge creation is intentionally strict: `fromSearch` and
 `toSearch` must each resolve to exactly one node. Broad queries that match
 multiple nodes fail; use the full visible title.
+
+```bash
+# Update an edge in place (label, type, style, animated) — empty label clears it
+curl -X PATCH http://localhost:4313/api/canvas/edge/edge-123 \
+  -H "Content-Type: application/json" \
+  -d '{"label":"retries","type":"depends-on","style":"dashed"}'
+```
+
+Retyping an edge onto a from/to/type triple that already exists is refused
+(400) — the same duplicate rule edge creation enforces.
 
 ## Annotations
 

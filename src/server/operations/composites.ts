@@ -170,10 +170,11 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
     toolName: 'canvas_edge',
     description:
-      'Add or remove an edge (connection) between two nodes. Action "add" connects two nodes (type: flow=sequential, depends-on=dependency, relation=general, references=cross-reference; from/to take node ids, or fromSearch/toSearch resolve by title/content); "remove" deletes an edge by id.',
+      'Add, update, or remove an edge (connection) between two nodes. Action "add" connects two nodes (type: flow=sequential, depends-on=dependency, relation=general, references=cross-reference; from/to take node ids, or fromSearch/toSearch resolve by title/content); "update" patches an existing edge in place (label, type, style, animated); "remove" deletes an edge by id.',
     actionSummary: 'add | remove',
     actions: {
       add: 'edge.add',
+      update: 'edge.update',
       remove: 'edge.remove',
     },
   },

@@ -34,6 +34,13 @@ export interface AgentPresence {
     /** True when steering addressed to this writer can actually reach it: it is
      * an attached session, or its consumer key has claimed deliveries before. */
     steerable?: boolean;
+    /** Steers sitting unclaimed in this writer's delivery queue (pump-health:
+     * a growing count means the writer is not polling). Only set for steerable rows. */
+    pendingSteers?: number;
+    /** When this writer's consumer key last claimed its delivery queue — the
+     * proof-of-polling behind `steerable`. Absent for writers that never claimed
+     * (steerable only via an attached adapter loop). */
+    lastClaimAt?: string;
     /** Agent writes observed for this writer — feeds the external-steering indicator. */
     opCount: number;
     /**

@@ -21,6 +21,7 @@ export type MutationOp =
   | 'updateNode'
   | 'removeNode'
   | 'addEdge'
+  | 'updateEdge'
   | 'removeEdge'
   | 'addAnnotation'
   | 'removeAnnotation'

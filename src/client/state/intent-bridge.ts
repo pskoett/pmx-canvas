@@ -524,6 +524,23 @@ export async function deleteSnapshot(id: string): Promise<{ ok: boolean }> {
   return requestJson('deleteSnapshot', `/api/canvas/snapshots/${id}`, { ok: false }, { method: 'DELETE' });
 }
 
+/** Patch an edge in place (label/type/style/animated) via the server. */
+export async function updateEdgeFromClient(
+  edgeId: string,
+  patch: { label?: string; type?: string; style?: string; animated?: boolean },
+): Promise<{ ok: boolean }> {
+  return requestJson(
+    'updateEdgeFromClient',
+    `/api/canvas/edge/${encodeURIComponent(edgeId)}`,
+    { ok: false },
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(patch),
+    },
+  );
+}
+
 /** Remove a canvas edge via the server. */
 export async function removeEdgeFromClient(edgeId: string): Promise<{ ok: boolean }> {
   return requestJson(

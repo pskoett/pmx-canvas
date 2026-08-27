@@ -28,6 +28,8 @@ import {
   LEDGER_NODE_DEFAULT_SIZE,
 } from '../../canvas-operations.js';
 import { normalizeNodeAxCapabilities } from '../../ax-interaction.js';
+import { applyFileContentToNodeData, readFileNodeContent } from '../../file-content.js';
+import { unwatchFileForNode, watchFileForNode } from '../../file-watcher.js';
 import {
   buildHtmlPrimitive,
   getHtmlPrimitiveDescriptor,
@@ -495,11 +497,15 @@ export function buildNodePatch(
     throw new OperationError('Unknown field "src" — update the image source via `content`.');
   }
   if (body.path !== undefined && existing.type !== 'image') {
-    throw new OperationError(
-      existing.type === 'file'
-        ? 'Unknown field "path" — a file node cannot be re-pointed by patch; create a new file node with the path as `content`.'
-        : '"path" is only an image-node compatibility alias — use `content`.',
-    );
+    if (existing.type === 'file') {
+      // Repoint: `path` on a file-node patch moves the node to another file
+      // (content re-read, watcher rewired) while keeping its edges and pins.
+      if (typeof body.path !== 'string' || !body.path.trim()) {
+        throw new OperationError('File node "path" must be a non-empty string.');
+      }
+    } else {
+      throw new OperationError('"path" is only an image-node compatibility alias — use `content`.');
+    }
   }
   const groupChildList = existing.type === 'group' ? pickGroupChildIds(body) : {};
   if (groupChildList.error) throw new OperationError(`Cannot update group: ${groupChildList.error}`);
@@ -525,9 +531,11 @@ export function buildNodePatch(
     typeof body.strictSize === 'boolean' ||
     (existing.type === 'trace' && hasTraceNodeDataFields(body)) ||
     (existing.type === 'html' && body.html !== undefined) ||
+    (existing.type === 'file' && typeof body.path === 'string') ||
     body.axCapabilities !== undefined
   ) {
     const data = { ...existing.data };
+    if (existing.type === 'file' && typeof body.path === 'string') data.path = body.path.trim();
     if (body.title !== undefined) {
       data.title = String(body.title);
       if (existing.type === 'webpage') {
@@ -1124,7 +1132,7 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
       };
     },
   },
-  handler: async (input) => {
+  handler: async (input, ctx) => {
     const body: Record<string, unknown> = input;
     const id = input.id;
     const existing = canvasState.getNode(id);
@@ -1146,6 +1154,30 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
     canvasState.updateNode(id, patch);
     if (groupChildIds !== undefined && !setGroupChildrenFromApi(id, groupChildIds)) {
       throw new OperationError(`Group "${id}" not found.`, 404);
+    }
+    // File repoint: a data.path change re-reads the new file and rewires the
+    // watcher IN PLACE — before this, pointing a file node elsewhere meant
+    // recreating it, which lost its edges, pins, and position.
+    if (existing.type === 'file') {
+      const prevPath = typeof existing.data.path === 'string' ? existing.data.path : null;
+      const repointed = canvasState.getNode(id);
+      const nextPath = repointed && typeof repointed.data.path === 'string' ? repointed.data.path : null;
+      if (nextPath && nextPath !== prevPath) {
+        if (prevPath) unwatchFileForNode(id, prevPath);
+        const data = { ...repointed!.data };
+        // The title follows the file unless the caller pinned one in this
+        // patch or had renamed the node away from the old filename.
+        const prevBase = prevPath?.split(/[\\/]/).pop();
+        if (typeof body.title !== 'string' && (!data.title || data.title === prevBase)) {
+          data.title = nextPath.split(/[\\/]/).pop();
+        }
+        applyFileContentToNodeData(data, readFileNodeContent(nextPath));
+        canvasState.updateNode(id, { data });
+        watchFileForNode(id, nextPath);
+        scheduleCodeGraphRecompute(() => {
+          ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
+        });
+      }
     }
     const updated = canvasState.getNode(id);
     return updated ? buildNodeResponse(updated) : { ok: true, id };

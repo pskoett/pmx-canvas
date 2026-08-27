@@ -240,6 +240,10 @@ const axSteerOperation = defineOperation<z.infer<typeof axSteerSchema>, Record<s
       ...(typeof input.target === 'string' ? { target: input.target } : {}),
     });
     ctx.emit('ax-event-created', { steering });
+    // Roster rows show each steerable writer's unclaimed-queue depth — a new
+    // steer changes that count even when the sender is the human (whose write
+    // never touches agent presence), so re-emit the snapshot explicitly.
+    agentPresence.refresh();
     return { ok: true, steering } as unknown as Record<string, unknown>;
   },
 });

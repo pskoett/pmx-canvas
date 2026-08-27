@@ -69,22 +69,24 @@ describe('pmx-canvas pump', () => {
     expect(await pendingFor('pumptest')).toBe(0);
   }, 20_000);
 
-  test('a failing exec is retried, then poison-pill marked so the queue moves on', async () => {
+  test('a failing exec is retried, then left pending instead of falsely marked delivered', async () => {
     await steer('cannot be handled', 'pumpfail');
-    await runAgentCli([
-      'pump',
-      '--consumer',
-      'pumpfail',
-      '--exec',
-      'exit 1',
-      '--once',
-      '--backlog',
-      'deliver',
-      '--wait-ms',
-      '2000',
-      '--retry-delay-ms',
-      '50',
-    ]);
-    expect(await pendingFor('pumpfail')).toBe(0);
+    await expect(
+      runAgentCli([
+        'pump',
+        '--consumer',
+        'pumpfail',
+        '--exec',
+        'exit 1',
+        '--once',
+        '--backlog',
+        'deliver',
+        '--wait-ms',
+        '2000',
+        '--retry-delay-ms',
+        '50',
+      ]),
+    ).rejects.toThrow('steer remains pending');
+    expect(await pendingFor('pumpfail')).toBe(1);
   }, 20_000);
 });

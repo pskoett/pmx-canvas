@@ -39,7 +39,7 @@ its `action` to the same operation the legacy tool used, so results are identica
 |-----------|-----------------|----------|
 | `canvas_node` | `add` · `get` · `update` · `remove` | `canvas_add_node`, `canvas_get_node`, `canvas_update_node`, `canvas_remove_node`, `canvas_add_html_node` (`add` + `type:"html"`), `canvas_add_html_primitive` (`add` + `type:"html"`, `primitive:"<kind>"`), `canvas_refresh_webpage_node` (`update` + `refresh:true`) |
 | `canvas_render` | `describe-schema` · `validate` · `add-json-render` · `stream-json-render` · `add-graph` · `workboard` | `canvas_describe_schema`, `canvas_validate_spec`, `canvas_add_json_render_node`, `canvas_stream_json_render_node`, `canvas_add_graph_node` |
-| `canvas_edge` | `add` · `remove` | `canvas_add_edge`, `canvas_remove_edge` |
+| `canvas_edge` | `add` · `update` · `remove` | `canvas_add_edge`, `canvas_update_edge`, `canvas_remove_edge` |
 | `canvas_group` | `create` · `add` · `ungroup` | `canvas_create_group`, `canvas_group_nodes`, `canvas_ungroup` |
 | `canvas_history` | `undo` · `redo` | `canvas_undo`, `canvas_redo` |
 | `canvas_view` | `arrange` · `focus` · `fit` · `clear` · `remove-annotation` | `canvas_arrange`, `canvas_focus_node`, `canvas_fit_view`, `canvas_clear`, `canvas_remove_annotation` |
@@ -135,6 +135,7 @@ migrating an older integration.
 | `canvas_stream_json_render_node` | `canvas_render { action: "stream-json-render" }` |
 | `canvas_add_graph_node` | `canvas_render { action: "add-graph" }` |
 | `canvas_add_edge` | `canvas_edge { action: "add" }` |
+| `canvas_update_edge` | `canvas_edge { action: "update" }` |
 | `canvas_remove_edge` | `canvas_edge { action: "remove" }` |
 | `canvas_create_group` | `canvas_group { action: "create" }` |
 | `canvas_group_nodes` | `canvas_group { action: "add" }` |

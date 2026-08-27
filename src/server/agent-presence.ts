@@ -313,14 +313,16 @@ export class AgentPresenceRegistry {
   /** Aliased channels: a key that attach-merged into another session (extension + its MCP server). */
   private aliases = new Map<string, string>();
 
-  /** Consumer keys that have claimed steering deliveries this server-run. */
-  private steeringConsumers = new Set<string>();
+  /** Consumer keys that have claimed steering deliveries this server-run → last claim time. */
+  private steeringConsumers = new Map<string, number>();
 
-  /** A delivery claim proves this consumer polls steering — its presence turns steerable. */
+  /** A delivery claim proves this consumer polls steering — its presence turns
+   * steerable, and the claim time is the roster's proof-of-polling freshness. */
   noteSteeringConsumer(consumer: string): void {
-    if (!consumer || this.steeringConsumers.has(consumer)) return;
-    this.steeringConsumers.add(consumer);
-    this.scheduleEmit();
+    if (!consumer) return;
+    const isNew = !this.steeringConsumers.has(consumer);
+    this.steeringConsumers.set(consumer, Date.now());
+    if (isNew) this.scheduleEmit();
   }
 
   /** Drop aliases that point at a session that no longer exists. */
@@ -641,7 +643,20 @@ export class AgentPresenceRegistry {
       presence.attached ||
       this.steeringConsumers.has(presence.sessionId) ||
       this.steeringConsumers.has(presence.source);
-    return { ...presence, phase, detail, steerable };
+    // Pump health: how many steers sit unclaimed in this writer's queue (a
+    // growing count on a steerable row means its loop is not actually polling)
+    // plus when its consumer key last claimed — attached ≠ polling (a desktop
+    // session can present as steerable while nothing reads its inbox).
+    const pendingSteers = steerable ? canvasState.getPendingSteeringCount(presence.sessionId) : undefined;
+    const lastClaimMs = this.steeringConsumers.get(presence.sessionId) ?? this.steeringConsumers.get(presence.source);
+    return {
+      ...presence,
+      phase,
+      detail,
+      steerable,
+      ...(pendingSteers !== undefined ? { pendingSteers } : {}),
+      ...(lastClaimMs !== undefined ? { lastClaimAt: new Date(lastClaimMs).toISOString() } : {}),
+    };
   }
 
   private hasPendingGate(): boolean {

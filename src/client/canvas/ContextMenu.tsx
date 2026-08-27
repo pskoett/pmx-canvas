@@ -23,6 +23,7 @@ import {
   sendIntent,
   setGroupChildrenFromClient,
   ungroupFromClient,
+  updateEdgeFromClient,
   updateNodeFromClient,
 } from '../state/intent-bridge';
 import { EXPANDABLE_TYPES } from '../types';
@@ -112,9 +113,32 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
     if (!node) return null;
     items = buildNodeMenuItems(node);
   } else if (menu.kind === 'edge') {
-    // A hand-drawn edge was un-deletable from the UI — this menu is the way out.
+    // The full edge lifecycle from one menu: relabel, retype, restyle, delete —
+    // a drawn edge used to be frozen the moment it existed.
     const edgeId = menu.edgeId;
+    const edge = edges.value.get(edgeId);
     items = [
+      {
+        label: edge?.label
+          ? `Edit label “${edge.label.slice(0, 18)}${edge.label.length > 18 ? '…' : ''}”`
+          : 'Add label…',
+        action: () => {
+          const next = window.prompt('Edge label (empty clears it):', edge?.label ?? '');
+          if (next === null) return;
+          void updateEdgeFromClient(edgeId, { label: next });
+        },
+      },
+      { separator: true },
+      ...(['flow', 'depends-on', 'relation', 'references'] as const).map((type) => ({
+        label: `${edge?.type === type ? '✓' : ' '} ${type}`,
+        action: () => void updateEdgeFromClient(edgeId, { type }),
+      })),
+      { separator: true },
+      ...(['solid', 'dashed', 'dotted'] as const).map((style) => ({
+        label: `${(edge?.style ?? 'solid') === style ? '✓' : ' '} ${style}`,
+        action: () => void updateEdgeFromClient(edgeId, { style }),
+      })),
+      { separator: true },
       {
         label: 'Delete edge',
         danger: true,

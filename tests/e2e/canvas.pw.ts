@@ -4083,11 +4083,16 @@ test('addressed steering: the composer lists connected agents, the picked one al
   await expect
     .poll(async () => {
       const options = await picker.locator('option').allInnerTexts();
-      const wanted = ['All agents', 'claude-code', 'copilot', 'codex · writer'];
+      // Pump-health suffixes (· polling, · N queued) ride on the labels — match
+      // on prefixes, and assert the ordering rule (sessions before writers).
+      const at = (prefix: string) => options.findIndex((option) => option.startsWith(prefix));
       return (
-        wanted.every((entry) => options.includes(entry)) &&
-        options.indexOf('claude-code') < options.indexOf('codex · writer') &&
-        options.indexOf('copilot') < options.indexOf('codex · writer')
+        at('All agents') >= 0 &&
+        at('claude-code') >= 0 &&
+        at('copilot') >= 0 &&
+        at('codex · writer') >= 0 &&
+        at('claude-code') < at('codex · writer') &&
+        at('copilot') < at('codex · writer')
       );
     })
     .toBe(true);

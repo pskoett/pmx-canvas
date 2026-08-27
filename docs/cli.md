@@ -20,15 +20,24 @@ board citizen: it long-polls the per-consumer delivery claim and runs your
 command once per steer, marking per-consumer on success.
 
 ```bash
-pmx-canvas pump --consumer codex --exec 'codex exec --full-auto {message}'
+pmx-canvas pump --consumer codex-cli --exec 'codex exec --full-auto {message}'
 pmx-canvas pump --consumer amp --exec 'amp -x {message}' --parent claude-code
 ```
+
+The Codex example starts a non-interactive CLI task. It does not steer an open
+Codex desktop task: desktop owns that thread's writer and requires a host
+adapter that uses the app's native follow-up channel.
 
 - The steer text reaches the command as `$PMX_STEER_MESSAGE` (env) and stdin;
   `{message}` in the template expands to the quoted env reference — steer
   content is never spliced into the shell line.
+- The delivery envelope rides along as env: `$PMX_STEER_ID`, `$PMX_STEER_SOURCE`
+  (who sent it), `$PMX_STEER_TARGET` (your consumer key, or `ALL` for a
+  broadcast), and `$PMX_STEER_CREATED_AT` — so the host turn can say who
+  steered, whether it was addressed, and how old it is.
 - Startup backlog is marked silently (pass `--backlog deliver` to process it).
-- A failing command is retried twice, then marked to unblock the queue.
+- A failing command is retried twice, then the pump exits non-zero and leaves
+  the steer pending so a failed host injection cannot look delivered.
 - `--parent <key>` rolls the pumped agent up under an orchestrator's chip;
   `--once` processes a single steer (useful in scripts and tests).
 - Survives daemon restarts; backs off against pre-0.4.9 servers that ignore

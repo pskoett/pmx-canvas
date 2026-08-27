@@ -1464,6 +1464,20 @@ export function addCanvasEdge(input: {
   return edge;
 }
 
+export function updateCanvasEdge(
+  id: string,
+  patch: Partial<Pick<CanvasEdge, 'type' | 'label' | 'style' | 'animated'>>,
+): CanvasEdge {
+  if (!canvasState.getEdges().some((edge) => edge.id === id)) {
+    throw new Error(`Edge "${id}" not found.`);
+  }
+  const updated = canvasState.updateEdge(id, patch);
+  if (!updated) {
+    throw new Error('Retyping would duplicate an existing edge.');
+  }
+  return updated;
+}
+
 export function removeCanvasEdge(id: string): { removed: boolean } {
   return { removed: canvasState.removeEdge(id) };
 }

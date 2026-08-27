@@ -20,6 +20,7 @@ interface PendingSteer {
   message: string;
   source?: string | null;
   target?: string | null;
+  createdAt?: string | null;
 }
 
 async function claimPending(consumer: string, waitMs: number): Promise<{ pending: PendingSteer[]; tookMs: number }> {
@@ -46,6 +47,11 @@ function runExec(template: string, steer: PendingSteer, consumer: string): Promi
         PMX_STEER_MESSAGE: steer.message,
         PMX_STEER_ID: steer.id,
         PMX_STEER_SOURCE: steer.source ?? '',
+        // Delivery envelope (round-2 review): the command can tell the host
+        // WHO steered, whether it was addressed or a broadcast, and how old
+        // the steer is — without re-querying the board.
+        PMX_STEER_TARGET: steer.target ?? 'ALL',
+        PMX_STEER_CREATED_AT: steer.createdAt ?? '',
         PMX_STEER_CONSUMER: consumer,
       },
     });
@@ -72,9 +78,9 @@ async function setPresence(consumer: string, label: string, parent: string | nul
 
 cmd(
   'pump',
-  'Reactive steering loop for CLI agents (Amp, Codex): long-poll claims for a consumer and run a command per steer',
+  'Reactive steering loop for CLI agents (Amp, Codex CLI): long-poll claims for a consumer and run a command per steer',
   [
-    `pmx-canvas pump --consumer codex --exec 'codex exec --full-auto {message}'`,
+    `pmx-canvas pump --consumer codex-cli --exec 'codex exec --full-auto {message}'`,
     `pmx-canvas pump --consumer amp --exec 'amp -x {message}' --parent claude-code`,
     `pmx-canvas pump --consumer testbot --exec 'cat' --once`,
   ],
@@ -156,7 +162,12 @@ cmd(
       }
 
       await setPresence(consumer, label, parent, { phase: 'tooling', detail: `steer: ${steer.message.slice(0, 60)}` });
-      console.log(`[pump] steer ${steer.id} from ${steer.source ?? '?'}: ${steer.message.slice(0, 120)}`);
+      const age = steer.createdAt
+        ? `, age ${Math.max(0, Math.round((Date.now() - Date.parse(steer.createdAt)) / 1000))}s`
+        : '';
+      console.log(
+        `[pump] steer ${steer.id} from ${steer.source ?? '?'} → ${steer.target ?? 'ALL'}${age}: ${steer.message.slice(0, 120)}`,
+      );
       const code = await runExec(execTemplate, steer, consumer);
       if (code === 0) {
         awaitingMark.add(steer.id);
@@ -169,11 +180,14 @@ cmd(
         failures.set(steer.id, count);
         console.error(`[pump] exec exited ${code} for ${steer.id} (attempt ${count}/3)`);
         if (count >= 3) {
-          // Poison-pill guard: after three failures, mark it so the queue moves on.
-          await markDelivered(steer.id, consumer);
+          // A failed host injection is still pending work; only successful execs may mark delivery.
           failures.delete(steer.id);
-          console.error(`[pump] gave up on ${steer.id} — marked delivered to unblock the queue`);
-          if (once) return;
+          console.error(`[pump] stopped after three failures for ${steer.id} — steer remains pending`);
+          await setPresence(consumer, label, parent, {
+            phase: 'idle',
+            detail: `delivery failed: ${steer.id} remains pending`,
+          });
+          throw new Error(`Pump delivery failed three times for ${steer.id}; steer remains pending.`);
         } else {
           await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
         }
