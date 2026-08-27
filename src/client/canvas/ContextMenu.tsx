@@ -18,6 +18,7 @@ import {
   createGroupFromClient,
   createNodeFromClient,
   refreshWebpageNodeFromClient,
+  removeEdgeFromClient,
   removeNodeFromClient,
   sendIntent,
   setGroupChildrenFromClient,
@@ -40,6 +41,12 @@ export type MenuState =
       y: number;
       canvasX: number;
       canvasY: number;
+    }
+  | {
+      kind: 'edge';
+      x: number;
+      y: number;
+      edgeId: string;
     };
 
 export function useContextMenu() {
@@ -55,6 +62,12 @@ export function useContextMenu() {
     e.preventDefault();
     e.stopPropagation();
     setMenu({ kind: 'canvas', x: e.clientX, y: e.clientY, canvasX, canvasY });
+  }, []);
+
+  const openEdgeMenu = useCallback((e: MouseEvent, edgeId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenu({ kind: 'edge', x: e.clientX, y: e.clientY, edgeId });
   }, []);
 
   const closeMenu = useCallback(() => setMenu(null), []);
@@ -73,7 +86,7 @@ export function useContextMenu() {
     };
   }, [menu]);
 
-  return { menu, openNodeMenu, openCanvasMenu, closeMenu };
+  return { menu, openNodeMenu, openCanvasMenu, openEdgeMenu, closeMenu };
 }
 
 interface ContextMenuProps {
@@ -98,6 +111,16 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
     const node = nodes.value.get(menu.nodeId);
     if (!node) return null;
     items = buildNodeMenuItems(node);
+  } else if (menu.kind === 'edge') {
+    // A hand-drawn edge was un-deletable from the UI — this menu is the way out.
+    const edgeId = menu.edgeId;
+    items = [
+      {
+        label: 'Delete edge',
+        danger: true,
+        action: () => void removeEdgeFromClient(edgeId),
+      },
+    ];
   } else {
     items = buildCanvasMenuItems(menu.canvasX, menu.canvasY);
   }

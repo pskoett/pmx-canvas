@@ -11,6 +11,7 @@ export declare function edgeChromeScale(scale: number): number;
 interface EdgeLayerProps {
     nodes: Signal<Map<string, CanvasNodeState>>;
     edges: Signal<Map<string, CanvasEdge>>;
+    onEdgeContextMenu?: (e: MouseEvent, edgeId: string) => void;
 }
-export declare function EdgeLayer({ nodes, edges }: EdgeLayerProps): import("preact/src").JSX.Element | null;
+export declare function EdgeLayer({ nodes, edges, onEdgeContextMenu }: EdgeLayerProps): import("preact/src").JSX.Element | null;
 export {};

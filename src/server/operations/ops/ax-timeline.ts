@@ -375,7 +375,9 @@ const axDeliveryMarkShape = {
   consumer: z
     .unknown()
     .optional()
-    .describe('The marking consumer. Broadcasts are delivered PER consumer — pass your label so the message stays pending for the other agents.'),
+    .describe(
+      'The marking consumer. Broadcasts are delivered PER consumer — pass your label so the message stays pending for the other agents.',
+    ),
 };
 
 const axDeliveryMarkSchema = z.looseObject(axDeliveryMarkShape);
@@ -395,10 +397,7 @@ const axDeliveryMarkOperation = defineOperation<z.infer<typeof axDeliveryMarkSch
       'Mark a PMX AX steering message as delivered so it is not handed out again. ADDRESSED steers: compare-and-set — `delivered:true` only on the actual undelivered→delivered transition. BROADCASTS are delivered PER consumer: pass `consumer` and your mark removes it from YOUR queue only (every other agent still receives it) — an "all workers: stop" reaches the whole fleet. A false means the id was unknown or you (or, for addressed steers, someone) already marked it.',
     extraShape: {
       id: z.string().describe('The steering message id to mark delivered.'),
-      consumer: z
-        .string()
-        .optional()
-        .describe('Your consumer label — required for per-consumer broadcast delivery.'),
+      consumer: z.string().optional().describe('Your consumer label — required for per-consumer broadcast delivery.'),
     },
     formatResult: axJsonResult,
   },

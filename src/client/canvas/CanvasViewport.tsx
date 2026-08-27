@@ -163,6 +163,7 @@ const ERASER_HIT_RADIUS = 14;
 
 interface CanvasViewportProps {
   onNodeContextMenu?: (e: MouseEvent, nodeId: string) => void;
+  onEdgeContextMenu?: (e: MouseEvent, edgeId: string) => void;
   onCanvasContextMenu?: (e: MouseEvent, canvasX: number, canvasY: number) => void;
   annotationMode?: boolean;
   annotationTool?: AnnotationTool;
@@ -244,6 +245,7 @@ export function getRenderableWorldNodes(
 
 export function CanvasViewport({
   onNodeContextMenu,
+  onEdgeContextMenu,
   onCanvasContextMenu,
   annotationMode = false,
   annotationTool = null,
@@ -828,7 +830,7 @@ export function CanvasViewport({
         <IntentLayer />
         <AgentPresenceLayer />
         <HumanPresenceLayer />
-        <EdgeLayer nodes={nodes} edges={edges} />
+        <EdgeLayer nodes={nodes} edges={edges} onEdgeContextMenu={onEdgeContextMenu} />
         {draggingEdge.value && (
           <div
             class="edge-hint-pill"

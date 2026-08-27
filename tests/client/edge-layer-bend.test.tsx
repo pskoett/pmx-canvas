@@ -57,6 +57,32 @@ describe('edge labels at overview zoom', () => {
   });
 });
 
+describe('edge interactivity', () => {
+  test('right-clicking the hitbox opens the edge menu with the edge id', () => {
+    const a = node('a', 0, 0);
+    const b = node('b', 700, 60);
+    storeNodes.value = new Map([
+      ['a', a],
+      ['b', b],
+    ]);
+    viewport.value = { x: 0, y: 0, scale: 1 };
+    const nodes = signal(storeNodes.value);
+    const edges = signal(
+      new Map<string, CanvasEdge>([['e9', { id: 'e9', from: 'a', to: 'b', type: 'relation' } as CanvasEdge]]),
+    );
+    const seen: string[] = [];
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+    render(<EdgeLayer nodes={nodes} edges={edges} onEdgeContextMenu={(_e, id) => seen.push(id)} />, host);
+    const hitbox = host.querySelector('path[stroke="transparent"]') as SVGPathElement;
+    expect(hitbox).not.toBeNull();
+    hitbox.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+    expect(seen).toEqual(['e9']);
+    render(null, host);
+    host.remove();
+  });
+});
+
 describe('EdgeLayer bezier routing', () => {
   beforeEach(() => {
     activeNodeId.value = null;

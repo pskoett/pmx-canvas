@@ -124,9 +124,10 @@ interface EdgePathProps {
   focused: boolean; // connected to the active node
   dimmed: boolean; // active node exists but this edge is NOT connected
   scale: number; // inverse-viewport compensation, see edgeChromeScale()
+  onContextMenu?: (e: MouseEvent, edgeId: string) => void;
 }
 
-function EdgePath({ edge, fromNode, toNode, focused, dimmed, scale }: EdgePathProps) {
+function EdgePath({ edge, fromNode, toNode, focused, dimmed, scale, onContextMenu }: EdgePathProps) {
   const start = computeAnchor(fromNode, toNode);
   const end = computeAnchor(toNode, fromNode);
 
@@ -155,8 +156,17 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, scale }: EdgePathPr
 
   return (
     <g>
-      {/* Invisible wide hitbox for hover/click */}
-      <path d={d} fill="none" stroke="transparent" stroke-width={12 * scale} style={{ cursor: 'pointer' }} />
+      {/* Invisible wide hitbox — the ONE interactive part of the edge layer
+          (the svg itself is pointer-events:none): right-click opens the edge
+          menu, which is how a hand-drawn edge gets deleted again. */}
+      <path
+        d={d}
+        fill="none"
+        stroke="transparent"
+        stroke-width={12 * scale}
+        style={{ cursor: 'context-menu', pointerEvents: 'stroke' }}
+        onContextMenu={onContextMenu ? (e) => onContextMenu(e as unknown as MouseEvent, edge.id) : undefined}
+      />
 
       {/* Glow layer for focused edges */}
       {focused && (
@@ -218,9 +228,10 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, scale }: EdgePathPr
 interface EdgeLayerProps {
   nodes: Signal<Map<string, CanvasNodeState>>;
   edges: Signal<Map<string, CanvasEdge>>;
+  onEdgeContextMenu?: (e: MouseEvent, edgeId: string) => void;
 }
 
-export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
+export function EdgeLayer({ nodes, edges, onEdgeContextMenu }: EdgeLayerProps) {
   const nodeMap = nodes.value;
   const edgeList = Array.from(edges.value.values());
   const focusId = activeNodeId.value;
@@ -294,6 +305,7 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
             focused={isConnected}
             dimmed={(hasFocus && !isConnected) || searchDimmed}
             scale={scale}
+            onContextMenu={onEdgeContextMenu}
           />
         );
       })}
@@ -301,13 +313,34 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
       {draggingEdge.value &&
         (() => {
           const de = draggingEdge.value;
-          const dx = de.cursorX - de.fromX;
-          const dy = de.cursorY - de.fromY;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          const curve = Math.min(dist * 0.25, 80);
-          const nx = dx / (dist || 1);
-          const ny = dy / (dist || 1);
-          const previewD = `M ${de.fromX} ${de.fromY} C ${de.fromX + nx * curve} ${de.fromY + ny * curve}, ${de.cursorX - nx * curve} ${de.cursorY - ny * curve}, ${de.cursorX} ${de.cursorY}`;
+          // Route the preview EXACTLY like the committed edge will route
+          // (side-tangent anchors against a 1px rect at the cursor) — the old
+          // collinear preview made the line visibly JUMP on release.
+          const fromNode = visibleNodeFor(de.fromId);
+          const cursorRect = {
+            position: { x: de.cursorX, y: de.cursorY },
+            size: { width: 1, height: 1 },
+          } as CanvasNodeState;
+          let previewD: string;
+          if (fromNode) {
+            const start = computeAnchor(fromNode, cursorRect);
+            const end = computeAnchor(cursorRect, fromNode);
+            const pdx = end.x - start.x;
+            const pdy = end.y - start.y;
+            const pdist = Math.sqrt(pdx * pdx + pdy * pdy);
+            const curvature = Math.min(Math.max(pdist * 0.35, 32), 160);
+            const cp1 = sideControlPoint(start, curvature);
+            const cp2 = sideControlPoint(end, curvature);
+            previewD = `M ${start.x} ${start.y} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${end.x} ${end.y}`;
+          } else {
+            const dx = de.cursorX - de.fromX;
+            const dy = de.cursorY - de.fromY;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            const curve = Math.min(dist * 0.25, 80);
+            const nx = dx / (dist || 1);
+            const ny = dy / (dist || 1);
+            previewD = `M ${de.fromX} ${de.fromY} C ${de.fromX + nx * curve} ${de.fromY + ny * curve}, ${de.cursorX - nx * curve} ${de.cursorY - ny * curve}, ${de.cursorX} ${de.cursorY}`;
+          }
           return (
             <g>
               <path

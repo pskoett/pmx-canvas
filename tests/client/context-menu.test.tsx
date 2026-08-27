@@ -38,6 +38,30 @@ beforeEach(() => {
 
 afterEach(cleanup);
 
+describe('edge context menu', () => {
+  test('an edge menu offers exactly one thing: Delete edge (danger), which fires the DELETE', () => {
+    const calls: Array<{ req: string; body: string }> = [];
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      calls.push({ req: `${init?.method ?? 'GET'} ${String(input)}`, body: String(init?.body ?? '') });
+      return new Response('{"ok":true}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+    }) as unknown as typeof fetch;
+    try {
+      const menu: MenuState = { kind: 'edge', x: 40, y: 40, edgeId: 'edge-xyz' };
+      const { getByText } = render(<ContextMenu menu={menu} onClose={() => {}} />);
+      const label = getByText('Delete edge');
+      const item = label.closest('.context-menu-item') as HTMLElement;
+      expect(item.className).toContain('is-danger');
+      fireEvent.click(item);
+      const del = calls.find((c) => c.req === 'DELETE /api/canvas/edge');
+      expect(del).toBeDefined();
+      expect(del!.body).toContain('edge-xyz');
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+});
+
 describe('ContextMenu', () => {
   test('renders nothing for a node menu whose node is gone from the store', () => {
     const { container } = render(<ContextMenu menu={nodeMenu('ghost')} onClose={() => {}} />);

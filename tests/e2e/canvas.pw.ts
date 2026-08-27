@@ -527,6 +527,40 @@ test('Shift+F / W / I open the in-canvas prompt (window.prompt is a no-op in emb
   await expect(prompt).toBeHidden();
 });
 
+test('right-click an edge → Delete edge removes a hand-drawn connection', async ({ page, request }) => {
+  const mk = async (title: string, x: number) =>
+    (await (
+      await request.post('/api/canvas/node', {
+        data: { type: 'markdown', title, content: 'x', x, y: 200, width: 280, height: 140 },
+        headers: { 'x-pmx-workbench': '1' },
+      })
+    ).json()) as { id: string };
+  const a = await mk('Edge A', 100);
+  const b = await mk('Edge B', 700);
+  const edge = (await (
+    await request.post('/api/canvas/edge', {
+      data: { from: a.id, to: b.id, type: 'relation' },
+      headers: { 'x-pmx-workbench': '1' },
+    })
+  ).json()) as { id: string };
+
+  await page.goto('/workbench');
+  const path = page.locator(`path#edge-path-${edge.id}`);
+  await expect(path).toHaveCount(1);
+  // The wide invisible hitbox is the interactive element; dispatch avoids
+  // having to hit the curved 12px stroke with a real pointer.
+  await page
+    .locator(`g:has(path#edge-path-${edge.id}) > path`)
+    .first()
+    .dispatchEvent('contextmenu', { bubbles: true, clientX: 400, clientY: 260 });
+  await page.getByText('Delete edge').click();
+  await expect(path).toHaveCount(0);
+  const state = (await (await request.get('/api/canvas/state')).json()) as { edges: Array<{ id: string }> };
+  expect(state.edges.some((entry) => entry.id === edge.id)).toBe(false);
+  for (const id of [a.id, b.id])
+    await request.delete(`/api/canvas/node/${id}`, { headers: { 'x-pmx-workbench': '1' } });
+});
+
 test('right-click Delete: a node deletes; a frame deletes with its children staying', async ({ page, request }) => {
   const a = (await (
     await request.post('/api/canvas/node', {

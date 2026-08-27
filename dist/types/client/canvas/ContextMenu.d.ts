@@ -9,11 +9,17 @@ export type MenuState = {
     y: number;
     canvasX: number;
     canvasY: number;
+} | {
+    kind: 'edge';
+    x: number;
+    y: number;
+    edgeId: string;
 };
 export declare function useContextMenu(): {
     menu: MenuState | null;
     openNodeMenu: (e: MouseEvent, nodeId: string) => void;
     openCanvasMenu: (e: MouseEvent, canvasX: number, canvasY: number) => void;
+    openEdgeMenu: (e: MouseEvent, edgeId: string) => void;
     closeMenu: () => void;
 };
 interface ContextMenuProps {

@@ -66,7 +66,7 @@ export function App() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [annotationTool, setAnnotationTool] = useState<AnnotationTool>(null);
   const snapshotBtnRef = useRef<HTMLButtonElement>(null);
-  const { menu, openNodeMenu, openCanvasMenu, closeMenu } = useContextMenu();
+  const { menu, openNodeMenu, openCanvasMenu, openEdgeMenu, closeMenu } = useContextMenu();
   const hasInitialLayout = hasInitialServerLayout.value;
   // rail-chrome-v2: the one selector every agent surface mounts on. Exposed
   // as a data attribute so styling and tests can key on it; the quiet board
@@ -332,6 +332,7 @@ export function App() {
           <CanvasViewport
             onNodeContextMenu={openNodeMenu}
             onCanvasContextMenu={openCanvasMenu}
+            onEdgeContextMenu={openEdgeMenu}
             annotationMode={annotationTool !== null}
             annotationTool={annotationTool}
           />
