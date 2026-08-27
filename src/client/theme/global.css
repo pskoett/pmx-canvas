@@ -3861,7 +3861,7 @@ html.is-node-resizing .ext-app-preview-catcher {
    constant screen size while zoomed out (see edgeChromeScale in EdgeLayer). */
 .edge-label {
   font-family: var(--font);
-  font-size: calc(11px * var(--edge-chrome-scale, 1));
+  font-size: calc(11px * var(--edge-label-scale, 1));
   pointer-events: none;
   user-select: none;
 }
@@ -3869,7 +3869,7 @@ html.is-node-resizing .ext-app-preview-catcher {
 .edge-label-bg {
   fill: var(--c-panel-glass);
   stroke: var(--c-line);
-  stroke-width: calc(0.5 * var(--edge-chrome-scale, 1));
+  stroke-width: calc(0.5 * var(--edge-label-scale, 1));
 }
 
 /* Trace nodes — compact pills for agent tool/subagent visualization */

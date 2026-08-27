@@ -143,7 +143,13 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, scale }: EdgePathPr
   const directed = DIRECTED_TYPES.has(edge.type);
   const dash = dashArray(edge, scale);
 
-  const mid = edge.label ? bezierMidpoint(start.x, start.y, cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y) : null;
+  // Labels keep a constant screen size only while nodes are still readable.
+  // The uncapped chrome compensation made "brief" dwarf its own nodes at
+  // overview zoom — cap label chrome like node chrome (2.2), and drop labels
+  // entirely once the board is slivers (chrome scale > 3.4 ≈ zoom < 30%).
+  const labelScale = Math.min(scale, 2.2);
+  const mid =
+    edge.label && scale <= 3.4 ? bezierMidpoint(start.x, start.y, cp1.x, cp1.y, cp2.x, cp2.y, end.x, end.y) : null;
 
   const pathId = `edge-path-${edge.id}`;
 
@@ -193,11 +199,11 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, scale }: EdgePathPr
         <g transform={`translate(${mid.x}, ${mid.y})`}>
           <rect
             class="edge-label-bg"
-            x={-(edge.label.length * 3.5 + 8) * scale}
-            y={-10 * scale}
-            width={(edge.label.length * 7 + 16) * scale}
-            height={20 * scale}
-            rx={4 * scale}
+            x={-(edge.label.length * 3.5 + 8) * labelScale}
+            y={-10 * labelScale}
+            width={(edge.label.length * 7 + 16) * labelScale}
+            height={20 * labelScale}
+            rx={4 * labelScale}
           />
           <text class="edge-label" text-anchor="middle" dominant-baseline="central" fill="var(--c-text)">
             {edge.label}
@@ -250,17 +256,23 @@ export function EdgeLayer({ nodes, edges }: EdgeLayerProps) {
         pointerEvents: 'none',
         overflow: 'visible',
         '--edge-chrome-scale': scale.toFixed(3),
+        '--edge-label-scale': Math.min(scale, 2.2).toFixed(3),
       }}
     >
       <title>Canvas connections</title>
       <defs>
+        {/* userSpaceOnUse decouples the arrowhead from the UNCAPPED stroke
+            compensation: the line stays a visible hairline at any zoom, but
+            the head caps at the node-chrome scale (2.2) instead of dwarfing
+            sliver nodes at overview zoom. */}
         <marker
           id="edge-arrow"
           viewBox="0 0 10 10"
           refX="9"
           refY="5"
-          markerWidth="8"
-          markerHeight="8"
+          markerUnits="userSpaceOnUse"
+          markerWidth={8 * Math.min(scale, 2.2)}
+          markerHeight={8 * Math.min(scale, 2.2)}
           orient="auto-start-reverse"
         >
           <path d="M 0 1 L 10 5 L 0 9 z" fill="currentColor" opacity="0.75" />

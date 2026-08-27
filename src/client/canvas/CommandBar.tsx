@@ -25,9 +25,19 @@ export function CommandBar() {
   // source of truth for who can still claim a delivery.
   const agents = steerableAgents.value;
   const [target, setTarget] = useState<string | null>(null);
+  // The picker only earns its place when the roster offers a real choice or
+  // real information: two or more rows. A LONE steerable agent needs no
+  // dropdown — steers auto-address it (the placeholder names it), which also
+  // keeps stale broadcasts from leaking to agents that join later.
+  const showPicker = agents.length >= 2;
+  const soloTarget = !showPicker && agents.length === 1 && agents[0]!.steerable ? agents[0]! : null;
   // A picked agent that loses its inbox (or leaves) falls back to All —
   // steers must never keep targeting a roster row that cannot receive.
-  const effective = target ? (agents.find((agent) => agent.value === target && agent.steerable) ?? null) : null;
+  const effective = showPicker
+    ? target
+      ? (agents.find((agent) => agent.value === target && agent.steerable) ?? null)
+      : null
+    : soloTarget;
   const effectiveTarget = effective?.value ?? null;
 
   const submit = async () => {
@@ -72,11 +82,7 @@ export function CommandBar() {
       )}
       <div class="command-bar-composer">
         <IconSteer size={15} class="command-bar-icon" />
-        {/* One STEERABLE agent is enough for the picker: after ending one of
-            two sessions the survivor must stay explicitly addressable (the
-            picker used to vanish at <2 and the human could no longer re-steer
-            it). Unsteerable writers ride along as the disabled roster. */}
-        {agents.some((agent) => agent.steerable) && (
+        {showPicker && (
           <select
             class="command-bar-target"
             aria-label="Steer which agent"

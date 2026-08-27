@@ -18,6 +18,45 @@ function node(id: string, x: number, y: number, width = 200, height = 100): Canv
   };
 }
 
+describe('edge labels at overview zoom', () => {
+  test('labels cap at the node-chrome scale and vanish once the board is slivers', () => {
+    const a = node('a', 0, 0);
+    const b = node('b', 800, 40);
+    storeNodes.value = new Map([
+      ['a', a],
+      ['b', b],
+    ]);
+    const nodes = signal(storeNodes.value);
+    const edges = signal(
+      new Map<string, CanvasEdge>([
+        ['e1', { id: 'e1', from: 'a', to: 'b', type: 'flow', label: 'brief' } as CanvasEdge],
+      ]),
+    );
+    const host = document.createElement('div');
+    document.body.appendChild(host);
+
+    // Working zoom (50% → chrome scale 2): label present, capped var ≤ 2.2.
+    viewport.value = { x: 0, y: 0, scale: 0.5 };
+    render(<EdgeLayer nodes={nodes} edges={edges} />, host);
+    expect(host.querySelector('.edge-label')?.textContent).toBe('brief');
+    const svg = host.querySelector('svg') as SVGElement;
+    expect(Number(svg.style.getPropertyValue('--edge-label-scale'))).toBeLessThanOrEqual(2.2);
+
+    // Overview zoom (20% → chrome scale 5): the label is dropped entirely —
+    // it used to render bigger than the nodes it connected — and the
+    // arrowhead caps at the node-chrome scale instead of riding the uncapped
+    // stroke compensation.
+    viewport.value = { x: 0, y: 0, scale: 0.2 };
+    render(<EdgeLayer nodes={nodes} edges={edges} />, host);
+    expect(host.querySelector('.edge-label')).toBeNull();
+    const marker = host.querySelector('marker#edge-arrow') as SVGElement;
+    expect(marker.getAttribute('markerUnits')).toBe('userSpaceOnUse');
+    expect(Number(marker.getAttribute('markerWidth'))).toBeCloseTo(8 * 2.2, 5);
+    render(null, host);
+    host.remove();
+  });
+});
+
 describe('EdgeLayer bezier routing', () => {
   beforeEach(() => {
     activeNodeId.value = null;

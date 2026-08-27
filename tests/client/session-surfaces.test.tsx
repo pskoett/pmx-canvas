@@ -166,13 +166,14 @@ describe('command bar', () => {
     expect((getByLabelText('Steer the agent') as HTMLInputElement).placeholder).toContain('Steer the agent');
   });
 
-  test('one connected agent keeps the picker (All + that agent); only zero agents hides it', () => {
-    // Amended 2026-08-27: ending one of two sessions used to drop the picker
-    // below its ≥2 threshold, leaving the survivor un-addressable.
+  test('a lone steerable agent needs no picker — steers auto-address it by name', () => {
+    // Amended twice: the survivor of an ended session must stay addressable,
+    // but a solo dropdown is noise (user call 2026-08-28) — so no picker, and
+    // the composer targets the lone agent automatically.
     act(() => applyPresenceSnapshot({ presences: [presence('claude-code', true)] }));
     const { container: one, getByLabelText: byLabel } = render(<CommandBar />);
-    const soloPicker = byLabel('Steer which agent') as HTMLSelectElement;
-    expect([...soloPicker.options].map((o) => o.value)).toEqual(['', 'claude-code']);
+    expect(one.querySelector('.command-bar-target')).toBeNull();
+    expect((byLabel('Steer the agent') as HTMLInputElement).placeholder).toContain('Steer claude-code');
     cleanup();
     act(() =>
       applyPresenceSnapshot({
