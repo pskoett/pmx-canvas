@@ -403,7 +403,27 @@ export class AgentPresenceRegistry {
       // adopts that writer — the human is claiming the agent they can see.
       if (stored.source === 'browser') {
         const loose = [...this.presences.values()].filter((presence) => !presence.attached && !presence.agentId);
-        if (loose.length === 1) this.fold(loose[0]!.sessionId, stored);
+        const adopted = loose.length === 1 ? loose[0]! : null;
+        if (adopted) this.fold(adopted.sessionId, stored);
+        // Start must SAY what it adopted — "Idle · Agent session" with no
+        // explanation left the human guessing whether anything was picked up.
+        try {
+          canvasState.recordAxEvent(
+            {
+              kind: 'note',
+              summary: adopted
+                ? `Started agent session — adopted writer "${adopted.label}" (${adopted.opCount} op${adopted.opCount === 1 ? '' : 's'} folded in).`
+                : loose.length === 0
+                  ? 'Started agent session — no loose writer to adopt; agents that attach appear as their own chips.'
+                  : `Started agent session — ${loose.length} loose writers on the board, none adopted (adoption needs exactly one).`,
+              nodeIds: [],
+              data: { session: 'start-adoption', adopted: adopted?.sessionId ?? null, looseCount: loose.length },
+            },
+            { source: 'browser' },
+          );
+        } catch {
+          // presence bookkeeping must never fail an attach
+        }
       }
       // The human's still-unused placeholder TURNS INTO the first real agent
       // session that attaches (user call 2026-08-24): a third "Agent session ·

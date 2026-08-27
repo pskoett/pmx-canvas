@@ -320,6 +320,26 @@ describe('write attribution over HTTP', () => {
   });
 });
 
+describe('start-session adoption feedback', () => {
+  test('Start records a timeline note naming what was (or was not) adopted', async () => {
+    // Loose writer on the board → Start adopts and says so.
+    await postJson('/api/canvas/node', { type: 'markdown', title: 'By loose codex' }, { 'x-pmx-source': 'codex' });
+    const start = await postJson('/api/canvas/ax/presence', {
+      source: 'browser',
+      label: 'Agent session',
+      attached: true,
+      phase: 'idle',
+    });
+    expect(start.ok).toBe(true);
+    const timeline = (await (await fetch(`${baseUrl}/api/canvas/ax/timeline?limit=10`)).json()) as {
+      events: Array<{ kind: string; summary: string }>;
+    };
+    const note = timeline.events.find((event) => event.summary.startsWith('Started agent session'));
+    expect(note?.kind).toBe('note');
+    expect(note?.summary).toContain('adopted writer "codex"');
+  });
+});
+
 describe('agent presence over SSE', () => {
   test('attaching a session broadcasts an agent-presence snapshot with sessionActive', async () => {
     const frame = readSseEvent('agent-presence', (payload) => payload.sessionActive === true);

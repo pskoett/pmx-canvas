@@ -132,13 +132,15 @@ describe('command bar', () => {
     );
     const { container, getByLabelText } = render(<CommandBar />);
     const picker = getByLabelText('Steer which agent') as HTMLSelectElement;
-    // Sessions first, claim-proven live writers after (suffixed) — writers
-    // with no steering inbox excluded — broadcast default.
-    expect([...picker.options].map((option) => [option.value, option.textContent])).toEqual([
-      ['', 'All agents'],
-      ['claude-code', 'claude-code'],
-      ['copilot', 'GitHub Copilot'],
-      ['codex', 'codex · writer'],
+    // The picker is the ROSTER: sessions first, claim-proven writers
+    // selectable, inbox-less writers visible but disabled with the reason.
+    expect([...picker.options].map((option) => [option.value, option.textContent, option.disabled])).toEqual([
+      ['', 'All agents', false],
+      ['claude-code', 'claude-code', false],
+      ['copilot', 'GitHub Copilot', false],
+      ['codex', 'codex · writer', false],
+      ['api', 'api · no inbox', true],
+      ['codex-cli', 'codex-cli · no inbox', true],
     ]);
     expect(picker.value).toBe('');
 
@@ -164,10 +166,13 @@ describe('command bar', () => {
     expect((getByLabelText('Steer the agent') as HTMLInputElement).placeholder).toContain('Steer the agent');
   });
 
-  test('one connected agent (or only the un-adopted placeholder besides it) means no picker', () => {
+  test('one connected agent keeps the picker (All + that agent); only zero agents hides it', () => {
+    // Amended 2026-08-27: ending one of two sessions used to drop the picker
+    // below its ≥2 threshold, leaving the survivor un-addressable.
     act(() => applyPresenceSnapshot({ presences: [presence('claude-code', true)] }));
-    const { container: one } = render(<CommandBar />);
-    expect(one.querySelector('.command-bar-target')).toBeNull();
+    const { container: one, getByLabelText: byLabel } = render(<CommandBar />);
+    const soloPicker = byLabel('Steer which agent') as HTMLSelectElement;
+    expect([...soloPicker.options].map((o) => o.value)).toEqual(['', 'claude-code']);
     cleanup();
     act(() =>
       applyPresenceSnapshot({

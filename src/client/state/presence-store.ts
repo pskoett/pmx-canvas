@@ -86,16 +86,17 @@ export const steerableAgents = computed(() => {
   return (
     [...agentPresences.value]
       .filter((presence) => presence.label !== HUMAN_STARTED_SESSION_LABEL)
-      // Only writers a steer can actually REACH: attached sessions, or external
-      // writers whose consumer key has claimed deliveries (the server marks
-      // those steerable). A one-shot writer (curl, the CLI under Codex) is
-      // presence without an inbox — never offer it as a target.
-      .filter((presence) => presence.attached || presence.steerable === true)
       .sort((a, b) => Number(b.attached) - Number(a.attached))
+      // The picker is the connected-writer ROSTER: every live writer is listed,
+      // but only those a steer can actually REACH are selectable — attached
+      // sessions, or external writers whose consumer key has claimed
+      // deliveries. A one-shot writer (curl, the CLI under Codex) is presence
+      // without an inbox: shown, disabled, with the reason.
       .map((presence) => ({
         value: presence.sessionId === 'browser' ? presence.label : presence.sessionId,
         label: presence.label,
         attached: presence.attached,
+        steerable: presence.attached || presence.steerable === true,
       }))
       .filter((agent) => (seen.has(agent.value) ? false : (seen.add(agent.value), true)))
   );

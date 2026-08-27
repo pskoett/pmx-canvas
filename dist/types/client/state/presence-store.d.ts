@@ -41,6 +41,7 @@ export declare const steerableAgents: import("@preact/signals-core").ReadonlySig
     value: string;
     label: string;
     attached: boolean;
+    steerable: boolean;
 }[]>;
 /** The attached session's presence (first if several hosts attached). */
 /** Every attached session, in presence order — the top bar shows one chip each. */

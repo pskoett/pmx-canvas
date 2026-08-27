@@ -1071,19 +1071,23 @@ body,
    are tokens so all nine themes agree: thinking=purple, tooling=accent,
    waiting=warn, idle=dim. */
 .agent-chip,
-.agent-cursor {
+.agent-cursor,
+.minimap-presence {
   --presence-color: var(--c-dim);
 }
 .agent-chip.phase-thinking,
-.agent-cursor.phase-thinking {
+.agent-cursor.phase-thinking,
+.minimap-presence.phase-thinking {
   --presence-color: var(--c-purple);
 }
 .agent-chip.phase-tooling,
-.agent-cursor.phase-tooling {
+.agent-cursor.phase-tooling,
+.minimap-presence.phase-tooling {
   --presence-color: var(--c-accent);
 }
 .agent-chip.phase-waiting-approval,
-.agent-cursor.phase-waiting-approval {
+.agent-cursor.phase-waiting-approval,
+.minimap-presence.phase-waiting-approval {
   --presence-color: var(--c-warn);
 }
 
@@ -2357,11 +2361,25 @@ body,
 }
 .minimap-presence {
   position: absolute;
-  width: 5px;
-  height: 5px;
+  width: 8px;
+  height: 8px;
   border-radius: 50%;
-  background: var(--c-purple);
-  animation: presence-pulse 2s ease-in-out infinite;
+  background: var(--presence-color);
+  border: 1.5px solid var(--c-bg);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--presence-color) 45%, transparent);
+  z-index: 4;
+}
+/* Actively working = the moment the human is looking for: pulse the halo. */
+.minimap-presence.phase-thinking,
+.minimap-presence.phase-tooling {
+  animation: presence-pulse 1.6s ease-in-out infinite;
+}
+.minimap-presence.is-worker {
+  width: 6px;
+  height: 6px;
+}
+.minimap-presence.is-external {
+  opacity: 0.75;
 }
 .minimap-frame {
   position: absolute;

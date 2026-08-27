@@ -2,7 +2,7 @@ import type { Signal } from '@preact/signals';
 import { useCallback, useRef } from 'preact/hooks';
 import { fenceRectFromNodes } from '../../shared/scope-fence.js';
 import { selectedNodeIds } from '../state/canvas-store';
-import { agentPresences, presenceWorldPosition, sessionActive } from '../state/presence-store';
+import { agentPresences, presenceWorldPosition } from '../state/presence-store';
 import { scopeFence } from '../state/session-store';
 import type { CanvasEdge, CanvasNodeState, ViewportState } from '../types';
 import { KIND_COLOR } from './kind-colors';
@@ -147,12 +147,18 @@ export function Minimap({ viewport, nodes, onNavigate, containerWidth, container
         fence.padding,
       )
     : null;
-  const presenceDots = sessionActive.value
-    ? agentPresences.value
-        .filter((presence) => presence.attached)
-        .map((presence) => ({ id: presence.sessionId, at: presenceWorldPosition(presence, (id) => nodeMap.get(id)) }))
-        .filter((dot): dot is { id: string; at: { x: number; y: number } } => dot.at !== null)
-    : [];
+  // Every live writer shows on the map — attached sessions, external writers,
+  // and fleet workers alike (amended presence contract): the minimap is where
+  // the human looks first to find WHERE an agent is working.
+  const presenceDots = agentPresences.value
+    .map((presence) => ({
+      id: presence.sessionId,
+      phase: presence.phase,
+      worker: presence.parentAgentId != null,
+      external: !presence.attached,
+      at: presenceWorldPosition(presence, (id) => nodeMap.get(id)),
+    }))
+    .filter((dot): dot is typeof dot & { at: { x: number; y: number } } => dot.at !== null);
 
   const vpLeft = -v.x / v.scale;
   const vpTop = -v.y / v.scale;
@@ -196,8 +202,8 @@ export function Minimap({ viewport, nodes, onNavigate, containerWidth, container
       {presenceDots.map((dot) => (
         <span
           key={dot.id}
-          class="minimap-presence"
-          style={{ left: `${toX(dot.at.x) - 2.5}px`, top: `${toY(dot.at.y) - 2.5}px` }}
+          class={`minimap-presence phase-${dot.phase}${dot.worker ? ' is-worker' : ''}${dot.external ? ' is-external' : ''}`}
+          style={{ left: `${toX(dot.at.x) - 4}px`, top: `${toY(dot.at.y) - 4}px` }}
         />
       ))}
       <span

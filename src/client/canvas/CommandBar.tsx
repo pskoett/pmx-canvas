@@ -25,7 +25,9 @@ export function CommandBar() {
   // source of truth for who can still claim a delivery.
   const agents = steerableAgents.value;
   const [target, setTarget] = useState<string | null>(null);
-  const effective = target ? (agents.find((agent) => agent.value === target) ?? null) : null;
+  // A picked agent that loses its inbox (or leaves) falls back to All —
+  // steers must never keep targeting a roster row that cannot receive.
+  const effective = target ? (agents.find((agent) => agent.value === target && agent.steerable) ?? null) : null;
   const effectiveTarget = effective?.value ?? null;
 
   const submit = async () => {
@@ -70,7 +72,11 @@ export function CommandBar() {
       )}
       <div class="command-bar-composer">
         <IconSteer size={15} class="command-bar-icon" />
-        {agents.length >= 2 && (
+        {/* One STEERABLE agent is enough for the picker: after ending one of
+            two sessions the survivor must stay explicitly addressable (the
+            picker used to vanish at <2 and the human could no longer re-steer
+            it). Unsteerable writers ride along as the disabled roster. */}
+        {agents.some((agent) => agent.steerable) && (
           <select
             class="command-bar-target"
             aria-label="Steer which agent"
@@ -80,8 +86,12 @@ export function CommandBar() {
           >
             <option value="">All agents</option>
             {agents.map((agent) => (
-              <option key={agent.value} value={agent.value}>
-                {agent.attached ? agent.label : `${agent.label} · writer`}
+              <option key={agent.value} value={agent.value} disabled={!agent.steerable}>
+                {agent.attached
+                  ? agent.label
+                  : agent.steerable
+                    ? `${agent.label} · writer`
+                    : `${agent.label} · no inbox`}
               </option>
             ))}
           </select>
