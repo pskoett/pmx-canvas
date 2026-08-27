@@ -98,10 +98,11 @@ it, or the board silently diverges from reality.
   attribution follows `agentId`, so the activity feed would book your write as the worker's.
   Create shared scaffolding (lanes, work items) under your own identity, then let each worker
   write as itself. Workers should OMIT `attached` entirely (they are writers, not sessions).
-- **CLI hosts (Codex, Amp) become reactive with the pump:** run
-  `pmx-canvas pump --consumer codex --exec 'codex exec --full-auto {message}'` in a terminal —
-  it long-polls the inbox, hands each steer to the agent, and marks per-consumer. `--parent`
-  rolls the pumped agent under its orchestrator.
+- **CLI hosts (Codex CLI, Amp) become reactive with the pump:** run
+  `pmx-canvas pump --consumer codex-cli --exec 'codex exec --full-auto {message}'` — it
+  long-polls the inbox, hands each steer to a CLI task, and marks per-consumer only after success.
+  This does not steer an open Codex desktop task; desktop requires a host adapter using the app's
+  native follow-up channel. `--parent` rolls the pumped agent under its orchestrator.
 - **No MCP in the subagent?** Workers spawned inside a host often lack the canvas MCP — the
   plain HTTP API is the worker path: POST /api/canvas/node, /api/canvas/ax/presence,
   /api/canvas/ax/delivery/pending?consumer=<agentId>, /:id/mark. Same identity rules apply.
