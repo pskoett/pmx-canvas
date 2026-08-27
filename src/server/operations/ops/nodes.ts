@@ -403,6 +403,23 @@ export function createBasicCanvasNode(
       throw new OperationError('HTML node field "data.html" must be a string.');
     }
   }
+  // Loud rejection of the two dead-field traps (gauntlet, 2026-08-27): these
+  // names read as if they work, were dropped silently, and the node rendered
+  // empty. The canonical create field is `content` for every type.
+  if (body.src !== undefined) {
+    throw new OperationError(
+      type === 'image'
+        ? 'Unknown field "src" — pass the image source (path, URL, or data: URI) as `content`.'
+        : 'Unknown field "src" — node content lives in `content`.',
+    );
+  }
+  if (body.path !== undefined && type !== 'image') {
+    throw new OperationError(
+      type === 'file'
+        ? 'Unknown field "path" for file nodes — pass the workspace path as `content`.'
+        : '"path" is only an image-node compatibility alias — use `content`.',
+    );
+  }
   const content =
     type === 'image' && typeof body.path === 'string' && typeof body.content !== 'string' ? body.path : body.content;
   // For html nodes, accept top-level `html` AND `axCapabilities` and merge into data
@@ -471,6 +488,19 @@ export function buildNodePatch(
   existing: CanvasNodeState,
   body: Record<string, unknown>,
 ): { patch: Partial<CanvasNodeState>; groupChildIds?: string[] } {
+  // Same dead-field traps as create (gauntlet, 2026-08-27): reject loudly
+  // instead of dropping — and note that patching `content` on a file node
+  // updates the FILE CONTENT snapshot, it does not re-point the node.
+  if (body.src !== undefined) {
+    throw new OperationError('Unknown field "src" — update the image source via `content`.');
+  }
+  if (body.path !== undefined && existing.type !== 'image') {
+    throw new OperationError(
+      existing.type === 'file'
+        ? 'Unknown field "path" — a file node cannot be re-pointed by patch; create a new file node with the path as `content`.'
+        : '"path" is only an image-node compatibility alias — use `content`.',
+    );
+  }
   const groupChildList = existing.type === 'group' ? pickGroupChildIds(body) : {};
   if (groupChildList.error) throw new OperationError(`Cannot update group: ${groupChildList.error}`);
   const groupChildIds = groupChildList.value;

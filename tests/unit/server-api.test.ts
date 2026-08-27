@@ -1931,6 +1931,46 @@ describe('canvas server HTTP API', () => {
     expect(second.delivered).toBe(false);
   });
 
+  test('dead create/patch fields are rejected loudly — content is the canonical field', async () => {
+    // file + path → 400 with guidance (was silently dropped, node rendered empty).
+    const filePath = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'file', title: 'Trap', path: 'src/shared/iframe-probe.ts' }),
+    });
+    expect(filePath.status).toBe(400);
+    expect(((await filePath.json()) as { error: string }).error).toContain('as `content`');
+
+    // any type + src → 400.
+    const imgSrc = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'image', title: 'Trap', src: 'data:image/png;base64,xx' }),
+    });
+    expect(imgSrc.status).toBe(400);
+    expect(((await imgSrc.json()) as { error: string }).error).toContain('content');
+
+    // image + path stays a working compatibility alias (documented).
+    // (covered by the existing 'Path image' test — no duplicate here.)
+
+    // patch: file node cannot be re-pointed via path.
+    const made = (await (
+      await fetch(`${baseUrl}/api/canvas/node`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'file', title: 'Real file', content: 'src/shared/iframe-probe.ts' }),
+      })
+    ).json()) as { id: string };
+    const repoint = await fetch(`${baseUrl}/api/canvas/node/${made.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ path: 'readme.md' }),
+    });
+    expect(repoint.status).toBe(400);
+    expect(((await repoint.json()) as { error: string }).error).toContain('re-pointed');
+    await fetch(`${baseUrl}/api/canvas/node/${made.id}`, { method: 'DELETE', headers: { 'x-pmx-workbench': '1' } });
+  });
+
   test('a quietly expired ghost does not block its mutation nor poison a batch; vetoes still do', async () => {
     // Expired (never vetoed): the linked create proceeds unlinked.
     const ghost = (await (
