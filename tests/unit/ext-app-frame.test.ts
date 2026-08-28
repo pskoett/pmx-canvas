@@ -207,6 +207,20 @@ describe('ExtAppFrame boot beacon (WebKit watchdog liveness)', () => {
     // One unsolicited tick at boot so a healthy frame confirms without a probe.
     expect(script).toContain('sendPaintTick();');
   });
+
+  test('paint-tick carries a CONTENT verdict — a bare rAF tick was a false green (Finding N reopen)', () => {
+    // 0.5.0 reports: WKWebKit answered the double-rAF probe on tiles that were
+    // empty cream or black — the rAF pipeline runs while nothing composites.
+    // The tick must say whether the document actually CONTAINS rendered
+    // content (a laid-out canvas/svg or real text); the parent only accepts
+    // paint-ok when it does.
+    const script = buildExtAppBootBeaconScript('frame-token', 'node-9');
+    expect(script).toContain('function contentReady()');
+    expect(script).toContain("querySelectorAll('canvas, svg')");
+    expect(script).toContain('getBoundingClientRect');
+    expect(script).toContain('innerText');
+    expect(script).toContain('content: contentReady()');
+  });
 });
 
 describe('ExtAppFrame AX bridge', () => {

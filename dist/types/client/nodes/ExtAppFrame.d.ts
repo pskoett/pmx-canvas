@@ -3,6 +3,8 @@ import { AppBridge } from '@modelcontextprotocol/ext-apps/app-bridge';
 import type { CanvasNodeState } from '../types';
 type ExtAppBridgeNotifications = Pick<AppBridge, 'sendToolInput' | 'sendToolResult'>;
 type DisplayMode = 'inline' | 'fullscreen' | 'pip';
+/** Paint probe outcome: only a content-carrying tick counts as painted. */
+export type PaintProbeVerdict = 'content-verified' | 'tick-no-content' | 'timeout';
 interface ExtAppHostDimensionsTarget {
     clientWidth?: number;
     clientHeight?: number;

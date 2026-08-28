@@ -30,6 +30,8 @@ type McpUiTheme = 'light' | 'dark';
 type ExtAppBridgeNotifications = Pick<AppBridge, 'sendToolInput' | 'sendToolResult'>;
 type DisplayMode = 'inline' | 'fullscreen' | 'pip';
 type ExtAppFrameStatus = 'loading' | 'ready' | 'done';
+/** Paint probe outcome: only a content-carrying tick counts as painted. */
+export type PaintProbeVerdict = 'content-verified' | 'tick-no-content' | 'timeout';
 
 interface ExtAppHostDimensionsTarget {
   clientWidth?: number;
@@ -285,10 +287,28 @@ export function buildExtAppBootBeaconScript(frameToken: string, nodeId: string):
   // rendering pipeline is actually running — a frame whose layer WebKit never
   // composites stays silent, and that silence drives the parent's recovery
   // ladder. One unsolicited tick at boot, then on-demand answers to probes.
+  // Content oracle (Finding N, 0.5.0 reopen): a double rAF fires even while
+  // WKWebKit composites nothing — the tick alone was a false green. The tick
+  // now carries a verdict: does this document actually CONTAIN rendered
+  // content (a laid-out canvas/svg, or real text)? The parent only accepts
+  // paint-ok when it does.
+  function contentReady() {
+    try {
+      var els = document.querySelectorAll('canvas, svg');
+      for (var i = 0; i < els.length; i++) {
+        var r = els[i].getBoundingClientRect();
+        if (r.width > 8 && r.height > 8) return true;
+      }
+      var body = document.body;
+      return !!(body && body.innerText && body.innerText.trim().length > 0);
+    } catch (e) {
+      return false;
+    }
+  }
   function sendPaintTick() {
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
-        window.parent.postMessage({ source: '${EXT_APP_BOOT_BEACON_SOURCE}', token: TOKEN, nodeId: NODE_ID, kind: 'paint-tick' }, '*');
+        window.parent.postMessage({ source: '${EXT_APP_BOOT_BEACON_SOURCE}', token: TOKEN, nodeId: NODE_ID, kind: 'paint-tick', content: contentReady() }, '*');
       });
     });
   }
@@ -367,8 +387,9 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   const bridgeReadyRef = useRef(false);
   const themeUnsubRef = useRef<(() => void) | null>(null);
   const webkitRemountAttemptsRef = useRef(0);
-  // Paint oracle (Finding N): resolvers waiting for the frame's next paint-tick.
-  const paintTickWaitersRef = useRef<Array<() => void>>([]);
+  // Paint oracle (Finding N): resolvers waiting for the frame's next paint-tick,
+  // each handed the tick's content verdict.
+  const paintTickWaitersRef = useRef<Array<(content: boolean) => void>>([]);
   // Genuine boot signal: set ONLY when the app completes the ui/initialize
   // handshake (bridge.oninitialized) — NOT by the 1200ms bootstrap fallback,
   // which flips status via notifications that resolve even into a dead iframe.
@@ -450,7 +471,8 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
         return;
       appScriptsRanRef.current = true;
       if (data.kind === 'paint-tick') {
-        for (const waiter of paintTickWaitersRef.current.splice(0)) waiter();
+        const content = (data as { content?: unknown }).content === true;
+        for (const waiter of paintTickWaitersRef.current.splice(0)) waiter(content);
       }
     }
     window.addEventListener('message', onBootBeacon);
@@ -503,7 +525,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     enqueueWebkitRemount({
       remount: () => {
         remountQueuedRef.current = false;
-        if (unmountedRef.current || expandedNodeId.value === nodeId) {
+        if (unmountedRef.current || (!expanded && expandedNodeId.value === nodeId)) {
           extAppRecoveryLog(nodeId, 'remount-skipped');
           // The ladder left paintPending set on the promise that this remount
           // would re-enter it via the new frame's settle path. A skip means
@@ -555,27 +577,41 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   // again → serialized remount (bounded by the shared attempt cap) → explicit
   // Retry affordance. Never silent eternal black. WebKit inline frames only.
   const PAINT_TICK_TIMEOUT_MS = 1500;
-  const probePaint = (): Promise<boolean> =>
+  const probePaint = (): Promise<PaintProbeVerdict> =>
     new Promise((resolve) => {
       const contentWindow = iframeRef.current?.contentWindow;
       if (!contentWindow || unmountedRef.current) {
-        resolve(false);
+        resolve('timeout');
         return;
       }
       let settled = false;
       const timer = window.setTimeout(() => {
         if (settled) return;
         settled = true;
-        resolve(false);
+        resolve('timeout');
       }, PAINT_TICK_TIMEOUT_MS);
-      paintTickWaitersRef.current.push(() => {
+      paintTickWaitersRef.current.push((content) => {
         if (settled) return;
         settled = true;
         window.clearTimeout(timer);
-        resolve(true);
+        // A tick without content is NOT paint-ok: the rAF pipeline runs while
+        // the document is empty cream / never composited (Finding N reopen).
+        resolve(content ? 'content-verified' : 'tick-no-content');
       });
       contentWindow.postMessage({ source: EXT_APP_PAINT_PROBE_SOURCE, token: axToken }, '*');
     });
+
+  // Bounded wait for the frame's content oracle to turn green — the mount
+  // queue's release gate (guidance: never green-light the NEXT app while the
+  // previous document is still contentless; D-then-E was the repro).
+  const awaitContentVerified = async (maxMs: number): Promise<boolean> => {
+    const deadline = Date.now() + maxMs;
+    while (Date.now() < deadline && !unmountedRef.current) {
+      if ((await probePaint()) === 'content-verified') return true;
+      await new Promise((resolve) => window.setTimeout(resolve, 400));
+    }
+    return false;
+  };
 
   // Force a real layer reallocation: grow the iframe's box meaningfully for two
   // frames, then restore. Invisible under the paint-pending overlay.
@@ -638,24 +674,39 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   // 0.4.7). Say so in the trail instead of recording an unqualified success.
   const paintOkLabel = (suffix = ''): string =>
     typeof document !== 'undefined' && document.visibilityState === 'hidden'
-      ? `paint-ok${suffix} (unverified: host hidden)`
-      : `paint-ok${suffix}`;
+      ? `paint-ok (content-verified)${suffix} (host hidden)`
+      : `paint-ok (content-verified)${suffix}`;
 
   const runPaintLadder = async (): Promise<void> => {
-    if (expanded) return;
+    // Runs for the EXPANDED instance too (Finding N reopen: expanded C was a
+    // black frame with no recovery — the ladder used to early-return here).
     if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
     if (!isWebKitOnlyHost(navigator.userAgent)) return;
     setPaintPending(true);
-    if (await probePaint()) {
+    let verdict = await probePaint();
+    if (verdict === 'content-verified') {
       extAppRecoveryLog(nodeId, paintOkLabel());
       setPaintPending(false);
       maybeAssumeVisibleRearm();
       return;
     }
-    extAppRecoveryLog(nodeId, 'paint-fail');
+    extAppRecoveryLog(
+      nodeId,
+      verdict === 'tick-no-content' ? 'paint-fail (tick without content)' : 'paint-fail (no tick)',
+    );
     await runSoftExpandCycle();
-    if (await probePaint()) {
+    verdict = await probePaint();
+    if (verdict === 'content-verified') {
       extAppRecoveryLog(nodeId, paintOkLabel(' (after soft-expand)'));
+      setPaintPending(false);
+      maybeAssumeVisibleRearm();
+      return;
+    }
+    if (unmountedRef.current) return;
+    // A contentless-but-alive app may still be DRAWING its scene: give the
+    // oracle a bounded settle before burning a remount attempt on it.
+    if (verdict === 'tick-no-content' && (await awaitContentVerified(3_000))) {
+      extAppRecoveryLog(nodeId, paintOkLabel(' (after content wait)'));
       setPaintPending(false);
       maybeAssumeVisibleRearm();
       return;
@@ -709,7 +760,8 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   // serialized queue (bounded by the shared attempt cap).
   const WEBKIT_BOOT_WATCHDOG_MS = 6000;
   useEffect(() => {
-    if (expanded) return;
+    // Covers the expanded instance too — its fresh iframe was black with no
+    // recovery at all (Finding N reopen, expanded C).
     if (typeof navigator === 'undefined' || typeof window === 'undefined') return;
     if (!isWebKitOnlyHost(navigator.userAgent)) return;
     if (!iframeDocument.ready || !mountGranted) return;
@@ -725,7 +777,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     () => () => {
       unmountedRef.current = true;
       for (const waiter of bootWaitersRef.current.splice(0)) waiter();
-      for (const waiter of paintTickWaitersRef.current.splice(0)) waiter();
+      for (const waiter of paintTickWaitersRef.current.splice(0)) waiter(false);
     },
     [],
   );
@@ -1035,8 +1087,22 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
             // its own settle pause covering the draw) only from this genuine path;
             // the bootstrap fallback never releases it (a dead iframe must run the
             // queue's bounded timeout instead of green-lighting the next remount).
-            extAppRecoveryLog(nodeId, 'settled');
-            for (const waiter of bootWaitersRef.current.splice(0)) waiter();
+            // Release the mount queue only once this document's CONTENT
+            // oracle is green (bounded): a settled-but-empty app must not
+            // green-light the next mount slot (D-then-E repro, Finding N
+            // reopen). WebKit only — elsewhere the oracle race doesn't exist.
+            const releaseQueue = () => {
+              for (const waiter of bootWaitersRef.current.splice(0)) waiter();
+            };
+            if (typeof navigator !== 'undefined' && isWebKitOnlyHost(navigator.userAgent)) {
+              void awaitContentVerified(4_000).then((verified) => {
+                extAppRecoveryLog(nodeId, verified ? 'settled (content-verified)' : 'settled (content-timeout)');
+                releaseQueue();
+              });
+            } else {
+              extAppRecoveryLog(nodeId, 'settled');
+              releaseQueue();
+            }
             nudgeHostContextAfterLayout();
             schedulePaintLadder();
           })
