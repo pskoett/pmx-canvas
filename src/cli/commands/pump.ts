@@ -11,6 +11,9 @@
  * stdin — never spliced into the shell string — so hostile steer content
  * cannot inject into the command line. `{message}` in the template expands to
  * the SHELL VARIABLE reference "$PMX_STEER_MESSAGE" (quoted), not the text.
+ * On Windows that guarantee does not hold — cmd.exe expands `%VAR%` and then
+ * re-parses the result — so the placeholders are refused there and the command
+ * takes the message from stdin instead. See `renderExecTemplate`.
  */
 import { spawn } from 'node:child_process';
 import { cmd, getBaseUrl, getStringFlag, invokeOperation, parseFlags, requireFlag } from '../shared.js';
@@ -58,12 +61,14 @@ export function renderExecTemplate(template: string, windows = process.platform 
 }
 
 function runExec(template: string, steer: PendingSteer, consumer: string): Promise<number> {
-  const windows = process.platform === 'win32';
-  const rendered = renderExecTemplate(template, windows);
-  const shell = windows ? (process.env.ComSpec ?? 'cmd.exe') : 'sh';
-  const shellArgs = windows ? ['/d', '/s', '/c', rendered] : ['-c', rendered];
+  const rendered = renderExecTemplate(template);
   return new Promise((resolve) => {
-    const child = spawn(shell, shellArgs, {
+    // `shell: true` picks sh on POSIX and ComSpec/cmd.exe on Windows, and sets
+    // windowsVerbatimArguments itself — hand-rolling the cmd.exe form escaped
+    // the quotes inside the command, so `bun "C:\path\x.mjs"` arrived as
+    // `""C:\path\x.mjs""`. Let Node own the platform quoting.
+    const child = spawn(rendered, {
+      shell: true,
       stdio: ['pipe', 'inherit', 'inherit'],
       env: {
         ...process.env,

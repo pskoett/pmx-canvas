@@ -2426,17 +2426,23 @@ describe('canvas server HTTP API', () => {
     expect(incremental.events.every((entry) => entry.seq > first.seq)).toBe(true);
 
     // A caught-up poller gets an empty incremental response, not a snapshot.
-    const caughtUp = await jsonRequest<{ snapshot: boolean; events: unknown[] }>(
-      `/api/workbench/poll?since=${incremental.seq}`,
-    );
+    // The create above also touched agent presence, whose emit coalescer lands
+    // an `agent-presence` frame ~50ms later — drain until the ring is quiet
+    // (Windows CI and loaded machines lost that race; fast ones won it).
+    let cursor = incremental.seq;
+    for (let attempt = 0; attempt < 10; attempt++) {
+      await new Promise((resolve) => setTimeout(resolve, 80));
+      const drain = await jsonRequest<{ seq: number; events: unknown[] }>(`/api/workbench/poll?since=${cursor}`);
+      if (drain.events.length === 0) break;
+      cursor = drain.seq;
+    }
+    const caughtUp = await jsonRequest<{ snapshot: boolean; events: unknown[] }>(`/api/workbench/poll?since=${cursor}`);
     expect(caughtUp.snapshot).toBe(false);
     expect(caughtUp.events.length).toBe(0);
 
     // A `since` from a previous server run (beyond the live seq) and a garbage
     // `since` both recover via a fresh snapshot instead of erroring.
-    const fromFuture = await jsonRequest<{ snapshot: boolean }>(
-      `/api/workbench/poll?since=${incremental.seq + 100000}`,
-    );
+    const fromFuture = await jsonRequest<{ snapshot: boolean }>(`/api/workbench/poll?since=${cursor + 100000}`);
     expect(fromFuture.snapshot).toBe(true);
     const garbage = await jsonRequest<{ snapshot: boolean }>('/api/workbench/poll?since=banana');
     expect(garbage.snapshot).toBe(true);
