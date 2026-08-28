@@ -380,6 +380,12 @@ When file nodes are on the canvas, the system auto-detects import dependencies a
   indicator, shows as agent work in the session timeline, and is subject to the scope fence
   (context pins and annotations shipped that way; `tests/client/context-pin-bar.test.tsx`
   asserts the marker)
+- **No native browser UI in client flows.** `window.prompt`, `window.alert`, `window.confirm`,
+  and title-attribute tooltips are silent no-ops in embedded browser panes (Claude, Copilot,
+  and Codex all drive the workbench through one) — a flow depending on them "does nothing"
+  there, with no error. This shipped three times. Use `askText`/`TextPrompt`
+  (`src/client/canvas/TextPrompt.tsx`) for input, `BarHint` for hover hints, and an in-flow
+  caption where an anchored tooltip would clip inside an overflow container.
 
 ## Adding New Node Types
 
