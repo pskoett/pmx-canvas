@@ -847,7 +847,23 @@ describe('agent CLI node commands', () => {
     };
     expect(output.ok).toBe(true);
     expect(output.nodeCount).toBe(2);
-    expect(output.viewport).toEqual({ x: 50, y: 0, scale: 1 });
+    // Screen-space fit contract (0.5.0 Amp finding A): both nodes land inside
+    // the padded region and clear of the 96px quiet-board bottom reserve —
+    // asserted as node screen-rects, not a viewport tuple (testing rule 4).
+    {
+      const v = output.viewport;
+      expect(v.scale).toBeCloseTo(1, 5);
+      for (const r of [
+        { x: 100, y: 100, w: 200, h: 100 },
+        { x: 700, y: 500, w: 300, h: 200 },
+      ]) {
+        expect(r.x * v.scale + v.x).toBeGreaterThanOrEqual(100 - 1e-6);
+        expect(r.y * v.scale + v.y).toBeGreaterThanOrEqual(100 - 1e-6);
+        expect((r.x + r.w) * v.scale + v.x).toBeLessThanOrEqual(1200 - 100 + 1e-6);
+        // The reserve replaces bottom padding: the usable band ends 96px above the container edge.
+        expect((r.y + r.h) * v.scale + v.y).toBeLessThanOrEqual(800 - 96 + 1e-6);
+      }
+    }
     expect(canvasState.viewport).toEqual(output.viewport);
   });
 

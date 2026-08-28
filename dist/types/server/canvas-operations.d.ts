@@ -178,6 +178,16 @@ export declare function setCanvasContextPins(nodeIds: string[], mode?: CanvasPin
     nodeIds: string[];
 };
 export declare function listCanvasSnapshots(options?: Parameters<typeof canvasState.listSnapshots>[0]): CanvasSnapshot[];
+/**
+ * Snapshot save with unchanged-board reuse — the ONE path every surface must
+ * take (op registry, SDK). The SDK once called saveCanvasSnapshot directly and
+ * stacked identical snapshots the HTTP/MCP path deduplicated (0.5.0 Codex
+ * finding V).
+ */
+export declare function saveCanvasSnapshotWithReuse(name: string): {
+    snapshot: CanvasSnapshot | null;
+    reused: boolean;
+};
 export declare function saveCanvasSnapshot(name: string): CanvasSnapshot | null;
 export declare function restoreCanvasSnapshot(idOrName: string): Promise<{
     ok: boolean;

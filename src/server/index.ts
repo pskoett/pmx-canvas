@@ -59,7 +59,7 @@ import {
   removeCanvasEdge,
   resolveHtmlContent,
   restoreCanvasSnapshot,
-  saveCanvasSnapshot,
+  saveCanvasSnapshotWithReuse,
   scheduleCodeGraphRecompute,
   syncCanvasRuntimeBackends,
   setCanvasContextPins,
@@ -1072,7 +1072,9 @@ export class PmxCanvas extends EventEmitter {
   }
 
   saveSnapshot(name: string) {
-    return saveCanvasSnapshot(name);
+    // Same reuse path as HTTP/MCP: an unchanged board returns the existing
+    // newest snapshot instead of stacking an identical copy (Codex finding V).
+    return saveCanvasSnapshotWithReuse(name).snapshot;
   }
 
   async restoreSnapshot(id: string): Promise<{ ok: boolean }> {

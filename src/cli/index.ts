@@ -314,6 +314,7 @@ Agent CLI (works against running server):
   code-graph                          File dependencies
   spatial                             Spatial analysis
   watch                               Semantic watch stream
+  pump                                Reactive steering loop for CLI agents (Amp, Codex CLI)
   smoke                               Check that a running canvas works here
   skills sync                         Sync installed copies of the bundled skills
   copilot install-extension           Install the GitHub Copilot app extension

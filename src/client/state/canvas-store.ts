@@ -9,7 +9,7 @@ import {
   type ViewportState,
 } from '../types';
 import { computeAutoArrange } from '../../shared/auto-arrange';
-import { canvasAreaCenter } from '../canvas/canvas-area';
+import { canvasAreaCenter, canvasFitInsets } from '../canvas/canvas-area';
 import { pushCanvasUpdate, requestBestEffort, requestOk, updateViewportFromClient } from './intent-bridge';
 
 function logCanvasStoreError(action: string, error: unknown): void {
@@ -808,16 +808,22 @@ export function fitAll(containerW: number, containerH: number): void {
     maxY = Math.max(maxY, n.position.y + n.size.height);
   }
 
-  const PAD = 60;
-  const worldW = maxX - minX + PAD * 2;
-  const worldH = maxY - minY + PAD * 2;
-  const scale = Math.min(1, Math.min(containerW / worldW, containerH / worldH));
+  // Screen-space fit (architecture rule 9): the margins that must clear the
+  // floating chrome are SCREEN constants. The old world-space PAD shrank with
+  // the fit zoom, parking fitted nodes under the command bar and minimap
+  // (0.5.0 Amp report, finding A).
+  const insets = canvasFitInsets();
+  const usableW = Math.max(80, containerW - insets.left - insets.right);
+  const usableH = Math.max(80, containerH - insets.top - insets.bottom);
+  const worldW = Math.max(1, maxX - minX);
+  const worldH = Math.max(1, maxY - minY);
+  const scale = Math.min(1, Math.min(usableW / worldW, usableH / worldH));
   const cx = (minX + maxX) / 2;
   const cy = (minY + maxY) / 2;
 
   animateViewport({
-    x: containerW / 2 - cx * scale,
-    y: containerH / 2 - cy * scale,
+    x: insets.left + usableW / 2 - cx * scale,
+    y: insets.top + usableH / 2 - cy * scale,
     scale,
   });
 }

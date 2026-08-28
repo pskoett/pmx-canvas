@@ -16,7 +16,15 @@
  * takes the message from stdin instead. See `renderExecTemplate`.
  */
 import { spawn } from 'node:child_process';
-import { cmd, getBaseUrl, getStringFlag, invokeOperation, parseFlags, requireFlag } from '../shared.js';
+import {
+  cmd,
+  getBaseUrl,
+  getStringFlag,
+  invokeOperation,
+  parseFlags,
+  requireFlag,
+  showCommandHelp,
+} from '../shared.js';
 
 interface PendingSteer {
   id: string;
@@ -137,7 +145,10 @@ cmd(
     `pmx-canvas pump --consumer testbot --exec 'cat' --once`,
   ],
   async (args) => {
-    const { flags } = parseFlags(args, { boolFlags: ['once'] });
+    const { flags } = parseFlags(args, { boolFlags: ['once', 'help', 'h'] });
+    // Help before required-flag validation — `pump --help` died on
+    // "Missing required flag: --consumer" (0.5.0 Codex finding W).
+    if (flags.help || flags.h) return showCommandHelp('pump');
     const consumer = requireFlag(
       flags,
       'consumer',

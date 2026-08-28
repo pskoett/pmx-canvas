@@ -1,6 +1,8 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { basename, resolve } from 'node:path';
+import { agentPresence } from './agent-presence.js';
 import { recomputeCodeGraph } from './code-graph.js';
+import { diffLayouts } from './mutation-history.js';
 import {
   canvasState,
   type CanvasEdge,
@@ -1396,6 +1398,30 @@ export function listCanvasSnapshots(options?: Parameters<typeof canvasState.list
   return canvasState.listSnapshots(options);
 }
 
+/**
+ * Snapshot save with unchanged-board reuse — the ONE path every surface must
+ * take (op registry, SDK). The SDK once called saveCanvasSnapshot directly and
+ * stacked identical snapshots the HTTP/MCP path deduplicated (0.5.0 Codex
+ * finding V).
+ */
+export function saveCanvasSnapshotWithReuse(name: string): { snapshot: CanvasSnapshot | null; reused: boolean } {
+  const newest = canvasState.listSnapshots({ limit: 1 })[0];
+  if (newest) {
+    const newestData = canvasState.getSnapshotData(newest.id);
+    if (newestData) {
+      const diff = diffLayouts(newestData.name, newestData, canvasState.getLayout());
+      const identical =
+        diff.addedNodes.length === 0 &&
+        diff.removedNodes.length === 0 &&
+        diff.modifiedNodes.length === 0 &&
+        diff.addedEdges.length === 0 &&
+        diff.removedEdges.length === 0;
+      if (identical) return { snapshot: newest, reused: true };
+    }
+  }
+  return { snapshot: saveCanvasSnapshot(name), reused: false };
+}
+
 export function saveCanvasSnapshot(name: string): CanvasSnapshot | null {
   return canvasState.saveSnapshot(name);
 }
@@ -1748,7 +1774,7 @@ export function getClientViewportSize(): { width: number; height: number } | nul
 export function fitCanvasView(options: CanvasFitViewOptions = {}): CanvasFitViewResult {
   const width = positiveNumber(options.width, lastClientViewportSize?.width ?? 1440);
   const height = positiveNumber(options.height, lastClientViewportSize?.height ?? 900);
-  const padding = positiveNumber(options.padding, 60);
+  const padding = positiveNumber(options.padding, 24); // screen px now, not world units
   const maxScale = positiveNumber(options.maxScale, 1);
   const nodeIdFilter = options.nodeIds && options.nodeIds.length > 0 ? new Set(options.nodeIds) : null;
   const targetNodes = canvasState.getLayout().nodes.filter((node) => !nodeIdFilter || nodeIdFilter.has(node.id));
@@ -1770,14 +1796,23 @@ export function fitCanvasView(options: CanvasFitViewOptions = {}): CanvasFitView
   }
 
   const bounds = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
-  const worldWidth = Math.max(1, bounds.width + padding * 2);
-  const worldHeight = Math.max(1, bounds.height + padding * 2);
-  const scale = Math.min(maxScale, width / worldWidth, height / worldHeight);
+  // Screen-space fit (architecture rule 9): `padding` and the chrome reserve
+  // are SCREEN pixels — world-space padding shrank with the fit zoom and
+  // parked nodes under the command bar and minimap (0.5.0 Amp report,
+  // finding A). The server cannot measure the client's chrome, so it reserves
+  // nominal bottom space: the minimap is always there; the command bar only
+  // while a session is attached.
+  const bottomReserve = agentPresence.snapshot().sessionActive ? 128 : 96;
+  const usableWidth = Math.max(80, width - padding * 2);
+  const usableHeight = Math.max(80, height - padding - bottomReserve);
+  const worldWidth = Math.max(1, bounds.width);
+  const worldHeight = Math.max(1, bounds.height);
+  const scale = Math.min(maxScale, usableWidth / worldWidth, usableHeight / worldHeight);
   const centerX = minX + bounds.width / 2;
   const centerY = minY + bounds.height / 2;
   const viewport = {
-    x: width / 2 - centerX * scale,
-    y: height / 2 - centerY * scale,
+    x: padding + usableWidth / 2 - centerX * scale,
+    y: padding + usableHeight / 2 - centerY * scale,
     scale,
   };
 

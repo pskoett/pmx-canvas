@@ -1632,7 +1632,9 @@ body,
   flex-wrap: nowrap;
   gap: 1px;
   margin: 2px -12px 8px;
-  padding: 0 10px;
+  /* Compact panels (Amp portal, 0.5.0 report B): six chips overflowed the
+     row by 11px — tighter inset + chip padding buys ~16px back. */
+  padding: 0 8px;
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -1651,7 +1653,7 @@ body,
 }
 .session-timeline-filters .activity-filter {
   flex-shrink: 0;
-  padding: 2px 5px;
+  padding: 2px 4px;
 }
 
 .session-timeline-row {

@@ -84,6 +84,38 @@ async function createMcpSessionForWorkspace(
 
 const cleanup: Array<() => Promise<void>> = [];
 
+/**
+ * Close a session and WAIT for its stdio child to actually die. On Windows
+ * children lingered past transport.close() (SQLite checkpoint on exit → EBUSY
+ * temp dirs), bun's dangling-process reaper then fired at a test boundary and
+ * — with Windows' aggressive pid recycling — shot the NEXT test's live child
+ * ("killed 1 dangling process" followed by MCP error -32000 Connection closed,
+ * Windows CI run 33180908772).
+ */
+async function closeTransportAndReapChild(transport: StdioClientTransport): Promise<void> {
+  const pid = transport.pid;
+  await transport.close();
+  if (typeof pid !== 'number') return;
+  const alive = () => {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+  for (let waited = 0; alive() && waited < 3_000; waited += 50) {
+    if (waited === 1_000) {
+      try {
+        process.kill(pid);
+      } catch {
+        // already gone between the check and the kill
+      }
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+}
+
 afterEach(async () => {
   while (cleanup.length > 0) {
     const fn = cleanup.pop();
@@ -96,7 +128,7 @@ describe('MCP parity with CLI', () => {
   test('exposes the expected CLI parity surface via MCP tools and resources', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -233,7 +265,7 @@ describe('MCP parity with CLI', () => {
   test('claim_ax_delivery surfaces browser-originated pending activity, loop-safe (#43)', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -301,7 +333,7 @@ describe('MCP parity with CLI', () => {
   test('canvas_ingest_activity reacts to a failure; canvas_await_approval reads + blocks (#A/#D)', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -372,7 +404,7 @@ describe('MCP parity with CLI', () => {
   test('AX timeline and canvas-bound tools round-trip over MCP with the mcp source default', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -435,7 +467,7 @@ describe('MCP parity with CLI', () => {
   test('canvas_update_node exposes arrangeLocked and persists it', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -494,7 +526,7 @@ describe('MCP parity with CLI', () => {
   test('canvas_node add(type:"html") + update opt a node into AX so it can emit interactions (#42)', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -564,7 +596,7 @@ describe('MCP parity with CLI', () => {
   test('canvas_add_node exposes and persists strictSize', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -613,7 +645,7 @@ describe('MCP parity with CLI', () => {
   test('canvas_add_node exposes and persists trace fields', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -690,7 +722,7 @@ describe('MCP parity with CLI', () => {
 
     const session = await createMcpSessionForWorkspace(workspaceRoot, port);
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       stopCanvasServer();
       removeTestWorkspace(workspaceRoot);
     });
@@ -787,7 +819,7 @@ describe('MCP parity with CLI', () => {
       PMX_CANVAS_URL: `http://127.0.0.1:${daemon.port}`,
     });
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       await daemon.stop(true);
       removeTestWorkspace(workspaceRoot);
     });
@@ -824,7 +856,7 @@ describe('MCP parity with CLI', () => {
       PMX_CANVAS_URL: remoteBaseUrl,
     });
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       stopCanvasServer();
       removeTestWorkspace(workspaceRoot);
     });
@@ -886,7 +918,7 @@ describe('MCP parity with CLI', () => {
   test('canvas_update_node combines graph updates with arrangeLocked', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -926,7 +958,7 @@ describe('MCP parity with CLI', () => {
   test('canvas_fit_view updates the viewport for screenshot workflows', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -968,7 +1000,24 @@ describe('MCP parity with CLI', () => {
         arguments: { action: 'fit', width: 1200, height: 800, padding: 100 },
       })) as ToolResultShape,
     );
-    expect(fitted).toMatchObject({ ok: true, nodeCount: 2, viewport: { x: 50, y: 0, scale: 1 } });
+    expect(fitted).toMatchObject({ ok: true, nodeCount: 2 });
+    // Screen-space fit contract (0.5.0 Amp finding A): both nodes land inside
+    // the padded region and clear of the 96px quiet-board bottom reserve —
+    // asserted as node screen-rects, not a viewport tuple (testing rule 4).
+    {
+      const v = fitted.viewport;
+      expect(v.scale).toBeCloseTo(1, 5);
+      for (const r of [
+        { x: 100, y: 100, w: 200, h: 100 },
+        { x: 700, y: 500, w: 300, h: 200 },
+      ]) {
+        expect(r.x * v.scale + v.x).toBeGreaterThanOrEqual(100 - 1e-6);
+        expect(r.y * v.scale + v.y).toBeGreaterThanOrEqual(100 - 1e-6);
+        expect((r.x + r.w) * v.scale + v.x).toBeLessThanOrEqual(1200 - 100 + 1e-6);
+        // The reserve replaces bottom padding: the usable band ends 96px above the container edge.
+        expect((r.y + r.h) * v.scale + v.y).toBeLessThanOrEqual(800 - 96 + 1e-6);
+      }
+    }
 
     const layout = parseJsonText<{ viewport: { x: number; y: number; scale: number } }>(
       (await session.client.callTool({
@@ -982,7 +1031,7 @@ describe('MCP parity with CLI', () => {
   test('canvas_add_node webpage returns explicit fetch status', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -1043,7 +1092,7 @@ describe('MCP parity with CLI', () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
       webpageServer.stop(true);
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -1113,7 +1162,7 @@ describe('MCP parity with CLI', () => {
   test('canvas://pinned-context returns kind for native, graph, and external app nodes', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -1188,7 +1237,7 @@ describe('MCP parity with CLI', () => {
   test('canvas AX tools and resources expose pinned context and focus', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -1276,7 +1325,7 @@ describe('MCP parity with CLI', () => {
   test('canvas_open_mcp_app opens a standard ui:// MCP App node', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -1336,7 +1385,7 @@ describe('MCP parity with CLI', () => {
   test('canvas_get_node and canvas_get_layout full elide hosted MCP app shell HTML', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -1424,7 +1473,7 @@ describe('MCP parity with CLI', () => {
   test('canvas_describe_schema, canvas_validate_spec, and canvas://schema expose the running-server schema surface', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -1537,7 +1586,7 @@ describe('MCP parity with CLI', () => {
   test('canvas_add_node supports image path alias and json-render accepts legacy shapes', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
     const imagePath = join(session.workspaceRoot, 'mcp-image-path.png');
@@ -1598,7 +1647,7 @@ describe('MCP parity with CLI', () => {
   test('canvas_validate_spec covers the full graph payload surface', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -1653,7 +1702,7 @@ describe('MCP parity with CLI', () => {
   test('canvas_build_web_artifact matches CLI log behavior and keeps raw logs opt-in', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -1771,7 +1820,7 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
   test('canvas_evaluate exposes script and accepts it as input', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -1799,7 +1848,7 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
   test('canvas_get_node exposes normalized title/content and canvas_add_edge supports style/animated', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -1884,7 +1933,7 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
   test('canvas_create_group exposes manual frame + childLayout, and canvas_batch/canvas_validate provide parity', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -2043,7 +2092,7 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
   test('canvas_batch documents bare refs and surfaces partial failure envelopes', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -2103,7 +2152,7 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
   test('canvas_batch supports webpage nodes and surfaces fetch status', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -2146,7 +2195,7 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
   test('canvas_batch supports graph.add operations', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -2203,7 +2252,7 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
   test('canvas_snapshot list/gc/delete actions match CLI snapshot management', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 
@@ -2296,7 +2345,7 @@ echo '<!DOCTYPE html><html><body>artifact</body></html>' > bundle.html
   test('canvas_snapshot restore returns a compact summary instead of the full layout', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {
-      await session.transport.close();
+      await closeTransportAndReapChild(session.transport);
       removeTestWorkspace(session.workspaceRoot);
     });
 

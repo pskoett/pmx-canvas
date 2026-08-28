@@ -84,6 +84,13 @@ describe('PmxCanvas SDK surface', () => {
     const snapshot = canvas.saveSnapshot('sdk-baseline');
     expect(snapshot?.name).toBe('sdk-baseline');
 
+    // SDK parity with HTTP/MCP (0.5.0 Codex finding V): saving an unchanged
+    // board reuses the newest snapshot — the SDK once bypassed the shared
+    // path and stacked identical copies.
+    const resaved = canvas.saveSnapshot('sdk-baseline-again');
+    expect(resaved?.id).toBe(snapshot?.id);
+    expect(resaved?.name).toBe('sdk-baseline');
+
     canvas.updateNode(secondId, { data: { title: 'Second note updated', content: 'Gamma' } });
     const diff = canvas.diffSnapshot(snapshot?.id ?? '');
     expect(diff.ok).toBe(true);

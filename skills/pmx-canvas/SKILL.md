@@ -147,7 +147,7 @@ this table is kept in sync with the server's composite registry; `tools/list` on
 | `canvas_query` | `search`, `layout`, `validate` |
 | `canvas_webview` | `status`, `start`, `stop`, `resize`, `evaluate` |
 | `canvas_app` | `open-mcp-app`, `diagram`, `build-artifact` |
-| `canvas_ax_state` | `get`, `set-focus`, `set-policy`, `report-capability` |
+| `canvas_ax_state` | `get`, `set-focus`, `set-policy`, `report-capability`, `presence`, `set-presence` |
 | `canvas_ax_work` | `add`, `update`, `annotate` |
 | `canvas_ax_gate` | `request`, `resolve`, `await` with `approval`, `elicitation`, or `mode` |
 | `canvas_ax_timeline` | `read`, `record-event`, `add-evidence`, `send-steering` |
@@ -262,6 +262,14 @@ The board has three modes, all gated on one fact — whether a session is attach
   extension) attach for you; the human can also start a session from the board's *Start agent
   session* button — your writes (transport or `PMX_CANVAS_AGENT_SOURCE` label alike) are
   attributed to it and it takes your name.
+- **No adapter? Use the pump.** Any CLI agent becomes steer-reactive with one command in a
+  terminal: `pmx-canvas pump --consumer <your-key> --exec '<command>'`. It long-polls your
+  delivery queue, runs the command once per steer (message on stdin plus the
+  `PMX_STEER_MESSAGE`/`ID`/`SOURCE`/`TARGET`/`CREATED_AT` env envelope), and marks
+  per-consumer only after the command exits 0 — a failed hand-off stays pending and the pump
+  exits non-zero. `{message}` in the template expands to a quoted env reference (never spliced;
+  refused on Windows — read stdin there). `--parent <key>` rolls you up under an orchestrator's
+  chip; `--once` for scripts. See `pmx-canvas pump --help`.
 
 What the session asks of you:
 

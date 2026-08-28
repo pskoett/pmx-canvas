@@ -39,3 +39,36 @@ export function canvasAreaCenter(): { x: number; y: number } {
   const rect = canvasArea();
   return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
 }
+
+export interface CanvasFitInsets {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+/**
+ * Screen-space insets Fit must reserve for the floating chrome that overlays
+ * the canvas region: the bottom command bar (whose pinned-chip row grows it)
+ * and the bottom-right minimap. Measured from the live elements — fit's old
+ * world-space padding shrank with the fit zoom and parked nodes underneath
+ * both (0.5.0 Amp report, finding A; architecture rule 9's trap).
+ */
+export function canvasFitInsets(): CanvasFitInsets {
+  let bottom = 16;
+  try {
+    const area = canvasArea();
+    const areaBottom = area.top + area.height;
+    for (const selector of ['.command-bar', '.minimap']) {
+      const el = document.querySelector(selector);
+      if (!(el instanceof HTMLElement) || !el.isConnected) continue;
+      const rect = el.getBoundingClientRect();
+      if (rect.height <= 0) continue;
+      const overlap = areaBottom - rect.top;
+      if (overlap > 0) bottom = Math.max(bottom, overlap + 12);
+    }
+  } catch {
+    // Chromeless embeds and unit DOMs: the defaults below are the contract.
+  }
+  return { top: 16, right: 16, bottom, left: 16 };
+}
