@@ -9,9 +9,10 @@ project. Pin what matters and the agent reads your spatial curation as
 structured context.
 
 <p align="center">
-  <img src="docs/screenshots/welcome-dark.png" alt="Empty canvas — dark theme" width="49%" />
-  <img src="docs/screenshots/welcome-light.png" alt="Empty canvas — light theme" width="49%" />
+  <img src="docs/screenshots/workbench-live-dark.png" alt="Live multi-agent workbench — dark theme: two agents on the board, review cards, an architecture diagram, and the writers pill" width="49%" />
+  <img src="docs/screenshots/workbench-live-light.png" alt="Live multi-agent workbench — light theme" width="49%" />
 </p>
+<p align="center"><sub>A real working board: two agents attached (the writers pill, top right), review cards they co-wrote, and a mermaid architecture diagram — dark and light themes.</sub></p>
 
 <p align="center">
   <img src="docs/screenshots/demo-workbench-dark.png" alt="Structured workbench demo — dark theme" width="49%" />
@@ -31,7 +32,8 @@ communication — proximity means relatedness, pinning means *focus here*.
 Drag, group, arrange, and **pin** nodes spatially. Connect nodes with typed
 edges — flow, depends-on, relation, references — drawn as smooth curves that
 leave each card perpendicular to its border and bend toward their target.
-Curation is the channel
+Edges stay editable in place: right-click one to relabel, retype, restyle, or
+delete it, or click it and press Delete. Curation is the channel
 from human intent to agent context — the agent reads `canvas://pinned-context`
 and `canvas://spatial-context` (proximity clusters, reading order, pinned
 neighborhoods) and uses your layout to ground its next action.
@@ -41,7 +43,8 @@ neighborhoods) and uses your layout to ground its next action.
 Files, web pages, screenshots, structured panels, charts, diagrams, embedded
 MCP Apps, and bundled web artifacts all live on the same surface. A file node
 follows the file on disk as the agent edits it — source with line numbers, a
-CSV or TSV as a real table, a PDF inline. Anything else binary shows its name
+CSV or TSV as a real table, a PDF inline — and can be re-pointed at another
+file (patch its `path`) without losing its edges, pins, or position. Anything else binary shows its name
 and size rather than decoded gibberish, and a very large text file renders
 truncated with a note saying so. Code review has its own node: a unified
 diff with per-file headers and colored added and removed lines. Diagrams can
@@ -94,11 +97,16 @@ canvas into a shared workspace between you and the agent:
   commands (`pmx.plan`, `pmx.review`, …), and read a tool/prompt policy.
 - **Host capability** — adapters report what the host can do, for diagnostics.
 
-Recent additions in this layer: agent-native nodes can now complete the full
-AX loop; agent tool/session activity can flow back into the board as work,
-evidence, and findings; approval, input, and mode gates can wait for a human
-decision instead of polling; and AX-enabled HTML/web-artifact or MCP app
-controls can show an in-surface confirmation after an action is accepted.
+Recent additions in this layer: a **composer** steers directly from the board
+(with a target picker when several agents are connected); the **session panel**
+shows work items, approval gates, and a filterable timeline where every row
+names its writer; a shared **undo stack** knows whether the human or the agent
+made each edit, and undoing an agent's edit tells the agent as steering; a
+**scope fence** confines an agent's writes to selected nodes; and grabbing a
+node in the browser locks it against agent edits while you hold it. Dialogs,
+prompts, and tooltips are all in-canvas — every flow works identically in
+embedded browser panes (Copilot, Codex, Claude Code desktop) where native
+browser UI doesn't exist.
 
 Canvas-bound state (focus, work items, approvals, review annotations,
 elicitations, mode requests, policy) rides canvas snapshots and restore; the
@@ -108,7 +116,35 @@ snapshot. Every primitive is reachable from MCP, the HTTP API, the SDK, and
 GitHub Copilot app) map onto the same neutral surfaces without making PMX Canvas
 vendor-specific.
 
-### 05 / Save
+### 05 / Run several agents on one board
+
+The canvas is built for more than one writer. Every connected agent gets a
+stable **identity color** carried by its cursor, its top-bar session chip, and
+its minimap dot — you always see who is where. Workers roll up under their
+orchestrator's chip (`+2 workers`), each session chip has its own End button,
+and an idle board with no writers stays byte-clean.
+
+Steering is **addressed and reliable**: the composer's picker lists every
+connected writer with live pump health (`· polling`, `· 2 queued`), an
+addressed steer waits in that agent's delivery queue until the agent claims
+and marks it, and broadcasts age out instead of greeting every future
+consumer. Each host wakes its own way — the GitHub Copilot extension pumps
+steers into real Copilot turns, Codex picks them up through its app-native
+heartbeat, and any CLI agent becomes reactive with one command:
+
+```bash
+pmx-canvas pump --consumer amp --exec 'amp -x {message}'
+```
+
+A failed hand-off is never silently swallowed: the steer stays pending and the
+pump exits non-zero. Presence is honest too — "thinking" settles to idle after
+silence, tool calls never clobber an explicit phase, and an attached writer
+that has never made a spatial write still parks its cursor at its last
+activity so it cannot be invisible. Agents coordinate with each other over the
+same steering queue (agent-to-agent hand-offs, reviews, and territory splits),
+and the `pmx-canvas-orchestration` skill documents the choreography.
+
+### 06 / Save
 
 Spatial state auto-saves to `.pmx-canvas/canvas.db` (debounced ~500 ms) —
 git-committable, shareable across machines, and survives both browser
@@ -117,7 +153,7 @@ undo/redo, and an auto-detected code graph (JS/TS, Python, Go, Rust) make
 the canvas durable rather than throwaway. Stop the server before committing
 the DB so SQLite WAL data is checkpointed into the file.
 
-### 06 / Any agent
+### 07 / Any agent
 
 Harness-agnostic. Drive the canvas from [MCP](docs/mcp.md) (22 tools,
 14 resources, change notifications), the [CLI](docs/cli.md), the
@@ -127,7 +163,7 @@ Claude Code, the GitHub Copilot app and CLI, Codex, Amp, Cursor, Windsurf, or
 any agent that can spawn an MCP stdio server, call a CLI, or hit an HTTP
 endpoint.
 
-### 07 / Native app adapters
+### 08 / Native app adapters
 
 PMX Canvas doesn't just run in a browser tab — it embeds **natively inside the
 agent apps you already use**, as a thin adapter layer over the same neutral AX
@@ -378,10 +414,11 @@ the agent can read `canvas://skills` and pull in companion skills
 ## Scope
 
 - **Single-machine, today.** One canvas per `bunx pmx-canvas` instance, on
-  one machine. No built-in multi-user auth or presence — collaboration means
-  human ↔ agent on the same machine, plus any other browser tab/agent
-  pointed at the same `localhost:4313`. To share across machines, commit
-  `.pmx-canvas/canvas.db`.
+  one machine. No built-in multi-user auth — collaboration means humans and
+  agents on the same machine: every browser tab and every connected agent
+  pointed at the same `localhost:4313` shares one live board, with per-writer
+  presence (cursors, chips, minimap dots) for all of them. To share across
+  machines, commit `.pmx-canvas/canvas.db`.
 - **What leaves your machine.** The core canvas runs entirely on
   `localhost`. Network egress only happens for explicit, opt-in flows:
   `webpage` nodes and remote-URL `image` nodes fetch the address you give
