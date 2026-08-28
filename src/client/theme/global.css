@@ -1687,6 +1687,17 @@ body,
   font-weight: 600;
   color: var(--tone);
 }
+/* Row writer in its identity hue — multi-assistant boards need every row to
+   answer "who wrote this" without opening anything. */
+.session-timeline-who {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--identity-color, var(--c-muted));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 40%;
+}
 .session-timeline-undo {
   display: inline-flex;
   align-items: center;

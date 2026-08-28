@@ -24,12 +24,17 @@ export interface AxEventView {
     summary: string;
     detail: string | null;
     createdAt: string;
+    /** Who recorded it — host/source label and per-agent identity. */
+    source?: string | null;
+    agentId?: string | null;
 }
 export interface AxEvidenceView {
     id: string;
     title: string;
     body: string | null;
     createdAt: string;
+    source?: string | null;
+    agentId?: string | null;
 }
 export interface AxSteeringView {
     id: string;
@@ -82,9 +87,15 @@ export interface TimelineEntry {
     label: string;
     body: string;
     createdAt: string;
+    /** Writer key for the row (agentId, else non-transport source; 'browser' = the human).
+     * With several assistants on one board, a row without this is unanswerable:
+     * "Assistant · 23:11" from WHOM? Null when only a bare transport is known. */
+    who?: string | null;
     /** Item 10: this agent edit is the top of the shared undo stack — "↩ undo this edit". */
     undoable?: boolean;
 }
+/** The row's writer key: per-agent identity first, else a non-transport source. */
+export declare function writerKeyFor(agentId?: string | null, source?: string | null): string | null;
 /** The entry Ctrl+Z would undo next, from GET /api/canvas/history. */
 export declare const historyTop: import("@preact/signals-core").Signal<{
     id: string;
@@ -104,6 +115,8 @@ export declare function mergeTimeline(timeline: AxTimelineView, limit?: number, 
     at: string;
     op: string;
     summary: string;
+    sessionId?: string;
+    label?: string;
 }>, top?: {
     actor: 'human' | 'agent';
 } | null, filter?: TimelineFilter): TimelineEntry[];

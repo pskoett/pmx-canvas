@@ -4135,6 +4135,27 @@ test('addressed steering: the composer lists connected agents, the picked one al
   await workToggle.click();
   await expect(workList).toBeVisible();
   await expect(workList).toContainText('Own the CI flake');
+
+  // A cancelled item is NOT outstanding work and was not "vetoed" by anyone:
+  // the summary counts done against the non-cancelled set and names the rest,
+  // and the row chip says "cancelled".
+  const cancelledItem = (await (
+    await request.post('/api/canvas/ax/work', {
+      data: { title: 'Duplicate artifact', status: 'todo' },
+      headers: { 'x-pmx-source': 'copilot' },
+    })
+  ).json()) as { workItem: { id: string } };
+  const doneItem = (await (
+    await request.get('/api/canvas/ax/work')
+  ).json()) as { workItems: Array<{ id: string; title: string }> };
+  const flakeId = doneItem.workItems.find((item) => item.title === 'Own the CI flake')!.id;
+  await request.patch(`/api/canvas/ax/work/${flakeId}`, { data: { status: 'done' } });
+  await request.patch(`/api/canvas/ax/work/${cancelledItem.workItem.id}`, { data: { status: 'cancelled' } });
+  await expect(workToggle).toContainText('1/1 done · 1 cancelled');
+  await expect(
+    workList.locator(`[data-work-item-id="${cancelledItem.workItem.id}"] .session-item-status`),
+  ).toHaveText('cancelled');
+
   await workToggle.click();
   await expect(workList).toBeHidden();
   const gateResponse = (await (
@@ -4174,11 +4195,19 @@ test('addressed steering: the composer lists connected agents, the picked one al
   expect(new Set(rowTops).size).toBe(1);
   const fit = await filters.evaluate((el) => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth }));
   expect(fit.scrollWidth).toBeLessThanOrEqual(fit.clientWidth);
+  // Each chip explains its row kind on hover — the vocabulary is jargon otherwise.
+  await expect(filters.getByRole('button', { name: 'Updates' })).toHaveAttribute('title', /Board edits agents made/);
+  await expect(filters.getByRole('button', { name: 'Evidence' })).toHaveAttribute('title', /Proof agents recorded/);
   await filters.getByRole('button', { name: 'Steer' }).click();
   await expect(page.locator('.session-timeline .session-timeline-label').first()).toHaveText('Steer');
   await expect(page.locator('.session-timeline')).not.toContainText('Update');
+  // The composer steer's row names its writer — the human reads as "you".
+  await expect(page.locator('.session-timeline .session-timeline-who').first()).toHaveText('you');
   await filters.getByRole('button', { name: 'Updates' }).click();
   await expect(page.locator('.session-timeline .session-timeline-label').first()).toHaveText('Update');
+  // Update rows are attributed too: with several assistants writing, every row
+  // must answer "who wrote this" (multi-assistant attribution).
+  await expect(page.locator('.session-timeline .session-timeline-who').first()).not.toBeEmpty();
   await filters.getByRole('button', { name: 'All' }).click();
 
   // The picked agent disconnecting falls back to broadcast.

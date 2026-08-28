@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'preact/hooks';
 import { useNow } from './use-now';
-import { agentPhaseLabel } from '../../shared/agent-presence.js';
+import { agentIdentityHue, agentPhaseLabel } from '../../shared/agent-presence.js';
 import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js';
 import { focusNode, selectedNodeIds } from '../state/canvas-store';
-import { activeSession } from '../state/presence-store';
+import { activeSession, agentPresences } from '../state/presence-store';
 import {
   type ApprovalGateView,
   endSession,
@@ -16,6 +16,7 @@ import {
   setScopeFence,
   sessionWorkItems,
   type TimelineEntry,
+  timelineCategory,
   type TimelineEntryKind,
   type TimelineFilter,
   timelineEntries,
@@ -43,14 +44,30 @@ const WORK_GLYPH: Record<WorkItemStatus, 'queued' | 'running' | 'awaiting' | 'do
   cancelled: 'vetoed',
 };
 
-const TIMELINE_FILTERS: Array<{ id: TimelineFilter; label: string }> = [
-  { id: 'all', label: 'All' },
-  { id: 'update', label: 'Updates' },
-  { id: 'steer', label: 'Steer' },
-  { id: 'assistant', label: 'Assistant' },
-  { id: 'event', label: 'Events' },
-  { id: 'evidence', label: 'Evidence' },
+/** Chip text per status. Deliberately NOT the glyph name: a cancelled item
+ * (withdrawn, duplicate) was not "vetoed" by anyone — saying so misreads
+ * the board's history. The glyph class keeps the design's visual tone. */
+const WORK_STATUS_TEXT: Record<WorkItemStatus, string> = {
+  todo: 'queued',
+  'in-progress': 'running',
+  blocked: 'awaiting',
+  done: 'done',
+  cancelled: 'cancelled',
+};
+
+// Each chip explains itself on hover — the row vocabulary is jargon otherwise.
+const TIMELINE_FILTERS: Array<{ id: TimelineFilter; label: string; hint: string }> = [
+  { id: 'all', label: 'All', hint: 'Everything below in one feed, newest first' },
+  { id: 'update', label: 'Updates', hint: 'Board edits agents made — nodes, edges, pins, work items' },
+  { id: 'steer', label: 'Steer', hint: 'Instructions sent to agents — by you from the composer, or agent-to-agent' },
+  { id: 'assistant', label: 'Assistant', hint: 'Messages agents posted for you to read' },
+  { id: 'event', label: 'Events', hint: 'Run telemetry — tool runs, approvals, failures, policy notes' },
+  { id: 'evidence', label: 'Evidence', hint: 'Proof agents recorded — test results, artifacts, links' },
 ];
+
+const TIMELINE_FILTER_HINTS: Record<TimelineFilter, string> = Object.fromEntries(
+  TIMELINE_FILTERS.map((chip) => [chip.id, chip.hint]),
+) as Record<TimelineFilter, string>;
 
 const TIMELINE_TONE: Record<TimelineEntryKind, string> = {
   policy: 'warn',
@@ -93,7 +110,7 @@ function WorkItemRow({ item }: { item: WorkItemView }) {
         </button>
         {item.detail && <div class="session-item-detail">{item.detail}</div>}
       </div>
-      <span class="session-item-status">{glyph}</span>
+      <span class="session-item-status">{WORK_STATUS_TEXT[item.status] ?? glyph}</span>
       <span class="session-item-time">{clock(item.updatedAt)}</span>
     </li>
   );
@@ -222,6 +239,13 @@ function ScopeRow() {
   );
 }
 
+/** The row writer's display name: roster label when the key is a known writer, 'you' for the human. */
+function writerDisplay(who: string): string {
+  if (who === 'browser') return 'you';
+  const match = agentPresences.value.find((presence) => presence.sessionId === who || presence.source === who);
+  return match?.label ?? who;
+}
+
 function TimelineRow({ entry }: { entry: TimelineEntry }) {
   const undone = undoneActivityIds.value.has(entry.id);
   return (
@@ -229,7 +253,19 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
       <span class="session-timeline-dot" aria-hidden="true" />
       <div class="session-timeline-main">
         <div class="session-timeline-head">
-          <span class="session-timeline-label">{entry.label}</span>
+          <span class="session-timeline-label" title={TIMELINE_FILTER_HINTS[timelineCategory(entry.kind)]}>
+            {entry.label}
+          </span>
+          {/* With several assistants on one board, "Assistant · 23:11" answers
+              nothing — every row names its writer in that writer's identity hue. */}
+          {entry.who && (
+            <span
+              class="session-timeline-who"
+              style={{ '--identity-color': `hsl(${agentIdentityHue(entry.who)} 65% 62%)` }}
+            >
+              {writerDisplay(entry.who)}
+            </span>
+          )}
           <span class="session-item-time">{clock(entry.createdAt)}</span>
         </div>
         <div class="session-timeline-body">{entry.body}</div>
@@ -337,11 +373,23 @@ export function SessionPanel() {
             // signal (pulsing dot + running count); pending gates FORCE the
             // list open, their approve/reject buttons live here.
             const running = items.filter((item) => item.status === 'in-progress' || item.status === 'todo').length;
-            const done = items.filter((item) => item.status === 'done').length;
+            // Cancelled items are not outstanding work — "18/20 done" over a
+            // board with 2 cancelled duplicates reads as work remaining when
+            // none does. Count done against the non-cancelled set and name the
+            // cancelled rest.
+            const active = items.filter((item) => item.status !== 'cancelled');
+            const done = active.filter((item) => item.status === 'done').length;
+            const cancelled = items.length - active.length;
             const mustShow = gates.length > 0 || held.length > 0;
             const showList = workOpen || mustShow;
             const summary =
-              running > 0 ? `${running} running` : items.length > 0 ? `${done}/${items.length} done` : 'none yet';
+              running > 0
+                ? `${running} running`
+                : active.length > 0
+                  ? `${done}/${active.length} done${cancelled > 0 ? ` · ${cancelled} cancelled` : ''}`
+                  : items.length > 0
+                    ? `${items.length} cancelled`
+                    : 'none yet';
             return (
               <>
                 <button
@@ -390,6 +438,7 @@ export function SessionPanel() {
                 type="button"
                 class={`activity-filter${timelineFilter.value === chip.id ? ' is-active' : ''}`}
                 aria-pressed={timelineFilter.value === chip.id}
+                title={chip.hint}
                 onClick={() => {
                   timelineFilter.value = chip.id;
                 }}

@@ -100,6 +100,72 @@ describe('mergeTimeline', () => {
     expect(merged.every((entry) => entry.id.length > 0)).toBe(true);
   });
 
+  test('every row names its writer — multi-assistant boards need per-row attribution', () => {
+    const merged = mergeTimeline(
+      {
+        events: [
+          // Per-agent identity wins over the transport source.
+          {
+            id: 'e1',
+            kind: 'assistant-message',
+            summary: 'probe verified',
+            detail: null,
+            createdAt: '2026-08-27T22:00:00.000Z',
+            source: 'api',
+            agentId: 'codex',
+          },
+          // A bare transport tells the human nothing — no writer shown.
+          {
+            id: 'e2',
+            kind: 'note',
+            summary: 'anon note',
+            detail: null,
+            createdAt: '2026-08-27T22:01:00.000Z',
+            source: 'mcp',
+            agentId: null,
+          },
+        ],
+        evidence: [
+          {
+            id: 'v1',
+            title: 'ladder green',
+            body: null,
+            createdAt: '2026-08-27T22:02:00.000Z',
+            source: 'claude-code',
+            agentId: null,
+          },
+        ],
+        steering: [
+          {
+            id: 's1',
+            message: 'from the composer',
+            createdAt: '2026-08-27T22:03:00.000Z',
+            source: 'browser',
+            target: 'codex',
+          },
+        ],
+      },
+      10,
+      [
+        {
+          id: 'w1',
+          at: '2026-08-27T22:04:00.000Z',
+          op: 'node.add',
+          summary: 'Created markdown',
+          sessionId: 'copilot',
+          label: 'GitHub Copilot',
+        },
+      ],
+    );
+    expect(merged.map((entry) => `${entry.label}:${entry.who ?? '—'}`)).toEqual([
+      'Update:copilot',
+      'Steer:browser',
+      'Evidence:claude-code',
+      'Note:—',
+      'Assistant:codex',
+    ]);
+  });
+
   test('agent writes join the feed as Update rows; only the newest board write is undoable, and only while an agent edit tops the stack', () => {
     const timeline = {
       events: [

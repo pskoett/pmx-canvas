@@ -33,12 +33,17 @@ export interface AxEventView {
   summary: string;
   detail: string | null;
   createdAt: string;
+  /** Who recorded it — host/source label and per-agent identity. */
+  source?: string | null;
+  agentId?: string | null;
 }
 export interface AxEvidenceView {
   id: string;
   title: string;
   body: string | null;
   createdAt: string;
+  source?: string | null;
+  agentId?: string | null;
 }
 export interface AxSteeringView {
   id: string;
@@ -131,8 +136,23 @@ export interface TimelineEntry {
   label: string;
   body: string;
   createdAt: string;
+  /** Writer key for the row (agentId, else non-transport source; 'browser' = the human).
+   * With several assistants on one board, a row without this is unanswerable:
+   * "Assistant · 23:11" from WHOM? Null when only a bare transport is known. */
+  who?: string | null;
   /** Item 10: this agent edit is the top of the shared undo stack — "↩ undo this edit". */
   undoable?: boolean;
+}
+
+/** Transport enums say nothing about WHICH agent spoke — never show them as a writer. */
+const TRANSPORT_WRITERS = new Set(['api', 'mcp', 'sdk', 'cli']);
+
+/** The row's writer key: per-agent identity first, else a non-transport source. */
+export function writerKeyFor(agentId?: string | null, source?: string | null): string | null {
+  if (agentId?.trim()) return agentId.trim();
+  const raw = source?.trim();
+  if (raw && !TRANSPORT_WRITERS.has(raw)) return raw;
+  return null;
 }
 
 /** Ops that change the board (the ones an undo can revert). */
@@ -167,7 +187,7 @@ const EVENT_LABELS: Record<AxEventKind, string> = {
 export function mergeTimeline(
   timeline: AxTimelineView,
   limit = 40,
-  writes: Array<{ id: string; at: string; op: string; summary: string }> = [],
+  writes: Array<{ id: string; at: string; op: string; summary: string; sessionId?: string; label?: string }> = [],
   top: { actor: 'human' | 'agent' } | null = null,
   filter: TimelineFilter = 'all',
 ): TimelineEntry[] {
@@ -179,6 +199,9 @@ export function mergeTimeline(
       label: 'Update',
       body: write.summary,
       createdAt: write.at,
+      // Activity entries are already attributed server-side — the sessionId is
+      // the identity key (hue-stable across chrome), the label its display name.
+      who: write.sessionId ?? null,
       ...(top?.actor === 'agent' && newestWrite?.id === write.id ? { undoable: true } : {}),
     })),
     ...timeline.events.map((event) => ({
@@ -187,6 +210,7 @@ export function mergeTimeline(
       label: EVENT_LABELS[event.kind] ?? event.kind,
       body: event.detail ? `${event.summary} — ${event.detail}` : event.summary,
       createdAt: event.createdAt,
+      who: writerKeyFor(event.agentId, event.source),
     })),
     ...timeline.evidence.map((item) => ({
       id: `evidence-${item.id}`,
@@ -194,6 +218,7 @@ export function mergeTimeline(
       label: 'Evidence',
       body: item.body ? `${item.title} — ${item.body}` : item.title,
       createdAt: item.createdAt,
+      who: writerKeyFor(item.agentId, item.source),
     })),
     ...timeline.steering.map((steer) => {
       // Sender shown for agent-sent steering ("claude-code → copilot · …") so
@@ -212,6 +237,7 @@ export function mergeTimeline(
         label: 'Steer',
         body: `${from ? `${from} ` : ''}${to}${steer.message}${waiting}`,
         createdAt: steer.createdAt,
+        who: writerKeyFor(steer.agentId, steer.source),
       };
     }),
   ];
