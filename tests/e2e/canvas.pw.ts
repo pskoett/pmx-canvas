@@ -2497,6 +2497,19 @@ test('restores snapshots from the toolbar only after confirmation', async ({ pag
     .toBe('Restore target');
 });
 
+test('zooming promotes the world layer, settling demotes it so text re-rasters crisp', async ({ page }) => {
+  await page.goto('/workbench');
+  const willChange = () =>
+    page.evaluate(() => (document.querySelector('.canvas-world') as HTMLElement | null)?.style.willChange ?? '');
+  // A zoom promotes the layer for the duration of the gesture (the zoom
+  // button animates ~250ms, so the promoted window is comfortably observable)…
+  await page.getByRole('button', { name: 'Zoom in' }).click();
+  await expect.poll(willChange, { timeout: 1000 }).toBe('transform');
+  // …and the settle debounce demotes it — a PERMANENT will-change pinned a
+  // cached raster the compositor stretched, blurring node headlines at high zoom.
+  await expect.poll(willChange, { timeout: 3000 }).toBe('auto');
+});
+
 test('toolbar tooltips dismiss after pointer-triggered actions', async ({ page }) => {
   await page.goto('/workbench');
 

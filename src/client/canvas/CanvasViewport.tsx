@@ -266,6 +266,30 @@ export function CanvasViewport({
   // without stale-closure issues from useCallback dependency capture.
   const lassoRef = useRef<LassoRect | null>(null);
 
+  // Raster hygiene: promote the world layer only WHILE the viewport moves and
+  // demote it once it settles. A permanent will-change pinned a cached raster
+  // the compositor merely stretched — at high zoom the node headline (12px
+  // text magnified by the matrix) went permanently blurry. Dropping the hint
+  // after the last change forces a crisp re-raster at the final scale.
+  const worldRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let settleTimer: ReturnType<typeof setTimeout> | null = null;
+    const dispose = effect(() => {
+      void viewport.value;
+      const world = worldRef.current;
+      if (!world) return;
+      world.style.willChange = 'transform';
+      if (settleTimer) clearTimeout(settleTimer);
+      settleTimer = setTimeout(() => {
+        world.style.willChange = 'auto';
+      }, 180);
+    });
+    return () => {
+      if (settleTimer) clearTimeout(settleTimer);
+      dispose();
+    };
+  }, []);
+
   const containerRef = usePanZoom({
     viewport,
     disabled: annotationMode,
@@ -825,11 +849,11 @@ export function CanvasViewport({
           then translate (tx=v.x, ty=v.y). transformOrigin: '0 0' ensures
           the scale pivot is the top-left corner of the world layer. */}
       <div
+        ref={worldRef}
         class="canvas-world"
         style={{
           transform: `matrix(${v.scale}, 0, 0, ${v.scale}, ${v.x}, ${v.y})`,
           transformOrigin: '0 0',
-          willChange: 'transform',
           position: 'absolute',
           top: 0,
           left: 0,
