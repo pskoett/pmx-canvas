@@ -250,3 +250,17 @@ with `ok: true`, the published tarball is intact end-to-end.
 - **Node 24 deprecation timeline**: GitHub Actions is migrating
   `actions/checkout`, `setup-node`, `upload-artifact` to Node 24 by
   June 2, 2026. The publish workflow already pins `@v5` of all three.
+- **npm token failures wear two disguises** (both hit the 0.5.0 publish,
+  after build/tests/provenance all succeeded):
+  - `404 Not Found - PUT …/pmx-canvas` on a package that exists = the
+    token was rejected (npm masks permission refusals as 404). Rotate the
+    `NPM_TOKEN` repo secret.
+  - `EOTP: This operation requires a one-time password` = the account
+    enforces 2FA on writes and the token doesn't have **Bypass 2FA**
+    ticked — CI cannot answer an OTP. A granular token needs that box
+    checked to publish from Actions.
+  - Both are fixed without re-tagging: update the secret, then
+    `gh run rerun <publish-run-id> --failed` re-publishes the same tag.
+  - npm restricts bypass-2FA tokens for direct publishing by **Jan 2027**
+    — migrate to Trusted Publishing (OIDC; `publish.yml` already has
+    `id-token: write`) and delete the token before then.
