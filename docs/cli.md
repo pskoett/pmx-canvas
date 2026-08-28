@@ -19,6 +19,12 @@ pmx-canvas --server-url http://127.0.0.1:4750 status  # same, by URL
 board citizen: it long-polls the per-consumer delivery claim and runs your
 command once per steer, marking per-consumer on success.
 
+On Windows the exec runs through `cmd.exe` and receives the steer message on
+stdin. The `{message}` and `{id}` placeholders are refused there: `cmd.exe`
+expands `%VAR%` and re-parses the result, so a steer containing shell
+metacharacters could inject commands. Read stdin, or reference
+`PMX_STEER_MESSAGE` / `PMX_STEER_ID` inside your own script.
+
 ```bash
 pmx-canvas pump --consumer codex-cli --exec 'codex exec --full-auto {message}'
 pmx-canvas pump --consumer amp --exec 'amp -x {message}' --parent claude-code

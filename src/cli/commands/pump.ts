@@ -37,10 +37,33 @@ async function markDelivered(id: string, consumer: string): Promise<boolean> {
   return result.delivered === true;
 }
 
+/**
+ * Windows has no `sh`, so the exec ran nowhere there. cmd.exe can host the
+ * stdin pattern, but NOT the `{message}` / `{id}` placeholders: those expand to
+ * an env-var reference so hostile steer content is never spliced into the
+ * command string, and cmd.exe expands `%VAR%` before re-parsing — a message
+ * containing `& del …` would run. Refuse the placeholders there instead of
+ * silently reintroducing the injection the substitution exists to prevent.
+ */
+export function renderExecTemplate(template: string, windows = process.platform === 'win32'): string {
+  if (windows) {
+    if (template.includes('{message}') || template.includes('{id}')) {
+      throw new Error(
+        'pmx-canvas pump: {message} and {id} are not supported on Windows — cmd.exe re-parses expanded variables, so a steer could inject commands. Read the message from stdin instead (the exec receives it), or use the PMX_STEER_MESSAGE / PMX_STEER_ID environment variables inside your own script.',
+      );
+    }
+    return template;
+  }
+  return template.replaceAll('{message}', '"$PMX_STEER_MESSAGE"').replaceAll('{id}', '"$PMX_STEER_ID"');
+}
+
 function runExec(template: string, steer: PendingSteer, consumer: string): Promise<number> {
-  const rendered = template.replaceAll('{message}', '"$PMX_STEER_MESSAGE"').replaceAll('{id}', '"$PMX_STEER_ID"');
+  const windows = process.platform === 'win32';
+  const rendered = renderExecTemplate(template, windows);
+  const shell = windows ? (process.env.ComSpec ?? 'cmd.exe') : 'sh';
+  const shellArgs = windows ? ['/d', '/s', '/c', rendered] : ['-c', rendered];
   return new Promise((resolve) => {
-    const child = spawn('sh', ['-c', rendered], {
+    const child = spawn(shell, shellArgs, {
       stdio: ['pipe', 'inherit', 'inherit'],
       env: {
         ...process.env,

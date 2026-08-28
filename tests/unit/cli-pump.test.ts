@@ -1,8 +1,9 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { runAgentCli } from '../../src/cli/agent.ts';
+import { renderExecTemplate } from '../../src/cli/commands/pump.ts';
 import { startCanvasServer, stopCanvasServer } from '../../src/server/server.ts';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
@@ -12,6 +13,7 @@ describe('pmx-canvas pump', () => {
   let previousUrl = '';
   let previousPort = '';
   let scratch = '';
+  let sinkScript = '';
 
   beforeAll(() => {
     workspaceRoot = createTestWorkspace('pmx-canvas-cli-pump-');
@@ -24,6 +26,18 @@ describe('pmx-canvas pump', () => {
     process.env.PMX_CANVAS_URL = baseUrl;
     delete process.env.PMX_CANVAS_PORT;
     scratch = mkdtempSync(join(tmpdir(), 'pump-test-'));
+    // `cat > file` is Unix-only and the Windows shell has no equivalent one-liner;
+    // Bun is guaranteed on PATH here, so drain stdin to the file it is given.
+    sinkScript = join(scratch, 'sink.mjs');
+    writeFileSync(
+      sinkScript,
+      [
+        "import { writeFileSync } from 'node:fs';",
+        'const chunks = [];',
+        'for await (const chunk of process.stdin) chunks.push(chunk);',
+        'writeFileSync(process.argv[2], Buffer.concat(chunks));',
+      ].join('\n'),
+    );
   });
 
   afterAll(() => {
@@ -61,7 +75,16 @@ describe('pmx-canvas pump', () => {
     const late = setTimeout(() => {
       void steer('the fresh instruction', 'pumptest');
     }, 700);
-    await runAgentCli(['pump', '--consumer', 'pumptest', '--exec', `cat > ${outFile}`, '--once', '--wait-ms', '8000']);
+    await runAgentCli([
+      'pump',
+      '--consumer',
+      'pumptest',
+      '--exec',
+      `bun "${sinkScript}" "${outFile}"`,
+      '--once',
+      '--wait-ms',
+      '8000',
+    ]);
     clearTimeout(late);
 
     // Backlog swept without running the exec for it; the fresh one ran + marked.
@@ -89,4 +112,15 @@ describe('pmx-canvas pump', () => {
     ).rejects.toThrow('steer remains pending');
     expect(await pendingFor('pumpfail')).toBe(1);
   }, 20_000);
+
+  test('the {message} placeholder is refused on Windows, where cmd.exe would re-parse it', () => {
+    // POSIX: substituted as a variable reference, never spliced in.
+    expect(renderExecTemplate('agent {message}', false)).toBe('agent "$PMX_STEER_MESSAGE"');
+    // Windows: cmd.exe expands %VAR% and re-parses, so `& del ...` in a steer
+    // would execute — refuse rather than reintroduce the injection.
+    expect(() => renderExecTemplate('agent {message}', true)).toThrow(/not supported on Windows/);
+    expect(() => renderExecTemplate('agent {id}', true)).toThrow(/not supported on Windows/);
+    // A stdin-based exec is fine on both.
+    expect(renderExecTemplate('my-agent', true)).toBe('my-agent');
+  });
 });

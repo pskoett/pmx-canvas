@@ -65,7 +65,11 @@ need it.
   agent behind each message.
 - `pmx-canvas pump` — a new CLI command that makes any CLI agent (Codex, Amp, a
   script) steerable: it long-polls for steers and runs your command once per
-  message. Supports `--consumer`, `--exec`, `--parent`, `--once`, and `--backlog`.
+  message. Supports `--consumer`, `--exec`, `--parent`, `--once`, and
+  `--backlog`. On Windows the command runs through `cmd.exe` and receives the
+  steer on stdin; the `{message}` / `{id}` placeholders are refused there,
+  because `cmd.exe` re-parses expanded variables and a steer could inject
+  commands.
 - Edges can be edited in place — update an edge's label, type, style, or
   animation without deleting and redrawing it (`PATCH /api/canvas/edge/:id`,
   `canvas_edge { action: "update" }`).
