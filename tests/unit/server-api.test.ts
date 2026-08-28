@@ -1507,14 +1507,19 @@ describe('canvas server HTTP API', () => {
   });
 
   test('workbench page advertises Amp orb mode only when AMP_ORB is set', async () => {
-    const before = await fetch(`${baseUrl}/workbench`).then((r) => r.text());
-    expect(before).not.toContain('__PMX_AMP_ORB');
-    process.env.AMP_ORB = '1';
+    // Own BOTH states explicitly: an Amp orb runs the suite with ambient
+    // AMP_ORB=1, and the un-set expectation failed there (0.5.0 Amp report).
+    const ambient = process.env.AMP_ORB;
     try {
+      delete process.env.AMP_ORB;
+      const before = await fetch(`${baseUrl}/workbench`).then((r) => r.text());
+      expect(before).not.toContain('__PMX_AMP_ORB');
+      process.env.AMP_ORB = '1';
       const after = await fetch(`${baseUrl}/workbench`).then((r) => r.text());
       expect(after).toContain('window.__PMX_AMP_ORB = true');
     } finally {
-      delete process.env.AMP_ORB;
+      if (ambient === undefined) delete process.env.AMP_ORB;
+      else process.env.AMP_ORB = ambient;
     }
   });
 
@@ -1941,6 +1946,16 @@ describe('canvas server HTTP API', () => {
     });
     expect(filePath.status).toBe(400);
     expect(((await filePath.json()) as { error: string }).error).toContain('as `content`');
+
+    // dockPosition → 400: docking was removed in 0.5.0, and a silently-ignored
+    // create read as "docking works" (0.5.0 Copilot report, PASS-ish).
+    const docked = await fetch(`${baseUrl}/api/canvas/node`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ type: 'context', title: 'Trap', content: 'x', dockPosition: 'left' }),
+    });
+    expect(docked.status).toBe(400);
+    expect(((await docked.json()) as { error: string }).error).toContain('docking was removed');
 
     // any type + src → 400.
     const imgSrc = await fetch(`${baseUrl}/api/canvas/node`, {

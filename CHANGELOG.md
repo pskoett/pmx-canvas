@@ -3,6 +3,23 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.1] - 2026-08-28
+
+Fixes from the 0.5.0 field reports (Amp orb, Copilot app, Codex app).
+
+### Fixed
+
+- Fit now reserves the space under the command bar and minimap, so fitted nodes are never hidden behind the floating UI.
+- Embedded app tiles (Excalidraw and other MCP apps) verify that real content rendered before reporting success; a tile that fails to paint keeps its loading overlay and offers a visible Retry — including in the expanded view.
+- The Bun SDK's `saveSnapshot()` reuses the existing snapshot for an unchanged board, matching HTTP and MCP.
+- `pmx-canvas pump` is listed in `--help`, `pmx-canvas pump --help` prints usage, and the bundled skill documents the pump recipe for agents without an adapter.
+- The session timeline's filter row no longer overflows narrow panels.
+- Creating or updating a node with the removed `dockPosition` field now returns an error instead of silently ignoring it.
+
+### Changed
+
+- The fit endpoint's `padding` option is measured in screen pixels.
+
 ## [0.5.0] - 2026-08-28
 
 The multi-agent workbench release. The canvas becomes a live, shared surface

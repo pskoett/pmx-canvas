@@ -422,6 +422,13 @@ export function createBasicCanvasNode(
         : '"path" is only an image-node compatibility alias — use `content`.',
     );
   }
+  // Docking was removed in 0.5.0 — a create that still sends it silently
+  // succeeded and read as "docking works" (0.5.0 Copilot report, PASS-ish).
+  if (body.dockPosition !== undefined) {
+    throw new OperationError(
+      'Unknown field "dockPosition" — docking was removed in 0.5.0; use `position` and `pinned`.',
+    );
+  }
   const content =
     type === 'image' && typeof body.path === 'string' && typeof body.content !== 'string' ? body.path : body.content;
   // For html nodes, accept top-level `html` AND `axCapabilities` and merge into data
@@ -495,6 +502,11 @@ export function buildNodePatch(
   // updates the FILE CONTENT snapshot, it does not re-point the node.
   if (body.src !== undefined) {
     throw new OperationError('Unknown field "src" — update the image source via `content`.');
+  }
+  if (body.dockPosition !== undefined) {
+    throw new OperationError(
+      'Unknown field "dockPosition" — docking was removed in 0.5.0; use `position` and `pinned`.',
+    );
   }
   if (body.path !== undefined && existing.type !== 'image') {
     if (existing.type === 'file') {
