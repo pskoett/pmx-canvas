@@ -15,6 +15,11 @@ artifacts/*.html
 *.db-shm
 
 # Daemon runtime files
+.pmx-canvas/canvas.db
+.pmx-canvas/canvas.db-wal
+.pmx-canvas/canvas.db-shm
+.pmx-canvas/gauntlet.*
+.pmx-canvas/wf-wave*.js
 .pmx-canvas/daemon-*.log
 .pmx-canvas/daemon-*.pid
 
