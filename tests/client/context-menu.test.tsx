@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { act, cleanup, fireEvent, render } from '@testing-library/preact';
 import { ContextMenu, type MenuState } from '../../src/client/canvas/ContextMenu.tsx';
+import { textPromptRequest } from '../../src/client/canvas/TextPrompt.tsx';
 import {
   activeNodeId,
   contextPinnedNodeIds,
@@ -121,5 +122,27 @@ describe('ContextMenu', () => {
     expect(getByText('Open file...')).toBeTruthy();
     expect(getByText('Open image...')).toBeTruthy();
     expect(getByText('New group')).toBeTruthy();
+  });
+
+  test('Open webpage/file/image ask through the in-canvas prompt, never window.prompt', () => {
+    // Embedded panes no-op window.prompt — these items must not depend on it.
+    for (const [item, expectedTitle] of [
+      ['Open webpage...', 'Webpage URL:'],
+      ['Open file...', 'Workspace path or absolute file path:'],
+      ['Open image...', 'Image path, URL, or data URI:'],
+    ] as const) {
+      const { getByText } = render(
+        <ContextMenu menu={{ kind: 'canvas', x: 20, y: 20, canvasX: 100, canvasY: 100 }} onClose={() => {}} />,
+      );
+      act(() => {
+        fireEvent.click(getByText(item));
+      });
+      expect(textPromptRequest.value?.title).toBe(expectedTitle);
+      act(() => {
+        textPromptRequest.value?.resolve(null);
+        textPromptRequest.value = null;
+      });
+      cleanup();
+    }
   });
 });

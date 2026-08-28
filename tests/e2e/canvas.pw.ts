@@ -674,6 +674,26 @@ test('canvas background context menu exposes user-creatable nodes', async ({ pag
       return state.nodes.filter((node) => node.type === 'markdown' && node.data.title === 'New note').length;
     })
     .toBe(1);
+
+  // "Open file…" goes through the IN-CANVAS prompt — native window.prompt is a
+  // silent no-op in embedded panes, where these menu items used to do nothing.
+  // Right-click clear of the note just created (it opens the NODE menu).
+  await viewport.click({ button: 'right', position: { x: 900, y: 520 } });
+  await page.locator('.context-menu .context-menu-item').filter({ hasText: 'Open file...' }).click();
+  const openPrompt = page.locator('[data-testid="text-prompt"]');
+  await expect(openPrompt).toBeVisible();
+  await expect(openPrompt).toContainText('Workspace path');
+  await openPrompt.locator('input').fill('package.json');
+  await openPrompt.locator('input').press('Enter');
+  await expect(openPrompt).toBeHidden();
+  const fileNode = page.locator('.canvas-node').filter({ hasText: 'package.json' });
+  await expect(fileNode).toBeVisible();
+  await expect
+    .poll(async () => {
+      const state = await currentCanvasState(request);
+      return state.nodes.filter((node) => node.type === 'file').length;
+    })
+    .toBe(1);
 });
 
 test('renders server-created nodes and syncs context pins from the UI', async ({ page, request }) => {
@@ -4567,14 +4587,18 @@ test('edge creation: Connect tool drags an edge from a node body, the target lig
   await page.mouse.up();
   expect(((await (await request.get('/api/canvas/state')).json()) as { edges: unknown[] }).edges).toHaveLength(0);
 
-  // Again, with L: the label prompt fills the edge label.
-  page.once('dialog', (dialog) => void dialog.accept('depends'));
+  // Again, with L: the label ask fills the edge label — through the in-canvas
+  // prompt (native window.prompt is a silent no-op in embedded panes).
   await page.mouse.move(aBox!.x + 120, aBox!.y + 90);
   await page.mouse.down();
   await page.mouse.move(bBox!.x + 120, bBox!.y + 90, { steps: 6 });
   await page.keyboard.press('l');
   await expect(page.locator('[data-testid="edge-hint"]')).toContainText('label on');
   await page.mouse.up();
+  const labelPrompt = page.locator('[data-testid="text-prompt"]');
+  await expect(labelPrompt).toBeVisible();
+  await labelPrompt.locator('input').fill('depends');
+  await labelPrompt.locator('input').press('Enter');
   await expect
     .poll(async () => {
       const state = (await (await request.get('/api/canvas/state')).json()) as { edges: Array<{ label?: string }> };

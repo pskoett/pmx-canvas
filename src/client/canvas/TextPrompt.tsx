@@ -9,15 +9,31 @@ import { useEffect, useRef } from 'preact/hooks';
 interface TextPromptRequest {
   title: string;
   placeholder: string;
+  /** Prefilled (and pre-selected) value — edit flows start from the current text. */
+  initial: string;
+  /** Submitting an empty field resolves '' instead of null — "clear the value" flows. */
+  allowEmpty: boolean;
+  confirm: string;
   resolve: (value: string | null) => void;
 }
 
 export const textPromptRequest = signal<TextPromptRequest | null>(null);
 
-export function askText(title: string, placeholder: string): Promise<string | null> {
+export function askText(
+  title: string,
+  placeholder: string,
+  opts: { initial?: string; allowEmpty?: boolean; confirm?: string } = {},
+): Promise<string | null> {
   return new Promise((resolve) => {
     textPromptRequest.value?.resolve(null);
-    textPromptRequest.value = { title, placeholder, resolve };
+    textPromptRequest.value = {
+      title,
+      placeholder,
+      initial: opts.initial ?? '',
+      allowEmpty: opts.allowEmpty ?? false,
+      confirm: opts.confirm ?? 'Add',
+      resolve,
+    };
   });
 }
 
@@ -33,7 +49,12 @@ export function TextPrompt() {
 
   useEffect(() => {
     if (!request) return;
+    // Set imperatively: the input element is REUSED across consecutive
+    // requests, so defaultValue alone would leak the previous ask's text.
+    if (inputRef.current) inputRef.current.value = request.initial;
     inputRef.current?.focus();
+    // Edit flows prefill — selecting it lets a retype replace in one stroke.
+    if (request.initial) inputRef.current?.select();
     // Esc closes the dialog wherever focus sits (autofocus can lose a race in
     // a busy tab, and the global shortcut layer must never see this Esc).
     const onKey = (e: KeyboardEvent) => {
@@ -50,7 +71,7 @@ export function TextPrompt() {
 
   const submit = () => {
     const value = inputRef.current?.value.trim() ?? '';
-    settle(value ? value : null);
+    settle(value ? value : request.allowEmpty ? '' : null);
   };
 
   return (
@@ -67,6 +88,7 @@ export function TextPrompt() {
           ref={inputRef}
           class="text-prompt-input"
           type="text"
+          defaultValue={request.initial}
           placeholder={request.placeholder}
           onKeyDown={(e) => {
             // Contained: the global shortcut layer must not see these.
@@ -86,7 +108,7 @@ export function TextPrompt() {
             Cancel
           </button>
           <button type="button" class="text-prompt-confirm" onClick={submit}>
-            Add
+            {request.confirm}
           </button>
         </div>
       </div>

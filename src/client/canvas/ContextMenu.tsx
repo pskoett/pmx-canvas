@@ -26,6 +26,7 @@ import {
   updateEdgeFromClient,
   updateNodeFromClient,
 } from '../state/intent-bridge';
+import { askText } from './TextPrompt';
 import { EXPANDABLE_TYPES } from '../types';
 import type { CanvasNodeState } from '../types';
 
@@ -123,9 +124,14 @@ export function ContextMenu({ menu, onClose }: ContextMenuProps) {
           ? `Edit label “${edge.label.slice(0, 18)}${edge.label.length > 18 ? '…' : ''}”`
           : 'Add label…',
         action: () => {
-          const next = window.prompt('Edge label (empty clears it):', edge?.label ?? '');
-          if (next === null) return;
-          void updateEdgeFromClient(edgeId, { label: next });
+          void askText('Edge label (empty clears it)', 'label text', {
+            initial: edge?.label ?? '',
+            allowEmpty: true,
+            confirm: 'Save',
+          }).then((next) => {
+            if (next === null) return;
+            void updateEdgeFromClient(edgeId, { label: next });
+          });
         },
       },
       { separator: true },
@@ -342,7 +348,9 @@ async function createPromptedNode(opts: {
   titleFallback: string;
   errorMessage: string;
 }): Promise<void> {
-  const value = window.prompt(opts.promptLabel, opts.placeholder ?? '');
+  // In-canvas prompt: `window.prompt` (and `window.alert`) are silent no-ops
+  // in embedded browser panes — these menu items "did nothing" there.
+  const value = await askText(opts.promptLabel, opts.placeholder ?? '');
   if (!value) return;
   const trimmed = value.trim();
   if (!trimmed) return;
@@ -359,7 +367,7 @@ async function createPromptedNode(opts: {
   });
 
   if (!result.ok) {
-    window.alert(opts.errorMessage);
+    console.error(`[canvas-menu] ${opts.errorMessage}`);
   }
 }
 

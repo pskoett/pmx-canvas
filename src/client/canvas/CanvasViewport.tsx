@@ -1,5 +1,6 @@
 import { effect } from '@preact/signals';
 import { useCallback, useEffect, useRef, useState } from 'preact/hooks';
+import { askText } from './TextPrompt';
 import { ContextNode } from '../nodes/ContextNode';
 import { DiffNode } from '../nodes/DiffNode';
 import { FileNode } from '../nodes/FileNode';
@@ -598,9 +599,18 @@ export function CanvasViewport({
       const drag = draggingEdge.value;
       if (!drag) return;
       draggingEdge.value = null;
-      if (!drag.targetId) return;
-      const label = drag.withLabel ? window.prompt('Edge label', '')?.trim() || undefined : undefined;
-      createEdgeFromClient(drag.fromId, drag.targetId, 'relation', label);
+      const targetId = drag.targetId;
+      if (!targetId) return;
+      if (drag.withLabel) {
+        // In-canvas prompt — `window.prompt` is a silent no-op in embedded
+        // panes (the L-labelled connect just dropped the label there).
+        // Cancelling still creates the edge, unlabelled, like prompt-cancel did.
+        void askText('Edge label', 'label text').then((label) => {
+          createEdgeFromClient(drag.fromId, targetId, 'relation', label ?? undefined);
+        });
+        return;
+      }
+      createEdgeFromClient(drag.fromId, targetId, 'relation', undefined);
     }
 
     function handleKey(e: KeyboardEvent) {
