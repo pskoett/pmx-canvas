@@ -14,10 +14,13 @@ interface TextPromptRequest {
   /** Submitting an empty field resolves '' instead of null — "clear the value" flows. */
   allowEmpty: boolean;
   confirm: string;
+  /** Bumped per ask so consecutive requests get a FRESH input element. */
+  seq: number;
   resolve: (value: string | null) => void;
 }
 
 export const textPromptRequest = signal<TextPromptRequest | null>(null);
+let promptSeq = 0;
 
 export function askText(
   title: string,
@@ -26,7 +29,9 @@ export function askText(
 ): Promise<string | null> {
   return new Promise((resolve) => {
     textPromptRequest.value?.resolve(null);
+    promptSeq += 1;
     textPromptRequest.value = {
+      seq: promptSeq,
       title,
       placeholder,
       initial: opts.initial ?? '',
@@ -49,14 +54,10 @@ export function TextPrompt() {
 
   useEffect(() => {
     if (!request) return;
-    // Set imperatively: the input element is REUSED across consecutive
-    // requests, so defaultValue alone would leak the previous ask's text.
-    if (inputRef.current) inputRef.current.value = request.initial;
-    inputRef.current?.focus();
-    // Edit flows prefill — selecting it lets a retype replace in one stroke.
-    if (request.initial) inputRef.current?.select();
-    // Esc closes the dialog wherever focus sits (autofocus can lose a race in
-    // a busy tab, and the global shortcut layer must never see this Esc).
+    // Esc closes the dialog wherever focus sits (a click can move focus off the
+    // input, and the global shortcut layer must never see this Esc). Focus and
+    // the prefill are NOT here: an effect runs a frame after the dialog paints,
+    // and a key (or a test's fill) inside that gap lands on the wrong target.
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape') return;
       e.preventDefault();
@@ -85,7 +86,17 @@ export function TextPrompt() {
       >
         <div class="text-prompt-title">{request.title}</div>
         <input
-          ref={inputRef}
+          // A fresh element per ask (so defaultValue applies) focused in the
+          // ref callback, which Preact runs synchronously during commit — the
+          // dialog is never on screen unfocused.
+          key={request.seq}
+          ref={(el) => {
+            inputRef.current = el;
+            if (!el) return;
+            el.focus();
+            // Edit flows prefill — selecting it lets a retype replace in one stroke.
+            if (request.initial) el.select();
+          }}
           class="text-prompt-input"
           type="text"
           defaultValue={request.initial}

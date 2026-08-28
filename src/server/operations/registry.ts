@@ -222,8 +222,14 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 const isString = (value: unknown): value is string => typeof value === 'string';
 
-/** Ops that change which group a node belongs to — a held member is a held target. */
-const MEMBERSHIP_OPS = new Set(['node.remove', 'group.remove', 'group.add', 'group.create']);
+/**
+ * Ops that change which group a node belongs to — a held member is a held
+ * target. `node.update` is here because `node.update {id:G, children:[X]}`
+ * reparents X: the scope fence already counts that as a write to X
+ * (`scope-fence.ts` `groupChildren`), and the edit-lock must agree, or a
+ * human's in-progress drag is overridden through the ordinary reparent path.
+ */
+const MEMBERSHIP_OPS = new Set(['node.remove', 'group.remove', 'group.add', 'group.create', 'node.update']);
 
 /** The node an agent write targets, if a human currently holds it. */
 function heldByHuman(name: string, rawInput: unknown): { nodeId: string; name: string } | null {
@@ -236,6 +242,9 @@ function heldByHuman(name: string, rawInput: unknown): { nodeId: string; name: s
       const list = input[key];
       if (Array.isArray(list)) ids.push(...list.filter(isString));
     }
+    // node.update carries the reparent list under data.children too.
+    const data = asRecord(input.data);
+    if (Array.isArray(data.children)) ids.push(...data.children.filter(isString));
     // Removing a group dissolves it: every member changes hands too.
     for (const id of [...ids]) {
       const node = canvasState.getNode(id);

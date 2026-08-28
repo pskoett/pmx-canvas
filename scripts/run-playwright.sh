@@ -12,6 +12,14 @@ set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
+# The suite exercises the real open-as-site path, which launches the developer's
+# browser unless this is set. It used to live only in the package.json wrappers,
+# so a direct `bash scripts/run-playwright.sh` (what everyone runs when grepping
+# one test) opened real tabs — the same wrapper-only-guard class as the
+# `bun test` preload in tests/preload.ts. Default it here; an explicit value
+# from the caller still wins.
+export PMX_CANVAS_DISABLE_BROWSER_OPEN="${PMX_CANVAS_DISABLE_BROWSER_OPEN:-1}"
+
 PLAYWRIGHT_CLI="node_modules/@playwright/test/cli.js"
 
 if ! command -v node >/dev/null 2>&1; then

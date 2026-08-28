@@ -118,9 +118,18 @@ export function describeOpTarget(op: Operation, rawInput: unknown): FenceTarget 
   const input = asRecord(rawInput);
   if (BOARD_WIDE_OPS.has(op.name)) return { boardWide: true };
   switch (op.name) {
-    case 'node.update':
+    case 'node.update': {
       // A group's membership change reparents (and may reposition) its children.
-      return { nodeIds: [str(input.id), ...groupChildren(input)] };
+      const nodeIds = [str(input.id), ...groupChildren(input)];
+      // A move's DESTINATION must also land inside the fence — otherwise an
+      // agent relocates a fenced node outward, and since the fence rect is
+      // derived from live node positions, that grows its own writable region
+      // past the human-seeded region.
+      const x = Number(input.x);
+      const y = Number(input.y);
+      if (Number.isFinite(x) && Number.isFinite(y)) return { points: [{ x, y }], nodeIds };
+      return { nodeIds };
+    }
     case 'node.remove':
       return { nodeIds: [str(input.id)] };
     case 'node.add':

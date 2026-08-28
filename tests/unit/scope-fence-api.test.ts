@@ -113,6 +113,16 @@ describe('scope fence over HTTP', () => {
     expect(reparent.status).toBe(403);
   });
 
+  test('an agent cannot relocate a fenced node to a point outside the fence', async () => {
+    const inside = await addNode('In', 100, 100);
+    await postJson('/api/canvas/ax/policy', { scope: { nodeIds: [inside], padding: 40 } }, WORKBENCH);
+    // Moving the fenced node far out would grow the position-derived fence — refused.
+    const moved = await patchNode(inside, { x: 9000, y: 9000 });
+    expect(moved.status).toBe(403);
+    // A move that stays within the fence is fine.
+    expect((await patchNode(inside, { x: 120, y: 120 })).ok).toBe(true);
+  });
+
   test('fencing a group frame grants its members too — nested groups included', async () => {
     const a = await addNode('A', 100, 100);
     const b = await addNode('B', 400, 100);

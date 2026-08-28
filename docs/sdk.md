@@ -115,7 +115,7 @@ canvas.submitAxInteraction({ type: 'ax.work.create', sourceNodeId: n1, payload: 
 
 // Delivery — claim pending steering for a consumer (loop-safe), then acknowledge
 const pending = canvas.getPendingSteering({ consumer: 'copilot', limit: 20 });
-if (pending[0]) canvas.markSteeringDelivered(pending[0].id, { consumer: 'copilot' });
+if (pending[0]) canvas.markSteeringDelivered(pending[0].id, 'copilot');
 
 // Elicitation + mode requests (canvas-bound, snapshotted)
 const elic = canvas.requestElicitation({ prompt: 'Who owns this?', fields: ['owner'] }, { source: 'sdk' });

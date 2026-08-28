@@ -11,6 +11,8 @@ interface TextPromptRequest {
     /** Submitting an empty field resolves '' instead of null — "clear the value" flows. */
     allowEmpty: boolean;
     confirm: string;
+    /** Bumped per ask so consecutive requests get a FRESH input element. */
+    seq: number;
     resolve: (value: string | null) => void;
 }
 export declare const textPromptRequest: import("@preact/signals-core").Signal<TextPromptRequest | null>;

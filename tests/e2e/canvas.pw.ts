@@ -1,4 +1,12 @@
-import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
+import {
+  expect,
+  test,
+  type APIRequestContext,
+  type Browser,
+  type BrowserContext,
+  type Locator,
+  type Page,
+} from '@playwright/test';
 import { fileURLToPath } from 'node:url';
 
 const playwrightPort = Number(process.env.PMX_PLAYWRIGHT_PORT ?? '4517');
@@ -45,6 +53,19 @@ async function clearCanvas(request: APIRequestContext): Promise<void> {
       headers: { 'x-pmx-workbench': '1' },
     });
   }
+  // Every workbench tab is a server-side human presence with a 30 s TTL, and the
+  // client's goodbye is a `pagehide` beacon that `context.close()` never fires —
+  // so a closed tab keeps painting its `.human-cursor` on the next test's board.
+  // Nothing but `stopCanvasServer` resets the registry; drop them explicitly.
+  const humans = (await (await request.get('/api/canvas/human-presence')).json()) as {
+    humans: Array<{ clientId: string }>;
+  };
+  for (const human of humans.humans) {
+    await request.post('/api/canvas/human-presence', {
+      data: { clientId: human.clientId, left: true },
+      headers: { 'x-pmx-workbench': '1' },
+    });
+  }
   await request.post('/api/canvas/ax/policy', { data: { scope: null }, headers: { 'x-pmx-workbench': '1' } });
   await request.post('/api/canvas/clear', { headers: { 'x-pmx-workbench': '1' } });
   await request.post('/api/canvas/context-pins', { data: { nodeIds: [] }, headers: { 'x-pmx-workbench': '1' } });
@@ -86,9 +107,26 @@ async function dragNodeTitlebar(page: Page, node: Locator, deltaX: number, delta
   await page.mouse.up();
 }
 
+/**
+ * Hand-made contexts (the two-tab tests) are NOT in Playwright's own cleanup
+ * map: an explicit `close()` at the end of the test is unreachable once an
+ * assertion above it fails, and the orphan keeps heartbeating its presence and
+ * SSE into every later test. Track them and close them in afterEach instead.
+ */
+const strayContexts: BrowserContext[] = [];
+async function trackedContext(browser: Browser): Promise<BrowserContext> {
+  const context = await browser.newContext();
+  strayContexts.push(context);
+  return context;
+}
+
 test.beforeEach(async ({ request }) => {
   await clearCanvas(request);
   await clearSnapshots(request);
+});
+
+test.afterEach(async () => {
+  for (const context of strayContexts.splice(0)) await context.close();
 });
 
 test('renders every canvas node type in the browser', async ({ page, request }) => {
@@ -518,7 +556,11 @@ test('Shift+F / W / I open the in-canvas prompt (window.prompt is a no-op in emb
   // W opens it too; Esc cancels without creating.
   await page.keyboard.press('w');
   await expect(prompt).toContainText('Page URL');
-  await page.keyboard.press('Escape');
+  // Escape on the input, like the Enter above: the dialog's window-level Esc
+  // listener is registered in an effect, so a key sent the instant the dialog
+  // paints can land before it exists (and autofocus can lose that race too).
+  // A human cannot press Esc inside that frame; a test can.
+  await prompt.locator('input').press('Escape');
   await expect(prompt).toBeHidden();
   // I opens the image prompt; backdrop click cancels.
   await page.keyboard.press('i');
@@ -4481,8 +4523,8 @@ test('human presence: two tabs see each other’s cursors, a grab locks the node
   ).json()) as { id: string };
   await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
 
-  const mia = await browser.newContext();
-  const sam = await browser.newContext();
+  const mia = await trackedContext(browser);
+  const sam = await trackedContext(browser);
   const miaPage = await mia.newPage();
   const samPage = await sam.newPage();
   await miaPage.goto('/workbench?name=mia');
@@ -4503,18 +4545,43 @@ test('human presence: two tabs see each other’s cursors, a grab locks the node
   // under it, so the cursor sam watches must track to the new world point —
   // before the viewport-change re-report it froze at the stale one.
   const frozen = await miaCursor.evaluate((el) => (el as HTMLElement).style.transform);
-  await miaPage.mouse.wheel(0, 240);
-  await expect.poll(() => miaCursor.evaluate((el) => (el as HTMLElement).style.transform)).not.toBe(frozen);
+  // Trackpad-shaped delta (fractional) so this PANS. An integer delta ≥ 50 with
+  // no deltaX is mouse-wheel-shaped and zooms instead — and a pointer-anchored
+  // zoom leaves the world point under her stationary pointer invariant, so there
+  // is nothing to re-report and this assertion only passed on rounding noise.
+  // Kept modest (PAN_SPEED is 1) so the note's titlebar stays on screen for the
+  // grab below; a 240px pan scrolls it off the top.
+  // Nudge inside the poll: a single dispatched wheel reaches the pan handler
+  // only some of the time, so one shot plus a wait is a coin flip. Small
+  // deltas keep the total pan under ~100px so the note's titlebar stays on
+  // screen for the grab below.
+  // Report the unchanged value while the cursor is momentarily absent (it is
+  // re-created as presence frames arrive) instead of letting `evaluate` throw —
+  // expect.poll propagates exceptions rather than retrying them, so a single
+  // tick that caught the gap failed the whole test.
+  await expect
+    .poll(
+      async () => {
+        await miaPage.mouse.wheel(0, 12.5);
+        if ((await miaCursor.count()) !== 1) return frozen;
+        return miaCursor.evaluate((el) => (el as HTMLElement).style.transform);
+      },
+      { intervals: [150, 150, 150, 150, 150, 150, 150], timeout: 5_000 },
+    )
+    .not.toBe(frozen);
 
   // An agent signals an edit on the note; mia grabs it mid-edit → the agent
   // yields (intent vetoed, Yield in the timeline) and the node wears the pill.
   await request.post('/api/canvas/ax/activity', {
     data: { kind: 'session-start', title: 'Claude', source: 'copilot' },
   });
+  // Unique per run: a vetoed intent id is tombstoned for 60 s (MAX_INTENT_TTL_MS),
+  // so reusing the literal id makes a retry's signal 409 and the ghost never appear.
+  const intentId = `e2e-yield-${Date.now()}`;
   await request.post('/api/canvas/ax/intent', {
-    data: { id: 'e2e-yield', kind: 'edit', nodeId: node.id, label: 'Rewrite the note', ttlMs: 30000 },
+    data: { id: intentId, kind: 'edit', nodeId: node.id, label: 'Rewrite the note', ttlMs: 30000 },
   });
-  await expect(miaPage.locator('.intent-ghost, .ghost-intent, [data-intent-id="e2e-yield"]').first()).toBeVisible();
+  await expect(miaPage.locator(`.intent-ghost, .ghost-intent, [data-intent-id="${intentId}"]`).first()).toBeVisible();
   const bar = await miaPage
     .locator('.canvas-node')
     .filter({ hasText: 'Shared note' })
@@ -4547,11 +4614,9 @@ test('human presence: two tabs see each other’s cursors, a grab locks the node
     })
     .toBe(true);
   // The vetoed intent is gone from every tab (the server cleared it).
-  await expect(samPage.locator('[data-intent-id="e2e-yield"]')).toHaveCount(0);
+  await expect(samPage.locator(`[data-intent-id="${intentId}"]`)).toHaveCount(0);
 
   await request.post('/api/canvas/ax/activity', { data: { kind: 'session-end', title: 'done', source: 'copilot' } });
-  await mia.close();
-  await sam.close();
 });
 
 test('an external (sessionless) writer paints a dashed cursor parked on the node it wrote', async ({

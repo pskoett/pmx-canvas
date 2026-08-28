@@ -421,7 +421,7 @@ When you do set a color (group/graph), use this palette consistently to convey m
 ## MCP Tools Reference
 
 PMX Canvas exposes **16 action-discriminated composites** (the whole recommended surface) plus
-**6 first-class standalones** — 22 tools total (v0.4.x). The composites fold the older
+**6 first-class standalones** — 22 tools total. The composites fold the older
 single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) discriminator —
 **field names are unchanged**; only the tool name + the `action`/`kind` selector differ.
 

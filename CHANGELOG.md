@@ -3,6 +3,140 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.5.0] - 2026-08-28
+
+The multi-agent workbench release. The canvas becomes a live, shared surface
+where several agents and a human can work at once — everyone can see who is
+writing where, steer any connected agent, and take the board back when they
+need it.
+
+
+### Breaking
+
+- Node docking is gone. `dockPosition` is removed from node payloads, from
+  `canvas_update_node`'s input, and from the SDK's `CanvasNodeState` and node
+  updates; the docked HUD pills and the first-run docked status/context widgets
+  are retired. Nodes always live on the canvas now — use `position` and
+  `pinned`. Old boards load fine and previously docked nodes appear as normal
+  nodes. The validator's advisory `hiddenEdgeEndpoints` field went with them.
+- Ungrouping now dissolves the group in one undo step: children are released
+  (into the enclosing group when nested) and the frame is removed — it no
+  longer survives to be deleted separately. A missing group now returns 404,
+  and an empty group dissolves instead of erroring. To release children while
+  keeping the frame, patch the group with `childIds: []`.
+- Approval gates no longer wait forever: an unanswered gate auto-resolves to
+  the new `held` status (a non-approval — the action does not proceed) after
+  its TTL, default 5 minutes via `PMX_CANVAS_GATE_TTL_MS`; reopen it with
+  `POST /api/canvas/ax/approval/:id/reopen`. Consumers switching on gate status
+  must handle `held`.
+- Broadcast steering is delivered per consumer: marking a broadcast with your
+  `consumer` clears it from your queue only, and every other consumer still
+  receives it (previously the first mark removed it for everyone — fleets must
+  no longer rely on that for dedupe). Unclaimed broadcasts leave the pending
+  queue after 15 minutes; addressed steers still wait for their consumer
+  indefinitely.
+### Highlights
+
+- See who is on the board in real time — every writing agent paints a named,
+  colored cursor and a phase, and a top-bar indicator shows external steering
+  even for agents that aren't attached.
+- Steer any connected agent from the composer: address one by name or broadcast
+  to the whole fleet, and `pmx-canvas pump` turns any CLI agent into a steerable
+  board citizen.
+- Human-wins editing: grab a node and agents are locked out of it until you let
+  go, and you can undo an agent's last edit straight from the session panel.
+- A redesigned board — tool rail, top bar, session panel, command bar, minimap,
+  History drawer, groups, and an expanded node view.
+- Unattended approval gates now resolve themselves safely instead of hanging
+  forever, and an orchestrator can fence each agent to its own lane.
+
+### Added
+
+- Agent presence: a live view of every agent writing to the board — identity
+  color, phase (thinking / working / waiting), a cursor that tracks where it is
+  working, and whether a session is attached. Read it at
+  `GET /api/canvas/ax/presence` or set it via `canvas_ax_state`
+  (`presence` / `set-presence`).
+- Human presence and a user-wins edit lock: your cursor is shared with agents,
+  and while you are holding a node an agent write to it is refused until you
+  release it.
+- Addressed steering: the composer picks which connected agent to steer, and a
+  broadcast reaches every consumer in the fleet; the steering timeline names the
+  agent behind each message.
+- `pmx-canvas pump` — a new CLI command that makes any CLI agent (Codex, Amp, a
+  script) steerable: it long-polls for steers and runs your command once per
+  message. Supports `--consumer`, `--exec`, `--parent`, `--once`, and `--backlog`.
+- Edges can be edited in place — update an edge's label, type, style, or
+  animation without deleting and redrawing it (`PATCH /api/canvas/edge/:id`,
+  `canvas_edge { action: "update" }`).
+- File nodes can be repointed at another file with a patch — content is re-read
+  and the watcher rewired, keeping the node's edges, pins, and position
+  (`PATCH /api/canvas/node/:id` with `path`).
+- Shared undo of agent edits: when an agent's change tops the history stack, a
+  fixed "Undo" row appears in the session panel and taking it back posts a
+  steering note.
+- Unattended-approval policy: an approval gate nobody answers within its TTL
+  resolves to `held` (the action does not proceed) instead of hanging; reopen it
+  with a fresh clock from the session panel or
+  `POST /api/canvas/ax/approval/:id/reopen`.
+- Scope fence: an orchestrator can fence each agent to a set of nodes, and
+  agent writes outside the fence are refused (403) — the human is never fenced.
+- Session receipts that say why a session ended (by you, by the agent, or idle
+  timeout), and a History drawer that stops hoarding duplicate snapshots.
+- A redesigned board: tool rail with hover labels and shortcuts, top bar,
+  command bar, session panel, minimap v2, groups v2, an empty state, a palette,
+  a selection bar, a connection banner, and an expanded node view.
+- An honest context meter: it shows the agent's real context window when the
+  host reports usage, and otherwise a "Pins" estimate of what your pinned
+  context would cost.
+- In-canvas prompt entry (Shift+F / W / I everywhere), right-click Delete and
+  "Remove from ‹frame›" on member cards, and a work-item Assistant filter.
+- New environment variables: `PMX_CANVAS_AGENT_SOURCE` (name the agent behind a
+  transport), `PMX_CANVAS_CONTEXT_BUDGET_TOKENS` (the Pins-meter ceiling,
+  default 32000), and `PMX_CANVAS_GATE_TTL_MS` (approval-gate TTL, default 5 min).
+
+### Changed
+
+- Create and patch now reject the dead `path` (on non-image nodes) and `src`
+  (anywhere) fields with a clear 400 instead of silently dropping them and
+  leaving an empty node — the canonical field is `content`. The image-node
+  `path` alias still works.
+- Approval gates report a new `held` outcome (from the unattended-approval
+  policy); consumers reading gate status should tolerate it alongside
+  `approved` / `rejected`.
+- Steering delivery claims can long-poll (`timeoutMs`) so a host that can't be
+  woken parks on the claim, and delivery is per-consumer so a broadcast reaches
+  the whole fleet without double-delivering.
+- Auto-arrange is cluster-aware — each on-board neighborhood packs in place
+  instead of being interleaved with the others.
+- Saving a snapshot on an unchanged board now returns the existing snapshot (marked `reused`) instead of creating a duplicate — a checkpoint-by-name on an unchanged board keeps the earlier snapshot's name.
+- Cancelled work items no longer read as vetoed backlog in the timeline.
+- Keyboard shortcuts are platform-aware on Windows keyboards (Ctrl+Y redo,
+  AltGr guard, platform-correct labels).
+- Humans now draw annotations from the rail's Annotate popover (pen / text /
+  eraser) rather than separate toolbar buttons.
+
+### Fixed
+
+- Node headlines stay crisp at high zoom instead of blurring.
+- HTML and mermaid surfaces render in embedded hosts that block sub-frame
+  requests or use `srcdoc` (Copilot, Codex, Claude panels).
+- Open webpage / file / image work on every surface — no flow depends on
+  `window.prompt`, which is a silent no-op in embedded browser panes.
+- Edges no longer draw as degenerate straight lines — side-tangent bezier
+  routing gives them a real bend, and the draw preview no longer jumps.
+- A focus glow no longer wraps the whole board when an attention region spans
+  everything.
+- Card checkboxes survive a human-speed press, expanded-view checkboxes tick,
+  and closing a document with Esc no longer wipes it.
+- Stale browser tabs self-heal on a dev rebuild instead of faithfully
+  reproducing already-fixed bugs.
+- Timeline filter hints and selection-bar tooltips render in-flow as styled
+  hints (native title tooltips never show in embedded panes), and the filter
+  chips fit one row.
+- Presence overlay expiry always emits, held gates no longer pin the session
+  panel open, and Copilot presence is preserved during steering.
+
 ## [0.4.8] - 2026-08-20
 
 ### Fixed
@@ -3121,6 +3255,7 @@ otherwise have to discover by trial and error.
 - Regression coverage for snapshot flat-`id` aliases on both MCP and
   HTTP surfaces, plus async / top-level-`await` WebView script bodies.
 
+[0.5.0]: https://github.com/pskoett/pmx-canvas/compare/v0.4.8...v0.5.0
 [0.4.8]: https://github.com/pskoett/pmx-canvas/compare/v0.4.7...v0.4.8
 [0.4.7]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.7
 [0.4.6]: https://github.com/pskoett/pmx-canvas/releases/tag/v0.4.6

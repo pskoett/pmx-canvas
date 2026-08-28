@@ -109,6 +109,15 @@ describe('human presence over HTTP', () => {
     ).id;
     expect((await post('/api/canvas/group/add', { groupId: other2, childIds: [held] })).status).toBe(409);
     expect((await post('/api/canvas/group/add', { groupId: other2, childIds: [other] })).ok).toBe(true);
+    // Reparenting the held node via node.update (PATCH the group's children) is
+    // the same member write and must be refused too — the fence already counts
+    // it, and the edit-lock used to miss this path.
+    const reparent = await fetch(`${baseUrl}/api/canvas/node/${other2}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ children: [held] }),
+    });
+    expect(reparent.status).toBe(409);
     // The human's own ungroup is never blocked.
     expect((await post('/api/canvas/group/ungroup', { groupId: group }, { 'x-pmx-workbench': '1' })).ok).toBe(true);
   });

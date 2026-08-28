@@ -1051,6 +1051,10 @@ export function markAxSteeringDeliveredInDB(db: Database, id: string, consumer?:
   // (global CAS) that hides it from all consumers.
   const row = db.query<{ target: string | null }, [string]>('SELECT target FROM ax_steering WHERE id = ?').get(id);
   if (!row) return false;
+  // An addressed steer belongs to its target. A different named consumer marking
+  // it delivered would silently swallow the human's instruction (the target then
+  // never sees it). A consumer-less mark is still the single legitimate host ack.
+  if (row.target !== null && consumer && consumer !== row.target) return false;
   if (row.target === null && consumer) {
     const r = db.run('INSERT OR IGNORE INTO ax_steering_deliveries (steering_id, consumer, at) VALUES (?, ?, ?)', [
       id,

@@ -7,6 +7,7 @@ import {
   appendAxSteeringToDB,
   BROADCAST_PENDING_TTL_MS,
   loadPendingAxSteeringFromDB,
+  markAxSteeringDeliveredInDB,
   openCanvasDb,
 } from '../../src/server/canvas-db.js';
 import { removeTempDirWithRetry } from './helpers.js';
@@ -36,6 +37,16 @@ describe('broadcast pending TTL', () => {
       target,
     });
   }
+
+  test('an addressed steer is markable only by its target, not by another consumer', () => {
+    add('s1', 'bob: refactor', 'bob', 0);
+    // eve tries to swallow bob's instruction — refused, steer stays pending for bob.
+    expect(markAxSteeringDeliveredInDB(db, 's1', 'eve')).toBe(false);
+    expect(loadPendingAxSteeringFromDB(db, { consumer: 'bob' }).some((m) => m.id === 's1')).toBe(true);
+    // bob (the target) marks it — delivered, and gone from bob's queue.
+    expect(markAxSteeringDeliveredInDB(db, 's1', 'bob')).toBe(true);
+    expect(loadPendingAxSteeringFromDB(db, { consumer: 'bob' }).some((m) => m.id === 's1')).toBe(false);
+  });
 
   test('stale broadcasts stop greeting new consumers; addressed steers wait forever', () => {
     add('steer-old-bcast', 'ancient all-hands', null, BROADCAST_PENDING_TTL_MS + 60_000);
