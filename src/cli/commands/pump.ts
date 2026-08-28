@@ -13,7 +13,7 @@
  * the SHELL VARIABLE reference "$PMX_STEER_MESSAGE" (quoted), not the text.
  */
 import { spawn } from 'node:child_process';
-import { cmd, die, getBaseUrl, getStringFlag, invokeOperation, parseFlags, requireFlag } from '../shared.js';
+import { cmd, getBaseUrl, getStringFlag, invokeOperation, parseFlags, requireFlag } from '../shared.js';
 
 interface PendingSteer {
   id: string;
@@ -76,6 +76,30 @@ async function setPresence(consumer: string, label: string, parent: string | nul
   }
 }
 
+/**
+ * Settle back to idle ONLY when the visible phase is still the pump's own
+ * `tooling` marker. The host the pump feeds may have set a richer explicit
+ * phase (thinking, waiting-approval) while handling the steer — an
+ * unconditional idle stomped it and active work read as Idle (0.5.0
+ * readiness, Copilot finding).
+ */
+async function settlePresence(consumer: string, label: string, parent: string | null): Promise<void> {
+  try {
+    const res = await fetch(`${getBaseUrl()}/api/canvas/ax/presence`, { signal: AbortSignal.timeout(5_000) });
+    if (res.ok) {
+      const body = (await res.json()) as {
+        presences?: Array<{ sessionId?: string; phase?: string; detail?: string | null }>;
+      };
+      const own = body.presences?.find((p) => p.sessionId === consumer);
+      const ownToolingMarker = own?.phase === 'tooling' && (own.detail ?? '').startsWith('steer: ');
+      if (own && !ownToolingMarker && own.phase !== 'idle') return; // richer phase belongs to the host
+    }
+  } catch {
+    // presence read failed — fall through and settle; better idle than stuck tooling
+  }
+  await setPresence(consumer, label, parent, { phase: 'idle', detail: null });
+}
+
 cmd(
   'pump',
   'Reactive steering loop for CLI agents (Amp, Codex CLI): long-poll claims for a consumer and run a command per steer',
@@ -120,7 +144,9 @@ cmd(
       }
     }
 
-    await setPresence(consumer, label, parent, { phase: 'idle' });
+    // Park via the guard: a pump RESTART while its host is mid-work must not
+    // knock an explicit phase back to idle either.
+    await settlePresence(consumer, label, parent);
     console.log(`[pump] ${consumer} parked on ${getBaseUrl()} (waitMs=${waitMs}${once ? ', once' : ''})`);
 
     const awaitingMark = new Set<string>();
@@ -173,7 +199,7 @@ cmd(
         awaitingMark.add(steer.id);
         if (await markDelivered(steer.id, consumer)) awaitingMark.delete(steer.id);
         failures.delete(steer.id);
-        await setPresence(consumer, label, parent, { phase: 'idle', detail: null });
+        await settlePresence(consumer, label, parent);
         if (once) return;
       } else {
         const count = (failures.get(steer.id) ?? 0) + 1;
@@ -191,7 +217,7 @@ cmd(
         } else {
           await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
         }
-        await setPresence(consumer, label, parent, { phase: 'idle', detail: null });
+        await settlePresence(consumer, label, parent);
       }
     }
   },

@@ -27,7 +27,13 @@ import {
   reconnectAttempt,
   reconnectDelay,
 } from './canvas-store';
-import { fetchAgentPresence, fetchAxSurfaceState, reportClientViewportSize, requestJson } from './intent-bridge';
+import {
+  fetchAgentPresence,
+  fetchAxSurfaceState,
+  reportClientViewportSize,
+  requestJson,
+  tabAgentKey,
+} from './intent-bridge';
 import { agentActivity, applyPresenceSnapshot, sessionActive } from './presence-store';
 import { applyHumanSnapshot, startHumanPresence } from './human-store';
 import type { HumanPresenceSnapshot } from '../../shared/human-presence.js';
@@ -467,8 +473,10 @@ function handleConnected(data: Record<string, unknown>): void {
   // keep it live from here on.
   void fetchAgentPresence().then(applyPresenceSnapshot);
   // Human collaborators (phase 8): announce this tab and read who else is here.
+  // An `?agent=<key>` tab is an AGENT's view — it must not heartbeat a human
+  // guest cursor (its writes already book as the agent).
   stopHumanPresence?.();
-  stopHumanPresence = startHumanPresence();
+  if (!tabAgentKey) stopHumanPresence = startHumanPresence();
   void requestJson<Partial<HumanPresenceSnapshot> | null>(
     'fetchHumanPresence',
     '/api/canvas/human-presence',

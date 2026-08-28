@@ -140,7 +140,7 @@ this table is kept in sync with the server's composite registry; `tools/list` on
 |-----------|---------|
 | `canvas_node` | `add`, `get`, `update`, `remove` |
 | `canvas_render` | `describe-schema`, `validate`, `add-json-render`, `stream-json-render`, `add-graph` |
-| `canvas_edge` | `add`, `remove` |
+| `canvas_edge` | `add`, `update`, `remove` |
 | `canvas_group` | `create`, `add`, `ungroup` |
 | `canvas_history` | `undo`, `redo` |
 | `canvas_view` | `arrange`, `focus`, `fit`, `clear`, `remove-annotation` |

@@ -388,7 +388,7 @@ describe('agent presence over SSE', () => {
     expect(payload).toMatchObject({
       label: 'Copilot',
       endedBy: 'agent',
-      counts: { items: 2, done: 1, vetoed: 1 },
+      counts: { items: 2, done: 1, cancelled: 0, rejected: 1, held: 0 },
       snapshot: { id: before?.id, name: before?.name },
     });
     expect(typeof payload.endedAt).toBe('string');

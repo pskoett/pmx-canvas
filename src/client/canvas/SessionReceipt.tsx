@@ -86,10 +86,26 @@ export function SessionReceipt({ onOpenSnapshots }: { onOpenSnapshots: () => voi
           <span class="session-receipt-tile-label">Done</span>
           <span class="session-receipt-tile-value tone-ok">{receipt.counts.done}</span>
         </div>
-        <div class="session-receipt-tile">
-          <span class="session-receipt-tile-label">Vetoed</span>
-          <span class="session-receipt-tile-value tone-danger">{receipt.counts.vetoed}</span>
-        </div>
+        {/* Three different outcomes, shown only when present — a cancelled
+            duplicate is not a rejection, and neither is an unanswered gate. */}
+        {receipt.counts.cancelled > 0 && (
+          <div class="session-receipt-tile">
+            <span class="session-receipt-tile-label">Cancelled</span>
+            <span class="session-receipt-tile-value tone-muted">{receipt.counts.cancelled}</span>
+          </div>
+        )}
+        {receipt.counts.rejected > 0 && (
+          <div class="session-receipt-tile">
+            <span class="session-receipt-tile-label">Rejected</span>
+            <span class="session-receipt-tile-value tone-danger">{receipt.counts.rejected}</span>
+          </div>
+        )}
+        {receipt.counts.held > 0 && (
+          <div class="session-receipt-tile">
+            <span class="session-receipt-tile-label">Held</span>
+            <span class="session-receipt-tile-value tone-warn">{receipt.counts.held}</span>
+          </div>
+        )}
       </div>
       <div class="session-receipt-note">
         {receipt.snapshot

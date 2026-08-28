@@ -55,6 +55,9 @@ export interface MutationEntry {
   description: string;
   operationType: MutationOp;
   actor: MutationActor;
+  /** Writer key (agentId, else transport source) for agent entries — lets a
+   * client prove "the top edit is MINE" before undoing on a multi-agent board. */
+  writer?: string;
   forward: () => void;
   inverse: () => void;
 }
@@ -64,6 +67,7 @@ export interface MutationSummary {
   timestamp: string;
   description: string;
   actor: MutationActor;
+  writer?: string;
   operationType: MutationOp;
   isCurrent: boolean;
   isUndone: boolean;
@@ -115,6 +119,7 @@ class MutationHistory {
     const full: MutationEntry = {
       ...entry,
       actor: entry.actor ?? currentActor ?? 'agent',
+      ...((entry.writer ?? currentWriter) ? { writer: entry.writer ?? currentWriter ?? undefined } : {}),
       id: `mut-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
       timestamp: new Date().toISOString(),
     };
@@ -177,6 +182,7 @@ class MutationHistory {
       timestamp: e.timestamp,
       description: e.description,
       actor: e.actor,
+      ...(e.writer ? { writer: e.writer } : {}),
       operationType: e.operationType,
       isCurrent: i === this.cursor,
       isUndone: i > this.cursor,
@@ -192,6 +198,7 @@ class MutationHistory {
           timestamp: entry.timestamp,
           description: entry.description,
           actor: entry.actor,
+          ...(entry.writer ? { writer: entry.writer } : {}),
           operationType: entry.operationType,
           isCurrent: true,
           isUndone: false,
@@ -416,6 +423,8 @@ export const mutationHistory = new MutationHistory();
  * mislabelled row — never a wrong undo.
  */
 let currentActor: MutationActor | null = null;
-export function setMutationActor(actor: MutationActor | null): void {
+let currentWriter: string | null = null;
+export function setMutationActor(actor: MutationActor | null, writer: string | null = null): void {
   currentActor = actor;
+  currentWriter = actor === 'agent' ? writer : null;
 }

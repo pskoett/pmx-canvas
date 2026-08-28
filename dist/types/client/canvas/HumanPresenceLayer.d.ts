@@ -5,4 +5,4 @@
  * collaborate on quiet boards too). World-space like the agent layer, glyph
  * counter-scaled so it keeps a constant screen size.
  */
-export declare function HumanPresenceLayer(): import("preact/src").JSX.Element | null;
+export declare function HumanPresenceLayer(): import("preact/jsx-runtime").JSX.Element | null;

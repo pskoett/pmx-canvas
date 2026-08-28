@@ -113,6 +113,11 @@ const jsonRenderAddShape = {
   y: z.number().optional().catch(undefined).describe('Optional Y position'),
   width: z.number().optional().catch(undefined).describe('Optional node width'),
   height: z.number().optional().catch(undefined).describe('Optional node height'),
+  nodeHeight: z
+    .number()
+    .optional()
+    .catch(undefined)
+    .describe('Alias for height — the frame-height name the graph and stream actions use'),
   strictSize: z
     .boolean()
     .optional()
@@ -146,7 +151,12 @@ const jsonRenderAddOperation = defineOperation<
     // Legacy fallback: a body without an object `spec` is treated as the spec
     // itself (bare-component compatibility path).
     const rawSpec = body.spec && typeof body.spec === 'object' && !Array.isArray(body.spec) ? body.spec : body;
-    const geometry = resolveCreateGeometry(body);
+    // `nodeHeight` is the frame-height name the sibling actions (add-graph,
+    // stream-json-render) teach callers — dropping it here silently produced
+    // default-height frames (0.5.0 readiness, Copilot finding).
+    const geometry = resolveCreateGeometry(
+      body.nodeHeight !== undefined && body.height === undefined ? { ...body, height: body.nodeHeight } : body,
+    );
     try {
       return createCanvasJsonRenderNode({
         ...(title ? { title } : {}),

@@ -1,4 +1,11 @@
 import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js';
+/**
+ * Per-tab identity: an AGENT driving the workbench UI from its own pane opens
+ * `/workbench?agent=<key>` and every write from that tab is booked as that
+ * agent — before this, UI-driven agent tests carried the human marker and the
+ * human was told "you rejected a gate" they never saw (0.5.0 readiness).
+ */
+export declare const tabAgentKey: string | null;
 export declare function requestJson<T>(action: string, url: string, fallback: T, init?: RequestInit): Promise<T>;
 export declare function requestOk(action: string, url: string, init?: RequestInit): Promise<{
     ok: boolean;

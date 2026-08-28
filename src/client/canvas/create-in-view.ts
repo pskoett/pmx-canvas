@@ -1,4 +1,4 @@
-import { viewport } from '../state/canvas-store';
+import { focusNode, viewport } from '../state/canvas-store';
 import { createNodeFromClient } from '../state/intent-bridge';
 import { canvasAreaCenter } from './canvas-area';
 
@@ -18,7 +18,7 @@ const DEFAULT_FRAME: Record<string, { width: number; height: number }> = {
  * at the server's board-relative auto-placement, which on a busy board can
  * be far off-screen (the rail's Group landed out of view). Explicit x/y win.
  */
-export function createNodeInView(opts: {
+export async function createNodeInView(opts: {
   type: string;
   title?: string;
   content?: string;
@@ -33,11 +33,16 @@ export function createNodeInView(opts: {
   const height = opts.height ?? frame.height;
   const centre = canvasAreaCenter();
   const v = viewport.value;
-  return createNodeFromClient({
+  const result = await createNodeFromClient({
     ...opts,
     width,
     height,
     x: Math.round((centre.x - v.x) / v.scale - width / 2),
     y: Math.round((centre.y - v.y) / v.scale - height / 2),
   });
+  // The shared viewport can move between the ask (a prompted dialog) and the
+  // create — focus the node so it can never land off-screen (0.5.0 readiness,
+  // Codex: Open image… required a palette hunt to find its node).
+  if (result.ok && result.id) focusNode(result.id);
+  return result;
 }

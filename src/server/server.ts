@@ -170,12 +170,15 @@ agentPresence.setSessionEndListener((presence, startSnapshotId, endedBy) => {
     const name = snapshot.name.replace(HUMAN_STARTED_SESSION_LABEL, presence.label);
     if (canvasState.renameSnapshot(snapshot.id, name)) snapshot.name = name;
   }
+  // Three DIFFERENT outcomes, never one "vetoed" pile: a cancelled item was
+  // withdrawn (duplicate, scratch), a rejected gate is a human's explicit no,
+  // and a held gate is a TTL expiry nobody answered. The receipt tells them apart.
   const counts = {
     items: ax.workItems.length,
     done: ax.workItems.filter((item) => item.status === 'done').length,
-    vetoed:
-      ax.workItems.filter((item) => item.status === 'cancelled').length +
-      ax.approvalGates.filter((gate) => gate.status === 'rejected' || gate.status === 'held').length,
+    cancelled: ax.workItems.filter((item) => item.status === 'cancelled').length,
+    rejected: ax.approvalGates.filter((gate) => gate.status === 'rejected').length,
+    held: ax.approvalGates.filter((gate) => gate.status === 'held').length,
   };
   // No agent `sessionId` here: the SSE envelope reserves that key for the
   // workbench session and would overwrite it. The label is what the receipt shows.
@@ -313,7 +316,9 @@ interface BunWithOptionalWebView {
   WebView?: CanvasWebViewConstructor;
 }
 
-const DEFAULT_CANVAS_AUTOMATION_WEBVIEW_TIMEOUT_MS = 5000;
+// A COLD WebView launch on macOS regularly needs >5s (0.5.0 readiness: the
+// default-backend start timed out, the immediate retry succeeded warm).
+const DEFAULT_CANVAS_AUTOMATION_WEBVIEW_TIMEOUT_MS = 15_000;
 
 export interface CanvasAutomationWebViewOptions {
   backend?: 'webkit' | 'chrome';

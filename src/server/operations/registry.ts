@@ -340,7 +340,11 @@ export async function executeOperation(
 ): Promise<unknown> {
   // History entries recorded while this op runs carry who made them (item
   // 10: the session panel offers undo on the agent's latest edit).
-  setMutationActor(meta.fromWorkbench ? 'human' : 'agent');
+  const historyWriter =
+    typeof asRecord(rawInput).agentId === 'string' && String(asRecord(rawInput).agentId).trim()
+      ? String(asRecord(rawInput).agentId).trim()
+      : (meta.source ?? 'api');
+  setMutationActor(meta.fromWorkbench ? 'human' : 'agent', historyWriter);
   try {
     return await executeOperationInner(name, rawInput, meta);
   } finally {

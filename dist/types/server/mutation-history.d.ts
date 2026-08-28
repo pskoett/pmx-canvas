@@ -21,6 +21,9 @@ export interface MutationEntry {
     description: string;
     operationType: MutationOp;
     actor: MutationActor;
+    /** Writer key (agentId, else transport source) for agent entries — lets a
+     * client prove "the top edit is MINE" before undoing on a multi-agent board. */
+    writer?: string;
     forward: () => void;
     inverse: () => void;
 }
@@ -29,6 +32,7 @@ export interface MutationSummary {
     timestamp: string;
     description: string;
     actor: MutationActor;
+    writer?: string;
     operationType: MutationOp;
     isCurrent: boolean;
     isUndone: boolean;
@@ -110,5 +114,5 @@ export declare function diffLayouts(snapshotName: string, snapshotLayout: {
  */
 export declare function formatDiff(diff: SnapshotDiffResult): string;
 export declare const mutationHistory: MutationHistory;
-export declare function setMutationActor(actor: MutationActor | null): void;
+export declare function setMutationActor(actor: MutationActor | null, writer?: string | null): void;
 export {};

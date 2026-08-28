@@ -154,10 +154,15 @@ export interface SessionReceipt {
     endedBy?: 'human' | 'agent' | 'idle-timeout';
     /** The session changed nothing on the board (its pre-session snapshot was dropped). */
     unchanged?: boolean;
+    /** Cancelled (withdrawn items), rejected (human's explicit no on a gate), and
+     * held (TTL expired unanswered) are three different outcomes — never one
+     * "vetoed" pile. */
     counts: {
         items: number;
         done: number;
-        vetoed: number;
+        cancelled: number;
+        rejected: number;
+        held: number;
     };
     snapshot: {
         id: string;

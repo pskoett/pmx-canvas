@@ -4339,7 +4339,9 @@ test('human-started session: start from the quiet board, steer from the command 
   await expect(page.getByRole('button', { name: 'Start agent session' })).toBeVisible();
   const receipt = page.locator('[data-testid="session-receipt"]');
   await expect(receipt).toBeVisible();
-  await expect(receipt.locator('.session-receipt-tile-value')).toHaveText(['0', '0', '0']);
+  // Items + Done always show; the cancelled/rejected/held outcome tiles render
+  // only when non-zero (and never as one "Vetoed" pile).
+  await expect(receipt.locator('.session-receipt-tile-value')).toHaveText(['0', '0']);
 
   // View diff = what the session did: one node added, nothing removed.
   await receipt.getByRole('button', { name: 'View diff' }).click();

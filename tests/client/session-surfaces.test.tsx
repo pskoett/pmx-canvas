@@ -286,7 +286,7 @@ describe('session receipt', () => {
   const ended = {
     label: 'Copilot',
     endedAt: '2026-08-23T14:05:00.000Z',
-    counts: { items: 4, done: 3, vetoed: 1 },
+    counts: { items: 4, done: 3, cancelled: 1, rejected: 1, held: 0 },
     snapshot: { id: 'snap-1', name: 'Before session · Copilot · 14:00' },
   };
 
@@ -299,7 +299,14 @@ describe('session receipt', () => {
     const tiles = [...getByTestId('session-receipt').querySelectorAll('.session-receipt-tile-value')].map(
       (tile) => tile.textContent,
     );
-    expect(tiles).toEqual(['4', '3', '1']);
+    expect(tiles).toEqual(['4', '3', '1', '1']);
+    // Cancelled and Rejected are separate tiles — never one "Vetoed" pile
+    // (a withdrawn duplicate is not a human's no), and an absent outcome
+    // (held: 0) renders no tile at all.
+    const labels = [...getByTestId('session-receipt').querySelectorAll('.session-receipt-tile-label')].map(
+      (tile) => tile.textContent,
+    );
+    expect(labels).toEqual(['Items', 'Done', 'Cancelled', 'Rejected']);
     expect(getByTestId('session-receipt').textContent).toContain('restore it to undo the session');
   });
 

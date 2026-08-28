@@ -5,12 +5,34 @@ function logRequestError(action: string, error: unknown): void {
 }
 
 /**
+ * Per-tab identity: an AGENT driving the workbench UI from its own pane opens
+ * `/workbench?agent=<key>` and every write from that tab is booked as that
+ * agent — before this, UI-driven agent tests carried the human marker and the
+ * human was told "you rejected a gate" they never saw (0.5.0 readiness).
+ */
+export const tabAgentKey: string | null = (() => {
+  try {
+    const value = new URLSearchParams(window.location.search).get('agent')?.trim();
+    return value ? value.slice(0, 64) : null;
+  } catch {
+    return null;
+  }
+})();
+
+/**
  * Every workbench-originated request carries this marker so the server never
  * synthesizes an auto-ghost for it — a human dragging or editing in the
- * browser is not agent activity (the ghost cursor shows AGENT moves).
+ * browser is not agent activity (the ghost cursor shows AGENT moves). A tab
+ * opened with `?agent=<key>` identifies as that agent instead.
  */
 function withWorkbenchMarker(init?: RequestInit): RequestInit {
-  return { ...init, headers: { ...(init?.headers as Record<string, string> | undefined), 'X-PMX-Workbench': '1' } };
+  const headers = { ...(init?.headers as Record<string, string> | undefined) };
+  if (tabAgentKey) {
+    headers['x-pmx-source'] = tabAgentKey;
+  } else {
+    headers['X-PMX-Workbench'] = '1';
+  }
+  return { ...init, headers };
 }
 
 export async function requestJson<T>(action: string, url: string, fallback: T, init?: RequestInit): Promise<T> {

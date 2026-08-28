@@ -436,7 +436,7 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 |-----------|-----------------|--------------|
 | `canvas_node` | `add` · `get` · `update` · `remove` | Create / read / mutate / delete a node. **`add` covers html + primitives too**: `{ action:"add", type:"html", html:"…" }` and `{ action:"add", type:"html", primitive:"choice-grid", data:{} }` — no separate add-html tool needed |
 | `canvas_render` | `describe-schema` · `validate` · `add-json-render` · `stream-json-render` · `add-graph` | Schema introspection, spec dry-run validation, and native json-render / graph node creation |
-| `canvas_edge` | `add` · `remove` | Connect / disconnect nodes |
+| `canvas_edge` | `add` · `update` · `remove` | Connect / edit / disconnect nodes |
 | `canvas_group` | `create` · `add` · `ungroup` | Manage spatial group containers |
 | `canvas_history` | `undo` · `redo` | Time travel through the mutation ring buffer |
 | `canvas_snapshot` | `save` · `list` · `restore` · `delete` · `gc` · `diff` | Named snapshots: save/list/restore/delete, garbage-collect old ones, diff current canvas vs a snapshot (`diff` takes `snapshot`, not `id`) |
@@ -512,7 +512,7 @@ composite in v0.4.0 (actions `save | list | restore | delete | gc | diff`); the 
 standalones were removed after their deprecated 0.3.x window.
 
 `canvas_batch` supports exactly these ops: `node.add`, `node.update`, `node.remove`, `graph.add`,
-`edge.add`, `edge.remove`, `group.create`, `group.add`, `group.remove`, `pin.set`/`pin.add`/
+`edge.add`, `edge.update`, `edge.remove`, `group.create`, `group.add`, `group.remove`, `pin.set`/`pin.add`/
 `pin.remove`, `snapshot.save`, and `arrange`. Anything else fails with "Unsupported canvas_batch
 operation" — batch is non-atomic, so earlier ops stay applied and the response carries
 `failedIndex`. `canvas_screenshot` requires an active automation WebView: call

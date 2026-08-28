@@ -372,7 +372,10 @@ export interface SessionReceipt {
   endedBy?: 'human' | 'agent' | 'idle-timeout';
   /** The session changed nothing on the board (its pre-session snapshot was dropped). */
   unchanged?: boolean;
-  counts: { items: number; done: number; vetoed: number };
+  /** Cancelled (withdrawn items), rejected (human's explicit no on a gate), and
+   * held (TTL expired unanswered) are three different outcomes — never one
+   * "vetoed" pile. */
+  counts: { items: number; done: number; cancelled: number; rejected: number; held: number };
   snapshot: { id: string; name: string } | null;
 }
 
@@ -394,7 +397,9 @@ export function applySessionReceipt(data: Record<string, unknown>): void {
     counts: {
       items: Number(counts?.items ?? 0) || 0,
       done: Number(counts?.done ?? 0) || 0,
-      vetoed: Number(counts?.vetoed ?? 0) || 0,
+      cancelled: Number(counts?.cancelled ?? 0) || 0,
+      rejected: Number(counts?.rejected ?? 0) || 0,
+      held: Number(counts?.held ?? 0) || 0,
     },
     snapshot:
       snapshot && typeof snapshot.id === 'string' ? { id: snapshot.id, name: String(snapshot.name ?? '') } : null,

@@ -1,5 +1,7 @@
+import { HUMAN_PRESENCE_TTL_MS } from '../../shared/human-presence.js';
 import { viewport } from '../state/canvas-store';
 import { otherHumans } from '../state/human-store';
+import { useNow } from './use-now';
 
 /**
  * Human collaborator cursors (rail-chrome-v2 phase 8, item 5): the other
@@ -9,7 +11,16 @@ import { otherHumans } from '../state/human-store';
  * counter-scaled so it keeps a constant screen size.
  */
 export function HumanPresenceLayer() {
-  const humans = otherHumans.value.filter((human) => human.cursor !== null);
+  // Staleness guard (0.5.0 readiness): an embedded pane whose stream stalls
+  // (background throttling, dead SSE) kept painting ancient guest cursors from
+  // its last frame. Cursors past the server TTL drop on the local clock even
+  // when no fresh frame ever arrives.
+  const now = useNow(otherHumans.value.length > 0 ? 5_000 : 0);
+  const humans = otherHumans.value.filter(
+    (human) =>
+      human.cursor !== null &&
+      (!human.lastSeenAt || now - Date.parse(human.lastSeenAt) < HUMAN_PRESENCE_TTL_MS + 5_000),
+  );
   if (humans.length === 0) return null;
   const counterScale = 1 / Math.max(0.05, viewport.value.scale);
   return (

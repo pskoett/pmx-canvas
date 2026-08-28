@@ -29,6 +29,12 @@ curl -X POST http://localhost:4313/api/canvas/schema/validate \
   -H "Content-Type: application/json" \
   -d '{"type":"json-render","spec":{"root":"card","elements":{"card":{"type":"Card","props":{"title":"Preview"},"children":[]}}}}'
 
+# Create a json-render node from a spec. `height` and `nodeHeight` are both
+# accepted for the node frame (nodeHeight matches the graph/stream actions).
+curl -X POST http://localhost:4313/api/canvas/json-render \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Panel","nodeHeight":280,"spec":{"root":"card","elements":{"card":{"type":"Card","props":{"title":"Live"},"children":[]}}}}'
+
 # Validate an HTML primitive without creating a node
 curl -X POST http://localhost:4313/api/canvas/schema/validate \
   -H "Content-Type: application/json" \
