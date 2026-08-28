@@ -384,7 +384,10 @@ export function SessionPanel() {
             const active = items.filter((item) => item.status !== 'cancelled');
             const done = active.filter((item) => item.status === 'done').length;
             const cancelled = items.length - active.length;
-            const mustShow = gates.length > 0 || held.length > 0;
+            // Only PENDING gates force the list open — they need a decision.
+            // A held gate is settled (its Reopen is optional) and was pinning
+            // the whole panel un-collapsible (0.5.0 readiness, human report).
+            const mustShow = gates.length > 0;
             const showList = workOpen || mustShow;
             const summary =
               running > 0

@@ -706,6 +706,13 @@ export class AgentPresenceRegistry {
         presence.detail = null;
         presence.toolingUntilMs = null;
         changed = true;
+      } else if (presence.toolingUntilMs !== null && presence.toolingUntilMs <= now) {
+        // A DERIVED overlay over an explicit phase (thinking, waiting…):
+        // publicView already falls back to the stored phase after expiry, but
+        // without an emit no client ever hears — the chip showed "Running
+        // ax.delivery.mark" forever (0.5.0 reverify, Copilot root-cause).
+        presence.toolingUntilMs = null;
+        changed = true;
       }
     }
     if (changed && options.emit !== false) this.scheduleEmit();

@@ -48,6 +48,24 @@ describe('phase overlay + identity (joint-gaps presence fixes)', () => {
     expect(registry.snapshot(T0 + 10_000 + 4_500).presences[0]?.phase).toBe('idle');
   });
 
+  test('a derived overlay expiring over an explicit phase EMITS a frame — clients must hear the fallback', async () => {
+    // Real clock: the interval sweeper is what emits, and it reads Date.now().
+    // Copilot's chip showed "Running ax.delivery.mark" forever because the
+    // sweep only emitted when the STORED phase was tooling — a derived
+    // overlay over explicit thinking expired silently (0.5.0 reverify).
+    const now = Date.now();
+    registry.touch({ source: 'copilot', attached: true, phase: 'thinking' }, now);
+    registry.touch({ source: 'copilot', phase: 'tooling', derivedTooling: true, op: true }, now);
+    await flushEmits();
+    const before = frames.length;
+    // Settle window (4s) + sweeper tick (1s) + emit coalesce (50ms).
+    await new Promise((resolve) => setTimeout(resolve, 5_400));
+    const fresh = frames.slice(before);
+    expect(fresh.length).toBeGreaterThan(0);
+    const last = fresh[fresh.length - 1]!.payload as { presences: Array<{ phase: string }> };
+    expect(last.presences[0]?.phase).toBe('thinking');
+  }, 10_000);
+
   test('explicit thinking that nothing refreshes settles to idle (three silent Thinking chips)', () => {
     registry.touch({ source: 'codex', attached: true, phase: 'thinking' }, T0);
     expect(registry.snapshot(T0 + 60_000).presences[0]?.phase).toBe('thinking');

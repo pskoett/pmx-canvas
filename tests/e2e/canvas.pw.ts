@@ -3973,6 +3973,10 @@ test('unattended approval: countdown, auto-hold with a policy entry, reopen from
 
   // Nobody answers → the policy holds it: the card flips to held, the badge
   // and waiting-approval phase clear, and a Policy entry lands in the timeline.
+  // A held gate no longer forces the list open (it pinned the panel
+  // un-collapsible) — open it to reach the held row and its Reopen.
+  await expect(page.locator('.gate-badge')).toHaveCount(0, { timeout: 8000 });
+  await page.locator('[data-testid="work-items-toggle"]').click();
   await expect(panel.locator('.session-gate-held').filter({ hasText: 'Delete old branches' })).toHaveCount(1, {
     timeout: 8000,
   });
