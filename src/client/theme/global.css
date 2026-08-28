@@ -1639,6 +1639,16 @@ body,
 .session-timeline-filters::-webkit-scrollbar {
   display: none;
 }
+
+/* The hovered/active chip's one-line meaning — rendered in flow because an
+   anchored tooltip would clip against the filter row's own scroll container. */
+.session-timeline-hint {
+  margin: -4px 0 8px;
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--c-muted);
+  min-height: 14px;
+}
 .session-timeline-filters .activity-filter {
   flex-shrink: 0;
   padding: 2px 5px;

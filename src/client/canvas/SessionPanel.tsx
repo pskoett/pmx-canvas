@@ -295,6 +295,10 @@ export function SessionPanel() {
   const held = heldGates.value;
   const entries = timelineEntries.value;
   const [workOpen, setWorkOpen] = useState(false);
+  // Which filter chip the pointer/focus is on — drives the caption under the
+  // row. Native `title` never renders in embedded panes, and an anchored
+  // tooltip would clip against the row's own overflow-x scroll container.
+  const [hoveredFilter, setHoveredFilter] = useState<TimelineFilter | null>(null);
   const now = useNow();
 
   // The timeline is read on mount; the SSE bridge refreshes it on every
@@ -439,6 +443,10 @@ export function SessionPanel() {
                 class={`activity-filter${timelineFilter.value === chip.id ? ' is-active' : ''}`}
                 aria-pressed={timelineFilter.value === chip.id}
                 title={chip.hint}
+                onMouseEnter={() => setHoveredFilter(chip.id)}
+                onMouseLeave={() => setHoveredFilter((current) => (current === chip.id ? null : current))}
+                onFocus={() => setHoveredFilter(chip.id)}
+                onBlur={() => setHoveredFilter((current) => (current === chip.id ? null : current))}
                 onClick={() => {
                   timelineFilter.value = chip.id;
                 }}
@@ -446,6 +454,11 @@ export function SessionPanel() {
                 {chip.label}
               </button>
             ))}
+          </div>
+          {/* The hovered (else active) chip's meaning, always in normal flow —
+              visible on every surface, including ones without native tooltips. */}
+          <div class="session-timeline-hint" data-testid="timeline-filter-hint">
+            {TIMELINE_FILTER_HINTS[hoveredFilter ?? timelineFilter.value]}
           </div>
           {entries.length === 0 ? (
             <div class="session-empty">

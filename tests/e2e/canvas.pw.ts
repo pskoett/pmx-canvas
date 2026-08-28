@@ -4145,16 +4145,16 @@ test('addressed steering: the composer lists connected agents, the picked one al
       headers: { 'x-pmx-source': 'copilot' },
     })
   ).json()) as { workItem: { id: string } };
-  const doneItem = (await (
-    await request.get('/api/canvas/ax/work')
-  ).json()) as { workItems: Array<{ id: string; title: string }> };
+  const doneItem = (await (await request.get('/api/canvas/ax/work')).json()) as {
+    workItems: Array<{ id: string; title: string }>;
+  };
   const flakeId = doneItem.workItems.find((item) => item.title === 'Own the CI flake')!.id;
   await request.patch(`/api/canvas/ax/work/${flakeId}`, { data: { status: 'done' } });
   await request.patch(`/api/canvas/ax/work/${cancelledItem.workItem.id}`, { data: { status: 'cancelled' } });
   await expect(workToggle).toContainText('1/1 done · 1 cancelled');
-  await expect(
-    workList.locator(`[data-work-item-id="${cancelledItem.workItem.id}"] .session-item-status`),
-  ).toHaveText('cancelled');
+  await expect(workList.locator(`[data-work-item-id="${cancelledItem.workItem.id}"] .session-item-status`)).toHaveText(
+    'cancelled',
+  );
 
   await workToggle.click();
   await expect(workList).toBeHidden();
@@ -4195,9 +4195,15 @@ test('addressed steering: the composer lists connected agents, the picked one al
   expect(new Set(rowTops).size).toBe(1);
   const fit = await filters.evaluate((el) => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth }));
   expect(fit.scrollWidth).toBeLessThanOrEqual(fit.clientWidth);
-  // Each chip explains its row kind on hover — the vocabulary is jargon otherwise.
-  await expect(filters.getByRole('button', { name: 'Updates' })).toHaveAttribute('title', /Board edits agents made/);
-  await expect(filters.getByRole('button', { name: 'Evidence' })).toHaveAttribute('title', /Proof agents recorded/);
+  // Each chip explains its row kind — native `title` never renders in embedded
+  // panes, so the caption under the row carries the hovered (else active)
+  // chip's meaning where every surface can see it.
+  const filterHint = page.locator('[data-testid="timeline-filter-hint"]');
+  await expect(filterHint).toHaveText(/Everything below in one feed/);
+  await filters.getByRole('button', { name: 'Evidence' }).hover();
+  await expect(filterHint).toHaveText(/Proof agents recorded/);
+  await filters.getByRole('button', { name: 'Updates' }).hover();
+  await expect(filterHint).toHaveText(/Board edits agents made/);
   await filters.getByRole('button', { name: 'Steer' }).click();
   await expect(page.locator('.session-timeline .session-timeline-label').first()).toHaveText('Steer');
   await expect(page.locator('.session-timeline')).not.toContainText('Update');
