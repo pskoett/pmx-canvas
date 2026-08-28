@@ -4,6 +4,8 @@ export function createSteeringDeliveryPump({
     send,
     mark,
     shouldSend = () => true,
+    getPresence,
+    setPresence,
     pause,
     onError,
     retryMs = 1_000,
@@ -20,12 +22,32 @@ export function createSteeringDeliveryPump({
         }
     }
 
+    async function sendWithOwnedPhase(message) {
+        const detail = `steer: ${message.slice(0, 60)}`;
+        const presence = await getPresence?.();
+        const ownsPhase =
+            presence?.phase === "idle" &&
+            typeof setPresence === "function" &&
+            (await setPresence({ phase: "tooling", detail })) !== false;
+
+        try {
+            await send(message);
+        } finally {
+            if (ownsPhase && typeof getPresence === "function" && typeof setPresence === "function") {
+                const current = await getPresence();
+                if (current?.phase === "tooling" && current.detail === detail) {
+                    await setPresence({ phase: "idle", detail: null });
+                }
+            }
+        }
+    }
+
     async function runOnce() {
         await flushMarks();
         const pending = await claim(consumer);
         for (const steering of pending) {
             if (stopped) break;
-            if (shouldSend(steering)) await send(steering.message);
+            if (shouldSend(steering)) await sendWithOwnedPhase(steering.message);
             awaitingMark.push(steering.id);
             await flushMarks();
         }

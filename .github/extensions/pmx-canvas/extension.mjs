@@ -492,6 +492,27 @@ async function postPresence(workspaceRoot, payload, options = {}) {
     }
 }
 
+async function getCopilotPresence() {
+    try {
+        const resolved = await resolvePmxServer(
+            { input: {}, session: { workingDirectory: PROJECT_ROOT } },
+            { autoStart: false },
+        );
+        if (!resolved.ok || !resolved.baseUrl) return null;
+        const snapshot = await fetchJson(resolved.baseUrl, "/api/canvas/ax/presence", { timeoutMs: 1_500 });
+        if (!Array.isArray(snapshot.presences)) return null;
+        return (
+            snapshot.presences.find(
+                (presence) =>
+                    presence?.sessionId === "copilot" ||
+                    (presence?.source === "copilot" && presence?.agentId == null),
+            ) ?? null
+        );
+    } catch {
+        return null;
+    }
+}
+
 // Fire-and-forget mirror of a copilot-originated action onto the AX timeline.
 // Never throws — adapter UX must not depend on the canvas being reachable.
 function recordCopilotSteering(ctx, message) {
@@ -851,6 +872,8 @@ steeringDeliveryPump = createSteeringDeliveryPump({
     claim: claimCopilotSteering,
     send: async (message) => await copilotSession.send({ prompt: message }),
     mark: markCopilotSteering,
+    getPresence: getCopilotPresence,
+    setPresence: async (patch) => await postPresence(PROJECT_ROOT, patch),
     shouldSend: (() => {
         const startedAt = Date.now();
         return (steering) => Date.parse(steering.createdAt) >= startedAt;

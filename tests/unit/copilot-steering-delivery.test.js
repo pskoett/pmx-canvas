@@ -129,4 +129,44 @@ describe('Copilot steering delivery pump', () => {
     expect(claims).toBe(1);
     expect(pauses).toBe(1);
   });
+
+  test('only resets delivery phases owned by the pump', async () => {
+    let presence = { phase: 'thinking', detail: 'reviewing architecture' };
+    let explicitPhaseDuringSend = false;
+    const presenceWrites = [];
+    const pump = createSteeringDeliveryPump({
+      consumer: 'copilot',
+      claim: async () => [steering],
+      send: async () => {
+        if (explicitPhaseDuringSend) presence = { phase: 'thinking', detail: 'answering steer' };
+      },
+      mark: async () => {},
+      getPresence: async () => presence,
+      setPresence: async (patch) => {
+        presenceWrites.push(patch);
+        presence = { ...presence, ...patch };
+        return true;
+      },
+      pause: async () => {},
+      onError: () => {},
+    });
+
+    await pump.runOnce();
+    expect(presenceWrites).toEqual([]);
+    expect(presence).toEqual({ phase: 'thinking', detail: 'reviewing architecture' });
+
+    presence = { phase: 'idle', detail: null };
+    explicitPhaseDuringSend = true;
+    await pump.runOnce();
+    expect(presenceWrites).toEqual([{ phase: 'tooling', detail: 'steer: Review the board' }]);
+    expect(presence).toEqual({ phase: 'thinking', detail: 'answering steer' });
+
+    presence = { phase: 'idle', detail: null };
+    explicitPhaseDuringSend = false;
+    await pump.runOnce();
+    expect(presenceWrites.slice(-2)).toEqual([
+      { phase: 'tooling', detail: 'steer: Review the board' },
+      { phase: 'idle', detail: null },
+    ]);
+  });
 });
