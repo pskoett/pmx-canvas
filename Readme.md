@@ -124,6 +124,11 @@ its minimap dot — you always see who is where. Workers roll up under their
 orchestrator's chip (`+2 workers`), each session chip has its own End button,
 and an idle board with no writers stays byte-clean.
 
+<p align="center">
+  <img src="docs/screenshots/multi-agent-live.png" alt="Two agent sessions and three rolled-up workers live on one board — identity-colored cursors on the cards, per-chip End buttons, the attributed session timeline, and the all-agents composer" width="100%" />
+</p>
+<p align="center"><sub>Two agent sessions (Claude Code +3 workers, GitHub Copilot) and their cursors live on one board, with the writer-attributed timeline and the all-agents composer.</sub></p>
+
 Steering is **addressed and reliable**: the composer's picker lists every
 connected writer with live pump health (`· polling`, `· 2 queued`), an
 addressed steer waits in that agent's delivery queue until the agent claims
