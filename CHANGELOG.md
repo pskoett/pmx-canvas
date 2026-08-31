@@ -3,6 +3,21 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+Fixes from the 0.5.1 field reports (Amp orb, Copilot app).
+
+### Fixed
+
+- MCP calls now reject removed or dead fields (such as `dockPosition`) with the same error HTTP returns, instead of silently dropping them.
+- `canvas_ax_state { action: "set-presence" }` accepts `contextUsage` over MCP, so agents can report their real token window from any transport.
+- Focusing a node (including the automatic focus when an MCP app opens) keeps the whole node clear of the command bar and minimap, zooming out when it would not fit.
+- Panning from a node can no longer start a stray text drag that minted webpage nodes from card text; pan now works across the entire node surface.
+- Embedded app tiles verify painted pixels, not just a laid-out canvas — a blank Excalidraw surface now fails honestly, keeps its overlay, and offers Retry instead of logging a false `content-verified`.
+- The web-artifact bundler recovers from a corrupted Parcel cache in a reused build project (clear and retry cold) instead of failing every later build.
+- Idle agents no longer park their cursor pills over the board — a cursor fades out when its agent goes idle and returns the moment it works again.
+- On a many-agent board the top bar shows the most active agents plus one census chip with the total (e.g. `+13 · 16 agents`), instead of one chip per agent flooding the bar and pushing the zoom controls over the session panel.
+
 ## [0.5.1] - 2026-08-28
 
 Fixes from the 0.5.0 field reports (Amp orb, Copilot app, Codex app).

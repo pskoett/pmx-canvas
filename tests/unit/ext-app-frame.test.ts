@@ -212,14 +212,34 @@ describe('ExtAppFrame boot beacon (WebKit watchdog liveness)', () => {
     // 0.5.0 reports: WKWebKit answered the double-rAF probe on tiles that were
     // empty cream or black — the rAF pipeline runs while nothing composites.
     // The tick must say whether the document actually CONTAINS rendered
-    // content (a laid-out canvas/svg or real text); the parent only accepts
-    // paint-ok when it does.
+    // content; the parent only accepts paint-ok when it does.
     const script = buildExtAppBootBeaconScript('frame-token', 'node-9');
-    expect(script).toContain('function contentReady()');
-    expect(script).toContain("querySelectorAll('canvas, svg')");
+    expect(script).toContain('function contentVerdict()');
     expect(script).toContain('getBoundingClientRect');
     expect(script).toContain('innerText');
-    expect(script).toContain('content: contentReady()');
+    expect(script).toContain('content: v.content');
+    expect(script).toContain('detail: v.detail');
+  });
+
+  test('content oracle samples canvas PIXELS — a laid-out blank canvas was still a false green (0.5.1 Copilot reopen)', () => {
+    // Excalidraw mounts its canvas element the moment React renders, so the
+    // 0.5.1 layout-presence oracle passed on tiles whose drawing surface never
+    // painted a single pixel: empty cream with a green `content-verified`
+    // trail and no Retry. The oracle must read the pixels (drawImage →
+    // getImageData → any deviation from the first pixel = ink) and let a
+    // readable, never-painted main surface VETO shell chrome and boilerplate
+    // text around it.
+    const script = buildExtAppBootBeaconScript('frame-token', 'node-9');
+    expect(script).toContain('function canvasInk(');
+    expect(script).toContain('drawImage');
+    expect(script).toContain('getImageData');
+    expect(script).toContain("return { content: false, detail: 'blank-canvas' }");
+    // Unreadable (tainted / WebGL) canvases fall back to lenient presence —
+    // pixel judgment is only trusted where pixels can actually be read.
+    expect(script).toContain("'unknown'");
+    expect(script).toContain("detail: 'canvas-unreadable'");
+    // SVG content requires rendered shape children, not a bare <svg> shell.
+    expect(script).toContain("querySelector('path, rect, circle, ellipse, line, polyline, polygon, text, image, use')");
   });
 });
 

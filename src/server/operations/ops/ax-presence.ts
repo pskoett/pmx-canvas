@@ -34,6 +34,9 @@ const presenceSetShape = {
   focusNodeId: PRESENCE_SET_SHAPE.focusNodeId.describe('Node the agent is working on'),
   cursor: PRESENCE_SET_SHAPE.cursor.describe('Agent cursor in world coordinates'),
   attached: PRESENCE_SET_SHAPE.attached.describe('true attaches a session (Focus Session chrome); false detaches it'),
+  contextUsage: PRESENCE_SET_SHAPE.contextUsage.describe(
+    "The agent's real token window as {used,total} — shown on the board's context meter instead of the pinned-context estimate (null clears it)",
+  ),
 };
 const presenceSetSchema = z.looseObject(presenceSetShape);
 

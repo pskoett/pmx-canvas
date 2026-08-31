@@ -31,59 +31,99 @@ import { formatCountdown, gateRemainingMs } from '../../shared/approval-gates.js
  * session is attached — the quiet board shows nothing here until phase 5
  * lands the "Start agent session" affordance.
  */
+const AGENT_CHIP_LIMIT = 3;
+const AGENT_PHASE_RANK: Record<string, number> = { 'waiting-approval': 0, thinking: 1, tooling: 2, idle: 3 };
+
 function AgentChip() {
   // Every attached session gets its chip — with several agents on the board,
-  // showing only the first hid the rest from the top bar entirely.
+  // showing only the first hid the rest from the top bar entirely. But one
+  // chip PER agent floods the bar on a many-agent board (user feedback,
+  // 0.5.1 cycle: 16 unshrinkable chips shoved the zoom cluster out of the
+  // bar and over the session panel, and the total was invisible): the most
+  // active few wear their own chips and the rest fold into a census chip
+  // that always names the total.
   const sessions = attachedSessions.value;
   if (sessions.length === 0) return null;
+  const ranked = [...sessions].sort((a, b) => (AGENT_PHASE_RANK[a.phase] ?? 4) - (AGENT_PHASE_RANK[b.phase] ?? 4));
+  const visible = ranked.slice(0, AGENT_CHIP_LIMIT);
+  const overflow = ranked.slice(AGENT_CHIP_LIMIT);
+  const phaseCounts = sessions.reduce<Record<string, number>>((acc, s) => {
+    acc[s.phase] = (acc[s.phase] ?? 0) + 1;
+    return acc;
+  }, {});
+  const breakdown = [
+    phaseCounts['waiting-approval'] && `${phaseCounts['waiting-approval']} waiting on approval`,
+    phaseCounts.thinking && `${phaseCounts.thinking} thinking`,
+    phaseCounts.tooling && `${phaseCounts.tooling} running tools`,
+    phaseCounts.idle && `${phaseCounts.idle} idle`,
+  ]
+    .filter(Boolean)
+    .join(', ');
   return (
     <>
-      {sessions.map((session) => {
-        // Fleet roll-up: workers declaring this session as their parent count
-        // into its chip instead of growing the bar one chip per worker.
-        const workers = agentPresences.value.filter(
-          (presence) =>
-            presence.parentAgentId != null &&
-            (presence.parentAgentId === session.sessionId || presence.parentAgentId === session.source),
-        ).length;
-        return (
-          <BarHint
-            key={session.sessionId}
-            label={`Agent session — ${session.label}`}
-            tapToOpen
-            body="What this attached agent is doing right now: idle, thinking, running a tool, or waiting on your approval. Steer it from the composer below."
-          >
-            <span
-              class={`agent-chip phase-${session.phase}`}
-              data-phase={session.phase}
-              style={{ '--identity-color': `hsl(${agentIdentityHue(session.sessionId)} 65% 62%)` }}
+      {/* The chips live in their own clipping flex wrapper: each chip keeps
+          its natural readable width and the WRAPPER absorbs the squeeze,
+          clipping at its edge — no per-child shrink cascade, and chip
+          content can never paint over the census, meter, or zoom cluster. */}
+      <span class="agent-chips">
+        {visible.map((session) => {
+          // Fleet roll-up: workers declaring this session as their parent count
+          // into its chip instead of growing the bar one chip per worker.
+          const workers = agentPresences.value.filter(
+            (presence) =>
+              presence.parentAgentId != null &&
+              (presence.parentAgentId === session.sessionId || presence.parentAgentId === session.source),
+          ).length;
+          return (
+            <BarHint
+              key={session.sessionId}
+              label={`Agent session — ${session.label}`}
+              tapToOpen
+              body="What this attached agent is doing right now: idle, thinking, running a tool, or waiting on your approval. Steer it from the composer below."
             >
-              <span class="agent-chip-dot" aria-hidden="true" />
-              <span class="agent-chip-label">{agentPhaseLabel(session)}</span>
-              <span class="agent-chip-who hud-collapsible-text">{session.label}</span>
-              {workers > 0 && (
-                <span class="agent-chip-workers">
-                  +{workers} worker{workers === 1 ? '' : 's'}
-                </span>
-              )}
-              <button
-                type="button"
-                class="agent-chip-end"
-                aria-label={`End ${session.label} session`}
-                title={`End ${session.label}'s session`}
-                onClick={(e) => {
-                  // The chip sits inside a tap-to-open hint — ending a session
-                  // must not also open it.
-                  e.stopPropagation();
-                  void endSession({ source: session.source, agentId: session.agentId });
-                }}
+              <span
+                class={`agent-chip phase-${session.phase}`}
+                data-phase={session.phase}
+                style={{ '--identity-color': `hsl(${agentIdentityHue(session.sessionId)} 65% 62%)` }}
               >
-                ×
-              </button>
-            </span>
-          </BarHint>
-        );
-      })}
+                <span class="agent-chip-dot" aria-hidden="true" />
+                <span class="agent-chip-label">{agentPhaseLabel(session)}</span>
+                <span class="agent-chip-who hud-collapsible-text">{session.label}</span>
+                {workers > 0 && (
+                  <span class="agent-chip-workers">
+                    +{workers} worker{workers === 1 ? '' : 's'}
+                  </span>
+                )}
+                <button
+                  type="button"
+                  class="agent-chip-end"
+                  aria-label={`End ${session.label} session`}
+                  title={`End ${session.label}'s session`}
+                  onClick={(e) => {
+                    // The chip sits inside a tap-to-open hint — ending a session
+                    // must not also open it.
+                    e.stopPropagation();
+                    void endSession({ source: session.source, agentId: session.agentId });
+                  }}
+                >
+                  ×
+                </button>
+              </span>
+            </BarHint>
+          );
+        })}
+      </span>
+      {overflow.length > 0 && (
+        <BarHint
+          label={`${sessions.length} agent sessions attached`}
+          tapToOpen
+          body={`${sessions.length} agents on this board — ${breakdown}. The most active wear their own chips; the rest are here, and idle agents' cursors leave the board until they work again.`}
+        >
+          <span class="agent-chip agent-chip-more" data-testid="agent-chip-more">
+            +{overflow.length} · {sessions.length} agents
+          </span>
+        </BarHint>
+      )}
     </>
   );
 }

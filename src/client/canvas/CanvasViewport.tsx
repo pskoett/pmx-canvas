@@ -704,6 +704,16 @@ export function CanvasViewport({
     [annotationMode, containerRef, onCanvasContextMenu],
   );
 
+  // Internal native drags (selected node text, links inside rendered
+  // markdown) re-enter this same container as drops and mint webpage nodes
+  // from card text (0.5.1 Amp finding D). Kill them at the source — external
+  // drags never fire a local dragstart, so file/URL import is untouched.
+  // Editable elements keep their native drag (text drag inside an editor).
+  const handleDragStart = useCallback((e: DragEvent) => {
+    if (isEditableElement(e.target instanceof Element ? e.target : null)) return;
+    e.preventDefault();
+  }, []);
+
   // ── Drag-and-drop files from filesystem ──
   const handleDragEnter = useCallback((e: DragEvent) => {
     e.preventDefault();
@@ -824,6 +834,7 @@ export function CanvasViewport({
       onPointerUp={handlePointerUp}
       onContextMenu={handleContextMenu}
       onDblClick={handleDblClick}
+      onDragStart={handleDragStart}
       onDragEnter={handleDragEnter}
       onDragOver={handleDragOver}
       onDragLeave={handleDragLeave}

@@ -3889,6 +3889,18 @@ test('agent presence surfaces: cursor + chip on attach, shimmer on mutation, byt
     })
     .toBe(true);
 
+  // An IDLE agent's cursor leaves the board (user feedback, 0.5.1 cycle: a
+  // wall of parked "Idle" pills covered real node content on a 16-agent
+  // board). The element stays mounted — only its paint goes — and any
+  // non-idle phase brings it back.
+  const goIdle = await request.post('/api/canvas/ax/presence', { data: { source: 'copilot', phase: 'idle' } });
+  expect(goIdle.ok()).toBe(true);
+  await expect(cursor).toBeHidden();
+  await expect(cursor).toHaveCount(1);
+  const wake = await request.post('/api/canvas/ax/presence', { data: { source: 'copilot', phase: 'thinking' } });
+  expect(wake.ok()).toBe(true);
+  await expect(cursor).toBeVisible();
+
   // Detach → the board is byte-clean of agent chrome again.
   const detach = await request.post('/api/canvas/ax/presence', { data: { source: 'copilot', attached: false } });
   expect(detach.ok()).toBe(true);

@@ -9,7 +9,7 @@ import {
   type ViewportState,
 } from '../types';
 import { computeAutoArrange } from '../../shared/auto-arrange';
-import { canvasAreaCenter, canvasFitInsets } from '../canvas/canvas-area';
+import { canvasArea, canvasAreaCenter, canvasFitInsets } from '../canvas/canvas-area';
 import { pushCanvasUpdate, requestBestEffort, requestOk, updateViewportFromClient } from './intent-bridge';
 
 function logCanvasStoreError(action: string, error: unknown): void {
@@ -833,14 +833,26 @@ export function focusNode(id: string, options: { recordHistory?: boolean } = {})
   const node = nodes.value.get(id);
   if (!node) return;
   const v = viewport.value;
+  // Same screen-space frame as fitAll: viewport x/y are CONTAINER-relative
+  // (screen = world*scale + viewport inside the canvas region), so the centre
+  // is built from the region's dimensions + chrome insets — the old
+  // window-coordinate canvasAreaCenter() over-shifted focus by the region
+  // origin, and centring without insets parked tall nodes (the 960×600
+  // mcp-app open) under the command bar (0.5.1 Amp finding C).
+  const area = canvasArea();
+  const insets = canvasFitInsets();
+  const usableW = Math.max(80, area.width - insets.left - insets.right);
+  const usableH = Math.max(80, area.height - insets.top - insets.bottom);
+  // Shrink (never grow) so the whole node — resize corner included — fits the
+  // usable rect clear of the floating chrome.
+  const scale = Math.min(v.scale, usableW / node.size.width, usableH / node.size.height);
   const cx = node.position.x + node.size.width / 2;
   const cy = node.position.y + node.size.height / 2;
-  const centre = canvasAreaCenter();
   animateViewport(
     {
-      x: centre.x - cx * v.scale,
-      y: centre.y - cy * v.scale,
-      scale: v.scale,
+      x: insets.left + usableW / 2 - cx * scale,
+      y: insets.top + usableH / 2 - cy * scale,
+      scale,
     },
     300,
     options,

@@ -27,10 +27,18 @@ export function registerOperationTools(server: McpServer, getHost: () => Promise
     if (foldedOpNames.has(op.name)) continue;
     const tool = op.mcp;
     if (!tool) continue;
-    server.tool(
+    server.registerTool(
       tool.toolName,
-      tool.description,
-      { ...op.inputShape, ...(tool.extraShape ?? {}) },
+      {
+        description: tool.description,
+        // A LOOSE object, not a raw shape: the SDK wraps raw shapes in a
+        // stripping z.object, which silently dropped unknown args before the
+        // op layer could reject them — a removed field (dockPosition) looked
+        // successful over MCP while the same HTTP call 400'd (0.5.1 Amp
+        // finding A). Loose parsing forwards unknown keys to the op layer,
+        // the single authority on dead-field rejection, HTTP and MCP alike.
+        inputSchema: z.looseObject({ ...op.inputShape, ...(tool.extraShape ?? {}) }),
+      },
       async (input: Record<string, unknown>) => {
         try {
           const host = await getHost();
@@ -231,34 +239,40 @@ export function registerCompositeTools(
     for (const [publicKey, opField] of Object.entries(def.fieldRemap ?? {})) {
       publicFieldName.set(opField, publicKey);
     }
-    server.tool(def.toolName, def.description, buildCompositeShape(def), async (input: Record<string, unknown>) => {
-      try {
-        const host = await getHost();
-        const opName = resolveCompositeOp(def, input);
-        const op = getOperation(opName);
-        // Strip the composite discriminators (action + any extra, e.g. `kind`)
-        // and undo any field remap; the rest is the op's raw MCP args — the same
-        // value the standalone tool would receive.
-        const rest = stripCompositeDiscriminators(def, input);
-        const missing = requiredMcpFields(op).filter((field) => !requiredFieldSatisfied(opName, field, rest));
-        if (missing.length > 0) {
-          const named = missing.map((field) => `"${publicFieldName.get(field) ?? field}"`).join(', ');
-          throw new OperationError(
-            `${def.toolName} action "${String(input.action)}" requires ${named}. Unknown parameters are ignored — check the argument names.`,
-          );
+    // Loose for the same reason as registerOperationTools above: unknown args
+    // must reach the op layer's dead-field rejection instead of being stripped.
+    server.registerTool(
+      def.toolName,
+      { description: def.description, inputSchema: z.looseObject(buildCompositeShape(def)) },
+      async (input: Record<string, unknown>) => {
+        try {
+          const host = await getHost();
+          const opName = resolveCompositeOp(def, input);
+          const op = getOperation(opName);
+          // Strip the composite discriminators (action + any extra, e.g. `kind`)
+          // and undo any field remap; the rest is the op's raw MCP args — the same
+          // value the standalone tool would receive.
+          const rest = stripCompositeDiscriminators(def, input);
+          const missing = requiredMcpFields(op).filter((field) => !requiredFieldSatisfied(opName, field, rest));
+          if (missing.length > 0) {
+            const named = missing.map((field) => `"${publicFieldName.get(field) ?? field}"`).join(', ');
+            throw new OperationError(
+              `${def.toolName} action "${String(input.action)}" requires ${named}. Unknown parameters are ignored — check the argument names.`,
+            );
+          }
+          const opInput = op.mcp?.buildInput ? op.mcp.buildInput(rest) : rest;
+          const result = await host.invoker().invoke(opName, opInput);
+          if (op.mcp?.formatResult) {
+            return await op.mcp.formatResult(result, rest, host);
+          }
+          return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
+        } catch (error) {
+          return {
+            content: [{ type: 'text' as const, text: error instanceof Error ? error.message : String(error) }],
+            isError: true,
+          };
         }
-        const opInput = op.mcp?.buildInput ? op.mcp.buildInput(rest) : rest;
-        const result = await host.invoker().invoke(opName, opInput);
-        if (op.mcp?.formatResult) {
-          return await op.mcp.formatResult(result, rest, host);
-        }
-        return { content: [{ type: 'text' as const, text: JSON.stringify(result, null, 2) }] };
-      } catch (error) {
-        return {
-          content: [{ type: 'text' as const, text: error instanceof Error ? error.message : String(error) }],
-          isError: true,
-        };
-      }
-    });
+      },
+    );
   }
 }

@@ -137,7 +137,7 @@ export function extAppRecoveryLog(nodeId: string, event: string): void {
 // panel without devtools access — the Copilot WKWebView, exactly where the
 // black tiles happen — still yields an actionable trace: agents read it back
 // via GET /api/canvas/debug/ext-app-recovery (0.3.2 report Finding N).
-let extAppReportQueue: Array<{ t: number; nodeId: string; event: string; visibility?: string }> = [];
+const extAppReportQueue: Array<{ t: number; nodeId: string; event: string; visibility?: string }> = [];
 let extAppReportTimer: ReturnType<typeof setTimeout> | null = null;
 function queueExtAppRecoveryReport(entry: { t: number; nodeId: string; event: string }): void {
   extAppReportQueue.push({
@@ -287,28 +287,72 @@ export function buildExtAppBootBeaconScript(frameToken: string, nodeId: string):
   // rendering pipeline is actually running — a frame whose layer WebKit never
   // composites stays silent, and that silence drives the parent's recovery
   // ladder. One unsolicited tick at boot, then on-demand answers to probes.
-  // Content oracle (Finding N, 0.5.0 reopen): a double rAF fires even while
-  // WKWebKit composites nothing — the tick alone was a false green. The tick
-  // now carries a verdict: does this document actually CONTAIN rendered
-  // content (a laid-out canvas/svg, or real text)? The parent only accepts
-  // paint-ok when it does.
-  function contentReady() {
+  // Content oracle v2 (Finding N, 0.5.1 reopen): a LAID-OUT canvas passed the
+  // 0.5.1 oracle even when nothing was ever drawn into it — Excalidraw mounts
+  // its canvas element the moment React renders, so blank cream tiles read
+  // paint-ok (content-verified), the ladder concluded success, and Retry
+  // never engaged (Copilot 0.5.1 report: A/C/E cream with a green trail).
+  // The oracle now samples the canvas's PIXELS: a readable main drawing
+  // surface with uniform pixels is not content, whatever shell chrome or
+  // boilerplate text the document laid out around it.
+  function canvasInk(el) {
     try {
-      var els = document.querySelectorAll('canvas, svg');
-      for (var i = 0; i < els.length; i++) {
-        var r = els[i].getBoundingClientRect();
-        if (r.width > 8 && r.height > 8) return true;
+      if (!el.width || !el.height) return 'blank';
+      var sw = Math.min(96, el.width);
+      var sh = Math.min(64, el.height);
+      var probe = document.createElement('canvas');
+      probe.width = sw;
+      probe.height = sh;
+      var ctx = probe.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return 'unknown';
+      ctx.drawImage(el, 0, 0, sw, sh);
+      var d = ctx.getImageData(0, 0, sw, sh).data;
+      var r = d[0], g = d[1], b = d[2], a = d[3];
+      for (var i = 4; i < d.length; i += 4) {
+        if (Math.abs(d[i] - r) > 3 || Math.abs(d[i + 1] - g) > 3 || Math.abs(d[i + 2] - b) > 3 || Math.abs(d[i + 3] - a) > 3) return 'ink';
+      }
+      return 'blank';
+    } catch (e) {
+      return 'unknown'; // tainted or WebGL-unreadable: pixels cannot be judged
+    }
+  }
+  function contentVerdict() {
+    try {
+      var canvases = document.querySelectorAll('canvas');
+      var blankMain = false;
+      var unreadable = false;
+      for (var i = 0; i < canvases.length; i++) {
+        var r = canvases[i].getBoundingClientRect();
+        if (r.width <= 8 || r.height <= 8) continue;
+        var ink = canvasInk(canvases[i]);
+        if (ink === 'ink') return { content: true, detail: 'ink' };
+        if (ink === 'unknown') unreadable = true;
+        else if (r.width >= 160 && r.height >= 120) blankMain = true;
+      }
+      // A readable, never-painted main surface vetoes everything below:
+      // toolbar icons and shell text around a blank drawing surface is
+      // exactly the false green the human reports as an empty cream tile.
+      if (blankMain) return { content: false, detail: 'blank-canvas' };
+      if (unreadable) return { content: true, detail: 'canvas-unreadable' };
+      var svgs = document.querySelectorAll('svg');
+      for (var j = 0; j < svgs.length; j++) {
+        var sr = svgs[j].getBoundingClientRect();
+        if (sr.width > 8 && sr.height > 8 && svgs[j].querySelector('path, rect, circle, ellipse, line, polyline, polygon, text, image, use')) {
+          return { content: true, detail: 'svg' };
+        }
       }
       var body = document.body;
-      return !!(body && body.innerText && body.innerText.trim().length > 0);
+      if (body && body.innerText && body.innerText.trim().length > 0) return { content: true, detail: 'text' };
+      return { content: false, detail: 'empty' };
     } catch (e) {
-      return false;
+      return { content: false, detail: 'probe-error' };
     }
   }
   function sendPaintTick() {
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
-        window.parent.postMessage({ source: '${EXT_APP_BOOT_BEACON_SOURCE}', token: TOKEN, nodeId: NODE_ID, kind: 'paint-tick', content: contentReady() }, '*');
+        var v = contentVerdict();
+        window.parent.postMessage({ source: '${EXT_APP_BOOT_BEACON_SOURCE}', token: TOKEN, nodeId: NODE_ID, kind: 'paint-tick', content: v.content, detail: v.detail }, '*');
       });
     });
   }
@@ -388,8 +432,11 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   const themeUnsubRef = useRef<(() => void) | null>(null);
   const webkitRemountAttemptsRef = useRef(0);
   // Paint oracle (Finding N): resolvers waiting for the frame's next paint-tick,
-  // each handed the tick's content verdict.
-  const paintTickWaitersRef = useRef<Array<(content: boolean) => void>>([]);
+  // each handed the tick's content verdict + the oracle's reason for it.
+  const paintTickWaitersRef = useRef<Array<(tick: { content: boolean; detail: string }) => void>>([]);
+  // Last tick's oracle detail (ink / blank-canvas / svg / text / …) for the
+  // recovery trail — the label is the diagnostic the field reports read.
+  const lastPaintDetailRef = useRef<string>('');
   // Genuine boot signal: set ONLY when the app completes the ui/initialize
   // handshake (bridge.oninitialized) — NOT by the 1200ms bootstrap fallback,
   // which flips status via notifications that resolve even into a dead iframe.
@@ -471,8 +518,12 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
         return;
       appScriptsRanRef.current = true;
       if (data.kind === 'paint-tick') {
-        const content = (data as { content?: unknown }).content === true;
-        for (const waiter of paintTickWaitersRef.current.splice(0)) waiter(content);
+        const tickData = data as { content?: unknown; detail?: unknown };
+        const tick = {
+          content: tickData.content === true,
+          detail: typeof tickData.detail === 'string' ? tickData.detail : '',
+        };
+        for (const waiter of paintTickWaitersRef.current.splice(0)) waiter(tick);
       }
     }
     window.addEventListener('message', onBootBeacon);
@@ -590,13 +641,14 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
         settled = true;
         resolve('timeout');
       }, PAINT_TICK_TIMEOUT_MS);
-      paintTickWaitersRef.current.push((content) => {
+      paintTickWaitersRef.current.push((tick) => {
         if (settled) return;
         settled = true;
         window.clearTimeout(timer);
+        lastPaintDetailRef.current = tick.detail;
         // A tick without content is NOT paint-ok: the rAF pipeline runs while
         // the document is empty cream / never composited (Finding N reopen).
-        resolve(content ? 'content-verified' : 'tick-no-content');
+        resolve(tick.content ? 'content-verified' : 'tick-no-content');
       });
       contentWindow.postMessage({ source: EXT_APP_PAINT_PROBE_SOURCE, token: axToken }, '*');
     });
@@ -672,10 +724,14 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
   // A paint-ok collected while the document claims hidden proves only that the
   // app's rAF pipeline is alive — NOT that anything composited (Finding N,
   // 0.4.7). Say so in the trail instead of recording an unqualified success.
-  const paintOkLabel = (suffix = ''): string =>
-    typeof document !== 'undefined' && document.visibilityState === 'hidden'
-      ? `paint-ok (content-verified)${suffix} (host hidden)`
-      : `paint-ok (content-verified)${suffix}`;
+  // The [detail] bracket names WHAT the oracle verified (ink / svg / text) so
+  // field reports can distinguish pixel-verified greens from weaker ones.
+  const paintOkLabel = (suffix = ''): string => {
+    const detail = lastPaintDetailRef.current ? ` [${lastPaintDetailRef.current}]` : '';
+    return typeof document !== 'undefined' && document.visibilityState === 'hidden'
+      ? `paint-ok (content-verified)${detail}${suffix} (host hidden)`
+      : `paint-ok (content-verified)${detail}${suffix}`;
+  };
 
   const runPaintLadder = async (): Promise<void> => {
     // Runs for the EXPANDED instance too (Finding N reopen: expanded C was a
@@ -692,7 +748,9 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     }
     extAppRecoveryLog(
       nodeId,
-      verdict === 'tick-no-content' ? 'paint-fail (tick without content)' : 'paint-fail (no tick)',
+      verdict === 'tick-no-content'
+        ? `paint-fail (tick without content: ${lastPaintDetailRef.current || 'unknown'})`
+        : 'paint-fail (no tick)',
     );
     await runSoftExpandCycle();
     verdict = await probePaint();
@@ -777,7 +835,7 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
     () => () => {
       unmountedRef.current = true;
       for (const waiter of bootWaitersRef.current.splice(0)) waiter();
-      for (const waiter of paintTickWaitersRef.current.splice(0)) waiter(false);
+      for (const waiter of paintTickWaitersRef.current.splice(0)) waiter({ content: false, detail: 'unmounted' });
     },
     [],
   );
@@ -1096,7 +1154,12 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
             };
             if (typeof navigator !== 'undefined' && isWebKitOnlyHost(navigator.userAgent)) {
               void awaitContentVerified(4_000).then((verified) => {
-                extAppRecoveryLog(nodeId, verified ? 'settled (content-verified)' : 'settled (content-timeout)');
+                extAppRecoveryLog(
+                  nodeId,
+                  verified
+                    ? 'settled (content-verified)'
+                    : `settled (content-timeout${lastPaintDetailRef.current ? `: ${lastPaintDetailRef.current}` : ''})`,
+                );
                 releaseQueue();
               });
             } else {

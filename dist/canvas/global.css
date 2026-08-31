@@ -986,9 +986,20 @@ body,
   /* NOT overflow:hidden — the BarHint tooltips hang below the bar and were
      clipped invisible for everyone (the e2e asserted opacity, which cannot
      see ancestor clipping). Children ellipsize themselves; the narrow-screen
-     collapse is media-query display, not clipping. */
+     collapse is media-query display, not clipping. overflow-x: clip is the
+     one safe axis (visible/clip is the valid mixed pair): tooltips still
+     hang below, but bar content can never paint over the session panel
+     again (0.5.1 user feedback — the agent-chip flood pushed the zoom
+     cluster out of the bar). */
+  overflow-x: clip;
   min-width: 0;
   z-index: 9998;
+}
+/* CHIP BarHint anchors must pass shrink through to their chip (flex min-auto
+   sizing) or an unshrinkable anchor re-creates the overflow. Chip anchors
+   ONLY — a blanket min-width: 0 crushed the zoom buttons to slivers. */
+.top-bar .toolbar-tooltip-anchor:has(.agent-chip) {
+  min-width: 0;
 }
 
 .top-bar-title {
@@ -1104,13 +1115,45 @@ body,
   font-size: 11px;
   font-weight: 600;
   white-space: nowrap;
+  /* Rigid: the chip never shrinks and never lies about its min size (a
+     min-width: 0 here let BarHint anchors collapse under their chips, and
+     neighboring chips painted over each other). The .agent-chips wrapper is
+     the ONE squeeze point — it clips whole trailing chips at its edge. */
   flex-shrink: 0;
-  min-width: 0;
   max-width: 280px;
+}
+/* Many-agent bar (0.5.1 user feedback): the visible chips sit in ONE
+   clipping flex wrapper. Chips keep their natural readable width; when the
+   bar is overconstrained the WRAPPER shrinks and clips at its edge, so chip
+   content can never shove or paint over the census chip, the context meter,
+   or the zoom cluster (16 unshrinkable chips used to push the zoom controls
+   out of the bar and over the session panel). */
+.agent-chips {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  overflow: hidden;
+}
+/* Rigid anchors: nested-flex min-content lets a BarHint anchor collapse
+   under its chip (ellipsizing spans zero the chip's min-content), and the
+   chip then paints into the next anchor. Only the wrapper above may give. */
+.agent-chips .toolbar-tooltip-anchor {
+  flex-shrink: 0;
 }
 .agent-chip.phase-idle {
   background: none;
   border-color: var(--c-line);
+}
+/* The census chip is the "how many" answer — it never compresses away. Its
+   BarHint anchor must hold width too: a shrinking anchor around an
+   unshrinkable chip lets the chip paint over the next bar item. */
+.agent-chip-more {
+  flex-shrink: 0;
+}
+.top-bar .toolbar-tooltip-anchor:has(.agent-chip-more) {
+  flex-shrink: 0;
+  min-width: max-content;
 }
 .agent-chip-dot {
   width: 7px;
@@ -1134,6 +1177,11 @@ body,
   font-weight: 400;
   color: var(--c-muted);
   white-space: nowrap;
+  /* Leaf-level truncation: a compressed chip must ellipsize the agent name,
+     never paint it past the pill (0.5.1 user feedback, many-agent bar). */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 
 /* On-canvas cursor + phase chip (world layer; counter-scaled inner) */
@@ -1146,7 +1194,9 @@ body,
   top: 0;
   z-index: 9000;
   pointer-events: none;
-  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1);
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 320ms ease;
   color: var(--presence-color);
 }
 .agent-cursor.is-worker {
@@ -1159,6 +1209,20 @@ body,
 .agent-cursor.is-worker .agent-cursor-chip {
   font-size: 9px;
   padding: 1px 6px;
+}
+/* Idle cursors leave the board (user feedback, 0.5.1 cycle): with many agents
+   attached, a wall of parked "Idle" pills covers real node content. The
+   element stays MOUNTED — counts, twin-merge, and cursor-follow logic are
+   untouched, and visibility (not display) keeps its layout box so position
+   polls still resolve — but it paints nothing; any non-idle phase fades it
+   back in. Placed after .is-worker so opacity: 0 wins that collision. */
+.agent-cursor.phase-idle {
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 320ms ease,
+    visibility 0s linear 320ms;
 }
 .agent-chip-workers {
   margin-left: 4px;
@@ -2830,8 +2894,19 @@ body,
 }
 
 /* Pan tool / held Space: the world layer goes pointer-inert so drags land on
-   the viewport container itself and pan — nodes cannot swallow the drag. */
+   the viewport container itself and pan — nodes cannot swallow the drag.
+   user-select too: text selection sweeps straight through pointer-inert
+   content, and a selection made mid-pan later becomes a native text drag the
+   drop handler mints webpage nodes from (0.5.1 Amp finding D). */
 .canvas-viewport.pan-mode .canvas-world {
+  pointer-events: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* The resize handle and connect ports carry their own pointer-events: auto,
+   which punches through the inert world — a pan started on them never pans. */
+.canvas-viewport.pan-mode .node-resize-handle,
+.canvas-viewport.pan-mode .node-port {
   pointer-events: none;
 }
 .canvas-viewport.pan-mode:active {

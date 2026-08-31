@@ -523,6 +523,89 @@ describe('MCP parity with CLI', () => {
     expect(node.pinned).toBe(true);
   });
 
+  test('MCP rejects removed dockPosition loudly — transport parity with HTTP (0.5.1 Amp finding A)', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await closeTransportAndReapChild(session.transport);
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    // Not advertised: docking was removed in 0.5.0.
+    const tools = await session.client.listTools();
+    const nodeTool = tools.tools.find((tool) => tool.name === 'canvas_node');
+    expect(nodeTool?.inputSchema.properties).not.toHaveProperty('dockPosition');
+
+    // But SENDING it must be a loud error, not a silent strip — the SDK's
+    // stripping z.object made an obsolete MCP request look successful while
+    // the same HTTP call 400'd. Unknown args now flow to the op layer's
+    // dead-field rejection.
+    const created = (await session.client.callTool({
+      name: 'canvas_node',
+      arguments: { action: 'add', type: 'context', title: 'Trap', content: 'x', dockPosition: 'left' },
+    })) as ToolResultShape;
+    expect(created.isError).toBe(true);
+    expect(created.content?.[0]?.text).toContain('docking was removed');
+
+    const valid = parseJsonText<{ id: string }>(
+      (await session.client.callTool({
+        name: 'canvas_node',
+        arguments: { action: 'add', type: 'markdown', title: 'Dock parity', content: 'x' },
+      })) as ToolResultShape,
+    );
+    const patched = (await session.client.callTool({
+      name: 'canvas_node',
+      arguments: { action: 'update', id: valid.id, dockPosition: 'right' },
+    })) as ToolResultShape;
+    expect(patched.isError).toBe(true);
+    expect(patched.content?.[0]?.text).toContain('docking was removed');
+  });
+
+  test('canvas_ax_state set-presence advertises and forwards contextUsage (0.5.1 Amp finding B)', async () => {
+    const session = await createMcpSession();
+    cleanup.push(async () => {
+      await closeTransportAndReapChild(session.transport);
+      removeTestWorkspace(session.workspaceRoot);
+    });
+
+    // The tool description promises contextUsage {used,total}; the generated
+    // schema must actually carry it, and the value must reach the presence
+    // registry instead of being stripped at the SDK boundary.
+    const tools = await session.client.listTools();
+    const axTool = tools.tools.find((tool) => tool.name === 'canvas_ax_state');
+    expect(axTool?.inputSchema.properties).toHaveProperty('contextUsage');
+
+    const set = parseJsonText<{
+      ok: boolean;
+      presence: { contextUsage: { used: number; total: number } | null };
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_ax_state',
+        arguments: {
+          action: 'set-presence',
+          source: 'codex',
+          attached: true,
+          phase: 'thinking',
+          contextUsage: { used: 12_345, total: 200_000 },
+        },
+      })) as ToolResultShape,
+    );
+    expect(set.ok).toBe(true);
+    expect(set.presence.contextUsage).toEqual({ used: 12_345, total: 200_000 });
+
+    const read = parseJsonText<{
+      presences: Array<{ source: string; contextUsage: { used: number; total: number } | null }>;
+    }>(
+      (await session.client.callTool({
+        name: 'canvas_ax_state',
+        arguments: { action: 'presence' },
+      })) as ToolResultShape,
+    );
+    expect(read.presences.find((p) => p.source === 'codex')?.contextUsage).toEqual({
+      used: 12_345,
+      total: 200_000,
+    });
+  });
+
   test('canvas_node add(type:"html") + update opt a node into AX so it can emit interactions (#42)', async () => {
     const session = await createMcpSession();
     cleanup.push(async () => {

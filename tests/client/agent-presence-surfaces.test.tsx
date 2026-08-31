@@ -80,6 +80,71 @@ describe('top-bar agent chip', () => {
     expect(chip?.querySelector('.agent-chip-label')?.textContent).toBe('Running bun test');
     expect(chip?.querySelector('.agent-chip-who')?.textContent).toBe('Claude · sonnet');
   });
+
+  test('a many-agent board caps per-agent chips and shows the census (user feedback, 0.5.1 cycle)', () => {
+    // 16 unshrinkable chips shoved the zoom cluster out of the bar and over
+    // the session panel, and the total was invisible. Contract: the most
+    // active sessions wear their own chips (never an idle one over a
+    // thinking one), the rest fold into one census chip naming the total.
+    applyPresenceSnapshot({
+      presences: [
+        presence({ sessionId: 'a1', source: 'a1', phase: 'idle', label: 'agent-1' }),
+        presence({ sessionId: 'a2', source: 'a2', phase: 'idle', label: 'agent-2' }),
+        presence({ sessionId: 'a3', source: 'a3', phase: 'thinking', label: 'agent-3' }),
+        presence({ sessionId: 'a4', source: 'a4', phase: 'idle', label: 'agent-4' }),
+        presence({ sessionId: 'a5', source: 'a5', phase: 'tooling', label: 'agent-5' }),
+        presence({ sessionId: 'a6', source: 'a6', phase: 'idle', label: 'agent-6' }),
+      ],
+    });
+    const { container } = render(<TopBar />);
+    const chips = [...container.querySelectorAll('.agent-chip')];
+    expect(chips).toHaveLength(4); // 3 session chips + the census chip
+    const census = container.querySelector('[data-testid="agent-chip-more"]');
+    expect(census?.textContent).toBe('+3 · 6 agents');
+    // The active sessions hold the visible slots.
+    expect(container.querySelector('.agent-chip.phase-thinking')).not.toBeNull();
+    expect(container.querySelector('.agent-chip.phase-tooling')).not.toBeNull();
+  });
+
+  test('at or under the cap every session keeps its own chip and no census renders', () => {
+    applyPresenceSnapshot({
+      presences: [
+        presence({ sessionId: 'a1', source: 'a1', phase: 'idle', label: 'agent-1' }),
+        presence({ sessionId: 'a2', source: 'a2', phase: 'tooling', label: 'agent-2' }),
+        presence({ sessionId: 'a3', source: 'a3', phase: 'idle', label: 'agent-3' }),
+      ],
+    });
+    const { container } = render(<TopBar />);
+    expect(container.querySelectorAll('.agent-chip')).toHaveLength(3);
+    expect(container.querySelector('[data-testid="agent-chip-more"]')).toBeNull();
+  });
+});
+
+describe('idle cursors leave the board', () => {
+  // User feedback (0.5.1 cycle): on a 16-agent board the parked "Idle" pills
+  // covered real node content. The contract: an idle presence keeps its
+  // MOUNTED cursor element (counts, twin-merge, and follow logic untouched)
+  // wearing phase-idle, and the stylesheet is what removes its paint — so a
+  // phase change fades it back in without a remount.
+  test('an idle presence still mounts its cursor with the phase-idle CSS hook', () => {
+    applyPresenceSnapshot({
+      presences: [
+        presence({ sessionId: 'copilot', phase: 'idle', cursor: { x: 5, y: 5 } }),
+        presence({ sessionId: 'claude-code', phase: 'tooling', cursor: { x: 50, y: 50 } }),
+      ],
+    });
+    const { container } = render(<AgentPresenceLayer />);
+    const cursors = [...container.querySelectorAll('.agent-cursor')];
+    expect(cursors).toHaveLength(2);
+    expect(cursors.filter((el) => el.className.includes('phase-idle'))).toHaveLength(1);
+  });
+
+  test('the stylesheet hides phase-idle cursors', async () => {
+    const css = await Bun.file(new URL('../../src/client/theme/global.css', import.meta.url)).text();
+    const rule = css.match(/\.agent-cursor\.phase-idle\s*\{[^}]*\}/);
+    expect(rule?.[0]).toContain('opacity: 0');
+    expect(rule?.[0]).toContain('visibility: hidden');
+  });
 });
 
 describe('identity colors', () => {

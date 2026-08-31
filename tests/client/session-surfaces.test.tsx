@@ -225,11 +225,13 @@ describe('top-bar context budget', () => {
     );
     const { container } = render(<TopBar />);
     const chips = [...container.querySelectorAll('.agent-chip')];
+    // Active-first order (0.5.1 many-agent bar): the tooling session outranks
+    // the idle one for the visible slots.
     expect(chips.map((chip) => chip.querySelector('.agent-chip-who')?.textContent)).toEqual([
-      'Agent session',
       'GitHub Copilot',
+      'Agent session',
     ]);
-    expect(chips.map((chip) => chip.getAttribute('data-phase'))).toEqual(['idle', 'tooling']);
+    expect(chips.map((chip) => chip.getAttribute('data-phase'))).toEqual(['tooling', 'idle']);
   });
 
   test('is absent on the quiet board; in a session it reads the presence budget and shifts tone at 70% and 90%', () => {

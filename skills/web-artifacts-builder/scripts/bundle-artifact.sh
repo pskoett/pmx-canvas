@@ -161,7 +161,18 @@ rm -rf dist bundle.html
 
 # Build with Parcel
 echo "🔨 Building with Parcel..."
-run_with_filtered_stderr run_local_binary parcel build index.html --dist-dir dist --no-source-maps --log-level error
+run_with_filtered_stderr run_local_binary parcel build index.html --dist-dir dist --no-source-maps --log-level error || true
+
+# Self-heal a wedged cache: these build projects are REUSED across artifact
+# builds, and a parcel killed mid-write (e.g. the canvas server torn down
+# during a build) leaves a corrupted .parcel-cache that makes every later
+# build die before emitting anything — permanently, until the cache goes.
+# One cold-cache retry converts that wedge into a slow build.
+if [ ! -s "dist/index.html" ]; then
+  echo "🧹 Parcel produced no output — clearing .parcel-cache and retrying cold..."
+  rm -rf .parcel-cache dist
+  run_with_filtered_stderr run_local_binary parcel build index.html --dist-dir dist --no-source-maps --log-level error || true
+fi
 
 if [ ! -s "dist/index.html" ]; then
   echo "❌ Error: Parcel did not produce dist/index.html" >&2

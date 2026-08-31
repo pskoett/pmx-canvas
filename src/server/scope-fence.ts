@@ -199,7 +199,7 @@ export function checkScopeOwnership(rawInput: unknown, writerKey?: string): stri
     return 'the scope fence is set and cleared by the human in the session panel, not by the agent.';
   const agentScopes = input.agentScopes;
   if (writerKey && agentScopes && typeof agentScopes === 'object' && !Array.isArray(agentScopes)) {
-    if (Object.prototype.hasOwnProperty.call(agentScopes, writerKey)) {
+    if (Object.hasOwn(agentScopes, writerKey)) {
       return `an agent cannot set or clear its OWN territory ("${writerKey}") — only the human or a different writer (the orchestrator) may.`;
     }
   }

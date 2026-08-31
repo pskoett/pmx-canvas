@@ -110,6 +110,13 @@ export function usePanZoom({ viewport, onViewportChange, onViewportCommit, disab
         // Pan tool / held Space: the world layer is pointer-inert (CSS), so
         // the event target is the container even over nodes.
         if (e.target !== container) return;
+        // A pan gesture must not double as the browser's drag-select: without
+        // preventDefault the sweep still extends a text selection through the
+        // pointer-inert world, and a later pointerdown inside that selection
+        // starts a native text drag the canvas mis-reads as a URL drop —
+        // panning from a node minted webpage nodes from card text (0.5.1 Amp
+        // finding D).
+        e.preventDefault();
       } else {
         // Select tool: background drag belongs to the lasso (CanvasViewport).
         return;
