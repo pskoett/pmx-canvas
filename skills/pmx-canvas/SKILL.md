@@ -16,6 +16,14 @@ PMX Canvas is a server-authoritative spatial workbench controlled through MCP, H
 Humans curate agent context by pinning nodes; agents read that curation through
 `canvas://pinned-context`. State survives browser refresh.
 
+## Runtime prerequisites
+
+PMX Canvas 0.5.1 requires **Bun >=1.3.14**, including when installed through npm.
+Check `bun --version` and ensure Bun is on the MCP host's PATH, not just your shell's;
+use an absolute executable path if needed. Install/configure only when requested.
+For pinned installation, MCP configuration, managed services, and disposable verification,
+read [Installing PMX Canvas](references/installing-pmx-canvas.md).
+
 ## Required Operating Sequence
 
 0. **After a `pmx-canvas` upgrade, refresh this skill first.** Run
@@ -28,9 +36,10 @@ Humans curate agent context by pinning nodes; agents read that curation through
    any `--mcp` processes; Bun does not hot-reload a running process.
 1. **Open or focus the workbench before mutating.** Reuse one visible canvas surface for the
    session.
-2. **Verify workspace identity.** Read `GET /health` or `pmx-canvas serve status`; the returned
-   `workspace` must equal the intended absolute workspace root. A healthy listener on port 4313
-   may belong to another project.
+2. **Verify workspace identity at the actual target.** Read `GET /health` at the URL your
+   CLI/MCP/browser is using; its `workspace` must equal the intended canonical absolute root.
+   `pmx-canvas serve status --port=<port>` checks the local listener on that port, not an
+   arbitrary `PMX_CANVAS_URL`. A healthy listener may belong to another project.
 3. **Read before write.** Search with `canvas_query { action: "search", query }` before creating
    nodes. Read the full layout only when necessary. The MCP parameter is `query` — passing the
    HTTP API's `q` is silently ignored and returns zero results.
@@ -68,38 +77,52 @@ Humans curate agent context by pinning nodes; agents read that curation through
 
 ## Workspace Safety
 
-Before any create, update, remove, clear, restore, or arrange:
+Before any create, update, remove, clear, restore, arrange, or smoke test, choose an
+absolute project root and a dedicated free port. For a local target:
 
 ```bash
-curl -sS http://localhost:4313/health
-pmx-canvas serve status
+export PMX_CANVAS_WORKSPACE_ROOT=/absolute/path/to/project
+export PMX_CANVAS_PORT=14313 # Example only: choose a free port for this workspace.
+unset PMX_CANVAS_URL # Remove a stale URL before selecting a different local target.
+curl --fail --silent --show-error "http://localhost:${PMX_CANVAS_PORT}/health"
+pmx-canvas serve status --port="$PMX_CANVAS_PORT"
 ```
 
-Both surfaces report `workspace`. It must match the intended workspace root.
-For a full environment check in one command (health + workspace, CLI/server
-version skew, MCP initialize handshake, temp-node create/search/remove
-round-trip, board validation), run `pmx-canvas smoke` (0.4.6+) — JSON report,
-exit 1 on failure.
+Compare the health field **`workspace`** (not `workspaceRoot`) to the intended root,
+resolving symlinks before comparison. Stop on mismatch or failed health; do not write.
+If deliberately using `PMX_CANVAS_URL` or `--server-url`, check `/health` at that exact
+URL instead. Confirm the browser and MCP use the same verified target, especially
+after fallback to another port. Do not print URLs containing credentials.
+
+`pmx-canvas smoke` reports health/workspace/version information, checks MCP initialize,
+creates/searches/removes a temporary node, and validates the board. **It mutates state**
+and does not enforce your intended workspace identity; version skew is reported, not
+necessarily a failing check. Use a disposable workspace, verify health first, and inspect
+both the JSON details and exit status (1 when a check fails). It is not a read-only probe
+or a guarantee of unchanged history.
 
 - If `responsive: true` but `pidRunning: false`, treat the listener as potentially stale.
-- On mismatch, do not mutate. Start the intended workspace on an explicit free port:
-  `pmx-canvas serve --daemon --no-open --port=<free-port>`. (`serve --daemon` enforces this
-  itself: pointed at a port owned by another workspace, it refuses with the owner named instead
-  of reporting "already running".)
-- Target that port and re-check `/health`.
-- `PMX_CANVAS_PORT` is the agent CLI target; the server's startup port is controlled by `--port`
-  or `PMX_WEB_CANVAS_PORT`.
-- **MCP transport workspace resolution.** An MCP server (`pmx-canvas --mcp`) holds its own in-memory
-  canvas. To avoid the old "wrong-workspace split" (a `--mcp` launched from an incidental dir, e.g.
-  `~/.copilot`, silently binding a fallback port the panel never renders): when the preferred port is
-  held by a healthy daemon serving a *different* workspace, the MCP server now **attaches** to it
-  (inherits its workspace) so writes are visible where the panel renders; and if it launched from an
-  incidental host/agent config dir on a *free* port, it still binds but emits a loud stderr warning
-  instead of silently adopting that cwd. To pin the intended workspace deterministically set
-  **`PMX_CANVAS_WORKSPACE_ROOT=<abs project root>`** (recommended for host adapters); for a genuinely
-  separate canvas set `PMX_CANVAS_ALLOW_WORKSPACE_SPLIT=1` or a distinct `PMX_CANVAS_PORT`. The CLI's
-  query/mutation commands are a thin HTTP client and never start a server of their own (only `serve` /
-  `--mcp` spawn a process).
+- On mismatch, leave the other workspace's server alone. Start the intended workspace on
+  a different free port, target it explicitly, and re-check `/health` before writing.
+- On an ordinary local machine, `pmx-canvas serve --daemon --no-open --port=<free-port>`
+  refuses a different-workspace occupant. In a managed environment, supervise foreground
+  `pmx-canvas serve --no-open --port=<free-port>` with the host's service manager instead.
+- `PMX_CANVAS_PORT` selects the CLI/MCP port. CLI target flags override environment values
+  (`--server-url` wins over `--port`); otherwise `PMX_CANVAS_URL` wins over `PMX_CANVAS_PORT`.
+  For server startup, explicit `--port` wins, then `PMX_WEB_CANVAS_PORT`, then
+  `PMX_CANVAS_PORT`; in Amp orbs `PORT` is a later fallback. URL targeting does not select
+  the server's bind port.
+- **MCP transport workspace resolution.** Set **`PMX_CANVAS_WORKSPACE_ROOT` plus a dedicated
+  `PMX_CANVAS_PORT`** in the host configuration. Without an explicit root, MCP may inherit a
+  different workspace from the preferred-port daemon; `PMX_CANVAS_ALLOW_WORKSPACE_SPLIT=1`
+  opts out of that heuristic. Current source honors an explicit root, but may bind a fallback
+  port if the preferred port is occupied. Root alone therefore does not guarantee CLI, MCP,
+  and browser target alignment; older installed runtimes can also differ. Inspect startup
+  output and the actual health endpoint, never assume the preferred port was bound.
+  Clear stale inherited `PMX_CANVAS_URL` values in the host configuration as well as the shell.
+- CLI query/mutation commands are HTTP clients and do not start a server. `serve` or `--mcp`
+  starts or attaches to one. Use the host's authenticated preview mechanism for remote viewing;
+  a loopback URL is only reachable inside the machine/orb running the service.
 
 ## Choose the Smallest Useful Node Type
 
