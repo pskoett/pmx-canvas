@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# SQLite is embedded and no authentication or backing services need repair.
+# Dependencies and browsers live in the setup snapshot, never install on wake.
+echo '[orb resume] Ready; no reconnect steps required'

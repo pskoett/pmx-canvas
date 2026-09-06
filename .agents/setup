@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+cd "$(dirname "${BASH_SOURCE[0]}")/.."
+TIMEFORMAT='[orb setup] step completed in %3R seconds'
+
+# Debian 12 prerequisites for Bun and Playwright Chromium (including headed tests).
+# Check packages individually so stale snapshots never repeat apt work unnecessarily.
+echo '[orb setup] Checking system dependencies'
+packages=(ca-certificates curl unzip xz-utils xvfb fonts-liberation fonts-noto-color-emoji
+  libasound2 libatk-bridge2.0-0 libatk1.0-0 libatspi2.0-0 libcairo2 libcups2
+  libdbus-1-3 libdrm2 libgbm1 libglib2.0-0 libnspr4 libnss3 libpango-1.0-0
+  libx11-6 libxcb1 libxcomposite1 libxdamage1 libxext6 libxfixes3 libxkbcommon0
+  libxrandr2)
+missing=()
+for package in "${packages[@]}"; do
+  if [[ "$(dpkg-query -W -f='${Status}' "$package" 2>/dev/null || true)" != 'install ok installed' ]]; then
+    missing+=("$package")
+  fi
+done
+if ((${#missing[@]})); then
+  time sudo apt-get update
+  time sudo env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends "${missing[@]}"
+fi
+
+# Match .github/workflows/test.yml. /usr/local/bin is also visible to fresh
+# non-interactive login shells and supervised services, without profile hooks.
+echo '[orb setup] Checking Bun 1.3.14'
+if [[ "$(bun --version 2>/dev/null || true)" != 1.3.14 ]]; then
+  time curl -fsSL https://bun.sh/install | sudo env BUN_INSTALL=/usr/local bash -s -- bun-v1.3.14
+fi
+bun --version
+
+# Use the Node 24 LTS line used by the publish workflow, not the base image's
+# Node 26 (Playwright's browser extraction stalled under that version).
+echo '[orb setup] Checking Node 24.20.0'
+if [[ "$(node --version 2>/dev/null || true)" != v24.20.0 ]]; then
+  case "$(uname -m)" in
+    x86_64) arch=x64 ;;
+    aarch64) arch=arm64 ;;
+    *) echo 'Unsupported Node architecture' >&2; exit 1 ;;
+  esac
+  time curl -fsSL "https://nodejs.org/dist/v24.20.0/node-v24.20.0-linux-${arch}.tar.xz" \
+    | sudo tar -xJ --strip-components=1 -C /usr/local
+fi
+node --version
+
+echo '[orb setup] Installing locked dependencies (including dev dependencies)'
+time NODE_ENV=development bun install --frozen-lockfile
+
+echo '[orb setup] Caching Playwright Chromium'
+time node node_modules/@playwright/test/cli.js install chromium
+
+# dist/ is committed; do not rebuild tracked bundles or seed user canvas state.
+echo '[orb setup] Ready'

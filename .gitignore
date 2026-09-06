@@ -24,7 +24,10 @@ artifacts/*.html
 .pmx-canvas/daemon-*.pid
 
 # Agent-tooling meta (personal workflow artifacts, not product code)
-.agents/
+.agents/*
+!.agents/setup
+!.agents/resume
+.amp/portals/*
 .context-surfing/
 .entire/
 .evals/
