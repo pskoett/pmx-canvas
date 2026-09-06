@@ -1,5 +1,9 @@
 # pmx-canvas
 
+pmx-canvas is a visual workspace for planning, discovery, analysis, coordination,
+and orchestrating work with agents—from exploring an idea to directing its
+execution and carrying the learning forward.
+
 **A moldable canvas for agent-assisted thinking.** An infinite 2D surface
 where files, plans, status, charts, fetched web pages, annotations, code
 diffs, and diagrams live side by side. Every node carries its own renderer; agents

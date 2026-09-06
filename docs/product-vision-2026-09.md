@@ -7,7 +7,9 @@
 
 ## The one-line vision
 
-**The board is the agent's working memory, and the human's attention is the compiler.** Everything the human does on the board (write, pin, hold, group, connect, look) is an attention signal; the server compiles one budgeted brief from it for every agent turn. Everything the agent has to say to the human is a card on the board, never a row in a side table. The board owns its own store and its own history, and reaches remote agents through its own authenticated network mode. One journal records every write by either side, so time on the board can be scrubbed like a video. In the long run the board is hosted, and a team and its agents share it as one working memory.
+**The board is the agent's working memory, and the human's attention is the compiler.** Explicit steering directs agents; annotations, pins, connections, and grouping inform relevance, while spatial layout and human camera attention can contribute weaker cues. The server compiles one budgeted brief for every agent turn. Everything the agent has to say to the human is a card on the board, never a row in a side table. The board owns its own store and its own history, and reaches remote agents through its own authenticated network mode. One journal records every write by either side, so time on the board can be scrubbed like a video. In the long run the board is hosted, and a team and its agents share it as one working memory.
+
+**Purpose clarification, 2026-09-06:** pmx-canvas is a visual workspace for **planning, discovery, analysis, and coordination with agents**. This is its intended purpose, not merely an initial audience experiment. Its promise is to let people shape the work spatially, carry useful understanding into the next task, and see known changes and uncertainty in the context they use. The [companion vision](product-context-vision-2026-09.md#position) develops these promises; personal and shared knowledge support the working surface rather than replace it. Attention does not grant approval or sharing permission.
 
 ## What the real boards show
 
@@ -136,6 +138,8 @@ Both files stay, because different agents read different files (Claude Code read
 With one journal, a **time scrubber** replaces snapshots, the History drawer, and diff: drag a slider and watch the agent's work unfold on the board. With one brief, an **attention heat** on the board shows the human exactly what the agent will read next, so looking and pinning become visible tuning. Those two are the demo. They are also the two-way surface at its most literal: you see what the agent sees, and you see what it did.
 
 ## Part 3: Long term, hosted multiplayer
+
+**Discussion extension, 2026-09-06:** [Boards, personal wiki, and workspace context](product-context-vision-2026-09.md) reviews this plan and proposes app-owned personal and shared knowledge built from board evidence. It includes oracle feedback, publication and permission boundaries, corrections to the trust/provenance assumptions below, and a small validation experiment. It is a proposal, not a replacement for the maintainer's settled decisions or authorization to start hosted work.
 
 The maintainer's long-term direction, and the natural end of the two-way surface: the board is hosted, people log in, and several humans and their agents work on the same canvas. My position is that this is the right destination and that almost everything in Part 2 is its prerequisite, which is the strongest argument for Part 2.
 
