@@ -6,7 +6,7 @@
 
 ## Context
 
-pmx-canvas ships as TypeScript source executed directly by Bun. `package.json` points `main`/`exports` at `src/server/index.ts`, the `bin` entry is `src/cli/index.ts` with a `#!/usr/bin/env bun` shebang, and `engines` requires `bun >= 1.3.14`. There is no compiled JS distribution; `dist/` carries only the client bundle, the json-render viewer, and type declarations.
+pmx-canvas ships as TypeScript source executed directly by Bun. `package.json` points `main`/`exports` at `src/server/index.ts`, the `bin` entry is `src/cli/index.ts` with a `#!/usr/bin/env bun` shebang, and `engines` requires `bun >= 1.4.2`. There is no compiled JS distribution; `dist/` carries only the client bundle, the json-render viewer, and type declarations.
 
 The runtime dependence on Bun is not incidental. `Bun.serve` is the HTTP + SSE server, `bun:sqlite` is the persistence layer, `Bun.WebView` backs the screenshot/evaluate automation tools, and `bun test` is the test runner. These are load-bearing APIs across `src/server/`, not shims that a bundler could paper over.
 

@@ -7,6 +7,10 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 Fixes from the 0.5.1 field reports (Amp orb, Copilot app).
 
+### Changed
+
+- Bun 1.4.2 or newer is now required; CI and orb setup use Bun 1.4.2.
+
 ### Fixed
 
 - MCP calls now reject removed or dead fields (such as `dockPosition`) with the same error HTTP returns, instead of silently dropping them.

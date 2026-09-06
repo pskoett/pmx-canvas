@@ -238,7 +238,7 @@ hooks, canvas, and session APIs onto PMX's AX primitives — no core changes.
 
 ## Prerequisites
 
-- [Bun](https://bun.sh) >= 1.3.14
+- [Bun](https://bun.sh) >= 1.4.2
 
 The published SDK entrypoint is Bun-first. Node.js consumers should use the
 CLI, MCP server, or HTTP API.
