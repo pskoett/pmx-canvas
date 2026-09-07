@@ -87,6 +87,8 @@ describe('agent CLI webview commands', () => {
     expect(stopOutput.webview.active).toBe(false);
   });
 
+  // WebView tests allow 30s: navigation alone has a 15s server timeout, plus
+  // native startup, cleanup, and HTTP response time on slower CI hosts.
   test('start command sends backend and size options', async () => {
     const log = mock((..._args: unknown[]) => {});
     const originalLog = console.log;
@@ -131,7 +133,7 @@ describe('agent CLI webview commands', () => {
     expect(output.webview?.width).toBe(1440);
     expect(output.webview?.height).toBe(900);
     expect(output.webview?.backend).toBe(process.platform === 'darwin' ? 'webkit' : 'chrome');
-  }, 15000);
+  }, 30000);
 
   test('evaluate, resize, and screenshot commands work against the HTTP API', async () => {
     const screenshotPath = join(workspaceRoot, 'cli-webview-test.png');
@@ -182,7 +184,7 @@ describe('agent CLI webview commands', () => {
     expect(screenshotOutput.mimeType).toBe('image/png');
     expect(existsSync(screenshotPath)).toBe(true);
     expect(readFileSync(screenshotPath).byteLength).toBeGreaterThan(0);
-  }, 15000);
+  }, 30000);
 
   test('evaluate supports --script for multi-statement JavaScript', async () => {
     const log = mock((..._args: unknown[]) => {});
@@ -213,7 +215,7 @@ describe('agent CLI webview commands', () => {
     };
     expect(evaluateOutput.ok).toBe(true);
     expect(evaluateOutput.value).toBe('PMX CANVAS');
-  }, 15000);
+  }, 30000);
 
   test('evaluate supports --file for multi-statement JavaScript', async () => {
     const scriptPath = join(workspaceRoot, 'probe.js');
@@ -242,7 +244,7 @@ describe('agent CLI webview commands', () => {
     };
     expect(evaluateOutput.ok).toBe(true);
     expect(evaluateOutput.value).toBe('PMX Canvas from file');
-  }, 15000);
+  }, 30000);
 
   test('serve subcommand routes to server startup instead of agent CLI help', async () => {
     const originalArgv = process.argv;
