@@ -359,16 +359,15 @@ services:
 ```bash
 # .agents/setup — install the CLI (pin the exact version: a fresh orb running
 # @latest can silently pick up a newer release than the one you validated)
-npm install -g pmx-canvas@0.5.1
+npm install -g pmx-canvas@0.6.0
 ```
 
 The server binds the portal-assigned `$PORT` automatically (gated on the
 `AMP_ORB` env the orb always sets, so a stray `PORT` elsewhere never changes
 the default), restores `.pmx-canvas/canvas.db`, and the portal manifest picks
-it up — no port flags or `$PORT` interpolation in the service command. One
-caveat: WebView automation (`pmx-canvas screenshot`) needs Bun >= 1.3.12 in
-the orb image; the canvas itself runs fine without it and says so in the
-error. The canvas detects the orb and the portal's nested-iframe
+it up — no port flags or `$PORT` interpolation in the service command. The
+orb image needs Bun >= 1.4.2; WebView automation (`pmx-canvas screenshot`)
+also needs a working Chrome installation. The canvas detects the orb and the portal's nested-iframe
 embed on its own: live updates arrive over the proxy-safe polling transport,
 and iframe-backed nodes (HTML, mermaid, graph, json-render, web artifacts)
 render inline via `srcdoc` with their theme styling included. Two things can't
