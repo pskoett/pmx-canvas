@@ -1363,7 +1363,10 @@ test('html bridge: window.PMX_AX.emit resolves with the result so the surface ca
   const node = page.locator('.canvas-node').filter({ hasText: 'AX ack html' });
   await expect(node).toHaveCount(1);
   const frame = node.frameLocator('iframe');
-  await frame.getByRole('button', { name: 'emit' }).click();
+  // Exercise the button's click handler via keyboard activation. Chromium can
+  // route an early pointer click to the outer iframe before its compositor
+  // hit-test data is ready, even though Playwright reports the button stable.
+  await frame.getByRole('button', { name: 'emit' }).press('Enter');
   // The promise resolved with { ok: true } via the parent's ack postMessage.
   await expect(frame.locator('#st')).toHaveText('queued OK');
 });
@@ -3124,6 +3127,18 @@ test('restored grouped nodes can be dragged without snapping back', async ({ pag
   const beforeGroup = (await beforeGroupResponse.json()) as { position: { x: number; y: number } };
   const beforeChild = (await beforeChildResponse.json()) as { position: { x: number; y: number } };
 
+  // Existing nodes are already mounted before the restore reaches the browser.
+  // Wait for the restored geometry, not just their unchanged titles.
+  await expect
+    .poll(() =>
+      groupedGroup.evaluate((el) => ({ x: Number.parseFloat(el.style.left), y: Number.parseFloat(el.style.top) })),
+    )
+    .toEqual(beforeGroup.position);
+  await expect
+    .poll(() =>
+      groupedFirst.evaluate((el) => ({ x: Number.parseFloat(el.style.left), y: Number.parseFloat(el.style.top) })),
+    )
+    .toEqual(beforeChild.position);
   await dragNodeTitlebar(page, groupedGroup, 180, 120);
 
   await expect
@@ -3518,8 +3533,9 @@ test('an unsignalled agent mutation shows an auto-ghost for at least the minimum
     (window as Window & { __ghostSamples?: typeof samples }).__ghostSamples = samples;
     const started = Date.now();
     const timer = setInterval(() => {
-      samples.push({ t: Date.now() - started, auto: document.querySelectorAll('.intent-ghost.is-auto').length > 0 });
-      if (Date.now() - started > 4000) clearInterval(timer);
+      const auto = document.querySelectorAll('.intent-ghost.is-auto').length > 0;
+      samples.push({ t: Date.now() - started, auto });
+      if (!auto && samples.some((sample) => sample.auto)) clearInterval(timer);
     }, 40);
   });
 
@@ -3529,7 +3545,10 @@ test('an unsignalled agent mutation shows an auto-ghost for at least the minimum
   });
   expect(created.ok()).toBe(true);
 
-  await page.waitForTimeout(2500);
+  // Transport startup can delay delivery. Observe the whole ghost lifetime,
+  // rather than truncating it a fixed interval after the HTTP write.
+  await expect(page.locator('.intent-ghost.is-auto')).toBeAttached();
+  await expect(page.locator('.intent-ghost.is-auto')).toHaveCount(0);
   const samples = await page.evaluate(
     () => (window as Window & { __ghostSamples?: Array<{ t: number; auto: boolean }> }).__ghostSamples ?? [],
   );
