@@ -3,9 +3,10 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
-## [0.6.0] - 2026-09-07
+## [0.6.1] - 2026-09-07
 
 The Bun 1.4.2 upgrade and fixes from the 0.5.1 field reports (Amp orb, Copilot app).
+Version 0.6.0 was tagged but not published; this release includes its full changes.
 
 ### Breaking
 
@@ -15,6 +16,7 @@ The Bun 1.4.2 upgrade and fixes from the 0.5.1 field reports (Amp orb, Copilot a
 
 - Fresh orbs prepare and cache the pinned toolchain, dependencies, and Chromium during setup.
 - CI uses Bun 1.4.2, and browser tests handle delayed transport startup and early iframe input reliably.
+- WebView integration tests allow server navigation timeouts and cleanup to complete on slower hosts.
 - Installation and skill guidance now explain workspace targeting, managed services, and safe disposable smoke tests.
 - Added the September product review and vision documents, including the direction for personal and shared context.
 

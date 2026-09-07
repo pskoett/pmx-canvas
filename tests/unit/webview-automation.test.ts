@@ -22,6 +22,8 @@ describe.skipIf(process.platform === 'win32')('canvas WebView automation', () =>
     }
   });
 
+  // Navigation has a 15s server timeout; allow its error response and cleanup
+  // to finish before the test runner advances to the next shared-server test.
   test('starts, evaluates, resizes, and screenshots through the SDK', async () => {
     if (!supportsWebView) {
       expect(typeof (Bun as { WebView?: unknown }).WebView).toBe('undefined');
@@ -68,5 +70,5 @@ describe.skipIf(process.platform === 'win32')('canvas WebView automation', () =>
         canvas.stop();
       }
     }
-  }, 15000);
+  }, 30000);
 });

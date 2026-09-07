@@ -6392,6 +6392,7 @@ describe('canvas server HTTP API', () => {
 
   // win32: WebView automation is unsupported on Windows; the failure path
   // there doesn't record lastError yet (tracked as follow-up work).
+  // Allow the 15s server navigation timeout plus startup/cleanup and response time.
   test.skipIf(process.platform === 'win32')(
     'reports Bun.WebView automation status and fails cleanly when unsupported',
     async () => {
@@ -6449,7 +6450,7 @@ describe('canvas server HTTP API', () => {
       expect(stopped.stopped).toBe(true);
       expect(stopped.webview.active).toBe(false);
     },
-    15000,
+    30000,
   );
 
   test('webview evaluate/resize with no active session fail as 400 JSON, not a 500 HTML overlay', async () => {
@@ -6553,7 +6554,7 @@ describe('canvas server HTTP API', () => {
       method: 'DELETE',
     });
     expect(stopResponse.ok).toBe(true);
-  }, 15000);
+  }, 30000);
 
   test('builds web artifacts over HTTP and serves the generated html route', async () => {
     const { initScriptPath, bundleScriptPath } = createFakeWebArtifactScripts(workspaceRoot);
