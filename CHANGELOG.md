@@ -3,6 +3,14 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## Unreleased
+
+### Added
+
+- AX-enabled HTML nodes opened as standalone browser surfaces receive short-lived, node-scoped
+  grants, so their existing `window.PMX_AX` controls and live state work outside the canvas iframe
+  without weakening node capability validation.
+
 ## [0.6.2] - 2026-09-09
 
 ### Changed

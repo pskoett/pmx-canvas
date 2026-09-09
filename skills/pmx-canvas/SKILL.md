@@ -462,10 +462,10 @@ Prefer `canvas_query { action: "search" }` over parsing the full layout.
 - Hosted MCP-app/ext-app nodes such as Excalidraw require the in-canvas host bridge and are not
   standalone **Open as site** targets. URL-backed viewers and bundled web artifacts remain
   openable.
-- A standalone html surface (`/api/canvas/surface/:id` opened as a site) is a VISUAL view: it
-  renders the same content and theme, but `window.PMX_AX` is not injected without the canvas
-  iframe's per-mount nonce, so AX buttons only work inside the in-canvas node (0.4.4 Codex note).
-  Do not tell a user a standalone tab's controls will steer the agent.
+- An AX-enabled standalone html surface (`/api/canvas/surface/:id` opened as a site) receives a
+  short-lived, node-scoped control grant. Its `window.PMX_AX` bridge can emit only the capabilities
+  enabled on that node, and the server re-validates every interaction. State is refreshed while the
+  tab remains open. Reload after a daemon restart because in-memory standalone grants are revoked.
 - A hosted ext-app (Excalidraw) node in a **WebKit** host panel (e.g. the GitHub Copilot app's
   embedded WKWebView) historically could render as a black tile — a host compositor paint race
   on the nested iframe, **not** a broken node (the session is healthy, `sessionStatus` is

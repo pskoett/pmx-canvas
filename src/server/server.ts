@@ -61,7 +61,7 @@ import { findOpenCanvasPosition } from './placement.js';
 import { mutationHistory } from './mutation-history.js';
 import { buildAgentContextPreamble } from './agent-context.js';
 import { buildCanvasAxSurfaceSnapshot } from './ax-context.js';
-import { resolveNodeAxCapabilities } from './ax-interaction.js';
+import { applyAxInteraction, resolveNodeAxCapabilities } from './ax-interaction.js';
 import { normalizeCanvasTheme, type CanvasTheme } from './canvas-db.js';
 import { canvasThemeScheme, isCanvasTheme } from '../shared/themes.js';
 import { canOpenNodeAsSurface } from '../shared/surface.js';
@@ -1398,6 +1398,87 @@ function surfaceRedirect(target: string): Response {
   return new Response(null, { status: 302, headers: { Location: target, 'Cache-Control': 'no-store' } });
 }
 
+const STANDALONE_AX_GRANT_TTL_MS = 12 * 60 * 60 * 1_000;
+const standaloneAxGrants = new Map<string, { nodeId: string; expiresAt: number }>();
+
+function mintStandaloneAxGrant(nodeId: string): string {
+  const now = Date.now();
+  for (const [token, grant] of standaloneAxGrants) {
+    if (grant.expiresAt <= now) standaloneAxGrants.delete(token);
+  }
+  const token = randomUUID();
+  standaloneAxGrants.set(token, { nodeId, expiresAt: now + STANDALONE_AX_GRANT_TTL_MS });
+  return token;
+}
+
+function validateStandaloneAxGrant(token: string, nodeId: string): boolean {
+  const grant = standaloneAxGrants.get(token);
+  if (!grant || grant.nodeId !== nodeId || grant.expiresAt <= Date.now()) {
+    if (grant) standaloneAxGrants.delete(token);
+    return false;
+  }
+  return true;
+}
+
+function standaloneAxResponse(data: unknown, status = 200): Response {
+  return Response.json(data, {
+    status,
+    headers: {
+      'Access-Control-Allow-Origin': 'null',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Cache-Control': 'no-store',
+      Vary: 'Origin',
+    },
+  });
+}
+
+async function handleStandaloneAxRequest(req: Request, url: URL): Promise<Response> {
+  if (req.method === 'OPTIONS') return standaloneAxResponse({ ok: true });
+  if (req.headers.get('origin') !== 'null') {
+    return standaloneAxResponse(
+      { ok: false, code: 'invalid-origin', error: 'Standalone AX requires an opaque sandbox origin.' },
+      403,
+    );
+  }
+
+  const match = url.pathname.match(/^\/api\/canvas\/surface-ax\/([^/]+)\/(state|interaction)$/);
+  if (!match)
+    return standaloneAxResponse({ ok: false, code: 'invalid-route', error: 'Unknown standalone AX route.' }, 404);
+  const nodeId = decodeURIComponent(match[1]);
+  const action = match[2];
+  const token = url.searchParams.get('token') ?? '';
+  if (!validateStandaloneAxGrant(token, nodeId)) {
+    return standaloneAxResponse(
+      { ok: false, code: 'invalid-grant', error: 'Standalone AX grant is invalid or expired.' },
+      403,
+    );
+  }
+
+  if (action === 'state' && req.method === 'GET') {
+    return standaloneAxResponse(buildCanvasAxSurfaceSnapshot());
+  }
+  if (action !== 'interaction' || req.method !== 'POST') {
+    return standaloneAxResponse({ ok: false, code: 'method-not-allowed', error: 'Method not allowed.' }, 405);
+  }
+
+  const body = await readJson(req);
+  if (body === null)
+    return standaloneAxResponse({ ok: false, code: 'invalid-json', error: 'Request body must be valid JSON.' }, 400);
+  const { result, events } = applyAxInteraction(
+    canvasState,
+    {
+      type: body.type,
+      sourceNodeId: nodeId,
+      payload: body.payload,
+      sourceSurface: 'html-node',
+    },
+    'browser',
+  );
+  for (const event of events) emitPrimaryWorkbenchEvent(event.event, event.payload);
+  return standaloneAxResponse(result, result.ok ? 200 : result.status);
+}
+
 // Permit only absolute http(s) URLs and root-relative same-origin paths. Blocks
 // `javascript:`/`data:` and protocol-relative `//host` open-redirects.
 function isSafeSurfaceRedirect(target: string): boolean {
@@ -1459,6 +1540,8 @@ function handleNodeSurface(pathname: string, url: URL): Response {
     const present = url.searchParams.get('present') === '1';
     const axCaps = resolveNodeAxCapabilities(node);
     const axEnabled = axCaps.enabled && axCaps.allowed.length > 0;
+    const embeddedAxToken = url.searchParams.get('axToken') ?? '';
+    const standaloneAxToken = axEnabled && !embeddedAxToken ? mintStandaloneAxGrant(node.id) : undefined;
     const surfaceTitle = typeof node.data.title === 'string' && node.data.title.trim() ? node.data.title : node.id;
     const doc = buildHtmlSurfaceDocument(html, {
       theme,
@@ -1467,7 +1550,8 @@ function handleNodeSurface(pathname: string, url: URL): Response {
       presentation: present,
       presentationExitToken: url.searchParams.get('presentToken') ?? undefined,
       axBridge: axEnabled,
-      axToken: url.searchParams.get('axToken') ?? undefined,
+      axToken: embeddedAxToken || undefined,
+      standaloneAxToken,
       nodeId: node.id,
       // Seed the read-side bridge with the current AX state (only for AX surfaces).
       ...(axEnabled ? { axState: buildCanvasAxSurfaceSnapshot() } : {}),
@@ -3326,6 +3410,10 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 
           if (url.pathname === '/api/canvas/iframe-probe' && (req.method === 'GET' || req.method === 'HEAD')) {
             return handleIframeProbe();
+          }
+
+          if (url.pathname.startsWith('/api/canvas/surface-ax/')) {
+            return handleStandaloneAxRequest(req, url);
           }
 
           if (url.pathname.startsWith('/api/canvas/surface/') && (req.method === 'GET' || req.method === 'HEAD')) {

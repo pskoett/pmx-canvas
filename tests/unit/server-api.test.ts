@@ -2620,6 +2620,62 @@ describe('canvas server HTTP API', () => {
     expect(on).toContain('ax-test');
   });
 
+  test('standalone AX surface uses a scoped grant for state and interactions', async () => {
+    canvasState.addNode({
+      id: 'surf-ax-standalone',
+      type: 'html',
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+      zIndex: 1,
+      collapsed: false,
+      pinned: false,
+      data: { html: '<main>x</main>', axCapabilities: { enabled: true, allowed: ['ax.work.create'] } },
+    });
+
+    const surface = await fetch(`${baseUrl}/api/canvas/surface/surf-ax-standalone`);
+    const html = await surface.text();
+    expect(html).toContain('data-pmx-canvas-standalone-ax-bridge');
+    const token = html.match(/const PMX_AX_TOKEN = "([^"]+)";/)?.[1];
+    expect(token).toBeTruthy();
+
+    const state = await fetch(
+      `${baseUrl}/api/canvas/surface-ax/surf-ax-standalone/state?token=${encodeURIComponent(token as string)}`,
+      { headers: { Origin: 'null' } },
+    );
+    expect(state.status).toBe(200);
+    expect(state.headers.get('access-control-allow-origin')).toBe('null');
+    expect((await state.json()) as { workItems?: unknown[] }).toHaveProperty('workItems');
+
+    const created = await fetch(
+      `${baseUrl}/api/canvas/surface-ax/surf-ax-standalone/interaction?token=${encodeURIComponent(token as string)}`,
+      {
+        method: 'POST',
+        headers: { Origin: 'null', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'ax.work.create', payload: { title: 'Standalone work' } }),
+      },
+    );
+    expect(created.status).toBe(200);
+    expect((await created.json()) as { ok?: boolean }).toMatchObject({ ok: true });
+    expect(canvasState.getWorkItems().some((item) => item.title === 'Standalone work')).toBe(true);
+
+    const forbidden = await fetch(
+      `${baseUrl}/api/canvas/surface-ax/surf-ax-standalone/interaction?token=${encodeURIComponent(token as string)}`,
+      {
+        method: 'POST',
+        headers: { Origin: 'null', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: 'ax.steer', payload: { message: 'not allowed' } }),
+      },
+    );
+    expect(forbidden.status).toBe(403);
+    expect((await forbidden.json()) as { code?: string }).toMatchObject({ code: 'not-allowed' });
+
+    const embedded = await fetch(`${baseUrl}/api/canvas/surface/surf-ax-standalone?axToken=embedded-token`).then(
+      (response) => response.text(),
+    );
+    expect(embedded).not.toContain('data-pmx-canvas-standalone-ax-bridge');
+    expect(embedded).toContain('embedded-token');
+  });
+
   test('surface route falls back to content, 404s when html node is empty', async () => {
     canvasState.addNode({
       id: 'surf-content',

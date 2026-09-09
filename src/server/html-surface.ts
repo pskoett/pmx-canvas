@@ -172,6 +172,62 @@ export function buildAxBridge(axToken: string, nodeId: string): string {
 }
 
 /**
+ * Top-level "Open as site" bridge. Standalone surfaces have no parent canvas
+ * to relay postMessage traffic, and their CSP sandbox gives them an opaque
+ * origin. A short-lived server grant therefore scopes direct CORS requests to
+ * this node while applyAxInteraction still enforces the node capability ceiling.
+ */
+export function buildStandaloneAxBridge(axToken: string, nodeId: string): string {
+  const token = JSON.stringify(axToken);
+  const node = JSON.stringify(nodeId);
+  return `<script data-pmx-canvas-standalone-ax-bridge>
+(function () {
+  const PMX_AX_TOKEN = ${token};
+  const PMX_AX_NODE_ID = ${node};
+  const base = '/api/canvas/surface-ax/' + encodeURIComponent(PMX_AX_NODE_ID);
+  const ackListeners = [];
+  let lastState = '';
+  window.PMX_AX = window.PMX_AX || {};
+  window.PMX_AX.emit = async function (type, payload) {
+    let result;
+    try {
+      const response = await fetch(base + '/interaction?token=' + encodeURIComponent(PMX_AX_TOKEN), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ type: String(type), payload: payload && typeof payload === 'object' ? payload : {} }),
+      });
+      result = await response.json();
+    } catch (error) {
+      result = { ok: false, status: 503, code: 'standalone-bridge-failed', error: String(error) };
+    }
+    for (let i = 0; i < ackListeners.length; i += 1) {
+      try { ackListeners[i](result, { type: String(type), payload: payload || {} }); } catch (e) {}
+    }
+    try { window.dispatchEvent(new CustomEvent('pmx-ax-ack', { detail: { result: result, interaction: { type: String(type), payload: payload || {} } } })); } catch (e) {}
+    return result;
+  };
+  window.PMX_AX.on = function (eventType, cb) {
+    if (eventType === 'ack' && typeof cb === 'function') ackListeners.push(cb);
+  };
+  async function refresh() {
+    try {
+      const response = await fetch(base + '/state?token=' + encodeURIComponent(PMX_AX_TOKEN), { cache: 'no-store' });
+      if (!response.ok) return;
+      const state = await response.json();
+      const serialized = JSON.stringify(state);
+      if (serialized === lastState) return;
+      lastState = serialized;
+      window.PMX_AX.state = state;
+      try { window.dispatchEvent(new CustomEvent('pmx-ax-update', { detail: state })); } catch (e) {}
+    } catch (e) {}
+  }
+  void refresh();
+  window.setInterval(refresh, 1500);
+})();
+</script>`;
+}
+
+/**
  * Read-side bridge: seeds `window.PMX_AX.state` with a snapshot of the canvas AX
  * state and keeps it live via nonce-validated `ax-update` messages from the parent
  * canvas. Author HTML can read `window.PMX_AX.state` and subscribe to the
@@ -247,6 +303,8 @@ export interface HtmlSurfaceOptions {
   axBridge?: boolean;
   /** Nonce authorizing iframe → parent AX emits; embedded in the bridge. */
   axToken?: string;
+  /** Server-minted grant for an AX-enabled top-level standalone surface. */
+  standaloneAxToken?: string;
   /** Node id stamped on emitted interactions. */
   nodeId?: string;
   /**
@@ -282,7 +340,11 @@ export function buildHtmlSurfaceDocument(userHtml: string, options: HtmlSurfaceO
   const presentationBridge = options.presentation
     ? buildPresentationEscapeBridge(sanitizeToken(options.presentationExitToken))
     : '';
-  const axBridge = options.axBridge ? buildAxBridge(sanitizeToken(options.axToken), sanitizeToken(options.nodeId)) : '';
+  const axBridge = options.axBridge
+    ? options.standaloneAxToken
+      ? buildStandaloneAxBridge(sanitizeToken(options.standaloneAxToken), sanitizeToken(options.nodeId))
+      : buildAxBridge(sanitizeToken(options.axToken), sanitizeToken(options.nodeId))
+    : '';
   // Read-side AX state bridge (seed + live push). `</` is escaped so a work-item
   // title containing "</script>" can't break out of the inline script.
   const axStateBridge = options.axBridge

@@ -93,3 +93,14 @@ ceiling). Flip an existing node on with `canvas_node({ action: "update", id, axC
 Allowed `type`s are gated per node capability (see the node-capability matrix in
 `SKILL.md`). Emits are clamped to the surface's own node; the server re-validates every
 interaction — the bridge is convenience, not a trust boundary.
+
+## Standalone browser control
+
+Opening an AX-enabled HTML node through `/api/canvas/surface/:nodeId` now creates a short-lived,
+node-scoped browser grant. The page receives the same `window.PMX_AX` contract and a refreshed AX
+state snapshot even though its CSP sandbox keeps an opaque origin. The grant cannot target another
+node or exceed that node's configured capabilities, and every interaction still passes through
+the normal server-side capability validation.
+
+Standalone grants live in server memory for 12 hours. Reload the page after the daemon restarts or
+when a grant expires. HTML nodes without enabled AX capabilities remain visual-only.
