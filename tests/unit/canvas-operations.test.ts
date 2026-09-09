@@ -34,6 +34,26 @@ describe('canvas operations', () => {
     removeTestWorkspace(workspaceRoot);
   });
 
+  test('resolves explicit and auto-detected file paths against the configured workspace, not cwd', () => {
+    expect(workspaceRoot).not.toBe(process.cwd());
+    const path = join(workspaceRoot, 'isolated-table.csv');
+    const content = 'region,value\nNorth,17\nSouth,29';
+    writeFileSync(path, content);
+    for (const input of [
+      { content: './isolated-table.csv' },
+      { content: 'isolated-table.csv', title: 'Bare filename' },
+      { content: path },
+      { content: '', data: { path: './isolated-table.csv' }, fileMode: 'path' as const },
+    ]) {
+      const result = addCanvasNode({ type: 'file', ...input });
+      const node = canvasState.getNode(result.id)!;
+      expect(node.data.path).toBe(path);
+      expect(node.data.fileContent).toBe(content);
+    }
+    const inline = addCanvasNode({ type: 'file', title: 'Inline', content: 'isolated-table.csv', fileMode: 'inline' });
+    expect(canvasState.getNode(inline.id)!.data.path).toBeUndefined();
+  });
+
   test('supports set, add, and remove pin modes with shared pin limits', () => {
     const nodeIds: string[] = [];
     for (let index = 0; index < 25; index++) {

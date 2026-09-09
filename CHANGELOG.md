@@ -3,6 +3,28 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.2] - 2026-09-09
+
+### Changed
+
+- Double-left-click opens the board, node, or edge menu; right-button dragging pans with a grabbing-hand cursor, while single-left-click still selects.
+- Rename nodes through their action menu instead of double-clicking the title.
+- The Session panel starts compact, opens for pending approvals, and closes after they settle unless the user opened it manually.
+- Skill guidance distinguishes product-source testing from consumer testing and requested app dimensions from persisted post-mount sizes.
+
+### Fixed
+
+- Focusing a node stays clear of the minimap and command bar instead of being interrupted by server layout or window-size updates.
+- Relative file paths resolve against the configured workspace rather than the daemon's process directory.
+- Published artifact builds automatically clear a corrupted Parcel cache and retry once; genuine build errors still fail.
+- Expanded embedded apps accept their first click reliably during loading in Chromium.
+- The extreme resize corner is hittable, and all timeline filter chips fit on one row.
+- WebView startup errors now retain the Chrome constructor failure in `lastError`.
+
+### Known limitations
+
+- Native Copilot/WebKit Excalidraw tiles can still appear blank despite a successful paint probe; expand-close remains a workaround, not a confirmed first-render fix.
+
 ## [0.6.1] - 2026-09-07
 
 The Bun 1.4.2 upgrade and fixes from the 0.5.1 field reports (Amp orb, Copilot app).

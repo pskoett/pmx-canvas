@@ -409,7 +409,7 @@ export function CanvasViewport({
       if (e.target !== container) return;
 
       // Pan tool / held Space: usePanZoom owns this drag.
-      if (isPanModeActive() || e.button === 1) {
+      if (isPanModeActive() || e.button === 1 || e.button === 2) {
         if (!e.shiftKey && !lassoRef.current) {
           activeNodeId.value = null;
           clearSelection();
@@ -659,50 +659,26 @@ export function CanvasViewport({
     };
   }, [containerRef]);
 
-  // ── Double-click on background → create new markdown node ──
+  // ── Double-click on background → open node creation menu ──
   const handleDblClick = useCallback(
     (e: MouseEvent) => {
       if (annotationMode) return;
       const container = containerRef.current;
-      if (!container || e.target !== container) return;
+      if (!container || e.target !== container || !onCanvasContextMenu) return;
       const rect = container.getBoundingClientRect();
       const v = viewport.value;
       const wx = (e.clientX - rect.left - v.x) / v.scale;
       const wy = (e.clientY - rect.top - v.y) / v.scale;
-      // Offset so node centers on click point
-      const nodeW = 520;
-      const nodeH = 360;
-      createNodeFromClient({
-        type: 'markdown',
-        title: 'New note',
-        x: wx - nodeW / 2,
-        y: wy - nodeH / 2,
-        width: nodeW,
-        height: nodeH,
-      });
-    },
-    [annotationMode, containerRef],
-  );
-
-  const handleContextMenu = useCallback(
-    (e: MouseEvent) => {
-      if (annotationMode) return;
-      if (!onCanvasContextMenu) return;
-
-      const container = containerRef.current;
-      if (!container) return;
-
-      const target = e.target instanceof Element ? e.target : null;
-      if (target?.closest('.canvas-node')) return;
-
-      const rect = container.getBoundingClientRect();
-      const v = viewport.value;
-      const canvasX = (e.clientX - rect.left - v.x) / v.scale;
-      const canvasY = (e.clientY - rect.top - v.y) / v.scale;
-      onCanvasContextMenu(e, canvasX, canvasY);
+      onCanvasContextMenu(e, wx, wy);
     },
     [annotationMode, containerRef, onCanvasContextMenu],
   );
+
+  const handleContextMenu = useCallback((e: MouseEvent) => {
+    // Right-click is a pan gesture, never a menu trigger. Suppress the
+    // browser menu whether it lands on the board or bubbles from a node.
+    e.preventDefault();
+  }, []);
 
   // Internal native drags (selected node text, links inside rendered
   // markdown) re-enter this same container as drops and mint webpage nodes

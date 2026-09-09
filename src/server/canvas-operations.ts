@@ -726,7 +726,7 @@ function shouldTreatFileContentAsPath(input: CanvasAddNodeInput): boolean {
   const content = input.content?.trim() ?? '';
   if (!content || content.includes('\n') || content.includes('\r')) return false;
   if (typeof input.data?.path === 'string' && input.data.path.length > 0) return true;
-  if (existsSync(resolve(content))) return true;
+  if (existsSync(resolve(canvasState.getWorkspaceRoot(), content))) return true;
   if (!input.title) return true;
   return content.startsWith('/') || content.startsWith('./') || content.startsWith('../') || content.includes('/');
 }
@@ -748,7 +748,7 @@ function buildFileNodeData(input: CanvasAddNodeInput): Record<string, unknown> {
 
   const rawPath =
     typeof input.data?.path === 'string' && input.data.path.length > 0 ? input.data.path : (input.content ?? '');
-  const resolved = resolve(rawPath);
+  const resolved = resolve(canvasState.getWorkspaceRoot(), rawPath);
   const fileName = basename(resolved) || rawPath;
   const data: Record<string, unknown> = {
     ...(input.data ?? {}),

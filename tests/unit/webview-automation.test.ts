@@ -46,7 +46,7 @@ describe.skipIf(process.platform === 'win32')('canvas WebView automation', () =>
         const status = canvas.getAutomationWebViewStatus();
         expect(status.active).toBe(false);
         expect(status.lastError).toBe(message);
-        expect(message).toMatch(/Bun\.WebView|Timed out/);
+        expect(message).toMatch(/Bun\.WebView|Timed out|Failed to spawn Chrome/);
         return;
       }
 
@@ -71,4 +71,51 @@ describe.skipIf(process.platform === 'win32')('canvas WebView automation', () =>
       }
     }
   }, 30000);
+
+  test('reports Chrome constructor failures through the SDK and HTTP status', async () => {
+    if (!supportsWebView) {
+      expect(typeof (Bun as { WebView?: unknown }).WebView).toBe('undefined');
+      return;
+    }
+
+    workspaceRoot = createTestWorkspace('pmx-canvas-webview-constructor-');
+    resetCanvasForTests(workspaceRoot);
+
+    const canvas = createCanvas({ port: 4540 });
+    const chromePath = '/definitely/not/a/chrome-binary-pmx-canvas-test';
+
+    try {
+      await canvas.start({ open: false });
+
+      let sdkError = '';
+      try {
+        await canvas.startAutomationWebView({ backend: 'chrome', chromePath });
+      } catch (error) {
+        sdkError = error instanceof Error ? error.message : String(error);
+      }
+
+      expect(sdkError).not.toBe('');
+      expect(canvas.getAutomationWebViewStatus()).toMatchObject({ active: false, lastError: sdkError });
+
+      const response = await fetch(`http://127.0.0.1:${canvas.port}/api/workbench/webview/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ backend: 'chrome', chromePath }),
+      });
+      const body = (await response.json()) as {
+        ok: boolean;
+        error: string;
+        webview: { active: boolean; lastError: string | null };
+      };
+
+      expect(response.status).toBe(500);
+      expect(body).toMatchObject({
+        ok: false,
+        webview: { active: false, lastError: body.error },
+      });
+      expect(body.error).toBe(sdkError);
+    } finally {
+      canvas.stop();
+    }
+  });
 });

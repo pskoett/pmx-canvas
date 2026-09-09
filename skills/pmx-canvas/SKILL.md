@@ -155,9 +155,9 @@ json-render, a graph, or an HTML primitive is sufficient.
 
 ## Current MCP Composites
 
-The live MCP surface is **22 tools**: the 16 composites below plus 6 standalones (v0.4.x —
-this table is kept in sync with the server's composite registry; `tools/list` on a fresh
-`pmx-canvas --mcp` is always authoritative).
+The live MCP surface is **22 tools**: the 16 composites below plus 6 standalones. This table is
+kept in sync with the server's composite registry; `tools/list` on a fresh `pmx-canvas --mcp` is
+always authoritative, independent of the installed release version.
 
 | Composite | Actions |
 |-----------|---------|
@@ -235,8 +235,10 @@ distant nodes, an auto-placed node lands off-camera.
 markdown 640×420, status 360×200, file 520×360, diff 640×420, mermaid 640×460, html 720×640,
 graph 760×520, mcp-app 960×600, web-artifact 960×720. A *hosted* app opened with
 `canvas_app { action: "open-mcp-app" | "diagram" }` — including the Excalidraw diagram preset — is
-the exception: it opens at 720×500, not 960×600 (960×600 is the default for an `mcp-app` node you
-create directly). Pass `width`/`height` to that action when you want a bigger diagram tile.
+the exception: request `width: 720, height: 500` for its standard landscape preset instead of
+relying on the 960×600 default for a directly created `mcp-app` node. After the app mounts, read
+the node back with `canvas_query { action: "layout" }` and use its persisted width and height for
+subsequent placement or layout; the mounted app may have changed the requested dimensions.
 Since 0.4.6 the server clamps explicit creation sizes UP to per-type
 readability floors (e.g. markdown 360×180, graph/json-render/html 420×280, mcp-app 480×320) —
 a tiny probe size silently becomes the floor. `strictSize: true` is the only opt-out (a fixed
@@ -333,11 +335,12 @@ Use the visible workbench when the human is actively curating layout:
 - The selection bar (floating bottom-center) offers count, align left/top, distribute,
   auto-arrange, Group (G), Connect, Pin as context, delete and clear; selected nodes show an
   accent outline with corner handles.
-- Right-click a node for context pinning, position locking, focus, collapse, connect, refresh,
+- Double-left-click a node for context pinning, position locking, focus, collapse, connect, refresh,
   open, close, and type-specific actions.
+- Double-left-click empty canvas for the node-creation menu; hold and drag the right mouse button to pan.
 - Drop files or URLs to create matching nodes; an empty board shows starter actions (new note,
   pick files, paste a link, start an agent session).
-- Double-click markdown to edit inline.
+- Use a markdown node's Edit button to edit its content.
 - **Groups** are frames with the name pill and an action cluster (auto-arrange children, collapse,
   ⋯ rename / ungroup / pin all) on the top edge. Membership changes only on release while the
   "release to add to <group>" pill shows (Esc keeps it out); dragging a child fully out offers

@@ -64,7 +64,7 @@ describe('edge labels at overview zoom', () => {
 });
 
 describe('edge interactivity', () => {
-  test('right-clicking the hitbox opens the edge menu with the edge id', () => {
+  test('double-clicking, not right-clicking, opens the edge menu with the edge id', () => {
     const a = node('a', 0, 0);
     const b = node('b', 700, 60);
     storeNodes.value = new Map([
@@ -83,6 +83,8 @@ describe('edge interactivity', () => {
     const hitbox = host.querySelector('path[stroke="transparent"]') as SVGPathElement;
     expect(hitbox).not.toBeNull();
     hitbox.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true }));
+    expect(seen).toEqual([]);
+    hitbox.dispatchEvent(new MouseEvent('dblclick', { bubbles: true }));
     expect(seen).toEqual(['e9']);
     render(null, host);
     host.remove();

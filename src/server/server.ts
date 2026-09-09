@@ -556,22 +556,22 @@ export async function startCanvasAutomationWebView(
       await closeCanvasAutomationWebViewInternal();
     }
 
-    const view = new WebView({
-      width: normalized.width,
-      height: normalized.height,
-      headless: true,
-      backend,
-      dataStore: normalized.dataStoreDir ? { directory: normalized.dataStoreDir } : 'ephemeral',
-    });
-
+    let view: CanvasWebViewLike | null = null;
     try {
+      view = new WebView({
+        width: normalized.width,
+        height: normalized.height,
+        headless: true,
+        backend,
+        dataStore: normalized.dataStoreDir ? { directory: normalized.dataStoreDir } : 'ephemeral',
+      });
       await withCanvasAutomationWebViewTimeout(view.navigate(url), 'starting the workbench automation WebView');
     } catch (error) {
       canvasAutomationWebViewStatus = {
         ...canvasAutomationWebViewStatus,
         lastError: error instanceof Error ? error.message : String(error),
       };
-      await Promise.resolve(view.close()).catch(() => undefined);
+      if (view) await Promise.resolve(view.close()).catch(() => undefined);
       throw error;
     }
 

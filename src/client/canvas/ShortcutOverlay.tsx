@@ -32,7 +32,7 @@ const GROUPS: ShortcutGroup[] = [
       { keys: 'I / W / H', desc: 'New image / webpage / HTML surface' },
       { keys: 'Shift+F', desc: 'New file node (workspace path)' },
       { keys: 'G / Shift+G', desc: 'Group the selection (new frame when empty) / ungroup' },
-      { keys: 'Double-click', desc: 'Create new markdown note on canvas' },
+      { keys: 'Double-click', desc: 'Open actions on a node or create menu on canvas' },
       { keys: 'Drag port \u2192 node', desc: 'Connect two nodes (hover to reveal ports)' },
     ],
   },
@@ -52,7 +52,7 @@ const GROUPS: ShortcutGroup[] = [
     shortcuts: [
       { keys: '?', desc: 'Toggle this shortcut overlay' },
       { keys: 'Minimap', desc: 'Click/drag to navigate (toggle in the rail)' },
-      { keys: 'Right-click', desc: 'Context menu — dock, focus, connect' },
+      { keys: 'Right-drag', desc: 'Pan the board from anywhere' },
     ],
   },
 ];

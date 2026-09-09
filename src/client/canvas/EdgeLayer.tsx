@@ -166,7 +166,7 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, on
     <g>
       {/* Invisible wide hitbox — the ONE interactive part of the edge layer
           (the svg itself is pointer-events:none): click selects the edge
-          (Delete then removes it), right-click opens the edge menu. */}
+          (Delete then removes it), double-click opens the edge menu. */}
       <path
         d={d}
         fill="none"
@@ -179,7 +179,7 @@ function EdgePath({ edge, fromNode, toNode, focused, dimmed, selected, scale, on
           e.stopPropagation();
           selectedEdgeId.value = edge.id;
         }}
-        onContextMenu={onContextMenu ? (e) => onContextMenu(e as unknown as MouseEvent, edge.id) : undefined}
+        onDblClick={onContextMenu ? (e) => onContextMenu(e as unknown as MouseEvent, edge.id) : undefined}
       />
 
       {/* Glow layer for focused or selected edges */}

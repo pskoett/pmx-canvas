@@ -3,6 +3,11 @@
 Use this guide when creating diagrams through PMX Canvas with `canvas_app { action: "diagram" }` or
 `pmx-canvas external-app add --kind excalidraw`.
 
+Request `width: 720, height: 500` when opening the standard landscape diagram tile. Treat those as
+requested preset dimensions, not authoritative geometry: after the app mounts, query
+`canvas_query { action: "layout" }` and use the node's persisted width and height for placement,
+overlap checks, and any later layout. A hosted app can resize during mount.
+
 ## Why Text Can Still Drift
 
 PMX normalizes canonical Excalidraw bound text (`containerId` / `boundElements`) into the hosted

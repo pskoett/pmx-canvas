@@ -1,9 +1,15 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, test } from 'bun:test';
 import { act, cleanup, fireEvent, render, waitFor } from '@testing-library/preact';
 import { CommandBar } from '../../src/client/canvas/CommandBar.tsx';
+import { SessionPanel } from '../../src/client/canvas/SessionPanel.tsx';
 import { SessionReceipt } from '../../src/client/canvas/SessionReceipt.tsx';
 import { TopBar } from '../../src/client/canvas/TopBar.tsx';
-import { contextPinnedNodeIds, nodes, replaceContextPinsFromServer } from '../../src/client/state/canvas-store.ts';
+import {
+  axSurfaceState,
+  contextPinnedNodeIds,
+  nodes,
+  replaceContextPinsFromServer,
+} from '../../src/client/state/canvas-store.ts';
 import { applyPresenceSnapshot, resetPresence } from '../../src/client/state/presence-store.ts';
 import { applySessionReceipt, resetSessionStore, sessionReceipt } from '../../src/client/state/session-store.ts';
 import type { CanvasNodeState } from '../../src/client/types.ts';
@@ -52,6 +58,82 @@ beforeEach(() => {
   ]);
 });
 afterEach(cleanup);
+
+describe('session panel disclosure', () => {
+  const attached = {
+    sessionId: 'copilot',
+    source: 'copilot',
+    agentId: null,
+    label: 'Copilot',
+    phase: 'tooling' as const,
+    detail: 'Editing files',
+    focusNodeId: null,
+    cursor: null,
+    attached: true,
+    opCount: 2,
+    contextUsage: null,
+    lastSeenAt: '2026-09-09T12:00:00.000Z',
+  };
+  const gate = {
+    id: 'gate-1',
+    title: 'Deploy?',
+    detail: null,
+    status: 'pending',
+    nodeIds: [],
+    createdAt: '2026-09-09T12:00:00.000Z',
+    expiresAt: null,
+  };
+
+  beforeEach(() => {
+    act(() => applyPresenceSnapshot({ presences: [attached] }));
+  });
+
+  test('starts compact with live activity, auto-opens for a gate, and closes after approval or rejection', () => {
+    const { container } = render(<SessionPanel />);
+    expect(container.querySelector('.session-panel')?.classList.contains('is-collapsed')).toBe(true);
+    expect(container.querySelector('.session-collapsed-live')?.textContent).toContain('live');
+    expect(container.querySelector('.session-collapsed-live')?.getAttribute('aria-label')).toContain(
+      'Running Editing files',
+    );
+
+    act(() => {
+      axSurfaceState.value = { approvalGates: [gate] };
+    });
+    expect(container.querySelector('.session-panel')?.classList.contains('is-collapsed')).toBe(false);
+    expect(container.querySelector('[data-gate-id="gate-1"]')).not.toBeNull();
+
+    act(() => {
+      axSurfaceState.value = { approvalGates: [{ ...gate, status: 'approved' }] };
+    });
+    expect(container.querySelector('.session-panel')?.classList.contains('is-collapsed')).toBe(true);
+
+    act(() => {
+      axSurfaceState.value = { approvalGates: [{ ...gate, status: 'pending' }] };
+    });
+    expect(container.querySelector('.session-panel')?.classList.contains('is-collapsed')).toBe(false);
+    act(() => {
+      axSurfaceState.value = { approvalGates: [{ ...gate, status: 'rejected' }] };
+    });
+    expect(container.querySelector('.session-panel')?.classList.contains('is-collapsed')).toBe(true);
+  });
+
+  test('preserves a panel the user opened after gates settle', () => {
+    const { container, getByTitle } = render(<SessionPanel />);
+    fireEvent.click(getByTitle('Expand session panel'));
+    expect(container.querySelector('.session-panel')?.classList.contains('is-collapsed')).toBe(false);
+
+    act(() => {
+      axSurfaceState.value = { approvalGates: [gate] };
+    });
+    act(() => {
+      axSurfaceState.value = { approvalGates: [{ ...gate, status: 'rejected' }] };
+    });
+    expect(container.querySelector('.session-panel')?.classList.contains('is-collapsed')).toBe(false);
+
+    fireEvent.click(getByTitle('Collapse session panel'));
+    expect(container.querySelector('.session-panel')?.classList.contains('is-collapsed')).toBe(true);
+  });
+});
 
 describe('command bar', () => {
   test('shows the pinned context as chips (title, else type) and × unpins through the same pin toggle', async () => {

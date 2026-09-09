@@ -922,7 +922,9 @@ function handleCanvasLayoutUpdate(data: Record<string, unknown>): void {
       }
     : undefined;
 
-  cancelViewportAnimation();
+  // Routine node/layout broadcasts do not replace the camera, so must not
+  // interrupt a focus animation either (view.focus also emits a layout).
+  if (shouldApplyViewport) cancelViewportAnimation();
   applyServerCanvasLayout(
     {
       ...(nextViewport ? { viewport: nextViewport } : {}),

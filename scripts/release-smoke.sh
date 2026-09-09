@@ -68,6 +68,50 @@ if [[ "${READY}" -ne 1 ]]; then
   exit 1
 fi
 
+cat > "${CONSUMER_DIR}/App.tsx" <<'TSX'
+export default function App() {
+  return <main>Packaged cache recovery</main>;
+}
+TSX
+
+build_artifact() {
+  (
+    cd "${CONSUMER_DIR}"
+    ./node_modules/.bin/pmx-canvas --port="${PORT}" web-artifact build \
+      --title "Packaged cache recovery" --app-file ./App.tsx
+  )
+}
+
+INITIAL_BUILD="$(build_artifact)"
+PROJECT_PATH="$(printf '%s' "${INITIAL_BUILD}" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["ok"] and d["bytes"] > 0; print(d["projectPath"])')"
+INITIAL_OUTPUT="$(printf '%s' "${INITIAL_BUILD}" | python3 -c 'import json,sys; print(json.load(sys.stdin)["path"])')"
+test -s "${INITIAL_OUTPUT}"
+
+# Reused artifact projects can inherit a corrupt Parcel cache. A regular file is
+# a deterministic stand-in that makes Parcel fail while opening its cache dir.
+rm -rf "${PROJECT_PATH}/.parcel-cache"
+printf 'corrupt cache sentinel\n' > "${PROJECT_PATH}/.parcel-cache"
+RECOVERED_BUILD="$(build_artifact)"
+RECOVERED_OUTPUT="$(printf '%s' "${RECOVERED_BUILD}" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["ok"] and d["bytes"] > 0; print(d["path"])')"
+test -s "${RECOVERED_OUTPUT}"
+grep -q "Packaged cache recovery" "${RECOVERED_OUTPUT}"
+
+# Cache recovery must not turn a genuine source/build error into success.
+cat > "${CONSUMER_DIR}/App.tsx" <<'TSX'
+export default function App() {
+  return <main>unterminated;
+}
+TSX
+set +e
+FAILED_BUILD="$(build_artifact)"
+FAILED_STATUS=$?
+set -e
+if [[ "${FAILED_STATUS}" -eq 0 ]]; then
+  echo "Expected a genuine packaged artifact build failure to remain non-zero" >&2
+  exit 1
+fi
+printf '%s' "${FAILED_BUILD}" | python3 -c 'import json,sys; d=json.load(sys.stdin); assert d["ok"] is False'
+
 echo "Release smoke passed"
 echo "  tarball: ${TARBALL_PATH}"
 echo "  consumer: ${CONSUMER_DIR}"

@@ -466,23 +466,81 @@ test('renders every canvas node type in the browser', async ({ page, request }) 
   await expect(node('All Types Graph').frameLocator('iframe').locator('.recharts-responsive-container')).toBeVisible();
 });
 
-test('creates a markdown note from the canvas background', async ({ page, request }) => {
+test('double-clicking the canvas background opens creation actions without creating a node', async ({
+  page,
+  request,
+}) => {
   await page.goto('/workbench');
 
   await expect(page.locator('.empty-state')).toBeVisible();
 
   await page.mouse.dblclick(1180, 360);
 
-  const note = page.locator('.canvas-node').filter({ hasText: 'New note' });
-  await expect(note).toHaveCount(1);
-  await expect(page.locator('.empty-state')).toBeHidden();
+  await expect(page.locator('.context-menu-item').filter({ hasText: 'New note' })).toBeVisible();
+  await expect(page.locator('.empty-state')).toBeVisible();
+
+  const state = await currentCanvasState(request);
+  expect(state.nodes).toHaveLength(0);
+});
+
+test('right-drag pans over blank canvas and node content without moving or creating nodes', async ({
+  page,
+  request,
+}) => {
+  await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Pan target',
+      content: 'drag across this content',
+      x: 300,
+      y: 180,
+      width: 320,
+      height: 180,
+    },
+  });
+  await page.goto('/workbench');
+
+  const dragRight = async (x: number, y: number, dx: number, dy: number) => {
+    await page.mouse.move(x, y);
+    await page.mouse.down({ button: 'right' });
+    // The hand appears on hold, before the first movement, even over text.
+    await expect(page.locator('.canvas-viewport')).toHaveCSS('cursor', 'grabbing');
+    await expect(page.locator('.canvas-node .node-body')).toHaveCSS('cursor', 'grabbing');
+    await page.mouse.move(x + dx, y + dy, { steps: 5 });
+    await page.mouse.up({ button: 'right' });
+    await expect(page.locator('html')).not.toHaveClass(/is-canvas-panning/);
+    await expect(page.locator('.canvas-viewport')).not.toHaveCSS('cursor', 'grabbing');
+  };
+  const before = await currentCanvasState(request);
+  const beforeViewport = (await (await request.get('/api/canvas/state')).json()) as {
+    viewport: { x: number; y: number };
+  };
+
+  await dragRight(1000, 600, 70, 40);
+  const nodeBox = await page.locator('.canvas-node').filter({ hasText: 'Pan target' }).boundingBox();
+  if (!nodeBox) throw new Error('Pan target is not visible');
+  await dragRight(nodeBox.x + nodeBox.width / 2, nodeBox.y + nodeBox.height / 2, 60, 30);
 
   await expect
     .poll(async () => {
-      const state = await currentCanvasState(request);
-      return state.nodes.filter((node) => node.type === 'markdown' && node.data.title === 'New note').length;
+      const state = (await (await request.get('/api/canvas/state')).json()) as { viewport: { x: number; y: number } };
+      return state.viewport.x - beforeViewport.viewport.x;
     })
-    .toBe(1);
+    .toBeGreaterThan(100);
+  const after = await currentCanvasState(request);
+  expect(after.nodes).toHaveLength(1);
+  expect(after.nodes[0].position).toEqual(before.nodes[0].position);
+  await expect(page.locator('.context-menu')).toHaveCount(0);
+  const title = page.locator('.canvas-node .node-title');
+  await title.click();
+  await expect(page.locator('.canvas-node')).toHaveClass(/active/);
+  await expect(page.locator('.context-menu')).toHaveCount(0);
+  await title.dblclick();
+  await page.getByRole('button', { name: 'Rename…', exact: true }).click();
+  await page.getByPlaceholder('Node title').fill('Renamed from menu');
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(title).toHaveText('Renamed from menu');
+  await expect.poll(async () => (await currentCanvasState(request)).nodes[0].data.title).toBe('Renamed from menu');
 });
 
 test('rail and keyboard creates land in the current viewport, not at the board origin', async ({ page, request }) => {
@@ -569,7 +627,7 @@ test('Shift+F / W / I open the in-canvas prompt (window.prompt is a no-op in emb
   await expect(prompt).toBeHidden();
 });
 
-test('right-click an edge → Delete edge removes a hand-drawn connection', async ({ page, request }) => {
+test('double-click an edge → Delete edge removes a hand-drawn connection', async ({ page, request }) => {
   const mk = async (title: string, x: number) =>
     (await (
       await request.post('/api/canvas/node', {
@@ -594,7 +652,7 @@ test('right-click an edge → Delete edge removes a hand-drawn connection', asyn
   await page
     .locator(`g:has(path#edge-path-${edge.id}) > path`)
     .first()
-    .dispatchEvent('contextmenu', { bubbles: true, clientX: 400, clientY: 260 });
+    .dispatchEvent('dblclick', { bubbles: true, clientX: 400, clientY: 260 });
   await page.getByText('Delete edge').click();
   await expect(path).toHaveCount(0);
   const state = (await (await request.get('/api/canvas/state')).json()) as { edges: Array<{ id: string }> };
@@ -603,7 +661,7 @@ test('right-click an edge → Delete edge removes a hand-drawn connection', asyn
     await request.delete(`/api/canvas/node/${id}`, { headers: { 'x-pmx-workbench': '1' } });
 });
 
-test('right-click Delete: a node deletes; a frame deletes with its children staying', async ({ page, request }) => {
+test('double-click Delete: a node deletes; a frame deletes with its children staying', async ({ page, request }) => {
   const a = (await (
     await request.post('/api/canvas/node', {
       data: { type: 'markdown', title: 'Doomed', content: 'x', x: 200, y: 160, width: 260, height: 140 },
@@ -621,7 +679,7 @@ test('right-click Delete: a node deletes; a frame deletes with its children stay
   await page.keyboard.press('f');
 
   const node = page.locator('.canvas-node').filter({ hasText: 'Doomed' }).filter({ hasNotText: 'frame' }).first();
-  await node.click({ button: 'right', position: { x: 80, y: 60 } });
+  await node.dblclick({ button: 'left', position: { x: 80, y: 60 } });
   const menu = page.locator('.context-menu');
   await expect(menu.getByRole('button', { name: 'Delete', exact: true })).toBeVisible();
   await menu.getByRole('button', { name: 'Delete', exact: true }).click();
@@ -631,7 +689,7 @@ test('right-click Delete: a node deletes; a frame deletes with its children stay
 
   // A member leaves its frame from the context menu (the drag-out gesture's discoverable twin).
   const member = page.locator('.canvas-node').filter({ hasText: 'Member' }).first();
-  await member.click({ button: 'right', position: { x: 80, y: 60 } });
+  await member.dblclick({ button: 'left', position: { x: 80, y: 60 } });
   await menu.getByRole('button', { name: 'Remove from “Doomed frame”' }).click();
   await expect
     .poll(async () => {
@@ -641,12 +699,12 @@ test('right-click Delete: a node deletes; a frame deletes with its children stay
     .toBeNull();
   await expect(page.locator('.canvas-node').filter({ hasText: 'Member' })).toHaveCount(1);
 
-  // The group frame: right-click its edge row → an honest "Delete frame (children stay)".
+  // The group frame: double-click its edge row → an honest "Delete frame (children stay)".
   await page
     .locator('.canvas-node.group-node')
     .filter({ hasText: 'Doomed frame' })
     .locator('.group-edge-row')
-    .click({ button: 'right', position: { x: 200, y: 6 } });
+    .dblclick({ button: 'left', position: { x: 200, y: 6 } });
   await menu.getByRole('button', { name: 'Delete frame (children stay)' }).click();
   await expect(page.locator('.canvas-node.group-node')).toHaveCount(0);
   await expect(page.locator('.canvas-node').filter({ hasText: 'Member' })).toHaveCount(1);
@@ -690,8 +748,8 @@ test('canvas background context menu exposes user-creatable nodes', async ({ pag
   await page.goto('/workbench');
 
   const viewport = page.locator('.canvas-viewport');
-  await viewport.click({
-    button: 'right',
+  await viewport.dblclick({
+    button: 'left',
     position: { x: 72, y: 120 },
   });
 
@@ -719,8 +777,8 @@ test('canvas background context menu exposes user-creatable nodes', async ({ pag
 
   // "Open file…" goes through the IN-CANVAS prompt — native window.prompt is a
   // silent no-op in embedded panes, where these menu items used to do nothing.
-  // Right-click clear of the note just created (it opens the NODE menu).
-  await viewport.click({ button: 'right', position: { x: 900, y: 520 } });
+  // Double-click clear of the note just created.
+  await viewport.dblclick({ button: 'left', position: { x: 900, y: 520 } });
   await page.locator('.context-menu .context-menu-item').filter({ hasText: 'Open file...' }).click();
   const openPrompt = page.locator('[data-testid="text-prompt"]');
   await expect(openPrompt).toBeVisible();
@@ -1444,7 +1502,7 @@ test('#63: node context menu pins to the human-curated context set (primary "Pin
   const node = page.locator('.canvas-node').filter({ hasText: 'Ctx pin target' });
   await expect(node).toHaveCount(1);
 
-  await node.locator('.node-titlebar').click({ button: 'right' });
+  await node.locator('.node-titlebar').dblclick({ button: 'left' });
   const menu = page.locator('.context-menu');
   await expect(menu.locator('.context-menu-item').filter({ hasText: 'Pin as context' })).toBeVisible();
   // The arrange-lock item is renamed off the word "Pin" so it no longer collides.
@@ -2986,7 +3044,7 @@ test('ordinary node pin updates the authoritative canvas state', async ({ page, 
   const note = page.locator('.canvas-node').filter({ hasText: 'Pin me' });
   await expect(note).toHaveCount(1);
 
-  await note.click({ button: 'right' });
+  await note.dblclick({ button: 'left' });
   // The arrange-lock item was renamed off the word "Pin" (report #63) to disambiguate
   // it from context pinning; it still toggles node.pinned (now also persisted).
   await page.locator('.context-menu-item').filter({ hasText: 'Lock position' }).click();
@@ -3058,7 +3116,7 @@ test('group context menu updates the group accent color', async ({ page, request
   const group = page.locator('.canvas-node.group-node').filter({ hasText: 'Color group' });
   await expect(group).toHaveCount(1);
 
-  await group.click({ button: 'right' });
+  await group.dblclick({ button: 'left' });
   await page.getByRole('button', { name: 'Set group color to Green' }).click();
 
   await expect
@@ -3337,6 +3395,7 @@ test('theme selection persists for fresh browser sessions', async ({ page, reque
 });
 
 test('server-side focus updates the browser viewport', async ({ page, request }) => {
+  await page.setViewportSize({ width: 1280, height: 800 });
   const createResponse = await request.post('/api/canvas/node', {
     data: {
       type: 'markdown',
@@ -3344,33 +3403,57 @@ test('server-side focus updates the browser viewport', async ({ page, request })
       content: 'Focus target',
       x: 900,
       y: 700,
+      width: 720,
+      height: 555,
+      strictSize: true,
     },
   });
   const created = (await createResponse.json()) as { id: string };
 
   await page.goto('/workbench');
   await expect(page.locator('.canvas-node').filter({ hasText: 'Focus me' })).toHaveCount(1);
+  await request.post('/api/canvas/ax/presence', { data: { source: 'focus-test', attached: true } });
+  await expect(page.locator('.session-panel')).toBeVisible();
+  await page.getByTitle('Expand session panel').click();
+  await expect(page.locator('.minimap')).toBeVisible();
+  await request.post('/api/canvas/viewport', { data: { x: 0, y: 0, scale: 1 } });
 
   await request.post('/api/canvas/focus', {
     data: { id: created.id },
   });
 
-  // Finding Z, asserted the way it actually matters: the focused node must end
-  // up ON SCREEN at the margin. The previous expectation (836, 604) matched the
-  // server's numbers while putting the node at screen (1736, 1304) — outside a
-  // 1280x720 viewport. screen = world * scale + translate.
-  await expect
-    .poll(async () => {
-      return await page.evaluate(() => {
-        const node = document.querySelector('.canvas-node') as HTMLElement | null;
-        const region = document.querySelector('.canvas-region');
-        if (!node || !region) return null;
-        const box = node.getBoundingClientRect();
-        const area = region.getBoundingClientRect();
-        return { x: Math.round(box.left - area.left), y: Math.round(box.top - area.top) };
-      });
-    })
-    .toEqual({ x: 64, y: 96 });
+  // A resize/connect size report during focus must not echo the server's
+  // fallback camera and interrupt the browser's chrome-aware animation.
+  await request.post('/api/canvas/viewport', {
+    data: { clientWidth: 900, clientHeight: 756, recordHistory: false },
+  });
+
+  // Assert real rectangles, not a server translate or a presumed bottom band.
+  // The 0.6.1 fixed 64/96 margin left this node behind the minimap by 60×25px.
+  const isClear = () =>
+    page.evaluate(() => {
+      const box = document.querySelector('.canvas-node')!.getBoundingClientRect();
+      const area = document.querySelector('.canvas-region')!.getBoundingClientRect();
+      return (
+        box.left >= area.left &&
+        box.top >= area.top &&
+        box.right <= area.right &&
+        box.bottom <= area.bottom &&
+        ['.command-bar', '.minimap'].every((selector) => {
+          const overlay = document.querySelector(selector)!.getBoundingClientRect();
+          return (
+            box.right <= overlay.left ||
+            box.left >= overlay.right ||
+            box.bottom <= overlay.top ||
+            box.top >= overlay.bottom
+          );
+        })
+      );
+    });
+  await expect.poll(isClear).toBe(true);
+  // Do not pass on an intermediate animation frame that is overwritten later.
+  await page.waitForTimeout(400);
+  expect(await isClear()).toBe(true);
 });
 
 test('authoritative viewport updates from the server override browser startup state', async ({ page, request }) => {
@@ -3995,6 +4078,7 @@ test('session panel: work items, gate approval from the panel, drawer below 1180
   await expect(page.locator('.gate-badge')).toHaveCount(0);
   // …and the derived phase leaves waiting-approval.
   await expect(page.locator('.agent-chip .agent-chip-label')).not.toHaveText('Waiting on you');
+  await expect(panel).toHaveClass(/is-collapsed/);
 
   // A rejection posts steering feedback to the agent.
   const second = await request.post('/api/canvas/ax/approval', {
@@ -4010,6 +4094,8 @@ test('session panel: work items, gate approval from the panel, drawer below 1180
     })
     .toBe(true);
 
+  await expect(panel).toHaveClass(/is-collapsed/);
+  await page.getByTitle('Expand session panel').click();
   // Below 1180px the panel becomes a fixed drawer and the canvas reclaims its width.
   await page.setViewportSize({ width: 1000, height: 800 });
   await expect.poll(async () => panel.evaluate((el) => getComputedStyle(el).position)).toBe('fixed');
@@ -4049,6 +4135,7 @@ test('unattended approval: countdown, auto-hold with a policy entry, reopen from
   // A held gate no longer forces the list open (it pinned the panel
   // un-collapsible) — open it to reach the held row and its Reopen.
   await expect(page.locator('.gate-badge')).toHaveCount(0, { timeout: 8000 });
+  await page.getByTitle('Expand session panel').click();
   await page.locator('[data-testid="work-items-toggle"]').click();
   await expect(panel.locator('.session-gate-held').filter({ hasText: 'Delete old branches' })).toHaveCount(1, {
     timeout: 8000,
@@ -4089,6 +4176,7 @@ test('scope fence: granted from the selection, drawn around the fenced nodes, en
 
   await page.goto('/workbench');
   const panel = page.locator('.session-panel');
+  await page.getByTitle('Expand session panel').click();
   await expect(panel.locator('[data-testid="session-scope"]')).toContainText('Unscoped');
   await expect(page.locator('.scope-fence')).toHaveCount(0);
 
@@ -4186,6 +4274,7 @@ test('addressed steering: the composer lists connected agents, the picked one al
   await request.get('/api/canvas/ax/delivery/pending?consumer=codex');
 
   await page.goto('/workbench');
+  await page.getByTitle('Expand session panel').click();
   const picker = page.getByLabel('Steer which agent');
   await expect(picker).toBeVisible();
   // Writers from earlier tests may still be live (in-memory, 90 s TTL) — assert
@@ -4362,6 +4451,8 @@ test('human-started session: start from the quiet board, steer from the command 
   await expect(shell).toHaveAttribute('data-session-active', 'true');
   await expect(start).toHaveCount(0);
   await expect(page.locator('.session-panel')).toBeVisible();
+  await expect(page.locator('.session-panel')).toHaveClass(/is-collapsed/);
+  await page.getByTitle('Expand session panel').click();
   await expect(page.locator('.agent-chip .agent-chip-who')).toHaveText('Agent session');
   // The pin bar hands over to the command bar, pins as chips.
   await expect(page.locator('.context-pin-bar')).toHaveCount(0);
@@ -4461,6 +4552,7 @@ test('shared undo: the panel undoes the agent’s latest edit and tells it; Ctrl
   await expect(page.locator('.session-panel')).toBeVisible();
 
   // The agent writes: the timeline shows it as an Update with the undo affordance.
+  await page.getByTitle('Expand session panel').click();
   await request.post('/api/canvas/node', {
     data: { type: 'markdown', title: 'Agent draft', content: 'draft', x: 520, y: 120, width: 300, height: 160 },
   });

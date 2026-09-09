@@ -1467,7 +1467,13 @@ export function ExtAppFrame({ node, expanded = false }: { node: CanvasNodeState;
               minHeight: 0,
               border: 'none',
               background: 'var(--c-panel)',
-              pointerEvents: isExpanded && status !== 'loading' ? 'auto' : 'none',
+              // Keep the expanded frame in Chromium's pointer hit-test tree from
+              // its first paint. Toggling none → auto when boot completes can
+              // leave the compositor routing the first click to the parent even
+              // though DOM hit testing and Playwright both resolve the button.
+              // The loading sibling is non-interactive; inline frames remain
+              // guarded by the preview catcher below.
+              pointerEvents: isExpanded ? 'auto' : 'none',
             }}
             title={`Ext App: ${toolName}`}
           />

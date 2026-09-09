@@ -9,7 +9,14 @@ description: >
 
 # PMX Canvas Testing
 
-Use this skill whenever you touch code in this repo and need a consistent verification path.
+Use this skill when changing the PMX Canvas product checkout and you need a consistent verification
+path. The commands and paths below refer to that source checkout, not to a workspace that merely
+has the published package and skills installed.
+
+For an isolated consumer workspace, do not expect the package to contain this checkout's
+`tests/`, source-only scripts, or Playwright configuration. Validate package transports and host
+integration through their public CLI, MCP, HTTP, and SDK surfaces; use the
+`published-consumer-e2e` skill when a packed-install outside-in check is required.
 
 ## When To Use
 
@@ -59,9 +66,11 @@ and check `$?`, then read the file.
 
 ## Current Project Test Surface
 
-- Bun tests live under `tests/unit/`
-- Playwright browser smoke lives under `tests/e2e/`
-- CI runs Bun coverage plus the browser smoke flow
+- In the product source checkout, Bun tests live under `tests/unit/`.
+- In the product source checkout, Playwright browser smoke lives under `tests/e2e/`.
+- Product CI runs those checkout suites: Bun coverage plus the browser smoke flow.
+- An isolated installed consumer instead tests the package's public transports and host behavior;
+  it does not run or depend on the product checkout's source suites.
 
 ## WebView Automation Caveat
 

@@ -56,14 +56,12 @@ function replay_filtered_stderr() {
 
 function run_with_filtered_stderr() {
   local stderr_file
+  local status
   stderr_file="$(mktemp)"
-  if "$@" 2>"$stderr_file"; then
-    replay_filtered_stderr "$stderr_file"
-    rm -f "$stderr_file"
-    return 0
-  fi
-
-  local status=$?
+  set +e
+  "$@" 2>"$stderr_file"
+  status=$?
+  set -e
   replay_filtered_stderr "$stderr_file"
   rm -f "$stderr_file"
   return "$status"
@@ -109,6 +107,17 @@ function ensure_bundle_dependencies() {
     fi
   done
 
+  # package.json lists the deps, but node_modules may not be in sync (e.g. fresh
+  # CI checkout where node_modules is gitignored). Run a regular install so the
+  # local binaries actually exist before we hand off to Parcel. The build
+  # allowlist is already persisted in package.json's pnpm.onlyBuiltDependencies
+  # by the original `pnpm add` step, so plain `install` is enough here.
+  if [ ! -x "./node_modules/.bin/parcel" ]; then
+    echo "📦 Syncing bundling dependencies into node_modules..."
+    run_pnpm_quiet install
+    return 0
+  fi
+
   echo "✅ Reusing existing bundling dependencies"
 }
 
@@ -150,7 +159,19 @@ rm -rf dist bundle.html
 
 # Build with Parcel
 echo "🔨 Building with Parcel..."
-run_with_filtered_stderr run_local_binary parcel build index.html --dist-dir dist --no-source-maps --log-level error
+parcel_status=0
+run_with_filtered_stderr run_local_binary parcel build index.html --dist-dir dist --no-source-maps --log-level error || parcel_status=$?
+
+# Self-heal a wedged cache: these build projects are REUSED across artifact
+# builds, and a parcel killed mid-write (e.g. the canvas server torn down
+# during a build) leaves a corrupted .parcel-cache that makes every later
+# build die before emitting anything — permanently, until the cache goes.
+# Retry exactly once from a cold cache, then preserve a genuine build failure.
+if [ "$parcel_status" -ne 0 ] || [ ! -s "dist/index.html" ]; then
+  echo "🧹 Parcel build failed or produced no output — clearing .parcel-cache and retrying cold..."
+  rm -rf .parcel-cache dist
+  run_with_filtered_stderr run_local_binary parcel build index.html --dist-dir dist --no-source-maps --log-level error
+fi
 
 if [ ! -s "dist/index.html" ]; then
   echo "❌ Error: Parcel did not produce dist/index.html" >&2

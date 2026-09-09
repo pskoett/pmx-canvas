@@ -234,6 +234,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
 
   const handleTitlePointerDown = useCallback(
     (e: PointerEvent) => {
+      if (e.button !== 0) return;
       if (renaming) return;
       if (canvasTool.value === 'connect') {
         startEdgeDrag(e);
@@ -267,6 +268,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
 
   const handlePointerDown = useCallback(
     (e: PointerEvent) => {
+      if (e.button !== 0) return;
       e.stopPropagation();
       if (canvasTool.value === 'connect') {
         startEdgeDrag(e);
@@ -281,8 +283,10 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     [node.id, startEdgeDrag],
   );
 
-  const handleContextMenuEvent = useCallback(
+  const handleDblClick = useCallback(
     (e: MouseEvent) => {
+      const target = e.target instanceof Element ? e.target : null;
+      if (target?.closest('button, input, textarea, select, a, [contenteditable="true"]')) return;
       if (onContextMenu) onContextMenu(e, node.id);
     },
     [onContextMenu, node.id],
@@ -311,13 +315,6 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
     },
     [node],
   );
-
-  // ── Double-click rename ───────────────────────────────
-  const handleTitleDblClick = useCallback((e: MouseEvent) => {
-    e.stopPropagation();
-    setRenaming(true);
-    requestAnimationFrame(() => renameRef.current?.focus());
-  }, []);
 
   const title =
     (node.data.title as string) ||
@@ -453,7 +450,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
         data-node-type={node.type}
         style={{ ...nodeStyle, width: 'auto', height: 'auto' }}
         onPointerDown={handlePointerDown}
-        onContextMenu={handleContextMenuEvent}
+        onDblClick={handleDblClick}
         title="Expand group"
         data-testid="group-chip"
       >
@@ -499,7 +496,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
       onMouseDown={(e) => {
         if (e.shiftKey) e.preventDefault();
       }}
-      onContextMenu={handleContextMenuEvent}
+      onDblClick={handleDblClick}
     >
       {isGroup && (
         <div class="node-titlebar group-edge-row" onPointerDown={handleTitlePointerDown}>
@@ -517,7 +514,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
                 onClick={(e) => e.stopPropagation()}
               />
             ) : (
-              <span class="group-name" onDblClick={handleTitleDblClick} title={`${title} — double-click to rename`}>
+              <span class="group-name" title={title}>
                 {title}
               </span>
             )}
@@ -659,7 +656,7 @@ export function CanvasNode({ node, children, onContextMenu }: CanvasNodeProps) {
               onClick={(e) => e.stopPropagation()}
             />
           ) : (
-            <span class="node-title" onDblClick={handleTitleDblClick} title={`${title} — double-click to rename`}>
+            <span class="node-title" title={title}>
               {title}
             </span>
           )}

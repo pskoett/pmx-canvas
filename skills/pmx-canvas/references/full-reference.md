@@ -82,7 +82,7 @@ section below.
 6. **Arrange + validate** — `canvas_view { action: "arrange" }` after batch adds, then
    `canvas_query { action: "validate" }` to catch collisions / dangling edges before finishing.
 7. **Pin through a verified path** — `canvas_pin_nodes` (or the browser "Pin as context" /
-   right-click "Pin as context"), then read `canvas://pinned-context` to confirm.
+   double-click menu's "Pin as context"), then read `canvas://pinned-context` to confirm.
 8. **Clean up** — remove retry/test fixtures (`canvas_node { action: "remove" }` — works for
    every type, including `status`), and restore the baseline snapshot.
 
@@ -192,16 +192,17 @@ running". `serve stop` reads the pid file, verifies the pid still looks like a c
 The browser is not just a passive view. Human interactions on the canvas persist back to the
 server and become part of the authoritative canvas state.
 
-- Double-click empty canvas — create a markdown note at that position
+- Double-left-click empty canvas — open the node-creation menu at that position
+- Right-button hold and drag — pan the board, including over node content
 - Shift+drag on empty canvas — lasso-select multiple nodes
 - Selection bar actions — when nodes are selected, the browser exposes `Pin as context`,
   `Group`, `Connect`, and `Clear`
-- Right-click a node — open the node context menu. **`Pin as context`** adds the node to the
+- Double-left-click a node — open the node context menu. **`Pin as context`** adds the node to the
   human-curated agent context set (updates the context count + the node's context-pin indicator);
   `Lock position` is the separate arrange-lock. Plus focus, collapse, connect, refresh/open, close,
   and type-specific actions. (Every node type, **including `status`, has a remove `×`** in its title
   bar and a `Close` menu item.)
-- Right-click a group node — recolor the group using preset swatches or a custom color picker,
+- Double-left-click a group node — recolor the group using preset swatches or a custom color picker,
   or ungroup it (dissolves the frame; children stay)
 - Drag-and-drop files or URLs — add file, image, markdown, or webpage nodes directly
 - Paste URLs — create webpage nodes from the clipboard

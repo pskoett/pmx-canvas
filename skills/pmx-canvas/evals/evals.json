@@ -274,7 +274,7 @@
       "id": 11,
       "name": "context-pin-workflow",
       "prompt": "Pin the auth design node so I (the agent) keep it in context, then confirm it's pinned.",
-      "expected_output": "Pins via a verified path (canvas_pin_nodes, the CLI pin, or browser/right-click 'Pin as context'), then reads canvas://pinned-context to confirm; does not claim a broken UI action succeeded.",
+      "expected_output": "Pins via a verified path (canvas_pin_nodes, the CLI pin, or browser/double-left-click menu 'Pin as context'), then reads canvas://pinned-context to confirm; does not claim a broken UI action succeeded.",
       "assertions": [
         {
           "name": "pins-via-verified-path",

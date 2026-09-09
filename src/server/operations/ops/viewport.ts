@@ -135,8 +135,10 @@ const focusOperation = defineOperation<z.infer<typeof focusSchema>, Record<strin
     }
     const focus = canvasState.setAxFocus([nodeId], { source: 'api', recordHistory: false });
     ctx.emit('ax-state-changed', { focus });
-    ctx.emit('canvas-focus-node', { nodeId, noPan });
+    // Apply the server fallback first; the browser then refines it using its
+    // actual canvas region and floating chrome instead of cancelling that fit.
     if (!noPan) ctx.emit('canvas-viewport-update', { viewport: canvasState.viewport });
+    ctx.emit('canvas-focus-node', { nodeId, noPan });
     return { ok: true, focused: nodeId, panned: !noPan, axFocus: focus };
   },
 });
@@ -250,6 +252,9 @@ const viewportSetOperation = defineOperation<z.infer<typeof viewportSetSchema>, 
     // sizes to the human's actual window instead of a hardcoded 1440x900
     // (0.4.6 orb feedback #2).
     setClientViewportSize(body.clientWidth, body.clientHeight);
+    // A size-only report is not a camera command. Echoing the stored camera
+    // here would cancel an in-flight browser focus with its stale fallback.
+    if (![body.x, body.y, body.scale].some((value) => typeof value === 'number')) return { ok: true };
     const next = {
       x: typeof body.x === 'number' ? body.x : canvasState.viewport.x,
       y: typeof body.y === 'number' ? body.y : canvasState.viewport.y,

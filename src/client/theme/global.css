@@ -1377,7 +1377,7 @@ body,
   animation: session-panel-in 180ms ease;
 }
 .session-panel.is-collapsed {
-  width: 28px;
+  width: 40px;
   align-items: center;
   padding-top: 10px;
   gap: 10px;
@@ -1389,6 +1389,17 @@ body,
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: var(--c-dim);
+}
+.session-collapsed-live {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font: 9px var(--mono);
+  color: var(--c-dim);
+}
+.session-collapsed-live .session-live-dot {
+  background: var(--c-ok);
 }
 
 .session-panel-header {
@@ -1717,7 +1728,7 @@ body,
 }
 .session-timeline-filters .activity-filter {
   flex-shrink: 0;
-  padding: 2px 4px;
+  padding: 2px 3px;
 }
 
 .session-timeline-row {
@@ -3745,6 +3756,12 @@ body,
 }
 
 /* Node resize handle */
+.canvas-node:has(.node-resize-handle) {
+  /* Keep the four-pixel corner grab inside the shell's inner clip, not on
+     its rounded border. The other corners retain the standard card radius. */
+  border-bottom-right-radius: 8px;
+}
+
 .canvas-node .node-resize-handle {
   position: absolute;
   bottom: 0;
@@ -3789,7 +3806,9 @@ html.is-node-dragging .attention-field-layer {
 }
 
 html.is-node-dragging,
-html.is-node-dragging * {
+html.is-node-dragging *,
+html.is-canvas-panning,
+html.is-canvas-panning * {
   cursor: grabbing !important;
   user-select: none !important;
   -webkit-user-select: none !important;

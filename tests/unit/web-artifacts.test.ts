@@ -66,6 +66,18 @@ describe.skipIf(process.platform === 'win32')('web artifact builders', () => {
     }
   });
 
+  test('keeps the runtime bundle script identical to the bundled skill script', () => {
+    const runtimeScript = readFileSync(
+      join(import.meta.dir, '..', '..', 'src', 'server', 'web-artifacts', 'scripts', 'bundle-artifact.sh'),
+      'utf-8',
+    );
+    const skillScript = readFileSync(
+      join(import.meta.dir, '..', '..', 'skills', 'web-artifacts-builder', 'scripts', 'bundle-artifact.sh'),
+      'utf-8',
+    );
+    expect(runtimeScript).toBe(skillScript);
+  });
+
   test('scaffolds project files and emits bundled html', async () => {
     const { initScriptPath, bundleScriptPath } = createFakeWebArtifactScripts(workspaceRoot);
 

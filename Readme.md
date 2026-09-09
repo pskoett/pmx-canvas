@@ -36,7 +36,7 @@ communication — proximity means relatedness, pinning means *focus here*.
 Drag, group, arrange, and **pin** nodes spatially. Connect nodes with typed
 edges — flow, depends-on, relation, references — drawn as smooth curves that
 leave each card perpendicular to its border and bend toward their target.
-Edges stay editable in place: right-click one to relabel, retype, restyle, or
+Edges stay editable in place: double-click one to relabel, retype, restyle, or
 delete it, or click it and press Delete. Curation is the channel
 from human intent to agent context — the agent reads `canvas://pinned-context`
 and `canvas://spatial-context` (proximity clusters, reading order, pinned
@@ -359,7 +359,7 @@ services:
 ```bash
 # .agents/setup — install the CLI (pin the exact version: a fresh orb running
 # @latest can silently pick up a newer release than the one you validated)
-npm install -g pmx-canvas@0.6.1
+npm install -g pmx-canvas@0.6.2
 ```
 
 The server binds the portal-assigned `$PORT` automatically (gated on the

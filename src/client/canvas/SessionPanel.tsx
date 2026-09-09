@@ -288,7 +288,10 @@ function TimelineRow({ entry }: { entry: TimelineEntry }) {
 }
 
 export function SessionPanel() {
-  const [collapsed, setCollapsed] = useState(false);
+  // A gate may temporarily expand the panel without turning that expansion
+  // into a user preference. Once the last gate settles, only an explicitly
+  // opened panel remains open.
+  const [manuallyOpened, setManuallyOpened] = useState(false);
   const session = activeSession.value;
   const items = sessionWorkItems.value;
   const gates = pendingGates.value;
@@ -307,12 +310,28 @@ export function SessionPanel() {
     void refreshTimeline();
   }, []);
 
-  if (collapsed) {
+  const expanded = manuallyOpened || gates.length > 0;
+  if (!expanded) {
     return (
       <aside class="session-panel is-collapsed" aria-label="Session (collapsed)">
-        <button type="button" class="session-collapse" onClick={() => setCollapsed(false)} title="Expand session panel">
+        <button
+          type="button"
+          class="session-collapse"
+          onClick={() => setManuallyOpened(true)}
+          title="Expand session panel"
+        >
           ‹
         </button>
+        {session && (
+          <span
+            class={`session-collapsed-live phase-${session.phase}`}
+            title={agentPhaseLabel(session)}
+            aria-label={`Session live: ${agentPhaseLabel(session)}`}
+          >
+            <span class="session-live-dot" aria-hidden="true" />
+            live
+          </span>
+        )}
         <span class="session-collapsed-label">Session</span>
       </aside>
     );
@@ -342,7 +361,7 @@ export function SessionPanel() {
         <button
           type="button"
           class="session-collapse"
-          onClick={() => setCollapsed(true)}
+          onClick={() => setManuallyOpened(false)}
           title="Collapse session panel"
         >
           ›

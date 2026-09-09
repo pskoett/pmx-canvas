@@ -22,7 +22,8 @@ interface PanZoomOptions {
  * Hook that wires up pan/zoom interactions on a container element.
  * - Wheel + Ctrl/Cmd: zoom centered on pointer
  * - Wheel without modifier: pan
- * - Pointer drag on background: pan
+ * - Right or middle pointer drag: pan from anywhere
+ * - Pointer drag on background in pan mode: pan
  * - Pinch (touch): zoom
  */
 export function usePanZoom({ viewport, onViewportChange, onViewportCommit, disabled = false }: PanZoomOptions) {
@@ -103,8 +104,9 @@ export function usePanZoom({ viewport, onViewportChange, onViewportCommit, disab
       if (disabled) return;
       const container = containerRef.current;
       if (!container) return;
-      // Middle-drag pans from anywhere, any tool — standard canvas UX.
-      if (e.button === 1) {
+      // Right- and middle-drag pan from anywhere, any tool. Node handlers
+      // deliberately leave non-left buttons alone so this bubbles here.
+      if (e.button === 1 || e.button === 2) {
         e.preventDefault();
       } else if (isPanModeActive()) {
         // Pan tool / held Space: the world layer is pointer-inert (CSS), so
@@ -122,6 +124,7 @@ export function usePanZoom({ viewport, onViewportChange, onViewportCommit, disab
         return;
       }
       isPanning.current = true;
+      document.documentElement.classList.add('is-canvas-panning');
       lastPointer.current = { x: e.clientX, y: e.clientY };
       container.setPointerCapture(e.pointerId);
     },
@@ -147,6 +150,7 @@ export function usePanZoom({ viewport, onViewportChange, onViewportCommit, disab
       onViewportCommit(viewport.value);
     }
     isPanning.current = false;
+    document.documentElement.classList.remove('is-canvas-panning');
   }, [onViewportCommit, viewport]);
 
   // Touch pinch
@@ -207,6 +211,7 @@ export function usePanZoom({ viewport, onViewportChange, onViewportCommit, disab
     el.addEventListener('pointermove', handlePointerMove);
     el.addEventListener('pointerup', handlePointerUp);
     el.addEventListener('pointercancel', handlePointerUp);
+    el.addEventListener('lostpointercapture', handlePointerUp);
     el.addEventListener('touchmove', handleTouchMove, { passive: false });
     el.addEventListener('touchend', handleTouchEnd);
 
@@ -219,10 +224,18 @@ export function usePanZoom({ viewport, onViewportChange, onViewportCommit, disab
       el.removeEventListener('pointermove', handlePointerMove);
       el.removeEventListener('pointerup', handlePointerUp);
       el.removeEventListener('pointercancel', handlePointerUp);
+      el.removeEventListener('lostpointercapture', handlePointerUp);
       el.removeEventListener('touchmove', handleTouchMove);
       el.removeEventListener('touchend', handleTouchEnd);
     };
   }, [handleWheel, handlePointerDown, handlePointerMove, handlePointerUp, handleTouchMove, handleTouchEnd]);
+
+  useEffect(
+    () => () => {
+      document.documentElement.classList.remove('is-canvas-panning');
+    },
+    [],
+  );
 
   return containerRef;
 }

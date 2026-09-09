@@ -10,7 +10,8 @@ interface PanZoomOptions {
  * Hook that wires up pan/zoom interactions on a container element.
  * - Wheel + Ctrl/Cmd: zoom centered on pointer
  * - Wheel without modifier: pan
- * - Pointer drag on background: pan
+ * - Right or middle pointer drag: pan from anywhere
+ * - Pointer drag on background in pan mode: pan
  * - Pinch (touch): zoom
  */
 export declare function usePanZoom({ viewport, onViewportChange, onViewportCommit, disabled }: PanZoomOptions): import("preact/src").RefObject<HTMLDivElement>;
