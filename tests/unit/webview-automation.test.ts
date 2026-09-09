@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
+import { fileURLToPath } from 'node:url';
 import { createCanvas } from '../../src/server/index.ts';
 import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
 
@@ -79,43 +80,22 @@ describe.skipIf(process.platform === 'win32')('canvas WebView automation', () =>
     }
 
     workspaceRoot = createTestWorkspace('pmx-canvas-webview-constructor-');
-    resetCanvasForTests(workspaceRoot);
-
-    const canvas = createCanvas({ port: 4540 });
-    const chromePath = '/definitely/not/a/chrome-binary-pmx-canvas-test';
-
-    try {
-      await canvas.start({ open: false });
-
-      let sdkError = '';
-      try {
-        await canvas.startAutomationWebView({ backend: 'chrome', chromePath });
-      } catch (error) {
-        sdkError = error instanceof Error ? error.message : String(error);
-      }
-
-      expect(sdkError).not.toBe('');
-      expect(canvas.getAutomationWebViewStatus()).toMatchObject({ active: false, lastError: sdkError });
-
-      const response = await fetch(`http://127.0.0.1:${canvas.port}/api/workbench/webview/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ backend: 'chrome', chromePath }),
-      });
-      const body = (await response.json()) as {
-        ok: boolean;
-        error: string;
-        webview: { active: boolean; lastError: string | null };
-      };
-
-      expect(response.status).toBe(500);
-      expect(body).toMatchObject({
-        ok: false,
-        webview: { active: false, lastError: body.error },
-      });
-      expect(body.error).toBe(sdkError);
-    } finally {
-      canvas.stop();
-    }
+    // Bun keeps a process-wide Chrome backend after view.close(). A previous
+    // successful launch can bypass construction even with an invalid path.
+    const child = Bun.spawn(
+      [process.execPath, fileURLToPath(new URL('../fixtures/webview-constructor-failure.ts', import.meta.url))],
+      {
+        cwd: workspaceRoot,
+        env: { ...process.env, PMX_CANVAS_WORKSPACE_ROOT: workspaceRoot },
+        stdout: 'pipe',
+        stderr: 'pipe',
+      },
+    );
+    const [exitCode, stdout, stderr] = await Promise.all([
+      child.exited,
+      new Response(child.stdout).text(),
+      new Response(child.stderr).text(),
+    ]);
+    expect({ exitCode, failure: exitCode === 0 ? '' : stdout + stderr }).toEqual({ exitCode: 0, failure: '' });
   });
 });
