@@ -10,9 +10,11 @@
 
 **Work visually with your agents, build understanding as you go, and bring the right knowledge into whatever comes next.**
 
-pmx-canvas is for **planning, discovery, analysis, and coordination with agents**. This is its intended purpose, not merely an initial audience experiment. Boards are the working surface; personal knowledge and deliberately shared workspace knowledge provide continuity across them through one underlying knowledge model.
+**The board is the human's extended memory and the agent's working memory.** It is a place for the human to do knowledge work, not just prepare context for an agent: research, analysis, dashboards, discovery, planning, coordination, and starting or orchestrating coding and other work. These are examples of its broad purpose, not a closed list. People can use the board to think and work directly, with agents contributing on the same surface.
 
-- **Shape the work together.** Arrange, connect, pin, and annotate to express relationships and relevance that shape what agents read and help steer what they do next. Agents bring questions, proposals, and results back onto the same surface. Spatial layout provides context; not every move or camera gesture expresses intent.
+As the work develops, sources, notes, questions, charts, plans, decisions, and outputs accumulate and connect on the board. They contribute to a memory graph and maintained wiki that support both human recall and agent context across tasks. Relevant prior knowledge can then return to a board as material for further work. The board, graph, and wiki are connected views and uses of this knowledge—not three competing sources of truth or three separate filing chores.
+
+- **Do and shape the work together.** Read, write, compare evidence, monitor a dashboard, develop a plan, and direct execution on the board. Arrange, connect, pin, and annotate to support human understanding as well as shape agent context. Agents bring questions, proposals, and results back onto the same surface. Spatial layout provides context; not every move or camera gesture expresses intent.
 - **Make memory useful in the next task.** Resume without re-explaining everything. Bring relevant prior learning and authorized cross-team decisions, dependencies, and conflicts into the work—not merely into a growing collection of notes.
 - **Keep context honest as work changes.** Show sources and revisions, surface known changes and conflicts, and make uncertainty and review needs visible. Help people judge what still applies; do not treat a newer timestamp as truth or silently replace confirmed knowledge.
 
@@ -50,12 +52,12 @@ The loop is bidirectional: work produces personal understanding; selected outcom
 8. **Treat hosted as more than a login screen.** Revocation, derived-content permissions, backups/restores, uploads, quotas, sandbox isolation, and operational recovery are new responsibilities. Node-level compare-and-set can be a starting conflict policy, but requires visible conflict/retry behavior; it does not settle collaborative text editing.
 9. **Use measurements as evidence, not promises.** The earlier audit describes a particular tree and machine. Current context construction already has text previews and bounded pending steering. The claimed 10,000-token saving depends on what schemas hosts actually load; on-demand help alone does not remove advertised schemas. Measure current payloads before fixing budgets. Net-negative lines are not a user-value release gate.
 
-The north star is planning, discovery, analysis, and coordination visually with agents, with useful understanding carried into the next task. Validate which spatial signals and memory workflows best serve that purpose—not whether these activities are merely an initial audience experiment. Pins, camera attention, and the time scrubber remain ideas to validate, not proven sources of value.
+The north star is doing knowledge work on a shared visual surface that extends human memory and supplies agent working memory, with understanding carried into the next task. Validate human usefulness as well as agent behavior: can a person inspect evidence, understand relationships, resume research, monitor a dashboard, or develop and direct a plan? Pins, camera attention, and the time scrubber are mechanisms to validate against that purpose, not the purpose itself.
 
 ## The user experience
 
 1. **Describe your work.** “I lead developer experience, work with these teams, and own these outcomes.” The assistant proposes a small personal home: responsibilities, initiatives, goals, people, and open questions. No mandatory taxonomy or blank-wiki setup project.
-2. **Work on named boards.** A discovery board, quarterly plan, and workshop deck remain separate and recoverable. Each board is automatically listed as a source in the owner's context, within its existing permissions.
+2. **Work on named boards.** Research, compare evidence, use dashboards, create outputs, and start, plan, or orchestrate coding and other work. Boards remain separate and recoverable. Each board is automatically listed as a source in the owner's context, within its existing permissions; the human can return to it without needing an agent to reconstruct the work.
 3. **Remember without manual filing.** After the user delegates maintenance of specified private sources, the assistant updates existing personal working pages during the task. Source links, a quiet change history, and undo replace a compulsory wiki-edit review queue. Unknowns stay unknown; generated interpretations stay labeled.
 4. **Confirm what matters.** “Keep this as my decision” confirms an exact revision with its evidence and owner. New agent changes remain working revisions, not silently renewed confirmation. Pinning still means attention, not publication.
 5. **Resume with relevant memory.** A new board retrieves labeled personal working knowledge alongside confirmed personal context and authorized workspace knowledge. For shared organizational facts, shared canon has authority; for personal preferences, the person's context applies. Conflicting or newer evidence is shown rather than overwritten.
@@ -63,11 +65,20 @@ The north star is planning, discovery, analysis, and coordination visually with 
 
 Example: a PM explores options on a discovery board, accepts a decision into personal context, then publishes an appropriately sourced workspace decision. A team lead opens a planning board and receives that decision plus related shared dependencies—not the PM's private stakeholder notes or abandoned brainstorming.
 
+### Work becomes memory, and memory supports more work
+
+1. **Work on the board:** humans and agents add and use source material, relationships, live views, plans, and results.
+2. **Connect the memory:** retain source and revision links so a person or agent can follow how an observation relates to evidence, a decision, or an outcome. Not every dashboard refresh or scratch note needs a permanent wiki page.
+3. **Maintain understanding:** under the private-maintenance delegation, synthesize useful learning into existing working wiki pages. Preserve uncertainty and rejected alternatives; confirmation and wider sharing remain separate actions.
+4. **Bring it back into work:** humans browse and revisit the graph, wiki, and boards; agents receive relevant, permission-scoped working context. New work adds evidence and can revise the understanding again.
+
+The graph holds meaningful connections and provenance; the wiki presents maintained understanding; the board keeps active work spatial and usable. A board can contribute immediately as evidence and working memory without declaring all of its contents authoritative. This loop is the proposed direction, not a claim that automatic graph/wiki maintenance already ships.
+
 ## One model, distinct scopes
 
 | Surface | Responsibility | What it must not imply |
 |---|---|---|
-| Board | Spatial working material, artifacts, asks, evidence | Everything visible is accepted knowledge |
+| Board | Human work surface and extended memory; agent working memory through spatial material, artifacts, asks, and evidence | The human only curates for agents, or everything visible is accepted knowledge |
 | Personal wiki | Durable context owned by one person across boards | Workspace membership grants access |
 | Workspace context | Deliberately shared goals, decisions, ownership, dependencies | A union of everyone's private context |
 | Agent brief | Budgeted, task-specific view over authorized material | A new source of truth or permission grant |

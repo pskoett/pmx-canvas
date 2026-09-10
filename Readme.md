@@ -4,6 +4,12 @@ pmx-canvas is a visual workspace for planning, discovery, analysis, coordination
 and orchestrating work with agents—from exploring an idea to directing its
 execution and carrying the learning forward.
 
+**The board is your extended memory and your agent's working memory.** Use it
+to research, analyze, work with dashboards, and start or plan coding and other
+knowledge work—not just to prepare context for an agent. The [long-term vision](docs/product-context-vision-2026-09.md#work-becomes-memory-and-memory-supports-more-work)
+connects that work to a growing memory graph and maintained wiki, bringing useful
+understanding back into whatever you do next.
+
 **A moldable canvas for agent-assisted thinking.** An infinite 2D surface
 where files, plans, status, charts, fetched web pages, annotations, code
 diffs, and diagrams live side by side. Every node carries its own renderer; agents
