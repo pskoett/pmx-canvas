@@ -1417,6 +1417,12 @@ function validateStandaloneAxGrant(token: string, nodeId: string): boolean {
     if (grant) standaloneAxGrants.delete(token);
     return false;
   }
+  const node = canvasState.getNode(nodeId);
+  const capabilities = node ? resolveNodeAxCapabilities(node) : null;
+  if (node?.type !== 'html' || !capabilities?.enabled || capabilities.allowed.length === 0) {
+    standaloneAxGrants.delete(token);
+    return false;
+  }
   return true;
 }
 
@@ -3273,6 +3279,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
   if (server) {
     return typeof server.port === 'number' ? loopbackBaseUrl(server.port) : null;
   }
+  standaloneAxGrants.clear();
 
   // An explicit `options.workspaceRoot` wins. Otherwise honor PMX_CANVAS_WORKSPACE_ROOT
   // (Finding I escape hatch) before falling back to the launch cwd, so a host that
@@ -3516,6 +3523,7 @@ export function startCanvasServer(options: CanvasServerOptions = {}): string | n
 }
 
 export function stopCanvasServer(): void {
+  standaloneAxGrants.clear();
   stopGateTtlSweeper();
   agentPresence.reset();
   humanPresence.reset();

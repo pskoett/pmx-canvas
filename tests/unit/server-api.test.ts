@@ -2669,6 +2669,39 @@ describe('canvas server HTTP API', () => {
     expect(forbidden.status).toBe(403);
     expect((await forbidden.json()) as { code?: string }).toMatchObject({ code: 'not-allowed' });
 
+    canvasState.updateNode('surf-ax-standalone', {
+      data: {
+        ...canvasState.getNode('surf-ax-standalone')?.data,
+        axCapabilities: { enabled: false, allowed: ['ax.work.create'] },
+      },
+    });
+    const revoked = await fetch(
+      `${baseUrl}/api/canvas/surface-ax/surf-ax-standalone/state?token=${encodeURIComponent(token as string)}`,
+      { headers: { Origin: 'null' } },
+    );
+    expect(revoked.status).toBe(403);
+    expect((await revoked.json()) as { code?: string }).toMatchObject({ code: 'invalid-grant' });
+
+    canvasState.updateNode('surf-ax-standalone', {
+      data: {
+        ...canvasState.getNode('surf-ax-standalone')?.data,
+        axCapabilities: { enabled: true, allowed: ['ax.work.create'] },
+      },
+    });
+    const restartHtml = await (await fetch(`${baseUrl}/api/canvas/surface/surf-ax-standalone`)).text();
+    const restartToken = restartHtml.match(/const PMX_AX_TOKEN = "([^"]+)";/)?.[1];
+    expect(restartToken).toBeTruthy();
+    stopCanvasServer();
+    const restarted = startCanvasServer({ workspaceRoot, port: 0 });
+    expect(restarted).toBeTruthy();
+    baseUrl = restarted!;
+    const expiredOnRestart = await fetch(
+      `${baseUrl}/api/canvas/surface-ax/surf-ax-standalone/state?token=${encodeURIComponent(restartToken as string)}`,
+      { headers: { Origin: 'null' } },
+    );
+    expect(expiredOnRestart.status).toBe(403);
+    expect((await expiredOnRestart.json()) as { code?: string }).toMatchObject({ code: 'invalid-grant' });
+
     const embedded = await fetch(`${baseUrl}/api/canvas/surface/surf-ax-standalone?axToken=embedded-token`).then(
       (response) => response.text(),
     );
