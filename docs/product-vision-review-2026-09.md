@@ -1,6 +1,6 @@
 # Vision Review — September 2026
 
-**Status:** Proposed
+**Status:** Accepted and folded into [`product-vision-2026-09.md`](product-vision-2026-09.md) on 2026-09-23; this document keeps the reasoning and the full design sketch.
 **Date:** 2026-09-23
 **Scope:** An independent review of the long-term direction set by [`product-vision-2026-09.md`](product-vision-2026-09.md) and [`product-context-vision-2026-09.md`](product-context-vision-2026-09.md), checked against what has shipped since and against the real board in use today, plus a design sketch for boards as the wiki. Written against `main` `561e6ec5` (v0.6.3, clean tree, equal to `origin/main`).
 **Method:** Read all three September documents (review, vision, context vision) and the 0.6.0–0.6.3 changelog; re-checked the review's trust findings in current source; read the live board the globally installed MCP server writes to, read-only, titles and counts only. No code was run and no board was modified.

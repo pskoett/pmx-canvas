@@ -1,6 +1,6 @@
 # Vision extension: boards, personal wiki, and workspace context
 
-**Status:** Proposed for discussion, not an implementation commitment.
+**Status:** Proposed for discussion, not an implementation commitment. **Superseded in part, 2026-09-23:** the maintainer decided that boards are the wiki and that the destination is "share this board" ([vision, move 0 and Part 3](product-vision-2026-09.md); reasoning in the [review](product-vision-review-2026-09.md#design-sketch-boards-are-the-wiki)). The separate entity and revision store, the personal wiki as its own surface, and working-versus-confirmed machinery are not planned; boards, cards and the journal play those roles. Still in force: the publication and audience rules and the threat-model corrections, which apply when sharing reaches a second writer (Part 3), and the validation experiment, run on linked boards instead of a wiki.
 **Date:** 2026-09-06
 **Companions:** [Product review](product-review-2026-09.md), [product vision](product-vision-2026-09.md).
 **Request:** Review the existing vision and explore hosted users building their own wiki by describing their work, with their boards contributing context, and cross-cutting organizational context shared within a workspace. Reuse the logic of the personal/context-frame projects inside pmx-canvas's own store rather than depend on an external wiki.

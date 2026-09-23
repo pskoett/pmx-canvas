@@ -6,9 +6,9 @@ execution and carrying the learning forward.
 
 **The board is your extended memory and your agent's working memory.** Use it
 to research, analyze, work with dashboards, and start or plan coding and other
-knowledge work—not just to prepare context for an agent. The [long-term vision](docs/product-context-vision-2026-09.md#work-becomes-memory-and-memory-supports-more-work)
-connects that work to a growing memory graph and maintained wiki, bringing useful
-understanding back into whatever you do next.
+knowledge work—not just to prepare context for an agent. In the [long-term vision](docs/product-vision-2026-09.md#the-one-line-vision)
+your boards link into a wiki you can see as a map, bringing useful understanding
+back into whatever you do next, and any board can be shared or presented.
 
 **A moldable canvas for agent-assisted thinking.** An infinite 2D surface
 where files, plans, status, charts, fetched web pages, annotations, code
