@@ -16,11 +16,17 @@
  *   - `canvas://skills`          → JSON index
  *   - `canvas://skills/<name>`   → full markdown content
  */
+import { z } from 'zod';
+declare const skillFrontmatterSchema: z.ZodObject<{
+    name: z.ZodString;
+    description: z.ZodString;
+}, z.core.$loose>;
 export interface BundledSkill {
     name: string;
     description: string;
     uri: string;
     filePath: string;
+    frontmatter: z.infer<typeof skillFrontmatterSchema>;
 }
 /**
  * Resolve the packaged `skills/` directory. Walks parents from this module
@@ -32,9 +38,31 @@ export interface BundledSkill {
 export declare function findBundledSkillsRoot(): string | null;
 /**
  * Enumerate every `<name>/SKILL.md` under the bundled skills root and return
- * a compact index. Hidden directories (dotfolders) and files that don't parse
- * are skipped silently rather than throwing — missing metadata should never
- * break the MCP server's resource listing.
+ * a compact index. Invalid packaged skills fail explicitly rather than being
+ * silently omitted from the Skills extension's integrity manifest.
  */
-export declare function listBundledSkills(): BundledSkill[];
+export declare function listBundledSkills(root?: string | null): BundledSkill[];
 export declare function readBundledSkill(name: string): string | null;
+export interface SkillEntry {
+    uri: string;
+    frontmatter: BundledSkill['frontmatter'];
+    resources: Array<{
+        uri: string;
+        digest: string;
+        size: number;
+    }>;
+}
+type SkillContent = {
+    uri: string;
+    mimeType: string;
+} & ({
+    text: string;
+} | {
+    blob: string;
+});
+/** Capture immutable package bytes once per MCP process, never read caller-supplied paths. */
+export declare function createBundledSkillCatalog(root?: string | null): {
+    skills: SkillEntry[];
+    files: Map<string, SkillContent>;
+};
+export {};

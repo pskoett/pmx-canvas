@@ -1,6 +1,9 @@
-import { useEffect, useRef } from 'preact/hooks';
-import { persistLayout, resizeNode } from '../state/canvas-store';
-import { computeContentGrowHeight } from '../canvas/auto-fit';
+import { effect } from '@preact/signals';
+import { useEffect } from 'preact/hooks';
+import { nodes, updateNode } from '../state/canvas-store';
+import { grabbingNodeId, otherHumans } from '../state/human-store';
+import { pushCanvasUpdate } from '../state/intent-bridge';
+import { computeContentGrowHeight, contentFitPosition } from '../canvas/auto-fit';
 import type { CanvasNodeState } from '../types';
 
 /**
@@ -11,43 +14,60 @@ import type { CanvasNodeState } from '../types';
  * because growth is monotonic with a dead-band — cannot oscillate. This is the
  * fix for iframe nodes whose body scrollHeight the parent can't measure.
  *
- * The latest node is read through a ref so the effect stays mounted across the
- * grow (its deps are only id + token). Putting node.size in the deps would re-run
- * the effect on each grow and its cleanup would cancel the pending persist.
+ * Debounce before changing geometry, retaining the latest measurement during a
+ * human grab. Read current geometry at application time; persist only this node.
+ * Relocations are undoable, height-only adjustments do not fill the undo stack.
  */
 export function useIframeContentHeight(
   node: CanvasNodeState,
   iframeRef: { current: HTMLIFrameElement | null },
   frameToken: string,
 ): void {
-  const nodeRef = useRef(node);
-  nodeRef.current = node;
-  const persistTimer = useRef<number | null>(null);
-
   useEffect(() => {
     if (!frameToken) return undefined;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let pendingHeight: number | null = null;
+    const held = () =>
+      grabbingNodeId.value === node.id || otherHumans.value.some((human) => human.grabbingNodeId === node.id);
+    function apply() {
+      timer = null;
+      if (held() || pendingHeight === null) return;
+      const reported = pendingHeight;
+      pendingHeight = null;
+      const current = nodes.value.get(node.id);
+      if (!current) return;
+      const target = computeContentGrowHeight(current, reported);
+      if (target === null) return;
+      const position = contentFitPosition(current, target, Array.from(nodes.value.values()));
+      const moved = position.x !== current.position.x || position.y !== current.position.y;
+      const patch = {
+        size: { width: current.size.width, height: target },
+        ...(moved ? { position } : {}),
+      };
+      updateNode(current.id, patch);
+      void pushCanvasUpdate([{ id: current.id, ...patch }], { recordHistory: moved });
+    }
+    function schedule() {
+      if (timer !== null) clearTimeout(timer);
+      timer = pendingHeight !== null && !held() ? setTimeout(apply, 300) : null;
+    }
+    const dispose = effect(() => {
+      held();
+      schedule();
+    });
     function onMessage(event: MessageEvent) {
       if (event.source !== iframeRef.current?.contentWindow) return;
       const d = event.data as { source?: string; type?: string; token?: string; height?: unknown } | null;
       if (!d || d.source !== 'pmx-canvas-frame' || d.type !== 'content-height' || d.token !== frameToken) return;
-      const current = nodeRef.current;
-      const reported = typeof d.height === 'number' ? d.height : 0;
-      const target = computeContentGrowHeight(current, reported);
-      if (target === null) return;
-      resizeNode(current.id, { width: current.size.width, height: target });
-      if (persistTimer.current !== null) window.clearTimeout(persistTimer.current);
-      persistTimer.current = window.setTimeout(() => {
-        persistLayout({ recordHistory: false });
-        persistTimer.current = null;
-      }, 300);
+      if (typeof d.height !== 'number' || !Number.isFinite(d.height) || d.height <= 0) return;
+      pendingHeight = d.height;
+      schedule();
     }
     window.addEventListener('message', onMessage);
     return () => {
       window.removeEventListener('message', onMessage);
-      if (persistTimer.current !== null) {
-        window.clearTimeout(persistTimer.current);
-        persistTimer.current = null;
-      }
+      dispose();
+      if (timer !== null) clearTimeout(timer);
     };
   }, [node.id, frameToken]);
 }

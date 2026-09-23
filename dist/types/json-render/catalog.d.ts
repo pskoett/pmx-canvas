@@ -449,6 +449,26 @@ export declare const allComponentDefinitions: {
             readonly showLabels: true;
         };
     };
+    Card: {
+        slots: string[];
+        description: string;
+        props: z.ZodObject<{
+            title: z.ZodNullable<z.ZodString>;
+            description: z.ZodNullable<z.ZodString>;
+            maxWidth: z.ZodNullable<z.ZodEnum<{
+                sm: "sm";
+                md: "md";
+                lg: "lg";
+                full: "full";
+            }>>;
+            centered: z.ZodNullable<z.ZodBoolean>;
+            className: z.ZodNullable<z.ZodString>;
+        }, z.core.$strip>;
+        example: {
+            title: string;
+            description: string;
+        };
+    };
     Badge: {
         props: z.ZodObject<{
             text: z.ZodString;
@@ -490,26 +510,6 @@ export declare const allComponentDefinitions: {
             variant: string;
         };
         events: string[];
-    };
-    Card: {
-        props: z.ZodObject<{
-            title: z.ZodNullable<z.ZodString>;
-            description: z.ZodNullable<z.ZodString>;
-            maxWidth: z.ZodNullable<z.ZodEnum<{
-                sm: "sm";
-                md: "md";
-                lg: "lg";
-                full: "full";
-            }>>;
-            centered: z.ZodNullable<z.ZodBoolean>;
-            className: z.ZodNullable<z.ZodString>;
-        }, z.core.$strip>;
-        slots: string[];
-        description: string;
-        example: {
-            title: string;
-            description: string;
-        };
     };
     Stack: {
         props: z.ZodObject<{

@@ -1,7 +1,7 @@
 # MCP reference
 
 PMX Canvas ships an MCP stdio server with **22 tools** + **14 core resources**,
-plus per-skill resources at `canvas://skills/<name>`. The server emits
+plus per-skill resources at `canvas://skills/<name>` and `skill://<name>/SKILL.md`. The server emits
 `notifications/resources/updated` when canvas state changes — humans pin
 nodes in the browser, agents are notified immediately.
 
@@ -201,6 +201,40 @@ Individual bundled skills are also readable at `canvas://skills/<name>`.
 | `canvas://history` | Mutation history timeline with undo/redo position |
 | `canvas://code-graph` | Auto-detected file dependency graph (JS/TS, Python, Go, Rust) |
 | `canvas://skills` | Index of bundled agent skills + per-skill content at `canvas://skills/<name>` |
+
+### Skills extension (SEP-2640)
+
+PMX advertises `capabilities.extensions["io.modelcontextprotocol/skills"] = {}`
+alongside the base `resources` capability. This adds protocol methods, not canvas tools:
+
+| Method | Parameters | Result |
+|--------|------------|--------|
+| `skills/list` | None or `{}` | `{ resultType: "complete", skills: [...] }` |
+| `skills/get` | `{ uri: "skill://pmx-canvas/SKILL.md" }` | `{ resultType: "complete", skill: {...} }` |
+| `resources/read` | `{ uri: "skill://pmx-canvas/references/installing-pmx-canvas.md" }` | Standard resource content |
+
+Each skill entry contains its `SKILL.md` URI, full parsed YAML `frontmatter`, and a complete
+`resources` manifest of `{ uri, digest, size }` for every file. Digests are raw-byte SHA-256
+(`sha256:<hex>`); sizes are bytes. UTF-8 files are returned as text, binary files as base64 blobs.
+Resolve relative references against the skill directory. Files are loaded by the host on demand;
+discovery does not load all instructions into model context or start a canvas daemon.
+
+The packaged catalog fits in one page, so no `nextCursor` is returned and supplied cursors are
+rejected with `-32602`. Unknown skill/file URIs also return `-32602`. Optional
+`resources/directory/read` is not advertised or implemented; manifests already enumerate files.
+PMX currently negotiates the SDK's supported base protocol (up to `2025-11-25`), so the
+`2026-07-28` list-caching fields are not emitted.
+
+The server snapshots packaged files at MCP startup. Restart the MCP process after an upgrade to
+get new instructions and manifests. Invalid frontmatter, symbolic links, non-regular files, and
+skills exceeding 512 files or 16 MiB fail catalog creation. Reads only address captured package
+files, never arbitrary workspace paths. Scripts are served as data and are never executed by these methods.
+
+Hosts must implement the extension's origin tagging, integrity verification, activation, and
+approval rules. Reading a resource does not itself activate a skill or authorize local execution.
+Automatic skill loading depends on host support; ordinary resource reads and filesystem installs
+remain available. Use `pmx-canvas skills sync` for installed local mirrors. See the
+[final specification](https://github.com/modelcontextprotocol/modelcontextprotocol/blob/main/seps/2640-skills-extension.md).
 
 ## Node interactions (capability-gated)
 

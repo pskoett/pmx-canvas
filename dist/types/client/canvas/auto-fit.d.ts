@@ -17,3 +17,6 @@ export declare function shouldContentFitIframeNode(node: CanvasNodeState): boole
  * capped at the iframe ceiling.
  */
 export declare function computeContentGrowHeight(node: CanvasNodeState, contentHeight: number): number | null;
+/** Keep an automatically growing card clear without moving its neighbors or
+ * changing its column. Groups and screen-pinned cards retain authored placement. */
+export declare function contentFitPosition(node: CanvasNodeState, height: number, allNodes: CanvasNodeState[]): CanvasNodeState['position'];

@@ -3,6 +3,25 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.3] - 2026-09-23
+
+### Added
+
+- MCP Skills extension support lets compatible hosts discover bundled skills and read their references, scripts, and assets on demand.
+- JSON-render Cards support custom header and footer slots around their body content.
+
+### Changed
+
+- Updated the json-render packages to 0.21.0.
+
+### Fixed
+
+- JSON-render validation preserves initial state, repeat definitions, watchers, and named-slot references instead of dropping them.
+- Authored iframe cards remeasure changing content and leave space around neighbors when growing automatically.
+- Automatic card fitting waits for human grabs to end, and relocations can be undone.
+- Repointing file nodes resolves relative paths against the workspace and rejects unreadable targets without losing the existing content or watcher.
+- Bundled installation instructions match the package version, and paint guidance requires visual confirmation in the affected host.
+
 ## [0.6.2] - 2026-09-09
 
 ### Changed

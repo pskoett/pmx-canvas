@@ -135,8 +135,9 @@ describe('MCP public surface freeze', () => {
     // Per-skill resources are derived from skills/ content and may grow or
     // shrink without being an API break — but everything that is not a
     // per-skill resource must match the frozen list exactly.
-    const fixedUris = uris.filter((uri) => !uri.startsWith('canvas://skills/')).sort();
-    const skillUris = uris.filter((uri) => uri.startsWith('canvas://skills/'));
+    const isSkill = (uri: string) => uri.startsWith('canvas://skills/') || uri.startsWith('skill://');
+    const fixedUris = uris.filter((uri) => !isSkill(uri)).sort();
+    const skillUris = uris.filter(isSkill);
 
     expect(FROZEN_RESOURCE_URIS).toHaveLength(14);
     expect(fixedUris).toEqual(FROZEN_RESOURCE_URIS);

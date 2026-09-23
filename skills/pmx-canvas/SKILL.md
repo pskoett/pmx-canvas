@@ -18,11 +18,23 @@ Humans curate agent context by pinning nodes; agents read that curation through
 
 ## Runtime prerequisites
 
-PMX Canvas 0.6.1 requires **Bun >=1.4.2**, including when installed through npm.
+PMX Canvas 0.6.3 requires **Bun >=1.4.2**, including when installed through npm.
 Check `bun --version` and ensure Bun is on the MCP host's PATH, not just your shell's;
 use an absolute executable path if needed. Install/configure only when requested.
 For pinned installation, MCP configuration, managed services, and disposable verification,
 read [Installing PMX Canvas](references/installing-pmx-canvas.md).
+
+## Reading bundled skills over MCP
+
+When the server advertises `io.modelcontextprotocol/skills`, supporting hosts can discover
+bundled skills with `skills/list` and retrieve a manifest with `skills/get`. These are MCP
+protocol methods, not canvas tools. Read `skill://pmx-canvas/SKILL.md` and relative supporting
+files (for example `skill://pmx-canvas/references/installing-pmx-canvas.md`) through
+`resources/read`, fetching only what is needed. Hosts without extension support can still read
+ordinary resources or use installed filesystem skills; `canvas://skills` remains available.
+Resource reads do not activate skills or authorize executing their scripts. The host must
+preserve MCP origin and apply integrity/approval checks. Restart MCP after upgrading the package;
+the served catalog is a startup snapshot. Local mirrors still use `skills sync` below.
 
 ## Required Operating Sequence
 
@@ -237,8 +249,18 @@ graph 760×520, mcp-app 960×600, web-artifact 960×720. A *hosted* app opened w
 `canvas_app { action: "open-mcp-app" | "diagram" }` — including the Excalidraw diagram preset — is
 the exception: request `width: 720, height: 500` for its standard landscape preset instead of
 relying on the 960×600 default for a directly created `mcp-app` node. After the app mounts, read
-the node back with `canvas_query { action: "layout" }` and use its persisted width and height for
-subsequent placement or layout; the mounted app may have changed the requested dimensions.
+only its geometry, e.g. `pmx-canvas node get <id> --fields id,type,position,size`, and use the
+persisted size for subsequent placement. With MCP tool execution that supports output projection,
+project the layout to node id/type/position/size before returning it to context; otherwise prefer
+a targeted `canvas_node { action: "get", id }`. Read the full layout only when its other state
+is needed. Mounted apps may change the requested dimensions.
+Authored iframe surfaces grow in height as content changes, up to 1400px. A growing ungrouped,
+unpinned card moves down when needed to leave a 24px gap without moving its neighbors; grouped
+cards retain their authored placement. Width stays explicit, and `strictSize` or manually resized
+cards do not auto-grow. Fitting waits while a human holds the card, including in another tab;
+automatic relocations are undoable. This is not a shrink-to-fit action or `view.fit` (which only changes zoom).
+After content settles, inspect the rendered result and arrange the intended node IDs if more
+spacing is needed; do not compensate with arbitrarily huge fixed frames.
 Since 0.4.6 the server clamps explicit creation sizes UP to per-type
 readability floors (e.g. markdown 360×180, graph/json-render/html 420×280, mcp-app 480×320) —
 a tiny probe size silently becomes the floor. `strictSize: true` is the only opt-out (a fixed
@@ -467,20 +489,21 @@ Prefer `canvas_query { action: "search" }` over parsing the full layout.
   iframe's per-mount nonce, so AX buttons only work inside the in-canvas node (0.4.4 Codex note).
   Do not tell a user a standalone tab's controls will steer the agent.
 - A hosted ext-app (Excalidraw) node in a **WebKit** host panel (e.g. the GitHub Copilot app's
-  embedded WKWebView) historically could render as a black tile — a host compositor paint race
-  on the nested iframe, **not** a broken node (the session is healthy, `sessionStatus` is
-  `ready`, and it renders fine in Chrome/Codex). Since 0.4.6 the canvas runs a **paint oracle +
+  embedded WKWebView) can remain blank even when its API session is healthy and `sessionStatus`
+  is `ready`. This host-specific rendering issue remains open; successful Chrome/Codex rendering
+  does not establish native-host health. Since 0.4.6 the canvas runs a **paint oracle +
   recovery ladder** under WebKit: present-at-load ext-apps mount strictly one at a time (the
   cold burst was the trigger), each frame answers a double-rAF **paint probe** after settle, and
   on silence the ladder escalates — soft-expand cycle (the automatic analogue of the proven
   enlarge+close) → serialized remount → an explicit "App surface failed to paint / Retry"
-  affordance. The connecting overlay stays up until paint is confirmed, so a black layer is
-  never presented as ready. The recovery trail
+  affordance. Native Copilot/WebKit surfaces can still remain blank despite a successful
+  probe, including when visibility is reported as visible. The recovery trail
   (`GET /api/canvas/debug/ext-app-recovery` / `window.__PMX_EXTAPP_LOG`) now records
   `mount-slot`, `paint-ok`, `paint-fail`, `soft-expand-cycle`, `recovery-exhausted`, and
-  `assume-visible-rearm` — when diagnosing, trust `paint-ok`/`paint-fail`, and never assert
-  health from `settled` alone. Exception: in a host that reports the document hidden (the
-  GitHub Copilot panel does so continuously), `paint-ok` is recorded as
+  `assume-visible-rearm`. Treat `paint-ok`/`paint-fail` as diagnostic evidence, not compositor
+  proof. Require a rendered screenshot in the affected host before declaring its surface
+  healthy; a Chromium pass does not close a native Copilot/WebKit failure. In a host that
+  reports the document hidden, `paint-ok` is recorded as
   `paint-ok (unverified: host hidden)` — the app answered the paint probe, but nothing is
   proven composited, so do not treat it as a verified paint. If a
   tile still shows the Retry affordance, click Retry (fresh recovery budget) or expand-then-close;

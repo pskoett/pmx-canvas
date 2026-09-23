@@ -4,12 +4,16 @@ export const schema = defineSchema(
   (s) => ({
     spec: s.object({
       root: s.string(),
+      state: { ...s.record(s.any()), ...s.optional() },
       elements: s.record(
         s.object({
           type: s.ref('catalog.components'),
           props: s.propsOf('catalog.components'),
           children: s.array(s.string()),
           visible: s.any(),
+          repeat: { ...s.any(), ...s.optional() },
+          watch: { ...s.record(s.any()), ...s.optional() },
+          slots: { ...s.record(s.array(s.string())), ...s.optional() },
           // Event→action bindings (on.press, on.change, …). Preserved through
           // validation so spec authors can wire actions — including the ax.*
           // handlers the viewer forwards to the canvas AX bridge.

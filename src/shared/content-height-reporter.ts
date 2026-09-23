@@ -26,8 +26,10 @@ export function contentHeightReporterSource(frameToken: string): string {
     `function m(){var d=document.documentElement;return Math.max(d?d.scrollHeight:0,document.body?document.body.scrollHeight:0);}` +
     `function r(){var h=m();if(Math.abs(h-last)<=4)return;last=h;window.parent.postMessage({source:'pmx-canvas-frame',type:'content-height',token:T,height:h},'*');}` +
     `function s(){if(timer)return;timer=setTimeout(function(){timer=null;r();},100);}` +
-    `if(document.readyState!=='loading')s();window.addEventListener('load',s);` +
-    `try{new ResizeObserver(s).observe(document.documentElement);}catch(e){}setTimeout(s,60);})();`
+    `if(document.readyState!=='loading')s();window.addEventListener('load',s,true);` +
+    `try{new ResizeObserver(s).observe(document.documentElement);}catch(e){}` +
+    `new MutationObserver(s).observe(document.documentElement,{subtree:true,childList:true,characterData:true,attributes:true});` +
+    `if(document.fonts)document.fonts.ready.then(s);setTimeout(s,60);})();`
   );
 }
 

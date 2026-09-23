@@ -8,6 +8,29 @@ import {
 } from '../../src/json-render/server.ts';
 
 describe('json-render validation', () => {
+  test('preserves state and element repeat, watch, slots and chained-action parameters', () => {
+    const state = { teams: [{ id: 'alpha', tasks: [{ title: 'Ship' }] }], status: 'draft' };
+    const repeat = { statePath: { $item: 'tasks' }, key: 'title' };
+    const watch = { '/status': { action: 'setState', params: { statePath: '/changed', value: true } } };
+    const slots = { header: ['label'] };
+    const on = {
+      press: {
+        action: 'validateForm',
+        onSuccess: { action: 'setState', params: { statePath: '/status', value: 'done' } },
+      },
+    };
+    const spec = normalizeAndValidateJsonRenderSpec({
+      root: 'card',
+      state,
+      elements: {
+        card: { type: 'Card', props: {}, repeat, watch, slots, on },
+        label: { type: 'Text', props: { text: 'Heading' } },
+      },
+    });
+    expect(spec.state).toEqual(state);
+    expect(spec.elements.card).toMatchObject({ repeat, watch, slots, on });
+  });
+
   test('rejects specs without root and elements', () => {
     expect(() => normalizeAndValidateJsonRenderSpec({})).toThrow('Missing root and elements in spec.');
   });

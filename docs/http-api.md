@@ -88,7 +88,11 @@ curl -X PATCH http://localhost:4313/api/canvas/node/node-abc123 \
 ```
 
 The title follows the new filename unless the node was renamed away from the
-old one (or the patch sets `title` explicitly).
+old one (or the patch sets `title` explicitly). Relative `path` values (including
+`data.path` in batch updates) resolve against the configured canvas workspace,
+not the daemon's working directory; the stored path is absolute. A missing or
+unreadable target fails the update without changing the node or its existing watcher
+(`400` for a direct PATCH; a failed-operation result in a batch).
 
 ```bash
 # Raw bytes for a binary file node (PDF viewer, downloads)

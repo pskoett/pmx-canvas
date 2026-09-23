@@ -8,9 +8,10 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { agentPresence } from '../../src/server/agent-presence.ts';
 import { canvasState } from '../../src/server/canvas-state.ts';
+import { unwatchAll } from '../../src/server/file-watcher.ts';
 import { mutationHistory } from '../../src/server/mutation-history.ts';
 import { executeOperation } from '../../src/server/operations/index.ts';
-import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests } from './helpers.ts';
+import { createTestWorkspace, removeTestWorkspace, resetCanvasForTests, waitForCondition } from './helpers.ts';
 
 let workspaceRoot = '';
 
@@ -20,6 +21,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  unwatchAll();
   removeTestWorkspace(workspaceRoot);
 });
 
@@ -81,7 +83,7 @@ describe('edge.update', () => {
 });
 
 describe('file node repoint', () => {
-  test('patching path re-reads content, follows the filename, and keeps edges', async () => {
+  test('resolves relative paths from the workspace, rewires the watcher, and preserves node state', async () => {
     const dir = join(workspaceRoot, 'src');
     mkdirSync(dir, { recursive: true });
     const fileA = join(dir, 'alpha.ts');
@@ -89,7 +91,17 @@ describe('file node repoint', () => {
     writeFileSync(fileA, 'export const alpha = 1;\n');
     writeFileSync(fileB, 'export const beta = 2;\nexport const more = 3;\n');
 
-    const fileNode = (await executeOperation('node.add', { type: 'file', content: fileA })) as { id: string };
+    const wrongCwd = createTestWorkspace('pmx-canvas-repoint-cwd-');
+    mkdirSync(join(wrongCwd, 'src'), { recursive: true });
+    writeFileSync(join(wrongCwd, 'src', 'beta.ts'), 'WRONG CWD SENTINEL');
+
+    const fileNode = (await executeOperation('node.add', {
+      type: 'file',
+      content: fileA,
+      x: 145,
+      y: 260,
+    })) as { id: string };
+    await executeOperation('node.update', { id: fileNode.id, pinned: true });
     const other = (await executeOperation('node.add', { type: 'markdown', title: 'notes', content: 'n' })) as {
       id: string;
     };
@@ -97,14 +109,32 @@ describe('file node repoint', () => {
       id: string;
     };
 
-    await executeOperation('node.update', { id: fileNode.id, path: fileB });
+    const originalCwd = process.cwd();
+    try {
+      process.chdir(wrongCwd);
+      await executeOperation('node.update', { id: fileNode.id, path: 'src/beta.ts' });
+    } finally {
+      process.chdir(originalCwd);
+      removeTestWorkspace(wrongCwd);
+    }
 
-    const node = canvasState.getNode(fileNode.id);
+    let node = canvasState.getNode(fileNode.id);
     expect(node?.data.path).toBe(fileB);
     expect(node?.data.fileContent).toContain('beta = 2');
+    expect(node?.data.fileContent).not.toContain('WRONG CWD SENTINEL');
     expect(node?.data.title).toBe('beta.ts');
-    // The whole point of repoint over recreate: connections survive.
+    expect(node?.position).toEqual({ x: 145, y: 260 });
+    expect(node?.pinned).toBe(true);
     expect(canvasState.getEdges().some((e) => e.id === edge.id)).toBe(true);
+
+    await Bun.sleep(30);
+    writeFileSync(fileB, 'export const watched = 4;\n');
+    await waitForCondition(() => canvasState.getNode(fileNode.id)?.data.fileContent === 'export const watched = 4;\n', {
+      timeoutMs: 1500,
+      label: 'repointed file watcher update',
+    });
+    node = canvasState.getNode(fileNode.id);
+    expect(node?.data.fileContent).toContain('watched = 4');
   });
 
   test('a renamed node keeps its custom title across repoint', async () => {
@@ -119,6 +149,41 @@ describe('file node repoint', () => {
     const node = canvasState.getNode(fileNode.id);
     expect(node?.data.title).toBe('Spec draft');
     expect(node?.data.fileContent).toBe('bbb');
+  });
+
+  test('rejects a missing target before mutation and accepts data.path through batch', async () => {
+    const fileA = join(workspaceRoot, 'a.md');
+    const fileB = join(workspaceRoot, 'b.md');
+    writeFileSync(fileA, 'aaa');
+    writeFileSync(fileB, 'bbb');
+    const fileNode = (await executeOperation('node.add', { type: 'file', content: fileA, title: 'Keep me' })) as {
+      id: string;
+    };
+
+    await expect(executeOperation('node.update', { id: fileNode.id, path: 'missing.md' })).rejects.toThrow(
+      /not.*read|unavailable|missing/i,
+    );
+    expect(canvasState.getNode(fileNode.id)?.data).toMatchObject({
+      path: fileA,
+      fileContent: 'aaa',
+      title: 'Keep me',
+    });
+    await Bun.sleep(30);
+    writeFileSync(fileA, 'aaa still watched');
+    await waitForCondition(() => canvasState.getNode(fileNode.id)?.data.fileContent === 'aaa still watched', {
+      timeoutMs: 1500,
+      label: 'original watcher after rejected repoint',
+    });
+
+    const batch = (await executeOperation('canvas.batch', {
+      operations: [{ op: 'node.update', args: { id: fileNode.id, data: { path: 'b.md' } } }],
+    })) as { ok: boolean };
+    expect(batch.ok).toBe(true);
+    expect(canvasState.getNode(fileNode.id)?.data).toMatchObject({
+      path: fileB,
+      fileContent: 'bbb',
+      title: 'Keep me',
+    });
   });
 });
 

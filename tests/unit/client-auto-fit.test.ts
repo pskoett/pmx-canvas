@@ -5,6 +5,7 @@ import {
   AUTO_FIT_TITLEBAR_HEIGHT,
   computeAutoFitHeight,
   computeContentGrowHeight,
+  contentFitPosition,
   shouldAutoFitNode,
   shouldContentFitIframeNode,
 } from '../../src/client/canvas/auto-fit.ts';
@@ -77,6 +78,32 @@ describe('client auto-fit helpers', () => {
 });
 
 describe('iframe content-fit (grow-only)', () => {
+  test('moves only the growing card down past every blocker with a 24px gap', () => {
+    const card = makeNode({ type: 'json-render', position: { x: 50, y: 30 }, size: { width: 400, height: 200 } });
+    const first = {
+      ...makeNode({ type: 'markdown', position: { x: 80, y: 254 }, size: { width: 300, height: 180 } }),
+      id: 'first',
+    };
+    const second = {
+      ...makeNode({ type: 'markdown', position: { x: 300, y: 600 }, size: { width: 300, height: 120 } }),
+      id: 'second',
+    };
+    expect(contentFitPosition(card, 450, [card, second, first])).toEqual({ x: 50, y: 744 });
+    expect(first.position).toEqual({ x: 80, y: 254 });
+    expect(second.position).toEqual({ x: 300, y: 600 });
+    expect(contentFitPosition(card, 200, [first])).toEqual(card.position);
+    expect(contentFitPosition({ ...card, pinned: true }, 450, [first])).toEqual(card.position);
+    expect(contentFitPosition({ ...card, data: { parentGroup: 'group' } }, 450, [first])).toEqual(card.position);
+    const beside = { ...first, position: { x: 474, y: 30 } };
+    expect(contentFitPosition(card, 450, [beside])).toEqual(card.position);
+  });
+
+  test('ignores non-finite surface measurements', () => {
+    const node = makeNode({ type: 'json-render' });
+    expect(computeContentGrowHeight(node, Infinity)).toBeNull();
+    expect(computeContentGrowHeight(node, NaN)).toBeNull();
+  });
+
   test('authored surfaces are content-fit eligible; scrolling/unbounded ones are not', () => {
     expect(shouldContentFitIframeNode(makeNode({ type: 'html', size: { width: 400, height: 300 } }))).toBe(true);
     expect(shouldContentFitIframeNode(makeNode({ type: 'json-render', size: { width: 400, height: 300 } }))).toBe(true);

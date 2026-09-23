@@ -2,6 +2,18 @@ import { describe, expect, test } from 'bun:test';
 import { findBundledSkillsRoot, listBundledSkills, readBundledSkill } from '../../src/server/bundled-skills.ts';
 
 describe('bundled skills', () => {
+  test('installation pins and runtime prerequisite match the package version', async () => {
+    const { version } = await Bun.file(new URL('../../package.json', import.meta.url)).json();
+    const guide = await Bun.file(
+      new URL('../../skills/pmx-canvas/references/installing-pmx-canvas.md', import.meta.url),
+    ).text();
+    const pins = [...guide.matchAll(/pmx-canvas@(\d+\.\d+\.\d+(?:-[\w.-]+)?)/g)].map((match) => match[1]);
+    expect(pins.length).toBeGreaterThanOrEqual(3);
+    expect(new Set(pins)).toEqual(new Set([version]));
+    expect(guide).toContain(`PMX Canvas ${version}`);
+    expect(readBundledSkill('pmx-canvas')).toContain(`PMX Canvas ${version} requires`);
+  });
+
   test('findBundledSkillsRoot resolves the packaged skills directory', () => {
     const root = findBundledSkillsRoot();
     expect(root).not.toBeNull();

@@ -58,7 +58,7 @@ export function applyHumanSnapshot(snapshot: Partial<HumanPresenceSnapshot> | nu
   humans.value = snapshot.humans;
 }
 
-let grabbing: string | null = null;
+export const grabbingNodeId = signal<string | null>(null);
 let lastCursor: { x: number; y: number } | null = null;
 let lastSentAt = 0;
 let pending: ReturnType<typeof setTimeout> | null = null;
@@ -74,7 +74,7 @@ function post(body: Record<string, unknown>): void {
 function flushCursor(): void {
   pending = null;
   lastSentAt = Date.now();
-  post({ cursor: lastCursor, grabbingNodeId: grabbing });
+  post({ cursor: lastCursor, grabbingNodeId: grabbingNodeId.value });
 }
 
 /** Report the pointer in world coordinates (throttled); null when it leaves the canvas. */
@@ -91,7 +91,7 @@ export function reportHumanCursor(cursor: { x: number; y: number } | null): void
 
 /** Hold / release a node (drag, rename): the edit lock agents must respect. */
 export function reportHumanGrab(nodeId: string | null): void {
-  grabbing = nodeId;
+  grabbingNodeId.value = nodeId;
   post({ cursor: lastCursor, grabbingNodeId: nodeId });
 }
 
@@ -147,8 +147,8 @@ let heartbeat: ReturnType<typeof setInterval> | null = null;
 
 /** Announce this tab and keep it alive; renews a held grab. Call once per connection. */
 export function startHumanPresence(): () => void {
-  post({ cursor: lastCursor, grabbingNodeId: grabbing });
-  heartbeat = setInterval(() => post({ grabbingNodeId: grabbing }), 3000);
+  post({ cursor: lastCursor, grabbingNodeId: grabbingNodeId.value });
+  heartbeat = setInterval(() => post({ grabbingNodeId: grabbingNodeId.value }), 3000);
   const leave = () => {
     try {
       navigator.sendBeacon?.(
@@ -170,6 +170,6 @@ export function startHumanPresence(): () => void {
 export function resetHumanPresence(): void {
   humans.value = [];
   yieldedNodes.value = new Map();
-  grabbing = null;
+  grabbingNodeId.value = null;
   lastCursor = null;
 }

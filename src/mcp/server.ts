@@ -41,6 +41,7 @@ import {
   summarizeCanvasAnnotationForContext,
 } from '../server/canvas-serialization.js';
 import { listBundledSkills, readBundledSkill } from '../server/bundled-skills.js';
+import { registerSkillExtension } from './skills.js';
 
 let canvas: CanvasAccess | null = null;
 let resourceNotificationServer: McpServer | null = null;
@@ -212,11 +213,15 @@ function buildSummaryFromLayout(
 }
 
 export async function startMcpServer(): Promise<void> {
-  const server = new McpServer({
-    name: 'pmx-canvas',
-    version: readPackageVersion(),
-  });
+  const server = new McpServer(
+    { name: 'pmx-canvas', version: readPackageVersion() },
+    {
+      instructions:
+        'Bundled workbench guidance: skill://pmx-canvas/SKILL.md. Discover skills via skills/list when supported, or canvas://skills; read files through resources/read. Skill delivery does not grant permission to execute bundled scripts.',
+    },
+  );
   resourceNotificationServer = server;
+  registerSkillExtension(server);
 
   // ── Operation-registry tools (plan-005) ────────────────────────
   // Standalone tools are registered from the shared operation registry for

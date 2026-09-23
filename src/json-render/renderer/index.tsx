@@ -69,9 +69,26 @@ function Button({ props, emit }: { props: ButtonProps; emit: (event: string) => 
   );
 }
 
+function Card({ props, children, slots, ...rest }: Parameters<typeof shadcnComponents.Card>[0]) {
+  const header = slots?.header;
+  const footer = slots?.footer;
+  return (
+    <shadcnComponents.Card {...rest} props={header ? { ...props, title: null, description: null } : props}>
+      {header && <header data-pmx-card-slot="header">{header}</header>}
+      {children}
+      {footer && (
+        <footer data-pmx-card-slot="footer" className="flex flex-wrap items-center gap-3">
+          {footer}
+        </footer>
+      )}
+    </shadcnComponents.Card>
+  );
+}
+
 const { registry } = defineRegistry(catalog as never, {
   components: {
     ...shadcnComponents,
+    Card,
     Badge,
     Button,
     ...chartComponents,

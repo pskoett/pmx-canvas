@@ -20,6 +20,12 @@ const buttonDefinition = shadcnComponentDefinitions.Button;
 
 export const allComponentDefinitions = {
   ...shadcnComponentDefinitions,
+  Card: {
+    ...shadcnComponentDefinitions.Card,
+    slots: ['default', 'header', 'footer'],
+    description:
+      'Card container. Use children for its body and optional header/footer slots for custom headings or actions. A header slot replaces the title and description props.',
+  },
   Badge: {
     ...badgeDefinition,
     props: badgeDefinition.props.extend({

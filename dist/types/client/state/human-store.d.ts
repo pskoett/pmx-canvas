@@ -6,6 +6,7 @@ export declare const otherHumans: import("@preact/signals-core").ReadonlySignal<
 /** Nodes a human took over mid-edit → that human's name, shown as the yield pill for a moment. */
 export declare const yieldedNodes: import("@preact/signals-core").Signal<Map<string, string>>;
 export declare function applyHumanSnapshot(snapshot: Partial<HumanPresenceSnapshot> | null | undefined): void;
+export declare const grabbingNodeId: import("@preact/signals-core").Signal<string | null>;
 /** Report the pointer in world coordinates (throttled); null when it leaves the canvas. */
 export declare function reportHumanCursor(cursor: {
     x: number;

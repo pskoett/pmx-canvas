@@ -1,5 +1,6 @@
 import type { CanvasNodeState } from '../types';
 import { nodeMinSize } from '../../shared/node-sizes.js';
+import { findBlocker } from '../../shared/placement.js';
 
 export const AUTO_FIT_TITLEBAR_HEIGHT = 37;
 export const AUTO_FIT_MAX_HEIGHT = 600;
@@ -81,7 +82,25 @@ export function shouldContentFitIframeNode(node: CanvasNodeState): boolean {
  * capped at the iframe ceiling.
  */
 export function computeContentGrowHeight(node: CanvasNodeState, contentHeight: number): number | null {
-  if (!shouldContentFitIframeNode(node) || contentHeight <= 0) return null;
+  if (!shouldContentFitIframeNode(node) || !Number.isFinite(contentHeight) || contentHeight <= 0) return null;
   const want = Math.min(contentHeight + AUTO_FIT_TITLEBAR_HEIGHT + AUTO_FIT_BODY_PADDING, AUTO_FIT_MAX_HEIGHT_IFRAME);
   return want > node.size.height + 8 ? want : null;
+}
+
+/** Keep an automatically growing card clear without moving its neighbors or
+ * changing its column. Groups and screen-pinned cards retain authored placement. */
+export function contentFitPosition(
+  node: CanvasNodeState,
+  height: number,
+  allNodes: CanvasNodeState[],
+): CanvasNodeState['position'] {
+  if (height <= node.size.height || node.pinned || node.data.parentGroup) return node.position;
+  const obstacles = allNodes.filter((other) => other.id !== node.id && !other.pinned && other.type !== 'group');
+  const position = { ...node.position };
+  let blocker = findBlocker(position, node.size.width, height, obstacles, 24);
+  while (blocker) {
+    position.y = blocker.position.y + blocker.size.height + 24;
+    blocker = findBlocker(position, node.size.width, height, obstacles, 24);
+  }
+  return position;
 }

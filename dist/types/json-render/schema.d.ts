@@ -1,11 +1,31 @@
 export declare const schema: import("@json-render/core").Schema<{
     spec: import("@json-render/core").SchemaType<"object", {
         root: import("@json-render/core").SchemaType<"string", unknown>;
+        state: {
+            optional: true;
+            kind: "record";
+            inner?: import("@json-render/core").SchemaType<"any", unknown> | undefined;
+        };
         elements: import("@json-render/core").SchemaType<"record", import("@json-render/core").SchemaType<"object", {
             type: import("@json-render/core").SchemaType<"ref", string>;
             props: import("@json-render/core").SchemaType<"propsOf", string>;
             children: import("@json-render/core").SchemaType<"array", import("@json-render/core").SchemaType<"string", unknown>>;
             visible: import("@json-render/core").SchemaType<"any", unknown>;
+            repeat: {
+                optional: true;
+                kind: "any";
+                inner?: unknown;
+            };
+            watch: {
+                optional: true;
+                kind: "record";
+                inner?: import("@json-render/core").SchemaType<"any", unknown> | undefined;
+            };
+            slots: {
+                optional: true;
+                kind: "record";
+                inner?: import("@json-render/core").SchemaType<"array", import("@json-render/core").SchemaType<"string", unknown>> | undefined;
+            };
             on: import("@json-render/core").SchemaType<"any", unknown>;
         }>>;
     }>;
@@ -25,11 +45,31 @@ export declare const schema: import("@json-render/core").Schema<{
 export declare const elementTreeSchema: import("@json-render/core").Schema<{
     spec: import("@json-render/core").SchemaType<"object", {
         root: import("@json-render/core").SchemaType<"string", unknown>;
+        state: {
+            optional: true;
+            kind: "record";
+            inner?: import("@json-render/core").SchemaType<"any", unknown> | undefined;
+        };
         elements: import("@json-render/core").SchemaType<"record", import("@json-render/core").SchemaType<"object", {
             type: import("@json-render/core").SchemaType<"ref", string>;
             props: import("@json-render/core").SchemaType<"propsOf", string>;
             children: import("@json-render/core").SchemaType<"array", import("@json-render/core").SchemaType<"string", unknown>>;
             visible: import("@json-render/core").SchemaType<"any", unknown>;
+            repeat: {
+                optional: true;
+                kind: "any";
+                inner?: unknown;
+            };
+            watch: {
+                optional: true;
+                kind: "record";
+                inner?: import("@json-render/core").SchemaType<"any", unknown> | undefined;
+            };
+            slots: {
+                optional: true;
+                kind: "record";
+                inner?: import("@json-render/core").SchemaType<"array", import("@json-render/core").SchemaType<"string", unknown>> | undefined;
+            };
             on: import("@json-render/core").SchemaType<"any", unknown>;
         }>>;
     }>;

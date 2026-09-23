@@ -365,7 +365,7 @@ services:
 ```bash
 # .agents/setup — install the CLI (pin the exact version: a fresh orb running
 # @latest can silently pick up a newer release than the one you validated)
-npm install -g pmx-canvas@0.6.2
+npm install -g pmx-canvas@0.6.3
 ```
 
 The server binds the portal-assigned `$PORT` automatically (gated on the
@@ -410,6 +410,12 @@ the agent can read `canvas://skills` and pull in companion skills
 (`pmx-canvas-orchestration` for running several agents on one board,
 `control-session-orchestrator`, `web-artifacts-builder`, `json-render-*`,
 `pmx-canvas-testing`, `playwright-cli`, etc.) as the work demands.
+
+The MCP server also supports the [Skills extension](docs/mcp.md#skills-extension-sep-2640):
+compatible hosts discover skills through `skills/list` and read instructions, references,
+scripts, and assets at `skill://<name>/<path>`. Files come from the running MCP package;
+restart MCP after an upgrade. Host support determines automatic skill loading, and reading
+a skill never grants permission to execute its scripts. Filesystem installation remains available.
 
 ## Documentation
 

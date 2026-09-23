@@ -1533,6 +1533,228 @@ test('#64: status nodes expose the standard remove (×) control', async ({ page,
   await expect(node).toHaveCount(0);
 });
 
+test('json-render compatibility: bound forms, nested repeats, watchers and chained AX parameters', async ({
+  page,
+  request,
+}) => {
+  const response = await request.post('/api/canvas/json-render', {
+    data: {
+      title: 'json-render compatibility',
+      x: 160,
+      y: 100,
+      width: 700,
+      height: 650,
+      spec: {
+        root: 'root',
+        state: {
+          title: 'Initial task',
+          changed: 'untouched',
+          teams: [
+            { id: 'a', tasks: [{ title: 'Alpha' }, { title: 'Beta' }] },
+            { id: 'b', tasks: [{ title: 'Gamma' }] },
+          ],
+        },
+        elements: {
+          root: {
+            type: 'Stack',
+            props: { direction: 'vertical', gap: 'md' },
+            children: ['input', 'echo', 'changed', 'teams', 'button'],
+            watch: { '/title': { action: 'setState', params: { statePath: '/changed', value: 'edited' } } },
+          },
+          input: { type: 'Input', props: { label: 'Task title', name: 'task-title', value: { $bindState: '/title' } } },
+          echo: { type: 'Text', props: { text: { $state: '/title' } } },
+          changed: { type: 'Text', props: { text: { $state: '/changed' } } },
+          teams: { type: 'Stack', props: {}, repeat: { statePath: '/teams', key: 'id' }, children: ['tasks'] },
+          tasks: {
+            type: 'Stack',
+            props: {},
+            repeat: { statePath: { $item: 'tasks' }, key: 'title' },
+            children: ['task'],
+          },
+          task: { type: 'Text', props: { text: { $item: 'title' } } },
+          button: {
+            type: 'Button',
+            props: { label: 'Create chained task', variant: 'primary' },
+            on: {
+              press: {
+                action: 'ax.work.create',
+                params: { title: 'First browser task' },
+                onSuccess: { action: 'ax.work.create', params: { title: { $state: '/title' } } },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  expect(response.ok(), await response.text()).toBe(true);
+  await page.goto('/workbench');
+  const frame = page.locator('.canvas-node').filter({ hasText: 'json-render compatibility' }).frameLocator('iframe');
+  await expect(frame.getByLabel('Task title')).toHaveValue('Initial task');
+  await expect(frame.getByText('untouched', { exact: true })).toBeVisible();
+  for (const label of ['Alpha', 'Beta', 'Gamma']) await expect(frame.getByText(label, { exact: true })).toHaveCount(1);
+  await frame.getByLabel('Task title').fill('Chained browser task');
+  await expect(frame.getByText('Chained browser task', { exact: true })).toBeVisible();
+  await expect(frame.getByText('edited', { exact: true })).toBeVisible();
+  await frame.getByRole('button', { name: 'Create chained task' }).click();
+  await expect
+    .poll(async () => {
+      const body = await (await request.get('/api/canvas/ax')).json();
+      return body.state.workItems.some((item: { title: string }) => item.title === 'Chained browser task');
+    })
+    .toBe(true);
+});
+
+test('json-render Card slots grow with repeated content and clear neighboring cards', async ({
+  page,
+  request,
+}, testInfo) => {
+  const response = await request.post('/api/canvas/json-render', {
+    data: {
+      title: 'Slotted task card',
+      x: 100,
+      y: 70,
+      width: 560,
+      height: 340,
+      spec: {
+        root: 'card',
+        state: { tasks: [{ title: 'First task' }] },
+        elements: {
+          card: {
+            type: 'Card',
+            props: { title: 'Replaced heading' },
+            children: ['list'],
+            slots: { header: ['heading'], footer: ['more'] },
+          },
+          heading: { type: 'Heading', props: { text: 'Release checklist' } },
+          list: { type: 'Stack', props: { gap: 'md' }, repeat: { statePath: '/tasks' }, children: ['row'] },
+          row: { type: 'Text', props: { text: { $item: 'title' } } },
+          more: {
+            type: 'Button',
+            props: { label: 'Load checklist', variant: 'primary' },
+            on: {
+              press: {
+                action: 'setState',
+                params: {
+                  statePath: '/tasks',
+                  value: Array.from({ length: 16 }, (_, i) => ({ title: `Checklist item ${i + 1}` })),
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  });
+  expect(response.ok(), await response.text()).toBe(true);
+  const { id } = await response.json();
+  await page.goto('/workbench');
+  const node = page.locator('.canvas-node').filter({ hasText: 'Slotted task card' });
+  const frame = node.frameLocator('iframe');
+  await expect(frame.locator('[data-pmx-card-slot="header"]')).toHaveText('Release checklist');
+  await expect(frame.getByText('Replaced heading')).toHaveCount(0);
+  await expect(frame.locator('[data-pmx-card-slot="footer"] button')).toHaveText('Load checklist');
+  const readNode = async () => await (await request.get(`/api/canvas/node/${id}`)).json();
+  // Wait for the initial measurement to settle before placing a neighbor below it.
+  await page.waitForTimeout(600);
+  const before = await readNode();
+  const neighborY = before.position.y + before.size.height + 32;
+  const neighborResponse = await request.post('/api/canvas/node', {
+    data: {
+      type: 'markdown',
+      title: 'Keep my position',
+      content: 'Neighbor',
+      x: 100,
+      y: neighborY,
+      width: 560,
+      height: 180,
+      strictSize: true,
+    },
+  });
+  expect(neighborResponse.ok()).toBe(true);
+  const neighbor = await neighborResponse.json();
+  await expect(page.locator('.canvas-node').filter({ hasText: 'Keep my position' })).toHaveCount(1);
+  await request.post('/api/canvas/human-presence', {
+    data: { clientId: 'fit-lock-test', name: 'Holding card', cursor: { x: 100, y: 70 }, grabbingNodeId: id },
+  });
+  await expect(page.locator('.human-cursor.is-grabbing')).toHaveCount(1);
+  await frame.getByRole('button', { name: 'Load checklist' }).click();
+  await page.waitForTimeout(650);
+  expect((await readNode()).size).toEqual(before.size);
+  expect((await readNode()).position).toEqual(before.position);
+  await request.post('/api/canvas/human-presence', { data: { clientId: 'fit-lock-test', left: true } });
+  await expect.poll(async () => (await readNode()).size.height).toBeGreaterThan(before.size.height);
+  await expect.poll(async () => (await readNode()).position.y).toBeGreaterThanOrEqual(neighborY + 180 + 24);
+  const after = await readNode();
+  expect(after.size.width).toBe(560);
+  const untouched = await (await request.get(`/api/canvas/node/${neighbor.id}`)).json();
+  expect(untouched.position).toEqual({ x: 100, y: neighborY });
+  // A single undo reverses the automatic relocation and its size adjustment.
+  await request.post('/api/canvas/undo');
+  await expect.poll(async () => (await readNode()).position).toEqual(before.position);
+  await expect.poll(async () => (await readNode()).size).toEqual(before.size);
+  await expect.poll(async () => (await node.boundingBox())?.height).toBeCloseTo(before.size.height, 0);
+  await request.post('/api/canvas/redo');
+  await expect.poll(async () => (await readNode()).position).toEqual(after.position);
+  await expect.poll(async () => (await readNode()).size).toEqual(after.size);
+  await expect.poll(async () => (await node.boundingBox())?.height).toBeCloseTo(after.size.height, 0);
+  // Center the moved card for rendered inspection without altering node geometry.
+  await request.post('/api/canvas/viewport', {
+    data: { x: 20 - after.position.x, y: 40 - after.position.y, scale: 1 },
+  });
+  await expect(frame.getByText('Checklist item 16', { exact: true })).toBeVisible();
+  const measured = await frame
+    .locator('body')
+    .evaluate((body) => ({ content: body.scrollHeight, viewport: window.innerHeight }));
+  expect(measured.content).toBeLessThanOrEqual(measured.viewport + 2);
+  await node.screenshot({ path: testInfo.outputPath('slotted-card.png') });
+  await page.reload();
+  await expect.poll(async () => (await readNode()).position).toEqual(after.position);
+});
+
+test('json-render streaming renders partial content then reloads the completed spec', async ({
+  page,
+  request,
+}, testInfo) => {
+  const created = await request.post('/api/canvas/json-render/stream', {
+    data: {
+      title: 'Streaming compatibility',
+      x: 180,
+      y: 120,
+      width: 600,
+      height: 400,
+      patches: [
+        { op: 'replace', path: '/root', value: 'root' },
+        { op: 'add', path: '/elements/root', value: { type: 'Stack', props: {}, children: ['heading', 'late'] } },
+        { op: 'add', path: '/elements/heading', value: { type: 'Heading', props: { text: 'Receiving content' } } },
+      ],
+    },
+  });
+  expect(created.ok(), await created.text()).toBe(true);
+  const { id } = await created.json();
+  await page.goto('/workbench');
+  const node = page.locator('.canvas-node').filter({ hasText: 'Streaming compatibility' });
+  const frame = node.frameLocator('iframe');
+  await expect(frame.getByText('Receiving content', { exact: true })).toBeVisible();
+  const oldSrc = await node.locator('iframe').getAttribute('src');
+  const updated = await request.post('/api/canvas/json-render/stream', {
+    data: {
+      nodeId: id,
+      done: true,
+      patches: [
+        { op: 'add', path: '/state', value: { message: 'Stream complete with preserved state' } },
+        { op: 'replace', path: '/elements/heading/props/text', value: 'Completed panel' },
+        { op: 'add', path: '/elements/late', value: { type: 'Text', props: { text: { $state: '/message' } } } },
+      ],
+    },
+  });
+  expect(updated.ok(), await updated.text()).toBe(true);
+  await expect(node.locator('iframe')).not.toHaveAttribute('src', oldSrc!);
+  await expect(frame.getByText('Completed panel', { exact: true })).toBeVisible();
+  await expect(frame.getByText('Stream complete with preserved state', { exact: true })).toBeVisible();
+  await node.screenshot({ path: testInfo.outputPath('json-render-stream.png') });
+});
+
 test('json-render bridge: a spec action named ax.* emits an AX interaction via the viewer', async ({
   page,
   request,
@@ -2773,9 +2995,9 @@ test('graph nodes content-fit to a stable size across expand and close', async (
   await expect.poll(fetchSize).toMatchObject({ width: 480 });
   await expect.poll(async () => (await fetchSize()).height).toBeGreaterThan(380);
   const fit = await fetchSize();
-  const before = await graphNode.boundingBox();
-  expect(before?.width).toBeCloseTo(480, 0);
-  expect(before?.height).toBeCloseTo(fit.height, 0);
+  // Persistence need not wait for the CSS resize transition to finish.
+  await expect.poll(async () => (await graphNode.boundingBox())?.width).toBeCloseTo(480, 0);
+  await expect.poll(async () => (await graphNode.boundingBox())?.height).toBeCloseTo(fit.height, 0);
 
   await graphNode.getByTitle('Expand (focus mode)').click();
   await expect(page.locator('.expanded-overlay-panel')).toBeVisible();

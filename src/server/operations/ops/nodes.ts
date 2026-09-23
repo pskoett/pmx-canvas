@@ -8,6 +8,7 @@
  *
  * This module must never import server.ts or index.ts.
  */
+import { resolve } from 'node:path';
 import { z } from 'zod';
 import { canvasState, type CanvasAnnotation, type CanvasLayout, type CanvasNodeState } from '../../canvas-state.js';
 import {
@@ -1145,7 +1146,7 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
     },
   },
   handler: async (input, ctx) => {
-    const body: Record<string, unknown> = input;
+    let body: Record<string, unknown> = input;
     const id = input.id;
     const existing = canvasState.getNode(id);
     if (!existing) throw new OperationError(`Node "${id}" not found.`, 404);
@@ -1162,7 +1163,48 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
       const result = await refreshCanvasWebpageNode(id, { ...(url ? { url } : {}) });
       return result as unknown as Record<string, unknown>;
     }
+
+    let nextFilePath: string | null = null;
+    let nextFileContent: ReturnType<typeof readFileNodeContent> | null = null;
+    if (existing.type === 'file') {
+      const nestedData = isRecord(body.data) ? body.data : undefined;
+      const hasTopLevelPath = body.path !== undefined;
+      const hasNestedPath = nestedData?.path !== undefined;
+      if (hasTopLevelPath || hasNestedPath) {
+        const normalizePath = (value: unknown): string => {
+          if (typeof value !== 'string' || !value.trim()) {
+            throw new OperationError('File node "path" must be a non-empty string.');
+          }
+          return resolve(canvasState.getWorkspaceRoot(), value.trim());
+        };
+        const normalizedTopLevelPath = hasTopLevelPath ? normalizePath(body.path) : undefined;
+        const normalizedNestedPath = hasNestedPath ? normalizePath(nestedData?.path) : undefined;
+        body = {
+          ...body,
+          ...(normalizedTopLevelPath ? { path: normalizedTopLevelPath } : {}),
+          ...(nestedData
+            ? { data: { ...nestedData, ...(normalizedNestedPath ? { path: normalizedNestedPath } : {}) } }
+            : {}),
+        };
+        nextFilePath = normalizedNestedPath ?? normalizedTopLevelPath ?? null;
+        nextFileContent = nextFilePath ? readFileNodeContent(nextFilePath) : null;
+        if (!nextFileContent || nextFileContent.kind === 'unavailable') {
+          throw new OperationError(`File node target "${nextFilePath}" is missing or unreadable.`);
+        }
+      }
+    }
+
     const { patch, groupChildIds } = buildNodePatch(existing, body);
+    const prevPath = existing.type === 'file' && typeof existing.data.path === 'string' ? existing.data.path : null;
+    if (nextFilePath && nextFileContent && patch.data) {
+      const data = { ...patch.data };
+      const prevBase = prevPath?.split(/[\\/]/).pop();
+      if (typeof body.title !== 'string' && (!data.title || data.title === prevBase)) {
+        data.title = nextFilePath.split(/[\\/]/).pop();
+      }
+      applyFileContentToNodeData(data, nextFileContent);
+      patch.data = data;
+    }
     canvasState.updateNode(id, patch);
     if (groupChildIds !== undefined && !setGroupChildrenFromApi(id, groupChildIds)) {
       throw new OperationError(`Group "${id}" not found.`, 404);
@@ -1171,20 +1213,10 @@ const nodeUpdateOperation = defineOperation<z.infer<typeof nodeUpdateSchema>, Re
     // watcher IN PLACE — before this, pointing a file node elsewhere meant
     // recreating it, which lost its edges, pins, and position.
     if (existing.type === 'file') {
-      const prevPath = typeof existing.data.path === 'string' ? existing.data.path : null;
       const repointed = canvasState.getNode(id);
       const nextPath = repointed && typeof repointed.data.path === 'string' ? repointed.data.path : null;
       if (nextPath && nextPath !== prevPath) {
         if (prevPath) unwatchFileForNode(id, prevPath);
-        const data = { ...repointed!.data };
-        // The title follows the file unless the caller pinned one in this
-        // patch or had renamed the node away from the old filename.
-        const prevBase = prevPath?.split(/[\\/]/).pop();
-        if (typeof body.title !== 'string' && (!data.title || data.title === prevBase)) {
-          data.title = nextPath.split(/[\\/]/).pop();
-        }
-        applyFileContentToNodeData(data, readFileNodeContent(nextPath));
-        canvasState.updateNode(id, { data });
         watchFileForNode(id, nextPath);
         scheduleCodeGraphRecompute(() => {
           ctx.emit('canvas-layout-update', { layout: canvasState.getLayout() });
