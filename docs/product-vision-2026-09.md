@@ -141,6 +141,8 @@ With one journal, a **time scrubber** replaces snapshots, the History drawer, an
 
 ## Part 3: Long term, hosted multiplayer
 
+**Decided with the maintainer, 2026-09-23:** the destination is "share this board" (static export, then a read-only link, then comments, then a second writer, then accounts and per-board roles, single-tenant), not hosted multi-tenant multiplayer. Boards themselves become the wiki (portals, levels, wiki links, a board map), and four further moves are added: static export, tours, recipe cards and new board from this board. See [`product-vision-review-2026-09.md`](product-vision-review-2026-09.md). The text below is kept as the reasoning it replaces.
+
 **Discussion extension, 2026-09-06:** [Boards, personal wiki, and workspace context](product-context-vision-2026-09.md) reviews this plan and proposes app-owned personal and shared knowledge built from board evidence. It includes oracle feedback, publication and permission boundaries, corrections to the trust/provenance assumptions below, and a small validation experiment. It is a proposal, not a replacement for the maintainer's settled decisions or authorization to start hosted work.
 
 The maintainer's long-term direction, and the natural end of the two-way surface: the board is hosted, people log in, and several humans and their agents work on the same canvas. My position is that this is the right destination and that almost everything in Part 2 is its prerequisite, which is the strongest argument for Part 2.
