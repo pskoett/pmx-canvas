@@ -162,7 +162,7 @@ Migration: the current board becomes Home. The nine real boards in snapshot hist
 
 `CanvasStateManager` is one singleton holding one board, and 400+ call sites assume it. Two stages keep the cost down:
 
-1. **One active board per server.** Opening a board saves and loads, the same as a restore. Reads of other boards (library, portals, brief, map) query SQLite directly and never load a second board into memory. Agent writes to a board other than the active one are refused with a clear error. This is enough for one person with one or two agents and is the S-sized move 0.
+1. **One active board per server.** Opening a board saves and loads, the same as a restore. Reads of other boards (library, portals, brief, map) query SQLite directly and never load a second board into memory. Agent writes to a board other than the active one are refused with a clear error. This is enough for one person with one or two agents and is the first stage of move 0 (resized from S to M on 2026-09-24: `board_id` on five tables, per-board snapshots, a `board` target on every transport).
 2. **Concurrent boards.** A registry of state managers keyed by board id, loaded on demand, so an agent can work on one board while the human looks at another. This is an L-sized change and should wait until stage 1 is used and the journal (move 4) exists, since each board then gets its own journal.
 
 ### What this replaces in the context vision
@@ -205,7 +205,7 @@ Four moves that follow from what the real boards contain. Two make the sharing d
 Sharing through a network mode has to wait for the trust fixes, since the vision makes move 7 mandatory before any port is opened. A self-contained HTML file of one board does not: the renderer and the board's data in one file, read-only, with pan, zoom and card expand. It can be attached to an email or a chat message, or posted to a wiki page.
 
 - No server, no authentication, no attack surface, and the app produces the file itself, so the no-externals rule holds.
-- The sharing path becomes **export → link → comments → second writer**. The first step ships in days and puts a board in front of a colleague, which is the second-user milestone.
+- The sharing path becomes **export → link → comments → second writer**. The first step puts a board in front of a colleague, which is the second-user milestone (resized from S to M on 2026-09-24 and shipped on its own as 0.7.x).
 - The live `C4 2026 OKR planning` board has a "Workshop flow" card; exporting that board for the workshop's participants is the first real test.
 - Iframe-backed nodes export their stored markup inside sandboxed iframes, as they render today. A node whose content cannot be inlined (a live MCP app) exports as its last screenshot and says so.
 
