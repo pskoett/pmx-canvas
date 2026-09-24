@@ -76,6 +76,8 @@ Until that exists, "attention is the compiler" is a belief.
 
 Four hosts, sandboxed iframes and WebKit took most of the 0.5 and 0.6 work. Move 5's single frame host is necessary but not sufficient. Name one reference surface where everything must work (the standalone browser, or the compiled binary in its own window), and treat embedded panes as best-effort with an honest fallback. Otherwise field reports keep setting the roadmap.
 
+**Decided with the maintainer, 2026-09-24:** Chromium at 600 px, for now; WebKit joins the gate on a trigger. See [vision move 5](product-vision-2026-09.md#5-keep-every-node-type-unify-how-they-render-m).
+
 ### 6. The host's chat is the steering channel
 
 Canvas steering went nearly silent once real work moved to Copilot, whose own chat sits beside the board. The evidence is one board, so this is a signal rather than a finding. Steering and the fleet layer stay, per the 2026-09-06 decision, but they are unlikely to drive growth. The canvas wins on what host chat cannot do: a persistent, spatial, shareable result.
@@ -247,7 +249,7 @@ The same OKR board appears in April and again for C4. **New board from this boar
 
 | Horizon | Content |
 |---|---|
-| Now (weeks) | Human-only gate resolution backed by a real secret, toasts on failed writes, a redirect host filter, many boards with one active (restore the nine lost boards), instrumentation of what agents read, and static export. |
+| Now (weeks) | Human-only answers with requester withdraw (decided 2026-09-24), backed by a real secret, toasts on failed writes, a redirect host filter, many boards with one active (restore the nine lost boards), instrumentation of what agents read, and static export. |
 | Foundation (1–2 months) | Portals, the board library, wiki links, the board map and the cross-board brief; new board from this board, tours and recipe cards; the journal and author on every node, with snapshots as bookmarks; agent output as cards; the SDK routed through the registry. |
 | Reach (1.0 and after) | Read-only share links and the time scrubber in 1.0, then comments, then a second writer. |
 | Only if pulled by use | Personal and shared knowledge governance; multi-tenant hosting. |
