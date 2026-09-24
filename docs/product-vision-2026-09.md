@@ -24,7 +24,7 @@
 | 0.7.x | Static export with the per-board rule | A colleague opens an exported board with no install |
 | 0.8 | Portals and the library, search across boards, a meaningful text form for every node type, the cross-board brief, author on every node, new board from this board | The brief check passes and the measurement is read against its decision rule |
 
-**Hold the line.** No host-compatibility work jumps the queue until 0.7 ships, apart from regressions the reference project catches.
+**Hold the line.** No host-compatibility work jumps the queue until 0.7 ships, with two exceptions: regressions the reference project catches, and a bug that blocks the maintainer's real work in the host they use daily (today the Copilot app, a WebKit pane the Chromium reference does not cover). The second exception is narrow on purpose: it covers a board that cannot be used, not a tile that paints late or a host the maintainer is only testing.
 
 ## The one-line vision
 
