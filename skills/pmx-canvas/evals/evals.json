@@ -486,6 +486,52 @@
           "type": "output_check"
         }
       ]
+    },
+    {
+      "id": 20,
+      "name": "pump-startup-skip-history",
+      "prompt": "In an isolated workspace I queued an instruction for testbot, then started pmx-canvas pump --consumer testbot --exec cat --once. The instruction disappeared from pending, but cat printed nothing and the pump says parked. Did it perform the work? Explain what to do for future tasks without replaying old instructions.",
+      "expected_output": "Explains that default startup acknowledges pending history for this consumer without executing it. Does not report the work as performed or infer execution from delivery marks. Explains that --once waits for one successful command execution and can remain parked after skipping history. Keeps the safety default and starts the pump before accepting new tasks; a fresh addressed test message should reach cat and allow --once to exit. Does not promise automatic wakeup of an existing desktop task.",
+      "assertions": [
+        {
+          "name": "acknowledgement-is-not-execution",
+          "description": "Identifies default startup skipping and marking backlog, and explicitly says the old instruction was not executed",
+          "type": "output_check"
+        },
+        {
+          "name": "once-waits-for-execution",
+          "description": "Explains why --once remains parked after skipping history and proposes a fresh addressed message after pump startup",
+          "type": "output_check"
+        },
+        {
+          "name": "preserves-safe-default",
+          "description": "Does not replay old instructions, change runtime defaults, or claim automatic desktop-task wakeup",
+          "type": "output_check"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "name": "pump-startup-deliver-reviewed-backlog",
+      "prompt": "In a disposable POSIX workspace, one harmless message is already queued for testbot. I reviewed it and want the pump to print it using cat, acknowledge it after success, and exit. Give the command and explain how you would verify it, including a failing-command control.",
+      "expected_output": "Uses pmx-canvas pump --consumer testbot --exec cat --backlog=deliver --once against the verified isolated target. Explains that omitting --backlog=deliver would skip and acknowledge the old message without executing cat. Verifies the queued message appears in command output, the pump exits successfully, and it is no longer pending for testbot. Uses a separate disposable message/consumer for a command exiting nonzero and confirms it remains pending after retries. Does not treat queue acknowledgement alone as proof of execution.",
+      "assertions": [
+        {
+          "name": "explicit-reviewed-backlog-mode",
+          "description": "Chooses --backlog=deliver with --once, the correct consumer and harmless cat command, rather than silently relying on default startup",
+          "type": "output_check"
+        },
+        {
+          "name": "verifies-output-and-delivery",
+          "description": "Requires actual command output and successful exit as well as a per-consumer pending check; contrasts the default skip behavior",
+          "type": "output_check"
+        },
+        {
+          "name": "failure-remains-pending",
+          "description": "Keeps the failing-command control isolated and expects nonzero exit after retries with the instruction still pending",
+          "type": "output_check"
+        }
+      ]
     }
   ]
 }

@@ -67,6 +67,13 @@ the canvas is the union of its [built-in node types](docs/node-types.md) and
 **whatever your agent's harness already has access to** — MCP servers, CLIs,
 file reads, web fetch, anything on its toolbelt.
 
+JSON-render panels support bound form state, nested repeats, watchers, and Card
+header/footer slots. Form edits remain viewer-local until explicitly submitted;
+see [JSON-render nodes](docs/node-types.md#json-render-nodes). Authored iframe cards
+can grow with their content and move clear of neighbors, with human-grab deferral
+and undoable relocation. This is grow-only height fitting, not shrink-to-content
+or camera zoom; see [sizing limits](docs/node-types.md#automatic-sizing-of-authored-iframe-cards).
+
 ### 03 / Annotate
 
 Draw freehand marks directly on the canvas to circle, underline, connect, or
@@ -365,7 +372,7 @@ services:
 ```bash
 # .agents/setup — install the CLI (pin the exact version: a fresh orb running
 # @latest can silently pick up a newer release than the one you validated)
-npm install -g pmx-canvas@0.6.3
+npm install -g pmx-canvas@0.6.4
 ```
 
 The server binds the portal-assigned `$PORT` automatically (gated on the
@@ -417,14 +424,22 @@ scripts, and assets at `skill://<name>/<path>`. Files come from the running MCP 
 restart MCP after an upgrade. Host support determines automatic skill loading, and reading
 a skill never grants permission to execute its scripts. Filesystem installation remains available.
 
+## Bugs, feature requests, and feedback
+
+Click the small bug icon below the logo in the left toolbar (**Bug and feedback**).
+Choose Bug report, Feature request, or General feedback, then enter a title and
+description. **Continue on GitHub** opens a prefilled issue in this repository;
+sign in to GitHub, review it, and submit. Issues are public. No board data, workspace
+paths, screenshots, or logs are attached automatically.
+
 ## Documentation
 
 - **[Node types](docs/node-types.md)** — every node type, edge types, and
   the three-tier visual matrix (json-render → html → web-artifact)
 - **[CLI reference](docs/cli.md)** — full command surface, daemon mode,
   watch streams, WebView automation
-- **[MCP reference](docs/mcp.md)** — 22 tools, 14 resources, change
-  notifications, node-type routing
+- **[MCP reference](docs/mcp.md)** — 22 tools, 14 core resources plus bundled
+  skill resources, Skills extension, change notifications, node-type routing
 - **[HTTP API](docs/http-api.md)** — REST endpoints, SSE, batch operations
 - **[AX host-adapter contract](docs/ax-host-adapter-contract.md)** — how native
   host adapters connect context, steering, activity, and human gates

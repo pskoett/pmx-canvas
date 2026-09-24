@@ -18,7 +18,7 @@ Humans curate agent context by pinning nodes; agents read that curation through
 
 ## Runtime prerequisites
 
-PMX Canvas 0.6.3 requires **Bun >=1.4.2**, including when installed through npm.
+PMX Canvas 0.6.4 requires **Bun >=1.4.2**, including when installed through npm.
 Check `bun --version` and ensure Bun is on the MCP host's PATH, not just your shell's;
 use an absolute executable path if needed. Install/configure only when requested.
 For pinned installation, MCP configuration, managed services, and disposable verification,
@@ -313,8 +313,15 @@ The board has three modes, all gated on one fact — whether a session is attach
   terminal: `pmx-canvas pump --consumer <your-key> --exec '<command>'`. It long-polls your
   delivery queue, runs the command once per steer (message on stdin plus the
   `PMX_STEER_MESSAGE`/`ID`/`SOURCE`/`TARGET`/`CREATED_AT` env envelope), and marks
-  per-consumer only after the command exits 0 — a failed hand-off stays pending and the pump
-  exits non-zero. `{message}` in the template expands to a quoted env reference (never spliced;
+  executed steers per-consumer after the command exits 0 — a failed hand-off stays pending
+  after retries and the pump exits non-zero. **Startup exception:** by default the pump
+  silently marks pending backlog delivered for this consumer **without executing it**.
+  Start the pump before accepting new tasks, or review queued instructions and deliberately
+  pass `--backlog=deliver` to execute them. A startup acknowledgement is not proof of work;
+  `--once` can remain waiting for a fresh steer after skipping history. With reviewed backlog,
+  `pmx-canvas pump --consumer <your-key> --exec '<command>' --backlog=deliver --once`
+  executes one queued steer. This does not automatically wake an existing desktop task.
+  `{message}` in the template expands to a quoted env reference (never spliced;
   refused on Windows — read stdin there). `--parent <key>` rolls you up under an orchestrator's
   chip; `--once` for scripts. See `pmx-canvas pump --help`.
 

@@ -4474,6 +4474,38 @@ html.is-node-resizing .ext-app-preview-catcher {
   font-weight: 600;
 }
 
+.feedback-backdrop {
+  position: fixed;
+  padding: 24px 0;
+  align-items: center;
+}
+.feedback-dialog {
+  width: min(480px, calc(100% - 32px));
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
+  color: var(--c-text);
+}
+.feedback-dialog label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+}
+.feedback-note {
+  margin: 0;
+  color: var(--c-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.feedback-dialog textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+.feedback-dialog button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Selection action bar — floating bottom-center of the canvas region
    (rail-chrome-v2 phase 7, item 13). */
 /* In a session the command bar owns the bottom-center slot — lift the

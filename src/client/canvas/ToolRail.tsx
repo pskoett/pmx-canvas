@@ -34,6 +34,7 @@ import {
 import { saveCanvasTheme } from '../state/intent-bridge';
 import { createNodeInView } from './create-in-view';
 import { askText } from './TextPrompt';
+import { FeedbackDialog } from './FeedbackDialog';
 import { clearThemeOverride } from '../state/theme-override';
 import { invalidateTokenCache } from '../theme/tokens';
 import type { AnnotationTool } from '../types';
@@ -170,6 +171,7 @@ export function ToolRail({
   const isTraceOn = traceEnabled.value;
   const traceNodeCount = Array.from(nodes.value.values()).filter((n) => n.type === 'trace').length;
   const edgeCount = edges.value.size;
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [openMenu, setOpenMenu] = useState<null | 'theme' | 'annotate'>(null);
   const [menuAnchor, setMenuAnchor] = useState<{ top: number; bottom: number; right: number } | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
@@ -236,212 +238,246 @@ export function ToolRail({
   };
 
   return (
-    <div class="tool-rail" ref={railRef} role="toolbar" aria-label="Canvas tools" aria-orientation="vertical">
-      <span class="rail-brand" title="PMX Canvas" aria-label="PMX Canvas">
-        <IconLogo size={22} />
-      </span>
+    <>
+      <div class="tool-rail" ref={railRef} role="toolbar" aria-label="Canvas tools" aria-orientation="vertical">
+        <span class="rail-brand" title="PMX Canvas" aria-label="PMX Canvas">
+          <IconLogo size={22} />
+        </span>
 
-      <div class="rail-divider" />
-
-      <RailButton label="Select" shortcut="V" active={tool === 'select'} onClick={() => (canvasTool.value = 'select')}>
-        <IconCursorTool />
-      </RailButton>
-      <RailButton label="Pan" shortcut="Space" active={tool === 'pan'} onClick={() => (canvasTool.value = 'pan')}>
-        <IconHandTool />
-      </RailButton>
-      <RailButton
-        label="Connect"
-        shortcut="C"
-        active={tool === 'connect'}
-        onClick={() => (canvasTool.value = 'connect')}
-      >
-        <svg
-          width="15"
-          height="15"
-          viewBox="0 0 16 16"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="1.5"
-          stroke-linecap="round"
-          aria-hidden="true"
-        >
-          <circle cx="4" cy="4" r="2" />
-          <circle cx="12" cy="12" r="2" />
-          <path d="M5.5 5.5 C 8 8, 8 8, 10.5 10.5" />
-        </svg>
-      </RailButton>
-
-      <div class="rail-divider" />
-
-      <RailButton
-        label="Markdown note"
-        shortcut="M"
-        onClick={() =>
-          void createNodeInView({ type: 'markdown', title: 'New note', width: 520, height: 360 }).catch((error) =>
-            logRailError('create markdown', error),
-          )
-        }
-      >
-        <IconNodeMarkdown size={15} />
-      </RailButton>
-      <RailButton label="Image" shortcut="I" onClick={() => promptedCreate('image')}>
-        <IconNodeImage size={15} />
-      </RailButton>
-      <RailButton label="File" shortcut="Shift+F" onClick={() => promptedCreate('file')}>
-        <IconNodeFile size={15} />
-      </RailButton>
-      <RailButton label="Webpage" shortcut="W" onClick={() => promptedCreate('webpage')}>
-        <IconNodeWebpage size={15} />
-      </RailButton>
-      <RailButton
-        label="HTML surface"
-        shortcut="H"
-        onClick={() =>
-          void createNodeInView({ type: 'html', title: 'HTML surface' }).catch((error) =>
-            logRailError('create html', error),
-          )
-        }
-      >
-        <IconNodeHtml />
-      </RailButton>
-      <RailButton
-        label="Group"
-        shortcut="G"
-        onClick={() =>
-          void createNodeInView({ type: 'group', title: 'Group' }).catch((error) => logRailError('create group', error))
-        }
-      >
-        <IconNodeGroup size={15} />
-      </RailButton>
-      <span class="toolbar-menu-anchor">
         <RailButton
-          label="Annotate"
-          shortcut="A"
-          detail="Draw · Text note · Eraser"
-          active={annotationTool !== null}
-          menuOpen={openMenu === 'annotate'}
-          onClick={toggleMenu('annotate')}
+          label="Bug and feedback"
+          menuOpen={feedbackOpen}
+          onClick={() => {
+            setOpenMenu(null);
+            setFeedbackOpen(true);
+          }}
         >
-          {annotationTool === 'eraser' ? (
-            <IconEraser />
-          ) : annotationTool === 'text' ? (
-            <IconTextAnnotation />
-          ) : (
-            <IconPen />
-          )}
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="4.5" y="5" width="7" height="9" rx="3.5" />
+            <path d="M6 5V4a2 2 0 0 1 4 0v1M8 8v6M2 4l2.5 2M14 4l-2.5 2M1.5 9h3M11.5 9h3M2 14l2.5-2M14 14l-2.5-2" />
+          </svg>
         </RailButton>
-        {openMenu === 'annotate' && (
-          <div class="toolbar-menu" style={sideMenuStyle(false)} role="menu" aria-label="Annotate">
-            <button
-              type="button"
-              class={`toolbar-menu-item${annotationTool === 'pen' ? ' active' : ''}`}
-              onClick={() => {
-                onSetAnnotationTool(annotationTool === 'pen' ? null : 'pen');
-                setOpenMenu(null);
-              }}
-            >
-              <IconPen />
-              <span>{annotationTool === 'pen' ? 'Stop annotating' : 'Draw (A)'}</span>
-            </button>
-            <button
-              type="button"
-              class={`toolbar-menu-item${annotationTool === 'text' ? ' active' : ''}`}
-              onClick={() => {
-                onSetAnnotationTool(annotationTool === 'text' ? null : 'text');
-                setOpenMenu(null);
-              }}
-            >
-              <IconTextAnnotation />
-              <span>{annotationTool === 'text' ? 'Stop text notes' : 'Text note'}</span>
-            </button>
-            <button
-              type="button"
-              class={`toolbar-menu-item${annotationTool === 'eraser' ? ' active' : ''}`}
-              onClick={() => {
-                onSetAnnotationTool(annotationTool === 'eraser' ? null : 'eraser');
-                setOpenMenu(null);
-              }}
-            >
+
+        <div class="rail-divider" />
+
+        <RailButton
+          label="Select"
+          shortcut="V"
+          active={tool === 'select'}
+          onClick={() => (canvasTool.value = 'select')}
+        >
+          <IconCursorTool />
+        </RailButton>
+        <RailButton label="Pan" shortcut="Space" active={tool === 'pan'} onClick={() => (canvasTool.value = 'pan')}>
+          <IconHandTool />
+        </RailButton>
+        <RailButton
+          label="Connect"
+          shortcut="C"
+          active={tool === 'connect'}
+          onClick={() => (canvasTool.value = 'connect')}
+        >
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 16 16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+            aria-hidden="true"
+          >
+            <circle cx="4" cy="4" r="2" />
+            <circle cx="12" cy="12" r="2" />
+            <path d="M5.5 5.5 C 8 8, 8 8, 10.5 10.5" />
+          </svg>
+        </RailButton>
+
+        <div class="rail-divider" />
+
+        <RailButton
+          label="Markdown note"
+          shortcut="M"
+          onClick={() =>
+            void createNodeInView({ type: 'markdown', title: 'New note', width: 520, height: 360 }).catch((error) =>
+              logRailError('create markdown', error),
+            )
+          }
+        >
+          <IconNodeMarkdown size={15} />
+        </RailButton>
+        <RailButton label="Image" shortcut="I" onClick={() => promptedCreate('image')}>
+          <IconNodeImage size={15} />
+        </RailButton>
+        <RailButton label="File" shortcut="Shift+F" onClick={() => promptedCreate('file')}>
+          <IconNodeFile size={15} />
+        </RailButton>
+        <RailButton label="Webpage" shortcut="W" onClick={() => promptedCreate('webpage')}>
+          <IconNodeWebpage size={15} />
+        </RailButton>
+        <RailButton
+          label="HTML surface"
+          shortcut="H"
+          onClick={() =>
+            void createNodeInView({ type: 'html', title: 'HTML surface' }).catch((error) =>
+              logRailError('create html', error),
+            )
+          }
+        >
+          <IconNodeHtml />
+        </RailButton>
+        <RailButton
+          label="Group"
+          shortcut="G"
+          onClick={() =>
+            void createNodeInView({ type: 'group', title: 'Group' }).catch((error) =>
+              logRailError('create group', error),
+            )
+          }
+        >
+          <IconNodeGroup size={15} />
+        </RailButton>
+        <span class="toolbar-menu-anchor">
+          <RailButton
+            label="Annotate"
+            shortcut="A"
+            detail="Draw · Text note · Eraser"
+            active={annotationTool !== null}
+            menuOpen={openMenu === 'annotate'}
+            onClick={toggleMenu('annotate')}
+          >
+            {annotationTool === 'eraser' ? (
               <IconEraser />
-              <span>{annotationTool === 'eraser' ? 'Stop erasing' : 'Eraser'}</span>
-            </button>
-          </div>
-        )}
-      </span>
-
-      <div class="rail-spacer" />
-
-      <RailButton label="Search & commands" shortcut={modChord('K')} onClick={onOpenPalette}>
-        <IconSearch />
-      </RailButton>
-      <RailButton
-        label="Arrange"
-        detail={edgeCount > 0 ? 'graph-aware' : 'grid'}
-        onClick={() => (edgeCount > 0 ? forceDirectedArrange() : autoArrange())}
-      >
-        <IconArrange />
-      </RailButton>
-      <RailButton
-        label={isTraceOn ? 'Disable trace' : 'Enable trace'}
-        active={isTraceOn}
-        onClick={() => sendIntent('trace-toggle', { enabled: !isTraceOn })}
-      >
-        <IconTrace />
-      </RailButton>
-      {(isTraceOn || traceNodeCount > 0) && (
-        <RailButton label="Clear trace" onClick={() => sendIntent('trace-clear')}>
-          <IconClearTrace />
-        </RailButton>
-      )}
-      <RailButton
-        label={minimapVisible ? 'Hide minimap' : 'Show minimap'}
-        active={minimapVisible}
-        onClick={onToggleMinimap}
-      >
-        <IconMinimap />
-      </RailButton>
-      <RailButton label="Snapshots" active={snapshotOpen} onClick={onToggleSnapshot} btnRef={snapshotBtnRef}>
-        <IconSnapshot />
-      </RailButton>
-      <span class="toolbar-menu-anchor">
-        <RailButton
-          label="Theme"
-          detail={CANVAS_THEME_META[activeTheme].label}
-          menuOpen={openMenu === 'theme'}
-          ariaLabel="Choose theme"
-          active={openMenu === 'theme'}
-          onClick={toggleMenu('theme')}
-        >
-          {canvasThemeScheme(activeTheme) === 'dark' ? <IconSun /> : <IconMoon />}
-        </RailButton>
-        {openMenu === 'theme' && (
-          <div class="toolbar-menu" style={sideMenuStyle(true)} role="menu" aria-label="Theme">
-            {CANVAS_THEMES.map((name) => (
+            ) : annotationTool === 'text' ? (
+              <IconTextAnnotation />
+            ) : (
+              <IconPen />
+            )}
+          </RailButton>
+          {openMenu === 'annotate' && (
+            <div class="toolbar-menu" style={sideMenuStyle(false)} role="menu" aria-label="Annotate">
               <button
-                key={name}
                 type="button"
-                role="menuitemradio"
-                aria-checked={activeTheme === name}
-                class={`toolbar-menu-item${activeTheme === name ? ' active' : ''}`}
-                onClick={() => applyTheme(name)}
+                class={`toolbar-menu-item${annotationTool === 'pen' ? ' active' : ''}`}
+                onClick={() => {
+                  onSetAnnotationTool(annotationTool === 'pen' ? null : 'pen');
+                  setOpenMenu(null);
+                }}
               >
-                <span class="theme-swatch" style={{ background: CANVAS_THEME_META[name].swatchBg }}>
-                  <span class="theme-swatch-dot" style={{ background: CANVAS_THEME_META[name].swatchAccent }} />
-                </span>
-                <span>{CANVAS_THEME_META[name].label}</span>
-                {activeTheme === name && (
-                  <span class="toolbar-menu-check" aria-hidden="true">
-                    ✓
-                  </span>
-                )}
+                <IconPen />
+                <span>{annotationTool === 'pen' ? 'Stop annotating' : 'Draw (A)'}</span>
               </button>
-            ))}
-          </div>
+              <button
+                type="button"
+                class={`toolbar-menu-item${annotationTool === 'text' ? ' active' : ''}`}
+                onClick={() => {
+                  onSetAnnotationTool(annotationTool === 'text' ? null : 'text');
+                  setOpenMenu(null);
+                }}
+              >
+                <IconTextAnnotation />
+                <span>{annotationTool === 'text' ? 'Stop text notes' : 'Text note'}</span>
+              </button>
+              <button
+                type="button"
+                class={`toolbar-menu-item${annotationTool === 'eraser' ? ' active' : ''}`}
+                onClick={() => {
+                  onSetAnnotationTool(annotationTool === 'eraser' ? null : 'eraser');
+                  setOpenMenu(null);
+                }}
+              >
+                <IconEraser />
+                <span>{annotationTool === 'eraser' ? 'Stop erasing' : 'Eraser'}</span>
+              </button>
+            </div>
+          )}
+        </span>
+
+        <div class="rail-spacer" />
+
+        <RailButton label="Search & commands" shortcut={modChord('K')} onClick={onOpenPalette}>
+          <IconSearch />
+        </RailButton>
+        <RailButton
+          label="Arrange"
+          detail={edgeCount > 0 ? 'graph-aware' : 'grid'}
+          onClick={() => (edgeCount > 0 ? forceDirectedArrange() : autoArrange())}
+        >
+          <IconArrange />
+        </RailButton>
+        <RailButton
+          label={isTraceOn ? 'Disable trace' : 'Enable trace'}
+          active={isTraceOn}
+          onClick={() => sendIntent('trace-toggle', { enabled: !isTraceOn })}
+        >
+          <IconTrace />
+        </RailButton>
+        {(isTraceOn || traceNodeCount > 0) && (
+          <RailButton label="Clear trace" onClick={() => sendIntent('trace-clear')}>
+            <IconClearTrace />
+          </RailButton>
         )}
-      </span>
-      <RailButton label="Shortcuts" shortcut="?" onClick={onOpenShortcuts}>
-        <IconShortcuts />
-      </RailButton>
-    </div>
+        <RailButton
+          label={minimapVisible ? 'Hide minimap' : 'Show minimap'}
+          active={minimapVisible}
+          onClick={onToggleMinimap}
+        >
+          <IconMinimap />
+        </RailButton>
+        <RailButton label="Snapshots" active={snapshotOpen} onClick={onToggleSnapshot} btnRef={snapshotBtnRef}>
+          <IconSnapshot />
+        </RailButton>
+        <span class="toolbar-menu-anchor">
+          <RailButton
+            label="Theme"
+            detail={CANVAS_THEME_META[activeTheme].label}
+            menuOpen={openMenu === 'theme'}
+            ariaLabel="Choose theme"
+            active={openMenu === 'theme'}
+            onClick={toggleMenu('theme')}
+          >
+            {canvasThemeScheme(activeTheme) === 'dark' ? <IconSun /> : <IconMoon />}
+          </RailButton>
+          {openMenu === 'theme' && (
+            <div class="toolbar-menu" style={sideMenuStyle(true)} role="menu" aria-label="Theme">
+              {CANVAS_THEMES.map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  role="menuitemradio"
+                  aria-checked={activeTheme === name}
+                  class={`toolbar-menu-item${activeTheme === name ? ' active' : ''}`}
+                  onClick={() => applyTheme(name)}
+                >
+                  <span class="theme-swatch" style={{ background: CANVAS_THEME_META[name].swatchBg }}>
+                    <span class="theme-swatch-dot" style={{ background: CANVAS_THEME_META[name].swatchAccent }} />
+                  </span>
+                  <span>{CANVAS_THEME_META[name].label}</span>
+                  {activeTheme === name && (
+                    <span class="toolbar-menu-check" aria-hidden="true">
+                      ✓
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+        </span>
+        <RailButton label="Shortcuts" shortcut="?" onClick={onOpenShortcuts}>
+          <IconShortcuts />
+        </RailButton>
+      </div>
+      {feedbackOpen && <FeedbackDialog onClose={() => setFeedbackOpen(false)} />}
+    </>
   );
 }

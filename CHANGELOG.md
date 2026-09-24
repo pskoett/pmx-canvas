@@ -3,6 +3,18 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.4] - 2026-09-24
+
+### Added
+
+- A bug icon in the left toolbar opens a form for bug reports, feature requests, and general feedback, with a reviewable GitHub issue draft.
+
+### Internal
+
+- Viewport-fit tests cancel pending animations during teardown so they cannot write the next test's nodes.
+- Documented JSON-render state and slots, authored-card fitting limits, and bundled MCP skill resources.
+- Clarified that the CLI pump skips and acknowledges startup backlog by default; added skill evals for skipping history and explicitly delivering reviewed backlog.
+
 ## [0.6.3] - 2026-09-23
 
 ### Added

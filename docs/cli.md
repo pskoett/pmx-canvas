@@ -41,11 +41,16 @@ adapter that uses the app's native follow-up channel.
   (who sent it), `$PMX_STEER_TARGET` (your consumer key, or `ALL` for a
   broadcast), and `$PMX_STEER_CREATED_AT` — so the host turn can say who
   steered, whether it was addressed, and how old it is.
-- Startup backlog is marked silently (pass `--backlog deliver` to process it).
+- By default, startup backlog is marked delivered for this consumer without running
+  the command. This acknowledgement is not evidence that work was executed. Start the
+  pump before accepting new tasks, or review queued instructions and explicitly pass
+  `--backlog=deliver` to execute them instead of skipping them.
 - A failing command is retried twice, then the pump exits non-zero and leaves
   the steer pending so a failed host injection cannot look delivered.
 - `--parent <key>` rolls the pumped agent up under an orchestrator's chip;
-  `--once` processes a single steer (useful in scripts and tests).
+  `--once` exits after one successful execution, not after skipping startup history.
+  It may therefore wait for a new steer; use `--backlog=deliver --once` when you
+  intend to execute one reviewed, already-queued instruction.
 - Survives daemon restarts; backs off against pre-0.4.9 servers that ignore
   `waitMs`.
 

@@ -137,7 +137,7 @@ with the server's transport, tool name, and arguments.
 
 `json-render` nodes turn structured JSON specs into rendered UI panels
 (dashboards, tables, forms, cards) without writing HTML. PMX Canvas ships the
-[`@json-render/*`](https://www.npmjs.com/package/@json-render/core) runtime
+[`@json-render/*`](https://www.npmjs.com/package/@json-render/core) 0.21.0 runtime
 and component catalog (core + react + shadcn).
 
 ```ts
@@ -157,6 +157,22 @@ canvas_render({
 `Badge` uses shadcn variants: `default`, `secondary`, `destructive`,
 `outline`. Older saved specs using `label` or status variants such as
 `success`/`warning` are normalized during validation.
+
+Specs preserve top-level `state` and element-level `repeat`, `watch`, and
+`slots`. Use `$bindState` with JSON Pointer paths for editable form values;
+`$state` only reads a value. Nested repeats can use `statePath: { "$item": "tasks" }`
+to iterate the current item's tasks. Watchers run after changes, not on mount.
+
+Cards keep their body in `children` and accept
+`slots: { header: ['headingId'], footer: ['actionsId'] }`. Slot IDs reference
+entries in `elements`; a custom header replaces the title and description props.
+See the bundled [json-render guide](../skills/json-render-mcp/SKILL.md)
+for a complete state-bound form with watchers and footer actions.
+
+Form edits are viewer-local, not saved into the stored spec. Reloading the iframe
+or updating its spec (including streaming patches) resets that state. Finish
+streaming before collecting input, and persist important changes through an
+explicit server interaction.
 
 Elements may carry an `on` map (`on.press`, `on.change`, …) binding events to
 actions (`{ action, params }`) — built-in actions (`setState`, `pushState`, …) or
@@ -185,8 +201,34 @@ source + per-viewer nonce + node id) and submits it server-side; `json-render` /
 `graph` viewers are sandboxed surfaces, so caller-supplied `nodeIds` are clamped
 to the node's own id. See the [MCP reference](mcp.md#node-interactions-capability-gated).
 
+AX handlers are fire-and-forget: `onSuccess` means local dispatch completed,
+not that the server accepted the operation. Confirm acceptance through AX state
+or timeline before showing a saved state or clearing a draft. The built-in
+`validateForm` action returns without calling `onSuccess`; do not chain submission
+through that callback.
+
 Use `canvas_render { action: "describe-schema" }` / `canvas_render { action:
 "validate" }` to introspect the component catalog before building a spec.
+
+### Automatic sizing of authored iframe cards
+
+HTML (except presentation decks), Mermaid, JSON-render, graph, and web-artifact
+cards can grow as their rendered content changes. This changes node geometry;
+**Fit view** only changes the camera. Height measurements include title-bar and
+body padding, grow only up to 1400px, and never change the width. Content beyond
+that limit may still scroll; this is not a general shrink-to-content action.
+
+Fitting waits for local or remote human grabs to end. A growing ungrouped,
+screen-unpinned card moves downward if needed to leave a 24px gap from neighboring
+cards, without moving those neighbors. A relocation records one undo step for
+both size and position; height-only adjustments do not add undo entries.
+Grouped or screen-pinned cards retain their positions. Collapsed cards and cards
+marked `strictSize` or `userResized` are not automatically resized. Hosted MCP
+apps and webpage viewers do not use this authored-content fitting behavior.
+
+Read the settled node geometry after mounting rather than treating requested
+dimensions as final. Prefer targeted node reads or the CLI's projected layout
+fields over fetching full content merely to check spacing.
 
 ## HTML nodes
 

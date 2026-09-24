@@ -6,7 +6,14 @@
  */
 import { afterEach, describe, expect, test } from 'bun:test';
 import { canvasFitInsets, registerCanvasArea } from '../../src/client/canvas/canvas-area.ts';
-import { fitAll, focusNode, nodes, setViewport, viewport } from '../../src/client/state/canvas-store.ts';
+import {
+  cancelViewportAnimation,
+  fitAll,
+  focusNode,
+  nodes,
+  setViewport,
+  viewport,
+} from '../../src/client/state/canvas-store.ts';
 import type { CanvasNodeState } from '../../src/client/types.ts';
 
 function stubChrome(selector: string, rect: { top: number; height: number }): HTMLElement {
@@ -39,6 +46,9 @@ function node(id: string, x: number, y: number, width = 400, height = 300): Canv
 }
 
 afterEach(() => {
+  // Geometry can satisfy the assertions before the final animation commit.
+  // Cancel before replacing shared state so it cannot persist the next test's nodes.
+  cancelViewportAnimation();
   document.body.innerHTML = '';
   registerCanvasArea(null);
   nodes.value = new Map();
