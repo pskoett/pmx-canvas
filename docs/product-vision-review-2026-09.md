@@ -249,7 +249,7 @@ The same OKR board appears in April and again for C4. **New board from this boar
 |---|---|
 | Now (weeks) | Human-only gate resolution backed by a real secret, toasts on failed writes, a redirect host filter, many boards with one active (restore the nine lost boards), instrumentation of what agents read, and static export. |
 | Foundation (1–2 months) | Portals, the board library, wiki links, the board map and the cross-board brief; new board from this board, tours and recipe cards; the journal and author on every node, with snapshots as bookmarks; agent output as cards; the SDK routed through the registry. |
-| Reach (after 1.0) | Read-only share links, then comments, then a second writer. The time scrubber is the demo. |
+| Reach (1.0 and after) | Read-only share links and the time scrubber in 1.0, then comments, then a second writer. |
 | Only if pulled by use | Personal and shared knowledge governance; multi-tenant hosting. |
 
 No capability or node type is cut. The fleet layer, every node type and the MCP-app host stay; this changes only what comes first.
