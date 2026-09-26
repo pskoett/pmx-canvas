@@ -448,7 +448,7 @@ single-purpose tools behind an `action` (and, for `canvas_ax_gate`, a `kind`) di
 | `canvas_ax_state` | `get` · `set-focus` · `set-policy` · `report-capability` · `presence` · `set-presence` | Read AX state; set AX focus; patch tool/prompt policy (the scope fence is human-set, read-only here); report host capability; read / set agent presence (phase, cursor, focus, attached session) |
 | `canvas_ax_work` | `add` · `update` · `annotate` | Canvas-bound work items + review annotations |
 | `canvas_ax_gate` | `request` · `resolve` · `await` × `kind` `approval` \| `elicitation` \| `mode` | The human-decision gate machine (request → await → resolve) |
-| `canvas_ax_timeline` | `read` · `record-event` · `add-evidence` · `send-steering` | The bounded AX diagnostics timeline |
+| `canvas_ax_timeline` | `read` · `record-event` · `add-evidence` · `send-steering` · `reads` | The bounded AX diagnostics timeline, and the context read log (`reads`) |
 | `canvas_ax_delivery` | `claim` · `mark` | Adapterless steering delivery (claim → act → mark) |
 | `canvas_intent` | `signal` · `update` · `clear` | Ghost Cursor of Intent — announce a move before making it |
 

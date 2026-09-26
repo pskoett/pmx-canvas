@@ -10,6 +10,7 @@ import {
   type PmxCanvas,
 } from '../server/index.js';
 import type { PmxAxSource } from '../server/ax-state.js';
+import type { ContextReadInput } from '../server/context-reads.js';
 import { HttpOperationInvoker, LocalOperationInvoker, type OperationInvoker } from '../server/operations/index.js';
 
 // openMcpApp / addDiagram / buildWebArtifact / refreshWebpageNode / addHtmlNode /
@@ -73,6 +74,8 @@ export interface CanvasAccess {
   getPolicy(): Promise<GetPolicyResult>;
   getHistory(): Promise<HistoryResult>;
   getPinnedNodeIds(): Promise<string[]>;
+  /** Record a context read the agent made through this MCP server (plan-011). */
+  recordContextRead(read: ContextReadInput): Promise<void>;
   runBatch(operations: RunBatchInput): Promise<RunBatchResult>;
   getCodeGraph(): Promise<CodeGraphResult>;
   // canvas_screenshot (still hand-written — binary payload) is the only webview
@@ -166,6 +169,10 @@ class LocalCanvasAccess implements CanvasAccess {
     return Array.from(canvasState.contextPinnedNodeIds);
   }
 
+  async recordContextRead(read: ContextReadInput): Promise<void> {
+    canvasState.recordContextRead(read);
+  }
+
   async runBatch(operations: RunBatchInput): Promise<RunBatchResult> {
     return await this.canvas.runBatch(operations);
   }
@@ -202,7 +209,12 @@ class RemoteCanvasAccess implements CanvasAccess {
   private async requestJson<T>(method: string, path: string, body?: unknown): Promise<T> {
     const response = await fetch(`${this.remoteBaseUrl}${path}`, {
       method,
-      headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+      // These fetches serve the agent's MCP reads, which this server records
+      // itself — the daemon must not record them a second time (plan-011).
+      headers: {
+        'x-pmx-proxied-read': '1',
+        ...(body === undefined ? {} : { 'Content-Type': 'application/json' }),
+      },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
     const text = await response.text();
@@ -349,6 +361,10 @@ class RemoteCanvasAccess implements CanvasAccess {
   async getPinnedNodeIds(): Promise<string[]> {
     const response = await this.requestJson<{ nodeIds?: string[] }>('GET', '/api/canvas/pinned-context');
     return Array.isArray(response.nodeIds) ? response.nodeIds : [];
+  }
+
+  async recordContextRead(read: ContextReadInput): Promise<void> {
+    await this.requestJson('POST', '/api/canvas/ax/context-reads', read);
   }
 
   async runBatch(operations: RunBatchInput): Promise<RunBatchResult> {

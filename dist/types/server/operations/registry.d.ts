@@ -29,6 +29,12 @@ export interface ExecuteOperationMeta {
      * to agents only, and batch inner writes are always agent-originated.
      */
     fromWorkbench?: boolean;
+    /**
+     * An MCP server attached to this daemon, or a host adapter, fetching on an
+     * agent's behalf. It records the read the agent actually made itself
+     * (POST /api/canvas/ax/context-reads), so this fetch is not recorded.
+     */
+    proxiedRead?: boolean;
 }
 export declare function executeOperation(name: string, rawInput: unknown, meta?: ExecuteOperationMeta): Promise<unknown>;
 export {};

@@ -1,5 +1,6 @@
 import { type CanvasLayout, type CanvasNodeState, type PmxCanvas } from '../server/index.js';
 import type { PmxAxSource } from '../server/ax-state.js';
+import type { ContextReadInput } from '../server/context-reads.js';
 import { type OperationInvoker } from '../server/operations/index.js';
 type AxStateResult = ReturnType<PmxCanvas['getAxState']>;
 type AxContextResult = ReturnType<PmxCanvas['getAxContext']>;
@@ -52,6 +53,8 @@ export interface CanvasAccess {
     getPolicy(): Promise<GetPolicyResult>;
     getHistory(): Promise<HistoryResult>;
     getPinnedNodeIds(): Promise<string[]>;
+    /** Record a context read the agent made through this MCP server (plan-011). */
+    recordContextRead(read: ContextReadInput): Promise<void>;
     runBatch(operations: RunBatchInput): Promise<RunBatchResult>;
     getCodeGraph(): Promise<CodeGraphResult>;
     getAutomationWebViewStatus(): Promise<AutomationWebViewStatus>;

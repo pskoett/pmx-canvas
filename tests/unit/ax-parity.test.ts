@@ -111,6 +111,15 @@ describe('AX neutral-primitive parity and host isolation', () => {
         migrated: true,
       },
       {
+        label: 'context-reads',
+        sdkMethod: 'getContextReads(',
+        httpRoute: '/api/canvas/ax/context-reads',
+        mcpTool: "'canvas_get_context_reads'",
+        cliCommand: "'ax reads',",
+        accessMethod: 'getContextReads(',
+        migrated: true,
+      },
+      {
         label: 'work-item-add',
         sdkMethod: 'addWorkItem(',
         httpRoute: '/api/canvas/ax/work',

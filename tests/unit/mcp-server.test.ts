@@ -865,6 +865,86 @@ describe('MCP parity with CLI', () => {
     expect(httpLayout.nodes.some((node) => node.id === addedByMcp.id)).toBe(true);
   });
 
+  test('records each MCP context read once, with the client name and pinned delivery (local and daemon-attached)', async () => {
+    type ReadLog = {
+      reads: Array<{
+        channel: string;
+        resource: string;
+        consumer: string | null;
+        pinnedNodeIds: string[];
+        deliveredNodeIds: string[];
+      }>;
+    };
+
+    // Local: the MCP server owns the canvas state.
+    const local = await createMcpSession();
+    cleanup.push(async () => {
+      await closeTransportAndReapChild(local.transport);
+      removeTestWorkspace(local.workspaceRoot);
+    });
+    const localNode = parseJsonText<{ id: string }>(
+      (await local.client.callTool({
+        name: 'canvas_node',
+        arguments: { action: 'add', type: 'markdown', title: 'Local pinned', content: 'x' },
+      })) as ToolResultShape,
+    );
+    await local.client.callTool({ name: 'canvas_pin_nodes', arguments: { nodeIds: [localNode.id], mode: 'set' } });
+    await local.client.readResource({ uri: 'canvas://pinned-context' });
+    await local.client.readResource({ uri: 'canvas://summary' });
+    const localLog = parseJsonText<ReadLog>(
+      (await local.client.callTool({
+        name: 'canvas_ax_timeline',
+        arguments: { action: 'reads' },
+      })) as ToolResultShape,
+    );
+    const localResourceReads = localLog.reads.filter((read) => read.channel === 'mcp-resource');
+    expect(localResourceReads.map((read) => read.resource).sort()).toEqual([
+      'canvas://pinned-context',
+      'canvas://summary',
+    ]);
+    expect(localResourceReads.find((read) => read.resource === 'canvas://pinned-context')).toMatchObject({
+      consumer: 'pmx-canvas-mcp-test',
+      pinnedNodeIds: [localNode.id],
+      deliveredNodeIds: [localNode.id],
+    });
+
+    // Attached: the daemon owns the state; the MCP server's internal fetches are
+    // proxied reads, and it posts exactly one record per agent read.
+    const workspaceRoot = createTestWorkspace('pmx-canvas-mcp-reads-');
+    const port = await getAvailablePort();
+    const baseUrl = startCanvasServer({ workspaceRoot, port, autoOpenBrowser: false });
+    if (!baseUrl) throw new Error('Failed to start daemon for MCP context read test.');
+    const attached = await createMcpSessionForWorkspace(workspaceRoot, port);
+    cleanup.push(async () => {
+      await closeTransportAndReapChild(attached.transport);
+      stopCanvasServer();
+      removeTestWorkspace(workspaceRoot);
+    });
+    const created = (await (
+      await fetch(`${baseUrl}/api/canvas/node`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
+        body: JSON.stringify({ type: 'markdown', title: 'Daemon pinned', content: 'x' }),
+      })
+    ).json()) as { id: string };
+    await fetch(`${baseUrl}/api/canvas/context-pins`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-pmx-workbench': '1' },
+      body: JSON.stringify({ nodeIds: [created.id] }),
+    });
+    await attached.client.readResource({ uri: 'canvas://ax-context' });
+
+    const daemonLog = (await (await fetch(`${baseUrl}/api/canvas/ax/context-reads`)).json()) as ReadLog;
+    expect(daemonLog.reads).toHaveLength(1);
+    expect(daemonLog.reads[0]).toMatchObject({
+      channel: 'mcp-resource',
+      resource: 'canvas://ax-context',
+      consumer: 'pmx-canvas-mcp-test',
+      pinnedNodeIds: [created.id],
+      deliveredNodeIds: [created.id],
+    });
+  });
+
   test('preserves structured webview start failures through a daemon-backed MCP session', async () => {
     const workspaceRoot = createTestWorkspace('pmx-canvas-mcp-webview-failure-');
     const timeoutMessage =

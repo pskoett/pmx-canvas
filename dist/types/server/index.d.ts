@@ -201,6 +201,8 @@ export declare class PmxCanvas extends EventEmitter {
         source?: PmxAxSource;
     }): AxInteractionPublicResult;
     getAxTimeline(query?: AxTimelineQuery): ReturnType<typeof canvasState.getAxTimeline>;
+    /** The context read log: which canvas context each agent read and which pinned nodes reached it. */
+    getContextReads(limit?: number): ReturnType<typeof canvasState.getContextReads>;
     listWorkItems(): PmxAxWorkItem[];
     addWorkItem(input: {
         title: string;

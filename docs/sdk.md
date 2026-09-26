@@ -97,6 +97,7 @@ canvas.recordAxEvent({ kind: 'tool-start', summary: 'ran tests' }, { source: 'sd
 canvas.addEvidence({ kind: 'test-output', title: 'unit pass' }, { source: 'sdk' });
 canvas.sendSteering('focus on the failing test first', { source: 'sdk' });
 console.log(canvas.getAxTimeline({ limit: 50 }));
+console.log(canvas.getContextReads(50)); // context read log + per-consumer delivery summary
 
 // Canvas-bound (rides snapshots + restore, cleared by canvas.clear())
 const work = canvas.addWorkItem({ title: 'Wire up auth', status: 'in-progress', nodeIds: [n1] }, { source: 'sdk' });

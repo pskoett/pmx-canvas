@@ -6,6 +6,7 @@
  */
 
 import { Database } from 'bun:sqlite';
+import { CONTEXT_READS_SCHEMA_SQL } from './context-reads.js';
 import { tourSchema, type Tour } from '../shared/tour.js';
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
@@ -294,6 +295,7 @@ export function openCanvasDb(dbPath: string): Database {
   db.exec('PRAGMA synchronous=FULL');
   db.exec('PRAGMA busy_timeout=5000');
   db.exec(SCHEMA_SQL);
+  db.exec(CONTEXT_READS_SCHEMA_SQL);
 
   // Additive columns for pre-existing DBs (fresh installs already get them via SCHEMA_SQL above).
   ensureColumn(db, 'ax_events', 'agent_id', 'agent_id TEXT');

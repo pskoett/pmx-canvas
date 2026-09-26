@@ -385,6 +385,19 @@ cmd(
 );
 
 cmd(
+  'ax reads',
+  'Read the context read log (which context each agent read, and whether pinned nodes reached it)',
+  ['pmx-canvas ax reads', 'pmx-canvas ax reads --limit 200'],
+  async (args) => {
+    const { flags } = parseFlags(args);
+    if (flags.help || flags.h) return showCommandHelp('ax reads');
+
+    const limit = optionalNumberFlag(flags, 'limit', 'pmx-canvas ax reads --limit <n>');
+    output(await invokeOperation('ax.reads.list', limit ? { limit } : {}));
+  },
+);
+
+cmd(
   'ax work add',
   'Add a canvas-bound AX work item',
   [

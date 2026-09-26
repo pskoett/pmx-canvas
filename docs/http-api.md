@@ -276,6 +276,20 @@ curl -X POST http://localhost:4313/api/canvas/ax/evidence \
 # Timeline — read the bounded timeline (default limit 50, max 200)
 curl "http://localhost:4313/api/canvas/ax/timeline?limit=50"
 
+# Context reads — which canvas context each agent read, and whether its pinned
+# nodes were in what came back (newest first, default 50, max 500; the per-consumer
+# summary covers the whole retained log of 5,000 reads). Agent reads of pinned
+# context, AX context, AX state, summary, spatial context and layout are recorded
+# automatically; the workbench's own reads are not.
+curl "http://localhost:4313/api/canvas/ax/context-reads?limit=50"
+
+# Context reads — a proxy (an MCP server attached to this daemon, a host adapter)
+# records the read its agent actually made. Its own fetches send
+# `x-pmx-proxied-read: 1` so they are not recorded twice.
+curl -X POST http://localhost:4313/api/canvas/ax/context-reads \
+  -H "Content-Type: application/json" \
+  -d '{"channel":"adapter","resource":"copilot:prompt-context","consumer":"copilot","pinnedNodeIds":["node-1"],"deliveredNodeIds":["node-1"],"bytes":2048}'
+
 # Canvas-bound — add / update a work item
 curl -X POST http://localhost:4313/api/canvas/ax/work \
   -H "Content-Type: application/json" \

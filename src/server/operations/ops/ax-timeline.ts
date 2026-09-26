@@ -51,6 +51,7 @@ import { canvasState } from '../../canvas-state.js';
 import { buildPendingAxActivity, isAxEventKind, isAxEvidenceKind } from '../../ax-state.js';
 import type { PmxAxEventKind, PmxAxEvidenceKind } from '../../ax-state.js';
 import { waitForAxCondition } from '../../ax-wait.js';
+import { CONTEXT_READ_CHANNELS } from '../../context-reads.js';
 import { defineOperation, OperationError, type Operation } from '../types.js';
 import { isRecord } from './nodes.js';
 import {
@@ -462,6 +463,74 @@ const axCommandInvokeOperation = defineOperation<z.infer<typeof axCommandInvokeS
   },
 });
 
+// ── ax.reads.list / ax.reads.record (context read instrumentation) ──
+
+const axReadsListShape = {
+  limit: z.unknown().optional().describe('Max reads to return, newest first (default 50, max 500).'),
+};
+const axReadsListSchema = z.looseObject(axReadsListShape);
+
+const axReadsListOperation = defineOperation<z.infer<typeof axReadsListSchema>, Record<string, unknown>>({
+  name: 'ax.reads.list',
+  mutates: false,
+  input: axReadsListSchema,
+  inputShape: axReadsListShape,
+  http: {
+    method: 'GET',
+    path: '/api/canvas/ax/context-reads',
+  },
+  mcp: {
+    toolName: 'canvas_get_context_reads',
+    description:
+      'Read the context read log: which canvas context each agent read, and which pinned nodes were in what it received. Summary is per consumer.',
+    extraShape: {
+      limit: z.number().optional().describe('Max reads to return, newest first (default 50, max 500).'),
+    },
+    formatResult: axJsonResult,
+  },
+  handler: (input) => {
+    const limit = Number(input.limit ?? '');
+    return { ok: true, ...canvasState.getContextReads(Number.isFinite(limit) && limit > 0 ? limit : undefined) };
+  },
+});
+
+const axReadsRecordShape = {
+  channel: z.enum(CONTEXT_READ_CHANNELS).describe('How the read reached the agent.'),
+  resource: z.string().min(1).describe('Resource URI or operation name that was read.'),
+  consumer: z.string().nullable().optional().describe('Reader identity (MCP client name, adapter host).'),
+  agentId: z.string().nullable().optional().describe('Agent id when known.'),
+  source: z.string().optional().describe('Transport label (default "api").'),
+  pinnedNodeIds: z.array(z.string()).optional().describe('Pins at read time; defaults to the current pins.'),
+  deliveredNodeIds: z.array(z.string()).describe('Pinned ids present in what the agent received.'),
+  bytes: z.number().int().nonnegative().describe('Size of what the agent received.'),
+};
+const axReadsRecordSchema = z.object(axReadsRecordShape);
+
+/** For proxies (an MCP server attached to this daemon, host adapters) that record the read the agent made. */
+const axReadsRecordOperation = defineOperation<z.infer<typeof axReadsRecordSchema>, Record<string, unknown>>({
+  name: 'ax.reads.record',
+  mutates: false,
+  input: axReadsRecordSchema,
+  inputShape: axReadsRecordShape,
+  http: {
+    method: 'POST',
+    path: '/api/canvas/ax/context-reads',
+  },
+  handler: (input) => {
+    const read = canvasState.recordContextRead({
+      channel: input.channel,
+      resource: input.resource,
+      source: input.source ?? 'api',
+      consumer: input.consumer ?? null,
+      agentId: input.agentId ?? null,
+      pinnedNodeIds: input.pinnedNodeIds ?? [...canvasState.contextPinnedNodeIds],
+      deliveredNodeIds: input.deliveredNodeIds,
+      bytes: input.bytes,
+    });
+    return { ok: true, read };
+  },
+});
+
 export const axTimelineOperations: Operation[] = [
   axEventRecordOperation,
   axEvidenceAddOperation,
@@ -470,4 +539,6 @@ export const axTimelineOperations: Operation[] = [
   axDeliveryPendingOperation,
   axDeliveryMarkOperation,
   axCommandInvokeOperation,
+  axReadsListOperation,
+  axReadsRecordOperation,
 ];

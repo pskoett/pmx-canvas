@@ -301,13 +301,14 @@ export const compositeToolDefinitions: CompositeToolDefinition[] = [
   {
     toolName: 'canvas_ax_timeline',
     description:
-      'Read or write the bounded PMX AX timeline. Action "read" returns recent agent-events, evidence, and steering messages plus counts (limit); "record-event" records a normalized agent-event (kind prompt|assistant-message|tool-start|tool-result|failure|approval|steering, summary, detail, data); "add-evidence" records an evidence item (kind logs|tool-result|screenshot|file|diff|test-output, title, body, ref); "send-steering" records a steering message (message). Timeline rows persist for diagnostics/continuity but are not restored by snapshots; exposed via canvas://ax-timeline.',
-    actionSummary: 'read | record-event | add-evidence | send-steering',
+      'Read or write the bounded PMX AX timeline. Action "read" returns recent agent-events, evidence, and steering messages plus counts (limit); "record-event" records a normalized agent-event (kind prompt|assistant-message|tool-start|tool-result|failure|approval|steering, summary, detail, data); "add-evidence" records an evidence item (kind logs|tool-result|screenshot|file|diff|test-output, title, body, ref); "send-steering" records a steering message (message); "reads" returns the context read log — which canvas context each agent read and which pinned nodes reached it — with a per-consumer summary (limit). Timeline rows persist for diagnostics/continuity but are not restored by snapshots; exposed via canvas://ax-timeline.',
+    actionSummary: 'read | record-event | add-evidence | send-steering | reads',
     actions: {
       read: 'ax.timeline.get',
       'record-event': 'ax.event.record',
       'add-evidence': 'ax.evidence.add',
       'send-steering': 'ax.steer',
+      reads: 'ax.reads.list',
     },
   },
   {

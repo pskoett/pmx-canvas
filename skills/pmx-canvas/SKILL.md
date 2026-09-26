@@ -193,7 +193,7 @@ always authoritative, independent of the installed release version.
 | `canvas_ax_state` | `get`, `set-focus`, `set-policy`, `report-capability`, `presence`, `set-presence` |
 | `canvas_ax_work` | `add`, `update`, `annotate` |
 | `canvas_ax_gate` | `request`, `resolve`, `await` with `approval`, `elicitation`, or `mode` |
-| `canvas_ax_timeline` | `read`, `record-event`, `add-evidence`, `send-steering` |
+| `canvas_ax_timeline` | `read`, `record-event`, `add-evidence`, `send-steering`, `reads` |
 | `canvas_ax_delivery` | `claim`, `mark` |
 | `canvas_snapshot` | `save`, `list`, `restore`, `delete`, `gc`, `diff` |
 | `canvas_intent` | `signal`, `update`, `clear` |

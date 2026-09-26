@@ -13,6 +13,7 @@ import { humanPresence } from '../human-presence.js';
 import { setMutationActor } from '../mutation-history.js';
 import { agentPresence, describeWrite } from '../agent-presence.js';
 import { checkScopeFence, checkScopeOwnership } from '../scope-fence.js';
+import { CONTEXT_READ_OPS, contextReadFromPayload } from '../context-reads.js';
 import type { PmxAxIntent, PmxAxIntentKind } from '../../shared/ax-intent.js';
 import { OperationError, type Operation, type OperationContext } from './types.js';
 
@@ -208,6 +209,12 @@ export interface ExecuteOperationMeta {
    * to agents only, and batch inner writes are always agent-originated.
    */
   fromWorkbench?: boolean;
+  /**
+   * An MCP server attached to this daemon, or a host adapter, fetching on an
+   * agent's behalf. It records the read the agent actually made itself
+   * (POST /api/canvas/ax/context-reads), so this fetch is not recorded.
+   */
+  proxiedRead?: boolean;
 }
 
 /**
@@ -296,6 +303,8 @@ const PRESENCE_EXEMPT_OPS = new Set([
   'ax.activity.ingest',
   'human.presence.set',
   'human.presence.get',
+  // Recording a context read is instrumentation of a read, not a write.
+  'ax.reads.record',
   // Camera and attention controls are observation/navigation, not edits.
   // They must not create a writer, bump opCount, or refresh an existing one.
   'viewport.set',
@@ -361,7 +370,24 @@ export async function executeOperation(
       : (meta.source ?? 'api');
   setMutationActor(meta.fromWorkbench ? 'human' : 'agent', historyWriter);
   try {
-    return await executeOperationInner(name, rawInput, meta);
+    const result = await executeOperationInner(name, rawInput, meta);
+    if (CONTEXT_READ_OPS.has(name) && !meta.fromWorkbench && !meta.proxiedRead) {
+      const input = asRecord(rawInput);
+      canvasState.recordContextRead(
+        contextReadFromPayload(
+          {
+            channel: 'operation',
+            resource: name,
+            source: meta.source ?? 'api',
+            consumer: isString(input.consumer) && input.consumer.trim() ? input.consumer.trim() : null,
+            agentId: isString(input.agentId) && input.agentId.trim() ? input.agentId.trim() : null,
+            pinnedNodeIds: [...canvasState.contextPinnedNodeIds],
+          },
+          result,
+        ),
+      );
+    }
+    return result;
   } finally {
     setMutationActor(null);
   }

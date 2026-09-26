@@ -682,6 +682,11 @@ export class PmxCanvas extends EventEmitter {
     return canvasState.getAxTimeline(query);
   }
 
+  /** The context read log: which canvas context each agent read and which pinned nodes reached it. */
+  getContextReads(limit?: number): ReturnType<typeof canvasState.getContextReads> {
+    return canvasState.getContextReads(limit);
+  }
+
   listWorkItems(): PmxAxWorkItem[] {
     return canvasState.getWorkItems();
   }

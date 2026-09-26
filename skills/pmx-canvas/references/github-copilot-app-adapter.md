@@ -82,6 +82,9 @@ but only when the **pin/focus gate is open** (`pinned.count > 0 || focus.nodeIds
 it is clipped to a char budget. Read steering from **`delivery.pendingSteering`** (the compact,
 count-bearing block — newest-first, capped at 10), not the full `timeline.pendingSteering`.
 
+Each prompt's injection is recorded in the context read log (`pmx-canvas ax reads`) as
+`copilot:prompt-context`, with delivery computed from the clipped text Copilot actually received.
+
 If native send fails, the adapter leaves the steer unmarked and retries. If marking fails after a
 successful send, the in-process pump retries the mark without sending the prompt twice. A process
 restart establishes a new delivery baseline and marks older unacknowledged rows without replaying

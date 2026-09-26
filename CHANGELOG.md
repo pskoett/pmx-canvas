@@ -5,6 +5,10 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Added
+
+- The canvas now records which context each agent reads and whether your pinned nodes were in it, readable with `pmx-canvas ax reads`, `canvas_ax_timeline { action: "reads" }`, or `GET /api/canvas/ax/context-reads`.
+
 ### Fixed
 
 - A change the server refuses in the browser now shows a toast with the reason instead of failing silently.

@@ -298,6 +298,7 @@ pmx-canvas ax event add --kind tool-start --summary "ran tests"
 pmx-canvas ax steer "focus on the failing test first"
 pmx-canvas ax evidence add --kind test-output --title "unit pass"
 pmx-canvas ax timeline --limit 50
+pmx-canvas ax reads --limit 50   # context read log: which context each agent read, pinned delivery
 
 # Work items (canvas-bound)
 pmx-canvas ax work add --title "Wire up auth" --status in-progress node-1

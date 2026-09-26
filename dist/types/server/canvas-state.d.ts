@@ -14,6 +14,7 @@
 import { type Tour } from '../shared/tour.js';
 import { type PersistedCanvasState, type CanvasTheme, type AxTimelineQuery } from './canvas-db.js';
 import { type PmxAxActivityKind, type PmxAxElicitation, type PmxAxModeRequest, type PmxAxMode, type PmxAxCommandDescriptor, type PmxAxPolicy, type PmxAxFocusState, type PmxAxSource, type PmxAxState, type PmxAxWorkItem, type PmxAxWorkItemStatus, type PmxAxApprovalGate, type PmxAxReviewAnnotation, type PmxAxReviewKind, type PmxAxReviewSeverity, type PmxAxReviewStatus, type PmxAxReviewAnchorType, type PmxAxReviewRegion, type PmxAxEvent, type PmxAxEventKind, type PmxAxEvidence, type PmxAxEvidenceKind, type PmxAxSteeringMessage, type PmxAxHostCapability, type PmxAxTimelineSummary } from './ax-state.js';
+import { type ContextRead, type ContextReadConsumerSummary, type ContextReadInput } from './context-reads.js';
 export declare const PMX_CANVAS_DIR = ".pmx-canvas";
 export interface PersistedBlobRef {
     __pmxCanvasBlob: 'v1';
@@ -476,6 +477,12 @@ declare class CanvasStateManager {
     }): PmxAxSteeringMessage[];
     getPendingSteeringCount(consumer?: string): number;
     getAxTimelineSummary(): PmxAxTimelineSummary;
+    /** Records one agent context read (diagnostics; never notifies, so a read cannot trigger reads). */
+    recordContextRead(input: ContextReadInput): ContextRead | null;
+    getContextReads(limit?: number): {
+        reads: ContextRead[];
+        summary: ContextReadConsumerSummary[];
+    };
     getAxTimeline(q?: AxTimelineQuery): {
         events: PmxAxEvent[];
         evidence: PmxAxEvidence[];

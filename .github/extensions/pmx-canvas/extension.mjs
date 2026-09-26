@@ -418,14 +418,44 @@ async function startPanelServer(instanceId, ctx, pmx) {
     return { server, url: `http://127.0.0.1:${port}/`, entry };
 }
 
-async function getAxContext(baseUrl, workspaceRoot, input = {}) {
+async function getAxContext(baseUrl, workspaceRoot, input = {}, options = {}) {
     const resolved = baseUrl
         ? { ok: true, baseUrl }
         : await resolvePmxServer({ input, session: { workingDirectory: workspaceRoot } }, { autoStart: false });
     if (!resolved.ok || !resolved.baseUrl) {
         return { ok: false, error: resolved.error ?? "PMX Canvas server is unavailable." };
     }
-    return await fetchJson(resolved.baseUrl, "/api/canvas/ax/context", { timeoutMs: 2_000 });
+    // A proxied read is one this extension records itself with what it actually
+    // injected (after truncation), so the server does not record it again.
+    const headers = { "x-pmx-source": "copilot", ...(options.proxied ? { "x-pmx-proxied-read": "1" } : {}) };
+    return await fetchJson(resolved.baseUrl, "/api/canvas/ax/context", { headers, timeoutMs: 2_000 });
+}
+
+/** Records what the per-prompt hook injected, so delivery is measured on what Copilot received. */
+async function recordInjectedContext(baseUrl, context, injected) {
+    const pinnedNodeIds = Array.isArray(context?.pinned?.nodeIds) ? context.pinned.nodeIds : [];
+    const text = injected ?? "";
+    try {
+        await fetchJson(baseUrl, "/api/canvas/ax/context-reads", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", "x-pmx-source": "copilot" },
+            body: JSON.stringify({
+                channel: "adapter",
+                resource: "copilot:prompt-context",
+                source: "copilot",
+                consumer: "copilot",
+                pinnedNodeIds,
+                // Same rule as the server (context-reads.ts): a node object with that id, not a bare id list.
+                deliveredNodeIds: pinnedNodeIds.filter((id) =>
+                    new RegExp(`"id"\\s*:\\s*${JSON.stringify(id).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`).test(text),
+                ),
+                bytes: Buffer.byteLength(text, "utf-8"),
+            }),
+            timeoutMs: 1_500,
+        });
+    } catch {
+        // Instrumentation must never block the prompt.
+    }
 }
 
 async function getAxStatus(ctx) {
@@ -860,8 +890,9 @@ copilotSession = await joinSession({
             void postPresence(workspaceRoot, { attached: true, phase: "thinking", detail: null });
             const resolved = await resolvePmxServer({ input: {}, session: { workingDirectory: workspaceRoot } }, { autoStart: false });
             if (!resolved.ok || !resolved.baseUrl) return undefined;
-            const context = await getAxContext(resolved.baseUrl, workspaceRoot, {});
+            const context = await getAxContext(resolved.baseUrl, workspaceRoot, {}, { proxied: true });
             const additionalContext = formatAdditionalContext(context, resolved.baseUrl);
+            void recordInjectedContext(resolved.baseUrl, context, additionalContext);
             return additionalContext ? { additionalContext } : undefined;
         },
     },

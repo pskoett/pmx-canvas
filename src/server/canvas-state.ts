@@ -74,6 +74,13 @@ import {
   type PmxAxTimelineSummary,
 } from './ax-state.js';
 import { AxStateManager } from './ax-state-manager.js';
+import {
+  appendContextReadToDB,
+  loadContextReadsFromDB,
+  type ContextRead,
+  type ContextReadConsumerSummary,
+  type ContextReadInput,
+} from './context-reads.js';
 
 function logCanvasStateWarning(action: string, error: unknown, details?: Record<string, unknown>): void {
   console.warn(`[canvas-state] ${action}`, { error, ...(details ?? {}) });
@@ -2130,6 +2137,21 @@ class CanvasStateManager {
 
   getAxTimelineSummary(): PmxAxTimelineSummary {
     return this.ax.getAxTimelineSummary();
+  }
+
+  /** Records one agent context read (diagnostics; never notifies, so a read cannot trigger reads). */
+  recordContextRead(input: ContextReadInput): ContextRead | null {
+    if (!this._db) return null;
+    try {
+      return appendContextReadToDB(this._db, input);
+    } catch (error) {
+      logCanvasStateWarning('record context read failed', error);
+      return null;
+    }
+  }
+
+  getContextReads(limit?: number): { reads: ContextRead[]; summary: ContextReadConsumerSummary[] } {
+    return this._db ? loadContextReadsFromDB(this._db, limit) : { reads: [], summary: [] };
   }
 
   getAxTimeline(q: AxTimelineQuery = {}): {

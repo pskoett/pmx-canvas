@@ -97,6 +97,7 @@ export async function dispatchOperationRoute(req: Request, url: URL): Promise<Re
         suppressAutoGhost: fromWorkbench,
         fromWorkbench,
         source,
+        proxiedRead: req.headers.get('x-pmx-proxied-read') === '1',
       });
       return responseJson(result, route.status ? route.status(result) : 200);
     } catch (error) {
