@@ -1,4 +1,5 @@
 import { canvasArea } from '../canvas/canvas-area';
+import { showToast } from './attention-bridge';
 import type { AgentPresenceSnapshot } from '../../shared/agent-presence.js';
 function logRequestError(action: string, error: unknown): void {
   console.error(`[intent-bridge] ${action} failed`, error);
@@ -35,10 +36,32 @@ function withWorkbenchMarker(init?: RequestInit): RequestInit {
   return { ...init, headers };
 }
 
+/**
+ * A write the server refused (fence, edit lock, validation) must not fail
+ * silently: the human sees the server's reason. Reads stay quiet.
+ */
+function reportRefusedWrite(res: Response, init: RequestInit | undefined, body: unknown): void {
+  if (res.ok || (init?.method ?? 'GET').toUpperCase() === 'GET') return;
+  const error =
+    body !== null && typeof body === 'object' && 'error' in body && typeof body.error === 'string' ? body.error : '';
+  showToast('remove', 'Change refused', error || `The server answered ${res.status}.`);
+}
+
+async function readJsonBody(res: Response): Promise<unknown> {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
+
 export async function requestJson<T>(action: string, url: string, fallback: T, init?: RequestInit): Promise<T> {
   try {
     const res = await fetch(url, withWorkbenchMarker(init));
-    return (await res.json()) as T;
+    const body = await readJsonBody(res);
+    reportRefusedWrite(res, init, body);
+    if (body === null) throw new Error(`${res.status} response had no JSON body`);
+    return body as T;
   } catch (error) {
     logRequestError(action, error);
     return fallback;
@@ -48,6 +71,7 @@ export async function requestJson<T>(action: string, url: string, fallback: T, i
 export async function requestOk(action: string, url: string, init?: RequestInit): Promise<{ ok: boolean }> {
   try {
     const res = await fetch(url, withWorkbenchMarker(init));
+    if (!res.ok) reportRefusedWrite(res, init, await readJsonBody(res));
     return { ok: res.ok };
   } catch (error) {
     logRequestError(action, error);
@@ -57,7 +81,8 @@ export async function requestOk(action: string, url: string, init?: RequestInit)
 
 export async function requestBestEffort(action: string, url: string, init?: RequestInit): Promise<void> {
   try {
-    await fetch(url, withWorkbenchMarker(init));
+    const res = await fetch(url, withWorkbenchMarker(init));
+    if (!res.ok) reportRefusedWrite(res, init, await readJsonBody(res));
   } catch (error) {
     logRequestError(action, error);
   }

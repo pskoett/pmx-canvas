@@ -5,6 +5,11 @@ All notable changes to `pmx-canvas` are documented here. This project follows
 
 ## [Unreleased]
 
+### Fixed
+
+- A change the server refuses in the browser now shows a toast with the reason instead of failing silently.
+- Webpage nodes refuse redirects that move a public page onto a private or loopback address, and never fetch link-local (cloud metadata) addresses.
+
 ### Internal
 
 - The e2e gate now checks that every node type paints in a 600 px Chromium pane, the width of the agent-host panels the workbench lives in.

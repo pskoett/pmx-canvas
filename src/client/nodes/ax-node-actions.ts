@@ -19,11 +19,8 @@ export async function runNodeAxInteraction(
     sourceSurface: 'native-node',
     ...(payload ? { payload } : {}),
   });
-  if (res.ok) {
-    showToast('context', successTitle, '', [node.id]);
-  } else {
-    showToast('remove', 'AX action failed', res.error ?? res.code ?? 'Unknown error', [node.id]);
-  }
+  // A refusal is toasted by the bridge with the server's reason.
+  if (res.ok) showToast('context', successTitle, '', [node.id]);
 }
 
 /** Shared style for the small inline AX action button on native nodes. */

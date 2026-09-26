@@ -50,8 +50,8 @@ export function useAxSurfaceBridge(options: {
           ? { payload: interaction.payload as Record<string, unknown> }
           : {}),
       }).then((res) => {
+        // A refusal is toasted by the bridge with the server's reason.
         if (res.ok) showToast('context', 'AX interaction', interactionType, [nodeId]);
-        else showToast('remove', 'AX interaction rejected', res.error ?? res.code ?? '', [nodeId]);
         iframeRef.current?.contentWindow?.postMessage(
           {
             source: AX_SURFACE_ACK_SOURCE,

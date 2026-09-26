@@ -1,7 +1,11 @@
+import { lookup } from 'node:dns/promises';
+import { isIP } from 'node:net';
+
 const FETCH_TIMEOUT_MS = 10000;
 const MAX_HTML_LENGTH = 1_000_000;
 const MAX_TEXT_LENGTH = 50_000;
 const EXCERPT_LENGTH = 420;
+const MAX_REDIRECTS = 5;
 
 export const WEBPAGE_NODE_DEFAULT_SIZE = {
   width: 520,
@@ -236,23 +240,83 @@ export function summarizeWebpageContent(data: Record<string, unknown>, maxLength
   return parts.join('\n').trim();
 }
 
+export type AddressScope = 'public' | 'private' | 'link-local';
+
+/**
+ * Where an IP literal points. `private` covers loopback, RFC 1918, CGNAT and
+ * IPv6 ULA; `link-local` is kept apart because it holds cloud metadata
+ * (169.254.169.254) and is refused on every hop.
+ */
+export function classifyAddress(address: string): AddressScope {
+  const ip = address.toLowerCase().replace(/^\[|\]$/g, '');
+  const mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped) return classifyAddress(mapped[1]);
+  if (isIP(ip) === 4) {
+    const [a, b] = ip.split('.').map(Number);
+    if (a === 169 && b === 254) return 'link-local';
+    if (a === 127 || a === 10 || a === 0) return 'private';
+    if (a === 172 && b >= 16 && b <= 31) return 'private';
+    if (a === 192 && b === 168) return 'private';
+    if (a === 100 && b >= 64 && b <= 127) return 'private';
+    return 'public';
+  }
+  if (/^fe[89ab]/.test(ip)) return 'link-local';
+  if (ip === '::1' || ip === '::' || /^f[cd]/.test(ip)) return 'private';
+  return 'public';
+}
+
+/** The narrowest scope any of the host's addresses reaches. */
+async function resolveHostScope(url: URL): Promise<AddressScope> {
+  const host = url.hostname.replace(/^\[|\]$/g, '');
+  const addresses = isIP(host) ? [host] : (await lookup(host, { all: true })).map((entry) => entry.address);
+  const scopes = addresses.map(classifyAddress);
+  if (scopes.includes('link-local')) return 'link-local';
+  return scopes.includes('private') ? 'private' : 'public';
+}
+
+/**
+ * Refuses link-local on every hop, and a redirect that moves a public fetch
+ * onto a loopback or private address. A URL the caller points at a local dev
+ * server on purpose still loads, and may redirect within the local network.
+ */
+export function checkWebpageHop(originScope: AddressScope, hopScope: AddressScope, hopUrl: string): void {
+  if (hopScope === 'link-local') {
+    throw new WebpageFetchError(`Refused to fetch ${hopUrl}: link-local addresses are not allowed.`);
+  }
+  if (originScope === 'public' && hopScope === 'private') {
+    throw new WebpageFetchError(`Refused redirect to ${hopUrl}: a public page may not redirect to a private address.`);
+  }
+}
+
 export async function fetchWebpageSnapshot(inputUrl: string): Promise<WebpageSnapshot> {
   const url = normalizeWebpageUrl(inputUrl);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   try {
-    const response = await fetch(url, {
-      redirect: 'follow',
-      signal: controller.signal,
-      headers: {
-        Accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1',
-        'User-Agent': 'pmx-canvas webpage node',
-      },
-    });
+    // Redirects are followed by hand so every hop's host is checked before it is fetched.
+    const originScope = await resolveHostScope(new URL(url));
+    let hopUrl = url;
+    let response: Response;
+    for (let hop = 0; ; hop++) {
+      checkWebpageHop(originScope, hop === 0 ? originScope : await resolveHostScope(new URL(hopUrl)), hopUrl);
+      response = await fetch(hopUrl, {
+        redirect: 'manual',
+        signal: controller.signal,
+        headers: {
+          Accept: 'text/html,application/xhtml+xml,text/plain;q=0.9,*/*;q=0.1',
+          'User-Agent': 'pmx-canvas webpage node',
+        },
+      });
+      const location = response.headers.get('location');
+      if (response.status < 300 || response.status >= 400 || !location) break;
+      if (hop === MAX_REDIRECTS) throw new WebpageFetchError(`Too many redirects while fetching ${url}.`);
+      await response.body?.cancel();
+      hopUrl = normalizeWebpageUrl(new URL(location, hopUrl).toString());
+    }
 
     const contentType = response.headers.get('content-type');
-    const responseUrl = normalizeWebpageUrl(response.url || url);
+    const responseUrl = hopUrl;
     const body = (await response.text()).slice(0, MAX_HTML_LENGTH);
 
     if (!response.ok) {
