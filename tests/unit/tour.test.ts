@@ -12,6 +12,7 @@ import {
 } from '../../src/shared/tour.js';
 import { parseRecordOptions } from '../../src/cli/commands/record.js';
 import { canvasState } from '../../src/server/canvas-state.js';
+import { saveCanvasSnapshotWithReuse } from '../../src/server/canvas-operations.js';
 import { createTestWorkspace, resetCanvasForTests, removeTestWorkspace, getAvailablePort } from './helpers.js';
 
 describe('board tour', () => {
@@ -110,8 +111,13 @@ describe('board tour', () => {
       canvasState.flushToDisk();
       expect(canvasState.loadFromDisk({ clearExisting: true })).toBe(true);
       expect(canvasState.getTour()).toEqual(tour);
-      const snapshot = canvasState.saveSnapshot('tour');
+      const snapshot = saveCanvasSnapshotWithReuse('tour').snapshot;
       expect(snapshot).not.toBeNull();
+      expect(saveCanvasSnapshotWithReuse('unchanged').reused).toBe(true);
+      canvasState.setTour({ stops: [] });
+      const changed = saveCanvasSnapshotWithReuse('changed tour');
+      expect(changed.reused).toBe(false);
+      expect(changed.snapshot?.id).not.toBe(snapshot!.id);
       canvasState.clear();
       expect(canvasState.getTour()).toBeUndefined();
       expect(canvasState.restoreSnapshot(snapshot!.id)).toBe(true);

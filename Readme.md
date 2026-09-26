@@ -378,7 +378,7 @@ services:
 ```bash
 # .agents/setup — install the CLI (pin the exact version: a fresh orb running
 # @latest can silently pick up a newer release than the one you validated)
-npm install -g pmx-canvas@0.6.4
+npm install -g pmx-canvas@0.6.5
 ```
 
 The server binds the portal-assigned `$PORT` automatically (gated on the

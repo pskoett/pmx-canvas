@@ -3852,11 +3852,14 @@ test('ghost intents are interactive, reconnect-safe, vetoable, and settle into l
   page,
   request,
 }) => {
+  const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  const vetoId = `e2e-veto-${suffix}`;
+  const settleId = `e2e-settle-${suffix}`;
   await page.goto('/workbench');
 
   await request.post('/api/canvas/ax/intent', {
     data: {
-      id: 'e2e-veto-intent',
+      id: vetoId,
       kind: 'create',
       position: { x: 160, y: 140 },
       nodeType: 'markdown',
@@ -3866,7 +3869,7 @@ test('ghost intents are interactive, reconnect-safe, vetoable, and settle into l
     },
   });
 
-  const vetoGhost = page.locator('[data-intent-id="e2e-veto-intent"]');
+  const vetoGhost = page.locator(`[data-intent-id="${vetoId}"]`);
   const vetoButton = vetoGhost.getByRole('button', { name: 'Veto this move' });
   await expect(vetoButton).toBeVisible();
   expect(
@@ -3891,7 +3894,7 @@ test('ghost intents are interactive, reconnect-safe, vetoable, and settle into l
 
   const blockedMutation = await request.post('/api/canvas/node', {
     data: {
-      intentId: 'e2e-veto-intent',
+      intentId: vetoId,
       type: 'markdown',
       title: 'Must not exist',
     },
@@ -3899,12 +3902,12 @@ test('ghost intents are interactive, reconnect-safe, vetoable, and settle into l
   expect(blockedMutation.status()).toBe(409);
   expect(await blockedMutation.json()).toMatchObject({
     ok: false,
-    error: 'Intent "e2e-veto-intent" was vetoed.',
+    error: `Intent "${vetoId}" was vetoed.`,
   });
 
   await request.post('/api/canvas/ax/intent', {
     data: {
-      id: 'e2e-settle-intent',
+      id: settleId,
       kind: 'create',
       position: { x: 100, y: 100 },
       nodeType: 'markdown',
@@ -3912,14 +3915,14 @@ test('ghost intents are interactive, reconnect-safe, vetoable, and settle into l
       ttlMs: 60_000,
     },
   });
-  const settleGhost = page.locator('[data-intent-id="e2e-settle-intent"]');
+  const settleGhost = page.locator(`[data-intent-id="${settleId}"]`);
   await expect(settleGhost).toBeVisible();
 
   await page.reload();
   await expect(settleGhost).toBeVisible();
 
   const settleObservation = page.evaluate(
-    () =>
+    (settleId) =>
       new Promise<{
         positionDelta: number;
         sizeDelta: number;
@@ -3928,7 +3931,7 @@ test('ghost intents are interactive, reconnect-safe, vetoable, and settle into l
         let bestSizeDelta = Number.POSITIVE_INFINITY;
         const startedAt = Date.now();
         const sample = () => {
-          const ghost = document.querySelector('[data-intent-id="e2e-settle-intent"].is-settling');
+          const ghost = document.querySelector(`[data-intent-id="${settleId}"].is-settling`);
           const node = Array.from(document.querySelectorAll('.canvas-node')).find(
             (candidate) => candidate.querySelector('.node-title')?.textContent === 'Settled through intent',
           );
@@ -3953,11 +3956,12 @@ test('ghost intents are interactive, reconnect-safe, vetoable, and settle into l
         };
         requestAnimationFrame(sample);
       }),
+    settleId,
   );
 
   const committed = await request.post('/api/canvas/node', {
     data: {
-      intentId: 'e2e-settle-intent',
+      intentId: settleId,
       type: 'markdown',
       title: 'Settled through intent',
       content: 'The ghost should morph here.',
@@ -5571,7 +5575,7 @@ test('external steering: indicator + activity feed + writers sheet for session-l
   await expect(sheet.locator('.writers-row', { hasText: 'claude-code' }).locator('.writers-meta')).toHaveText(
     /^wrote (now|\d+s) ago$/,
   );
-  await expect(sheet.locator('.writers-row', { hasText: 'api' })).toHaveCount(1);
+  await expect(sheet.locator('.writers-name').filter({ hasText: /^api$/ })).toHaveCount(1);
   await page.keyboard.press('Escape');
   await expect(sheet).toHaveCount(0);
   await expect(feed).toBeVisible();

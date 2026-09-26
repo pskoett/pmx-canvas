@@ -1,6 +1,6 @@
 import { useEffect } from 'preact/hooks';
 import { nodes } from '../state/canvas-store';
-import { hoveredIntentId, intents, type ClientIntent } from '../state/intent-store';
+import { hoveredIntentId, intents, removeIntent, type ClientIntent } from '../state/intent-store';
 import { vetoGhostIntent } from '../state/intent-bridge';
 import { getNodeIcon } from '../icons';
 import { TYPE_LABELS } from '../types';
@@ -241,7 +241,14 @@ export function IntentLayer() {
   if (list.length === 0) return null;
 
   return (
-    <div class="intent-layer">
+    <div
+      class="intent-layer"
+      onAnimationEnd={(event) => {
+        if (event.animationName !== 'intent-settle' && event.animationName !== 'intent-dissolve') return;
+        const id = (event.target as HTMLElement).dataset.intentId;
+        if (id && intents.value.get(id)?.phase !== 'forming') removeIntent(id);
+      }}
+    >
       <svg
         class="intent-line-layer"
         style={{

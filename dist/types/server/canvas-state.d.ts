@@ -239,6 +239,7 @@ declare class CanvasStateManager {
         nodes: CanvasNodeState[];
         edges: CanvasEdge[];
         annotations: CanvasAnnotation[];
+        tour?: Tour;
     } | null;
     /** Delete a snapshot. */
     renameSnapshot(id: string, name: string): boolean;

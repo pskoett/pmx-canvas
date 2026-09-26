@@ -35,6 +35,10 @@ describe('intent minimum dwell', () => {
     await new Promise((r) => setTimeout(r, MIN_FORMING_MS + 120));
     expect(intents.value.get('dwell-1')?.phase).toBe('settling');
     expect(intents.value.get('dwell-1')?.settledNodeId).toBe('node-real');
+    // A slow renderer may not have finished its CSS animation after 480ms.
+    // Only animationend (or the longer hidden-tab backstop) may remove it.
+    await new Promise((r) => setTimeout(r, 450));
+    expect(intents.value.get('dwell-1')?.phase).toBe('settling');
   });
 
   test('a dissolve after the floor has already passed plays immediately', async () => {

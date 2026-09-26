@@ -3,6 +3,25 @@
 All notable changes to `pmx-canvas` are documented here. This project follows
 [Semantic Versioning](https://semver.org/).
 
+## [0.6.5] - 2026-09-26
+
+### Added
+
+- Present saved board tours or derive stops from groups, with keyboard navigation and optional local PNG/MP4 capture using the same camera path.
+- Creation responses report requested and applied sizes, including group fitting, across HTTP, MCP, and batches.
+- JSON-render warns when unbound form values would be ignored.
+
+### Fixed
+
+- Workboards use equal-width columns across narrow and wide frames.
+- Embedded HTML and JSON-render updates keep the previous frame visible until the replacement is ready.
+- Explicitly empty HTML primitive fields omit their sections instead of inserting example content.
+- Mermaid diagrams fit overflowing content without enlarging small diagrams; authored sizes and optional natural scrolling are preserved.
+- Titlebar clicks select nodes without adding a selection after a drag.
+- Detached agents expire promptly, workers roll up under their parent, and camera operations no longer claim writer activity.
+- Unchanged and worker sessions do not replace useful receipts or reopen the panel.
+- Ghosts finish their rendered settle animation before removal, and tour-only changes create distinct snapshots.
+
 ## [0.6.4] - 2026-09-24
 
 ### Added

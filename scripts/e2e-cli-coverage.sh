@@ -482,7 +482,7 @@ const { chromium } = await import(process.env.PLAYWRIGHT_MODULE);
 const baseUrl = process.env.PMX_CANVAS_URL;
 const controlNodeId = process.env.CONTROL_NODE_ID;
 if (!baseUrl || !controlNodeId) throw new Error('Missing artifact verification environment.');
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: process.env.PMX_E2E_HEADED !== '1' });
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
   await page.goto(`${baseUrl}/workbench`);

@@ -4,7 +4,7 @@ Use this reference when the `pmx-canvas` skill is installed but the `pmx-canvas`
 
 ## Prerequisites and version
 
-The examples pin **PMX Canvas 0.6.4**, which requires **Bun >=1.4.2** even when
+The examples pin **PMX Canvas 0.6.5**, which requires **Bun >=1.4.2** even when
 installed through npm: the CLI runs through Bun, not Node. Check `bun --version`
 first. If missing or older, follow the [Bun installation instructions](https://bun.sh/docs/installation)
 with the user's authorization. Ensure Bun is on the MCP host's PATH as well as the
@@ -17,11 +17,11 @@ in `SKILL.md`. Do not pair newer checkout guidance with an older runtime unknowi
 ## Install from npm
 
 ```bash
-npm install -g pmx-canvas@0.6.4
+npm install -g pmx-canvas@0.6.5
 pmx-canvas --version
 ```
 
-Without a global install, use `bunx pmx-canvas@0.6.4` in place of `pmx-canvas` in
+Without a global install, use `bunx pmx-canvas@0.6.5` in place of `pmx-canvas` in
 the commands below. Do not use unpinned `bunx pmx-canvas` for a version-specific check.
 
 ## Choose the workspace and target
@@ -91,7 +91,7 @@ discards empty env values, remove `PMX_CANVAS_URL` from its launch environment i
   "mcpServers": {
     "canvas": {
       "command": "bunx",
-      "args": ["pmx-canvas@0.6.4", "--mcp"],
+      "args": ["pmx-canvas@0.6.5", "--mcp"],
       "env": {
         "PMX_CANVAS_WORKSPACE_ROOT": "/absolute/path/to/project",
         "PMX_CANVAS_PORT": "14313",

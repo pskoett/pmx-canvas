@@ -1240,9 +1240,13 @@ class CanvasStateManager {
   }
 
   /** Read a snapshot's data without restoring it (for diff). Resolves by ID or name. */
-  getSnapshotData(
-    idOrName: string,
-  ): { name: string; nodes: CanvasNodeState[]; edges: CanvasEdge[]; annotations: CanvasAnnotation[] } | null {
+  getSnapshotData(idOrName: string): {
+    name: string;
+    nodes: CanvasNodeState[];
+    edges: CanvasEdge[];
+    annotations: CanvasAnnotation[];
+    tour?: Tour;
+  } | null {
     const resolved = this.readResolvedSnapshot(idOrName);
     if (!resolved) return null;
     const state = {
@@ -1253,6 +1257,7 @@ class CanvasStateManager {
     };
     return {
       name: resolved.snapshot.name,
+      ...(state.tour ? { tour: structuredClone(state.tour) } : {}),
       nodes: Array.isArray(state.nodes) ? state.nodes.map((node) => structuredClone(node)) : [],
       edges: Array.isArray(state.edges) ? state.edges.map((edge) => structuredClone(edge)) : [],
       annotations: Array.isArray(state.annotations)

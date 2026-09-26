@@ -1,7 +1,22 @@
-import { test, expect, chromium } from '@playwright/test';
+import { test, expect, chromium, type TestInfo } from '@playwright/test';
 import { spawn } from 'node:child_process';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
+
+async function recordingChrome(testInfo: TestInfo): Promise<string> {
+  if (process.platform !== 'linux') return chromium.executablePath();
+  // Bun launches Chrome directly, without Playwright's default --no-sandbox.
+  // Ubuntu CI restricts user namespaces for downloaded browser binaries. Keep
+  // this test-only launch policy out of the product's secure Chrome defaults.
+  const wrapper = testInfo.outputPath('recording-chrome.sh');
+  const quote = (value: string) => `'${value.replaceAll("'", "'\\''")}'`;
+  await writeFile(
+    wrapper,
+    `#!/bin/sh\nexec ${quote(chromium.executablePath())} --no-sandbox "$@" 2>${quote(testInfo.outputPath('recording-chrome.log'))}\n`,
+    { mode: 0o755 },
+  );
+  return wrapper;
+}
 
 test('realtime recording sees concurrent edits and finalizes on SIGTERM', async ({ request }, testInfo) => {
   test.setTimeout(60_000);
@@ -27,7 +42,7 @@ test('realtime recording sees concurrent edits and finalizes on SIGTERM', async 
       '--output',
       frames,
       '--chrome-path',
-      chromium.executablePath(),
+      await recordingChrome(testInfo),
     ],
     { stdio: ['ignore', 'pipe', 'pipe'] },
   );
@@ -44,7 +59,13 @@ test('realtime recording sees concurrent edits and finalizes on SIGTERM', async 
   });
   try {
     await expect
-      .poll(async () => (await readdir(frames).catch(() => [])).filter((n) => n.endsWith('.png')).length)
+      .poll(
+        async () => {
+          if (child.exitCode !== null) throw new Error(`Recording exited ${child.exitCode}: ${log}`);
+          return (await readdir(frames).catch(() => [])).filter((n) => n.endsWith('.png')).length;
+        },
+        { timeout: 30_000 },
+      )
       .toBeGreaterThan(1);
     const before = await readFile(join(frames, 'frame-000000.png'));
     expect(
@@ -186,7 +207,7 @@ test('tour framing, keyboard exit, painted frames and CLI recording', async ({ p
     '--output',
     frames,
     '--chrome-path',
-    chromium.executablePath(),
+    await recordingChrome(testInfo),
   ];
   const child = spawn('bun', args, { stdio: ['ignore', 'pipe', 'pipe'] });
   let log = '';

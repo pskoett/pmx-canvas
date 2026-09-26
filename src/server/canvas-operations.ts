@@ -1446,7 +1446,8 @@ export function saveCanvasSnapshotWithReuse(name: string): { snapshot: CanvasSna
         diff.removedNodes.length === 0 &&
         diff.modifiedNodes.length === 0 &&
         diff.addedEdges.length === 0 &&
-        diff.removedEdges.length === 0;
+        diff.removedEdges.length === 0 &&
+        JSON.stringify(newestData.tour) === JSON.stringify(canvasState.getTour());
       if (identical) return { snapshot: newest, reused: true };
     }
   }

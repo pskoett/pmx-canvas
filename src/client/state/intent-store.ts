@@ -83,9 +83,13 @@ function setPhase(id: string, phase: IntentPhase, ms: number, settledNodeId?: st
   next.set(id, { ...current, phase, ...(settledNodeId ? { settledNodeId } : {}) });
   writeIntents(next);
   clearExitTimer(id);
+  // The layer removes ghosts on animationend, after the browser actually paints
+  // the morph. A wall-clock deadline equal to the CSS duration can delete a
+  // ghost before its delayed first paint or transition completes on a busy tab.
+  // Retain a backstop for hidden tabs or disabled animations.
   exitTimers.set(
     id,
-    setTimeout(() => removeIntent(id), ms),
+    setTimeout(() => removeIntent(id), ms + 1500),
   );
 }
 

@@ -26,7 +26,7 @@ There is no separate recording model. See `docs/cli.md` for the full tour model.
 
 ## Runtime prerequisites
 
-PMX Canvas 0.6.4 requires **Bun >=1.4.2**, including when installed through npm.
+PMX Canvas 0.6.5 requires **Bun >=1.4.2**, including when installed through npm.
 Check `bun --version` and ensure Bun is on the MCP host's PATH, not just your shell's;
 use an absolute executable path if needed. Install/configure only when requested.
 For pinned installation, MCP configuration, managed services, and disposable verification,
@@ -186,7 +186,7 @@ always authoritative, independent of the installed release version.
 | `canvas_edge` | `add`, `update`, `remove` |
 | `canvas_group` | `create`, `add`, `ungroup` |
 | `canvas_history` | `undo`, `redo` |
-| `canvas_view` | `arrange`, `focus`, `fit`, `clear`, `remove-annotation` |
+| `canvas_view` | `arrange`, `focus`, `fit`, `clear`, `remove-annotation`, `get-tour`, `set-tour` |
 | `canvas_query` | `search`, `layout`, `validate` |
 | `canvas_webview` | `status`, `start`, `stop`, `resize`, `evaluate` |
 | `canvas_app` | `open-mcp-app`, `diagram`, `build-artifact` |
